@@ -59,13 +59,19 @@ export default function HomePage() {
 
       {/* NAV */}
       <nav style={{ background: '#010103', padding: '0 48px', height: '64px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', position: 'sticky', top: 0, zIndex: 50 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-          <div style={{ width: '32px', height: '32px', background: '#00A5A3', borderRadius: '9px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <svg width="16" height="16" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+          <div style={{ background: 'white', borderRadius: '10px', padding: '4px 10px', display: 'flex', alignItems: 'center' }}>
+            <img src="/trescon-logo.png" alt="Trescon" style={{ height: '32px', width: 'auto', display: 'block' }} />
           </div>
-          <div>
-            <div style={{ fontSize: '15px', fontWeight: 900, color: 'white', letterSpacing: '0.5px', lineHeight: 1.1 }}>TAOS</div>
-            <div style={{ fontSize: '10px', fontWeight: 600, color: 'rgba(255,255,255,0.35)', letterSpacing: '0.5px', lineHeight: 1 }}>Trescon AI Operating System</div>
+          <div style={{ width: '1px', height: '28px', background: 'rgba(255,255,255,0.12)' }} />
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <div style={{ width: '28px', height: '28px', background: '#00A5A3', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <svg width="14" height="14" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+            </div>
+            <div>
+              <div style={{ fontSize: '15px', fontWeight: 900, color: 'white', letterSpacing: '0.5px', lineHeight: 1.1 }}>TAOS</div>
+              <div style={{ fontSize: '10px', fontWeight: 600, color: 'rgba(255,255,255,0.35)', letterSpacing: '0.5px', lineHeight: 1 }}>Trescon AI Operating System</div>
+            </div>
           </div>
         </div>
         <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
@@ -315,6 +321,11 @@ export default function HomePage() {
           </Link>
           <div style={{ marginTop: '20px', fontSize: '12px', color: 'rgba(255,255,255,0.25)' }}>
             {TOTAL_STAFF} people · 4 offices · 1 operating system
+          </div>
+          <div style={{ marginTop: '40px', display: 'flex', justifyContent: 'center' }}>
+            <div style={{ background: 'white', borderRadius: '14px', padding: '10px 20px', display: 'inline-flex', alignItems: 'center' }}>
+              <img src="/trescon-logo.png" alt="Trescon" style={{ height: '40px', width: 'auto', display: 'block' }} />
+            </div>
           </div>
         </div>
       </div>
