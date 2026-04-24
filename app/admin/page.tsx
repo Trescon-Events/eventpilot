@@ -123,6 +123,62 @@ export default function AdminPage() {
   for (const t of tasks) for (const tool of (t.tools_used ?? [])) toolCount[tool] = (toolCount[tool] ?? 0) + 1
   const topTools = Object.entries(toolCount).sort((a, b) => b[1] - a[1]).slice(0, 8)
 
+  /* ── AI readiness per office ── */
+  const officeReadiness: Record<string, number[]> = {}
+  for (const t of tasks) {
+    if (!t.ai_readiness) continue
+    const m = memberIndex[t.staff_id]
+    if (!m) continue
+    if (!officeReadiness[m.office_id]) officeReadiness[m.office_id] = []
+    officeReadiness[m.office_id].push(t.ai_readiness)
+  }
+  const officeScores = OFFICES.map(o => {
+    const scores = officeReadiness[o.id] ?? []
+    const avg    = scores.length ? scores.reduce((a, b) => a + b, 0) / scores.length : null
+    return { ...o, avg, count: scores.length }
+  }).filter(o => o.avg !== null).sort((a, b) => (b.avg ?? 0) - (a.avg ?? 0))
+
+  /* ── AI readiness per department ── */
+  const deptReadiness: Record<string, number[]> = {}
+  for (const t of tasks) {
+    if (!t.ai_readiness) continue
+    const m = memberIndex[t.staff_id]
+    if (!m) continue
+    const dept = m.department ?? 'Other'
+    if (!deptReadiness[dept]) deptReadiness[dept] = []
+    deptReadiness[dept].push(t.ai_readiness)
+  }
+  const deptScores = Object.entries(deptReadiness).map(([dept, scores]) => ({
+    dept,
+    avg: scores.reduce((a, b) => a + b, 0) / scores.length,
+    count: scores.length,
+  })).sort((a, b) => b.avg - a.avg)
+
+  /* ── Top individuals (highest avg readiness) ── */
+  const memberReadiness: Record<string, number[]> = {}
+  for (const t of tasks) {
+    if (!t.ai_readiness) continue
+    if (!memberReadiness[t.staff_id]) memberReadiness[t.staff_id] = []
+    memberReadiness[t.staff_id].push(t.ai_readiness)
+  }
+  const topIndividuals = Object.entries(memberReadiness)
+    .map(([id, scores]) => {
+      const m   = memberIndex[id]
+      const avg = scores.reduce((a, b) => a + b, 0) / scores.length
+      return { id, name: m?.name ?? 'Unknown', office: m?.office_id ?? '', dept: m?.department ?? '—', avg }
+    })
+    .sort((a, b) => b.avg - a.avg)
+    .slice(0, 8)
+
+  /* ── Score → label + color ── */
+  function scoreLabel(avg: number) {
+    if (avg >= 4.5) return { label: 'AI Champion', color: '#C0F43C' }
+    if (avg >= 3.5) return { label: 'AI Ready', color: '#A8E6CF' }
+    if (avg >= 2.5) return { label: 'Developing', color: '#F4ED3C' }
+    if (avg >= 1.5) return { label: 'Early Stage', color: '#FF9F43' }
+    return { label: 'Not Started', color: '#FF6B6B' }
+  }
+
   /* ── Login screen ── */
   if (!authed) {
     return (
@@ -338,6 +394,102 @@ export default function AdminPage() {
             )}
           </div>
         </div>
+
+        {/* ── AI Readiness Leaderboard ── */}
+        {(officeScores.length > 0 || topIndividuals.length > 0) && (
+          <div style={{ marginBottom: '28px' }}>
+            <div style={{ fontSize: '11px', fontWeight: 700, letterSpacing: '2px', textTransform: 'uppercase', color: 'rgba(255,255,255,0.35)', marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <div style={{ width: '16px', height: '2px', background: '#C0F43C', borderRadius: '2px' }} />
+              AI Readiness Leaderboard
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '16px' }}>
+
+              {/* Office scores */}
+              <div style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '20px', padding: '24px' }}>
+                <div style={{ fontSize: '12px', fontWeight: 700, color: 'rgba(255,255,255,0.4)', marginBottom: '18px' }}>By Office</div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+                  {officeScores.map((o, i) => {
+                    const { label, color } = scoreLabel(o.avg!)
+                    return (
+                      <div key={o.id} style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                        <div style={{ fontSize: '13px', fontWeight: 800, color: 'rgba(255,255,255,0.2)', minWidth: '16px' }}>#{i + 1}</div>
+                        <div style={{ flex: 1 }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '5px' }}>
+                            <span style={{ fontSize: '13px', fontWeight: 700, color: o.color }}>{o.label}</span>
+                            <span style={{ fontSize: '13px', fontWeight: 800, color: 'white' }}>{o.avg!.toFixed(1)}<span style={{ fontSize: '10px', color: 'rgba(255,255,255,0.3)' }}>/5</span></span>
+                          </div>
+                          <div style={{ height: '6px', background: 'rgba(255,255,255,0.07)', borderRadius: '3px', overflow: 'hidden' }}>
+                            <div style={{ height: '100%', width: `${(o.avg! / 5) * 100}%`, background: o.color, borderRadius: '3px' }} />
+                          </div>
+                          <div style={{ fontSize: '10px', color: 'rgba(255,255,255,0.25)', marginTop: '4px' }}>{o.count} responses · {label}</div>
+                        </div>
+                      </div>
+                    )
+                  })}
+                  {officeScores.length === 0 && <div style={{ fontSize: '13px', color: 'rgba(255,255,255,0.2)' }}>No data yet</div>}
+                </div>
+              </div>
+
+              {/* Department scores */}
+              <div style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '20px', padding: '24px' }}>
+                <div style={{ fontSize: '12px', fontWeight: 700, color: 'rgba(255,255,255,0.4)', marginBottom: '18px' }}>By Department</div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', maxHeight: '280px', overflowY: 'auto' }}>
+                  {deptScores.map((d, i) => {
+                    const { label, color } = scoreLabel(d.avg)
+                    return (
+                      <div key={d.dept} style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                        <div style={{ fontSize: '11px', fontWeight: 800, color: 'rgba(255,255,255,0.2)', minWidth: '18px' }}>#{i + 1}</div>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '3px' }}>
+                            <span style={{ fontSize: '12px', fontWeight: 600, color: 'rgba(255,255,255,0.7)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{d.dept}</span>
+                            <span style={{ fontSize: '12px', fontWeight: 800, color, marginLeft: '8px', flexShrink: 0 }}>{d.avg.toFixed(1)}</span>
+                          </div>
+                          <div style={{ height: '4px', background: 'rgba(255,255,255,0.07)', borderRadius: '3px', overflow: 'hidden' }}>
+                            <div style={{ height: '100%', width: `${(d.avg / 5) * 100}%`, background: color, borderRadius: '3px' }} />
+                          </div>
+                          <div style={{ fontSize: '10px', color: 'rgba(255,255,255,0.2)', marginTop: '3px' }}>{d.count} responses · {label}</div>
+                        </div>
+                      </div>
+                    )
+                  })}
+                  {deptScores.length === 0 && <div style={{ fontSize: '13px', color: 'rgba(255,255,255,0.2)' }}>No data yet</div>}
+                </div>
+              </div>
+
+              {/* Top individuals */}
+              <div style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '20px', padding: '24px' }}>
+                <div style={{ fontSize: '12px', fontWeight: 700, color: 'rgba(255,255,255,0.4)', marginBottom: '18px' }}>Top AI Champions — Individuals</div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                  {topIndividuals.map((person, i) => {
+                    const { label, color } = scoreLabel(person.avg)
+                    const off = getOffice(person.office)
+                    return (
+                      <div key={person.id} style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                        <div style={{ fontSize: '13px', fontWeight: 800, color: i < 3 ? color : 'rgba(255,255,255,0.2)', minWidth: '20px' }}>
+                          {i === 0 ? '1st' : i === 1 ? '2nd' : i === 2 ? '3rd' : `#${i + 1}`}
+                        </div>
+                        <div style={{ width: '30px', height: '30px', borderRadius: '8px', background: `${off?.color ?? '#00A5A3'}20`, border: `1px solid ${off?.color ?? '#00A5A3'}40`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                          <span style={{ fontSize: '12px', fontWeight: 800, color: off?.color ?? '#00A5A3' }}>{person.name.charAt(0)}</span>
+                        </div>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ fontSize: '13px', fontWeight: 700, color: 'white', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{person.name}</div>
+                          <div style={{ fontSize: '10px', color: 'rgba(255,255,255,0.3)' }}>{off?.label} · {person.dept}</div>
+                        </div>
+                        <div style={{ textAlign: 'center', flexShrink: 0 }}>
+                          <div style={{ fontSize: '16px', fontWeight: 800, color }}>{person.avg.toFixed(1)}</div>
+                          <div style={{ fontSize: '9px', color, fontWeight: 700, letterSpacing: '0.5px' }}>{label}</div>
+                        </div>
+                      </div>
+                    )
+                  })}
+                  {topIndividuals.length === 0 && <div style={{ fontSize: '13px', color: 'rgba(255,255,255,0.2)' }}>No data yet</div>}
+                </div>
+              </div>
+
+            </div>
+          </div>
+        )}
 
         {/* ── Tabs ── */}
         <div style={{ display: 'flex', gap: '4px', marginBottom: '20px', background: 'rgba(255,255,255,0.04)', padding: '4px', borderRadius: '12px', width: 'fit-content' }}>
