@@ -66,7 +66,7 @@ export default function JoinPage() {
             Join the TAOS Journey
           </h1>
           <p style={{ fontSize: '15px', color: '#464D53', lineHeight: 1.7, maxWidth: '460px', margin: '0 auto' }}>
-            Takes 2 minutes. You will receive a welcome email instantly and see your office counter go up in real time on the main page.
+            Takes 2 minutes. Fill in your details and see your office counter go up in real time on the main page.
           </p>
         </div>
 
