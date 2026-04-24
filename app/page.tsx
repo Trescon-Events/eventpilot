@@ -284,7 +284,7 @@ export default function HomePage() {
             Every person who joins makes TAOS smarter.
           </h2>
           <p style={{ fontSize: '15px', color: 'rgba(255,255,255,0.5)', marginBottom: '32px', lineHeight: 1.7 }}>
-            8 minutes. Your voice in the build. You will receive a welcome email the moment you join — and you will see your office counter go up in real time.
+            8 minutes. Your voice in the build. Fill in your details and see your office counter go up in real time.
           </p>
           <Link href="/join" style={{ display: 'inline-flex', alignItems: 'center', gap: '10px', background: '#C0F43C', color: '#1E2124', fontSize: '15px', fontWeight: 800, padding: '16px 40px', borderRadius: '50px', textDecoration: 'none' }}>
             <svg width="16" height="16" fill="none" stroke="#1E2124" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
