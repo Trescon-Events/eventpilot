@@ -123,60 +123,223 @@ export default function AdminPage() {
   for (const t of tasks) for (const tool of (t.tools_used ?? [])) toolCount[tool] = (toolCount[tool] ?? 0) + 1
   const topTools = Object.entries(toolCount).sort((a, b) => b[1] - a[1]).slice(0, 8)
 
-  /* ── AI readiness per office ── */
-  const officeReadiness: Record<string, number[]> = {}
-  for (const t of tasks) {
-    if (!t.ai_readiness) continue
-    const m = memberIndex[t.staff_id]
-    if (!m) continue
-    if (!officeReadiness[m.office_id]) officeReadiness[m.office_id] = []
-    officeReadiness[m.office_id].push(t.ai_readiness)
-  }
-  const officeScores = OFFICES.map(o => {
-    const scores = officeReadiness[o.id] ?? []
-    const avg    = scores.length ? scores.reduce((a, b) => a + b, 0) / scores.length : null
-    return { ...o, avg, count: scores.length }
-  }).filter(o => o.avg !== null).sort((a, b) => (b.avg ?? 0) - (a.avg ?? 0))
+  /* ═══════════════════════════════════════════════════════════════════
+     TOARS — TAOS Organizational AI Readiness Score  (0–100)
 
-  /* ── AI readiness per department ── */
-  const deptReadiness: Record<string, number[]> = {}
-  for (const t of tasks) {
-    if (!t.ai_readiness) continue
-    const m = memberIndex[t.staff_id]
-    if (!m) continue
-    const dept = m.department ?? 'Other'
-    if (!deptReadiness[dept]) deptReadiness[dept] = []
-    deptReadiness[dept].push(t.ai_readiness)
-  }
-  const deptScores = Object.entries(deptReadiness).map(([dept, scores]) => ({
-    dept,
-    avg: scores.reduce((a, b) => a + b, 0) / scores.length,
-    count: scores.length,
-  })).sort((a, b) => b.avg - a.avg)
+     Built for Trescon's specific context: events + media + B2B sales
+     company with 4 offices. Scoring reflects realistic AI adoption
+     patterns for this industry, not generic tech company benchmarks.
 
-  /* ── Top individuals (highest avg readiness) ── */
-  const memberReadiness: Record<string, number[]> = {}
-  for (const t of tasks) {
-    if (!t.ai_readiness) continue
-    if (!memberReadiness[t.staff_id]) memberReadiness[t.staff_id] = []
-    memberReadiness[t.staff_id].push(t.ai_readiness)
+     Three dimensions:
+     ① AI Fluency         (0–40 pts) — self-reported readiness 1–5
+     ② Digital Maturity   (0–35 pts) — sophistication of tools used
+     ③ Engagement Rate    (0–25 pts) — % of joiners who completed interview
+
+     Tier thresholds (calibrated for events/media industry):
+       75–100  AI-Forward     (ready to deploy automations now)
+       55–74   AI-Ready       (upskill + deploy in parallel)
+       35–54   AI-Aware       (foundation building, 90-day plan)
+       15–34   AI-Curious     (awareness + pilot campaigns)
+       0–14    AI-Unaware     (start from digital literacy)
+
+     Industry context: Typical events company baseline is 25–40.
+     Trescon target: all depts to 60+ within 12 months.
+  ═══════════════════════════════════════════════════════════════════ */
+
+  // Tool classification for Trescon's tool stack
+  const AI_TOOLS    = new Set(['ChatGPT', 'Claude', 'Gemini', 'Copilot', 'GitHub Copilot',
+    'Midjourney', 'DALL-E', 'Notion AI', 'Grammarly', 'Jasper', 'Copy.ai'])
+  const MODERN_SAAS = new Set(['HubSpot', 'Salesforce', 'Canva', 'Figma', 'Google Analytics',
+    'Looker Studio', 'Data Studio', 'Asana', 'Notion', 'Slack', 'LinkedIn',
+    'Meta Ads', 'Google Ads', 'LinkedIn Ads', 'Google Ads', 'Hootsuite',
+    'Mailchimp', 'CapCut', 'Premiere Pro', 'Adobe Photoshop', 'Adobe Illustrator',
+    'Jira', 'GitHub', 'AWS', 'Google Cloud', 'Trello', 'Xero', 'QuickBooks',
+    'Terminal/CLI', 'ATS Software'])
+
+  // Department AI impact priority for Trescon (HIGH = where AI helps most)
+  const DEPT_IMPACT: Record<string, { priority: string; color: string; why: string }> = {
+    'Events':               { priority: 'Critical', color: '#FF6B6B', why: 'Massive manual coordination overhead — vendor, logistics, reporting' },
+    'Sales & Sponsorship':  { priority: 'Critical', color: '#FF6B6B', why: 'Prospecting, proposal writing, follow-ups — all AI-automatable' },
+    'Finance':              { priority: 'Critical', color: '#FF6B6B', why: 'Reconciliation, reporting, approval chasing — high automation value' },
+    'Marketing':            { priority: 'High',     color: '#FF9F43', why: 'Content creation and campaign analysis — most mature AI tools exist' },
+    'DemandifyMedia':       { priority: 'High',     color: '#FF9F43', why: 'Ad optimisation and reporting — AI tools are industry standard now' },
+    'HR & Recruitment':     { priority: 'High',     color: '#FF9F43', why: 'CV screening and scheduling are solved problems with AI' },
+    'Content & Design':     { priority: 'High',     color: '#FF9F43', why: 'Generative AI for content/design is fastest-moving category' },
+    'Leadership':           { priority: 'High',     color: '#FF9F43', why: 'Decision intelligence and real-time visibility gaps' },
+    'IT':                   { priority: 'Medium',   color: '#F4ED3C', why: 'Already closest — focus on enabling others, not self-training' },
+    'Operations':           { priority: 'Medium',   color: '#F4ED3C', why: 'Process automation needs depends on current tool stack' },
+    'Government Relations': { priority: 'Medium',   color: '#F4ED3C', why: 'Document automation + status tracking — achievable in 6 months' },
+    'Other':                { priority: 'Medium',   color: '#F4ED3C', why: 'Assess after more data' },
   }
-  const topIndividuals = Object.entries(memberReadiness)
-    .map(([id, scores]) => {
-      const m   = memberIndex[id]
-      const avg = scores.reduce((a, b) => a + b, 0) / scores.length
-      return { id, name: m?.name ?? 'Unknown', office: m?.office_id ?? '', dept: m?.department ?? '—', avg }
+
+  // TOARS calculation per entity (dept/office/person)
+  function calcTOARS(params: {
+    readinessScores: number[]   // self-reported 1–5
+    allTools: string[]          // all tool mentions (with duplicates)
+    interviewed: number         // members who completed interview
+    totalJoinedForGroup: number // members who joined
+  }) {
+    const { readinessScores, allTools, interviewed, totalJoinedForGroup } = params
+
+    // ① AI Fluency (0–40)
+    const fluency = readinessScores.length
+      ? (readinessScores.reduce((a, b) => a + b, 0) / readinessScores.length / 5) * 40
+      : 0
+
+    // ② Digital Maturity (0–35)
+    // Ratio of advanced tool usage vs total — avoids rewarding sheer volume
+    const aiMentions     = allTools.filter(t => AI_TOOLS.has(t)).length
+    const modernMentions = allTools.filter(t => MODERN_SAAS.has(t)).length
+    const total          = allTools.length || 1
+    const maturityRatio  = (aiMentions * 3 + modernMentions * 1.5) / total
+    const maturity       = Math.min(35, maturityRatio * 35 * 3) // scale up (events co. typically < 0.3)
+
+    // ③ Engagement Rate (0–25)
+    const engagement = totalJoinedForGroup > 0
+      ? (interviewed / totalJoinedForGroup) * 25
+      : 0
+
+    const total_score = Math.round(fluency + maturity + engagement)
+    return {
+      score:    Math.min(100, total_score),
+      fluency:  Math.round(fluency),
+      maturity: Math.round(maturity),
+      engagement: Math.round(engagement),
+    }
+  }
+
+  // TOARS tier label + color
+  function toarsTier(score: number) {
+    if (score >= 75) return { label: 'AI-Forward',  color: '#C0F43C', desc: 'Deploy automations now' }
+    if (score >= 55) return { label: 'AI-Ready',    color: '#A8E6CF', desc: 'Train + deploy in parallel' }
+    if (score >= 35) return { label: 'AI-Aware',    color: '#F4ED3C', desc: '90-day foundation plan' }
+    if (score >= 15) return { label: 'AI-Curious',  color: '#FF9F43', desc: 'Awareness + pilot needed' }
+    return               { label: 'AI-Unaware',   color: '#FF6B6B', desc: 'Start from literacy basics' }
+  }
+
+  // ── Per-department TOARS ──
+  type DeptToars = {
+    dept: string; score: number; fluency: number; maturity: number; engagement: number
+    interviewed: number; joined: number; impact: typeof DEPT_IMPACT[string]
+  }
+  const deptToarsMap: DeptToars[] = []
+  for (const dept of [...new Set(members.map(m => m.department ?? 'Other'))]) {
+    const dMembers   = members.filter(m => (m.department ?? 'Other') === dept)
+    const dTasks     = tasks.filter(t => (memberIndex[t.staff_id]?.department ?? 'Other') === dept)
+    const readScores = dTasks.filter(t => t.ai_readiness).map(t => t.ai_readiness!)
+    const allTools   = dTasks.flatMap(t => t.tools_used ?? [])
+    const interviewed = dMembers.filter(m => m.profile_complete).length
+    const r = calcTOARS({ readinessScores: readScores, allTools, interviewed, totalJoinedForGroup: dMembers.length })
+    deptToarsMap.push({ dept, ...r, interviewed, joined: dMembers.length, impact: DEPT_IMPACT[dept] ?? DEPT_IMPACT['Other'] })
+  }
+  const sortedDeptToars = [...deptToarsMap].sort((a, b) => b.score - a.score)
+
+  // ── Per-office TOARS ──
+  const officeToars = OFFICES.map(o => {
+    const oMembers   = members.filter(m => m.office_id === o.id)
+    const oTasks     = tasks.filter(t => memberIndex[t.staff_id]?.office_id === o.id)
+    const readScores = oTasks.filter(t => t.ai_readiness).map(t => t.ai_readiness!)
+    const allTools   = oTasks.flatMap(t => t.tools_used ?? [])
+    const interviewed = oMembers.filter(m => m.profile_complete).length
+    const r = calcTOARS({ readinessScores: readScores, allTools, interviewed, totalJoinedForGroup: oMembers.length })
+    return { ...o, ...r, interviewed, joined: oMembers.length }
+  }).filter(o => o.joined > 0).sort((a, b) => b.score - a.score)
+
+  // ── Org-level TOARS (weighted by dept size) ──
+  let orgScore = 0
+  if (deptToarsMap.length > 0) {
+    const totalW = deptToarsMap.reduce((s, d) => s + d.joined, 0) || 1
+    orgScore = Math.round(deptToarsMap.reduce((s, d) => s + d.score * (d.joined / totalW), 0))
+  }
+  const orgTier = toarsTier(orgScore)
+
+  // ── Top individual TOARS ──
+  const memberToars = Object.fromEntries(
+    members.map(m => {
+      const mTasks     = tasks.filter(t => t.staff_id === m.id)
+      const readScores = mTasks.filter(t => t.ai_readiness).map(t => t.ai_readiness!)
+      const allTools   = mTasks.flatMap(t => t.tools_used ?? [])
+      const r = calcTOARS({ readinessScores: readScores, allTools, interviewed: m.profile_complete ? 1 : 0, totalJoinedForGroup: 1 })
+      return [m.id, r]
     })
-    .sort((a, b) => b.avg - a.avg)
+  )
+  const topIndividuals = members
+    .filter(m => m.profile_complete)
+    .map(m => ({ ...m, toars: memberToars[m.id]?.score ?? 0 }))
+    .sort((a, b) => b.toars - a.toars)
     .slice(0, 8)
 
-  /* ── Score → label + color ── */
-  function scoreLabel(avg: number) {
-    if (avg >= 4.5) return { label: 'AI Champion', color: '#C0F43C' }
-    if (avg >= 3.5) return { label: 'AI Ready', color: '#A8E6CF' }
-    if (avg >= 2.5) return { label: 'Developing', color: '#F4ED3C' }
-    if (avg >= 1.5) return { label: 'Early Stage', color: '#FF9F43' }
-    return { label: 'Not Started', color: '#FF6B6B' }
+  // Legacy compat for existing readiness dist block
+  const deptScores = sortedDeptToars.map(d => ({ dept: d.dept, avg: d.fluency / 8, count: d.interviewed }))
+  const officeScores = officeToars.map(o => ({ ...o, avg: o.fluency / 8 }))
+
+  /* ── AI-generated response detector ──
+     Flags answers that pattern-match AI writing rather than human speech.
+     Checks: AI phrases, formal corporate language, excessive structure,
+     unnaturally long responses, suspiciously perfect formatting.
+     Score 0-100. Above 45 = flagged for review.
+  ── */
+  function detectAIWriting(text: string): { score: number; flags: string[]; verdict: string } {
+    if (!text || text.length < 30) return { score: 0, flags: [], verdict: 'Too short to assess' }
+    const flags: string[] = []
+    let score = 0
+    const lower = text.toLowerCase()
+
+    // Common AI sentence starters and filler phrases
+    const aiPhrases = [
+      'as a ', 'certainly ', 'i would be happy', 'it is worth noting',
+      'furthermore', 'in conclusion', 'to summarize', 'to ensure', 'in order to',
+      'this allows me to', 'this enables', 'i leverage', ' utilize ', ' utilise ',
+      'actionable insights', 'synergies', 'key stakeholders', 'bandwidth',
+      'it is important to note', 'it is crucial', 'it is essential',
+      'moving forward', 'going forward', 'at the end of the day',
+      'in terms of', 'in the context of', 'with respect to',
+    ]
+    const phraseHits = aiPhrases.filter(p => lower.includes(p)).length
+    if (phraseHits >= 3) { score += 35; flags.push(`AI filler phrases (${phraseHits} found)`) }
+    else if (phraseHits >= 2) { score += 20; flags.push('AI language patterns detected') }
+    else if (phraseHits === 1) { score += 8 }
+
+    // Formal corporate vocabulary (uncommon in casual interview responses)
+    const formalWords = [
+      'ensure', 'facilitate', 'leverage', 'optimize', 'implement',
+      'streamline', 'stakeholder', 'deliverable', 'actionable',
+      'strategic', 'holistic', 'robust', 'scalable', 'seamless',
+      'proactive', 'synergy', 'paradigm', 'ecosystem',
+    ]
+    const formalHits = formalWords.filter(w => lower.includes(w)).length
+    if (formalHits >= 4) { score += 25; flags.push(`Formal corporate language (${formalHits} words)`) }
+    else if (formalHits >= 2) { score += 12; flags.push('Some formal language') }
+
+    // Unnaturally structured (bullet points, numbered lists)
+    const bulletLines  = (text.match(/^[\-•\*\u2022]/gm) || []).length
+    const numberedLines = (text.match(/^\d+[\.\)]/gm) || []).length
+    if (bulletLines > 3 || numberedLines > 3) { score += 20; flags.push('Over-structured with lists') }
+    else if (bulletLines > 1 || numberedLines > 1) { score += 8 }
+
+    // Word count extremes
+    const wordCount = text.trim().split(/\s+/).length
+    if (wordCount > 300) { score += 25; flags.push(`Very long response (${wordCount} words)`) }
+    else if (wordCount > 180) { score += 12; flags.push(`Long response (${wordCount} words)`) }
+    else if (wordCount < 8) { score += 5 }
+
+    // Unnaturally long sentences (AI tends toward complex sentence construction)
+    const sentences = text.split(/[.!?]+/).filter(s => s.trim().split(/\s+/).length > 3)
+    const avgSentLen = sentences.length > 0 ? wordCount / sentences.length : 0
+    if (avgSentLen > 28) { score += 15; flags.push('Unnaturally long sentences') }
+
+    // Perfect capitalisation + no informal language (humans make small errors)
+    const hasInformal = /\b(gonna|wanna|kinda|sorta|yeah|nope|stuff|things|bit|tons|loads|heaps|super|really|very|just|like,|honestly)\b/i.test(text)
+    if (!hasInformal && wordCount > 60) { score += 10; flags.push('No informal language (unusual for interview)') }
+
+    // Verdict
+    const final = Math.min(100, score)
+    const verdict = final >= 65 ? 'Very likely AI-generated'
+      : final >= 45 ? 'Possibly AI-assisted — review'
+      : final >= 25 ? 'Some AI patterns — check'
+      : 'Appears human-written'
+
+    return { score: final, flags, verdict }
   }
 
   /* ── Login screen ── */
@@ -395,96 +558,165 @@ export default function AdminPage() {
           </div>
         </div>
 
-        {/* ── AI Readiness Leaderboard ── */}
-        {(officeScores.length > 0 || topIndividuals.length > 0) && (
+        {/* ══ TOARS — Org Score ══ */}
+        {members.length > 0 && (
           <div style={{ marginBottom: '28px' }}>
-            <div style={{ fontSize: '11px', fontWeight: 700, letterSpacing: '2px', textTransform: 'uppercase', color: 'rgba(255,255,255,0.35)', marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '10px' }}>
-              <div style={{ width: '16px', height: '2px', background: '#C0F43C', borderRadius: '2px' }} />
-              AI Readiness Leaderboard
+
+            {/* Org-level score banner */}
+            <div style={{ background: orgScore >= 55 ? 'rgba(192,244,60,0.06)' : orgScore >= 35 ? 'rgba(244,237,60,0.06)' : 'rgba(255,107,107,0.06)', border: `1px solid ${orgTier.color}30`, borderRadius: '20px', padding: '28px 32px', marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '32px', flexWrap: 'wrap' }}>
+              <div style={{ textAlign: 'center', minWidth: '100px' }}>
+                <div style={{ fontSize: '64px', fontWeight: 900, color: orgTier.color, lineHeight: 1, letterSpacing: '-2px' }}>
+                  {orgScore > 0 ? orgScore : '—'}
+                </div>
+                <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.4)', marginTop: '2px' }}>/ 100</div>
+              </div>
+              <div style={{ flex: 1, minWidth: '200px' }}>
+                <div style={{ fontSize: '11px', fontWeight: 700, letterSpacing: '2px', textTransform: 'uppercase', color: 'rgba(255,255,255,0.35)', marginBottom: '6px' }}>TAOS Organizational AI Readiness Score</div>
+                <div style={{ fontSize: '22px', fontWeight: 800, color: orgTier.color, marginBottom: '4px' }}>{orgTier.label}</div>
+                <div style={{ fontSize: '13px', color: 'rgba(255,255,255,0.5)' }}>{orgTier.desc}</div>
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '16px', minWidth: '320px' }}>
+                {[
+                  { label: 'AI Fluency', sub: 'Self-reported readiness', max: 40, color: '#00A5A3' },
+                  { label: 'Digital Maturity', sub: 'Tool sophistication', max: 35, color: '#F4ED3C' },
+                  { label: 'Engagement', sub: '% who completed interview', max: 25, color: '#FF9F43' },
+                ].map((dim, i) => {
+                  const val = i === 0
+                    ? (tasks.filter(t => t.ai_readiness).reduce((s, t) => s + (t.ai_readiness ?? 0), 0) / Math.max(tasks.filter(t => t.ai_readiness).length, 1) / 5 * 40)
+                    : i === 1
+                    ? (() => { const all = tasks.flatMap(t => t.tools_used ?? []); const ai = all.filter(t => AI_TOOLS.has(t)).length; const mod = all.filter(t => MODERN_SAAS.has(t)).length; return Math.min(35, ((ai * 3 + mod * 1.5) / Math.max(all.length, 1)) * 35 * 3) })()
+                    : (profilesComplete / Math.max(totalJoined, 1)) * 25
+                  return (
+                    <div key={dim.label}>
+                      <div style={{ fontSize: '10px', fontWeight: 700, color: dim.color, marginBottom: '4px', textTransform: 'uppercase', letterSpacing: '1px' }}>{dim.label}</div>
+                      <div style={{ fontSize: '20px', fontWeight: 800, color: 'white' }}>{Math.round(val)}<span style={{ fontSize: '11px', color: 'rgba(255,255,255,0.3)' }}>/{dim.max}</span></div>
+                      <div style={{ height: '4px', background: 'rgba(255,255,255,0.08)', borderRadius: '3px', marginTop: '6px', overflow: 'hidden' }}>
+                        <div style={{ height: '100%', width: `${(val / dim.max) * 100}%`, background: dim.color, borderRadius: '3px' }} />
+                      </div>
+                      <div style={{ fontSize: '10px', color: 'rgba(255,255,255,0.3)', marginTop: '3px' }}>{dim.sub}</div>
+                    </div>
+                  )
+                })}
+              </div>
+              {orgScore > 0 && (
+                <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.3)', borderLeft: '1px solid rgba(255,255,255,0.08)', paddingLeft: '24px', maxWidth: '200px', lineHeight: 1.6 }}>
+                  Industry baseline for events companies: <strong style={{ color: 'rgba(255,255,255,0.6)' }}>25–40</strong>.<br/>
+                  Trescon 12-month target: <strong style={{ color: '#C0F43C' }}>60+</strong>
+                </div>
+              )}
             </div>
 
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '16px' }}>
+            {/* Three columns: Office, Dept, Champions */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.4fr 1.2fr', gap: '16px' }}>
 
-              {/* Office scores */}
+              {/* Office TOARS */}
               <div style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '20px', padding: '24px' }}>
-                <div style={{ fontSize: '12px', fontWeight: 700, color: 'rgba(255,255,255,0.4)', marginBottom: '18px' }}>By Office</div>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
-                  {officeScores.map((o, i) => {
-                    const { label, color } = scoreLabel(o.avg!)
-                    return (
-                      <div key={o.id} style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                        <div style={{ fontSize: '13px', fontWeight: 800, color: 'rgba(255,255,255,0.2)', minWidth: '16px' }}>#{i + 1}</div>
-                        <div style={{ flex: 1 }}>
-                          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '5px' }}>
-                            <span style={{ fontSize: '13px', fontWeight: 700, color: o.color }}>{o.label}</span>
-                            <span style={{ fontSize: '13px', fontWeight: 800, color: 'white' }}>{o.avg!.toFixed(1)}<span style={{ fontSize: '10px', color: 'rgba(255,255,255,0.3)' }}>/5</span></span>
+                <div style={{ fontSize: '11px', fontWeight: 700, letterSpacing: '1.5px', textTransform: 'uppercase', color: 'rgba(255,255,255,0.35)', marginBottom: '18px' }}>By Office</div>
+                {officeToars.length === 0 ? (
+                  <div style={{ fontSize: '13px', color: 'rgba(255,255,255,0.2)' }}>No data yet</div>
+                ) : (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                    {officeToars.map((o, i) => {
+                      const tier = toarsTier(o.score)
+                      return (
+                        <div key={o.id}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: '5px' }}>
+                            <div>
+                              <span style={{ fontSize: '13px', fontWeight: 700, color: o.color }}>{o.label}</span>
+                              <span style={{ fontSize: '10px', color: 'rgba(255,255,255,0.25)', marginLeft: '6px' }}>{o.interviewed}/{o.joined} interviewed</span>
+                            </div>
+                            <span style={{ fontSize: '18px', fontWeight: 800, color: tier.color }}>{o.score}</span>
                           </div>
-                          <div style={{ height: '6px', background: 'rgba(255,255,255,0.07)', borderRadius: '3px', overflow: 'hidden' }}>
-                            <div style={{ height: '100%', width: `${(o.avg! / 5) * 100}%`, background: o.color, borderRadius: '3px' }} />
+                          <div style={{ height: '6px', background: 'rgba(255,255,255,0.07)', borderRadius: '3px', overflow: 'hidden', marginBottom: '4px' }}>
+                            <div style={{ height: '100%', width: `${o.score}%`, background: `linear-gradient(to right, ${o.color}88, ${tier.color})`, borderRadius: '3px' }} />
                           </div>
-                          <div style={{ fontSize: '10px', color: 'rgba(255,255,255,0.25)', marginTop: '4px' }}>{o.count} responses · {label}</div>
+                          <div style={{ fontSize: '10px', color: tier.color, fontWeight: 700 }}>{tier.label} — {tier.desc}</div>
                         </div>
-                      </div>
-                    )
-                  })}
-                  {officeScores.length === 0 && <div style={{ fontSize: '13px', color: 'rgba(255,255,255,0.2)' }}>No data yet</div>}
+                      )
+                    })}
+                  </div>
+                )}
+              </div>
+
+              {/* Department TOARS */}
+              <div style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '20px', padding: '24px' }}>
+                <div style={{ fontSize: '11px', fontWeight: 700, letterSpacing: '1.5px', textTransform: 'uppercase', color: 'rgba(255,255,255,0.35)', marginBottom: '18px' }}>By Department — TOARS Score + Priority</div>
+                {sortedDeptToars.length === 0 ? (
+                  <div style={{ fontSize: '13px', color: 'rgba(255,255,255,0.2)' }}>No data yet</div>
+                ) : (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', maxHeight: '340px', overflowY: 'auto' }}>
+                    {sortedDeptToars.map((d, i) => {
+                      const tier   = toarsTier(d.score)
+                      const impact = d.impact
+                      return (
+                        <div key={d.dept} style={{ display: 'flex', gap: '10px', alignItems: 'center', padding: '10px 12px', background: 'rgba(255,255,255,0.03)', borderRadius: '10px', border: '1px solid rgba(255,255,255,0.05)' }}>
+                          <div style={{ fontSize: '11px', fontWeight: 800, color: 'rgba(255,255,255,0.2)', minWidth: '16px' }}>#{i+1}</div>
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '3px' }}>
+                              <span style={{ fontSize: '12px', fontWeight: 700, color: 'white', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{d.dept}</span>
+                              <span style={{ fontSize: '9px', fontWeight: 800, color: impact.color, background: `${impact.color}18`, padding: '1px 5px', borderRadius: '4px', flexShrink: 0 }}>{impact.priority}</span>
+                            </div>
+                            <div style={{ display: 'flex', gap: '3px', marginBottom: '4px' }}>
+                              {[
+                                { val: d.fluency, max: 40, color: '#00A5A3', tip: 'Fluency' },
+                                { val: d.maturity, max: 35, color: '#F4ED3C', tip: 'Maturity' },
+                                { val: d.engagement, max: 25, color: '#FF9F43', tip: 'Engagement' },
+                              ].map(dim => (
+                                <div key={dim.tip} style={{ flex: 1, height: '4px', background: 'rgba(255,255,255,0.07)', borderRadius: '2px', overflow: 'hidden' }}>
+                                  <div style={{ height: '100%', width: `${(dim.val / dim.max) * 100}%`, background: dim.color, borderRadius: '2px' }} />
+                                </div>
+                              ))}
+                            </div>
+                            <div style={{ fontSize: '10px', color: tier.color }}>{tier.label}</div>
+                          </div>
+                          <div style={{ textAlign: 'right', flexShrink: 0 }}>
+                            <div style={{ fontSize: '20px', fontWeight: 800, color: tier.color, lineHeight: 1 }}>{d.score}</div>
+                            <div style={{ fontSize: '9px', color: 'rgba(255,255,255,0.25)' }}>{d.interviewed}/{d.joined}</div>
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
+                )}
+                <div style={{ marginTop: '12px', display: 'flex', gap: '12px', fontSize: '10px', color: 'rgba(255,255,255,0.25)', borderTop: '1px solid rgba(255,255,255,0.06)', paddingTop: '10px' }}>
+                  <span style={{ color: '#00A5A3' }}>■ Fluency</span>
+                  <span style={{ color: '#F4ED3C' }}>■ Digital Maturity</span>
+                  <span style={{ color: '#FF9F43' }}>■ Engagement</span>
                 </div>
               </div>
 
-              {/* Department scores */}
+              {/* Top AI Champions */}
               <div style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '20px', padding: '24px' }}>
-                <div style={{ fontSize: '12px', fontWeight: 700, color: 'rgba(255,255,255,0.4)', marginBottom: '18px' }}>By Department</div>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', maxHeight: '280px', overflowY: 'auto' }}>
-                  {deptScores.map((d, i) => {
-                    const { label, color } = scoreLabel(d.avg)
-                    return (
-                      <div key={d.dept} style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                        <div style={{ fontSize: '11px', fontWeight: 800, color: 'rgba(255,255,255,0.2)', minWidth: '18px' }}>#{i + 1}</div>
-                        <div style={{ flex: 1, minWidth: 0 }}>
-                          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '3px' }}>
-                            <span style={{ fontSize: '12px', fontWeight: 600, color: 'rgba(255,255,255,0.7)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{d.dept}</span>
-                            <span style={{ fontSize: '12px', fontWeight: 800, color, marginLeft: '8px', flexShrink: 0 }}>{d.avg.toFixed(1)}</span>
+                <div style={{ fontSize: '11px', fontWeight: 700, letterSpacing: '1.5px', textTransform: 'uppercase', color: 'rgba(255,255,255,0.35)', marginBottom: '18px' }}>AI Champions — Top Individuals</div>
+                {topIndividuals.length === 0 ? (
+                  <div style={{ fontSize: '13px', color: 'rgba(255,255,255,0.2)' }}>No interview data yet</div>
+                ) : (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                    {topIndividuals.map((person, i) => {
+                      const tier = toarsTier(person.toars)
+                      const off  = getOffice(person.office_id)
+                      const medal = i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : null
+                      return (
+                        <div key={person.id} style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: i < 3 ? '8px 10px' : '4px 10px', background: i < 3 ? `${tier.color}08` : 'transparent', borderRadius: '10px', border: i < 3 ? `1px solid ${tier.color}20` : '1px solid transparent' }}>
+                          <div style={{ fontSize: '13px', minWidth: '20px', textAlign: 'center' }}>
+                            {medal ?? <span style={{ fontSize: '11px', fontWeight: 800, color: 'rgba(255,255,255,0.2)' }}>#{i+1}</span>}
                           </div>
-                          <div style={{ height: '4px', background: 'rgba(255,255,255,0.07)', borderRadius: '3px', overflow: 'hidden' }}>
-                            <div style={{ height: '100%', width: `${(d.avg / 5) * 100}%`, background: color, borderRadius: '3px' }} />
+                          <div style={{ width: '28px', height: '28px', borderRadius: '8px', background: `${off?.color ?? '#00A5A3'}20`, border: `1px solid ${off?.color ?? '#00A5A3'}40`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                            <span style={{ fontSize: '11px', fontWeight: 800, color: off?.color ?? '#00A5A3' }}>{person.name.charAt(0)}</span>
                           </div>
-                          <div style={{ fontSize: '10px', color: 'rgba(255,255,255,0.2)', marginTop: '3px' }}>{d.count} responses · {label}</div>
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <div style={{ fontSize: '12px', fontWeight: 700, color: 'white', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{person.name}</div>
+                            <div style={{ fontSize: '10px', color: 'rgba(255,255,255,0.3)' }}>{off?.label} · {person.department ?? '—'}</div>
+                          </div>
+                          <div style={{ textAlign: 'right', flexShrink: 0 }}>
+                            <div style={{ fontSize: '16px', fontWeight: 800, color: tier.color, lineHeight: 1 }}>{person.toars}</div>
+                            <div style={{ fontSize: '9px', color: tier.color, fontWeight: 700 }}>{tier.label}</div>
+                          </div>
                         </div>
-                      </div>
-                    )
-                  })}
-                  {deptScores.length === 0 && <div style={{ fontSize: '13px', color: 'rgba(255,255,255,0.2)' }}>No data yet</div>}
-                </div>
-              </div>
-
-              {/* Top individuals */}
-              <div style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '20px', padding: '24px' }}>
-                <div style={{ fontSize: '12px', fontWeight: 700, color: 'rgba(255,255,255,0.4)', marginBottom: '18px' }}>Top AI Champions — Individuals</div>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                  {topIndividuals.map((person, i) => {
-                    const { label, color } = scoreLabel(person.avg)
-                    const off = getOffice(person.office)
-                    return (
-                      <div key={person.id} style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                        <div style={{ fontSize: '13px', fontWeight: 800, color: i < 3 ? color : 'rgba(255,255,255,0.2)', minWidth: '20px' }}>
-                          {i === 0 ? '1st' : i === 1 ? '2nd' : i === 2 ? '3rd' : `#${i + 1}`}
-                        </div>
-                        <div style={{ width: '30px', height: '30px', borderRadius: '8px', background: `${off?.color ?? '#00A5A3'}20`, border: `1px solid ${off?.color ?? '#00A5A3'}40`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                          <span style={{ fontSize: '12px', fontWeight: 800, color: off?.color ?? '#00A5A3' }}>{person.name.charAt(0)}</span>
-                        </div>
-                        <div style={{ flex: 1, minWidth: 0 }}>
-                          <div style={{ fontSize: '13px', fontWeight: 700, color: 'white', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{person.name}</div>
-                          <div style={{ fontSize: '10px', color: 'rgba(255,255,255,0.3)' }}>{off?.label} · {person.dept}</div>
-                        </div>
-                        <div style={{ textAlign: 'center', flexShrink: 0 }}>
-                          <div style={{ fontSize: '16px', fontWeight: 800, color }}>{person.avg.toFixed(1)}</div>
-                          <div style={{ fontSize: '9px', color, fontWeight: 700, letterSpacing: '0.5px' }}>{label}</div>
-                        </div>
-                      </div>
-                    )
-                  })}
-                  {topIndividuals.length === 0 && <div style={{ fontSize: '13px', color: 'rgba(255,255,255,0.2)' }}>No data yet</div>}
-                </div>
+                      )
+                    })}
+                  </div>
+                )}
               </div>
 
             </div>
@@ -664,13 +896,36 @@ export default function AdminPage() {
                     {/* Expanded content */}
                     {isOpen && (
                       <div style={{ padding: '0 20px 20px', borderTop: '1px solid rgba(255,255,255,0.06)' }}>
-                        {t.task_description && (
+                        {t.task_description && (() => {
+                          const detection = detectAIWriting(t.task_description)
+                          const flagColor = detection.score >= 65 ? '#FF6B6B' : detection.score >= 45 ? '#FF9F43' : detection.score >= 25 ? '#F4ED3C' : '#A8E6CF'
+                          return (
                           <div style={{ marginTop: '16px' }}>
-                            <div style={{ fontSize: '10px', fontWeight: 700, letterSpacing: '1.5px', textTransform: 'uppercase', color: 'rgba(255,255,255,0.3)', marginBottom: '10px' }}>Interview Answer</div>
+                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '10px' }}>
+                              <div style={{ fontSize: '10px', fontWeight: 700, letterSpacing: '1.5px', textTransform: 'uppercase', color: 'rgba(255,255,255,0.3)' }}>Interview Answer</div>
+                              {detection.score >= 25 && (
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', background: `${flagColor}15`, border: `1px solid ${flagColor}40`, borderRadius: '8px', padding: '5px 12px' }}>
+                                  <svg width="12" height="12" fill="none" stroke={flagColor} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+                                  <span style={{ fontSize: '11px', fontWeight: 700, color: flagColor }}>{detection.verdict}</span>
+                                  <span style={{ fontSize: '10px', color: 'rgba(255,255,255,0.3)' }}>{detection.score}/100</span>
+                                </div>
+                              )}
+                            </div>
+                            {detection.score >= 45 && detection.flags.length > 0 && (
+                              <div style={{ background: `${flagColor}10`, border: `1px solid ${flagColor}25`, borderRadius: '8px', padding: '8px 12px', marginBottom: '10px', display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                                {detection.flags.map((f, fi) => (
+                                  <span key={fi} style={{ fontSize: '10px', color: flagColor, fontWeight: 600 }}>• {f}</span>
+                                ))}
+                              </div>
+                            )}
                             <div style={{ background: 'rgba(0,0,0,0.3)', borderRadius: '10px', padding: '16px', fontSize: '13px', color: 'rgba(255,255,255,0.75)', lineHeight: 1.7, whiteSpace: 'pre-wrap', fontFamily: 'inherit' }}>
                               {t.task_description}
                             </div>
                           </div>
+                          )
+                        })()}
+                        {!t.task_description && (
+                          <div style={{ marginTop: '16px', fontSize: '13px', color: 'rgba(255,255,255,0.2)', fontStyle: 'italic' }}>No answer text recorded</div>
                         )}
                         <div style={{ display: 'flex', gap: '24px', flexWrap: 'wrap', marginTop: '16px' }}>
                           {t.tools_used?.length > 0 && (
