@@ -40,7 +40,7 @@ function WelcomeContent() {
         </h1>
 
         <p style={{ fontSize: '16px', color: 'rgba(255,255,255,0.6)', lineHeight: 1.7, marginBottom: '12px' }}>
-          Welcome to the TAOS journey. A welcome email is on its way to you right now.
+          Welcome to the TAOS journey. You are now part of something being built for everyone at Trescon.
         </p>
         <p style={{ fontSize: '14px', color: 'rgba(255,255,255,0.4)', lineHeight: 1.7, marginBottom: '40px' }}>
           Your office counter on the main page has already updated. Go check it.
@@ -50,7 +50,7 @@ function WelcomeContent() {
         <div style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '20px', padding: '28px', marginBottom: '28px', textAlign: 'left' }}>
           <div style={{ fontSize: '10px', fontWeight: 700, letterSpacing: '2px', textTransform: 'uppercase', color: color, marginBottom: '12px' }}>What happens next</div>
           {[
-            'Check your email — welcome message sent',
+            'Your details are now on record in the TAOS system',
             'Your profile is added to the TAOS system',
             'Next: tell us what your work looks like daily',
             'Your input shapes what gets built first',

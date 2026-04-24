@@ -92,7 +92,7 @@ export default function JoinPage() {
             {/* Email */}
             <div style={{ marginBottom: '20px' }}>
               <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#1E2124', letterSpacing: '1px', textTransform: 'uppercase', marginBottom: '8px' }}>
-                Work Email *
+                Your Work Email *
               </label>
               <input
                 name="email"
@@ -168,9 +168,9 @@ export default function JoinPage() {
 
             {/* What happens next notice */}
             <div style={{ background: '#F8FFFE', border: '1px solid #C6ECE8', borderRadius: '12px', padding: '14px 16px', marginBottom: '24px', display: 'flex', gap: '12px', alignItems: 'flex-start' }}>
-              <svg width="18" height="18" fill="none" stroke="#00A5A3" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24" style={{ flexShrink: 0, marginTop: '1px' }}><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
+              <svg width="18" height="18" fill="none" stroke="#00A5A3" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24" style={{ flexShrink: 0, marginTop: '1px' }}><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
               <span style={{ fontSize: '12px', color: '#464D53', lineHeight: 1.6 }}>
-                <strong style={{ color: '#1E2124' }}>You will receive a welcome email immediately.</strong> Your office counter on the main page updates in real time the moment you submit.
+                <strong style={{ color: '#1E2124' }}>Takes 2 minutes.</strong> Your office counter on the main page updates in real time the moment you submit.
               </span>
             </div>
 
