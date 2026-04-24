@@ -116,33 +116,47 @@ export default function HomePage() {
             </div>
 
             {/* Live counter */}
-            <div style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '24px', padding: '36px 32px', textAlign: 'center' }}>
-              <div style={{ fontSize: '11px', fontWeight: 700, letterSpacing: '2.5px', textTransform: 'uppercase', color: '#00A5A3', marginBottom: '16px' }}>Team Joined — Live</div>
-              <div style={{ fontSize: '72px', fontWeight: 900, color: 'white', lineHeight: 1, marginBottom: '4px' }}>
-                {loading ? '—' : totalJoined}
+            <div style={{ background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.18)', borderRadius: '24px', padding: '36px 32px', textAlign: 'center', backdropFilter: 'blur(12px)' }}>
+              <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', background: 'rgba(0,165,163,0.2)', border: '1px solid rgba(0,165,163,0.4)', borderRadius: '50px', padding: '4px 12px', marginBottom: '24px' }}>
+                <div style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#00A5A3', animation: 'pulse 2s infinite' }} />
+                <span style={{ fontSize: '10px', fontWeight: 700, letterSpacing: '2px', textTransform: 'uppercase', color: '#00A5A3' }}>Live</span>
               </div>
-              <div style={{ fontSize: '14px', color: 'rgba(255,255,255,0.3)', marginBottom: '24px' }}>of {TOTAL_STAFF} team members</div>
-              <div style={{ height: '8px', background: 'rgba(255,255,255,0.08)', borderRadius: '10px', overflow: 'hidden', marginBottom: '8px' }}>
-                <div style={{ height: '100%', width: `${pct}%`, background: 'linear-gradient(to right, #00A5A3, #C0F43C)', borderRadius: '10px', transition: 'width 0.8s ease' }} />
+              <div style={{ fontSize: '80px', fontWeight: 900, color: 'white', lineHeight: 1, marginBottom: '6px', letterSpacing: '-3px' }}>
+                {loading ? (
+                  <span style={{ fontSize: '40px', color: 'rgba(255,255,255,0.3)' }}>loading...</span>
+                ) : totalJoined}
               </div>
-              <div style={{ fontSize: '13px', color: '#C0F43C', fontWeight: 700, marginBottom: '28px' }}>{pct}% of Trescon has joined</div>
+              <div style={{ fontSize: '15px', color: 'rgba(255,255,255,0.5)', marginBottom: '28px', fontWeight: 500 }}>
+                of <strong style={{ color: 'white' }}>{TOTAL_STAFF}</strong> team members have joined
+              </div>
+              <div style={{ height: '8px', background: 'rgba(255,255,255,0.1)', borderRadius: '10px', overflow: 'hidden', marginBottom: '10px' }}>
+                <div style={{ height: '100%', width: `${pct}%`, minWidth: pct > 0 ? '8px' : '0', background: 'linear-gradient(to right, #00A5A3, #C0F43C)', borderRadius: '10px', transition: 'width 0.8s ease' }} />
+              </div>
+              <div style={{ fontSize: '13px', color: 'white', fontWeight: 700, marginBottom: '28px', background: 'rgba(192,244,60,0.15)', border: '1px solid rgba(192,244,60,0.3)', borderRadius: '8px', padding: '8px 12px' }}>
+                {pct}% of Trescon has joined
+              </div>
               {latestJoins.length > 0 && (
-                <div style={{ borderTop: '1px solid rgba(255,255,255,0.08)', paddingTop: '20px' }}>
-                  <div style={{ fontSize: '10px', fontWeight: 700, letterSpacing: '2px', textTransform: 'uppercase', color: 'rgba(255,255,255,0.25)', marginBottom: '12px' }}>Just joined</div>
+                <div style={{ borderTop: '1px solid rgba(255,255,255,0.1)', paddingTop: '20px' }}>
+                  <div style={{ fontSize: '10px', fontWeight: 700, letterSpacing: '2px', textTransform: 'uppercase', color: 'rgba(255,255,255,0.35)', marginBottom: '12px' }}>Just joined</div>
                   {latestJoins.map((j, i) => {
                     const office = OFFICES.find(o => o.id === j.office_id)
                     return (
                       <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '8px' }}>
-                        <div style={{ width: '28px', height: '28px', borderRadius: '8px', background: office?.bg ?? 'rgba(255,255,255,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '11px', fontWeight: 800, color: office?.color ?? 'white', flexShrink: 0 }}>
+                        <div style={{ width: '30px', height: '30px', borderRadius: '8px', background: office?.bg ?? 'rgba(255,255,255,0.1)', border: `1px solid ${office?.border ?? 'rgba(255,255,255,0.1)'}`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '12px', fontWeight: 800, color: office?.color ?? 'white', flexShrink: 0 }}>
                           {j.name.charAt(0).toUpperCase()}
                         </div>
                         <div style={{ textAlign: 'left' }}>
-                          <div style={{ fontSize: '12px', fontWeight: 600, color: 'rgba(255,255,255,0.8)' }}>{j.name}</div>
-                          <div style={{ fontSize: '10px', color: 'rgba(255,255,255,0.3)' }}>{office?.name}</div>
+                          <div style={{ fontSize: '13px', fontWeight: 600, color: 'white' }}>{j.name}</div>
+                          <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.4)' }}>{office?.name}</div>
                         </div>
                       </div>
                     )
                   })}
+                </div>
+              )}
+              {latestJoins.length === 0 && !loading && (
+                <div style={{ borderTop: '1px solid rgba(255,255,255,0.1)', paddingTop: '20px', fontSize: '13px', color: 'rgba(255,255,255,0.3)', fontStyle: 'italic' }}>
+                  Be the first to join
                 </div>
               )}
             </div>
@@ -151,37 +165,40 @@ export default function HomePage() {
       </div>
 
       {/* OFFICE BREAKDOWN */}
-      <div style={{ maxWidth: '1100px', margin: '0 auto', padding: '64px 48px' }}>
+      <div style={{ background: '#0C0E10', padding: '64px 48px' }}>
+      <div style={{ maxWidth: '1100px', margin: '0 auto' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '10px' }}>
           <div style={{ width: '18px', height: '2px', background: '#00A5A3', borderRadius: '2px' }} />
           <span style={{ fontSize: '10px', fontWeight: 800, letterSpacing: '3px', textTransform: 'uppercase', color: '#00A5A3' }}>4 Offices — Real Time</span>
         </div>
-        <h2 style={{ fontSize: '32px', fontWeight: 800, color: '#1E2124', marginBottom: '8px', letterSpacing: '-0.5px' }}>Who has joined so far</h2>
-        <p style={{ fontSize: '14px', color: '#464D53', marginBottom: '36px' }}>Live count per office. Updates the moment someone joins.</p>
+        <h2 style={{ fontSize: '32px', fontWeight: 800, color: 'white', marginBottom: '8px', letterSpacing: '-0.5px' }}>Who has joined so far</h2>
+        <p style={{ fontSize: '14px', color: 'rgba(255,255,255,0.45)', marginBottom: '36px' }}>Live count per office. Updates the moment someone joins.</p>
 
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '16px' }}>
           {OFFICES.map(office => {
             const joined = counts[office.id] ?? 0
             const officePct = Math.round((joined / office.total) * 100)
             return (
-              <div key={office.id} style={{ background: 'white', border: `1px solid ${office.border}`, borderRadius: '20px', padding: '28px 24px', position: 'relative', overflow: 'hidden' }}>
+              <div key={office.id} style={{ background: '#1E2124', border: `1px solid rgba(255,255,255,0.08)`, borderRadius: '20px', padding: '28px 24px', position: 'relative', overflow: 'hidden' }}>
                 <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: '3px', background: office.color }} />
-                <div style={{ width: '44px', height: '44px', borderRadius: '12px', background: office.bg, display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '16px' }}>
+                <div style={{ width: '44px', height: '44px', borderRadius: '12px', background: `${office.color}20`, border: `1px solid ${office.color}40`, display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '16px' }}>
                   <svg width="20" height="20" fill="none" stroke={office.color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/></svg>
                 </div>
-                <div style={{ fontSize: '16px', fontWeight: 800, color: '#1E2124', marginBottom: '2px' }}>{office.name}</div>
-                <div style={{ fontSize: '11px', color: '#888', marginBottom: '20px' }}>Trescon {office.name} Office</div>
-                <div style={{ display: 'flex', alignItems: 'baseline', gap: '4px', marginBottom: '6px' }}>
-                  <span style={{ fontSize: '36px', fontWeight: 800, color: office.color, lineHeight: 1 }}>{loading ? '—' : joined}</span>
-                  <span style={{ fontSize: '14px', color: '#888' }}>/ {office.total}</span>
+                <div style={{ fontSize: '16px', fontWeight: 800, color: 'white', marginBottom: '2px' }}>{office.name}</div>
+                <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.4)', marginBottom: '20px' }}>Trescon {office.name} Office</div>
+                <div style={{ display: 'flex', alignItems: 'baseline', gap: '6px', marginBottom: '4px' }}>
+                  <span style={{ fontSize: '40px', fontWeight: 900, color: 'white', lineHeight: 1, letterSpacing: '-1px' }}>
+                    {loading ? <span style={{ fontSize: '24px', color: 'rgba(255,255,255,0.3)' }}>—</span> : joined}
+                  </span>
+                  <span style={{ fontSize: '14px', color: 'rgba(255,255,255,0.4)', fontWeight: 500 }}>/ {office.total}</span>
                 </div>
-                <div style={{ fontSize: '12px', color: '#888', marginBottom: '14px' }}>staff have joined</div>
-                <div style={{ height: '6px', background: '#F0F0F0', borderRadius: '10px', overflow: 'hidden', marginBottom: '8px' }}>
+                <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.4)', marginBottom: '16px' }}>staff have joined</div>
+                <div style={{ height: '6px', background: 'rgba(255,255,255,0.08)', borderRadius: '10px', overflow: 'hidden', marginBottom: '10px' }}>
                   <div style={{ height: '100%', width: `${officePct}%`, background: office.color, borderRadius: '10px', transition: 'width 0.8s ease' }} />
                 </div>
                 <div style={{ fontSize: '12px', fontWeight: 700, color: office.color }}>{officePct}% joined</div>
                 {joined === 0 && (
-                  <div style={{ marginTop: '14px', background: office.bg, borderRadius: '8px', padding: '8px 12px', fontSize: '11px', color: office.color, fontWeight: 600, textAlign: 'center' }}>
+                  <div style={{ marginTop: '14px', background: `${office.color}15`, border: `1px solid ${office.color}30`, borderRadius: '8px', padding: '8px 12px', fontSize: '11px', color: office.color, fontWeight: 600, textAlign: 'center' }}>
                     Waiting for first member
                   </div>
                 )}
@@ -190,34 +207,37 @@ export default function HomePage() {
           })}
         </div>
       </div>
+      </div>
 
       {/* TAOS MODULE PREVIEW — 4-step */}
-      <div style={{ maxWidth: '1100px', margin: '0 auto', padding: '64px 48px 0' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '10px' }}>
-          <div style={{ width: '18px', height: '2px', background: '#A78BFA', borderRadius: '2px' }} />
-          <span style={{ fontSize: '10px', fontWeight: 800, letterSpacing: '3px', textTransform: 'uppercase', color: '#A78BFA' }}>TAOS in Action</span>
-        </div>
-        <h2 style={{ fontSize: '32px', fontWeight: 800, color: '#1E2124', marginBottom: '8px', letterSpacing: '-0.5px' }}>What TAOS does with your input</h2>
-        <p style={{ fontSize: '14px', color: '#464D53', marginBottom: '48px' }}>Four automated steps that turn your profile into real capability.</p>
+      <div style={{ background: '#1E2124', padding: '64px 48px' }}>
+        <div style={{ maxWidth: '1100px', margin: '0 auto' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '10px' }}>
+            <div style={{ width: '18px', height: '2px', background: '#00A5A3', borderRadius: '2px' }} />
+            <span style={{ fontSize: '10px', fontWeight: 800, letterSpacing: '3px', textTransform: 'uppercase', color: '#00A5A3' }}>TAOS in Action</span>
+          </div>
+          <h2 style={{ fontSize: '32px', fontWeight: 800, color: 'white', marginBottom: '8px', letterSpacing: '-0.5px' }}>What TAOS does with your input</h2>
+          <p style={{ fontSize: '14px', color: 'rgba(255,255,255,0.45)', marginBottom: '56px' }}>Four automated steps that turn your profile into real capability.</p>
 
-        <div style={{ position: 'relative', display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '0' }}>
-          {/* Connecting line */}
-          <div style={{ position: 'absolute', top: '36px', left: 'calc(12.5%)', right: 'calc(12.5%)', height: '2px', background: 'linear-gradient(to right, #00A5A3, #6EE7B7, #F4ED3C, #C0F43C)', zIndex: 0 }} />
+          <div style={{ position: 'relative', display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '0' }}>
+            {/* Connecting line */}
+            <div style={{ position: 'absolute', top: '36px', left: 'calc(12.5%)', right: 'calc(12.5%)', height: '3px', background: 'linear-gradient(to right, #00A5A3, #6EE7B7, #F4ED3C, #C0F43C)', zIndex: 0, borderRadius: '2px' }} />
 
-          {[
-            { color: '#00A5A3', bg: 'rgba(0,165,163,0.12)', title: 'Profile Built', desc: 'Every employee mapped with current skills and role requirements', icon: <svg width="26" height="26" fill="none" stroke="white" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg> },
-            { color: '#6EE7B7', bg: 'rgba(110,231,183,0.12)', title: 'Gap Identified', desc: 'TAOS detects what each person needs for their role and for AI adoption', icon: <svg width="26" height="26" fill="none" stroke="white" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg> },
-            { color: '#F4ED3C', bg: 'rgba(244,237,60,0.12)', title: 'Training Assigned', desc: 'System assigns relevant training automatically — no HR intervention needed', icon: <svg width="26" height="26" fill="none" stroke="white" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M2 3h6a4 4 0 014 4v14a3 3 0 00-3-3H2z"/><path d="M22 3h-6a4 4 0 00-4 4v14a3 3 0 013-3h7z"/></svg> },
-            { color: '#C0F43C', bg: 'rgba(192,244,60,0.12)', title: 'Performance Tracked', desc: 'Before and after scores measured. Improvement visible in the command center', icon: <svg width="26" height="26" fill="none" stroke="white" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg> },
-          ].map((item, i) => (
-            <div key={i} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', padding: '0 20px', position: 'relative', zIndex: 1 }}>
-              <div style={{ width: '72px', height: '72px', borderRadius: '50%', background: item.color, display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '24px', boxShadow: `0 0 0 6px ${item.bg}, 0 4px 20px ${item.color}40` }}>
-                {item.icon}
+            {[
+              { color: '#00A5A3', title: 'Profile Built', desc: 'Every employee mapped with current skills and role requirements', icon: <svg width="28" height="28" fill="none" stroke="white" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg> },
+              { color: '#6EE7B7', title: 'Gap Identified', desc: 'TAOS detects what each person needs for their role and for AI adoption', icon: <svg width="28" height="28" fill="none" stroke="white" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg> },
+              { color: '#F4ED3C', title: 'Training Assigned', desc: 'System assigns relevant training automatically — no HR intervention needed', icon: <svg width="28" height="28" fill="none" stroke="#1E2124" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M2 3h6a4 4 0 014 4v14a3 3 0 00-3-3H2z"/><path d="M22 3h-6a4 4 0 00-4 4v14a3 3 0 013-3h7z"/></svg> },
+              { color: '#C0F43C', title: 'Performance Tracked', desc: 'Before and after scores measured. Improvement visible in the command center', icon: <svg width="28" height="28" fill="none" stroke="#1E2124" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg> },
+            ].map((item, i) => (
+              <div key={i} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', padding: '0 24px', position: 'relative', zIndex: 1 }}>
+                <div style={{ width: '72px', height: '72px', borderRadius: '50%', background: item.color, display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '28px', boxShadow: `0 0 0 8px ${item.color}20` }}>
+                  {item.icon}
+                </div>
+                <div style={{ fontSize: '15px', fontWeight: 800, color: 'white', marginBottom: '10px' }}>{item.title}</div>
+                <div style={{ fontSize: '13px', color: 'rgba(255,255,255,0.5)', lineHeight: 1.65 }}>{item.desc}</div>
               </div>
-              <div style={{ fontSize: '15px', fontWeight: 800, color: '#1E2124', marginBottom: '8px' }}>{item.title}</div>
-              <div style={{ fontSize: '13px', color: '#464D53', lineHeight: 1.6 }}>{item.desc}</div>
-            </div>
-          ))}
+            ))}
+          </div>
         </div>
       </div>
 
