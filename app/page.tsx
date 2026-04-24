@@ -59,11 +59,16 @@ export default function HomePage() {
 
       {/* NAV */}
       <nav style={{ background: '#010103', padding: '0 48px', height: '64px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', position: 'sticky', top: 0, zIndex: 50 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-          <div style={{ background: 'white', borderRadius: '10px', padding: '4px 10px', display: 'flex', alignItems: 'center' }}>
-            <img src="/trescon-logo.png" alt="Trescon" style={{ height: '32px', width: 'auto', display: 'block' }} />
+        <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+          {/* Trescon logo — contained in a frosted card */}
+          <div style={{ background: 'white', borderRadius: '10px', padding: '5px 14px 5px 10px', display: 'flex', alignItems: 'center', gap: '8px', boxShadow: '0 0 0 1px rgba(255,255,255,0.08)' }}>
+            <img src="/trescon-logo.png" alt="Trescon" style={{ height: '28px', width: 'auto', display: 'block' }} />
+            <div style={{ width: '1px', height: '20px', background: '#E5E7EB' }} />
+            <div style={{ fontSize: '9px', fontWeight: 800, letterSpacing: '1.5px', textTransform: 'uppercase', color: '#888', lineHeight: 1.3 }}>An internal<br/>product</div>
           </div>
-          <div style={{ width: '1px', height: '28px', background: 'rgba(255,255,255,0.12)' }} />
+
+          <div style={{ width: '1px', height: '28px', background: 'rgba(255,255,255,0.1)' }} />
+
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
             <div style={{ width: '28px', height: '28px', background: '#00A5A3', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
               <svg width="14" height="14" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
@@ -352,9 +357,16 @@ export default function HomePage() {
           <div style={{ marginTop: '20px', fontSize: '12px', color: 'rgba(255,255,255,0.25)' }}>
             {TOTAL_STAFF} people · 4 offices · 1 operating system
           </div>
-          <div style={{ marginTop: '40px', display: 'flex', justifyContent: 'center' }}>
-            <div style={{ background: 'white', borderRadius: '14px', padding: '10px 20px', display: 'inline-flex', alignItems: 'center' }}>
-              <img src="/trescon-logo.png" alt="Trescon" style={{ height: '40px', width: 'auto', display: 'block' }} />
+          <div style={{ marginTop: '48px', display: 'flex', justifyContent: 'center' }}>
+            <div style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: '16px', padding: '16px 28px', display: 'inline-flex', alignItems: 'center', gap: '16px' }}>
+              <div style={{ background: 'white', borderRadius: '8px', padding: '6px 14px', display: 'flex', alignItems: 'center' }}>
+                <img src="/trescon-logo.png" alt="Trescon" style={{ height: '34px', width: 'auto', display: 'block' }} />
+              </div>
+              <div style={{ textAlign: 'left' }}>
+                <div style={{ fontSize: '10px', fontWeight: 700, letterSpacing: '2px', textTransform: 'uppercase', color: 'rgba(255,255,255,0.35)', marginBottom: '3px' }}>Built for</div>
+                <div style={{ fontSize: '14px', fontWeight: 800, color: 'white' }}>The Trescon Team</div>
+                <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.35)' }}>4 offices · 184 people</div>
+              </div>
             </div>
           </div>
         </div>

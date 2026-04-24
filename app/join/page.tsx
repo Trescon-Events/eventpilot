@@ -45,12 +45,18 @@ export default function JoinPage() {
     <div style={{ fontFamily: 'var(--font-manrope), Manrope, sans-serif', background: '#F2F5F5', minHeight: '100vh' }}>
 
       {/* Nav */}
-      <nav style={{ background: '#010103', padding: '0 48px', height: '60px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-        <Link href="/" style={{ display: 'flex', alignItems: 'center', gap: '10px', textDecoration: 'none' }}>
-          <div style={{ width: '28px', height: '28px', background: '#00A5A3', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <svg width="14" height="14" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+      <nav style={{ background: '#010103', padding: '0 32px', height: '60px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <Link href="/" style={{ display: 'flex', alignItems: 'center', gap: '12px', textDecoration: 'none' }}>
+          <div style={{ background: 'white', borderRadius: '8px', padding: '4px 10px', display: 'flex', alignItems: 'center' }}>
+            <img src="/trescon-logo.png" alt="Trescon" style={{ height: '22px', width: 'auto', display: 'block' }} />
           </div>
-          <span style={{ fontSize: '14px', fontWeight: 800, color: 'white' }}>TAOS</span>
+          <div style={{ width: '1px', height: '20px', background: 'rgba(255,255,255,0.1)' }} />
+          <div style={{ display: 'flex', alignItems: 'center', gap: '7px' }}>
+            <div style={{ width: '24px', height: '24px', background: '#00A5A3', borderRadius: '7px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <svg width="12" height="12" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+            </div>
+            <span style={{ fontSize: '13px', fontWeight: 800, color: 'white' }}>TAOS</span>
+          </div>
         </Link>
         <span style={{ fontSize: '12px', color: 'rgba(255,255,255,0.3)' }}>Join the Journey</span>
       </nav>
