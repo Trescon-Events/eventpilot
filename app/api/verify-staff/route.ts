@@ -10,7 +10,7 @@ export async function POST(req: NextRequest) {
 
   const { data, error } = await supabaseAdmin
     .from('staff_members')
-    .select('id, name, office_id, profile_complete')
+    .select('id, name, office_id, department, profile_complete')
     .eq('email', email.toLowerCase().trim())
     .single()
 
@@ -22,5 +22,5 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: `You've already submitted your work profile, ${data.name.split(' ')[0]}. Thank you!` }, { status: 409 })
   }
 
-  return NextResponse.json({ id: data.id, name: data.name, office_id: data.office_id })
+  return NextResponse.json({ id: data.id, name: data.name, office_id: data.office_id, department: data.department })
 }
