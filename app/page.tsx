@@ -186,6 +186,36 @@ export default function HomePage() {
         </div>
       </div>
 
+      {/* TAOS MODULE PREVIEW — 4-step */}
+      <div style={{ maxWidth: '1100px', margin: '0 auto', padding: '64px 48px 0' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '10px' }}>
+          <div style={{ width: '18px', height: '2px', background: '#A78BFA', borderRadius: '2px' }} />
+          <span style={{ fontSize: '10px', fontWeight: 800, letterSpacing: '3px', textTransform: 'uppercase', color: '#A78BFA' }}>TAOS in Action</span>
+        </div>
+        <h2 style={{ fontSize: '32px', fontWeight: 800, color: '#1E2124', marginBottom: '8px', letterSpacing: '-0.5px' }}>What TAOS does with your input</h2>
+        <p style={{ fontSize: '14px', color: '#464D53', marginBottom: '48px' }}>Four automated steps that turn your profile into real capability.</p>
+
+        <div style={{ position: 'relative', display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '0' }}>
+          {/* Connecting line */}
+          <div style={{ position: 'absolute', top: '36px', left: 'calc(12.5%)', right: 'calc(12.5%)', height: '2px', background: 'linear-gradient(to right, #00A5A3, #6EE7B7, #F4ED3C, #C0F43C)', zIndex: 0 }} />
+
+          {[
+            { color: '#00A5A3', bg: 'rgba(0,165,163,0.12)', title: 'Profile Built', desc: 'Every employee mapped with current skills and role requirements', icon: <svg width="26" height="26" fill="none" stroke="white" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg> },
+            { color: '#6EE7B7', bg: 'rgba(110,231,183,0.12)', title: 'Gap Identified', desc: 'TAOS detects what each person needs for their role and for AI adoption', icon: <svg width="26" height="26" fill="none" stroke="white" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg> },
+            { color: '#F4ED3C', bg: 'rgba(244,237,60,0.12)', title: 'Training Assigned', desc: 'System assigns relevant training automatically — no HR intervention needed', icon: <svg width="26" height="26" fill="none" stroke="white" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M2 3h6a4 4 0 014 4v14a3 3 0 00-3-3H2z"/><path d="M22 3h-6a4 4 0 00-4 4v14a3 3 0 013-3h7z"/></svg> },
+            { color: '#C0F43C', bg: 'rgba(192,244,60,0.12)', title: 'Performance Tracked', desc: 'Before and after scores measured. Improvement visible in the command center', icon: <svg width="26" height="26" fill="none" stroke="white" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg> },
+          ].map((item, i) => (
+            <div key={i} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', padding: '0 20px', position: 'relative', zIndex: 1 }}>
+              <div style={{ width: '72px', height: '72px', borderRadius: '50%', background: item.color, display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '24px', boxShadow: `0 0 0 6px ${item.bg}, 0 4px 20px ${item.color}40` }}>
+                {item.icon}
+              </div>
+              <div style={{ fontSize: '15px', fontWeight: 800, color: '#1E2124', marginBottom: '8px' }}>{item.title}</div>
+              <div style={{ fontSize: '13px', color: '#464D53', lineHeight: 1.6 }}>{item.desc}</div>
+            </div>
+          ))}
+        </div>
+      </div>
+
       {/* HOW IT WORKS — redesigned */}
       <div style={{ background: '#1E2124', padding: '72px 48px' }}>
         <div style={{ maxWidth: '1100px', margin: '0 auto' }}>
