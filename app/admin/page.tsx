@@ -162,7 +162,9 @@ function QuestionnaireView({ qDept, setQDept }: { qDept: string; setQDept: (d: s
 
 export default function AdminPage() {
   const [authed, setAuthed]   = useState(() => typeof window !== 'undefined' && sessionStorage.getItem('tai_admin_authed') === '1')
+  const [adminStaffId, setAdminStaffId] = useState(() => typeof window !== 'undefined' ? sessionStorage.getItem('tai_admin_staff_id') ?? '' : '')
   const [code, setCode]       = useState('')
+  const [adminEmail, setAdminEmail] = useState('')
   const [codeError, setCodeError] = useState('')
   const [members, setMembers] = useState<Member[]>([])
   const [tasks, setTasks]     = useState<TaskProfile[]>([])
@@ -263,12 +265,36 @@ export default function AdminPage() {
     return () => { supabase.removeChannel(ch) }
   }, [authed, fetchData])
 
-  function handleAuth(e: React.FormEvent) {
+  async function handleAuth(e: React.FormEvent) {
     e.preventDefault()
-    if (code.trim() === (process.env.NEXT_PUBLIC_ADMIN_CODE ?? 'taos2026')) {
-      sessionStorage.setItem('tai_admin_authed', '1')
-      setAuthed(true)
-    } else { setCodeError('Incorrect access code.') }
+    if (code.trim() !== (process.env.NEXT_PUBLIC_ADMIN_CODE ?? 'taos2026')) {
+      setCodeError('Incorrect access code.')
+      return
+    }
+    if (!adminEmail.trim()) {
+      setCodeError('Enter your work email.')
+      return
+    }
+    // Look up staff ID by email
+    try {
+      const res = await fetch('/api/verify-staff', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: adminEmail.trim() }),
+      })
+      const data = await res.json()
+      if (res.ok && data.id) {
+        sessionStorage.setItem('tai_admin_authed', '1')
+        sessionStorage.setItem('tai_admin_staff_id', data.id)
+        localStorage.setItem('tai_staff_id', data.id)
+        setAdminStaffId(data.id)
+        setAuthed(true)
+      } else {
+        setCodeError("Email not found. Join at /join first, then come back.")
+      }
+    } catch {
+      setCodeError('Something went wrong. Try again.')
+    }
   }
 
   /* ── Derived ── */
@@ -568,8 +594,11 @@ export default function AdminPage() {
           <h1 style={{ fontSize: '24px', fontWeight: 800, color: 'white', marginBottom: '8px' }}>Admin Access</h1>
           <p style={{ fontSize: '14px', color: 'rgba(255,255,255,0.80)', marginBottom: '32px' }}>TAI Academy — Leadership Dashboard</p>
           <form onSubmit={handleAuth}>
+            <input type="email" value={adminEmail} onChange={e => { setAdminEmail(e.target.value); setCodeError('') }}
+              placeholder="Your work email" autoFocus
+              style={{ width: '100%', padding: '14px 16px', borderRadius: '12px', border: `1px solid ${codeError ? '#FF6B6B' : 'rgba(255,255,255,0.15)'}`, background: 'rgba(255,255,255,0.08)', color: 'white', fontSize: '14px', outline: 'none', fontFamily: 'inherit', marginBottom: '10px', boxSizing: 'border-box' }} />
             <input type="password" value={code} onChange={e => { setCode(e.target.value); setCodeError('') }}
-              placeholder="Access code" autoFocus
+              placeholder="Access code"
               style={{ width: '100%', padding: '14px 16px', borderRadius: '12px', border: `1px solid ${codeError ? '#FF6B6B' : 'rgba(255,255,255,0.15)'}`, background: 'rgba(255,255,255,0.08)', color: 'white', fontSize: '15px', outline: 'none', fontFamily: 'inherit', textAlign: 'center', letterSpacing: '3px', marginBottom: '12px', boxSizing: 'border-box' }} />
             {codeError && <p style={{ fontSize: '12px', color: '#FF6B6B', marginBottom: '12px' }}>{codeError}</p>}
             <button type="submit" style={{ width: '100%', padding: '14px', borderRadius: '12px', border: 'none', background: '#00A5A3', color: 'white', fontSize: '14px', fontWeight: 800, cursor: 'pointer', fontFamily: 'inherit' }}>
@@ -603,7 +632,7 @@ export default function AdminPage() {
             <div style={{ width: '7px', height: '7px', borderRadius: '50%', background: '#00A5A3', animation: 'pulse 2s infinite' }} />
             <span style={{ fontSize: '11px', color: 'rgba(255,255,255,0.7)' }}>Live</span>
           </div>
-          <Link href="/dashboard" target="_blank" rel="noopener noreferrer" style={{ background: 'rgba(0,165,163,0.15)', border: '1px solid rgba(0,165,163,0.35)', color: '#00A5A3', fontSize: '12px', fontWeight: 700, padding: '7px 16px', borderRadius: '20px', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '6px' }}>
+          <Link href={adminStaffId ? `/dashboard?id=${adminStaffId}` : '/dashboard'} target="_blank" rel="noopener noreferrer" style={{ background: 'rgba(0,165,163,0.15)', border: '1px solid rgba(0,165,163,0.35)', color: '#00A5A3', fontSize: '12px', fontWeight: 700, padding: '7px 16px', borderRadius: '20px', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '6px' }}>
             <svg width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>
             My Learning
           </Link>
