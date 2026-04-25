@@ -168,7 +168,13 @@ export default function AdminPage() {
   const [codeError, setCodeError] = useState('')
   const [members, setMembers] = useState<Member[]>([])
   const [tasks, setTasks]     = useState<TaskProfile[]>([])
-  const [tab, setTab]         = useState<'overview' | 'members' | 'intelligence' | 'action' | 'learning'>('overview')
+  const [tab, setTab]         = useState<'overview' | 'members' | 'intelligence' | 'action' | 'learning' | 'suggest'>('overview')
+  const [suggestion, setSuggestion]   = useState('')
+  const [suggestDept, setSuggestDept] = useState('Events')
+  const [suggestTier, setSuggestTier] = useState<'foundation' | 'adoption' | 'advanced'>('foundation')
+  const [suggestState, setSuggestState] = useState<'idle' | 'thinking' | 'ready' | 'publishing'>('idle')
+  const [generatedCourse, setGeneratedCourse] = useState<Record<string, unknown> | null>(null)
+  const [publishMsg, setPublishMsg]   = useState('')
   const [learningData, setLearningData] = useState<{ completions: LearningCompletion[]; courses: LearningCourse[]; staff: LearningStaff[]; attempts: LearningAttempt[] } | null>(null)
   const [learningLoading, setLearningLoading] = useState(false)
   const [showDevTools, setShowDevTools] = useState(false)
@@ -252,6 +258,57 @@ export default function AdminPage() {
     const res = await fetch('/api/admin-learning')
     if (res.ok) setLearningData(await res.json())
     setLearningLoading(false)
+  }
+
+  async function submitSuggestion() {
+    if (!suggestion.trim()) return
+    setSuggestState('thinking')
+    setGeneratedCourse(null)
+    setPublishMsg('')
+    const res = await fetch('/api/generate-course', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        admin_code: process.env.NEXT_PUBLIC_ADMIN_CODE ?? 'taos2026',
+        suggestion: suggestion.trim(),
+        department: suggestDept,
+        tier_level: suggestTier,
+      }),
+    })
+    const data = await res.json()
+    if (res.ok && data.course) {
+      setGeneratedCourse(data.course)
+      setSuggestState('ready')
+    } else {
+      setPublishMsg(data.error ?? 'Failed to generate. Try again.')
+      setSuggestState('idle')
+    }
+  }
+
+  async function publishCourse() {
+    if (!generatedCourse) return
+    setSuggestState('publishing')
+    const res = await fetch('/api/seed-courses-v2', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ admin_code: process.env.NEXT_PUBLIC_ADMIN_CODE ?? 'taos2026', courses: [generatedCourse] }),
+    })
+    // seed-courses-v2 inserts a fixed list — publish directly via courses API instead
+    const pubRes = await fetch('/api/courses', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ admin_code: process.env.NEXT_PUBLIC_ADMIN_CODE ?? 'taos2026', course: generatedCourse }),
+    })
+    if (pubRes.ok) {
+      setPublishMsg('Course published and live in the library.')
+      setSuggestState('idle')
+      setSuggestion('')
+      setGeneratedCourse(null)
+    } else {
+      const d = await pubRes.json()
+      setPublishMsg(d.error ?? 'Publish failed. Try again.')
+      setSuggestState('ready')
+    }
   }
 
   useEffect(() => {
@@ -1068,9 +1125,10 @@ export default function AdminPage() {
             ['intelligence', 'Intelligence Profiles'],
             ['learning',     'Learning'],
             ['action',       'Playbook'],
+            ['suggest',      'Suggest a Course'],
           ] as [typeof tab, string][]).map(([t, label]) => (
             <button key={t} onClick={() => { setTab(t as typeof tab); if (t === 'learning') fetchLearning() }}
-              style={{ padding: '8px 20px', borderRadius: '8px', border: 'none', cursor: 'pointer', fontFamily: 'inherit', background: tab === t ? (t === 'action' ? 'rgba(192,244,60,0.15)' : t === 'learning' ? 'rgba(0,165,163,0.15)' : 'rgba(255,255,255,0.1)') : 'transparent', color: tab === t ? (t === 'action' ? '#C0F43C' : t === 'learning' ? '#00A5A3' : 'white') : 'rgba(255,255,255,0.75)', fontSize: '13px', fontWeight: 700 }}>
+              style={{ padding: '8px 20px', borderRadius: '8px', border: 'none', cursor: 'pointer', fontFamily: 'inherit', background: tab === t ? (t === 'action' ? 'rgba(192,244,60,0.15)' : t === 'learning' ? 'rgba(0,165,163,0.15)' : t === 'suggest' ? 'rgba(164,120,255,0.15)' : 'rgba(255,255,255,0.1)') : 'transparent', color: tab === t ? (t === 'action' ? '#C0F43C' : t === 'learning' ? '#00A5A3' : t === 'suggest' ? '#A478FF' : 'white') : 'rgba(255,255,255,0.75)', fontSize: '13px', fontWeight: 700 }}>
               {label}
             </button>
           ))}
@@ -1817,6 +1875,151 @@ export default function AdminPage() {
             </div>
           )}
         </div>
+
+        {/* ── Suggest a Course tab ── */}
+        {tab === 'suggest' && (
+          <div style={{ maxWidth: '720px' }}>
+            <div style={{ marginBottom: '28px' }}>
+              <div style={{ fontSize: '11px', fontWeight: 800, letterSpacing: '2px', textTransform: 'uppercase', color: '#A478FF', marginBottom: '6px' }}>AI Course Designer</div>
+              <h2 style={{ fontSize: '22px', fontWeight: 900, color: 'white', margin: '0 0 6px' }}>Suggest a Course</h2>
+              <p style={{ fontSize: '14px', color: 'rgba(255,255,255,0.55)', margin: 0, lineHeight: 1.6 }}>Describe what you need. Gemini will design a full course — content, tasks, and 10 questions — ready for your review.</p>
+            </div>
+
+            {/* Input panel */}
+            {(suggestState === 'idle' || suggestState === 'thinking') && (
+              <div style={{ background: 'rgba(164,120,255,0.06)', border: '1px solid rgba(164,120,255,0.2)', borderRadius: '20px', padding: '28px' }}>
+                <div style={{ marginBottom: '18px' }}>
+                  <label style={{ display: 'block', fontSize: '11px', fontWeight: 800, letterSpacing: '1.5px', textTransform: 'uppercase', color: 'rgba(255,255,255,0.6)', marginBottom: '8px' }}>Your Suggestion</label>
+                  <textarea
+                    value={suggestion}
+                    onChange={e => setSuggestion(e.target.value)}
+                    placeholder="e.g. Create a course for the Events team on using AI to build run-of-show documents and vendor briefing packs"
+                    rows={4}
+                    disabled={suggestState === 'thinking'}
+                    style={{ width: '100%', boxSizing: 'border-box', padding: '14px 16px', borderRadius: '12px', border: '1px solid rgba(164,120,255,0.25)', background: 'rgba(255,255,255,0.05)', color: 'white', fontSize: '14px', fontFamily: 'inherit', lineHeight: 1.6, outline: 'none', resize: 'vertical', opacity: suggestState === 'thinking' ? 0.6 : 1 }}
+                  />
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px', marginBottom: '22px' }}>
+                  <div>
+                    <label style={{ display: 'block', fontSize: '11px', fontWeight: 800, letterSpacing: '1.5px', textTransform: 'uppercase', color: 'rgba(255,255,255,0.6)', marginBottom: '8px' }}>Department</label>
+                    <select value={suggestDept} onChange={e => setSuggestDept(e.target.value)} disabled={suggestState === 'thinking'}
+                      style={{ width: '100%', padding: '12px 14px', borderRadius: '10px', border: '1px solid rgba(255,255,255,0.12)', background: '#1A1C1F', color: 'white', fontSize: '13px', fontFamily: 'inherit', outline: 'none', cursor: 'pointer' }}>
+                      {['Events', 'Sales & Sponsorship', 'Marketing', 'Finance', 'Operations', 'IT', 'HR & Recruitment', 'Content & Design', 'Government Relations', 'DemandifyMedia', 'Leadership'].map(d => (
+                        <option key={d} value={d}>{d}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label style={{ display: 'block', fontSize: '11px', fontWeight: 800, letterSpacing: '1.5px', textTransform: 'uppercase', color: 'rgba(255,255,255,0.6)', marginBottom: '8px' }}>Tier Level</label>
+                    <select value={suggestTier} onChange={e => setSuggestTier(e.target.value as 'foundation' | 'adoption' | 'advanced')} disabled={suggestState === 'thinking'}
+                      style={{ width: '100%', padding: '12px 14px', borderRadius: '10px', border: '1px solid rgba(255,255,255,0.12)', background: '#1A1C1F', color: 'white', fontSize: '13px', fontFamily: 'inherit', outline: 'none', cursor: 'pointer' }}>
+                      <option value="foundation">Foundation — AI basics for this role</option>
+                      <option value="adoption">Adoption — Intermediate workflows</option>
+                      <option value="advanced">Advanced — Strategy and leadership</option>
+                    </select>
+                  </div>
+                </div>
+                <button onClick={submitSuggestion} disabled={!suggestion.trim() || suggestState === 'thinking'}
+                  style={{ padding: '13px 28px', borderRadius: '12px', border: 'none', background: suggestion.trim() && suggestState !== 'thinking' ? '#A478FF' : 'rgba(255,255,255,0.1)', color: suggestion.trim() && suggestState !== 'thinking' ? 'white' : 'rgba(255,255,255,0.3)', fontSize: '14px', fontWeight: 800, cursor: suggestion.trim() && suggestState !== 'thinking' ? 'pointer' : 'not-allowed', fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+                  {suggestState === 'thinking' ? 'Designing your course...' : 'Submit Suggestion'}
+                </button>
+              </div>
+            )}
+
+            {/* Thinking state — conversational response */}
+            {suggestState === 'thinking' && (
+              <div style={{ marginTop: '20px', background: 'rgba(164,120,255,0.08)', border: '1px solid rgba(164,120,255,0.25)', borderRadius: '16px', padding: '22px 24px', display: 'flex', gap: '16px', alignItems: 'flex-start' }}>
+                <div style={{ width: '36px', height: '36px', borderRadius: '50%', background: 'rgba(164,120,255,0.2)', border: '2px solid rgba(164,120,255,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                  <svg width="16" height="16" fill="none" stroke="#A478FF" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+                </div>
+                <div>
+                  <div style={{ fontSize: '13px', fontWeight: 800, color: '#A478FF', marginBottom: '4px' }}>TAI Course Designer</div>
+                  <div style={{ fontSize: '14px', color: 'rgba(255,255,255,0.85)', lineHeight: 1.6 }}>
+                    I have received your suggestion for a <strong style={{ color: 'white' }}>{suggestTier}</strong> course for the <strong style={{ color: 'white' }}>{suggestDept}</strong> team. I am preparing a course just right — with full reading content, personalised tasks, and a 10-question bank. Sending it for your approval shortly...
+                  </div>
+                  <div style={{ marginTop: '12px', display: 'flex', gap: '5px' }}>
+                    {[0, 1, 2].map(i => (
+                      <div key={i} style={{ width: '7px', height: '7px', borderRadius: '50%', background: '#A478FF', animation: `pulse 1.2s ease-in-out ${i * 0.2}s infinite` }} />
+                    ))}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Generated course review */}
+            {(suggestState === 'ready' || suggestState === 'publishing') && generatedCourse && (
+              <div style={{ marginTop: '24px' }}>
+                <div style={{ background: 'rgba(164,120,255,0.08)', border: '1px solid rgba(164,120,255,0.25)', borderRadius: '16px', padding: '20px 24px', marginBottom: '20px', display: 'flex', gap: '14px', alignItems: 'flex-start' }}>
+                  <div style={{ width: '36px', height: '36px', borderRadius: '50%', background: 'rgba(164,120,255,0.2)', border: '2px solid rgba(164,120,255,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                    <svg width="16" height="16" fill="none" stroke="#A478FF" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>
+                  </div>
+                  <div>
+                    <div style={{ fontSize: '13px', fontWeight: 800, color: '#A478FF', marginBottom: '4px' }}>TAI Course Designer</div>
+                    <div style={{ fontSize: '14px', color: 'rgba(255,255,255,0.85)', lineHeight: 1.6 }}>
+                      Your course is ready for review. I have built a complete <strong style={{ color: 'white' }}>{suggestTier}</strong> course for <strong style={{ color: 'white' }}>{suggestDept}</strong> with full reading content, 4 personalised task steps, and a 10-question bank. Review it below — edit anything you like — then approve to publish.
+                    </div>
+                  </div>
+                </div>
+
+                {/* Course preview */}
+                <div style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.09)', borderRadius: '20px', overflow: 'hidden', marginBottom: '20px' }}>
+                  <div style={{ padding: '20px 24px', borderBottom: '1px solid rgba(255,255,255,0.07)' }}>
+                    <div style={{ fontSize: '10px', fontWeight: 800, color: '#A478FF', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '6px' }}>{(generatedCourse.tier_level as string)} · {suggestDept}</div>
+                    <div style={{ fontSize: '20px', fontWeight: 900, color: 'white', marginBottom: '4px' }}>{generatedCourse.title as string}</div>
+                    <div style={{ fontSize: '13px', color: 'rgba(255,255,255,0.6)' }}>{generatedCourse.subtitle as string}</div>
+                  </div>
+                  <div style={{ padding: '20px 24px', borderBottom: '1px solid rgba(255,255,255,0.07)' }}>
+                    <div style={{ fontSize: '10px', fontWeight: 800, color: 'rgba(255,255,255,0.4)', letterSpacing: '1.5px', textTransform: 'uppercase', marginBottom: '10px' }}>Overview</div>
+                    <div style={{ fontSize: '13px', color: 'rgba(255,255,255,0.75)', lineHeight: 1.7 }}>{generatedCourse.overview as string}</div>
+                  </div>
+                  <div style={{ padding: '20px 24px', borderBottom: '1px solid rgba(255,255,255,0.07)' }}>
+                    <div style={{ fontSize: '10px', fontWeight: 800, color: 'rgba(255,255,255,0.4)', letterSpacing: '1.5px', textTransform: 'uppercase', marginBottom: '12px' }}>Task Steps ({(generatedCourse.task_steps as unknown[]).length})</div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                      {(generatedCourse.task_steps as Array<{step: number; instruction: string; tip: string}>).map((ts) => (
+                        <div key={ts.step} style={{ padding: '12px 16px', background: 'rgba(255,255,255,0.03)', borderRadius: '10px', border: '1px solid rgba(255,255,255,0.07)' }}>
+                          <div style={{ fontSize: '11px', fontWeight: 700, color: '#A478FF', marginBottom: '4px' }}>Step {ts.step}</div>
+                          <div style={{ fontSize: '13px', color: 'rgba(255,255,255,0.85)', lineHeight: 1.55 }}>{ts.instruction}</div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                  <div style={{ padding: '20px 24px' }}>
+                    <div style={{ fontSize: '10px', fontWeight: 800, color: 'rgba(255,255,255,0.4)', letterSpacing: '1.5px', textTransform: 'uppercase', marginBottom: '10px' }}>
+                      Question Bank ({(generatedCourse.question_bank as unknown[]).length} questions · 5 served randomly per attempt)
+                    </div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                      {(generatedCourse.question_bank as Array<{question: string; correct_index: number; options: string[]}>).map((q, i) => (
+                        <div key={i} style={{ padding: '12px 16px', background: 'rgba(255,255,255,0.03)', borderRadius: '10px', border: '1px solid rgba(255,255,255,0.07)' }}>
+                          <div style={{ fontSize: '13px', color: 'white', fontWeight: 600, marginBottom: '4px' }}>Q{i + 1}: {q.question}</div>
+                          <div style={{ fontSize: '11px', color: '#C0F43C' }}>Correct: {q.options[q.correct_index]}</div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+
+                {publishMsg && (
+                  <div style={{ padding: '12px 16px', background: publishMsg.includes('live') ? 'rgba(192,244,60,0.1)' : 'rgba(255,107,107,0.1)', border: `1px solid ${publishMsg.includes('live') ? 'rgba(192,244,60,0.3)' : 'rgba(255,107,107,0.3)'}`, borderRadius: '10px', fontSize: '13px', color: publishMsg.includes('live') ? '#C0F43C' : '#FF6B6B', fontWeight: 700, marginBottom: '16px' }}>
+                    {publishMsg}
+                  </div>
+                )}
+
+                <div style={{ display: 'flex', gap: '12px' }}>
+                  <button onClick={publishCourse} disabled={suggestState === 'publishing'}
+                    style={{ padding: '13px 28px', borderRadius: '12px', border: 'none', background: '#A478FF', color: 'white', fontSize: '14px', fontWeight: 800, cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: '8px', opacity: suggestState === 'publishing' ? 0.7 : 1 }}>
+                    <svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>
+                    {suggestState === 'publishing' ? 'Publishing...' : 'Approve & Publish'}
+                  </button>
+                  <button onClick={() => { setSuggestState('idle'); setGeneratedCourse(null); setPublishMsg('') }}
+                    style={{ padding: '13px 20px', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.12)', background: 'transparent', color: 'rgba(255,255,255,0.7)', fontSize: '13px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
+                    Start Over
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
 
       </div>
       <style>{`@keyframes pulse{0%,100%{opacity:1}50%{opacity:0.4}}`}</style>

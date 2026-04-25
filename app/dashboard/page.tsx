@@ -162,6 +162,7 @@ function DashboardContent() {
   const [completions, setCompletions] = useState<Completion[]>([])
   const [loading,     setLoading]     = useState(true)
   const [error,       setError]       = useState('')
+  const isAdmin = typeof window !== 'undefined' && sessionStorage.getItem('tai_admin_authed') === '1'
 
   const tip = DAILY_TIPS[new Date().getDate() % DAILY_TIPS.length]
 
@@ -183,8 +184,9 @@ function DashboardContent() {
       const score = computeTAIRS(sData.tasks ?? [])
       const track = getLearningTrack(getTier(score))
 
-      // Courses for this tier
-      const cRes = await fetch(`/api/courses?tier=${track}`)
+      // Admins see all courses; staff see their tier only
+      const courseUrl = isAdmin ? '/api/courses' : `/api/courses?tier=${track}`
+      const cRes = await fetch(courseUrl)
       const cData = await cRes.json()
       setCourses(Array.isArray(cData) ? cData : [])
 
@@ -384,8 +386,8 @@ function DashboardContent() {
         <div style={{ marginBottom: '32px' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
             <div>
-              <h2 style={{ fontSize: '16px', fontWeight: 800, color: 'white', margin: 0 }}>My Learning Path</h2>
-              <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.5)', marginTop: '2px' }}>{TRACK_LABEL[track]} · {courses.length} courses</div>
+              <h2 style={{ fontSize: '16px', fontWeight: 800, color: 'white', margin: 0 }}>{isAdmin ? 'All Courses' : 'My Learning Path'}</h2>
+              <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.5)', marginTop: '2px' }}>{isAdmin ? `Full library · ${courses.length} courses` : `${TRACK_LABEL[track]} · ${courses.length} courses`}</div>
             </div>
             <Link href={`/dashboard/library?id=${staffId}`} style={{ fontSize: '13px', fontWeight: 700, color: '#00A5A3', textDecoration: 'none' }}>
               View All
@@ -393,7 +395,7 @@ function DashboardContent() {
           </div>
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-            {courses.slice(0, 5).map((course, idx) => {
+            {(isAdmin ? courses : courses.slice(0, 5)).map((course, idx) => {
               const done    = completedIds.has(course.id)
               const isNext  = !done && courses.find(c => !completedIds.has(c.id))?.id === course.id
               return (
