@@ -85,9 +85,38 @@ const DAILY_TIPS = [
   { title: 'AI knows every tool\'s shortcuts', body: 'Ask ChatGPT "What are the 10 most useful shortcuts in Excel/Canva/Figma I probably don\'t know?" You\'ll always find at least three new ones.' },
 ]
 
-/* ── No-ID landing: lets admins/founders enter their staff ID ── */
+/* ── No-ID landing: auto-detect from localStorage or ask for email ── */
 function NoIdScreen() {
-  const [input, setInput] = useState('')
+  const [email, setEmail] = useState('')
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState('')
+
+  useEffect(() => {
+    const stored = localStorage.getItem('tai_staff_id')
+    if (stored) window.location.href = `/dashboard?id=${stored}`
+  }, [])
+
+  async function handleEmail(e: React.FormEvent) {
+    e.preventDefault()
+    if (!email.trim()) return
+    setLoading(true)
+    setError('')
+    try {
+      const res = await fetch('/api/verify-staff', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: email.trim() }),
+      })
+      const data = await res.json()
+      if (!res.ok) { setError(data.error || 'Email not found. Have you joined at /join?'); setLoading(false); return }
+      localStorage.setItem('tai_staff_id', data.id)
+      window.location.href = `/dashboard?id=${data.id}`
+    } catch {
+      setError('Something went wrong. Try again.')
+      setLoading(false)
+    }
+  }
+
   return (
     <div style={{ fontFamily: 'var(--font-manrope), Manrope, sans-serif', background: '#0D0F10', minHeight: '100vh', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '24px' }}>
       <div style={{ maxWidth: 440, width: '100%', textAlign: 'center' }}>
@@ -96,24 +125,26 @@ function NoIdScreen() {
         </div>
         <div style={{ fontSize: '11px', fontWeight: 800, letterSpacing: '2px', textTransform: 'uppercase', color: '#00A5A3', marginBottom: '8px' }}>TAI Academy</div>
         <h1 style={{ fontSize: '22px', fontWeight: 800, color: 'white', margin: '0 0 10px' }}>My Learning Dashboard</h1>
-        <p style={{ fontSize: '14px', color: 'rgba(255,255,255,0.6)', lineHeight: 1.6, margin: '0 0 28px' }}>Enter your Staff ID to access your personal learning dashboard.</p>
-        <div style={{ display: 'flex', gap: '8px' }}>
+        <p style={{ fontSize: '14px', color: 'rgba(255,255,255,0.6)', lineHeight: 1.6, margin: '0 0 28px' }}>Enter your work email to access your dashboard.</p>
+        <form onSubmit={handleEmail} style={{ display: 'flex', gap: '8px' }}>
           <input
-            value={input}
-            onChange={e => setInput(e.target.value)}
-            onKeyDown={e => { if (e.key === 'Enter' && input.trim()) window.location.href = `/dashboard?id=${input.trim()}` }}
-            placeholder="Paste your Staff ID here"
+            type="email"
+            value={email}
+            onChange={e => setEmail(e.target.value)}
+            placeholder="you@tresconglobal.com"
             style={{ flex: 1, padding: '11px 16px', borderRadius: '10px', border: '1px solid rgba(255,255,255,0.15)', background: 'rgba(255,255,255,0.06)', color: 'white', fontSize: '13px', fontFamily: 'inherit', outline: 'none' }}
           />
           <button
-            onClick={() => { if (input.trim()) window.location.href = `/dashboard?id=${input.trim()}` }}
-            style={{ padding: '11px 20px', borderRadius: '10px', background: '#00A5A3', color: 'white', fontSize: '13px', fontWeight: 700, border: 'none', cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap' }}>
-            Go
+            type="submit"
+            disabled={loading}
+            style={{ padding: '11px 20px', borderRadius: '10px', background: '#00A5A3', color: 'white', fontSize: '13px', fontWeight: 700, border: 'none', cursor: loading ? 'not-allowed' : 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap', opacity: loading ? 0.7 : 1 }}>
+            {loading ? '...' : 'Go'}
           </button>
-        </div>
+        </form>
+        {error && <p style={{ marginTop: '12px', fontSize: '13px', color: '#FF6B6B' }}>{error}</p>}
         <div style={{ marginTop: '24px', padding: '14px 18px', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '12px', fontSize: '12px', color: 'rgba(255,255,255,0.5)', lineHeight: 1.6 }}>
-          First time? Complete the TAI Intelligence Interview to get your Staff ID and learning profile.{' '}
-          <Link href="/profile" style={{ color: '#00A5A3', textDecoration: 'none', fontWeight: 700 }}>Start Interview</Link>
+          Not joined yet?{' '}
+          <Link href="/join" style={{ color: '#00A5A3', textDecoration: 'none', fontWeight: 700 }}>Join TAI Academy</Link>
         </div>
       </div>
     </div>

@@ -18,9 +18,5 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "We couldn't find your email. Have you joined at /join yet?" }, { status: 404 })
   }
 
-  if (data.profile_complete) {
-    return NextResponse.json({ error: `You've already submitted your work profile, ${data.name.split(' ')[0]}. Thank you!` }, { status: 409 })
-  }
-
-  return NextResponse.json({ id: data.id, name: data.name, office_id: data.office_id, department: data.department })
+  return NextResponse.json({ id: data.id, name: data.name, office_id: data.office_id, department: data.department, profile_complete: data.profile_complete })
 }

@@ -38,6 +38,7 @@ export default function JoinPage() {
       return
     }
 
+    localStorage.setItem('tai_staff_id', result.id!)
     router.push(
       `/profile?id=${result.id}&name=${encodeURIComponent(result.name!)}&email=${encodeURIComponent(result.email!)}&dept=${encodeURIComponent(result.department ?? '')}`
     )
