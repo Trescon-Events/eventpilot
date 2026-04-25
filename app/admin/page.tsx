@@ -267,20 +267,15 @@ export default function AdminPage() {
 
   async function handleAuth(e: React.FormEvent) {
     e.preventDefault()
-    if (code.trim() !== (process.env.NEXT_PUBLIC_ADMIN_CODE ?? 'taos2026')) {
-      setCodeError('Incorrect access code.')
+    if (!adminEmail.trim() || !code.trim()) {
+      setCodeError('Enter your email and password.')
       return
     }
-    if (!adminEmail.trim()) {
-      setCodeError('Enter your work email.')
-      return
-    }
-    // Look up staff ID by email
     try {
-      const res = await fetch('/api/verify-staff', {
+      const res = await fetch('/api/admin-login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: adminEmail.trim() }),
+        body: JSON.stringify({ email: adminEmail.trim(), password: code.trim() }),
       })
       const data = await res.json()
       if (res.ok && data.id) {
@@ -290,7 +285,7 @@ export default function AdminPage() {
         setAdminStaffId(data.id)
         setAuthed(true)
       } else {
-        setCodeError("Email not found. Join at /join first, then come back.")
+        setCodeError(data.error ?? 'Incorrect email or password.')
       }
     } catch {
       setCodeError('Something went wrong. Try again.')
@@ -598,8 +593,8 @@ export default function AdminPage() {
               placeholder="Your work email" autoFocus
               style={{ width: '100%', padding: '14px 16px', borderRadius: '12px', border: `1px solid ${codeError ? '#FF6B6B' : 'rgba(255,255,255,0.15)'}`, background: 'rgba(255,255,255,0.08)', color: 'white', fontSize: '14px', outline: 'none', fontFamily: 'inherit', marginBottom: '10px', boxSizing: 'border-box' }} />
             <input type="password" value={code} onChange={e => { setCode(e.target.value); setCodeError('') }}
-              placeholder="Access code"
-              style={{ width: '100%', padding: '14px 16px', borderRadius: '12px', border: `1px solid ${codeError ? '#FF6B6B' : 'rgba(255,255,255,0.15)'}`, background: 'rgba(255,255,255,0.08)', color: 'white', fontSize: '15px', outline: 'none', fontFamily: 'inherit', textAlign: 'center', letterSpacing: '3px', marginBottom: '12px', boxSizing: 'border-box' }} />
+              placeholder="Password"
+              style={{ width: '100%', padding: '14px 16px', borderRadius: '12px', border: `1px solid ${codeError ? '#FF6B6B' : 'rgba(255,255,255,0.15)'}`, background: 'rgba(255,255,255,0.08)', color: 'white', fontSize: '14px', outline: 'none', fontFamily: 'inherit', marginBottom: '12px', boxSizing: 'border-box' }} />
             {codeError && <p style={{ fontSize: '12px', color: '#FF6B6B', marginBottom: '12px' }}>{codeError}</p>}
             <button type="submit" style={{ width: '100%', padding: '14px', borderRadius: '12px', border: 'none', background: '#00A5A3', color: 'white', fontSize: '14px', fontWeight: 800, cursor: 'pointer', fontFamily: 'inherit' }}>
               Enter Dashboard
