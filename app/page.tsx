@@ -5,10 +5,30 @@ import Link from 'next/link'
 import { supabase } from '@/app/lib/supabase'
 
 const OFFICES = [
-  { id: 'dubai',     name: 'Dubai',     total: 15,  color: '#00A5A3', bg: 'rgba(0,165,163,0.12)',  border: 'rgba(0,165,163,0.25)' },
-  { id: 'bangalore', name: 'Bangalore', total: 91,  color: '#C0F43C', bg: 'rgba(192,244,60,0.1)',  border: 'rgba(192,244,60,0.25)' },
-  { id: 'mangalore', name: 'Mangalore', total: 15,  color: '#F4ED3C', bg: 'rgba(244,237,60,0.1)',  border: 'rgba(244,237,60,0.25)' },
-  { id: 'manipal',   name: 'Manipal',   total: 63,  color: '#FF6B6B', bg: 'rgba(255,107,107,0.1)', border: 'rgba(255,107,107,0.25)' },
+  {
+    id: 'dubai',     name: 'Dubai',     total: 15,  color: '#00A5A3', bg: 'rgba(0,165,163,0.12)',  border: 'rgba(0,165,163,0.25)',
+    location: 'Dubai, UAE',
+    role: 'Global HQ & Events',
+    focus: 'Deal intelligence, sponsorship pipelines, event ops automation',
+  },
+  {
+    id: 'bangalore', name: 'Bangalore', total: 91,  color: '#C0F43C', bg: 'rgba(192,244,60,0.1)',  border: 'rgba(192,244,60,0.25)',
+    location: 'Bengaluru, India',
+    role: 'Sales, Tech & Media',
+    focus: 'Lead scoring, content automation, campaign intelligence',
+  },
+  {
+    id: 'mangalore', name: 'Mangalore', total: 15,  color: '#F4ED3C', bg: 'rgba(244,237,60,0.1)',  border: 'rgba(244,237,60,0.25)',
+    location: 'Mangaluru, India',
+    role: 'Finance & Operations',
+    focus: 'Reconciliation bots, approval workflows, reporting automation',
+  },
+  {
+    id: 'manipal',   name: 'Manipal',   total: 63,  color: '#FF6B6B', bg: 'rgba(255,107,107,0.1)', border: 'rgba(255,107,107,0.25)',
+    location: 'Manipal, India',
+    role: 'Content & Growth',
+    focus: 'Content generation, audience targeting, performance analytics',
+  },
 ]
 const TOTAL_STAFF = OFFICES.reduce((s, o) => s + o.total, 0)
 
@@ -19,6 +39,21 @@ export default function HomePage() {
   const [totalJoined, setTotalJoined] = useState(0)
   const [loading, setLoading] = useState(true)
   const [latestJoins, setLatestJoins] = useState<{ name: string; office_id: string; joined_at: string }[]>([])
+  const [officeTotals, setOfficeTotals] = useState<Record<string, number>>(
+    Object.fromEntries(OFFICES.map(o => [o.id, o.total]))  // fallback to hardcoded
+  )
+
+  async function fetchOfficeTotals() {
+    try {
+      const res = await fetch('/api/office-config')
+      if (res.ok) {
+        const data: { office_id: string; total_staff: number }[] = await res.json()
+        if (data.length > 0) {
+          setOfficeTotals(Object.fromEntries(data.map(d => [d.office_id, d.total_staff])))
+        }
+      }
+    } catch { /* use fallback hardcoded totals */ }
+  }
 
   async function fetchCounts() {
     const { data } = await supabase.from('staff_members').select('office_id')
@@ -40,6 +75,7 @@ export default function HomePage() {
   }
 
   useEffect(() => {
+    fetchOfficeTotals()
     fetchCounts()
     fetchLatest()
     const channel = supabase
@@ -52,7 +88,8 @@ export default function HomePage() {
     return () => { supabase.removeChannel(channel) }
   }, [])
 
-  const pct = TOTAL_STAFF > 0 ? Math.round((totalJoined / TOTAL_STAFF) * 100) : 0
+  const totalStaff = Object.values(officeTotals).reduce((s, n) => s + n, 0)
+  const pct = totalStaff > 0 ? Math.round((totalJoined / totalStaff) * 100) : 0
 
   return (
     <div style={{ fontFamily: 'var(--font-manrope), Manrope, sans-serif', background: '#F2F5F5', minHeight: '100vh' }}>
@@ -74,91 +111,100 @@ export default function HomePage() {
               <svg width="14" height="14" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
             </div>
             <div>
-              <div style={{ fontSize: '15px', fontWeight: 900, color: 'white', letterSpacing: '0.5px', lineHeight: 1.1 }}>TAOS</div>
-              <div style={{ fontSize: '10px', fontWeight: 600, color: 'rgba(255,255,255,0.35)', letterSpacing: '0.5px', lineHeight: 1 }}>Trescon AI Operating System</div>
+              <div style={{ fontSize: '15px', fontWeight: 900, color: 'white', letterSpacing: '0.5px', lineHeight: 1.1 }}>TAI</div>
+              <div style={{ fontSize: '10px', fontWeight: 600, color: 'rgba(255,255,255,0.35)', letterSpacing: '0.5px', lineHeight: 1 }}>Trescon AI</div>
             </div>
           </div>
         </div>
         <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
-          <Link href="/admin" style={{ fontSize: '12px', color: 'rgba(255,255,255,0.35)', textDecoration: 'none', fontWeight: 600 }}>Admin</Link>
-          <Link href="/join" style={{ background: '#00A5A3', color: 'white', fontSize: '13px', fontWeight: 700, padding: '9px 22px', borderRadius: '50px', textDecoration: 'none' }}>
-            Join the Journey
+          <Link href="/admin" style={{ background: '#00A5A3', color: 'white', fontSize: '13px', fontWeight: 700, padding: '9px 22px', borderRadius: '50px', textDecoration: 'none' }}>
+            Admin
           </Link>
         </div>
       </nav>
 
       {/* HERO */}
-      <div style={{ background: 'linear-gradient(155deg, #464D53 0%, #010103 60%)', padding: '88px 48px 80px', position: 'relative', overflow: 'hidden' }}>
+      <div style={{ background: 'linear-gradient(155deg, #464D53 0%, #010103 60%)', padding: '52px 48px 72px', position: 'relative', overflow: 'hidden' }}>
         <div style={{ position: 'absolute', top: '-120px', right: '-80px', width: '500px', height: '500px', borderRadius: '50%', background: 'radial-gradient(circle, rgba(0,165,163,0.18) 0%, transparent 65%)' }} />
         <div style={{ position: 'absolute', bottom: '-100px', left: '15%', width: '360px', height: '360px', borderRadius: '50%', background: 'radial-gradient(circle, rgba(192,244,60,0.07) 0%, transparent 65%)' }} />
 
         <div style={{ maxWidth: '1100px', margin: '0 auto', position: 'relative', zIndex: 1 }}>
-          <div style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', background: 'rgba(0,165,163,0.12)', border: '1px solid rgba(0,165,163,0.3)', borderRadius: '50px', padding: '6px 16px', marginBottom: '32px' }}>
+          <div style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', background: 'rgba(0,165,163,0.12)', border: '1px solid rgba(0,165,163,0.3)', borderRadius: '50px', padding: '6px 16px', marginBottom: '20px' }}>
             <div style={{ width: '7px', height: '7px', background: '#C0F43C', borderRadius: '50%', animation: 'pulse 2s infinite' }} />
             <span style={{ fontSize: '11px', fontWeight: 700, letterSpacing: '2px', textTransform: 'uppercase', color: '#00A5A3' }}>Live — The Build Has Begun</span>
           </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 380px', gap: '64px', alignItems: 'center' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 360px', gap: '56px', alignItems: 'center' }}>
             <div>
               <h1 style={{ fontSize: '58px', fontWeight: 900, color: 'white', lineHeight: 1.0, letterSpacing: '-2px', marginBottom: '24px' }}>
-                Your work shapes<br />what <span style={{ color: '#C0F43C' }}>TAOS</span><br />builds first.
+                Your work shapes<br />what <span style={{ color: '#C0F43C' }}>TAI</span><br />builds first.
               </h1>
               <p style={{ fontSize: '18px', color: 'rgba(255,255,255,0.65)', lineHeight: 1.75, marginBottom: '20px', maxWidth: '520px' }}>
-                TAOS — the Trescon AI Operating System — is being built from the ground up, by this team, for this team. Not from a consultant&apos;s slide deck. From your actual day at work.
+                TAI — Trescon AI — is being built from the ground up, by this team, for this team. Not from a consultant&apos;s slide deck. From your actual day at work.
               </p>
-              <p style={{ fontSize: '15px', color: 'rgba(255,255,255,0.38)', lineHeight: 1.75, maxWidth: '500px', marginBottom: '40px' }}>
-                Tell us what you do, what slows you down, and what you wish worked better. 8 minutes. Your input becomes the build plan — and TAOS builds exactly that.
+              <p style={{ fontSize: '15px', color: 'rgba(255,255,255,0.38)', lineHeight: 1.75, maxWidth: '500px', marginBottom: '36px' }}>
+                Tell us what you do, what slows you down, and what you wish worked better. 8 minutes. Your input becomes the build plan.
               </p>
               <Link href="/join" style={{ display: 'inline-flex', alignItems: 'center', gap: '10px', background: '#C0F43C', color: '#1E2124', fontSize: '15px', fontWeight: 800, padding: '16px 36px', borderRadius: '50px', textDecoration: 'none', letterSpacing: '0.3px' }}>
                 <svg width="16" height="16" fill="none" stroke="#1E2124" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
-                I&apos;m Part of This — Add My Input
+                Join the Journey
               </Link>
             </div>
 
-            {/* Live counter */}
-            <div style={{ background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.18)', borderRadius: '24px', padding: '36px 32px', textAlign: 'center', backdropFilter: 'blur(12px)' }}>
-              <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', background: 'rgba(0,165,163,0.2)', border: '1px solid rgba(0,165,163,0.4)', borderRadius: '50px', padding: '4px 12px', marginBottom: '24px' }}>
-                <div style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#00A5A3', animation: 'pulse 2s infinite' }} />
-                <span style={{ fontSize: '10px', fontWeight: 700, letterSpacing: '2px', textTransform: 'uppercase', color: '#00A5A3' }}>Live</span>
+            {/* Live participation card */}
+            <div style={{ background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.14)', borderRadius: '24px', padding: '28px 26px', backdropFilter: 'blur(12px)' }}>
+
+              {/* Live badge */}
+              <div style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', background: 'rgba(0,165,163,0.2)', border: '1px solid rgba(0,165,163,0.4)', borderRadius: '50px', padding: '3px 10px', marginBottom: '20px' }}>
+                <div style={{ width: '5px', height: '5px', borderRadius: '50%', background: '#00A5A3', animation: 'pulse 2s infinite' }} />
+                <span style={{ fontSize: '9px', fontWeight: 700, letterSpacing: '1.5px', textTransform: 'uppercase', color: '#00A5A3' }}>Live</span>
               </div>
-              <div style={{ fontSize: '80px', fontWeight: 900, color: 'white', lineHeight: 1, marginBottom: '6px', letterSpacing: '-3px' }}>
-                {loading ? (
-                  <span style={{ fontSize: '40px', color: 'rgba(255,255,255,0.3)' }}>loading...</span>
-                ) : totalJoined}
+
+              {/* Big % */}
+              <div style={{ marginBottom: '6px' }}>
+                <div style={{ fontSize: '72px', fontWeight: 900, color: 'white', lineHeight: 1, letterSpacing: '-3px' }}>
+                  {loading ? <span style={{ fontSize: '36px', color: 'rgba(255,255,255,0.25)' }}>—</span> : `${pct}%`}
+                </div>
               </div>
-              <div style={{ fontSize: '15px', color: 'rgba(255,255,255,0.5)', marginBottom: '28px', fontWeight: 500 }}>
-                of <strong style={{ color: 'white' }}>{TOTAL_STAFF}</strong> team members have joined
+              <div style={{ fontSize: '13px', color: 'rgba(255,255,255,0.45)', marginBottom: '20px', lineHeight: 1.5 }}>
+                of Trescon has shaped<br /><span style={{ color: '#C0F43C', fontWeight: 700 }}>TAI so far</span>
               </div>
-              <div style={{ height: '8px', background: 'rgba(255,255,255,0.1)', borderRadius: '10px', overflow: 'hidden', marginBottom: '10px' }}>
-                <div style={{ height: '100%', width: `${pct}%`, minWidth: pct > 0 ? '8px' : '0', background: 'linear-gradient(to right, #00A5A3, #C0F43C)', borderRadius: '10px', transition: 'width 0.8s ease' }} />
+
+              {/* Overall progress bar */}
+              <div style={{ height: '5px', background: 'rgba(255,255,255,0.1)', borderRadius: '10px', overflow: 'hidden', marginBottom: '24px' }}>
+                <div style={{ height: '100%', width: `${pct}%`, minWidth: pct > 0 ? '5px' : '0', background: 'linear-gradient(to right, #00A5A3, #C0F43C)', borderRadius: '10px', transition: 'width 0.8s ease' }} />
               </div>
-              <div style={{ fontSize: '13px', color: 'white', fontWeight: 700, marginBottom: '28px', background: 'rgba(192,244,60,0.15)', border: '1px solid rgba(192,244,60,0.3)', borderRadius: '8px', padding: '8px 12px' }}>
-                {pct}% of Trescon has joined
-              </div>
-              {latestJoins.length > 0 && (
-                <div style={{ borderTop: '1px solid rgba(255,255,255,0.1)', paddingTop: '20px' }}>
-                  <div style={{ fontSize: '10px', fontWeight: 700, letterSpacing: '2px', textTransform: 'uppercase', color: 'rgba(255,255,255,0.35)', marginBottom: '12px' }}>Just joined</div>
-                  {latestJoins.map((j, i) => {
-                    const office = OFFICES.find(o => o.id === j.office_id)
-                    return (
-                      <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '8px' }}>
-                        <div style={{ width: '30px', height: '30px', borderRadius: '8px', background: office?.bg ?? 'rgba(255,255,255,0.1)', border: `1px solid ${office?.border ?? 'rgba(255,255,255,0.1)'}`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '12px', fontWeight: 800, color: office?.color ?? 'white', flexShrink: 0 }}>
-                          {j.name.charAt(0).toUpperCase()}
+
+              {/* Per-office bars — % only, no count */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '11px' }}>
+                {OFFICES.map(office => {
+                  const total  = officeTotals[office.id] ?? 0
+                  const joined = counts[office.id] ?? 0
+                  const pctOff = total > 0 ? Math.round((joined / total) * 100) : 0
+                  return (
+                    <div key={office.id}>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '5px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '7px' }}>
+                          <div style={{ width: '7px', height: '7px', borderRadius: '50%', background: office.color, flexShrink: 0 }} />
+                          <span style={{ fontSize: '12px', fontWeight: 700, color: 'rgba(255,255,255,0.7)' }}>{office.name}</span>
                         </div>
-                        <div style={{ textAlign: 'left' }}>
-                          <div style={{ fontSize: '13px', fontWeight: 600, color: 'white' }}>{j.name}</div>
-                          <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.4)' }}>{office?.name}</div>
-                        </div>
+                        <span style={{ fontSize: '12px', fontWeight: 800, color: pctOff > 0 ? office.color : 'rgba(255,255,255,0.2)' }}>
+                          {loading ? '—' : `${pctOff}%`}
+                        </span>
                       </div>
-                    )
-                  })}
-                </div>
-              )}
-              {latestJoins.length === 0 && !loading && (
-                <div style={{ borderTop: '1px solid rgba(255,255,255,0.1)', paddingTop: '20px', fontSize: '13px', color: 'rgba(255,255,255,0.3)', fontStyle: 'italic' }}>
-                  Be the first to join
-                </div>
-              )}
+                      <div style={{ height: '4px', background: 'rgba(255,255,255,0.07)', borderRadius: '4px', overflow: 'hidden' }}>
+                        <div style={{ height: '100%', width: `${pctOff}%`, minWidth: pctOff > 0 ? '4px' : '0', background: office.color, borderRadius: '4px', transition: 'width 0.8s ease' }} />
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+
+              {/* Footer */}
+              <div style={{ marginTop: '20px', paddingTop: '16px', borderTop: '1px solid rgba(255,255,255,0.07)', fontSize: '11px', color: 'rgba(255,255,255,0.25)', lineHeight: 1.6 }}>
+                Updates the moment someone joins. Every input shapes the build.
+              </div>
+
             </div>
           </div>
         </div>
@@ -176,32 +222,41 @@ export default function HomePage() {
 
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '16px' }}>
           {OFFICES.map(office => {
-            const joined = counts[office.id] ?? 0
-            const officePct = Math.round((joined / office.total) * 100)
+            const total     = officeTotals[office.id] ?? 0
+            const joined    = counts[office.id] ?? 0
+            const officePct = total > 0 ? Math.round((joined / total) * 100) : 0
             return (
-              <div key={office.id} style={{ background: '#1E2124', border: `1px solid rgba(255,255,255,0.08)`, borderRadius: '20px', padding: '28px 24px', position: 'relative', overflow: 'hidden' }}>
+              <div key={office.id} style={{ background: '#1E2124', border: `1px solid ${office.color}20`, borderRadius: '20px', padding: '28px 24px', position: 'relative', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+
+                {/* Top colour stripe */}
                 <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: '3px', background: office.color }} />
-                <div style={{ width: '44px', height: '44px', borderRadius: '12px', background: `${office.color}20`, border: `1px solid ${office.color}40`, display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '16px' }}>
-                  <svg width="20" height="20" fill="none" stroke={office.color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/></svg>
+
+                {/* Office identity */}
+                <div style={{ marginBottom: '18px' }}>
+                  <div style={{ fontSize: '20px', fontWeight: 900, color: 'white', letterSpacing: '-0.5px', marginBottom: '3px' }}>{office.name}</div>
+                  <div style={{ fontSize: '11px', color: office.color, fontWeight: 700, letterSpacing: '0.5px' }}>{office.location}</div>
+                  <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.35)', marginTop: '2px' }}>{office.role}</div>
                 </div>
-                <div style={{ fontSize: '16px', fontWeight: 800, color: 'white', marginBottom: '2px' }}>{office.name}</div>
-                <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.4)', marginBottom: '20px' }}>Trescon {office.name} Office</div>
-                <div style={{ display: 'flex', alignItems: 'baseline', gap: '6px', marginBottom: '4px' }}>
-                  <span style={{ fontSize: '40px', fontWeight: 900, color: 'white', lineHeight: 1, letterSpacing: '-1px' }}>
-                    {loading ? <span style={{ fontSize: '24px', color: 'rgba(255,255,255,0.3)' }}>—</span> : joined}
-                  </span>
-                  <span style={{ fontSize: '14px', color: 'rgba(255,255,255,0.4)', fontWeight: 500 }}>/ {office.total}</span>
+
+                {/* TAI is building here */}
+                <div style={{ background: `${office.color}0D`, border: `1px solid ${office.color}25`, borderRadius: '10px', padding: '12px 14px', marginBottom: '20px', flex: 1 }}>
+                  <div style={{ fontSize: '9px', fontWeight: 800, letterSpacing: '2px', textTransform: 'uppercase', color: office.color, marginBottom: '6px' }}>TAI is building here</div>
+                  <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.6)', lineHeight: 1.55 }}>{office.focus}</div>
                 </div>
-                <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.4)', marginBottom: '16px' }}>staff have joined</div>
-                <div style={{ height: '6px', background: 'rgba(255,255,255,0.08)', borderRadius: '10px', overflow: 'hidden', marginBottom: '10px' }}>
-                  <div style={{ height: '100%', width: `${officePct}%`, background: office.color, borderRadius: '10px', transition: 'width 0.8s ease' }} />
-                </div>
-                <div style={{ fontSize: '12px', fontWeight: 700, color: office.color }}>{officePct}% joined</div>
-                {joined === 0 && (
-                  <div style={{ marginTop: '14px', background: `${office.color}15`, border: `1px solid ${office.color}30`, borderRadius: '8px', padding: '8px 12px', fontSize: '11px', color: office.color, fontWeight: 600, textAlign: 'center' }}>
-                    Waiting for first member
+
+                {/* Participation bar — no count */}
+                <div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: '7px' }}>
+                    <span style={{ fontSize: '10px', fontWeight: 700, letterSpacing: '1.5px', textTransform: 'uppercase', color: 'rgba(255,255,255,0.3)' }}>Participation</span>
+                    <span style={{ fontSize: '18px', fontWeight: 900, color: officePct > 0 ? office.color : 'rgba(255,255,255,0.2)', letterSpacing: '-0.5px' }}>
+                      {loading ? '—' : `${officePct}%`}
+                    </span>
                   </div>
-                )}
+                  <div style={{ height: '7px', background: 'rgba(255,255,255,0.07)', borderRadius: '10px', overflow: 'hidden' }}>
+                    <div style={{ height: '100%', width: `${officePct}%`, minWidth: officePct > 0 ? '7px' : '0', background: office.color, borderRadius: '10px', transition: 'width 1s ease' }} />
+                  </div>
+                </div>
+
               </div>
             )
           })}
@@ -209,14 +264,14 @@ export default function HomePage() {
       </div>
       </div>
 
-      {/* TAOS MODULE PREVIEW — 4-step */}
+      {/* TAI MODULE PREVIEW — 4-step */}
       <div style={{ background: '#1E2124', padding: '64px 48px' }}>
         <div style={{ maxWidth: '1100px', margin: '0 auto' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '10px' }}>
             <div style={{ width: '18px', height: '2px', background: '#00A5A3', borderRadius: '2px' }} />
-            <span style={{ fontSize: '10px', fontWeight: 800, letterSpacing: '3px', textTransform: 'uppercase', color: '#00A5A3' }}>TAOS in Action</span>
+            <span style={{ fontSize: '10px', fontWeight: 800, letterSpacing: '3px', textTransform: 'uppercase', color: '#00A5A3' }}>TAI in Action</span>
           </div>
-          <h2 style={{ fontSize: '32px', fontWeight: 800, color: 'white', marginBottom: '8px', letterSpacing: '-0.5px' }}>What TAOS does with your input</h2>
+          <h2 style={{ fontSize: '32px', fontWeight: 800, color: 'white', marginBottom: '8px', letterSpacing: '-0.5px' }}>What TAI does with your input</h2>
           <p style={{ fontSize: '14px', color: 'rgba(255,255,255,0.45)', marginBottom: '56px' }}>Four automated steps that turn your profile into real capability.</p>
 
           <div style={{ position: 'relative', display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '0' }}>
@@ -225,7 +280,7 @@ export default function HomePage() {
 
             {[
               { color: '#00A5A3', title: 'Profile Built', desc: 'Every employee mapped with current skills and role requirements', icon: <svg width="28" height="28" fill="none" stroke="white" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg> },
-              { color: '#6EE7B7', title: 'Gap Identified', desc: 'TAOS detects what each person needs for their role and for AI adoption', icon: <svg width="28" height="28" fill="none" stroke="white" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg> },
+              { color: '#6EE7B7', title: 'Gap Identified', desc: 'TAI detects what each person needs for their role and for AI adoption', icon: <svg width="28" height="28" fill="none" stroke="white" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg> },
               { color: '#F4ED3C', title: 'Training Assigned', desc: 'System assigns relevant training automatically — no HR intervention needed', icon: <svg width="28" height="28" fill="none" stroke="#1E2124" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M2 3h6a4 4 0 014 4v14a3 3 0 00-3-3H2z"/><path d="M22 3h-6a4 4 0 00-4 4v14a3 3 0 013-3h7z"/></svg> },
               { color: '#C0F43C', title: 'Performance Tracked', desc: 'Before and after scores measured. Improvement visible in the command center', icon: <svg width="28" height="28" fill="none" stroke="#1E2124" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg> },
             ].map((item, i) => (
@@ -250,10 +305,10 @@ export default function HomePage() {
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '48px', alignItems: 'start', marginBottom: '56px' }}>
             <h2 style={{ fontSize: '36px', fontWeight: 800, color: 'white', lineHeight: 1.15, letterSpacing: '-0.8px' }}>
-              TAOS is built bottom-up.<br /><span style={{ color: '#C0F43C' }}>You are the foundation.</span>
+              TAI is built bottom-up.<br /><span style={{ color: '#C0F43C' }}>You are the foundation.</span>
             </h2>
             <p style={{ fontSize: '15px', color: 'rgba(255,255,255,0.45)', lineHeight: 1.8, paddingTop: '6px' }}>
-              Most technology is built by consultants guessing what a company needs. TAOS is different. Every feature, every automation, every tool is built from what the 184 people at Trescon actually do — sourced directly, processed by AI, approved by leadership.
+              Most technology is built by consultants guessing what a company needs. TAI is different. Every feature, every automation, every tool is built from what the 184 people at Trescon actually do — sourced directly, processed by AI, approved by leadership.
             </p>
           </div>
 
@@ -263,7 +318,7 @@ export default function HomePage() {
               { n: '02', color: '#6EE7B7', title: 'Tell Us Your Day', desc: 'Your tasks, your tools, your time. What works, what doesn\'t, what you wish was different.', icon: <svg width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg> },
               { n: '03', color: '#A78BFA', title: 'AI Processes All 184', desc: 'Every submission is analysed together. Patterns emerge. Priorities become clear.', icon: <svg width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg> },
               { n: '04', color: '#FCD34D', title: 'Leadership Sees the Picture', desc: 'One clear report. Not 184 responses — one intelligence brief with a ranked build plan.', icon: <svg width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg> },
-              { n: '05', color: '#C0F43C', title: 'TAOS Gets Built', desc: 'Module by module. Your input goes live. You see it work in your actual job.', icon: <svg width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg> },
+              { n: '05', color: '#C0F43C', title: 'TAI Gets Built', desc: 'Module by module. Your input goes live. You see it work in your actual job.', icon: <svg width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg> },
             ].map((step, i) => (
               <div key={i} style={{ background: 'rgba(255,255,255,0.05)', border: `1px solid rgba(255,255,255,0.08)`, borderRadius: '18px', padding: '24px 20px', position: 'relative', overflow: 'hidden' }}>
                 <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: '3px', background: step.color, borderRadius: '18px 18px 0 0' }} />
@@ -286,7 +341,7 @@ export default function HomePage() {
           <span style={{ fontSize: '10px', fontWeight: 800, letterSpacing: '3px', textTransform: 'uppercase', color: '#00A5A3' }}>The Exchange</span>
         </div>
         <h2 style={{ fontSize: '32px', fontWeight: 800, color: '#1E2124', marginBottom: '8px', letterSpacing: '-0.5px' }}>8 minutes in. A better working life out.</h2>
-        <p style={{ fontSize: '14px', color: '#464D53', marginBottom: '40px' }}>You give us an honest picture of your day. TAOS gives you your time back.</p>
+        <p style={{ fontSize: '14px', color: '#464D53', marginBottom: '40px' }}>You give us an honest picture of your day. TAI gives you your time back.</p>
 
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
 
@@ -324,7 +379,7 @@ export default function HomePage() {
                 <svg width="16" height="16" fill="none" stroke="#C0F43C" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
               </div>
               <div>
-                <div style={{ fontSize: '11px', fontWeight: 700, letterSpacing: '1.5px', textTransform: 'uppercase', color: '#C0F43C' }}>What TAOS gives back</div>
+                <div style={{ fontSize: '11px', fontWeight: 700, letterSpacing: '1.5px', textTransform: 'uppercase', color: '#C0F43C' }}>What TAI gives back</div>
                 <div style={{ fontSize: '16px', fontWeight: 800, color: 'white' }}>Your time — and then some</div>
               </div>
             </div>
@@ -365,14 +420,14 @@ export default function HomePage() {
           </div>
           <div style={{ fontSize: '11px', fontWeight: 700, letterSpacing: '2.5px', textTransform: 'uppercase', color: '#00A5A3', marginBottom: '16px' }}>The foundation starts here</div>
           <h2 style={{ fontSize: '38px', fontWeight: 900, color: 'white', lineHeight: 1.15, letterSpacing: '-1px', marginBottom: '16px' }}>
-            TAOS is only as smart as<br />the team that builds it.
+            TAI is only as smart as<br />the team that builds it.
           </h2>
           <p style={{ fontSize: '16px', color: 'rgba(255,255,255,0.45)', marginBottom: '36px', lineHeight: 1.75 }}>
-            Every person who adds their input makes TAOS more precise, more useful, and more built for how Trescon actually works. Your 8 minutes is the foundation everything else is built on.
+            Every person who adds their input makes TAI more precise, more useful, and more built for how Trescon actually works. Your 8 minutes is the foundation everything else is built on.
           </p>
           <Link href="/join" style={{ display: 'inline-flex', alignItems: 'center', gap: '10px', background: '#C0F43C', color: '#1E2124', fontSize: '16px', fontWeight: 800, padding: '18px 44px', borderRadius: '50px', textDecoration: 'none', letterSpacing: '0.3px' }}>
             <svg width="16" height="16" fill="none" stroke="#1E2124" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
-            Join the TAOS Journey
+            Join the TAI Journey
           </Link>
           <div style={{ marginTop: '20px', fontSize: '12px', color: 'rgba(255,255,255,0.25)' }}>
             {TOTAL_STAFF} people · 4 offices · 1 operating system

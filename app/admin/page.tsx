@@ -3,6 +3,8 @@
 import { useState, useEffect, useCallback } from 'react'
 import { supabase } from '@/app/lib/supabase'
 import Link from 'next/link'
+import { buildQuestions, ALL_DEPARTMENTS } from '@/app/lib/questions'
+import type { Question } from '@/app/lib/questions'
 
 const OFFICES = [
   { id: 'dubai',     label: 'Dubai',     total: 15,  color: '#00A5A3' },
@@ -30,19 +32,206 @@ type TaskProfile = {
   time_taken_today: string | null; ai_time_estimate: string | null
   skill_needed: string | null; ai_readiness: number | null
   frequency: string | null; created_at: string
+  ai_proof: string | null
+}
+
+type LearningCompletion = { id: string; staff_id: string; course_id: string; test_score: number | null; passed: boolean; attempt_count: number; completed_at: string }
+type LearningCourse     = { id: string; title: string; tier_level: string; is_mandatory: boolean; estimated_minutes: number }
+type LearningStaff      = { id: string; name: string; department: string | null; office_id: string; role: string | null }
+type LearningAttempt    = { id: string; staff_id: string; course_id: string; score: number | null; passed: boolean | null; attempted_at: string }
+
+/* ── QuestionnaireView — read-only preview of the full questionnaire flow ── */
+function QuestionnaireView({ qDept, setQDept }: { qDept: string; setQDept: (d: string) => void }) {
+  const questions: Question[] = buildQuestions(qDept)
+
+  const typeLabel: Record<string, string> = {
+    textarea: 'Open text',
+    chips:    'Multi-select',
+    scale:    'Scale 1–5',
+    select:   'Single choice',
+    text:     'Short text',
+  }
+  const typeBadgeColor: Record<string, string> = {
+    textarea: '#00A5A3',
+    chips:    '#C0F43C',
+    scale:    '#F4ED3C',
+    select:   '#FF9F43',
+    text:     '#A8E6CF',
+  }
+  const typeBadgeText: Record<string, string> = {
+    textarea: 'white',
+    chips:    '#1E2124',
+    scale:    '#1E2124',
+    select:   '#1E2124',
+    text:     '#1E2124',
+  }
+
+  return (
+    <div>
+      {/* Dept selector */}
+      <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginBottom: '28px' }}>
+        {ALL_DEPARTMENTS.map(d => (
+          <button key={d} onClick={() => setQDept(d)}
+            style={{ padding: '7px 16px', borderRadius: '20px', border: `1px solid ${qDept === d ? '#00A5A3' : 'rgba(255,255,255,0.12)'}`, background: qDept === d ? '#00A5A320' : 'transparent', color: qDept === d ? '#00A5A3' : 'rgba(255,255,255,0.75)', fontSize: '12px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap' }}>
+            {d}
+          </button>
+        ))}
+      </div>
+
+      {/* Header */}
+      <div style={{ background: 'rgba(0,165,163,0.08)', border: '1px solid rgba(0,165,163,0.2)', borderRadius: '16px', padding: '20px 24px', marginBottom: '24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <div>
+          <div style={{ fontSize: '11px', fontWeight: 700, letterSpacing: '2px', textTransform: 'uppercase', color: 'rgba(255,255,255,0.82)', marginBottom: '4px' }}>Questionnaire Preview</div>
+          <div style={{ fontSize: '17px', fontWeight: 800, color: 'white' }}>{qDept} Department</div>
+          <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.7)', marginTop: '2px' }}>{questions.length} questions total · Read-only view</div>
+        </div>
+        <div style={{ fontSize: '36px', fontWeight: 800, color: '#00A5A3', lineHeight: 1 }}>{questions.length}</div>
+      </div>
+
+      {/* Question cards */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+        {questions.map((q, idx) => (
+          <div key={q.id} style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '16px', padding: '22px 24px' }}>
+            {/* Step + type row */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '12px' }}>
+              <div style={{ width: '26px', height: '26px', borderRadius: '50%', background: 'rgba(255,255,255,0.08)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '11px', fontWeight: 800, color: 'rgba(255,255,255,0.75)', flexShrink: 0 }}>
+                {idx + 1}
+              </div>
+              <span style={{ fontSize: '10px', fontWeight: 700, padding: '3px 9px', borderRadius: '6px', background: typeBadgeColor[q.type] ?? '#555', color: typeBadgeText[q.type] ?? 'white', letterSpacing: '0.5px', textTransform: 'uppercase' }}>
+                {typeLabel[q.type] ?? q.type}
+              </span>
+              <span style={{ fontSize: '10px', color: 'rgba(255,255,255,0.80)', fontFamily: 'monospace' }}>{q.id}</span>
+            </div>
+
+            {/* Question text */}
+            <div style={{ fontSize: '15px', fontWeight: 700, color: 'white', lineHeight: 1.5, marginBottom: q.subtext ? '6px' : '0' }}>
+              {q.question}
+            </div>
+            {q.subtext && (
+              <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.7)', lineHeight: 1.5, marginBottom: '0' }}>
+                {q.subtext}
+              </div>
+            )}
+
+            {/* Options display */}
+            {q.type === 'chips' && q.options && q.options.length > 0 && (
+              <div style={{ marginTop: '14px', display: 'flex', flexWrap: 'wrap', gap: '7px' }}>
+                {q.options.map(opt => (
+                  <span key={opt} style={{ padding: '5px 12px', borderRadius: '20px', border: '1px solid rgba(255,255,255,0.15)', fontSize: '12px', color: 'rgba(255,255,255,0.80)', background: 'rgba(255,255,255,0.04)' }}>
+                    {opt}
+                  </span>
+                ))}
+              </div>
+            )}
+
+            {q.type === 'select' && q.options && q.options.length > 0 && (
+              <div style={{ marginTop: '14px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                {q.options.map((opt, oi) => (
+                  <div key={opt} style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '8px 14px', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.08)', background: 'rgba(255,255,255,0.03)' }}>
+                    <div style={{ width: '16px', height: '16px', borderRadius: '50%', border: '1.5px solid rgba(255,255,255,0.2)', flexShrink: 0 }} />
+                    <span style={{ fontSize: '12px', color: 'rgba(255,255,255,0.80)' }}>{opt}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {q.type === 'scale' && q.options && q.options.length > 0 && (
+              <div style={{ marginTop: '14px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                {q.options.map((opt, oi) => (
+                  <div key={opt} style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '9px 14px', borderRadius: '10px', border: '1px solid rgba(255,255,255,0.08)', background: 'rgba(255,255,255,0.03)' }}>
+                    <div style={{ width: '22px', height: '22px', borderRadius: '50%', border: '1.5px solid rgba(255,255,255,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                      <span style={{ fontSize: '9px', fontWeight: 800, color: 'rgba(255,255,255,0.82)' }}>{oi + 1}</span>
+                    </div>
+                    <span style={{ fontSize: '12px', color: 'rgba(255,255,255,0.80)' }}>{opt}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {q.type === 'textarea' && q.placeholder && (
+              <div style={{ marginTop: '14px', padding: '12px 14px', borderRadius: '10px', border: '1px dashed rgba(255,255,255,0.1)', background: 'rgba(255,255,255,0.02)' }}>
+                <span style={{ fontSize: '12px', color: 'rgba(255,255,255,0.80)', fontStyle: 'italic', lineHeight: 1.5 }}>{q.placeholder}</span>
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
+    </div>
+  )
 }
 
 export default function AdminPage() {
-  const [authed, setAuthed]   = useState(false)
+  const [authed, setAuthed]   = useState(() => typeof window !== 'undefined' && sessionStorage.getItem('tai_admin_authed') === '1')
   const [code, setCode]       = useState('')
   const [codeError, setCodeError] = useState('')
   const [members, setMembers] = useState<Member[]>([])
   const [tasks, setTasks]     = useState<TaskProfile[]>([])
-  const [tab, setTab]         = useState<'overview' | 'members' | 'intelligence'>('overview')
+  const [tab, setTab]         = useState<'overview' | 'members' | 'intelligence' | 'action' | 'learning'>('overview')
+  const [learningData, setLearningData] = useState<{ completions: LearningCompletion[]; courses: LearningCourse[]; staff: LearningStaff[]; attempts: LearningAttempt[] } | null>(null)
+  const [learningLoading, setLearningLoading] = useState(false)
+  const [showDevTools, setShowDevTools] = useState(false)
+  const [seedLoading, setSeedLoading]   = useState(false)
+  const [seedMsg, setSeedMsg]           = useState('')
   const [officeFilter, setOfficeFilter] = useState('all')
   const [deptFilter, setDeptFilter] = useState('all')
   const [loading, setLoading] = useState(false)
   const [expandedTask, setExpandedTask] = useState<string | null>(null)
+  const [readinessDeptFilter, setReadinessDeptFilter] = useState('all')
+  const [deptTierFilter, setDeptTierFilter] = useState('all')
+  const [memberSearch, setMemberSearch]     = useState('')
+  const [interviewFilter, setInterviewFilter] = useState<'all' | 'done' | 'pending'>('all')
+
+  // Office headcount settings
+  const [officeTotals, setOfficeTotals] = useState<Record<string, number>>(
+    Object.fromEntries(OFFICES.map(o => [o.id, o.total]))
+  )
+  const [headcountSaving, setHeadcountSaving] = useState(false)
+  const [headcountSaved, setHeadcountSaved]   = useState(false)
+  const [headcountError, setHeadcountError]   = useState('')
+  const [showHeadcount, setShowHeadcount]     = useState(false)
+
+  async function fetchOfficeTotals() {
+    try {
+      const res = await fetch('/api/office-config')
+      if (res.ok) {
+        const data: { office_id: string; total_staff: number }[] = await res.json()
+        if (data.length > 0) setOfficeTotals(Object.fromEntries(data.map(d => [d.office_id, d.total_staff])))
+      }
+    } catch { /* keep defaults */ }
+  }
+
+  async function saveHeadcounts() {
+    setHeadcountSaving(true)
+    setHeadcountError('')
+    setHeadcountSaved(false)
+    const updates = OFFICES.map(o => ({ office_id: o.id, total_staff: officeTotals[o.id] ?? o.total }))
+    const res = await fetch('/api/office-config', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ admin_code: process.env.NEXT_PUBLIC_ADMIN_CODE ?? 'taos2026', updates }),
+    })
+    const data = await res.json()
+    setHeadcountSaving(false)
+    if (data.error) { setHeadcountError(data.error) } else { setHeadcountSaved(true); setTimeout(() => setHeadcountSaved(false), 3000) }
+  }
+
+  async function seedDemo() {
+    setSeedLoading(true); setSeedMsg('')
+    const res = await fetch('/api/seed-demo', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ admin_code: process.env.NEXT_PUBLIC_ADMIN_CODE ?? 'taos2026' }) })
+    const data = await res.json()
+    setSeedMsg(data.message ?? data.error ?? 'Done')
+    setSeedLoading(false)
+    if (data.success) fetchData()
+  }
+
+  async function clearDemo() {
+    setSeedLoading(true); setSeedMsg('')
+    const res = await fetch('/api/seed-demo', { method: 'DELETE', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ admin_code: process.env.NEXT_PUBLIC_ADMIN_CODE ?? 'taos2026' }) })
+    const data = await res.json()
+    setSeedMsg(data.message ?? data.error ?? 'Cleared')
+    setSeedLoading(false)
+    if (data.success) fetchData()
+  }
 
   const fetchData = useCallback(async () => {
     setLoading(true)
@@ -55,8 +244,17 @@ export default function AdminPage() {
     setLoading(false)
   }, [])
 
+  async function fetchLearning() {
+    if (learningData) return // already loaded
+    setLearningLoading(true)
+    const res = await fetch('/api/admin-learning')
+    if (res.ok) setLearningData(await res.json())
+    setLearningLoading(false)
+  }
+
   useEffect(() => {
     if (!authed) return
+    fetchOfficeTotals()
     fetchData()
     const ch = supabase.channel('admin-rt')
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'staff_members' }, fetchData)
@@ -68,6 +266,7 @@ export default function AdminPage() {
   function handleAuth(e: React.FormEvent) {
     e.preventDefault()
     if (code.trim() === (process.env.NEXT_PUBLIC_ADMIN_CODE ?? 'taos2026')) {
+      sessionStorage.setItem('tai_admin_authed', '1')
       setAuthed(true)
     } else { setCodeError('Incorrect access code.') }
   }
@@ -94,12 +293,25 @@ export default function AdminPage() {
 
   const allDepts = [...new Set(members.map(m => m.department ?? 'Other'))].sort()
 
-  const filteredMembers = members.filter(m =>
-    (officeFilter === 'all' || m.office_id === officeFilter) &&
-    (deptFilter === 'all' || (m.department ?? 'Other') === deptFilter)
-  )
+  const filteredMembers = members.filter(m => {
+    if (officeFilter !== 'all' && m.office_id !== officeFilter) return false
+    if (deptFilter !== 'all' && (m.department ?? 'Other') !== deptFilter) return false
+    if (interviewFilter === 'done'    && !m.profile_complete) return false
+    if (interviewFilter === 'pending' &&  m.profile_complete) return false
+    if (memberSearch.trim()) {
+      const q = memberSearch.toLowerCase()
+      if (!m.name.toLowerCase().includes(q) && !(m.email ?? '').toLowerCase().includes(q) && !(m.department ?? '').toLowerCase().includes(q)) return false
+    }
+    return true
+  })
 
   const memberIndex = Object.fromEntries(members.map(m => [m.id, m]))
+
+  // Tasks filtered by the readiness/tools dept selector (separate from the tab-level filters)
+  const rdFilteredTasks = readinessDeptFilter === 'all'
+    ? tasks
+    : tasks.filter(t => (memberIndex[t.staff_id]?.department ?? 'Other') === readinessDeptFilter)
+  const deptReadinessList = rdFilteredTasks.filter(t => t.ai_readiness).map(t => t.ai_readiness!)
 
   const filteredTasks = tasks.filter(t => {
     const m = memberIndex[t.staff_id]
@@ -109,22 +321,25 @@ export default function AdminPage() {
 
   const getOffice = (id: string) => OFFICES.find(o => o.id === id)
 
-  /* ── AI Readiness breakdown ── */
+  /* ── AI Readiness breakdown (filtered by readinessDeptFilter) ── */
   const readinessDist: Record<number, number> = { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 }
-  for (const r of readinessList) { if (r >= 1 && r <= 5) readinessDist[r]++ }
+  for (const r of deptReadinessList) { if (r >= 1 && r <= 5) readinessDist[r]++ }
   const readinessLabels: Record<number, string> = {
-    1: 'Never used AI', 2: 'Tried ChatGPT', 3: 'Occasional user',
-    4: 'Comfortable', 5: 'Power user',
+    1: 'Never used AI',
+    2: 'Tried it once or twice',
+    3: 'Use AI occasionally',
+    4: 'Use AI most days',
+    5: 'Build AI workflows',
   }
   const readinessColors = ['#FF6B6B', '#FF9F43', '#F4ED3C', '#A8E6CF', '#C0F43C']
 
-  /* ── Most common tools ── */
+  /* ── Most common tools (filtered by readinessDeptFilter) ── */
   const toolCount: Record<string, number> = {}
-  for (const t of tasks) for (const tool of (t.tools_used ?? [])) toolCount[tool] = (toolCount[tool] ?? 0) + 1
-  const topTools = Object.entries(toolCount).sort((a, b) => b[1] - a[1]).slice(0, 8)
+  for (const t of rdFilteredTasks) for (const tool of (t.tools_used ?? [])) toolCount[tool] = (toolCount[tool] ?? 0) + 1
+  const topTools = Object.entries(toolCount).sort((a, b) => b[1] - a[1]).slice(0, 10)
 
   /* ═══════════════════════════════════════════════════════════════════
-     TOARS — TAOS Organizational AI Readiness Score  (0–100)
+     TAIRS — TAI Organizational AI Readiness Score  (0–100)
 
      Built for Trescon's specific context: events + media + B2B sales
      company with 4 offices. Scoring reflects realistic AI adoption
@@ -172,8 +387,8 @@ export default function AdminPage() {
     'Other':                { priority: 'Medium',   color: '#F4ED3C', why: 'Assess after more data' },
   }
 
-  // TOARS calculation per entity (dept/office/person)
-  function calcTOARS(params: {
+  // TAIRS calculation per entity (dept/office/person)
+  function calcTAIRS(params: {
     readinessScores: number[]   // self-reported 1–5
     allTools: string[]          // all tool mentions (with duplicates)
     interviewed: number         // members who completed interview
@@ -208,8 +423,8 @@ export default function AdminPage() {
     }
   }
 
-  // TOARS tier label + color
-  function toarsTier(score: number) {
+  // TAIRS tier label + color
+  function tairsTier(score: number) {
     if (score >= 75) return { label: 'AI-Forward',  color: '#C0F43C', desc: 'Deploy automations now' }
     if (score >= 55) return { label: 'AI-Ready',    color: '#A8E6CF', desc: 'Train + deploy in parallel' }
     if (score >= 35) return { label: 'AI-Aware',    color: '#F4ED3C', desc: '90-day foundation plan' }
@@ -217,61 +432,61 @@ export default function AdminPage() {
     return               { label: 'AI-Unaware',   color: '#FF6B6B', desc: 'Start from literacy basics' }
   }
 
-  // ── Per-department TOARS ──
-  type DeptToars = {
+  // ── Per-department TAIRS ──
+  type DeptTairs = {
     dept: string; score: number; fluency: number; maturity: number; engagement: number
     interviewed: number; joined: number; impact: typeof DEPT_IMPACT[string]
   }
-  const deptToarsMap: DeptToars[] = []
+  const deptTairsMap: DeptTairs[] = []
   for (const dept of [...new Set(members.map(m => m.department ?? 'Other'))]) {
     const dMembers   = members.filter(m => (m.department ?? 'Other') === dept)
     const dTasks     = tasks.filter(t => (memberIndex[t.staff_id]?.department ?? 'Other') === dept)
     const readScores = dTasks.filter(t => t.ai_readiness).map(t => t.ai_readiness!)
     const allTools   = dTasks.flatMap(t => t.tools_used ?? [])
     const interviewed = dMembers.filter(m => m.profile_complete).length
-    const r = calcTOARS({ readinessScores: readScores, allTools, interviewed, totalJoinedForGroup: dMembers.length })
-    deptToarsMap.push({ dept, ...r, interviewed, joined: dMembers.length, impact: DEPT_IMPACT[dept] ?? DEPT_IMPACT['Other'] })
+    const r = calcTAIRS({ readinessScores: readScores, allTools, interviewed, totalJoinedForGroup: dMembers.length })
+    deptTairsMap.push({ dept, ...r, interviewed, joined: dMembers.length, impact: DEPT_IMPACT[dept] ?? DEPT_IMPACT['Other'] })
   }
-  const sortedDeptToars = [...deptToarsMap].sort((a, b) => b.score - a.score)
+  const sortedDeptTairs = [...deptTairsMap].sort((a, b) => b.score - a.score)
 
-  // ── Per-office TOARS ──
-  const officeToars = OFFICES.map(o => {
+  // ── Per-office TAIRS ──
+  const officeTairs = OFFICES.map(o => {
     const oMembers   = members.filter(m => m.office_id === o.id)
     const oTasks     = tasks.filter(t => memberIndex[t.staff_id]?.office_id === o.id)
     const readScores = oTasks.filter(t => t.ai_readiness).map(t => t.ai_readiness!)
     const allTools   = oTasks.flatMap(t => t.tools_used ?? [])
     const interviewed = oMembers.filter(m => m.profile_complete).length
-    const r = calcTOARS({ readinessScores: readScores, allTools, interviewed, totalJoinedForGroup: oMembers.length })
+    const r = calcTAIRS({ readinessScores: readScores, allTools, interviewed, totalJoinedForGroup: oMembers.length })
     return { ...o, ...r, interviewed, joined: oMembers.length }
   }).filter(o => o.joined > 0).sort((a, b) => b.score - a.score)
 
-  // ── Org-level TOARS (weighted by dept size) ──
+  // ── Org-level TAIRS (weighted by dept size) ──
   let orgScore = 0
-  if (deptToarsMap.length > 0) {
-    const totalW = deptToarsMap.reduce((s, d) => s + d.joined, 0) || 1
-    orgScore = Math.round(deptToarsMap.reduce((s, d) => s + d.score * (d.joined / totalW), 0))
+  if (deptTairsMap.length > 0) {
+    const totalW = deptTairsMap.reduce((s, d) => s + d.joined, 0) || 1
+    orgScore = Math.round(deptTairsMap.reduce((s, d) => s + d.score * (d.joined / totalW), 0))
   }
-  const orgTier = toarsTier(orgScore)
+  const orgTier = tairsTier(orgScore)
 
-  // ── Top individual TOARS ──
-  const memberToars = Object.fromEntries(
+  // ── Top individual TAIRS ──
+  const memberTairs = Object.fromEntries(
     members.map(m => {
       const mTasks     = tasks.filter(t => t.staff_id === m.id)
       const readScores = mTasks.filter(t => t.ai_readiness).map(t => t.ai_readiness!)
       const allTools   = mTasks.flatMap(t => t.tools_used ?? [])
-      const r = calcTOARS({ readinessScores: readScores, allTools, interviewed: m.profile_complete ? 1 : 0, totalJoinedForGroup: 1 })
+      const r = calcTAIRS({ readinessScores: readScores, allTools, interviewed: m.profile_complete ? 1 : 0, totalJoinedForGroup: 1 })
       return [m.id, r]
     })
   )
   const topIndividuals = members
     .filter(m => m.profile_complete)
-    .map(m => ({ ...m, toars: memberToars[m.id]?.score ?? 0 }))
+    .map(m => ({ ...m, toars: memberTairs[m.id]?.score ?? 0 }))
     .sort((a, b) => b.toars - a.toars)
     .slice(0, 8)
 
   // Legacy compat for existing readiness dist block
-  const deptScores = sortedDeptToars.map(d => ({ dept: d.dept, avg: d.fluency / 8, count: d.interviewed }))
-  const officeScores = officeToars.map(o => ({ ...o, avg: o.fluency / 8 }))
+  const deptScores = sortedDeptTairs.map(d => ({ dept: d.dept, avg: d.fluency / 8, count: d.interviewed }))
+  const officeScores = officeTairs.map(o => ({ ...o, avg: o.fluency / 8 }))
 
   /* ── AI-generated response detector ──
      Flags answers that pattern-match AI writing rather than human speech.
@@ -351,7 +566,7 @@ export default function AdminPage() {
             <svg width="24" height="24" fill="none" stroke="#00A5A3" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
           </div>
           <h1 style={{ fontSize: '24px', fontWeight: 800, color: 'white', marginBottom: '8px' }}>Admin Access</h1>
-          <p style={{ fontSize: '14px', color: 'rgba(255,255,255,0.5)', marginBottom: '32px' }}>TAOS Discovery — Leadership Dashboard</p>
+          <p style={{ fontSize: '14px', color: 'rgba(255,255,255,0.80)', marginBottom: '32px' }}>TAI Academy — Leadership Dashboard</p>
           <form onSubmit={handleAuth}>
             <input type="password" value={code} onChange={e => { setCode(e.target.value); setCodeError('') }}
               placeholder="Access code" autoFocus
@@ -361,7 +576,7 @@ export default function AdminPage() {
               Enter Dashboard
             </button>
           </form>
-          <Link href="/" style={{ display: 'block', marginTop: '20px', fontSize: '12px', color: 'rgba(255,255,255,0.3)', textDecoration: 'none' }}>Back to main page</Link>
+          <Link href="/" style={{ display: 'block', marginTop: '20px', fontSize: '12px', color: 'rgba(255,255,255,0.82)', textDecoration: 'none' }}>Back to main page</Link>
         </div>
       </div>
     )
@@ -373,28 +588,33 @@ export default function AdminPage() {
 
       {/* Nav */}
       <nav style={{ background: '#010103', borderBottom: '1px solid rgba(255,255,255,0.08)', padding: '0 40px', height: '60px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-          <Link href="/" style={{ display: 'flex', alignItems: 'center', gap: '12px', textDecoration: 'none' }}>
-            <div style={{ background: 'white', borderRadius: '8px', padding: '4px 10px', display: 'flex', alignItems: 'center' }}>
-              <img src="/trescon-logo.png" alt="Trescon" style={{ height: '22px', width: 'auto', display: 'block' }} />
-            </div>
-            <div style={{ width: '1px', height: '20px', background: 'rgba(255,255,255,0.1)' }} />
-            <div style={{ display: 'flex', alignItems: 'center', gap: '7px' }}>
-              <div style={{ width: '24px', height: '24px', background: '#00A5A3', borderRadius: '7px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                <svg width="12" height="12" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
-              </div>
-              <span style={{ fontSize: '13px', fontWeight: 800, color: 'white' }}>TAOS</span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+          <Link href="/" style={{ display: 'flex', alignItems: 'center', textDecoration: 'none' }}>
+            <div style={{ background: 'white', borderRadius: '8px', padding: '5px 12px', display: 'flex', alignItems: 'center' }}>
+              <img src="/trescon-logo.png" alt="Trescon" style={{ height: '40px', width: 'auto', display: 'block' }} />
             </div>
           </Link>
-          <span style={{ color: 'rgba(255,255,255,0.2)' }}>/</span>
-          <span style={{ fontSize: '13px', color: 'rgba(255,255,255,0.5)' }}>Leadership Dashboard</span>
+          <div style={{ width: '1px', height: '22px', background: 'rgba(255,255,255,0.1)' }} />
+          <span style={{ fontSize: '14px', fontWeight: 700, color: 'white', letterSpacing: '-0.2px' }}>Leadership Dashboard</span>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
           {loading && <span style={{ fontSize: '11px', color: '#00A5A3' }}>Updating...</span>}
           <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
             <div style={{ width: '7px', height: '7px', borderRadius: '50%', background: '#00A5A3', animation: 'pulse 2s infinite' }} />
-            <span style={{ fontSize: '11px', color: 'rgba(255,255,255,0.4)' }}>Live</span>
+            <span style={{ fontSize: '11px', color: 'rgba(255,255,255,0.7)' }}>Live</span>
           </div>
+          <Link href="/dashboard" target="_blank" rel="noopener noreferrer" style={{ background: 'rgba(0,165,163,0.15)', border: '1px solid rgba(0,165,163,0.35)', color: '#00A5A3', fontSize: '12px', fontWeight: 700, padding: '7px 16px', borderRadius: '20px', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <svg width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>
+            My Learning
+          </Link>
+          <Link href="/admin/scoring" style={{ background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.15)', color: 'rgba(255,255,255,0.8)', fontSize: '12px', fontWeight: 700, padding: '7px 16px', borderRadius: '20px', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <svg width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+            Scoring Guide
+          </Link>
+          <Link href="/admin/questionnaire" style={{ background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.15)', color: 'rgba(255,255,255,0.8)', fontSize: '12px', fontWeight: 700, padding: '7px 16px', borderRadius: '20px', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <svg width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+            Questionnaire
+          </Link>
           <Link href="/insights" style={{ background: 'rgba(192,244,60,0.15)', border: '1px solid rgba(192,244,60,0.3)', color: '#C0F43C', fontSize: '12px', fontWeight: 700, padding: '7px 16px', borderRadius: '20px', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '6px' }}>
             <svg width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
             AI Insights
@@ -405,395 +625,529 @@ export default function AdminPage() {
       <div style={{ padding: '40px' }}>
 
         {/* Page header */}
-        <div style={{ marginBottom: '32px' }}>
-          <h1 style={{ fontSize: '26px', fontWeight: 800, color: 'white', marginBottom: '4px' }}>Discovery Intelligence</h1>
-          <p style={{ fontSize: '14px', color: 'rgba(255,255,255,0.4)' }}>
-            Every submission is live. Click <strong style={{ color: 'white' }}>AI Insights</strong> above to generate the Gemini analysis across all staff input.
-          </p>
-        </div>
-
-        {/* ── KPI Row ── */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: '14px', marginBottom: '28px' }}>
-          {[
-            { label: 'Staff Joined', value: totalJoined, sub: `of ${TOTAL} total (${Math.round(totalJoined/TOTAL*100)}%)`, color: '#00A5A3' },
-            { label: 'Profiles Complete', value: profilesComplete, sub: `${profilePending} still pending`, color: '#C0F43C' },
-            { label: 'Profiles Pending', value: profilePending, sub: 'joined but not interviewed', color: '#FF9F43' },
-            { label: 'Interview Entries', value: totalTasks, sub: 'task profile records', color: '#F4ED3C' },
-            { label: 'Avg AI Readiness', value: avgReadiness, sub: 'out of 5.0', color: '#FF6B6B' },
-          ].map((k, i) => (
-            <div key={i} style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '16px', padding: '20px 18px' }}>
-              <div style={{ fontSize: '10px', fontWeight: 700, letterSpacing: '1.5px', textTransform: 'uppercase', color: 'rgba(255,255,255,0.35)', marginBottom: '10px' }}>{k.label}</div>
-              <div style={{ fontSize: '34px', fontWeight: 800, color: k.color, lineHeight: 1, marginBottom: '6px' }}>{k.value}</div>
-              <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.3)', lineHeight: 1.4 }}>{k.sub}</div>
-            </div>
-          ))}
-        </div>
-
-        {/* ── Two-col: Office + Department breakdown ── */}
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '28px' }}>
-
-          {/* Office participation */}
-          <div style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '20px', padding: '24px' }}>
-            <div style={{ fontSize: '11px', fontWeight: 700, letterSpacing: '2px', textTransform: 'uppercase', color: 'rgba(255,255,255,0.35)', marginBottom: '20px' }}>Office Participation</div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-              {OFFICES.map(o => {
-                const data = officeMap[o.id]
-                const pct  = Math.round((data.count / data.total) * 100)
-                return (
-                  <div key={o.id}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: '6px' }}>
-                      <span style={{ fontSize: '13px', fontWeight: 700, color: 'white' }}>{o.label}</span>
-                      <span style={{ fontSize: '13px', fontWeight: 700, color: o.color }}>{data.count} <span style={{ color: 'rgba(255,255,255,0.3)', fontWeight: 400 }}>/ {data.total}</span></span>
-                    </div>
-                    <div style={{ height: '6px', background: 'rgba(255,255,255,0.07)', borderRadius: '3px', overflow: 'hidden' }}>
-                      <div style={{ height: '100%', width: `${pct}%`, background: o.color, borderRadius: '3px', transition: 'width 0.6s' }} />
-                    </div>
-                    <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.3)', marginTop: '4px' }}>{pct}% joined</div>
-                  </div>
-                )
-              })}
-            </div>
+        <div style={{ marginBottom: '32px', display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', flexWrap: 'wrap', gap: '12px' }}>
+          <div>
+            <div style={{ fontSize: '10px', fontWeight: 800, letterSpacing: '2.5px', textTransform: 'uppercase', color: '#00A5A3', marginBottom: '6px' }}>TAI Academy</div>
+            <h1 style={{ fontSize: '26px', fontWeight: 800, color: 'white', marginBottom: '4px', margin: 0 }}>Leadership Dashboard</h1>
+            <p style={{ fontSize: '14px', color: 'rgba(255,255,255,0.7)', margin: '6px 0 0' }}>
+              Live org intelligence — AI readiness, learning progress, and staff development across all offices.
+            </p>
           </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '11px', color: 'rgba(255,255,255,0.5)' }}>
+            <div style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#00A5A3', animation: 'pulse 2s infinite' }} />
+            Live · updates in real time
+          </div>
+        </div>
 
-          {/* Department breakdown */}
-          <div style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '20px', padding: '24px' }}>
-            <div style={{ fontSize: '11px', fontWeight: 700, letterSpacing: '2px', textTransform: 'uppercase', color: 'rgba(255,255,255,0.35)', marginBottom: '20px' }}>Department Participation</div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', maxHeight: '280px', overflowY: 'auto' }}>
-              {DEPT_ORDER.filter(d => deptMap[d]).map(dept => {
-                const data = deptMap[dept]
-                return (
-                  <div key={dept} style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                    <div style={{ flex: 1, fontSize: '12px', fontWeight: 600, color: 'rgba(255,255,255,0.7)', minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{dept}</div>
-                    <div style={{ fontSize: '12px', color: 'white', fontWeight: 700, minWidth: '24px', textAlign: 'right' }}>{data.joined}</div>
-                    <div style={{ width: '80px', height: '5px', background: 'rgba(255,255,255,0.07)', borderRadius: '3px', overflow: 'hidden', flexShrink: 0 }}>
-                      <div style={{ height: '100%', width: `${data.complete / data.joined * 100}%`, background: '#C0F43C', borderRadius: '3px' }} />
-                    </div>
-                    <div style={{ fontSize: '10px', color: data.complete === data.joined ? '#C0F43C' : 'rgba(255,255,255,0.3)', minWidth: '32px', textAlign: 'right' }}>
-                      {data.complete}/{data.joined}
-                    </div>
-                  </div>
-                )
-              })}
-              {allDepts.filter(d => !DEPT_ORDER.includes(d)).map(dept => {
-                const data = deptMap[dept]
-                return (
-                  <div key={dept} style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                    <div style={{ flex: 1, fontSize: '12px', fontWeight: 600, color: 'rgba(255,255,255,0.5)' }}>{dept}</div>
-                    <div style={{ fontSize: '12px', color: 'white', fontWeight: 700 }}>{data.joined}</div>
-                    <div style={{ width: '80px', height: '5px', background: 'rgba(255,255,255,0.07)', borderRadius: '3px' }}>
-                      <div style={{ height: '100%', width: `${data.complete / data.joined * 100}%`, background: '#C0F43C', borderRadius: '3px' }} />
-                    </div>
-                    <div style={{ fontSize: '10px', color: 'rgba(255,255,255,0.3)' }}>{data.complete}/{data.joined}</div>
-                  </div>
-                )
-              })}
-              {Object.keys(deptMap).length === 0 && (
-                <div style={{ fontSize: '13px', color: 'rgba(255,255,255,0.2)', paddingTop: '8px' }}>No departments yet</div>
+        {/* ── Zone 1: Participation Banner ── */}
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1.2fr', gap: '0', marginBottom: '28px', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '20px', overflow: 'hidden' }}>
+          <div style={{ padding: '26px 30px', borderRight: '1px solid rgba(255,255,255,0.08)' }}>
+            <div style={{ fontSize: '10px', fontWeight: 700, letterSpacing: '1.5px', textTransform: 'uppercase', color: 'rgba(255,255,255,0.80)', marginBottom: '10px' }}>Staff Enrolled</div>
+            <div style={{ display: 'flex', alignItems: 'baseline', gap: '8px', marginBottom: '10px' }}>
+              <span style={{ fontSize: '48px', fontWeight: 900, color: '#00A5A3', lineHeight: 1 }}>{totalJoined}</span>
+              <span style={{ fontSize: '18px', color: 'rgba(255,255,255,0.70)', fontWeight: 600 }}>/ {TOTAL}</span>
+            </div>
+            <div style={{ height: '6px', background: 'rgba(255,255,255,0.07)', borderRadius: '3px', overflow: 'hidden', marginBottom: '6px' }}>
+              <div style={{ height: '100%', width: `${Math.min(100, Math.round(totalJoined / TOTAL * 100))}%`, background: '#00A5A3', borderRadius: '3px', transition: 'width 0.6s' }} />
+            </div>
+            <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.82)' }}>{Math.round(totalJoined / TOTAL * 100)}% of company · {profilePending} yet to complete profile</div>
+          </div>
+          <div style={{ padding: '26px 30px', borderRight: '1px solid rgba(255,255,255,0.08)' }}>
+            <div style={{ fontSize: '10px', fontWeight: 700, letterSpacing: '1.5px', textTransform: 'uppercase', color: 'rgba(255,255,255,0.80)', marginBottom: '10px' }}>Profiles Complete</div>
+            <div style={{ display: 'flex', alignItems: 'baseline', gap: '8px', marginBottom: '10px' }}>
+              <span style={{ fontSize: '48px', fontWeight: 900, color: '#C0F43C', lineHeight: 1 }}>{profilesComplete}</span>
+              <span style={{ fontSize: '18px', color: 'rgba(255,255,255,0.70)', fontWeight: 600 }}>/ {totalJoined}</span>
+            </div>
+            <div style={{ height: '6px', background: 'rgba(255,255,255,0.07)', borderRadius: '3px', overflow: 'hidden', marginBottom: '6px' }}>
+              <div style={{ height: '100%', width: `${totalJoined > 0 ? Math.round(profilesComplete / totalJoined * 100) : 0}%`, background: '#C0F43C', borderRadius: '3px', transition: 'width 0.6s' }} />
+            </div>
+            <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.82)' }}>{totalJoined > 0 ? Math.round(profilesComplete / totalJoined * 100) : 0}% completion rate · {totalTasks} entries captured</div>
+          </div>
+          <div style={{ padding: '26px 30px', background: orgScore >= 55 ? 'rgba(192,244,60,0.04)' : orgScore >= 35 ? 'rgba(244,237,60,0.04)' : 'rgba(0,165,163,0.04)' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '10px' }}>
+              <div style={{ fontSize: '10px', fontWeight: 700, letterSpacing: '1.5px', textTransform: 'uppercase', color: 'rgba(255,255,255,0.80)' }}>AI Readiness Score</div>
+              <Link href="/admin/scoring" style={{ fontSize: '10px', color: 'rgba(255,255,255,0.70)', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                How this is calculated
+                <svg width="9" height="9" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg>
+              </Link>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '14px', marginBottom: '8px' }}>
+              <span style={{ fontSize: '48px', fontWeight: 900, color: orgTier.color, lineHeight: 1 }}>{orgScore > 0 ? orgScore : '—'}</span>
+              {orgScore > 0 && (
+                <div>
+                  <div style={{ fontSize: '16px', fontWeight: 800, color: orgTier.color, lineHeight: 1.2 }}>{orgTier.label}</div>
+                  <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.80)', marginTop: '4px' }}>{orgTier.desc}</div>
+                </div>
               )}
             </div>
-            <div style={{ marginTop: '12px', fontSize: '11px', color: 'rgba(255,255,255,0.25)', borderTop: '1px solid rgba(255,255,255,0.06)', paddingTop: '10px' }}>
-              Green bar = interview also completed
-            </div>
+            <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.80)' }}>Industry baseline 25–40 · Trescon target 60+ · out of 100</div>
           </div>
         </div>
 
-        {/* ── AI Readiness + Top Tools ── */}
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '28px' }}>
 
-          {/* Readiness distribution */}
-          <div style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '20px', padding: '24px' }}>
-            <div style={{ fontSize: '11px', fontWeight: 700, letterSpacing: '2px', textTransform: 'uppercase', color: 'rgba(255,255,255,0.35)', marginBottom: '6px' }}>AI Readiness Distribution</div>
-            <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.3)', marginBottom: '20px' }}>How ready is the team for AI adoption?</div>
-            {readinessList.length === 0 ? (
-              <div style={{ fontSize: '13px', color: 'rgba(255,255,255,0.2)' }}>No interview data yet</div>
-            ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                {[1, 2, 3, 4, 5].map(n => {
-                  const count = readinessDist[n] || 0
-                  const pct   = readinessList.length ? Math.round(count / readinessList.length * 100) : 0
-                  return (
-                    <div key={n} style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                      <div style={{ width: '22px', height: '22px', borderRadius: '6px', background: `${readinessColors[n-1]}20`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                        <span style={{ fontSize: '11px', fontWeight: 800, color: readinessColors[n-1] }}>{n}</span>
-                      </div>
-                      <div style={{ flex: 1 }}>
-                        <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.5)', marginBottom: '3px' }}>{readinessLabels[n]}</div>
-                        <div style={{ height: '5px', background: 'rgba(255,255,255,0.07)', borderRadius: '3px', overflow: 'hidden' }}>
-                          <div style={{ height: '100%', width: `${pct}%`, background: readinessColors[n-1], borderRadius: '3px' }} />
-                        </div>
-                      </div>
-                      <div style={{ fontSize: '12px', fontWeight: 700, color: readinessColors[n-1], minWidth: '24px', textAlign: 'right' }}>{count}</div>
-                    </div>
-                  )
-                })}
-              </div>
-            )}
-          </div>
 
-          {/* Top tools */}
-          <div style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '20px', padding: '24px' }}>
-            <div style={{ fontSize: '11px', fontWeight: 700, letterSpacing: '2px', textTransform: 'uppercase', color: 'rgba(255,255,255,0.35)', marginBottom: '6px' }}>Most Used Tools Across Team</div>
-            <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.3)', marginBottom: '20px' }}>From interview answers — what the team actually uses</div>
-            {topTools.length === 0 ? (
-              <div style={{ fontSize: '13px', color: 'rgba(255,255,255,0.2)' }}>No interview data yet</div>
-            ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                {topTools.map(([tool, count], i) => {
-                  const pct = Math.round(count / topTools[0][1] * 100)
-                  return (
-                    <div key={tool} style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                      <div style={{ fontSize: '11px', fontWeight: 700, color: 'rgba(255,255,255,0.3)', minWidth: '16px' }}>#{i + 1}</div>
-                      <div style={{ flex: 1 }}>
-                        <div style={{ fontSize: '13px', fontWeight: 600, color: 'white', marginBottom: '3px' }}>{tool}</div>
-                        <div style={{ height: '4px', background: 'rgba(255,255,255,0.07)', borderRadius: '3px', overflow: 'hidden' }}>
-                          <div style={{ height: '100%', width: `${pct}%`, background: '#00A5A3', borderRadius: '3px' }} />
-                        </div>
-                      </div>
-                      <div style={{ fontSize: '12px', color: '#00A5A3', fontWeight: 700, minWidth: '20px', textAlign: 'right' }}>{count}</div>
-                    </div>
-                  )
-                })}
-              </div>
-            )}
-          </div>
-        </div>
 
-        {/* ══ TOARS — Org Score ══ */}
+        {/* ══ TAIRS — Org Score ══ */}
         {members.length > 0 && (
           <div style={{ marginBottom: '28px' }}>
 
-            {/* Org-level score banner */}
-            <div style={{ background: orgScore >= 55 ? 'rgba(192,244,60,0.06)' : orgScore >= 35 ? 'rgba(244,237,60,0.06)' : 'rgba(255,107,107,0.06)', border: `1px solid ${orgTier.color}30`, borderRadius: '20px', padding: '28px 32px', marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '32px', flexWrap: 'wrap' }}>
-              <div style={{ textAlign: 'center', minWidth: '100px' }}>
-                <div style={{ fontSize: '64px', fontWeight: 900, color: orgTier.color, lineHeight: 1, letterSpacing: '-2px' }}>
-                  {orgScore > 0 ? orgScore : '—'}
-                </div>
-                <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.4)', marginTop: '2px' }}>/ 100</div>
-              </div>
-              <div style={{ flex: 1, minWidth: '200px' }}>
-                <div style={{ fontSize: '11px', fontWeight: 700, letterSpacing: '2px', textTransform: 'uppercase', color: 'rgba(255,255,255,0.35)', marginBottom: '6px' }}>TAOS Organizational AI Readiness Score</div>
-                <div style={{ fontSize: '22px', fontWeight: 800, color: orgTier.color, marginBottom: '4px' }}>{orgTier.label}</div>
-                <div style={{ fontSize: '13px', color: 'rgba(255,255,255,0.5)' }}>{orgTier.desc}</div>
-              </div>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '16px', minWidth: '320px' }}>
-                {[
-                  { label: 'AI Fluency', sub: 'Self-reported readiness', max: 40, color: '#00A5A3' },
-                  { label: 'Digital Maturity', sub: 'Tool sophistication', max: 35, color: '#F4ED3C' },
-                  { label: 'Engagement', sub: '% who completed interview', max: 25, color: '#FF9F43' },
-                ].map((dim, i) => {
-                  const val = i === 0
-                    ? (tasks.filter(t => t.ai_readiness).reduce((s, t) => s + (t.ai_readiness ?? 0), 0) / Math.max(tasks.filter(t => t.ai_readiness).length, 1) / 5 * 40)
-                    : i === 1
-                    ? (() => { const all = tasks.flatMap(t => t.tools_used ?? []); const ai = all.filter(t => AI_TOOLS.has(t)).length; const mod = all.filter(t => MODERN_SAAS.has(t)).length; return Math.min(35, ((ai * 3 + mod * 1.5) / Math.max(all.length, 1)) * 35 * 3) })()
-                    : (profilesComplete / Math.max(totalJoined, 1)) * 25
-                  return (
-                    <div key={dim.label}>
-                      <div style={{ fontSize: '10px', fontWeight: 700, color: dim.color, marginBottom: '4px', textTransform: 'uppercase', letterSpacing: '1px' }}>{dim.label}</div>
-                      <div style={{ fontSize: '20px', fontWeight: 800, color: 'white' }}>{Math.round(val)}<span style={{ fontSize: '11px', color: 'rgba(255,255,255,0.3)' }}>/{dim.max}</span></div>
-                      <div style={{ height: '4px', background: 'rgba(255,255,255,0.08)', borderRadius: '3px', marginTop: '6px', overflow: 'hidden' }}>
-                        <div style={{ height: '100%', width: `${(val / dim.max) * 100}%`, background: dim.color, borderRadius: '3px' }} />
+            {/* Tier Summary Strip — who is where right now */}
+            {(() => {
+              const TIERS = [
+                { label: 'AI-Forward', color: '#C0F43C', range: '75–100', desc: 'Building AI workflows' },
+                { label: 'AI-Ready',   color: '#A8E6CF', range: '55–74',  desc: 'Using AI regularly' },
+                { label: 'AI-Aware',   color: '#F4ED3C', range: '35–54',  desc: 'Tried it, not a habit' },
+                { label: 'AI-Curious', color: '#FF9F43', range: '15–34',  desc: 'Knows AI exists' },
+                { label: 'AI-Unaware', color: '#FF6B6B', range: '0–14',   desc: 'Needs foundations first' },
+              ]
+              const tierCounts: Record<string, number> = Object.fromEntries(TIERS.map(t => [t.label, 0]))
+              members.filter(m => m.profile_complete).forEach(m => {
+                const score = memberTairs[m.id]?.score ?? 0
+                tierCounts[tairsTier(score).label] = (tierCounts[tairsTier(score).label] ?? 0) + 1
+              })
+              const total = profilesComplete || 1
+              return (
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: '0', marginBottom: '16px', background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: '16px', overflow: 'hidden' }}>
+                  {TIERS.map((t, i) => {
+                    const count = tierCounts[t.label] ?? 0
+                    const pct   = Math.round(count / total * 100)
+                    return (
+                      <div key={t.label} style={{ padding: '18px 20px', borderRight: i < 4 ? '1px solid rgba(255,255,255,0.06)' : 'none', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                        <div style={{ fontSize: '12px', fontWeight: 800, letterSpacing: '0.5px', color: t.color }}>{t.range}</div>
+                        <div style={{ display: 'flex', alignItems: 'baseline', gap: '6px' }}>
+                          <span style={{ fontSize: '32px', fontWeight: 900, color: count > 0 ? t.color : 'rgba(255,255,255,0.15)', lineHeight: 1 }}>{count}</span>
+                          {count > 0 && <span style={{ fontSize: '11px', color: 'rgba(255,255,255,0.75)' }}>{count === 1 ? 'person' : 'people'}</span>}
+                        </div>
+                        <div style={{ fontSize: '11px', fontWeight: 800, color: count > 0 ? t.color : 'rgba(255,255,255,0.70)' }}>{t.label}</div>
+                        <div style={{ fontSize: '10px', color: 'rgba(255,255,255,0.75)', lineHeight: 1.4 }}>{t.desc}</div>
+                        <div style={{ height: '3px', background: 'rgba(255,255,255,0.07)', borderRadius: '2px', overflow: 'hidden', marginTop: '4px' }}>
+                          <div style={{ height: '100%', width: `${pct}%`, background: t.color, borderRadius: '2px', transition: 'width 0.5s' }} />
+                        </div>
                       </div>
-                      <div style={{ fontSize: '10px', color: 'rgba(255,255,255,0.3)', marginTop: '3px' }}>{dim.sub}</div>
+                    )
+                  })}
+                </div>
+              )
+            })()}
+
+            {/* ── Zone 2: Department Intelligence Table + Office Cards ── */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1.6fr 1fr', gap: '16px' }}>
+
+              {/* Left: Department Readiness Table */}
+              {(() => {
+                const TIER_FILTERS = [
+                  { id: 'all',          label: 'All',          color: 'rgba(255,255,255,0.80)' },
+                  { id: 'AI-Forward',   label: 'AI-Forward',   color: '#C0F43C' },
+                  { id: 'AI-Ready',     label: 'AI-Ready',     color: '#A8E6CF' },
+                  { id: 'AI-Aware',     label: 'AI-Aware',     color: '#F4ED3C' },
+                  { id: 'AI-Curious',   label: 'AI-Curious',   color: '#FF9F43' },
+                  { id: 'AI-Unaware',   label: 'AI-Unaware',   color: '#FF6B6B' },
+                ]
+                const PRIORITY_FILTERS = [
+                  { id: 'Critical', color: '#FF6B6B' },
+                  { id: 'High',     color: '#FF9F43' },
+                  { id: 'Medium',   color: '#F4ED3C' },
+                ]
+                const visibleDepts = sortedDeptTairs.filter(d => {
+                  if (deptTierFilter === 'all') return true
+                  // tier filter
+                  const tierMatch = TIER_FILTERS.slice(1).some(f => f.id === deptTierFilter)
+                  if (tierMatch) return tairsTier(d.score).label === deptTierFilter
+                  // priority filter
+                  return d.impact.priority === deptTierFilter
+                })
+                const ACTIONS: Record<string, string> = {
+                  'AI-Forward':  'Assign as AI Pilot Lead — ship first automation',
+                  'AI-Ready':    'Pair with Forward staff · 30-day workflow plan',
+                  'AI-Aware':    'Half-day workshop · build one AI habit',
+                  'AI-Curious':  'Role-specific AI demo · no theory',
+                  'AI-Unaware':  'Digital literacy first · personal plan via HR',
+                }
+                return (
+                  <div style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '20px', overflow: 'hidden' }}>
+                    {/* Header + filters */}
+                    <div style={{ padding: '16px 20px', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
+                        <div>
+                          <div style={{ fontSize: '11px', fontWeight: 700, letterSpacing: '1.5px', textTransform: 'uppercase', color: 'rgba(255,255,255,0.82)' }}>Department Readiness</div>
+                          <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.75)', marginTop: '2px' }}>
+                            {visibleDepts.length} of {sortedDeptTairs.length} departments
+                            {deptTierFilter !== 'all' && <span style={{ color: 'rgba(255,255,255,0.82)' }}> · filtered by <strong style={{ color: 'white' }}>{deptTierFilter}</strong></span>}
+                          </div>
+                        </div>
+                      </div>
+                      {/* Tier filter pills */}
+                      <div style={{ display: 'flex', gap: '5px', flexWrap: 'wrap' }}>
+                        {TIER_FILTERS.map(f => {
+                          const active = deptTierFilter === f.id
+                          const count  = f.id === 'all' ? sortedDeptTairs.length : sortedDeptTairs.filter(d => tairsTier(d.score).label === f.id).length
+                          return (
+                            <button key={f.id} onClick={() => setDeptTierFilter(f.id)}
+                              style={{ padding: '4px 10px', borderRadius: '20px', border: `1px solid ${active ? f.color : 'rgba(255,255,255,0.1)'}`, background: active ? `${f.color}18` : 'transparent', color: active ? f.color : 'rgba(255,255,255,0.75)', fontSize: '10px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: '4px', transition: 'all 0.15s' }}>
+                              {f.label}
+                              {f.id !== 'all' && count > 0 && <span style={{ fontSize: '9px', opacity: 0.7 }}>{count}</span>}
+                            </button>
+                          )
+                        })}
+                        <div style={{ width: '1px', background: 'rgba(255,255,255,0.1)', margin: '0 2px' }} />
+                        {PRIORITY_FILTERS.map(f => {
+                          const active = deptTierFilter === f.id
+                          const count  = sortedDeptTairs.filter(d => d.impact.priority === f.id).length
+                          if (count === 0) return null
+                          return (
+                            <button key={f.id} onClick={() => setDeptTierFilter(f.id)}
+                              style={{ padding: '4px 10px', borderRadius: '20px', border: `1px solid ${active ? f.color : 'rgba(255,255,255,0.1)'}`, background: active ? `${f.color}18` : 'transparent', color: active ? f.color : 'rgba(255,255,255,0.70)', fontSize: '10px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: '4px', transition: 'all 0.15s' }}>
+                              {f.id}
+                              <span style={{ fontSize: '9px', opacity: 0.7 }}>{count}</span>
+                            </button>
+                          )
+                        })}
+                      </div>
                     </div>
-                  )
-                })}
-              </div>
-              {orgScore > 0 && (
-                <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.3)', borderLeft: '1px solid rgba(255,255,255,0.08)', paddingLeft: '24px', maxWidth: '200px', lineHeight: 1.6 }}>
-                  Industry baseline for events companies: <strong style={{ color: 'rgba(255,255,255,0.6)' }}>25–40</strong>.<br/>
-                  Trescon 12-month target: <strong style={{ color: '#C0F43C' }}>60+</strong>
-                </div>
-              )}
-            </div>
-
-            {/* Three columns: Office, Dept, Champions */}
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.4fr 1.2fr', gap: '16px' }}>
-
-              {/* Office TOARS */}
-              <div style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '20px', padding: '24px' }}>
-                <div style={{ fontSize: '11px', fontWeight: 700, letterSpacing: '1.5px', textTransform: 'uppercase', color: 'rgba(255,255,255,0.35)', marginBottom: '18px' }}>By Office</div>
-                {officeToars.length === 0 ? (
-                  <div style={{ fontSize: '13px', color: 'rgba(255,255,255,0.2)' }}>No data yet</div>
-                ) : (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-                    {officeToars.map((o, i) => {
-                      const tier = toarsTier(o.score)
-                      return (
-                        <div key={o.id}>
-                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: '5px' }}>
-                            <div>
-                              <span style={{ fontSize: '13px', fontWeight: 700, color: o.color }}>{o.label}</span>
-                              <span style={{ fontSize: '10px', color: 'rgba(255,255,255,0.25)', marginLeft: '6px' }}>{o.interviewed}/{o.joined} interviewed</span>
-                            </div>
-                            <span style={{ fontSize: '18px', fontWeight: 800, color: tier.color }}>{o.score}</span>
-                          </div>
-                          <div style={{ height: '6px', background: 'rgba(255,255,255,0.07)', borderRadius: '3px', overflow: 'hidden', marginBottom: '4px' }}>
-                            <div style={{ height: '100%', width: `${o.score}%`, background: `linear-gradient(to right, ${o.color}88, ${tier.color})`, borderRadius: '3px' }} />
-                          </div>
-                          <div style={{ fontSize: '10px', color: tier.color, fontWeight: 700 }}>{tier.label} — {tier.desc}</div>
-                        </div>
-                      )
-                    })}
-                  </div>
-                )}
-              </div>
-
-              {/* Department TOARS */}
-              <div style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '20px', padding: '24px' }}>
-                <div style={{ fontSize: '11px', fontWeight: 700, letterSpacing: '1.5px', textTransform: 'uppercase', color: 'rgba(255,255,255,0.35)', marginBottom: '18px' }}>By Department — TOARS Score + Priority</div>
-                {sortedDeptToars.length === 0 ? (
-                  <div style={{ fontSize: '13px', color: 'rgba(255,255,255,0.2)' }}>No data yet</div>
-                ) : (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', maxHeight: '340px', overflowY: 'auto' }}>
-                    {sortedDeptToars.map((d, i) => {
-                      const tier   = toarsTier(d.score)
-                      const impact = d.impact
-                      return (
-                        <div key={d.dept} style={{ display: 'flex', gap: '10px', alignItems: 'center', padding: '10px 12px', background: 'rgba(255,255,255,0.03)', borderRadius: '10px', border: '1px solid rgba(255,255,255,0.05)' }}>
-                          <div style={{ fontSize: '11px', fontWeight: 800, color: 'rgba(255,255,255,0.2)', minWidth: '16px' }}>#{i+1}</div>
-                          <div style={{ flex: 1, minWidth: 0 }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '3px' }}>
-                              <span style={{ fontSize: '12px', fontWeight: 700, color: 'white', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{d.dept}</span>
-                              <span style={{ fontSize: '9px', fontWeight: 800, color: impact.color, background: `${impact.color}18`, padding: '1px 5px', borderRadius: '4px', flexShrink: 0 }}>{impact.priority}</span>
-                            </div>
-                            <div style={{ display: 'flex', gap: '3px', marginBottom: '4px' }}>
-                              {[
-                                { val: d.fluency, max: 40, color: '#00A5A3', tip: 'Fluency' },
-                                { val: d.maturity, max: 35, color: '#F4ED3C', tip: 'Maturity' },
-                                { val: d.engagement, max: 25, color: '#FF9F43', tip: 'Engagement' },
-                              ].map(dim => (
-                                <div key={dim.tip} style={{ flex: 1, height: '4px', background: 'rgba(255,255,255,0.07)', borderRadius: '2px', overflow: 'hidden' }}>
-                                  <div style={{ height: '100%', width: `${(dim.val / dim.max) * 100}%`, background: dim.color, borderRadius: '2px' }} />
+                    <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                      <thead>
+                        <tr style={{ background: 'rgba(255,255,255,0.02)' }}>
+                          {['Department', 'AI Score', 'Interview coverage', 'Priority', 'What TAI does now'].map(h => (
+                            <th key={h} style={{ padding: '8px 16px', textAlign: 'left', fontSize: '9px', fontWeight: 700, letterSpacing: '1px', textTransform: 'uppercase', color: 'rgba(255,255,255,0.75)', borderBottom: '1px solid rgba(255,255,255,0.05)', whiteSpace: 'nowrap' }}>{h}</th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {visibleDepts.length === 0 ? (
+                          <tr><td colSpan={5} style={{ padding: '32px', textAlign: 'center', fontSize: '13px', color: 'rgba(255,255,255,0.75)' }}>No departments match this filter</td></tr>
+                        ) : visibleDepts.map((d, i) => {
+                          const tier        = tairsTier(d.score)
+                          const impact      = d.impact
+                          const completePct = d.joined > 0 ? Math.round(d.interviewed / d.joined * 100) : 0
+                          return (
+                            <tr key={d.dept} style={{ borderBottom: i < visibleDepts.length - 1 ? '1px solid rgba(255,255,255,0.04)' : 'none', background: i === 0 && deptTierFilter === 'all' ? `${tier.color}05` : 'transparent' }}>
+                              <td style={{ padding: '12px 16px', whiteSpace: 'nowrap' }}>
+                                <div style={{ fontSize: '13px', fontWeight: 700, color: 'white' }}>{d.dept}</div>
+                                <div style={{ fontSize: '10px', color: 'rgba(255,255,255,0.75)', marginTop: '2px' }}>{d.joined} enrolled · {d.interviewed} assessed</div>
+                              </td>
+                              <td style={{ padding: '12px 16px', whiteSpace: 'nowrap' }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                  <span style={{ fontSize: '22px', fontWeight: 900, color: tier.color, lineHeight: 1 }}>{d.score}</span>
+                                  <span style={{ fontSize: '9px', fontWeight: 800, color: tier.color, background: `${tier.color}15`, padding: '2px 7px', borderRadius: '5px', border: `1px solid ${tier.color}25` }}>{tier.label}</span>
                                 </div>
-                              ))}
-                            </div>
-                            <div style={{ fontSize: '10px', color: tier.color }}>{tier.label}</div>
-                          </div>
-                          <div style={{ textAlign: 'right', flexShrink: 0 }}>
-                            <div style={{ fontSize: '20px', fontWeight: 800, color: tier.color, lineHeight: 1 }}>{d.score}</div>
-                            <div style={{ fontSize: '9px', color: 'rgba(255,255,255,0.25)' }}>{d.interviewed}/{d.joined}</div>
-                          </div>
-                        </div>
-                      )
-                    })}
+                              </td>
+                              <td style={{ padding: '12px 16px' }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '7px' }}>
+                                  <div style={{ width: '60px', height: '5px', background: 'rgba(255,255,255,0.07)', borderRadius: '3px', overflow: 'hidden' }}>
+                                    <div style={{ height: '100%', width: `${completePct}%`, background: completePct === 100 ? '#C0F43C' : '#00A5A3', borderRadius: '3px' }} />
+                                  </div>
+                                  <span style={{ fontSize: '11px', color: completePct === 100 ? '#C0F43C' : 'rgba(255,255,255,0.82)', fontWeight: 700 }}>{completePct}%</span>
+                                </div>
+                              </td>
+                              <td style={{ padding: '12px 16px' }}>
+                                <span style={{ fontSize: '10px', fontWeight: 800, color: impact.color, background: `${impact.color}15`, padding: '2px 8px', borderRadius: '5px' }}>{impact.priority}</span>
+                              </td>
+                              <td style={{ padding: '12px 16px', fontSize: '11px', color: 'rgba(255,255,255,0.82)', lineHeight: 1.5, maxWidth: '180px' }}>
+                                {ACTIONS[tier.label] ?? '—'}
+                              </td>
+                            </tr>
+                          )
+                        })}
+                      </tbody>
+                    </table>
                   </div>
-                )}
-                <div style={{ marginTop: '12px', display: 'flex', gap: '12px', fontSize: '10px', color: 'rgba(255,255,255,0.25)', borderTop: '1px solid rgba(255,255,255,0.06)', paddingTop: '10px' }}>
-                  <span style={{ color: '#00A5A3' }}>■ Fluency</span>
-                  <span style={{ color: '#F4ED3C' }}>■ Digital Maturity</span>
-                  <span style={{ color: '#FF9F43' }}>■ Engagement</span>
+                )
+              })()}
+
+              {/* Right: Office Cards + AI Champions */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+
+                {/* Office cards 2x2 grid */}
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                  {OFFICES.map(o => {
+                    const oData  = officeTairs.find(x => x.id === o.id)
+                    const joined = officeMap[o.id]?.count ?? 0
+                    const total  = officeTotals[o.id] ?? o.total
+                    const pct    = Math.round(joined / total * 100)
+                    const tier   = oData ? tairsTier(oData.score) : null
+                    return (
+                      <div key={o.id} style={{ background: 'rgba(255,255,255,0.04)', border: `1px solid ${o.color}25`, borderRadius: '16px', padding: '16px 18px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '7px', marginBottom: '10px' }}>
+                          <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: o.color, flexShrink: 0 }} />
+                          <span style={{ fontSize: '13px', fontWeight: 800, color: 'white' }}>{o.label}</span>
+                        </div>
+                        <div style={{ display: 'flex', alignItems: 'baseline', gap: '4px', marginBottom: '6px' }}>
+                          <span style={{ fontSize: '24px', fontWeight: 900, color: o.color, lineHeight: 1 }}>{joined}</span>
+                          <span style={{ fontSize: '12px', color: 'rgba(255,255,255,0.70)' }}>/ {total}</span>
+                        </div>
+                        <div style={{ height: '4px', background: 'rgba(255,255,255,0.07)', borderRadius: '2px', overflow: 'hidden', marginBottom: '6px' }}>
+                          <div style={{ height: '100%', width: `${pct}%`, background: o.color, borderRadius: '2px' }} />
+                        </div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                          <span style={{ fontSize: '10px', color: 'rgba(255,255,255,0.80)' }}>{pct}% joined</span>
+                          {tier && oData && (
+                            <span style={{ fontSize: '11px', fontWeight: 800, color: tier.color }}>TAIRS {oData.score}</span>
+                          )}
+                        </div>
+                      </div>
+                    )
+                  })}
                 </div>
-              </div>
 
-              {/* Top AI Champions */}
-              <div style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '20px', padding: '24px' }}>
-                <div style={{ fontSize: '11px', fontWeight: 700, letterSpacing: '1.5px', textTransform: 'uppercase', color: 'rgba(255,255,255,0.35)', marginBottom: '18px' }}>AI Champions — Top Individuals</div>
-                {topIndividuals.length === 0 ? (
-                  <div style={{ fontSize: '13px', color: 'rgba(255,255,255,0.2)' }}>No interview data yet</div>
-                ) : (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                    {topIndividuals.map((person, i) => {
-                      const tier = toarsTier(person.toars)
-                      const off  = getOffice(person.office_id)
-                      const medal = i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : null
-                      return (
-                        <div key={person.id} style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: i < 3 ? '8px 10px' : '4px 10px', background: i < 3 ? `${tier.color}08` : 'transparent', borderRadius: '10px', border: i < 3 ? `1px solid ${tier.color}20` : '1px solid transparent' }}>
-                          <div style={{ fontSize: '13px', minWidth: '20px', textAlign: 'center' }}>
-                            {medal ?? <span style={{ fontSize: '11px', fontWeight: 800, color: 'rgba(255,255,255,0.2)' }}>#{i+1}</span>}
+                {/* AI Champions */}
+                <div style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '16px', padding: '18px 20px', flex: 1 }}>
+                  <div style={{ fontSize: '11px', fontWeight: 700, letterSpacing: '1.5px', textTransform: 'uppercase', color: 'rgba(255,255,255,0.82)', marginBottom: '14px' }}>AI Champions</div>
+                  {topIndividuals.length === 0 ? (
+                    <div style={{ fontSize: '13px', color: 'rgba(255,255,255,0.75)' }}>No interview data yet</div>
+                  ) : (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                      {topIndividuals.slice(0, 6).map((person, i) => {
+                        const tier = tairsTier(person.toars)
+                        const off  = getOffice(person.office_id)
+                        return (
+                          <div key={person.id} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '7px 10px', background: i < 3 ? `${tier.color}08` : 'transparent', borderRadius: '10px', border: i < 3 ? `1px solid ${tier.color}18` : '1px solid transparent' }}>
+                            <span style={{ fontSize: '10px', fontWeight: 800, color: 'rgba(255,255,255,0.75)', minWidth: '18px' }}>#{i+1}</span>
+                            <div style={{ width: '26px', height: '26px', borderRadius: '7px', background: `${off?.color ?? '#00A5A3'}20`, border: `1px solid ${off?.color ?? '#00A5A3'}35`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                              <span style={{ fontSize: '10px', fontWeight: 800, color: off?.color ?? '#00A5A3' }}>{person.name.charAt(0)}</span>
+                            </div>
+                            <div style={{ flex: 1, minWidth: 0 }}>
+                              <div style={{ fontSize: '12px', fontWeight: 700, color: 'white', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{person.name}</div>
+                              <div style={{ fontSize: '10px', color: 'rgba(255,255,255,0.80)' }}>{person.department ?? '—'}</div>
+                            </div>
+                            <div style={{ textAlign: 'right', flexShrink: 0 }}>
+                              <div style={{ fontSize: '15px', fontWeight: 800, color: tier.color, lineHeight: 1 }}>{person.toars}</div>
+                              <div style={{ fontSize: '8px', color: tier.color, fontWeight: 700 }}>{tier.label}</div>
+                            </div>
                           </div>
-                          <div style={{ width: '28px', height: '28px', borderRadius: '8px', background: `${off?.color ?? '#00A5A3'}20`, border: `1px solid ${off?.color ?? '#00A5A3'}40`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                            <span style={{ fontSize: '11px', fontWeight: 800, color: off?.color ?? '#00A5A3' }}>{person.name.charAt(0)}</span>
-                          </div>
-                          <div style={{ flex: 1, minWidth: 0 }}>
-                            <div style={{ fontSize: '12px', fontWeight: 700, color: 'white', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{person.name}</div>
-                            <div style={{ fontSize: '10px', color: 'rgba(255,255,255,0.3)' }}>{off?.label} · {person.department ?? '—'}</div>
-                          </div>
-                          <div style={{ textAlign: 'right', flexShrink: 0 }}>
-                            <div style={{ fontSize: '16px', fontWeight: 800, color: tier.color, lineHeight: 1 }}>{person.toars}</div>
-                            <div style={{ fontSize: '9px', color: tier.color, fontWeight: 700 }}>{tier.label}</div>
-                          </div>
-                        </div>
-                      )
-                    })}
-                  </div>
-                )}
-              </div>
+                        )
+                      })}
+                    </div>
+                  )}
+                </div>
 
+              </div>
             </div>
           </div>
         )}
 
+        {/* ── AI Readiness Distribution + Top Tools ── */}
+        <div style={{ marginBottom: '28px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px', flexWrap: 'wrap' }}>
+            <span style={{ fontSize: '10px', fontWeight: 700, letterSpacing: '1.5px', textTransform: 'uppercase', color: 'rgba(255,255,255,0.80)', marginRight: '4px', flexShrink: 0 }}>View by department:</span>
+            {['all', ...DEPT_ORDER.filter(d => deptMap[d])].map(d => {
+              const active = readinessDeptFilter === d
+              const deptData = d !== 'all' ? deptMap[d] : null
+              return (
+                <button key={d} onClick={() => setReadinessDeptFilter(d)}
+                  style={{ padding: '4px 12px', borderRadius: '20px', border: `1px solid ${active ? '#00A5A3' : 'rgba(255,255,255,0.1)'}`, background: active ? 'rgba(0,165,163,0.15)' : 'transparent', color: active ? '#00A5A3' : 'rgba(255,255,255,0.75)', fontSize: '11px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: '5px', transition: 'all 0.15s' }}>
+                  {d === 'all' ? 'All Departments' : d}
+                  {deptData && <span style={{ fontSize: '10px', color: active ? '#00A5A3' : 'rgba(255,255,255,0.70)', fontWeight: 400 }}>({deptData.complete})</span>}
+                </button>
+              )
+            })}
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+            {/* Readiness distribution */}
+            <div style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '20px', padding: '24px' }}>
+              <div style={{ display: 'flex', alignItems: 'baseline', gap: '8px', marginBottom: '4px' }}>
+                <div style={{ fontSize: '11px', fontWeight: 700, letterSpacing: '2px', textTransform: 'uppercase', color: 'rgba(255,255,255,0.82)' }}>Self-Reported Readiness</div>
+                {readinessDeptFilter !== 'all' && (
+                  <div style={{ fontSize: '10px', fontWeight: 700, color: '#00A5A3', background: 'rgba(0,165,163,0.12)', border: '1px solid rgba(0,165,163,0.25)', padding: '1px 7px', borderRadius: '10px' }}>{readinessDeptFilter}</div>
+                )}
+              </div>
+              <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.82)', marginBottom: '20px' }}>
+                {readinessDeptFilter === 'all' ? 'How staff describe their own AI usage in daily work' : `${deptReadinessList.length} interview${deptReadinessList.length !== 1 ? 's' : ''} from this department`}
+              </div>
+              {deptReadinessList.length === 0 ? (
+                <div style={{ fontSize: '13px', color: 'rgba(255,255,255,0.80)' }}>No interview data{readinessDeptFilter !== 'all' ? ' for this department' : ' yet'}</div>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                  {[1, 2, 3, 4, 5].map(n => {
+                    const count = readinessDist[n] || 0
+                    const pct   = deptReadinessList.length ? Math.round(count / deptReadinessList.length * 100) : 0
+                    return (
+                      <div key={n} style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                        <div style={{ width: '22px', height: '22px', borderRadius: '6px', background: `${readinessColors[n-1]}20`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                          <span style={{ fontSize: '11px', fontWeight: 800, color: readinessColors[n-1] }}>{n}</span>
+                        </div>
+                        <div style={{ flex: 1 }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '3px' }}>
+                            <span style={{ fontSize: '11px', color: 'rgba(255,255,255,0.80)' }}>{readinessLabels[n]}</span>
+                            <span style={{ fontSize: '10px', color: count > 0 ? readinessColors[n-1] : 'rgba(255,255,255,0.70)', fontWeight: 700 }}>{pct > 0 ? `${pct}%` : ''}</span>
+                          </div>
+                          <div style={{ height: '5px', background: 'rgba(255,255,255,0.07)', borderRadius: '3px', overflow: 'hidden' }}>
+                            <div style={{ height: '100%', width: `${pct}%`, background: readinessColors[n-1], borderRadius: '3px', transition: 'width 0.4s' }} />
+                          </div>
+                        </div>
+                        <div style={{ fontSize: '14px', fontWeight: 800, color: count > 0 ? readinessColors[n-1] : 'rgba(255,255,255,0.15)', minWidth: '24px', textAlign: 'right' }}>{count}</div>
+                      </div>
+                    )
+                  })}
+                  <div style={{ paddingTop: '10px', borderTop: '1px solid rgba(255,255,255,0.06)', display: 'flex', justifyContent: 'space-between', fontSize: '11px' }}>
+                    <span style={{ color: 'rgba(255,255,255,0.80)' }}>Avg readiness</span>
+                    <span style={{ fontWeight: 800, color: readinessColors[Math.round(deptReadinessList.reduce((a,b)=>a+b,0)/deptReadinessList.length)-1] }}>
+                      {(deptReadinessList.reduce((a,b)=>a+b,0)/deptReadinessList.length).toFixed(1)} / 5
+                    </span>
+                  </div>
+                </div>
+              )}
+            </div>
+            {/* Top tools */}
+            <div style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '20px', padding: '24px' }}>
+              <div style={{ display: 'flex', alignItems: 'baseline', gap: '8px', marginBottom: '4px' }}>
+                <div style={{ fontSize: '11px', fontWeight: 700, letterSpacing: '2px', textTransform: 'uppercase', color: 'rgba(255,255,255,0.82)' }}>Top Tools Used</div>
+                {readinessDeptFilter !== 'all' && (
+                  <div style={{ fontSize: '10px', fontWeight: 700, color: '#00A5A3', background: 'rgba(0,165,163,0.12)', border: '1px solid rgba(0,165,163,0.25)', padding: '1px 7px', borderRadius: '10px' }}>{readinessDeptFilter}</div>
+                )}
+              </div>
+              <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.82)', marginBottom: '20px' }}>
+                {readinessDeptFilter === 'all' ? "What the whole team actually uses" : `Tools mentioned by ${readinessDeptFilter} team`}
+              </div>
+              {topTools.length === 0 ? (
+                <div style={{ fontSize: '13px', color: 'rgba(255,255,255,0.80)' }}>No interview data{readinessDeptFilter !== 'all' ? ' for this department' : ' yet'}</div>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '9px' }}>
+                  {topTools.map(([tool, count], i) => {
+                    const pct      = Math.round(count / topTools[0][1] * 100)
+                    const isAI     = AI_TOOLS.has(tool)
+                    const isSaaS   = MODERN_SAAS.has(tool)
+                    const barColor = isAI ? '#C0F43C' : isSaaS ? '#00A5A3' : 'rgba(255,255,255,0.70)'
+                    const tagColor = isAI ? '#C0F43C' : isSaaS ? '#00A5A3' : 'rgba(255,255,255,0.70)'
+                    return (
+                      <div key={tool} style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                        <div style={{ fontSize: '10px', fontWeight: 700, color: 'rgba(255,255,255,0.80)', minWidth: '18px' }}>#{i + 1}</div>
+                        <div style={{ flex: 1 }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '3px' }}>
+                            <span style={{ fontSize: '12px', fontWeight: 700, color: 'white' }}>{tool}</span>
+                            {isAI && <span style={{ fontSize: '9px', fontWeight: 800, color: '#C0F43C', background: 'rgba(192,244,60,0.12)', padding: '1px 5px', borderRadius: '4px' }}>AI</span>}
+                            {isSaaS && !isAI && <span style={{ fontSize: '9px', fontWeight: 700, color: '#00A5A3', background: 'rgba(0,165,163,0.12)', padding: '1px 5px', borderRadius: '4px' }}>SaaS</span>}
+                          </div>
+                          <div style={{ height: '4px', background: 'rgba(255,255,255,0.06)', borderRadius: '3px', overflow: 'hidden' }}>
+                            <div style={{ height: '100%', width: `${pct}%`, background: barColor, borderRadius: '3px', transition: 'width 0.4s' }} />
+                          </div>
+                        </div>
+                        <div style={{ fontSize: '13px', fontWeight: 800, color: tagColor, minWidth: '22px', textAlign: 'right' }}>{count}</div>
+                      </div>
+                    )
+                  })}
+                  <div style={{ paddingTop: '10px', borderTop: '1px solid rgba(255,255,255,0.06)', display: 'flex', gap: '14px', fontSize: '10px' }}>
+                    <span style={{ color: '#C0F43C' }}>■ AI tool</span>
+                    <span style={{ color: '#00A5A3' }}>■ Modern SaaS</span>
+                    <span style={{ color: 'rgba(255,255,255,0.80)' }}>■ Basic / Other</span>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+
         {/* ── Tabs ── */}
         <div style={{ display: 'flex', gap: '4px', marginBottom: '20px', background: 'rgba(255,255,255,0.04)', padding: '4px', borderRadius: '12px', width: 'fit-content' }}>
           {([
-            ['overview', 'Recent Joins'],
-            ['members', 'All Members'],
-            ['intelligence', 'Interview Answers'],
+            ['overview',     'Staff Joins'],
+            ['members',      'All Staff'],
+            ['intelligence', 'Intelligence Profiles'],
+            ['learning',     'Learning'],
+            ['action',       'Playbook'],
           ] as [typeof tab, string][]).map(([t, label]) => (
-            <button key={t} onClick={() => setTab(t)}
-              style={{ padding: '8px 20px', borderRadius: '8px', border: 'none', cursor: 'pointer', fontFamily: 'inherit', background: tab === t ? 'rgba(255,255,255,0.1)' : 'transparent', color: tab === t ? 'white' : 'rgba(255,255,255,0.4)', fontSize: '13px', fontWeight: 700 }}>
+            <button key={t} onClick={() => { setTab(t as typeof tab); if (t === 'learning') fetchLearning() }}
+              style={{ padding: '8px 20px', borderRadius: '8px', border: 'none', cursor: 'pointer', fontFamily: 'inherit', background: tab === t ? (t === 'action' ? 'rgba(192,244,60,0.15)' : t === 'learning' ? 'rgba(0,165,163,0.15)' : 'rgba(255,255,255,0.1)') : 'transparent', color: tab === t ? (t === 'action' ? '#C0F43C' : t === 'learning' ? '#00A5A3' : 'white') : 'rgba(255,255,255,0.75)', fontSize: '13px', fontWeight: 700 }}>
               {label}
             </button>
           ))}
         </div>
 
-        {/* Office + Dept filter */}
-        {tab !== 'overview' && (
-          <div style={{ display: 'flex', gap: '8px', marginBottom: '20px', flexWrap: 'wrap' }}>
-            {['all', ...OFFICES.map(o => o.id)].map(f => {
-              const off = OFFICES.find(o => o.id === f)
-              return (
-                <button key={f} onClick={() => setOfficeFilter(f)}
-                  style={{ padding: '5px 14px', borderRadius: '20px', border: `1px solid ${officeFilter === f ? (off?.color ?? '#00A5A3') : 'rgba(255,255,255,0.12)'}`, background: officeFilter === f ? `${off?.color ?? '#00A5A3'}18` : 'transparent', color: officeFilter === f ? (off?.color ?? '#00A5A3') : 'rgba(255,255,255,0.4)', fontSize: '12px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
-                  {f === 'all' ? 'All Offices' : off?.label}
+        {/* Filters — shown for overview, members, intelligence tabs only */}
+        {(tab === 'overview' || tab === 'members' || tab === 'intelligence') && (
+          <div style={{ marginBottom: '20px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+            {/* Row 1: Search + interview status */}
+            <div style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
+              <div style={{ position: 'relative', flex: '0 0 240px' }}>
+                <svg width="13" height="13" fill="none" stroke="rgba(255,255,255,0.35)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24" style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none' }}><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+                <input
+                  value={memberSearch}
+                  onChange={e => setMemberSearch(e.target.value)}
+                  placeholder="Search name, email, dept…"
+                  style={{ width: '100%', paddingLeft: '34px', paddingRight: '12px', paddingTop: '7px', paddingBottom: '7px', borderRadius: '20px', border: '1px solid rgba(255,255,255,0.12)', background: 'rgba(255,255,255,0.05)', color: 'white', fontSize: '12px', fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box' }}
+                />
+              </div>
+              <div style={{ width: '1px', height: '24px', background: 'rgba(255,255,255,0.1)' }} />
+              {([['all', 'All'], ['done', 'Assessed'], ['pending', 'Pending']] as const).map(([val, label]) => (
+                <button key={val} onClick={() => setInterviewFilter(val)}
+                  style={{ padding: '5px 14px', borderRadius: '20px', border: `1px solid ${interviewFilter === val ? '#C0F43C' : 'rgba(255,255,255,0.1)'}`, background: interviewFilter === val ? 'rgba(192,244,60,0.12)' : 'transparent', color: interviewFilter === val ? '#C0F43C' : 'rgba(255,255,255,0.7)', fontSize: '12px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
+                  {label}
                 </button>
-              )
-            })}
-            <div style={{ width: '1px', background: 'rgba(255,255,255,0.1)', margin: '0 4px' }} />
-            {['all', ...allDepts].map(d => (
-              <button key={d} onClick={() => setDeptFilter(d)}
-                style={{ padding: '5px 14px', borderRadius: '20px', border: `1px solid ${deptFilter === d ? '#00A5A3' : 'rgba(255,255,255,0.08)'}`, background: deptFilter === d ? 'rgba(0,165,163,0.12)' : 'transparent', color: deptFilter === d ? '#00A5A3' : 'rgba(255,255,255,0.35)', fontSize: '12px', fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>
-                {d === 'all' ? 'All Depts' : d}
-              </button>
-            ))}
+              ))}
+              <div style={{ marginLeft: 'auto', fontSize: '12px', color: 'rgba(255,255,255,0.45)', fontWeight: 600 }}>
+                {filteredMembers.length} of {members.length}
+              </div>
+            </div>
+            {/* Row 2: Office + Dept pills */}
+            <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', alignItems: 'center' }}>
+              {['all', ...OFFICES.map(o => o.id)].map(f => {
+                const off = OFFICES.find(o => o.id === f)
+                return (
+                  <button key={f} onClick={() => setOfficeFilter(f)}
+                    style={{ padding: '4px 12px', borderRadius: '20px', border: `1px solid ${officeFilter === f ? (off?.color ?? '#00A5A3') : 'rgba(255,255,255,0.1)'}`, background: officeFilter === f ? `${off?.color ?? '#00A5A3'}18` : 'transparent', color: officeFilter === f ? (off?.color ?? '#00A5A3') : 'rgba(255,255,255,0.7)', fontSize: '11px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
+                    {f === 'all' ? 'All Offices' : off?.label}
+                  </button>
+                )
+              })}
+              <div style={{ width: '1px', height: '18px', background: 'rgba(255,255,255,0.1)' }} />
+              {['all', ...allDepts].map(d => (
+                <button key={d} onClick={() => setDeptFilter(d)}
+                  style={{ padding: '4px 12px', borderRadius: '20px', border: `1px solid ${deptFilter === d ? '#00A5A3' : 'rgba(255,255,255,0.08)'}`, background: deptFilter === d ? 'rgba(0,165,163,0.12)' : 'transparent', color: deptFilter === d ? '#00A5A3' : 'rgba(255,255,255,0.70)', fontSize: '11px', fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>
+                  {d === 'all' ? 'All Depts' : d}
+                </button>
+              ))}
+            </div>
           </div>
         )}
 
         {/* ── Overview tab ── */}
         {tab === 'overview' && (
           <div style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '20px', overflow: 'hidden' }}>
-            <div style={{ padding: '16px 24px', borderBottom: '1px solid rgba(255,255,255,0.06)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <span style={{ fontSize: '11px', fontWeight: 700, letterSpacing: '2px', textTransform: 'uppercase', color: 'rgba(255,255,255,0.4)' }}>
-                Latest Joins — {members.length} total
-              </span>
-              <span style={{ fontSize: '11px', color: 'rgba(255,255,255,0.25)' }}>Green pill = interview also done</span>
+            {/* Header */}
+            <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr 120px 100px', gap: '0', padding: '10px 24px', borderBottom: '1px solid rgba(255,255,255,0.06)', background: 'rgba(255,255,255,0.02)' }}>
+              {['Name', 'Office', 'Department', 'Interview', 'Joined'].map(h => (
+                <div key={h} style={{ fontSize: '9px', fontWeight: 700, letterSpacing: '1.5px', textTransform: 'uppercase', color: 'rgba(255,255,255,0.70)' }}>{h}</div>
+              ))}
             </div>
-            {members.slice(0, 15).map((m, i) => {
+            {[...filteredMembers].sort((a, b) => new Date(b.joined_at).getTime() - new Date(a.joined_at).getTime()).map((m, i, arr) => {
               const off = getOffice(m.office_id)
               return (
-                <div key={m.id} style={{ display: 'flex', alignItems: 'center', gap: '14px', padding: '12px 24px', borderBottom: i < 14 ? '1px solid rgba(255,255,255,0.04)' : 'none' }}>
-                  <div style={{ width: '34px', height: '34px', borderRadius: '10px', background: `${off?.color ?? '#00A5A3'}20`, border: `1px solid ${off?.color ?? '#00A5A3'}40`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                    <span style={{ fontSize: '13px', fontWeight: 800, color: off?.color ?? '#00A5A3' }}>{m.name.charAt(0)}</span>
+                <div key={m.id} style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr 120px 100px', gap: '0', alignItems: 'center', padding: '11px 24px', borderBottom: i < arr.length - 1 ? '1px solid rgba(255,255,255,0.04)' : 'none' }}>
+                  {/* Name + email */}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px', minWidth: 0, paddingRight: '12px' }}>
+                    <div style={{ width: '32px', height: '32px', borderRadius: '9px', background: `${off?.color ?? '#00A5A3'}18`, border: `1px solid ${off?.color ?? '#00A5A3'}35`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                      <span style={{ fontSize: '12px', fontWeight: 800, color: off?.color ?? '#00A5A3' }}>{m.name.charAt(0)}</span>
+                    </div>
+                    <div style={{ minWidth: 0 }}>
+                      <div style={{ fontSize: '13px', fontWeight: 700, color: 'white', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{m.name}</div>
+                      <div style={{ fontSize: '10px', color: 'rgba(255,255,255,0.75)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{m.email}</div>
+                    </div>
                   </div>
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontSize: '14px', fontWeight: 700, color: 'white' }}>{m.name}</div>
-                    <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.3)' }}>{m.email}</div>
+                  {/* Office */}
+                  <div style={{ paddingRight: '12px' }}>
+                    <span style={{ fontSize: '12px', fontWeight: 700, color: off?.color ?? '#00A5A3' }}>{off?.label ?? '—'}</span>
                   </div>
-                  <div style={{ fontSize: '12px', color: off?.color ?? '#00A5A3', fontWeight: 700 }}>{off?.label}</div>
-                  {m.department && (
-                    <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.4)', background: 'rgba(255,255,255,0.06)', padding: '3px 8px', borderRadius: '6px' }}>{m.department}</div>
-                  )}
-                  <div style={{ fontSize: '11px', fontWeight: 700, color: m.profile_complete ? '#C0F43C' : 'rgba(255,255,255,0.2)', background: m.profile_complete ? 'rgba(192,244,60,0.12)' : 'transparent', padding: '3px 8px', borderRadius: '6px', border: m.profile_complete ? '1px solid rgba(192,244,60,0.25)' : '1px solid transparent' }}>
-                    {m.profile_complete ? 'Interviewed' : 'Not yet'}
+                  {/* Department */}
+                  <div style={{ paddingRight: '12px' }}>
+                    <span style={{ fontSize: '11px', color: 'rgba(255,255,255,0.82)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', display: 'block' }}>{m.department ?? '—'}</span>
                   </div>
-                  <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.2)', minWidth: '80px', textAlign: 'right' }}>
-                    {new Date(m.joined_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
+                  {/* Interview status */}
+                  <div>
+                    <span style={{ fontSize: '10px', fontWeight: 700, color: m.profile_complete ? '#C0F43C' : 'rgba(255,255,255,0.70)', background: m.profile_complete ? 'rgba(192,244,60,0.12)' : 'rgba(255,255,255,0.05)', padding: '3px 9px', borderRadius: '6px', border: `1px solid ${m.profile_complete ? 'rgba(192,244,60,0.25)' : 'rgba(255,255,255,0.08)'}` }}>
+                      {m.profile_complete ? 'Assessed' : 'Pending'}
+                    </span>
+                  </div>
+                  {/* Date */}
+                  <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.75)', textAlign: 'right' }}>
+                    {new Date(m.joined_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}
+                    <div style={{ fontSize: '10px', color: 'rgba(255,255,255,0.70)' }}>
+                      {new Date(m.joined_at).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}
+                    </div>
                   </div>
                 </div>
               )
             })}
-            {members.length === 0 && (
-              <div style={{ padding: '48px', textAlign: 'center', color: 'rgba(255,255,255,0.2)', fontSize: '14px' }}>No staff have joined yet</div>
+            {filteredMembers.length === 0 && (
+              <div style={{ padding: '48px', textAlign: 'center', color: 'rgba(255,255,255,0.80)', fontSize: '14px' }}>{members.length === 0 ? 'No staff have joined yet' : 'No results match the current filters'}</div>
             )}
           </div>
         )}
@@ -802,14 +1156,14 @@ export default function AdminPage() {
         {tab === 'members' && (
           <div style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '20px', overflow: 'hidden' }}>
             <div style={{ padding: '16px 24px', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
-              <span style={{ fontSize: '11px', fontWeight: 700, letterSpacing: '2px', textTransform: 'uppercase', color: 'rgba(255,255,255,0.4)' }}>{filteredMembers.length} Members</span>
+              <span style={{ fontSize: '11px', fontWeight: 700, letterSpacing: '2px', textTransform: 'uppercase', color: 'rgba(255,255,255,0.7)' }}>{filteredMembers.length} Members</span>
             </div>
             <div style={{ overflowX: 'auto' }}>
               <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                 <thead>
                   <tr>
                     {['Name', 'Email', 'Office', 'Department', 'Role', 'Interview', 'Joined'].map(h => (
-                      <th key={h} style={{ padding: '10px 16px', textAlign: 'left', fontSize: '10px', fontWeight: 700, letterSpacing: '1.5px', textTransform: 'uppercase', color: 'rgba(255,255,255,0.3)', borderBottom: '1px solid rgba(255,255,255,0.06)', whiteSpace: 'nowrap' }}>{h}</th>
+                      <th key={h} style={{ padding: '10px 16px', textAlign: 'left', fontSize: '10px', fontWeight: 700, letterSpacing: '1.5px', textTransform: 'uppercase', color: 'rgba(255,255,255,0.82)', borderBottom: '1px solid rgba(255,255,255,0.06)', whiteSpace: 'nowrap' }}>{h}</th>
                     ))}
                   </tr>
                 </thead>
@@ -819,21 +1173,21 @@ export default function AdminPage() {
                     return (
                       <tr key={m.id} style={{ borderBottom: i < filteredMembers.length - 1 ? '1px solid rgba(255,255,255,0.04)' : 'none' }}>
                         <td style={{ padding: '12px 16px', fontSize: '13px', fontWeight: 700, color: 'white', whiteSpace: 'nowrap' }}>{m.name}</td>
-                        <td style={{ padding: '12px 16px', fontSize: '12px', color: 'rgba(255,255,255,0.4)' }}>{m.email}</td>
+                        <td style={{ padding: '12px 16px', fontSize: '12px', color: 'rgba(255,255,255,0.7)' }}>{m.email}</td>
                         <td style={{ padding: '12px 16px' }}><span style={{ fontSize: '12px', fontWeight: 700, color: off?.color ?? '#00A5A3' }}>{off?.label}</span></td>
-                        <td style={{ padding: '12px 16px', fontSize: '12px', color: 'rgba(255,255,255,0.5)' }}>{m.department ?? '—'}</td>
-                        <td style={{ padding: '12px 16px', fontSize: '12px', color: 'rgba(255,255,255,0.4)' }}>{m.role ?? '—'}</td>
+                        <td style={{ padding: '12px 16px', fontSize: '12px', color: 'rgba(255,255,255,0.80)' }}>{m.department ?? '—'}</td>
+                        <td style={{ padding: '12px 16px', fontSize: '12px', color: 'rgba(255,255,255,0.7)' }}>{m.role ?? '—'}</td>
                         <td style={{ padding: '12px 16px' }}>
                           <span style={{ fontSize: '11px', fontWeight: 700, color: m.profile_complete ? '#C0F43C' : '#FF9F43', background: m.profile_complete ? '#C0F43C15' : '#FF9F4315', border: `1px solid ${m.profile_complete ? '#C0F43C30' : '#FF9F4330'}`, padding: '3px 8px', borderRadius: '6px' }}>
                             {m.profile_complete ? 'Done' : 'Pending'}
                           </span>
                         </td>
-                        <td style={{ padding: '12px 16px', fontSize: '11px', color: 'rgba(255,255,255,0.25)', whiteSpace: 'nowrap' }}>{new Date(m.joined_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}</td>
+                        <td style={{ padding: '12px 16px', fontSize: '11px', color: 'rgba(255,255,255,0.80)', whiteSpace: 'nowrap' }}>{new Date(m.joined_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}</td>
                       </tr>
                     )
                   })}
                   {filteredMembers.length === 0 && (
-                    <tr><td colSpan={7} style={{ padding: '40px', textAlign: 'center', color: 'rgba(255,255,255,0.2)', fontSize: '14px' }}>No members for this filter</td></tr>
+                    <tr><td colSpan={7} style={{ padding: '40px', textAlign: 'center', color: 'rgba(255,255,255,0.80)', fontSize: '14px' }}>No members for this filter</td></tr>
                   )}
                 </tbody>
               </table>
@@ -842,122 +1196,603 @@ export default function AdminPage() {
         )}
 
         {/* ── Intelligence tab ── */}
-        {tab === 'intelligence' && (
-          <div>
-            <div style={{ background: 'rgba(0,165,163,0.06)', border: '1px solid rgba(0,165,163,0.2)', borderRadius: '14px', padding: '14px 20px', marginBottom: '20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '12px' }}>
-              <div>
-                <div style={{ fontSize: '13px', fontWeight: 700, color: '#00A5A3', marginBottom: '3px' }}>These are the actual answers from the TAOS intelligence interview.</div>
-                <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.4)' }}>Each entry = one person&apos;s interview response. Click to expand and read the full answer. Use AI Insights to get Gemini&apos;s analysis across all of them.</div>
+        {tab === 'intelligence' && (() => {
+          // Group tasks by person so each person gets one row
+          const peopleWithTasks = filteredMembers
+            .filter(m => m.profile_complete)
+            .map(m => {
+              const personTasks = tasks.filter(t => t.staff_id === m.id)
+              const readinessTask = personTasks.find(t => t.ai_readiness != null)
+              const aiProofEntry  = personTasks.find(t => t.ai_proof)
+              const allTools      = [...new Set(personTasks.flatMap(t => t.tools_used ?? []))]
+              const mainAnswer    = personTasks.find(t => t.task_description && t.task_description.trim().length > 20)
+              const score         = memberTairs[m.id]?.score ?? 0
+              const tier          = tairsTier(score)
+              const readiness     = readinessTask?.ai_readiness ?? null
+              return { member: m, personTasks, readinessTask, aiProofEntry, allTools, mainAnswer, score, tier, readiness }
+            })
+            .sort((a, b) => b.score - a.score)
+
+          return (
+            <div>
+              {/* Header bar */}
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px', flexWrap: 'wrap', gap: '12px' }}>
+                <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.80)' }}>
+                  <span style={{ color: 'white', fontWeight: 700 }}>{peopleWithTasks.length}</span> assessed · sorted by AI Readiness Score (highest first) · click any row to read full answers
+                </div>
+                <Link href="/insights" style={{ background: '#C0F43C', color: '#1E2124', fontSize: '12px', fontWeight: 800, padding: '8px 18px', borderRadius: '9px', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0 }}>
+                  <svg width="11" height="11" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+                  Generate AI Insights
+                </Link>
               </div>
-              <Link href="/insights" style={{ background: '#C0F43C', color: '#1E2124', fontSize: '13px', fontWeight: 800, padding: '10px 20px', borderRadius: '10px', textDecoration: 'none', whiteSpace: 'nowrap', flexShrink: 0 }}>
-                Generate AI Insights
-              </Link>
-            </div>
 
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-              {filteredTasks.map(t => {
-                const member = memberIndex[t.staff_id]
-                const off    = member ? getOffice(member.office_id) : null
-                const isOpen = expandedTask === t.id
-                return (
-                  <div key={t.id} style={{ background: 'rgba(255,255,255,0.04)', border: `1px solid ${isOpen ? 'rgba(0,165,163,0.3)' : 'rgba(255,255,255,0.07)'}`, borderRadius: '16px', overflow: 'hidden', transition: 'border-color 0.2s' }}>
-
-                    {/* Header row — always visible */}
-                    <button
-                      onClick={() => setExpandedTask(isOpen ? null : t.id)}
-                      style={{ width: '100%', padding: '16px 20px', background: 'transparent', border: 'none', cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: '16px', textAlign: 'left' }}
-                    >
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ fontSize: '13px', fontWeight: 700, color: 'white', marginBottom: '4px' }}>{t.task_name}</div>
-                        <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.35)' }}>
-                          {member?.name ?? 'Unknown'} · <span style={{ color: off?.color ?? '#00A5A3' }}>{off?.label}</span> · {member?.department ?? '—'}
-                        </div>
-                      </div>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexShrink: 0 }}>
-                        {t.tools_used?.length > 0 && (
-                          <div style={{ display: 'flex', gap: '4px' }}>
-                            {t.tools_used.slice(0, 3).map((tool, j) => (
-                              <span key={j} style={{ fontSize: '10px', color: 'rgba(255,255,255,0.4)', background: 'rgba(255,255,255,0.06)', padding: '2px 7px', borderRadius: '5px' }}>{tool}</span>
-                            ))}
-                            {t.tools_used.length > 3 && <span style={{ fontSize: '10px', color: 'rgba(255,255,255,0.25)' }}>+{t.tools_used.length - 3}</span>}
-                          </div>
-                        )}
-                        {t.ai_readiness && (
-                          <div style={{ fontSize: '11px', fontWeight: 700, color: readinessColors[(t.ai_readiness ?? 1) - 1], background: `${readinessColors[(t.ai_readiness ?? 1) - 1]}18`, padding: '3px 8px', borderRadius: '6px' }}>
-                            AI: {t.ai_readiness}/5
-                          </div>
-                        )}
-                        <svg width="14" height="14" fill="none" stroke="rgba(255,255,255,0.3)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24" style={{ transform: isOpen ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }}>
-                          <polyline points="6 9 12 15 18 9"/>
-                        </svg>
-                      </div>
-                    </button>
-
-                    {/* Expanded content */}
-                    {isOpen && (
-                      <div style={{ padding: '0 20px 20px', borderTop: '1px solid rgba(255,255,255,0.06)' }}>
-                        {t.task_description && (() => {
-                          const detection = detectAIWriting(t.task_description)
-                          const flagColor = detection.score >= 65 ? '#FF6B6B' : detection.score >= 45 ? '#FF9F43' : detection.score >= 25 ? '#F4ED3C' : '#A8E6CF'
-                          return (
-                          <div style={{ marginTop: '16px' }}>
-                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '10px' }}>
-                              <div style={{ fontSize: '10px', fontWeight: 700, letterSpacing: '1.5px', textTransform: 'uppercase', color: 'rgba(255,255,255,0.3)' }}>Interview Answer</div>
-                              {detection.score >= 25 && (
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', background: `${flagColor}15`, border: `1px solid ${flagColor}40`, borderRadius: '8px', padding: '5px 12px' }}>
-                                  <svg width="12" height="12" fill="none" stroke={flagColor} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
-                                  <span style={{ fontSize: '11px', fontWeight: 700, color: flagColor }}>{detection.verdict}</span>
-                                  <span style={{ fontSize: '10px', color: 'rgba(255,255,255,0.3)' }}>{detection.score}/100</span>
-                                </div>
-                              )}
-                            </div>
-                            {detection.score >= 45 && detection.flags.length > 0 && (
-                              <div style={{ background: `${flagColor}10`, border: `1px solid ${flagColor}25`, borderRadius: '8px', padding: '8px 12px', marginBottom: '10px', display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-                                {detection.flags.map((f, fi) => (
-                                  <span key={fi} style={{ fontSize: '10px', color: flagColor, fontWeight: 600 }}>• {f}</span>
-                                ))}
-                              </div>
-                            )}
-                            <div style={{ background: 'rgba(0,0,0,0.3)', borderRadius: '10px', padding: '16px', fontSize: '13px', color: 'rgba(255,255,255,0.75)', lineHeight: 1.7, whiteSpace: 'pre-wrap', fontFamily: 'inherit' }}>
-                              {t.task_description}
-                            </div>
-                          </div>
-                          )
-                        })()}
-                        {!t.task_description && (
-                          <div style={{ marginTop: '16px', fontSize: '13px', color: 'rgba(255,255,255,0.2)', fontStyle: 'italic' }}>No answer text recorded</div>
-                        )}
-                        <div style={{ display: 'flex', gap: '24px', flexWrap: 'wrap', marginTop: '16px' }}>
-                          {t.tools_used?.length > 0 && (
-                            <div>
-                              <div style={{ fontSize: '10px', fontWeight: 700, letterSpacing: '1px', textTransform: 'uppercase', color: 'rgba(255,255,255,0.3)', marginBottom: '6px' }}>Tools Used</div>
-                              <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
-                                {t.tools_used.map((tool, j) => (
-                                  <span key={j} style={{ fontSize: '12px', color: '#00A5A3', background: 'rgba(0,165,163,0.12)', border: '1px solid rgba(0,165,163,0.2)', padding: '3px 10px', borderRadius: '6px' }}>{tool}</span>
-                                ))}
-                              </div>
-                            </div>
-                          )}
-                          {t.skill_needed && (
-                            <div>
-                              <div style={{ fontSize: '10px', fontWeight: 700, letterSpacing: '1px', textTransform: 'uppercase', color: 'rgba(255,255,255,0.3)', marginBottom: '6px' }}>Skill Needed</div>
-                              <div style={{ fontSize: '13px', color: 'rgba(255,255,255,0.7)' }}>{t.skill_needed}</div>
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                )
-              })}
-              {filteredTasks.length === 0 && (
-                <div style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '16px', padding: '48px', textAlign: 'center', color: 'rgba(255,255,255,0.2)', fontSize: '14px' }}>
-                  No interview answers yet{officeFilter !== 'all' || deptFilter !== 'all' ? ' for this filter' : ''}.
+              {/* Column headers */}
+              {peopleWithTasks.length > 0 && (
+                <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr 1.6fr 80px 36px', gap: '0', padding: '7px 20px', marginBottom: '4px' }}>
+                  {['Employee', 'Readiness', 'AI Score', 'Tools used', 'Track', ''].map(h => (
+                    <div key={h} style={{ fontSize: '9px', fontWeight: 700, letterSpacing: '1.5px', textTransform: 'uppercase', color: 'rgba(255,255,255,0.70)' }}>{h}</div>
+                  ))}
                 </div>
               )}
+
+              {/* Person rows */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                {peopleWithTasks.map(({ member: m, personTasks, aiProofEntry, allTools, mainAnswer, score, tier, readiness }) => {
+                  const off    = getOffice(m.office_id)
+                  const isOpen = expandedTask === m.id
+                  const readinessColor = readiness ? readinessColors[readiness - 1] : 'rgba(255,255,255,0.70)'
+
+                  return (
+                    <div key={m.id} style={{ background: isOpen ? 'rgba(0,165,163,0.05)' : 'rgba(255,255,255,0.03)', border: `1px solid ${isOpen ? 'rgba(0,165,163,0.25)' : 'rgba(255,255,255,0.07)'}`, borderRadius: '12px', overflow: 'hidden', transition: 'all 0.15s' }}>
+
+                      {/* Row — always visible */}
+                      <button
+                        onClick={() => setExpandedTask(isOpen ? null : m.id)}
+                        style={{ width: '100%', padding: '13px 20px', background: 'transparent', border: 'none', cursor: 'pointer', fontFamily: 'inherit', display: 'grid', gridTemplateColumns: '2fr 1fr 1fr 1.6fr 80px 36px', gap: '0', alignItems: 'center', textAlign: 'left' }}
+                      >
+                        {/* Col 1: Employee */}
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', minWidth: 0, paddingRight: '12px' }}>
+                          <div style={{ width: '32px', height: '32px', borderRadius: '9px', background: `${off?.color ?? '#00A5A3'}18`, border: `1px solid ${off?.color ?? '#00A5A3'}30`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                            <span style={{ fontSize: '12px', fontWeight: 800, color: off?.color ?? '#00A5A3' }}>{m.name.charAt(0)}</span>
+                          </div>
+                          <div style={{ minWidth: 0 }}>
+                            <div style={{ fontSize: '13px', fontWeight: 700, color: 'white', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{m.name}</div>
+                            <div style={{ fontSize: '10px', color: 'rgba(255,255,255,0.75)', marginTop: '1px' }}>
+                              <span style={{ color: off?.color ?? '#00A5A3' }}>{off?.label}</span>
+                              {m.department ? ` · ${m.department}` : ''}
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Col 2: Readiness 1-5 */}
+                        <div style={{ paddingRight: '12px' }}>
+                          {readiness ? (
+                            <div>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '2px' }}>
+                                <div style={{ width: '24px', height: '24px', borderRadius: '6px', background: `${readinessColor}20`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                                  <span style={{ fontSize: '12px', fontWeight: 900, color: readinessColor }}>{readiness}</span>
+                                </div>
+                                <span style={{ fontSize: '9px', color: 'rgba(255,255,255,0.80)' }}>/5</span>
+                              </div>
+                              <div style={{ fontSize: '10px', color: readinessColor, lineHeight: 1.3 }}>{readinessLabels[readiness]}</div>
+                            </div>
+                          ) : (
+                            <span style={{ fontSize: '11px', color: 'rgba(255,255,255,0.70)' }}>—</span>
+                          )}
+                        </div>
+
+                        {/* Col 3: TAIRS individual score */}
+                        <div style={{ paddingRight: '12px' }}>
+                          {score > 0 ? (
+                            <div>
+                              <span style={{ fontSize: '22px', fontWeight: 900, color: tier.color, lineHeight: 1 }}>{score}</span>
+                              <div style={{ fontSize: '9px', fontWeight: 700, color: tier.color, marginTop: '2px' }}>{tier.label}</div>
+                            </div>
+                          ) : (
+                            <span style={{ fontSize: '11px', color: 'rgba(255,255,255,0.70)' }}>—</span>
+                          )}
+                        </div>
+
+                        {/* Col 4: Top tools */}
+                        <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap', paddingRight: '12px' }}>
+                          {allTools.slice(0, 4).map((tool, j) => {
+                            const isAI = AI_TOOLS.has(tool)
+                            return (
+                              <span key={j} style={{ fontSize: '10px', color: isAI ? '#C0F43C' : 'rgba(255,255,255,0.82)', background: isAI ? 'rgba(192,244,60,0.1)' : 'rgba(255,255,255,0.06)', padding: '2px 7px', borderRadius: '5px', whiteSpace: 'nowrap' }}>{tool}</span>
+                            )
+                          })}
+                          {allTools.length > 4 && <span style={{ fontSize: '10px', color: 'rgba(255,255,255,0.70)' }}>+{allTools.length - 4}</span>}
+                        </div>
+
+                        {/* Col 5: Track badge */}
+                        <div>
+                          {aiProofEntry?.ai_proof ? (
+                            <span style={{ fontSize: '9px', fontWeight: 800, color: '#C0F43C', background: 'rgba(192,244,60,0.12)', border: '1px solid rgba(192,244,60,0.25)', padding: '3px 7px', borderRadius: '5px', whiteSpace: 'nowrap' }}>Advanced</span>
+                          ) : (
+                            <span style={{ fontSize: '9px', fontWeight: 700, color: 'rgba(255,255,255,0.70)', background: 'rgba(255,255,255,0.05)', padding: '3px 7px', borderRadius: '5px', whiteSpace: 'nowrap' }}>Standard</span>
+                          )}
+                        </div>
+
+                        {/* Col 6: Chevron */}
+                        <div style={{ display: 'flex', justifyContent: 'center' }}>
+                          <svg width="14" height="14" fill="none" stroke="rgba(255,255,255,0.3)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24" style={{ transform: isOpen ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }}>
+                            <polyline points="6 9 12 15 18 9"/>
+                          </svg>
+                        </div>
+                      </button>
+
+                      {/* Expanded: all their task answers */}
+                      {isOpen && (
+                        <div style={{ borderTop: '1px solid rgba(255,255,255,0.06)', padding: '20px' }}>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                            {personTasks.map((t, ti) => {
+                              const hasContent = t.task_description || t.ai_proof || (t.tools_used?.length > 0)
+                              if (!hasContent) return null
+                              const detection = t.task_description ? detectAIWriting(t.task_description) : { score: 0, flags: [], verdict: '' }
+                              const flagColor = detection.score >= 65 ? '#FF6B6B' : detection.score >= 45 ? '#FF9F43' : detection.score >= 25 ? '#F4ED3C' : '#A8E6CF'
+                              return (
+                                <div key={t.id} style={{ background: 'rgba(0,0,0,0.2)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: '10px', padding: '16px' }}>
+                                  {/* Task label */}
+                                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '10px', flexWrap: 'wrap', gap: '8px' }}>
+                                    <div style={{ fontSize: '10px', fontWeight: 700, letterSpacing: '1.5px', textTransform: 'uppercase', color: 'rgba(255,255,255,0.75)' }}>
+                                      Entry {ti + 1}{t.task_name ? ` — ${t.task_name}` : ''}
+                                    </div>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                                      {t.ai_readiness && (
+                                        <span style={{ fontSize: '10px', fontWeight: 700, color: readinessColors[t.ai_readiness - 1], background: `${readinessColors[t.ai_readiness - 1]}15`, padding: '2px 8px', borderRadius: '5px', border: `1px solid ${readinessColors[t.ai_readiness - 1]}25` }}>
+                                          Readiness {t.ai_readiness}/5
+                                        </span>
+                                      )}
+                                      {detection.score >= 25 && t.task_description && (
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', background: `${flagColor}12`, border: `1px solid ${flagColor}35`, borderRadius: '6px', padding: '2px 8px' }}>
+                                          <svg width="10" height="10" fill="none" stroke={flagColor} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+                                          <span style={{ fontSize: '10px', fontWeight: 700, color: flagColor }}>{detection.verdict}</span>
+                                          <span style={{ fontSize: '9px', color: 'rgba(255,255,255,0.80)' }}>{detection.score}/100</span>
+                                        </div>
+                                      )}
+                                    </div>
+                                  </div>
+
+                                  {/* Answer text */}
+                                  {t.task_description && (
+                                    <div style={{ fontSize: '13px', color: 'rgba(255,255,255,0.75)', lineHeight: 1.7, whiteSpace: 'pre-wrap', marginBottom: (t.ai_proof || t.tools_used?.length) ? '12px' : '0' }}>
+                                      {t.task_description}
+                                    </div>
+                                  )}
+
+                                  {/* AI Proof */}
+                                  {t.ai_proof && (
+                                    <div style={{ background: 'rgba(192,244,60,0.05)', border: '1px solid rgba(192,244,60,0.18)', borderRadius: '8px', padding: '12px 14px', marginBottom: t.tools_used?.length ? '10px' : '0' }}>
+                                      <div style={{ fontSize: '9px', fontWeight: 700, letterSpacing: '1px', textTransform: 'uppercase', color: '#C0F43C', marginBottom: '6px' }}>Advanced Track — Workflow Proof</div>
+                                      <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.75)', lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>{t.ai_proof}</div>
+                                    </div>
+                                  )}
+
+                                  {/* Tools */}
+                                  {t.tools_used?.length > 0 && (
+                                    <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', marginTop: t.task_description || t.ai_proof ? '10px' : '0' }}>
+                                      {t.tools_used.map((tool, j) => (
+                                        <span key={j} style={{ fontSize: '11px', color: AI_TOOLS.has(tool) ? '#C0F43C' : '#00A5A3', background: AI_TOOLS.has(tool) ? 'rgba(192,244,60,0.1)' : 'rgba(0,165,163,0.12)', border: `1px solid ${AI_TOOLS.has(tool) ? 'rgba(192,244,60,0.2)' : 'rgba(0,165,163,0.2)'}`, padding: '2px 9px', borderRadius: '5px' }}>{tool}</span>
+                                      ))}
+                                    </div>
+                                  )}
+                                </div>
+                              )
+                            })}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )
+                })}
+                {peopleWithTasks.length === 0 && (
+                  <div style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '14px', padding: '48px', textAlign: 'center', color: 'rgba(255,255,255,0.80)', fontSize: '14px' }}>
+                    No interview data yet{officeFilter !== 'all' || deptFilter !== 'all' ? ' for this filter' : ''}.
+                  </div>
+                )}
+              </div>
             </div>
-          </div>
-        )}
+          )
+        })()}
+
+
+        {/* ── Learning tab ── */}
+        {tab === 'learning' && (() => {
+          if (learningLoading) return (
+            <div style={{ padding: '60px', textAlign: 'center' }}>
+              <div style={{ width: '32px', height: '32px', border: '3px solid rgba(255,255,255,0.08)', borderTopColor: '#00A5A3', borderRadius: '50%', animation: 'spin 0.8s linear infinite', margin: '0 auto 14px' }} />
+              <div style={{ color: 'rgba(255,255,255,0.5)', fontSize: '13px' }}>Loading learning data…</div>
+            </div>
+          )
+          if (!learningData) return (
+            <div style={{ padding: '60px', textAlign: 'center', color: 'rgba(255,255,255,0.5)', fontSize: '14px' }}>
+              No learning data yet. Staff need to complete courses first.
+            </div>
+          )
+
+          const { completions, courses, staff: ldStaff, attempts } = learningData
+          const staffMap   = Object.fromEntries(ldStaff.map(s => [s.id, s]))
+          const courseMap  = Object.fromEntries(courses.map(c => [c.id, c]))
+          const passedComp = completions.filter(c => c.passed)
+
+          // Summary stats
+          const totalAttempts   = attempts.length
+          const totalPassed     = passedComp.length
+          const passRate        = totalAttempts > 0 ? Math.round(totalPassed / totalAttempts * 100) : 0
+          const avgScore        = passedComp.length > 0 ? Math.round(passedComp.reduce((s, c) => s + (c.test_score ?? 0), 0) / passedComp.length) : 0
+          const activeStaff     = new Set(attempts.map(a => a.staff_id)).size
+          const thisWeek        = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)
+          const completionsThisWeek = passedComp.filter(c => new Date(c.completed_at) > thisWeek).length
+
+          // Per-course stats
+          const courseStats = courses.map(c => {
+            const cComp    = completions.filter(x => x.course_id === c.id)
+            const cAttempt = attempts.filter(x => x.course_id === c.id)
+            const cPassed  = cComp.filter(x => x.passed)
+            const cAvg     = cPassed.length > 0 ? Math.round(cPassed.reduce((s, x) => s + (x.test_score ?? 0), 0) / cPassed.length) : null
+            return { ...c, completions: cPassed.length, attempts: cAttempt.length, avgScore: cAvg }
+          }).sort((a, b) => b.completions - a.completions)
+
+          // Per-dept stats
+          const deptStats: Record<string, { name: string; completed: number; staff: number; avgScore: number }> = {}
+          for (const comp of passedComp) {
+            const s = staffMap[comp.staff_id]
+            if (!s) continue
+            const dept = s.department ?? 'Other'
+            if (!deptStats[dept]) deptStats[dept] = { name: dept, completed: 0, staff: 0, avgScore: 0 }
+            deptStats[dept].completed++
+            deptStats[dept].avgScore = Math.round(((deptStats[dept].avgScore * (deptStats[dept].completed - 1)) + (comp.test_score ?? 0)) / deptStats[dept].completed)
+          }
+          const deptStatsList = Object.values(deptStats).sort((a, b) => b.completed - a.completed)
+
+          // Top learners
+          const learnerMap: Record<string, { name: string; dept: string; completed: number; avgScore: number }> = {}
+          for (const comp of passedComp) {
+            const s = staffMap[comp.staff_id]
+            if (!s) continue
+            if (!learnerMap[comp.staff_id]) learnerMap[comp.staff_id] = { name: s.name, dept: s.department ?? '—', completed: 0, avgScore: 0 }
+            learnerMap[comp.staff_id].completed++
+            learnerMap[comp.staff_id].avgScore = Math.round(((learnerMap[comp.staff_id].avgScore * (learnerMap[comp.staff_id].completed - 1)) + (comp.test_score ?? 0)) / learnerMap[comp.staff_id].completed)
+          }
+          const topLearners = Object.entries(learnerMap).map(([id, v]) => ({ id, ...v })).sort((a, b) => b.completed - a.completed || b.avgScore - a.avgScore).slice(0, 10)
+
+          const TIER_COLOR: Record<string, string> = { foundation: '#FF9F43', adoption: '#00A5A3', advanced: '#C0F43C' }
+
+          return (
+            <div>
+              {/* Summary strip */}
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: '10px', marginBottom: '24px' }}>
+                {[
+                  { label: 'Courses Available',   value: courses.length,         sub: 'in library'          },
+                  { label: 'Total Completions',    value: totalPassed,            sub: 'passes recorded'     },
+                  { label: 'This Week',            value: completionsThisWeek,    sub: 'completed'           },
+                  { label: 'Avg Passing Score',    value: avgScore ? `${avgScore}%` : '—', sub: 'across all passes' },
+                  { label: 'Active Learners',      value: activeStaff,            sub: 'attempted a course'  },
+                ].map(({ label, value, sub }) => (
+                  <div key={label} style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '14px', padding: '18px 20px' }}>
+                    <div style={{ fontSize: '10px', fontWeight: 700, letterSpacing: '1.5px', textTransform: 'uppercase', color: 'rgba(255,255,255,0.5)', marginBottom: '6px' }}>{label}</div>
+                    <div style={{ fontSize: '26px', fontWeight: 900, color: 'white', marginBottom: '2px' }}>{value}</div>
+                    <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.45)' }}>{sub}</div>
+                  </div>
+                ))}
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: '16px', marginBottom: '20px' }}>
+
+                {/* Course completion table */}
+                <div style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '18px', overflow: 'hidden' }}>
+                  <div style={{ padding: '16px 20px', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
+                    <div style={{ fontSize: '11px', fontWeight: 700, letterSpacing: '1.5px', textTransform: 'uppercase', color: 'rgba(255,255,255,0.7)' }}>Course Performance</div>
+                    <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.45)', marginTop: '2px' }}>Completions and avg score per course</div>
+                  </div>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 60px 60px 60px', padding: '8px 20px', borderBottom: '1px solid rgba(255,255,255,0.05)', gap: '0' }}>
+                    {['Course', 'Track', 'Done', 'Avg'].map(h => (
+                      <div key={h} style={{ fontSize: '9px', fontWeight: 700, letterSpacing: '1.5px', textTransform: 'uppercase', color: 'rgba(255,255,255,0.4)' }}>{h}</div>
+                    ))}
+                  </div>
+                  {courseStats.map((c, i) => (
+                    <div key={c.id} style={{ display: 'grid', gridTemplateColumns: '1fr 60px 60px 60px', padding: '12px 20px', borderBottom: i < courseStats.length - 1 ? '1px solid rgba(255,255,255,0.04)' : 'none', gap: '0', alignItems: 'center' }}>
+                      <div>
+                        <div style={{ fontSize: '13px', fontWeight: 600, color: 'white', lineHeight: 1.3 }}>{c.title}</div>
+                        {c.is_mandatory && <div style={{ fontSize: '10px', color: '#FF9F43', marginTop: '2px' }}>Mandatory</div>}
+                      </div>
+                      <div><span style={{ fontSize: '10px', fontWeight: 700, color: TIER_COLOR[c.tier_level] ?? '#00A5A3', background: `${TIER_COLOR[c.tier_level] ?? '#00A5A3'}15`, padding: '2px 7px', borderRadius: '5px', textTransform: 'capitalize' }}>{c.tier_level}</span></div>
+                      <div style={{ fontSize: '16px', fontWeight: 800, color: c.completions > 0 ? 'white' : 'rgba(255,255,255,0.2)' }}>{c.completions}</div>
+                      <div style={{ fontSize: '14px', fontWeight: 700, color: c.avgScore ? (c.avgScore >= 80 ? '#C0F43C' : c.avgScore >= 70 ? '#00A5A3' : '#FF9F43') : 'rgba(255,255,255,0.2)' }}>{c.avgScore ? `${c.avgScore}%` : '—'}</div>
+                    </div>
+                  ))}
+                  {courseStats.length === 0 && (
+                    <div style={{ padding: '40px', textAlign: 'center', color: 'rgba(255,255,255,0.4)', fontSize: '13px' }}>No courses yet. Seed courses first.</div>
+                  )}
+                </div>
+
+                {/* Right column: Dept stats + Top learners */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+
+                  {/* Dept completion */}
+                  <div style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '18px', overflow: 'hidden' }}>
+                    <div style={{ padding: '14px 18px', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
+                      <div style={{ fontSize: '11px', fontWeight: 700, letterSpacing: '1.5px', textTransform: 'uppercase', color: 'rgba(255,255,255,0.7)' }}>By Department</div>
+                    </div>
+                    {deptStatsList.length === 0 ? (
+                      <div style={{ padding: '24px', textAlign: 'center', color: 'rgba(255,255,255,0.4)', fontSize: '13px' }}>No completions yet</div>
+                    ) : (
+                      deptStatsList.map((d, i) => (
+                        <div key={d.name} style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '10px 18px', borderBottom: i < deptStatsList.length - 1 ? '1px solid rgba(255,255,255,0.04)' : 'none' }}>
+                          <div style={{ flex: 1, fontSize: '13px', fontWeight: 600, color: 'white' }}>{d.name}</div>
+                          <div style={{ fontSize: '13px', fontWeight: 800, color: 'white', minWidth: '24px', textAlign: 'right' }}>{d.completed}</div>
+                          <div style={{ fontSize: '12px', color: d.avgScore >= 80 ? '#C0F43C' : '#00A5A3', fontWeight: 700, minWidth: '40px', textAlign: 'right' }}>{d.avgScore}%</div>
+                        </div>
+                      ))
+                    )}
+                  </div>
+
+                  {/* Top learners */}
+                  <div style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '18px', overflow: 'hidden' }}>
+                    <div style={{ padding: '14px 18px', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
+                      <div style={{ fontSize: '11px', fontWeight: 700, letterSpacing: '1.5px', textTransform: 'uppercase', color: 'rgba(255,255,255,0.7)' }}>Top Learners</div>
+                    </div>
+                    {topLearners.length === 0 ? (
+                      <div style={{ padding: '24px', textAlign: 'center', color: 'rgba(255,255,255,0.4)', fontSize: '13px' }}>No completions yet</div>
+                    ) : (
+                      topLearners.map((l, i) => (
+                        <div key={l.id} style={{ display: 'grid', gridTemplateColumns: '20px 1fr 36px 44px', alignItems: 'center', gap: '10px', padding: '10px 18px', borderBottom: i < topLearners.length - 1 ? '1px solid rgba(255,255,255,0.04)' : 'none' }}>
+                          <div style={{ fontSize: '11px', fontWeight: 700, color: i < 3 ? '#C0F43C' : 'rgba(255,255,255,0.35)' }}>#{i + 1}</div>
+                          <div>
+                            <div style={{ fontSize: '13px', fontWeight: 600, color: 'white' }}>{l.name}</div>
+                            <div style={{ fontSize: '10px', color: 'rgba(255,255,255,0.45)' }}>{l.dept}</div>
+                          </div>
+                          <div style={{ fontSize: '13px', fontWeight: 800, color: 'white', textAlign: 'right' }}>{l.completed}</div>
+                          <div style={{ fontSize: '12px', fontWeight: 700, color: l.avgScore >= 80 ? '#C0F43C' : '#00A5A3', textAlign: 'right' }}>{l.avgScore}%</div>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* Pass rate strip */}
+              <div style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: '14px', padding: '16px 22px', display: 'flex', gap: '32px', alignItems: 'center', flexWrap: 'wrap' }}>
+                <div>
+                  <div style={{ fontSize: '10px', fontWeight: 700, letterSpacing: '1.5px', textTransform: 'uppercase', color: 'rgba(255,255,255,0.45)', marginBottom: '4px' }}>Overall Pass Rate</div>
+                  <div style={{ fontSize: '22px', fontWeight: 900, color: passRate >= 70 ? '#C0F43C' : passRate >= 50 ? '#FF9F43' : '#FF6B6B' }}>{passRate}%</div>
+                </div>
+                <div style={{ flex: 1, maxWidth: '400px' }}>
+                  <div style={{ height: '8px', background: 'rgba(255,255,255,0.06)', borderRadius: '4px', overflow: 'hidden' }}>
+                    <div style={{ height: '100%', width: `${passRate}%`, background: passRate >= 70 ? '#C0F43C' : passRate >= 50 ? '#FF9F43' : '#FF6B6B', borderRadius: '4px', transition: 'width 0.6s' }} />
+                  </div>
+                  <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.45)', marginTop: '5px' }}>{totalPassed} passes out of {totalAttempts} total attempts</div>
+                </div>
+                <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.55)', lineHeight: 1.6 }}>
+                  Target: 70%+ pass rate across all courses.<br/>Below 70% on any course = content or prompt difficulty issue.
+                </div>
+              </div>
+            </div>
+          )
+        })()}
+
+        {/* ── Playbook tab ── */}
+        {tab === 'action' && (() => {
+          const PLAYBOOK = [
+            {
+              tier: 'AI-Forward',  range: '75–100', color: '#C0F43C',
+              means: 'Already building AI workflows. Has hands-on experience integrating multiple tools.',
+              action: 'Assign as AI Pilot Leads. They run the first automation sprint for their department.',
+              next: 'Book them into a 1-hour TAI pilot kickoff. Give them a problem statement and 30 days to ship a working automation.',
+              owner: 'TAI Lead + Dept Head',
+              by: 'This sprint',
+            },
+            {
+              tier: 'AI-Ready',    range: '55–74',  color: '#A8E6CF',
+              means: 'Uses AI regularly. Comfortable with tools but not yet building systematic workflows.',
+              action: 'Pair with an AI-Forward colleague. Start a 30-day tool adoption plan with one specific workflow to automate.',
+              next: 'Enroll in TAI Intermediate track. Weekly 45-min session + one workflow deliverable per week.',
+              owner: 'TAI Training',
+              by: '30 days',
+            },
+            {
+              tier: 'AI-Aware',    range: '35–54',  color: '#F4ED3C',
+              means: 'Knows what AI is and has tried it, but not using it consistently in their daily work.',
+              action: 'Foundation workshop (half day). Pick one tool for their role and commit to using it daily for 2 weeks.',
+              next: '2-week AI daily habit challenge. Each person picks one task to do with AI every day and logs it.',
+              owner: 'TAI Training + HR',
+              by: '60 days',
+            },
+            {
+              tier: 'AI-Curious',  range: '15–34',  color: '#FF9F43',
+              means: 'Heard about AI but hasn\'t used it in a work context. Low digital tool sophistication.',
+              action: 'Awareness session first — why AI matters for their specific role. Then intro to ChatGPT basics.',
+              next: 'Department-specific AI demo: show them 3 things AI can do for their exact job today. No theory.',
+              owner: 'HR + TAI',
+              by: '90 days',
+            },
+            {
+              tier: 'AI-Unaware',  range: '0–14',   color: '#FF6B6B',
+              means: 'Not actively using digital tools beyond basics. AI adoption needs to start from digital literacy.',
+              action: 'Digital literacy assessment first. Build a personalised catch-up plan before any AI training.',
+              next: 'One-on-one session with HR to understand barriers. Set up a buddy from AI-Aware tier.',
+              owner: 'HR',
+              by: '120 days',
+            },
+          ]
+
+          return (
+            <div>
+
+              {/* Tier Playbook Table */}
+              <div style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '20px', overflow: 'hidden', marginBottom: '24px' }}>
+                <div style={{ padding: '18px 24px', borderBottom: '1px solid rgba(255,255,255,0.06)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <div>
+                    <div style={{ fontSize: '11px', fontWeight: 700, letterSpacing: '2px', textTransform: 'uppercase', color: 'rgba(255,255,255,0.80)', marginBottom: '3px' }}>TAI Tier Playbook</div>
+                    <div style={{ fontSize: '13px', color: 'rgba(255,255,255,0.80)' }}>What each TAIRS tier means and exactly what to do next for each group of people.</div>
+                  </div>
+                </div>
+                <div style={{ overflowX: 'auto' }}>
+                  <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                    <thead>
+                      <tr style={{ background: 'rgba(255,255,255,0.02)' }}>
+                        {['Tier', 'Score Range', 'What it means', 'TAI Action', 'Immediate Next Step', 'Owner', 'By'].map(h => (
+                          <th key={h} style={{ padding: '9px 16px', textAlign: 'left', fontSize: '9px', fontWeight: 700, letterSpacing: '1px', textTransform: 'uppercase', color: 'rgba(255,255,255,0.75)', borderBottom: '1px solid rgba(255,255,255,0.06)', whiteSpace: 'nowrap' }}>{h}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {PLAYBOOK.map((row, i) => (
+                        <tr key={row.tier} style={{ borderBottom: i < PLAYBOOK.length - 1 ? '1px solid rgba(255,255,255,0.05)' : 'none' }}>
+                          <td style={{ padding: '14px 16px', whiteSpace: 'nowrap' }}>
+                            <span style={{ fontSize: '11px', fontWeight: 800, color: row.color, background: `${row.color}15`, padding: '3px 8px', borderRadius: '6px', border: `1px solid ${row.color}30` }}>{row.tier}</span>
+                          </td>
+                          <td style={{ padding: '14px 16px', fontSize: '13px', fontWeight: 700, color: row.color, whiteSpace: 'nowrap' }}>{row.range}</td>
+                          <td style={{ padding: '14px 16px', fontSize: '12px', color: 'rgba(255,255,255,0.82)', maxWidth: '200px', lineHeight: 1.5 }}>{row.means}</td>
+                          <td style={{ padding: '14px 16px', fontSize: '12px', color: 'white', fontWeight: 600, maxWidth: '220px', lineHeight: 1.5 }}>{row.action}</td>
+                          <td style={{ padding: '14px 16px', fontSize: '12px', color: 'rgba(255,255,255,0.82)', maxWidth: '200px', lineHeight: 1.5 }}>{row.next}</td>
+                          <td style={{ padding: '14px 16px', fontSize: '11px', color: row.color, fontWeight: 700, whiteSpace: 'nowrap' }}>{row.owner}</td>
+                          <td style={{ padding: '14px 16px', whiteSpace: 'nowrap' }}>
+                            <span style={{ fontSize: '11px', fontWeight: 800, color: '#1E2124', background: row.color, padding: '3px 8px', borderRadius: '5px' }}>{row.by}</span>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              {/* Live Department Action Matrix */}
+              <div style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '20px', overflow: 'hidden', marginBottom: '24px' }}>
+                <div style={{ padding: '18px 24px', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
+                  <div style={{ fontSize: '11px', fontWeight: 700, letterSpacing: '2px', textTransform: 'uppercase', color: 'rgba(255,255,255,0.80)', marginBottom: '3px' }}>Department Action Matrix — Live</div>
+                  <div style={{ fontSize: '13px', color: 'rgba(255,255,255,0.80)' }}>Each department mapped to its current tier and the specific action TAI should take now. Updates as more staff complete interviews.</div>
+                </div>
+                {sortedDeptTairs.length === 0 ? (
+                  <div style={{ padding: '48px', textAlign: 'center', fontSize: '14px', color: 'rgba(255,255,255,0.75)' }}>No interview data yet. Seed demo data or wait for staff to complete interviews.</div>
+                ) : (
+                  <div style={{ overflowX: 'auto' }}>
+                    <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                      <thead>
+                        <tr style={{ background: 'rgba(255,255,255,0.02)' }}>
+                          {['Department', 'TAIRS', 'Tier', 'People', 'Coverage', 'AI Priority', 'TAI Action', 'Owner', 'By'].map(h => (
+                            <th key={h} style={{ padding: '9px 14px', textAlign: 'left', fontSize: '9px', fontWeight: 700, letterSpacing: '1px', textTransform: 'uppercase', color: 'rgba(255,255,255,0.75)', borderBottom: '1px solid rgba(255,255,255,0.06)', whiteSpace: 'nowrap' }}>{h}</th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {sortedDeptTairs.map((d, i) => {
+                          const tier    = tairsTier(d.score)
+                          const play    = PLAYBOOK.find(p => p.tier === tier.label) ?? PLAYBOOK[4]
+                          const impact  = d.impact
+                          const covPct  = d.joined > 0 ? Math.round(d.interviewed / d.joined * 100) : 0
+                          return (
+                            <tr key={d.dept} style={{ borderBottom: i < sortedDeptTairs.length - 1 ? '1px solid rgba(255,255,255,0.04)' : 'none', background: i === 0 ? `${tier.color}04` : 'transparent' }}>
+                              <td style={{ padding: '13px 14px' }}>
+                                <div style={{ fontSize: '13px', fontWeight: 700, color: 'white' }}>{d.dept}</div>
+                              </td>
+                              <td style={{ padding: '13px 14px', textAlign: 'center' }}>
+                                <span style={{ fontSize: '20px', fontWeight: 900, color: tier.color }}>{d.score}</span>
+                              </td>
+                              <td style={{ padding: '13px 10px', whiteSpace: 'nowrap' }}>
+                                <span style={{ fontSize: '9px', fontWeight: 800, color: tier.color, background: `${tier.color}15`, padding: '2px 7px', borderRadius: '5px', border: `1px solid ${tier.color}25` }}>{tier.label}</span>
+                              </td>
+                              <td style={{ padding: '13px 14px', fontSize: '12px', color: 'rgba(255,255,255,0.7)', textAlign: 'center' }}>{d.joined}</td>
+                              <td style={{ padding: '13px 14px' }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                  <div style={{ width: '44px', height: '4px', background: 'rgba(255,255,255,0.07)', borderRadius: '2px', overflow: 'hidden' }}>
+                                    <div style={{ height: '100%', width: `${covPct}%`, background: covPct === 100 ? '#C0F43C' : '#00A5A3', borderRadius: '2px' }} />
+                                  </div>
+                                  <span style={{ fontSize: '10px', color: 'rgba(255,255,255,0.80)', fontWeight: 700 }}>{covPct}%</span>
+                                </div>
+                              </td>
+                              <td style={{ padding: '13px 10px', whiteSpace: 'nowrap' }}>
+                                <span style={{ fontSize: '9px', fontWeight: 800, color: impact.color, background: `${impact.color}15`, padding: '2px 7px', borderRadius: '5px' }}>{impact.priority}</span>
+                              </td>
+                              <td style={{ padding: '13px 14px', fontSize: '12px', color: 'white', fontWeight: 600, maxWidth: '200px', lineHeight: 1.5 }}>{play.action}</td>
+                              <td style={{ padding: '13px 14px', fontSize: '11px', color: tier.color, fontWeight: 700, whiteSpace: 'nowrap' }}>{play.owner}</td>
+                              <td style={{ padding: '13px 14px', whiteSpace: 'nowrap' }}>
+                                <span style={{ fontSize: '11px', fontWeight: 800, color: '#1E2124', background: tier.color, padding: '3px 8px', borderRadius: '5px' }}>{play.by}</span>
+                              </td>
+                            </tr>
+                          )
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+
+              {/* Dev Tools — collapsed by default */}
+              <div style={{ marginTop: '8px' }}>
+                <button onClick={() => setShowDevTools(v => !v)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'inherit', color: 'rgba(255,255,255,0.25)', fontSize: '11px', display: 'flex', alignItems: 'center', gap: '5px', padding: '4px 0' }}>
+                  <svg width="10" height="10" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polyline points={showDevTools ? '18 15 12 9 6 15' : '6 9 12 15 18 9'}/></svg>
+                  Dev tools
+                </button>
+                {showDevTools && (
+                  <div style={{ background: 'rgba(255,255,255,0.02)', border: '1px dashed rgba(255,255,255,0.08)', borderRadius: '12px', padding: '16px 20px', marginTop: '8px' }}>
+                    <div style={{ fontSize: '10px', fontWeight: 700, letterSpacing: '1.5px', textTransform: 'uppercase', color: 'rgba(255,255,255,0.4)', marginBottom: '10px' }}>Demo Data</div>
+                    <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.55)', marginBottom: '12px' }}>
+                      Seed 21 demo staff across 4 offices. All use <code style={{ background: 'rgba(255,255,255,0.06)', padding: '1px 4px', borderRadius: '3px', fontSize: '11px' }}>@demo.tai</code> emails — safe to clear.
+                    </div>
+                    <div style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
+                      <button onClick={seedDemo} disabled={seedLoading} style={{ padding: '7px 16px', borderRadius: '8px', border: 'none', background: 'rgba(0,165,163,0.2)', color: '#00A5A3', fontSize: '12px', fontWeight: 700, cursor: seedLoading ? 'not-allowed' : 'pointer', fontFamily: 'inherit' }}>
+                        {seedLoading ? 'Working...' : 'Seed Demo'}
+                      </button>
+                      <button onClick={clearDemo} disabled={seedLoading} style={{ padding: '7px 16px', borderRadius: '8px', border: '1px solid rgba(255,107,107,0.2)', background: 'transparent', color: 'rgba(255,107,107,0.7)', fontSize: '12px', fontWeight: 700, cursor: seedLoading ? 'not-allowed' : 'pointer', fontFamily: 'inherit' }}>
+                        Clear Demo
+                      </button>
+                      {seedMsg && <span style={{ fontSize: '12px', color: seedMsg.includes('failed') || seedMsg.includes('Error') ? '#FF6B6B' : '#C0F43C', fontWeight: 600 }}>{seedMsg}</span>}
+                    </div>
+                  </div>
+                )}
+              </div>
+
+            </div>
+          )
+        })()}
+
+        {/* ── Collapsible: Office Headcount Settings ── */}
+        <div style={{ marginTop: '28px' }}>
+          <button
+            onClick={() => setShowHeadcount(v => !v)}
+            style={{ display: 'flex', alignItems: 'center', gap: '8px', background: 'transparent', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '10px', padding: '9px 16px', color: 'rgba(255,255,255,0.80)', fontSize: '12px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}
+          >
+            <svg width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14M4.93 4.93a10 10 0 0 0 0 14.14"/></svg>
+            Configure Office Headcounts
+            <svg width="11" height="11" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24" style={{ transform: showHeadcount ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }}>
+              <polyline points="6 9 12 15 18 9"/>
+            </svg>
+          </button>
+          {showHeadcount && (
+            <div style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '16px', padding: '22px 24px', marginTop: '10px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '18px', flexWrap: 'wrap', gap: '12px' }}>
+                <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.82)' }}>Set total staff per office to calculate participation % on the public page.</div>
+                <button
+                  onClick={saveHeadcounts}
+                  disabled={headcountSaving}
+                  style={{ padding: '8px 20px', borderRadius: '9px', border: 'none', background: headcountSaved ? '#C0F43C' : '#00A5A3', color: headcountSaved ? '#1E2124' : 'white', fontSize: '13px', fontWeight: 800, cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0 }}>
+                  {headcountSaving ? 'Saving...' : headcountSaved ? (
+                    <><svg width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>Saved</>
+                  ) : 'Save'}
+                </button>
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '10px' }}>
+                {OFFICES.map(o => (
+                  <div key={o.id} style={{ background: 'rgba(255,255,255,0.04)', border: `1px solid ${o.color}25`, borderRadius: '12px', padding: '14px 16px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '7px', marginBottom: '10px' }}>
+                      <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: o.color }} />
+                      <span style={{ fontSize: '13px', fontWeight: 700, color: 'white' }}>{o.label}</span>
+                    </div>
+                    <input
+                      type="number" min="0"
+                      value={officeTotals[o.id] ?? 0}
+                      onChange={e => setOfficeTotals(prev => ({ ...prev, [o.id]: Math.max(0, parseInt(e.target.value) || 0) }))}
+                      style={{ width: '100%', padding: '7px 10px', borderRadius: '7px', border: `1px solid ${o.color}35`, background: 'rgba(255,255,255,0.06)', color: 'white', fontSize: '17px', fontWeight: 800, outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box' as const }}
+                    />
+                    <div style={{ fontSize: '10px', color: 'rgba(255,255,255,0.80)', marginTop: '5px' }}>{members.filter(m => m.office_id === o.id).length} joined</div>
+                  </div>
+                ))}
+              </div>
+              {headcountError && <div style={{ marginTop: '10px', fontSize: '12px', color: '#FF6B6B', fontWeight: 600 }}>{headcountError}</div>}
+            </div>
+          )}
+        </div>
 
       </div>
       <style>{`@keyframes pulse{0%,100%{opacity:1}50%{opacity:0.4}}`}</style>

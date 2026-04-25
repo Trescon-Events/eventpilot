@@ -11,6 +11,10 @@ type TaskInput = {
   ai_time_estimate: string
   skill_needed: string
   ai_readiness: number
+  ai_proof?: string | null
+  tool_proficiency?: Record<string, number>
+  automation_history?: string
+  tools_unlisted?: string
 }
 
 export async function submitProfile(formData: FormData) {
@@ -36,14 +40,18 @@ export async function submitProfile(formData: FormData) {
   // Insert all tasks
   const inserts = validTasks.map(t => ({
     staff_id,
-    task_name:        t.task_name.trim(),
-    task_description: t.task_description?.trim() || null,
-    tools_used:       t.tools_used ?? [],
-    time_taken_today: t.time_taken_today?.trim() || null,
-    frequency:        t.frequency || null,
-    ai_time_estimate: t.ai_time_estimate?.trim() || null,
-    skill_needed:     t.skill_needed?.trim() || null,
-    ai_readiness:     t.ai_readiness ?? null,
+    task_name:         t.task_name.trim(),
+    task_description:  t.task_description?.trim() || null,
+    tools_used:        t.tools_used ?? [],
+    time_taken_today:  t.time_taken_today?.trim() || null,
+    frequency:         t.frequency || null,
+    ai_time_estimate:  t.ai_time_estimate?.trim() || null,
+    skill_needed:      t.skill_needed?.trim() || null,
+    ai_readiness:      t.ai_readiness ?? null,
+    ai_proof:          t.ai_proof ?? null,
+    tool_proficiency:  t.tool_proficiency ?? null,
+    automation_history: t.automation_history ?? null,
+    tools_unlisted:    t.tools_unlisted ?? null,
   }))
 
   const { error: insertError } = await supabaseAdmin

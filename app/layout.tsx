@@ -5,7 +5,7 @@ import "./globals.css";
 const manrope = Manrope({ subsets: ["latin"], variable: "--font-manrope", display: "swap" });
 
 export const metadata: Metadata = {
-  title: "TAOS — Trescon AI Operating System",
+  title: "TAI — Trescon AI Operating System",
   description: "The journey starts here. Tell us what you do and help us build the system that works for you.",
 };
 

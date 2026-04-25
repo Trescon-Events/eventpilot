@@ -20,7 +20,7 @@ function createTransporter() {
   })
 }
 
-export async function joinTAOS(formData: FormData) {
+export async function joinTAI(formData: FormData) {
   const name       = formData.get('name') as string
   const email      = formData.get('email') as string
   const office_id  = formData.get('office_id') as string
@@ -63,9 +63,9 @@ export async function joinTAOS(formData: FormData) {
   try {
     const transporter = createTransporter()
     await transporter.sendMail({
-      from: `"TAOS — Trescon" <${process.env.GMAIL_USER}>`,
+      from: `"TAI — Trescon" <${process.env.GMAIL_USER}>`,
       to:   email.toLowerCase().trim(),
-      subject: `${name.split(' ')[0]}, you just joined the TAOS journey`,
+      subject: `${name.split(' ')[0]}, you just joined the TAI journey`,
       html: `
         <!DOCTYPE html>
         <html>
@@ -79,18 +79,18 @@ export async function joinTAOS(formData: FormData) {
                 <div style="width:32px;height:32px;background:#00A5A3;border-radius:9px;display:inline-flex;align-items:center;justify-content:center;">
                   <span style="color:white;font-size:16px;font-weight:900;line-height:1;">T</span>
                 </div>
-                <span style="font-size:16px;font-weight:800;color:white;letter-spacing:0.5px;">TAOS</span>
+                <span style="font-size:16px;font-weight:800;color:white;letter-spacing:0.5px;">TAI</span>
               </div>
               <h1 style="font-size:28px;font-weight:800;color:white;margin:0 0 8px;line-height:1.2;">
                 You're in, ${name.split(' ')[0]}.
               </h1>
-              <p style="font-size:15px;color:rgba(255,255,255,0.6);margin:0;">You just joined the TAOS journey.</p>
+              <p style="font-size:15px;color:rgba(255,255,255,0.6);margin:0;">You just joined the TAI journey.</p>
             </div>
 
             <!-- Body -->
             <div style="padding:36px 40px;">
               <p style="font-size:15px;color:#464D53;line-height:1.7;margin:0 0 24px;">
-                TAOS — the <strong style="color:#1E2124;">Trescon AI Operating System</strong> — is being built right now. And it starts with you.
+                TAI — the <strong style="color:#1E2124;">Trescon AI Operating System</strong> — is being built right now. And it starts with you.
               </p>
 
               <div style="background:#F8FFFE;border:1px solid #C6ECE8;border-radius:14px;padding:20px 22px;margin-bottom:24px;">
@@ -110,7 +110,7 @@ export async function joinTAOS(formData: FormData) {
               </div>
 
               <p style="font-size:14px;color:#464D53;line-height:1.7;margin:0 0 20px;">
-                <strong style="color:#1E2124;">What happens next:</strong> The next step is to tell us about your work — what you do daily, what tools you use, and where your time goes. Your input directly shapes what TAOS builds first.
+                <strong style="color:#1E2124;">What happens next:</strong> The next step is to tell us about your work — what you do daily, what tools you use, and where your time goes. Your input directly shapes what TAI builds first.
               </p>
 
               <div style="text-align:center;margin:28px 0;">
@@ -120,8 +120,8 @@ export async function joinTAOS(formData: FormData) {
               </div>
 
               <p style="font-size:12px;color:#888;line-height:1.6;border-top:1px solid #F0F0F0;padding-top:20px;margin:0;">
-                You are receiving this because you joined the TAOS Discovery Platform at Trescon Global.
-                Your data is only used to build TAOS for the Trescon team.
+                You are receiving this because you joined the TAI Discovery Platform at Trescon Global.
+                Your data is only used to build TAI for the Trescon team.
               </p>
             </div>
 
@@ -140,5 +140,5 @@ export async function joinTAOS(formData: FormData) {
     console.error('Welcome email failed:', e)
   }
 
-  return { success: true, name: member.name, office_id: member.office_id }
+  return { success: true, name: member.name, office_id: member.office_id, email: member.email, id: member.id, department: member.department }
 }

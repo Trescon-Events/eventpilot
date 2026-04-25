@@ -37,7 +37,7 @@ export async function POST() {
 
   const prompt = `You are a senior AI strategy advisor analysing ${tasks.length} work profiles from Trescon Global — a B2B events company with 4 offices: Dubai, Bangalore, Mangalore, and Manipal (184 staff total). These profiles show what each staff member does, how long it takes today, what tools they use, and what new skills they want to learn.
 
-Your job is to analyse all submissions and produce a structured intelligence report for Trescon's leadership team. The goal: identify where AI can save the most time, what to build first in TAOS (Trescon AI Operating System), and what training is needed.
+Your job is to analyse all submissions and produce a structured intelligence report for Trescon's leadership team. The goal: identify where AI can save the most time, what to build first in TAI (Trescon AI Operating System), and what training is needed.
 
 IMPORTANT: For each task, estimate how long it would take with AI assistance based on your knowledge of current AI tools — do NOT ask staff this directly. Calculate this yourself from the task description and tools.
 
@@ -77,7 +77,7 @@ Produce a JSON report with exactly this structure. Return ONLY valid JSON, no ot
   "build_priority": [
     {
       "rank": 1,
-      "title": "<specific thing to build in TAOS>",
+      "title": "<specific thing to build in TAI>",
       "rationale": "<why this first — frequency, time saved, staff count>",
       "impact": "<estimated impact e.g. 240 hours/month saved across 12 staff>"
     }

@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { joinTAOS } from '@/app/actions/join'
+import { joinTAI } from '@/app/actions/join'
 import Link from 'next/link'
 
 const OFFICES = [
@@ -30,7 +30,7 @@ export default function JoinPage() {
     setPending(true)
 
     const fd = new FormData(e.currentTarget)
-    const result = await joinTAOS(fd)
+    const result = await joinTAI(fd)
 
     if (result.error) {
       setError(result.error)
@@ -38,7 +38,9 @@ export default function JoinPage() {
       return
     }
 
-    router.push(`/welcome?name=${encodeURIComponent(result.name!)}&office=${result.office_id}`)
+    router.push(
+      `/profile?id=${result.id}&name=${encodeURIComponent(result.name!)}&email=${encodeURIComponent(result.email!)}&dept=${encodeURIComponent(result.department ?? '')}`
+    )
   }
 
   return (
@@ -55,7 +57,7 @@ export default function JoinPage() {
             <div style={{ width: '24px', height: '24px', background: '#00A5A3', borderRadius: '7px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
               <svg width="12" height="12" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
             </div>
-            <span style={{ fontSize: '13px', fontWeight: 800, color: 'white' }}>TAOS</span>
+            <span style={{ fontSize: '13px', fontWeight: 800, color: 'white' }}>TAI</span>
           </div>
         </Link>
         <span style={{ fontSize: '12px', color: 'rgba(255,255,255,0.3)' }}>Join the Journey</span>
@@ -69,7 +71,7 @@ export default function JoinPage() {
             <svg width="26" height="26" fill="none" stroke="#C0F43C" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
           </div>
           <h1 style={{ fontSize: '32px', fontWeight: 800, color: '#1E2124', marginBottom: '10px', letterSpacing: '-0.5px' }}>
-            Join the TAOS Journey
+            Join the TAI Journey
           </h1>
           <p style={{ fontSize: '15px', color: '#464D53', lineHeight: 1.7, maxWidth: '460px', margin: '0 auto' }}>
             Takes 2 minutes. Fill in your details and see your office counter go up in real time on the main page.
@@ -209,7 +211,7 @@ export default function JoinPage() {
               ) : (
                 <>
                   <svg width="16" height="16" fill="none" stroke="#1E2124" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
-                  {!office ? 'Select your office first' : "I'm joining the TAOS journey"}
+                  {!office ? 'Select your office first' : "I'm joining the TAI journey"}
                 </>
               )}
             </button>
@@ -218,7 +220,7 @@ export default function JoinPage() {
         </div>
 
         <p style={{ textAlign: 'center', fontSize: '12px', color: '#888', marginTop: '20px', lineHeight: 1.6 }}>
-          By joining you agree that your work details will be used to build TAOS for the Trescon team only.
+          By joining you agree that your work details will be used to build TAI for the Trescon team only.
         </p>
 
       </div>

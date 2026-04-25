@@ -1,430 +1,186 @@
 'use client'
 
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, Suspense } from 'react'
+import { useSearchParams } from 'next/navigation'
 import { submitProfile } from '@/app/actions/profile'
 import Link from 'next/link'
+import { buildQuestions, PROFICIENCY_LEVELS, DEPT_QUESTIONS } from '@/app/lib/questions'
+import type { Question } from '@/app/lib/questions'
 
-/* ─── Types ───────────────────────────────────────────────────── */
-type QType = 'textarea' | 'chips' | 'scale' | 'select' | 'text'
-type Question = {
-  id: string
-  question: string
-  subtext?: string
-  type: QType
-  options?: string[]
-  placeholder?: string
-}
-
-/* ─── Department tool chips ──────────────────────────────────── */
-const DEPT_TOOLS: Record<string, string[]> = {
-  'Events': ['Excel', 'Word', 'WhatsApp', 'Email', 'Zoom', 'Google Sheets', 'Trello', 'Asana', 'PowerPoint', 'Salesforce', 'Other'],
-  'Sales & Sponsorship': ['Salesforce', 'HubSpot', 'Excel', 'PowerPoint', 'LinkedIn', 'WhatsApp', 'Email', 'Zoom', 'Google Sheets', 'Other'],
-  'Marketing': ['Canva', 'Mailchimp', 'Instagram', 'LinkedIn', 'Google Analytics', 'HubSpot', 'Excel', 'PowerPoint', 'Hootsuite', 'Meta Ads', 'Other'],
-  'Finance': ['Excel', 'QuickBooks', 'Xero', 'SAP', 'Tally', 'Email', 'WhatsApp', 'Word', 'Other'],
-  'Operations': ['Excel', 'Google Sheets', 'Trello', 'Asana', 'WhatsApp', 'Email', 'Zoom', 'Word', 'Other'],
-  'IT': ['GitHub', 'Jira', 'Slack', 'Zoom', 'Excel', 'Terminal/CLI', 'AWS', 'Google Cloud', 'Notion', 'Other'],
-  'HR & Recruitment': ['Excel', 'LinkedIn', 'WhatsApp', 'Email', 'Zoom', 'Google Sheets', 'Word', 'ATS Software', 'Other'],
-  'Content & Design': ['Canva', 'Adobe Photoshop', 'Adobe Illustrator', 'Figma', 'Word', 'PowerPoint', 'CapCut', 'Premiere Pro', 'ChatGPT', 'Other'],
-  'Government Relations': ['Word', 'Email', 'WhatsApp', 'Excel', 'PDF Tools', 'Government Portals', 'Other'],
-  'DemandifyMedia': ['Meta Ads', 'Google Ads', 'LinkedIn Ads', 'Canva', 'HubSpot', 'Google Analytics', 'Excel', 'Looker Studio', 'Other'],
-  'Leadership': ['Excel', 'PowerPoint', 'Email', 'WhatsApp', 'Zoom', 'Salesforce', 'Notion', 'Other'],
-}
-const DEFAULT_TOOLS = ['Excel', 'Email', 'WhatsApp', 'Zoom', 'Word', 'Google Sheets', 'Other']
-
-/* ─── Department-specific questions ─────────────────────────── */
-const DEPT_QUESTIONS: Record<string, Question[]> = {
-  'Events': [
-    {
-      id: 'events_cycle',
-      question: 'Walk us through your last event — from brief to execution. Where did it break down?',
-      subtext: 'Think: vendor delays, last-minute changes, communication gaps, what kept you up the night before.',
-      type: 'textarea',
-      placeholder: 'Usually the week before is chaos because vendors confirm late, and then the AV team shows up without the right setup...',
-    },
-    {
-      id: 'events_followups',
-      question: 'How many vendor and client follow-ups do you handle per event?',
-      type: 'select',
-      options: ['Under 20', '20–50', '50–100', '100–200', 'More than 200'],
-    },
-    {
-      id: 'events_manual',
-      question: 'What takes the most manual effort in your event process?',
-      type: 'chips',
-      options: ['Venue & logistics coordination', 'Speaker and delegate management', 'Vendor follow-ups', 'Budget tracking', 'Post-event reporting', 'Marketing collateral', 'Run-of-show updates'],
-    },
-  ],
-  'Sales & Sponsorship': [
-    {
-      id: 'sales_pipeline',
-      question: 'Walk us through how a deal moves from first contact to close. Where does time get lost?',
-      type: 'textarea',
-      placeholder: 'First I find them on LinkedIn, send an email, then a deck goes out — and that\'s usually where it stalls for 2 weeks...',
-    },
-    {
-      id: 'sales_bottleneck',
-      question: 'What\'s your biggest bottleneck in closing deals?',
-      type: 'chips',
-      options: ['Getting the first meeting', 'Writing proposals', 'Following up multiple times', 'Internal approvals', 'Prospect ghosting', 'CRM / pipeline tracking', 'Deck customisation per client'],
-    },
-    {
-      id: 'sales_volume',
-      question: 'How many active prospects or sponsors are you managing right now?',
-      type: 'select',
-      options: ['Under 10', '10–25', '25–50', '50–100', 'Over 100'],
-    },
-  ],
-  'Marketing': [
-    {
-      id: 'mktg_output',
-      question: 'What\'s your content pipeline like — and where does it actually stall?',
-      subtext: 'Think about briefs, approvals, design, copy, publishing. Where is the real bottleneck?',
-      type: 'textarea',
-      placeholder: 'I write the brief but design takes 4 days, then approval takes another 2. By the time it goes live the moment has passed...',
-    },
-    {
-      id: 'mktg_channels',
-      question: 'Which channels or campaigns are you primarily responsible for?',
-      type: 'chips',
-      options: ['Social Media', 'Email Campaigns', 'Event Marketing', 'Paid Ads', 'Content / Blog', 'PR & Media', 'Influencer', 'LinkedIn B2B', 'WhatsApp Broadcast'],
-    },
-    {
-      id: 'mktg_measurement',
-      question: 'How do you currently measure what\'s working?',
-      type: 'select',
-      options: ['Platform analytics (manually)', 'Weekly reports I build myself', 'HubSpot/CRM tracking', 'No structured measurement', 'My manager tracks it'],
-    },
-  ],
-  'Finance': [
-    {
-      id: 'finance_cycle',
-      question: 'Walk us through your financial cycle — invoices, reconciliation, reporting. Where does it drag?',
-      type: 'textarea',
-      placeholder: 'Month-end is the worst. I\'m chasing approvals from 6 departments while trying to reconcile in Excel...',
-    },
-    {
-      id: 'finance_reports',
-      question: 'Which reports take you the most time to build each month?',
-      type: 'chips',
-      options: ['P&L reports', 'Budget vs actuals', 'Cash flow', 'Vendor payments', 'Tax filings', 'Payroll', 'Event-wise cost tracking', 'Expense approvals'],
-    },
-    {
-      id: 'finance_chase',
-      question: 'How much time do you spend chasing approvals, receipts, or documents?',
-      type: 'select',
-      options: ['Less than 1 hour/week', '1–3 hours/week', '3–6 hours/week', 'About half my week', 'Most of my time honestly'],
-    },
-  ],
-  'Operations': [
-    {
-      id: 'ops_processes',
-      question: 'Which end-to-end processes are you responsible for? Where do they break down?',
-      type: 'textarea',
-      placeholder: 'I manage vendor contracts and logistics — it usually breaks at the handoff between departments where no one owns the next step...',
-    },
-    {
-      id: 'ops_coordination',
-      question: 'What creates the most coordination overhead in your role?',
-      type: 'chips',
-      options: ['Following up on tasks across teams', 'Getting approvals', 'Tracking who is doing what', 'Managing vendors', 'Sending status updates', 'Last-minute changes'],
-    },
-    {
-      id: 'ops_tracking',
-      question: 'How do you currently track tasks and deadlines?',
-      type: 'select',
-      options: ['WhatsApp groups', 'Excel tracker', 'Trello / Asana / Notion', 'Email threads', 'Verbal / memory', 'Multiple tools — it\'s messy'],
-    },
-  ],
-  'IT': [
-    {
-      id: 'it_split',
-      question: 'What percentage of your week is reactive (fixing issues) vs. proactive (building or improving)?',
-      type: 'select',
-      options: ['80%+ reactive', '60–80% reactive', 'Roughly 50/50', '60–80% proactive', 'Mostly proactive'],
-    },
-    {
-      id: 'it_requests',
-      question: 'What types of requests eat the most of your time?',
-      type: 'chips',
-      options: ['Access & permissions', 'Hardware setup', 'Software installs', 'Network issues', 'System integrations', 'Data requests', 'Security incidents', 'User training', 'Reports & dashboards'],
-    },
-    {
-      id: 'it_systems',
-      question: 'What systems and infrastructure are you managing day to day?',
-      type: 'textarea',
-      placeholder: 'We have our event management system, email server, Salesforce, and I\'m also the one managing the website and network...',
-    },
-  ],
-  'HR & Recruitment': [
-    {
-      id: 'hr_recruitment',
-      question: 'Walk us through how you hire someone — from JD to offer letter. Where does it slow down?',
-      type: 'textarea',
-      placeholder: 'We post on LinkedIn, get 200 CVs, screening takes 3 days, then interviews get rescheduled 3 times and we lose the candidate...',
-    },
-    {
-      id: 'hr_volume',
-      question: 'How many open roles are you managing simultaneously right now?',
-      type: 'select',
-      options: ['1–3', '4–8', '9–15', '15–25', 'Over 25'],
-    },
-    {
-      id: 'hr_pain',
-      question: 'What are the biggest time drains in your HR work?',
-      type: 'chips',
-      options: ['CV screening', 'Interview scheduling', 'Offer letter paperwork', 'Onboarding documentation', 'Tracking candidate status', 'Internal approvals', 'Performance reviews', 'Policy compliance'],
-    },
-  ],
-  'Content & Design': [
-    {
-      id: 'design_output',
-      question: 'How much content or design work do you produce per week — and where is the real bottleneck?',
-      type: 'textarea',
-      placeholder: 'Around 10–15 social posts, 2–3 event decks, but approval kills me. I spend more time waiting for feedback than designing...',
-    },
-    {
-      id: 'design_revisions',
-      question: 'How many rounds of revisions is typical for your work?',
-      type: 'select',
-      options: ['Usually just 1', '2–3 rounds', '4–5 rounds', '6+ rounds', 'No process — it keeps coming back forever'],
-    },
-    {
-      id: 'design_blocks',
-      question: 'What creates the most friction in your creative process?',
-      type: 'chips',
-      options: ['Vague or late briefs', 'Feedback that contradicts itself', 'Too many stakeholders', 'Missing brand assets', 'Last-minute rush requests', 'No structured brief or approval flow'],
-    },
-  ],
-  'Government Relations': [
-    {
-      id: 'govrel_docs',
-      question: 'What permits, approvals, or government filings do you manage? Walk us through the process.',
-      type: 'textarea',
-      placeholder: 'We handle event permits, trade licenses, ministry approvals. The issue is always following up with departments who take 3 weeks to respond...',
-    },
-    {
-      id: 'govrel_delays',
-      question: 'What causes the most delays in your approval process?',
-      type: 'chips',
-      options: ['Missing documents at submission', 'Government portal issues', 'Long queues', 'Wrong formats submitted', 'Internal sign-off delays', 'Changing requirements', 'Language or translation issues'],
-    },
-    {
-      id: 'govrel_tracking',
-      question: 'How do you currently track open applications and permit status?',
-      type: 'select',
-      options: ['Excel tracker', 'Email threads', 'WhatsApp', 'Government portals only', 'No centralised tracking'],
-    },
-  ],
-  'DemandifyMedia': [
-    {
-      id: 'demand_campaigns',
-      question: 'Walk us through a campaign from brief to live. Where does the breakdown usually happen?',
-      type: 'textarea',
-      placeholder: 'Client sends a brief, we build the campaign, but creative approvals take days and we miss the optimal launch window...',
-    },
-    {
-      id: 'demand_channels',
-      question: 'Which platforms and formats do you primarily run?',
-      type: 'chips',
-      options: ['Meta (Facebook/Instagram) Ads', 'Google Search Ads', 'Google Display', 'LinkedIn Ads', 'YouTube Ads', 'Email Marketing', 'WhatsApp Campaigns', 'Influencer', 'SEO/Content'],
-    },
-    {
-      id: 'demand_reporting',
-      question: 'How do you currently report performance to clients?',
-      type: 'select',
-      options: ['Manual Excel reports', 'Platform screenshots', 'Automated dashboard (Looker/Data Studio)', 'Ad hoc when client asks', 'Monthly PPT decks'],
-    },
-  ],
-  'Leadership': [
-    {
-      id: 'lead_week',
-      question: 'How does your actual week break down? Where is your time going that shouldn\'t need your attention?',
-      type: 'textarea',
-      placeholder: 'Mondays are all-hands, then I\'m in approvals and follow-ups most of the week. I can rarely think strategically during working hours...',
-    },
-    {
-      id: 'lead_decisions',
-      question: 'What decisions take the longest because of missing or delayed information?',
-      type: 'textarea',
-      placeholder: 'Hiring decisions are slow because I don\'t have pipeline visibility. Revenue decisions wait on Finance. KPI updates come too late...',
-    },
-    {
-      id: 'lead_visibility',
-      question: 'What do you wish you could see in real-time across the business?',
-      type: 'chips',
-      options: ['Revenue & pipeline', 'Staff output & capacity', 'Event P&L at a glance', 'Vendor performance', 'Team workload', 'Customer/client health', 'Department KPIs', 'Approval bottlenecks'],
-    },
-  ],
-  'Other': [
-    {
-      id: 'other_core',
-      question: 'Walk us through your core responsibilities — what does the work actually look like day to day?',
-      type: 'textarea',
-      placeholder: 'My main responsibilities are... and most of my time goes to...',
-    },
-    {
-      id: 'other_bottleneck',
-      question: 'What\'s the single biggest inefficiency in how your work gets done today?',
-      type: 'textarea',
-      placeholder: 'The thing that slows everything down is...',
-    },
-  ],
-}
-
-/* ─── Core questions (everyone gets these) ───────────────────── */
-const CORE_QUESTIONS: Question[] = [
-  {
-    id: 'daily_work',
-    question: 'Give us a real picture of your week. What does a typical working day actually look like for you?',
-    subtext: 'Not the job description — tell us what really happens from morning to end of day.',
-    type: 'textarea',
-    placeholder: 'I usually start by checking emails and WhatsApp messages from the night before. Then I have...',
-  },
-  {
-    id: 'time_drain',
-    question: 'What\'s the single task that eats the most time but probably shouldn\'t?',
-    subtext: 'The thing you\'re doing manually that a smarter system should handle.',
-    type: 'textarea',
-    placeholder: 'Every week I spend hours doing...',
-  },
-  {
-    id: 'tools',
-    question: 'Which tools do you actually use every day to get work done?',
-    subtext: 'Select everything you touch regularly. Be honest — even the unofficial ones.',
-    type: 'chips',
-    options: [],
-  },
-  {
-    id: 'stuck',
-    question: 'When your work gets stuck or delayed — what\'s usually the real cause?',
-    type: 'select',
-    options: [
-      'Waiting for approvals from leadership',
-      'Chasing people for information or documents',
-      'Manual data entry and reporting',
-      'Too many meetings cutting into work time',
-      'Communication gaps between teams',
-      'No clear process or ownership',
-      'Tools that don\'t talk to each other',
-    ],
-  },
-  {
-    id: 'ai_wish',
-    question: 'If TAOS could automate one part of your workflow from tomorrow — what would it be?',
-    subtext: 'This answer directly shapes what gets built first for your department.',
-    type: 'textarea',
-    placeholder: 'I\'d want it to automatically...',
-  },
-  {
-    id: 'ai_readiness',
-    question: 'Where are you with AI tools right now — honestly?',
-    subtext: 'No right or wrong. We need to know where everyone is to build the right training.',
-    type: 'scale',
-    options: [
-      'Never used AI tools at all',
-      'Tried ChatGPT a couple of times',
-      'Use AI occasionally for specific tasks',
-      'Comfortable with multiple AI tools',
-      'Building workflows and prompts with AI',
-    ],
-  },
-]
-
-/* ─── Build question list for this department ────────────────── */
-function buildQuestions(department: string): Question[] {
-  const tools = DEPT_TOOLS[department] ?? DEFAULT_TOOLS
-  const deptQs = DEPT_QUESTIONS[department] ?? DEPT_QUESTIONS['Other']
-
-  const qs = CORE_QUESTIONS.map(q =>
-    q.id === 'tools' ? { ...q, options: tools } : q
-  )
-
-  // Insert dept questions after time_drain (index 1), before tools (index 2)
-  return [...qs.slice(0, 2), ...deptQs, ...qs.slice(2)]
-}
+/* ─── Types ──────────────────────────────────────────────────── */
+type ProfMap = Record<string, number>
+type Answers = Record<string, string | string[] | number | ProfMap>
 
 /* ─── Map answers → task profile entries for Supabase ───────── */
-function buildTaskEntries(
-  answers: Record<string, string | string[] | number>,
-  department: string,
-  staffId: string,
-) {
+function buildTaskEntries(answers: Answers, department: string, staffId: string) {
   const str = (v: unknown) => (Array.isArray(v) ? (v as string[]).join(', ') : String(v ?? ''))
 
   const deptQs = DEPT_QUESTIONS[department] ?? DEPT_QUESTIONS['Other']
   const deptAnswers = deptQs
-    .filter(q => answers[q.id] !== undefined && answers[q.id] !== '')
-    .map(q => `${q.question}\n→ ${str(answers[q.id])}`)
+    .filter((q: Question) => answers[q.id] !== undefined && answers[q.id] !== '')
+    .map((q: Question) => `${q.question}\n→ ${str(answers[q.id])}`)
     .join('\n\n')
 
   const tools = Array.isArray(answers['tools'])
     ? (answers['tools'] as string[])
-    : answers['tools']
-    ? [str(answers['tools'])]
-    : []
+    : answers['tools'] ? [str(answers['tools'])] : []
 
-  const readiness = typeof answers['ai_readiness'] === 'number'
-    ? (answers['ai_readiness'] as number)
-    : 3
+  const readiness = typeof answers['ai_readiness'] === 'number' ? (answers['ai_readiness'] as number) : 3
+
+  const proficiency = (answers['tool_proficiency'] && typeof answers['tool_proficiency'] === 'object' && !Array.isArray(answers['tool_proficiency']))
+    ? answers['tool_proficiency'] as ProfMap
+    : {}
+
+  const profText = Object.entries(proficiency).length > 0
+    ? Object.entries(proficiency).map(([t, l]) => {
+        const labels = ['Basic', 'Confident', 'Advanced', 'Builder']
+        return `${t}: ${labels[(l as number) - 1] ?? l}`
+      }).join(', ')
+    : ''
 
   return [
     {
-      staff_id:         staffId,
-      task_name:        'Daily Workflow & Work Pattern',
-      task_description: [
+      staff_id:          staffId,
+      task_name:         'Daily Workflow & Work Pattern',
+      task_description:  [
         answers['daily_work'] ? `What a typical day looks like:\n${str(answers['daily_work'])}` : '',
         deptAnswers ? `Department-specific context:\n${deptAnswers}` : '',
+        profText ? `Tool proficiency: ${profText}` : '',
+        answers['tools_unlisted'] ? `Additional tools not in standard list: ${str(answers['tools_unlisted'])}` : '',
       ].filter(Boolean).join('\n\n'),
-      tools_used:       tools,
-      frequency:        'Daily',
-      ai_readiness:     readiness,
+      tools_used:        tools,
+      tool_proficiency:  proficiency,
+      frequency:         'Daily',
+      ai_readiness:      readiness,
     },
     {
-      staff_id:         staffId,
-      task_name:        'Key Pain Points & Time Drains',
-      task_description: [
+      staff_id:          staffId,
+      task_name:         'Key Pain Points & Time Drains',
+      task_description:  [
         answers['time_drain'] ? `Biggest time drain:\n${str(answers['time_drain'])}` : '',
         answers['stuck'] ? `Main cause of delays: ${str(answers['stuck'])}` : '',
+        answers['ownership_intent'] ? `What they want to keep owning:\n${str(answers['ownership_intent'])}` : '',
       ].filter(Boolean).join('\n\n'),
-      frequency:        'Daily',
-      ai_readiness:     readiness,
+      automation_history: answers['automation_history'] ? str(answers['automation_history']) : '',
+      frequency:          'Daily',
+      ai_readiness:       readiness,
     },
     {
-      staff_id:         staffId,
-      task_name:        'AI Opportunity & Automation Wish',
-      task_description: answers['ai_wish'] ? `If AI could do one thing:\n${str(answers['ai_wish'])}` : '',
-      frequency:        'Daily',
-      skill_needed:     'Identified via TAOS Intelligence Interview',
-      ai_readiness:     readiness,
+      staff_id:          staffId,
+      task_name:         'AI Opportunity & Automation Wish',
+      task_description:  [
+        answers['ai_wish'] ? `If TAI could do one thing:\n${str(answers['ai_wish'])}` : '',
+        answers['ai_proof'] ? `AI workflow they already use (advanced track):\n${str(answers['ai_proof'])}` : '',
+      ].filter(Boolean).join('\n\n'),
+      tools_unlisted:    answers['tools_unlisted'] ? str(answers['tools_unlisted']) : '',
+      ai_proof:          answers['ai_proof'] ? str(answers['ai_proof']) : null,
+      frequency:         'Daily',
+      skill_needed:      'Identified via TAI Intelligence Interview',
+      ai_readiness:      readiness,
     },
-  ].filter(e => e.task_description || e.tools_used?.length)
+  ].filter(e => e.task_description || (e as { tools_used?: string[] }).tools_used?.length)
 }
 
-/* ─── Scale labels ───────────────────────────────────────────── */
+/* ─── Proficiency sub-component ─────────────────────────────── */
+function ProficiencyInput({
+  tools,
+  value,
+  onChange,
+}: {
+  tools: string[]
+  value: ProfMap
+  onChange: (updated: ProfMap) => void
+}) {
+  if (tools.length === 0) {
+    return (
+      <div style={{ padding: '20px', borderRadius: '14px', border: '1px solid rgba(255,255,255,0.1)', color: 'rgba(255,255,255,0.5)', fontSize: '14px', textAlign: 'center' }}>
+        Go back and select the tools you use first.
+      </div>
+    )
+  }
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+      {tools.map(tool => (
+        <div key={tool}>
+          <div style={{ fontSize: '14px', fontWeight: 700, color: 'white', marginBottom: '10px' }}>
+            {tool}
+            {value[tool] && (
+              <span style={{ marginLeft: '10px', fontSize: '11px', fontWeight: 700, color: PROFICIENCY_LEVELS[value[tool] - 1].color, background: `${PROFICIENCY_LEVELS[value[tool] - 1].color}18`, padding: '2px 8px', borderRadius: '6px' }}>
+                {PROFICIENCY_LEVELS[value[tool] - 1].label}
+              </span>
+            )}
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '8px' }}>
+            {PROFICIENCY_LEVELS.map(({ level, label, desc, color }) => {
+              const sel = value[tool] === level
+              return (
+                <button
+                  key={level}
+                  type="button"
+                  onClick={() => onChange({ ...value, [tool]: level })}
+                  style={{
+                    padding: '12px 10px', borderRadius: '12px', textAlign: 'left',
+                    border: `1.5px solid ${sel ? color : 'rgba(255,255,255,0.1)'}`,
+                    background: sel ? `${color}18` : 'rgba(255,255,255,0.03)',
+                    cursor: 'pointer', fontFamily: 'inherit', transition: 'all 0.15s ease',
+                  }}
+                >
+                  <div style={{ fontSize: '13px', fontWeight: 700, color: sel ? color : 'rgba(255,255,255,0.55)', marginBottom: '4px' }}>{label}</div>
+                  <div style={{ fontSize: '10px', color: sel ? color : 'rgba(255,255,255,0.3)', lineHeight: 1.4 }}>{desc}</div>
+                </button>
+              )
+            })}
+          </div>
+        </div>
+      ))}
+    </div>
+  )
+}
+
+/* ─── Scale colors ───────────────────────────────────────────── */
 const SCALE_COLORS = ['#FF6B6B', '#FF9F43', '#F4ED3C', '#A8E6CF', '#C0F43C']
 
 /* ═══════════════════════════════════════════════════════════════ */
-export default function ProfilePage() {
+function ProfileContent() {
+  const params = useSearchParams()
+
   /* Email verify state */
-  const [email, setEmail]         = useState('')
+  const [email, setEmail]             = useState('')
   const [verifyError, setVerifyError] = useState('')
-  const [verifying, setVerifying] = useState(false)
-  const [staffName, setStaffName] = useState('')
-  const [staffId, setStaffId]     = useState('')
-  const [department, setDept]     = useState('')
+  const [verifying, setVerifying]     = useState(false)
+  const [staffName, setStaffName]     = useState('')
+  const [staffId, setStaffId]         = useState('')
+  const [department, setDept]         = useState('')
 
   /* Interview state */
-  const [questions, setQuestions] = useState<Question[]>([])
-  const [step, setStep]           = useState(-1)   // -1 = verify screen
-  const [answers, setAnswers]     = useState<Record<string, string | string[] | number>>({})
-  const [currentInput, setCurrentInput] = useState<string | string[] | number>('')
+  const [questions, setQuestions]     = useState<Question[]>([])
+  const [step, setStep]               = useState(-1)   // -1 = verify screen
+  const [answers, setAnswers]         = useState<Answers>({})
+  const [currentInput, setCurrentInput] = useState<string | string[] | number | ProfMap>('')
 
   /* Submit state */
-  const [pending, setPending] = useState(false)
+  const [pending, setPending]         = useState(false)
   const [submitError, setSubmitError] = useState('')
-  const [done, setDone]       = useState(false)
+  const [done, setDone]               = useState(false)
 
   const inputRef = useRef<HTMLTextAreaElement | null>(null)
+
+  /* Auto-skip email verify when arriving from /join with pre-filled params */
+  useEffect(() => {
+    const preId   = params.get('id')
+    const preName = params.get('name')
+    const preDept = params.get('dept')
+    if (preId && preName) {
+      const dept = preDept && preDept !== '' ? preDept : 'Other'
+      const qs   = buildQuestions(dept)
+      setStaffName(preName)
+      setStaffId(preId)
+      setDept(dept)
+      setQuestions(qs)
+      setStep(0)
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   /* Focus input when step changes */
   useEffect(() => {
@@ -456,23 +212,56 @@ export default function ProfilePage() {
     setStep(0)
   }
 
+  /* ── Conditional skip helpers ── */
+  function getNextVisibleStep(fromStep: number, allAnswers: Answers): number {
+    let next = fromStep + 1
+    while (next < questions.length) {
+      const nq = questions[next]
+      if (!nq.conditionalOn) break
+      const refVal = typeof allAnswers[nq.conditionalOn.questionId] === 'number'
+        ? (allAnswers[nq.conditionalOn.questionId] as number) : 0
+      if (refVal >= nq.conditionalOn.minValue) break
+      next++
+    }
+    return next
+  }
+
+  function getPrevVisibleStep(fromStep: number, allAnswers: Answers): number {
+    let prev = fromStep - 1
+    while (prev >= 0) {
+      const pq = questions[prev]
+      if (!pq.conditionalOn) break
+      const refVal = typeof allAnswers[pq.conditionalOn.questionId] === 'number'
+        ? (allAnswers[pq.conditionalOn.questionId] as number) : 0
+      if (refVal >= pq.conditionalOn.minValue) break
+      prev--
+    }
+    return prev
+  }
+
   /* ── Navigate between questions ── */
   function saveCurrentAndAdvance() {
     const q = questions[step]
     const val = currentInput
-    if (q.type !== 'scale' && q.type !== 'chips' && q.type !== 'select') {
+    if (q.type !== 'scale' && q.type !== 'chips' && q.type !== 'select' && q.type !== 'proficiency') {
       if (String(val).trim() === '') return
     }
-    setAnswers(prev => ({ ...prev, [q.id]: val }))
-    setCurrentInput(answers[questions[step + 1]?.id] ?? '')
-    setStep(s => s + 1)
+    const newAnswers = { ...answers, [q.id]: val }
+    setAnswers(newAnswers)
+    const nextStep = getNextVisibleStep(step, newAnswers)
+    const nextQ    = questions[nextStep]
+    setCurrentInput(nextQ ? (answers[nextQ.id] ?? (nextQ.type === 'proficiency' ? {} : '')) : '')
+    setStep(nextStep)
   }
 
   function goBack() {
     const q = questions[step]
-    setAnswers(prev => ({ ...prev, [q.id]: currentInput }))
-    setCurrentInput(answers[questions[step - 1]?.id] ?? '')
-    setStep(s => s - 1)
+    const newAnswers = { ...answers, [q.id]: currentInput }
+    setAnswers(newAnswers)
+    const prevStep = getPrevVisibleStep(step, newAnswers)
+    const prevQ    = questions[prevStep]
+    setCurrentInput(prevQ ? (answers[prevQ.id] ?? (prevQ.type === 'proficiency' ? {} : '')) : '')
+    setStep(prevStep)
   }
 
   /* ── Submit ── */
@@ -508,18 +297,39 @@ export default function ProfilePage() {
   }
 
   /* ── Helpers ── */
-  const progress    = step >= 0 ? Math.round(((step + 1) / questions.length) * 100) : 0
-  const isLastStep  = step === questions.length - 1
-  const q           = step >= 0 ? questions[step] : null
-  const firstName   = staffName.split(' ')[0]
+  const q = step >= 0 ? questions[step] : null
+  const allAnswersWithCurrent = q ? { ...answers, [q.id]: currentInput } : answers
+  const nextVisibleStep = q ? getNextVisibleStep(step, allAnswersWithCurrent) : step + 1
+  const isLastStep = nextVisibleStep >= questions.length
+  const progress   = step >= 0 ? Math.round(((step + 1) / questions.length) * 100) : 0
+  const firstName  = staffName.split(' ')[0]
+
+  // Proficiency helpers
+  const proficiencyValue: ProfMap = (typeof currentInput === 'object' && !Array.isArray(currentInput) && currentInput !== null && !(currentInput instanceof String))
+    ? currentInput as ProfMap : {}
+  const proficiencyTools = (Array.isArray(answers['tools']) ? answers['tools'] as string[] : [])
+    .filter(t => t !== 'Other').slice(0, 4)
+
+  /* ── canAdvance ── */
+  const chipValues: string[] = Array.isArray(currentInput) ? (currentInput as string[]) : []
+  const scaleValue: number   = typeof currentInput === 'number' ? currentInput : 0
+  const textValue: string    = typeof currentInput === 'string' ? currentInput : ''
+  const canAdvance = q
+    ? (q.type === 'chips'       ? chipValues.length > 0
+      : q.type === 'scale'      ? scaleValue > 0
+      : q.type === 'select'     ? textValue !== ''
+      : q.type === 'proficiency' ? Object.keys(proficiencyValue).length > 0
+      : q.type === 'text'       ? true  // optional — allow skip
+      : textValue.trim().length > 0)
+    : false
 
   /* ── Styles ── */
   const S = {
-    page:    { fontFamily: 'var(--font-manrope), Manrope, sans-serif', background: '#0C0E10', minHeight: '100vh', color: 'white' },
-    nav:     { background: 'rgba(255,255,255,0.04)', borderBottom: '1px solid rgba(255,255,255,0.08)', padding: '0 40px', height: '56px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' },
-    center:  { maxWidth: '640px', margin: '0 auto', padding: '0 24px' },
-    label:   { fontSize: '11px', fontWeight: 800, letterSpacing: '2.5px', textTransform: 'uppercase' as const, color: '#00A5A3' },
-    input:   { width: '100%', padding: '16px 20px', borderRadius: '14px', border: '1px solid rgba(255,255,255,0.15)', fontSize: '15px', color: 'white', outline: 'none', fontFamily: 'inherit', background: 'rgba(255,255,255,0.07)', resize: 'vertical' as const, lineHeight: 1.6, boxSizing: 'border-box' as const },
+    page:   { fontFamily: 'var(--font-manrope), Manrope, sans-serif', background: '#0C0E10', minHeight: '100vh', color: 'white' },
+    nav:    { background: 'rgba(255,255,255,0.04)', borderBottom: '1px solid rgba(255,255,255,0.08)', padding: '0 40px', height: '56px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' },
+    center: { maxWidth: '640px', margin: '0 auto', padding: '0 24px' },
+    label:  { fontSize: '11px', fontWeight: 800, letterSpacing: '2.5px', textTransform: 'uppercase' as const, color: '#00A5A3' },
+    input:  { width: '100%', padding: '16px 20px', borderRadius: '14px', border: '1px solid rgba(255,255,255,0.15)', fontSize: '15px', color: 'white', outline: 'none', fontFamily: 'inherit', background: 'rgba(255,255,255,0.07)', resize: 'vertical' as const, lineHeight: 1.6, boxSizing: 'border-box' as const },
   }
 
   /* ───────── DONE SCREEN ───────── */
@@ -531,18 +341,18 @@ export default function ProfilePage() {
         </div>
         <div style={S.label}>Intelligence Captured</div>
         <h1 style={{ fontSize: '38px', fontWeight: 800, margin: '16px 0 12px', letterSpacing: '-0.5px', lineHeight: 1.1 }}>
-          TAOS has heard you,<br /><span style={{ color: '#C0F43C' }}>{firstName}.</span>
+          TAI has heard you,<br /><span style={{ color: '#C0F43C' }}>{firstName}.</span>
         </h1>
         <p style={{ fontSize: '16px', color: 'rgba(255,255,255,0.55)', lineHeight: 1.7, maxWidth: '440px', margin: '0 auto 40px' }}>
-          Your answers will shape what gets built first. Every input from the team makes TAOS sharper.
+          Your answers will shape what gets built first. Every input from the team makes TAI sharper and more specific to how Trescon actually works.
         </p>
         <div style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '18px', padding: '24px 28px', marginBottom: '36px', textAlign: 'left', maxWidth: '420px' }}>
           <div style={{ ...S.label, marginBottom: '14px' }}>What happens with your answers</div>
           {[
-            'Your intelligence profile is now in the TAOS system',
+            'Your intelligence profile is now in the TAI system',
             'Gemini AI will analyse patterns across all staff',
             'Your department\'s top automation wins get surfaced',
-            'TAOS builds what the team needs most — starting now',
+            'TAI builds what the team needs most — starting now',
           ].map((t, i) => (
             <div key={i} style={{ display: 'flex', gap: '10px', padding: '9px 0', borderBottom: i < 3 ? '1px solid rgba(255,255,255,0.07)' : 'none', alignItems: 'center' }}>
               <div style={{ width: '6px', height: '6px', borderRadius: '50%', background: i === 0 ? '#C0F43C' : 'rgba(255,255,255,0.25)', flexShrink: 0 }} />
@@ -550,8 +360,8 @@ export default function ProfilePage() {
             </div>
           ))}
         </div>
-        <Link href="/" style={{ background: '#C0F43C', color: '#1E2124', fontSize: '14px', fontWeight: 800, padding: '14px 32px', borderRadius: '50px', textDecoration: 'none' }}>
-          See Live Tracker
+        <Link href={`/dashboard?id=${staffId}`} style={{ background: '#C0F43C', color: '#1E2124', fontSize: '14px', fontWeight: 800, padding: '14px 32px', borderRadius: '50px', textDecoration: 'none' }}>
+          Go to My Dashboard
         </Link>
       </div>
     )
@@ -566,46 +376,35 @@ export default function ProfilePage() {
             <div style={{ width: '28px', height: '28px', background: '#00A5A3', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
               <svg width="14" height="14" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
             </div>
-            <span style={{ fontSize: '14px', fontWeight: 800, color: 'white' }}>TAOS</span>
+            <span style={{ fontSize: '14px', fontWeight: 800, color: 'white' }}>TAI</span>
           </Link>
         </nav>
-        <div style={{ maxWidth: '480px', margin: '80px auto', padding: '0 24px', textAlign: 'center' }}>
-          <div style={{ width: '60px', height: '60px', background: '#1E2124', borderRadius: '18px', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 24px' }}>
-            <svg width="28" height="28" fill="none" stroke="#C0F43C" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24">
-              <circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/>
-            </svg>
-          </div>
-          <h1 style={{ fontSize: '30px', fontWeight: 800, color: '#1E2124', marginBottom: '10px', letterSpacing: '-0.5px' }}>
-            Map Your Intelligence
-          </h1>
-          <p style={{ fontSize: '15px', color: '#464D53', lineHeight: 1.7, marginBottom: '32px' }}>
-            TAOS will ask you smart, department-specific questions based on your role. Takes 5 minutes. Your answers shape what gets built first.
+        <div style={{ maxWidth: '500px', margin: '80px auto', padding: '0 24px' }}>
+          <div style={S.label}>TAI Intelligence Interview</div>
+          <h1 style={{ fontSize: '32px', fontWeight: 800, color: '#1E2124', margin: '12px 0 8px', lineHeight: 1.2 }}>Enter your work email</h1>
+          <p style={{ fontSize: '15px', color: '#666', lineHeight: 1.6, marginBottom: '32px' }}>
+            We&apos;ll match it to your Trescon profile and take you straight into your interview. No password needed.
           </p>
-          <div style={{ background: 'white', border: '1px solid #E5E7EB', borderRadius: '24px', padding: '36px', boxShadow: '0 4px 20px rgba(0,0,0,0.06)' }}>
-            <form onSubmit={handleVerify}>
-              <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#1E2124', letterSpacing: '1px', textTransform: 'uppercase', marginBottom: '8px', textAlign: 'left' }}>
-                Work Email
-              </label>
-              <input
-                type="email" required value={email}
-                onChange={e => { setEmail(e.target.value); setVerifyError('') }}
-                placeholder="you@tresconglobal.com"
-                style={{ width: '100%', padding: '13px 16px', borderRadius: '12px', border: `1.5px solid ${verifyError ? '#FECACA' : '#E5E7EB'}`, fontSize: '15px', color: '#1E2124', outline: 'none', fontFamily: 'inherit', background: '#FAFAFA', marginBottom: verifyError ? '8px' : '16px', boxSizing: 'border-box' }}
-              />
-              {verifyError && <p style={{ fontSize: '13px', color: '#C0392B', marginBottom: '12px', textAlign: 'left', fontWeight: 600 }}>{verifyError}</p>}
-              <button
-                type="submit" disabled={verifying}
-                style={{ width: '100%', padding: '14px', borderRadius: '12px', border: 'none', background: verifying ? '#E5E7EB' : '#C0F43C', color: verifying ? '#999' : '#1E2124', fontSize: '14px', fontWeight: 800, cursor: verifying ? 'not-allowed' : 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}
-              >
-                {verifying ? 'Looking you up...' : (
-                  <>
-                    Start My Intelligence Interview
-                    <svg width="14" height="14" fill="none" stroke="#1E2124" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg>
-                  </>
-                )}
-              </button>
-            </form>
-          </div>
+          <form onSubmit={handleVerify}>
+            <input
+              type="email"
+              value={email}
+              onChange={e => { setEmail(e.target.value); setVerifyError('') }}
+              placeholder="yourname@tresconglobal.com"
+              autoFocus
+              style={{ width: '100%', padding: '16px 20px', borderRadius: '14px', border: `1.5px solid ${verifyError ? '#FF6B6B' : '#D5D9DB'}`, background: 'white', color: '#1E2124', fontSize: '16px', outline: 'none', fontFamily: 'inherit', marginBottom: '12px', boxSizing: 'border-box' }}
+            />
+            {verifyError && <p style={{ fontSize: '13px', color: '#E74C3C', marginBottom: '12px', fontWeight: 600 }}>{verifyError}</p>}
+            <button type="submit" disabled={verifying || !email.trim()}
+              style={{ width: '100%', padding: '16px', borderRadius: '14px', border: 'none', background: '#00A5A3', color: 'white', fontSize: '15px', fontWeight: 800, cursor: verifying ? 'not-allowed' : 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
+              {verifying ? 'Looking you up...' : (
+                <>
+                  Start My Intelligence Interview
+                  <svg width="14" height="14" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg>
+                </>
+              )}
+            </button>
+          </form>
           <p style={{ marginTop: '16px', fontSize: '13px', color: '#888' }}>
             Haven&apos;t joined yet?{' '}
             <Link href="/join" style={{ color: '#00A5A3', fontWeight: 700, textDecoration: 'none' }}>Join first</Link>
@@ -616,16 +415,6 @@ export default function ProfilePage() {
   }
 
   /* ───────── INTERVIEW SCREEN ───────── */
-  const chipValues: string[] = Array.isArray(currentInput) ? (currentInput as string[]) : []
-  const scaleValue: number   = typeof currentInput === 'number' ? currentInput : 0
-  const textValue: string    = typeof currentInput === 'string' ? currentInput : ''
-  const canAdvance = q
-    ? (q.type === 'chips' ? chipValues.length > 0
-      : q.type === 'scale' ? scaleValue > 0
-      : q.type === 'select' ? textValue !== ''
-      : textValue.trim().length > 0)
-    : false
-
   return (
     <div style={S.page}>
       {/* Nav */}
@@ -635,7 +424,7 @@ export default function ProfilePage() {
             <div style={{ width: '28px', height: '28px', background: '#00A5A3', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
               <svg width="14" height="14" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
             </div>
-            <span style={{ fontSize: '14px', fontWeight: 800, color: 'white' }}>TAOS</span>
+            <span style={{ fontSize: '14px', fontWeight: 800, color: 'white' }}>TAI</span>
           </Link>
           <span style={{ color: 'rgba(255,255,255,0.2)', margin: '0 4px' }}>|</span>
           <span style={{ fontSize: '12px', color: 'rgba(255,255,255,0.45)', fontWeight: 600 }}>Intelligence Interview</span>
@@ -668,25 +457,40 @@ export default function ProfilePage() {
         {q && (
           <div key={q.id} style={{ animation: 'fadeSlide 0.35s ease' }}>
 
-            {/* TAOS asking indicator */}
+            {/* Step 0: Training track framing banner */}
+            {step === 0 && (
+              <div style={{ background: 'rgba(0,165,163,0.07)', border: '1px solid rgba(0,165,163,0.22)', borderRadius: '14px', padding: '14px 18px', marginBottom: '28px' }}>
+                <div style={{ fontSize: '10px', fontWeight: 800, color: '#00A5A3', letterSpacing: '1.5px', textTransform: 'uppercase', marginBottom: '6px' }}>This is also your training intake</div>
+                <div style={{ fontSize: '13px', color: 'rgba(255,255,255,0.6)', lineHeight: 1.65 }}>
+                  Your answers place you into a TAI learning track. Be specific — vague answers get basic training. Detailed, honest answers unlock advanced tracks and leadership roles in the AI rollout.
+                </div>
+              </div>
+            )}
+
+            {/* TAI asking indicator */}
             <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '20px' }}>
               <div style={{ width: '32px', height: '32px', background: 'linear-gradient(135deg, #00A5A3, #005F7A)', borderRadius: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
                 <svg width="14" height="14" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
               </div>
-              <span style={{ fontSize: '11px', fontWeight: 700, letterSpacing: '2px', color: '#00A5A3', textTransform: 'uppercase' }}>TAOS Intelligence</span>
+              <span style={{ fontSize: '11px', fontWeight: 700, letterSpacing: '2px', color: '#00A5A3', textTransform: 'uppercase' }}>TAI Intelligence</span>
             </div>
 
             {/* Question text */}
             <h2 style={{ fontSize: '26px', fontWeight: 800, lineHeight: 1.3, marginBottom: '10px', letterSpacing: '-0.3px' }}>
               {q.question}
             </h2>
-            {q.subtext && (
-              <p style={{ fontSize: '14px', color: 'rgba(255,255,255,0.45)', lineHeight: 1.65, marginBottom: '28px' }}>{q.subtext}</p>
-            )}
-            {!q.subtext && <div style={{ height: '28px' }} />}
+            {(() => {
+              // Dynamic subtext for ownership_intent based on readiness level
+              const displaySubtext = (q.id === 'ownership_intent' && typeof answers['ai_readiness'] === 'number' && (answers['ai_readiness'] as number) >= 3)
+                ? "Since you're already using AI, name one specific process in your role you'd want to automate first with TAI's support. This goes on record."
+                : q.subtext
+              return displaySubtext
+                ? <p style={{ fontSize: '14px', color: 'rgba(255,255,255,0.45)', lineHeight: 1.65, marginBottom: '28px' }}>{displaySubtext}</p>
+                : <div style={{ height: '28px' }} />
+            })()}
 
             {/* ── TEXTAREA ── */}
-            {(q.type === 'textarea') && (
+            {q.type === 'textarea' && (
               <textarea
                 ref={inputRef}
                 rows={5}
@@ -703,7 +507,7 @@ export default function ProfilePage() {
               />
             )}
 
-            {/* ── TEXT ── */}
+            {/* ── TEXT (short, optional) ── */}
             {q.type === 'text' && (
               <input
                 type="text"
@@ -768,7 +572,7 @@ export default function ProfilePage() {
               </div>
             )}
 
-            {/* ── SCALE (AI readiness) ── */}
+            {/* ── SCALE ── */}
             {q.type === 'scale' && (
               <div>
                 <div style={{ display: 'flex', gap: '10px', marginBottom: '16px', flexWrap: 'wrap' }}>
@@ -797,13 +601,38 @@ export default function ProfilePage() {
                     {(q.options ?? [])[scaleValue - 1]}
                   </div>
                 )}
+                {/* Accountability callout for levels 4–5 */}
+                {q.id === 'ai_readiness' && scaleValue >= 4 && (
+                  <div style={{ marginTop: '14px', background: 'rgba(192,244,60,0.07)', border: '1px solid rgba(192,244,60,0.25)', borderRadius: '12px', padding: '14px 18px' }}>
+                    <div style={{ fontSize: '11px', fontWeight: 800, color: '#C0F43C', letterSpacing: '1px', textTransform: 'uppercase', marginBottom: '6px' }}>You are now on the advanced track</div>
+                    <div style={{ fontSize: '13px', color: 'rgba(255,255,255,0.65)', lineHeight: 1.6 }}>
+                      The next question will ask you to describe a real AI workflow you use. This becomes your starting brief for TAI&apos;s advanced training path — and you will be expected to lead an AI pilot in your department.
+                    </div>
+                  </div>
+                )}
               </div>
+            )}
+
+            {/* ── PROFICIENCY ── */}
+            {q.type === 'proficiency' && (
+              <ProficiencyInput
+                tools={proficiencyTools}
+                value={proficiencyValue}
+                onChange={(updated) => setCurrentInput(updated)}
+              />
             )}
 
             {/* Hint for textarea */}
             {q.type === 'textarea' && (
               <p style={{ fontSize: '11px', color: 'rgba(255,255,255,0.2)', marginTop: '10px' }}>
                 Press Cmd+Enter to continue
+              </p>
+            )}
+
+            {/* Optional hint for text */}
+            {q.type === 'text' && (
+              <p style={{ fontSize: '11px', color: 'rgba(255,255,255,0.25)', marginTop: '10px' }}>
+                Optional — skip if nothing to add
               </p>
             )}
 
@@ -825,25 +654,25 @@ export default function ProfilePage() {
 
               <button
                 type="button"
-                disabled={!canAdvance || pending}
+                disabled={!canAdvance && q.type !== 'text' && !pending}
                 onClick={isLastStep ? handleSubmit : saveCurrentAndAdvance}
                 style={{
                   padding: '14px 28px', borderRadius: '14px', border: 'none',
-                  background: canAdvance && !pending ? (isLastStep ? '#C0F43C' : '#00A5A3') : 'rgba(255,255,255,0.1)',
-                  color: canAdvance && !pending ? (isLastStep ? '#1E2124' : 'white') : 'rgba(255,255,255,0.25)',
-                  fontSize: '14px', fontWeight: 800, cursor: canAdvance && !pending ? 'pointer' : 'not-allowed',
+                  background: (canAdvance || q.type === 'text') && !pending ? (isLastStep ? '#C0F43C' : '#00A5A3') : 'rgba(255,255,255,0.1)',
+                  color: (canAdvance || q.type === 'text') && !pending ? (isLastStep ? '#1E2124' : 'white') : 'rgba(255,255,255,0.25)',
+                  fontSize: '14px', fontWeight: 800, cursor: (canAdvance || q.type === 'text') && !pending ? 'pointer' : 'not-allowed',
                   fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: '8px',
                   transition: 'all 0.2s ease',
                 }}
               >
-                {pending ? 'Submitting to TAOS...' : isLastStep ? (
+                {pending ? 'Submitting to TAI...' : isLastStep ? (
                   <>
-                    Submit to TAOS
+                    Submit to TAI
                     <svg width="14" height="14" fill="none" stroke="#1E2124" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
                   </>
                 ) : (
                   <>
-                    Next
+                    {q.type === 'text' ? 'Skip / Next' : 'Next'}
                     <svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg>
                   </>
                 )}
@@ -861,5 +690,13 @@ export default function ProfilePage() {
         }
       `}</style>
     </div>
+  )
+}
+
+export default function ProfilePage() {
+  return (
+    <Suspense>
+      <ProfileContent />
+    </Suspense>
   )
 }
