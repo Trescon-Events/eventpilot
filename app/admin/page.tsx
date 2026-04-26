@@ -327,7 +327,8 @@ export default function AdminPage() {
   const [showWelcome,    setShowWelcome]    = useState(() => {
     if (typeof window === 'undefined') return false
     if (new URLSearchParams(window.location.search).get('welcome') === '1') return true
-    return !localStorage.getItem('tresci_admin_welcomed')
+    const uid = sessionStorage.getItem('tai_admin_staff_id') ?? 'admin'
+    return !localStorage.getItem(`tresci_admin_welcomed_${uid}`)
   })
   const [tourStep,    setTourStep]    = useState<number | null>(null)
   const [tourRect,    setTourRect]    = useState<DOMRect | null>(null)
@@ -924,15 +925,17 @@ export default function AdminPage() {
   }
 
   function dismissWelcome() {
-    localStorage.setItem('tresci_admin_welcomed', '1')
+    const uid = sessionStorage.getItem('tai_admin_staff_id') ?? 'admin'
+    localStorage.setItem(`tresci_admin_welcomed_${uid}`, '1')
     setShowWelcome(false)
-    if (!localStorage.getItem('tresci_tour_done')) {
+    if (!localStorage.getItem(`tresci_tour_done_${uid}`)) {
       setTimeout(() => setTourStep(0), 400)
     }
   }
 
   function endTour() {
-    localStorage.setItem('tresci_tour_done', '1')
+    const uid = sessionStorage.getItem('tai_admin_staff_id') ?? 'admin'
+    localStorage.setItem(`tresci_tour_done_${uid}`, '1')
     setTourStep(null)
     setTourRect(null)
   }
