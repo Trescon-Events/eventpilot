@@ -109,18 +109,69 @@ function CourseContent() {
   const [taskDone,        setTaskDone]        = useState<Set<number>>(new Set())
   const [answers,         setAnswers]         = useState<Record<number, number>>({})
   const [submitting,      setSubmitting]      = useState(false)
-  const [result,          setResult]          = useState<{ score: number; passed: boolean; correct: number; total: number; breakdown: BreakdownItem[] } | null>(null)
+  const [result,          setResult]          = useState<{ score: number; passed: boolean; correct: number; total: number; breakdown: BreakdownItem[]; flagged?: boolean; offense_number?: number } | null>(null)
   const [prevResult,      setPrevResult]      = useState<{ passed: boolean; test_score: number | null; attempt_count: number } | null>(null)
   const [servedQuestions, setServedQuestions] = useState<Question[]>([])
   const [submission,      setSubmission]      = useState('')
+  const [submissionError, setSubmissionError] = useState(false)
   const [staffDept,       setStaffDept]       = useState('')
   const [staffRole,       setStaffRole]       = useState('')
-  const timeStartRef = useRef<number>(Date.now())
+  // Pre-test popup + dynamic question generation
+  const [showPopup,       setShowPopup]       = useState(false)
+  const [generatingQ,     setGeneratingQ]     = useState(false)
+  // One-at-a-time question flow
+  const [currentQ,        setCurrentQ]        = useState(0)
+  const [timeLeft,        setTimeLeft]        = useState(45)
+  const [qTimes,          setQTimes]          = useState<number[]>([])   // seconds taken per question
+  const [qAnswered,       setQAnswered]       = useState(false)           // current Q answered flag
+  const timeStartRef  = useRef<number>(Date.now())
+  const qStartRef     = useRef<number>(Date.now())
+  const timerRef      = useRef<ReturnType<typeof setInterval> | null>(null)
 
   useEffect(() => {
     loadCourse()
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [courseId])
+
+  // Per-question countdown timer
+  useEffect(() => {
+    if (step !== 3 || generatingQ || servedQuestions.length === 0) return
+    if (currentQ >= servedQuestions.length) return
+
+    setTimeLeft(45)
+    setQAnswered(false)
+    qStartRef.current = Date.now()
+
+    if (timerRef.current) clearInterval(timerRef.current)
+    timerRef.current = setInterval(() => {
+      setTimeLeft(prev => {
+        if (prev <= 1) {
+          clearInterval(timerRef.current!)
+          advanceQuestion()
+          return 0
+        }
+        return prev - 1
+      })
+    }, 1000)
+
+    return () => { if (timerRef.current) clearInterval(timerRef.current) }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentQ, step, generatingQ, servedQuestions.length])
+
+  function advanceQuestion() {
+    const timeTaken = Math.round((Date.now() - qStartRef.current) / 1000)
+    setQTimes(prev => [...prev, timeTaken])
+    setCurrentQ(prev => prev + 1)
+  }
+
+  function handleSelectAnswer(optionIndex: number) {
+    if (qAnswered) return
+    setAnswers(prev => ({ ...prev, [currentQ]: optionIndex }))
+    setQAnswered(true)
+    if (timerRef.current) clearInterval(timerRef.current)
+    // Brief pause so staff can see their selection, then advance
+    setTimeout(() => advanceQuestion(), 900)
+  }
 
   async function loadCourse() {
     timeStartRef.current = Date.now()
@@ -139,20 +190,59 @@ function CourseContent() {
     setLoading(false)
   }
 
-  // Replace {{department}} and {{role}} placeholders with staff's actual profile
   function injectProfile(text: string): string {
     return text
       .replace(/\{\{department\}\}/g, staffDept || 'your department')
       .replace(/\{\{role\}\}/g, staffRole || 'your role')
   }
 
-  // Pick 5 random questions from the bank — called fresh every time Test is entered
+  // Step 1: validate submission, show popup
   function enterTest() {
     if (!course) return
-    const bank = course.question_bank ?? []
-    const shuffled = [...bank].sort(() => Math.random() - 0.5)
-    setServedQuestions(shuffled.slice(0, Math.min(5, shuffled.length)))
+    if (!submission.trim()) {
+      setSubmissionError(true)
+      document.getElementById('output-field')?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+      return
+    }
+    setSubmissionError(false)
+    setShowPopup(true)
+  }
+
+  // Step 2: popup confirmed → generate personalised questions
+  async function startTest() {
+    if (!course) return
+    setShowPopup(false)
+    setGeneratingQ(true)
     setStep(3)
+    setCurrentQ(0)
+    setAnswers({})
+    setQTimes([])
+    timeStartRef.current = Date.now()
+
+    try {
+      const res = await fetch('/api/generate-questions', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({
+          course_title:    course.title,
+          course_overview: course.overview,
+          task_steps:      course.task_steps,
+          submission,
+        }),
+      })
+      const data = await res.json()
+      if (data.questions?.length >= 3) {
+        setServedQuestions(data.questions)
+      } else {
+        throw new Error('fallback')
+      }
+    } catch {
+      // Fallback to static bank if Gemini fails
+      const bank     = course.question_bank ?? []
+      const shuffled = [...bank].sort(() => Math.random() - 0.5)
+      setServedQuestions(shuffled.slice(0, Math.min(5, shuffled.length)))
+    }
+    setGeneratingQ(false)
   }
 
   async function submitAnswers() {
@@ -169,6 +259,7 @@ function CourseContent() {
         questions_served:   servedQuestions,
         task_submission:    submission || null,
         time_spent_seconds: timeSpent,
+        question_times:     qTimes,
       }),
     })
     const data = await res.json()
@@ -201,13 +292,42 @@ function CourseContent() {
     )
   }
 
-  const tierColor  = TIER_COLOR[course.tier_level] ?? '#00A5A3'
-  const bankSize   = course.question_bank?.length ?? 0
-  const serveCount = Math.min(5, bankSize)
-  const allAnswered = servedQuestions.length > 0 && Object.keys(answers).length === servedQuestions.length
+  const tierColor = TIER_COLOR[course.tier_level] ?? '#00A5A3'
 
   return (
     <div style={S.page}>
+
+      {/* ── Pre-test popup ── */}
+      {showPopup && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)', backdropFilter: 'blur(6px)', zIndex: 100, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '24px' }}>
+          <div style={{ background: '#13181C', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '20px', padding: '36px 32px', maxWidth: '440px', width: '100%', boxShadow: '0 24px 80px rgba(0,0,0,0.6)' }}>
+            <div style={{ width: '44px', height: '44px', borderRadius: '12px', background: `${tierColor}18`, border: `1px solid ${tierColor}40`, display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '20px' }}>
+              <svg width="20" height="20" fill="none" stroke={tierColor} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+            </div>
+            <div style={{ fontSize: '18px', fontWeight: 800, color: 'white', marginBottom: '14px', lineHeight: 1.3 }}>Before you begin</div>
+            <div style={{ fontSize: '14px', color: 'rgba(255,255,255,0.72)', lineHeight: 1.72, marginBottom: '10px' }}>
+              This test is built entirely around <strong style={{ color: 'white' }}>your specific submission</strong>. Every question is unique to what you did — not a generic quiz anyone else will see.
+            </div>
+            <div style={{ fontSize: '14px', color: 'rgba(255,255,255,0.72)', lineHeight: 1.72, marginBottom: '10px' }}>
+              Trescademy uses AI to review the authenticity of your responses — not to penalise you, but to ensure your TAIRS score genuinely reflects your ability and helps us support you better.
+            </div>
+            <div style={{ fontSize: '14px', color: 'rgba(255,255,255,0.72)', lineHeight: 1.72, marginBottom: '24px' }}>
+              AI is your <strong style={{ color: 'white' }}>learning tool</strong> here, not your shortcut. The people who grow fastest are the ones who engage honestly.
+            </div>
+            <div style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '12px', padding: '14px 16px', marginBottom: '24px', fontSize: '12px', color: 'rgba(255,255,255,0.55)', lineHeight: 1.6 }}>
+              Each question has a <strong style={{ color: 'rgba(255,255,255,0.8)' }}>45-second timer</strong>. Questions are shown one at a time and cannot be revisited. Answer from what you know.
+            </div>
+            <button
+              onClick={startTest}
+              style={{ width: '100%', padding: '14px', borderRadius: '12px', border: 'none', background: tierColor, color: course.tier_level === 'adoption' ? 'white' : '#1E2124', fontSize: '15px', fontWeight: 800, cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}
+            >
+              I understand — start my test
+              <svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg>
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* ── Nav ── */}
       <nav style={S.nav}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
@@ -280,7 +400,7 @@ function CourseContent() {
               {[
                 { icon: 'M12 20h9M16.5 3.5a2.121 2.121 0 013 3L7 19l-4 1 1-4L16.5 3.5z', label: 'Read', desc: 'Core concepts' },
                 { icon: 'M9 11l3 3L22 4M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11', label: 'Do This', desc: `${course.task_steps.length} steps on your system` },
-                { icon: 'M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z', label: 'Test', desc: `${serveCount} of ${bankSize} questions` },
+                { icon: 'M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z', label: 'Test', desc: `5 personalised questions` },
               ].map(({ icon, label, desc }) => (
                 <div key={label} style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: '12px', padding: '16px', textAlign: 'center' }}>
                   <svg width="20" height="20" fill="none" stroke={tierColor} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24" style={{ marginBottom: '8px' }}><path d={icon}/></svg>
@@ -290,12 +410,10 @@ function CourseContent() {
               ))}
             </div>
 
-            {bankSize > serveCount && (
-              <div style={{ marginBottom: '24px', padding: '12px 16px', background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: '10px', fontSize: '12px', color: 'rgba(255,255,255,0.5)', display: 'flex', gap: '8px', alignItems: 'center' }}>
-                <svg width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
-                Your test draws {serveCount} questions at random from a pool of {bankSize}. Every attempt is different.
-              </div>
-            )}
+            <div style={{ marginBottom: '24px', padding: '12px 16px', background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: '10px', fontSize: '12px', color: 'rgba(255,255,255,0.5)', display: 'flex', gap: '8px', alignItems: 'center' }}>
+              <svg width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+              Your test draws 5 personalised questions based on your submission. Every attempt is different.
+            </div>
 
             <button onClick={() => setStep(1)} style={{ padding: '15px 32px', background: tierColor, border: 'none', borderRadius: '14px', fontSize: '15px', fontWeight: 800, color: course.tier_level === 'adoption' ? 'white' : '#1E2124', cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: '8px' }}>
               Start Reading
@@ -354,7 +472,7 @@ function CourseContent() {
                         }
                       </div>
                       <div style={{ flex: 1 }}>
-                        <div style={{ fontSize: '14px', fontWeight: 700, color: done ? 'rgba(255,255,255,0.55)' : 'white', lineHeight: 1.55, textDecoration: done ? 'line-through' : 'none', textDecorationColor: 'rgba(255,255,255,0.3)' }}>
+                        <div style={{ fontSize: '14px', fontWeight: 700, color: done ? 'rgba(255,255,255,0.35)' : 'white', lineHeight: 1.55, textDecoration: done ? 'line-through' : 'none' }}>
                           {injectProfile(ts.instruction)}
                         </div>
                         {ts.tip && (
@@ -369,31 +487,44 @@ function CourseContent() {
               })}
             </div>
 
-            {/* Submission field — staff paste their actual AI output */}
-            <div style={{ marginBottom: '28px' }}>
-              <div style={{ fontSize: '11px', fontWeight: 800, letterSpacing: '1.5px', textTransform: 'uppercase', color: 'rgba(255,255,255,0.6)', marginBottom: '10px' }}>
-                Your Output
+            {/* Submission field — mandatory, staff paste their actual AI output */}
+            <div id="output-field" style={{ marginBottom: '28px', scrollMarginTop: '40px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
+                <div style={{ fontSize: '11px', fontWeight: 800, letterSpacing: '1.5px', textTransform: 'uppercase', color: submissionError ? '#FF6B6B' : 'rgba(255,255,255,0.85)' }}>
+                  Your Output
+                </div>
+                <span style={{ fontSize: '10px', fontWeight: 700, color: '#FF9F43', background: 'rgba(255,159,67,0.12)', border: '1px solid rgba(255,159,67,0.3)', padding: '2px 7px', borderRadius: '5px' }}>Required</span>
               </div>
-              <div style={{ fontSize: '13px', color: 'rgba(255,255,255,0.5)', marginBottom: '10px', lineHeight: 1.5 }}>
-                Paste what you produced — your AI prompt, the output, or a brief description of what you did. This is your evidence of completing the task.
+              <div style={{ background: 'rgba(255,159,67,0.06)', border: '1px solid rgba(255,159,67,0.2)', borderRadius: '10px', padding: '12px 14px', marginBottom: '12px', display: 'flex', gap: '10px', alignItems: 'flex-start' }}>
+                <svg width="14" height="14" fill="none" stroke="#FF9F43" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24" style={{ flexShrink: 0, marginTop: '1px' }}><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+                <div style={{ fontSize: '13px', color: 'rgba(255,255,255,0.85)', lineHeight: 1.6 }}>
+                  Paste what you produced — your AI prompt, the output, or a brief description of what you did. <strong style={{ color: 'white' }}>This is your evidence of completing the task and is required before you can take the test.</strong>
+                </div>
               </div>
               <textarea
                 value={submission}
-                onChange={e => setSubmission(e.target.value)}
+                onChange={e => { setSubmission(e.target.value); if (e.target.value.trim()) setSubmissionError(false) }}
                 placeholder="Paste your AI output or describe what you completed on your system..."
                 rows={5}
                 style={{
                   width: '100%', boxSizing: 'border-box',
                   padding: '14px 16px', borderRadius: '12px',
-                  border: `1px solid ${submission.trim() ? `${tierColor}40` : 'rgba(255,255,255,0.12)'}`,
-                  background: 'rgba(255,255,255,0.04)', color: 'white',
+                  border: `1.5px solid ${submissionError ? '#FF6B6B' : submission.trim() ? `${tierColor}50` : 'rgba(255,255,255,0.12)'}`,
+                  background: submissionError ? 'rgba(255,107,107,0.05)' : 'rgba(255,255,255,0.04)', color: 'white',
                   fontSize: '13px', fontFamily: 'inherit', lineHeight: 1.6,
                   outline: 'none', resize: 'vertical',
                 }}
               />
-              {submission.trim() && (
-                <div style={{ marginTop: '6px', fontSize: '11px', color: tierColor, fontWeight: 700 }}>
-                  Output recorded — this will be saved with your attempt.
+              {submissionError && (
+                <div style={{ marginTop: '8px', fontSize: '13px', color: '#FF6B6B', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <svg width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+                  You must submit your output before taking the test. Paste what you produced above.
+                </div>
+              )}
+              {submission.trim() && !submissionError && (
+                <div style={{ marginTop: '6px', fontSize: '11px', color: tierColor, fontWeight: 700, display: 'flex', alignItems: 'center', gap: '5px' }}>
+                  <svg width="11" height="11" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>
+                  Output recorded — you are ready to take the test.
                 </div>
               )}
             </div>
@@ -418,64 +549,110 @@ function CourseContent() {
         {/* ════ STEP 3: TEST ════ */}
         {step === 3 && (
           <div>
-            <div style={{ fontSize: '11px', fontWeight: 800, letterSpacing: '2px', color: tierColor, textTransform: 'uppercase', marginBottom: '8px' }}>Knowledge Test</div>
-            <h2 style={{ fontSize: '22px', fontWeight: 800, color: 'white', marginBottom: '6px' }}>{servedQuestions.length} Questions · 70% to Pass</h2>
-            <p style={{ fontSize: '14px', color: 'rgba(255,255,255,0.6)', marginBottom: '28px' }}>
-              Select the best answer for each question. Your question set is unique to this attempt.
-            </p>
+            {/* Generating questions loading state */}
+            {generatingQ && (
+              <div style={{ textAlign: 'center', padding: '60px 0' }}>
+                <div style={{ width: '48px', height: '48px', border: `3px solid ${tierColor}30`, borderTopColor: tierColor, borderRadius: '50%', animation: 'spin 0.8s linear infinite', margin: '0 auto 20px' }} />
+                <div style={{ fontSize: '16px', fontWeight: 700, color: 'white', marginBottom: '8px' }}>Personalising your test</div>
+                <div style={{ fontSize: '13px', color: 'rgba(255,255,255,0.5)' }}>Building questions from your submission…</div>
+              </div>
+            )}
 
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '24px', marginBottom: '32px' }}>
-              {servedQuestions.map((q, qi) => (
-                <div key={qi} style={{ background: 'rgba(255,255,255,0.03)', border: `1px solid ${answers[qi] !== undefined ? `${tierColor}40` : 'rgba(255,255,255,0.07)'}`, borderRadius: '16px', padding: '22px 24px' }}>
-                  <div style={{ fontSize: '11px', fontWeight: 700, color: 'rgba(255,255,255,0.4)', marginBottom: '10px' }}>Question {qi + 1}</div>
-                  <div style={{ fontSize: '15px', fontWeight: 700, color: 'white', marginBottom: '16px', lineHeight: 1.5 }}>{q.question}</div>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                    {q.options.map((opt, oi) => {
-                      const sel = answers[qi] === oi
-                      return (
-                        <button
-                          key={oi}
-                          onClick={() => setAnswers(prev => ({ ...prev, [qi]: oi }))}
-                          style={{
-                            padding: '13px 18px', borderRadius: '12px', textAlign: 'left',
-                            border: `1.5px solid ${sel ? tierColor : 'rgba(255,255,255,0.08)'}`,
-                            background: sel ? `${tierColor}12` : 'rgba(255,255,255,0.02)',
-                            color: sel ? 'white' : 'rgba(255,255,255,0.72)',
-                            fontSize: '14px', fontWeight: sel ? 700 : 400, cursor: 'pointer', fontFamily: 'inherit',
-                            display: 'flex', alignItems: 'center', gap: '12px', transition: 'all 0.12s ease',
-                          }}
-                        >
-                          <div style={{ width: '18px', height: '18px', borderRadius: '50%', border: `1.5px solid ${sel ? tierColor : 'rgba(255,255,255,0.2)'}`, background: sel ? `${tierColor}25` : 'transparent', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                            {sel && <div style={{ width: '7px', height: '7px', borderRadius: '50%', background: tierColor }} />}
-                          </div>
-                          {opt}
-                        </button>
-                      )
-                    })}
+            {/* One question at a time */}
+            {!generatingQ && servedQuestions.length > 0 && currentQ < servedQuestions.length && (
+              <div>
+                {/* Progress + timer header */}
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '28px' }}>
+                  <div>
+                    <div style={{ fontSize: '11px', fontWeight: 800, letterSpacing: '2px', color: tierColor, textTransform: 'uppercase', marginBottom: '4px' }}>Knowledge Test</div>
+                    <div style={{ fontSize: '13px', color: 'rgba(255,255,255,0.55)' }}>Question {currentQ + 1} of {servedQuestions.length}</div>
+                  </div>
+                  {/* Countdown circle */}
+                  <div style={{ position: 'relative', width: '52px', height: '52px' }}>
+                    <svg width="52" height="52" viewBox="0 0 52 52" style={{ transform: 'rotate(-90deg)' }}>
+                      <circle cx="26" cy="26" r="22" fill="none" stroke="rgba(255,255,255,0.08)" strokeWidth="3" />
+                      <circle cx="26" cy="26" r="22" fill="none" stroke={timeLeft <= 10 ? '#FF6B6B' : tierColor} strokeWidth="3"
+                        strokeDasharray={`${2 * Math.PI * 22}`}
+                        strokeDashoffset={`${2 * Math.PI * 22 * (1 - timeLeft / 45)}`}
+                        strokeLinecap="round"
+                        style={{ transition: 'stroke-dashoffset 0.9s linear, stroke 0.3s' }}
+                      />
+                    </svg>
+                    <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '13px', fontWeight: 800, color: timeLeft <= 10 ? '#FF6B6B' : 'white' }}>
+                      {timeLeft}
+                    </div>
                   </div>
                 </div>
-              ))}
-            </div>
 
-            <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
-              <button onClick={() => setStep(2)} style={S.backBtn}>
-                <svg width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg>
-                Back
-              </button>
-              <button
-                onClick={submitAnswers}
-                disabled={!allAnswered || submitting}
-                style={{
-                  ...S.primaryBtn,
-                  background: allAnswered && !submitting ? tierColor : 'rgba(255,255,255,0.1)',
-                  color: allAnswered && !submitting ? (course.tier_level === 'adoption' ? 'white' : '#1E2124') : 'rgba(255,255,255,0.3)',
-                  cursor: allAnswered && !submitting ? 'pointer' : 'not-allowed',
-                }}
-              >
-                {submitting ? 'Submitting…' : `Submit Answers (${Object.keys(answers).length}/${servedQuestions.length})`}
-                {!submitting && <svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>}
-              </button>
-            </div>
+                {/* Progress bar */}
+                <div style={{ height: '3px', background: 'rgba(255,255,255,0.06)', borderRadius: '2px', marginBottom: '28px', overflow: 'hidden' }}>
+                  <div style={{ height: '100%', background: tierColor, borderRadius: '2px', width: `${(currentQ / servedQuestions.length) * 100}%`, transition: 'width 0.3s ease' }} />
+                </div>
+
+                {/* Question */}
+                <div style={{ background: 'rgba(255,255,255,0.03)', border: `1px solid rgba(255,255,255,0.08)`, borderRadius: '16px', padding: '24px', marginBottom: '16px' }}>
+                  <div style={{ fontSize: '16px', fontWeight: 700, color: 'white', lineHeight: 1.55 }}>
+                    {servedQuestions[currentQ].question}
+                  </div>
+                </div>
+
+                {/* Options */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                  {servedQuestions[currentQ].options.map((opt, oi) => {
+                    const sel = answers[currentQ] === oi
+                    return (
+                      <button
+                        key={oi}
+                        onClick={() => handleSelectAnswer(oi)}
+                        disabled={qAnswered}
+                        style={{
+                          padding: '14px 18px', borderRadius: '12px', textAlign: 'left',
+                          border: `1.5px solid ${sel ? tierColor : 'rgba(255,255,255,0.08)'}`,
+                          background: sel ? `${tierColor}18` : 'rgba(255,255,255,0.02)',
+                          color: sel ? 'white' : 'rgba(255,255,255,0.75)',
+                          fontSize: '14px', fontWeight: sel ? 700 : 400,
+                          cursor: qAnswered ? 'default' : 'pointer',
+                          fontFamily: 'inherit',
+                          display: 'flex', alignItems: 'center', gap: '12px',
+                          transition: 'all 0.15s ease',
+                          opacity: qAnswered && !sel ? 0.45 : 1,
+                        }}
+                      >
+                        <div style={{ width: '20px', height: '20px', borderRadius: '50%', border: `1.5px solid ${sel ? tierColor : 'rgba(255,255,255,0.2)'}`, background: sel ? `${tierColor}30` : 'transparent', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                          {sel && <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: tierColor }} />}
+                        </div>
+                        {opt}
+                      </button>
+                    )
+                  })}
+                </div>
+
+                {qAnswered && (
+                  <div style={{ marginTop: '16px', fontSize: '12px', color: 'rgba(255,255,255,0.4)', textAlign: 'center' }}>
+                    Moving to next question…
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* All questions answered — ready to submit */}
+            {!generatingQ && servedQuestions.length > 0 && currentQ >= servedQuestions.length && (
+              <div style={{ textAlign: 'center', padding: '40px 0' }}>
+                <div style={{ width: '64px', height: '64px', borderRadius: '50%', background: `${tierColor}15`, border: `2px solid ${tierColor}`, display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 20px' }}>
+                  <svg width="28" height="28" fill="none" stroke={tierColor} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>
+                </div>
+                <div style={{ fontSize: '18px', fontWeight: 800, color: 'white', marginBottom: '8px' }}>All questions answered</div>
+                <div style={{ fontSize: '13px', color: 'rgba(255,255,255,0.55)', marginBottom: '28px' }}>Submit when you are ready to see your result.</div>
+                <button
+                  onClick={submitAnswers}
+                  disabled={submitting}
+                  style={{ ...S.primaryBtn, background: tierColor, color: course.tier_level === 'adoption' ? 'white' : '#1E2124', opacity: submitting ? 0.6 : 1 }}
+                >
+                  {submitting ? 'Submitting…' : 'Submit My Answers'}
+                  {!submitting && <svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>}
+                </button>
+              </div>
+            )}
           </div>
         )}
 
@@ -497,6 +674,25 @@ function CourseContent() {
                 {result.correct} of {result.total} correct · {result.passed ? 'You passed! 70% was needed.' : 'You need 70% to pass.'}
               </div>
             </div>
+
+            {/* Flagged notice — private, shown only to staff */}
+            {result.flagged && (
+              <div style={{ background: 'rgba(255,159,67,0.06)', border: '1px solid rgba(255,159,67,0.25)', borderRadius: '16px', padding: '20px 22px', marginBottom: '28px' }}>
+                <div style={{ display: 'flex', gap: '12px', alignItems: 'flex-start' }}>
+                  <svg width="18" height="18" fill="none" stroke="#FF9F43" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24" style={{ flexShrink: 0, marginTop: '2px' }}><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+                  <div>
+                    <div style={{ fontSize: '13px', fontWeight: 800, color: '#FF9F43', marginBottom: '6px' }}>
+                      {(result.offense_number ?? 1) >= 3 ? 'This has been noted.' : 'A private note for you'}
+                    </div>
+                    <div style={{ fontSize: '13px', color: 'rgba(255,255,255,0.7)', lineHeight: 1.65 }}>
+                      {(result.offense_number ?? 1) === 1 && 'We noticed your test responses may not fully reflect the work in your submission. No action has been taken — this is just between you and us. A retake done honestly will improve your TAIRS score and replace this result.'}
+                      {(result.offense_number ?? 1) === 2 && 'This is the second time we have noticed this pattern. Your TAIRS confidence rating has been adjusted. Completing this course honestly will restore it — and your manager has not been informed.'}
+                      {(result.offense_number ?? 1) >= 3 && 'This pattern has been noted across multiple attempts. Your learning progress has been flagged for a support conversation. Trescademy is here to help — please reach out to your manager or HR if you need support with the material.'}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
 
             {/* Breakdown */}
             <div style={{ marginBottom: '32px' }}>
@@ -542,7 +738,7 @@ function CourseContent() {
                 </Link>
               ) : (
                 <>
-                  <button onClick={() => { setAnswers({}); enterTest() }} style={{ ...S.primaryBtn, background: tierColor, color: course.tier_level === 'adoption' ? 'white' : '#1E2124' }}>
+                  <button onClick={() => { setAnswers({}); setCurrentQ(0); setQTimes([]); setResult(null); setStep(2) }} style={{ ...S.primaryBtn, background: tierColor, color: course.tier_level === 'adoption' ? 'white' : '#1E2124' }}>
                     Retake Test
                     <svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 102.13-9.36L1 10"/></svg>
                   </button>

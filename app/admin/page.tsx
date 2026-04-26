@@ -1,18 +1,18 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
-import { supabase } from '@/app/lib/supabase'
 import Link from 'next/link'
+import { supabase } from '@/app/lib/supabase'
 import { buildQuestions, ALL_DEPARTMENTS } from '@/app/lib/questions'
 import type { Question } from '@/app/lib/questions'
 
 const OFFICES = [
-  { id: 'dubai',     label: 'Dubai',     total: 15,  color: '#00A5A3' },
-  { id: 'bangalore', label: 'Bangalore', total: 91,  color: '#C0F43C' },
-  { id: 'mangalore', label: 'Mangalore', total: 15,  color: '#F4ED3C' },
-  { id: 'manipal',   label: 'Manipal',   total: 63,  color: '#FF6B6B' },
+  { id: 'dubai',     label: 'Dubai',     total: 0, color: '#00A5A3' },
+  { id: 'bangalore', label: 'Bangalore', total: 0, color: '#C0F43C' },
+  { id: 'mangalore', label: 'Mangalore', total: 0, color: '#F4ED3C' },
+  { id: 'manipal',   label: 'Manipal',   total: 0, color: '#FF6B6B' },
 ]
-const TOTAL = 184
+// TOTAL is no longer hardcoded — derived from actual staff count in DB
 
 const DEPT_ORDER = [
   'Events', 'Sales & Sponsorship', 'Marketing', 'Finance', 'Operations',
@@ -168,13 +168,149 @@ export default function AdminPage() {
   const [codeError, setCodeError] = useState('')
   const [members, setMembers] = useState<Member[]>([])
   const [tasks, setTasks]     = useState<TaskProfile[]>([])
-  const [tab, setTab]         = useState<'overview' | 'members' | 'intelligence' | 'action' | 'learning' | 'suggest'>('overview')
+  const [tab, setTab]         = useState<'overview' | 'members' | 'intelligence' | 'action' | 'learning' | 'suggest' | 'staff' | 'events' | 'knowledge' | 'review'>('overview')
+
+  // Staff Management tab state
+  const [staffList,       setStaffList]       = useState<{id:string;name:string;email:string;department:string|null;role:string|null;office_id:string|null;job_level:string;manager_id:string|null}[]>([])
+  const [staffLoading,    setStaffLoading]    = useState(false)
+  const [csvText,         setCsvText]         = useState('')
+  const [csvParsed,       setCsvParsed]       = useState<Record<string,string>[]>([])
+  const [csvError,        setCsvError]        = useState('')
+  const [importResult,    setImportResult]    = useState<{inserted:number;updated:number;errors:string[]} | null>(null)
+  const [importing,       setImporting]       = useState(false)
+  // AI import flow
+  type AIParseResult = {
+    column_mapping: { source: string; action: string; target_field: string | null; new_col_name: string | null; new_col_type: string | null; new_col_description: string }[]
+    new_columns:    { col_name: string; col_type: string; description: string; sample_values: string[] }[]
+    rows:           { name: string; email: string; office_id: string; department: string; role: string; job_level: string; manager_name: string; team: string | null; extra: Record<string, string>; warnings: string[] }[]
+    summary:        { total: number; clean: number; warnings: number; new_columns_found: number }
+  }
+  const [aiParseState,    setAiParseState]    = useState<'idle'|'loading'|'ready'|'error'>('idle')
+  const [aiParseResult,   setAiParseResult]   = useState<AIParseResult | null>(null)
+  const [approvedNewCols, setApprovedNewCols] = useState<Set<string>>(new Set())
+  const [aiCommitState,   setAiCommitState]   = useState<'idle'|'loading'|'done'|'error'>('idle')
+  const [aiCommitResult,  setAiCommitResult]  = useState<{inserted:number;updated:number;skipped:number;manager_links_set:number;manager_unresolved:{name:string;manager_name:string}[];errors:string[];new_columns_added:string[];credentials:{name:string;email:string;temp_password:string;access_enabled:boolean;job_level:string}[]} | null>(null)
+  const [addForm,         setAddForm]         = useState({ name:'', email:'', department:'', role:'', office_id:'dubai', job_level:'staff', manager_email:'' })
+  const [addState,        setAddState]        = useState<'idle'|'saving'|'done'|'error'>('idle')
+  const [addError,        setAddError]        = useState('')
+  const [staffSearch,     setStaffSearch]     = useState('')
+  const [staffMode,       setStaffMode]       = useState<'list'|'import'|'add'>('list')
+
+  async function fetchStaffList() {
+    setStaffLoading(true)
+    const res  = await fetch('/api/staff-list')
+    const data = await res.json()
+    setStaffList(Array.isArray(data) ? data : [])
+    setStaffLoading(false)
+  }
+
+  function parseCSV(raw: string): Record<string, string>[] {
+    const lines = raw.trim().split('\n').filter(l => l.trim())
+    if (lines.length < 2) return []
+    const headers = lines[0].split(',').map(h => h.trim().toLowerCase().replace(/\s+/g, '_'))
+    return lines.slice(1).map(line => {
+      const vals = line.split(',').map(v => v.trim().replace(/^"|"$/g, ''))
+      const row: Record<string, string> = {}
+      headers.forEach((h, i) => { row[h] = vals[i] ?? '' })
+      return row
+    })
+  }
+
+  function handleCSVChange(raw: string) {
+    setCsvText(raw)
+    setCsvError('')
+    setImportResult(null)
+    if (!raw.trim()) { setCsvParsed([]); return }
+    try {
+      const rows = parseCSV(raw)
+      if (!rows.length) { setCsvError('Could not parse CSV — check formatting.'); return }
+      if (!rows[0].email) { setCsvError('CSV must have an "email" column.'); return }
+      setCsvParsed(rows)
+    } catch { setCsvError('Invalid CSV format.') }
+  }
+
+  async function runImport() {
+    if (!csvParsed.length) return
+    setImporting(true)
+    setImportResult(null)
+    const res  = await fetch('/api/staff-import', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ admin_code: 'taos2026', staff: csvParsed }),
+    })
+    const data = await res.json()
+    setImportResult(data)
+    setImporting(false)
+    if (data.inserted || data.updated) { fetchStaffList() }
+  }
+
+  async function analyseWithAI() {
+    if (!csvText.trim()) return
+    setAiParseState('loading')
+    setAiParseResult(null)
+    setAiCommitResult(null)
+    setApprovedNewCols(new Set())
+    try {
+      const res  = await fetch('/api/import/parse', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({ csv: csvText }),
+      })
+      const data = await res.json()
+      if (!res.ok || data.error) { setAiParseState('error'); return }
+      setAiParseResult(data)
+      // Auto-approve new columns that seem high-value
+      const autoApprove = new Set<string>()
+      for (const col of data.new_columns ?? []) autoApprove.add(col.col_name)
+      setApprovedNewCols(autoApprove)
+      setAiParseState('ready')
+    } catch { setAiParseState('error') }
+  }
+
+  async function runAICommit() {
+    if (!aiParseResult?.rows?.length) return
+    setAiCommitState('loading')
+    const approved = aiParseResult.new_columns.filter(c => approvedNewCols.has(c.col_name))
+    try {
+      const res  = await fetch('/api/import/commit', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({ rows: aiParseResult.rows, new_columns: approved }),
+      })
+      const data = await res.json()
+      if (!res.ok || data.error) { setAiCommitState('error'); return }
+      setAiCommitResult(data)
+      setAiCommitState('done')
+      fetchStaffList()
+    } catch { setAiCommitState('error') }
+  }
+
+  async function addSingleStaff() {
+    if (!addForm.name.trim() || !addForm.email.trim()) { setAddError('Name and email are required.'); return }
+    setAddState('saving')
+    setAddError('')
+    const res  = await fetch('/api/staff-import', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ admin_code: 'taos2026', staff: [addForm] }),
+    })
+    const data = await res.json()
+    if (data.error) { setAddError(data.error); setAddState('error'); return }
+    setAddState('done')
+    setAddForm({ name:'', email:'', department:'', role:'', office_id:'dubai', job_level:'staff', manager_email:'' })
+    fetchStaffList()
+    setTimeout(() => setAddState('idle'), 2000)
+  }
   const [suggestion, setSuggestion]   = useState('')
   const [suggestDept, setSuggestDept] = useState('Events')
   const [suggestTier, setSuggestTier] = useState<'foundation' | 'adoption' | 'advanced'>('foundation')
   const [suggestState, setSuggestState] = useState<'idle' | 'thinking' | 'ready' | 'publishing'>('idle')
   const [generatedCourse, setGeneratedCourse] = useState<Record<string, unknown> | null>(null)
   const [publishMsg, setPublishMsg]   = useState('')
+  // Attribution — who suggested this course
+  const [creditName, setCreditName]   = useState('')
+  const [creditRole, setCreditRole]   = useState('')
+  const [creditId,   setCreditId]     = useState('')
   const [learningData, setLearningData] = useState<{ completions: LearningCompletion[]; courses: LearningCourse[]; staff: LearningStaff[]; attempts: LearningAttempt[] } | null>(null)
   const [learningLoading, setLearningLoading] = useState(false)
   const [showDevTools, setShowDevTools] = useState(false)
@@ -183,45 +319,167 @@ export default function AdminPage() {
   const [officeFilter, setOfficeFilter] = useState('all')
   const [deptFilter, setDeptFilter] = useState('all')
   const [loading, setLoading] = useState(false)
+  const [isDemo,  setIsDemo]  = useState(false)
+  const [feedbackItems,  setFeedbackItems]  = useState<{id:string;name:string;department:string|null;message:string;created_at:string}[]>([])
+  const [feedbackReport, setFeedbackReport] = useState<Record<string,unknown> | null>(null)
+  const [reportLoading,  setReportLoading]  = useState(false)
+  const [reportError,    setReportError]    = useState('')
+  const [showWelcome,    setShowWelcome]    = useState(() => {
+    if (typeof window === 'undefined') return false
+    if (new URLSearchParams(window.location.search).get('welcome') === '1') return true
+    return !localStorage.getItem('tresci_admin_welcomed')
+  })
+  const [tourStep,    setTourStep]    = useState<number | null>(null)
+  const [tourRect,    setTourRect]    = useState<DOMRect | null>(null)
+  const [showRoadmap, setShowRoadmap] = useState(false)
+  const [gettingStarted, setGettingStarted] = useState(() => {
+    if (typeof window === 'undefined') return { staff: false, brief: false, course: false }
+    const stored = localStorage.getItem('tresci_admin_progress')
+    return stored ? JSON.parse(stored) : { staff: false, brief: false, course: false }
+  })
   const [expandedTask, setExpandedTask] = useState<string | null>(null)
   const [readinessDeptFilter, setReadinessDeptFilter] = useState('all')
   const [deptTierFilter, setDeptTierFilter] = useState('all')
   const [memberSearch, setMemberSearch]     = useState('')
   const [interviewFilter, setInterviewFilter] = useState<'all' | 'done' | 'pending'>('all')
 
-  // Office headcount settings
-  const [officeTotals, setOfficeTotals] = useState<Record<string, number>>(
-    Object.fromEntries(OFFICES.map(o => [o.id, o.total]))
-  )
-  const [headcountSaving, setHeadcountSaving] = useState(false)
-  const [headcountSaved, setHeadcountSaved]   = useState(false)
-  const [headcountError, setHeadcountError]   = useState('')
-  const [showHeadcount, setShowHeadcount]     = useState(false)
+  // Events tab
+  type EventRow = { id: string; name: string; type: string; status: string; event_date: string | null; venue: string | null; city: string | null; client_name: string | null; description: string | null }
+  const [events,        setEvents]        = useState<EventRow[]>([])
+  const [eventsLoading, setEventsLoading] = useState(false)
+  const [eventForm,     setEventForm]     = useState({ name: '', type: 'conference', status: 'planning', event_date: '', venue: '', city: '', client_name: '', description: '' })
+  const [eventSaving,   setEventSaving]   = useState(false)
+  const [eventMsg,      setEventMsg]      = useState('')
+  const [selectedEvent, setSelectedEvent] = useState<EventRow | null>(null)
+  const [eventStaff,    setEventStaff]    = useState<{id:string;role:string|null;staff_members:{id:string;name:string;department:string|null}}[]>([])
+  const [assignStaffId, setAssignStaffId] = useState('')
+  const [assignRole,    setAssignRole]    = useState('')
 
-  async function fetchOfficeTotals() {
-    try {
-      const res = await fetch('/api/office-config')
-      if (res.ok) {
-        const data: { office_id: string; total_staff: number }[] = await res.json()
-        if (data.length > 0) setOfficeTotals(Object.fromEntries(data.map(d => [d.office_id, d.total_staff])))
-      }
-    } catch { /* keep defaults */ }
+  // Review Queue tab (super admin only)
+  type DraftCourse = { id: string; title: string; subtitle: string; tier_level: string; dept_tags: string[]; is_mandatory: boolean; estimated_minutes: number; overview: string; suggested_by_name: string | null; suggested_by_role: string | null; created_at: string }
+  const [draftCourses,    setDraftCourses]    = useState<DraftCourse[]>([])
+  const [draftsLoading,   setDraftsLoading]   = useState(false)
+  const [reviewMsg,       setReviewMsg]       = useState('')
+  const [expandedDraftId, setExpandedDraftId] = useState<string | null>(null)
+
+  async function fetchDrafts() {
+    setDraftsLoading(true)
+    const res = await fetch('/api/courses?status=draft')
+    if (res.ok) setDraftCourses(await res.json())
+    setDraftsLoading(false)
   }
 
-  async function saveHeadcounts() {
-    setHeadcountSaving(true)
-    setHeadcountError('')
-    setHeadcountSaved(false)
-    const updates = OFFICES.map(o => ({ office_id: o.id, total_staff: officeTotals[o.id] ?? o.total }))
-    const res = await fetch('/api/office-config', {
-      method: 'POST',
+  async function approveCourse(courseId: string) {
+    setReviewMsg('')
+    const res = await fetch('/api/courses', {
+      method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ admin_code: process.env.NEXT_PUBLIC_ADMIN_CODE ?? 'taos2026', updates }),
+      body: JSON.stringify({ admin_code: process.env.NEXT_PUBLIC_ADMIN_CODE ?? 'taos2026', course_id: courseId }),
     })
-    const data = await res.json()
-    setHeadcountSaving(false)
-    if (data.error) { setHeadcountError(data.error) } else { setHeadcountSaved(true); setTimeout(() => setHeadcountSaved(false), 3000) }
+    if (res.ok) {
+      setDraftCourses(prev => prev.filter(c => c.id !== courseId))
+      setExpandedDraftId(null)
+      setReviewMsg('Course approved and published to the library.')
+    } else {
+      setReviewMsg('Approval failed. Try again.')
+    }
   }
+
+  async function rejectCourse(courseId: string) {
+    setReviewMsg('')
+    const res = await fetch('/api/courses', {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ admin_code: process.env.NEXT_PUBLIC_ADMIN_CODE ?? 'taos2026', course_id: courseId }),
+    })
+    if (res.ok) {
+      setDraftCourses(prev => prev.filter(c => c.id !== courseId))
+      setExpandedDraftId(null)
+      setReviewMsg('Course rejected and removed.')
+    } else {
+      setReviewMsg('Rejection failed. Try again.')
+    }
+  }
+
+  // Knowledge / Documents tab
+  type DocRow = { id: string; title: string; type: string; visibility: string; word_count: number; event_id: string | null; created_at: string; events?: { name: string } | null }
+  const [docs,        setDocs]        = useState<DocRow[]>([])
+  const [docsLoading, setDocsLoading] = useState(false)
+  const [docFile,     setDocFile]     = useState<File | null>(null)
+  const [docForm,     setDocForm]     = useState({ title: '', type: 'policy', visibility: 'all', event_id: '' })
+  const [docUploading,setDocUploading]= useState(false)
+  const [docMsg,      setDocMsg]      = useState('')
+
+  async function fetchEvents() {
+    setEventsLoading(true)
+    const res  = await fetch('/api/events')
+    const data = await res.json()
+    setEvents(Array.isArray(data) ? data : [])
+    setEventsLoading(false)
+  }
+
+  async function fetchEventStaff(eventId: string) {
+    const res  = await fetch(`/api/events/staff?event_id=${eventId}`)
+    const data = await res.json()
+    setEventStaff(Array.isArray(data) ? data : [])
+  }
+
+  async function createEvent() {
+    if (!eventForm.name.trim()) { setEventMsg('Event name is required.'); return }
+    setEventSaving(true); setEventMsg('')
+    const res = await fetch('/api/events', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(eventForm) })
+    if (res.ok) { setEventMsg('Event created.'); setEventForm({ name: '', type: 'conference', status: 'planning', event_date: '', venue: '', city: '', client_name: '', description: '' }); fetchEvents() }
+    else { setEventMsg('Failed to create event.') }
+    setEventSaving(false)
+  }
+
+  async function assignStaff() {
+    if (!selectedEvent || !assignStaffId) return
+    await fetch('/api/events/staff', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ event_id: selectedEvent.id, staff_id: assignStaffId, role: assignRole || null }) })
+    setAssignStaffId(''); setAssignRole('')
+    fetchEventStaff(selectedEvent.id)
+  }
+
+  async function removeEventStaff(staffId: string) {
+    if (!selectedEvent) return
+    await fetch(`/api/events/staff?event_id=${selectedEvent.id}&staff_id=${staffId}`, { method: 'DELETE' })
+    fetchEventStaff(selectedEvent.id)
+  }
+
+  async function fetchDocs() {
+    setDocsLoading(true)
+    const res  = await fetch('/api/documents/list?admin=1')
+    const data = await res.json()
+    setDocs(Array.isArray(data) ? data : [])
+    setDocsLoading(false)
+  }
+
+  async function uploadDoc() {
+    if (!docFile || !docForm.title.trim()) { setDocMsg('File and title are required.'); return }
+    setDocUploading(true); setDocMsg('')
+    const form = new FormData()
+    form.append('file', docFile)
+    form.append('title', docForm.title)
+    form.append('type', docForm.type)
+    form.append('visibility', docForm.visibility)
+    if (docForm.event_id) form.append('event_id', docForm.event_id)
+    const res  = await fetch('/api/documents/upload', { method: 'POST', body: form })
+    const data = await res.json()
+    if (res.ok) {
+      setDocMsg(`Done. ${data.document?.word_count?.toLocaleString()} words extracted. File destroyed.`)
+      setDocFile(null); setDocForm({ title: '', type: 'policy', visibility: 'all', event_id: '' })
+      fetchDocs()
+    } else {
+      setDocMsg(data.error ?? 'Upload failed.')
+    }
+    setDocUploading(false)
+  }
+
+  async function deleteDoc(id: string) {
+    await fetch(`/api/documents/list?id=${id}`, { method: 'DELETE' })
+    fetchDocs()
+  }
+
 
   async function seedDemo() {
     setSeedLoading(true); setSeedMsg('')
@@ -243,12 +501,19 @@ export default function AdminPage() {
 
   const fetchData = useCallback(async () => {
     setLoading(true)
-    const [{ data: m }, { data: t }] = await Promise.all([
-      supabase.from('staff_members').select('*').order('joined_at', { ascending: false }),
-      supabase.from('staff_task_profiles').select('*').order('created_at', { ascending: false }),
+    const [membersRes, tasksRes, statusRes, feedbackRes] = await Promise.all([
+      fetch('/api/staff-list'),
+      fetch('/api/task-profiles'),
+      fetch('/api/platform-status'),
+      fetch('/api/feedback'),
     ])
-    setMembers((m ?? []) as Member[])
-    setTasks((t ?? []) as TaskProfile[])
+    if (membersRes.ok) setMembers(await membersRes.json())
+    if (tasksRes.ok)   setTasks(await tasksRes.json())
+    if (statusRes.ok) {
+      const s = await statusRes.json()
+      setIsDemo(s.is_demo ?? false)
+    }
+    if (feedbackRes.ok) setFeedbackItems(await feedbackRes.json())
     setLoading(false)
   }, [])
 
@@ -259,6 +524,7 @@ export default function AdminPage() {
     if (res.ok) setLearningData(await res.json())
     setLearningLoading(false)
   }
+
 
   async function submitSuggestion() {
     if (!suggestion.trim()) return
@@ -285,35 +551,57 @@ export default function AdminPage() {
     }
   }
 
-  async function publishCourse() {
+  async function submitForReview() {
     if (!generatedCourse) return
     setSuggestState('publishing')
-    const res = await fetch('/api/seed-courses-v2', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ admin_code: process.env.NEXT_PUBLIC_ADMIN_CODE ?? 'taos2026', courses: [generatedCourse] }),
-    })
-    // seed-courses-v2 inserts a fixed list — publish directly via courses API instead
+    const courseWithCredit = {
+      ...generatedCourse,
+      ...(creditName ? { suggested_by_name: creditName, suggested_by_role: creditRole || null } : {}),
+      ...(creditId   ? { suggested_by_id:   creditId   } : {}),
+    }
     const pubRes = await fetch('/api/courses', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ admin_code: process.env.NEXT_PUBLIC_ADMIN_CODE ?? 'taos2026', course: generatedCourse }),
+      body: JSON.stringify({ admin_code: process.env.NEXT_PUBLIC_ADMIN_CODE ?? 'taos2026', course: courseWithCredit }),
     })
     if (pubRes.ok) {
-      setPublishMsg('Course published and live in the library.')
+      setPublishMsg(`Course submitted for review. You will be notified on your dashboard once it is approved and live.`)
       setSuggestState('idle')
       setSuggestion('')
       setGeneratedCourse(null)
+      setCreditName('')
+      setCreditRole('')
+      setCreditId('')
     } else {
       const d = await pubRes.json()
-      setPublishMsg(d.error ?? 'Publish failed. Try again.')
+      setPublishMsg(d.error ?? 'Submission failed. Try again.')
       setSuggestState('ready')
     }
   }
 
+  const TOUR_STEPS = [
+    { id: 'tour-tabs',             title: 'Your main sections',         desc: 'Navigate between Overview, All Staff, Intelligence, Content Studio, Events, Knowledge Base, and more using these tabs.' },
+    { id: 'tour-stats',            title: 'Org readiness at a glance',  desc: 'Total staff in the system, how many have completed their profile, and your organisation\'s live TAIRS score — all updating in real time.' },
+    { id: 'tour-started',          title: 'Your first 3 actions',       desc: 'Complete these three steps to get Trescademy fully running. Each one unlocks more of the platform for your team.' },
+    { id: 'tour-intelligence-tab', title: 'Intelligence tab',           desc: 'AI-generated analysis of your org\'s readiness. Department breakdowns, tier distributions, and what to do about gaps — with no manual input.' },
+    { id: 'tour-studio-tab',       title: 'Content Studio',             desc: 'Describe a skill gap, pick a department, and Gemini generates a full course with reading content, tasks, and a quiz. Ready to publish in under a minute.' },
+    { id: 'tour-tresci-btn',       title: 'Tresci — your AI assistant', desc: 'Ask Tresci anything: team progress, how to use a feature, what a TAIRS score means, or what to do next. It knows your org data.' },
+  ]
+
+  useEffect(() => {
+    if (tourStep === null) return
+    const step = TOUR_STEPS[tourStep]
+    const el = document.getElementById(step.id)
+    if (!el) return
+    el.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
+    const update = () => setTourRect(el.getBoundingClientRect())
+    const t = setTimeout(update, 350)
+    return () => clearTimeout(t)
+  }, [tourStep]) // eslint-disable-line react-hooks/exhaustive-deps
+
   useEffect(() => {
     if (!authed) return
-    fetchOfficeTotals()
+    fetch('/api/platform-status').then(r => r.json()).then(d => setIsDemo(d.is_demo ?? false)).catch(() => {})
     fetchData()
     const ch = supabase.channel('admin-rt')
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'staff_members' }, fetchData)
@@ -635,6 +923,29 @@ export default function AdminPage() {
     return { score: final, flags, verdict }
   }
 
+  function dismissWelcome() {
+    localStorage.setItem('tresci_admin_welcomed', '1')
+    setShowWelcome(false)
+    if (!localStorage.getItem('tresci_tour_done')) {
+      setTimeout(() => setTourStep(0), 400)
+    }
+  }
+
+  function endTour() {
+    localStorage.setItem('tresci_tour_done', '1')
+    setTourStep(null)
+    setTourRect(null)
+  }
+
+  function markProgress(key: 'staff' | 'brief' | 'course') {
+    setGettingStarted((prev: { staff: boolean; brief: boolean; course: boolean }) => {
+      if (prev[key]) return prev
+      const next = { ...prev, [key]: true }
+      localStorage.setItem('tresci_admin_progress', JSON.stringify(next))
+      return next
+    })
+  }
+
   /* ── Login screen ── */
   if (!authed) {
     return (
@@ -644,7 +955,7 @@ export default function AdminPage() {
             <svg width="24" height="24" fill="none" stroke="#00A5A3" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
           </div>
           <h1 style={{ fontSize: '24px', fontWeight: 800, color: 'white', marginBottom: '8px' }}>Admin Access</h1>
-          <p style={{ fontSize: '14px', color: 'rgba(255,255,255,0.80)', marginBottom: '32px' }}>TAI Academy — Leadership Dashboard</p>
+          <p style={{ fontSize: '14px', color: 'rgba(255,255,255,0.82)', marginBottom: '32px' }}>Trescademy — Leadership Dashboard</p>
           <form onSubmit={handleAuth}>
             <input type="email" value={adminEmail} onChange={e => { setAdminEmail(e.target.value); setCodeError('') }}
               placeholder="Your work email" autoFocus
@@ -657,7 +968,7 @@ export default function AdminPage() {
               Enter Dashboard
             </button>
           </form>
-          <Link href="/" style={{ display: 'block', marginTop: '20px', fontSize: '12px', color: 'rgba(255,255,255,0.82)', textDecoration: 'none' }}>Back to main page</Link>
+          <Link href="/dashboard" style={{ display: 'block', marginTop: '20px', fontSize: '12px', color: 'rgba(255,255,255,0.82)', textDecoration: 'none' }}>Back to dashboard</Link>
         </div>
       </div>
     )
@@ -667,16 +978,105 @@ export default function AdminPage() {
   return (
     <div style={{ fontFamily: 'var(--font-manrope), Manrope, sans-serif', background: '#0D0F10', minHeight: '100vh', color: 'white' }}>
 
+      {/* ── Welcome Modal (first login only) ── */}
+      {showWelcome && (
+        <div style={{ position: 'fixed', inset: 0, zIndex: 1000, background: 'rgba(0,0,0,0.92)', backdropFilter: 'blur(6px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}>
+          <div style={{ background: '#0D1114', border: '1px solid rgba(0,165,163,0.35)', borderRadius: '24px', maxWidth: '640px', width: '100%', overflow: 'hidden', boxShadow: '0 32px 80px rgba(0,0,0,0.7), 0 0 0 1px rgba(0,165,163,0.08)' }}>
+
+            {/* Top colour bar */}
+            <div style={{ height: '4px', background: 'linear-gradient(90deg, #00A5A3 0%, #C0F43C 60%, #A478FF 100%)' }} />
+
+            <div style={{ padding: '36px 40px 32px' }}>
+
+              {/* Header row */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '16px', marginBottom: '20px' }}>
+                <div style={{ width: '52px', height: '52px', background: 'linear-gradient(135deg, #00A5A3 0%, #005F7A 100%)', borderRadius: '16px', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, boxShadow: '0 8px 24px rgba(0,165,163,0.35)' }}>
+                  <svg width="22" height="22" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+                </div>
+                <div>
+                  <div style={{ fontSize: '10px', fontWeight: 800, letterSpacing: '2px', textTransform: 'uppercase', color: '#00A5A3', marginBottom: '3px' }}>First time here?</div>
+                  <div style={{ fontSize: '22px', fontWeight: 900, color: 'white', letterSpacing: '-0.4px', lineHeight: 1.1 }}>Welcome to Trescademy</div>
+                </div>
+              </div>
+
+              <p style={{ fontSize: '14px', color: 'rgba(255,255,255,0.55)', lineHeight: 1.75, margin: '0 0 28px' }}>
+                Trescademy is Trescon&apos;s internal AI readiness platform — measuring where every employee stands today and moving them forward through structured, role-specific learning.
+              </p>
+
+              {/* Feature tiles — 3 column grid */}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '10px', marginBottom: '28px' }}>
+                {[
+                  {
+                    color: '#00A5A3',
+                    bg: 'rgba(0,165,163,0.1)',
+                    border: 'rgba(0,165,163,0.25)',
+                    icon: <svg width="18" height="18" fill="none" stroke="#00A5A3" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>,
+                    title: 'TAIRS Score',
+                    desc: 'Live AI readiness score (0–100) per staff member',
+                  },
+                  {
+                    color: '#C0F43C',
+                    bg: 'rgba(192,244,60,0.08)',
+                    border: 'rgba(192,244,60,0.22)',
+                    icon: <svg width="18" height="18" fill="none" stroke="#C0F43C" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>,
+                    title: 'AI Courses',
+                    desc: 'Role-based learning paths, generated and tracked',
+                  },
+                  {
+                    color: '#A478FF',
+                    bg: 'rgba(164,120,255,0.09)',
+                    border: 'rgba(164,120,255,0.25)',
+                    icon: <svg width="18" height="18" fill="none" stroke="#A478FF" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>,
+                    title: 'Tresci AI',
+                    desc: 'Ask anything — platform, progress, or strategy',
+                  },
+                ].map((item, i) => (
+                  <div key={i} style={{ padding: '16px 14px', background: item.bg, border: `1px solid ${item.border}`, borderRadius: '14px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                    <div style={{ width: '36px', height: '36px', background: `${item.bg}`, border: `1px solid ${item.border}`, borderRadius: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                      {item.icon}
+                    </div>
+                    <div>
+                      <div style={{ fontSize: '12px', fontWeight: 800, color: item.color, marginBottom: '4px' }}>{item.title}</div>
+                      <div style={{ fontSize: '11.5px', color: 'rgba(255,255,255,0.5)', lineHeight: 1.55 }}>{item.desc}</div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {/* CTA */}
+              <button
+                onClick={dismissWelcome}
+                style={{ width: '100%', padding: '16px', borderRadius: '14px', border: 'none', background: 'linear-gradient(135deg, #00A5A3 0%, #00C9C7 100%)', color: 'white', fontSize: '15px', fontWeight: 800, cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', boxShadow: '0 8px 28px rgba(0,165,163,0.4)' }}
+              >
+                Take me to the dashboard
+                <svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg>
+              </button>
+
+              <div style={{ textAlign: 'center', marginTop: '12px', fontSize: '11px', color: 'rgba(255,255,255,0.2)' }}>
+                This screen only appears on first login
+              </div>
+
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Nav */}
-      <nav style={{ background: '#010103', borderBottom: '1px solid rgba(255,255,255,0.08)', padding: '0 40px', height: '60px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+      <nav style={{ background: '#010103', borderBottom: '1px solid rgba(255,255,255,0.08)', padding: '0 40px', height: '64px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-          <Link href="/" style={{ display: 'flex', alignItems: 'center', textDecoration: 'none' }}>
-            <div style={{ background: 'white', borderRadius: '8px', padding: '5px 12px', display: 'flex', alignItems: 'center' }}>
+          <Link href="/admin" style={{ display: 'flex', alignItems: 'center', gap: '8px', textDecoration: 'none' }}>
+            <div style={{ background: 'white', borderRadius: '8px', padding: '4px 10px', display: 'flex', alignItems: 'center' }}>
               <img src="/trescon-logo.png" alt="Trescon" style={{ height: '40px', width: 'auto', display: 'block' }} />
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <div style={{ width: '24px', height: '24px', background: '#00A5A3', borderRadius: '7px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <svg width="12" height="12" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+              </div>
+              <span style={{ fontSize: '14px', fontWeight: 800, color: 'white' }}>Trescademy</span>
             </div>
           </Link>
           <div style={{ width: '1px', height: '22px', background: 'rgba(255,255,255,0.1)' }} />
-          <span style={{ fontSize: '14px', fontWeight: 700, color: 'white', letterSpacing: '-0.2px' }}>Leadership Dashboard</span>
+          <span style={{ fontSize: '13px', fontWeight: 600, color: 'rgba(255,255,255,0.5)' }}>Admin Dashboard</span>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
           {loading && <span style={{ fontSize: '11px', color: '#00A5A3' }}>Updating...</span>}
@@ -684,31 +1084,59 @@ export default function AdminPage() {
             <div style={{ width: '7px', height: '7px', borderRadius: '50%', background: '#00A5A3', animation: 'pulse 2s infinite' }} />
             <span style={{ fontSize: '11px', color: 'rgba(255,255,255,0.7)' }}>Live</span>
           </div>
-          <Link href={adminStaffId ? `/dashboard?id=${adminStaffId}` : '/dashboard'} target="_blank" rel="noopener noreferrer" style={{ background: 'rgba(0,165,163,0.15)', border: '1px solid rgba(0,165,163,0.35)', color: '#00A5A3', fontSize: '12px', fontWeight: 700, padding: '7px 16px', borderRadius: '20px', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '6px' }}>
+          <Link href={adminStaffId ? `/dashboard?id=${adminStaffId}` : '/dashboard'} style={{ background: 'rgba(0,165,163,0.15)', border: '1px solid rgba(0,165,163,0.35)', color: '#00A5A3', fontSize: '12px', fontWeight: 700, padding: '7px 16px', borderRadius: '20px', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '6px' }}>
             <svg width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>
             My Learning
           </Link>
-          <Link href="/admin/scoring" style={{ background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.15)', color: 'rgba(255,255,255,0.8)', fontSize: '12px', fontWeight: 700, padding: '7px 16px', borderRadius: '20px', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '6px' }}>
-            <svg width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
-            Scoring Guide
+          <Link href="/docs" style={{ background: 'rgba(255,159,67,0.12)', border: '1px solid rgba(255,159,67,0.3)', color: '#FF9F43', fontSize: '12px', fontWeight: 700, padding: '7px 16px', borderRadius: '20px', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <svg width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>
+            Platform Docs
           </Link>
-          <Link href="/admin/questionnaire" style={{ background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.15)', color: 'rgba(255,255,255,0.8)', fontSize: '12px', fontWeight: 700, padding: '7px 16px', borderRadius: '20px', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '6px' }}>
-            <svg width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
-            Questionnaire
-          </Link>
-          <Link href="/insights" style={{ background: 'rgba(192,244,60,0.15)', border: '1px solid rgba(192,244,60,0.3)', color: '#C0F43C', fontSize: '12px', fontWeight: 700, padding: '7px 16px', borderRadius: '20px', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '6px' }}>
+
+          <Link id="tour-tresci-btn" href="/insights" style={{ background: 'rgba(192,244,60,0.15)', border: '1px solid rgba(192,244,60,0.3)', color: '#C0F43C', fontSize: '12px', fontWeight: 700, padding: '7px 16px', borderRadius: '20px', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '6px' }}>
             <svg width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
             AI Insights
           </Link>
+          <button
+            onClick={() => setShowRoadmap(true)}
+            style={{ background: 'linear-gradient(135deg, rgba(164,120,255,0.18), rgba(164,120,255,0.08))', border: '1px solid rgba(164,120,255,0.4)', color: '#A478FF', fontSize: '12px', fontWeight: 700, padding: '7px 16px', borderRadius: '20px', cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <svg width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+            What&apos;s Next
+          </button>
+          <button
+            onClick={() => {
+              localStorage.removeItem('trescademy_staff_id')
+              localStorage.removeItem('tai_staff_id')
+              sessionStorage.removeItem('tai_admin_authed')
+              sessionStorage.removeItem('tai_admin_staff_id')
+              window.location.href = '/login'
+            }}
+            style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '7px 16px', borderRadius: '20px', background: 'rgba(255,107,107,0.1)', border: '1px solid rgba(255,107,107,0.3)', cursor: 'pointer', fontFamily: 'inherit' }}
+          >
+            <svg width="13" height="13" fill="none" stroke="#FF6B6B" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24">
+              <path d="M18.36 6.64a9 9 0 1 1-12.73 0"/>
+              <line x1="12" y1="2" x2="12" y2="12"/>
+            </svg>
+            <span style={{ fontSize: '12px', fontWeight: 700, color: '#FF6B6B' }}>Sign out</span>
+          </button>
         </div>
       </nav>
+
+      {/* ── Demo mode banner — auto-hides once real staff data is imported ── */}
+      {isDemo && (
+        <div style={{ background: 'rgba(255,159,67,0.08)', borderBottom: '1px solid rgba(255,159,67,0.25)', padding: '10px 40px', display: 'flex', alignItems: 'center', gap: '10px' }}>
+          <svg width="14" height="14" fill="none" stroke="#FF9F43" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+          <span style={{ fontSize: '12px', fontWeight: 700, color: '#FF9F43', animation: 'demoGlow 3s linear infinite' }}>Demo Mode</span>
+          <span style={{ fontSize: '12px', color: 'rgba(255,255,255,0.65)' }}>The data shown on this dashboard is sample data for demonstration purposes only. It does not represent any real individual or organisation.</span>
+        </div>
+      )}
 
       <div style={{ padding: '40px' }}>
 
         {/* Page header */}
         <div style={{ marginBottom: '32px', display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', flexWrap: 'wrap', gap: '12px' }}>
           <div>
-            <div style={{ fontSize: '10px', fontWeight: 800, letterSpacing: '2.5px', textTransform: 'uppercase', color: '#00A5A3', marginBottom: '6px' }}>TAI Academy</div>
+            <div style={{ fontSize: '10px', fontWeight: 800, letterSpacing: '2.5px', textTransform: 'uppercase', color: '#00A5A3', marginBottom: '6px' }}>Trescademy</div>
             <h1 style={{ fontSize: '26px', fontWeight: 800, color: 'white', marginBottom: '4px', margin: 0 }}>Leadership Dashboard</h1>
             <p style={{ fontSize: '14px', color: 'rgba(255,255,255,0.7)', margin: '6px 0 0' }}>
               Live org intelligence — AI readiness, learning progress, and staff development across all offices.
@@ -720,18 +1148,115 @@ export default function AdminPage() {
           </div>
         </div>
 
+        {/* ── Tabs ── */}
+        {(() => {
+          const TAB_ACCENT: Record<string, string> = {
+            overview:     '#00A5A3',
+            members:      '#00A5A3',
+            intelligence: '#A478FF',
+            learning:     '#00A5A3',
+            action:       '#C0F43C',
+            suggest:      '#A478FF',
+            staff:        '#FF9F43',
+            events:       '#00A5A3',
+            knowledge:    '#C0F43C',
+            review:       '#FF6B6B',
+          }
+          return (
+            <div id="tour-tabs" style={{ display: 'flex', gap: '6px', marginBottom: '28px', flexWrap: 'wrap' }}>
+              {([
+                ['overview',     'Overview'],
+                ['members',      'All Staff'],
+                ['intelligence', 'Intelligence'],
+                ['learning',     'Staff Learning'],
+                ['action',       'Playbook'],
+                ['suggest',      'Content Studio'],
+                ['staff',        'Staff Management'],
+                ['events',       'Events'],
+                ['knowledge',    'Knowledge Base'],
+                ...(adminStaffId === 'super-admin' ? [['review', 'Review Queue']] : []),
+              ] as [typeof tab, string][]).map(([t, label]) => {
+                const accent  = TAB_ACCENT[t] ?? '#00A5A3'
+                const active  = tab === t
+                return (
+                  <button key={t}
+                    id={t === 'intelligence' ? 'tour-intelligence-tab' : t === 'suggest' ? 'tour-studio-tab' : undefined}
+                    onClick={() => { setTab(t as typeof tab); if (t === 'learning') fetchLearning(); if (t === 'staff') { fetchStaffList(); markProgress('staff') } if (t === 'events') fetchEvents(); if (t === 'knowledge') fetchDocs(); if (t === 'review') fetchDrafts(); if (t === 'suggest') markProgress('course') }}
+                    style={{
+                      padding:      '9px 20px',
+                      borderRadius: '10px',
+                      border:       active ? `1px solid ${accent}55` : '1px solid rgba(255,255,255,0.10)',
+                      cursor:       'pointer',
+                      fontFamily:   'inherit',
+                      fontSize:     '13px',
+                      fontWeight:   700,
+                      background:   active ? `${accent}18` : 'rgba(255,255,255,0.04)',
+                      color:        active ? accent : 'rgba(255,255,255,0.65)',
+                      boxShadow:    active ? `0 0 16px ${accent}20, inset 0 1px 0 ${accent}15` : 'inset 0 1px 0 rgba(255,255,255,0.05)',
+                      transition:   'all 0.15s ease',
+                    }}>
+                    {label}
+                  </button>
+                )
+              })}
+            </div>
+          )
+        })()}
+
+        {tab === 'overview' && (<>
+
+        {/* ── Getting Started Card (until all 3 steps done) ── */}
+        {!(gettingStarted.staff && gettingStarted.brief && gettingStarted.course) && (
+          <div id="tour-started" style={{ marginBottom: '28px', background: 'rgba(0,165,163,0.06)', border: '1px solid rgba(0,165,163,0.2)', borderRadius: '18px', padding: '24px 28px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '18px' }}>
+              <div>
+                <div style={{ fontSize: '10px', fontWeight: 800, letterSpacing: '2px', textTransform: 'uppercase', color: '#00A5A3', marginBottom: '4px' }}>Getting Started</div>
+                <div style={{ fontSize: '15px', fontWeight: 800, color: 'white' }}>Three things to explore first</div>
+              </div>
+              <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.45)' }}>
+                {[gettingStarted.staff, gettingStarted.brief, gettingStarted.course].filter(Boolean).length} / 3 done
+              </div>
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+              {[
+                { key: 'staff', label: 'View your staff and their AI readiness scores', action: () => { setTab('members'); markProgress('staff') }, tab: 'All Staff' },
+                { key: 'brief', label: 'Explore the Intelligence tab to see org-wide insights', action: () => { setTab('intelligence'); markProgress('brief') }, tab: 'Intelligence' },
+                { key: 'course', label: 'Build your first course in Content Studio', action: () => { setTab('suggest'); markProgress('course') }, tab: 'Content Studio' },
+              ].map(step => {
+                const done = gettingStarted[step.key as keyof typeof gettingStarted]
+                return (
+                  <div key={step.key} style={{ display: 'flex', alignItems: 'center', gap: '14px', padding: '12px 16px', background: done ? 'rgba(192,244,60,0.05)' : 'rgba(255,255,255,0.03)', border: `1px solid ${done ? 'rgba(192,244,60,0.2)' : 'rgba(255,255,255,0.07)'}`, borderRadius: '12px' }}>
+                    <div style={{ width: '24px', height: '24px', borderRadius: '50%', background: done ? '#C0F43C20' : 'rgba(255,255,255,0.06)', border: `2px solid ${done ? '#C0F43C' : 'rgba(255,255,255,0.15)'}`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                      {done
+                        ? <svg width="10" height="10" fill="none" stroke="#C0F43C" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>
+                        : <div style={{ width: '6px', height: '6px', borderRadius: '50%', background: 'rgba(255,255,255,0.25)' }} />
+                      }
+                    </div>
+                    <div style={{ flex: 1, fontSize: '13px', color: done ? 'rgba(255,255,255,0.45)' : 'rgba(255,255,255,0.85)', fontWeight: 600, textDecoration: done ? 'line-through' : 'none' }}>{step.label}</div>
+                    {!done && (
+                      <button onClick={step.action} style={{ padding: '6px 14px', borderRadius: '8px', border: '1px solid rgba(0,165,163,0.3)', background: 'rgba(0,165,163,0.1)', color: '#00A5A3', fontSize: '12px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', flexShrink: 0 }}>
+                        Go to {step.tab}
+                      </button>
+                    )}
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+        )}
+
         {/* ── Zone 1: Participation Banner ── */}
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1.2fr', gap: '0', marginBottom: '28px', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '20px', overflow: 'hidden' }}>
+        <div id="tour-stats" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1.2fr', gap: '0', marginBottom: '28px', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '20px', overflow: 'hidden' }}>
           <div style={{ padding: '26px 30px', borderRight: '1px solid rgba(255,255,255,0.08)' }}>
-            <div style={{ fontSize: '10px', fontWeight: 700, letterSpacing: '1.5px', textTransform: 'uppercase', color: 'rgba(255,255,255,0.80)', marginBottom: '10px' }}>Staff Enrolled</div>
+            <div style={{ fontSize: '10px', fontWeight: 700, letterSpacing: '1.5px', textTransform: 'uppercase', color: 'rgba(255,255,255,0.80)', marginBottom: '10px' }}>Staff in System</div>
             <div style={{ display: 'flex', alignItems: 'baseline', gap: '8px', marginBottom: '10px' }}>
               <span style={{ fontSize: '48px', fontWeight: 900, color: '#00A5A3', lineHeight: 1 }}>{totalJoined}</span>
-              <span style={{ fontSize: '18px', color: 'rgba(255,255,255,0.70)', fontWeight: 600 }}>/ {TOTAL}</span>
+              <span style={{ fontSize: '14px', color: 'rgba(255,255,255,0.45)', fontWeight: 600 }}>total</span>
             </div>
             <div style={{ height: '6px', background: 'rgba(255,255,255,0.07)', borderRadius: '3px', overflow: 'hidden', marginBottom: '6px' }}>
-              <div style={{ height: '100%', width: `${Math.min(100, Math.round(totalJoined / TOTAL * 100))}%`, background: '#00A5A3', borderRadius: '3px', transition: 'width 0.6s' }} />
+              <div style={{ height: '100%', width: `${totalJoined > 0 ? Math.min(100, Math.round(profilesComplete / totalJoined * 100)) : 0}%`, background: '#00A5A3', borderRadius: '3px', transition: 'width 0.6s' }} />
             </div>
-            <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.82)' }}>{Math.round(totalJoined / TOTAL * 100)}% of company · {profilePending} yet to complete profile</div>
+            <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.82)' }}>{totalJoined > 0 ? Math.round(profilesComplete / totalJoined * 100) : 0}% profiles complete · {profilePending} pending</div>
           </div>
           <div style={{ padding: '26px 30px', borderRight: '1px solid rgba(255,255,255,0.08)' }}>
             <div style={{ fontSize: '10px', fontWeight: 700, letterSpacing: '1.5px', textTransform: 'uppercase', color: 'rgba(255,255,255,0.80)', marginBottom: '10px' }}>Profiles Complete</div>
@@ -747,7 +1272,7 @@ export default function AdminPage() {
           <div style={{ padding: '26px 30px', background: orgScore >= 55 ? 'rgba(192,244,60,0.04)' : orgScore >= 35 ? 'rgba(244,237,60,0.04)' : 'rgba(0,165,163,0.04)' }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '10px' }}>
               <div style={{ fontSize: '10px', fontWeight: 700, letterSpacing: '1.5px', textTransform: 'uppercase', color: 'rgba(255,255,255,0.80)' }}>AI Readiness Score</div>
-              <Link href="/admin/scoring" style={{ fontSize: '10px', color: 'rgba(255,255,255,0.70)', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '4px' }}>
+              <Link href="/docs" style={{ fontSize: '10px', color: 'rgba(255,255,255,0.70)', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '4px' }}>
                 How this is calculated
                 <svg width="9" height="9" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg>
               </Link>
@@ -888,7 +1413,7 @@ export default function AdminPage() {
                     <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                       <thead>
                         <tr style={{ background: 'rgba(255,255,255,0.02)' }}>
-                          {['Department', 'AI Score', 'Interview coverage', 'Priority', 'What TAI does now'].map(h => (
+                          {['Department', 'AI Score', 'Interview coverage', 'Priority', 'Recommended Action'].map(h => (
                             <th key={h} style={{ padding: '8px 16px', textAlign: 'left', fontSize: '9px', fontWeight: 700, letterSpacing: '1px', textTransform: 'uppercase', color: 'rgba(255,255,255,0.75)', borderBottom: '1px solid rgba(255,255,255,0.05)', whiteSpace: 'nowrap' }}>{h}</th>
                           ))}
                         </tr>
@@ -943,8 +1468,6 @@ export default function AdminPage() {
                   {OFFICES.map(o => {
                     const oData  = officeTairs.find(x => x.id === o.id)
                     const joined = officeMap[o.id]?.count ?? 0
-                    const total  = officeTotals[o.id] ?? o.total
-                    const pct    = Math.round(joined / total * 100)
                     const tier   = oData ? tairsTier(oData.score) : null
                     return (
                       <div key={o.id} style={{ background: 'rgba(255,255,255,0.04)', border: `1px solid ${o.color}25`, borderRadius: '16px', padding: '16px 18px' }}>
@@ -952,15 +1475,12 @@ export default function AdminPage() {
                           <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: o.color, flexShrink: 0 }} />
                           <span style={{ fontSize: '13px', fontWeight: 800, color: 'white' }}>{o.label}</span>
                         </div>
-                        <div style={{ display: 'flex', alignItems: 'baseline', gap: '4px', marginBottom: '6px' }}>
+                        <div style={{ display: 'flex', alignItems: 'baseline', gap: '4px', marginBottom: '10px' }}>
                           <span style={{ fontSize: '24px', fontWeight: 900, color: o.color, lineHeight: 1 }}>{joined}</span>
-                          <span style={{ fontSize: '12px', color: 'rgba(255,255,255,0.70)' }}>/ {total}</span>
-                        </div>
-                        <div style={{ height: '4px', background: 'rgba(255,255,255,0.07)', borderRadius: '2px', overflow: 'hidden', marginBottom: '6px' }}>
-                          <div style={{ height: '100%', width: `${pct}%`, background: o.color, borderRadius: '2px' }} />
+                          <span style={{ fontSize: '12px', color: 'rgba(255,255,255,0.45)', marginLeft: '4px' }}>staff</span>
                         </div>
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                          <span style={{ fontSize: '10px', color: 'rgba(255,255,255,0.80)' }}>{pct}% joined</span>
+                          <span style={{ fontSize: '10px', color: 'rgba(255,255,255,0.50)' }}>{members.filter(m => m.office_id === o.id && m.profile_complete).length} profiles complete</span>
                           {tier && oData && (
                             <span style={{ fontSize: '11px', fontWeight: 800, color: tier.color }}>TAIRS {oData.score}</span>
                           )}
@@ -1116,23 +1636,7 @@ export default function AdminPage() {
             </div>
           </div>
         </div>
-
-        {/* ── Tabs ── */}
-        <div style={{ display: 'flex', gap: '4px', marginBottom: '20px', background: 'rgba(255,255,255,0.04)', padding: '4px', borderRadius: '12px', width: 'fit-content' }}>
-          {([
-            ['overview',     'Staff Joins'],
-            ['members',      'All Staff'],
-            ['intelligence', 'Intelligence Profiles'],
-            ['learning',     'Learning'],
-            ['action',       'Playbook'],
-            ['suggest',      'Suggest a Course'],
-          ] as [typeof tab, string][]).map(([t, label]) => (
-            <button key={t} onClick={() => { setTab(t as typeof tab); if (t === 'learning') fetchLearning() }}
-              style={{ padding: '8px 20px', borderRadius: '8px', border: 'none', cursor: 'pointer', fontFamily: 'inherit', background: tab === t ? (t === 'action' ? 'rgba(192,244,60,0.15)' : t === 'learning' ? 'rgba(0,165,163,0.15)' : t === 'suggest' ? 'rgba(164,120,255,0.15)' : 'rgba(255,255,255,0.1)') : 'transparent', color: tab === t ? (t === 'action' ? '#C0F43C' : t === 'learning' ? '#00A5A3' : t === 'suggest' ? '#A478FF' : 'white') : 'rgba(255,255,255,0.75)', fontSize: '13px', fontWeight: 700 }}>
-              {label}
-            </button>
-          ))}
-        </div>
+        </>)}
 
         {/* Filters — shown for overview, members, intelligence tabs only */}
         {(tab === 'overview' || tab === 'members' || tab === 'intelligence') && (
@@ -1231,6 +1735,140 @@ export default function AdminPage() {
             {filteredMembers.length === 0 && (
               <div style={{ padding: '48px', textAlign: 'center', color: 'rgba(255,255,255,0.80)', fontSize: '14px' }}>{members.length === 0 ? 'No staff have joined yet' : 'No results match the current filters'}</div>
             )}
+          </div>
+        )}
+
+        {/* ── Staff Feedback (overview tab) ── */}
+        {tab === 'overview' && (
+          <div style={{ marginTop: '28px' }}>
+
+            {/* Header + Generate Report button */}
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
+              <div>
+                <div style={{ fontSize: '11px', fontWeight: 800, letterSpacing: '2px', textTransform: 'uppercase', color: '#A478FF' }}>Staff Feedback</div>
+                <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.45)', marginTop: '2px' }}>{feedbackItems.length} submission{feedbackItems.length !== 1 ? 's' : ''} — what the team wants built next</div>
+              </div>
+              {feedbackItems.length > 0 && (
+                <button
+                  onClick={async () => {
+                    setReportLoading(true); setReportError(''); setFeedbackReport(null)
+                    const res = await fetch('/api/feedback/report')
+                    if (res.ok) { const d = await res.json(); setFeedbackReport(d.report) }
+                    else { const d = await res.json(); setReportError(d.error ?? 'Failed') }
+                    setReportLoading(false)
+                  }}
+                  disabled={reportLoading}
+                  style={{ padding: '9px 20px', borderRadius: '10px', border: 'none', background: '#A478FF', color: 'white', fontSize: '13px', fontWeight: 800, cursor: reportLoading ? 'not-allowed' : 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: '8px', opacity: reportLoading ? 0.7 : 1 }}>
+                  <svg width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+                  {reportLoading ? 'Analysing...' : 'Generate AI Report'}
+                </button>
+              )}
+            </div>
+
+            {/* AI Report */}
+            {reportError && <div style={{ marginBottom: '16px', padding: '12px 16px', background: 'rgba(255,107,107,0.08)', border: '1px solid rgba(255,107,107,0.2)', borderRadius: '10px', fontSize: '13px', color: '#FF6B6B' }}>{reportError}</div>}
+
+            {feedbackReport && (() => {
+              const r = feedbackReport as {
+                summary: string; total_submissions: number;
+                top_themes: {theme:string;count:number;description:string}[];
+                top_requests: {feature:string;priority:string;departments:string[];rationale:string}[];
+                sentiment: {positive:number;constructive:number;critical:number;overview:string};
+                recommended_build_order: {rank:number;item:string;reason:string}[];
+                departments_most_engaged: string[];
+              }
+              const PRIORITY_COLOR: Record<string,string> = { high: '#FF6B6B', medium: '#FF9F43', low: '#C0F43C' }
+              return (
+                <div style={{ background: 'rgba(164,120,255,0.06)', border: '1px solid rgba(164,120,255,0.2)', borderRadius: '20px', padding: '24px', marginBottom: '20px' }}>
+                  <div style={{ fontSize: '11px', fontWeight: 800, letterSpacing: '2px', textTransform: 'uppercase', color: '#A478FF', marginBottom: '12px' }}>AI Feedback Analysis</div>
+
+                  {/* Summary */}
+                  <p style={{ fontSize: '14px', color: 'rgba(255,255,255,0.85)', lineHeight: 1.7, margin: '0 0 20px', fontStyle: 'italic' }}>{r.summary}</p>
+
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '20px' }}>
+
+                    {/* Top Themes */}
+                    <div style={{ background: 'rgba(255,255,255,0.04)', borderRadius: '14px', padding: '16px' }}>
+                      <div style={{ fontSize: '10px', fontWeight: 800, letterSpacing: '1.5px', textTransform: 'uppercase', color: 'rgba(255,255,255,0.5)', marginBottom: '12px' }}>Key Themes</div>
+                      {r.top_themes?.map((t, i) => (
+                        <div key={i} style={{ marginBottom: '10px' }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2px' }}>
+                            <span style={{ fontSize: '13px', fontWeight: 700, color: 'white' }}>{t.theme}</span>
+                            <span style={{ fontSize: '11px', fontWeight: 700, color: '#A478FF' }}>{t.count}</span>
+                          </div>
+                          <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.45)', lineHeight: 1.5 }}>{t.description}</div>
+                        </div>
+                      ))}
+                    </div>
+
+                    {/* Build Order */}
+                    <div style={{ background: 'rgba(255,255,255,0.04)', borderRadius: '14px', padding: '16px' }}>
+                      <div style={{ fontSize: '10px', fontWeight: 800, letterSpacing: '1.5px', textTransform: 'uppercase', color: 'rgba(255,255,255,0.5)', marginBottom: '12px' }}>Recommended Build Order</div>
+                      {r.recommended_build_order?.map(b => (
+                        <div key={b.rank} style={{ display: 'flex', gap: '12px', marginBottom: '12px', alignItems: 'flex-start' }}>
+                          <div style={{ width: '24px', height: '24px', borderRadius: '50%', background: '#A478FF', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '11px', fontWeight: 900, color: 'white', flexShrink: 0 }}>{b.rank}</div>
+                          <div>
+                            <div style={{ fontSize: '13px', fontWeight: 700, color: 'white', marginBottom: '2px' }}>{b.item}</div>
+                            <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.45)', lineHeight: 1.5 }}>{b.reason}</div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Top Requests */}
+                  <div style={{ background: 'rgba(255,255,255,0.04)', borderRadius: '14px', padding: '16px', marginBottom: '16px' }}>
+                    <div style={{ fontSize: '10px', fontWeight: 800, letterSpacing: '1.5px', textTransform: 'uppercase', color: 'rgba(255,255,255,0.5)', marginBottom: '12px' }}>Top Feature Requests</div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                      {r.top_requests?.map((req, i) => (
+                        <div key={i} style={{ display: 'flex', gap: '12px', alignItems: 'flex-start' }}>
+                          <span style={{ fontSize: '10px', fontWeight: 800, color: PRIORITY_COLOR[req.priority] ?? '#A478FF', background: `${PRIORITY_COLOR[req.priority] ?? '#A478FF'}15`, padding: '3px 8px', borderRadius: '6px', flexShrink: 0, marginTop: '1px' }}>{req.priority}</span>
+                          <div>
+                            <div style={{ fontSize: '13px', fontWeight: 700, color: 'white', marginBottom: '2px' }}>{req.feature}</div>
+                            <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.45)', lineHeight: 1.5 }}>{req.rationale}</div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Sentiment */}
+                  <div style={{ background: 'rgba(255,255,255,0.04)', borderRadius: '14px', padding: '16px' }}>
+                    <div style={{ fontSize: '10px', fontWeight: 800, letterSpacing: '1.5px', textTransform: 'uppercase', color: 'rgba(255,255,255,0.5)', marginBottom: '12px' }}>Sentiment Overview</div>
+                    <div style={{ display: 'flex', gap: '20px', marginBottom: '10px' }}>
+                      {[['Positive', r.sentiment?.positive, '#C0F43C'], ['Constructive', r.sentiment?.constructive, '#FF9F43'], ['Critical', r.sentiment?.critical, '#FF6B6B']].map(([label, val, color]) => (
+                        <div key={label as string} style={{ textAlign: 'center' }}>
+                          <div style={{ fontSize: '22px', fontWeight: 900, color: color as string }}>{val}%</div>
+                          <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.45)' }}>{label}</div>
+                        </div>
+                      ))}
+                    </div>
+                    <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.55)', fontStyle: 'italic' }}>{r.sentiment?.overview}</div>
+                  </div>
+                </div>
+              )
+            })()}
+
+            {/* Raw submissions */}
+            <div style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '20px', overflow: 'hidden' }}>
+              <div style={{ padding: '14px 24px', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
+                <div style={{ fontSize: '11px', fontWeight: 700, color: 'rgba(255,255,255,0.5)', letterSpacing: '1px', textTransform: 'uppercase' }}>All Submissions</div>
+              </div>
+              {feedbackItems.length === 0 ? (
+                <div style={{ padding: '32px', textAlign: 'center', fontSize: '13px', color: 'rgba(255,255,255,0.35)' }}>No feedback yet. The form appears at the bottom of every staff dashboard.</div>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column' }}>
+                  {feedbackItems.map((f, i) => (
+                    <div key={f.id} style={{ padding: '14px 24px', borderBottom: i < feedbackItems.length - 1 ? '1px solid rgba(255,255,255,0.05)' : 'none' }}>
+                      <div style={{ fontSize: '13px', color: 'rgba(255,255,255,0.85)', lineHeight: 1.6, marginBottom: '5px' }}>{f.message}</div>
+                      <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.35)' }}>
+                        {f.name}{f.department ? ` · ${f.department}` : ''} · {new Date(f.created_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
         )}
 
@@ -1567,13 +2205,13 @@ export default function AdminPage() {
                     <div style={{ fontSize: '11px', fontWeight: 700, letterSpacing: '1.5px', textTransform: 'uppercase', color: 'rgba(255,255,255,0.7)' }}>Course Performance</div>
                     <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.45)', marginTop: '2px' }}>Completions and avg score per course</div>
                   </div>
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 60px 60px 60px', padding: '8px 20px', borderBottom: '1px solid rgba(255,255,255,0.05)', gap: '0' }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 90px 48px 56px', padding: '8px 20px', borderBottom: '1px solid rgba(255,255,255,0.05)', gap: '8px' }}>
                     {['Course', 'Track', 'Done', 'Avg'].map(h => (
                       <div key={h} style={{ fontSize: '9px', fontWeight: 700, letterSpacing: '1.5px', textTransform: 'uppercase', color: 'rgba(255,255,255,0.4)' }}>{h}</div>
                     ))}
                   </div>
                   {courseStats.map((c, i) => (
-                    <div key={c.id} style={{ display: 'grid', gridTemplateColumns: '1fr 60px 60px 60px', padding: '12px 20px', borderBottom: i < courseStats.length - 1 ? '1px solid rgba(255,255,255,0.04)' : 'none', gap: '0', alignItems: 'center' }}>
+                    <div key={c.id} style={{ display: 'grid', gridTemplateColumns: '1fr 90px 48px 56px', padding: '12px 20px', borderBottom: i < courseStats.length - 1 ? '1px solid rgba(255,255,255,0.04)' : 'none', gap: '8px', alignItems: 'center' }}>
                       <div>
                         <div style={{ fontSize: '13px', fontWeight: 600, color: 'white', lineHeight: 1.3 }}>{c.title}</div>
                         {c.is_mandatory && <div style={{ fontSize: '10px', color: '#FF9F43', marginTop: '2px' }}>Mandatory</div>}
@@ -1660,16 +2298,16 @@ export default function AdminPage() {
               tier: 'AI-Forward',  range: '75–100', color: '#C0F43C',
               means: 'Already building AI workflows. Has hands-on experience integrating multiple tools.',
               action: 'Assign as AI Pilot Leads. They run the first automation sprint for their department.',
-              next: 'Book them into a 1-hour TAI pilot kickoff. Give them a problem statement and 30 days to ship a working automation.',
-              owner: 'TAI Lead + Dept Head',
+              next: 'Book them into a 1-hour AI pilot kickoff. Give them a problem statement and 30 days to ship a working automation.',
+              owner: 'AI Lead + Dept Head',
               by: 'This sprint',
             },
             {
               tier: 'AI-Ready',    range: '55–74',  color: '#A8E6CF',
               means: 'Uses AI regularly. Comfortable with tools but not yet building systematic workflows.',
               action: 'Pair with an AI-Forward colleague. Start a 30-day tool adoption plan with one specific workflow to automate.',
-              next: 'Enroll in TAI Intermediate track. Weekly 45-min session + one workflow deliverable per week.',
-              owner: 'TAI Training',
+              next: 'Enroll in Trescademy Intermediate track. Weekly 45-min session + one workflow deliverable per week.',
+              owner: 'Trescademy Training',
               by: '30 days',
             },
             {
@@ -1677,7 +2315,7 @@ export default function AdminPage() {
               means: 'Knows what AI is and has tried it, but not using it consistently in their daily work.',
               action: 'Foundation workshop (half day). Pick one tool for their role and commit to using it daily for 2 weeks.',
               next: '2-week AI daily habit challenge. Each person picks one task to do with AI every day and logs it.',
-              owner: 'TAI Training + HR',
+              owner: 'Trescademy Training + HR',
               by: '60 days',
             },
             {
@@ -1685,7 +2323,7 @@ export default function AdminPage() {
               means: 'Heard about AI but hasn\'t used it in a work context. Low digital tool sophistication.',
               action: 'Awareness session first — why AI matters for their specific role. Then intro to ChatGPT basics.',
               next: 'Department-specific AI demo: show them 3 things AI can do for their exact job today. No theory.',
-              owner: 'HR + TAI',
+              owner: 'HR + Trescademy',
               by: '90 days',
             },
             {
@@ -1705,7 +2343,7 @@ export default function AdminPage() {
               <div style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '20px', overflow: 'hidden', marginBottom: '24px' }}>
                 <div style={{ padding: '18px 24px', borderBottom: '1px solid rgba(255,255,255,0.06)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                   <div>
-                    <div style={{ fontSize: '11px', fontWeight: 700, letterSpacing: '2px', textTransform: 'uppercase', color: 'rgba(255,255,255,0.80)', marginBottom: '3px' }}>TAI Tier Playbook</div>
+                    <div style={{ fontSize: '11px', fontWeight: 700, letterSpacing: '2px', textTransform: 'uppercase', color: 'rgba(255,255,255,0.82)', marginBottom: '3px' }}>AI Readiness Playbook</div>
                     <div style={{ fontSize: '13px', color: 'rgba(255,255,255,0.80)' }}>What each TAIRS tier means and exactly what to do next for each group of people.</div>
                   </div>
                 </div>
@@ -1713,7 +2351,7 @@ export default function AdminPage() {
                   <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                     <thead>
                       <tr style={{ background: 'rgba(255,255,255,0.02)' }}>
-                        {['Tier', 'Score Range', 'What it means', 'TAI Action', 'Immediate Next Step', 'Owner', 'By'].map(h => (
+                        {['Tier', 'Score Range', 'What it means', 'Recommended Action', 'Immediate Next Step', 'Owner', 'By'].map(h => (
                           <th key={h} style={{ padding: '9px 16px', textAlign: 'left', fontSize: '9px', fontWeight: 700, letterSpacing: '1px', textTransform: 'uppercase', color: 'rgba(255,255,255,0.75)', borderBottom: '1px solid rgba(255,255,255,0.06)', whiteSpace: 'nowrap' }}>{h}</th>
                         ))}
                       </tr>
@@ -1743,7 +2381,7 @@ export default function AdminPage() {
               <div style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '20px', overflow: 'hidden', marginBottom: '24px' }}>
                 <div style={{ padding: '18px 24px', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
                   <div style={{ fontSize: '11px', fontWeight: 700, letterSpacing: '2px', textTransform: 'uppercase', color: 'rgba(255,255,255,0.80)', marginBottom: '3px' }}>Department Action Matrix — Live</div>
-                  <div style={{ fontSize: '13px', color: 'rgba(255,255,255,0.80)' }}>Each department mapped to its current tier and the specific action TAI should take now. Updates as more staff complete interviews.</div>
+                  <div style={{ fontSize: '13px', color: 'rgba(255,255,255,0.82)' }}>Each department mapped to its current tier and the recommended action to take now. Updates as more staff complete interviews.</div>
                 </div>
                 {sortedDeptTairs.length === 0 ? (
                   <div style={{ padding: '48px', textAlign: 'center', fontSize: '14px', color: 'rgba(255,255,255,0.75)' }}>No interview data yet. Seed demo data or wait for staff to complete interviews.</div>
@@ -1829,60 +2467,14 @@ export default function AdminPage() {
           )
         })()}
 
-        {/* ── Collapsible: Office Headcount Settings ── */}
-        <div style={{ marginTop: '28px' }}>
-          <button
-            onClick={() => setShowHeadcount(v => !v)}
-            style={{ display: 'flex', alignItems: 'center', gap: '8px', background: 'transparent', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '10px', padding: '9px 16px', color: 'rgba(255,255,255,0.80)', fontSize: '12px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}
-          >
-            <svg width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14M4.93 4.93a10 10 0 0 0 0 14.14"/></svg>
-            Configure Office Headcounts
-            <svg width="11" height="11" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24" style={{ transform: showHeadcount ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }}>
-              <polyline points="6 9 12 15 18 9"/>
-            </svg>
-          </button>
-          {showHeadcount && (
-            <div style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '16px', padding: '22px 24px', marginTop: '10px' }}>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '18px', flexWrap: 'wrap', gap: '12px' }}>
-                <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.82)' }}>Set total staff per office to calculate participation % on the public page.</div>
-                <button
-                  onClick={saveHeadcounts}
-                  disabled={headcountSaving}
-                  style={{ padding: '8px 20px', borderRadius: '9px', border: 'none', background: headcountSaved ? '#C0F43C' : '#00A5A3', color: headcountSaved ? '#1E2124' : 'white', fontSize: '13px', fontWeight: 800, cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0 }}>
-                  {headcountSaving ? 'Saving...' : headcountSaved ? (
-                    <><svg width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>Saved</>
-                  ) : 'Save'}
-                </button>
-              </div>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '10px' }}>
-                {OFFICES.map(o => (
-                  <div key={o.id} style={{ background: 'rgba(255,255,255,0.04)', border: `1px solid ${o.color}25`, borderRadius: '12px', padding: '14px 16px' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '7px', marginBottom: '10px' }}>
-                      <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: o.color }} />
-                      <span style={{ fontSize: '13px', fontWeight: 700, color: 'white' }}>{o.label}</span>
-                    </div>
-                    <input
-                      type="number" min="0"
-                      value={officeTotals[o.id] ?? 0}
-                      onChange={e => setOfficeTotals(prev => ({ ...prev, [o.id]: Math.max(0, parseInt(e.target.value) || 0) }))}
-                      style={{ width: '100%', padding: '7px 10px', borderRadius: '7px', border: `1px solid ${o.color}35`, background: 'rgba(255,255,255,0.06)', color: 'white', fontSize: '17px', fontWeight: 800, outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box' as const }}
-                    />
-                    <div style={{ fontSize: '10px', color: 'rgba(255,255,255,0.80)', marginTop: '5px' }}>{members.filter(m => m.office_id === o.id).length} joined</div>
-                  </div>
-                ))}
-              </div>
-              {headcountError && <div style={{ marginTop: '10px', fontSize: '12px', color: '#FF6B6B', fontWeight: 600 }}>{headcountError}</div>}
-            </div>
-          )}
-        </div>
 
         {/* ── Suggest a Course tab ── */}
         {tab === 'suggest' && (
           <div style={{ maxWidth: '720px' }}>
             <div style={{ marginBottom: '28px' }}>
-              <div style={{ fontSize: '11px', fontWeight: 800, letterSpacing: '2px', textTransform: 'uppercase', color: '#A478FF', marginBottom: '6px' }}>AI Course Designer</div>
-              <h2 style={{ fontSize: '22px', fontWeight: 900, color: 'white', margin: '0 0 6px' }}>Suggest a Course</h2>
-              <p style={{ fontSize: '14px', color: 'rgba(255,255,255,0.55)', margin: 0, lineHeight: 1.6 }}>Describe what you need. Gemini will design a full course — content, tasks, and 10 questions — ready for your review.</p>
+              <div style={{ fontSize: '11px', fontWeight: 800, letterSpacing: '2px', textTransform: 'uppercase', color: '#A478FF', marginBottom: '6px' }}>Content Studio</div>
+              <h2 style={{ fontSize: '22px', fontWeight: 900, color: 'white', margin: '0 0 6px' }}>Build a Course</h2>
+              <p style={{ fontSize: '14px', color: 'rgba(255,255,255,0.55)', margin: 0, lineHeight: 1.6 }}>Describe the gap you have spotted. Gemini will design a full course — overview, tasks, and 10 quiz questions — ready to review and publish. The person who suggested it gets credited on the course card and receives a notification on their dashboard when it goes live.</p>
             </div>
 
             {/* Input panel */}
@@ -1919,10 +2511,40 @@ export default function AdminPage() {
                     </select>
                   </div>
                 </div>
+                {/* Credit to field */}
+                <div style={{ marginBottom: '22px', background: 'rgba(164,120,255,0.05)', border: '1px solid rgba(164,120,255,0.15)', borderRadius: '12px', padding: '16px 18px' }}>
+                  <div style={{ fontSize: '10px', fontWeight: 800, letterSpacing: '2px', textTransform: 'uppercase', color: '#A478FF', marginBottom: '12px' }}>Course Credit</div>
+                  <p style={{ fontSize: '12px', color: 'rgba(255,255,255,0.5)', margin: '0 0 12px', lineHeight: 1.55 }}>
+                    Who identified this gap and requested this course? They will be credited on the course card and notified on their dashboard when it goes live.
+                  </p>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                    <div>
+                      <label style={{ display: 'block', fontSize: '11px', fontWeight: 700, color: 'rgba(255,255,255,0.5)', marginBottom: '6px' }}>Full Name</label>
+                      <input
+                        value={creditName}
+                        onChange={e => setCreditName(e.target.value)}
+                        placeholder="e.g. Priya Menon"
+                        disabled={suggestState === 'thinking'}
+                        style={{ width: '100%', boxSizing: 'border-box', padding: '10px 12px', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.12)', background: '#1A1C1F', color: 'white', fontSize: '13px', fontFamily: 'inherit', outline: 'none' }}
+                      />
+                    </div>
+                    <div>
+                      <label style={{ display: 'block', fontSize: '11px', fontWeight: 700, color: 'rgba(255,255,255,0.5)', marginBottom: '6px' }}>Role / Department</label>
+                      <input
+                        value={creditRole}
+                        onChange={e => setCreditRole(e.target.value)}
+                        placeholder="e.g. Head of Events"
+                        disabled={suggestState === 'thinking'}
+                        style={{ width: '100%', boxSizing: 'border-box', padding: '10px 12px', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.12)', background: '#1A1C1F', color: 'white', fontSize: '13px', fontFamily: 'inherit', outline: 'none' }}
+                      />
+                    </div>
+                  </div>
+                </div>
+
                 <button onClick={submitSuggestion} disabled={!suggestion.trim() || suggestState === 'thinking'}
                   style={{ padding: '13px 28px', borderRadius: '12px', border: 'none', background: suggestion.trim() && suggestState !== 'thinking' ? '#A478FF' : 'rgba(255,255,255,0.1)', color: suggestion.trim() && suggestState !== 'thinking' ? 'white' : 'rgba(255,255,255,0.3)', fontSize: '14px', fontWeight: 800, cursor: suggestion.trim() && suggestState !== 'thinking' ? 'pointer' : 'not-allowed', fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: '8px' }}>
                   <svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
-                  {suggestState === 'thinking' ? 'Designing your course...' : 'Submit Suggestion'}
+                  {suggestState === 'thinking' ? 'Designing your course...' : 'Generate Course'}
                 </button>
               </div>
             )}
@@ -1934,7 +2556,7 @@ export default function AdminPage() {
                   <svg width="16" height="16" fill="none" stroke="#A478FF" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
                 </div>
                 <div>
-                  <div style={{ fontSize: '13px', fontWeight: 800, color: '#A478FF', marginBottom: '4px' }}>TAI Course Designer</div>
+                  <div style={{ fontSize: '13px', fontWeight: 800, color: '#A478FF', marginBottom: '4px' }}>Course Designer</div>
                   <div style={{ fontSize: '14px', color: 'rgba(255,255,255,0.85)', lineHeight: 1.6 }}>
                     I have received your suggestion for a <strong style={{ color: 'white' }}>{suggestTier}</strong> course for the <strong style={{ color: 'white' }}>{suggestDept}</strong> team. I am preparing a course just right — with full reading content, personalised tasks, and a 10-question bank. Sending it for your approval shortly...
                   </div>
@@ -1955,7 +2577,7 @@ export default function AdminPage() {
                     <svg width="16" height="16" fill="none" stroke="#A478FF" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>
                   </div>
                   <div>
-                    <div style={{ fontSize: '13px', fontWeight: 800, color: '#A478FF', marginBottom: '4px' }}>TAI Course Designer</div>
+                    <div style={{ fontSize: '13px', fontWeight: 800, color: '#A478FF', marginBottom: '4px' }}>Course Designer</div>
                     <div style={{ fontSize: '14px', color: 'rgba(255,255,255,0.85)', lineHeight: 1.6 }}>
                       Your course is ready for review. I have built a complete <strong style={{ color: 'white' }}>{suggestTier}</strong> course for <strong style={{ color: 'white' }}>{suggestDept}</strong> with full reading content, 4 personalised task steps, and a 10-question bank. Review it below — edit anything you like — then approve to publish.
                     </div>
@@ -1999,6 +2621,21 @@ export default function AdminPage() {
                   </div>
                 </div>
 
+                {/* Credit preview */}
+                {creditName && (
+                  <div style={{ padding: '12px 16px', background: 'rgba(164,120,255,0.07)', border: '1px solid rgba(164,120,255,0.2)', borderRadius: '10px', fontSize: '13px', color: 'rgba(255,255,255,0.8)', marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '10px' }}>
+                    <div style={{ width: '28px', height: '28px', borderRadius: '8px', background: 'rgba(164,120,255,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                      <span style={{ fontSize: '12px', fontWeight: 800, color: '#A478FF' }}>{creditName.charAt(0)}</span>
+                    </div>
+                    <div>
+                      <span style={{ color: 'rgba(255,255,255,0.5)' }}>Suggested by </span>
+                      <strong style={{ color: 'white' }}>{creditName}</strong>
+                      {creditRole && <span style={{ color: 'rgba(255,255,255,0.5)' }}> · {creditRole}</span>}
+                      <span style={{ color: 'rgba(255,255,255,0.4)', fontSize: '11px', display: 'block', marginTop: '1px' }}>Will be credited on the course card. Email notification sent on publish.</span>
+                    </div>
+                  </div>
+                )}
+
                 {publishMsg && (
                   <div style={{ padding: '12px 16px', background: publishMsg.includes('live') ? 'rgba(192,244,60,0.1)' : 'rgba(255,107,107,0.1)', border: `1px solid ${publishMsg.includes('live') ? 'rgba(192,244,60,0.3)' : 'rgba(255,107,107,0.3)'}`, borderRadius: '10px', fontSize: '13px', color: publishMsg.includes('live') ? '#C0F43C' : '#FF6B6B', fontWeight: 700, marginBottom: '16px' }}>
                     {publishMsg}
@@ -2006,10 +2643,10 @@ export default function AdminPage() {
                 )}
 
                 <div style={{ display: 'flex', gap: '12px' }}>
-                  <button onClick={publishCourse} disabled={suggestState === 'publishing'}
+                  <button onClick={submitForReview} disabled={suggestState === 'publishing'}
                     style={{ padding: '13px 28px', borderRadius: '12px', border: 'none', background: '#A478FF', color: 'white', fontSize: '14px', fontWeight: 800, cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: '8px', opacity: suggestState === 'publishing' ? 0.7 : 1 }}>
-                    <svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>
-                    {suggestState === 'publishing' ? 'Publishing...' : 'Approve & Publish'}
+                    <svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M22 2L11 13"/><path d="M22 2L15 22 11 13 2 9l20-7z"/></svg>
+                    {suggestState === 'publishing' ? 'Submitting...' : 'Submit for Review'}
                   </button>
                   <button onClick={() => { setSuggestState('idle'); setGeneratedCourse(null); setPublishMsg('') }}
                     style={{ padding: '13px 20px', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.12)', background: 'transparent', color: 'rgba(255,255,255,0.7)', fontSize: '13px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
@@ -2021,8 +2658,1000 @@ export default function AdminPage() {
           </div>
         )}
 
+        {/* ── Staff Management tab ── */}
+        {tab === 'staff' && (
+          <div>
+            {/* Header */}
+            <div style={{ marginBottom: '24px', display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', flexWrap: 'wrap', gap: '16px' }}>
+              <div>
+                <div style={{ fontSize: '11px', fontWeight: 800, letterSpacing: '2px', textTransform: 'uppercase', color: '#FF9F43', marginBottom: '6px' }}>Staff Management</div>
+                <h2 style={{ fontSize: '22px', fontWeight: 900, color: 'white', margin: '0 0 6px' }}>Staff Directory</h2>
+                <p style={{ fontSize: '14px', color: 'rgba(255,255,255,0.55)', margin: 0, lineHeight: 1.6 }}>View, add, or bulk import staff records. All imported staff can log in immediately.</p>
+              </div>
+              <div style={{ display: 'flex', gap: '8px' }}>
+                {(['list', 'add', 'import'] as const).map(m => (
+                  <button key={m} onClick={() => setStaffMode(m)}
+                    style={{ padding: '8px 18px', borderRadius: '8px', border: `1px solid ${staffMode === m ? '#FF9F43' : 'rgba(255,255,255,0.12)'}`, background: staffMode === m ? 'rgba(255,159,67,0.15)' : 'transparent', color: staffMode === m ? '#FF9F43' : 'rgba(255,255,255,0.7)', fontSize: '13px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
+                    {m === 'list' ? 'Directory' : m === 'add' ? '+ Add Staff' : 'Bulk Import'}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* ── MODE: DIRECTORY ── */}
+            {staffMode === 'list' && (
+              <div>
+                {/* Search + refresh */}
+                <div style={{ display: 'flex', gap: '10px', marginBottom: '16px', alignItems: 'center' }}>
+                  <div style={{ position: 'relative', flex: '1', maxWidth: '320px' }}>
+                    <svg width="13" height="13" fill="none" stroke="rgba(255,255,255,0.35)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24" style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none' }}><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+                    <input
+                      value={staffSearch}
+                      onChange={e => setStaffSearch(e.target.value)}
+                      placeholder="Search name, email, department…"
+                      style={{ width: '100%', boxSizing: 'border-box', paddingLeft: '34px', paddingRight: '12px', paddingTop: '8px', paddingBottom: '8px', borderRadius: '20px', border: '1px solid rgba(255,255,255,0.12)', background: 'rgba(255,255,255,0.05)', color: 'white', fontSize: '12px', fontFamily: 'inherit', outline: 'none' }}
+                    />
+                  </div>
+                  <button onClick={fetchStaffList} disabled={staffLoading}
+                    style={{ padding: '8px 16px', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.12)', background: 'transparent', color: 'rgba(255,255,255,0.7)', fontSize: '12px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <svg width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
+                    Refresh
+                  </button>
+                  {/* Phase 2 — enable all staff */}
+                  {staffList.some(s => !(s as {access_enabled?:boolean}).access_enabled) && (
+                    <button
+                      onClick={async () => {
+                        if (!confirm('Enable platform access for ALL staff? This starts Phase 2.')) return
+                        await fetch('/api/staff-access', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ enable_all: true, enabled: true }) })
+                        fetchStaffList()
+                      }}
+                      style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '8px 16px', borderRadius: '8px', border: '1px solid rgba(192,244,60,0.35)', background: 'rgba(192,244,60,0.1)', color: '#C0F43C', fontSize: '12px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}
+                    >
+                      <svg width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>
+                      Enable All (Phase 2)
+                    </button>
+                  )}
+                  <div style={{ marginLeft: 'auto', fontSize: '12px', color: 'rgba(255,255,255,0.4)', fontWeight: 600 }}>
+                    {staffLoading ? 'Loading…' : `${staffList.filter(s => { const q = staffSearch.toLowerCase(); return !q || s.name.toLowerCase().includes(q) || s.email.toLowerCase().includes(q) || (s.department ?? '').toLowerCase().includes(q) }).length} of ${staffList.length} staff`}
+                  </div>
+                </div>
+
+                {staffLoading ? (
+                  <div style={{ textAlign: 'center', padding: '60px 0', color: 'rgba(255,255,255,0.4)', fontSize: '14px' }}>Loading staff records…</div>
+                ) : staffList.length === 0 ? (
+                  <div style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '16px', padding: '48px 32px', textAlign: 'center' }}>
+                    <svg width="32" height="32" fill="none" stroke="rgba(255,255,255,0.25)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24" style={{ marginBottom: '16px' }}><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+                    <div style={{ fontSize: '15px', fontWeight: 700, color: 'rgba(255,255,255,0.5)', marginBottom: '8px' }}>No staff records yet</div>
+                    <div style={{ fontSize: '13px', color: 'rgba(255,255,255,0.75)' }}>Use Bulk Import to upload your HR CSV, or Add Staff to create individual records.</div>
+                  </div>
+                ) : (
+                  <div style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: '16px', overflow: 'hidden' }}>
+                    {/* Table header */}
+                    <div style={{ display: 'grid', gridTemplateColumns: '2fr 2.5fr 1.5fr 1fr 1fr 90px', gap: '0', padding: '10px 20px', background: 'rgba(255,255,255,0.04)', borderBottom: '1px solid rgba(255,255,255,0.07)' }}>
+                      {['Name', 'Email', 'Department', 'Office', 'Level', 'Access'].map(h => (
+                        <div key={h} style={{ fontSize: '10px', fontWeight: 800, letterSpacing: '1.5px', textTransform: 'uppercase', color: 'rgba(255,255,255,0.4)' }}>{h}</div>
+                      ))}
+                    </div>
+                    {/* Rows */}
+                    {staffList
+                      .filter(s => { const q = staffSearch.toLowerCase(); return !q || s.name.toLowerCase().includes(q) || s.email.toLowerCase().includes(q) || (s.department ?? '').toLowerCase().includes(q) })
+                      .map((s, idx) => {
+                        const LEVEL_COLOR: Record<string, string> = { super_admin: '#FF6B6B', office_head: '#FF9F43', dept_head: '#C0F43C', team_lead: '#00A5A3', staff: 'rgba(255,255,255,0.4)' }
+                        const offLabel   = OFFICES.find(o => o.id === s.office_id)?.label ?? s.office_id ?? '—'
+                        const isEnabled  = (s as {access_enabled?:boolean}).access_enabled
+                        return (
+                          <div key={s.id} style={{ display: 'grid', gridTemplateColumns: '2fr 2.5fr 1.5fr 1fr 1fr 90px', gap: '0', padding: '12px 20px', borderBottom: idx < staffList.length - 1 ? '1px solid rgba(255,255,255,0.05)' : 'none', alignItems: 'center' }}>
+                            <div style={{ fontSize: '13px', fontWeight: 700, color: 'white' }}>{s.name}</div>
+                            <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.55)', fontFamily: 'monospace' }}>{s.email}</div>
+                            <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.7)' }}>{s.department ?? '—'}</div>
+                            <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.7)' }}>{offLabel}</div>
+                            <div><span style={{ fontSize: '10px', fontWeight: 800, padding: '2px 8px', borderRadius: '6px', background: `${LEVEL_COLOR[s.job_level] ?? 'rgba(255,255,255,0.1)'}22`, color: LEVEL_COLOR[s.job_level] ?? 'rgba(255,255,255,0.4)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>{s.job_level}</span></div>
+                            <div>
+                              <button
+                                onClick={async () => {
+                                  await fetch('/api/staff-access', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: s.id, enabled: !isEnabled }) })
+                                  fetchStaffList()
+                                }}
+                                style={{ fontSize: '10px', fontWeight: 800, padding: '3px 10px', borderRadius: '20px', border: 'none', cursor: 'pointer', fontFamily: 'inherit', background: isEnabled ? 'rgba(192,244,60,0.15)' : 'rgba(255,255,255,0.07)', color: isEnabled ? '#C0F43C' : 'rgba(255,255,255,0.3)', letterSpacing: '0.5px' }}
+                              >
+                                {isEnabled ? 'Active' : 'Disabled'}
+                              </button>
+                            </div>
+                          </div>
+                        )
+                      })}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* ── MODE: ADD SINGLE STAFF ── */}
+            {staffMode === 'add' && (
+              <div style={{ maxWidth: '600px' }}>
+                <div style={{ background: 'rgba(255,159,67,0.06)', border: '1px solid rgba(255,159,67,0.2)', borderRadius: '20px', padding: '28px' }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '16px' }}>
+                    {([
+                      ['name',          'Full Name',      'e.g. Priya Menon',            'text'],
+                      ['email',         'Work Email',     'e.g. priya@trescon.com',      'email'],
+                      ['department',    'Department',     'e.g. Marketing',              'text'],
+                      ['role',          'Job Title',      'e.g. Marketing Manager',      'text'],
+                      ['manager_email', 'Manager Email',  'e.g. ravi@trescon.com',       'email'],
+                    ] as [keyof typeof addForm, string, string, string][]).map(([field, label, placeholder, type]) => (
+                      <div key={field} style={{ gridColumn: field === 'name' || field === 'email' ? 'span 2' : 'span 1' }}>
+                        <label style={{ display: 'block', fontSize: '11px', fontWeight: 800, letterSpacing: '1.5px', textTransform: 'uppercase', color: 'rgba(255,255,255,0.55)', marginBottom: '7px' }}>{label}</label>
+                        <input
+                          type={type}
+                          value={addForm[field]}
+                          onChange={e => setAddForm(f => ({ ...f, [field]: e.target.value }))}
+                          placeholder={placeholder}
+                          style={{ width: '100%', boxSizing: 'border-box', padding: '11px 14px', borderRadius: '10px', border: '1px solid rgba(255,255,255,0.12)', background: 'rgba(255,255,255,0.05)', color: 'white', fontSize: '13px', fontFamily: 'inherit', outline: 'none' }}
+                        />
+                      </div>
+                    ))}
+
+                    <div>
+                      <label style={{ display: 'block', fontSize: '11px', fontWeight: 800, letterSpacing: '1.5px', textTransform: 'uppercase', color: 'rgba(255,255,255,0.55)', marginBottom: '7px' }}>Office</label>
+                      <select value={addForm.office_id} onChange={e => setAddForm(f => ({ ...f, office_id: e.target.value }))}
+                        style={{ width: '100%', padding: '11px 14px', borderRadius: '10px', border: '1px solid rgba(255,255,255,0.12)', background: '#1A1C1F', color: 'white', fontSize: '13px', fontFamily: 'inherit', outline: 'none', cursor: 'pointer' }}>
+                        {OFFICES.map(o => <option key={o.id} value={o.id}>{o.label}</option>)}
+                      </select>
+                    </div>
+
+                    <div>
+                      <label style={{ display: 'block', fontSize: '11px', fontWeight: 800, letterSpacing: '1.5px', textTransform: 'uppercase', color: 'rgba(255,255,255,0.55)', marginBottom: '7px' }}>Level</label>
+                      <select value={addForm.job_level} onChange={e => setAddForm(f => ({ ...f, job_level: e.target.value }))}
+                        style={{ width: '100%', padding: '11px 14px', borderRadius: '10px', border: '1px solid rgba(255,255,255,0.12)', background: '#1A1C1F', color: 'white', fontSize: '13px', fontFamily: 'inherit', outline: 'none', cursor: 'pointer' }}>
+                        <option value="staff">Staff</option>
+                        <option value="team_lead">Team Lead</option>
+                        <option value="dept_head">Dept Head</option>
+                        <option value="office_head">Office Head</option>
+                        <option value="super_admin">Super Admin</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  {addError && (
+                    <div style={{ marginBottom: '16px', padding: '10px 14px', borderRadius: '10px', background: 'rgba(255,107,107,0.1)', border: '1px solid rgba(255,107,107,0.3)', color: '#FF6B6B', fontSize: '13px' }}>{addError}</div>
+                  )}
+
+                  <button onClick={addSingleStaff} disabled={addState === 'saving'}
+                    style={{ padding: '12px 28px', borderRadius: '12px', border: 'none', background: addState === 'done' ? '#00A5A3' : '#FF9F43', color: 'white', fontSize: '14px', fontWeight: 800, cursor: addState === 'saving' ? 'not-allowed' : 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: '8px', opacity: addState === 'saving' ? 0.7 : 1 }}>
+                    {addState === 'saving' && <svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24" style={{ animation: 'spin 0.8s linear infinite' }}><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>}
+                    {addState === 'done' ? 'Staff Added' : addState === 'saving' ? 'Saving…' : 'Add to Platform'}
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* ── MODE: BULK CSV IMPORT ── */}
+            {staffMode === 'import' && (
+              <div style={{ maxWidth: '900px' }}>
+
+                {/* Step 1 — Upload */}
+                <div style={{ marginBottom: '24px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '12px' }}>
+                    <div style={{ width: '24px', height: '24px', borderRadius: '50%', background: '#FF9F43', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '12px', fontWeight: 900, color: 'white', flexShrink: 0 }}>1</div>
+                    <span style={{ fontSize: '14px', fontWeight: 800, color: 'white' }}>Paste or upload your CSV / Excel export</span>
+                  </div>
+                  <div style={{ padding: '14px 18px', borderRadius: '10px', background: 'rgba(255,159,67,0.06)', border: '1px solid rgba(255,159,67,0.15)', fontSize: '12px', color: 'rgba(255,255,255,0.6)', lineHeight: 1.7, marginBottom: '12px' }}>
+                    Any format works — AI will map your columns automatically. No need to rename headers.
+                    First row must be column headers. Paste the CSV text below or upload a <code style={{ background: 'rgba(255,255,255,0.08)', padding: '1px 5px', borderRadius: '4px' }}>.csv</code> file.
+                  </div>
+                  <div style={{ display: 'flex', gap: '10px', marginBottom: '10px', alignItems: 'center' }}>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: '7px', padding: '8px 16px', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.15)', background: 'rgba(255,255,255,0.05)', color: 'rgba(255,255,255,0.8)', fontSize: '12px', fontWeight: 700, cursor: 'pointer' }}>
+                      <svg width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+                      Upload CSV file
+                      <input type="file" accept=".csv,.txt" style={{ display: 'none' }} onChange={e => {
+                        const file = e.target.files?.[0]
+                        if (!file) return
+                        const reader = new FileReader()
+                        reader.onload = ev => {
+                          const text = ev.target?.result as string
+                          setCsvText(text)
+                          setAiParseState('idle')
+                          setAiParseResult(null)
+                          setAiCommitResult(null)
+                        }
+                        reader.readAsText(file)
+                      }} />
+                    </label>
+                    <span style={{ fontSize: '12px', color: 'rgba(255,255,255,0.70)' }}>or paste below</span>
+                  </div>
+                  <textarea
+                    value={csvText}
+                    onChange={e => { setCsvText(e.target.value); setAiParseState('idle'); setAiParseResult(null); setAiCommitResult(null) }}
+                    placeholder={"Name,Email,Title,Department,Manager,Location\nPriya Menon,priya@trescon.com,Marketing Manager,Marketing,Ravi Kumar,Bangalore"}
+                    rows={6}
+                    style={{ width: '100%', boxSizing: 'border-box', padding: '14px 16px', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.12)', background: 'rgba(255,255,255,0.04)', color: 'white', fontSize: '12px', fontFamily: 'monospace', lineHeight: 1.6, outline: 'none', resize: 'vertical' }}
+                  />
+                </div>
+
+                {/* Step 2 — Analyse button */}
+                <div style={{ marginBottom: '28px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '12px' }}>
+                    <div style={{ width: '24px', height: '24px', borderRadius: '50%', background: aiParseState === 'ready' ? '#C0F43C' : '#FF9F43', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '12px', fontWeight: 900, color: aiParseState === 'ready' ? '#1E2124' : 'white', flexShrink: 0 }}>2</div>
+                    <span style={{ fontSize: '14px', fontWeight: 800, color: 'white' }}>Let AI analyse and map your data</span>
+                  </div>
+                  <button
+                    onClick={analyseWithAI}
+                    disabled={!csvText.trim() || aiParseState === 'loading'}
+                    style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '11px 24px', borderRadius: '10px', border: 'none', background: csvText.trim() && aiParseState !== 'loading' ? '#FF9F43' : 'rgba(255,255,255,0.08)', color: csvText.trim() && aiParseState !== 'loading' ? 'white' : 'rgba(255,255,255,0.3)', fontSize: '13px', fontWeight: 800, cursor: csvText.trim() && aiParseState !== 'loading' ? 'pointer' : 'not-allowed', fontFamily: 'inherit' }}
+                  >
+                    {aiParseState === 'loading'
+                      ? <><div style={{ width: '14px', height: '14px', border: '2px solid rgba(255,255,255,0.3)', borderTopColor: 'white', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />Analysing with AI…</>
+                      : <><svg width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>Analyse with AI</>
+                    }
+                  </button>
+                  {aiParseState === 'error' && (
+                    <div style={{ marginTop: '10px', fontSize: '13px', color: '#FF6B6B' }}>AI analysis failed. Check your CSV format and try again.</div>
+                  )}
+                </div>
+
+                {/* Step 3 — Review */}
+                {aiParseState === 'ready' && aiParseResult && (
+                  <div style={{ marginBottom: '28px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '16px' }}>
+                      <div style={{ width: '24px', height: '24px', borderRadius: '50%', background: '#FF9F43', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '12px', fontWeight: 900, color: 'white', flexShrink: 0 }}>3</div>
+                      <span style={{ fontSize: '14px', fontWeight: 800, color: 'white' }}>Review AI mapping + approve new columns</span>
+                    </div>
+
+                    {/* Summary pills */}
+                    <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', marginBottom: '20px' }}>
+                      {[
+                        { label: 'Total rows',      value: aiParseResult.summary.total,            color: 'white' },
+                        { label: 'Clean',           value: aiParseResult.summary.clean,            color: '#C0F43C' },
+                        { label: 'With warnings',   value: aiParseResult.summary.warnings,         color: '#FF9F43' },
+                        { label: 'New columns found', value: aiParseResult.summary.new_columns_found, color: '#A478FF' },
+                      ].map(({ label, value, color }) => (
+                        <div key={label} style={{ padding: '8px 16px', borderRadius: '10px', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', display: 'flex', gap: '6px', alignItems: 'baseline' }}>
+                          <span style={{ fontSize: '20px', fontWeight: 900, color }}>{value}</span>
+                          <span style={{ fontSize: '11px', color: 'rgba(255,255,255,0.45)', fontWeight: 600 }}>{label}</span>
+                        </div>
+                      ))}
+                    </div>
+
+                    {/* Column mapping */}
+                    <div style={{ marginBottom: '20px', background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '14px', overflow: 'hidden' }}>
+                      <div style={{ padding: '12px 18px', borderBottom: '1px solid rgba(255,255,255,0.07)', fontSize: '11px', fontWeight: 800, letterSpacing: '1.5px', textTransform: 'uppercase', color: 'rgba(255,255,255,0.4)' }}>Column Mapping</div>
+                      <div style={{ padding: '6px 0' }}>
+                        {aiParseResult.column_mapping.map((col, i) => (
+                          <div key={i} style={{ display: 'grid', gridTemplateColumns: '1fr 28px 1fr', alignItems: 'center', gap: '12px', padding: '10px 18px', borderBottom: i < aiParseResult.column_mapping.length - 1 ? '1px solid rgba(255,255,255,0.04)' : 'none' }}>
+                            <div style={{ fontSize: '13px', fontWeight: 600, color: 'rgba(255,255,255,0.8)', fontFamily: 'monospace' }}>{col.source}</div>
+                            <svg width="16" height="16" fill="none" stroke="rgba(255,255,255,0.60)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg>
+                            <div style={{ fontSize: '12px', fontWeight: 700, color: col.action === 'map' ? '#00A5A3' : col.action === 'new' ? '#A478FF' : 'rgba(255,255,255,0.60)', fontFamily: 'monospace' }}>
+                              {col.action === 'map'    ? col.target_field
+                               : col.action === 'new'  ? `+ ${col.new_col_name} (new)`
+                               : '— ignored'}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* New columns approval */}
+                    {aiParseResult.new_columns.length > 0 && (
+                      <div style={{ marginBottom: '20px', background: 'rgba(164,120,255,0.05)', border: '1px solid rgba(164,120,255,0.2)', borderRadius: '14px', overflow: 'hidden' }}>
+                        <div style={{ padding: '14px 18px', borderBottom: '1px solid rgba(164,120,255,0.15)', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                          <svg width="14" height="14" fill="none" stroke="#A478FF" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                          <span style={{ fontSize: '13px', fontWeight: 800, color: '#A478FF' }}>New columns to add to staff database</span>
+                          <span style={{ fontSize: '11px', color: 'rgba(255,255,255,0.4)', marginLeft: '4px' }}>Uncheck any you don&apos;t want</span>
+                        </div>
+                        {aiParseResult.new_columns.map((col, i) => (
+                          <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: '14px', padding: '14px 18px', borderBottom: i < aiParseResult.new_columns.length - 1 ? '1px solid rgba(164,120,255,0.1)' : 'none' }}>
+                            <input
+                              type="checkbox"
+                              checked={approvedNewCols.has(col.col_name)}
+                              onChange={e => {
+                                const next = new Set(approvedNewCols)
+                                e.target.checked ? next.add(col.col_name) : next.delete(col.col_name)
+                                setApprovedNewCols(next)
+                              }}
+                              style={{ width: '16px', height: '16px', marginTop: '2px', accentColor: '#A478FF', flexShrink: 0 }}
+                            />
+                            <div style={{ flex: 1 }}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '3px' }}>
+                                <code style={{ fontSize: '12px', fontWeight: 800, color: '#A478FF' }}>{col.col_name}</code>
+                                <span style={{ fontSize: '10px', fontWeight: 700, color: 'rgba(255,255,255,0.35)', background: 'rgba(255,255,255,0.06)', padding: '1px 6px', borderRadius: '4px' }}>{col.col_type}</span>
+                              </div>
+                              <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.55)', marginBottom: '4px' }}>{col.description}</div>
+                              {col.sample_values?.length > 0 && (
+                                <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.70)' }}>
+                                  Examples: {col.sample_values.slice(0, 3).join(', ')}
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    {/* Row preview table */}
+                    <div style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: '14px', overflow: 'hidden', marginBottom: '4px' }}>
+                      <div style={{ padding: '12px 18px', borderBottom: '1px solid rgba(255,255,255,0.07)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                        <span style={{ fontSize: '11px', fontWeight: 800, letterSpacing: '1.5px', textTransform: 'uppercase', color: 'rgba(255,255,255,0.4)' }}>Row Preview (first 10)</span>
+                        <span style={{ fontSize: '11px', color: 'rgba(255,255,255,0.70)' }}>{aiParseResult.rows.length} total rows</span>
+                      </div>
+                      <div style={{ overflowX: 'auto' }}>
+                        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px' }}>
+                          <thead>
+                            <tr style={{ background: 'rgba(255,255,255,0.03)' }}>
+                              {['Name', 'Email', 'Role', 'Department', 'Office', 'Level', 'Manager', 'Warnings'].map(h => (
+                                <th key={h} style={{ padding: '8px 14px', textAlign: 'left', fontSize: '10px', fontWeight: 800, letterSpacing: '1px', textTransform: 'uppercase', color: 'rgba(255,255,255,0.35)', whiteSpace: 'nowrap', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>{h}</th>
+                              ))}
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {aiParseResult.rows.slice(0, 10).map((row, i) => (
+                              <tr key={i} style={{ borderBottom: '1px solid rgba(255,255,255,0.04)', background: row.warnings?.length ? 'rgba(255,159,67,0.04)' : 'transparent' }}>
+                                <td style={{ padding: '10px 14px', color: 'white', fontWeight: 600 }}>{row.name || <span style={{ color: '#FF6B6B' }}>missing</span>}</td>
+                                <td style={{ padding: '10px 14px', color: 'rgba(255,255,255,0.65)' }}>{row.email || <span style={{ color: '#FF6B6B' }}>missing</span>}</td>
+                                <td style={{ padding: '10px 14px', color: 'rgba(255,255,255,0.65)' }}>{row.role || '—'}</td>
+                                <td style={{ padding: '10px 14px', color: 'rgba(255,255,255,0.65)' }}>{row.department || '—'}</td>
+                                <td style={{ padding: '10px 14px', color: 'rgba(255,255,255,0.65)' }}>{row.office_id || '—'}</td>
+                                <td style={{ padding: '10px 14px' }}>
+                                  <span style={{ fontSize: '10px', fontWeight: 700, color: '#00A5A3', background: 'rgba(0,165,163,0.12)', padding: '2px 7px', borderRadius: '5px' }}>{row.job_level || '—'}</span>
+                                </td>
+                                <td style={{ padding: '10px 14px', color: 'rgba(255,255,255,0.55)', fontSize: '11px' }}>{row.manager_name || '—'}</td>
+                                <td style={{ padding: '10px 14px' }}>
+                                  {row.warnings?.length > 0
+                                    ? <span style={{ fontSize: '10px', fontWeight: 700, color: '#FF9F43' }}>{row.warnings.join(', ')}</span>
+                                    : <span style={{ fontSize: '10px', color: '#C0F43C' }}>Clean</span>
+                                  }
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Step 4 — Commit */}
+                {aiParseState === 'ready' && aiParseResult && aiCommitState !== 'done' && (
+                  <div style={{ marginBottom: '24px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '12px' }}>
+                      <div style={{ width: '24px', height: '24px', borderRadius: '50%', background: '#FF9F43', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '12px', fontWeight: 900, color: 'white', flexShrink: 0 }}>4</div>
+                      <span style={{ fontSize: '14px', fontWeight: 800, color: 'white' }}>Commit import to database</span>
+                    </div>
+                    <div style={{ fontSize: '13px', color: 'rgba(255,255,255,0.5)', marginBottom: '14px', lineHeight: 1.6 }}>
+                      This will insert <strong style={{ color: 'white' }}>{aiParseResult.rows.length} staff records</strong>
+                      {approvedNewCols.size > 0 && <> and add <strong style={{ color: '#A478FF' }}>{approvedNewCols.size} new column{approvedNewCols.size > 1 ? 's' : ''}</strong> to the database</>}.
+                      Existing staff (matched by email) will be updated, not duplicated.
+                    </div>
+                    <button
+                      onClick={runAICommit}
+                      disabled={aiCommitState === 'loading'}
+                      style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '13px 28px', borderRadius: '12px', border: 'none', background: aiCommitState === 'loading' ? 'rgba(255,255,255,0.1)' : '#C0F43C', color: aiCommitState === 'loading' ? 'rgba(255,255,255,0.3)' : '#1E2124', fontSize: '14px', fontWeight: 900, cursor: aiCommitState === 'loading' ? 'not-allowed' : 'pointer', fontFamily: 'inherit' }}
+                    >
+                      {aiCommitState === 'loading'
+                        ? <><div style={{ width: '14px', height: '14px', border: '2px solid rgba(0,0,0,0.2)', borderTopColor: '#1E2124', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />Committing…</>
+                        : <><svg width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>Commit Import</>
+                      }
+                    </button>
+                    {aiCommitState === 'error' && (
+                      <div style={{ marginTop: '10px', fontSize: '13px', color: '#FF6B6B' }}>Commit failed. Please try again.</div>
+                    )}
+                  </div>
+                )}
+
+                {/* Result */}
+                {aiCommitState === 'done' && aiCommitResult && (
+                  <div style={{ padding: '24px', borderRadius: '16px', background: 'rgba(192,244,60,0.06)', border: '1px solid rgba(192,244,60,0.25)' }}>
+                    <div style={{ fontSize: '15px', fontWeight: 800, color: '#C0F43C', marginBottom: '16px' }}>Import complete</div>
+                    <div style={{ display: 'flex', gap: '28px', flexWrap: 'wrap', marginBottom: '20px' }}>
+                      <div><span style={{ fontSize: '28px', fontWeight: 900, color: '#C0F43C' }}>{aiCommitResult.inserted}</span><div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.5)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '1px', marginTop: '2px' }}>New staff</div></div>
+                      <div><span style={{ fontSize: '28px', fontWeight: 900, color: '#00A5A3' }}>{aiCommitResult.updated}</span><div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.5)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '1px', marginTop: '2px' }}>Updated</div></div>
+                      <div><span style={{ fontSize: '28px', fontWeight: 900, color: 'rgba(255,255,255,0.4)' }}>{aiCommitResult.skipped}</span><div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.5)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '1px', marginTop: '2px' }}>Skipped</div></div>
+                      <div><span style={{ fontSize: '28px', fontWeight: 900, color: '#FF9F43' }}>{aiCommitResult.manager_links_set}</span><div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.5)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '1px', marginTop: '2px' }}>Manager links</div></div>
+                      {aiCommitResult.new_columns_added?.length > 0 && (
+                        <div><span style={{ fontSize: '28px', fontWeight: 900, color: '#A478FF' }}>{aiCommitResult.new_columns_added.length}</span><div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.5)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '1px', marginTop: '2px' }}>Cols added</div></div>
+                      )}
+                    </div>
+
+                    {/* Manager resolution report */}
+                    {aiCommitResult.manager_unresolved?.length > 0 && (
+                      <div style={{ marginBottom: '16px', padding: '16px 18px', borderRadius: '12px', background: 'rgba(255,159,67,0.07)', border: '1px solid rgba(255,159,67,0.25)' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '10px' }}>
+                          <svg width="14" height="14" fill="none" stroke="#FF9F43" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+                          <span style={{ fontSize: '13px', fontWeight: 800, color: '#FF9F43' }}>{aiCommitResult.manager_unresolved.length} manager{aiCommitResult.manager_unresolved.length > 1 ? 's' : ''} could not be matched</span>
+                        </div>
+                        <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.55)', marginBottom: '10px', lineHeight: 1.6 }}>
+                          These staff were imported successfully but their reporting line is not set. Fix by editing each person in the Staff Directory, or re-import after adding the missing managers.
+                        </div>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                          {aiCommitResult.manager_unresolved.map((u, i) => (
+                            <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '12px' }}>
+                              <span style={{ fontWeight: 700, color: 'white' }}>{u.name}</span>
+                              <span style={{ color: 'rgba(255,255,255,0.75)' }}>reports to</span>
+                              <span style={{ color: '#FF9F43', fontWeight: 600 }}>{u.manager_name}</span>
+                              <span style={{ color: 'rgba(255,255,255,0.70)' }}>— not found in system</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {aiCommitResult.new_columns_added?.length > 0 && (
+                      <div style={{ fontSize: '12px', color: '#A478FF', marginBottom: '12px', padding: '10px 14px', background: 'rgba(164,120,255,0.07)', border: '1px solid rgba(164,120,255,0.2)', borderRadius: '10px' }}>
+                        New columns added to database: <strong>{aiCommitResult.new_columns_added.join(', ')}</strong>
+                      </div>
+                    )}
+                    {aiCommitResult.errors?.length > 0 && (
+                      <div style={{ fontSize: '12px', color: '#FF6B6B', lineHeight: 1.7 }}>
+                        <strong>Errors ({aiCommitResult.errors.length}):</strong>
+                        <ul style={{ margin: '4px 0 0', paddingLeft: '18px' }}>
+                          {aiCommitResult.errors.slice(0, 10).map((e, i) => <li key={i}>{e}</li>)}
+                        </ul>
+                      </div>
+                    )}
+                    {/* Credential download — managers only (Phase 1) */}
+                    {aiCommitResult.credentials?.filter(c => c.access_enabled).length > 0 && (
+                      <div style={{ marginTop: '20px', padding: '16px 18px', borderRadius: '12px', background: 'rgba(0,165,163,0.07)', border: '1px solid rgba(0,165,163,0.2)' }}>
+                        <div style={{ fontSize: '13px', fontWeight: 800, color: '#00A5A3', marginBottom: '6px' }}>
+                          Manager credentials ready — Phase 1
+                        </div>
+                        <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.55)', lineHeight: 1.6, marginBottom: '12px' }}>
+                          {aiCommitResult.credentials.filter(c => c.access_enabled).length} managers have platform access. Download the credential sheet and send to HR for the welcome emails. Each manager has a unique temporary password.
+                        </div>
+                        <button
+                          onClick={() => {
+                            const managers = aiCommitResult!.credentials.filter(c => c.access_enabled)
+                            const rows = ['Name,Email,Temporary Password,Role Level', ...managers.map(c => `"${c.name}","${c.email}","${c.temp_password}","${c.job_level}"`)]
+                            const blob = new Blob([rows.join('\n')], { type: 'text/csv' })
+                            const url  = URL.createObjectURL(blob)
+                            const a    = document.createElement('a')
+                            a.href = url; a.download = 'trescademy-manager-credentials.csv'; a.click()
+                            URL.revokeObjectURL(url)
+                          }}
+                          style={{ display: 'inline-flex', alignItems: 'center', gap: '7px', padding: '9px 18px', borderRadius: '9px', border: 'none', background: '#00A5A3', color: 'white', fontSize: '13px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}
+                        >
+                          <svg width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                          Download credentials CSV
+                        </button>
+                        <div style={{ marginTop: '10px', fontSize: '11px', color: 'rgba(255,255,255,0.75)', lineHeight: 1.6 }}>
+                          Staff-level accounts are imported but access is disabled. Enable them when ready for Phase 2.
+                        </div>
+                      </div>
+                    )}
+
+                    <div style={{ display: 'flex', gap: '10px', marginTop: '16px', flexWrap: 'wrap' }}>
+                      <button
+                        onClick={() => { setAiParseState('idle'); setAiParseResult(null); setAiCommitResult(null); setAiCommitState('idle'); setCsvText('') }}
+                        style={{ padding: '9px 20px', borderRadius: '9px', border: '1px solid rgba(255,255,255,0.15)', background: 'transparent', color: 'rgba(255,255,255,0.7)', fontSize: '13px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}
+                      >
+                        Import another file
+                      </button>
+                      <button
+                        onClick={() => setTab('staff')}
+                        style={{ padding: '9px 20px', borderRadius: '9px', border: '1px solid rgba(0,165,163,0.3)', background: 'rgba(0,165,163,0.1)', color: '#00A5A3', fontSize: '13px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}
+                      >
+                        View Staff Directory
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        )}
+
+
+        {/* ── Events tab ── */}
+        {tab === 'events' && (
+          <div>
+            <div style={{ marginBottom: '28px' }}>
+              <div style={{ fontSize: '10px', fontWeight: 800, letterSpacing: '2.5px', textTransform: 'uppercase', color: '#00A5A3', marginBottom: '6px' }}>Events</div>
+              <h2 style={{ fontSize: '20px', fontWeight: 800, color: 'white', margin: 0 }}>Event Management</h2>
+              <p style={{ fontSize: '13px', color: 'rgba(255,255,255,0.55)', marginTop: '6px' }}>Create events, assign staff, and upload briefing documents.</p>
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: selectedEvent ? '1fr 1fr' : '380px 1fr', gap: '24px', alignItems: 'flex-start' }}>
+              {/* Create event form */}
+              <div style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '16px', padding: '24px' }}>
+                <div style={{ fontSize: '12px', fontWeight: 800, color: '#00A5A3', letterSpacing: '1px', textTransform: 'uppercase', marginBottom: '16px' }}>Create New Event</div>
+                {[
+                  { label: 'Event Name', key: 'name', placeholder: 'World AI Show Dubai 2026' },
+                  { label: 'Client / Partner', key: 'client_name', placeholder: 'e.g. UAE Ministry of AI' },
+                  { label: 'Venue', key: 'venue', placeholder: 'Dubai World Trade Centre' },
+                  { label: 'City', key: 'city', placeholder: 'Dubai' },
+                ].map(f => (
+                  <div key={f.key} style={{ marginBottom: '12px' }}>
+                    <label style={{ fontSize: '11px', fontWeight: 700, color: 'rgba(255,255,255,0.45)', letterSpacing: '0.8px', textTransform: 'uppercase', display: 'block', marginBottom: '5px' }}>{f.label}</label>
+                    <input value={eventForm[f.key as keyof typeof eventForm]} onChange={e => setEventForm(p => ({ ...p, [f.key]: e.target.value }))}
+                      placeholder={f.placeholder}
+                      style={{ width: '100%', padding: '10px 14px', borderRadius: '10px', border: '1px solid rgba(255,255,255,0.1)', background: 'rgba(255,255,255,0.04)', color: 'white', fontSize: '13px', fontFamily: 'inherit', boxSizing: 'border-box' }} />
+                  </div>
+                ))}
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '12px' }}>
+                  <div>
+                    <label style={{ fontSize: '11px', fontWeight: 700, color: 'rgba(255,255,255,0.45)', letterSpacing: '0.8px', textTransform: 'uppercase', display: 'block', marginBottom: '5px' }}>Type</label>
+                    <select value={eventForm.type} onChange={e => setEventForm(p => ({ ...p, type: e.target.value }))}
+                      style={{ width: '100%', padding: '10px 14px', borderRadius: '10px', border: '1px solid rgba(255,255,255,0.1)', background: '#1A1E22', color: 'white', fontSize: '13px', fontFamily: 'inherit' }}>
+                      {['conference','summit','forum','awards','workshop','other'].map(t => <option key={t} value={t}>{t.charAt(0).toUpperCase()+t.slice(1)}</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    <label style={{ fontSize: '11px', fontWeight: 700, color: 'rgba(255,255,255,0.45)', letterSpacing: '0.8px', textTransform: 'uppercase', display: 'block', marginBottom: '5px' }}>Date</label>
+                    <input type="date" value={eventForm.event_date} onChange={e => setEventForm(p => ({ ...p, event_date: e.target.value }))}
+                      style={{ width: '100%', padding: '10px 14px', borderRadius: '10px', border: '1px solid rgba(255,255,255,0.1)', background: '#1A1E22', color: 'white', fontSize: '13px', fontFamily: 'inherit', boxSizing: 'border-box' }} />
+                  </div>
+                </div>
+                <textarea value={eventForm.description} onChange={e => setEventForm(p => ({ ...p, description: e.target.value }))}
+                  placeholder="Brief description of this event..."
+                  rows={3}
+                  style={{ width: '100%', padding: '10px 14px', borderRadius: '10px', border: '1px solid rgba(255,255,255,0.1)', background: 'rgba(255,255,255,0.04)', color: 'white', fontSize: '13px', fontFamily: 'inherit', boxSizing: 'border-box', resize: 'vertical', marginBottom: '14px' }} />
+                {eventMsg && <div style={{ fontSize: '12px', color: eventMsg.includes('created') ? '#C0F43C' : '#FF6B6B', marginBottom: '10px' }}>{eventMsg}</div>}
+                <button onClick={createEvent} disabled={eventSaving}
+                  style={{ padding: '11px 20px', borderRadius: '10px', border: 'none', background: '#00A5A3', color: 'white', fontSize: '13px', fontWeight: 700, cursor: eventSaving ? 'not-allowed' : 'pointer', fontFamily: 'inherit', opacity: eventSaving ? 0.6 : 1 }}>
+                  {eventSaving ? 'Creating…' : 'Create Event'}
+                </button>
+              </div>
+
+              {/* Events list */}
+              <div>
+                {eventsLoading ? (
+                  <div style={{ color: 'rgba(255,255,255,0.4)', fontSize: '13px' }}>Loading events…</div>
+                ) : events.length === 0 ? (
+                  <div style={{ color: 'rgba(255,255,255,0.35)', fontSize: '13px' }}>No events yet. Create your first event.</div>
+                ) : (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                    {events.map(ev => (
+                      <div key={ev.id}
+                        onClick={() => { setSelectedEvent(ev); fetchEventStaff(ev.id) }}
+                        style={{ background: selectedEvent?.id === ev.id ? 'rgba(0,165,163,0.08)' : 'rgba(255,255,255,0.03)', border: `1px solid ${selectedEvent?.id === ev.id ? 'rgba(0,165,163,0.35)' : 'rgba(255,255,255,0.08)'}`, borderRadius: '14px', padding: '16px 20px', cursor: 'pointer', transition: 'all 0.15s' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '6px' }}>
+                          <div style={{ fontSize: '14px', fontWeight: 700, color: 'white' }}>{ev.name}</div>
+                          <div style={{ fontSize: '11px', fontWeight: 700, padding: '3px 10px', borderRadius: '20px', background: ev.status === 'active' ? 'rgba(192,244,60,0.15)' : ev.status === 'completed' ? 'rgba(0,165,163,0.15)' : 'rgba(255,255,255,0.08)', color: ev.status === 'active' ? '#C0F43C' : ev.status === 'completed' ? '#00A5A3' : 'rgba(255,255,255,0.5)' }}>
+                            {ev.status}
+                          </div>
+                        </div>
+                        <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.5)', display: 'flex', gap: '16px', flexWrap: 'wrap' }}>
+                          {ev.city && <span>{ev.city}</span>}
+                          {ev.event_date && <span>{new Date(ev.event_date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}</span>}
+                          {ev.client_name && <span>{ev.client_name}</span>}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {/* Selected event — staff assignment panel */}
+                {selectedEvent && (
+                  <div style={{ marginTop: '20px', background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '16px', padding: '20px' }}>
+                    <div style={{ fontSize: '12px', fontWeight: 800, color: '#00A5A3', letterSpacing: '1px', textTransform: 'uppercase', marginBottom: '14px' }}>Staff on {selectedEvent.name}</div>
+                    {eventStaff.length === 0 ? (
+                      <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.35)', marginBottom: '14px' }}>No staff assigned yet.</div>
+                    ) : (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: '14px' }}>
+                        {eventStaff.map(es => (
+                          <div key={es.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 12px', background: 'rgba(255,255,255,0.03)', borderRadius: '8px' }}>
+                            <div>
+                              <span style={{ fontSize: '13px', fontWeight: 600, color: 'white' }}>{es.staff_members?.name}</span>
+                              {es.role && <span style={{ fontSize: '11px', color: 'rgba(255,255,255,0.45)', marginLeft: '8px' }}>{es.role}</span>}
+                              <span style={{ fontSize: '11px', color: 'rgba(255,255,255,0.3)', marginLeft: '8px' }}>{es.staff_members?.department}</span>
+                            </div>
+                            <button onClick={() => removeEventStaff(es.staff_members?.id)}
+                              style={{ fontSize: '11px', color: '#FF6B6B', background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'inherit', fontWeight: 700 }}>Remove</button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                    <div style={{ display: 'flex', gap: '8px' }}>
+                      <select value={assignStaffId} onChange={e => setAssignStaffId(e.target.value)}
+                        style={{ flex: 1, padding: '9px 12px', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.1)', background: '#1A1E22', color: 'white', fontSize: '12px', fontFamily: 'inherit' }}>
+                        <option value="">Select staff…</option>
+                        {staffList.map(s => <option key={s.id} value={s.id}>{s.name} — {s.department}</option>)}
+                      </select>
+                      <input value={assignRole} onChange={e => setAssignRole(e.target.value)} placeholder="Role (optional)"
+                        style={{ width: '130px', padding: '9px 12px', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.1)', background: 'rgba(255,255,255,0.04)', color: 'white', fontSize: '12px', fontFamily: 'inherit' }} />
+                      <button onClick={assignStaff}
+                        style={{ padding: '9px 16px', borderRadius: '8px', border: 'none', background: '#00A5A3', color: 'white', fontSize: '12px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>Add</button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ── Knowledge Base tab ── */}
+        {tab === 'knowledge' && (
+          <div>
+            <div style={{ marginBottom: '28px' }}>
+              <div style={{ fontSize: '10px', fontWeight: 800, letterSpacing: '2.5px', textTransform: 'uppercase', color: '#C0F43C', marginBottom: '6px' }}>Knowledge Base</div>
+              <h2 style={{ fontSize: '20px', fontWeight: 800, color: 'white', margin: 0 }}>Documents</h2>
+              <p style={{ fontSize: '13px', color: 'rgba(255,255,255,0.55)', marginTop: '6px' }}>Upload any PDF or text document. Text is extracted and stored. The original file is immediately destroyed.</p>
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: '380px 1fr', gap: '24px', alignItems: 'flex-start' }}>
+              {/* Upload form */}
+              <div style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '16px', padding: '24px' }}>
+                <div style={{ fontSize: '12px', fontWeight: 800, color: '#C0F43C', letterSpacing: '1px', textTransform: 'uppercase', marginBottom: '16px' }}>Upload Document</div>
+
+                <div style={{ marginBottom: '12px' }}>
+                  <label style={{ fontSize: '11px', fontWeight: 700, color: 'rgba(255,255,255,0.45)', letterSpacing: '0.8px', textTransform: 'uppercase', display: 'block', marginBottom: '5px' }}>Document Title</label>
+                  <input value={docForm.title} onChange={e => setDocForm(p => ({ ...p, title: e.target.value }))} placeholder="e.g. HR Policy Handbook 2026"
+                    style={{ width: '100%', padding: '10px 14px', borderRadius: '10px', border: '1px solid rgba(255,255,255,0.1)', background: 'rgba(255,255,255,0.04)', color: 'white', fontSize: '13px', fontFamily: 'inherit', boxSizing: 'border-box' }} />
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginBottom: '12px' }}>
+                  <div>
+                    <label style={{ fontSize: '11px', fontWeight: 700, color: 'rgba(255,255,255,0.45)', letterSpacing: '0.8px', textTransform: 'uppercase', display: 'block', marginBottom: '5px' }}>Type</label>
+                    <select value={docForm.type} onChange={e => setDocForm(p => ({ ...p, type: e.target.value }))}
+                      style={{ width: '100%', padding: '10px 12px', borderRadius: '10px', border: '1px solid rgba(255,255,255,0.1)', background: '#1A1E22', color: 'white', fontSize: '12px', fontFamily: 'inherit' }}>
+                      <option value="policy">Policy</option>
+                      <option value="event_brief">Event Brief</option>
+                      <option value="staff_doc">Staff Document</option>
+                      <option value="onboarding">Onboarding</option>
+                      <option value="other">Other</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label style={{ fontSize: '11px', fontWeight: 700, color: 'rgba(255,255,255,0.45)', letterSpacing: '0.8px', textTransform: 'uppercase', display: 'block', marginBottom: '5px' }}>Visible To</label>
+                    <select value={docForm.visibility} onChange={e => setDocForm(p => ({ ...p, visibility: e.target.value }))}
+                      style={{ width: '100%', padding: '10px 12px', borderRadius: '10px', border: '1px solid rgba(255,255,255,0.1)', background: '#1A1E22', color: 'white', fontSize: '12px', fontFamily: 'inherit' }}>
+                      <option value="all">All Staff</option>
+                      <option value="event_only">Event Staff Only</option>
+                    </select>
+                  </div>
+                </div>
+
+                {docForm.visibility === 'event_only' && (
+                  <div style={{ marginBottom: '12px' }}>
+                    <label style={{ fontSize: '11px', fontWeight: 700, color: 'rgba(255,255,255,0.45)', letterSpacing: '0.8px', textTransform: 'uppercase', display: 'block', marginBottom: '5px' }}>Link to Event</label>
+                    <select value={docForm.event_id} onChange={e => setDocForm(p => ({ ...p, event_id: e.target.value }))}
+                      style={{ width: '100%', padding: '10px 12px', borderRadius: '10px', border: '1px solid rgba(255,255,255,0.1)', background: '#1A1E22', color: 'white', fontSize: '12px', fontFamily: 'inherit' }}>
+                      <option value="">Select event…</option>
+                      {events.map(ev => <option key={ev.id} value={ev.id}>{ev.name}</option>)}
+                    </select>
+                  </div>
+                )}
+
+                <div style={{ marginBottom: '16px' }}>
+                  <label style={{ fontSize: '11px', fontWeight: 700, color: 'rgba(255,255,255,0.45)', letterSpacing: '0.8px', textTransform: 'uppercase', display: 'block', marginBottom: '8px' }}>File (PDF or TXT)</label>
+                  <label style={{ display: 'block', padding: '20px', border: '1.5px dashed rgba(255,255,255,0.15)', borderRadius: '10px', textAlign: 'center', cursor: 'pointer', background: docFile ? 'rgba(192,244,60,0.05)' : 'transparent', borderColor: docFile ? 'rgba(192,244,60,0.3)' : 'rgba(255,255,255,0.15)' }}>
+                    <input type="file" accept=".pdf,.txt,.md" style={{ display: 'none' }} onChange={e => setDocFile(e.target.files?.[0] ?? null)} />
+                    {docFile ? (
+                      <div>
+                        <div style={{ fontSize: '13px', fontWeight: 700, color: '#C0F43C' }}>{docFile.name}</div>
+                        <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.4)', marginTop: '3px' }}>{(docFile.size / 1024).toFixed(0)} KB</div>
+                      </div>
+                    ) : (
+                      <div>
+                        <svg width="24" height="24" fill="none" stroke="rgba(255,255,255,0.3)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24" style={{ margin: '0 auto 8px', display: 'block' }}><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+                        <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.4)' }}>Click to select file</div>
+                      </div>
+                    )}
+                  </label>
+                </div>
+
+                {docMsg && (
+                  <div style={{ fontSize: '12px', padding: '10px 14px', borderRadius: '8px', background: docMsg.includes('Done') ? 'rgba(192,244,60,0.08)' : 'rgba(255,107,107,0.08)', border: `1px solid ${docMsg.includes('Done') ? 'rgba(192,244,60,0.25)' : 'rgba(255,107,107,0.25)'}`, color: docMsg.includes('Done') ? '#C0F43C' : '#FF6B6B', marginBottom: '12px', lineHeight: 1.5 }}>
+                    {docMsg}
+                  </div>
+                )}
+
+                <button onClick={uploadDoc} disabled={docUploading || !docFile}
+                  style={{ width: '100%', padding: '12px', borderRadius: '10px', border: 'none', background: docUploading || !docFile ? 'rgba(255,255,255,0.08)' : '#C0F43C', color: docUploading || !docFile ? 'rgba(255,255,255,0.3)' : '#1E2124', fontSize: '13px', fontWeight: 800, cursor: docUploading || !docFile ? 'not-allowed' : 'pointer', fontFamily: 'inherit' }}>
+                  {docUploading ? 'Extracting text…' : 'Upload & Extract'}
+                </button>
+              </div>
+
+              {/* Documents list */}
+              <div>
+                {docsLoading ? (
+                  <div style={{ color: 'rgba(255,255,255,0.4)', fontSize: '13px' }}>Loading documents…</div>
+                ) : docs.length === 0 ? (
+                  <div style={{ color: 'rgba(255,255,255,0.35)', fontSize: '13px', textAlign: 'center', padding: '40px 0' }}>
+                    <svg width="40" height="40" fill="none" stroke="rgba(255,255,255,0.15)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24" style={{ margin: '0 auto 12px', display: 'block' }}><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+                    No documents uploaded yet.
+                  </div>
+                ) : (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                    {docs.map(doc => {
+                      const typeColor: Record<string,string> = { policy: '#FF9F43', event_brief: '#00A5A3', staff_doc: '#C0F43C', onboarding: '#A478FF', other: 'rgba(255,255,255,0.4)' }
+                      return (
+                        <div key={doc.id} style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: '12px', padding: '16px 18px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px' }}>
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '5px' }}>
+                              <span style={{ fontSize: '11px', fontWeight: 700, padding: '2px 8px', borderRadius: '20px', background: `${typeColor[doc.type] ?? 'rgba(255,255,255,0.1)'}18`, color: typeColor[doc.type] ?? 'rgba(255,255,255,0.5)', border: `1px solid ${typeColor[doc.type] ?? 'rgba(255,255,255,0.1)'}40` }}>
+                                {doc.type.replace('_', ' ')}
+                              </span>
+                              {doc.visibility === 'event_only' && doc.events && (
+                                <span style={{ fontSize: '11px', color: 'rgba(255,255,255,0.4)' }}>{(doc.events as {name:string}).name}</span>
+                              )}
+                              {doc.visibility === 'all' && <span style={{ fontSize: '11px', color: 'rgba(255,255,255,0.3)' }}>All staff</span>}
+                            </div>
+                            <div style={{ fontSize: '14px', fontWeight: 700, color: 'white', marginBottom: '3px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{doc.title}</div>
+                            <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.35)' }}>{doc.word_count?.toLocaleString()} words · {new Date(doc.created_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}</div>
+                          </div>
+                          <button onClick={() => deleteDoc(doc.id)}
+                            style={{ padding: '6px 12px', borderRadius: '8px', border: '1px solid rgba(255,107,107,0.25)', background: 'rgba(255,107,107,0.08)', color: '#FF6B6B', fontSize: '11px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', flexShrink: 0 }}>
+                            Remove
+                          </button>
+                        </div>
+                      )
+                    })}
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ── Review Queue tab (super admin only) ── */}
+        {tab === 'review' && adminStaffId === 'super-admin' && (
+          <div>
+            <div style={{ marginBottom: '28px' }}>
+              <div style={{ fontSize: '11px', fontWeight: 800, letterSpacing: '2px', textTransform: 'uppercase', color: '#FF6B6B', marginBottom: '6px' }}>Review Queue</div>
+              <h2 style={{ fontSize: '22px', fontWeight: 900, color: 'white', margin: '0 0 6px' }}>Courses Pending Approval</h2>
+              <p style={{ fontSize: '14px', color: 'rgba(255,255,255,0.55)', margin: 0, lineHeight: 1.6 }}>These courses were generated via Content Studio and are waiting for your review. Approve to publish them to the library, or reject to remove them.</p>
+            </div>
+
+            {reviewMsg && (
+              <div style={{ marginBottom: '20px', padding: '12px 16px', background: reviewMsg.includes('approved') ? 'rgba(192,244,60,0.08)' : 'rgba(0,165,163,0.08)', border: `1px solid ${reviewMsg.includes('approved') ? 'rgba(192,244,60,0.25)' : 'rgba(0,165,163,0.25)'}`, borderRadius: '10px', fontSize: '13px', color: reviewMsg.includes('approved') ? '#C0F43C' : '#00A5A3', fontWeight: 600 }}>
+                {reviewMsg}
+              </div>
+            )}
+
+            {draftsLoading ? (
+              <div style={{ padding: '60px', textAlign: 'center', color: 'rgba(255,255,255,0.4)', fontSize: '13px' }}>Loading drafts...</div>
+            ) : draftCourses.length === 0 ? (
+              <div style={{ padding: '60px', textAlign: 'center', background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: '18px' }}>
+                <div style={{ fontSize: '13px', color: 'rgba(255,255,255,0.4)' }}>No courses pending review. When someone submits a course via Content Studio it will appear here.</div>
+              </div>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                {draftCourses.map(course => {
+                  const TIER_COLOR: Record<string, string> = { foundation: '#00A5A3', adoption: '#C0F43C', advanced: '#A478FF' }
+                  const tierColor = TIER_COLOR[course.tier_level] ?? '#00A5A3'
+                  const isExpanded = expandedDraftId === course.id
+                  return (
+                    <div key={course.id} style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,107,107,0.15)', borderRadius: '16px', overflow: 'hidden' }}>
+                      {/* Header row */}
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '14px', padding: '16px 20px' }}>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px', flexWrap: 'wrap' }}>
+                            <span style={{ fontSize: '10px', fontWeight: 700, color: tierColor, background: `${tierColor}15`, padding: '2px 8px', borderRadius: '5px', textTransform: 'capitalize' }}>{course.tier_level}</span>
+                            {course.dept_tags?.map(d => (
+                              <span key={d} style={{ fontSize: '10px', fontWeight: 700, color: 'rgba(255,255,255,0.6)', background: 'rgba(255,255,255,0.07)', padding: '2px 8px', borderRadius: '5px' }}>{d}</span>
+                            ))}
+                            <span style={{ fontSize: '10px', color: 'rgba(255,107,107,0.8)', background: 'rgba(255,107,107,0.08)', border: '1px solid rgba(255,107,107,0.2)', padding: '2px 8px', borderRadius: '5px', fontWeight: 700 }}>Pending Review</span>
+                          </div>
+                          <div style={{ fontSize: '15px', fontWeight: 800, color: 'white', lineHeight: 1.3 }}>{course.title}</div>
+                          <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.5)', marginTop: '2px' }}>{course.subtitle}</div>
+                          {course.suggested_by_name && (
+                            <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.35)', marginTop: '4px' }}>Suggested by {course.suggested_by_name}{course.suggested_by_role ? ` · ${course.suggested_by_role}` : ''}</div>
+                          )}
+                        </div>
+                        <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexShrink: 0 }}>
+                          <button onClick={() => setExpandedDraftId(isExpanded ? null : course.id)}
+                            style={{ padding: '7px 14px', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.12)', background: 'rgba(255,255,255,0.06)', color: 'rgba(255,255,255,0.7)', fontSize: '12px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
+                            {isExpanded ? 'Collapse' : 'Preview'}
+                          </button>
+                          <button onClick={() => rejectCourse(course.id)}
+                            style={{ padding: '7px 14px', borderRadius: '8px', border: '1px solid rgba(255,107,107,0.3)', background: 'rgba(255,107,107,0.08)', color: '#FF6B6B', fontSize: '12px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
+                            Reject
+                          </button>
+                          <button onClick={() => approveCourse(course.id)}
+                            style={{ padding: '7px 18px', borderRadius: '8px', border: 'none', background: '#C0F43C', color: '#1E2124', fontSize: '12px', fontWeight: 800, cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                            <svg width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>
+                            Approve & Publish
+                          </button>
+                        </div>
+                      </div>
+                      {/* Expanded preview */}
+                      {isExpanded && (
+                        <div style={{ borderTop: '1px solid rgba(255,255,255,0.06)', padding: '20px', background: 'rgba(255,255,255,0.02)' }}>
+                          <div style={{ fontSize: '11px', fontWeight: 700, letterSpacing: '1.5px', textTransform: 'uppercase', color: 'rgba(255,255,255,0.4)', marginBottom: '8px' }}>Overview</div>
+                          <p style={{ fontSize: '13px', color: 'rgba(255,255,255,0.7)', lineHeight: 1.7, margin: 0 }}>{course.overview}</p>
+                          <div style={{ marginTop: '12px', fontSize: '12px', color: 'rgba(255,255,255,0.35)' }}>{course.estimated_minutes} min · {course.is_mandatory ? 'Mandatory' : 'Optional'}</div>
+                        </div>
+                      )}
+                    </div>
+                  )
+                })}
+              </div>
+            )}
+          </div>
+        )}
+
       </div>
-      <style>{`@keyframes pulse{0%,100%{opacity:1}50%{opacity:0.4}}`}</style>
+      <style>{`@keyframes pulse{0%,100%{opacity:1}50%{opacity:0.4}} @keyframes spin{to{transform:rotate(360deg)}} @keyframes demoGlow{0%{color:#FF9F43}20%{color:#FF6B6B}40%{color:#C0F43C}60%{color:#00A5A3}80%{color:#FF9F43}100%{color:#FFD08A}} @keyframes tourPop{0%{opacity:0;transform:scale(0.95) translateY(6px)}100%{opacity:1;transform:scale(1) translateY(0)}} @keyframes slideInRight{0%{transform:translateX(100%);opacity:0}100%{transform:translateX(0);opacity:1}}`}</style>
+
+      {/* ── What's Next — Roadmap Panel ── */}
+      {showRoadmap && (
+        <div style={{ position: 'fixed', inset: 0, zIndex: 1200, display: 'flex' }}>
+          {/* Backdrop */}
+          <div style={{ flex: 1, background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)' }} onClick={() => setShowRoadmap(false)} />
+
+          {/* Drawer */}
+          <div style={{ width: '520px', background: '#0D1114', borderLeft: '1px solid rgba(164,120,255,0.25)', height: '100%', overflowY: 'auto', animation: 'slideInRight 0.25s ease', display: 'flex', flexDirection: 'column' }}>
+
+            {/* Header */}
+            <div style={{ padding: '28px 32px 24px', borderBottom: '1px solid rgba(255,255,255,0.07)', position: 'sticky', top: 0, background: '#0D1114', zIndex: 1 }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <div>
+                  <div style={{ fontSize: '10px', fontWeight: 800, letterSpacing: '2px', textTransform: 'uppercase', color: '#A478FF', marginBottom: '4px' }}>Platform Roadmap</div>
+                  <div style={{ fontSize: '20px', fontWeight: 900, color: 'white', letterSpacing: '-0.3px' }}>What&apos;s next for Trescademy</div>
+                </div>
+                <button onClick={() => setShowRoadmap(false)} style={{ width: '36px', height: '36px', borderRadius: '10px', border: '1px solid rgba(255,255,255,0.1)', background: 'rgba(255,255,255,0.05)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <svg width="14" height="14" fill="none" stroke="rgba(255,255,255,0.6)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                </button>
+              </div>
+            </div>
+
+            <div style={{ padding: '28px 32px', display: 'flex', flexDirection: 'column', gap: '32px' }}>
+
+              {/* ── Section 1: What's live ── */}
+              <div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '16px' }}>
+                  <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#C0F43C', boxShadow: '0 0 8px #C0F43C' }} />
+                  <div style={{ fontSize: '11px', fontWeight: 800, letterSpacing: '1.8px', textTransform: 'uppercase', color: '#C0F43C' }}>Live now</div>
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                  {[
+                    'TAIRS scoring — live AI readiness score for every staff member',
+                    'Personal dashboard with role-specific course recommendations',
+                    'AI-generated courses via Content Studio — ready to publish in minutes',
+                    'Tresci — internal AI assistant scoped to Trescademy and your org',
+                    'Admin dashboard with org-wide intelligence and tier breakdowns',
+                    'Events Hub and Knowledge Base for company documents',
+                  ].map((item, i) => (
+                    <div key={i} style={{ display: 'flex', gap: '10px', alignItems: 'flex-start', padding: '10px 14px', background: 'rgba(192,244,60,0.05)', border: '1px solid rgba(192,244,60,0.12)', borderRadius: '10px' }}>
+                      <svg width="13" height="13" style={{ flexShrink: 0, marginTop: '2px' }} fill="none" stroke="#C0F43C" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>
+                      <span style={{ fontSize: '13px', color: 'rgba(255,255,255,0.75)', lineHeight: 1.5 }}>{item}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* ── Section 2: Phase 2 ── */}
+              <div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '16px' }}>
+                  <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#FF9F43' }} />
+                  <div style={{ fontSize: '11px', fontWeight: 800, letterSpacing: '1.8px', textTransform: 'uppercase', color: '#FF9F43' }}>Phase 2 — Rolling out next</div>
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                  {[
+                    { title: 'Staff onboarding via email', desc: 'Welcome email with platform intro, login link, and temp password sent automatically when staff are imported.' },
+                    { title: 'Manager team view', desc: 'Managers see their team\'s TAIRS scores, who hasn\'t started, and who needs a nudge — without seeing individual data of others.' },
+                    { title: 'Completion certificates', desc: 'Staff receive a certificate on passing a course. Shareable and stored against their profile.' },
+                    { title: 'Weekly org pulse report', desc: 'Auto-generated Monday report to leadership: who moved tiers, what changed, what needs action.' },
+                  ].map((item, i) => (
+                    <div key={i} style={{ padding: '12px 14px', background: 'rgba(255,159,67,0.05)', border: '1px solid rgba(255,159,67,0.15)', borderRadius: '10px' }}>
+                      <div style={{ fontSize: '13px', fontWeight: 700, color: '#FF9F43', marginBottom: '4px' }}>{item.title}</div>
+                      <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.5)', lineHeight: 1.6 }}>{item.desc}</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* ── Section 3: Phase 3 ── */}
+              <div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '16px' }}>
+                  <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#A478FF' }} />
+                  <div style={{ fontSize: '11px', fontWeight: 800, letterSpacing: '1.8px', textTransform: 'uppercase', color: '#A478FF' }}>Phase 3 — Intelligence deepens</div>
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                  {[
+                    { title: 'Events Hub AI-first', desc: 'Upload an event brief — AI extracts structure, assigns staff, surfaces readiness gaps. No manual data entry.' },
+                    { title: 'Department deep-dives', desc: 'Per-department AI report: current tier split, top skill gaps, projected score in 30 days, recommended courses.' },
+                    { title: 'Course effectiveness scoring', desc: 'AI tracks whether TAIRS scores actually improve after each course. Courses that don\'t move the needle get flagged.' },
+                    { title: 'TAOS integration', desc: 'Trescademy\'s org intelligence feeds the broader Trescon AI Operating System — capability data becomes a business asset.' },
+                  ].map((item, i) => (
+                    <div key={i} style={{ padding: '12px 14px', background: 'rgba(164,120,255,0.05)', border: '1px solid rgba(164,120,255,0.12)', borderRadius: '10px' }}>
+                      <div style={{ fontSize: '13px', fontWeight: 700, color: '#A478FF', marginBottom: '4px' }}>{item.title}</div>
+                      <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.5)', lineHeight: 1.6 }}>{item.desc}</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* ── Section 4: How AI shapes the roadmap ── */}
+              <div style={{ background: 'rgba(0,165,163,0.06)', border: '1px solid rgba(0,165,163,0.2)', borderRadius: '16px', padding: '22px' }}>
+                <div style={{ fontSize: '11px', fontWeight: 800, letterSpacing: '1.8px', textTransform: 'uppercase', color: '#00A5A3', marginBottom: '12px' }}>How AI decides what gets built</div>
+                <p style={{ fontSize: '13px', color: 'rgba(255,255,255,0.6)', lineHeight: 1.75, margin: '0 0 16px' }}>
+                  Trescademy doesn&apos;t wait for a committee to decide what to build next. Every interaction is data. The AI reads patterns across all staff and surfaces what the organisation actually needs.
+                </p>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                  {[
+                    { signal: 'Questionnaire responses', output: 'Identifies skill gaps by department and role. Drives which courses get generated first.' },
+                    { signal: 'Course completions and drop-offs', output: 'Courses with low pass rates or high abandonment get flagged. AI rebuilds or reorders them.' },
+                    { signal: 'Tresci questions asked', output: 'The most common questions reveal what staff don\'t understand. Becomes new platform documentation.' },
+                    { signal: 'Manager feedback and ratings', output: 'Leadership priorities re-rank the build order. The platform adapts to what the business needs most.' },
+                  ].map((row, i) => (
+                    <div key={i} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', padding: '10px 12px', background: 'rgba(0,165,163,0.06)', borderRadius: '10px', border: '1px solid rgba(0,165,163,0.12)' }}>
+                      <div>
+                        <div style={{ fontSize: '10px', fontWeight: 700, color: '#00A5A3', letterSpacing: '1px', textTransform: 'uppercase', marginBottom: '3px' }}>Signal</div>
+                        <div style={{ fontSize: '12px', color: 'white', fontWeight: 600, lineHeight: 1.4 }}>{row.signal}</div>
+                      </div>
+                      <div>
+                        <div style={{ fontSize: '10px', fontWeight: 700, color: 'rgba(255,255,255,0.35)', letterSpacing: '1px', textTransform: 'uppercase', marginBottom: '3px' }}>Output</div>
+                        <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.55)', lineHeight: 1.4 }}>{row.output}</div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* ── Footer note ── */}
+              <div style={{ textAlign: 'center', fontSize: '12px', color: 'rgba(255,255,255,0.2)', lineHeight: 1.7, paddingBottom: '8px' }}>
+                This roadmap updates as the platform learns.<br />Feedback from your team shapes every build decision.
+              </div>
+
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Guided Tour Overlay ── */}
+      {tourStep !== null && tourRect && (() => {
+        const step    = TOUR_STEPS[tourStep]
+        const PAD     = 10
+        const hl      = { left: tourRect.left - PAD, top: tourRect.top - PAD, width: tourRect.width + PAD * 2, height: tourRect.height + PAD * 2 }
+        const tipW    = 340
+        const tipH    = 180
+        const rawLeft = tourRect.left
+        const tipLeft = Math.max(12, Math.min(rawLeft, window.innerWidth - tipW - 12))
+        const below   = tourRect.bottom + 16 + tipH < window.innerHeight
+        const tipTop  = below ? tourRect.bottom + 16 : tourRect.top - tipH - 16
+
+        return (
+          <>
+            {/* Dark overlay with SVG cutout */}
+            <div style={{ position: 'fixed', inset: 0, zIndex: 1100, pointerEvents: 'none' }}>
+              <svg width="100%" height="100%" style={{ position: 'absolute', inset: 0 }}>
+                <defs>
+                  <mask id="tourmask">
+                    <rect x="0" y="0" width="100%" height="100%" fill="white" />
+                    <rect x={hl.left} y={hl.top} width={hl.width} height={hl.height} rx="12" fill="black" />
+                  </mask>
+                </defs>
+                <rect x="0" y="0" width="100%" height="100%" fill="rgba(0,0,0,0.72)" mask="url(#tourmask)" />
+              </svg>
+              {/* Highlight ring */}
+              <div style={{ position: 'absolute', left: hl.left, top: hl.top, width: hl.width, height: hl.height, borderRadius: '12px', border: '2px solid #00A5A3', boxShadow: '0 0 0 4px rgba(0,165,163,0.18), 0 0 28px rgba(0,165,163,0.25)' }} />
+            </div>
+
+            {/* Click absorber (keeps page non-interactive during tour) */}
+            <div style={{ position: 'fixed', inset: 0, zIndex: 1099, cursor: 'default' }} onClick={e => e.stopPropagation()} />
+
+            {/* Tooltip card */}
+            <div style={{ position: 'fixed', zIndex: 1110, left: tipLeft, top: tipTop, width: tipW, background: '#0D1114', border: '1px solid rgba(0,165,163,0.4)', borderRadius: '18px', padding: '22px 24px', boxShadow: '0 20px 60px rgba(0,0,0,0.65)', animation: 'tourPop 0.2s ease' }}>
+              {/* Step indicator */}
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '10px' }}>
+                <div style={{ display: 'flex', gap: '5px' }}>
+                  {TOUR_STEPS.map((_, i) => (
+                    <div key={i} style={{ width: i === tourStep ? '18px' : '6px', height: '6px', borderRadius: '3px', background: i === tourStep ? '#00A5A3' : 'rgba(255,255,255,0.15)', transition: 'all 0.2s' }} />
+                  ))}
+                </div>
+                <button onClick={endTour} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'rgba(255,255,255,0.3)', fontSize: '11px', fontFamily: 'inherit', padding: '0' }}>Skip tour</button>
+              </div>
+
+              <div style={{ fontSize: '15px', fontWeight: 800, color: 'white', marginBottom: '7px' }}>{step.title}</div>
+              <div style={{ fontSize: '13px', color: 'rgba(255,255,255,0.58)', lineHeight: 1.65, marginBottom: '18px' }}>{step.desc}</div>
+
+              <div style={{ display: 'flex', gap: '8px' }}>
+                {tourStep > 0 && (
+                  <button
+                    onClick={() => setTourStep(s => s! - 1)}
+                    style={{ padding: '10px 18px', borderRadius: '10px', border: '1px solid rgba(255,255,255,0.13)', background: 'transparent', color: 'rgba(255,255,255,0.6)', fontSize: '13px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}
+                  >Back</button>
+                )}
+                <button
+                  onClick={() => tourStep < TOUR_STEPS.length - 1 ? setTourStep(s => s! + 1) : endTour()}
+                  style={{ flex: 1, padding: '10px 18px', borderRadius: '10px', border: 'none', background: 'linear-gradient(135deg, #00A5A3, #00C9C7)', color: 'white', fontSize: '13px', fontWeight: 800, cursor: 'pointer', fontFamily: 'inherit', boxShadow: '0 4px 14px rgba(0,165,163,0.35)' }}
+                >
+                  {tourStep < TOUR_STEPS.length - 1 ? 'Next →' : 'Done'}
+                </button>
+              </div>
+            </div>
+          </>
+        )
+      })()}
+
     </div>
   )
 }

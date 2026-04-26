@@ -14,7 +14,7 @@ export async function POST(req: NextRequest) {
   }
 
   const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!)
-  const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' })
+  const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash' })
 
   const prompt = `You are TAI — the AI course designer for TAI Academy at Trescon Global, a B2B events company with 4 offices: Dubai, Bangalore, Mangalore, and Manipal.
 
@@ -85,6 +85,8 @@ The question_bank must have exactly 10 questions. All questions must test unders
     return NextResponse.json({ course })
   } catch (err) {
     console.error('Gemini course generation error:', err)
+    const { isQuotaError, QUOTA_ERROR_MESSAGE } = await import('@/app/lib/gemini-error')
+    if (isQuotaError(err)) return NextResponse.json({ error: QUOTA_ERROR_MESSAGE }, { status: 429 })
     return NextResponse.json({ error: 'Failed to generate course. Try again.' }, { status: 500 })
   }
 }

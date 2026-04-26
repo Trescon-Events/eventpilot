@@ -5,8 +5,8 @@ import "./globals.css";
 const manrope = Manrope({ subsets: ["latin"], variable: "--font-manrope", display: "swap" });
 
 export const metadata: Metadata = {
-  title: "TAI — Trescon AI Operating System",
-  description: "The journey starts here. Tell us what you do and help us build the system that works for you.",
+  title: "Trescademy — Trescon AI Learning Platform",
+  description: "The internal AI learning platform for Trescon Global. Build skills, track readiness, and grow with your team.",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

@@ -4,7 +4,7 @@ import { useState, useRef, useEffect, Suspense } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { submitProfile } from '@/app/actions/profile'
 import Link from 'next/link'
-import { buildQuestions, PROFICIENCY_LEVELS, DEPT_QUESTIONS } from '@/app/lib/questions'
+import { buildQuestions, PROFICIENCY_LEVELS, DEPT_QUESTIONS, ALL_DEPARTMENTS } from '@/app/lib/questions'
 import type { Question } from '@/app/lib/questions'
 
 /* ─── Types ──────────────────────────────────────────────────── */
@@ -69,13 +69,13 @@ function buildTaskEntries(answers: Answers, department: string, staffId: string)
       staff_id:          staffId,
       task_name:         'AI Opportunity & Automation Wish',
       task_description:  [
-        answers['ai_wish'] ? `If TAI could do one thing:\n${str(answers['ai_wish'])}` : '',
+        answers['ai_wish'] ? `If AI could do one thing for you:\n${str(answers['ai_wish'])}` : '',
         answers['ai_proof'] ? `AI workflow they already use (advanced track):\n${str(answers['ai_proof'])}` : '',
       ].filter(Boolean).join('\n\n'),
       tools_unlisted:    answers['tools_unlisted'] ? str(answers['tools_unlisted']) : '',
       ai_proof:          answers['ai_proof'] ? str(answers['ai_proof']) : null,
       frequency:         'Daily',
-      skill_needed:      'Identified via TAI Intelligence Interview',
+      skill_needed:      'Identified via Trescademy Discovery Interview',
       ai_readiness:      readiness,
     },
   ].filter(e => e.task_description || (e as { tools_used?: string[] }).tools_used?.length)
@@ -126,7 +126,7 @@ function ProficiencyInput({
                   }}
                 >
                   <div style={{ fontSize: '13px', fontWeight: 700, color: sel ? color : 'rgba(255,255,255,0.55)', marginBottom: '4px' }}>{label}</div>
-                  <div style={{ fontSize: '10px', color: sel ? color : 'rgba(255,255,255,0.3)', lineHeight: 1.4 }}>{desc}</div>
+                  <div style={{ fontSize: '10px', color: sel ? color : 'rgba(255,255,255,0.70)', lineHeight: 1.4 }}>{desc}</div>
                 </button>
               )
             })}
@@ -152,6 +152,10 @@ function ProfileContent() {
   const [staffId, setStaffId]         = useState('')
   const [department, setDept]         = useState('')
 
+  /* Department picker state (-2 = pick dept screen) */
+  const [choosingDept, setChoosingDept] = useState(false)
+  const [savingDept,   setSavingDept]   = useState(false)
+
   /* Interview state */
   const [questions, setQuestions]     = useState<Question[]>([])
   const [step, setStep]               = useState(-1)   // -1 = verify screen
@@ -165,19 +169,24 @@ function ProfileContent() {
 
   const inputRef = useRef<HTMLTextAreaElement | null>(null)
 
-  /* Auto-skip email verify when arriving from /join with pre-filled params */
+  const nextUrl = params.get('next') ?? null
+
+  /* Auto-skip email verify when arriving from /login or /join with pre-filled params */
   useEffect(() => {
     const preId   = params.get('id')
     const preName = params.get('name')
     const preDept = params.get('dept')
     if (preId && preName) {
-      const dept = preDept && preDept !== '' ? preDept : 'Other'
-      const qs   = buildQuestions(dept)
       setStaffName(preName)
       setStaffId(preId)
-      setDept(dept)
-      setQuestions(qs)
-      setStep(0)
+      if (preDept && preDept !== '' && preDept !== 'null') {
+        const qs = buildQuestions(preDept)
+        setDept(preDept)
+        setQuestions(qs)
+        setStep(0)
+      } else {
+        setChoosingDept(true)
+      }
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
@@ -203,12 +212,31 @@ function ProfileContent() {
     setVerifying(false)
     if (data.error) { setVerifyError(data.error); return }
 
-    const dept = data.department ?? 'Other'
-    const qs   = buildQuestions(dept)
     setStaffName(data.name)
     setStaffId(data.id)
-    setDept(dept)
+    if (data.department) {
+      const qs = buildQuestions(data.department)
+      setDept(data.department)
+      setQuestions(qs)
+      setStep(0)
+    } else {
+      setChoosingDept(true)
+    }
+  }
+
+  /* ── Confirm department selection ── */
+  async function confirmDepartment(selectedDept: string) {
+    setSavingDept(true)
+    await fetch('/api/verify-staff', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ staff_id: staffId, department: selectedDept }),
+    })
+    setSavingDept(false)
+    const qs = buildQuestions(selectedDept)
+    setDept(selectedDept)
     setQuestions(qs)
+    setChoosingDept(false)
     setStep(0)
   }
 
@@ -243,7 +271,7 @@ function ProfileContent() {
   function saveCurrentAndAdvance() {
     const q = questions[step]
     const val = currentInput
-    if (q.type !== 'scale' && q.type !== 'chips' && q.type !== 'select' && q.type !== 'proficiency') {
+    if (q.type !== 'scale' && q.type !== 'chips' && q.type !== 'select' && q.type !== 'proficiency' && q.type !== 'text') {
       if (String(val).trim() === '') return
     }
     const newAnswers = { ...answers, [q.id]: val }
@@ -301,7 +329,7 @@ function ProfileContent() {
   const allAnswersWithCurrent = q ? { ...answers, [q.id]: currentInput } : answers
   const nextVisibleStep = q ? getNextVisibleStep(step, allAnswersWithCurrent) : step + 1
   const isLastStep = nextVisibleStep >= questions.length
-  const progress   = step >= 0 ? Math.round(((step + 1) / questions.length) * 100) : 0
+  const progress   = step >= 0 ? Math.round((step / questions.length) * 100) : 0
   const firstName  = staffName.split(' ')[0]
 
   // Proficiency helpers
@@ -334,34 +362,38 @@ function ProfileContent() {
 
   /* ───────── DONE SCREEN ───────── */
   if (done) {
+    const destination = nextUrl ?? `/dashboard?id=${staffId}`
     return (
       <div style={{ ...S.page, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', textAlign: 'center', padding: '40px 24px' }}>
         <div style={{ width: '80px', height: '80px', borderRadius: '50%', border: '3px solid #C0F43C', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 28px', background: '#C0F43C15' }}>
           <svg width="36" height="36" fill="none" stroke="#C0F43C" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>
         </div>
-        <div style={S.label}>Intelligence Captured</div>
+        <div style={S.label}>You are ready to begin</div>
         <h1 style={{ fontSize: '38px', fontWeight: 800, margin: '16px 0 12px', letterSpacing: '-0.5px', lineHeight: 1.1 }}>
-          TAI has heard you,<br /><span style={{ color: '#C0F43C' }}>{firstName}.</span>
+          Your AI readiness score<br />is set, <span style={{ color: '#C0F43C' }}>{firstName}.</span>
         </h1>
-        <p style={{ fontSize: '16px', color: 'rgba(255,255,255,0.55)', lineHeight: 1.7, maxWidth: '440px', margin: '0 auto 40px' }}>
-          Your answers will shape what gets built first. Every input from the team makes TAI sharper and more specific to how Trescon actually works.
+        <p style={{ fontSize: '16px', color: 'rgba(255,255,255,0.65)', lineHeight: 1.7, maxWidth: '440px', margin: '0 auto 40px' }}>
+          Based on your answers, Trescademy has calculated your starting TAIRS score and placed you on the right learning track. Your courses are ready.
         </p>
         <div style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '18px', padding: '24px 28px', marginBottom: '36px', textAlign: 'left', maxWidth: '420px' }}>
-          <div style={{ ...S.label, marginBottom: '14px' }}>What happens with your answers</div>
+          <div style={{ ...S.label, marginBottom: '14px' }}>What happens next</div>
           {[
-            'Your intelligence profile is now in the TAI system',
-            'Gemini AI will analyse patterns across all staff',
-            'Your department\'s top automation wins get surfaced',
-            'TAI builds what the team needs most — starting now',
+            'Your TAIRS score is live on your dashboard',
+            'AI has selected your first recommended courses',
+            'Each course you complete moves your score forward',
+            'Your manager can see your progress in real time',
           ].map((t, i) => (
             <div key={i} style={{ display: 'flex', gap: '10px', padding: '9px 0', borderBottom: i < 3 ? '1px solid rgba(255,255,255,0.07)' : 'none', alignItems: 'center' }}>
-              <div style={{ width: '6px', height: '6px', borderRadius: '50%', background: i === 0 ? '#C0F43C' : 'rgba(255,255,255,0.25)', flexShrink: 0 }} />
-              <span style={{ fontSize: '13px', color: i === 0 ? '#C0F43C' : 'rgba(255,255,255,0.6)', fontWeight: i === 0 ? 600 : 400 }}>{t}</span>
+              <div style={{ width: '22px', height: '22px', borderRadius: '50%', background: i === 0 ? '#C0F43C20' : 'rgba(255,255,255,0.05)', border: `1px solid ${i === 0 ? '#C0F43C50' : 'rgba(255,255,255,0.1)'}`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                <span style={{ fontSize: '11px', fontWeight: 800, color: i === 0 ? '#C0F43C' : 'rgba(255,255,255,0.65)' }}>{i + 1}</span>
+              </div>
+              <span style={{ fontSize: '13px', color: i === 0 ? '#C0F43C' : 'rgba(255,255,255,0.65)', fontWeight: i === 0 ? 700 : 400, lineHeight: 1.5 }}>{t}</span>
             </div>
           ))}
         </div>
-        <Link href={`/dashboard?id=${staffId}`} style={{ background: '#C0F43C', color: '#1E2124', fontSize: '14px', fontWeight: 800, padding: '14px 32px', borderRadius: '50px', textDecoration: 'none' }}>
-          Go to My Dashboard
+        <Link href={destination} style={{ background: '#C0F43C', color: '#1E2124', fontSize: '14px', fontWeight: 800, padding: '14px 32px', borderRadius: '50px', textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: '8px' }}>
+          See My TAIRS Score
+          <svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg>
         </Link>
       </div>
     )
@@ -376,11 +408,11 @@ function ProfileContent() {
             <div style={{ width: '28px', height: '28px', background: '#00A5A3', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
               <svg width="14" height="14" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
             </div>
-            <span style={{ fontSize: '14px', fontWeight: 800, color: 'white' }}>TAI</span>
+            <span style={{ fontSize: '14px', fontWeight: 800, color: 'white' }}>Trescademy</span>
           </Link>
         </nav>
         <div style={{ maxWidth: '500px', margin: '80px auto', padding: '0 24px' }}>
-          <div style={S.label}>TAI Intelligence Interview</div>
+          <div style={S.label}>Trescademy — AI Readiness Assessment</div>
           <h1 style={{ fontSize: '32px', fontWeight: 800, color: '#1E2124', margin: '12px 0 8px', lineHeight: 1.2 }}>Enter your work email</h1>
           <p style={{ fontSize: '15px', color: '#666', lineHeight: 1.6, marginBottom: '32px' }}>
             We&apos;ll match it to your Trescon profile and take you straight into your interview. No password needed.
@@ -414,26 +446,78 @@ function ProfileContent() {
     )
   }
 
+  /* ───────── DEPARTMENT PICKER SCREEN ───────── */
+  if (choosingDept) {
+    return (
+      <div style={S.page}>
+        <nav style={S.nav}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '7px' }}>
+            <div style={{ width: '26px', height: '26px', background: '#00A5A3', borderRadius: '7px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <svg width="12" height="12" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+            </div>
+            <span style={{ fontSize: '13px', fontWeight: 800, color: 'white' }}>Trescademy</span>
+          </div>
+        </nav>
+        <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '40px 20px' }}>
+          <div style={{ width: '100%', maxWidth: '560px' }}>
+            <div style={{ marginBottom: '8px', fontSize: '11px', fontWeight: 800, letterSpacing: '2px', textTransform: 'uppercase', color: '#00A5A3' }}>Welcome, {staffName}</div>
+            <h1 style={{ fontSize: '26px', fontWeight: 900, color: 'white', margin: '0 0 8px', lineHeight: 1.2 }}>Which department are you in?</h1>
+            <p style={{ fontSize: '14px', color: 'rgba(255,255,255,0.55)', margin: '0 0 28px', lineHeight: 1.6 }}>
+              Your questions will be tailored to your actual daily work and the AI tools most relevant to your role.
+            </p>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+              {ALL_DEPARTMENTS.map(dept => (
+                <button key={dept} onClick={() => !savingDept && confirmDepartment(dept)}
+                  style={{ padding: '14px 18px', borderRadius: '12px', border: '1.5px solid rgba(255,255,255,0.12)', background: 'rgba(255,255,255,0.05)', color: 'white', fontSize: '14px', fontWeight: 700, cursor: savingDept ? 'not-allowed' : 'pointer', fontFamily: 'inherit', textAlign: 'left', transition: 'all 0.15s ease' }}
+                  onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.borderColor = '#00A5A3'; (e.currentTarget as HTMLButtonElement).style.background = 'rgba(0,165,163,0.1)' }}
+                  onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.borderColor = 'rgba(255,255,255,0.12)'; (e.currentTarget as HTMLButtonElement).style.background = 'rgba(255,255,255,0.05)' }}>
+                  {dept}
+                </button>
+              ))}
+            </div>
+            {savingDept && <div style={{ marginTop: '20px', textAlign: 'center', fontSize: '13px', color: 'rgba(255,255,255,0.5)' }}>Setting up your assessment...</div>}
+          </div>
+        </div>
+      </div>
+    )
+  }
+
   /* ───────── INTERVIEW SCREEN ───────── */
   return (
     <div style={S.page}>
       {/* Nav */}
       <nav style={S.nav}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-          <Link href="/" style={{ display: 'flex', alignItems: 'center', gap: '10px', textDecoration: 'none' }}>
-            <div style={{ width: '28px', height: '28px', background: '#00A5A3', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              <svg width="14" height="14" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '7px' }}>
+            <div style={{ width: '26px', height: '26px', background: '#00A5A3', borderRadius: '7px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <svg width="12" height="12" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
             </div>
-            <span style={{ fontSize: '14px', fontWeight: 800, color: 'white' }}>TAI</span>
-          </Link>
-          <span style={{ color: 'rgba(255,255,255,0.2)', margin: '0 4px' }}>|</span>
-          <span style={{ fontSize: '12px', color: 'rgba(255,255,255,0.45)', fontWeight: 600 }}>Intelligence Interview</span>
-        </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <div style={{ width: '28px', height: '28px', borderRadius: '8px', background: '#C0F43C20', border: '1px solid #C0F43C40', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <span style={{ fontSize: '11px', fontWeight: 800, color: '#C0F43C' }}>{staffName.charAt(0)}</span>
+            <span style={{ fontSize: '13px', fontWeight: 800, color: 'white' }}>Trescademy</span>
           </div>
-          <span style={{ fontSize: '12px', color: 'rgba(255,255,255,0.5)' }}>{firstName} — {department}</span>
+          <span style={{ color: 'rgba(255,255,255,0.2)', margin: '0 4px' }}>|</span>
+          <span style={{ fontSize: '12px', color: '#00A5A3', fontWeight: 700 }}>Step 1 — AI Readiness Assessment</span>
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <div style={{ width: '28px', height: '28px', borderRadius: '8px', background: '#C0F43C20', border: '1px solid #C0F43C40', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <span style={{ fontSize: '11px', fontWeight: 800, color: '#C0F43C' }}>{staffName.charAt(0)}</span>
+            </div>
+            <span style={{ fontSize: '12px', color: 'rgba(255,255,255,0.75)' }}>{firstName} · {department}</span>
+          </div>
+          <button
+            onClick={() => {
+              localStorage.removeItem('tai_staff_id')
+              sessionStorage.removeItem('tai_admin_authed')
+              sessionStorage.removeItem('tai_admin_staff_id')
+              window.location.href = '/login'
+            }}
+            style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '6px 14px', borderRadius: '10px', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.15)', cursor: 'pointer', fontFamily: 'inherit' }}
+          >
+            <svg width="12" height="12" fill="none" stroke="rgba(255,255,255,0.75)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24">
+              <path d="M18.36 6.64a9 9 0 1 1-12.73 0"/><line x1="12" y1="2" x2="12" y2="12"/>
+            </svg>
+            <span style={{ fontSize: '12px', fontWeight: 600, color: 'rgba(255,255,255,0.75)' }}>Save &amp; Exit</span>
+          </button>
         </div>
       </nav>
 
@@ -446,33 +530,33 @@ function ProfileContent() {
 
         {/* Step counter */}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '40px' }}>
-          <div style={{ fontSize: '11px', fontWeight: 700, letterSpacing: '2px', color: 'rgba(255,255,255,0.3)', textTransform: 'uppercase' }}>
+          <div style={{ fontSize: '11px', fontWeight: 700, letterSpacing: '2px', color: 'rgba(255,255,255,0.70)', textTransform: 'uppercase' }}>
             Question {step + 1} of {questions.length}
           </div>
           <div style={{ fontSize: '11px', fontWeight: 700, color: '#00A5A3', letterSpacing: '1px' }}>
-            {progress}% complete
+            {progress}% answered
           </div>
         </div>
 
         {q && (
           <div key={q.id} style={{ animation: 'fadeSlide 0.35s ease' }}>
 
-            {/* Step 0: Training track framing banner */}
+            {/* Step 0: Welcome banner */}
             {step === 0 && (
               <div style={{ background: 'rgba(0,165,163,0.07)', border: '1px solid rgba(0,165,163,0.22)', borderRadius: '14px', padding: '14px 18px', marginBottom: '28px' }}>
-                <div style={{ fontSize: '10px', fontWeight: 800, color: '#00A5A3', letterSpacing: '1.5px', textTransform: 'uppercase', marginBottom: '6px' }}>This is also your training intake</div>
+                <div style={{ fontSize: '10px', fontWeight: 800, color: '#00A5A3', letterSpacing: '1.5px', textTransform: 'uppercase', marginBottom: '6px' }}>Welcome to Trescademy, {firstName}</div>
                 <div style={{ fontSize: '13px', color: 'rgba(255,255,255,0.6)', lineHeight: 1.65 }}>
-                  Your answers place you into a TAI learning track. Be specific — vague answers get basic training. Detailed, honest answers unlock advanced tracks and leadership roles in the AI rollout.
+                  These questions help us understand your role and build a learning path that fits your actual day-to-day work. There are no right or wrong answers — just be honest about how you work today.
                 </div>
               </div>
             )}
 
-            {/* TAI asking indicator */}
+            {/* Trescademy asking indicator */}
             <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '20px' }}>
               <div style={{ width: '32px', height: '32px', background: 'linear-gradient(135deg, #00A5A3, #005F7A)', borderRadius: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
                 <svg width="14" height="14" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
               </div>
-              <span style={{ fontSize: '11px', fontWeight: 700, letterSpacing: '2px', color: '#00A5A3', textTransform: 'uppercase' }}>TAI Intelligence</span>
+              <span style={{ fontSize: '11px', fontWeight: 700, letterSpacing: '2px', color: '#00A5A3', textTransform: 'uppercase' }}>Trescademy</span>
             </div>
 
             {/* Question text */}
@@ -482,10 +566,10 @@ function ProfileContent() {
             {(() => {
               // Dynamic subtext for ownership_intent based on readiness level
               const displaySubtext = (q.id === 'ownership_intent' && typeof answers['ai_readiness'] === 'number' && (answers['ai_readiness'] as number) >= 3)
-                ? "Since you're already using AI, name one specific process in your role you'd want to automate first with TAI's support. This goes on record."
+                ? "Since you're already using AI, name one specific process in your role you'd want to automate first. This goes on record."
                 : q.subtext
               return displaySubtext
-                ? <p style={{ fontSize: '14px', color: 'rgba(255,255,255,0.45)', lineHeight: 1.65, marginBottom: '28px' }}>{displaySubtext}</p>
+                ? <p style={{ fontSize: '14px', color: 'rgba(255,255,255,0.82)', lineHeight: 1.65, marginBottom: '28px' }}>{displaySubtext}</p>
                 : <div style={{ height: '28px' }} />
             })()}
 
@@ -590,8 +674,8 @@ function ProfileContent() {
                           cursor: 'pointer', fontFamily: 'inherit', transition: 'all 0.15s ease',
                         }}
                       >
-                        <div style={{ fontSize: '22px', fontWeight: 800, color: sel ? col : 'rgba(255,255,255,0.3)', marginBottom: '6px' }}>{n}</div>
-                        <div style={{ fontSize: '11px', color: sel ? col : 'rgba(255,255,255,0.35)', fontWeight: sel ? 700 : 400, lineHeight: 1.4 }}>{label}</div>
+                        <div style={{ fontSize: '22px', fontWeight: 800, color: sel ? col : 'rgba(255,255,255,0.75)', marginBottom: '6px' }}>{n}</div>
+                        <div style={{ fontSize: '11px', color: sel ? col : 'rgba(255,255,255,0.70)', fontWeight: sel ? 700 : 400, lineHeight: 1.4 }}>{label}</div>
                       </button>
                     )
                   })}
@@ -606,7 +690,7 @@ function ProfileContent() {
                   <div style={{ marginTop: '14px', background: 'rgba(192,244,60,0.07)', border: '1px solid rgba(192,244,60,0.25)', borderRadius: '12px', padding: '14px 18px' }}>
                     <div style={{ fontSize: '11px', fontWeight: 800, color: '#C0F43C', letterSpacing: '1px', textTransform: 'uppercase', marginBottom: '6px' }}>You are now on the advanced track</div>
                     <div style={{ fontSize: '13px', color: 'rgba(255,255,255,0.65)', lineHeight: 1.6 }}>
-                      The next question will ask you to describe a real AI workflow you use. This becomes your starting brief for TAI&apos;s advanced training path — and you will be expected to lead an AI pilot in your department.
+                      The next question will ask you to describe a real AI workflow you use. This becomes your brief for the Advanced track — and you will be expected to lead an AI pilot in your department.
                     </div>
                   </div>
                 )}
@@ -624,14 +708,14 @@ function ProfileContent() {
 
             {/* Hint for textarea */}
             {q.type === 'textarea' && (
-              <p style={{ fontSize: '11px', color: 'rgba(255,255,255,0.2)', marginTop: '10px' }}>
+              <p style={{ fontSize: '11px', color: 'rgba(255,255,255,0.70)', marginTop: '10px' }}>
                 Press Cmd+Enter to continue
               </p>
             )}
 
             {/* Optional hint for text */}
             {q.type === 'text' && (
-              <p style={{ fontSize: '11px', color: 'rgba(255,255,255,0.25)', marginTop: '10px' }}>
+              <p style={{ fontSize: '11px', color: 'rgba(255,255,255,0.65)', marginTop: '10px' }}>
                 Optional — skip if nothing to add
               </p>
             )}
@@ -665,9 +749,9 @@ function ProfileContent() {
                   transition: 'all 0.2s ease',
                 }}
               >
-                {pending ? 'Submitting to TAI...' : isLastStep ? (
+                {pending ? 'Submitting...' : isLastStep ? (
                   <>
-                    Submit to TAI
+                    Submit
                     <svg width="14" height="14" fill="none" stroke="#1E2124" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
                   </>
                 ) : (

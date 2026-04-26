@@ -13,8 +13,9 @@ import { NextRequest, NextResponse } from 'next/server'
 interface Question {
   question:      string
   options:       string[]
-  correct_index: number
-  explanation:   string
+  correct_index?: number
+  correct?:       number   // legacy field name from seed script
+  explanation?:   string
 }
 
 export async function POST(req: NextRequest) {
@@ -30,6 +31,8 @@ export async function POST(req: NextRequest) {
     time_spent_seconds?: number
   }
 
+  const { question_times } = body as { question_times?: number[] }
+
   if (!staff_id || !course_id || !answers || !questions_served) {
     return NextResponse.json({ error: 'staff_id, course_id, answers and questions_served are required' }, { status: 400 })
   }
@@ -39,26 +42,16 @@ export async function POST(req: NextRequest) {
   }
 
   // Score against the questions that were actually served to this person
+  // Handle both `correct_index` and `correct` field names for compatibility
   let correct = 0
   for (let i = 0; i < questions_served.length; i++) {
-    if (answers[i] !== undefined && answers[i] === questions_served[i].correct_index) {
+    const correctIdx = questions_served[i].correct_index ?? questions_served[i].correct
+    if (answers[i] !== undefined && answers[i] === correctIdx) {
       correct++
     }
   }
   const score  = Math.round((correct / questions_served.length) * 100)
   const passed = score >= 70
-
-  // Record attempt with full audit trail
-  await supabaseAdmin.from('course_attempts').insert({
-    staff_id,
-    course_id,
-    answers,
-    score,
-    passed,
-    questions_served,
-    task_submission:    task_submission   ?? null,
-    time_spent_seconds: time_spent_seconds ?? 0,
-  })
 
   // Upsert completion record
   const { data: existing } = await supabaseAdmin
@@ -88,17 +81,56 @@ export async function POST(req: NextRequest) {
     })
   }
 
-  // Return result with per-question breakdown
-  const breakdown = questions_served.map((q, i) => ({
-    question:      q.question,
-    options:       q.options,
-    selected:      answers[i] ?? null,
-    correct_index: q.correct_index,
-    is_correct:    answers[i] === q.correct_index,
-    explanation:   q.explanation,
-  }))
+  // ── Authenticity flag detection ──────────────────────────────
+  // Signal: avg time per question under 12 seconds = faster than reading pace
+  const avgTimePerQ = question_times?.length
+    ? question_times.reduce((a, b) => a + b, 0) / question_times.length
+    : (time_spent_seconds ?? 0) / questions_served.length
 
-  return NextResponse.json({ score, passed, correct, total: questions_served.length, breakdown })
+  const suspiciouslyFast = avgTimePerQ < 12 && score >= 70
+
+  // Count previous flagged attempts for this staff+course
+  const { count: prevFlagCount } = await supabaseAdmin
+    .from('course_attempts')
+    .select('*', { count: 'exact', head: true })
+    .eq('staff_id', staff_id)
+    .eq('course_id', course_id)
+    .eq('authenticity_flag', true)
+
+  const offenseNumber  = suspiciouslyFast ? (prevFlagCount ?? 0) + 1 : 0
+  const authenticityFlag = suspiciouslyFast
+
+  // Record attempt with full audit trail
+  await supabaseAdmin.from('course_attempts').insert({
+    staff_id,
+    course_id,
+    answers,
+    score,
+    passed,
+    questions_served,
+    task_submission:    task_submission   ?? null,
+    time_spent_seconds: time_spent_seconds ?? 0,
+    authenticity_flag:  authenticityFlag,
+  })
+
+  // Return result with per-question breakdown
+  const breakdown = questions_served.map((q, i) => {
+    const correctIdx = q.correct_index ?? q.correct ?? 0
+    return {
+      question:      q.question,
+      options:       q.options,
+      selected:      answers[i] ?? null,
+      correct_index: correctIdx,
+      is_correct:    answers[i] === correctIdx,
+      explanation:   q.explanation ?? null,
+    }
+  })
+
+  return NextResponse.json({
+    score, passed, correct, total: questions_served.length, breakdown,
+    flagged:        authenticityFlag,
+    offense_number: offenseNumber,
+  })
 }
 
 /* GET — get completion status for a staff member on a course */

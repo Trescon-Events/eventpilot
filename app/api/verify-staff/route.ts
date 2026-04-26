@@ -20,3 +20,17 @@ export async function POST(req: NextRequest) {
 
   return NextResponse.json({ id: data.id, name: data.name, office_id: data.office_id, department: data.department, profile_complete: data.profile_complete })
 }
+
+/* PATCH — update department for a staff member (used during questionnaire onboarding) */
+export async function PATCH(req: NextRequest) {
+  const { staff_id, department } = await req.json()
+  if (!staff_id || !department) return NextResponse.json({ error: 'staff_id and department required' }, { status: 400 })
+
+  const { error } = await supabaseAdmin
+    .from('staff_members')
+    .update({ department })
+    .eq('id', staff_id)
+
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  return NextResponse.json({ success: true })
+}

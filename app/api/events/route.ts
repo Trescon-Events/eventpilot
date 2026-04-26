@@ -1,0 +1,78 @@
+import { NextRequest, NextResponse } from 'next/server'
+import { supabaseAdmin } from '@/app/lib/supabase'
+
+/* GET /api/events — list all events with staff count and doc count */
+export async function GET(req: NextRequest) {
+  const staffId = req.nextUrl.searchParams.get('staff_id')
+
+  try {
+    if (staffId) {
+      // Events assigned to this staff member
+      const { data: assignments } = await supabaseAdmin
+        .from('event_staff')
+        .select('event_id, role, events(id, name, type, status, event_date, venue, city, client_name, description)')
+        .eq('staff_id', staffId)
+      return NextResponse.json((assignments ?? []).map(a => ({ ...a.events, my_role: a.role })))
+    }
+
+    // Admin — all events
+    const { data, error } = await supabaseAdmin
+      .from('events')
+      .select(`
+        id, name, type, status, event_date, venue, city, client_name, description, created_at,
+        event_staff(count),
+        documents(count)
+      `)
+      .order('created_at', { ascending: false })
+
+    if (error) throw error
+    return NextResponse.json(data ?? [])
+  } catch (e) {
+    console.error('events GET error:', e)
+    return NextResponse.json([], { status: 500 })
+  }
+}
+
+/* POST /api/events — create event */
+export async function POST(req: NextRequest) {
+  const body = await req.json().catch(() => null)
+  if (!body?.name) return NextResponse.json({ error: 'name required' }, { status: 400 })
+
+  const { data, error } = await supabaseAdmin
+    .from('events')
+    .insert({
+      name:        body.name,
+      type:        body.type        || 'conference',
+      status:      body.status      || 'planning',
+      event_date:  body.event_date  || null,
+      venue:       body.venue       || null,
+      city:        body.city        || null,
+      client_name: body.client_name || null,
+      description: body.description || null,
+      created_by:  body.created_by  || null,
+    })
+    .select()
+    .single()
+
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  return NextResponse.json(data)
+}
+
+/* PATCH /api/events?id=uuid — update event */
+export async function PATCH(req: NextRequest) {
+  const id   = req.nextUrl.searchParams.get('id')
+  const body = await req.json().catch(() => null)
+  if (!id || !body) return NextResponse.json({ error: 'id and body required' }, { status: 400 })
+
+  const { data, error } = await supabaseAdmin.from('events').update(body).eq('id', id).select().single()
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  return NextResponse.json(data)
+}
+
+/* DELETE /api/events?id=uuid */
+export async function DELETE(req: NextRequest) {
+  const id = req.nextUrl.searchParams.get('id')
+  if (!id) return NextResponse.json({ error: 'id required' }, { status: 400 })
+  await supabaseAdmin.from('events').delete().eq('id', id)
+  return NextResponse.json({ success: true })
+}

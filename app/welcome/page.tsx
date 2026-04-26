@@ -39,19 +39,19 @@ function WelcomeContent() {
           You&apos;re in,<br /><span style={{ color }}>{firstName}.</span>
         </h1>
 
-        <p style={{ fontSize: '16px', color: 'rgba(255,255,255,0.6)', lineHeight: 1.7, marginBottom: '12px' }}>
-          Welcome to the TAI journey. You are now part of something being built for everyone at Trescon.
+        <p style={{ fontSize: '16px', color: 'rgba(255,255,255,0.82)', lineHeight: 1.7, marginBottom: '12px' }}>
+          Welcome to Trescademy. You are now part of something being built for everyone at Trescon.
         </p>
-        <p style={{ fontSize: '14px', color: 'rgba(255,255,255,0.4)', lineHeight: 1.7, marginBottom: '40px' }}>
-          Your office counter on the main page has already updated. Go check it.
+        <p style={{ fontSize: '14px', color: 'rgba(255,255,255,0.70)', lineHeight: 1.7, marginBottom: '40px' }}>
+          Your profile is live. Head to your dashboard to see your learning path and start your first course.
         </p>
 
         {/* Next step card */}
         <div style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '20px', padding: '28px', marginBottom: '28px', textAlign: 'left' }}>
           <div style={{ fontSize: '10px', fontWeight: 700, letterSpacing: '2px', textTransform: 'uppercase', color: color, marginBottom: '12px' }}>What happens next</div>
           {[
-            'Your details are now on record in the TAI system',
-            'Your profile is added to the TAI system',
+            'Your details are now on record in Trescademy',
+            'Your profile is added to Trescademy',
             'Next: tell us what your work looks like daily',
             'Your input shapes what gets built first',
           ].map((step, i) => (
@@ -69,9 +69,9 @@ function WelcomeContent() {
         </div>
 
         <div style={{ display: 'flex', gap: '12px', justifyContent: 'center', flexWrap: 'wrap' }}>
-          <Link href="/" style={{ background: color, color: '#1E2124', fontSize: '14px', fontWeight: 800, padding: '14px 28px', borderRadius: '50px', textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: '8px' }}>
-            <svg width="14" height="14" fill="none" stroke="#1E2124" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><line x1="3" y1="12" x2="21" y2="12"/><polyline points="3 6 21 6"/><polyline points="3 18 21 18"/></svg>
-            See Live Tracker
+          <Link href="/dashboard" style={{ background: color, color: '#1E2124', fontSize: '14px', fontWeight: 800, padding: '14px 28px', borderRadius: '50px', textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: '8px' }}>
+            <svg width="14" height="14" fill="none" stroke="#1E2124" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg>
+            Go to My Dashboard
           </Link>
           <Link href="/profile" style={{ background: 'rgba(255,255,255,0.08)', color: 'rgba(255,255,255,0.8)', fontSize: '14px', fontWeight: 700, padding: '14px 28px', borderRadius: '50px', textDecoration: 'none', border: '1px solid rgba(255,255,255,0.15)', display: 'inline-flex', alignItems: 'center', gap: '8px' }}>
             Map My Work

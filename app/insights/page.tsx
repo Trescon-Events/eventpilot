@@ -2,33 +2,31 @@
 
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
-import { supabase } from '@/app/lib/supabase'
-
-type Report = {
-  generated_at: string
-  total_submissions: number
-  pain_clusters: { theme: string; count: number; examples: string[]; office_spread: string[] }[]
-  time_savings: { task: string; today: string; with_ai: string; saving: string; staff_name: string; office: string }[]
-  skills_needed: { skill: string; count: number; departments: string[] }[]
-  build_priority: { rank: number; title: string; rationale: string; impact: string }[]
-  readiness_summary: { average: number; low: number; medium: number; high: number }
-  raw_analysis: string
-}
+import type { SavedReport } from '@/app/lib/generateInsights'
 
 export default function InsightsPage() {
-  const [authed, setAuthed]     = useState(false)
-  const [code, setCode]         = useState('')
-  const [codeError, setCodeError] = useState('')
-  const [taskCount, setTaskCount] = useState(0)
-  const [report, setReport]     = useState<Report | null>(null)
-  const [generating, setGenerating] = useState(false)
-  const [error, setError]       = useState('')
-  const [loading, setLoading]   = useState(true)
+  const [authed,      setAuthed]      = useState(false)
+  const [code,        setCode]        = useState('')
+  const [codeError,   setCodeError]   = useState('')
+  const [taskCount,   setTaskCount]   = useState(0)
+  const [savedReports, setSavedReports] = useState<SavedReport[]>([])
+  const [activeReport, setActiveReport] = useState<SavedReport | null>(null)
+  const [generating,  setGenerating]  = useState(false)
+  const [error,       setError]       = useState('')
+  const [loading,     setLoading]     = useState(true)
 
   useEffect(() => {
     if (!authed) return
-    supabase.from('staff_task_profiles').select('id', { count: 'exact', head: true })
-      .then(({ count }) => { setTaskCount(count ?? 0); setLoading(false) })
+    Promise.all([
+      fetch('/api/intelligence-reports').then(r => r.json()),
+      fetch('/api/staff-list').then(r => r.json()),
+    ]).then(([reports, staff]) => {
+      const list: SavedReport[] = Array.isArray(reports) ? reports : []
+      setSavedReports(list)
+      if (list.length > 0) setActiveReport(list[0])
+      setTaskCount(Array.isArray(staff) ? staff.length : 0)
+      setLoading(false)
+    }).catch(() => setLoading(false))
   }, [authed])
 
   function handleAuth(e: React.FormEvent) {
@@ -45,13 +43,29 @@ export default function InsightsPage() {
       const res = await fetch('/api/generate-insights', { method: 'POST' })
       const data = await res.json()
       if (data.error) { setError(data.error); return }
-      setReport(data.report)
+      // Refresh saved reports list
+      const updated: SavedReport[] = await fetch('/api/intelligence-reports').then(r => r.json())
+      setSavedReports(updated)
+      if (updated.length > 0) setActiveReport(updated[0])
     } catch {
       setError('Network error — please try again.')
     } finally {
       setGenerating(false)
     }
   }
+
+  function formatDate(iso: string) {
+    const d = new Date(iso)
+    return d.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' })
+  }
+
+  function formatDateFull(iso: string) {
+    const d = new Date(iso)
+    return d.toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }) +
+      ' at ' + d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })
+  }
+
+  const report = activeReport?.report ?? null
 
   /* ── Auth gate ── */
   if (!authed) {
@@ -61,18 +75,18 @@ export default function InsightsPage() {
           <div style={{ width: '56px', height: '56px', background: '#C0F43C20', border: '2px solid #C0F43C', borderRadius: '16px', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 24px' }}>
             <svg width="24" height="24" fill="none" stroke="#C0F43C" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
           </div>
-          <h1 style={{ fontSize: '24px', fontWeight: 800, color: 'white', marginBottom: '8px' }}>TAI Intelligence</h1>
-          <p style={{ fontSize: '14px', color: 'rgba(255,255,255,0.5)', marginBottom: '32px' }}>Management-ready insights from all staff submissions</p>
+          <h1 style={{ fontSize: '24px', fontWeight: 800, color: 'white', marginBottom: '8px' }}>Trescademy Intelligence</h1>
+          <p style={{ fontSize: '14px', color: 'rgba(255,255,255,0.7)', marginBottom: '32px' }}>Management-ready insights from all staff submissions</p>
           <form onSubmit={handleAuth}>
             <input type="password" value={code} onChange={e => { setCode(e.target.value); setCodeError('') }}
               placeholder="Access code" autoFocus
-              style={{ width: '100%', padding: '14px 16px', borderRadius: '12px', border: `1px solid ${codeError ? '#FF6B6B' : 'rgba(255,255,255,0.15)'}`, background: 'rgba(255,255,255,0.08)', color: 'white', fontSize: '15px', outline: 'none', fontFamily: 'inherit', textAlign: 'center', letterSpacing: '3px', marginBottom: '12px', boxSizing: 'border-box' as const }} />
+              style={{ width: '100%', padding: '14px 16px', borderRadius: '12px', border: `1px solid ${codeError ? '#FF6B6B' : 'rgba(255,255,255,0.15)'}`, background: 'rgba(255,255,255,0.08)', color: 'white', fontSize: '15px', outline: 'none', fontFamily: 'inherit', textAlign: 'center', letterSpacing: '3px', marginBottom: '12px', boxSizing: 'border-box' }} />
             {codeError && <p style={{ fontSize: '12px', color: '#FF6B6B', marginBottom: '12px' }}>{codeError}</p>}
             <button type="submit" style={{ width: '100%', padding: '14px', borderRadius: '12px', border: 'none', background: '#C0F43C', color: '#1E2124', fontSize: '14px', fontWeight: 800, cursor: 'pointer', fontFamily: 'inherit' }}>
               Enter Intelligence Hub
             </button>
           </form>
-          <Link href="/" style={{ display: 'block', marginTop: '20px', fontSize: '12px', color: 'rgba(255,255,255,0.3)', textDecoration: 'none' }}>Back to main page</Link>
+          <Link href="/dashboard" style={{ display: 'block', marginTop: '20px', fontSize: '12px', color: 'rgba(255,255,255,0.82)', textDecoration: 'none' }}>Back to dashboard</Link>
         </div>
       </div>
     )
@@ -81,35 +95,42 @@ export default function InsightsPage() {
   /* ── Main ── */
   return (
     <div style={{ fontFamily: 'var(--font-manrope), Manrope, sans-serif', background: '#0D0F10', minHeight: '100vh', color: 'white' }}>
-      <nav style={{ background: '#010103', borderBottom: '1px solid rgba(255,255,255,0.08)', padding: '0 40px', height: '60px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+
+      {/* Nav */}
+      <nav style={{ background: '#010103', borderBottom: '1px solid rgba(255,255,255,0.08)', padding: '0 40px', height: '64px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-          <Link href="/admin" style={{ display: 'flex', alignItems: 'center', gap: '10px', textDecoration: 'none' }}>
-            <div style={{ background: 'white', borderRadius: '8px', padding: '4px 10px' }}>
-              <img src="/trescon-logo.png" alt="Trescon" style={{ height: '22px', width: 'auto', display: 'block' }} />
+          <Link href="/dashboard" style={{ display: 'flex', alignItems: 'center', gap: '8px', textDecoration: 'none' }}>
+            <div style={{ background: 'white', borderRadius: '8px', padding: '4px 10px', display: 'flex', alignItems: 'center' }}>
+              <img src="/trescon-logo.png" alt="Trescon" style={{ height: '40px', width: 'auto', display: 'block' }} />
             </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '7px' }}>
-              <div style={{ width: '24px', height: '24px', background: '#C0F43C', borderRadius: '7px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                <svg width="12" height="12" fill="none" stroke="#1E2124" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <div style={{ width: '24px', height: '24px', background: '#00A5A3', borderRadius: '7px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <svg width="12" height="12" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
               </div>
-              <span style={{ fontSize: '13px', fontWeight: 800, color: 'white' }}>TAI Intelligence</span>
+              <span style={{ fontSize: '14px', fontWeight: 800, color: 'white' }}>Trescademy</span>
             </div>
           </Link>
           <span style={{ color: 'rgba(255,255,255,0.2)' }}>/</span>
-          <span style={{ fontSize: '13px', color: 'rgba(255,255,255,0.5)' }}>Gemini Analysis</span>
+          <span style={{ fontSize: '13px', color: 'rgba(255,255,255,0.5)' }}>Intelligence Reports</span>
         </div>
-        <Link href="/admin" style={{ fontSize: '12px', color: 'rgba(255,255,255,0.5)', textDecoration: 'none', border: '1px solid rgba(255,255,255,0.1)', padding: '6px 14px', borderRadius: '8px' }}>
-          Back to Dashboard
+        <Link href="/admin" style={{ fontSize: '12px', fontWeight: 700, color: '#C0F43C', textDecoration: 'none', background: 'rgba(192,244,60,0.12)', border: '1px solid rgba(192,244,60,0.3)', padding: '6px 14px', borderRadius: '20px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+          <svg width="11" height="11" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg>
+          Admin Dashboard
         </Link>
       </nav>
 
       <div style={{ padding: '40px', maxWidth: '1000px', margin: '0 auto' }}>
 
-        {/* Header */}
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '32px', gap: '24px', flexWrap: 'wrap' }}>
+        {/* Page header */}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '28px', gap: '24px', flexWrap: 'wrap' }}>
           <div>
-            <h1 style={{ fontSize: '28px', fontWeight: 800, color: 'white', marginBottom: '6px' }}>TAI Intelligence Report</h1>
-            <p style={{ fontSize: '14px', color: 'rgba(255,255,255,0.6)', lineHeight: 1.6 }}>
-              {loading ? 'Loading...' : `${taskCount} work profiles submitted — Gemini analyses all submissions and surfaces what matters most`}
+            <h1 style={{ fontSize: '28px', fontWeight: 800, color: 'white', marginBottom: '6px' }}>Trescademy Intelligence Report</h1>
+            <p style={{ fontSize: '14px', color: 'rgba(255,255,255,0.7)', lineHeight: 1.6 }}>
+              {loading
+                ? 'Loading reports...'
+                : savedReports.length === 0
+                  ? `${taskCount} profiles on record — no report generated yet`
+                  : `${savedReports.length} report${savedReports.length !== 1 ? 's' : ''} saved · auto-generated every Sunday at 8 PM IST`}
             </p>
           </div>
           <button
@@ -118,7 +139,7 @@ export default function InsightsPage() {
             style={{
               padding: '12px 24px', borderRadius: '12px', border: 'none',
               background: generating || taskCount === 0 ? 'rgba(255,255,255,0.08)' : '#C0F43C',
-              color: generating || taskCount === 0 ? 'rgba(255,255,255,0.3)' : '#1E2124',
+              color: generating || taskCount === 0 ? 'rgba(255,255,255,0.4)' : '#1E2124',
               fontSize: '14px', fontWeight: 800, cursor: generating || taskCount === 0 ? 'not-allowed' : 'pointer',
               fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0,
             }}>
@@ -130,7 +151,7 @@ export default function InsightsPage() {
             ) : (
               <>
                 <svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
-                {taskCount === 0 ? 'No profiles yet' : 'Generate Intelligence Report'}
+                {taskCount === 0 ? 'No profiles yet' : 'Generate Now'}
               </>
             )}
           </button>
@@ -142,21 +163,45 @@ export default function InsightsPage() {
           </div>
         )}
 
-        {!report && !loading && (
+        {/* Report history switcher */}
+        {savedReports.length > 0 && (
+          <div style={{ marginBottom: '28px' }}>
+            <div style={{ fontSize: '10px', fontWeight: 700, letterSpacing: '2px', textTransform: 'uppercase', color: 'rgba(255,255,255,0.4)', marginBottom: '10px' }}>Report History</div>
+            <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+              {savedReports.map(r => {
+                const isActive = activeReport?.id === r.id
+                return (
+                  <button key={r.id} onClick={() => setActiveReport(r)}
+                    style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 14px', borderRadius: '20px', border: `1px solid ${isActive ? 'rgba(192,244,60,0.4)' : 'rgba(255,255,255,0.1)'}`, background: isActive ? 'rgba(192,244,60,0.1)' : 'transparent', cursor: 'pointer', fontFamily: 'inherit' }}>
+                    <span style={{ fontSize: '12px', fontWeight: 700, color: isActive ? '#C0F43C' : 'rgba(255,255,255,0.82)' }}>{formatDate(r.generated_at)}</span>
+                    <span style={{ fontSize: '10px', fontWeight: 700, padding: '2px 6px', borderRadius: '4px', background: r.trigger_type === 'cron' ? 'rgba(0,165,163,0.15)' : 'rgba(255,255,255,0.08)', color: r.trigger_type === 'cron' ? '#00A5A3' : 'rgba(255,255,255,0.5)' }}>
+                      {r.trigger_type === 'cron' ? 'Auto' : 'Manual'}
+                    </span>
+                    <span style={{ fontSize: '10px', color: 'rgba(255,255,255,0.4)' }}>{r.total_submissions} profiles</span>
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* No reports yet */}
+        {!loading && savedReports.length === 0 && (
           <div style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '24px', padding: '64px', textAlign: 'center' }}>
             <div style={{ width: '64px', height: '64px', background: '#C0F43C15', border: '2px solid #C0F43C30', borderRadius: '20px', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 20px' }}>
               <svg width="28" height="28" fill="none" stroke="#C0F43C" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
             </div>
-            <h3 style={{ fontSize: '20px', fontWeight: 800, color: 'white', marginBottom: '10px' }}>Ready to generate</h3>
-            <p style={{ fontSize: '14px', color: 'rgba(255,255,255,0.5)', lineHeight: 1.7, maxWidth: '440px', margin: '0 auto' }}>
+            <h3 style={{ fontSize: '20px', fontWeight: 800, color: 'white', marginBottom: '10px' }}>No reports yet</h3>
+            <p style={{ fontSize: '14px', color: 'rgba(255,255,255,0.7)', lineHeight: 1.7, maxWidth: '440px', margin: '0 auto' }}>
               {taskCount === 0
                 ? 'Waiting for staff to submit their work profiles. Share the /join link to get started.'
-                : `${taskCount} work profiles are ready to analyse. Click Generate to run Gemini across all submissions and surface the highest-impact opportunities for TAI.`}
+                : `${taskCount} profiles are ready. The weekly auto-report runs every Sunday at 8 PM IST. Click Generate Now to run it immediately.`}
             </p>
           </div>
         )}
 
-        {report && (
+        {/* Active report */}
+        {report && activeReport && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
 
             {/* Report header */}
@@ -165,8 +210,10 @@ export default function InsightsPage() {
                 <svg width="18" height="18" fill="none" stroke="#C0F43C" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
               </div>
               <div style={{ flex: 1 }}>
-                <div style={{ fontSize: '13px', fontWeight: 800, color: '#C0F43C', marginBottom: '2px' }}>Gemini analysis complete — {report.total_submissions} profiles processed</div>
-                <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.5)' }}>Generated {new Date(report.generated_at).toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}</div>
+                <div style={{ fontSize: '13px', fontWeight: 800, color: '#C0F43C', marginBottom: '2px' }}>
+                  Gemini analysis — {report.total_submissions} profiles · {activeReport.trigger_type === 'cron' ? 'Auto-generated' : 'Manually generated'}
+                </div>
+                <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.5)' }}>{formatDateFull(activeReport.generated_at)}</div>
               </div>
             </div>
 
@@ -181,10 +228,10 @@ export default function InsightsPage() {
                         <div style={{ fontSize: '14px', fontWeight: 700, color: 'white' }}>{c.theme}</div>
                         <div style={{ fontSize: '12px', fontWeight: 800, color: '#FF6B6B', background: '#FF6B6B15', padding: '3px 10px', borderRadius: '20px', flexShrink: 0 }}>{c.count} staff</div>
                       </div>
-                      <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.4)', marginBottom: '8px' }}>Offices: {c.office_spread.join(' · ')}</div>
+                      <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.5)', marginBottom: '8px' }}>Offices: {c.office_spread.join(' · ')}</div>
                       <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
                         {c.examples.map((ex, j) => (
-                          <span key={j} style={{ fontSize: '11px', color: 'rgba(255,255,255,0.5)', background: 'rgba(255,255,255,0.06)', padding: '3px 8px', borderRadius: '6px' }}>{ex}</span>
+                          <span key={j} style={{ fontSize: '11px', color: 'rgba(255,255,255,0.7)', background: 'rgba(255,255,255,0.06)', padding: '3px 8px', borderRadius: '6px' }}>{ex}</span>
                         ))}
                       </div>
                     </div>
@@ -196,7 +243,7 @@ export default function InsightsPage() {
             {/* Build priority */}
             {report.build_priority?.length > 0 && (
               <div style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '20px', padding: '24px' }}>
-                <div style={{ fontSize: '11px', fontWeight: 700, letterSpacing: '2px', textTransform: 'uppercase', color: 'rgba(255,255,255,0.5)', marginBottom: '20px' }}>TAI Build Priority — What to Ship First</div>
+                <div style={{ fontSize: '11px', fontWeight: 700, letterSpacing: '2px', textTransform: 'uppercase', color: 'rgba(255,255,255,0.5)', marginBottom: '20px' }}>Build Priority — What to Ship First</div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
                   {report.build_priority.map((b) => (
                     <div key={b.rank} style={{ display: 'flex', gap: '16px', padding: '16px 20px', background: b.rank === 1 ? 'rgba(192,244,60,0.06)' : 'rgba(255,255,255,0.03)', border: `1px solid ${b.rank === 1 ? 'rgba(192,244,60,0.2)' : 'rgba(255,255,255,0.06)'}`, borderRadius: '14px' }}>
@@ -205,7 +252,7 @@ export default function InsightsPage() {
                       </div>
                       <div style={{ flex: 1 }}>
                         <div style={{ fontSize: '14px', fontWeight: 700, color: 'white', marginBottom: '4px' }}>{b.title}</div>
-                        <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.5)', lineHeight: 1.5, marginBottom: '6px' }}>{b.rationale}</div>
+                        <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.7)', lineHeight: 1.5, marginBottom: '6px' }}>{b.rationale}</div>
                         <div style={{ fontSize: '12px', fontWeight: 700, color: '#C0F43C' }}>{b.impact}</div>
                       </div>
                     </div>
@@ -219,7 +266,7 @@ export default function InsightsPage() {
 
               {report.time_savings?.length > 0 && (
                 <div style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '20px', padding: '24px' }}>
-                  <div style={{ fontSize: '11px', fontWeight: 700, letterSpacing: '2px', textTransform: 'uppercase', color: 'rgba(255,255,255,0.5)', marginBottom: '20px' }}>Time Savings — Before vs. After TAI</div>
+                  <div style={{ fontSize: '11px', fontWeight: 700, letterSpacing: '2px', textTransform: 'uppercase', color: 'rgba(255,255,255,0.5)', marginBottom: '20px' }}>Time Savings — Before vs. After AI</div>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
                     {report.time_savings.slice(0, 6).map((t, i) => (
                       <div key={i} style={{ padding: '12px 14px', background: 'rgba(0,165,163,0.06)', border: '1px solid rgba(0,165,163,0.15)', borderRadius: '12px' }}>
@@ -227,7 +274,7 @@ export default function InsightsPage() {
                         <div style={{ display: 'flex', gap: '12px', fontSize: '11px' }}>
                           <span style={{ color: '#FF6B6B' }}>Now: {t.today}</span>
                           <span style={{ color: 'rgba(255,255,255,0.3)' }}>→</span>
-                          <span style={{ color: '#C0F43C' }}>With TAI: {t.with_ai}</span>
+                          <span style={{ color: '#C0F43C' }}>With AI: {t.with_ai}</span>
                         </div>
                         <div style={{ fontSize: '11px', color: '#00A5A3', marginTop: '4px', fontWeight: 600 }}>{t.saving}</div>
                       </div>
@@ -258,14 +305,14 @@ export default function InsightsPage() {
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '12px' }}>
                   {[
                     { label: 'Avg Readiness', value: report.readiness_summary.average?.toFixed(1), sub: 'out of 5', color: '#00A5A3' },
-                    { label: 'Not Ready', value: report.readiness_summary.low, sub: 'scored 1–2', color: '#FF6B6B' },
-                    { label: 'Developing', value: report.readiness_summary.medium, sub: 'scored 3', color: '#FF9F43' },
-                    { label: 'AI-Ready', value: report.readiness_summary.high, sub: 'scored 4–5', color: '#C0F43C' },
+                    { label: 'Not Ready',     value: report.readiness_summary.low,                  sub: 'scored 1–2', color: '#FF6B6B' },
+                    { label: 'Developing',    value: report.readiness_summary.medium,               sub: 'scored 3',   color: '#FF9F43' },
+                    { label: 'AI-Ready',      value: report.readiness_summary.high,                 sub: 'scored 4–5', color: '#C0F43C' },
                   ].map((k, i) => (
                     <div key={i} style={{ textAlign: 'center', padding: '16px', background: 'rgba(255,255,255,0.03)', borderRadius: '12px', border: `1px solid ${k.color}25` }}>
                       <div style={{ fontSize: '28px', fontWeight: 800, color: k.color, lineHeight: 1 }}>{k.value}</div>
-                      <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.6)', marginTop: '4px' }}>{k.label}</div>
-                      <div style={{ fontSize: '10px', color: 'rgba(255,255,255,0.35)', marginTop: '2px' }}>{k.sub}</div>
+                      <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.7)', marginTop: '4px' }}>{k.label}</div>
+                      <div style={{ fontSize: '10px', color: 'rgba(255,255,255,0.4)', marginTop: '2px' }}>{k.sub}</div>
                     </div>
                   ))}
                 </div>
@@ -277,7 +324,7 @@ export default function InsightsPage() {
               <div style={{ padding: '20px 24px', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
                 <div style={{ fontSize: '11px', fontWeight: 700, letterSpacing: '2px', textTransform: 'uppercase', color: 'rgba(255,255,255,0.5)' }}>Full Gemini Analysis</div>
               </div>
-              <div style={{ padding: '24px', fontSize: '14px', color: 'rgba(255,255,255,0.7)', lineHeight: 1.8, whiteSpace: 'pre-wrap' }}>
+              <div style={{ padding: '24px', fontSize: '14px', color: 'rgba(255,255,255,0.82)', lineHeight: 1.8, whiteSpace: 'pre-wrap' }}>
                 {report.raw_analysis}
               </div>
             </div>

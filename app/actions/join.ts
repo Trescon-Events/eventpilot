@@ -2,13 +2,7 @@
 
 import { supabaseAdmin } from '@/app/lib/supabase'
 import nodemailer from 'nodemailer'
-
-const OFFICE_NAMES: Record<string, string> = {
-  dubai: 'Dubai',
-  bangalore: 'Bangalore',
-  mangalore: 'Mangalore',
-  manipal: 'Manipal',
-}
+import { OFFICE_MAP } from '@/app/lib/constants'
 
 function createTransporter() {
   return nodemailer.createTransport({
@@ -102,7 +96,7 @@ export async function joinTAI(formData: FormData) {
                   </div>
                   <div style="display:flex;gap:8px;font-size:13px;">
                     <span style="color:#888;min-width:90px;">Office</span>
-                    <span style="color:#1E2124;font-weight:700;">${OFFICE_NAMES[office_id] ?? office_id}</span>
+                    <span style="color:#1E2124;font-weight:700;">${OFFICE_MAP[office_id] ?? office_id}</span>
                   </div>
                   ${department ? `<div style="display:flex;gap:8px;font-size:13px;"><span style="color:#888;min-width:90px;">Department</span><span style="color:#1E2124;font-weight:700;">${department}</span></div>` : ''}
                   ${role ? `<div style="display:flex;gap:8px;font-size:13px;"><span style="color:#888;min-width:90px;">Role</span><span style="color:#1E2124;font-weight:700;">${role}</span></div>` : ''}

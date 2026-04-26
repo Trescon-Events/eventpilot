@@ -27,6 +27,7 @@ export const DEPT_TOOLS: Record<string, string[]> = {
   'Government Relations': ['Word', 'Email', 'WhatsApp', 'Excel', 'PDF Tools', 'Government Portals', 'Other'],
   'DemandifyMedia':       ['Meta Ads', 'Google Ads', 'LinkedIn Ads', 'Canva', 'HubSpot', 'Google Analytics', 'Excel', 'Looker Studio', 'Other'],
   'Leadership':           ['Excel', 'PowerPoint', 'Email', 'WhatsApp', 'Zoom', 'Salesforce', 'Notion', 'Other'],
+  'Founder / Executive':  ['Email', 'WhatsApp', 'Zoom', 'PowerPoint', 'Excel', 'Notion', 'Salesforce', 'LinkedIn', 'Google Analytics', 'Other'],
 }
 export const DEFAULT_TOOLS = ['Excel', 'Email', 'WhatsApp', 'Zoom', 'Word', 'Google Sheets', 'Other']
 
@@ -254,6 +255,34 @@ export const DEPT_QUESTIONS: Record<string, Question[]> = {
       options: ['Revenue & pipeline', 'Staff output & capacity', 'Event P&L at a glance', 'Vendor performance', 'Team workload', 'Customer/client health', 'Department KPIs', 'Approval bottlenecks'],
     },
   ],
+  'Founder / Executive': [
+    {
+      id: 'founder_org',
+      question: 'Give us a real picture of how you run the company week to week. Where is your time actually going?',
+      subtext: 'Not the vision — what does a real Monday to Friday look like for you right now?',
+      type: 'textarea',
+      placeholder: 'Most of my week is in senior leadership reviews, deal conversations, and approvals that should probably not need me. Strategic thinking happens in gaps...',
+    },
+    {
+      id: 'founder_visibility',
+      question: 'What do you wish you could see across the organisation in real time — but currently cannot?',
+      type: 'chips',
+      options: ['Revenue & deal pipeline', 'Department KPIs at a glance', 'Staff output & capacity', 'Event P&L in real time', 'Team AI adoption progress', 'Client & partner health', 'Hiring & HR pipeline', 'Approval bottlenecks'],
+    },
+    {
+      id: 'founder_decisions',
+      question: 'Which decisions take longest — and why? What information are you usually waiting on?',
+      type: 'textarea',
+      placeholder: "Hiring decisions are slow because I don't have a clear view of who's in the pipeline. Revenue calls wait on Finance. I make a lot of calls on incomplete data...",
+    },
+    {
+      id: 'founder_ai_vision',
+      question: 'If AI were fully embedded in Trescon — what would change first? Where would the biggest impact be?',
+      subtext: "Think company-wide: which department, which process, which person's role would look most different?",
+      type: 'textarea',
+      placeholder: 'The Sales team would close faster if AI handled the first 3 follow-ups. Finance would give me real-time P&L without manual builds. Events would...',
+    },
+  ],
   'Other': [
     {
       id: 'other_core',
@@ -299,20 +328,21 @@ export const CORE_QUESTIONS: Question[] = [
   {
     id: 'tool_proficiency',
     question: 'How well do you actually know these tools?',
-    subtext: 'Rate yourself on your top 4 tools. Be honest — this shapes what training TAI builds specifically for you.',
+    subtext: 'Rate yourself on your top 4 tools. Be honest — this shapes the courses Trescademy recommends specifically for you.',
     type: 'proficiency',
   },
   {
     id: 'tools_unlisted',
     question: 'Using a tool we didn\'t mention above?',
-    subtext: 'Tell us the name and what you use it for. This surfaces tools TAI needs to know about.',
+    subtext: 'Tell us the name and what you use it for. This helps Trescademy build a complete picture of how you work.',
     type: 'text',
     placeholder: 'e.g. Notion for project tracking, ClickUp for team tasks, Monday.com for...',
   },
   {
     id: 'stuck',
     question: "When your work gets stuck or delayed — what's usually the real cause?",
-    type: 'select',
+    subtext: 'Select all that apply.',
+    type: 'chips',
     options: [
       'Waiting for approvals from leadership',
       'Chasing people for information or documents',
@@ -327,7 +357,7 @@ export const CORE_QUESTIONS: Question[] = [
   /* ── ACT 3: Automation Appetite ── */
   {
     id: 'ai_wish',
-    question: 'If TAI could automate one part of your workflow from tomorrow — what would it be?',
+    question: 'If you could automate one part of your workflow from tomorrow — what would it be?',
     subtext: 'This answer directly shapes what gets built first for your department.',
     type: 'textarea',
     placeholder: "I'd want it to automatically...",
@@ -348,7 +378,7 @@ export const CORE_QUESTIONS: Question[] = [
   {
     id: 'ai_readiness',
     question: 'Where are you with AI tools right now — honestly?',
-    subtext: 'Your answer here determines your starting track in TAI. Levels 4–5 mean you will be expected to lead an AI pilot in your department — not just attend training.',
+    subtext: 'Your answer here determines your starting track on Trescademy. Levels 4–5 mean you will be expected to lead an AI pilot in your department — not just attend training.',
     type: 'scale',
     options: [
       "Haven't used AI tools in my work at all",
@@ -361,15 +391,15 @@ export const CORE_QUESTIONS: Question[] = [
   {
     id: 'ai_proof',
     question: "You said you build AI workflows — describe one you actually use.",
-    subtext: "Be specific: what does it do, which tool, how often? This is the starting brief for your TAI advanced track. Thin answers get basic training.",
+    subtext: "Be specific: what does it do, which tool, how often? This is your brief for the Advanced track. Thin answers get basic training.",
     type: 'textarea',
     placeholder: "I have a ChatGPT prompt I run every Monday to draft my status update — it pulls my task list and formats it. Takes 5 minutes instead of 45. I also have a Notion AI template that...",
     conditionalOn: { questionId: 'ai_readiness', minValue: 4 },
   },
   {
     id: 'ownership_intent',
-    question: 'Even after TAI automates parts of your work — what\'s one thing you\'d want to keep doing yourself?',
-    subtext: 'There\'s no wrong answer. This tells TAI where to augment, not replace.',
+    question: 'Even as AI takes on more of your work — what\'s one thing you\'d want to keep doing yourself?',
+    subtext: 'There\'s no wrong answer. This tells us where to augment, not replace.',
     type: 'textarea',
     placeholder: 'I\'d still want to personally handle... because...',
   },
@@ -386,6 +416,7 @@ export function buildQuestions(department: string): Question[] {
 }
 
 export const ALL_DEPARTMENTS = [
+  'Founder / Executive',
   'Events', 'Sales & Sponsorship', 'Marketing', 'Finance', 'Operations',
   'IT', 'HR & Recruitment', 'Content & Design', 'Government Relations',
   'DemandifyMedia', 'Leadership', 'Other',

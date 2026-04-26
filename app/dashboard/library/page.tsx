@@ -5,17 +5,19 @@ import { useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 
 interface Course {
-  id:                string
-  title:             string
-  subtitle:          string
-  tool_name:         string | null
-  tier_level:        'foundation' | 'adoption' | 'advanced'
-  dept_tags:         string[]
-  is_mandatory:      boolean
-  estimated_minutes: number
-  overview:          string
-  source:            string
-  created_at:        string
+  id:                 string
+  title:              string
+  subtitle:           string
+  tool_name:          string | null
+  tier_level:         'foundation' | 'adoption' | 'advanced'
+  dept_tags:          string[]
+  is_mandatory:       boolean
+  estimated_minutes:  number
+  overview:           string
+  source:             string
+  created_at:         string
+  suggested_by_name:  string | null
+  suggested_by_role:  string | null
 }
 
 interface Completion {
@@ -74,26 +76,34 @@ function LibraryContent() {
     return true
   })
 
-  const completedCount  = completions.filter(c => c.passed).length
-  const foundationCount = courses.filter(c => c.tier_level === 'foundation').length
-  const adoptionCount   = courses.filter(c => c.tier_level === 'adoption').length
-  const advancedCount   = courses.filter(c => c.tier_level === 'advanced').length
+  const completedCount       = completions.filter(c => c.passed).length
+  const foundationCount      = courses.filter(c => c.tier_level === 'foundation').length
+  const adoptionCount        = courses.filter(c => c.tier_level === 'adoption').length
+  const advancedCount        = courses.filter(c => c.tier_level === 'advanced').length
+  const mandatoryUncompleted = courses.filter(c => c.is_mandatory && !completionMap.get(c.id)?.passed)
 
   return (
     <div style={S.page}>
       {/* Nav */}
       <nav style={S.nav}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-          <div style={{ width: '28px', height: '28px', background: '#00A5A3', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <svg width="14" height="14" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
-          </div>
-          <span style={{ fontSize: '14px', fontWeight: 800, color: 'white' }}>TAI</span>
+          <Link href={staffId ? `/dashboard?id=${staffId}` : '/dashboard'} style={{ display: 'flex', alignItems: 'center', gap: '8px', textDecoration: 'none' }}>
+            <div style={{ background: 'white', borderRadius: '8px', padding: '4px 10px', display: 'flex', alignItems: 'center' }}>
+              <img src="/trescon-logo.png" alt="Trescon" style={{ height: '40px', width: 'auto', display: 'block' }} />
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <div style={{ width: '24px', height: '24px', background: '#00A5A3', borderRadius: '7px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <svg width="12" height="12" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+              </div>
+              <span style={{ fontSize: '14px', fontWeight: 800, color: 'white' }}>Trescademy</span>
+            </div>
+          </Link>
           <span style={{ color: 'rgba(255,255,255,0.2)' }}>|</span>
           <span style={{ fontSize: '12px', fontWeight: 600, color: 'rgba(255,255,255,0.5)' }}>Course Library</span>
         </div>
         {staffId && (
-          <Link href={`/dashboard?id=${staffId}`} style={{ fontSize: '13px', fontWeight: 600, color: 'rgba(255,255,255,0.7)', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '6px' }}>
-            <svg width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg>
+          <Link href={`/dashboard?id=${staffId}`} style={{ fontSize: '12px', fontWeight: 700, color: '#00A5A3', textDecoration: 'none', background: 'rgba(0,165,163,0.12)', border: '1px solid rgba(0,165,163,0.3)', padding: '6px 14px', borderRadius: '20px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <svg width="11" height="11" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg>
             My Dashboard
           </Link>
         )}
@@ -103,9 +113,9 @@ function LibraryContent() {
 
         {/* Header */}
         <div style={{ marginBottom: '32px' }}>
-          <div style={{ fontSize: '11px', fontWeight: 800, letterSpacing: '2.5px', color: '#00A5A3', textTransform: 'uppercase', marginBottom: '8px' }}>TAI Learning Library</div>
+          <div style={{ fontSize: '11px', fontWeight: 800, letterSpacing: '2.5px', color: '#00A5A3', textTransform: 'uppercase', marginBottom: '8px' }}>Trescademy Learning Library</div>
           <h1 style={{ fontSize: '28px', fontWeight: 900, margin: '0 0 6px', letterSpacing: '-0.4px', color: 'white' }}>All Courses</h1>
-          <p style={{ fontSize: '14px', color: 'rgba(255,255,255,0.55)', margin: 0 }}>
+          <p style={{ fontSize: '14px', color: 'rgba(255,255,255,0.82)', margin: 0 }}>
             {courses.length} courses · {completedCount} completed by you
           </p>
         </div>
@@ -129,10 +139,51 @@ function LibraryContent() {
               >
                 <div style={{ fontSize: '10px', fontWeight: 800, color: cfg.color, textTransform: 'uppercase', letterSpacing: '1.5px', marginBottom: '6px' }}>{cfg.label}</div>
                 <div style={{ fontSize: '20px', fontWeight: 900, color: 'white', marginBottom: '2px' }}>{count}</div>
-                <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.45)' }}>{done} completed</div>
+                <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.70)' }}>{done} completed</div>
               </button>
             )
           })}
+        </div>
+
+        {/* Mandatory — pinned section */}
+        {mandatoryUncompleted.length > 0 && tierFilter === 'all' && sourceFilter === 'all' && deptFilter === 'All Departments' && (
+          <div style={{ marginBottom: '32px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '14px' }}>
+              <div style={{ width: '7px', height: '7px', borderRadius: '50%', background: '#FF9F43', flexShrink: 0 }} />
+              <span style={{ fontSize: '11px', fontWeight: 800, color: '#FF9F43', textTransform: 'uppercase', letterSpacing: '2px' }}>
+                Mandatory — {mandatoryUncompleted.length} remaining
+              </span>
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '12px' }}>
+              {mandatoryUncompleted.map(course => {
+                const cfg = TIER_CONFIG[course.tier_level]
+                return (
+                  <Link
+                    key={course.id}
+                    href={`/dashboard/course/${course.id}${staffId ? `?staff_id=${staffId}` : ''}`}
+                    style={{ display: 'flex', flexDirection: 'column', background: 'rgba(255,159,67,0.06)', border: '1px solid rgba(255,159,67,0.3)', borderRadius: '16px', padding: '20px', textDecoration: 'none' }}
+                  >
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '10px' }}>
+                      <span style={{ fontSize: '10px', fontWeight: 800, color: '#FF9F43', background: 'rgba(255,159,67,0.15)', border: '1px solid rgba(255,159,67,0.35)', padding: '3px 9px', borderRadius: '20px' }}>Mandatory</span>
+                      <span style={{ fontSize: '10px', fontWeight: 800, color: cfg.color, background: cfg.bg, padding: '3px 9px', borderRadius: '20px', textTransform: 'uppercase', letterSpacing: '1px' }}>{cfg.label}</span>
+                    </div>
+                    <div style={{ fontSize: '15px', fontWeight: 800, color: 'white', marginBottom: '6px', lineHeight: 1.3, flex: 1 }}>{course.title}</div>
+                    <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.75)', marginBottom: '14px', lineHeight: 1.55 }}>{course.subtitle}</div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: '1px solid rgba(255,159,67,0.15)', paddingTop: '10px' }}>
+                      <span style={{ fontSize: '11px', color: 'rgba(255,255,255,0.70)', fontWeight: 600 }}>{course.estimated_minutes} min</span>
+                      <span style={{ fontSize: '11px', fontWeight: 800, color: '#FF9F43' }}>Start Now</span>
+                    </div>
+                  </Link>
+                )
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* All Courses — section header + filters */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '16px' }}>
+          <div style={{ width: '7px', height: '7px', borderRadius: '50%', background: 'rgba(255,255,255,0.25)', flexShrink: 0 }} />
+          <span style={{ fontSize: '11px', fontWeight: 800, color: 'rgba(255,255,255,0.5)', textTransform: 'uppercase', letterSpacing: '2px' }}>All Courses</span>
         </div>
 
         {/* Filters */}
@@ -141,7 +192,7 @@ function LibraryContent() {
           <div style={{ display: 'flex', gap: '6px' }}>
             {[
               { val: 'all',    label: 'All Sources' },
-              { val: 'manual', label: 'TAI Curated' },
+              { val: 'manual', label: 'Trescademy Curated' },
               { val: 'gemini', label: 'AI Generated' },
             ].map(({ val, label }) => (
               <button key={val} onClick={() => setSourceFilter(val)} style={{ padding: '7px 14px', borderRadius: '20px', border: `1px solid ${sourceFilter === val ? '#00A5A3' : 'rgba(255,255,255,0.12)'}`, background: sourceFilter === val ? '#00A5A315' : 'transparent', color: sourceFilter === val ? '#00A5A3' : 'rgba(255,255,255,0.6)', fontSize: '12px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
@@ -159,7 +210,7 @@ function LibraryContent() {
             {DEPTS.map(d => <option key={d} value={d}>{d}</option>)}
           </select>
 
-          <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.4)', marginLeft: 'auto' }}>
+          <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.70)', marginLeft: 'auto' }}>
             {filtered.length} course{filtered.length !== 1 ? 's' : ''} shown
           </div>
         </div>
@@ -218,17 +269,30 @@ function LibraryContent() {
                   <div style={{ fontSize: '15px', fontWeight: 800, color: 'white', marginBottom: '6px', lineHeight: 1.3, flex: 1 }}>
                     {course.title}
                   </div>
-                  <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.55)', marginBottom: '16px', lineHeight: 1.5 }}>
+                  <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.75)', marginBottom: '16px', lineHeight: 1.5 }}>
                     {course.subtitle}
                   </div>
+
+                  {/* Suggested by attribution */}
+                  {course.suggested_by_name && (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '10px', padding: '6px 10px', background: 'rgba(164,120,255,0.07)', border: '1px solid rgba(164,120,255,0.15)', borderRadius: '8px' }}>
+                      <div style={{ width: '18px', height: '18px', borderRadius: '5px', background: 'rgba(164,120,255,0.25)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                        <span style={{ fontSize: '9px', fontWeight: 900, color: '#A478FF' }}>{course.suggested_by_name.charAt(0)}</span>
+                      </div>
+                      <span style={{ fontSize: '11px', color: 'rgba(255,255,255,0.5)' }}>
+                        Suggested by <strong style={{ color: '#A478FF', fontWeight: 700 }}>{course.suggested_by_name}</strong>
+                        {course.suggested_by_role && <span> · {course.suggested_by_role}</span>}
+                      </span>
+                    </div>
+                  )}
 
                   {/* Footer */}
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: '1px solid rgba(255,255,255,0.06)', paddingTop: '12px' }}>
                     <div style={{ display: 'flex', gap: '12px' }}>
-                      <span style={{ fontSize: '11px', color: 'rgba(255,255,255,0.45)', fontWeight: 600 }}>{course.estimated_minutes} min</span>
-                      {course.tool_name && <span style={{ fontSize: '11px', color: 'rgba(255,255,255,0.45)', fontWeight: 600 }}>{course.tool_name}</span>}
+                      <span style={{ fontSize: '11px', color: 'rgba(255,255,255,0.70)', fontWeight: 600 }}>{course.estimated_minutes} min</span>
+                      {course.tool_name && <span style={{ fontSize: '11px', color: 'rgba(255,255,255,0.70)', fontWeight: 600 }}>{course.tool_name}</span>}
                     </div>
-                    <div style={{ fontSize: '11px', fontWeight: 700, color: done ? '#C0F43C' : attempted ? '#FF9F43' : 'rgba(255,255,255,0.35)' }}>
+                    <div style={{ fontSize: '11px', fontWeight: 700, color: done ? '#C0F43C' : attempted ? '#FF9F43' : 'rgba(255,255,255,0.50)' }}>
                       {done ? 'Passed' : attempted ? `Score: ${completion?.test_score ?? 0}%` : 'Not started'}
                     </div>
                   </div>
@@ -255,7 +319,7 @@ const S = {
     background:   'rgba(255,255,255,0.03)',
     borderBottom: '1px solid rgba(255,255,255,0.08)',
     padding:      '0 32px',
-    height:       '56px',
+    height:       '64px',
     display:      'flex',
     alignItems:   'center',
     justifyContent: 'space-between',
