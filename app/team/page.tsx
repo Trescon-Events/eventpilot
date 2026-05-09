@@ -188,7 +188,7 @@ function TeamContent() {
       <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: 'calc(100vh - 64px)', padding: '40px 24px', textAlign: 'center' }}>
         {/* Icon */}
         <div style={{ width: '72px', height: '72px', borderRadius: '20px', background: '#FFFFFF', border: '1px solid #E6EFF0', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '24px' }}>
-          <svg width="32" height="32" fill="none" stroke="rgba(15,23,42,0.28)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24">
+          <svg width="32" height="32" fill="none" stroke="#64748B" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24">
             <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
             <circle cx="9" cy="7" r="4"/>
             <path d="M23 21v-2a4 4 0 0 0-3-3.87"/>
@@ -311,21 +311,21 @@ function TeamContent() {
             { label: 'Active Learners',    value: activeCount,       sub: 'completed a course' },
           ].map(({ label, value, sub }) => (
             <div key={label} style={{ background: '#FFFFFF', border: '1px solid #E6EFF0', borderRadius: '14px', padding: '18px 20px', boxShadow: '0 1px 4px rgba(0,165,163,0.06), 0 1px 2px rgba(0,0,0,0.04)' }}>
-              <div style={{ fontSize: '11px', fontWeight: 700, color: 'rgba(70,77,83,0.55)', textTransform: 'uppercase', letterSpacing: '1.5px', marginBottom: '6px' }}>{label}</div>
+              <div style={{ fontSize: '11px', fontWeight: 700, color: '#64748B', textTransform: 'uppercase', letterSpacing: '1.5px', marginBottom: '6px' }}>{label}</div>
               <div style={{ fontSize: '30px', fontWeight: 900, color: '#1E2124', marginBottom: '2px' }}>{value}</div>
-              <div style={{ fontSize: '13px', color: 'rgba(70,77,83,0.55)' }}>{sub}</div>
+              <div style={{ fontSize: '13px', color: '#64748B' }}>{sub}</div>
             </div>
           ))}
         </div>
 
         {/* Tier distribution */}
         <div style={{ background: '#FFFFFF', border: '1px solid #E6EFF0', borderRadius: '14px', padding: '18px 24px', marginBottom: '20px', display: 'flex', gap: '24px', alignItems: 'center', flexWrap: 'wrap', boxShadow: '0 1px 4px rgba(0,165,163,0.06), 0 1px 2px rgba(0,0,0,0.04)' }}>
-          <div style={{ fontSize: '13px', fontWeight: 700, color: 'rgba(70,77,83,0.55)', textTransform: 'uppercase', letterSpacing: '1.5px', flexShrink: 0 }}>AI Readiness</div>
+          <div style={{ fontSize: '13px', fontWeight: 700, color: '#64748B', textTransform: 'uppercase', letterSpacing: '1.5px', flexShrink: 0 }}>AI Readiness</div>
           {Object.entries(tierCounts).map(([tier, count]) => count > 0 && (
             <div key={tier} style={{ display: 'flex', alignItems: 'center', gap: '7px' }}>
               <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: TIER_COLOR[tier] }} />
               <span style={{ fontSize: '14px', fontWeight: 700, color: TIER_COLOR[tier] }}>{tier}</span>
-              <span style={{ fontSize: '14px', color: 'rgba(70,77,83,0.55)' }}>{count}</span>
+              <span style={{ fontSize: '14px', color: '#64748B' }}>{count}</span>
             </div>
           ))}
         </div>
@@ -429,7 +429,7 @@ function TeamContent() {
               )}
 
               {/* Platform impact note */}
-              <div style={{ marginTop: '16px', fontSize: '14px', color: 'rgba(70,77,83,0.55)', lineHeight: 1.65, borderTop: '1px solid #E6EFF0', paddingTop: '14px' }}>
+              <div style={{ marginTop: '16px', fontSize: '14px', color: '#64748B', lineHeight: 1.65, borderTop: '1px solid #E6EFF0', paddingTop: '14px' }}>
                 Your team&apos;s engagement data directly shapes what Trescademy builds next. Courses requested here go into the live library — and are immediately recommended to staff who need them most.
               </div>
             </div>
@@ -446,7 +446,7 @@ function TeamContent() {
         <div style={{ display: 'flex', gap: '10px', marginBottom: '20px', flexWrap: 'wrap', alignItems: 'center' }}>
           {/* Search */}
           <div style={{ position: 'relative', flex: '0 0 220px' }}>
-            <svg width="12" height="12" fill="none" stroke="rgba(15,23,42,0.32)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24" style={{ position: 'absolute', left: '11px', top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none' }}><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+            <svg width="12" height="12" fill="none" stroke="#64748B" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24" style={{ position: 'absolute', left: '11px', top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none' }}><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
             <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search name or role…"
               style={{ width: '100%', paddingLeft: '32px', paddingRight: '12px', paddingTop: '7px', paddingBottom: '7px', borderRadius: '20px', border: '1px solid #E6EFF0', background: '#FFFFFF', color: '#1E2124', fontSize: '14px', fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box' }} />
           </div>
@@ -482,7 +482,7 @@ function TeamContent() {
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
             {/* Header row */}
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 120px 100px 100px 100px 80px', gap: '12px', padding: '8px 20px', fontSize: '11px', fontWeight: 700, color: 'rgba(70,77,83,0.55)', textTransform: 'uppercase', letterSpacing: '1px' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 120px 100px 100px 100px 80px', gap: '12px', padding: '8px 20px', fontSize: '11px', fontWeight: 700, color: '#64748B', textTransform: 'uppercase', letterSpacing: '1px' }}>
               <span>Name / Role</span>
               <span>Department</span>
               <span>TAIRS</span>
@@ -497,7 +497,7 @@ function TeamContent() {
                 <div key={m.id} style={{ display: 'grid', gridTemplateColumns: '1fr 120px 100px 100px 100px 80px', gap: '12px', alignItems: 'center', padding: '14px 20px', background: '#FFFFFF', border: '1px solid #E6EFF0', borderRadius: '12px', boxShadow: '0 1px 4px rgba(0,165,163,0.06), 0 1px 2px rgba(0,0,0,0.04)' }}>
                   <div>
                     <div style={{ fontSize: '16px', fontWeight: 700, color: '#1E2124', marginBottom: '2px' }}>{m.name}</div>
-                    <div style={{ fontSize: '13px', color: 'rgba(70,77,83,0.55)' }}>
+                    <div style={{ fontSize: '13px', color: '#64748B' }}>
                       {m.role ?? '—'} · {JOB_LEVEL_LABEL[m.job_level] ?? m.job_level} · {OFFICE_LABEL[m.office_id] ?? m.office_id}
                     </div>
                   </div>
@@ -507,7 +507,7 @@ function TeamContent() {
                     <span style={{ fontSize: '11px', fontWeight: 700, color: tc, background: `${tc}18`, padding: '2px 7px', borderRadius: '6px' }}>{m.tier.replace('AI-', '')}</span>
                   </div>
                   <div style={{ fontSize: '14px', fontWeight: 600, color: '#464D53', textTransform: 'capitalize' }}>{m.track}</div>
-                  <div style={{ fontSize: '16px', fontWeight: 800, color: m.completed_courses > 0 ? '#C0F43C' : 'rgba(70,77,83,0.55)' }}>
+                  <div style={{ fontSize: '16px', fontWeight: 800, color: m.completed_courses > 0 ? '#C0F43C' : '#64748B' }}>
                     {m.completed_courses}
                   </div>
                   <div style={{ fontSize: '13px', color: '#464D53' }}>

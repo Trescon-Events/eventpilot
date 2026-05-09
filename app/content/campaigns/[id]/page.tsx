@@ -190,14 +190,14 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
   }
 
   if (loading) return (
-    <div style={{ minHeight: '100vh', background: '#F6FFFE', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'rgba(70,77,83,0.55)', fontSize: '15px' }}>
+    <div style={{ minHeight: '100vh', background: '#F6FFFE', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#64748B', fontSize: '15px' }}>
       Loading campaign…
     </div>
   )
 
   if (!campaign) return (
     <div style={{ minHeight: '100vh', background: '#F6FFFE', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '12px' }}>
-      <div style={{ color: 'rgba(70,77,83,0.55)', fontSize: '16px' }}>Campaign not found.</div>
+      <div style={{ color: '#64748B', fontSize: '16px' }}>Campaign not found.</div>
       <Link href="/content" style={{ color: '#00A5A3', fontSize: '15px' }}>Back to Content Hub</Link>
     </div>
   )
@@ -237,7 +237,7 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
             <svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg>
           </Link>
           <div style={{ minWidth: 0 }}>
-            <div style={{ fontSize: '11px', fontWeight: 700, color: 'rgba(70,77,83,0.55)', letterSpacing: '1px', textTransform: 'uppercase', marginBottom: '2px' }}>
+            <div style={{ fontSize: '11px', fontWeight: 700, color: '#64748B', letterSpacing: '1px', textTransform: 'uppercase', marginBottom: '2px' }}>
               {campaign.events?.name ?? 'Content Campaign'}
             </div>
             <h1 style={{ fontSize: '22px', fontWeight: 900, color: '#1E2124', margin: 0, letterSpacing: '-0.02em', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
@@ -256,7 +256,7 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
           ].map(s => (
             <div key={s.label} style={{ textAlign: 'center' }}>
               <div style={{ fontSize: '24px', fontWeight: 900, color: s.color, lineHeight: 1 }}>{s.val}</div>
-              <div style={{ fontSize: '11px', color: 'rgba(70,77,83,0.55)', letterSpacing: '0.8px', textTransform: 'uppercase' }}>{s.label}</div>
+              <div style={{ fontSize: '11px', color: '#64748B', letterSpacing: '0.8px', textTransform: 'uppercase' }}>{s.label}</div>
             </div>
           ))}
         </div>
@@ -303,7 +303,7 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
         {posts.length === 0 && !planReady && !campaign.start_date && (
           <div style={{ textAlign: 'center', padding: '60px 40px', background: '#EEF9F9', border: '1px dashed #E6EFF0', borderRadius: '16px' }}>
             <div style={{ fontSize: '16px', fontWeight: 700, color: '#464D53', marginBottom: '8px' }}>Set a start date to build the post schedule</div>
-            <div style={{ fontSize: '14px', color: 'rgba(70,77,83,0.55)' }}>Edit the campaign to add a start date, then return here to scaffold posts.</div>
+            <div style={{ fontSize: '14px', color: '#64748B' }}>Edit the campaign to add a start date, then return here to scaffold posts.</div>
           </div>
         )}
 
@@ -323,7 +323,7 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
                     <div style={{ width: 34, height: 34, borderRadius: '50%', background: 'rgba(0,165,163,0.15)', border: '1.5px solid rgba(0,165,163,0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '14px', fontWeight: 800, color: '#00A5A3', flexShrink: 0 }}>{wkNum}</div>
                     <div style={{ flex: 1 }}>
                       <div style={{ fontSize: '16px', fontWeight: 800, color: '#1E2124', marginBottom: '2px' }}>{wkTheme}</div>
-                      <div style={{ fontSize: '13px', color: 'rgba(70,77,83,0.55)' }}>
+                      <div style={{ fontSize: '13px', color: '#64748B' }}>
                         {wkPosts.length} posts · {genCount} generated
                       </div>
                     </div>
@@ -372,13 +372,13 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
                               <span style={{ fontSize: '11px', fontWeight: 700, color: pc }}>{post.platform}</span>
                               <span style={{ fontSize: '11px', fontWeight: 700, padding: '2px 7px', borderRadius: '10px', background: sc.bg, color: sc.color }}>{sc.label}</span>
                             </div>
-                            <div style={{ fontSize: '13px', color: 'rgba(70,77,83,0.55)', marginBottom: '4px' }}>{post.narrative_role}</div>
+                            <div style={{ fontSize: '13px', color: '#64748B', marginBottom: '4px' }}>{post.narrative_role}</div>
                             {post.text ? (
                               <div style={{ fontSize: '13px', color: '#464D53', lineHeight: 1.5, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
                                 {post.text}
                               </div>
                             ) : (
-                              <div style={{ fontSize: '13px', color: 'rgba(70,77,83,0.55)', fontStyle: 'italic' }}>No copy yet</div>
+                              <div style={{ fontSize: '13px', color: '#64748B', fontStyle: 'italic' }}>No copy yet</div>
                             )}
                             <div style={{ marginTop: '8px', display: 'flex', gap: '6px' }} onClick={e => e.stopPropagation()}>
                               {post.status === 'planned' && (
@@ -411,7 +411,7 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
             {/* Header row */}
             <div style={{ display: 'grid', gridTemplateColumns: '60px 1fr 100px 90px 100px 120px', padding: '10px 16px', borderBottom: '1px solid #E6EFF0', background: 'rgba(0,165,163,0.06)' }}>
               {['Wk', 'Copy', 'Platform', 'Status', 'Role', 'Date'].map(h => (
-                <div key={h} style={{ fontSize: '11px', fontWeight: 700, color: 'rgba(70,77,83,0.55)', letterSpacing: '0.8px', textTransform: 'uppercase' }}>{h}</div>
+                <div key={h} style={{ fontSize: '11px', fontWeight: 700, color: '#64748B', letterSpacing: '0.8px', textTransform: 'uppercase' }}>{h}</div>
               ))}
             </div>
             {posts.map(post => {
@@ -422,9 +422,9 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
                   style={{ display: 'grid', gridTemplateColumns: '60px 1fr 100px 90px 100px 120px', padding: '12px 16px', borderBottom: '1px solid #E6EFF0', cursor: 'pointer', transition: 'background 0.1s' }}
                   onMouseEnter={e => (e.currentTarget.style.background = 'rgba(0,165,163,0.04)')}
                   onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}>
-                  <div style={{ fontSize: '14px', color: 'rgba(70,77,83,0.55)', fontWeight: 700 }}>W{post.week_number}</div>
+                  <div style={{ fontSize: '14px', color: '#64748B', fontWeight: 700 }}>W{post.week_number}</div>
                   <div style={{ fontSize: '14px', color: '#464D53', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', paddingRight: '12px' }}>
-                    {post.text || <span style={{ color: 'rgba(70,77,83,0.55)', fontStyle: 'italic' }}>No copy yet</span>}
+                    {post.text || <span style={{ color: '#64748B', fontStyle: 'italic' }}>No copy yet</span>}
                   </div>
                   <div style={{ fontSize: '13px', fontWeight: 700, color: pc }}>{post.platform}</div>
                   <span style={{ fontSize: '11px', fontWeight: 700, padding: '2px 8px', borderRadius: '10px', background: sc.bg, color: sc.color, alignSelf: 'center', textAlign: 'center' }}>{sc.label}</span>
@@ -442,7 +442,7 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
             {pendingApproval.length === 0 ? (
               <div style={{ textAlign: 'center', padding: '60px', background: '#EEF9F9', border: '1px dashed #E6EFF0', borderRadius: '16px' }}>
                 <div style={{ fontSize: '16px', fontWeight: 700, color: '#C0F43C', marginBottom: '6px' }}>All clear</div>
-                <div style={{ fontSize: '14px', color: 'rgba(70,77,83,0.55)' }}>No posts awaiting approval.</div>
+                <div style={{ fontSize: '14px', color: '#64748B' }}>No posts awaiting approval.</div>
               </div>
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
@@ -459,8 +459,8 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
                         <div style={{ flex: 1, minWidth: 0 }}>
                           <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px', flexWrap: 'wrap' }}>
                             <span style={{ fontSize: '13px', fontWeight: 700, color: pc }}>{post.platform}</span>
-                            <span style={{ fontSize: '13px', color: 'rgba(70,77,83,0.55)' }}>Week {post.week_number} · {post.narrative_role}</span>
-                            <span style={{ fontSize: '13px', color: 'rgba(70,77,83,0.55)', marginLeft: 'auto' }}>{fmtDate(post.scheduled_date)}</span>
+                            <span style={{ fontSize: '13px', color: '#64748B' }}>Week {post.week_number} · {post.narrative_role}</span>
+                            <span style={{ fontSize: '13px', color: '#64748B', marginLeft: 'auto' }}>{fmtDate(post.scheduled_date)}</span>
                           </div>
                           <div style={{ fontSize: '15px', color: '#464D53', lineHeight: 1.65, marginBottom: '12px', display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
                             {post.text}
@@ -503,7 +503,7 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
                 <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                   <span style={{ fontSize: '14px', fontWeight: 700, color: pc }}>{post.platform}</span>
                   <span style={{ fontSize: '11px', fontWeight: 700, padding: '2px 8px', borderRadius: '10px', background: sc.bg, color: sc.color }}>{sc.label}</span>
-                  <span style={{ fontSize: '13px', color: 'rgba(70,77,83,0.55)' }}>Wk {post.week_number} · {post.narrative_role}</span>
+                  <span style={{ fontSize: '13px', color: '#64748B' }}>Wk {post.week_number} · {post.narrative_role}</span>
                 </div>
                 <button onClick={() => setActivePost(null)} style={{ background: 'none', border: 'none', color: '#464D53', cursor: 'pointer', padding: '4px' }}>
                   <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
@@ -518,7 +518,7 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
                 )}
 
                 {/* Copy — editable */}
-                <label style={{ fontSize: '11px', fontWeight: 700, color: 'rgba(70,77,83,0.55)', letterSpacing: '0.8px', textTransform: 'uppercase', display: 'block', marginBottom: '6px' }}>Copy</label>
+                <label style={{ fontSize: '11px', fontWeight: 700, color: '#64748B', letterSpacing: '0.8px', textTransform: 'uppercase', display: 'block', marginBottom: '6px' }}>Copy</label>
                 <textarea
                   value={post.text}
                   onChange={e => updatePostText(post.id, e.target.value)}
@@ -564,7 +564,7 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
           <div className="modal-box" style={{ maxWidth: '460px' }} onClick={e => e.stopPropagation()}>
             <div style={{ padding: '24px' }}>
               <div style={{ fontSize: '18px', fontWeight: 800, color: '#1E2124', marginBottom: '6px' }}>Request Revision</div>
-              <div style={{ fontSize: '14px', color: 'rgba(70,77,83,0.55)', marginBottom: '18px' }}>Describe what needs to change. The post goes back to Generated status.</div>
+              <div style={{ fontSize: '14px', color: '#64748B', marginBottom: '18px' }}>Describe what needs to change. The post goes back to Generated status.</div>
               <textarea value={rejectNote} onChange={e => setRejectNote(e.target.value)}
                 placeholder="e.g. Too generic. Mention the AI in Banking theme specifically. Add a CTA to register."
                 rows={4}

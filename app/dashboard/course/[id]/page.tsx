@@ -372,7 +372,7 @@ function CourseContent() {
               <span style={{ fontSize: '11px', fontWeight: 800, color: tierColor, textTransform: 'uppercase', letterSpacing: '1.5px', background: `${tierColor}15`, padding: '4px 12px', borderRadius: '20px' }}>
                 {course.tier_level} track
               </span>
-              <span style={{ fontSize: '14px', color: 'rgba(70,77,83,0.55)', fontWeight: 600 }}>{course.estimated_minutes} min</span>
+              <span style={{ fontSize: '14px', color: '#64748B', fontWeight: 600 }}>{course.estimated_minutes} min</span>
               {course.is_mandatory && <span style={{ fontSize: '11px', fontWeight: 700, color: '#FF9F43', background: '#FF9F4315', padding: '4px 10px', borderRadius: '20px' }}>Mandatory</span>}
             </div>
 
@@ -405,7 +405,7 @@ function CourseContent() {
                 <div key={label} style={{ background: '#FFFFFF', border: '1px solid #E6EFF0', borderRadius: '12px', padding: '16px', textAlign: 'center', boxShadow: '0 1px 4px rgba(0,165,163,0.06), 0 1px 2px rgba(0,0,0,0.04)' }}>
                   <svg width="20" height="20" fill="none" stroke={tierColor} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24" style={{ marginBottom: '8px' }}><path d={icon}/></svg>
                   <div style={{ fontSize: '15px', fontWeight: 800, color: '#1E2124' }}>{label}</div>
-                  <div style={{ fontSize: '13px', color: 'rgba(70,77,83,0.55)' }}>{desc}</div>
+                  <div style={{ fontSize: '13px', color: '#64748B' }}>{desc}</div>
                 </div>
               ))}
             </div>
@@ -468,7 +468,7 @@ function CourseContent() {
                       <div style={{ width: '28px', height: '28px', borderRadius: '50%', border: `2px solid ${done ? '#C0F43C' : '#E6EFF0'}`, background: done ? '#C0F43C20' : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, marginTop: '2px' }}>
                         {done
                           ? <svg width="13" height="13" fill="none" stroke="#C0F43C" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>
-                          : <span style={{ fontSize: '13px', fontWeight: 800, color: 'rgba(70,77,83,0.55)' }}>{ts.step}</span>
+                          : <span style={{ fontSize: '13px', fontWeight: 800, color: '#64748B' }}>{ts.step}</span>
                         }
                       </div>
                       <div style={{ flex: 1 }}>
@@ -628,7 +628,7 @@ function CourseContent() {
                 </div>
 
                 {qAnswered && (
-                  <div style={{ marginTop: '16px', fontSize: '14px', color: 'rgba(70,77,83,0.55)', textAlign: 'center' }}>
+                  <div style={{ marginTop: '16px', fontSize: '14px', color: '#64748B', textAlign: 'center' }}>
                     Moving to next question…
                   </div>
                 )}
@@ -696,7 +696,7 @@ function CourseContent() {
 
             {/* Breakdown */}
             <div style={{ marginBottom: '32px' }}>
-              <div style={{ fontSize: '13px', fontWeight: 800, letterSpacing: '2px', color: 'rgba(70,77,83,0.55)', textTransform: 'uppercase', marginBottom: '16px' }}>Question Breakdown</div>
+              <div style={{ fontSize: '13px', fontWeight: 800, letterSpacing: '2px', color: '#64748B', textTransform: 'uppercase', marginBottom: '16px' }}>Question Breakdown</div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
                 {result.breakdown.map((item, i) => (
                   <div key={i} style={{ background: item.is_correct ? 'rgba(192,244,60,0.05)' : 'rgba(255,107,107,0.05)', border: `1px solid ${item.is_correct ? 'rgba(192,244,60,0.2)' : 'rgba(255,107,107,0.2)'}`, borderRadius: '14px', padding: '18px 20px' }}>

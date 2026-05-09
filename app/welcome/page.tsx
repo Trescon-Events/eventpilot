@@ -60,7 +60,7 @@ function WelcomeContent() {
                 {i === 0 ? (
                   <svg width="11" height="11" fill="none" stroke={color} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>
                 ) : (
-                  <span style={{ fontSize: '11px', color: 'rgba(70,77,83,0.55)', fontWeight: 700 }}>{i + 1}</span>
+                  <span style={{ fontSize: '11px', color: '#64748B', fontWeight: 700 }}>{i + 1}</span>
                 )}
               </div>
               <span style={{ fontSize: '15px', color: i === 0 ? color : '#464D53', fontWeight: i === 0 ? 600 : 400 }}>{step}</span>

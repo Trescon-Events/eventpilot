@@ -184,7 +184,7 @@ function LibraryContent() {
         {/* All Courses — section header + filters */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '16px' }}>
           <div style={{ width: '7px', height: '7px', borderRadius: '50%', background: '#00A5A3', flexShrink: 0 }} />
-          <span style={{ fontSize: '13px', fontWeight: 800, color: 'rgba(70,77,83,0.55)', textTransform: 'uppercase', letterSpacing: '2px' }}>All Courses</span>
+          <span style={{ fontSize: '13px', fontWeight: 800, color: '#64748B', textTransform: 'uppercase', letterSpacing: '2px' }}>All Courses</span>
         </div>
 
         {/* Filters */}
@@ -220,7 +220,7 @@ function LibraryContent() {
         {loading ? (
           <div style={{ textAlign: 'center', padding: '60px 0' }}>
             <div style={{ width: '36px', height: '36px', border: '3px solid rgba(15,23,42,0.1)', borderTopColor: '#00A5A3', borderRadius: '50%', animation: 'spin 0.8s linear infinite', margin: '0 auto 14px' }} />
-            <div style={{ color: 'rgba(70,77,83,0.55)', fontSize: '15px' }}>Loading library…</div>
+            <div style={{ color: '#64748B', fontSize: '15px' }}>Loading library…</div>
           </div>
         ) : filtered.length === 0 ? (
           <div style={{ textAlign: 'center', padding: '60px 0', color: '#464D53', fontSize: '16px' }}>
@@ -271,7 +271,7 @@ function LibraryContent() {
                   <div style={{ fontSize: '15px', fontWeight: 800, color: '#0F172A', marginBottom: '6px', lineHeight: 1.3, flex: 1 }}>
                     {course.title}
                   </div>
-                  <div style={{ fontSize: '12px', color: 'rgba(15,23,42,0.65)', marginBottom: '16px', lineHeight: 1.5 }}>
+                  <div style={{ fontSize: '12px', color: '#374151', marginBottom: '16px', lineHeight: 1.5 }}>
                     {course.subtitle}
                   </div>
 
@@ -294,7 +294,7 @@ function LibraryContent() {
                       <span style={{ fontSize: '13px', color: '#464D53', fontWeight: 600 }}>{course.estimated_minutes} min</span>
                       {course.tool_name && <span style={{ fontSize: '13px', color: '#464D53', fontWeight: 600 }}>{course.tool_name}</span>}
                     </div>
-                    <div style={{ fontSize: '13px', fontWeight: 700, color: done ? '#C0F43C' : attempted ? '#FF9F43' : 'rgba(70,77,83,0.55)' }}>
+                    <div style={{ fontSize: '13px', fontWeight: 700, color: done ? '#C0F43C' : attempted ? '#FF9F43' : '#64748B' }}>
                       {done ? 'Passed' : attempted ? `Score: ${completion?.test_score ?? 0}%` : 'Not started'}
                     </div>
                   </div>

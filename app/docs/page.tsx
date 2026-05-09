@@ -196,7 +196,7 @@ const [openSections, setOpenSections] = useState<Set<string>>(
           {/* Search results */}
           {search.trim() ? (
             <div>
-              <div style={{ fontSize: '11px', fontWeight: 700, letterSpacing: '1.5px', textTransform: 'uppercase', color: 'rgba(70,77,83,0.55)', padding: '0 8px', marginBottom: '6px' }}>
+              <div style={{ fontSize: '11px', fontWeight: 700, letterSpacing: '1.5px', textTransform: 'uppercase', color: '#64748B', padding: '0 8px', marginBottom: '6px' }}>
                 {searchResults.length} result{searchResults.length !== 1 ? 's' : ''}
               </div>
               {searchResults.length === 0 ? (
@@ -206,7 +206,7 @@ const [openSections, setOpenSections] = useState<Set<string>>(
                   <button key={item.slug} onClick={() => selectDoc(item.slug, item.category)}
                     style={{ width: '100%', textAlign: 'left', padding: '8px 12px', borderRadius: '8px', border: 'none', background: activeSlug === item.slug ? '#EEF9F9' : 'transparent', color: activeSlug === item.slug ? '#1E2124' : '#464D53', fontSize: '14px', fontWeight: activeSlug === item.slug ? 700 : 500, cursor: 'pointer', fontFamily: 'inherit', marginBottom: '2px', borderLeft: activeSlug === item.slug ? `2px solid ${SECTION_COLOR[item.category] ?? '#00A5A3'}` : '2px solid transparent' }}>
                     {item.title}
-                    <div style={{ fontSize: '11px', color: 'rgba(70,77,83,0.55)', marginTop: '2px' }}>{item.category}</div>
+                    <div style={{ fontSize: '11px', color: '#64748B', marginTop: '2px' }}>{item.category}</div>
                   </button>
                 ))
               )}
@@ -238,7 +238,7 @@ const [openSections, setOpenSections] = useState<Set<string>>(
 
                   {/* Description — shown when collapsed */}
                   {!isOpen && SECTION_DESC[sectionName] && (
-                    <div style={{ fontSize: '13px', color: 'rgba(70,77,83,0.55)', padding: '0 8px 8px 27px', lineHeight: 1.5 }}>
+                    <div style={{ fontSize: '13px', color: '#64748B', padding: '0 8px 8px 27px', lineHeight: 1.5 }}>
                       {SECTION_DESC[sectionName]}
                     </div>
                   )}
@@ -263,7 +263,7 @@ const [openSections, setOpenSections] = useState<Set<string>>(
           )}
 
           {loading && !search && (
-            <div style={{ fontSize: '13px', color: 'rgba(70,77,83,0.55)', textAlign: 'center', paddingTop: '12px' }}>Loading…</div>
+            <div style={{ fontSize: '13px', color: '#64748B', textAlign: 'center', paddingTop: '12px' }}>Loading…</div>
           )}
         </aside>
 
@@ -310,14 +310,14 @@ const [openSections, setOpenSections] = useState<Set<string>>(
               </div>
             )}
             {!isBuiltIn && !activeDoc && !loading && (
-              <div style={{ color: 'rgba(70,77,83,0.55)', fontSize: '16px' }}>Select a document from the sidebar.</div>
+              <div style={{ color: '#64748B', fontSize: '16px' }}>Select a document from the sidebar.</div>
             )}
           </div>
 
           {/* Footer for DB docs */}
           {!isBuiltIn && activeDoc && (
             <div style={{ marginTop: '48px', paddingTop: '20px', borderTop: '1px solid #E6EFF0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <span style={{ fontSize: '14px', color: 'rgba(70,77,83,0.55)' }}>
+              <span style={{ fontSize: '14px', color: '#64748B' }}>
                 Last updated: {new Date(activeDoc.updated_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}
               </span>
               <a href={`/api/platform-docs?slug=${activeDoc.slug}`} target="_blank" rel="noreferrer"

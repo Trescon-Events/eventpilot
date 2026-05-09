@@ -296,7 +296,7 @@ export default function PlatformMenu({ staffId }: PlatformMenuProps) {
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '20px 24px', borderBottom: '1px solid #E6EFF0' }}>
               <div>
                 <div style={{ fontSize: '17px', fontWeight: 800, color: '#1E2124' }}>Trescademy Platform</div>
-                <div style={{ fontSize: '14px', color: 'rgba(70,77,83,0.55)', marginTop: '2px' }}>All features · navigate anywhere</div>
+                <div style={{ fontSize: '14px', color: '#64748B', marginTop: '2px' }}>All features · navigate anywhere</div>
               </div>
               <button
                 onClick={close}
@@ -312,7 +312,7 @@ export default function PlatformMenu({ staffId }: PlatformMenuProps) {
             <div style={{ padding: '20px 24px 28px' }}>
               {sections.map(section => (
                 <div key={section.heading} style={{ marginBottom: '28px' }}>
-                  <div style={{ fontSize: '11px', fontWeight: 800, letterSpacing: '2px', textTransform: 'uppercase', color: 'rgba(70,77,83,0.55)', marginBottom: '12px' }}>
+                  <div style={{ fontSize: '11px', fontWeight: 800, letterSpacing: '2px', textTransform: 'uppercase', color: '#64748B', marginBottom: '12px' }}>
                     {section.heading}
                   </div>
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '10px' }}>
@@ -340,14 +340,14 @@ export default function PlatformMenu({ staffId }: PlatformMenuProps) {
                                 borderRadius: '20px',
                                 background: isSoon ? '#EEF9F9' : `${item.bg}`,
                                 border: `1px solid ${item.border}`,
-                                color: isSoon ? 'rgba(70,77,83,0.55)' : item.color,
+                                color: isSoon ? '#64748B' : item.color,
                               }}>
                                 {item.badge}
                               </span>
                             )}
                           </div>
-                          <div style={{ fontSize: '15px', fontWeight: 700, color: isSoon ? 'rgba(70,77,83,0.55)' : '#1E2124', marginBottom: '4px' }}>{item.title}</div>
-                          <div style={{ fontSize: '13px', color: 'rgba(70,77,83,0.55)', lineHeight: 1.65 }}>{item.description}</div>
+                          <div style={{ fontSize: '15px', fontWeight: 700, color: isSoon ? '#64748B' : '#1E2124', marginBottom: '4px' }}>{item.title}</div>
+                          <div style={{ fontSize: '13px', color: '#64748B', lineHeight: 1.65 }}>{item.description}</div>
                         </div>
                       )
 

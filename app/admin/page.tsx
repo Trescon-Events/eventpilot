@@ -1257,7 +1257,7 @@ export default function AdminPage() {
                 <div style={{ fontSize: '10px', fontWeight: 800, letterSpacing: '2px', textTransform: 'uppercase', color: '#00A5A3', marginBottom: '4px' }}>Getting Started</div>
                 <div style={{ fontSize: '15px', fontWeight: 800, color: '#1E2124' }}>Three things to explore first</div>
               </div>
-              <div style={{ fontSize: '12px', color: 'rgba(70,77,83,0.55)' }}>
+              <div style={{ fontSize: '12px', color: '#64748B' }}>
                 {[gettingStarted.staff, gettingStarted.brief, gettingStarted.course].filter(Boolean).length} / 3 done
               </div>
             </div>
@@ -1273,10 +1273,10 @@ export default function AdminPage() {
                     <div style={{ width: '24px', height: '24px', borderRadius: '50%', background: done ? '#C0F43C20' : '#E6EFF0', border: `2px solid ${done ? '#C0F43C' : '#E6EFF0'}`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
                       {done
                         ? <svg width="10" height="10" fill="none" stroke="#C0F43C" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>
-                        : <div style={{ width: '6px', height: '6px', borderRadius: '50%', background: 'rgba(70,77,83,0.55)' }} />
+                        : <div style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#64748B' }} />
                       }
                     </div>
-                    <div style={{ flex: 1, fontSize: '13px', color: done ? 'rgba(70,77,83,0.55)' : '#464D53', fontWeight: 600, textDecoration: done ? 'line-through' : 'none' }}>{step.label}</div>
+                    <div style={{ flex: 1, fontSize: '13px', color: done ? '#64748B' : '#464D53', fontWeight: 600, textDecoration: done ? 'line-through' : 'none' }}>{step.label}</div>
                     {!done && (
                       <button onClick={step.action} style={{ padding: '6px 14px', borderRadius: '8px', border: '1px solid rgba(0,165,163,0.3)', background: 'rgba(0,165,163,0.1)', color: '#00A5A3', fontSize: '12px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', flexShrink: 0 }}>
                         Go to {step.tab}
@@ -1295,7 +1295,7 @@ export default function AdminPage() {
             <div style={{ fontSize: '10px', fontWeight: 700, letterSpacing: '1.5px', textTransform: 'uppercase', color: '#464D53', marginBottom: '10px' }}>Staff in System</div>
             <div style={{ display: 'flex', alignItems: 'baseline', gap: '8px', marginBottom: '10px' }}>
               <span style={{ fontSize: '48px', fontWeight: 900, color: '#00A5A3', lineHeight: 1 }}>{totalJoined}</span>
-              <span style={{ fontSize: '14px', color: 'rgba(70,77,83,0.55)', fontWeight: 600 }}>total</span>
+              <span style={{ fontSize: '14px', color: '#64748B', fontWeight: 600 }}>total</span>
             </div>
             <div style={{ height: '6px', background: '#EEF9F9', borderRadius: '3px', overflow: 'hidden', marginBottom: '6px' }}>
               <div style={{ height: '100%', width: `${totalJoined > 0 ? Math.min(100, Math.round(profilesComplete / totalJoined * 100)) : 0}%`, background: '#00A5A3', borderRadius: '3px', transition: 'width 0.6s' }} />
@@ -1521,7 +1521,7 @@ export default function AdminPage() {
                         </div>
                         <div style={{ display: 'flex', alignItems: 'baseline', gap: '4px', marginBottom: '10px' }}>
                           <span style={{ fontSize: '24px', fontWeight: 900, color: o.color, lineHeight: 1 }}>{joined}</span>
-                          <span style={{ fontSize: '12px', color: 'rgba(70,77,83,0.55)', marginLeft: '4px' }}>staff</span>
+                          <span style={{ fontSize: '12px', color: '#64748B', marginLeft: '4px' }}>staff</span>
                         </div>
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                           <span style={{ fontSize: '10px', color: '#464D53' }}>{members.filter(m => m.office_id === o.id && m.profile_complete).length} profiles complete</span>
@@ -1688,7 +1688,7 @@ export default function AdminPage() {
             {/* Row 1: Search + interview status */}
             <div style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
               <div style={{ position: 'relative', flex: '0 0 240px' }}>
-                <svg width="13" height="13" fill="none" stroke="rgba(70,77,83,0.55)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24" style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none' }}><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+                <svg width="13" height="13" fill="none" stroke="#64748B" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24" style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none' }}><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
                 <input
                   value={memberSearch}
                   onChange={e => setMemberSearch(e.target.value)}
@@ -1703,7 +1703,7 @@ export default function AdminPage() {
                   {label}
                 </button>
               ))}
-              <div style={{ marginLeft: 'auto', fontSize: '12px', color: 'rgba(70,77,83,0.55)', fontWeight: 600 }}>
+              <div style={{ marginLeft: 'auto', fontSize: '12px', color: '#64748B', fontWeight: 600 }}>
                 {filteredMembers.length} of {members.length}
               </div>
             </div>
@@ -1790,7 +1790,7 @@ export default function AdminPage() {
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
               <div>
                 <div style={{ fontSize: '11px', fontWeight: 800, letterSpacing: '2px', textTransform: 'uppercase', color: '#A478FF' }}>Staff Feedback</div>
-                <div style={{ fontSize: '12px', color: 'rgba(70,77,83,0.55)', marginTop: '2px' }}>{feedbackItems.length} submission{feedbackItems.length !== 1 ? 's' : ''} — what the team wants built next</div>
+                <div style={{ fontSize: '12px', color: '#64748B', marginTop: '2px' }}>{feedbackItems.length} submission{feedbackItems.length !== 1 ? 's' : ''} — what the team wants built next</div>
               </div>
               {feedbackItems.length > 0 && (
                 <button
@@ -1840,7 +1840,7 @@ export default function AdminPage() {
                             <span style={{ fontSize: '13px', fontWeight: 700, color: '#1E2124' }}>{t.theme}</span>
                             <span style={{ fontSize: '11px', fontWeight: 700, color: '#A478FF' }}>{t.count}</span>
                           </div>
-                          <div style={{ fontSize: '11px', color: 'rgba(70,77,83,0.55)', lineHeight: 1.5 }}>{t.description}</div>
+                          <div style={{ fontSize: '11px', color: '#64748B', lineHeight: 1.5 }}>{t.description}</div>
                         </div>
                       ))}
                     </div>
@@ -1853,7 +1853,7 @@ export default function AdminPage() {
                           <div style={{ width: '24px', height: '24px', borderRadius: '50%', background: '#A478FF', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '11px', fontWeight: 900, color: '#1E2124', flexShrink: 0 }}>{b.rank}</div>
                           <div>
                             <div style={{ fontSize: '13px', fontWeight: 700, color: '#1E2124', marginBottom: '2px' }}>{b.item}</div>
-                            <div style={{ fontSize: '11px', color: 'rgba(70,77,83,0.55)', lineHeight: 1.5 }}>{b.reason}</div>
+                            <div style={{ fontSize: '11px', color: '#64748B', lineHeight: 1.5 }}>{b.reason}</div>
                           </div>
                         </div>
                       ))}
@@ -1869,7 +1869,7 @@ export default function AdminPage() {
                           <span style={{ fontSize: '10px', fontWeight: 800, color: PRIORITY_COLOR[req.priority] ?? '#A478FF', background: `${PRIORITY_COLOR[req.priority] ?? '#A478FF'}15`, padding: '3px 8px', borderRadius: '6px', flexShrink: 0, marginTop: '1px' }}>{req.priority}</span>
                           <div>
                             <div style={{ fontSize: '13px', fontWeight: 700, color: '#1E2124', marginBottom: '2px' }}>{req.feature}</div>
-                            <div style={{ fontSize: '11px', color: 'rgba(70,77,83,0.55)', lineHeight: 1.5 }}>{req.rationale}</div>
+                            <div style={{ fontSize: '11px', color: '#64748B', lineHeight: 1.5 }}>{req.rationale}</div>
                           </div>
                         </div>
                       ))}
@@ -1883,7 +1883,7 @@ export default function AdminPage() {
                       {[['Positive', r.sentiment?.positive, '#C0F43C'], ['Constructive', r.sentiment?.constructive, '#FF9F43'], ['Critical', r.sentiment?.critical, '#FF6B6B']].map(([label, val, color]) => (
                         <div key={label as string} style={{ textAlign: 'center' }}>
                           <div style={{ fontSize: '22px', fontWeight: 900, color: color as string }}>{val}%</div>
-                          <div style={{ fontSize: '11px', color: 'rgba(70,77,83,0.55)' }}>{label}</div>
+                          <div style={{ fontSize: '11px', color: '#64748B' }}>{label}</div>
                         </div>
                       ))}
                     </div>
@@ -1899,13 +1899,13 @@ export default function AdminPage() {
                 <div style={{ fontSize: '11px', fontWeight: 700, color: '#464D53', letterSpacing: '1px', textTransform: 'uppercase' }}>All Submissions</div>
               </div>
               {feedbackItems.length === 0 ? (
-                <div style={{ padding: '32px', textAlign: 'center', fontSize: '13px', color: 'rgba(70,77,83,0.55)' }}>No feedback yet. The form appears at the bottom of every staff dashboard.</div>
+                <div style={{ padding: '32px', textAlign: 'center', fontSize: '13px', color: '#64748B' }}>No feedback yet. The form appears at the bottom of every staff dashboard.</div>
               ) : (
                 <div style={{ display: 'flex', flexDirection: 'column' }}>
                   {feedbackItems.map((f, i) => (
                     <div key={f.id} style={{ padding: '14px 24px', borderBottom: i < feedbackItems.length - 1 ? '1px solid #E6EFF0' : 'none' }}>
                       <div style={{ fontSize: '13px', color: '#464D53', lineHeight: 1.6, marginBottom: '5px' }}>{f.message}</div>
-                      <div style={{ fontSize: '11px', color: 'rgba(70,77,83,0.55)' }}>
+                      <div style={{ fontSize: '11px', color: '#64748B' }}>
                         {f.name}{f.department ? ` · ${f.department}` : ''} · {new Date(f.created_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}
                       </div>
                     </div>
@@ -1948,7 +1948,7 @@ export default function AdminPage() {
                         </td>
                         <td style={{ padding: '12px 16px', whiteSpace: 'nowrap' }}>
                           <div style={{ fontSize: '12px', fontWeight: 600, color: '#464D53' }}>{new Date(m.joined_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}</div>
-                          <div style={{ fontSize: '11px', color: 'rgba(70,77,83,0.55)', marginTop: '2px' }}>{new Date(m.joined_at).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}</div>
+                          <div style={{ fontSize: '11px', color: '#64748B', marginTop: '2px' }}>{new Date(m.joined_at).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}</div>
                         </td>
                       </tr>
                     )
@@ -2082,7 +2082,7 @@ export default function AdminPage() {
 
                         {/* Col 6: Chevron */}
                         <div style={{ display: 'flex', justifyContent: 'center' }}>
-                          <svg width="14" height="14" fill="none" stroke="rgba(70,77,83,0.55)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24" style={{ transform: isOpen ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }}>
+                          <svg width="14" height="14" fill="none" stroke="#64748B" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24" style={{ transform: isOpen ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }}>
                             <polyline points="6 9 12 15 18 9"/>
                           </svg>
                         </div>
@@ -2239,7 +2239,7 @@ export default function AdminPage() {
                   <div key={label} style={{ background: '#FFFFFF', border: '1px solid #E6EFF0', borderRadius: '14px', padding: '18px 20px' }}>
                     <div style={{ fontSize: '10px', fontWeight: 700, letterSpacing: '1.5px', textTransform: 'uppercase', color: '#464D53', marginBottom: '6px' }}>{label}</div>
                     <div style={{ fontSize: '26px', fontWeight: 900, color: '#1E2124', marginBottom: '2px' }}>{value}</div>
-                    <div style={{ fontSize: '11px', color: 'rgba(70,77,83,0.55)' }}>{sub}</div>
+                    <div style={{ fontSize: '11px', color: '#64748B' }}>{sub}</div>
                   </div>
                 ))}
               </div>
@@ -2250,11 +2250,11 @@ export default function AdminPage() {
                 <div style={{ background: '#FFFFFF', border: '1px solid #E6EFF0', borderRadius: '18px', overflow: 'hidden' }}>
                   <div style={{ padding: '16px 20px', borderBottom: '1px solid #E6EFF0' }}>
                     <div style={{ fontSize: '11px', fontWeight: 700, letterSpacing: '1.5px', textTransform: 'uppercase', color: '#464D53' }}>Course Performance</div>
-                    <div style={{ fontSize: '12px', color: 'rgba(70,77,83,0.55)', marginTop: '2px' }}>Completions and avg score per course</div>
+                    <div style={{ fontSize: '12px', color: '#64748B', marginTop: '2px' }}>Completions and avg score per course</div>
                   </div>
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 90px 48px 56px', padding: '8px 20px', borderBottom: '1px solid #E6EFF0', gap: '8px' }}>
                     {['Course', 'Track', 'Done', 'Avg'].map(h => (
-                      <div key={h} style={{ fontSize: '9px', fontWeight: 700, letterSpacing: '1.5px', textTransform: 'uppercase', color: 'rgba(70,77,83,0.55)' }}>{h}</div>
+                      <div key={h} style={{ fontSize: '9px', fontWeight: 700, letterSpacing: '1.5px', textTransform: 'uppercase', color: '#64748B' }}>{h}</div>
                     ))}
                   </div>
                   {courseStats.map((c, i) => (
@@ -2269,7 +2269,7 @@ export default function AdminPage() {
                     </div>
                   ))}
                   {courseStats.length === 0 && (
-                    <div style={{ padding: '40px', textAlign: 'center', color: 'rgba(70,77,83,0.55)', fontSize: '13px' }}>No courses yet. Seed courses first.</div>
+                    <div style={{ padding: '40px', textAlign: 'center', color: '#64748B', fontSize: '13px' }}>No courses yet. Seed courses first.</div>
                   )}
                 </div>
 
@@ -2282,7 +2282,7 @@ export default function AdminPage() {
                       <div style={{ fontSize: '11px', fontWeight: 700, letterSpacing: '1.5px', textTransform: 'uppercase', color: '#464D53' }}>By Department</div>
                     </div>
                     {deptStatsList.length === 0 ? (
-                      <div style={{ padding: '24px', textAlign: 'center', color: 'rgba(70,77,83,0.55)', fontSize: '13px' }}>No completions yet</div>
+                      <div style={{ padding: '24px', textAlign: 'center', color: '#64748B', fontSize: '13px' }}>No completions yet</div>
                     ) : (
                       deptStatsList.map((d, i) => (
                         <div key={d.name} style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '10px 18px', borderBottom: i < deptStatsList.length - 1 ? '1px solid #FFFFFF' : 'none' }}>
@@ -2300,14 +2300,14 @@ export default function AdminPage() {
                       <div style={{ fontSize: '11px', fontWeight: 700, letterSpacing: '1.5px', textTransform: 'uppercase', color: '#464D53' }}>Top Learners</div>
                     </div>
                     {topLearners.length === 0 ? (
-                      <div style={{ padding: '24px', textAlign: 'center', color: 'rgba(70,77,83,0.55)', fontSize: '13px' }}>No completions yet</div>
+                      <div style={{ padding: '24px', textAlign: 'center', color: '#64748B', fontSize: '13px' }}>No completions yet</div>
                     ) : (
                       topLearners.map((l, i) => (
                         <div key={l.id} style={{ display: 'grid', gridTemplateColumns: '20px 1fr 36px 44px', alignItems: 'center', gap: '10px', padding: '10px 18px', borderBottom: i < topLearners.length - 1 ? '1px solid #FFFFFF' : 'none' }}>
-                          <div style={{ fontSize: '11px', fontWeight: 700, color: i < 3 ? '#C0F43C' : 'rgba(70,77,83,0.55)' }}>#{i + 1}</div>
+                          <div style={{ fontSize: '11px', fontWeight: 700, color: i < 3 ? '#C0F43C' : '#64748B' }}>#{i + 1}</div>
                           <div>
                             <div style={{ fontSize: '13px', fontWeight: 600, color: '#1E2124' }}>{l.name}</div>
-                            <div style={{ fontSize: '10px', color: 'rgba(70,77,83,0.55)' }}>{l.dept}</div>
+                            <div style={{ fontSize: '10px', color: '#64748B' }}>{l.dept}</div>
                           </div>
                           <div style={{ fontSize: '13px', fontWeight: 800, color: '#1E2124', textAlign: 'right' }}>{l.completed}</div>
                           <div style={{ fontSize: '12px', fontWeight: 700, color: l.avgScore >= 80 ? '#C0F43C' : '#00A5A3', textAlign: 'right' }}>{l.avgScore}%</div>
@@ -2321,14 +2321,14 @@ export default function AdminPage() {
               {/* Pass rate strip */}
               <div style={{ background: '#FFFFFF', border: '1px solid #E6EFF0', borderRadius: '14px', padding: '16px 22px', display: 'flex', gap: '32px', alignItems: 'center', flexWrap: 'wrap' }}>
                 <div>
-                  <div style={{ fontSize: '10px', fontWeight: 700, letterSpacing: '1.5px', textTransform: 'uppercase', color: 'rgba(70,77,83,0.55)', marginBottom: '4px' }}>Overall Pass Rate</div>
+                  <div style={{ fontSize: '10px', fontWeight: 700, letterSpacing: '1.5px', textTransform: 'uppercase', color: '#64748B', marginBottom: '4px' }}>Overall Pass Rate</div>
                   <div style={{ fontSize: '22px', fontWeight: 900, color: passRate >= 70 ? '#C0F43C' : passRate >= 50 ? '#FF9F43' : '#FF6B6B' }}>{passRate}%</div>
                 </div>
                 <div style={{ flex: 1, maxWidth: '400px' }}>
                   <div style={{ height: '8px', background: '#EEF9F9', borderRadius: '4px', overflow: 'hidden' }}>
                     <div style={{ height: '100%', width: `${passRate}%`, background: passRate >= 70 ? '#C0F43C' : passRate >= 50 ? '#FF9F43' : '#FF6B6B', borderRadius: '4px', transition: 'width 0.6s' }} />
                   </div>
-                  <div style={{ fontSize: '11px', color: 'rgba(70,77,83,0.55)', marginTop: '5px' }}>{totalPassed} passes out of {totalAttempts} total attempts</div>
+                  <div style={{ fontSize: '11px', color: '#64748B', marginTop: '5px' }}>{totalPassed} passes out of {totalAttempts} total attempts</div>
                 </div>
                 <div style={{ fontSize: '12px', color: '#464D53', lineHeight: 1.6 }}>
                   Target: 70%+ pass rate across all courses.<br/>Below 70% on any course = content or prompt difficulty issue.
@@ -2487,13 +2487,13 @@ export default function AdminPage() {
 
               {/* Dev Tools — collapsed by default */}
               <div style={{ marginTop: '8px' }}>
-                <button onClick={() => setShowDevTools(v => !v)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'inherit', color: 'rgba(70,77,83,0.55)', fontSize: '11px', display: 'flex', alignItems: 'center', gap: '5px', padding: '4px 0' }}>
+                <button onClick={() => setShowDevTools(v => !v)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'inherit', color: '#64748B', fontSize: '11px', display: 'flex', alignItems: 'center', gap: '5px', padding: '4px 0' }}>
                   <svg width="10" height="10" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polyline points={showDevTools ? '18 15 12 9 6 15' : '6 9 12 15 18 9'}/></svg>
                   Dev tools
                 </button>
                 {showDevTools && (
                   <div style={{ background: '#EEF9F9', border: '1px dashed #E6EFF0', borderRadius: '12px', padding: '16px 20px', marginTop: '8px' }}>
-                    <div style={{ fontSize: '10px', fontWeight: 700, letterSpacing: '1.5px', textTransform: 'uppercase', color: 'rgba(70,77,83,0.55)', marginBottom: '10px' }}>Demo Data</div>
+                    <div style={{ fontSize: '10px', fontWeight: 700, letterSpacing: '1.5px', textTransform: 'uppercase', color: '#64748B', marginBottom: '10px' }}>Demo Data</div>
                     <div style={{ fontSize: '12px', color: '#464D53', marginBottom: '12px' }}>
                       Seed 21 demo staff across 4 offices. All use <code style={{ background: '#EEF9F9', padding: '1px 4px', borderRadius: '3px', fontSize: '11px' }}>@demo.tai</code> emails — safe to clear.
                     </div>
@@ -2589,7 +2589,7 @@ export default function AdminPage() {
                 </div>
 
                 <button onClick={submitSuggestion} disabled={!suggestion.trim() || suggestState === 'thinking'}
-                  style={{ padding: '13px 28px', borderRadius: '12px', border: 'none', background: suggestion.trim() && suggestState !== 'thinking' ? '#A478FF' : '#E6EFF0', color: suggestion.trim() && suggestState !== 'thinking' ? 'white' : 'rgba(70,77,83,0.55)', fontSize: '14px', fontWeight: 800, cursor: suggestion.trim() && suggestState !== 'thinking' ? 'pointer' : 'not-allowed', fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  style={{ padding: '13px 28px', borderRadius: '12px', border: 'none', background: suggestion.trim() && suggestState !== 'thinking' ? '#A478FF' : '#E6EFF0', color: suggestion.trim() && suggestState !== 'thinking' ? 'white' : '#64748B', fontSize: '14px', fontWeight: 800, cursor: suggestion.trim() && suggestState !== 'thinking' ? 'pointer' : 'not-allowed', fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: '8px' }}>
                   <svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
                   {suggestState === 'thinking' ? 'Designing your course...' : 'Generate Course'}
                 </button>
@@ -2639,11 +2639,11 @@ export default function AdminPage() {
                     <div style={{ fontSize: '13px', color: '#464D53' }}>{generatedCourse.subtitle as string}</div>
                   </div>
                   <div style={{ padding: '20px 24px', borderBottom: '1px solid #E6EFF0' }}>
-                    <div style={{ fontSize: '10px', fontWeight: 800, color: 'rgba(70,77,83,0.55)', letterSpacing: '1.5px', textTransform: 'uppercase', marginBottom: '10px' }}>Overview</div>
+                    <div style={{ fontSize: '10px', fontWeight: 800, color: '#64748B', letterSpacing: '1.5px', textTransform: 'uppercase', marginBottom: '10px' }}>Overview</div>
                     <div style={{ fontSize: '13px', color: '#464D53', lineHeight: 1.7 }}>{generatedCourse.overview as string}</div>
                   </div>
                   <div style={{ padding: '20px 24px', borderBottom: '1px solid #E6EFF0' }}>
-                    <div style={{ fontSize: '10px', fontWeight: 800, color: 'rgba(70,77,83,0.55)', letterSpacing: '1.5px', textTransform: 'uppercase', marginBottom: '12px' }}>Task Steps ({(generatedCourse.task_steps as unknown[]).length})</div>
+                    <div style={{ fontSize: '10px', fontWeight: 800, color: '#64748B', letterSpacing: '1.5px', textTransform: 'uppercase', marginBottom: '12px' }}>Task Steps ({(generatedCourse.task_steps as unknown[]).length})</div>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                       {(generatedCourse.task_steps as Array<{step: number; instruction: string; tip: string}>).map((ts) => (
                         <div key={ts.step} style={{ padding: '12px 16px', background: '#FFFFFF', borderRadius: '10px', border: '1px solid #E6EFF0' }}>
@@ -2654,7 +2654,7 @@ export default function AdminPage() {
                     </div>
                   </div>
                   <div style={{ padding: '20px 24px' }}>
-                    <div style={{ fontSize: '10px', fontWeight: 800, color: 'rgba(70,77,83,0.55)', letterSpacing: '1.5px', textTransform: 'uppercase', marginBottom: '10px' }}>
+                    <div style={{ fontSize: '10px', fontWeight: 800, color: '#64748B', letterSpacing: '1.5px', textTransform: 'uppercase', marginBottom: '10px' }}>
                       Question Bank ({(generatedCourse.question_bank as unknown[]).length} questions · 5 served randomly per attempt)
                     </div>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
@@ -2678,7 +2678,7 @@ export default function AdminPage() {
                       <span style={{ color: '#464D53' }}>Suggested by </span>
                       <strong style={{ color: '#1E2124' }}>{creditName}</strong>
                       {creditRole && <span style={{ color: '#464D53' }}> · {creditRole}</span>}
-                      <span style={{ color: 'rgba(70,77,83,0.55)', fontSize: '11px', display: 'block', marginTop: '1px' }}>Will be credited on the course card. Email notification sent on publish.</span>
+                      <span style={{ color: '#64748B', fontSize: '11px', display: 'block', marginTop: '1px' }}>Will be credited on the course card. Email notification sent on publish.</span>
                     </div>
                   </div>
                 )}
@@ -2731,7 +2731,7 @@ export default function AdminPage() {
                 {/* Search + refresh */}
                 <div style={{ display: 'flex', gap: '10px', marginBottom: '16px', alignItems: 'center' }}>
                   <div style={{ position: 'relative', flex: '1', maxWidth: '320px' }}>
-                    <svg width="13" height="13" fill="none" stroke="rgba(70,77,83,0.55)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24" style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none' }}><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+                    <svg width="13" height="13" fill="none" stroke="#64748B" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24" style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none' }}><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
                     <input
                       value={staffSearch}
                       onChange={e => setStaffSearch(e.target.value)}
@@ -2758,16 +2758,16 @@ export default function AdminPage() {
                       Enable All (Phase 2)
                     </button>
                   )}
-                  <div style={{ marginLeft: 'auto', fontSize: '12px', color: 'rgba(70,77,83,0.55)', fontWeight: 600 }}>
+                  <div style={{ marginLeft: 'auto', fontSize: '12px', color: '#64748B', fontWeight: 600 }}>
                     {staffLoading ? 'Loading…' : `${staffList.filter(s => { const q = staffSearch.toLowerCase(); return !q || s.name.toLowerCase().includes(q) || s.email.toLowerCase().includes(q) || (s.department ?? '').toLowerCase().includes(q) }).length} of ${staffList.length} staff`}
                   </div>
                 </div>
 
                 {staffLoading ? (
-                  <div style={{ textAlign: 'center', padding: '60px 0', color: 'rgba(70,77,83,0.55)', fontSize: '14px' }}>Loading staff records…</div>
+                  <div style={{ textAlign: 'center', padding: '60px 0', color: '#64748B', fontSize: '14px' }}>Loading staff records…</div>
                 ) : staffList.length === 0 ? (
                   <div style={{ background: '#FFFFFF', border: '1px solid #E6EFF0', borderRadius: '16px', padding: '48px 32px', textAlign: 'center' }}>
-                    <svg width="32" height="32" fill="none" stroke="rgba(70,77,83,0.55)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24" style={{ marginBottom: '16px' }}><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+                    <svg width="32" height="32" fill="none" stroke="#64748B" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24" style={{ marginBottom: '16px' }}><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
                     <div style={{ fontSize: '15px', fontWeight: 700, color: '#464D53', marginBottom: '8px' }}>No staff records yet</div>
                     <div style={{ fontSize: '13px', color: '#464D53' }}>Use Bulk Import to upload your HR CSV, or Add Staff to create individual records.</div>
                   </div>
@@ -2776,14 +2776,14 @@ export default function AdminPage() {
                     {/* Table header */}
                     <div style={{ display: 'grid', gridTemplateColumns: '2fr 2.5fr 1.5fr 1fr 1fr 90px', gap: '0', padding: '10px 20px', background: '#FFFFFF', borderBottom: '1px solid #E6EFF0' }}>
                       {['Name', 'Email', 'Department', 'Office', 'Level', 'Access'].map(h => (
-                        <div key={h} style={{ fontSize: '10px', fontWeight: 800, letterSpacing: '1.5px', textTransform: 'uppercase', color: 'rgba(70,77,83,0.55)' }}>{h}</div>
+                        <div key={h} style={{ fontSize: '10px', fontWeight: 800, letterSpacing: '1.5px', textTransform: 'uppercase', color: '#64748B' }}>{h}</div>
                       ))}
                     </div>
                     {/* Rows */}
                     {staffList
                       .filter(s => { const q = staffSearch.toLowerCase(); return !q || s.name.toLowerCase().includes(q) || s.email.toLowerCase().includes(q) || (s.department ?? '').toLowerCase().includes(q) })
                       .map((s, idx) => {
-                        const LEVEL_COLOR: Record<string, string> = { super_admin: '#FF6B6B', office_head: '#FF9F43', dept_head: '#C0F43C', team_lead: '#00A5A3', staff: 'rgba(70,77,83,0.55)' }
+                        const LEVEL_COLOR: Record<string, string> = { super_admin: '#FF6B6B', office_head: '#FF9F43', dept_head: '#C0F43C', team_lead: '#00A5A3', staff: '#64748B' }
                         const offLabel   = OFFICES.find(o => o.id === s.office_id)?.label ?? s.office_id ?? '—'
                         const isEnabled  = (s as {access_enabled?:boolean}).access_enabled
                         return (
@@ -2792,14 +2792,14 @@ export default function AdminPage() {
                             <div style={{ fontSize: '12px', color: '#464D53', fontFamily: 'monospace' }}>{s.email}</div>
                             <div style={{ fontSize: '12px', color: '#464D53' }}>{s.department ?? '—'}</div>
                             <div style={{ fontSize: '12px', color: '#464D53' }}>{offLabel}</div>
-                            <div><span style={{ fontSize: '10px', fontWeight: 800, padding: '2px 8px', borderRadius: '6px', background: `${LEVEL_COLOR[s.job_level] ?? '#E6EFF0'}22`, color: LEVEL_COLOR[s.job_level] ?? 'rgba(70,77,83,0.55)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>{s.job_level}</span></div>
+                            <div><span style={{ fontSize: '10px', fontWeight: 800, padding: '2px 8px', borderRadius: '6px', background: `${LEVEL_COLOR[s.job_level] ?? '#E6EFF0'}22`, color: LEVEL_COLOR[s.job_level] ?? '#64748B', textTransform: 'uppercase', letterSpacing: '0.5px' }}>{s.job_level}</span></div>
                             <div>
                               <button
                                 onClick={async () => {
                                   await fetch('/api/staff-access', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: s.id, enabled: !isEnabled }) })
                                   fetchStaffList()
                                 }}
-                                style={{ fontSize: '10px', fontWeight: 800, padding: '3px 10px', borderRadius: '20px', border: 'none', cursor: 'pointer', fontFamily: 'inherit', background: isEnabled ? 'rgba(192,244,60,0.15)' : '#E6EFF0', color: isEnabled ? '#C0F43C' : 'rgba(70,77,83,0.55)', letterSpacing: '0.5px' }}
+                                style={{ fontSize: '10px', fontWeight: 800, padding: '3px 10px', borderRadius: '20px', border: 'none', cursor: 'pointer', fontFamily: 'inherit', background: isEnabled ? 'rgba(192,244,60,0.15)' : '#E6EFF0', color: isEnabled ? '#C0F43C' : '#64748B', letterSpacing: '0.5px' }}
                               >
                                 {isEnabled ? 'Active' : 'Disabled'}
                               </button>
@@ -2922,10 +2922,10 @@ export default function AdminPage() {
                   <button
                     onClick={analyseWithAI}
                     disabled={!csvText.trim() || aiParseState === 'loading'}
-                    style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '11px 24px', borderRadius: '10px', border: 'none', background: csvText.trim() && aiParseState !== 'loading' ? '#FF9F43' : '#E6EFF0', color: csvText.trim() && aiParseState !== 'loading' ? 'white' : 'rgba(70,77,83,0.55)', fontSize: '13px', fontWeight: 800, cursor: csvText.trim() && aiParseState !== 'loading' ? 'pointer' : 'not-allowed', fontFamily: 'inherit' }}
+                    style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '11px 24px', borderRadius: '10px', border: 'none', background: csvText.trim() && aiParseState !== 'loading' ? '#FF9F43' : '#E6EFF0', color: csvText.trim() && aiParseState !== 'loading' ? 'white' : '#64748B', fontSize: '13px', fontWeight: 800, cursor: csvText.trim() && aiParseState !== 'loading' ? 'pointer' : 'not-allowed', fontFamily: 'inherit' }}
                   >
                     {aiParseState === 'loading'
-                      ? <><div style={{ width: '14px', height: '14px', border: '2px solid rgba(70,77,83,0.55)', borderTopColor: 'white', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />Analysing with AI…</>
+                      ? <><div style={{ width: '14px', height: '14px', border: '2px solid #64748B', borderTopColor: 'white', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />Analysing with AI…</>
                       : <><svg width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>Analyse with AI</>
                     }
                   </button>
@@ -2952,14 +2952,14 @@ export default function AdminPage() {
                       ].map(({ label, value, color }) => (
                         <div key={label} style={{ padding: '8px 16px', borderRadius: '10px', background: '#EEF9F9', border: '1px solid #E6EFF0', display: 'flex', gap: '6px', alignItems: 'baseline' }}>
                           <span style={{ fontSize: '20px', fontWeight: 900, color }}>{value}</span>
-                          <span style={{ fontSize: '11px', color: 'rgba(70,77,83,0.55)', fontWeight: 600 }}>{label}</span>
+                          <span style={{ fontSize: '11px', color: '#64748B', fontWeight: 600 }}>{label}</span>
                         </div>
                       ))}
                     </div>
 
                     {/* Column mapping */}
                     <div style={{ marginBottom: '20px', background: '#FFFFFF', border: '1px solid #E6EFF0', borderRadius: '14px', overflow: 'hidden' }}>
-                      <div style={{ padding: '12px 18px', borderBottom: '1px solid #E6EFF0', fontSize: '11px', fontWeight: 800, letterSpacing: '1.5px', textTransform: 'uppercase', color: 'rgba(70,77,83,0.55)' }}>Column Mapping</div>
+                      <div style={{ padding: '12px 18px', borderBottom: '1px solid #E6EFF0', fontSize: '11px', fontWeight: 800, letterSpacing: '1.5px', textTransform: 'uppercase', color: '#64748B' }}>Column Mapping</div>
                       <div style={{ padding: '6px 0' }}>
                         {aiParseResult.column_mapping.map((col, i) => (
                           <div key={i} style={{ display: 'grid', gridTemplateColumns: '1fr 28px 1fr', alignItems: 'center', gap: '12px', padding: '10px 18px', borderBottom: i < aiParseResult.column_mapping.length - 1 ? '1px solid #FFFFFF' : 'none' }}>
@@ -2981,7 +2981,7 @@ export default function AdminPage() {
                         <div style={{ padding: '14px 18px', borderBottom: '1px solid rgba(164,120,255,0.15)', display: 'flex', alignItems: 'center', gap: '8px' }}>
                           <svg width="14" height="14" fill="none" stroke="#A478FF" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
                           <span style={{ fontSize: '13px', fontWeight: 800, color: '#A478FF' }}>New columns to add to staff database</span>
-                          <span style={{ fontSize: '11px', color: 'rgba(70,77,83,0.55)', marginLeft: '4px' }}>Uncheck any you don&apos;t want</span>
+                          <span style={{ fontSize: '11px', color: '#64748B', marginLeft: '4px' }}>Uncheck any you don&apos;t want</span>
                         </div>
                         {aiParseResult.new_columns.map((col, i) => (
                           <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: '14px', padding: '14px 18px', borderBottom: i < aiParseResult.new_columns.length - 1 ? '1px solid rgba(164,120,255,0.1)' : 'none' }}>
@@ -2998,7 +2998,7 @@ export default function AdminPage() {
                             <div style={{ flex: 1 }}>
                               <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '3px' }}>
                                 <code style={{ fontSize: '12px', fontWeight: 800, color: '#A478FF' }}>{col.col_name}</code>
-                                <span style={{ fontSize: '10px', fontWeight: 700, color: 'rgba(70,77,83,0.55)', background: '#EEF9F9', padding: '1px 6px', borderRadius: '4px' }}>{col.col_type}</span>
+                                <span style={{ fontSize: '10px', fontWeight: 700, color: '#64748B', background: '#EEF9F9', padding: '1px 6px', borderRadius: '4px' }}>{col.col_type}</span>
                               </div>
                               <div style={{ fontSize: '12px', color: '#464D53', marginBottom: '4px' }}>{col.description}</div>
                               {col.sample_values?.length > 0 && (
@@ -3015,7 +3015,7 @@ export default function AdminPage() {
                     {/* Row preview table */}
                     <div style={{ background: '#EEF9F9', border: '1px solid #E6EFF0', borderRadius: '14px', overflow: 'hidden', marginBottom: '4px' }}>
                       <div style={{ padding: '12px 18px', borderBottom: '1px solid #E6EFF0', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                        <span style={{ fontSize: '11px', fontWeight: 800, letterSpacing: '1.5px', textTransform: 'uppercase', color: 'rgba(70,77,83,0.55)' }}>Row Preview (first 10)</span>
+                        <span style={{ fontSize: '11px', fontWeight: 800, letterSpacing: '1.5px', textTransform: 'uppercase', color: '#64748B' }}>Row Preview (first 10)</span>
                         <span style={{ fontSize: '11px', color: '#464D53' }}>{aiParseResult.rows.length} total rows</span>
                       </div>
                       <div style={{ overflowX: 'auto' }}>
@@ -3023,7 +3023,7 @@ export default function AdminPage() {
                           <thead>
                             <tr style={{ background: '#FFFFFF' }}>
                               {['Name', 'Email', 'Role', 'Department', 'Office', 'Level', 'Manager', 'Warnings'].map(h => (
-                                <th key={h} style={{ padding: '8px 14px', textAlign: 'left', fontSize: '10px', fontWeight: 800, letterSpacing: '1px', textTransform: 'uppercase', color: 'rgba(70,77,83,0.55)', whiteSpace: 'nowrap', borderBottom: '1px solid #E6EFF0' }}>{h}</th>
+                                <th key={h} style={{ padding: '8px 14px', textAlign: 'left', fontSize: '10px', fontWeight: 800, letterSpacing: '1px', textTransform: 'uppercase', color: '#64748B', whiteSpace: 'nowrap', borderBottom: '1px solid #E6EFF0' }}>{h}</th>
                               ))}
                             </tr>
                           </thead>
@@ -3069,7 +3069,7 @@ export default function AdminPage() {
                     <button
                       onClick={runAICommit}
                       disabled={aiCommitState === 'loading'}
-                      style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '13px 28px', borderRadius: '12px', border: 'none', background: aiCommitState === 'loading' ? '#E6EFF0' : '#C0F43C', color: aiCommitState === 'loading' ? 'rgba(70,77,83,0.55)' : '#1E2124', fontSize: '14px', fontWeight: 900, cursor: aiCommitState === 'loading' ? 'not-allowed' : 'pointer', fontFamily: 'inherit' }}
+                      style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '13px 28px', borderRadius: '12px', border: 'none', background: aiCommitState === 'loading' ? '#E6EFF0' : '#C0F43C', color: aiCommitState === 'loading' ? '#64748B' : '#1E2124', fontSize: '14px', fontWeight: 900, cursor: aiCommitState === 'loading' ? 'not-allowed' : 'pointer', fontFamily: 'inherit' }}
                     >
                       {aiCommitState === 'loading'
                         ? <><div style={{ width: '14px', height: '14px', border: '2px solid rgba(0,0,0,0.2)', borderTopColor: '#1E2124', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />Committing…</>
@@ -3089,7 +3089,7 @@ export default function AdminPage() {
                     <div style={{ display: 'flex', gap: '28px', flexWrap: 'wrap', marginBottom: '20px' }}>
                       <div><span style={{ fontSize: '28px', fontWeight: 900, color: '#C0F43C' }}>{aiCommitResult.inserted}</span><div style={{ fontSize: '11px', color: '#464D53', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '1px', marginTop: '2px' }}>New staff</div></div>
                       <div><span style={{ fontSize: '28px', fontWeight: 900, color: '#00A5A3' }}>{aiCommitResult.updated}</span><div style={{ fontSize: '11px', color: '#464D53', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '1px', marginTop: '2px' }}>Updated</div></div>
-                      <div><span style={{ fontSize: '28px', fontWeight: 900, color: 'rgba(70,77,83,0.55)' }}>{aiCommitResult.skipped}</span><div style={{ fontSize: '11px', color: '#464D53', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '1px', marginTop: '2px' }}>Skipped</div></div>
+                      <div><span style={{ fontSize: '28px', fontWeight: 900, color: '#64748B' }}>{aiCommitResult.skipped}</span><div style={{ fontSize: '11px', color: '#464D53', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '1px', marginTop: '2px' }}>Skipped</div></div>
                       <div><span style={{ fontSize: '28px', fontWeight: 900, color: '#FF9F43' }}>{aiCommitResult.manager_links_set}</span><div style={{ fontSize: '11px', color: '#464D53', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '1px', marginTop: '2px' }}>Manager links</div></div>
                       {aiCommitResult.new_columns_added?.length > 0 && (
                         <div><span style={{ fontSize: '28px', fontWeight: 900, color: '#A478FF' }}>{aiCommitResult.new_columns_added.length}</span><div style={{ fontSize: '11px', color: '#464D53', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '1px', marginTop: '2px' }}>Cols added</div></div>
@@ -3186,7 +3186,7 @@ export default function AdminPage() {
 
         {/* ── Events tab ── */}
         {tab === 'events' && (() => {
-          const TYPE_COLOR: Record<string,string> = { conference:'#00A5A3', summit:'#A78BFA', forum:'#60A5FA', awards:'#F59E0B', workshop:'#34D399', other:'rgba(70,77,83,0.55)' }
+          const TYPE_COLOR: Record<string,string> = { conference:'#00A5A3', summit:'#A78BFA', forum:'#60A5FA', awards:'#F59E0B', workshop:'#34D399', other:'#64748B' }
           const STATUS_CFG: Record<string,{color:string;bg:string}> = {
             planning:  { color:'#464D53',  bg:'#E6EFF0' },
             active:    { color:'#C0F43C',               bg:'rgba(192,244,60,0.12)'  },
@@ -3204,7 +3204,7 @@ export default function AdminPage() {
                   { label: 'Venue', key: 'venue', placeholder: 'Dubai World Trade Centre', full: false },
                 ].map(f => (
                   <div key={f.key} style={f.full ? { gridColumn: '1/-1' } : {}}>
-                    <label style={{ fontSize: '10px', fontWeight: 700, color: 'rgba(70,77,83,0.55)', letterSpacing: '0.8px', textTransform: 'uppercase', display: 'block', marginBottom: '5px' }}>{f.label}</label>
+                    <label style={{ fontSize: '10px', fontWeight: 700, color: '#64748B', letterSpacing: '0.8px', textTransform: 'uppercase', display: 'block', marginBottom: '5px' }}>{f.label}</label>
                     <input value={eventForm[f.key as keyof typeof eventForm]} onChange={e => setEventForm(p => ({ ...p, [f.key]: e.target.value }))}
                       placeholder={f.placeholder}
                       style={{ width: '100%', padding: '9px 12px', borderRadius: '9px', border: '1px solid #E6EFF0', background: '#FFFFFF', color: '#1E2124', fontSize: '13px', fontFamily: 'inherit', boxSizing: 'border-box' }} />
@@ -3213,14 +3213,14 @@ export default function AdminPage() {
               </div>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '12px' }}>
                 <div>
-                  <label style={{ fontSize: '10px', fontWeight: 700, color: 'rgba(70,77,83,0.55)', letterSpacing: '0.8px', textTransform: 'uppercase', display: 'block', marginBottom: '5px' }}>Type</label>
+                  <label style={{ fontSize: '10px', fontWeight: 700, color: '#64748B', letterSpacing: '0.8px', textTransform: 'uppercase', display: 'block', marginBottom: '5px' }}>Type</label>
                   <select value={eventForm.type} onChange={e => setEventForm(p => ({ ...p, type: e.target.value }))}
                     style={{ width: '100%', padding: '9px 12px', borderRadius: '9px', border: '1px solid #E6EFF0', background: '#1A1E22', color: '#1E2124', fontSize: '13px', fontFamily: 'inherit' }}>
                     {['conference','summit','forum','awards','workshop','other'].map(t => <option key={t} value={t}>{t.charAt(0).toUpperCase()+t.slice(1)}</option>)}
                   </select>
                 </div>
                 <div>
-                  <label style={{ fontSize: '10px', fontWeight: 700, color: 'rgba(70,77,83,0.55)', letterSpacing: '0.8px', textTransform: 'uppercase', display: 'block', marginBottom: '5px' }}>Date</label>
+                  <label style={{ fontSize: '10px', fontWeight: 700, color: '#64748B', letterSpacing: '0.8px', textTransform: 'uppercase', display: 'block', marginBottom: '5px' }}>Date</label>
                   <input type="date" value={eventForm.event_date} onChange={e => setEventForm(p => ({ ...p, event_date: e.target.value }))}
                     style={{ width: '100%', padding: '9px 12px', borderRadius: '9px', border: '1px solid #E6EFF0', background: '#1A1E22', color: '#1E2124', fontSize: '13px', fontFamily: 'inherit', boxSizing: 'border-box' }} />
                 </div>
@@ -3279,7 +3279,7 @@ export default function AdminPage() {
                           {s.icon}
                         </div>
                         <div style={{ fontSize: '12px', fontWeight: 800, color: '#1E2124', marginBottom: '4px' }}>{s.label}</div>
-                        <div style={{ fontSize: '11px', color: 'rgba(70,77,83,0.55)', lineHeight: 1.4 }}>{s.sub}</div>
+                        <div style={{ fontSize: '11px', color: '#64748B', lineHeight: 1.4 }}>{s.sub}</div>
                       </div>
                     ))}
                   </div>
@@ -3289,7 +3289,7 @@ export default function AdminPage() {
               )}
 
               {/* LOADING */}
-              {eventsLoading && <div style={{ color: 'rgba(70,77,83,0.55)', fontSize: '13px', padding: '40px 0', textAlign: 'center' }}>Loading events…</div>}
+              {eventsLoading && <div style={{ color: '#64748B', fontSize: '13px', padding: '40px 0', textAlign: 'center' }}>Loading events…</div>}
 
               {/* POPULATED STATE */}
               {!eventsLoading && events.length > 0 && (
@@ -3313,7 +3313,7 @@ export default function AdminPage() {
                             <span style={{ fontSize: '9px', fontWeight: 900, color: '#00A5A3' }}>{s.n}</span>
                           </div>
                           <div style={{ fontSize: '11px', fontWeight: 800, color: '#1E2124', marginBottom: '2px' }}>{s.label}</div>
-                          <div style={{ fontSize: '10px', color: 'rgba(70,77,83,0.55)', lineHeight: 1.4 }}>{s.sub}</div>
+                          <div style={{ fontSize: '10px', color: '#64748B', lineHeight: 1.4 }}>{s.sub}</div>
                         </div>
                       ))}
                     </div>
@@ -3325,7 +3325,7 @@ export default function AdminPage() {
                   {/* Events grid */}
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
                     {events.map(ev => {
-                      const tc = TYPE_COLOR[ev.type] ?? 'rgba(70,77,83,0.55)'
+                      const tc = TYPE_COLOR[ev.type] ?? '#64748B'
                       const sc = STATUS_CFG[ev.status] ?? STATUS_CFG.planning
                       const staffCount = (ev.event_staff as {count:number}[]|null)?.[0]?.count ?? 0
                       const docCount   = (ev.documents   as {count:number}[]|null)?.[0]?.count ?? 0
@@ -3345,10 +3345,10 @@ export default function AdminPage() {
                             </div>
 
                             {/* Meta row */}
-                            <div style={{ fontSize: '12px', color: 'rgba(70,77,83,0.55)', display: 'flex', gap: '12px', flexWrap: 'wrap', marginBottom: '16px' }}>
+                            <div style={{ fontSize: '12px', color: '#64748B', display: 'flex', gap: '12px', flexWrap: 'wrap', marginBottom: '16px' }}>
                               {ev.city && <span>{ev.city}</span>}
                               {ev.event_date && <span>{new Date(ev.event_date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}</span>}
-                              {ev.client_name && <span style={{ color: 'rgba(70,77,83,0.55)' }}>{ev.client_name}</span>}
+                              {ev.client_name && <span style={{ color: '#64748B' }}>{ev.client_name}</span>}
                             </div>
 
                             {/* Stats chips */}
@@ -3359,9 +3359,9 @@ export default function AdminPage() {
                                 { icon: <svg width="11" height="11" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>, val: docCount, label: 'docs' },
                               ].map(chip => (
                                 <div key={chip.label} style={{ display: 'flex', alignItems: 'center', gap: '5px', padding: '4px 10px', borderRadius: '20px', background: '#EEF9F9', border: '1px solid #E6EFF0' }}>
-                                  <span style={{ color: 'rgba(70,77,83,0.55)' }}>{chip.icon}</span>
+                                  <span style={{ color: '#64748B' }}>{chip.icon}</span>
                                   <span style={{ fontSize: '11px', fontWeight: 700, color: '#1E2124' }}>{chip.val}</span>
-                                  <span style={{ fontSize: '10px', color: 'rgba(70,77,83,0.55)' }}>{chip.label}</span>
+                                  <span style={{ fontSize: '10px', color: '#64748B' }}>{chip.label}</span>
                                 </div>
                               ))}
                             </div>
@@ -3389,14 +3389,14 @@ export default function AdminPage() {
                     <div style={{ marginTop: '20px', background: '#FFFFFF', border: '1px solid rgba(0,165,163,0.2)', borderRadius: '16px', padding: '20px' }}>
                       <div style={{ fontSize: '12px', fontWeight: 800, color: '#00A5A3', letterSpacing: '1px', textTransform: 'uppercase', marginBottom: '14px' }}>Staff on {selectedEvent.name}</div>
                       {eventStaff.length === 0 ? (
-                        <div style={{ fontSize: '12px', color: 'rgba(70,77,83,0.55)', marginBottom: '14px' }}>No staff assigned yet.</div>
+                        <div style={{ fontSize: '12px', color: '#64748B', marginBottom: '14px' }}>No staff assigned yet.</div>
                       ) : (
                         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: '8px', marginBottom: '14px' }}>
                           {eventStaff.map(es => (
                             <div key={es.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 12px', background: '#FFFFFF', borderRadius: '8px', border: '1px solid #E6EFF0' }}>
                               <div>
                                 <div style={{ fontSize: '12px', fontWeight: 700, color: '#1E2124' }}>{es.staff_members?.name}</div>
-                                <div style={{ fontSize: '11px', color: 'rgba(70,77,83,0.55)' }}>{es.role || es.staff_members?.department}</div>
+                                <div style={{ fontSize: '11px', color: '#64748B' }}>{es.role || es.staff_members?.department}</div>
                               </div>
                               <button onClick={() => removeEventStaff(es.staff_members?.id)}
                                 style={{ fontSize: '11px', color: '#FF6B6B', background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'inherit', fontWeight: 700 }}>Remove</button>
@@ -3425,7 +3425,7 @@ export default function AdminPage() {
 
         {/* ── Knowledge Base tab ── */}
         {tab === 'knowledge' && (() => {
-          const TYPE_COLOR: Record<string,string> = { policy:'#FF9F43', event_brief:'#00A5A3', staff_doc:'#C0F43C', onboarding:'#A78BFA', event_report:'#60A5FA', other:'rgba(70,77,83,0.55)' }
+          const TYPE_COLOR: Record<string,string> = { policy:'#FF9F43', event_brief:'#00A5A3', staff_doc:'#C0F43C', onboarding:'#A78BFA', event_report:'#60A5FA', other:'#64748B' }
           const LAYER_CFG: Record<string,{label:string;color:string;bg:string}> = {
             knowledge_base: { label:'Knowledge Base', color:'#00A5A3', bg:'rgba(0,165,163,0.12)' },
             general:        { label:'General',        color:'#60A5FA', bg:'rgba(96,165,250,0.12)' },
@@ -3445,13 +3445,13 @@ export default function AdminPage() {
             <div style={{ background: '#FFFFFF', border: '1px solid rgba(192,244,60,0.2)', borderRadius: '16px', padding: '24px' }}>
               <div style={{ fontSize: '12px', fontWeight: 800, color: '#C0F43C', letterSpacing: '1px', textTransform: 'uppercase', marginBottom: '16px' }}>Upload Document</div>
               <div style={{ marginBottom: '12px' }}>
-                <label style={{ fontSize: '10px', fontWeight: 700, color: 'rgba(70,77,83,0.55)', letterSpacing: '0.8px', textTransform: 'uppercase', display: 'block', marginBottom: '5px' }}>Document Title</label>
+                <label style={{ fontSize: '10px', fontWeight: 700, color: '#64748B', letterSpacing: '0.8px', textTransform: 'uppercase', display: 'block', marginBottom: '5px' }}>Document Title</label>
                 <input value={docForm.title} onChange={e => setDocForm(p => ({ ...p, title: e.target.value }))} placeholder="e.g. HR Policy Handbook 2026"
                   style={{ width: '100%', padding: '9px 12px', borderRadius: '9px', border: '1px solid #E6EFF0', background: '#FFFFFF', color: '#1E2124', fontSize: '13px', fontFamily: 'inherit', boxSizing: 'border-box' }} />
               </div>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginBottom: '12px' }}>
                 <div>
-                  <label style={{ fontSize: '10px', fontWeight: 700, color: 'rgba(70,77,83,0.55)', letterSpacing: '0.8px', textTransform: 'uppercase', display: 'block', marginBottom: '5px' }}>Type</label>
+                  <label style={{ fontSize: '10px', fontWeight: 700, color: '#64748B', letterSpacing: '0.8px', textTransform: 'uppercase', display: 'block', marginBottom: '5px' }}>Type</label>
                   <select value={docForm.type} onChange={e => { setDocForm(p => ({ ...p, type: e.target.value })); setOtherTypeLabel(''); setSaveAsNewType(false) }}
                     style={{ width: '100%', padding: '9px 10px', borderRadius: '9px', border: '1px solid #E6EFF0', background: '#1A1E22', color: '#1E2124', fontSize: '12px', fontFamily: 'inherit' }}>
                     <option value="policy">Policy</option>
@@ -3463,7 +3463,7 @@ export default function AdminPage() {
                   </select>
                 </div>
                 <div>
-                  <label style={{ fontSize: '10px', fontWeight: 700, color: 'rgba(70,77,83,0.55)', letterSpacing: '0.8px', textTransform: 'uppercase', display: 'block', marginBottom: '5px' }}>Visible To</label>
+                  <label style={{ fontSize: '10px', fontWeight: 700, color: '#64748B', letterSpacing: '0.8px', textTransform: 'uppercase', display: 'block', marginBottom: '5px' }}>Visible To</label>
                   <select value={docForm.visibility} onChange={e => setDocForm(p => ({ ...p, visibility: e.target.value }))}
                     style={{ width: '100%', padding: '9px 10px', borderRadius: '9px', border: '1px solid #E6EFF0', background: '#1A1E22', color: '#1E2124', fontSize: '12px', fontFamily: 'inherit' }}>
                     <option value="all">All Staff</option>
@@ -3473,7 +3473,7 @@ export default function AdminPage() {
               </div>
               {docForm.type === 'other' && (
                 <div style={{ marginBottom: '12px', padding: '12px', background: 'rgba(192,244,60,0.04)', border: '1px solid rgba(192,244,60,0.12)', borderRadius: '9px' }}>
-                  <label style={{ fontSize: '10px', fontWeight: 700, color: 'rgba(70,77,83,0.55)', letterSpacing: '0.8px', textTransform: 'uppercase', display: 'block', marginBottom: '6px' }}>What type is this?</label>
+                  <label style={{ fontSize: '10px', fontWeight: 700, color: '#64748B', letterSpacing: '0.8px', textTransform: 'uppercase', display: 'block', marginBottom: '6px' }}>What type is this?</label>
                   <input value={otherTypeLabel} onChange={e => setOtherTypeLabel(e.target.value)} placeholder="e.g. SOP, Vendor Contract"
                     style={{ width: '100%', padding: '8px 10px', borderRadius: '8px', border: '1px solid #E6EFF0', background: '#FFFFFF', color: '#1E2124', fontSize: '12px', fontFamily: 'inherit', boxSizing: 'border-box' }} />
                   {otherTypeLabel.trim().length > 1 && (
@@ -3486,7 +3486,7 @@ export default function AdminPage() {
               )}
               {docForm.visibility === 'event_only' && (
                 <div style={{ marginBottom: '12px' }}>
-                  <label style={{ fontSize: '10px', fontWeight: 700, color: 'rgba(70,77,83,0.55)', letterSpacing: '0.8px', textTransform: 'uppercase', display: 'block', marginBottom: '5px' }}>Link to Event</label>
+                  <label style={{ fontSize: '10px', fontWeight: 700, color: '#64748B', letterSpacing: '0.8px', textTransform: 'uppercase', display: 'block', marginBottom: '5px' }}>Link to Event</label>
                   <select value={docForm.event_id} onChange={e => setDocForm(p => ({ ...p, event_id: e.target.value }))}
                     style={{ width: '100%', padding: '9px 10px', borderRadius: '9px', border: '1px solid #E6EFF0', background: '#1A1E22', color: '#1E2124', fontSize: '12px', fontFamily: 'inherit' }}>
                     <option value="">Select event…</option>
@@ -3495,24 +3495,24 @@ export default function AdminPage() {
                 </div>
               )}
               <div style={{ marginBottom: '14px' }}>
-                <label style={{ fontSize: '10px', fontWeight: 700, color: 'rgba(70,77,83,0.55)', letterSpacing: '0.8px', textTransform: 'uppercase', display: 'block', marginBottom: '6px' }}>File (PDF or TXT)</label>
+                <label style={{ fontSize: '10px', fontWeight: 700, color: '#64748B', letterSpacing: '0.8px', textTransform: 'uppercase', display: 'block', marginBottom: '6px' }}>File (PDF or TXT)</label>
                 <label style={{ display: 'block', padding: '18px', border: `1.5px dashed ${docFile ? 'rgba(192,244,60,0.35)' : '#E6EFF0'}`, borderRadius: '10px', textAlign: 'center', cursor: 'pointer', background: docFile ? 'rgba(192,244,60,0.04)' : 'transparent' }}>
                   <input type="file" accept=".pdf,.txt,.md" style={{ display: 'none' }} onChange={e => setDocFile(e.target.files?.[0] ?? null)} />
                   {docFile ? (
-                    <div><div style={{ fontSize: '13px', fontWeight: 700, color: '#C0F43C' }}>{docFile.name}</div><div style={{ fontSize: '11px', color: 'rgba(70,77,83,0.55)', marginTop: '2px' }}>{(docFile.size / 1024).toFixed(0)} KB</div></div>
+                    <div><div style={{ fontSize: '13px', fontWeight: 700, color: '#C0F43C' }}>{docFile.name}</div><div style={{ fontSize: '11px', color: '#64748B', marginTop: '2px' }}>{(docFile.size / 1024).toFixed(0)} KB</div></div>
                   ) : (
-                    <div><svg width="20" height="20" fill="none" stroke="rgba(70,77,83,0.55)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24" style={{ margin: '0 auto 6px', display: 'block' }}><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg><div style={{ fontSize: '12px', color: 'rgba(70,77,83,0.55)' }}>Click to select file</div></div>
+                    <div><svg width="20" height="20" fill="none" stroke="#64748B" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24" style={{ margin: '0 auto 6px', display: 'block' }}><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg><div style={{ fontSize: '12px', color: '#64748B' }}>Click to select file</div></div>
                   )}
                 </label>
               </div>
               {docMsg && <div style={{ fontSize: '12px', padding: '9px 12px', borderRadius: '8px', background: docMsg.includes('Done') ? 'rgba(192,244,60,0.07)' : 'rgba(255,107,107,0.07)', border: `1px solid ${docMsg.includes('Done') ? 'rgba(192,244,60,0.2)' : 'rgba(255,107,107,0.2)'}`, color: docMsg.includes('Done') ? '#C0F43C' : '#FF6B6B', marginBottom: '10px', lineHeight: 1.5 }}>{docMsg}</div>}
               <div style={{ display: 'flex', gap: '8px' }}>
                 <button onClick={uploadDoc} disabled={docUploading || !docFile}
-                  style={{ flex: 1, padding: '11px', borderRadius: '9px', border: 'none', background: docUploading || !docFile ? '#E6EFF0' : '#C0F43C', color: docUploading || !docFile ? 'rgba(70,77,83,0.55)' : '#1E2124', fontSize: '13px', fontWeight: 800, cursor: docUploading || !docFile ? 'not-allowed' : 'pointer', fontFamily: 'inherit' }}>
+                  style={{ flex: 1, padding: '11px', borderRadius: '9px', border: 'none', background: docUploading || !docFile ? '#E6EFF0' : '#C0F43C', color: docUploading || !docFile ? '#64748B' : '#1E2124', fontSize: '13px', fontWeight: 800, cursor: docUploading || !docFile ? 'not-allowed' : 'pointer', fontFamily: 'inherit' }}>
                   {docUploading ? 'Analysing with AI…' : 'Upload & Analyse'}
                 </button>
                 {docs.length > 0 && <button onClick={() => setShowUploadForm(false)}
-                  style={{ padding: '11px 16px', borderRadius: '9px', border: '1px solid #E6EFF0', background: 'transparent', color: 'rgba(70,77,83,0.55)', fontSize: '12px', cursor: 'pointer', fontFamily: 'inherit' }}>Cancel</button>}
+                  style={{ padding: '11px 16px', borderRadius: '9px', border: '1px solid #E6EFF0', background: 'transparent', color: '#64748B', fontSize: '12px', cursor: 'pointer', fontFamily: 'inherit' }}>Cancel</button>}
               </div>
               {docAnalysis && (
                 <div style={{ marginTop: '14px', padding: '14px', background: docAnalysis.flagged ? 'rgba(255,159,67,0.06)' : 'rgba(0,165,163,0.06)', border: `1px solid ${docAnalysis.flagged ? 'rgba(255,159,67,0.2)' : 'rgba(0,165,163,0.2)'}`, borderRadius: '12px' }}>
@@ -3523,14 +3523,14 @@ export default function AdminPage() {
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '6px', marginBottom: '10px' }}>
                     {[{ l:'Layer', v: docAnalysis.layer.replace('_', ' ') },{ l:'Department', v: docAnalysis.department },{ l:'Min Level', v: docAnalysis.min_level }].map(({l,v}) => (
                       <div key={l} style={{ background: '#FFFFFF', borderRadius: '7px', padding: '7px 9px' }}>
-                        <div style={{ fontSize: '9px', color: 'rgba(70,77,83,0.55)', fontWeight: 700, textTransform: 'uppercase', marginBottom: '2px' }}>{l}</div>
+                        <div style={{ fontSize: '9px', color: '#64748B', fontWeight: 700, textTransform: 'uppercase', marginBottom: '2px' }}>{l}</div>
                         <div style={{ fontSize: '11px', color: '#1E2124', fontWeight: 700, textTransform: 'capitalize' }}>{v}</div>
                       </div>
                     ))}
                   </div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '5px', marginBottom: '6px' }}>
                     <div style={{ width: '5px', height: '5px', borderRadius: '50%', background: docAnalysis.tresci_use ? '#C0F43C' : '#E6EFF0', flexShrink: 0 }} />
-                    <span style={{ fontSize: '11px', color: docAnalysis.tresci_use ? '#C0F43C' : 'rgba(70,77,83,0.55)', fontWeight: 600 }}>{docAnalysis.tresci_use ? 'Tresci will use this document' : 'Not indexed by Tresci'}</span>
+                    <span style={{ fontSize: '11px', color: docAnalysis.tresci_use ? '#C0F43C' : '#64748B', fontWeight: 600 }}>{docAnalysis.tresci_use ? 'Tresci will use this document' : 'Not indexed by Tresci'}</span>
                   </div>
                   <p style={{ fontSize: '11px', color: '#464D53', lineHeight: 1.6, margin: 0 }}>{docAnalysis.ai_reasoning}</p>
                 </div>
@@ -3570,7 +3570,7 @@ export default function AdminPage() {
                           <span style={{ fontSize: '10px', fontWeight: 900, color: '#C0F43C' }}>{s.n}</span>
                         </div>
                         <div style={{ fontSize: '12px', fontWeight: 800, color: '#1E2124', marginBottom: '4px' }}>{s.label}</div>
-                        <div style={{ fontSize: '11px', color: 'rgba(70,77,83,0.55)', lineHeight: 1.4 }}>{s.sub}</div>
+                        <div style={{ fontSize: '11px', color: '#64748B', lineHeight: 1.4 }}>{s.sub}</div>
                       </div>
                     ))}
                   </div>
@@ -3578,7 +3578,7 @@ export default function AdminPage() {
                 </>
               )}
 
-              {docsLoading && <div style={{ color: 'rgba(70,77,83,0.55)', fontSize: '13px', padding: '40px 0', textAlign: 'center' }}>Loading documents…</div>}
+              {docsLoading && <div style={{ color: '#64748B', fontSize: '13px', padding: '40px 0', textAlign: 'center' }}>Loading documents…</div>}
 
               {/* POPULATED STATE */}
               {!docsLoading && docs.length > 0 && (
@@ -3601,7 +3601,7 @@ export default function AdminPage() {
                             <span style={{ fontSize: '9px', fontWeight: 900, color: '#C0F43C' }}>{s.n}</span>
                           </div>
                           <div style={{ fontSize: '11px', fontWeight: 800, color: '#1E2124', marginBottom: '2px' }}>{s.label}</div>
-                          <div style={{ fontSize: '10px', color: 'rgba(70,77,83,0.55)', lineHeight: 1.4 }}>{s.sub}</div>
+                          <div style={{ fontSize: '10px', color: '#64748B', lineHeight: 1.4 }}>{s.sub}</div>
                         </div>
                       ))}
                     </div>
@@ -3620,7 +3620,7 @@ export default function AdminPage() {
                       ...(flaggedCount > 0 ? [{ key:'flagged', label:`Flagged (${flaggedCount})` }] : []),
                     ] as {key:string;label:string}[]).map(f => (
                       <button key={f.key} onClick={() => setDocFilter(f.key as typeof docFilter)}
-                        style={{ padding: '6px 14px', borderRadius: '20px', border: `1px solid ${docFilter === f.key ? (f.key === 'flagged' ? 'rgba(255,159,67,0.5)' : 'rgba(192,244,60,0.4)') : '#E6EFF0'}`, background: docFilter === f.key ? (f.key === 'flagged' ? 'rgba(255,159,67,0.1)' : 'rgba(192,244,60,0.08)') : 'transparent', color: docFilter === f.key ? (f.key === 'flagged' ? '#FF9F43' : '#C0F43C') : 'rgba(70,77,83,0.55)', fontSize: '12px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
+                        style={{ padding: '6px 14px', borderRadius: '20px', border: `1px solid ${docFilter === f.key ? (f.key === 'flagged' ? 'rgba(255,159,67,0.5)' : 'rgba(192,244,60,0.4)') : '#E6EFF0'}`, background: docFilter === f.key ? (f.key === 'flagged' ? 'rgba(255,159,67,0.1)' : 'rgba(192,244,60,0.08)') : 'transparent', color: docFilter === f.key ? (f.key === 'flagged' ? '#FF9F43' : '#C0F43C') : '#64748B', fontSize: '12px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
                         {f.label}
                       </button>
                     ))}
@@ -3628,12 +3628,12 @@ export default function AdminPage() {
 
                   {/* Document grid */}
                   {filteredDocs.length === 0 ? (
-                    <div style={{ padding: '40px', textAlign: 'center', color: 'rgba(70,77,83,0.55)', fontSize: '13px' }}>No documents match this filter.</div>
+                    <div style={{ padding: '40px', textAlign: 'center', color: '#64748B', fontSize: '13px' }}>No documents match this filter.</div>
                   ) : (
                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '14px' }}>
                       {filteredDocs.map(doc => {
-                        const tc   = TYPE_COLOR[doc.type] ?? 'rgba(70,77,83,0.55)'
-                        const lCfg = LAYER_CFG[doc.layer] ?? { label: doc.layer, color: 'rgba(70,77,83,0.55)', bg: '#E6EFF0' }
+                        const tc   = TYPE_COLOR[doc.type] ?? '#64748B'
+                        const lCfg = LAYER_CFG[doc.layer] ?? { label: doc.layer, color: '#64748B', bg: '#E6EFF0' }
                         return (
                           <div key={doc.id} style={{ background: '#FFFFFF', border: `1px solid ${doc.flagged ? 'rgba(255,159,67,0.25)' : '#E6EFF0'}`, borderRadius: '14px', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
                             {/* Top colour strip */}
@@ -3657,7 +3657,7 @@ export default function AdminPage() {
 
                               {/* Department + level (if specific) */}
                               {doc.layer === 'specific' && (
-                                <div style={{ fontSize: '11px', color: 'rgba(70,77,83,0.55)', display: 'flex', gap: '8px' }}>
+                                <div style={{ fontSize: '11px', color: '#64748B', display: 'flex', gap: '8px' }}>
                                   <span>{doc.department}</span>
                                   <span style={{ color: 'rgba(70,77,83,0.35)' }}>·</span>
                                   <span>{doc.min_level}</span>
@@ -3668,18 +3668,18 @@ export default function AdminPage() {
                               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                                 <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
                                   <div style={{ width: '6px', height: '6px', borderRadius: '50%', background: doc.tresci_use ? '#C0F43C' : '#E6EFF0', flexShrink: 0 }} />
-                                  <span style={{ fontSize: '10px', fontWeight: 600, color: doc.tresci_use ? '#C0F43C' : 'rgba(70,77,83,0.55)' }}>
+                                  <span style={{ fontSize: '10px', fontWeight: 600, color: doc.tresci_use ? '#C0F43C' : '#64748B' }}>
                                     {doc.tresci_use ? 'Used by Tresci' : 'Not indexed'}
                                   </span>
                                 </div>
-                                <span style={{ fontSize: '10px', fontWeight: 700, color: doc.confidence >= 75 ? 'rgba(70,77,83,0.55)' : '#FF9F43' }}>
+                                <span style={{ fontSize: '10px', fontWeight: 700, color: doc.confidence >= 75 ? '#64748B' : '#FF9F43' }}>
                                   {doc.confidence}% AI confidence
                                 </span>
                               </div>
 
                               {/* Footer: word count + date + remove */}
                               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 'auto', paddingTop: '8px', borderTop: '1px solid #E6EFF0' }}>
-                                <span style={{ fontSize: '10px', color: 'rgba(70,77,83,0.55)' }}>
+                                <span style={{ fontSize: '10px', color: '#64748B' }}>
                                   {doc.word_count?.toLocaleString()} words · {new Date(doc.created_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}
                                 </span>
                                 <button onClick={() => deleteDoc(doc.id)}
@@ -3715,10 +3715,10 @@ export default function AdminPage() {
             )}
 
             {draftsLoading ? (
-              <div style={{ padding: '60px', textAlign: 'center', color: 'rgba(70,77,83,0.55)', fontSize: '13px' }}>Loading drafts...</div>
+              <div style={{ padding: '60px', textAlign: 'center', color: '#64748B', fontSize: '13px' }}>Loading drafts...</div>
             ) : draftCourses.length === 0 ? (
               <div style={{ padding: '60px', textAlign: 'center', background: '#FFFFFF', border: '1px solid #E6EFF0', borderRadius: '18px' }}>
-                <div style={{ fontSize: '13px', color: 'rgba(70,77,83,0.55)' }}>No courses pending review. When someone submits a course via Content Studio it will appear here.</div>
+                <div style={{ fontSize: '13px', color: '#64748B' }}>No courses pending review. When someone submits a course via Content Studio it will appear here.</div>
               </div>
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
@@ -3741,7 +3741,7 @@ export default function AdminPage() {
                           <div style={{ fontSize: '15px', fontWeight: 800, color: '#1E2124', lineHeight: 1.3 }}>{course.title}</div>
                           <div style={{ fontSize: '12px', color: '#464D53', marginTop: '2px' }}>{course.subtitle}</div>
                           {course.suggested_by_name && (
-                            <div style={{ fontSize: '11px', color: 'rgba(70,77,83,0.55)', marginTop: '4px' }}>Suggested by {course.suggested_by_name}{course.suggested_by_role ? ` · ${course.suggested_by_role}` : ''}</div>
+                            <div style={{ fontSize: '11px', color: '#64748B', marginTop: '4px' }}>Suggested by {course.suggested_by_name}{course.suggested_by_role ? ` · ${course.suggested_by_role}` : ''}</div>
                           )}
                         </div>
                         <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexShrink: 0 }}>
@@ -3763,9 +3763,9 @@ export default function AdminPage() {
                       {/* Expanded preview */}
                       {isExpanded && (
                         <div style={{ borderTop: '1px solid #E6EFF0', padding: '20px', background: '#EEF9F9' }}>
-                          <div style={{ fontSize: '11px', fontWeight: 700, letterSpacing: '1.5px', textTransform: 'uppercase', color: 'rgba(70,77,83,0.55)', marginBottom: '8px' }}>Overview</div>
+                          <div style={{ fontSize: '11px', fontWeight: 700, letterSpacing: '1.5px', textTransform: 'uppercase', color: '#64748B', marginBottom: '8px' }}>Overview</div>
                           <p style={{ fontSize: '13px', color: '#464D53', lineHeight: 1.7, margin: 0 }}>{course.overview}</p>
-                          <div style={{ marginTop: '12px', fontSize: '12px', color: 'rgba(70,77,83,0.55)' }}>{course.estimated_minutes} min · {course.is_mandatory ? 'Mandatory' : 'Optional'}</div>
+                          <div style={{ marginTop: '12px', fontSize: '12px', color: '#64748B' }}>{course.estimated_minutes} min · {course.is_mandatory ? 'Mandatory' : 'Optional'}</div>
                         </div>
                       )}
                     </div>
@@ -3887,7 +3887,7 @@ export default function AdminPage() {
                         <div style={{ fontSize: '12px', color: '#1E2124', fontWeight: 600, lineHeight: 1.4 }}>{row.signal}</div>
                       </div>
                       <div>
-                        <div style={{ fontSize: '10px', fontWeight: 700, color: 'rgba(70,77,83,0.55)', letterSpacing: '1px', textTransform: 'uppercase', marginBottom: '3px' }}>Output</div>
+                        <div style={{ fontSize: '10px', fontWeight: 700, color: '#64748B', letterSpacing: '1px', textTransform: 'uppercase', marginBottom: '3px' }}>Output</div>
                         <div style={{ fontSize: '12px', color: '#464D53', lineHeight: 1.4 }}>{row.output}</div>
                       </div>
                     </div>
@@ -3946,7 +3946,7 @@ export default function AdminPage() {
                     <div key={i} style={{ width: i === tourStep ? '18px' : '6px', height: '6px', borderRadius: '3px', background: i === tourStep ? '#00A5A3' : '#E6EFF0', transition: 'all 0.2s' }} />
                   ))}
                 </div>
-                <button onClick={endTour} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'rgba(70,77,83,0.55)', fontSize: '11px', fontFamily: 'inherit', padding: '0' }}>Skip tour</button>
+                <button onClick={endTour} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#64748B', fontSize: '11px', fontFamily: 'inherit', padding: '0' }}>Skip tour</button>
               </div>
 
               <div style={{ fontSize: '15px', fontWeight: 800, color: '#1E2124', marginBottom: '7px' }}>{step.title}</div>

@@ -110,13 +110,13 @@ function ContentHubInner() {
       {/* Header */}
       <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: '32px' }}>
         <div>
-          <Link href="/admin" style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', fontSize: '13px', color: 'rgba(70,77,83,0.55)', textDecoration: 'none', marginBottom: '12px' }}>
+          <Link href="/admin" style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', fontSize: '13px', color: '#64748B', textDecoration: 'none', marginBottom: '12px' }}>
             <svg width="11" height="11" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg>
             Admin
           </Link>
           <div style={{ fontSize: '11px', fontWeight: 800, letterSpacing: '2.5px', textTransform: 'uppercase', color: '#00A5A3', marginBottom: '6px' }}>Content Engine</div>
           <h1 style={{ fontSize: '30px', fontWeight: 900, color: '#1E2124', margin: 0, letterSpacing: '-0.02em' }}>Content Campaigns</h1>
-          <p style={{ fontSize: '15px', color: 'rgba(70,77,83,0.55)', marginTop: '6px' }}>
+          <p style={{ fontSize: '15px', color: '#64748B', marginTop: '6px' }}>
             Create and manage social media campaigns across all events and platforms.
           </p>
         </div>
@@ -134,12 +134,12 @@ function ContentHubInner() {
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px', marginBottom: '14px' }}>
             {/* Name */}
             <div style={{ gridColumn: '1/-1' }}>
-              <label style={{ fontSize: '11px', fontWeight: 700, color: 'rgba(70,77,83,0.55)', letterSpacing: '0.8px', textTransform: 'uppercase', display: 'block', marginBottom: '5px' }}>Campaign Name</label>
+              <label style={{ fontSize: '11px', fontWeight: 700, color: '#64748B', letterSpacing: '0.8px', textTransform: 'uppercase', display: 'block', marginBottom: '5px' }}>Campaign Name</label>
               <input className="inp" value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} placeholder="World AI Show Dubai — Pre-Event Awareness" />
             </div>
             {/* Event */}
             <div>
-              <label style={{ fontSize: '11px', fontWeight: 700, color: 'rgba(70,77,83,0.55)', letterSpacing: '0.8px', textTransform: 'uppercase', display: 'block', marginBottom: '5px' }}>Event (optional)</label>
+              <label style={{ fontSize: '11px', fontWeight: 700, color: '#64748B', letterSpacing: '0.8px', textTransform: 'uppercase', display: 'block', marginBottom: '5px' }}>Event (optional)</label>
               <select className="inp" value={form.event_id} onChange={e => setForm(f => ({ ...f, event_id: e.target.value }))} style={{ background: '#EEF9F9' }}>
                 <option value="">— No specific event —</option>
                 {events.map(ev => <option key={ev.id} value={ev.id}>{ev.name}</option>)}
@@ -147,7 +147,7 @@ function ContentHubInner() {
             </div>
             {/* Phase */}
             <div>
-              <label style={{ fontSize: '11px', fontWeight: 700, color: 'rgba(70,77,83,0.55)', letterSpacing: '0.8px', textTransform: 'uppercase', display: 'block', marginBottom: '5px' }}>Phase</label>
+              <label style={{ fontSize: '11px', fontWeight: 700, color: '#64748B', letterSpacing: '0.8px', textTransform: 'uppercase', display: 'block', marginBottom: '5px' }}>Phase</label>
               <select className="inp" value={form.phase} onChange={e => setForm(f => ({ ...f, phase: e.target.value }))} style={{ background: '#EEF9F9' }}>
                 <option value="pre_event">Pre-Event</option>
                 <option value="live_week">Live Week</option>
@@ -157,26 +157,26 @@ function ContentHubInner() {
             </div>
             {/* Start date */}
             <div>
-              <label style={{ fontSize: '11px', fontWeight: 700, color: 'rgba(70,77,83,0.55)', letterSpacing: '0.8px', textTransform: 'uppercase', display: 'block', marginBottom: '5px' }}>Start Date</label>
+              <label style={{ fontSize: '11px', fontWeight: 700, color: '#64748B', letterSpacing: '0.8px', textTransform: 'uppercase', display: 'block', marginBottom: '5px' }}>Start Date</label>
               <input type="date" className="inp" value={form.start_date} onChange={e => setForm(f => ({ ...f, start_date: e.target.value }))} style={{ background: '#EEF9F9' }} />
             </div>
             {/* Duration */}
             <div>
-              <label style={{ fontSize: '11px', fontWeight: 700, color: 'rgba(70,77,83,0.55)', letterSpacing: '0.8px', textTransform: 'uppercase', display: 'block', marginBottom: '5px' }}>Duration (weeks)</label>
+              <label style={{ fontSize: '11px', fontWeight: 700, color: '#64748B', letterSpacing: '0.8px', textTransform: 'uppercase', display: 'block', marginBottom: '5px' }}>Duration (weeks)</label>
               <select className="inp" value={form.duration_weeks} onChange={e => setForm(f => ({ ...f, duration_weeks: +e.target.value }))} style={{ background: '#EEF9F9' }}>
                 {[2,3,4,6,8,12].map(w => <option key={w} value={w}>{w} weeks</option>)}
               </select>
             </div>
             {/* Objective */}
             <div style={{ gridColumn: '1/-1' }}>
-              <label style={{ fontSize: '11px', fontWeight: 700, color: 'rgba(70,77,83,0.55)', letterSpacing: '0.8px', textTransform: 'uppercase', display: 'block', marginBottom: '5px' }}>Objective</label>
+              <label style={{ fontSize: '11px', fontWeight: 700, color: '#64748B', letterSpacing: '0.8px', textTransform: 'uppercase', display: 'block', marginBottom: '5px' }}>Objective</label>
               <input className="inp" value={form.objective} onChange={e => setForm(f => ({ ...f, objective: e.target.value }))} placeholder="Drive registrations and build speaker awareness for World AI Show Dubai 2026" />
             </div>
           </div>
 
           {/* Platforms */}
           <div style={{ marginBottom: '14px' }}>
-            <label style={{ fontSize: '10px', fontWeight: 700, color: 'rgba(15,23,42,0.38)', letterSpacing: '0.8px', textTransform: 'uppercase', display: 'block', marginBottom: '8px' }}>Platforms</label>
+            <label style={{ fontSize: '10px', fontWeight: 700, color: '#64748B', letterSpacing: '0.8px', textTransform: 'uppercase', display: 'block', marginBottom: '8px' }}>Platforms</label>
             <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
               {Object.entries(PLATFORM_COLOR).map(([p, c]) => {
                 const sel = form.platforms.includes(p)
@@ -193,7 +193,7 @@ function ContentHubInner() {
 
           {/* Brand notes */}
           <div style={{ marginBottom: '20px' }}>
-            <label style={{ fontSize: '11px', fontWeight: 700, color: 'rgba(70,77,83,0.55)', letterSpacing: '0.8px', textTransform: 'uppercase', display: 'block', marginBottom: '5px' }}>Brand Notes <span style={{ color: 'rgba(70,77,83,0.55)', fontWeight: 400, textTransform: 'none' }}>(optional — AI reads your event brief automatically)</span></label>
+            <label style={{ fontSize: '11px', fontWeight: 700, color: '#64748B', letterSpacing: '0.8px', textTransform: 'uppercase', display: 'block', marginBottom: '5px' }}>Brand Notes <span style={{ color: '#64748B', fontWeight: 400, textTransform: 'none' }}>(optional — AI reads your event brief automatically)</span></label>
             <textarea className="inp" value={form.brand_notes} onChange={e => setForm(f => ({ ...f, brand_notes: e.target.value }))}
               placeholder="Key messages: focus on enterprise AI adoption, not consumer AI. Avoid buzzwords like 'revolutionary'. Target audience: CIOs and CTOs in the Middle East…"
               rows={3} style={{ resize: 'vertical' }} />
@@ -213,7 +213,7 @@ function ContentHubInner() {
       {/* Filters */}
       {(events.length > 0 || campaigns.length > 0) && (
         <div style={{ display: 'flex', gap: '8px', marginBottom: '24px', flexWrap: 'wrap', alignItems: 'center' }}>
-          <span style={{ fontSize: '11px', fontWeight: 700, color: 'rgba(70,77,83,0.55)', letterSpacing: '1px', textTransform: 'uppercase' }}>Event</span>
+          <span style={{ fontSize: '11px', fontWeight: 700, color: '#64748B', letterSpacing: '1px', textTransform: 'uppercase' }}>Event</span>
           <button className={`filter-btn${filterEvent === 'all' ? ' active' : ''}`} onClick={() => setFilterEvent('all')}>All</button>
           {events.map(ev => (
             <button key={ev.id} className={`filter-btn${filterEvent === ev.id ? ' active' : ''}`} onClick={() => setFilterEvent(ev.id)}>
@@ -221,7 +221,7 @@ function ContentHubInner() {
             </button>
           ))}
           <div style={{ width: 1, height: 18, background: '#E6EFF0', margin: '0 4px' }} />
-          <span style={{ fontSize: '11px', fontWeight: 700, color: 'rgba(70,77,83,0.55)', letterSpacing: '1px', textTransform: 'uppercase' }}>Phase</span>
+          <span style={{ fontSize: '11px', fontWeight: 700, color: '#64748B', letterSpacing: '1px', textTransform: 'uppercase' }}>Phase</span>
           {['all', 'pre_event', 'live_week', 'post_event', 'always_on'].map(ph => (
             <button key={ph} className={`filter-btn${filterPhase === ph ? ' active' : ''}`} onClick={() => setFilterPhase(ph)}>
               {ph === 'all' ? 'All' : PHASE_CFG[ph]?.label ?? ph}
@@ -232,14 +232,14 @@ function ContentHubInner() {
 
       {/* Campaign grid */}
       {loading ? (
-        <div style={{ textAlign: 'center', padding: '80px', color: 'rgba(70,77,83,0.55)', fontSize: '15px' }}>Loading…</div>
+        <div style={{ textAlign: 'center', padding: '80px', color: '#64748B', fontSize: '15px' }}>Loading…</div>
       ) : filtered.length === 0 ? (
         <div style={{ textAlign: 'center', padding: '80px 40px', background: '#EEF9F9', border: '1px dashed #E6EFF0', borderRadius: '20px' }}>
           <svg width="40" height="40" fill="none" stroke="rgba(0,165,163,0.4)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24" style={{ marginBottom: '16px' }}>
             <path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/><line x1="12" y1="18" x2="12" y2="12"/><line x1="9" y1="15" x2="15" y2="15"/>
           </svg>
           <div style={{ fontSize: '17px', fontWeight: 700, color: '#464D53', marginBottom: '8px' }}>No campaigns yet</div>
-          <div style={{ fontSize: '15px', color: 'rgba(70,77,83,0.55)', marginBottom: '20px' }}>Create your first campaign to start generating content for your events.</div>
+          <div style={{ fontSize: '15px', color: '#64748B', marginBottom: '20px' }}>Create your first campaign to start generating content for your events.</div>
           <button className="cc-btn cc-btn-teal" onClick={() => setShowCreate(true)}>Create First Campaign</button>
         </div>
       ) : (
@@ -264,7 +264,7 @@ function ContentHubInner() {
 
                   {/* Event */}
                   {c.events && (
-                    <div style={{ fontSize: '13px', color: 'rgba(70,77,83,0.55)', marginBottom: '12px' }}>
+                    <div style={{ fontSize: '13px', color: '#64748B', marginBottom: '12px' }}>
                       {c.events.name} · {c.events.city}
                       {c.events.event_date && ` · ${new Date(c.events.event_date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}`}
                     </div>
@@ -277,7 +277,7 @@ function ContentHubInner() {
                         <span key={p} title={p} style={{ width: 8, height: 8, borderRadius: '50%', background: PLATFORM_COLOR[p] ?? '#888', display: 'inline-block' }} />
                       ))}
                     </div>
-                    <span style={{ fontSize: '13px', color: 'rgba(70,77,83,0.55)' }}>{cnt} posts</span>
+                    <span style={{ fontSize: '13px', color: '#64748B' }}>{cnt} posts</span>
                   </div>
 
                   <Link href={`/content/campaigns/${c.id}`}
@@ -297,7 +297,7 @@ function ContentHubInner() {
 
 export default function ContentHubPage() {
   return (
-    <Suspense fallback={<div style={{ fontFamily: 'var(--font-manrope), Manrope, sans-serif', background: '#F6FFFE', minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><div style={{ color: 'rgba(70,77,83,0.55)', fontSize: '16px' }}>Loading…</div></div>}>
+    <Suspense fallback={<div style={{ fontFamily: 'var(--font-manrope), Manrope, sans-serif', background: '#F6FFFE', minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><div style={{ color: '#64748B', fontSize: '16px' }}>Loading…</div></div>}>
       <ContentHubInner />
     </Suspense>
   )

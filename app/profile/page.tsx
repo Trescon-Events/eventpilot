@@ -126,7 +126,7 @@ function ProficiencyInput({
                   }}
                 >
                   <div style={{ fontSize: '15px', fontWeight: 700, color: sel ? color : '#464D53', marginBottom: '4px' }}>{label}</div>
-                  <div style={{ fontSize: '11px', color: sel ? color : 'rgba(70,77,83,0.55)', lineHeight: 1.4 }}>{desc}</div>
+                  <div style={{ fontSize: '11px', color: sel ? color : '#64748B', lineHeight: 1.4 }}>{desc}</div>
                 </button>
               )
             })}
@@ -386,9 +386,9 @@ function ProfileContent() {
             'Each course you complete moves your score forward',
             'Your manager can see your progress in real time',
           ].map((t, i) => (
-            <div key={i} style={{ display: 'flex', gap: '10px', padding: '9px 0', borderBottom: i < 3 ? '1px solid rgba(15,23,42,0.06)' : 'none', alignItems: 'center' }}>
-              <div style={{ width: '22px', height: '22px', borderRadius: '50%', background: i === 0 ? '#C0F43C20' : 'rgba(15,23,42,0.04)', border: `1px solid ${i === 0 ? '#C0F43C50' : 'rgba(15,23,42,0.08)'}`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                <span style={{ fontSize: '11px', fontWeight: 800, color: i === 0 ? '#C0F43C' : 'rgba(15,23,42,0.55)' }}>{i + 1}</span>
+            <div key={i} style={{ display: 'flex', gap: '10px', padding: '9px 0', borderBottom: i < 3 ? '1px solid #EAF5F5' : 'none', alignItems: 'center' }}>
+              <div style={{ width: '22px', height: '22px', borderRadius: '50%', background: i === 0 ? '#C0F43C20' : '#F0F9F9', border: `1px solid ${i === 0 ? '#C0F43C50' : 'rgba(15,23,42,0.08)'}`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                <span style={{ fontSize: '11px', fontWeight: 800, color: i === 0 ? '#C0F43C' : '#374151' }}>{i + 1}</span>
               </div>
               <span style={{ fontSize: '15px', color: i === 0 ? '#C0F43C' : '#464D53', fontWeight: i === 0 ? 700 : 400, lineHeight: 1.65 }}>{t}</span>
             </div>
@@ -432,7 +432,7 @@ function ProfileContent() {
             </div>
             <span style={{ fontSize: '15px', fontWeight: 800, color: '#1E2124' }}>Trescademy</span>
           </div>
-          <span style={{ fontSize: '14px', color: 'rgba(70,77,83,0.55)', fontWeight: 600 }}>AI Readiness Platform · Trescon Global</span>
+          <span style={{ fontSize: '14px', color: '#64748B', fontWeight: 600 }}>AI Readiness Platform · Trescon Global</span>
         </nav>
 
         {/* Two-column body */}
@@ -457,14 +457,14 @@ function ProfileContent() {
               Begin My Assessment
               <svg width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg>
             </button>
-            <div style={{ marginTop: '14px', fontSize: '14px', color: 'rgba(70,77,83,0.55)' }}>
+            <div style={{ marginTop: '14px', fontSize: '14px', color: '#64748B' }}>
               5–8 minutes · Your answers are private
             </div>
           </div>
 
           {/* RIGHT — 3 steps */}
           <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', padding: '48px 56px', gap: '0' }}>
-            <div style={{ fontSize: '11px', fontWeight: 800, letterSpacing: '2px', textTransform: 'uppercase', color: 'rgba(70,77,83,0.55)', marginBottom: '28px' }}>
+            <div style={{ fontSize: '11px', fontWeight: 800, letterSpacing: '2px', textTransform: 'uppercase', color: '#64748B', marginBottom: '28px' }}>
               What happens
             </div>
             {steps.map((s, i) => (
@@ -615,7 +615,7 @@ function ProfileContent() {
 
         {/* Step counter */}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '40px' }}>
-          <div style={{ fontSize: '13px', fontWeight: 700, letterSpacing: '2px', color: 'rgba(70,77,83,0.55)', textTransform: 'uppercase' }}>
+          <div style={{ fontSize: '13px', fontWeight: 700, letterSpacing: '2px', color: '#64748B', textTransform: 'uppercase' }}>
             Question {step + 1} of {questions.length}
           </div>
           <div style={{ fontSize: '13px', fontWeight: 700, color: '#00A5A3', letterSpacing: '1px' }}>
@@ -746,12 +746,12 @@ function ProfileContent() {
                         style={{
                           flex: '1 1 120px', padding: '14px 10px', borderRadius: '14px', textAlign: 'center',
                           border: `1.5px solid ${sel ? col : 'rgba(15,23,42,0.08)'}`,
-                          background: sel ? `${col}18` : 'rgba(15,23,42,0.04)',
+                          background: sel ? `${col}18` : '#F0F9F9',
                           cursor: 'pointer', fontFamily: 'inherit', transition: 'all 0.15s ease',
                         }}
                       >
                         <div style={{ fontSize: '24px', fontWeight: 800, color: sel ? col : '#464D53', marginBottom: '6px' }}>{n}</div>
-                        <div style={{ fontSize: '13px', color: sel ? col : 'rgba(70,77,83,0.55)', fontWeight: sel ? 700 : 400, lineHeight: 1.4 }}>{label}</div>
+                        <div style={{ fontSize: '13px', color: sel ? col : '#64748B', fontWeight: sel ? 700 : 400, lineHeight: 1.4 }}>{label}</div>
                       </button>
                     )
                   })}
@@ -765,7 +765,7 @@ function ProfileContent() {
                 {q.id === 'ai_readiness' && scaleValue >= 4 && (
                   <div style={{ marginTop: '14px', background: 'rgba(192,244,60,0.07)', border: '1px solid rgba(192,244,60,0.25)', borderRadius: '12px', padding: '14px 18px' }}>
                     <div style={{ fontSize: '13px', fontWeight: 800, color: '#C0F43C', letterSpacing: '1px', textTransform: 'uppercase', marginBottom: '6px' }}>You are now on the advanced track</div>
-                    <div style={{ fontSize: '15px', color: 'rgba(70,77,83,0.55)', lineHeight: 1.65 }}>
+                    <div style={{ fontSize: '15px', color: '#64748B', lineHeight: 1.65 }}>
                       The next question will ask you to describe a real AI workflow you use. This becomes your brief for the Advanced track — and you will be expected to lead an AI pilot in your department.
                     </div>
                   </div>
@@ -784,14 +784,14 @@ function ProfileContent() {
 
             {/* Hint for textarea */}
             {q.type === 'textarea' && (
-              <p style={{ fontSize: '13px', color: 'rgba(70,77,83,0.55)', marginTop: '10px' }}>
+              <p style={{ fontSize: '13px', color: '#64748B', marginTop: '10px' }}>
                 Press Cmd+Enter to continue
               </p>
             )}
 
             {/* Optional hint for text */}
             {q.type === 'text' && (
-              <p style={{ fontSize: '13px', color: 'rgba(70,77,83,0.55)', marginTop: '10px' }}>
+              <p style={{ fontSize: '13px', color: '#64748B', marginTop: '10px' }}>
                 Optional — skip if nothing to add
               </p>
             )}
@@ -819,7 +819,7 @@ function ProfileContent() {
                 style={{
                   padding: '14px 28px', borderRadius: '14px', border: 'none',
                   background: (canAdvance || q.type === 'text') && !pending ? (isLastStep ? '#C0F43C' : '#00A5A3') : 'rgba(15,23,42,0.08)',
-                  color: (canAdvance || q.type === 'text') && !pending ? (isLastStep ? '#1E2124' : 'white') : 'rgba(15,23,42,0.22)',
+                  color: (canAdvance || q.type === 'text') && !pending ? (isLastStep ? '#1E2124' : 'white') : '#94A3B8',
                   fontSize: '16px', fontWeight: 800, cursor: (canAdvance || q.type === 'text') && !pending ? 'pointer' : 'not-allowed',
                   fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: '8px',
                   transition: 'all 0.2s ease',
