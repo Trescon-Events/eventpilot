@@ -4,7 +4,7 @@ export default function ScoringGuideContent() {
   return (
     <div>
       {/* What TAIRS measures */}
-      <div style={{ background: 'rgba(0,165,163,0.06)', border: '1px solid rgba(0,165,163,0.2)', borderRadius: '20px', padding: '28px 32px', marginBottom: '28px' }}>
+      <div style={{ background: 'rgba(0,165,163,0.06)', border: '1px solid rgba(0,165,163,0.2)', borderRadius: '16px', padding: '28px 32px', marginBottom: '28px' }}>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '32px' }}>
           <div>
             <div style={{ fontSize: '20px', fontWeight: 700, letterSpacing: '2px', textTransform: 'uppercase', color: '#00A5A3', marginBottom: '12px' }}>What TAIRS measures</div>
@@ -131,15 +131,15 @@ export default function ScoringGuideContent() {
             },
           ].map((tier, i) => (
             <div key={tier.tier} style={{ display: 'grid', gridTemplateColumns: '140px 1fr 1fr', background: i % 2 === 0 ? 'rgba(255,255,255,0.03)' : 'transparent' }}>
-              <div style={{ padding: '18px 20px', borderRight: '1px solid rgba(255,255,255,0.06)', display: 'flex', flexDirection: 'column', gap: '4px' }}>
+              <div style={{ padding: '20px', borderRight: '1px solid rgba(255,255,255,0.06)', display: 'flex', flexDirection: 'column', gap: '4px' }}>
                 <span style={{ fontSize: '18px', fontWeight: 900, color: tier.color, background: `${tier.color}18`, padding: '2px 8px', borderRadius: '5px', width: 'fit-content' }}>{tier.tier}</span>
                 <span style={{ fontSize: '20px', fontWeight: 900, color: tier.color, lineHeight: 1 }}>{tier.range}</span>
               </div>
-              <div style={{ padding: '18px 20px', borderRight: '1px solid rgba(255,255,255,0.06)' }}>
+              <div style={{ padding: '20px', borderRight: '1px solid rgba(255,255,255,0.06)' }}>
                 <div style={{ fontSize: '9px', fontWeight: 700, letterSpacing: '1px', textTransform: 'uppercase', color: 'rgba(255,255,255,0.4)', marginBottom: '5px' }}>What it means</div>
                 <div style={{ fontSize: '20px', color: 'rgba(255,255,255,0.75)', lineHeight: 1.55 }}>{tier.what}</div>
               </div>
-              <div style={{ padding: '18px 20px' }}>
+              <div style={{ padding: '20px' }}>
                 <div style={{ fontSize: '9px', fontWeight: 700, letterSpacing: '1px', textTransform: 'uppercase', color: tier.color, marginBottom: '5px' }}>Recommended action</div>
                 <div style={{ fontSize: '20px', color: 'rgba(255,255,255,0.75)', lineHeight: 1.55 }}>{tier.action}</div>
               </div>

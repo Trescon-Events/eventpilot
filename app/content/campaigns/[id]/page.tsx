@@ -319,7 +319,7 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
               return (
                 <div key={wkNum} style={{ background: '#FFFFFF', border: '1px solid #C8DFE0', borderRadius: '14px', overflow: 'hidden' }}>
                   {/* Week header */}
-                  <div style={{ padding: '16px 20px', borderBottom: '1px solid #C8DFE0', display: 'flex', alignItems: 'center', gap: '14px' }}>
+                  <div style={{ padding: '18px 20px', borderBottom: '1px solid #C8DFE0', display: 'flex', alignItems: 'center', gap: '14px' }}>
                     <div style={{ width: 34, height: 34, borderRadius: '50%', background: 'rgba(0,165,163,0.15)', border: '1.5px solid rgba(0,165,163,0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '20px', fontWeight: 800, color: '#00A5A3', flexShrink: 0 }}>{wkNum}</div>
                     <div style={{ flex: 1 }}>
                       <div style={{ fontSize: '20px', fontWeight: 800, color: '#1E2124', marginBottom: '2px' }}>{wkTheme}</div>
@@ -343,7 +343,7 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
                   </div>
 
                   {/* Posts grid */}
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))', gap: '12px', padding: '16px 20px' }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))', gap: '12px', padding: '18px 20px' }}>
                     {wkPosts.map(post => {
                       const pc  = PLATFORM_COLOR[post.platform] ?? '#888'
                       const sc  = STATUS_CFG[post.status]       ?? STATUS_CFG.planned
@@ -451,7 +451,7 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
                   return (
                     <div key={post.id} style={{ background: '#FFFFFF', border: '1px solid #C8DFE0', borderRadius: '14px', overflow: 'hidden', display: 'flex' }}>
                       <div style={{ width: 4, background: pc, flexShrink: 0 }} />
-                      <div style={{ padding: '18px 20px', flex: 1, display: 'flex', gap: '16px', alignItems: 'flex-start' }}>
+                      <div style={{ padding: '20px', flex: 1, display: 'flex', gap: '16px', alignItems: 'flex-start' }}>
                         {post.image_url && (
                           // eslint-disable-next-line @next/next/no-img-element
                           <img src={post.image_url} alt="" style={{ width: 64, height: 64, objectFit: 'cover', borderRadius: '8px', flexShrink: 0 }} />

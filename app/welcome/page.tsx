@@ -47,7 +47,7 @@ function WelcomeContent() {
         </p>
 
         {/* Next step card */}
-        <div style={{ background: '#FFFFFF', border: '1px solid #C8DFE0', borderRadius: '20px', padding: '28px', marginBottom: '28px', textAlign: 'left' }}>
+        <div style={{ background: '#FFFFFF', border: '1px solid #C8DFE0', borderRadius: '16px', padding: '28px', marginBottom: '28px', textAlign: 'left' }}>
           <div style={{ fontSize: '18px', fontWeight: 700, letterSpacing: '2px', textTransform: 'uppercase', color: color, marginBottom: '12px' }}>What happens next</div>
           {[
             'Your details are now on record in Trescademy',

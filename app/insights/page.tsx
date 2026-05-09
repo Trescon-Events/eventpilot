@@ -71,7 +71,7 @@ export default function InsightsPage() {
   if (!authed) {
     return (
       <div style={{ fontFamily: 'var(--font-manrope), Manrope, sans-serif', background: '#F6FFFE', minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '24px' }}>
-        <div style={{ background: '#FFFFFF', border: '1px solid #C8DFE0', borderRadius: '24px', padding: '48px 40px', maxWidth: '400px', width: '100%', textAlign: 'center' }}>
+        <div style={{ background: '#FFFFFF', border: '1px solid #C8DFE0', borderRadius: '16px', padding: '48px 40px', maxWidth: '400px', width: '100%', textAlign: 'center' }}>
           <div style={{ width: '56px', height: '56px', background: '#C0F43C20', border: '2px solid #C0F43C', borderRadius: '16px', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 24px' }}>
             <svg width="24" height="24" fill="none" stroke="#C0F43C" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
           </div>
@@ -113,7 +113,7 @@ export default function InsightsPage() {
           <span style={{ color: 'rgba(70,77,83,0.35)' }}>/</span>
           <span style={{ fontSize: '18px', color: '#464D53' }}>Intelligence Reports</span>
         </div>
-        <Link href="/admin" style={{ fontSize: '18px', fontWeight: 700, color: '#3D6B00', textDecoration: 'none', background: 'rgba(192,244,60,0.12)', border: '1px solid rgba(192,244,60,0.3)', padding: '6px 14px', borderRadius: '20px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+        <Link href="/admin" style={{ fontSize: '18px', fontWeight: 700, color: '#3D6B00', textDecoration: 'none', background: '#FFFFFF', border: '1px solid #C8DFE0', padding: '6px 14px', borderRadius: '16px', display: 'flex', alignItems: 'center', gap: '6px' }}>
           <svg width="11" height="11" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg>
           Admin Dashboard
         </Link>
@@ -158,7 +158,7 @@ export default function InsightsPage() {
         </div>
 
         {error && (
-          <div style={{ background: '#FF6B6B15', border: '1px solid #FF6B6B40', borderRadius: '12px', padding: '16px 20px', marginBottom: '24px', fontSize: '20px', color: '#FF6B6B' }}>
+          <div style={{ background: '#FF6B6B15', border: '1px solid #FF6B6B40', borderRadius: '12px', padding: '18px 20px', marginBottom: '24px', fontSize: '20px', color: '#FF6B6B' }}>
             {error}
           </div>
         )}
@@ -172,7 +172,7 @@ export default function InsightsPage() {
                 const isActive = activeReport?.id === r.id
                 return (
                   <button key={r.id} onClick={() => setActiveReport(r)}
-                    style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 14px', borderRadius: '20px', border: `1px solid ${isActive ? 'rgba(192,244,60,0.4)' : '#C8DFE0'}`, background: isActive ? 'rgba(192,244,60,0.1)' : 'transparent', cursor: 'pointer', fontFamily: 'inherit' }}>
+                    style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 14px', borderRadius: '16px', border: `1px solid ${isActive ? 'rgba(192,244,60,0.4)' : '#C8DFE0'}`, background: isActive ? 'rgba(192,244,60,0.1)' : 'transparent', cursor: 'pointer', fontFamily: 'inherit' }}>
                     <span style={{ fontSize: '20px', fontWeight: 700, color: isActive ? '#C0F43C' : '#464D53' }}>{formatDate(r.generated_at)}</span>
                     <span style={{ fontSize: '18px', fontWeight: 700, padding: '2px 6px', borderRadius: '4px', background: r.trigger_type === 'cron' ? 'rgba(0,165,163,0.15)' : '#FFFFFF', color: r.trigger_type === 'cron' ? '#00A5A3' : '#464D53' }}>
                       {r.trigger_type === 'cron' ? 'Auto' : 'Manual'}
@@ -187,8 +187,8 @@ export default function InsightsPage() {
 
         {/* No reports yet */}
         {!loading && savedReports.length === 0 && (
-          <div style={{ background: '#FFFFFF', border: '1px solid #C8DFE0', borderRadius: '24px', padding: '64px', textAlign: 'center' }}>
-            <div style={{ width: '64px', height: '64px', background: '#C0F43C15', border: '2px solid #C0F43C30', borderRadius: '20px', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 20px' }}>
+          <div style={{ background: '#FFFFFF', border: '1px solid #C8DFE0', borderRadius: '16px', padding: '64px', textAlign: 'center' }}>
+            <div style={{ width: '64px', height: '64px', background: '#C0F43C15', border: '2px solid #C0F43C30', borderRadius: '16px', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 20px' }}>
               <svg width="28" height="28" fill="none" stroke="#C0F43C" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
             </div>
             <h3 style={{ fontSize: '36px', fontWeight: 800, color: '#1E2124', marginBottom: '10px' }}>No reports yet</h3>
@@ -219,14 +219,14 @@ export default function InsightsPage() {
 
             {/* Pain clusters */}
             {report.pain_clusters?.length > 0 && (
-              <div style={{ background: '#FFFFFF', border: '1px solid #C8DFE0', borderRadius: '20px', padding: '24px' }}>
+              <div style={{ background: '#FFFFFF', border: '1px solid #C8DFE0', borderRadius: '16px', padding: '24px' }}>
                 <div style={{ fontSize: '18px', fontWeight: 700, letterSpacing: '2px', textTransform: 'uppercase', color: '#1E2124', marginBottom: '20px' }}>Pain Clusters — Shared Problems Across the Team</div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
                   {report.pain_clusters.map((c, i) => (
-                    <div key={i} style={{ background: 'rgba(255,107,107,0.06)', border: '1px solid rgba(255,107,107,0.15)', borderRadius: '14px', padding: '16px 20px' }}>
+                    <div key={i} style={{ background: 'rgba(255,107,107,0.06)', border: '1px solid rgba(255,107,107,0.15)', borderRadius: '14px', padding: '18px 20px' }}>
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '12px', marginBottom: '8px' }}>
                         <div style={{ fontSize: '20px', fontWeight: 700, color: '#1E2124' }}>{c.theme}</div>
-                        <div style={{ fontSize: '20px', fontWeight: 800, color: '#FF6B6B', background: '#FF6B6B15', padding: '3px 10px', borderRadius: '20px', flexShrink: 0 }}>{c.count} staff</div>
+                        <div style={{ fontSize: '20px', fontWeight: 800, color: '#FF6B6B', background: '#FF6B6B15', padding: '3px 10px', borderRadius: '16px', flexShrink: 0 }}>{c.count} staff</div>
                       </div>
                       <div style={{ fontSize: '18px', color: '#464D53', marginBottom: '8px' }}>Offices: {c.office_spread.join(' · ')}</div>
                       <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
@@ -242,11 +242,11 @@ export default function InsightsPage() {
 
             {/* Build priority */}
             {report.build_priority?.length > 0 && (
-              <div style={{ background: '#FFFFFF', border: '1px solid #C8DFE0', borderRadius: '20px', padding: '24px' }}>
+              <div style={{ background: '#FFFFFF', border: '1px solid #C8DFE0', borderRadius: '16px', padding: '24px' }}>
                 <div style={{ fontSize: '18px', fontWeight: 700, letterSpacing: '2px', textTransform: 'uppercase', color: '#1E2124', marginBottom: '20px' }}>Build Priority — What to Ship First</div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
                   {report.build_priority.map((b) => (
-                    <div key={b.rank} style={{ display: 'flex', gap: '16px', padding: '16px 20px', background: b.rank === 1 ? 'rgba(192,244,60,0.06)' : '#FFFFFF', border: `1px solid ${b.rank === 1 ? 'rgba(192,244,60,0.2)' : '#C8DFE0'}`, borderRadius: '14px' }}>
+                    <div key={b.rank} style={{ display: 'flex', gap: '16px', padding: '18px 20px', background: b.rank === 1 ? 'rgba(192,244,60,0.06)' : '#FFFFFF', border: `1px solid ${b.rank === 1 ? 'rgba(192,244,60,0.2)' : '#C8DFE0'}`, borderRadius: '14px' }}>
                       <div style={{ width: '32px', height: '32px', borderRadius: '10px', background: b.rank === 1 ? '#C0F43C' : '#C8DFE0', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
                         <span style={{ fontSize: '20px', fontWeight: 800, color: b.rank === 1 ? '#1E2124' : '#464D53' }}>{b.rank}</span>
                       </div>
@@ -265,7 +265,7 @@ export default function InsightsPage() {
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
 
               {report.time_savings?.length > 0 && (
-                <div style={{ background: '#FFFFFF', border: '1px solid #C8DFE0', borderRadius: '20px', padding: '24px' }}>
+                <div style={{ background: '#FFFFFF', border: '1px solid #C8DFE0', borderRadius: '16px', padding: '24px' }}>
                   <div style={{ fontSize: '18px', fontWeight: 700, letterSpacing: '2px', textTransform: 'uppercase', color: '#1E2124', marginBottom: '20px' }}>Time Savings — Before vs. After AI</div>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
                     {report.time_savings.slice(0, 6).map((t, i) => (
@@ -284,7 +284,7 @@ export default function InsightsPage() {
               )}
 
               {report.skills_needed?.length > 0 && (
-                <div style={{ background: '#FFFFFF', border: '1px solid #C8DFE0', borderRadius: '20px', padding: '24px' }}>
+                <div style={{ background: '#FFFFFF', border: '1px solid #C8DFE0', borderRadius: '16px', padding: '24px' }}>
                   <div style={{ fontSize: '18px', fontWeight: 700, letterSpacing: '2px', textTransform: 'uppercase', color: '#1E2124', marginBottom: '20px' }}>Training Needs — Skills Gaps Identified</div>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
                     {report.skills_needed.map((s, i) => (
@@ -300,7 +300,7 @@ export default function InsightsPage() {
 
             {/* Readiness summary */}
             {report.readiness_summary && (
-              <div style={{ background: '#FFFFFF', border: '1px solid #C8DFE0', borderRadius: '20px', padding: '24px' }}>
+              <div style={{ background: '#FFFFFF', border: '1px solid #C8DFE0', borderRadius: '16px', padding: '24px' }}>
                 <div style={{ fontSize: '18px', fontWeight: 700, letterSpacing: '2px', textTransform: 'uppercase', color: '#1E2124', marginBottom: '20px' }}>AI Readiness Summary</div>
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '12px' }}>
                   {[
@@ -320,7 +320,7 @@ export default function InsightsPage() {
             )}
 
             {/* Raw analysis */}
-            <div style={{ background: '#FFFFFF', border: '1px solid #C8DFE0', borderRadius: '20px', overflow: 'hidden' }}>
+            <div style={{ background: '#FFFFFF', border: '1px solid #C8DFE0', borderRadius: '16px', overflow: 'hidden' }}>
               <div style={{ padding: '20px 24px', borderBottom: '1px solid #C8DFE0' }}>
                 <div style={{ fontSize: '18px', fontWeight: 700, letterSpacing: '2px', textTransform: 'uppercase', color: '#1E2124' }}>Full Gemini Analysis</div>
               </div>

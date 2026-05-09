@@ -172,7 +172,7 @@ const [openSections, setOpenSections] = useState<Set<string>>(
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
           {isAdmin && (
-            <Link href="/admin" style={{ fontSize: '18px', fontWeight: 700, color: '#3D6B00', background: 'rgba(192,244,60,0.12)', border: '1px solid rgba(192,244,60,0.3)', padding: '5px 12px', borderRadius: '8px', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <Link href="/admin" style={{ fontSize: '18px', fontWeight: 700, color: '#3D6B00', background: '#FFFFFF', border: '1px solid #C8DFE0', padding: '5px 12px', borderRadius: '8px', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '6px' }}>
               <svg width="11" height="11" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg>
               Admin Dashboard
             </Link>

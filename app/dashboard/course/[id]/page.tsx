@@ -300,7 +300,7 @@ function CourseContent() {
       {/* ── Pre-test popup ── */}
       {showPopup && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)', backdropFilter: 'blur(6px)', zIndex: 100, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '24px' }}>
-          <div style={{ background: '#FFFFFF', border: '1px solid #C8DFE0', borderRadius: '20px', padding: '36px 32px', maxWidth: '440px', width: '100%', boxShadow: '0 24px 80px rgba(0,0,0,0.2)' }}>
+          <div style={{ background: '#FFFFFF', border: '1px solid #C8DFE0', borderRadius: '16px', padding: '36px 32px', maxWidth: '440px', width: '100%', boxShadow: '0 24px 80px rgba(0,0,0,0.2)' }}>
             <div style={{ width: '44px', height: '44px', borderRadius: '12px', background: `${tierColor}18`, border: `1px solid ${tierColor}40`, display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '20px' }}>
               <svg width="20" height="20" fill="none" stroke={tierColor} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
             </div>
@@ -369,18 +369,18 @@ function CourseContent() {
         {step === 0 && (
           <div>
             <div style={{ display: 'flex', gap: '10px', alignItems: 'center', marginBottom: '20px' }}>
-              <span style={{ fontSize: '18px', fontWeight: 800, color: tierColor, textTransform: 'uppercase', letterSpacing: '1.5px', background: `${tierColor}15`, padding: '4px 12px', borderRadius: '20px' }}>
+              <span style={{ fontSize: '18px', fontWeight: 800, color: tierColor, textTransform: 'uppercase', letterSpacing: '1.5px', background: `${tierColor}15`, padding: '4px 12px', borderRadius: '16px' }}>
                 {course.tier_level} track
               </span>
               <span style={{ fontSize: '20px', color: '#1E2124', fontWeight: 600 }}>{course.estimated_minutes} min</span>
-              {course.is_mandatory && <span style={{ fontSize: '18px', fontWeight: 700, color: '#FF9F43', background: '#FF9F4315', padding: '4px 10px', borderRadius: '20px' }}>Mandatory</span>}
+              {course.is_mandatory && <span style={{ fontSize: '18px', fontWeight: 700, color: '#FF9F43', background: '#FF9F4315', padding: '4px 10px', borderRadius: '16px' }}>Mandatory</span>}
             </div>
 
             <h1 style={{ fontSize: '36px', fontWeight: 900, margin: '0 0 8px', letterSpacing: '-0.5px', lineHeight: 1.2, color: '#1E2124' }}>{course.title}</h1>
             <p style={{ fontSize: '18px', color: '#464D53', marginBottom: '32px' }}>{course.subtitle}</p>
 
             {prevResult?.passed && (
-              <div style={{ background: 'rgba(192,244,60,0.08)', border: '1px solid rgba(192,244,60,0.25)', borderRadius: '14px', padding: '16px 20px', marginBottom: '24px', display: 'flex', gap: '12px', alignItems: 'center' }}>
+              <div style={{ background: 'rgba(192,244,60,0.08)', border: '1px solid rgba(192,244,60,0.25)', borderRadius: '14px', padding: '18px 20px', marginBottom: '24px', display: 'flex', gap: '12px', alignItems: 'center' }}>
                 <svg width="18" height="18" fill="none" stroke="#C0F43C" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>
                 <div>
                   <div style={{ fontSize: '18px', fontWeight: 800, color: '#3D6B00' }}>Already completed — score: {prevResult.test_score}%</div>
@@ -493,7 +493,7 @@ function CourseContent() {
                 <div style={{ fontSize: '18px', fontWeight: 800, letterSpacing: '1.5px', textTransform: 'uppercase', color: submissionError ? '#FF6B6B' : '#464D53' }}>
                   Your Output
                 </div>
-                <span style={{ fontSize: '18px', fontWeight: 700, color: '#FF9F43', background: 'rgba(255,159,67,0.12)', border: '1px solid rgba(255,159,67,0.3)', padding: '2px 7px', borderRadius: '5px' }}>Required</span>
+                <span style={{ fontSize: '18px', fontWeight: 700, color: '#FF9F43', background: '#FFFFFF', border: '1px solid #C8DFE0', padding: '2px 7px', borderRadius: '5px' }}>Required</span>
               </div>
               <div style={{ background: 'rgba(255,159,67,0.06)', border: '1px solid rgba(255,159,67,0.2)', borderRadius: '10px', padding: '12px 14px', marginBottom: '12px', display: 'flex', gap: '10px', alignItems: 'flex-start' }}>
                 <svg width="14" height="14" fill="none" stroke="#FF9F43" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24" style={{ flexShrink: 0, marginTop: '1px' }}><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
@@ -699,7 +699,7 @@ function CourseContent() {
               <div style={{ fontSize: '18px', fontWeight: 800, letterSpacing: '2px', color: '#1E2124', textTransform: 'uppercase', marginBottom: '16px' }}>Question Breakdown</div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
                 {result.breakdown.map((item, i) => (
-                  <div key={i} style={{ background: item.is_correct ? 'rgba(192,244,60,0.05)' : 'rgba(255,107,107,0.05)', border: `1px solid ${item.is_correct ? 'rgba(192,244,60,0.2)' : 'rgba(255,107,107,0.2)'}`, borderRadius: '14px', padding: '18px 20px' }}>
+                  <div key={i} style={{ background: item.is_correct ? 'rgba(192,244,60,0.05)' : 'rgba(255,107,107,0.05)', border: `1px solid ${item.is_correct ? 'rgba(192,244,60,0.2)' : 'rgba(255,107,107,0.2)'}`, borderRadius: '14px', padding: '20px' }}>
                     <div style={{ display: 'flex', gap: '12px', alignItems: 'flex-start', marginBottom: '8px' }}>
                       <div style={{ width: '22px', height: '22px', borderRadius: '50%', background: item.is_correct ? '#C0F43C20' : '#FF6B6B20', border: `1.5px solid ${item.is_correct ? '#C0F43C' : '#FF6B6B'}`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
                         {item.is_correct

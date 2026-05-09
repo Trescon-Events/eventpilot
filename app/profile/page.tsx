@@ -360,7 +360,7 @@ function ProfileContent() {
     nav:    { background: '#FFFFFF', borderBottom: '1px solid #C8DFE0', padding: '0 40px', height: '56px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', boxShadow: '0 1px 3px rgba(0,165,163,0.08)' },
     center: { maxWidth: '640px', margin: '0 auto', padding: '0 24px' },
     label:  { fontSize: '18px', fontWeight: 800, letterSpacing: '2.5px', textTransform: 'uppercase' as const, color: '#00A5A3' },
-    input:  { width: '100%', padding: '16px 20px', borderRadius: '14px', border: '1px solid #C8DFE0', fontSize: '18px', color: '#1E2124', outline: 'none', fontFamily: 'inherit', background: '#FFFFFF', resize: 'vertical' as const, lineHeight: 1.65, boxSizing: 'border-box' as const },
+    input:  { width: '100%', padding: '18px 20px', borderRadius: '14px', border: '1px solid #C8DFE0', fontSize: '18px', color: '#1E2124', outline: 'none', fontFamily: 'inherit', background: '#FFFFFF', resize: 'vertical' as const, lineHeight: 1.65, boxSizing: 'border-box' as const },
   }
 
   /* ───────── DONE SCREEN ───────── */
@@ -378,7 +378,7 @@ function ProfileContent() {
         <p style={{ fontSize: '20px', color: '#464D53', lineHeight: 1.65, maxWidth: '440px', margin: '0 auto 40px' }}>
           Based on your answers, Trescademy has calculated your starting TAIRS score and placed you on the right learning track. Your courses are ready.
         </p>
-        <div style={{ background: '#FFFFFF', border: '1px solid #C8DFE0', borderRadius: '18px', padding: '24px 28px', marginBottom: '36px', textAlign: 'left', maxWidth: '420px' }}>
+        <div style={{ background: '#FFFFFF', border: '1px solid #C8DFE0', borderRadius: '16px', padding: '24px 28px', marginBottom: '36px', textAlign: 'left', maxWidth: '420px' }}>
           <div style={{ ...S.label, marginBottom: '14px' }}>What happens next</div>
           {[
             'Your TAIRS score is live on your dashboard',
@@ -509,7 +509,7 @@ function ProfileContent() {
               onChange={e => { setEmail(e.target.value); setVerifyError('') }}
               placeholder="yourname@tresconglobal.com"
               autoFocus
-              style={{ width: '100%', padding: '16px 20px', borderRadius: '14px', border: `1.5px solid ${verifyError ? '#FF6B6B' : '#D5D9DB'}`, background: 'white', color: '#1E2124', fontSize: '20px', outline: 'none', fontFamily: 'inherit', marginBottom: '12px', boxSizing: 'border-box' }}
+              style={{ width: '100%', padding: '18px 20px', borderRadius: '14px', border: `1.5px solid ${verifyError ? '#FF6B6B' : '#D5D9DB'}`, background: 'white', color: '#1E2124', fontSize: '20px', outline: 'none', fontFamily: 'inherit', marginBottom: '12px', boxSizing: 'border-box' }}
             />
             {verifyError && <p style={{ fontSize: '18px', color: '#E74C3C', marginBottom: '12px', fontWeight: 600 }}>{verifyError}</p>}
             <button type="submit" disabled={verifying || !email.trim()}

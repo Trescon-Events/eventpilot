@@ -43,7 +43,7 @@ export default function QuestionnaireContent() {
             const active = dept === d
             return (
               <button key={d} onClick={() => setDept(d)}
-                style={{ padding: '7px 16px', borderRadius: '20px', border: `1.5px solid ${active ? c.border : 'rgba(255,255,255,0.1)'}`, background: active ? c.bg : 'transparent', color: active ? c.text : 'rgba(255,255,255,0.55)', fontSize: '20px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap' }}>
+                style={{ padding: '7px 16px', borderRadius: '16px', border: `1.5px solid ${active ? c.border : 'rgba(255,255,255,0.1)'}`, background: active ? c.bg : 'transparent', color: active ? c.text : 'rgba(255,255,255,0.55)', fontSize: '20px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap' }}>
                 {d}
               </button>
             )
@@ -102,7 +102,7 @@ export default function QuestionnaireContent() {
                 {q.type === 'chips' && q.options && q.options.length > 0 && (
                   <div style={{ marginTop: '14px', display: 'flex', flexWrap: 'wrap', gap: '7px' }}>
                     {q.options.map(opt => (
-                      <span key={opt} style={{ padding: '5px 12px', borderRadius: '20px', border: '1px solid rgba(255,255,255,0.12)', fontSize: '20px', color: 'rgba(255,255,255,0.7)', background: 'rgba(255,255,255,0.04)', fontWeight: 600 }}>
+                      <span key={opt} style={{ padding: '5px 12px', borderRadius: '16px', border: '1px solid rgba(255,255,255,0.12)', fontSize: '20px', color: 'rgba(255,255,255,0.7)', background: 'rgba(255,255,255,0.04)', fontWeight: 600 }}>
                         {opt}
                       </span>
                     ))}
@@ -144,7 +144,7 @@ export default function QuestionnaireContent() {
         })}
       </div>
 
-      <div style={{ marginTop: '32px', padding: '16px 20px', background: 'rgba(0,165,163,0.06)', border: '1px solid rgba(0,165,163,0.2)', borderRadius: '12px', fontSize: '20px', color: 'rgba(255,255,255,0.6)', lineHeight: 1.6 }}>
+      <div style={{ marginTop: '32px', padding: '18px 20px', background: 'rgba(0,165,163,0.06)', border: '1px solid rgba(0,165,163,0.2)', borderRadius: '12px', fontSize: '20px', color: 'rgba(255,255,255,0.6)', lineHeight: 1.6 }}>
         <strong style={{ color: '#00A5A3' }}>Read-only preview.</strong> Staff go through this questionnaire once they join via the Trescademy portal. Answers are stored and visible in the Interview Answers tab of the admin dashboard.
       </div>
     </div>

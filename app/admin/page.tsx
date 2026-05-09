@@ -72,7 +72,7 @@ function QuestionnaireView({ qDept, setQDept }: { qDept: string; setQDept: (d: s
       <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginBottom: '28px' }}>
         {ALL_DEPARTMENTS.map(d => (
           <button key={d} onClick={() => setQDept(d)}
-            style={{ padding: '7px 16px', borderRadius: '20px', border: `1px solid ${qDept === d ? '#00A5A3' : '#C8DFE0'}`, background: qDept === d ? '#00A5A320' : 'transparent', color: qDept === d ? '#00A5A3' : '#464D53', fontSize: '20px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap' }}>
+            style={{ padding: '7px 16px', borderRadius: '16px', border: `1px solid ${qDept === d ? '#00A5A3' : '#C8DFE0'}`, background: qDept === d ? '#00A5A320' : 'transparent', color: qDept === d ? '#00A5A3' : '#464D53', fontSize: '20px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap' }}>
             {d}
           </button>
         ))}
@@ -91,7 +91,7 @@ function QuestionnaireView({ qDept, setQDept }: { qDept: string; setQDept: (d: s
       {/* Question cards */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
         {questions.map((q, idx) => (
-          <div key={q.id} style={{ background: '#FFFFFF', border: '1px solid #C8DFE0', borderRadius: '16px', padding: '22px 24px' }}>
+          <div key={q.id} style={{ background: '#FFFFFF', border: '1px solid #C8DFE0', borderRadius: '16px', padding: '24px' }}>
             {/* Step + type row */}
             <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '12px' }}>
               <div style={{ width: '26px', height: '26px', borderRadius: '50%', background: '#FFFFFF', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '18px', fontWeight: 800, color: '#464D53', flexShrink: 0 }}>
@@ -117,7 +117,7 @@ function QuestionnaireView({ qDept, setQDept }: { qDept: string; setQDept: (d: s
             {q.type === 'chips' && q.options && q.options.length > 0 && (
               <div style={{ marginTop: '14px', display: 'flex', flexWrap: 'wrap', gap: '7px' }}>
                 {q.options.map(opt => (
-                  <span key={opt} style={{ padding: '5px 12px', borderRadius: '20px', border: '1px solid #C8DFE0', fontSize: '20px', color: '#464D53', background: '#FFFFFF' }}>
+                  <span key={opt} style={{ padding: '5px 12px', borderRadius: '16px', border: '1px solid #C8DFE0', fontSize: '20px', color: '#464D53', background: '#FFFFFF' }}>
                     {opt}
                   </span>
                 ))}
@@ -994,7 +994,7 @@ export default function AdminPage() {
   if (!authed) {
     return (
       <div style={{ fontFamily: 'var(--font-manrope), Manrope, sans-serif', background: '#F6FFFE', minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '24px' }}>
-        <div style={{ background: '#FFFFFF', border: '1px solid #C8DFE0', borderRadius: '24px', padding: '48px 40px', maxWidth: '400px', width: '100%', textAlign: 'center', boxShadow: '0 1px 3px rgba(0,0,0,0.08)' }}>
+        <div style={{ background: '#FFFFFF', border: '1px solid #C8DFE0', borderRadius: '16px', padding: '48px 40px', maxWidth: '400px', width: '100%', textAlign: 'center', boxShadow: '0 1px 3px rgba(0,0,0,0.08)' }}>
           <div style={{ width: '56px', height: '56px', background: '#00A5A320', border: '2px solid #00A5A3', borderRadius: '16px', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 24px' }}>
             <svg width="24" height="24" fill="none" stroke="#00A5A3" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
           </div>
@@ -1025,7 +1025,7 @@ export default function AdminPage() {
       {/* ── Welcome Modal (first login only) ── */}
       {showWelcome && (
         <div style={{ position: 'fixed', inset: 0, zIndex: 1000, background: 'rgba(0,0,0,0.92)', backdropFilter: 'blur(6px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}>
-          <div style={{ background: '#FFFFFF', border: '1px solid rgba(0,165,163,0.35)', borderRadius: '24px', maxWidth: '640px', width: '100%', overflow: 'hidden', boxShadow: '0 32px 80px rgba(0,0,0,0.7), 0 0 0 1px rgba(0,165,163,0.08)' }}>
+          <div style={{ background: '#FFFFFF', border: '1px solid rgba(0,165,163,0.35)', borderRadius: '16px', maxWidth: '640px', width: '100%', overflow: 'hidden', boxShadow: '0 32px 80px rgba(0,0,0,0.7), 0 0 0 1px rgba(0,165,163,0.08)' }}>
 
             {/* Top colour bar */}
             <div style={{ height: '4px', background: 'linear-gradient(90deg, #00A5A3 0%, #C0F43C 60%, #A478FF 100%)' }} />
@@ -1250,7 +1250,7 @@ export default function AdminPage() {
 
         {/* ── Getting Started Card (until all 3 steps done) ── */}
         {!(gettingStarted.staff && gettingStarted.brief && gettingStarted.course) && (
-          <div id="tour-started" style={{ marginBottom: '28px', background: 'rgba(0,165,163,0.06)', border: '1px solid rgba(0,165,163,0.2)', borderRadius: '18px', padding: '24px 28px' }}>
+          <div id="tour-started" style={{ marginBottom: '28px', background: 'rgba(0,165,163,0.06)', border: '1px solid rgba(0,165,163,0.2)', borderRadius: '16px', padding: '24px 28px' }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '18px' }}>
               <div>
                 <div style={{ fontSize: '18px', fontWeight: 800, letterSpacing: '2px', textTransform: 'uppercase', color: '#00A5A3', marginBottom: '4px' }}>Getting Started</div>
@@ -1289,8 +1289,8 @@ export default function AdminPage() {
         )}
 
         {/* ── Zone 1: Participation Banner ── */}
-        <div id="tour-stats" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1.2fr', gap: '0', marginBottom: '28px', background: '#FFFFFF', border: '1px solid #C8DFE0', borderRadius: '20px', overflow: 'hidden' }}>
-          <div style={{ padding: '26px 30px', borderRight: '1px solid #C8DFE0' }}>
+        <div id="tour-stats" style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '0', marginBottom: '28px', background: '#FFFFFF', border: '1px solid #C8DFE0', borderRadius: '16px', overflow: 'hidden' }}>
+          <div style={{ padding: '24px', borderRight: '1px solid #C8DFE0' }}>
             <div style={{ fontSize: '18px', fontWeight: 700, letterSpacing: '1.5px', textTransform: 'uppercase', color: '#464D53', marginBottom: '10px' }}>Staff in System</div>
             <div style={{ display: 'flex', alignItems: 'baseline', gap: '8px', marginBottom: '10px' }}>
               <span style={{ fontSize: '48px', fontWeight: 900, color: '#00A5A3', lineHeight: 1 }}>{totalJoined}</span>
@@ -1301,7 +1301,7 @@ export default function AdminPage() {
             </div>
             <div style={{ fontSize: '20px', color: '#464D53' }}>{totalJoined > 0 ? Math.round(profilesComplete / totalJoined * 100) : 0}% profiles complete · {profilePending} pending</div>
           </div>
-          <div style={{ padding: '26px 30px', borderRight: '1px solid #C8DFE0' }}>
+          <div style={{ padding: '24px', borderRight: '1px solid #C8DFE0' }}>
             <div style={{ fontSize: '18px', fontWeight: 700, letterSpacing: '1.5px', textTransform: 'uppercase', color: '#464D53', marginBottom: '10px' }}>Profiles Complete</div>
             <div style={{ display: 'flex', alignItems: 'baseline', gap: '8px', marginBottom: '10px' }}>
               <span style={{ fontSize: '48px', fontWeight: 900, color: '#007A6E', lineHeight: 1 }}>{profilesComplete}</span>
@@ -1312,7 +1312,7 @@ export default function AdminPage() {
             </div>
             <div style={{ fontSize: '20px', color: '#464D53' }}>{totalJoined > 0 ? Math.round(profilesComplete / totalJoined * 100) : 0}% completion rate · {totalTasks} entries captured</div>
           </div>
-          <div style={{ padding: '26px 30px', background: orgScore >= 55 ? 'rgba(192,244,60,0.04)' : orgScore >= 35 ? 'rgba(244,237,60,0.04)' : 'rgba(0,165,163,0.04)' }}>
+          <div style={{ padding: '24px', background: orgScore >= 55 ? 'rgba(192,244,60,0.04)' : orgScore >= 35 ? 'rgba(244,237,60,0.04)' : 'rgba(0,165,163,0.04)' }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '10px' }}>
               <div style={{ fontSize: '18px', fontWeight: 700, letterSpacing: '1.5px', textTransform: 'uppercase', color: '#464D53' }}>AI Readiness Score</div>
               <Link href="/docs" style={{ fontSize: '18px', color: '#464D53', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '4px' }}>
@@ -1361,7 +1361,7 @@ export default function AdminPage() {
                     const count = tierCounts[t.label] ?? 0
                     const pct   = Math.round(count / total * 100)
                     return (
-                      <div key={t.label} style={{ padding: '18px 20px', borderRight: i < 4 ? '1px solid #C8DFE0' : 'none', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                      <div key={t.label} style={{ padding: '20px', borderRight: i < 4 ? '1px solid #C8DFE0' : 'none', display: 'flex', flexDirection: 'column', gap: '6px' }}>
                         <div style={{ fontSize: '20px', fontWeight: 800, letterSpacing: '0.5px', color: t.color }}>{t.range}</div>
                         <div style={{ display: 'flex', alignItems: 'baseline', gap: '6px' }}>
                           <span style={{ fontSize: '36px', fontWeight: 900, color: count > 0 ? t.color : '#C8DFE0', lineHeight: 1 }}>{count}</span>
@@ -1380,7 +1380,7 @@ export default function AdminPage() {
             })()}
 
             {/* ── Zone 2: Department Intelligence Table + Office Cards ── */}
-            <div style={{ display: 'grid', gridTemplateColumns: '1.6fr 1fr', gap: '16px' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
 
               {/* Left: Department Readiness Table */}
               {(() => {
@@ -1413,9 +1413,9 @@ export default function AdminPage() {
                   'AI-Unaware':  'Digital literacy first · personal plan via HR',
                 }
                 return (
-                  <div style={{ background: '#FFFFFF', border: '1px solid #C8DFE0', borderRadius: '20px', overflow: 'hidden' }}>
+                  <div style={{ background: '#FFFFFF', border: '1px solid #C8DFE0', borderRadius: '16px', overflow: 'hidden' }}>
                     {/* Header + filters */}
-                    <div style={{ padding: '16px 20px', borderBottom: '1px solid #C8DFE0' }}>
+                    <div style={{ padding: '18px 20px', borderBottom: '1px solid #C8DFE0' }}>
                       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
                         <div>
                           <div style={{ fontSize: '18px', fontWeight: 700, letterSpacing: '1.5px', textTransform: 'uppercase', color: '#464D53' }}>Department Readiness</div>
@@ -1432,7 +1432,7 @@ export default function AdminPage() {
                           const count  = f.id === 'all' ? sortedDeptTairs.length : sortedDeptTairs.filter(d => tairsTier(d.score).label === f.id).length
                           return (
                             <button key={f.id} onClick={() => setDeptTierFilter(f.id)}
-                              style={{ padding: '4px 10px', borderRadius: '20px', border: `1px solid ${active ? f.color : '#C8DFE0'}`, background: active ? `${f.color}18` : 'transparent', color: active ? f.color : '#464D53', fontSize: '18px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: '4px', transition: 'all 0.15s' }}>
+                              style={{ padding: '4px 10px', borderRadius: '16px', border: `1px solid ${active ? f.color : '#C8DFE0'}`, background: active ? `${f.color}18` : 'transparent', color: active ? f.color : '#464D53', fontSize: '18px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: '4px', transition: 'all 0.15s' }}>
                               {f.label}
                               {f.id !== 'all' && count > 0 && <span style={{ fontSize: '9px', opacity: 0.7 }}>{count}</span>}
                             </button>
@@ -1445,7 +1445,7 @@ export default function AdminPage() {
                           if (count === 0) return null
                           return (
                             <button key={f.id} onClick={() => setDeptTierFilter(f.id)}
-                              style={{ padding: '4px 10px', borderRadius: '20px', border: `1px solid ${active ? f.color : '#C8DFE0'}`, background: active ? `${f.color}18` : 'transparent', color: active ? f.color : '#464D53', fontSize: '18px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: '4px', transition: 'all 0.15s' }}>
+                              style={{ padding: '4px 10px', borderRadius: '16px', border: `1px solid ${active ? f.color : '#C8DFE0'}`, background: active ? `${f.color}18` : 'transparent', color: active ? f.color : '#464D53', fontSize: '18px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: '4px', transition: 'all 0.15s' }}>
                               {f.id}
                               <span style={{ fontSize: '9px', opacity: 0.7 }}>{count}</span>
                             </button>
@@ -1534,7 +1534,7 @@ export default function AdminPage() {
                 </div>
 
                 {/* AI Champions */}
-                <div style={{ background: '#FFFFFF', border: '1px solid #C8DFE0', borderRadius: '16px', padding: '18px 20px', flex: 1 }}>
+                <div style={{ background: '#FFFFFF', border: '1px solid #C8DFE0', borderRadius: '16px', padding: '20px', flex: 1 }}>
                   <div style={{ fontSize: '18px', fontWeight: 700, letterSpacing: '1.5px', textTransform: 'uppercase', color: '#464D53', marginBottom: '14px' }}>AI Champions</div>
                   {topIndividuals.length === 0 ? (
                     <div style={{ fontSize: '18px', color: '#464D53' }}>No interview data yet</div>
@@ -1578,7 +1578,7 @@ export default function AdminPage() {
               const deptData = d !== 'all' ? deptMap[d] : null
               return (
                 <button key={d} onClick={() => setReadinessDeptFilter(d)}
-                  style={{ padding: '4px 12px', borderRadius: '20px', border: `1px solid ${active ? '#00A5A3' : '#C8DFE0'}`, background: active ? 'rgba(0,165,163,0.15)' : 'transparent', color: active ? '#00A5A3' : '#464D53', fontSize: '18px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: '5px', transition: 'all 0.15s' }}>
+                  style={{ padding: '4px 12px', borderRadius: '16px', border: `1px solid ${active ? '#00A5A3' : '#C8DFE0'}`, background: active ? 'rgba(0,165,163,0.15)' : 'transparent', color: active ? '#00A5A3' : '#464D53', fontSize: '18px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: '5px', transition: 'all 0.15s' }}>
                   {d === 'all' ? 'All Departments' : d}
                   {deptData && <span style={{ fontSize: '18px', color: active ? '#00A5A3' : '#464D53', fontWeight: 400 }}>({deptData.complete})</span>}
                 </button>
@@ -1587,7 +1587,7 @@ export default function AdminPage() {
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
             {/* Readiness distribution */}
-            <div style={{ background: '#FFFFFF', border: '1px solid #C8DFE0', borderRadius: '20px', padding: '24px' }}>
+            <div style={{ background: '#FFFFFF', border: '1px solid #C8DFE0', borderRadius: '16px', padding: '24px' }}>
               <div style={{ display: 'flex', alignItems: 'baseline', gap: '8px', marginBottom: '4px' }}>
                 <div style={{ fontSize: '18px', fontWeight: 700, letterSpacing: '2px', textTransform: 'uppercase', color: '#464D53' }}>Self-Reported Readiness</div>
                 {readinessDeptFilter !== 'all' && (
@@ -1632,7 +1632,7 @@ export default function AdminPage() {
               )}
             </div>
             {/* Top tools */}
-            <div style={{ background: '#FFFFFF', border: '1px solid #C8DFE0', borderRadius: '20px', padding: '24px' }}>
+            <div style={{ background: '#FFFFFF', border: '1px solid #C8DFE0', borderRadius: '16px', padding: '24px' }}>
               <div style={{ display: 'flex', alignItems: 'baseline', gap: '8px', marginBottom: '4px' }}>
                 <div style={{ fontSize: '18px', fontWeight: 700, letterSpacing: '2px', textTransform: 'uppercase', color: '#464D53' }}>Top Tools Used</div>
                 {readinessDeptFilter !== 'all' && (
@@ -1692,13 +1692,13 @@ export default function AdminPage() {
                   value={memberSearch}
                   onChange={e => setMemberSearch(e.target.value)}
                   placeholder="Search name, email, dept…"
-                  style={{ width: '100%', paddingLeft: '34px', paddingRight: '12px', paddingTop: '7px', paddingBottom: '7px', borderRadius: '20px', border: '1px solid #C8DFE0', background: '#FFFFFF', color: '#1E2124', fontSize: '20px', fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box' }}
+                  style={{ width: '100%', paddingLeft: '34px', paddingRight: '12px', paddingTop: '7px', paddingBottom: '7px', borderRadius: '16px', border: '1px solid #C8DFE0', background: '#FFFFFF', color: '#1E2124', fontSize: '20px', fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box' }}
                 />
               </div>
               <div style={{ width: '1px', height: '24px', background: '#FFFFFF' }} />
               {([['all', 'All'], ['done', 'Assessed'], ['pending', 'Pending']] as const).map(([val, label]) => (
                 <button key={val} onClick={() => setInterviewFilter(val)}
-                  style={{ padding: '5px 14px', borderRadius: '20px', border: `1px solid ${interviewFilter === val ? '#C0F43C' : '#C8DFE0'}`, background: interviewFilter === val ? 'rgba(192,244,60,0.12)' : 'transparent', color: interviewFilter === val ? '#C0F43C' : '#464D53', fontSize: '20px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
+                  style={{ padding: '5px 14px', borderRadius: '16px', border: `1px solid ${interviewFilter === val ? '#C0F43C' : '#C8DFE0'}`, background: interviewFilter === val ? 'rgba(192,244,60,0.12)' : 'transparent', color: interviewFilter === val ? '#C0F43C' : '#464D53', fontSize: '20px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
                   {label}
                 </button>
               ))}
@@ -1712,7 +1712,7 @@ export default function AdminPage() {
                 const off = OFFICES.find(o => o.id === f)
                 return (
                   <button key={f} onClick={() => setOfficeFilter(f)}
-                    style={{ padding: '4px 12px', borderRadius: '20px', border: `1px solid ${officeFilter === f ? (off?.color ?? '#00A5A3') : '#C8DFE0'}`, background: officeFilter === f ? `${off?.color ?? '#00A5A3'}18` : 'transparent', color: officeFilter === f ? (off?.color ?? '#00A5A3') : '#464D53', fontSize: '18px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
+                    style={{ padding: '4px 12px', borderRadius: '16px', border: `1px solid ${officeFilter === f ? (off?.color ?? '#00A5A3') : '#C8DFE0'}`, background: officeFilter === f ? `${off?.color ?? '#00A5A3'}18` : 'transparent', color: officeFilter === f ? (off?.color ?? '#00A5A3') : '#464D53', fontSize: '18px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
                     {f === 'all' ? 'All Offices' : off?.label}
                   </button>
                 )
@@ -1720,7 +1720,7 @@ export default function AdminPage() {
               <div style={{ width: '1px', height: '18px', background: '#FFFFFF' }} />
               {['all', ...allDepts].map(d => (
                 <button key={d} onClick={() => setDeptFilter(d)}
-                  style={{ padding: '4px 12px', borderRadius: '20px', border: `1px solid ${deptFilter === d ? '#00A5A3' : '#C8DFE0'}`, background: deptFilter === d ? 'rgba(0,165,163,0.12)' : 'transparent', color: deptFilter === d ? '#00A5A3' : '#464D53', fontSize: '18px', fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>
+                  style={{ padding: '4px 12px', borderRadius: '16px', border: `1px solid ${deptFilter === d ? '#00A5A3' : '#C8DFE0'}`, background: deptFilter === d ? 'rgba(0,165,163,0.12)' : 'transparent', color: deptFilter === d ? '#00A5A3' : '#464D53', fontSize: '18px', fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>
                   {d === 'all' ? 'All Depts' : d}
                 </button>
               ))}
@@ -1730,7 +1730,7 @@ export default function AdminPage() {
 
         {/* ── Overview tab ── */}
         {tab === 'overview' && (
-          <div style={{ background: '#FFFFFF', border: '1px solid #C8DFE0', borderRadius: '20px', overflow: 'hidden' }}>
+          <div style={{ background: '#FFFFFF', border: '1px solid #C8DFE0', borderRadius: '16px', overflow: 'hidden' }}>
             {/* Header */}
             <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr 120px 100px', gap: '0', padding: '10px 24px', borderBottom: '1px solid #C8DFE0', background: '#FFFFFF' }}>
               {['Name', 'Office', 'Department', 'Interview', 'Joined'].map(h => (
@@ -1822,7 +1822,7 @@ export default function AdminPage() {
               }
               const PRIORITY_COLOR: Record<string,string> = { high: '#FF6B6B', medium: '#FF9F43', low: '#C0F43C' }
               return (
-                <div style={{ background: 'rgba(164,120,255,0.06)', border: '1px solid rgba(164,120,255,0.2)', borderRadius: '20px', padding: '24px', marginBottom: '20px' }}>
+                <div style={{ background: 'rgba(164,120,255,0.06)', border: '1px solid rgba(164,120,255,0.2)', borderRadius: '16px', padding: '24px', marginBottom: '20px' }}>
                   <div style={{ fontSize: '18px', fontWeight: 800, letterSpacing: '2px', textTransform: 'uppercase', color: '#A478FF', marginBottom: '12px' }}>AI Feedback Analysis</div>
 
                   {/* Summary */}
@@ -1893,7 +1893,7 @@ export default function AdminPage() {
             })()}
 
             {/* Raw submissions */}
-            <div style={{ background: '#FFFFFF', border: '1px solid #C8DFE0', borderRadius: '20px', overflow: 'hidden' }}>
+            <div style={{ background: '#FFFFFF', border: '1px solid #C8DFE0', borderRadius: '16px', overflow: 'hidden' }}>
               <div style={{ padding: '14px 24px', borderBottom: '1px solid #C8DFE0' }}>
                 <div style={{ fontSize: '18px', fontWeight: 700, color: '#464D53', letterSpacing: '1px', textTransform: 'uppercase' }}>All Submissions</div>
               </div>
@@ -1917,7 +1917,7 @@ export default function AdminPage() {
 
         {/* ── Members tab ── */}
         {tab === 'members' && (
-          <div style={{ background: '#FFFFFF', border: '1px solid #C8DFE0', borderRadius: '20px', overflow: 'hidden' }}>
+          <div style={{ background: '#FFFFFF', border: '1px solid #C8DFE0', borderRadius: '16px', overflow: 'hidden' }}>
             <div style={{ padding: '16px 24px', borderBottom: '1px solid #C8DFE0' }}>
               <span style={{ fontSize: '18px', fontWeight: 700, letterSpacing: '2px', textTransform: 'uppercase', color: '#464D53' }}>{filteredMembers.length} Members</span>
             </div>
@@ -2235,7 +2235,7 @@ export default function AdminPage() {
                   { label: 'Avg Passing Score',    value: avgScore ? `${avgScore}%` : '—', sub: 'across all passes' },
                   { label: 'Active Learners',      value: activeStaff,            sub: 'attempted a course'  },
                 ].map(({ label, value, sub }) => (
-                  <div key={label} style={{ background: '#FFFFFF', border: '1px solid #C8DFE0', borderRadius: '14px', padding: '18px 20px' }}>
+                  <div key={label} style={{ background: '#FFFFFF', border: '1px solid #C8DFE0', borderRadius: '14px', padding: '20px' }}>
                     <div style={{ fontSize: '18px', fontWeight: 700, letterSpacing: '1.5px', textTransform: 'uppercase', color: '#464D53', marginBottom: '6px' }}>{label}</div>
                     <div style={{ fontSize: '36px', fontWeight: 900, color: '#1E2124', marginBottom: '2px' }}>{value}</div>
                     <div style={{ fontSize: '18px', color: '#1E2124' }}>{sub}</div>
@@ -2246,8 +2246,8 @@ export default function AdminPage() {
               <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: '16px', marginBottom: '20px' }}>
 
                 {/* Course completion table */}
-                <div style={{ background: '#FFFFFF', border: '1px solid #C8DFE0', borderRadius: '18px', overflow: 'hidden' }}>
-                  <div style={{ padding: '16px 20px', borderBottom: '1px solid #C8DFE0' }}>
+                <div style={{ background: '#FFFFFF', border: '1px solid #C8DFE0', borderRadius: '16px', overflow: 'hidden' }}>
+                  <div style={{ padding: '18px 20px', borderBottom: '1px solid #C8DFE0' }}>
                     <div style={{ fontSize: '18px', fontWeight: 700, letterSpacing: '1.5px', textTransform: 'uppercase', color: '#464D53' }}>Course Performance</div>
                     <div style={{ fontSize: '20px', color: '#1E2124', marginTop: '2px' }}>Completions and avg score per course</div>
                   </div>
@@ -2276,7 +2276,7 @@ export default function AdminPage() {
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
 
                   {/* Dept completion */}
-                  <div style={{ background: '#FFFFFF', border: '1px solid #C8DFE0', borderRadius: '18px', overflow: 'hidden' }}>
+                  <div style={{ background: '#FFFFFF', border: '1px solid #C8DFE0', borderRadius: '16px', overflow: 'hidden' }}>
                     <div style={{ padding: '14px 18px', borderBottom: '1px solid #C8DFE0' }}>
                       <div style={{ fontSize: '18px', fontWeight: 700, letterSpacing: '1.5px', textTransform: 'uppercase', color: '#464D53' }}>By Department</div>
                     </div>
@@ -2294,7 +2294,7 @@ export default function AdminPage() {
                   </div>
 
                   {/* Top learners */}
-                  <div style={{ background: '#FFFFFF', border: '1px solid #C8DFE0', borderRadius: '18px', overflow: 'hidden' }}>
+                  <div style={{ background: '#FFFFFF', border: '1px solid #C8DFE0', borderRadius: '16px', overflow: 'hidden' }}>
                     <div style={{ padding: '14px 18px', borderBottom: '1px solid #C8DFE0' }}>
                       <div style={{ fontSize: '18px', fontWeight: 700, letterSpacing: '1.5px', textTransform: 'uppercase', color: '#464D53' }}>Top Learners</div>
                     </div>
@@ -2386,7 +2386,7 @@ export default function AdminPage() {
             <div>
 
               {/* Tier Playbook Table */}
-              <div style={{ background: '#FFFFFF', border: '1px solid #C8DFE0', borderRadius: '20px', overflow: 'hidden', marginBottom: '24px' }}>
+              <div style={{ background: '#FFFFFF', border: '1px solid #C8DFE0', borderRadius: '16px', overflow: 'hidden', marginBottom: '24px' }}>
                 <div style={{ padding: '18px 24px', borderBottom: '1px solid #C8DFE0', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                   <div>
                     <div style={{ fontSize: '18px', fontWeight: 700, letterSpacing: '2px', textTransform: 'uppercase', color: '#464D53', marginBottom: '3px' }}>AI Readiness Playbook</div>
@@ -2424,7 +2424,7 @@ export default function AdminPage() {
               </div>
 
               {/* Live Department Action Matrix */}
-              <div style={{ background: '#FFFFFF', border: '1px solid #C8DFE0', borderRadius: '20px', overflow: 'hidden', marginBottom: '24px' }}>
+              <div style={{ background: '#FFFFFF', border: '1px solid #C8DFE0', borderRadius: '16px', overflow: 'hidden', marginBottom: '24px' }}>
                 <div style={{ padding: '18px 24px', borderBottom: '1px solid #C8DFE0' }}>
                   <div style={{ fontSize: '18px', fontWeight: 700, letterSpacing: '2px', textTransform: 'uppercase', color: '#464D53', marginBottom: '3px' }}>Department Action Matrix — Live</div>
                   <div style={{ fontSize: '18px', color: '#464D53' }}>Each department mapped to its current tier and the recommended action to take now. Updates as more staff complete interviews.</div>
@@ -2491,7 +2491,7 @@ export default function AdminPage() {
                   Dev tools
                 </button>
                 {showDevTools && (
-                  <div style={{ background: '#FFFFFF', border: '1px dashed #C8DFE0', borderRadius: '12px', padding: '16px 20px', marginTop: '8px' }}>
+                  <div style={{ background: '#FFFFFF', border: '1px dashed #C8DFE0', borderRadius: '12px', padding: '18px 20px', marginTop: '8px' }}>
                     <div style={{ fontSize: '18px', fontWeight: 700, letterSpacing: '1.5px', textTransform: 'uppercase', color: '#1E2124', marginBottom: '10px' }}>Demo Data</div>
                     <div style={{ fontSize: '20px', color: '#464D53', marginBottom: '12px' }}>
                       Seed 21 demo staff across 4 offices. All use <code style={{ background: '#FFFFFF', padding: '1px 4px', borderRadius: '3px', fontSize: '18px' }}>@demo.tai</code> emails — safe to clear.
@@ -2525,7 +2525,7 @@ export default function AdminPage() {
 
             {/* Input panel */}
             {(suggestState === 'idle' || suggestState === 'thinking') && (
-              <div style={{ background: 'rgba(164,120,255,0.06)', border: '1px solid rgba(164,120,255,0.2)', borderRadius: '20px', padding: '28px' }}>
+              <div style={{ background: 'rgba(164,120,255,0.06)', border: '1px solid rgba(164,120,255,0.2)', borderRadius: '16px', padding: '28px' }}>
                 <div style={{ marginBottom: '18px' }}>
                   <label style={{ display: 'block', fontSize: '18px', fontWeight: 800, letterSpacing: '1.5px', textTransform: 'uppercase', color: '#464D53', marginBottom: '8px' }}>Your Suggestion</label>
                   <textarea
@@ -2597,7 +2597,7 @@ export default function AdminPage() {
 
             {/* Thinking state — conversational response */}
             {suggestState === 'thinking' && (
-              <div style={{ marginTop: '20px', background: 'rgba(164,120,255,0.08)', border: '1px solid rgba(164,120,255,0.25)', borderRadius: '16px', padding: '22px 24px', display: 'flex', gap: '16px', alignItems: 'flex-start' }}>
+              <div style={{ marginTop: '20px', background: 'rgba(164,120,255,0.08)', border: '1px solid rgba(164,120,255,0.25)', borderRadius: '16px', padding: '24px', display: 'flex', gap: '16px', alignItems: 'flex-start' }}>
                 <div style={{ width: '36px', height: '36px', borderRadius: '50%', background: 'rgba(164,120,255,0.2)', border: '2px solid rgba(164,120,255,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
                   <svg width="16" height="16" fill="none" stroke="#A478FF" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
                 </div>
@@ -2631,7 +2631,7 @@ export default function AdminPage() {
                 </div>
 
                 {/* Course preview */}
-                <div style={{ background: '#FFFFFF', border: '1px solid #C8DFE0', borderRadius: '20px', overflow: 'hidden', marginBottom: '20px' }}>
+                <div style={{ background: '#FFFFFF', border: '1px solid #C8DFE0', borderRadius: '16px', overflow: 'hidden', marginBottom: '20px' }}>
                   <div style={{ padding: '20px 24px', borderBottom: '1px solid #C8DFE0' }}>
                     <div style={{ fontSize: '18px', fontWeight: 800, color: '#A478FF', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '6px' }}>{(generatedCourse.tier_level as string)} · {suggestDept}</div>
                     <div style={{ fontSize: '20px', fontWeight: 900, color: '#1E2124', marginBottom: '4px' }}>{generatedCourse.title as string}</div>
@@ -2735,7 +2735,7 @@ export default function AdminPage() {
                       value={staffSearch}
                       onChange={e => setStaffSearch(e.target.value)}
                       placeholder="Search name, email, department…"
-                      style={{ width: '100%', boxSizing: 'border-box', paddingLeft: '34px', paddingRight: '12px', paddingTop: '8px', paddingBottom: '8px', borderRadius: '20px', border: '1px solid #C8DFE0', background: '#FFFFFF', color: '#1E2124', fontSize: '20px', fontFamily: 'inherit', outline: 'none' }}
+                      style={{ width: '100%', boxSizing: 'border-box', paddingLeft: '34px', paddingRight: '12px', paddingTop: '8px', paddingBottom: '8px', borderRadius: '16px', border: '1px solid #C8DFE0', background: '#FFFFFF', color: '#1E2124', fontSize: '20px', fontFamily: 'inherit', outline: 'none' }}
                     />
                   </div>
                   <button onClick={fetchStaffList} disabled={staffLoading}
@@ -2798,7 +2798,7 @@ export default function AdminPage() {
                                   await fetch('/api/staff-access', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: s.id, enabled: !isEnabled }) })
                                   fetchStaffList()
                                 }}
-                                style={{ fontSize: '18px', fontWeight: 800, padding: '3px 10px', borderRadius: '20px', border: 'none', cursor: 'pointer', fontFamily: 'inherit', background: isEnabled ? 'rgba(192,244,60,0.15)' : '#C8DFE0', color: isEnabled ? '#C0F43C' : '#1E2124', letterSpacing: '0.5px' }}
+                                style={{ fontSize: '18px', fontWeight: 800, padding: '3px 10px', borderRadius: '16px', border: 'none', cursor: 'pointer', fontFamily: 'inherit', background: isEnabled ? 'rgba(192,244,60,0.15)' : '#C8DFE0', color: isEnabled ? '#C0F43C' : '#1E2124', letterSpacing: '0.5px' }}
                               >
                                 {isEnabled ? 'Active' : 'Disabled'}
                               </button>
@@ -2814,7 +2814,7 @@ export default function AdminPage() {
             {/* ── MODE: ADD SINGLE STAFF ── */}
             {staffMode === 'add' && (
               <div style={{ maxWidth: '600px' }}>
-                <div style={{ background: 'rgba(255,159,67,0.06)', border: '1px solid rgba(255,159,67,0.2)', borderRadius: '20px', padding: '28px' }}>
+                <div style={{ background: 'rgba(255,159,67,0.06)', border: '1px solid rgba(255,159,67,0.2)', borderRadius: '16px', padding: '28px' }}>
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '16px' }}>
                     {([
                       ['name',          'Full Name',      'e.g. Priya Menon',            'text'],
@@ -2857,7 +2857,7 @@ export default function AdminPage() {
                   </div>
 
                   {addError && (
-                    <div style={{ marginBottom: '16px', padding: '10px 14px', borderRadius: '10px', background: 'rgba(255,107,107,0.1)', border: '1px solid rgba(255,107,107,0.3)', color: '#FF6B6B', fontSize: '18px' }}>{addError}</div>
+                    <div style={{ marginBottom: '16px', padding: '10px 14px', borderRadius: '10px', background: '#FFFFFF', border: '1px solid #fecaca', color: '#FF6B6B', fontSize: '18px' }}>{addError}</div>
                   )}
 
                   <button onClick={addSingleStaff} disabled={addState === 'saving'}
@@ -3333,13 +3333,13 @@ export default function AdminPage() {
                         <div key={ev.id} style={{ background: '#FFFFFF', border: '1px solid #C8DFE0', borderRadius: '16px', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
                           {/* Colour bar */}
                           <div style={{ height: '3px', background: tc, opacity: 0.7 }} />
-                          <div style={{ padding: '18px 20px', flex: 1, display: 'flex', flexDirection: 'column' }}>
+                          <div style={{ padding: '20px', flex: 1, display: 'flex', flexDirection: 'column' }}>
                             {/* Top row: name + badges */}
                             <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '10px', marginBottom: '8px' }}>
                               <div style={{ fontSize: '18px', fontWeight: 800, color: '#1E2124', lineHeight: 1.3, flex: 1 }}>{ev.name}</div>
                               <div style={{ display: 'flex', gap: '6px', flexShrink: 0 }}>
-                                <span style={{ fontSize: '18px', fontWeight: 700, padding: '2px 8px', borderRadius: '20px', background: `${tc}20`, color: tc, border: `1px solid ${tc}40`, whiteSpace: 'nowrap', textTransform: 'capitalize' }}>{ev.type}</span>
-                                <span style={{ fontSize: '18px', fontWeight: 700, padding: '2px 8px', borderRadius: '20px', background: sc.bg, color: sc.color, whiteSpace: 'nowrap', textTransform: 'capitalize' }}>{ev.status}</span>
+                                <span style={{ fontSize: '18px', fontWeight: 700, padding: '2px 8px', borderRadius: '16px', background: `${tc}20`, color: tc, border: `1px solid ${tc}40`, whiteSpace: 'nowrap', textTransform: 'capitalize' }}>{ev.type}</span>
+                                <span style={{ fontSize: '18px', fontWeight: 700, padding: '2px 8px', borderRadius: '16px', background: sc.bg, color: sc.color, whiteSpace: 'nowrap', textTransform: 'capitalize' }}>{ev.status}</span>
                               </div>
                             </div>
 
@@ -3357,7 +3357,7 @@ export default function AdminPage() {
                                 { icon: <svg width="11" height="11" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>, val: taskCount, label: 'tasks' },
                                 { icon: <svg width="11" height="11" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>, val: docCount, label: 'docs' },
                               ].map(chip => (
-                                <div key={chip.label} style={{ display: 'flex', alignItems: 'center', gap: '5px', padding: '4px 10px', borderRadius: '20px', background: '#FFFFFF', border: '1px solid #C8DFE0' }}>
+                                <div key={chip.label} style={{ display: 'flex', alignItems: 'center', gap: '5px', padding: '4px 10px', borderRadius: '16px', background: '#FFFFFF', border: '1px solid #C8DFE0' }}>
                                   <span style={{ color: '#1E2124' }}>{chip.icon}</span>
                                   <span style={{ fontSize: '18px', fontWeight: 700, color: '#1E2124' }}>{chip.val}</span>
                                   <span style={{ fontSize: '18px', color: '#1E2124' }}>{chip.label}</span>
@@ -3619,7 +3619,7 @@ export default function AdminPage() {
                       ...(flaggedCount > 0 ? [{ key:'flagged', label:`Flagged (${flaggedCount})` }] : []),
                     ] as {key:string;label:string}[]).map(f => (
                       <button key={f.key} onClick={() => setDocFilter(f.key as typeof docFilter)}
-                        style={{ padding: '6px 14px', borderRadius: '20px', border: `1px solid ${docFilter === f.key ? (f.key === 'flagged' ? 'rgba(255,159,67,0.5)' : 'rgba(192,244,60,0.4)') : '#C8DFE0'}`, background: docFilter === f.key ? (f.key === 'flagged' ? 'rgba(255,159,67,0.1)' : 'rgba(192,244,60,0.08)') : 'transparent', color: docFilter === f.key ? (f.key === 'flagged' ? '#FF9F43' : '#C0F43C') : '#1E2124', fontSize: '20px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
+                        style={{ padding: '6px 14px', borderRadius: '16px', border: `1px solid ${docFilter === f.key ? (f.key === 'flagged' ? 'rgba(255,159,67,0.5)' : 'rgba(192,244,60,0.4)') : '#C8DFE0'}`, background: docFilter === f.key ? (f.key === 'flagged' ? 'rgba(255,159,67,0.1)' : 'rgba(192,244,60,0.08)') : 'transparent', color: docFilter === f.key ? (f.key === 'flagged' ? '#FF9F43' : '#C0F43C') : '#1E2124', fontSize: '20px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
                         {f.label}
                       </button>
                     ))}
@@ -3640,14 +3640,14 @@ export default function AdminPage() {
                             <div style={{ padding: '16px', flex: 1, display: 'flex', flexDirection: 'column', gap: '10px' }}>
                               {/* Badges row */}
                               <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
-                                <span style={{ fontSize: '18px', fontWeight: 700, padding: '2px 8px', borderRadius: '20px', background: `${tc}18`, color: tc, border: `1px solid ${tc}35` }}>
+                                <span style={{ fontSize: '18px', fontWeight: 700, padding: '2px 8px', borderRadius: '16px', background: `${tc}18`, color: tc, border: `1px solid ${tc}35` }}>
                                   {typeLabel(doc.type)}
                                 </span>
-                                <span style={{ fontSize: '18px', fontWeight: 700, padding: '2px 8px', borderRadius: '20px', background: lCfg.bg, color: lCfg.color }}>
+                                <span style={{ fontSize: '18px', fontWeight: 700, padding: '2px 8px', borderRadius: '16px', background: lCfg.bg, color: lCfg.color }}>
                                   {lCfg.label}
                                 </span>
                                 {doc.flagged && (
-                                  <span style={{ fontSize: '18px', fontWeight: 700, padding: '2px 8px', borderRadius: '20px', background: 'rgba(255,159,67,0.12)', color: '#FF9F43' }}>Flagged</span>
+                                  <span style={{ fontSize: '18px', fontWeight: 700, padding: '2px 8px', borderRadius: '16px', background: 'rgba(255,159,67,0.12)', color: '#FF9F43' }}>Flagged</span>
                                 )}
                               </div>
 
@@ -3716,7 +3716,7 @@ export default function AdminPage() {
             {draftsLoading ? (
               <div style={{ padding: '60px', textAlign: 'center', color: '#1E2124', fontSize: '18px' }}>Loading drafts...</div>
             ) : draftCourses.length === 0 ? (
-              <div style={{ padding: '60px', textAlign: 'center', background: '#FFFFFF', border: '1px solid #C8DFE0', borderRadius: '18px' }}>
+              <div style={{ padding: '60px', textAlign: 'center', background: '#FFFFFF', border: '1px solid #C8DFE0', borderRadius: '16px' }}>
                 <div style={{ fontSize: '18px', color: '#1E2124' }}>No courses pending review. When someone submits a course via Content Studio it will appear here.</div>
               </div>
             ) : (
@@ -3728,7 +3728,7 @@ export default function AdminPage() {
                   return (
                     <div key={course.id} style={{ background: '#FFFFFF', border: '1px solid rgba(255,107,107,0.15)', borderRadius: '16px', overflow: 'hidden' }}>
                       {/* Header row */}
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '14px', padding: '16px 20px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '14px', padding: '18px 20px' }}>
                         <div style={{ flex: 1, minWidth: 0 }}>
                           <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px', flexWrap: 'wrap' }}>
                             <span style={{ fontSize: '18px', fontWeight: 700, color: tierColor, background: `${tierColor}15`, padding: '2px 8px', borderRadius: '5px', textTransform: 'capitalize' }}>{course.tier_level}</span>
@@ -3937,7 +3937,7 @@ export default function AdminPage() {
             <div style={{ position: 'fixed', inset: 0, zIndex: 1099, cursor: 'default' }} onClick={e => e.stopPropagation()} />
 
             {/* Tooltip card */}
-            <div style={{ position: 'fixed', zIndex: 1110, left: tipLeft, top: tipTop, width: tipW, background: '#FFFFFF', border: '1px solid rgba(0,165,163,0.4)', borderRadius: '18px', padding: '22px 24px', boxShadow: '0 20px 60px rgba(0,0,0,0.65)', animation: 'tourPop 0.2s ease' }}>
+            <div style={{ position: 'fixed', zIndex: 1110, left: tipLeft, top: tipTop, width: tipW, background: '#FFFFFF', border: '1px solid rgba(0,165,163,0.4)', borderRadius: '16px', padding: '24px', boxShadow: '0 20px 60px rgba(0,0,0,0.65)', animation: 'tourPop 0.2s ease' }}>
               {/* Step indicator */}
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '10px' }}>
                 <div style={{ display: 'flex', gap: '5px' }}>

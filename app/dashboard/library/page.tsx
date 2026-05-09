@@ -102,7 +102,7 @@ function LibraryContent() {
           <span style={{ fontSize: '20px', fontWeight: 600, color: '#464D53' }}>Course Library</span>
         </div>
         {staffId && (
-          <Link href={`/dashboard?id=${staffId}`} style={{ fontSize: '20px', fontWeight: 700, color: '#00A5A3', textDecoration: 'none', background: 'rgba(0,165,163,0.12)', border: '1px solid rgba(0,165,163,0.3)', padding: '6px 14px', borderRadius: '20px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+          <Link href={`/dashboard?id=${staffId}`} style={{ fontSize: '20px', fontWeight: 700, color: '#00A5A3', textDecoration: 'none', background: 'rgba(0,165,163,0.12)', border: '1px solid rgba(0,165,163,0.3)', padding: '6px 14px', borderRadius: '16px', display: 'flex', alignItems: 'center', gap: '6px' }}>
             <svg width="11" height="11" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg>
             My Dashboard
           </Link>
@@ -165,8 +165,8 @@ function LibraryContent() {
                     style={{ display: 'flex', flexDirection: 'column', background: 'rgba(255,159,67,0.06)', border: '1px solid rgba(255,159,67,0.3)', borderRadius: '16px', padding: '20px', textDecoration: 'none' }}
                   >
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '10px' }}>
-                      <span style={{ fontSize: '18px', fontWeight: 800, color: '#FF9F43', background: 'rgba(255,159,67,0.15)', border: '1px solid rgba(255,159,67,0.35)', padding: '3px 9px', borderRadius: '20px' }}>Mandatory</span>
-                      <span style={{ fontSize: '18px', fontWeight: 800, color: cfg.color, background: cfg.bg, padding: '3px 9px', borderRadius: '20px', textTransform: 'uppercase', letterSpacing: '1px' }}>{cfg.label}</span>
+                      <span style={{ fontSize: '18px', fontWeight: 800, color: '#FF9F43', background: 'rgba(255,159,67,0.15)', border: '1px solid rgba(255,159,67,0.35)', padding: '3px 9px', borderRadius: '16px' }}>Mandatory</span>
+                      <span style={{ fontSize: '18px', fontWeight: 800, color: cfg.color, background: cfg.bg, padding: '3px 9px', borderRadius: '16px', textTransform: 'uppercase', letterSpacing: '1px' }}>{cfg.label}</span>
                     </div>
                     <div style={{ fontSize: '18px', fontWeight: 800, color: '#1E2124', marginBottom: '6px', lineHeight: 1.3, flex: 1 }}>{course.title}</div>
                     <div style={{ fontSize: '20px', color: '#464D53', marginBottom: '14px', lineHeight: 1.65 }}>{course.subtitle}</div>
@@ -196,7 +196,7 @@ function LibraryContent() {
               { val: 'manual', label: 'Trescademy Curated' },
               { val: 'gemini', label: 'AI Generated' },
             ].map(({ val, label }) => (
-              <button key={val} onClick={() => setSourceFilter(val)} style={{ padding: '7px 14px', borderRadius: '20px', border: `1px solid ${sourceFilter === val ? '#00A5A3' : '#C8DFE0'}`, background: sourceFilter === val ? '#00A5A315' : '#FFFFFF', color: sourceFilter === val ? '#00A5A3' : '#464D53', fontSize: '20px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
+              <button key={val} onClick={() => setSourceFilter(val)} style={{ padding: '7px 14px', borderRadius: '16px', border: `1px solid ${sourceFilter === val ? '#00A5A3' : '#C8DFE0'}`, background: sourceFilter === val ? '#00A5A315' : '#FFFFFF', color: sourceFilter === val ? '#00A5A3' : '#464D53', fontSize: '20px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
                 {label}
               </button>
             ))}
@@ -206,7 +206,7 @@ function LibraryContent() {
           <select
             value={deptFilter}
             onChange={e => setDeptFilter(e.target.value)}
-            style={{ padding: '7px 14px', borderRadius: '20px', border: '1px solid #C8DFE0', background: '#FFFFFF', color: '#464D53', fontSize: '20px', fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', outline: 'none' }}
+            style={{ padding: '7px 14px', borderRadius: '16px', border: '1px solid #C8DFE0', background: '#FFFFFF', color: '#464D53', fontSize: '20px', fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', outline: 'none' }}
           >
             {DEPTS.map(d => <option key={d} value={d}>{d}</option>)}
           </select>
@@ -251,14 +251,14 @@ function LibraryContent() {
                   {/* Top row */}
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '14px', gap: '8px' }}>
                     <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
-                      <span style={{ fontSize: '18px', fontWeight: 800, color: cfg.color, background: cfg.bg, border: `1px solid ${cfg.border}`, padding: '3px 9px', borderRadius: '20px', textTransform: 'uppercase', letterSpacing: '1px' }}>
+                      <span style={{ fontSize: '18px', fontWeight: 800, color: cfg.color, background: cfg.bg, border: `1px solid ${cfg.border}`, padding: '3px 9px', borderRadius: '16px', textTransform: 'uppercase', letterSpacing: '1px' }}>
                         {cfg.label}
                       </span>
                       {course.is_mandatory && (
-                        <span style={{ fontSize: '18px', fontWeight: 700, color: '#FF9F43', background: '#FF9F4312', padding: '3px 9px', borderRadius: '20px' }}>Mandatory</span>
+                        <span style={{ fontSize: '18px', fontWeight: 700, color: '#FF9F43', background: '#FF9F4312', padding: '3px 9px', borderRadius: '16px' }}>Mandatory</span>
                       )}
                       {course.source === 'gemini' && (
-                        <span style={{ fontSize: '18px', fontWeight: 700, color: '#A78BFA', background: '#A78BFA12', padding: '3px 9px', borderRadius: '20px' }}>AI</span>
+                        <span style={{ fontSize: '18px', fontWeight: 700, color: '#A78BFA', background: '#A78BFA12', padding: '3px 9px', borderRadius: '16px' }}>AI</span>
                       )}
                     </div>
                     {done && (

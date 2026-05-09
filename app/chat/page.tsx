@@ -336,7 +336,7 @@ export default function ChatPage() {
         {/* Cooldown wall — shown when session or daily limit is hit */}
         {isBlocked && (
           <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', textAlign: 'center', padding: '48px 0' }}>
-            <div style={{ width: '64px', height: '64px', background: 'rgba(255,159,67,0.1)', border: '1px solid rgba(255,159,67,0.25)', borderRadius: '20px', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '24px' }}>
+            <div style={{ width: '64px', height: '64px', background: 'rgba(255,159,67,0.1)', border: '1px solid rgba(255,159,67,0.25)', borderRadius: '16px', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '24px' }}>
               <svg width="28" height="28" fill="none" stroke="#FF9F43" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24">
                 <circle cx="12" cy="12" r="10"/>
                 <polyline points="12 6 12 12 16 14"/>

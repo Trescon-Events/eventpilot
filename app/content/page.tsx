@@ -234,7 +234,7 @@ function ContentHubInner() {
       {loading ? (
         <div style={{ textAlign: 'center', padding: '80px', color: '#1E2124', fontSize: '18px' }}>Loading…</div>
       ) : filtered.length === 0 ? (
-        <div style={{ textAlign: 'center', padding: '80px 40px', background: '#FFFFFF', border: '1px dashed #C8DFE0', borderRadius: '20px' }}>
+        <div style={{ textAlign: 'center', padding: '80px 40px', background: '#FFFFFF', border: '1px dashed #C8DFE0', borderRadius: '16px' }}>
           <svg width="40" height="40" fill="none" stroke="rgba(0,165,163,0.4)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24" style={{ marginBottom: '16px' }}>
             <path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/><line x1="12" y1="18" x2="12" y2="12"/><line x1="9" y1="15" x2="15" y2="15"/>
           </svg>
@@ -255,8 +255,8 @@ function ContentHubInner() {
                 <div style={{ padding: '20px' }}>
                   {/* Badges */}
                   <div style={{ display: 'flex', gap: '6px', marginBottom: '10px', flexWrap: 'wrap' }}>
-                    <span style={{ fontSize: '18px', fontWeight: 700, padding: '2px 9px', borderRadius: '20px', background: ph.bg, color: ph.color }}>{ph.label}</span>
-                    <span style={{ fontSize: '18px', fontWeight: 700, padding: '2px 9px', borderRadius: '20px', background: st.bg, color: st.color, textTransform: 'capitalize' }}>{c.status}</span>
+                    <span style={{ fontSize: '18px', fontWeight: 700, padding: '2px 9px', borderRadius: '16px', background: ph.bg, color: ph.color }}>{ph.label}</span>
+                    <span style={{ fontSize: '18px', fontWeight: 700, padding: '2px 9px', borderRadius: '16px', background: st.bg, color: st.color, textTransform: 'capitalize' }}>{c.status}</span>
                   </div>
 
                   {/* Name */}

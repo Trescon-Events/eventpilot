@@ -272,7 +272,7 @@ export default function EventWorkspacePage({ params }: { params: Promise<{ id: s
             <div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '8px' }}>
                 <div style={{ fontSize: '18px', fontWeight: 800, letterSpacing: '2px', textTransform: 'uppercase', color: '#00A5A3' }}>Event Workspace</div>
-                <div style={{ fontSize: '18px', fontWeight: 700, padding: '2px 10px', borderRadius: '20px', background: event.status === 'active' ? 'rgba(192,244,60,0.15)' : '#FFFFFF', color: event.status === 'active' ? '#C0F43C' : '#464D53' }}>
+                <div style={{ fontSize: '18px', fontWeight: 700, padding: '2px 10px', borderRadius: '16px', background: event.status === 'active' ? 'rgba(192,244,60,0.15)' : '#FFFFFF', color: event.status === 'active' ? '#C0F43C' : '#464D53' }}>
                   {event.status}
                 </div>
               </div>
@@ -334,7 +334,7 @@ export default function EventWorkspacePage({ params }: { params: Promise<{ id: s
               { label: 'In Progress',  value: inProg, color: '#92400E' },
               { label: 'Overdue',      value: overdue, color: '#FF6B6B' },
             ].map(s => (
-              <div key={s.label} style={{ background: '#FFFFFF', border: '1px solid #C8DFE0', borderRadius: '14px', padding: '18px 20px', boxShadow: '0 1px 4px rgba(0,165,163,0.06), 0 1px 2px rgba(0,0,0,0.04)' }}>
+              <div key={s.label} style={{ background: '#FFFFFF', border: '1px solid #C8DFE0', borderRadius: '14px', padding: '20px', boxShadow: '0 1px 4px rgba(0,165,163,0.06), 0 1px 2px rgba(0,0,0,0.04)' }}>
                 <div style={{ fontSize: '36px', fontWeight: 900, color: s.color, letterSpacing: '-1px' }}>{s.value}</div>
                 <div style={{ fontSize: '18px', color: '#1E2124', fontWeight: 600, marginTop: '4px', textTransform: 'uppercase', letterSpacing: '0.8px' }}>{s.label}</div>
               </div>
@@ -358,7 +358,7 @@ export default function EventWorkspacePage({ params }: { params: Promise<{ id: s
         {/* Empty state */}
         {checklist.length === 0 && !generating && (
           <div style={{ textAlign: 'center', padding: '80px 0' }}>
-            <div style={{ width: '64px', height: '64px', background: 'rgba(192,244,60,0.08)', border: '1px solid rgba(192,244,60,0.2)', borderRadius: '20px', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 20px' }}>
+            <div style={{ width: '64px', height: '64px', background: 'rgba(192,244,60,0.08)', border: '1px solid rgba(192,244,60,0.2)', borderRadius: '16px', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 20px' }}>
               <svg width="28" height="28" fill="none" stroke="#C0F43C" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
             </div>
             <h3 style={{ fontSize: '36px', fontWeight: 800, color: '#1E2124', margin: '0 0 8px' }}>No checklist yet</h3>
@@ -376,7 +376,7 @@ export default function EventWorkspacePage({ params }: { params: Promise<{ id: s
           const dTotal  = items.length
 
           return (
-            <div key={dept} style={{ marginBottom: '24px', background: '#FFFFFF', border: '1px solid #FFFFFF', borderRadius: '18px', overflow: 'hidden' }}>
+            <div key={dept} style={{ marginBottom: '24px', background: '#FFFFFF', border: '1px solid #FFFFFF', borderRadius: '16px', overflow: 'hidden' }}>
 
               {/* Department header */}
               <div style={{ padding: '16px 22px', borderBottom: '1px solid #FFFFFF', display: 'flex', alignItems: 'center', gap: '12px', background: `rgba(${dColor === '#00A5A3' ? '0,165,163' : dColor === '#A78BFA' ? '167,139,250' : dColor === '#F59E0B' ? '245,158,11' : dColor === '#34D399' ? '52,211,153' : dColor === '#60A5FA' ? '96,165,250' : '244,114,182'},0.06)` }}>
@@ -523,7 +523,7 @@ export default function EventWorkspacePage({ params }: { params: Promise<{ id: s
             </div>
             <div style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
               {report && (
-                <span style={{ fontSize: '18px', fontWeight: 700, padding: '4px 12px', borderRadius: '20px', background: report.status === 'live' ? 'rgba(192,244,60,0.12)' : 'rgba(167,139,250,0.12)', color: report.status === 'live' ? '#C0F43C' : '#A78BFA', border: `1px solid ${report.status === 'live' ? 'rgba(192,244,60,0.25)' : 'rgba(167,139,250,0.25)'}` }}>
+                <span style={{ fontSize: '18px', fontWeight: 700, padding: '4px 12px', borderRadius: '16px', background: report.status === 'live' ? 'rgba(192,244,60,0.12)' : 'rgba(167,139,250,0.12)', color: report.status === 'live' ? '#C0F43C' : '#A78BFA', border: `1px solid ${report.status === 'live' ? 'rgba(192,244,60,0.25)' : 'rgba(167,139,250,0.25)'}` }}>
                   {report.status === 'live' ? 'Live · In Knowledge Base' : 'Draft · Pending Review'}
                 </span>
               )}
@@ -603,7 +603,7 @@ export default function EventWorkspacePage({ params }: { params: Promise<{ id: s
 
               {/* Comments panel */}
               <div style={{ background: '#FFFFFF', border: '1px solid #D8EAEB', borderRadius: '16px', overflow: 'hidden' }}>
-                <div style={{ padding: '16px 20px', borderBottom: '1px solid #FFFFFF' }}>
+                <div style={{ padding: '18px 20px', borderBottom: '1px solid #FFFFFF' }}>
                   <span style={{ fontSize: '18px', fontWeight: 700, color: '#1E2124' }}>
                     Comments
                     {comments.length > 0 && (

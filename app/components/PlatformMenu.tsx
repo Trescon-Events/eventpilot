@@ -286,7 +286,7 @@ export default function PlatformMenu({ staffId }: PlatformMenuProps) {
               width: '100%', maxWidth: '860px', margin: '0 16px',
               background: '#FFFFFF',
               border: '1px solid #C8DFE0',
-              borderRadius: '20px',
+              borderRadius: '16px',
               overflow: 'hidden',
               maxHeight: 'calc(100vh - 120px)',
               overflowY: 'auto',
@@ -337,7 +337,7 @@ export default function PlatformMenu({ staffId }: PlatformMenuProps) {
                               <span style={{
                                 fontSize: '18px', fontWeight: 800, letterSpacing: '1px',
                                 textTransform: 'uppercase', padding: '2px 7px',
-                                borderRadius: '20px',
+                                borderRadius: '16px',
                                 background: isSoon ? '#FFFFFF' : `${item.bg}`,
                                 border: `1px solid ${item.border}`,
                                 color: isSoon ? '#1E2124' : item.color,

@@ -162,7 +162,7 @@ function TeamContent() {
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
           {staffId && (
-            <Link href={`/dashboard?id=${staffId}`} style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '20px', fontWeight: 700, color: '#00A5A3', background: 'rgba(0,165,163,0.12)', border: '1px solid rgba(0,165,163,0.3)', padding: '6px 14px', borderRadius: '20px', textDecoration: 'none' }}>
+            <Link href={`/dashboard?id=${staffId}`} style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '20px', fontWeight: 700, color: '#00A5A3', background: 'rgba(0,165,163,0.12)', border: '1px solid rgba(0,165,163,0.3)', padding: '6px 14px', borderRadius: '16px', textDecoration: 'none' }}>
               My Dashboard
             </Link>
           )}
@@ -174,7 +174,7 @@ function TeamContent() {
               sessionStorage.removeItem('tai_admin_staff_id')
               window.location.href = '/login'
             }}
-            style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '6px 14px', borderRadius: '10px', background: 'rgba(255,107,107,0.1)', border: '1px solid rgba(255,107,107,0.3)', cursor: 'pointer', fontFamily: 'inherit' }}
+            style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '6px 14px', borderRadius: '10px', background: '#FFFFFF', border: '1px solid #fecaca', cursor: 'pointer', fontFamily: 'inherit' }}
           >
             <svg width="13" height="13" fill="none" stroke="#FF6B6B" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24">
               <path d="M18.36 6.64a9 9 0 1 1-12.73 0"/>
@@ -187,7 +187,7 @@ function TeamContent() {
 
       <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: 'calc(100vh - 64px)', padding: '40px 24px', textAlign: 'center' }}>
         {/* Icon */}
-        <div style={{ width: '72px', height: '72px', borderRadius: '20px', background: '#FFFFFF', border: '1px solid #C8DFE0', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '24px' }}>
+        <div style={{ width: '72px', height: '72px', borderRadius: '16px', background: '#FFFFFF', border: '1px solid #C8DFE0', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '24px' }}>
           <svg width="32" height="32" fill="none" stroke="#1E2124" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24">
             <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
             <circle cx="9" cy="7" r="4"/>
@@ -261,13 +261,13 @@ function TeamContent() {
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
           {staffId && (
-            <Link href={`/dashboard?id=${staffId}`} style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '20px', fontWeight: 700, color: '#00A5A3', background: 'rgba(0,165,163,0.12)', border: '1px solid rgba(0,165,163,0.3)', padding: '6px 14px', borderRadius: '20px', textDecoration: 'none' }}>
+            <Link href={`/dashboard?id=${staffId}`} style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '20px', fontWeight: 700, color: '#00A5A3', background: 'rgba(0,165,163,0.12)', border: '1px solid rgba(0,165,163,0.3)', padding: '6px 14px', borderRadius: '16px', textDecoration: 'none' }}>
               <svg width="11" height="11" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>
               My Dashboard
             </Link>
           )}
           {isAdmin && (
-            <Link href="/admin" style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '20px', fontWeight: 700, color: '#3D6B00', background: 'rgba(192,244,60,0.12)', border: '1px solid rgba(192,244,60,0.3)', padding: '6px 14px', borderRadius: '20px', textDecoration: 'none' }}>
+            <Link href="/admin" style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '20px', fontWeight: 700, color: '#3D6B00', background: '#FFFFFF', border: '1px solid #C8DFE0', padding: '6px 14px', borderRadius: '16px', textDecoration: 'none' }}>
               <svg width="11" height="11" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
               Admin Dashboard
             </Link>
@@ -280,7 +280,7 @@ function TeamContent() {
               sessionStorage.removeItem('tai_admin_staff_id')
               window.location.href = '/login'
             }}
-            style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '6px 14px', borderRadius: '10px', background: 'rgba(255,107,107,0.1)', border: '1px solid rgba(255,107,107,0.3)', cursor: 'pointer', fontFamily: 'inherit' }}
+            style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '6px 14px', borderRadius: '10px', background: '#FFFFFF', border: '1px solid #fecaca', cursor: 'pointer', fontFamily: 'inherit' }}
           >
             <svg width="13" height="13" fill="none" stroke="#FF6B6B" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24">
               <path d="M18.36 6.64a9 9 0 1 1-12.73 0"/>
@@ -310,7 +310,7 @@ function TeamContent() {
             { label: 'Courses Completed',  value: totalDone,         sub: 'across team' },
             { label: 'Active Learners',    value: activeCount,       sub: 'completed a course' },
           ].map(({ label, value, sub }) => (
-            <div key={label} style={{ background: '#FFFFFF', border: '1px solid #C8DFE0', borderRadius: '14px', padding: '18px 20px', boxShadow: '0 1px 4px rgba(0,165,163,0.06), 0 1px 2px rgba(0,0,0,0.04)' }}>
+            <div key={label} style={{ background: '#FFFFFF', border: '1px solid #C8DFE0', borderRadius: '14px', padding: '20px', boxShadow: '0 1px 4px rgba(0,165,163,0.06), 0 1px 2px rgba(0,0,0,0.04)' }}>
               <div style={{ fontSize: '18px', fontWeight: 700, color: '#1E2124', textTransform: 'uppercase', letterSpacing: '1.5px', marginBottom: '6px' }}>{label}</div>
               <div style={{ fontSize: '36px', fontWeight: 900, color: '#1E2124', marginBottom: '2px' }}>{value}</div>
               <div style={{ fontSize: '18px', color: '#1E2124' }}>{sub}</div>
@@ -409,7 +409,7 @@ function TeamContent() {
 
               {/* CTA to Content Studio */}
               {gapDept && (
-                <div style={{ marginTop: '20px', padding: '16px 20px', background: 'rgba(164,120,255,0.08)', border: '1px solid rgba(164,120,255,0.2)', borderRadius: '12px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '16px', flexWrap: 'wrap' }}>
+                <div style={{ marginTop: '20px', padding: '18px 20px', background: 'rgba(164,120,255,0.08)', border: '1px solid rgba(164,120,255,0.2)', borderRadius: '12px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '16px', flexWrap: 'wrap' }}>
                   <div>
                     <div style={{ fontSize: '18px', fontWeight: 700, color: '#1E2124', marginBottom: '3px' }}>
                       Biggest gap: <span style={{ color: '#A478FF' }}>{gapDept}</span>
@@ -420,7 +420,7 @@ function TeamContent() {
                   </div>
                   <a
                     href={`/admin?tab=suggest&gap=${encodeURIComponent(gapDept)}`}
-                    style={{ display: 'flex', alignItems: 'center', gap: '7px', fontSize: '18px', fontWeight: 800, color: '#A478FF', background: 'rgba(164,120,255,0.15)', border: '1px solid rgba(164,120,255,0.3)', padding: '9px 18px', borderRadius: '10px', textDecoration: 'none', whiteSpace: 'nowrap' }}
+                    style={{ display: 'flex', alignItems: 'center', gap: '7px', fontSize: '18px', fontWeight: 800, color: '#A478FF', background: '#FFFFFF', border: '1px solid #C8DFE0', padding: '9px 18px', borderRadius: '10px', textDecoration: 'none', whiteSpace: 'nowrap' }}
                   >
                     <svg width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
                     Request a Course
@@ -448,13 +448,13 @@ function TeamContent() {
           <div style={{ position: 'relative', flex: '0 0 220px' }}>
             <svg width="12" height="12" fill="none" stroke="#1E2124" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24" style={{ position: 'absolute', left: '11px', top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none' }}><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
             <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search name or role…"
-              style={{ width: '100%', paddingLeft: '32px', paddingRight: '12px', paddingTop: '7px', paddingBottom: '7px', borderRadius: '20px', border: '1px solid #C8DFE0', background: '#FFFFFF', color: '#1E2124', fontSize: '20px', fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box' }} />
+              style={{ width: '100%', paddingLeft: '32px', paddingRight: '12px', paddingTop: '7px', paddingBottom: '7px', borderRadius: '16px', border: '1px solid #C8DFE0', background: '#FFFFFF', color: '#1E2124', fontSize: '20px', fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box' }} />
           </div>
 
           {/* Dept filter */}
           {depts.length > 1 && (
             <select value={deptFilter} onChange={e => setDeptFilter(e.target.value)}
-              style={{ padding: '7px 12px', borderRadius: '20px', border: '1px solid #C8DFE0', background: '#FFFFFF', color: '#1E2124', fontSize: '20px', fontFamily: 'inherit', outline: 'none', cursor: 'pointer' }}>
+              style={{ padding: '7px 12px', borderRadius: '16px', border: '1px solid #C8DFE0', background: '#FFFFFF', color: '#1E2124', fontSize: '20px', fontFamily: 'inherit', outline: 'none', cursor: 'pointer' }}>
               <option value="all">All Departments</option>
               {depts.map(d => <option key={d} value={d}>{d}</option>)}
             </select>
@@ -463,7 +463,7 @@ function TeamContent() {
           {/* Office filter */}
           {offices.length > 1 && (
             <select value={officeFilter} onChange={e => setOfficeFilter(e.target.value)}
-              style={{ padding: '7px 12px', borderRadius: '20px', border: '1px solid #C8DFE0', background: '#FFFFFF', color: '#1E2124', fontSize: '20px', fontFamily: 'inherit', outline: 'none', cursor: 'pointer' }}>
+              style={{ padding: '7px 12px', borderRadius: '16px', border: '1px solid #C8DFE0', background: '#FFFFFF', color: '#1E2124', fontSize: '20px', fontFamily: 'inherit', outline: 'none', cursor: 'pointer' }}>
               <option value="all">All Offices</option>
               {offices.map(o => <option key={o} value={o}>{OFFICE_LABEL[o] ?? o}</option>)}
             </select>
