@@ -100,7 +100,7 @@ Return ONLY the post text. No preamble, no explanation, no quotation marks.`
     ].filter(Boolean).join('\n')
 
     // ── Generate with Gemini ──────────────────────────────────────────────
-    const model = getGemini().getGenerativeModel({ model: 'gemini-1.5-flash' })
+    const model = getGemini().getGenerativeModel({ model: 'gemini-2.0-flash' })
     const result = await model.generateContent([
       { text: systemPrompt + '\n\n' + userPrompt },
     ])
