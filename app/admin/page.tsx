@@ -8,8 +8,8 @@ import type { Question } from '@/app/lib/questions'
 
 const OFFICES = [
   { id: 'dubai',     label: 'Dubai',     total: 0, color: '#00A5A3' },
-  { id: 'bangalore', label: 'Bangalore', total: 0, color: '#3D6B00' },
-  { id: 'mangalore', label: 'Mangalore', total: 0, color: '#7A6600' },
+  { id: 'bangalore', label: 'Bangalore', total: 0, color: '#00A5A3' },
+  { id: 'mangalore', label: 'Mangalore', total: 0, color: '#B45309' },
   { id: 'manipal',   label: 'Manipal',   total: 0, color: '#FF6B6B' },
 ]
 // TOTAL is no longer hardcoded — derived from actual staff count in DB
@@ -789,10 +789,10 @@ export default function AdminPage() {
     'HR & Recruitment':     { priority: 'High',     color: '#FF9F43', why: 'CV screening and scheduling are solved problems with AI' },
     'Content & Design':     { priority: 'High',     color: '#FF9F43', why: 'Generative AI for content/design is fastest-moving category' },
     'Leadership':           { priority: 'High',     color: '#FF9F43', why: 'Decision intelligence and real-time visibility gaps' },
-    'IT':                   { priority: 'Medium',   color: '#7A6600', why: 'Already closest — focus on enabling others, not self-training' },
-    'Operations':           { priority: 'Medium',   color: '#7A6600', why: 'Process automation needs depends on current tool stack' },
-    'Government Relations': { priority: 'Medium',   color: '#7A6600', why: 'Document automation + status tracking — achievable in 6 months' },
-    'Other':                { priority: 'Medium',   color: '#7A6600', why: 'Assess after more data' },
+    'IT':                   { priority: 'Medium',   color: '#B45309', why: 'Already closest — focus on enabling others, not self-training' },
+    'Operations':           { priority: 'Medium',   color: '#B45309', why: 'Process automation needs depends on current tool stack' },
+    'Government Relations': { priority: 'Medium',   color: '#B45309', why: 'Document automation + status tracking — achievable in 6 months' },
+    'Other':                { priority: 'Medium',   color: '#B45309', why: 'Assess after more data' },
   }
 
   // TAIRS calculation per entity (dept/office/person)
@@ -833,9 +833,9 @@ export default function AdminPage() {
 
   // TAIRS tier label + color
   function tairsTier(score: number) {
-    if (score >= 75) return { label: 'AI-Forward',  color: '#3D6B00', desc: 'Deploy automations now' }
+    if (score >= 75) return { label: 'AI-Forward',  color: '#007A6E', desc: 'Deploy automations now' }
     if (score >= 55) return { label: 'AI-Ready',    color: '#A8E6CF', desc: 'Train + deploy in parallel' }
-    if (score >= 35) return { label: 'AI-Aware',    color: '#7A6600', desc: '90-day foundation plan' }
+    if (score >= 35) return { label: 'AI-Aware',    color: '#B45309', desc: '90-day foundation plan' }
     if (score >= 15) return { label: 'AI-Curious',  color: '#FF9F43', desc: 'Awareness + pilot needed' }
     return               { label: 'AI-Unaware',   color: '#FF6B6B', desc: 'Start from literacy basics' }
   }
@@ -1059,7 +1059,7 @@ export default function AdminPage() {
                     desc: 'Live AI readiness score (0–100) per staff member',
                   },
                   {
-                    color: '#3D6B00',
+                    color: '#007A6E',
                     bg: 'rgba(192,244,60,0.08)',
                     border: 'rgba(192,244,60,0.22)',
                     icon: <svg width="18" height="18" fill="none" stroke="#C0F43C" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>,
@@ -1128,23 +1128,22 @@ export default function AdminPage() {
             <div style={{ width: '7px', height: '7px', borderRadius: '50%', background: '#00A5A3', animation: 'pulse 2s infinite' }} />
             <span style={{ fontSize: '18px', color: '#464D53' }}>Live</span>
           </div>
-          <Link href={adminStaffId ? `/dashboard?id=${adminStaffId}` : '/dashboard'} style={{ background: 'rgba(0,165,163,0.15)', border: '1px solid rgba(0,165,163,0.35)', color: '#00A5A3', fontSize: '20px', fontWeight: 700, padding: '7px 16px', borderRadius: '20px', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '6px' }}>
-            <svg width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>
+          <Link href={adminStaffId ? `/dashboard?id=${adminStaffId}` : '/dashboard'} style={{ background: '#FFFFFF', border: '1px solid #C8DFE0', color: '#374151', fontSize: '15px', fontWeight: 600, padding: '8px 16px', borderRadius: '10px', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <svg width="13" height="13" fill="none" stroke="#00A5A3" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>
             My Learning
           </Link>
-          <Link href="/docs" style={{ background: 'rgba(255,159,67,0.12)', border: '1px solid rgba(255,159,67,0.3)', color: '#FF9F43', fontSize: '20px', fontWeight: 700, padding: '7px 16px', borderRadius: '20px', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '6px' }}>
-            <svg width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>
+          <Link href="/docs" style={{ background: '#FFFFFF', border: '1px solid #C8DFE0', color: '#374151', fontSize: '15px', fontWeight: 600, padding: '8px 16px', borderRadius: '10px', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <svg width="13" height="13" fill="none" stroke="#00A5A3" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>
             Platform Docs
           </Link>
-
-          <Link id="tour-tresci-btn" href="/insights" style={{ background: 'rgba(192,244,60,0.15)', border: '1px solid rgba(192,244,60,0.3)', color: '#3D6B00', fontSize: '20px', fontWeight: 700, padding: '7px 16px', borderRadius: '20px', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '6px' }}>
-            <svg width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+          <Link id="tour-tresci-btn" href="/insights" style={{ background: '#FFFFFF', border: '1px solid #C8DFE0', color: '#374151', fontSize: '15px', fontWeight: 600, padding: '8px 16px', borderRadius: '10px', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <svg width="13" height="13" fill="none" stroke="#00A5A3" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
             AI Insights
           </Link>
           <button
             onClick={() => setShowRoadmap(true)}
-            style={{ background: 'linear-gradient(135deg, rgba(164,120,255,0.18), rgba(164,120,255,0.08))', border: '1px solid rgba(164,120,255,0.4)', color: '#A478FF', fontSize: '20px', fontWeight: 700, padding: '7px 16px', borderRadius: '20px', cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: '6px' }}>
-            <svg width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+            style={{ background: '#FFFFFF', border: '1px solid #C8DFE0', color: '#374151', fontSize: '15px', fontWeight: 600, padding: '8px 16px', borderRadius: '10px', cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <svg width="13" height="13" fill="none" stroke="#00A5A3" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
             What&apos;s Next
           </button>
           <button
@@ -1155,13 +1154,13 @@ export default function AdminPage() {
               sessionStorage.removeItem('tai_admin_staff_id')
               window.location.href = '/login'
             }}
-            style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '7px 16px', borderRadius: '20px', background: 'rgba(255,107,107,0.1)', border: '1px solid rgba(255,107,107,0.3)', cursor: 'pointer', fontFamily: 'inherit' }}
+            style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '8px 16px', borderRadius: '10px', background: '#FFFFFF', border: '1px solid #fecaca', cursor: 'pointer', fontFamily: 'inherit' }}
           >
             <svg width="13" height="13" fill="none" stroke="#FF6B6B" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24">
               <path d="M18.36 6.64a9 9 0 1 1-12.73 0"/>
               <line x1="12" y1="2" x2="12" y2="12"/>
             </svg>
-            <span style={{ fontSize: '20px', fontWeight: 700, color: '#FF6B6B' }}>Sign out</span>
+            <span style={{ fontSize: '15px', fontWeight: 600, color: '#FF6B6B' }}>Sign out</span>
           </button>
         </div>
       </nav>
@@ -1305,7 +1304,7 @@ export default function AdminPage() {
           <div style={{ padding: '26px 30px', borderRight: '1px solid #C8DFE0' }}>
             <div style={{ fontSize: '18px', fontWeight: 700, letterSpacing: '1.5px', textTransform: 'uppercase', color: '#464D53', marginBottom: '10px' }}>Profiles Complete</div>
             <div style={{ display: 'flex', alignItems: 'baseline', gap: '8px', marginBottom: '10px' }}>
-              <span style={{ fontSize: '48px', fontWeight: 900, color: '#3D6B00', lineHeight: 1 }}>{profilesComplete}</span>
+              <span style={{ fontSize: '48px', fontWeight: 900, color: '#007A6E', lineHeight: 1 }}>{profilesComplete}</span>
               <span style={{ fontSize: '20px', color: '#464D53', fontWeight: 600 }}>/ {totalJoined}</span>
             </div>
             <div style={{ height: '6px', background: '#FFFFFF', borderRadius: '3px', overflow: 'hidden', marginBottom: '6px' }}>
@@ -1344,9 +1343,9 @@ export default function AdminPage() {
             {/* Tier Summary Strip — who is where right now */}
             {(() => {
               const TIERS = [
-                { label: 'AI-Forward', color: '#3D6B00', range: '75–100', desc: 'Building AI workflows' },
+                { label: 'AI-Forward', color: '#007A6E', range: '75–100', desc: 'Building AI workflows' },
                 { label: 'AI-Ready',   color: '#A8E6CF', range: '55–74',  desc: 'Using AI regularly' },
-                { label: 'AI-Aware',   color: '#7A6600', range: '35–54',  desc: 'Tried it, not a habit' },
+                { label: 'AI-Aware',   color: '#B45309', range: '35–54',  desc: 'Tried it, not a habit' },
                 { label: 'AI-Curious', color: '#FF9F43', range: '15–34',  desc: 'Knows AI exists' },
                 { label: 'AI-Unaware', color: '#FF6B6B', range: '0–14',   desc: 'Needs foundations first' },
               ]
@@ -1387,16 +1386,16 @@ export default function AdminPage() {
               {(() => {
                 const TIER_FILTERS = [
                   { id: 'all',          label: 'All',          color: '#464D53' },
-                  { id: 'AI-Forward',   label: 'AI-Forward',   color: '#3D6B00' },
+                  { id: 'AI-Forward',   label: 'AI-Forward',   color: '#007A6E' },
                   { id: 'AI-Ready',     label: 'AI-Ready',     color: '#A8E6CF' },
-                  { id: 'AI-Aware',     label: 'AI-Aware',     color: '#7A6600' },
+                  { id: 'AI-Aware',     label: 'AI-Aware',     color: '#B45309' },
                   { id: 'AI-Curious',   label: 'AI-Curious',   color: '#FF9F43' },
                   { id: 'AI-Unaware',   label: 'AI-Unaware',   color: '#FF6B6B' },
                 ]
                 const PRIORITY_FILTERS = [
                   { id: 'Critical', color: '#FF6B6B' },
                   { id: 'High',     color: '#FF9F43' },
-                  { id: 'Medium',   color: '#7A6600' },
+                  { id: 'Medium',   color: '#B45309' },
                 ]
                 const visibleDepts = sortedDeptTairs.filter(d => {
                   if (deptTierFilter === 'all') return true
@@ -1659,7 +1658,7 @@ export default function AdminPage() {
                         <div style={{ flex: 1 }}>
                           <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '3px' }}>
                             <span style={{ fontSize: '20px', fontWeight: 700, color: '#1E2124' }}>{tool}</span>
-                            {isAI && <span style={{ fontSize: '9px', fontWeight: 800, color: '#3D6B00', background: 'rgba(192,244,60,0.12)', padding: '1px 5px', borderRadius: '4px' }}>AI</span>}
+                            {isAI && <span style={{ fontSize: '9px', fontWeight: 800, color: '#007A6E', background: 'rgba(0,122,110,0.1)', padding: '1px 5px', borderRadius: '4px' }}>AI</span>}
                             {isSaaS && !isAI && <span style={{ fontSize: '9px', fontWeight: 700, color: '#00A5A3', background: 'rgba(0,165,163,0.12)', padding: '1px 5px', borderRadius: '4px' }}>SaaS</span>}
                           </div>
                           <div style={{ height: '4px', background: '#FFFFFF', borderRadius: '3px', overflow: 'hidden' }}>
@@ -1671,7 +1670,7 @@ export default function AdminPage() {
                     )
                   })}
                   <div style={{ paddingTop: '10px', borderTop: '1px solid #C8DFE0', display: 'flex', gap: '14px', fontSize: '18px' }}>
-                    <span style={{ color: '#3D6B00' }}>■ AI tool</span>
+                    <span style={{ color: '#007A6E' }}>■ AI tool</span>
                     <span style={{ color: '#00A5A3' }}>■ Modern SaaS</span>
                     <span style={{ color: '#464D53' }}>■ Basic / Other</span>
                   </div>
@@ -2074,7 +2073,7 @@ export default function AdminPage() {
                         {/* Col 5: Track badge */}
                         <div>
                           {aiProofEntry?.ai_proof ? (
-                            <span style={{ fontSize: '9px', fontWeight: 800, color: '#3D6B00', background: 'rgba(192,244,60,0.12)', border: '1px solid rgba(192,244,60,0.25)', padding: '3px 7px', borderRadius: '5px', whiteSpace: 'nowrap' }}>Advanced</span>
+                            <span style={{ fontSize: '9px', fontWeight: 800, color: '#007A6E', background: 'rgba(0,122,110,0.1)', border: '1px solid rgba(192,244,60,0.25)', padding: '3px 7px', borderRadius: '5px', whiteSpace: 'nowrap' }}>Advanced</span>
                           ) : (
                             <span style={{ fontSize: '9px', fontWeight: 700, color: '#464D53', background: '#FFFFFF', padding: '3px 7px', borderRadius: '5px', whiteSpace: 'nowrap' }}>Standard</span>
                           )}
@@ -2130,7 +2129,7 @@ export default function AdminPage() {
                                   {/* AI Proof */}
                                   {t.ai_proof && (
                                     <div style={{ background: 'rgba(192,244,60,0.05)', border: '1px solid rgba(192,244,60,0.18)', borderRadius: '8px', padding: '12px 14px', marginBottom: t.tools_used?.length ? '10px' : '0' }}>
-                                      <div style={{ fontSize: '9px', fontWeight: 700, letterSpacing: '1px', textTransform: 'uppercase', color: '#3D6B00', marginBottom: '6px' }}>Advanced Track — Workflow Proof</div>
+                                      <div style={{ fontSize: '9px', fontWeight: 700, letterSpacing: '1px', textTransform: 'uppercase', color: '#007A6E', marginBottom: '6px' }}>Advanced Track — Workflow Proof</div>
                                       <div style={{ fontSize: '20px', color: '#464D53', lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>{t.ai_proof}</div>
                                     </div>
                                   )}
@@ -2342,7 +2341,7 @@ export default function AdminPage() {
         {tab === 'action' && (() => {
           const PLAYBOOK = [
             {
-              tier: 'AI-Forward',  range: '75–100', color: '#3D6B00',
+              tier: 'AI-Forward',  range: '75–100', color: '#007A6E',
               means: 'Already building AI workflows. Has hands-on experience integrating multiple tools.',
               action: 'Assign as AI Pilot Leads. They run the first automation sprint for their department.',
               next: 'Book them into a 1-hour AI pilot kickoff. Give them a problem statement and 30 days to ship a working automation.',
@@ -2358,7 +2357,7 @@ export default function AdminPage() {
               by: '30 days',
             },
             {
-              tier: 'AI-Aware',    range: '35–54',  color: '#7A6600',
+              tier: 'AI-Aware',    range: '35–54',  color: '#B45309',
               means: 'Knows what AI is and has tried it, but not using it consistently in their daily work.',
               action: 'Foundation workshop (half day). Pick one tool for their role and commit to using it daily for 2 weeks.',
               next: '2-week AI daily habit challenge. Each person picks one task to do with AI every day and logs it.',
@@ -2661,7 +2660,7 @@ export default function AdminPage() {
                       {(generatedCourse.question_bank as Array<{question: string; correct_index: number; options: string[]}>).map((q, i) => (
                         <div key={i} style={{ padding: '12px 16px', background: '#FFFFFF', borderRadius: '10px', border: '1px solid #C8DFE0' }}>
                           <div style={{ fontSize: '18px', color: '#1E2124', fontWeight: 600, marginBottom: '4px' }}>Q{i + 1}: {q.question}</div>
-                          <div style={{ fontSize: '18px', color: '#3D6B00' }}>Correct: {q.options[q.correct_index]}</div>
+                          <div style={{ fontSize: '18px', color: '#007A6E' }}>Correct: {q.options[q.correct_index]}</div>
                         </div>
                       ))}
                     </div>
@@ -2752,7 +2751,7 @@ export default function AdminPage() {
                         await fetch('/api/staff-access', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ enable_all: true, enabled: true }) })
                         fetchStaffList()
                       }}
-                      style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '8px 16px', borderRadius: '8px', border: '1px solid rgba(192,244,60,0.35)', background: 'rgba(192,244,60,0.1)', color: '#3D6B00', fontSize: '20px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}
+                      style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '8px 16px', borderRadius: '8px', border: '1px solid rgba(192,244,60,0.35)', background: 'rgba(192,244,60,0.1)', color: '#007A6E', fontSize: '20px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}
                     >
                       <svg width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>
                       Enable All (Phase 2)
@@ -2946,7 +2945,7 @@ export default function AdminPage() {
                     <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', marginBottom: '20px' }}>
                       {[
                         { label: 'Total rows',      value: aiParseResult.summary.total,            color: '#1E2124' },
-                        { label: 'Clean',           value: aiParseResult.summary.clean,            color: '#3D6B00' },
+                        { label: 'Clean',           value: aiParseResult.summary.clean,            color: '#007A6E' },
                         { label: 'With warnings',   value: aiParseResult.summary.warnings,         color: '#FF9F43' },
                         { label: 'New columns found', value: aiParseResult.summary.new_columns_found, color: '#A478FF' },
                       ].map(({ label, value, color }) => (
@@ -3042,7 +3041,7 @@ export default function AdminPage() {
                                 <td style={{ padding: '10px 14px' }}>
                                   {row.warnings?.length > 0
                                     ? <span style={{ fontSize: '18px', fontWeight: 700, color: '#FF9F43' }}>{row.warnings.join(', ')}</span>
-                                    : <span style={{ fontSize: '18px', color: '#3D6B00' }}>Clean</span>
+                                    : <span style={{ fontSize: '18px', color: '#007A6E' }}>Clean</span>
                                   }
                                 </td>
                               </tr>
@@ -3085,9 +3084,9 @@ export default function AdminPage() {
                 {/* Result */}
                 {aiCommitState === 'done' && aiCommitResult && (
                   <div style={{ padding: '24px', borderRadius: '16px', background: 'rgba(192,244,60,0.06)', border: '1px solid rgba(192,244,60,0.25)' }}>
-                    <div style={{ fontSize: '18px', fontWeight: 800, color: '#3D6B00', marginBottom: '16px' }}>Import complete</div>
+                    <div style={{ fontSize: '18px', fontWeight: 800, color: '#007A6E', marginBottom: '16px' }}>Import complete</div>
                     <div style={{ display: 'flex', gap: '28px', flexWrap: 'wrap', marginBottom: '20px' }}>
-                      <div><span style={{ fontSize: '36px', fontWeight: 900, color: '#3D6B00' }}>{aiCommitResult.inserted}</span><div style={{ fontSize: '18px', color: '#464D53', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '1px', marginTop: '2px' }}>New staff</div></div>
+                      <div><span style={{ fontSize: '36px', fontWeight: 900, color: '#007A6E' }}>{aiCommitResult.inserted}</span><div style={{ fontSize: '18px', color: '#464D53', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '1px', marginTop: '2px' }}>New staff</div></div>
                       <div><span style={{ fontSize: '36px', fontWeight: 900, color: '#00A5A3' }}>{aiCommitResult.updated}</span><div style={{ fontSize: '18px', color: '#464D53', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '1px', marginTop: '2px' }}>Updated</div></div>
                       <div><span style={{ fontSize: '36px', fontWeight: 900, color: '#1E2124' }}>{aiCommitResult.skipped}</span><div style={{ fontSize: '18px', color: '#464D53', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '1px', marginTop: '2px' }}>Skipped</div></div>
                       <div><span style={{ fontSize: '36px', fontWeight: 900, color: '#FF9F43' }}>{aiCommitResult.manager_links_set}</span><div style={{ fontSize: '18px', color: '#464D53', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '1px', marginTop: '2px' }}>Manager links</div></div>
@@ -3443,7 +3442,7 @@ export default function AdminPage() {
 
           const uploadForm = (
             <div style={{ background: '#FFFFFF', border: '1px solid rgba(192,244,60,0.2)', borderRadius: '16px', padding: '24px' }}>
-              <div style={{ fontSize: '20px', fontWeight: 800, color: '#3D6B00', letterSpacing: '1px', textTransform: 'uppercase', marginBottom: '16px' }}>Upload Document</div>
+              <div style={{ fontSize: '20px', fontWeight: 800, color: '#007A6E', letterSpacing: '1px', textTransform: 'uppercase', marginBottom: '16px' }}>Upload Document</div>
               <div style={{ marginBottom: '12px' }}>
                 <label style={{ fontSize: '18px', fontWeight: 700, color: '#1E2124', letterSpacing: '0.8px', textTransform: 'uppercase', display: 'block', marginBottom: '5px' }}>Document Title</label>
                 <input value={docForm.title} onChange={e => setDocForm(p => ({ ...p, title: e.target.value }))} placeholder="e.g. HR Policy Handbook 2026"
@@ -3499,7 +3498,7 @@ export default function AdminPage() {
                 <label style={{ display: 'block', padding: '18px', border: `1.5px dashed ${docFile ? 'rgba(192,244,60,0.35)' : '#C8DFE0'}`, borderRadius: '10px', textAlign: 'center', cursor: 'pointer', background: docFile ? 'rgba(192,244,60,0.04)' : 'transparent' }}>
                   <input type="file" accept=".pdf,.txt,.md" style={{ display: 'none' }} onChange={e => setDocFile(e.target.files?.[0] ?? null)} />
                   {docFile ? (
-                    <div><div style={{ fontSize: '18px', fontWeight: 700, color: '#3D6B00' }}>{docFile.name}</div><div style={{ fontSize: '18px', color: '#1E2124', marginTop: '2px' }}>{(docFile.size / 1024).toFixed(0)} KB</div></div>
+                    <div><div style={{ fontSize: '18px', fontWeight: 700, color: '#007A6E' }}>{docFile.name}</div><div style={{ fontSize: '18px', color: '#1E2124', marginTop: '2px' }}>{(docFile.size / 1024).toFixed(0)} KB</div></div>
                   ) : (
                     <div><svg width="20" height="20" fill="none" stroke="#1E2124" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24" style={{ margin: '0 auto 6px', display: 'block' }}><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg><div style={{ fontSize: '20px', color: '#1E2124' }}>Click to select file</div></div>
                   )}
@@ -3543,7 +3542,7 @@ export default function AdminPage() {
               {/* Header */}
               <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: '24px' }}>
                 <div>
-                  <div style={{ fontSize: '18px', fontWeight: 800, letterSpacing: '2.5px', textTransform: 'uppercase', color: '#3D6B00', marginBottom: '6px' }}>Knowledge Base</div>
+                  <div style={{ fontSize: '18px', fontWeight: 800, letterSpacing: '2.5px', textTransform: 'uppercase', color: '#007A6E', marginBottom: '6px' }}>Knowledge Base</div>
                   <h2 style={{ fontSize: '20px', fontWeight: 800, color: '#1E2124', margin: 0 }}>Documents</h2>
                 </div>
                 {docs.length > 0 && !showUploadForm && (
@@ -3567,7 +3566,7 @@ export default function AdminPage() {
                     ].map((s, i) => (
                       <div key={s.n} style={{ padding: '18px 16px', borderRight: i < 3 ? '1px solid rgba(192,244,60,0.1)' : 'none' }}>
                         <div style={{ width: '22px', height: '22px', borderRadius: '50%', background: 'rgba(192,244,60,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '10px' }}>
-                          <span style={{ fontSize: '18px', fontWeight: 900, color: '#3D6B00' }}>{s.n}</span>
+                          <span style={{ fontSize: '18px', fontWeight: 900, color: '#007A6E' }}>{s.n}</span>
                         </div>
                         <div style={{ fontSize: '20px', fontWeight: 800, color: '#1E2124', marginBottom: '4px' }}>{s.label}</div>
                         <div style={{ fontSize: '18px', color: '#1E2124', lineHeight: 1.4 }}>{s.sub}</div>
@@ -3598,7 +3597,7 @@ export default function AdminPage() {
                       ].map((s, i) => (
                         <div key={s.n} style={{ padding: '12px 14px', borderRight: i < 3 ? '1px solid rgba(192,244,60,0.08)' : 'none' }}>
                           <div style={{ width: '18px', height: '18px', borderRadius: '50%', background: 'rgba(192,244,60,0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '7px' }}>
-                            <span style={{ fontSize: '9px', fontWeight: 900, color: '#3D6B00' }}>{s.n}</span>
+                            <span style={{ fontSize: '9px', fontWeight: 900, color: '#007A6E' }}>{s.n}</span>
                           </div>
                           <div style={{ fontSize: '18px', fontWeight: 800, color: '#1E2124', marginBottom: '2px' }}>{s.label}</div>
                           <div style={{ fontSize: '18px', color: '#1E2124', lineHeight: 1.4 }}>{s.sub}</div>
@@ -3807,7 +3806,7 @@ export default function AdminPage() {
               <div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '16px' }}>
                   <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#C0F43C', boxShadow: '0 0 8px #C0F43C' }} />
-                  <div style={{ fontSize: '18px', fontWeight: 800, letterSpacing: '1.8px', textTransform: 'uppercase', color: '#3D6B00' }}>Live now</div>
+                  <div style={{ fontSize: '18px', fontWeight: 800, letterSpacing: '1.8px', textTransform: 'uppercase', color: '#007A6E' }}>Live now</div>
                 </div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                   {[
