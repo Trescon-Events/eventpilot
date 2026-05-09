@@ -47,7 +47,7 @@ function WelcomeContent() {
         </p>
 
         {/* Next step card */}
-        <div style={{ background: '#EEF9F9', border: '1px solid #E6EFF0', borderRadius: '20px', padding: '28px', marginBottom: '28px', textAlign: 'left' }}>
+        <div style={{ background: '#FFFFFF', border: '1px solid #C8DFE0', borderRadius: '20px', padding: '28px', marginBottom: '28px', textAlign: 'left' }}>
           <div style={{ fontSize: '11px', fontWeight: 700, letterSpacing: '2px', textTransform: 'uppercase', color: color, marginBottom: '12px' }}>What happens next</div>
           {[
             'Your details are now on record in Trescademy',
@@ -55,12 +55,12 @@ function WelcomeContent() {
             'Next: tell us what your work looks like daily',
             'Your input shapes what gets built first',
           ].map((step, i) => (
-            <div key={i} style={{ display: 'flex', gap: '12px', alignItems: 'center', padding: '8px 0', borderBottom: i < 3 ? '1px solid #E6EFF0' : 'none' }}>
-              <div style={{ width: '22px', height: '22px', borderRadius: '6px', background: i === 0 ? `${color}25` : '#E6EFF0', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+            <div key={i} style={{ display: 'flex', gap: '12px', alignItems: 'center', padding: '8px 0', borderBottom: i < 3 ? '1px solid #C8DFE0' : 'none' }}>
+              <div style={{ width: '22px', height: '22px', borderRadius: '6px', background: i === 0 ? `${color}25` : '#C8DFE0', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
                 {i === 0 ? (
                   <svg width="11" height="11" fill="none" stroke={color} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>
                 ) : (
-                  <span style={{ fontSize: '11px', color: '#64748B', fontWeight: 700 }}>{i + 1}</span>
+                  <span style={{ fontSize: '11px', color: '#1E2124', fontWeight: 700 }}>{i + 1}</span>
                 )}
               </div>
               <span style={{ fontSize: '15px', color: i === 0 ? color : '#464D53', fontWeight: i === 0 ? 600 : 400 }}>{step}</span>
@@ -73,7 +73,7 @@ function WelcomeContent() {
             <svg width="14" height="14" fill="none" stroke="#1E2124" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg>
             Go to My Dashboard
           </Link>
-          <Link href="/profile" style={{ background: '#EEF9F9', color: '#464D53', fontSize: '16px', fontWeight: 700, padding: '14px 28px', borderRadius: '50px', textDecoration: 'none', border: '1px solid #E6EFF0', display: 'inline-flex', alignItems: 'center', gap: '8px' }}>
+          <Link href="/profile" style={{ background: '#FFFFFF', color: '#464D53', fontSize: '16px', fontWeight: 700, padding: '14px 28px', borderRadius: '50px', textDecoration: 'none', border: '1px solid #C8DFE0', display: 'inline-flex', alignItems: 'center', gap: '8px' }}>
             Map My Work
             <svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg>
           </Link>

@@ -300,7 +300,7 @@ function CourseContent() {
       {/* ── Pre-test popup ── */}
       {showPopup && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)', backdropFilter: 'blur(6px)', zIndex: 100, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '24px' }}>
-          <div style={{ background: '#FFFFFF', border: '1px solid #E6EFF0', borderRadius: '20px', padding: '36px 32px', maxWidth: '440px', width: '100%', boxShadow: '0 24px 80px rgba(0,0,0,0.2)' }}>
+          <div style={{ background: '#FFFFFF', border: '1px solid #C8DFE0', borderRadius: '20px', padding: '36px 32px', maxWidth: '440px', width: '100%', boxShadow: '0 24px 80px rgba(0,0,0,0.2)' }}>
             <div style={{ width: '44px', height: '44px', borderRadius: '12px', background: `${tierColor}18`, border: `1px solid ${tierColor}40`, display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '20px' }}>
               <svg width="20" height="20" fill="none" stroke={tierColor} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
             </div>
@@ -314,7 +314,7 @@ function CourseContent() {
             <div style={{ fontSize: '16px', color: '#464D53', lineHeight: 1.72, marginBottom: '24px' }}>
               AI is your <strong style={{ color: '#1E2124' }}>learning tool</strong> here, not your shortcut. The people who grow fastest are the ones who engage honestly.
             </div>
-            <div style={{ background: '#EEF9F9', border: '1px solid #E6EFF0', borderRadius: '12px', padding: '14px 16px', marginBottom: '24px', fontSize: '14px', color: '#464D53', lineHeight: 1.6 }}>
+            <div style={{ background: '#FFFFFF', border: '1px solid #C8DFE0', borderRadius: '12px', padding: '14px 16px', marginBottom: '24px', fontSize: '14px', color: '#464D53', lineHeight: 1.6 }}>
               Each question has a <strong style={{ color: '#1E2124' }}>45-second timer</strong>. Questions are shown one at a time and cannot be revisited. Answer from what you know.
             </div>
             <button
@@ -345,7 +345,7 @@ function CourseContent() {
       </nav>
 
       {/* ── Step progress bar ── */}
-      <div style={{ background: '#EEF9F9', borderBottom: '1px solid #E6EFF0' }}>
+      <div style={{ background: '#FFFFFF', borderBottom: '1px solid #C8DFE0' }}>
         <div style={{ maxWidth: '780px', margin: '0 auto', padding: '0 24px', display: 'flex', gap: '0' }}>
           {STEPS.map((s, i) => {
             const active = step === i
@@ -372,7 +372,7 @@ function CourseContent() {
               <span style={{ fontSize: '11px', fontWeight: 800, color: tierColor, textTransform: 'uppercase', letterSpacing: '1.5px', background: `${tierColor}15`, padding: '4px 12px', borderRadius: '20px' }}>
                 {course.tier_level} track
               </span>
-              <span style={{ fontSize: '14px', color: '#64748B', fontWeight: 600 }}>{course.estimated_minutes} min</span>
+              <span style={{ fontSize: '14px', color: '#1E2124', fontWeight: 600 }}>{course.estimated_minutes} min</span>
               {course.is_mandatory && <span style={{ fontSize: '11px', fontWeight: 700, color: '#FF9F43', background: '#FF9F4315', padding: '4px 10px', borderRadius: '20px' }}>Mandatory</span>}
             </div>
 
@@ -389,7 +389,7 @@ function CourseContent() {
               </div>
             )}
 
-            <div style={{ background: '#FFFFFF', border: '1px solid #E6EFF0', borderRadius: '16px', padding: '24px 28px', marginBottom: '32px', boxShadow: '0 1px 4px rgba(0,165,163,0.06), 0 1px 2px rgba(0,0,0,0.04)' }}>
+            <div style={{ background: '#FFFFFF', border: '1px solid #C8DFE0', borderRadius: '16px', padding: '24px 28px', marginBottom: '32px', boxShadow: '0 1px 4px rgba(0,165,163,0.06), 0 1px 2px rgba(0,0,0,0.04)' }}>
               <div style={{ fontSize: '11px', fontWeight: 800, letterSpacing: '2px', color: tierColor, textTransform: 'uppercase', marginBottom: '14px' }}>Why this matters</div>
               {course.overview.split('\n\n').map((para, i) => (
                 <p key={i} style={{ fontSize: '16px', color: '#464D53', lineHeight: 1.75, margin: '0 0 12px' }}>{para}</p>
@@ -402,15 +402,15 @@ function CourseContent() {
                 { icon: 'M9 11l3 3L22 4M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11', label: 'Do This', desc: `${course.task_steps.length} steps on your system` },
                 { icon: 'M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z', label: 'Test', desc: `5 personalised questions` },
               ].map(({ icon, label, desc }) => (
-                <div key={label} style={{ background: '#FFFFFF', border: '1px solid #E6EFF0', borderRadius: '12px', padding: '16px', textAlign: 'center', boxShadow: '0 1px 4px rgba(0,165,163,0.06), 0 1px 2px rgba(0,0,0,0.04)' }}>
+                <div key={label} style={{ background: '#FFFFFF', border: '1px solid #C8DFE0', borderRadius: '12px', padding: '16px', textAlign: 'center', boxShadow: '0 1px 4px rgba(0,165,163,0.06), 0 1px 2px rgba(0,0,0,0.04)' }}>
                   <svg width="20" height="20" fill="none" stroke={tierColor} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24" style={{ marginBottom: '8px' }}><path d={icon}/></svg>
                   <div style={{ fontSize: '15px', fontWeight: 800, color: '#1E2124' }}>{label}</div>
-                  <div style={{ fontSize: '13px', color: '#64748B' }}>{desc}</div>
+                  <div style={{ fontSize: '13px', color: '#1E2124' }}>{desc}</div>
                 </div>
               ))}
             </div>
 
-            <div style={{ marginBottom: '24px', padding: '12px 16px', background: '#EEF9F9', border: '1px solid #E6EFF0', borderRadius: '10px', fontSize: '14px', color: '#464D53', display: 'flex', gap: '8px', alignItems: 'center' }}>
+            <div style={{ marginBottom: '24px', padding: '12px 16px', background: '#FFFFFF', border: '1px solid #C8DFE0', borderRadius: '10px', fontSize: '14px', color: '#464D53', display: 'flex', gap: '8px', alignItems: 'center' }}>
               <svg width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
               Your test draws 5 personalised questions based on your submission. Every attempt is different.
             </div>
@@ -426,7 +426,7 @@ function CourseContent() {
         {step === 1 && (
           <div>
             <div style={{ fontSize: '13px', fontWeight: 800, letterSpacing: '2px', color: tierColor, textTransform: 'uppercase', marginBottom: '24px' }}>Reading Material</div>
-            <div style={{ background: '#FFFFFF', border: '1px solid #E6EFF0', borderRadius: '16px', padding: '32px', marginBottom: '32px', boxShadow: '0 1px 4px rgba(0,165,163,0.06), 0 1px 2px rgba(0,0,0,0.04)' }}>
+            <div style={{ background: '#FFFFFF', border: '1px solid #C8DFE0', borderRadius: '16px', padding: '32px', marginBottom: '32px', boxShadow: '0 1px 4px rgba(0,165,163,0.06), 0 1px 2px rgba(0,0,0,0.04)' }}>
               <MarkdownBlock content={course.read_content} />
             </div>
             <div style={{ display: 'flex', gap: '12px' }}>
@@ -457,7 +457,7 @@ function CourseContent() {
                 return (
                   <div
                     key={ts.step}
-                    style={{ background: done ? 'rgba(192,244,60,0.06)' : '#FFFFFF', border: `1px solid ${done ? 'rgba(192,244,60,0.25)' : '#E6EFF0'}`, borderRadius: '14px', padding: '20px 22px', cursor: 'pointer', transition: 'all 0.15s ease', boxShadow: '0 1px 4px rgba(0,165,163,0.06), 0 1px 2px rgba(0,0,0,0.04)' }}
+                    style={{ background: done ? 'rgba(192,244,60,0.06)' : '#FFFFFF', border: `1px solid ${done ? 'rgba(192,244,60,0.25)' : '#C8DFE0'}`, borderRadius: '14px', padding: '20px 22px', cursor: 'pointer', transition: 'all 0.15s ease', boxShadow: '0 1px 4px rgba(0,165,163,0.06), 0 1px 2px rgba(0,0,0,0.04)' }}
                     onClick={() => setTaskDone(prev => {
                       const next = new Set(prev)
                       if (next.has(ts.step)) next.delete(ts.step); else next.add(ts.step)
@@ -465,10 +465,10 @@ function CourseContent() {
                     })}
                   >
                     <div style={{ display: 'flex', gap: '14px', alignItems: 'flex-start' }}>
-                      <div style={{ width: '28px', height: '28px', borderRadius: '50%', border: `2px solid ${done ? '#C0F43C' : '#E6EFF0'}`, background: done ? '#C0F43C20' : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, marginTop: '2px' }}>
+                      <div style={{ width: '28px', height: '28px', borderRadius: '50%', border: `2px solid ${done ? '#C0F43C' : '#C8DFE0'}`, background: done ? '#C0F43C20' : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, marginTop: '2px' }}>
                         {done
                           ? <svg width="13" height="13" fill="none" stroke="#C0F43C" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>
-                          : <span style={{ fontSize: '13px', fontWeight: 800, color: '#64748B' }}>{ts.step}</span>
+                          : <span style={{ fontSize: '13px', fontWeight: 800, color: '#1E2124' }}>{ts.step}</span>
                         }
                       </div>
                       <div style={{ flex: 1 }}>
@@ -509,7 +509,7 @@ function CourseContent() {
                 style={{
                   width: '100%', boxSizing: 'border-box',
                   padding: '14px 16px', borderRadius: '12px',
-                  border: `1.5px solid ${submissionError ? '#FF6B6B' : submission.trim() ? `${tierColor}50` : '#E6EFF0'}`,
+                  border: `1.5px solid ${submissionError ? '#FF6B6B' : submission.trim() ? `${tierColor}50` : '#C8DFE0'}`,
                   background: submissionError ? 'rgba(255,107,107,0.05)' : '#FFFFFF', color: '#1E2124',
                   fontSize: '15px', fontFamily: 'inherit', lineHeight: 1.65,
                   outline: 'none', resize: 'vertical',
@@ -570,7 +570,7 @@ function CourseContent() {
                   {/* Countdown circle */}
                   <div style={{ position: 'relative', width: '52px', height: '52px' }}>
                     <svg width="52" height="52" viewBox="0 0 52 52" style={{ transform: 'rotate(-90deg)' }}>
-                      <circle cx="26" cy="26" r="22" fill="none" stroke="rgba(15,23,42,0.08)" strokeWidth="3" />
+                      <circle cx="26" cy="26" r="22" fill="none" stroke="#D8EAEB" strokeWidth="3" />
                       <circle cx="26" cy="26" r="22" fill="none" stroke={timeLeft <= 10 ? '#FF6B6B' : tierColor} strokeWidth="3"
                         strokeDasharray={`${2 * Math.PI * 22}`}
                         strokeDashoffset={`${2 * Math.PI * 22 * (1 - timeLeft / 45)}`}
@@ -585,12 +585,12 @@ function CourseContent() {
                 </div>
 
                 {/* Progress bar */}
-                <div style={{ height: '3px', background: 'rgba(15,23,42,0.08)', borderRadius: '2px', marginBottom: '28px', overflow: 'hidden' }}>
+                <div style={{ height: '3px', background: '#D8EAEB', borderRadius: '2px', marginBottom: '28px', overflow: 'hidden' }}>
                   <div style={{ height: '100%', background: tierColor, borderRadius: '2px', width: `${(currentQ / servedQuestions.length) * 100}%`, transition: 'width 0.3s ease' }} />
                 </div>
 
                 {/* Question */}
-                <div style={{ background: '#FFFFFF', border: `1px solid #E6EFF0`, borderRadius: '16px', padding: '24px', marginBottom: '16px', boxShadow: '0 1px 4px rgba(0,165,163,0.06), 0 1px 2px rgba(0,0,0,0.04)' }}>
+                <div style={{ background: '#FFFFFF', border: `1px solid #C8DFE0`, borderRadius: '16px', padding: '24px', marginBottom: '16px', boxShadow: '0 1px 4px rgba(0,165,163,0.06), 0 1px 2px rgba(0,0,0,0.04)' }}>
                   <div style={{ fontSize: '18px', fontWeight: 700, color: '#1E2124', lineHeight: 1.55 }}>
                     {servedQuestions[currentQ].question}
                   </div>
@@ -607,7 +607,7 @@ function CourseContent() {
                         disabled={qAnswered}
                         style={{
                           padding: '14px 18px', borderRadius: '12px', textAlign: 'left',
-                          border: `1.5px solid ${sel ? tierColor : '#E6EFF0'}`,
+                          border: `1.5px solid ${sel ? tierColor : '#C8DFE0'}`,
                           background: sel ? `${tierColor}18` : '#FFFFFF',
                           color: sel ? '#1E2124' : '#464D53',
                           fontSize: '16px', fontWeight: sel ? 700 : 400,
@@ -618,7 +618,7 @@ function CourseContent() {
                           opacity: qAnswered && !sel ? 0.45 : 1,
                         }}
                       >
-                        <div style={{ width: '20px', height: '20px', borderRadius: '50%', border: `1.5px solid ${sel ? tierColor : '#E6EFF0'}`, background: sel ? `${tierColor}30` : 'transparent', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                        <div style={{ width: '20px', height: '20px', borderRadius: '50%', border: `1.5px solid ${sel ? tierColor : '#C8DFE0'}`, background: sel ? `${tierColor}30` : 'transparent', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                           {sel && <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: tierColor }} />}
                         </div>
                         {opt}
@@ -628,7 +628,7 @@ function CourseContent() {
                 </div>
 
                 {qAnswered && (
-                  <div style={{ marginTop: '16px', fontSize: '14px', color: '#64748B', textAlign: 'center' }}>
+                  <div style={{ marginTop: '16px', fontSize: '14px', color: '#1E2124', textAlign: 'center' }}>
                     Moving to next question…
                   </div>
                 )}
@@ -696,7 +696,7 @@ function CourseContent() {
 
             {/* Breakdown */}
             <div style={{ marginBottom: '32px' }}>
-              <div style={{ fontSize: '13px', fontWeight: 800, letterSpacing: '2px', color: '#64748B', textTransform: 'uppercase', marginBottom: '16px' }}>Question Breakdown</div>
+              <div style={{ fontSize: '13px', fontWeight: 800, letterSpacing: '2px', color: '#1E2124', textTransform: 'uppercase', marginBottom: '16px' }}>Question Breakdown</div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
                 {result.breakdown.map((item, i) => (
                   <div key={i} style={{ background: item.is_correct ? 'rgba(192,244,60,0.05)' : 'rgba(255,107,107,0.05)', border: `1px solid ${item.is_correct ? 'rgba(192,244,60,0.2)' : 'rgba(255,107,107,0.2)'}`, borderRadius: '14px', padding: '18px 20px' }}>
@@ -770,7 +770,7 @@ const S = {
   },
   nav: {
     background:   '#FFFFFF',
-    borderBottom: '1px solid #E6EFF0',
+    borderBottom: '1px solid #C8DFE0',
     padding:      '0 32px',
     height:       '52px',
     display:      'flex',
@@ -779,7 +779,7 @@ const S = {
     boxShadow:    '0 1px 3px rgba(0,165,163,0.08)',
   },
   backBtn: {
-    padding: '12px 20px', borderRadius: '12px', border: '1px solid #E6EFF0',
+    padding: '12px 20px', borderRadius: '12px', border: '1px solid #C8DFE0',
     background: '#FFFFFF', color: '#464D53', fontSize: '15px',
     fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit',
     display: 'flex', alignItems: 'center', gap: '6px',
@@ -794,7 +794,7 @@ const S = {
     fontSize: '16px', fontWeight: 800, display: 'inline-flex', alignItems: 'center', gap: '8px',
   } as React.CSSProperties,
   backBtnLink: {
-    padding: '14px 20px', borderRadius: '12px', border: '1px solid #E6EFF0',
+    padding: '14px 20px', borderRadius: '12px', border: '1px solid #C8DFE0',
     color: '#464D53', fontSize: '15px', fontWeight: 700,
     textDecoration: 'none', display: 'inline-flex', alignItems: 'center',
   } as React.CSSProperties,

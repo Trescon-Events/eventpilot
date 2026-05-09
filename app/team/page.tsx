@@ -124,7 +124,7 @@ function TeamContent() {
   if (loading) return (
     <div style={{ fontFamily: 'var(--font-manrope),Manrope,sans-serif', background: '#F6FFFE', minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
       <div style={{ textAlign: 'center' }}>
-        <div style={{ width: '36px', height: '36px', border: '3px solid rgba(15,23,42,0.1)', borderTopColor: '#00A5A3', borderRadius: '50%', animation: 'spin 0.8s linear infinite', margin: '0 auto 14px' }} />
+        <div style={{ width: '36px', height: '36px', border: '3px solid #C8DFE0', borderTopColor: '#00A5A3', borderRadius: '50%', animation: 'spin 0.8s linear infinite', margin: '0 auto 14px' }} />
         <div style={{ color: '#464D53', fontSize: '16px' }}>Loading team data…</div>
       </div>
       <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
@@ -146,7 +146,7 @@ function TeamContent() {
   if (!loading && members.length === 0) return (
     <div style={{ fontFamily: 'var(--font-manrope),Manrope,sans-serif', background: '#F6FFFE', minHeight: '100vh', color: '#1E2124' }}>
       {/* Nav */}
-      <nav style={{ background: '#FFFFFF', borderBottom: '1px solid #E6EFF0', boxShadow: '0 1px 3px rgba(0,165,163,0.08)', padding: '0 32px', height: '64px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+      <nav style={{ background: '#FFFFFF', borderBottom: '1px solid #C8DFE0', boxShadow: '0 1px 3px rgba(0,165,163,0.08)', padding: '0 32px', height: '64px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
           <div style={{ background: 'white', borderRadius: '8px', padding: '4px 10px', display: 'flex', alignItems: 'center' }}>
             <img src="/trescon-logo.png" alt="Trescon" style={{ height: '40px', width: 'auto', display: 'block' }} />
@@ -187,8 +187,8 @@ function TeamContent() {
 
       <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: 'calc(100vh - 64px)', padding: '40px 24px', textAlign: 'center' }}>
         {/* Icon */}
-        <div style={{ width: '72px', height: '72px', borderRadius: '20px', background: '#FFFFFF', border: '1px solid #E6EFF0', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '24px' }}>
-          <svg width="32" height="32" fill="none" stroke="#64748B" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24">
+        <div style={{ width: '72px', height: '72px', borderRadius: '20px', background: '#FFFFFF', border: '1px solid #C8DFE0', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '24px' }}>
+          <svg width="32" height="32" fill="none" stroke="#1E2124" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24">
             <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
             <circle cx="9" cy="7" r="4"/>
             <path d="M23 21v-2a4 4 0 0 0-3-3.87"/>
@@ -243,7 +243,7 @@ function TeamContent() {
     <div style={{ fontFamily: 'var(--font-manrope),Manrope,sans-serif', background: '#F6FFFE', minHeight: '100vh', color: '#1E2124' }}>
 
       {/* Nav */}
-      <nav style={{ background: '#FFFFFF', borderBottom: '1px solid #E6EFF0', boxShadow: '0 1px 3px rgba(0,165,163,0.08)', padding: '0 32px', height: '64px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+      <nav style={{ background: '#FFFFFF', borderBottom: '1px solid #C8DFE0', boxShadow: '0 1px 3px rgba(0,165,163,0.08)', padding: '0 32px', height: '64px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
             <div style={{ background: 'white', borderRadius: '8px', padding: '4px 10px', display: 'flex', alignItems: 'center' }}>
@@ -310,22 +310,22 @@ function TeamContent() {
             { label: 'Courses Completed',  value: totalDone,         sub: 'across team' },
             { label: 'Active Learners',    value: activeCount,       sub: 'completed a course' },
           ].map(({ label, value, sub }) => (
-            <div key={label} style={{ background: '#FFFFFF', border: '1px solid #E6EFF0', borderRadius: '14px', padding: '18px 20px', boxShadow: '0 1px 4px rgba(0,165,163,0.06), 0 1px 2px rgba(0,0,0,0.04)' }}>
-              <div style={{ fontSize: '11px', fontWeight: 700, color: '#64748B', textTransform: 'uppercase', letterSpacing: '1.5px', marginBottom: '6px' }}>{label}</div>
+            <div key={label} style={{ background: '#FFFFFF', border: '1px solid #C8DFE0', borderRadius: '14px', padding: '18px 20px', boxShadow: '0 1px 4px rgba(0,165,163,0.06), 0 1px 2px rgba(0,0,0,0.04)' }}>
+              <div style={{ fontSize: '11px', fontWeight: 700, color: '#1E2124', textTransform: 'uppercase', letterSpacing: '1.5px', marginBottom: '6px' }}>{label}</div>
               <div style={{ fontSize: '30px', fontWeight: 900, color: '#1E2124', marginBottom: '2px' }}>{value}</div>
-              <div style={{ fontSize: '13px', color: '#64748B' }}>{sub}</div>
+              <div style={{ fontSize: '13px', color: '#1E2124' }}>{sub}</div>
             </div>
           ))}
         </div>
 
         {/* Tier distribution */}
-        <div style={{ background: '#FFFFFF', border: '1px solid #E6EFF0', borderRadius: '14px', padding: '18px 24px', marginBottom: '20px', display: 'flex', gap: '24px', alignItems: 'center', flexWrap: 'wrap', boxShadow: '0 1px 4px rgba(0,165,163,0.06), 0 1px 2px rgba(0,0,0,0.04)' }}>
-          <div style={{ fontSize: '13px', fontWeight: 700, color: '#64748B', textTransform: 'uppercase', letterSpacing: '1.5px', flexShrink: 0 }}>AI Readiness</div>
+        <div style={{ background: '#FFFFFF', border: '1px solid #C8DFE0', borderRadius: '14px', padding: '18px 24px', marginBottom: '20px', display: 'flex', gap: '24px', alignItems: 'center', flexWrap: 'wrap', boxShadow: '0 1px 4px rgba(0,165,163,0.06), 0 1px 2px rgba(0,0,0,0.04)' }}>
+          <div style={{ fontSize: '13px', fontWeight: 700, color: '#1E2124', textTransform: 'uppercase', letterSpacing: '1.5px', flexShrink: 0 }}>AI Readiness</div>
           {Object.entries(tierCounts).map(([tier, count]) => count > 0 && (
             <div key={tier} style={{ display: 'flex', alignItems: 'center', gap: '7px' }}>
               <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: TIER_COLOR[tier] }} />
               <span style={{ fontSize: '14px', fontWeight: 700, color: TIER_COLOR[tier] }}>{tier}</span>
-              <span style={{ fontSize: '14px', color: '#64748B' }}>{count}</span>
+              <span style={{ fontSize: '14px', color: '#1E2124' }}>{count}</span>
             </div>
           ))}
         </div>
@@ -345,7 +345,7 @@ function TeamContent() {
               {briefState === 'ready' && (
                 <button
                   onClick={generateBrief}
-                  style={{ fontSize: '14px', fontWeight: 700, color: '#464D53', background: 'none', border: '1px solid #E6EFF0', padding: '6px 14px', borderRadius: '8px', cursor: 'pointer', fontFamily: 'inherit' }}
+                  style={{ fontSize: '14px', fontWeight: 700, color: '#464D53', background: 'none', border: '1px solid #C8DFE0', padding: '6px 14px', borderRadius: '8px', cursor: 'pointer', fontFamily: 'inherit' }}
                 >
                   Regenerate
                 </button>
@@ -380,7 +380,7 @@ function TeamContent() {
                     { label: 'No Courses Yet', value: briefStats.zeroCourses, color: '#FF9F43' },
                     { label: 'Profile Pending', value: briefStats.noProfile, color: '#A478FF' },
                   ].map(({ label, value, color }) => (
-                    <div key={label} style={{ background: '#FFFFFF', border: '1px solid #E6EFF0', borderRadius: '10px', padding: '8px 14px', display: 'flex', gap: '6px', alignItems: 'baseline', boxShadow: '0 1px 4px rgba(0,165,163,0.06), 0 1px 2px rgba(0,0,0,0.04)' }}>
+                    <div key={label} style={{ background: '#FFFFFF', border: '1px solid #C8DFE0', borderRadius: '10px', padding: '8px 14px', display: 'flex', gap: '6px', alignItems: 'baseline', boxShadow: '0 1px 4px rgba(0,165,163,0.06), 0 1px 2px rgba(0,0,0,0.04)' }}>
                       <span style={{ fontSize: '22px', fontWeight: 900, color }}>{value}</span>
                       <span style={{ fontSize: '13px', color: '#464D53', fontWeight: 600 }}>{label}</span>
                     </div>
@@ -429,7 +429,7 @@ function TeamContent() {
               )}
 
               {/* Platform impact note */}
-              <div style={{ marginTop: '16px', fontSize: '14px', color: '#64748B', lineHeight: 1.65, borderTop: '1px solid #E6EFF0', paddingTop: '14px' }}>
+              <div style={{ marginTop: '16px', fontSize: '14px', color: '#1E2124', lineHeight: 1.65, borderTop: '1px solid #C8DFE0', paddingTop: '14px' }}>
                 Your team&apos;s engagement data directly shapes what Trescademy builds next. Courses requested here go into the live library — and are immediately recommended to staff who need them most.
               </div>
             </div>
@@ -446,15 +446,15 @@ function TeamContent() {
         <div style={{ display: 'flex', gap: '10px', marginBottom: '20px', flexWrap: 'wrap', alignItems: 'center' }}>
           {/* Search */}
           <div style={{ position: 'relative', flex: '0 0 220px' }}>
-            <svg width="12" height="12" fill="none" stroke="#64748B" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24" style={{ position: 'absolute', left: '11px', top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none' }}><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+            <svg width="12" height="12" fill="none" stroke="#1E2124" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24" style={{ position: 'absolute', left: '11px', top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none' }}><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
             <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search name or role…"
-              style={{ width: '100%', paddingLeft: '32px', paddingRight: '12px', paddingTop: '7px', paddingBottom: '7px', borderRadius: '20px', border: '1px solid #E6EFF0', background: '#FFFFFF', color: '#1E2124', fontSize: '14px', fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box' }} />
+              style={{ width: '100%', paddingLeft: '32px', paddingRight: '12px', paddingTop: '7px', paddingBottom: '7px', borderRadius: '20px', border: '1px solid #C8DFE0', background: '#FFFFFF', color: '#1E2124', fontSize: '14px', fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box' }} />
           </div>
 
           {/* Dept filter */}
           {depts.length > 1 && (
             <select value={deptFilter} onChange={e => setDeptFilter(e.target.value)}
-              style={{ padding: '7px 12px', borderRadius: '20px', border: '1px solid #E6EFF0', background: '#FFFFFF', color: '#1E2124', fontSize: '14px', fontFamily: 'inherit', outline: 'none', cursor: 'pointer' }}>
+              style={{ padding: '7px 12px', borderRadius: '20px', border: '1px solid #C8DFE0', background: '#FFFFFF', color: '#1E2124', fontSize: '14px', fontFamily: 'inherit', outline: 'none', cursor: 'pointer' }}>
               <option value="all">All Departments</option>
               {depts.map(d => <option key={d} value={d}>{d}</option>)}
             </select>
@@ -463,7 +463,7 @@ function TeamContent() {
           {/* Office filter */}
           {offices.length > 1 && (
             <select value={officeFilter} onChange={e => setOfficeFilter(e.target.value)}
-              style={{ padding: '7px 12px', borderRadius: '20px', border: '1px solid #E6EFF0', background: '#FFFFFF', color: '#1E2124', fontSize: '14px', fontFamily: 'inherit', outline: 'none', cursor: 'pointer' }}>
+              style={{ padding: '7px 12px', borderRadius: '20px', border: '1px solid #C8DFE0', background: '#FFFFFF', color: '#1E2124', fontSize: '14px', fontFamily: 'inherit', outline: 'none', cursor: 'pointer' }}>
               <option value="all">All Offices</option>
               {offices.map(o => <option key={o} value={o}>{OFFICE_LABEL[o] ?? o}</option>)}
             </select>
@@ -482,7 +482,7 @@ function TeamContent() {
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
             {/* Header row */}
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 120px 100px 100px 100px 80px', gap: '12px', padding: '8px 20px', fontSize: '11px', fontWeight: 700, color: '#64748B', textTransform: 'uppercase', letterSpacing: '1px' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 120px 100px 100px 100px 80px', gap: '12px', padding: '8px 20px', fontSize: '11px', fontWeight: 700, color: '#1E2124', textTransform: 'uppercase', letterSpacing: '1px' }}>
               <span>Name / Role</span>
               <span>Department</span>
               <span>TAIRS</span>
@@ -494,10 +494,10 @@ function TeamContent() {
             {filtered.map(m => {
               const tc = TIER_COLOR[m.tier] ?? '#aaa'
               return (
-                <div key={m.id} style={{ display: 'grid', gridTemplateColumns: '1fr 120px 100px 100px 100px 80px', gap: '12px', alignItems: 'center', padding: '14px 20px', background: '#FFFFFF', border: '1px solid #E6EFF0', borderRadius: '12px', boxShadow: '0 1px 4px rgba(0,165,163,0.06), 0 1px 2px rgba(0,0,0,0.04)' }}>
+                <div key={m.id} style={{ display: 'grid', gridTemplateColumns: '1fr 120px 100px 100px 100px 80px', gap: '12px', alignItems: 'center', padding: '14px 20px', background: '#FFFFFF', border: '1px solid #C8DFE0', borderRadius: '12px', boxShadow: '0 1px 4px rgba(0,165,163,0.06), 0 1px 2px rgba(0,0,0,0.04)' }}>
                   <div>
                     <div style={{ fontSize: '16px', fontWeight: 700, color: '#1E2124', marginBottom: '2px' }}>{m.name}</div>
-                    <div style={{ fontSize: '13px', color: '#64748B' }}>
+                    <div style={{ fontSize: '13px', color: '#1E2124' }}>
                       {m.role ?? '—'} · {JOB_LEVEL_LABEL[m.job_level] ?? m.job_level} · {OFFICE_LABEL[m.office_id] ?? m.office_id}
                     </div>
                   </div>
@@ -507,7 +507,7 @@ function TeamContent() {
                     <span style={{ fontSize: '11px', fontWeight: 700, color: tc, background: `${tc}18`, padding: '2px 7px', borderRadius: '6px' }}>{m.tier.replace('AI-', '')}</span>
                   </div>
                   <div style={{ fontSize: '14px', fontWeight: 600, color: '#464D53', textTransform: 'capitalize' }}>{m.track}</div>
-                  <div style={{ fontSize: '16px', fontWeight: 800, color: m.completed_courses > 0 ? '#C0F43C' : '#64748B' }}>
+                  <div style={{ fontSize: '16px', fontWeight: 800, color: m.completed_courses > 0 ? '#C0F43C' : '#1E2124' }}>
                     {m.completed_courses}
                   </div>
                   <div style={{ fontSize: '13px', color: '#464D53' }}>

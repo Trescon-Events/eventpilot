@@ -82,8 +82,8 @@ function MessageBubble({ msg }: { msg: Message }) {
         maxWidth: '72%',
         padding: isUser ? '12px 16px' : '16px 20px',
         borderRadius: isUser ? '18px 18px 4px 18px' : '18px 18px 18px 4px',
-        background: isUser ? '#00A5A3' : '#EEF9F9',
-        border: isUser ? 'none' : '1px solid #E6EFF0',
+        background: isUser ? '#00A5A3' : '#FFFFFF',
+        border: isUser ? 'none' : '1px solid #C8DFE0',
       }}>
         {isUser ? (
           <p style={{ fontSize: '16px', color: 'white', margin: 0, lineHeight: 1.65 }}>{msg.text}</p>
@@ -98,8 +98,8 @@ function MessageBubble({ msg }: { msg: Message }) {
       </div>
 
       {isUser && (
-        <div style={{ width: '30px', height: '30px', borderRadius: '10px', background: '#EEF9F9', border: '1px solid #E6EFF0', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, marginBottom: '2px' }}>
-          <svg width="13" height="13" fill="none" stroke="#374151" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+        <div style={{ width: '30px', height: '30px', borderRadius: '10px', background: '#FFFFFF', border: '1px solid #C8DFE0', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, marginBottom: '2px' }}>
+          <svg width="13" height="13" fill="none" stroke="#1E2124" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
         </div>
       )}
     </div>
@@ -231,7 +231,7 @@ export default function ChatPage() {
     <div style={{ fontFamily: 'var(--font-manrope), Manrope, sans-serif', background: '#F6FFFE', minHeight: '100vh', display: 'flex', flexDirection: 'column', color: '#1E2124' }}>
 
       {/* Nav */}
-      <nav style={{ background: '#FFFFFF', borderBottom: '1px solid #E6EFF0', padding: '0 28px', height: '64px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0, boxShadow: '0 1px 3px rgba(0,165,163,0.08)' }}>
+      <nav style={{ background: '#FFFFFF', borderBottom: '1px solid #C8DFE0', padding: '0 28px', height: '64px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0, boxShadow: '0 1px 3px rgba(0,165,163,0.08)' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
           <Link href={staffId ? `/dashboard?id=${staffId}` : '/login'} style={{ display: 'flex', alignItems: 'center', gap: '8px', textDecoration: 'none' }}>
             <div style={{ width: '40px', height: '40px', background: '#00A5A3', borderRadius: '11px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -253,14 +253,14 @@ export default function ChatPage() {
           {messages.length > 0 && !isBlocked && (
             <button
               onClick={() => { setMessages([]); setSessionCount(0) }}
-              style={{ fontSize: '14px', fontWeight: 600, color: '#464D53', background: 'none', border: '1px solid #E6EFF0', padding: '5px 12px', borderRadius: '8px', cursor: 'pointer', fontFamily: 'inherit' }}
+              style={{ fontSize: '14px', fontWeight: 600, color: '#464D53', background: 'none', border: '1px solid #C8DFE0', padding: '5px 12px', borderRadius: '8px', cursor: 'pointer', fontFamily: 'inherit' }}
             >
               New conversation
             </button>
           )}
           <Link
             href={staffId ? `/dashboard?id=${staffId}` : '/login'}
-            style={{ fontSize: '14px', fontWeight: 700, color: '#464D53', background: '#EEF9F9', border: '1px solid #E6EFF0', padding: '5px 14px', borderRadius: '8px', textDecoration: 'none' }}
+            style={{ fontSize: '14px', fontWeight: 700, color: '#464D53', background: '#FFFFFF', border: '1px solid #C8DFE0', padding: '5px 14px', borderRadius: '8px', textDecoration: 'none' }}
           >
             Back to Dashboard
           </Link>
@@ -290,9 +290,9 @@ export default function ChatPage() {
                 <button
                   key={q}
                   onClick={() => send(q)}
-                  style={{ padding: '12px 16px', background: '#FFFFFF', border: '1px solid #E6EFF0', borderRadius: '12px', color: '#464D53', fontSize: '15px', fontWeight: 500, cursor: 'pointer', textAlign: 'left', fontFamily: 'inherit', lineHeight: 1.45, transition: 'border-color 0.15s', boxShadow: '0 1px 4px rgba(0,165,163,0.06), 0 1px 2px rgba(0,0,0,0.04)' }}
+                  style={{ padding: '12px 16px', background: '#FFFFFF', border: '1px solid #C8DFE0', borderRadius: '12px', color: '#464D53', fontSize: '15px', fontWeight: 500, cursor: 'pointer', textAlign: 'left', fontFamily: 'inherit', lineHeight: 1.45, transition: 'border-color 0.15s', boxShadow: '0 1px 4px rgba(0,165,163,0.06), 0 1px 2px rgba(0,0,0,0.04)' }}
                   onMouseEnter={e => (e.currentTarget.style.borderColor = 'rgba(0,165,163,0.4)')}
-                  onMouseLeave={e => (e.currentTarget.style.borderColor = '#E6EFF0')}
+                  onMouseLeave={e => (e.currentTarget.style.borderColor = '#C8DFE0')}
                 >
                   {q}
                 </button>
@@ -300,10 +300,10 @@ export default function ChatPage() {
             </div>
 
             {/* Scope note */}
-            <div style={{ marginTop: '28px', padding: '12px 20px', background: '#FFFFFF', border: '1px solid #E6EFF0', borderRadius: '10px', fontSize: '14px', color: '#464D53', lineHeight: 1.65, maxWidth: '500px', textAlign: 'center', boxShadow: '0 1px 4px rgba(0,165,163,0.06), 0 1px 2px rgba(0,0,0,0.04)' }}>
+            <div style={{ marginTop: '28px', padding: '12px 20px', background: '#FFFFFF', border: '1px solid #C8DFE0', borderRadius: '10px', fontSize: '14px', color: '#464D53', lineHeight: 1.65, maxWidth: '500px', textAlign: 'center', boxShadow: '0 1px 4px rgba(0,165,163,0.06), 0 1px 2px rgba(0,0,0,0.04)' }}>
               Tresci is here to support your learning — ask about your courses, TAIRS score, or how to get the most from the platform.
               For HR, IT, or personal matters, please speak to your manager or the relevant team.
-              <span style={{ display: 'block', marginTop: '8px', borderTop: '1px solid rgba(15,23,42,0.08)', paddingTop: '8px' }}>
+              <span style={{ display: 'block', marginTop: '8px', borderTop: '1px solid #D8EAEB', paddingTop: '8px' }}>
                 <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', background: 'rgba(192,244,60,0.08)', border: '1px solid rgba(192,244,60,0.2)', borderRadius: '8px', padding: '5px 12px', color: '#C0F43C', fontWeight: 700 }}>
                   <svg width="12" height="12" fill="none" stroke="#C0F43C" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
                   You have {SESSION_LIMIT} questions per day — resets at midnight.
@@ -322,7 +322,7 @@ export default function ChatPage() {
                 <div style={{ width: '30px', height: '30px', borderRadius: '10px', background: '#00A5A3', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
                   <svg width="14" height="14" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
                 </div>
-                <div style={{ padding: '14px 18px', background: '#EEF9F9', border: '1px solid #E6EFF0', borderRadius: '18px 18px 18px 4px', display: 'flex', gap: '5px', alignItems: 'center' }}>
+                <div style={{ padding: '14px 18px', background: '#FFFFFF', border: '1px solid #C8DFE0', borderRadius: '18px 18px 18px 4px', display: 'flex', gap: '5px', alignItems: 'center' }}>
                   {[0, 1, 2].map(i => (
                     <div key={i} style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#00A5A3', animation: `bounce 1.2s ${i * 0.2}s infinite` }} />
                   ))}
@@ -352,16 +352,16 @@ export default function ChatPage() {
               <div style={{ fontSize: '36px', fontWeight: 900, color: '#FF9F43', letterSpacing: '-1px', fontVariantNumeric: 'tabular-nums' }}>
                 {timeLeft}
               </div>
-              <div style={{ fontSize: '13px', color: '#64748B', marginTop: '4px', fontWeight: 600, letterSpacing: '1.5px', textTransform: 'uppercase' }}>
+              <div style={{ fontSize: '13px', color: '#1E2124', marginTop: '4px', fontWeight: 600, letterSpacing: '1.5px', textTransform: 'uppercase' }}>
                 Remaining
               </div>
             </div>
-            <p style={{ fontSize: '14px', color: '#64748B', maxWidth: '320px', lineHeight: 1.65, margin: 0 }}>
+            <p style={{ fontSize: '14px', color: '#1E2124', maxWidth: '320px', lineHeight: 1.65, margin: 0 }}>
               This keeps Tresci focused and available for everyone. Your learning courses and dashboard remain fully accessible in the meantime.
             </p>
             <Link
               href={staffId ? `/dashboard?id=${staffId}` : '/login'}
-              style={{ marginTop: '24px', display: 'inline-block', fontSize: '15px', fontWeight: 700, color: '#1E2124', background: '#EEF9F9', border: '1px solid #E6EFF0', padding: '10px 24px', borderRadius: '10px', textDecoration: 'none' }}
+              style={{ marginTop: '24px', display: 'inline-block', fontSize: '15px', fontWeight: 700, color: '#1E2124', background: '#FFFFFF', border: '1px solid #C8DFE0', padding: '10px 24px', borderRadius: '10px', textDecoration: 'none' }}
             >
               Back to My Dashboard
             </Link>
@@ -377,7 +377,7 @@ export default function ChatPage() {
                 {remaining} question{remaining !== 1 ? 's' : ''} remaining in this session
               </div>
             )}
-            <div style={{ display: 'flex', gap: '10px', alignItems: 'flex-end', background: '#FFFFFF', border: '1px solid #E6EFF0', borderRadius: '16px', padding: '12px 14px', boxShadow: '0 1px 4px rgba(0,165,163,0.06), 0 1px 2px rgba(0,0,0,0.04)' }}>
+            <div style={{ display: 'flex', gap: '10px', alignItems: 'flex-end', background: '#FFFFFF', border: '1px solid #C8DFE0', borderRadius: '16px', padding: '12px 14px', boxShadow: '0 1px 4px rgba(0,165,163,0.06), 0 1px 2px rgba(0,0,0,0.04)' }}>
               <textarea
                 ref={inputRef}
                 value={input}
@@ -401,7 +401,7 @@ export default function ChatPage() {
                 <svg width="15" height="15" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
               </button>
             </div>
-            <div style={{ textAlign: 'center', marginTop: '8px', fontSize: '13px', color: '#64748B', lineHeight: 1.65 }}>
+            <div style={{ textAlign: 'center', marginTop: '8px', fontSize: '13px', color: '#1E2124', lineHeight: 1.65 }}>
               Press Enter to send · Shift+Enter for new line
             </div>
           </div>
@@ -411,7 +411,7 @@ export default function ChatPage() {
       <style>{`
         @keyframes pulse  { 0%,100%{opacity:1} 50%{opacity:0.4} }
         @keyframes bounce { 0%,80%,100%{transform:translateY(0)} 40%{transform:translateY(-6px)} }
-        textarea::placeholder { color: #64748B; }
+        textarea::placeholder { color: #1E2124; }
       `}</style>
     </div>
   )

@@ -61,7 +61,7 @@ export default function LoginPage() {
       {/* ── LEFT PANEL ── */}
       <div style={{
         background:  'linear-gradient(135deg, #00A5A3 0%, #007A78 100%)',
-        borderRight: '1px solid #E6EFF0',
+        borderRight: '1px solid #C8DFE0',
         padding:     '56px 64px',
         display:     'flex',
         flexDirection: 'column',
@@ -147,7 +147,7 @@ export default function LoginPage() {
                 placeholder="you@tresconglobal.com"
                 autoComplete="email"
                 disabled={loading}
-                style={{ padding: '13px 16px', borderRadius: '12px', border: '1px solid #E6EFF0', background: '#FFFFFF', color: '#1E2124', fontSize: '16px', fontFamily: 'inherit', outline: 'none' }}
+                style={{ padding: '13px 16px', borderRadius: '12px', border: '1px solid #C8DFE0', background: '#FFFFFF', color: '#1E2124', fontSize: '16px', fontFamily: 'inherit', outline: 'none' }}
               />
             </div>
 
@@ -163,12 +163,12 @@ export default function LoginPage() {
                   placeholder="Your password"
                   autoComplete="current-password"
                   disabled={loading}
-                  style={{ width: '100%', boxSizing: 'border-box', padding: '13px 44px 13px 16px', borderRadius: '12px', border: '1px solid #E6EFF0', background: '#FFFFFF', color: '#1E2124', fontSize: '16px', fontFamily: 'inherit', outline: 'none' }}
+                  style={{ width: '100%', boxSizing: 'border-box', padding: '13px 44px 13px 16px', borderRadius: '12px', border: '1px solid #C8DFE0', background: '#FFFFFF', color: '#1E2124', fontSize: '16px', fontFamily: 'inherit', outline: 'none' }}
                 />
                 <button
                   type="button"
                   onClick={() => setShowPass(v => !v)}
-                  style={{ position: 'absolute', right: '14px', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', padding: '0', display: 'flex', alignItems: 'center', color: '#64748B' }}
+                  style={{ position: 'absolute', right: '14px', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', padding: '0', display: 'flex', alignItems: 'center', color: '#1E2124' }}
                 >
                   {showPass ? (
                     <svg width="17" height="17" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94"/><path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
@@ -204,7 +204,7 @@ export default function LoginPage() {
           </form>
 
           {/* Help note */}
-          <div style={{ marginTop: '28px', padding: '14px 16px', background: '#FFFFFF', border: '1px solid #E6EFF0', borderRadius: '12px', fontSize: '14px', color: '#64748B', lineHeight: 1.65, textAlign: 'center' }}>
+          <div style={{ marginTop: '28px', padding: '14px 16px', background: '#FFFFFF', border: '1px solid #C8DFE0', borderRadius: '12px', fontSize: '14px', color: '#1E2124', lineHeight: 1.65, textAlign: 'center' }}>
             Having trouble logging in?<br />
             Contact your manager or the HR team.
           </div>
@@ -212,7 +212,7 @@ export default function LoginPage() {
           {/* Bottom wordmark */}
           <div style={{ marginTop: '32px', textAlign: 'center', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
             <div style={{ width: '5px', height: '5px', borderRadius: '50%', background: '#00A5A3', animation: 'pulse 2s infinite' }} />
-            <span style={{ fontSize: '13px', fontWeight: 700, color: '#64748B', letterSpacing: '1.5px', textTransform: 'uppercase' }}>Trescademy · Trescon Global</span>
+            <span style={{ fontSize: '13px', fontWeight: 700, color: '#1E2124', letterSpacing: '1.5px', textTransform: 'uppercase' }}>Trescademy · Trescon Global</span>
           </div>
         </div>
       </div>

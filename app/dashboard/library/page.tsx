@@ -133,7 +133,7 @@ function LibraryContent() {
                 style={{
                   padding: '16px 18px', borderRadius: '14px', textAlign: 'left', cursor: 'pointer', fontFamily: 'inherit',
                   background: tierFilter === tier ? cfg.bg : '#FFFFFF',
-                  border: `1px solid ${tierFilter === tier ? cfg.border : '#E6EFF0'}`,
+                  border: `1px solid ${tierFilter === tier ? cfg.border : '#C8DFE0'}`,
                   boxShadow: '0 1px 4px rgba(0,165,163,0.06), 0 1px 2px rgba(0,0,0,0.04)',
                   transition: 'all 0.15s ease',
                 }}
@@ -184,7 +184,7 @@ function LibraryContent() {
         {/* All Courses — section header + filters */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '16px' }}>
           <div style={{ width: '7px', height: '7px', borderRadius: '50%', background: '#00A5A3', flexShrink: 0 }} />
-          <span style={{ fontSize: '13px', fontWeight: 800, color: '#64748B', textTransform: 'uppercase', letterSpacing: '2px' }}>All Courses</span>
+          <span style={{ fontSize: '13px', fontWeight: 800, color: '#1E2124', textTransform: 'uppercase', letterSpacing: '2px' }}>All Courses</span>
         </div>
 
         {/* Filters */}
@@ -196,7 +196,7 @@ function LibraryContent() {
               { val: 'manual', label: 'Trescademy Curated' },
               { val: 'gemini', label: 'AI Generated' },
             ].map(({ val, label }) => (
-              <button key={val} onClick={() => setSourceFilter(val)} style={{ padding: '7px 14px', borderRadius: '20px', border: `1px solid ${sourceFilter === val ? '#00A5A3' : '#E6EFF0'}`, background: sourceFilter === val ? '#00A5A315' : '#FFFFFF', color: sourceFilter === val ? '#00A5A3' : '#464D53', fontSize: '14px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
+              <button key={val} onClick={() => setSourceFilter(val)} style={{ padding: '7px 14px', borderRadius: '20px', border: `1px solid ${sourceFilter === val ? '#00A5A3' : '#C8DFE0'}`, background: sourceFilter === val ? '#00A5A315' : '#FFFFFF', color: sourceFilter === val ? '#00A5A3' : '#464D53', fontSize: '14px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
                 {label}
               </button>
             ))}
@@ -206,7 +206,7 @@ function LibraryContent() {
           <select
             value={deptFilter}
             onChange={e => setDeptFilter(e.target.value)}
-            style={{ padding: '7px 14px', borderRadius: '20px', border: '1px solid #E6EFF0', background: '#FFFFFF', color: '#464D53', fontSize: '14px', fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', outline: 'none' }}
+            style={{ padding: '7px 14px', borderRadius: '20px', border: '1px solid #C8DFE0', background: '#FFFFFF', color: '#464D53', fontSize: '14px', fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', outline: 'none' }}
           >
             {DEPTS.map(d => <option key={d} value={d}>{d}</option>)}
           </select>
@@ -219,8 +219,8 @@ function LibraryContent() {
         {/* Course grid */}
         {loading ? (
           <div style={{ textAlign: 'center', padding: '60px 0' }}>
-            <div style={{ width: '36px', height: '36px', border: '3px solid rgba(15,23,42,0.1)', borderTopColor: '#00A5A3', borderRadius: '50%', animation: 'spin 0.8s linear infinite', margin: '0 auto 14px' }} />
-            <div style={{ color: '#64748B', fontSize: '15px' }}>Loading library…</div>
+            <div style={{ width: '36px', height: '36px', border: '3px solid #C8DFE0', borderTopColor: '#00A5A3', borderRadius: '50%', animation: 'spin 0.8s linear infinite', margin: '0 auto 14px' }} />
+            <div style={{ color: '#1E2124', fontSize: '15px' }}>Loading library…</div>
           </div>
         ) : filtered.length === 0 ? (
           <div style={{ textAlign: 'center', padding: '60px 0', color: '#464D53', fontSize: '16px' }}>
@@ -241,7 +241,7 @@ function LibraryContent() {
                   style={{
                     display: 'flex', flexDirection: 'column',
                     background: done ? 'rgba(192,244,60,0.04)' : '#FFFFFF',
-                    border: `1px solid ${done ? 'rgba(192,244,60,0.2)' : '#E6EFF0'}`,
+                    border: `1px solid ${done ? 'rgba(192,244,60,0.2)' : '#C8DFE0'}`,
                     boxShadow: '0 1px 4px rgba(0,165,163,0.06), 0 1px 2px rgba(0,0,0,0.04)',
                     borderRadius: '16px', padding: '22px', textDecoration: 'none',
                     transition: 'border-color 0.15s ease, transform 0.15s ease',
@@ -271,7 +271,7 @@ function LibraryContent() {
                   <div style={{ fontSize: '15px', fontWeight: 800, color: '#0F172A', marginBottom: '6px', lineHeight: 1.3, flex: 1 }}>
                     {course.title}
                   </div>
-                  <div style={{ fontSize: '12px', color: '#374151', marginBottom: '16px', lineHeight: 1.5 }}>
+                  <div style={{ fontSize: '12px', color: '#1E2124', marginBottom: '16px', lineHeight: 1.5 }}>
                     {course.subtitle}
                   </div>
 
@@ -289,12 +289,12 @@ function LibraryContent() {
                   )}
 
                   {/* Footer */}
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: '1px solid #E6EFF0', paddingTop: '12px' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: '1px solid #C8DFE0', paddingTop: '12px' }}>
                     <div style={{ display: 'flex', gap: '12px' }}>
                       <span style={{ fontSize: '13px', color: '#464D53', fontWeight: 600 }}>{course.estimated_minutes} min</span>
                       {course.tool_name && <span style={{ fontSize: '13px', color: '#464D53', fontWeight: 600 }}>{course.tool_name}</span>}
                     </div>
-                    <div style={{ fontSize: '13px', fontWeight: 700, color: done ? '#C0F43C' : attempted ? '#FF9F43' : '#64748B' }}>
+                    <div style={{ fontSize: '13px', fontWeight: 700, color: done ? '#C0F43C' : attempted ? '#FF9F43' : '#1E2124' }}>
                       {done ? 'Passed' : attempted ? `Score: ${completion?.test_score ?? 0}%` : 'Not started'}
                     </div>
                   </div>
@@ -319,7 +319,7 @@ const S = {
   },
   nav: {
     background:   '#FFFFFF',
-    borderBottom: '1px solid #E6EFF0',
+    borderBottom: '1px solid #C8DFE0',
     padding:      '0 32px',
     height:       '64px',
     display:      'flex',

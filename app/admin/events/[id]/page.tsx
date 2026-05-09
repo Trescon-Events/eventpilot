@@ -56,7 +56,7 @@ const DEPT_COLORS: Record<string, string> = {
 }
 
 const STATUS_CONFIG = {
-  not_started: { label: 'Not Started', color: '#64748B',  bg: '#F0F9F9'  },
+  not_started: { label: 'Not Started', color: '#1E2124',  bg: '#FFFFFF'  },
   in_progress: { label: 'In Progress', color: '#F59E0B',               bg: 'rgba(245,158,11,0.1)'    },
   done:        { label: 'Done',        color: '#C0F43C',               bg: 'rgba(192,244,60,0.1)'    },
   overdue:     { label: 'Overdue',     color: '#FF6B6B',               bg: 'rgba(255,107,107,0.1)'   },
@@ -239,7 +239,7 @@ export default function EventWorkspacePage({ params }: { params: Promise<{ id: s
 
   if (loading) return (
     <div style={{ fontFamily: 'var(--font-manrope), Manrope, sans-serif', background: '#F6FFFE', minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-      <div style={{ color: '#64748B', fontSize: '16px' }}>Loading event workspace…</div>
+      <div style={{ color: '#1E2124', fontSize: '16px' }}>Loading event workspace…</div>
     </div>
   )
 
@@ -253,13 +253,13 @@ export default function EventWorkspacePage({ params }: { params: Promise<{ id: s
     <div style={{ fontFamily: 'var(--font-manrope), Manrope, sans-serif', background: '#F6FFFE', minHeight: '100vh', color: '#1E2124' }}>
 
       {/* Nav */}
-      <nav style={{ borderBottom: '1px solid #E6EFF0', padding: '0 32px', height: '64px', display: 'flex', alignItems: 'center', gap: '16px', boxShadow: '0 1px 3px rgba(0,165,163,0.08)' }}>
-        <Link href="/admin" style={{ fontSize: '14px', color: '#64748B', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '6px' }}>
+      <nav style={{ borderBottom: '1px solid #C8DFE0', padding: '0 32px', height: '64px', display: 'flex', alignItems: 'center', gap: '16px', boxShadow: '0 1px 3px rgba(0,165,163,0.08)' }}>
+        <Link href="/admin" style={{ fontSize: '14px', color: '#1E2124', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '6px' }}>
           <svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M19 12H5M12 5l-7 7 7 7"/></svg>
           Admin
         </Link>
         <span style={{ color: 'rgba(70,77,83,0.3)' }}>/</span>
-        <span style={{ fontSize: '14px', color: '#64748B' }}>Events</span>
+        <span style={{ fontSize: '14px', color: '#1E2124' }}>Events</span>
         <span style={{ color: 'rgba(70,77,83,0.3)' }}>/</span>
         <span style={{ fontSize: '15px', fontWeight: 700, color: '#1E2124' }}>{event.name}</span>
       </nav>
@@ -272,7 +272,7 @@ export default function EventWorkspacePage({ params }: { params: Promise<{ id: s
             <div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '8px' }}>
                 <div style={{ fontSize: '11px', fontWeight: 800, letterSpacing: '2px', textTransform: 'uppercase', color: '#00A5A3' }}>Event Workspace</div>
-                <div style={{ fontSize: '13px', fontWeight: 700, padding: '2px 10px', borderRadius: '20px', background: event.status === 'active' ? 'rgba(192,244,60,0.15)' : '#EEF9F9', color: event.status === 'active' ? '#C0F43C' : '#464D53' }}>
+                <div style={{ fontSize: '13px', fontWeight: 700, padding: '2px 10px', borderRadius: '20px', background: event.status === 'active' ? 'rgba(192,244,60,0.15)' : '#FFFFFF', color: event.status === 'active' ? '#C0F43C' : '#464D53' }}>
                   {event.status}
                 </div>
               </div>
@@ -289,7 +289,7 @@ export default function EventWorkspacePage({ params }: { params: Promise<{ id: s
             <button
               onClick={generateChecklist}
               disabled={generating}
-              style={{ padding: '14px 26px', borderRadius: '12px', border: 'none', background: generating ? 'rgba(15,23,42,0.08)' : '#C0F43C', color: generating ? '#64748B' : '#1E2124', fontSize: '15px', fontWeight: 800, cursor: generating ? 'not-allowed' : 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: '8px', whiteSpace: 'nowrap' }}>
+              style={{ padding: '14px 26px', borderRadius: '12px', border: 'none', background: generating ? '#D8EAEB' : '#C0F43C', color: generating ? '#1E2124' : '#1E2124', fontSize: '15px', fontWeight: 800, cursor: generating ? 'not-allowed' : 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: '8px', whiteSpace: 'nowrap' }}>
               <svg width="15" height="15" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
               {generating ? 'AI generating checklist…' : checklist.length > 0 ? 'Regenerate Checklist' : 'Generate Checklist with AI'}
             </button>
@@ -329,14 +329,14 @@ export default function EventWorkspacePage({ params }: { params: Promise<{ id: s
         {checklist.length > 0 && (
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '12px', marginBottom: '32px' }}>
             {[
-              { label: 'Total Items',  value: total,  color: '#374151' },
+              { label: 'Total Items',  value: total,  color: '#1E2124' },
               { label: 'Completed',    value: done,   color: '#C0F43C' },
               { label: 'In Progress',  value: inProg, color: '#F59E0B' },
               { label: 'Overdue',      value: overdue, color: '#FF6B6B' },
             ].map(s => (
-              <div key={s.label} style={{ background: '#FFFFFF', border: '1px solid #E6EFF0', borderRadius: '14px', padding: '18px 20px', boxShadow: '0 1px 4px rgba(0,165,163,0.06), 0 1px 2px rgba(0,0,0,0.04)' }}>
+              <div key={s.label} style={{ background: '#FFFFFF', border: '1px solid #C8DFE0', borderRadius: '14px', padding: '18px 20px', boxShadow: '0 1px 4px rgba(0,165,163,0.06), 0 1px 2px rgba(0,0,0,0.04)' }}>
                 <div style={{ fontSize: '32px', fontWeight: 900, color: s.color, letterSpacing: '-1px' }}>{s.value}</div>
-                <div style={{ fontSize: '13px', color: '#64748B', fontWeight: 600, marginTop: '4px', textTransform: 'uppercase', letterSpacing: '0.8px' }}>{s.label}</div>
+                <div style={{ fontSize: '13px', color: '#1E2124', fontWeight: 600, marginTop: '4px', textTransform: 'uppercase', letterSpacing: '0.8px' }}>{s.label}</div>
               </div>
             ))}
           </div>
@@ -376,13 +376,13 @@ export default function EventWorkspacePage({ params }: { params: Promise<{ id: s
           const dTotal  = items.length
 
           return (
-            <div key={dept} style={{ marginBottom: '24px', background: '#F8FFFE', border: '1px solid #EAF5F5', borderRadius: '18px', overflow: 'hidden' }}>
+            <div key={dept} style={{ marginBottom: '24px', background: '#FFFFFF', border: '1px solid #FFFFFF', borderRadius: '18px', overflow: 'hidden' }}>
 
               {/* Department header */}
-              <div style={{ padding: '16px 22px', borderBottom: '1px solid #EAF5F5', display: 'flex', alignItems: 'center', gap: '12px', background: `rgba(${dColor === '#00A5A3' ? '0,165,163' : dColor === '#A78BFA' ? '167,139,250' : dColor === '#F59E0B' ? '245,158,11' : dColor === '#34D399' ? '52,211,153' : dColor === '#60A5FA' ? '96,165,250' : '244,114,182'},0.06)` }}>
+              <div style={{ padding: '16px 22px', borderBottom: '1px solid #FFFFFF', display: 'flex', alignItems: 'center', gap: '12px', background: `rgba(${dColor === '#00A5A3' ? '0,165,163' : dColor === '#A78BFA' ? '167,139,250' : dColor === '#F59E0B' ? '245,158,11' : dColor === '#34D399' ? '52,211,153' : dColor === '#60A5FA' ? '96,165,250' : '244,114,182'},0.06)` }}>
                 <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: dColor, boxShadow: `0 0 8px ${dColor}` }} />
                 <span style={{ fontSize: '15px', fontWeight: 800, color: dColor, letterSpacing: '0.5px' }}>{dept}</span>
-                <span style={{ fontSize: '13px', color: '#64748B', marginLeft: 'auto' }}>{dDone}/{dTotal} done</span>
+                <span style={{ fontSize: '13px', color: '#1E2124', marginLeft: 'auto' }}>{dDone}/{dTotal} done</span>
                 {/* Mini progress */}
                 <div style={{ width: '80px', height: '4px', background: '#EEF2F7', borderRadius: '2px', overflow: 'hidden' }}>
                   <div style={{ height: '100%', width: `${dTotal > 0 ? (dDone / dTotal) * 100 : 0}%`, background: dColor, borderRadius: '2px' }} />
@@ -397,7 +397,7 @@ export default function EventWorkspacePage({ params }: { params: Promise<{ id: s
                   const isLate = item.due_date && new Date(item.due_date) < new Date() && item.status !== 'done'
 
                   return (
-                    <div key={item.id} style={{ padding: '14px 22px', borderBottom: idx < items.length - 1 ? '1px solid #F0F9F9' : 'none', display: 'flex', alignItems: 'flex-start', gap: '14px' }}>
+                    <div key={item.id} style={{ padding: '14px 22px', borderBottom: idx < items.length - 1 ? '1px solid #FFFFFF' : 'none', display: 'flex', alignItems: 'flex-start', gap: '14px' }}>
 
                       {/* Status toggle */}
                       <button
@@ -421,13 +421,13 @@ export default function EventWorkspacePage({ params }: { params: Promise<{ id: s
                             <input
                               value={editDraft.title ?? item.title}
                               onChange={e => setEditDraft(p => ({ ...p, title: e.target.value }))}
-                              style={{ padding: '7px 12px', borderRadius: '8px', border: '1px solid #E6EFF0', background: '#EEF9F9', color: '#1E2124', fontSize: '15px', fontFamily: 'inherit' }}
+                              style={{ padding: '7px 12px', borderRadius: '8px', border: '1px solid #C8DFE0', background: '#FFFFFF', color: '#1E2124', fontSize: '15px', fontFamily: 'inherit' }}
                             />
                             <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
                               <input type="date"
                                 value={editDraft.due_date ?? item.due_date ?? ''}
                                 onChange={e => setEditDraft(p => ({ ...p, due_date: e.target.value }))}
-                                style={{ padding: '6px 10px', borderRadius: '8px', border: '1px solid rgba(15,23,42,0.08)', background: '#1A1E22', color: '#1E2124', fontSize: '12px', fontFamily: 'inherit' }}
+                                style={{ padding: '6px 10px', borderRadius: '8px', border: '1px solid #D8EAEB', background: '#1A1E22', color: '#1E2124', fontSize: '12px', fontFamily: 'inherit' }}
                               />
                               <select
                                 value={editDraft.owner?.id ?? item.owner?.id ?? ''}
@@ -435,7 +435,7 @@ export default function EventWorkspacePage({ params }: { params: Promise<{ id: s
                                   const s = staffList.find(x => x.id === e.target.value)
                                   setEditDraft(p => ({ ...p, owner: s ? { id: s.id, name: s.name, department: s.department } : undefined }))
                                 }}
-                                style={{ padding: '6px 10px', borderRadius: '8px', border: '1px solid rgba(15,23,42,0.08)', background: '#1A1E22', color: '#1E2124', fontSize: '12px', fontFamily: 'inherit', flex: 1 }}
+                                style={{ padding: '6px 10px', borderRadius: '8px', border: '1px solid #D8EAEB', background: '#1A1E22', color: '#1E2124', fontSize: '12px', fontFamily: 'inherit', flex: 1 }}
                               >
                                 <option value="">Assign owner…</option>
                                 {staffList.map(s => <option key={s.id} value={s.id}>{s.name} — {s.department}</option>)}
@@ -445,22 +445,22 @@ export default function EventWorkspacePage({ params }: { params: Promise<{ id: s
                                 onChange={e => setEditDraft(p => ({ ...p, notes: e.target.value }))}
                                 placeholder="Notes…"
                                 rows={2}
-                                style={{ width: '100%', padding: '7px 12px', borderRadius: '8px', border: '1px solid rgba(15,23,42,0.08)', background: '#FFFFFF', color: '#1E2124', fontSize: '12px', fontFamily: 'inherit', resize: 'vertical' }}
+                                style={{ width: '100%', padding: '7px 12px', borderRadius: '8px', border: '1px solid #D8EAEB', background: '#FFFFFF', color: '#1E2124', fontSize: '12px', fontFamily: 'inherit', resize: 'vertical' }}
                               />
                             </div>
                             <div style={{ display: 'flex', gap: '8px' }}>
                               <button onClick={() => saveEdit(item.id)} style={{ padding: '6px 16px', borderRadius: '8px', border: 'none', background: '#C0F43C', color: '#1E2124', fontSize: '12px', fontWeight: 800, cursor: 'pointer', fontFamily: 'inherit' }}>Save</button>
-                              <button onClick={() => { setEditingId(null); setEditDraft({}) }} style={{ padding: '6px 14px', borderRadius: '8px', border: '1px solid rgba(15,23,42,0.08)', background: 'transparent', color: '#475569', fontSize: '12px', fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>Cancel</button>
+                              <button onClick={() => { setEditingId(null); setEditDraft({}) }} style={{ padding: '6px 14px', borderRadius: '8px', border: '1px solid #D8EAEB', background: 'transparent', color: '#1E2124', fontSize: '12px', fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>Cancel</button>
                               <button onClick={() => deleteItem(item.id)} style={{ padding: '6px 14px', borderRadius: '8px', border: 'none', background: 'rgba(255,107,107,0.1)', color: '#FF6B6B', fontSize: '12px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', marginLeft: 'auto' }}>Delete</button>
                             </div>
                           </div>
                         ) : (
                           <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
-                            <span style={{ fontSize: '15px', fontWeight: 600, color: item.status === 'done' ? '#64748B' : '#1E2124', textDecoration: item.status === 'done' ? 'line-through' : 'none', flex: 1 }}>
+                            <span style={{ fontSize: '15px', fontWeight: 600, color: item.status === 'done' ? '#1E2124' : '#1E2124', textDecoration: item.status === 'done' ? 'line-through' : 'none', flex: 1 }}>
                               {item.title}
                             </span>
                             {item.owner && (
-                              <span style={{ fontSize: '13px', color: '#464D53', background: '#EEF9F9', padding: '2px 8px', borderRadius: '6px', whiteSpace: 'nowrap' }}>
+                              <span style={{ fontSize: '13px', color: '#464D53', background: '#FFFFFF', padding: '2px 8px', borderRadius: '6px', whiteSpace: 'nowrap' }}>
                                 {item.owner.name}
                               </span>
                             )}
@@ -478,7 +478,7 @@ export default function EventWorkspacePage({ params }: { params: Promise<{ id: s
                           </div>
                         )}
                         {item.notes && !isEditing && (
-                          <p style={{ fontSize: '13px', color: '#64748B', margin: '4px 0 0', lineHeight: 1.65 }}>{item.notes}</p>
+                          <p style={{ fontSize: '13px', color: '#1E2124', margin: '4px 0 0', lineHeight: 1.65 }}>{item.notes}</p>
                         )}
                       </div>
                     </div>
@@ -487,20 +487,20 @@ export default function EventWorkspacePage({ params }: { params: Promise<{ id: s
 
                 {/* Add item row */}
                 {addingDept === dept ? (
-                  <div style={{ padding: '12px 22px', borderTop: '1px solid #F0F9F9', display: 'flex', gap: '8px' }}>
+                  <div style={{ padding: '12px 22px', borderTop: '1px solid #FFFFFF', display: 'flex', gap: '8px' }}>
                     <input
                       autoFocus
                       value={newItemTitle}
                       onChange={e => setNewItemTitle(e.target.value)}
                       onKeyDown={e => { if (e.key === 'Enter') addItem(dept); if (e.key === 'Escape') { setAddingDept(null); setNewItemTitle('') } }}
                       placeholder="Add checklist item…"
-                      style={{ flex: 1, padding: '8px 12px', borderRadius: '8px', border: '1px solid #E6EFF0', background: '#FFFFFF', color: '#1E2124', fontSize: '15px', fontFamily: 'inherit' }}
+                      style={{ flex: 1, padding: '8px 12px', borderRadius: '8px', border: '1px solid #C8DFE0', background: '#FFFFFF', color: '#1E2124', fontSize: '15px', fontFamily: 'inherit' }}
                     />
                     <button onClick={() => addItem(dept)} style={{ padding: '8px 16px', borderRadius: '8px', border: 'none', background: dColor, color: '#1E2124', fontSize: '12px', fontWeight: 800, cursor: 'pointer', fontFamily: 'inherit' }}>Add</button>
-                    <button onClick={() => { setAddingDept(null); setNewItemTitle('') }} style={{ padding: '8px 12px', borderRadius: '8px', border: '1px solid rgba(15,23,42,0.08)', background: 'transparent', color: '#64748B', fontSize: '12px', cursor: 'pointer', fontFamily: 'inherit' }}>Cancel</button>
+                    <button onClick={() => { setAddingDept(null); setNewItemTitle('') }} style={{ padding: '8px 12px', borderRadius: '8px', border: '1px solid #D8EAEB', background: 'transparent', color: '#1E2124', fontSize: '12px', cursor: 'pointer', fontFamily: 'inherit' }}>Cancel</button>
                   </div>
                 ) : (
-                  <button onClick={() => setAddingDept(dept)} style={{ width: '100%', padding: '10px 22px', background: 'none', border: 'none', cursor: 'pointer', color: 'rgba(15,23,42,0.16)', fontSize: '12px', fontWeight: 600, textAlign: 'left', fontFamily: 'inherit', borderTop: '1px solid #F0F9F9', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <button onClick={() => setAddingDept(dept)} style={{ width: '100%', padding: '10px 22px', background: 'none', border: 'none', cursor: 'pointer', color: 'rgba(15,23,42,0.16)', fontSize: '12px', fontWeight: 600, textAlign: 'left', fontFamily: 'inherit', borderTop: '1px solid #FFFFFF', display: 'flex', alignItems: 'center', gap: '6px' }}>
                     <svg width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
                     Add item to {dept}
                   </button>
@@ -510,7 +510,7 @@ export default function EventWorkspacePage({ params }: { params: Promise<{ id: s
           )
         })}
         {/* ── Event Report Section ── */}
-        <div style={{ marginTop: '48px', paddingTop: '40px', borderTop: '1px solid #EAF5F5' }}>
+        <div style={{ marginTop: '48px', paddingTop: '40px', borderTop: '1px solid #FFFFFF' }}>
 
           {/* Section header */}
           <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '20px', marginBottom: '28px', flexWrap: 'wrap' }}>
@@ -531,7 +531,7 @@ export default function EventWorkspacePage({ params }: { params: Promise<{ id: s
                 <button
                   onClick={generateReport}
                   disabled={reportBusy}
-                  style={{ padding: '10px 20px', borderRadius: '10px', border: '1px solid rgba(167,139,250,0.3)', background: reportBusy ? '#F0F9F9' : 'rgba(167,139,250,0.1)', color: reportBusy ? '#64748B' : '#A78BFA', fontSize: '15px', fontWeight: 700, cursor: reportBusy ? 'not-allowed' : 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: '7px' }}>
+                  style={{ padding: '10px 20px', borderRadius: '10px', border: '1px solid rgba(167,139,250,0.3)', background: reportBusy ? '#FFFFFF' : 'rgba(167,139,250,0.1)', color: reportBusy ? '#1E2124' : '#A78BFA', fontSize: '15px', fontWeight: 700, cursor: reportBusy ? 'not-allowed' : 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: '7px' }}>
                   <svg width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
                   {reportBusy ? 'Generating…' : report ? 'Regenerate Report' : 'Generate Report'}
                 </button>
@@ -540,8 +540,8 @@ export default function EventWorkspacePage({ params }: { params: Promise<{ id: s
           </div>
 
           {!report && checklist.length === 0 && (
-            <div style={{ padding: '40px', textAlign: 'center', background: '#F8FFFE', border: '1px solid #EAF5F5', borderRadius: '16px' }}>
-              <p style={{ fontSize: '15px', color: '#64748B', margin: 0 }}>Generate a checklist first — the report is built from checklist items and team notes.</p>
+            <div style={{ padding: '40px', textAlign: 'center', background: '#FFFFFF', border: '1px solid #FFFFFF', borderRadius: '16px' }}>
+              <p style={{ fontSize: '15px', color: '#1E2124', margin: 0 }}>Generate a checklist first — the report is built from checklist items and team notes.</p>
             </div>
           )}
 
@@ -565,10 +565,10 @@ export default function EventWorkspacePage({ params }: { params: Promise<{ id: s
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 380px', gap: '24px', alignItems: 'flex-start' }}>
 
               {/* Report content */}
-              <div style={{ background: '#F8FFFE', border: '1px solid rgba(15,23,42,0.08)', borderRadius: '16px', overflow: 'hidden' }}>
-                <div style={{ padding: '18px 24px', borderBottom: '1px solid #EAF5F5', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <div style={{ background: '#FFFFFF', border: '1px solid #D8EAEB', borderRadius: '16px', overflow: 'hidden' }}>
+                <div style={{ padding: '18px 24px', borderBottom: '1px solid #FFFFFF', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                   <span style={{ fontSize: '15px', fontWeight: 700, color: '#1E2124' }}>{report.title}</span>
-                  <span style={{ fontSize: '13px', color: '#64748B' }}>
+                  <span style={{ fontSize: '13px', color: '#1E2124' }}>
                     {new Date(report.created_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}
                   </span>
                 </div>
@@ -578,7 +578,7 @@ export default function EventWorkspacePage({ params }: { params: Promise<{ id: s
                   </pre>
                 </div>
                 {report.status === 'draft' && (
-                  <div style={{ padding: '16px 24px', borderTop: '1px solid #EAF5F5', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '16px' }}>
+                  <div style={{ padding: '16px 24px', borderTop: '1px solid #FFFFFF', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '16px' }}>
                     <span style={{ fontSize: '14px', color: '#464D53' }}>
                       {comments.filter(c => !c.resolved).length > 0
                         ? `${comments.filter(c => !c.resolved).length} unresolved comment${comments.filter(c => !c.resolved).length > 1 ? 's' : ''} — resolve all before concluding`
@@ -587,13 +587,13 @@ export default function EventWorkspacePage({ params }: { params: Promise<{ id: s
                     <button
                       onClick={concludeReport}
                       disabled={reportBusy || comments.some(c => !c.resolved)}
-                      style={{ padding: '11px 22px', borderRadius: '10px', border: 'none', background: comments.some(c => !c.resolved) || reportBusy ? '#EAF5F5' : '#C0F43C', color: comments.some(c => !c.resolved) || reportBusy ? '#64748B' : '#1E2124', fontSize: '15px', fontWeight: 800, cursor: comments.some(c => !c.resolved) || reportBusy ? 'not-allowed' : 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap' }}>
+                      style={{ padding: '11px 22px', borderRadius: '10px', border: 'none', background: comments.some(c => !c.resolved) || reportBusy ? '#FFFFFF' : '#C0F43C', color: comments.some(c => !c.resolved) || reportBusy ? '#1E2124' : '#1E2124', fontSize: '15px', fontWeight: 800, cursor: comments.some(c => !c.resolved) || reportBusy ? 'not-allowed' : 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap' }}>
                       {reportBusy ? 'Concluding…' : 'Conclude Report'}
                     </button>
                   </div>
                 )}
                 {report.status === 'live' && (
-                  <div style={{ padding: '14px 24px', borderTop: '1px solid #EAF5F5', background: 'rgba(192,244,60,0.04)' }}>
+                  <div style={{ padding: '14px 24px', borderTop: '1px solid #FFFFFF', background: 'rgba(192,244,60,0.04)' }}>
                     <span style={{ fontSize: '14px', color: '#C0F43C', fontWeight: 600 }}>
                       Live in knowledge base — Tresci can now answer questions from this report.
                     </span>
@@ -602,8 +602,8 @@ export default function EventWorkspacePage({ params }: { params: Promise<{ id: s
               </div>
 
               {/* Comments panel */}
-              <div style={{ background: '#F8FFFE', border: '1px solid rgba(15,23,42,0.08)', borderRadius: '16px', overflow: 'hidden' }}>
-                <div style={{ padding: '16px 20px', borderBottom: '1px solid #EAF5F5' }}>
+              <div style={{ background: '#FFFFFF', border: '1px solid #D8EAEB', borderRadius: '16px', overflow: 'hidden' }}>
+                <div style={{ padding: '16px 20px', borderBottom: '1px solid #FFFFFF' }}>
                   <span style={{ fontSize: '15px', fontWeight: 700, color: '#1E2124' }}>
                     Comments
                     {comments.length > 0 && (
@@ -617,13 +617,13 @@ export default function EventWorkspacePage({ params }: { params: Promise<{ id: s
                 {/* Comment thread */}
                 <div style={{ maxHeight: '400px', overflowY: 'auto' }}>
                   {comments.length === 0 ? (
-                    <div style={{ padding: '28px 20px', textAlign: 'center', color: '#64748B', fontSize: '14px' }}>
+                    <div style={{ padding: '28px 20px', textAlign: 'center', color: '#1E2124', fontSize: '14px' }}>
                       No comments yet. Add corrections or clarifications before concluding.
                     </div>
                   ) : (
                     <div style={{ padding: '12px 0' }}>
                       {comments.map(c => (
-                        <div key={c.id} style={{ padding: '12px 20px', borderBottom: '1px solid #F0F9F9', opacity: c.resolved ? 0.5 : 1 }}>
+                        <div key={c.id} style={{ padding: '12px 20px', borderBottom: '1px solid #FFFFFF', opacity: c.resolved ? 0.5 : 1 }}>
                           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px', marginBottom: '6px' }}>
                             <div style={{ display: 'flex', alignItems: 'center', gap: '7px' }}>
                               <div style={{ width: '22px', height: '22px', borderRadius: '50%', background: 'rgba(167,139,250,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
@@ -634,14 +634,14 @@ export default function EventWorkspacePage({ params }: { params: Promise<{ id: s
                               <span style={{ fontSize: '13px', fontWeight: 700, color: '#464D53' }}>
                                 {c.staff?.name ?? 'Admin'}
                               </span>
-                              <span style={{ fontSize: '11px', color: '#64748B' }}>
+                              <span style={{ fontSize: '11px', color: '#1E2124' }}>
                                 {new Date(c.created_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}
                               </span>
                             </div>
                             <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
                               {c.resolved ? (
                                 <button onClick={() => resolveComment(c.id, false)}
-                                  style={{ fontSize: '10px', color: '#64748B', background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'inherit', fontWeight: 600 }}>
+                                  style={{ fontSize: '10px', color: '#1E2124', background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'inherit', fontWeight: 600 }}>
                                   Reopen
                                 </button>
                               ) : (
@@ -656,7 +656,7 @@ export default function EventWorkspacePage({ params }: { params: Promise<{ id: s
                               </button>
                             </div>
                           </div>
-                          <p style={{ fontSize: '14px', color: c.resolved ? '#64748B' : '#464D53', margin: 0, lineHeight: 1.65, textDecoration: c.resolved ? 'line-through' : 'none' }}>
+                          <p style={{ fontSize: '14px', color: c.resolved ? '#1E2124' : '#464D53', margin: 0, lineHeight: 1.65, textDecoration: c.resolved ? 'line-through' : 'none' }}>
                             {c.comment}
                           </p>
                         </div>
@@ -667,16 +667,16 @@ export default function EventWorkspacePage({ params }: { params: Promise<{ id: s
 
                 {/* Add comment */}
                 {report.status === 'draft' && (
-                  <div style={{ padding: '14px 20px', borderTop: '1px solid #EAF5F5' }}>
+                  <div style={{ padding: '14px 20px', borderTop: '1px solid #FFFFFF' }}>
                     <textarea
                       value={commentText}
                       onChange={e => setCommentText(e.target.value)}
                       placeholder="Add a comment or correction…"
                       rows={3}
-                      style={{ width: '100%', padding: '10px 12px', borderRadius: '10px', border: '1px solid #E6EFF0', background: '#FFFFFF', color: '#1E2124', fontSize: '14px', fontFamily: 'inherit', resize: 'none', boxSizing: 'border-box', marginBottom: '8px' }}
+                      style={{ width: '100%', padding: '10px 12px', borderRadius: '10px', border: '1px solid #C8DFE0', background: '#FFFFFF', color: '#1E2124', fontSize: '14px', fontFamily: 'inherit', resize: 'none', boxSizing: 'border-box', marginBottom: '8px' }}
                     />
                     <button onClick={addComment} disabled={commentSaving || !commentText.trim()}
-                      style={{ width: '100%', padding: '10px', borderRadius: '8px', border: 'none', background: commentText.trim() ? '#A78BFA' : '#EAF5F5', color: commentText.trim() ? 'white' : '#64748B', fontSize: '14px', fontWeight: 700, cursor: commentText.trim() ? 'pointer' : 'not-allowed', fontFamily: 'inherit' }}>
+                      style={{ width: '100%', padding: '10px', borderRadius: '8px', border: 'none', background: commentText.trim() ? '#A78BFA' : '#FFFFFF', color: commentText.trim() ? 'white' : '#1E2124', fontSize: '14px', fontWeight: 700, cursor: commentText.trim() ? 'pointer' : 'not-allowed', fontFamily: 'inherit' }}>
                       {commentSaving ? 'Saving…' : 'Add Comment'}
                     </button>
                   </div>

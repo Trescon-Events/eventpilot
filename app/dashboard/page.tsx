@@ -109,7 +109,7 @@ function NoIdScreen() {
             value={email}
             onChange={e => setEmail(e.target.value)}
             placeholder="you@tresconglobal.com"
-            style={{ flex: 1, padding: '11px 16px', borderRadius: '10px', border: '1px solid #E6EFF0', background: '#FFFFFF', color: '#1E2124', fontSize: '15px', fontFamily: 'inherit', outline: 'none' }}
+            style={{ flex: 1, padding: '11px 16px', borderRadius: '10px', border: '1px solid #C8DFE0', background: '#FFFFFF', color: '#1E2124', fontSize: '15px', fontFamily: 'inherit', outline: 'none' }}
           />
           <button
             type="submit"
@@ -119,7 +119,7 @@ function NoIdScreen() {
           </button>
         </form>
         {error && <p style={{ marginTop: '12px', fontSize: '15px', color: '#FF6B6B' }}>{error}</p>}
-        <div style={{ marginTop: '24px', padding: '14px 18px', background: '#FFFFFF', border: '1px solid #E6EFF0', borderRadius: '12px', fontSize: '14px', color: '#64748B', lineHeight: 1.65 }}>
+        <div style={{ marginTop: '24px', padding: '14px 18px', background: '#FFFFFF', border: '1px solid #C8DFE0', borderRadius: '12px', fontSize: '14px', color: '#1E2124', lineHeight: 1.65 }}>
           Use the email address your manager registered you with. Contact IT if you cannot access your account.
         </div>
       </div>
@@ -269,7 +269,7 @@ function DashboardContent() {
     return (
       <div style={{ ...S.page, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
         <div style={{ textAlign: 'center' }}>
-          <div style={{ width: '40px', height: '40px', border: '3px solid rgba(15,23,42,0.1)', borderTopColor: '#00A5A3', borderRadius: '50%', animation: 'spin 0.8s linear infinite', margin: '0 auto 16px' }} />
+          <div style={{ width: '40px', height: '40px', border: '3px solid #C8DFE0', borderTopColor: '#00A5A3', borderRadius: '50%', animation: 'spin 0.8s linear infinite', margin: '0 auto 16px' }} />
           <div style={{ color: '#464D53', fontSize: '16px' }}>Loading your dashboard…</div>
         </div>
       </div>
@@ -402,9 +402,9 @@ function DashboardContent() {
                 </div>
                 <button
                   onClick={() => dismissNotification(n.id)}
-                  style={{ width: '28px', height: '28px', borderRadius: '7px', background: '#EEF9F9', border: '1px solid #E6EFF0', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', flexShrink: 0 }}
+                  style={{ width: '28px', height: '28px', borderRadius: '7px', background: '#FFFFFF', border: '1px solid #C8DFE0', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', flexShrink: 0 }}
                 >
-                  <svg width="11" height="11" fill="none" stroke="#475569" strokeWidth="2.5" strokeLinecap="round" viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                  <svg width="11" height="11" fill="none" stroke="#1E2124" strokeWidth="2.5" strokeLinecap="round" viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
                 </button>
               </div>
             ))}
@@ -412,7 +412,7 @@ function DashboardContent() {
         )}
 
         {/* ── Hero ── */}
-        <div style={{ background: '#FFFFFF', border: '1px solid #E6EFF0', borderRadius: '20px', padding: '32px', marginBottom: '24px', display: 'grid', gridTemplateColumns: '1fr auto', gap: '24px', alignItems: 'center', boxShadow: '0 1px 4px rgba(0,165,163,0.06), 0 1px 2px rgba(0,0,0,0.04)' }}>
+        <div style={{ background: '#FFFFFF', border: '1px solid #C8DFE0', borderRadius: '20px', padding: '32px', marginBottom: '24px', display: 'grid', gridTemplateColumns: '1fr auto', gap: '24px', alignItems: 'center', boxShadow: '0 1px 4px rgba(0,165,163,0.06), 0 1px 2px rgba(0,0,0,0.04)' }}>
           <div>
             <div style={{ fontSize: '13px', fontWeight: 800, letterSpacing: '2.5px', textTransform: 'uppercase', color: '#00A5A3', marginBottom: '8px' }}>
               {completedCount === 0 ? 'Welcome to Trescademy' : 'Welcome back'}
@@ -431,7 +431,7 @@ function DashboardContent() {
                   <div style={{ fontSize: '14px', color: 'rgba(255,255,255,0.75)' }}>AI Readiness Score · 0–100</div>
                 </div>
               </div>
-              <div style={{ background: '#EEF9F9', border: '1px solid #E6EFF0', borderRadius: '10px', padding: '10px 18px' }}>
+              <div style={{ background: '#FFFFFF', border: '1px solid #C8DFE0', borderRadius: '10px', padding: '10px 18px' }}>
                 <div style={{ fontSize: '15px', fontWeight: 700, color: '#1E2124' }}>{TRACK_LABEL[track]}</div>
                 <div style={{ fontSize: '14px', color: '#464D53' }}>Current learning track</div>
               </div>
@@ -455,7 +455,7 @@ function DashboardContent() {
             { label: 'AI-Ready',    range: '55–74',  color: '#A8E6CF' },
             { label: 'AI-Forward',  range: '75–100', color: '#C0F43C' },
           ].map(t => (
-            <div key={t.label} style={{ flex: 1, padding: '9px 8px', background: tier === t.label ? `${t.color}20` : '#EEF9F9', border: `1px solid ${tier === t.label ? t.color + '50' : '#E6EFF0'}`, borderRadius: '8px', textAlign: 'center' }}>
+            <div key={t.label} style={{ flex: 1, padding: '9px 8px', background: tier === t.label ? `${t.color}20` : '#FFFFFF', border: `1px solid ${tier === t.label ? t.color + '50' : '#C8DFE0'}`, borderRadius: '8px', textAlign: 'center' }}>
               <div style={{ fontSize: '13px', fontWeight: 800, color: t.color, letterSpacing: '0.3px' }}>{t.label}</div>
               <div style={{ fontSize: '13px', color: '#464D53', marginTop: '3px' }}>{t.range}</div>
             </div>
@@ -477,34 +477,34 @@ function DashboardContent() {
                   { step: '02', label: 'Pass the assessment', sub: '60% or higher to complete', done: false, color: '#A478FF' },
                   { step: '03', label: 'Watch your score climb', sub: 'TAIRS updates as you learn', done: false, color: '#C0F43C' },
                 ].map(item => (
-                  <div key={item.step} style={{ background: '#EEF9F9', border: `1px solid ${item.color}25`, borderRadius: '12px', padding: '14px 16px' }}>
+                  <div key={item.step} style={{ background: '#FFFFFF', border: `1px solid ${item.color}25`, borderRadius: '12px', padding: '14px 16px' }}>
                     <div style={{ fontSize: '11px', fontWeight: 900, color: item.color, letterSpacing: '1.5px', marginBottom: '6px' }}>STEP {item.step}</div>
                     <div style={{ fontSize: '15px', fontWeight: 700, color: '#1E2124', marginBottom: '4px' }}>{item.label}</div>
-                    <div style={{ fontSize: '14px', color: '#64748B' }}>{item.sub}</div>
+                    <div style={{ fontSize: '14px', color: '#1E2124' }}>{item.sub}</div>
                   </div>
                 ))}
               </div>
             </div>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '10px' }}>
-              <div style={{ background: '#FFFFFF', border: '1px solid #E6EFF0', borderRadius: '12px', padding: '14px 18px', display: 'flex', alignItems: 'center', gap: '10px', boxShadow: '0 1px 4px rgba(0,165,163,0.06), 0 1px 2px rgba(0,0,0,0.04)' }}>
+              <div style={{ background: '#FFFFFF', border: '1px solid #C8DFE0', borderRadius: '12px', padding: '14px 18px', display: 'flex', alignItems: 'center', gap: '10px', boxShadow: '0 1px 4px rgba(0,165,163,0.06), 0 1px 2px rgba(0,0,0,0.04)' }}>
                 <svg width="16" height="16" fill="none" stroke="rgba(70,77,83,0.5)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>
                 <div>
                   <div style={{ fontSize: '22px', fontWeight: 900, color: '#1E2124' }}>{courses.length}</div>
-                  <div style={{ fontSize: '13px', color: '#64748B' }}>courses available</div>
+                  <div style={{ fontSize: '13px', color: '#1E2124' }}>courses available</div>
                 </div>
               </div>
               <div style={{ background: 'rgba(255,159,67,0.05)', border: '1px solid rgba(255,159,67,0.15)', borderRadius: '12px', padding: '14px 18px', display: 'flex', alignItems: 'center', gap: '10px' }}>
                 <svg width="16" height="16" fill="none" stroke="#FF9F43" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
                 <div>
                   <div style={{ fontSize: '22px', fontWeight: 900, color: '#FF9F43' }}>{totalMandatory}</div>
-                  <div style={{ fontSize: '13px', color: '#64748B' }}>mandatory courses</div>
+                  <div style={{ fontSize: '13px', color: '#1E2124' }}>mandatory courses</div>
                 </div>
               </div>
               <div style={{ background: `${tierConfig.bg}`, border: `1px solid ${tierConfig.border}`, borderRadius: '12px', padding: '14px 18px', display: 'flex', alignItems: 'center', gap: '10px' }}>
                 <svg width="16" height="16" fill="none" stroke={tierConfig.color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
                 <div>
                   <div style={{ fontSize: '16px', fontWeight: 900, color: tierConfig.color }}>{track.charAt(0).toUpperCase() + track.slice(1)}</div>
-                  <div style={{ fontSize: '13px', color: '#64748B' }}>your starting track</div>
+                  <div style={{ fontSize: '13px', color: '#1E2124' }}>your starting track</div>
                 </div>
               </div>
             </div>
@@ -524,9 +524,9 @@ function DashboardContent() {
               </div>
             </button>
             {/* Mandatory */}
-            <div style={{ background: completedMandatory >= totalMandatory ? 'rgba(192,244,60,0.05)' : '#FFFFFF', border: `1px solid ${completedMandatory >= totalMandatory ? 'rgba(192,244,60,0.2)' : 'rgba(15,23,42,0.08)'}`, borderRadius: '14px', padding: '18px 20px', boxShadow: '0 1px 3px rgba(0,0,0,0.08)' }}>
+            <div style={{ background: completedMandatory >= totalMandatory ? 'rgba(192,244,60,0.05)' : '#FFFFFF', border: `1px solid ${completedMandatory >= totalMandatory ? 'rgba(192,244,60,0.2)' : '#D8EAEB'}`, borderRadius: '14px', padding: '18px 20px', boxShadow: '0 1px 3px rgba(0,0,0,0.08)' }}>
               <div style={{ fontSize: '14px', fontWeight: 700, color: completedMandatory >= totalMandatory ? '#C0F43C' : '#464D53', textTransform: 'uppercase', letterSpacing: '1.2px', marginBottom: '6px' }}>Mandatory Progress</div>
-              <div style={{ fontSize: '30px', fontWeight: 900, color: '#1E2124', marginBottom: '4px' }}>{completedMandatory}<span style={{ fontSize: '17px', color: '#64748B', fontWeight: 700 }}>/{totalMandatory}</span></div>
+              <div style={{ fontSize: '30px', fontWeight: 900, color: '#1E2124', marginBottom: '4px' }}>{completedMandatory}<span style={{ fontSize: '17px', color: '#1E2124', fontWeight: 700 }}>/{totalMandatory}</span></div>
               <div style={{ fontSize: '15px', color: '#464D53' }}>
                 {completedMandatory >= totalMandatory ? 'All mandatory done' : `${totalMandatory - completedMandatory} remaining`}
               </div>
@@ -571,7 +571,7 @@ function DashboardContent() {
                 {nextCourse.subtitle}
               </p>
               <div style={{ display: 'flex', gap: '8px', alignItems: 'center', marginBottom: '20px' }}>
-                <span style={{ fontSize: '13px', fontWeight: 700, color: '#464D53', background: '#EEF9F9', padding: '3px 10px', borderRadius: '20px' }}>
+                <span style={{ fontSize: '13px', fontWeight: 700, color: '#464D53', background: '#FFFFFF', padding: '3px 10px', borderRadius: '20px' }}>
                   {nextCourse.estimated_minutes} min
                 </span>
                 {nextCourse.is_mandatory && (
@@ -580,7 +580,7 @@ function DashboardContent() {
                   </span>
                 )}
                 {nextCourse.tool_name && (
-                  <span style={{ fontSize: '13px', fontWeight: 700, color: '#464D53', background: '#EEF9F9', padding: '3px 10px', borderRadius: '20px' }}>
+                  <span style={{ fontSize: '13px', fontWeight: 700, color: '#464D53', background: '#FFFFFF', padding: '3px 10px', borderRadius: '20px' }}>
                     {nextCourse.tool_name}
                   </span>
                 )}
@@ -671,7 +671,7 @@ function DashboardContent() {
                     gap: '14px',
                     padding: '16px 20px',
                     background: isNext ? `${tierConfig.bg}` : '#FFFFFF',
-                    border: `1px solid ${isNext ? tierConfig.border : '#E6EFF0'}`,
+                    border: `1px solid ${isNext ? tierConfig.border : '#C8DFE0'}`,
                     boxShadow: '0 1px 4px rgba(0,165,163,0.06), 0 1px 2px rgba(0,0,0,0.04)',
                     borderRadius: '14px',
                     textDecoration: 'none',
@@ -679,15 +679,15 @@ function DashboardContent() {
                   }}
                 >
                   {/* Step number / checkmark */}
-                  <div style={{ width: '36px', height: '36px', borderRadius: '50%', background: done ? '#C0F43C20' : isNext ? `${tierConfig.color}20` : '#F1F5F9', border: `2px solid ${done ? '#C0F43C' : isNext ? tierConfig.color : 'rgba(15,23,42,0.12)'}`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                  <div style={{ width: '36px', height: '36px', borderRadius: '50%', background: done ? '#C0F43C20' : isNext ? `${tierConfig.color}20` : '#F1F5F9', border: `2px solid ${done ? '#C0F43C' : isNext ? tierConfig.color : '#B8D4D5'}`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
                     {done
                       ? <svg width="14" height="14" fill="none" stroke="#C0F43C" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>
-                      : <span style={{ fontSize: '13px', fontWeight: 800, color: isNext ? tierConfig.color : '#475569' }}>{idx + 1}</span>
+                      : <span style={{ fontSize: '13px', fontWeight: 800, color: isNext ? tierConfig.color : '#1E2124' }}>{idx + 1}</span>
                     }
                   </div>
                   {/* Title + reason */}
                   <div>
-                    <div style={{ fontSize: '16px', fontWeight: 700, color: done ? '#64748B' : '#1E2124', marginBottom: '4px' }}>{course.title}</div>
+                    <div style={{ fontSize: '16px', fontWeight: 700, color: done ? '#1E2124' : '#1E2124', marginBottom: '4px' }}>{course.title}</div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap', marginBottom: recReason && !done && recLabel === 'ai' ? '5px' : '0' }}>
                       <span style={{ fontSize: '13px', color: '#464D53' }}>{course.estimated_minutes} min</span>
                       {course.is_mandatory && (
@@ -706,7 +706,7 @@ function DashboardContent() {
                     )}
                   </div>
                   {/* Status */}
-                  <div style={{ fontSize: '13px', fontWeight: 700, color: done ? '#C0F43C' : isNext ? tierConfig.color : '#64748B', textAlign: 'right', flexShrink: 0 }}>
+                  <div style={{ fontSize: '13px', fontWeight: 700, color: done ? '#C0F43C' : isNext ? tierConfig.color : '#1E2124', textAlign: 'right', flexShrink: 0 }}>
                     {done ? 'Done' : isNext ? 'Start' : 'View'}
                   </div>
                 </Link>
@@ -714,7 +714,7 @@ function DashboardContent() {
                   <button
                     onClick={e => { e.preventDefault(); dismissCourse(course.id) }}
                     title="Not for me"
-                    style={{ position: 'absolute', top: '8px', right: '8px', width: '20px', height: '20px', borderRadius: '50%', border: 'none', background: '#EEF9F9', color: '#64748B', cursor: 'pointer', fontSize: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'inherit' }}
+                    style={{ position: 'absolute', top: '8px', right: '8px', width: '20px', height: '20px', borderRadius: '50%', border: 'none', background: '#FFFFFF', color: '#1E2124', cursor: 'pointer', fontSize: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'inherit' }}
                   >
                     <svg width="8" height="8" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
                   </button>
@@ -746,7 +746,7 @@ function DashboardContent() {
         </Link>
 
         {/* ── What improves your score ── */}
-        <div style={{ background: '#FFFFFF', border: '1px solid #E6EFF0', borderRadius: '18px', padding: '24px 28px', marginBottom: '24px', boxShadow: '0 1px 4px rgba(0,165,163,0.06), 0 1px 2px rgba(0,0,0,0.04)' }}>
+        <div style={{ background: '#FFFFFF', border: '1px solid #C8DFE0', borderRadius: '18px', padding: '24px 28px', marginBottom: '24px', boxShadow: '0 1px 4px rgba(0,165,163,0.06), 0 1px 2px rgba(0,0,0,0.04)' }}>
           <h3 style={{ fontSize: '16px', fontWeight: 800, color: '#1E2124', margin: '0 0 16px' }}>How to move up from {tier}</h3>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '12px' }}>
             {getImprovementTips(tier).map((tip, i) => (
@@ -817,9 +817,9 @@ function DashboardContent() {
                 <div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '5px' }}>
                     <span style={{ fontSize: '16px', fontWeight: 700, color: '#1E2124' }}>{ev.name}</span>
-                    <span style={{ fontSize: '13px', fontWeight: 700, padding: '2px 8px', borderRadius: '20px', background: ev.status === 'active' ? 'rgba(192,244,60,0.15)' : '#EEF9F9', color: ev.status === 'active' ? '#C0F43C' : '#464D53' }}>{ev.status}</span>
+                    <span style={{ fontSize: '13px', fontWeight: 700, padding: '2px 8px', borderRadius: '20px', background: ev.status === 'active' ? 'rgba(192,244,60,0.15)' : '#FFFFFF', color: ev.status === 'active' ? '#C0F43C' : '#464D53' }}>{ev.status}</span>
                   </div>
-                  <div style={{ fontSize: '14px', color: '#64748B', display: 'flex', gap: '14px', flexWrap: 'wrap' }}>
+                  <div style={{ fontSize: '14px', color: '#1E2124', display: 'flex', gap: '14px', flexWrap: 'wrap' }}>
                     {ev.city && <span>{ev.city}</span>}
                     {ev.event_date && <span>{new Date(ev.event_date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}</span>}
                     {ev.my_role && <span style={{ color: '#00A5A3', fontWeight: 600 }}>{ev.my_role}</span>}
@@ -844,7 +844,7 @@ function DashboardContent() {
         <div style={{ maxWidth: '900px', margin: '0 auto', padding: '0 24px 32px' }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '14px' }}>
             <div style={{ fontSize: '13px', fontWeight: 800, letterSpacing: '2px', color: '#F59E0B', textTransform: 'uppercase' }}>My Event Tasks</div>
-            <span style={{ fontSize: '13px', color: '#64748B' }}>
+            <span style={{ fontSize: '13px', color: '#1E2124' }}>
               {myChecklist.filter(i => i.status === 'done').length}/{myChecklist.length} done
             </span>
           </div>
@@ -852,7 +852,7 @@ function DashboardContent() {
             {myChecklist.map(item => {
               const isLate = item.due_date && new Date(item.due_date) < new Date() && item.status !== 'done'
               const statusColors: Record<string, { color: string; bg: string }> = {
-                not_started: { color: '#64748B', bg: '#F1F5F9' },
+                not_started: { color: '#1E2124', bg: '#F1F5F9' },
                 in_progress: { color: '#F59E0B', bg: 'rgba(245,158,11,0.1)' },
                 done:        { color: '#C0F43C', bg: 'rgba(192,244,60,0.1)' },
                 overdue:     { color: '#FF6B6B', bg: 'rgba(255,107,107,0.1)' },
@@ -860,7 +860,7 @@ function DashboardContent() {
               const sc = statusColors[item.status] ?? statusColors.not_started
 
               return (
-                <div key={item.id} style={{ background: '#FFFFFF', border: `1px solid ${isLate ? 'rgba(255,107,107,0.2)' : '#E6EFF0'}`, borderRadius: '12px', padding: '14px 18px', boxShadow: '0 1px 4px rgba(0,165,163,0.06), 0 1px 2px rgba(0,0,0,0.04)' }}>
+                <div key={item.id} style={{ background: '#FFFFFF', border: `1px solid ${isLate ? 'rgba(255,107,107,0.2)' : '#C8DFE0'}`, borderRadius: '12px', padding: '14px 18px', boxShadow: '0 1px 4px rgba(0,165,163,0.06), 0 1px 2px rgba(0,0,0,0.04)' }}>
                   <div style={{ display: 'flex', alignItems: 'flex-start', gap: '12px' }}>
                     {/* Status toggle */}
                     <button
@@ -881,7 +881,7 @@ function DashboardContent() {
 
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap', marginBottom: '4px' }}>
-                        <span style={{ fontSize: '15px', fontWeight: 600, color: item.status === 'done' ? '#64748B' : '#1E2124', textDecoration: item.status === 'done' ? 'line-through' : 'none' }}>
+                        <span style={{ fontSize: '15px', fontWeight: 600, color: item.status === 'done' ? '#1E2124' : '#1E2124', textDecoration: item.status === 'done' ? 'line-through' : 'none' }}>
                           {item.title}
                         </span>
                         <span style={{ fontSize: '10px', fontWeight: 700, padding: '2px 7px', borderRadius: '5px', background: sc.bg, color: sc.color, whiteSpace: 'nowrap' }}>
@@ -889,10 +889,10 @@ function DashboardContent() {
                         </span>
                         {isLate && <span style={{ fontSize: '10px', fontWeight: 700, color: '#FF6B6B' }}>Overdue</span>}
                       </div>
-                      <div style={{ fontSize: '13px', color: '#64748B', display: 'flex', gap: '12px', flexWrap: 'wrap', marginBottom: '8px' }}>
+                      <div style={{ fontSize: '13px', color: '#1E2124', display: 'flex', gap: '12px', flexWrap: 'wrap', marginBottom: '8px' }}>
                         {item.events?.name && <span>{item.events.name}</span>}
-                        <span style={{ color: '#94A3B8' }}>{item.department}</span>
-                        {item.due_date && <span style={{ color: isLate ? '#FF6B6B' : '#64748B' }}>
+                        <span style={{ color: '#64748B' }}>{item.department}</span>
+                        {item.due_date && <span style={{ color: isLate ? '#FF6B6B' : '#1E2124' }}>
                           Due {new Date(item.due_date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}
                         </span>}
                       </div>
@@ -903,7 +903,7 @@ function DashboardContent() {
                           onChange={e => setChecklistNotes(p => ({ ...p, [item.id]: e.target.value }))}
                           placeholder="Add your update or notes…"
                           rows={2}
-                          style={{ flex: 1, padding: '7px 10px', borderRadius: '8px', border: '1px solid #E6EFF0', background: '#FFFFFF', color: '#1E2124', fontSize: '14px', fontFamily: 'inherit', resize: 'none' }}
+                          style={{ flex: 1, padding: '7px 10px', borderRadius: '8px', border: '1px solid #C8DFE0', background: '#FFFFFF', color: '#1E2124', fontSize: '14px', fontFamily: 'inherit', resize: 'none' }}
                         />
                         <button
                           disabled={checklistSaving[item.id]}
@@ -938,7 +938,7 @@ function DashboardContent() {
               const typeColor: Record<string,string> = { policy: '#FF9F43', event_brief: '#00A5A3', staff_doc: '#C0F43C', onboarding: '#A478FF', other: 'rgba(255,255,255,0.4)' }
               const tc = typeColor[doc.type] ?? 'rgba(255,255,255,0.4)'
               return (
-                <div key={doc.id} style={{ background: '#FFFFFF', border: '1px solid #E6EFF0', borderRadius: '12px', padding: '16px', boxShadow: '0 1px 4px rgba(0,165,163,0.06), 0 1px 2px rgba(0,0,0,0.04)' }}>
+                <div key={doc.id} style={{ background: '#FFFFFF', border: '1px solid #C8DFE0', borderRadius: '12px', padding: '16px', boxShadow: '0 1px 4px rgba(0,165,163,0.06), 0 1px 2px rgba(0,0,0,0.04)' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '10px' }}>
                     <div style={{ width: '32px', height: '32px', borderRadius: '8px', background: `${tc}15`, border: `1px solid ${tc}30`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
                       <svg width="14" height="14" fill="none" stroke={tc} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
@@ -946,7 +946,7 @@ function DashboardContent() {
                     <span style={{ fontSize: '10px', fontWeight: 700, color: tc, textTransform: 'uppercase', letterSpacing: '0.8px' }}>{doc.type.replace('_', ' ')}</span>
                   </div>
                   <div style={{ fontSize: '15px', fontWeight: 700, color: '#1E2124', marginBottom: '4px', lineHeight: 1.4 }}>{doc.title}</div>
-                  <div style={{ fontSize: '13px', color: '#64748B', marginBottom: '12px' }}>{doc.word_count?.toLocaleString()} words</div>
+                  <div style={{ fontSize: '13px', color: '#1E2124', marginBottom: '12px' }}>{doc.word_count?.toLocaleString()} words</div>
                   <Link href="/chat" style={{ fontSize: '14px', fontWeight: 700, color: tc, textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '4px' }}>
                     Talk to Tresci about this
                     <svg width="11" height="11" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg>
@@ -976,10 +976,10 @@ function DashboardContent() {
 
       {/* ── Feedback Card ── */}
       <div style={{ maxWidth: '900px', margin: '0 auto', padding: '0 32px 48px' }}>
-        <div style={{ background: '#FFFFFF', border: '1px solid #E6EFF0', borderRadius: '18px', padding: '28px', boxShadow: '0 1px 4px rgba(0,165,163,0.06), 0 1px 2px rgba(0,0,0,0.04)' }}>
+        <div style={{ background: '#FFFFFF', border: '1px solid #C8DFE0', borderRadius: '18px', padding: '28px', boxShadow: '0 1px 4px rgba(0,165,163,0.06), 0 1px 2px rgba(0,0,0,0.04)' }}>
           <div style={{ fontSize: '13px', fontWeight: 800, letterSpacing: '2px', textTransform: 'uppercase', color: '#A478FF', marginBottom: '8px' }}>Shape This Platform</div>
           <h3 style={{ fontSize: '22px', fontWeight: 900, color: '#1E2124', margin: '0 0 6px' }}>What should we build next?</h3>
-          <p style={{ fontSize: '15px', color: '#64748B', margin: '0 0 18px', lineHeight: 1.65 }}>
+          <p style={{ fontSize: '15px', color: '#1E2124', margin: '0 0 18px', lineHeight: 1.65 }}>
             Trescademy is being built for you. If there is a feature, a course, a report, or anything else you would like to see — tell us here. Every suggestion is reviewed by the team.
           </p>
           {feedbackSent ? (
@@ -993,7 +993,7 @@ function DashboardContent() {
                 onChange={e => setFeedbackText(e.target.value)}
                 placeholder="e.g. I would like to see a leaderboard for our department, or a mobile app, or a course on AI for client presentations..."
                 rows={4}
-                style={{ width: '100%', padding: '14px 16px', background: '#FFFFFF', border: '1px solid #E6EFF0', borderRadius: '12px', color: '#1E2124', fontSize: '16px', fontFamily: 'inherit', resize: 'vertical', outline: 'none', boxSizing: 'border-box', lineHeight: 1.65 }}
+                style={{ width: '100%', padding: '14px 16px', background: '#FFFFFF', border: '1px solid #C8DFE0', borderRadius: '12px', color: '#1E2124', fontSize: '16px', fontFamily: 'inherit', resize: 'vertical', outline: 'none', boxSizing: 'border-box', lineHeight: 1.65 }}
               />
               <button
                 disabled={!feedbackText.trim() || feedbackSending}
@@ -1025,7 +1025,7 @@ function ScoreRing({ score, color }: { score: number; color: string }) {
   const offset = circ - (score / 100) * circ
   return (
     <svg width="110" height="110" viewBox="0 0 110 110">
-      <circle cx="55" cy="55" r={r} fill="none" stroke="rgba(15,23,42,0.1)" strokeWidth="8" />
+      <circle cx="55" cy="55" r={r} fill="none" stroke="#C8DFE0" strokeWidth="8" />
       <circle cx="55" cy="55" r={r} fill="none" stroke={color} strokeWidth="8"
         strokeDasharray={circ} strokeDashoffset={offset}
         strokeLinecap="round" transform="rotate(-90 55 55)" style={{ transition: 'stroke-dashoffset 1s ease' }} />
@@ -1081,7 +1081,7 @@ const S = {
   },
   nav: {
     background:   '#FFFFFF',
-    borderBottom: '1px solid #E6EFF0',
+    borderBottom: '1px solid #C8DFE0',
     padding:      '0 32px',
     height:       '64px',
     display:      'flex',
