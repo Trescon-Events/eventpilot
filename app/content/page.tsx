@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, Suspense } from 'react'
 import Link from 'next/link'
 import { useSearchParams } from 'next/navigation'
 
@@ -29,7 +29,7 @@ const PLATFORM_COLOR: Record<string, string> = {
   Twitter: '#1D9BF0', YouTube: '#FF0000',
 }
 
-export default function ContentHubPage() {
+function ContentHubInner() {
   const searchParams = useSearchParams()
   const presetEventId = searchParams.get('event_id') ?? 'all'
 
@@ -292,5 +292,13 @@ export default function ContentHubPage() {
         </div>
       )}
     </div>
+  )
+}
+
+export default function ContentHubPage() {
+  return (
+    <Suspense fallback={<div style={{ fontFamily: 'var(--font-manrope), Manrope, sans-serif', background: '#080A0B', minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><div style={{ color: 'rgba(255,255,255,0.4)', fontSize: '14px' }}>Loading…</div></div>}>
+      <ContentHubInner />
+    </Suspense>
   )
 }
