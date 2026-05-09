@@ -148,8 +148,16 @@ function DashboardContent() {
   // Knowledge base + events
   type DocItem   = { id: string; title: string; type: string; word_count: number; events?: { name: string } | null }
   type EventItem = { id: string; name: string; type: string; status: string; event_date: string | null; city: string | null; my_role: string | null }
-  const [docs,          setDocs]          = useState<DocItem[]>([])
-  const [events,        setEvents]        = useState<EventItem[]>([])
+  type MyChecklistItem = {
+    id: string; department: string; title: string; status: string
+    due_date: string | null; notes: string | null
+    events: { id: string; name: string; type: string; event_date: string | null; city: string | null; status: string } | null
+  }
+  const [docs,            setDocs]            = useState<DocItem[]>([])
+  const [events,          setEvents]          = useState<EventItem[]>([])
+  const [myChecklist,     setMyChecklist]     = useState<MyChecklistItem[]>([])
+  const [checklistNotes,  setChecklistNotes]  = useState<Record<string, string>>({})
+  const [checklistSaving, setChecklistSaving] = useState<Record<string, boolean>>({})
   const [feedbackText,  setFeedbackText]  = useState('')
   const [feedbackSent,  setFeedbackSent]  = useState(false)
   const [feedbackSending, setFeedbackSending] = useState(false)
@@ -177,14 +185,24 @@ function DashboardContent() {
 
   async function load() {
     try {
-      const [res, statusRes, docsRes, eventsRes] = await Promise.all([
+      const [res, statusRes, docsRes, eventsRes, clRes] = await Promise.all([
         fetch(`/api/dashboard?id=${staffId}`),
         fetch('/api/platform-status'),
         fetch(`/api/documents/list?staff_id=${staffId}`),
         fetch(`/api/events?staff_id=${staffId}`),
+        fetch(`/api/events/my-checklist?staff_id=${staffId}`),
       ])
       if (docsRes.ok)   { const d = await docsRes.json();   setDocs(Array.isArray(d) ? d : []) }
       if (eventsRes.ok) { const e = await eventsRes.json(); setEvents(Array.isArray(e) ? e : []) }
+      if (clRes.ok) {
+        const cl = await clRes.json()
+        if (Array.isArray(cl)) {
+          setMyChecklist(cl)
+          const notes: Record<string, string> = {}
+          cl.forEach((i: MyChecklistItem) => { notes[i.id] = i.notes ?? '' })
+          setChecklistNotes(notes)
+        }
+      }
       if (!res.ok) { setError('Staff member not found.'); setLoading(false); return }
       const data = await res.json()
       const status = statusRes.ok ? await statusRes.json() : { is_demo: false }
@@ -816,6 +834,96 @@ function DashboardContent() {
                 </button>
               </div>
             ))}
+          </div>
+        </div>
+      )}
+
+      {/* ── My Event Tasks section ── */}
+      {myChecklist.length > 0 && (
+        <div style={{ maxWidth: '900px', margin: '0 auto', padding: '0 24px 32px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '14px' }}>
+            <div style={{ fontSize: '11px', fontWeight: 800, letterSpacing: '2px', color: '#F59E0B', textTransform: 'uppercase' }}>My Event Tasks</div>
+            <span style={{ fontSize: '11px', color: 'rgba(255,255,255,0.35)' }}>
+              {myChecklist.filter(i => i.status === 'done').length}/{myChecklist.length} done
+            </span>
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+            {myChecklist.map(item => {
+              const isLate = item.due_date && new Date(item.due_date) < new Date() && item.status !== 'done'
+              const statusColors: Record<string, { color: string; bg: string }> = {
+                not_started: { color: 'rgba(255,255,255,0.35)', bg: 'rgba(255,255,255,0.05)' },
+                in_progress: { color: '#F59E0B', bg: 'rgba(245,158,11,0.1)' },
+                done:        { color: '#C0F43C', bg: 'rgba(192,244,60,0.1)' },
+                overdue:     { color: '#FF6B6B', bg: 'rgba(255,107,107,0.1)' },
+              }
+              const sc = statusColors[item.status] ?? statusColors.not_started
+
+              return (
+                <div key={item.id} style={{ background: 'rgba(255,255,255,0.03)', border: `1px solid ${isLate ? 'rgba(255,107,107,0.2)' : 'rgba(255,255,255,0.07)'}`, borderRadius: '12px', padding: '14px 18px' }}>
+                  <div style={{ display: 'flex', alignItems: 'flex-start', gap: '12px' }}>
+                    {/* Status toggle */}
+                    <button
+                      onClick={async () => {
+                        const next = item.status === 'not_started' ? 'in_progress' : item.status === 'in_progress' ? 'done' : 'not_started'
+                        setChecklistSaving(p => ({ ...p, [item.id]: true }))
+                        await fetch(`/api/events/my-checklist?id=${item.id}`, {
+                          method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({ status: next }),
+                        })
+                        setMyChecklist(prev => prev.map(i => i.id === item.id ? { ...i, status: next } : i))
+                        setChecklistSaving(p => ({ ...p, [item.id]: false }))
+                      }}
+                      style={{ width: '20px', height: '20px', borderRadius: '5px', border: `2px solid ${item.status === 'done' ? '#C0F43C' : 'rgba(255,255,255,0.2)'}`, background: item.status === 'done' ? '#C0F43C' : 'transparent', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, marginTop: '2px', transition: 'all 0.15s' }}>
+                      {item.status === 'done' && <svg width="10" height="10" fill="none" stroke="#1E2124" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>}
+                      {item.status === 'in_progress' && <div style={{ width: '7px', height: '7px', borderRadius: '50%', background: '#F59E0B' }} />}
+                    </button>
+
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap', marginBottom: '4px' }}>
+                        <span style={{ fontSize: '13px', fontWeight: 600, color: item.status === 'done' ? 'rgba(255,255,255,0.35)' : 'white', textDecoration: item.status === 'done' ? 'line-through' : 'none' }}>
+                          {item.title}
+                        </span>
+                        <span style={{ fontSize: '10px', fontWeight: 700, padding: '2px 7px', borderRadius: '5px', background: sc.bg, color: sc.color, whiteSpace: 'nowrap' }}>
+                          {item.status.replace('_', ' ')}
+                        </span>
+                        {isLate && <span style={{ fontSize: '10px', fontWeight: 700, color: '#FF6B6B' }}>Overdue</span>}
+                      </div>
+                      <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.35)', display: 'flex', gap: '12px', flexWrap: 'wrap', marginBottom: '8px' }}>
+                        {item.events?.name && <span>{item.events.name}</span>}
+                        <span style={{ color: 'rgba(255,255,255,0.25)' }}>{item.department}</span>
+                        {item.due_date && <span style={{ color: isLate ? '#FF6B6B' : 'rgba(255,255,255,0.35)' }}>
+                          Due {new Date(item.due_date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}
+                        </span>}
+                      </div>
+                      {/* Notes input */}
+                      <div style={{ display: 'flex', gap: '8px', alignItems: 'flex-end' }}>
+                        <textarea
+                          value={checklistNotes[item.id] ?? ''}
+                          onChange={e => setChecklistNotes(p => ({ ...p, [item.id]: e.target.value }))}
+                          placeholder="Add your update or notes…"
+                          rows={2}
+                          style={{ flex: 1, padding: '7px 10px', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.08)', background: 'rgba(255,255,255,0.03)', color: 'white', fontSize: '12px', fontFamily: 'inherit', resize: 'none' }}
+                        />
+                        <button
+                          disabled={checklistSaving[item.id]}
+                          onClick={async () => {
+                            setChecklistSaving(p => ({ ...p, [item.id]: true }))
+                            await fetch(`/api/events/my-checklist?id=${item.id}`, {
+                              method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+                              body: JSON.stringify({ notes: checklistNotes[item.id] ?? '' }),
+                            })
+                            setMyChecklist(prev => prev.map(i => i.id === item.id ? { ...i, notes: checklistNotes[item.id] ?? '' } : i))
+                            setChecklistSaving(p => ({ ...p, [item.id]: false }))
+                          }}
+                          style={{ padding: '7px 14px', borderRadius: '8px', border: 'none', background: '#F59E0B', color: '#1E2124', fontSize: '11px', fontWeight: 800, cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap' }}>
+                          {checklistSaving[item.id] ? '…' : 'Save'}
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )
+            })}
           </div>
         </div>
       )}

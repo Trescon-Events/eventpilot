@@ -244,6 +244,9 @@ export default function ChatPage() {
             <div style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#C0F43C', animation: 'pulse 2s infinite' }} />
             <span style={{ fontSize: '13px', fontWeight: 700, color: '#00A5A3' }}>Tresci</span>
             <span style={{ fontSize: '12px', color: 'rgba(255,255,255,0.35)', fontWeight: 500 }}>AI Learning Assistant</span>
+            <span style={{ fontSize: '11px', fontWeight: 600, color: 'rgba(192,244,60,0.7)', background: 'rgba(192,244,60,0.06)', border: '1px solid rgba(192,244,60,0.15)', borderRadius: '6px', padding: '2px 8px', marginLeft: '4px' }}>
+              {SESSION_LIMIT} questions / day
+            </span>
           </div>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
@@ -270,11 +273,13 @@ export default function ChatPage() {
 
         {/* Empty state */}
         {isEmpty && !isBlocked && (
-          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', textAlign: 'center', padding: '48px 0 24px' }}>
-            <div style={{ width: '56px', height: '56px', background: 'rgba(0,165,163,0.12)', border: '1px solid rgba(0,165,163,0.25)', borderRadius: '18px', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '20px' }}>
-              <svg width="24" height="24" fill="none" stroke="#00A5A3" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'flex-start', textAlign: 'center', padding: '32px 0 24px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '16px', marginBottom: '8px' }}>
+              <div style={{ width: '48px', height: '48px', background: 'rgba(0,165,163,0.12)', border: '1px solid rgba(0,165,163,0.25)', borderRadius: '14px', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                <svg width="22" height="22" fill="none" stroke="#00A5A3" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+              </div>
+              <h1 style={{ fontSize: '22px', fontWeight: 900, color: 'white', margin: 0, letterSpacing: '-0.3px' }}>Talk to Tresci</h1>
             </div>
-            <h1 style={{ fontSize: '22px', fontWeight: 900, color: 'white', margin: '0 0 8px', letterSpacing: '-0.3px' }}>Talk to Tresci</h1>
             <p style={{ fontSize: '14px', color: 'rgba(255,255,255,0.45)', margin: '0 0 36px', maxWidth: '380px', lineHeight: 1.6 }}>
               Your AI learning assistant. Ask me anything about your courses, your TAIRS score, or how to use Trescademy.
             </p>
@@ -298,8 +303,11 @@ export default function ChatPage() {
             <div style={{ marginTop: '28px', padding: '12px 20px', background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: '10px', fontSize: '12px', color: 'rgba(255,255,255,0.55)', lineHeight: 1.7, maxWidth: '500px', textAlign: 'center' }}>
               Tresci is here to support your learning — ask about your courses, TAIRS score, or how to get the most from the platform.
               For HR, IT, or personal matters, please speak to your manager or the relevant team.
-              <span style={{ display: 'block', marginTop: '8px', color: 'rgba(255,255,255,0.65)', borderTop: '1px solid rgba(255,255,255,0.08)', paddingTop: '8px', fontWeight: 600 }}>
-                Each session includes up to {SESSION_LIMIT} questions. Make them count.
+              <span style={{ display: 'block', marginTop: '8px', borderTop: '1px solid rgba(255,255,255,0.08)', paddingTop: '8px' }}>
+                <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', background: 'rgba(192,244,60,0.08)', border: '1px solid rgba(192,244,60,0.2)', borderRadius: '8px', padding: '5px 12px', color: '#C0F43C', fontWeight: 700 }}>
+                  <svg width="12" height="12" fill="none" stroke="#C0F43C" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+                  You have {SESSION_LIMIT} questions per day — resets at midnight.
+                </span>
               </span>
             </div>
           </div>

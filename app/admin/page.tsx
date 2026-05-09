@@ -345,7 +345,14 @@ export default function AdminPage() {
   const [interviewFilter, setInterviewFilter] = useState<'all' | 'done' | 'pending'>('all')
 
   // Events tab
-  type EventRow = { id: string; name: string; type: string; status: string; event_date: string | null; venue: string | null; city: string | null; client_name: string | null; description: string | null }
+  type EventRow = {
+    id: string; name: string; type: string; status: string
+    event_date: string | null; venue: string | null; city: string | null
+    client_name: string | null; description: string | null
+    event_staff?: { count: number }[] | null
+    documents?:   { count: number }[] | null
+    event_checklist?: { count: number }[] | null
+  }
   const [events,        setEvents]        = useState<EventRow[]>([])
   const [eventsLoading, setEventsLoading] = useState(false)
   const [eventForm,     setEventForm]     = useState({ name: '', type: 'conference', status: 'planning', event_date: '', venue: '', city: '', client_name: '', description: '' })
@@ -403,13 +410,26 @@ export default function AdminPage() {
   }
 
   // Knowledge / Documents tab
-  type DocRow = { id: string; title: string; type: string; visibility: string; word_count: number; event_id: string | null; created_at: string; events?: { name: string } | null }
-  const [docs,        setDocs]        = useState<DocRow[]>([])
-  const [docsLoading, setDocsLoading] = useState(false)
-  const [docFile,     setDocFile]     = useState<File | null>(null)
-  const [docForm,     setDocForm]     = useState({ title: '', type: 'policy', visibility: 'all', event_id: '' })
-  const [docUploading,setDocUploading]= useState(false)
-  const [docMsg,      setDocMsg]      = useState('')
+  type DocRow = {
+    id: string; title: string; type: string; visibility: string
+    word_count: number; event_id: string | null; created_at: string
+    events?: { name: string } | null
+    layer: string; department: string; min_level: string
+    tresci_use: boolean; confidence: number; flagged: boolean; status: string
+  }
+  const [docs,          setDocs]          = useState<DocRow[]>([])
+  const [docsLoading,   setDocsLoading]   = useState(false)
+  const [docFile,       setDocFile]       = useState<File | null>(null)
+  const [docForm,       setDocForm]       = useState({ title: '', type: 'policy', visibility: 'all', event_id: '' })
+  const [docUploading,  setDocUploading]  = useState(false)
+  const [docMsg,        setDocMsg]        = useState('')
+  const [otherTypeLabel,setOtherTypeLabel]= useState('')
+  const [saveAsNewType, setSaveAsNewType] = useState(false)
+  const [customDocTypes,setCustomDocTypes]= useState<{ key: string; label: string }[]>([])
+  const [docAnalysis,  setDocAnalysis]   = useState<{ layer: string; department: string; min_level: string; tresci_use: boolean; ai_reasoning: string; confidence: number; flagged: boolean } | null>(null)
+  const [showCreateEvent, setShowCreateEvent] = useState(false)
+  const [showUploadForm,  setShowUploadForm]  = useState(false)
+  const [docFilter,       setDocFilter]       = useState<'all'|'knowledge_base'|'general'|'specific'|'flagged'>('all')
 
   async function fetchEvents() {
     setEventsLoading(true)
@@ -455,21 +475,42 @@ export default function AdminPage() {
     setDocsLoading(false)
   }
 
+  async function fetchCustomDocTypes() {
+    const res  = await fetch('/api/document-types')
+    const data = await res.json()
+    setCustomDocTypes(Array.isArray(data) ? data : [])
+  }
+
   async function uploadDoc() {
     if (!docFile || !docForm.title.trim()) { setDocMsg('File and title are required.'); return }
+    if (docForm.type === 'other' && !otherTypeLabel.trim()) { setDocMsg('Please specify what type this document is.'); return }
     setDocUploading(true); setDocMsg('')
+
+    // If type is 'other', use the custom label normalised to snake_case as the stored type key
+    const finalType = docForm.type === 'other'
+      ? otherTypeLabel.trim().toLowerCase().replace(/\s+/g, '_')
+      : docForm.type
+
+    setDocAnalysis(null)
+    const adminStaffId = sessionStorage.getItem('tai_admin_staff_id')
     const form = new FormData()
     form.append('file', docFile)
     form.append('title', docForm.title)
-    form.append('type', docForm.type)
+    form.append('type', finalType)
     form.append('visibility', docForm.visibility)
     if (docForm.event_id) form.append('event_id', docForm.event_id)
+    if (adminStaffId) form.append('uploaded_by', adminStaffId)
     const res  = await fetch('/api/documents/upload', { method: 'POST', body: form })
     const data = await res.json()
     if (res.ok) {
-      setDocMsg(`Done. ${data.document?.word_count?.toLocaleString()} words extracted. File destroyed.`)
-      setDocFile(null); setDocForm({ title: '', type: 'policy', visibility: 'all', event_id: '' })
+      setDocMsg(`Done. ${data.document?.word_count?.toLocaleString()} words extracted.${data.analysis?.flagged ? ' Flagged for review — low confidence.' : ''}`)
+      setDocAnalysis(data.analysis ?? null)
+      setDocFile(null)
+      setDocForm({ title: '', type: 'policy', visibility: 'all', event_id: '' })
+      setOtherTypeLabel('')
+      setSaveAsNewType(false)
       fetchDocs()
+      if (saveAsNewType) fetchCustomDocTypes()
     } else {
       setDocMsg(data.error ?? 'Upload failed.')
     }
@@ -1184,7 +1225,7 @@ export default function AdminPage() {
                 return (
                   <button key={t}
                     id={t === 'intelligence' ? 'tour-intelligence-tab' : t === 'suggest' ? 'tour-studio-tab' : undefined}
-                    onClick={() => { setTab(t as typeof tab); if (t === 'learning') fetchLearning(); if (t === 'staff') { fetchStaffList(); markProgress('staff') } if (t === 'events') fetchEvents(); if (t === 'knowledge') fetchDocs(); if (t === 'review') fetchDrafts(); if (t === 'suggest') markProgress('course') }}
+                    onClick={() => { setTab(t as typeof tab); if (t === 'learning') fetchLearning(); if (t === 'staff') { fetchStaffList(); markProgress('staff') } if (t === 'events') fetchEvents(); if (t === 'knowledge') { fetchDocs(); fetchCustomDocTypes(); } if (t === 'review') fetchDrafts(); if (t === 'suggest') markProgress('course') }}
                     style={{
                       padding:      '9px 20px',
                       borderRadius: '10px',
@@ -1905,7 +1946,10 @@ export default function AdminPage() {
                             {m.profile_complete ? 'Done' : 'Pending'}
                           </span>
                         </td>
-                        <td style={{ padding: '12px 16px', fontSize: '11px', color: 'rgba(255,255,255,0.80)', whiteSpace: 'nowrap' }}>{new Date(m.joined_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}</td>
+                        <td style={{ padding: '12px 16px', whiteSpace: 'nowrap' }}>
+                          <div style={{ fontSize: '12px', fontWeight: 600, color: 'rgba(255,255,255,0.80)' }}>{new Date(m.joined_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}</div>
+                          <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.35)', marginTop: '2px' }}>{new Date(m.joined_at).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}</div>
+                        </td>
                       </tr>
                     )
                   })}
@@ -3141,247 +3185,519 @@ export default function AdminPage() {
 
 
         {/* ── Events tab ── */}
-        {tab === 'events' && (
-          <div>
-            <div style={{ marginBottom: '28px' }}>
-              <div style={{ fontSize: '10px', fontWeight: 800, letterSpacing: '2.5px', textTransform: 'uppercase', color: '#00A5A3', marginBottom: '6px' }}>Events</div>
-              <h2 style={{ fontSize: '20px', fontWeight: 800, color: 'white', margin: 0 }}>Event Management</h2>
-              <p style={{ fontSize: '13px', color: 'rgba(255,255,255,0.55)', marginTop: '6px' }}>Create events, assign staff, and upload briefing documents.</p>
-            </div>
-
-            <div style={{ display: 'grid', gridTemplateColumns: selectedEvent ? '1fr 1fr' : '380px 1fr', gap: '24px', alignItems: 'flex-start' }}>
-              {/* Create event form */}
-              <div style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '16px', padding: '24px' }}>
-                <div style={{ fontSize: '12px', fontWeight: 800, color: '#00A5A3', letterSpacing: '1px', textTransform: 'uppercase', marginBottom: '16px' }}>Create New Event</div>
+        {tab === 'events' && (() => {
+          const TYPE_COLOR: Record<string,string> = { conference:'#00A5A3', summit:'#A78BFA', forum:'#60A5FA', awards:'#F59E0B', workshop:'#34D399', other:'rgba(255,255,255,0.4)' }
+          const STATUS_CFG: Record<string,{color:string;bg:string}> = {
+            planning:  { color:'rgba(255,255,255,0.5)',  bg:'rgba(255,255,255,0.07)' },
+            active:    { color:'#C0F43C',               bg:'rgba(192,244,60,0.12)'  },
+            completed: { color:'#00A5A3',               bg:'rgba(0,165,163,0.12)'   },
+            cancelled: { color:'#FF6B6B',               bg:'rgba(255,107,107,0.12)' },
+          }
+          const createForm = (
+            <div style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(0,165,163,0.2)', borderRadius: '16px', padding: '24px' }}>
+              <div style={{ fontSize: '12px', fontWeight: 800, color: '#00A5A3', letterSpacing: '1px', textTransform: 'uppercase', marginBottom: '16px' }}>New Event</div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '12px' }}>
                 {[
-                  { label: 'Event Name', key: 'name', placeholder: 'World AI Show Dubai 2026' },
-                  { label: 'Client / Partner', key: 'client_name', placeholder: 'e.g. UAE Ministry of AI' },
-                  { label: 'Venue', key: 'venue', placeholder: 'Dubai World Trade Centre' },
-                  { label: 'City', key: 'city', placeholder: 'Dubai' },
+                  { label: 'Event Name', key: 'name', placeholder: 'World AI Show Dubai 2026', full: true },
+                  { label: 'Client / Partner', key: 'client_name', placeholder: 'UAE Ministry of AI', full: false },
+                  { label: 'City', key: 'city', placeholder: 'Dubai', full: false },
+                  { label: 'Venue', key: 'venue', placeholder: 'Dubai World Trade Centre', full: false },
                 ].map(f => (
-                  <div key={f.key} style={{ marginBottom: '12px' }}>
-                    <label style={{ fontSize: '11px', fontWeight: 700, color: 'rgba(255,255,255,0.45)', letterSpacing: '0.8px', textTransform: 'uppercase', display: 'block', marginBottom: '5px' }}>{f.label}</label>
+                  <div key={f.key} style={f.full ? { gridColumn: '1/-1' } : {}}>
+                    <label style={{ fontSize: '10px', fontWeight: 700, color: 'rgba(255,255,255,0.4)', letterSpacing: '0.8px', textTransform: 'uppercase', display: 'block', marginBottom: '5px' }}>{f.label}</label>
                     <input value={eventForm[f.key as keyof typeof eventForm]} onChange={e => setEventForm(p => ({ ...p, [f.key]: e.target.value }))}
                       placeholder={f.placeholder}
-                      style={{ width: '100%', padding: '10px 14px', borderRadius: '10px', border: '1px solid rgba(255,255,255,0.1)', background: 'rgba(255,255,255,0.04)', color: 'white', fontSize: '13px', fontFamily: 'inherit', boxSizing: 'border-box' }} />
+                      style={{ width: '100%', padding: '9px 12px', borderRadius: '9px', border: '1px solid rgba(255,255,255,0.1)', background: 'rgba(255,255,255,0.04)', color: 'white', fontSize: '13px', fontFamily: 'inherit', boxSizing: 'border-box' }} />
                   </div>
                 ))}
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '12px' }}>
-                  <div>
-                    <label style={{ fontSize: '11px', fontWeight: 700, color: 'rgba(255,255,255,0.45)', letterSpacing: '0.8px', textTransform: 'uppercase', display: 'block', marginBottom: '5px' }}>Type</label>
-                    <select value={eventForm.type} onChange={e => setEventForm(p => ({ ...p, type: e.target.value }))}
-                      style={{ width: '100%', padding: '10px 14px', borderRadius: '10px', border: '1px solid rgba(255,255,255,0.1)', background: '#1A1E22', color: 'white', fontSize: '13px', fontFamily: 'inherit' }}>
-                      {['conference','summit','forum','awards','workshop','other'].map(t => <option key={t} value={t}>{t.charAt(0).toUpperCase()+t.slice(1)}</option>)}
-                    </select>
-                  </div>
-                  <div>
-                    <label style={{ fontSize: '11px', fontWeight: 700, color: 'rgba(255,255,255,0.45)', letterSpacing: '0.8px', textTransform: 'uppercase', display: 'block', marginBottom: '5px' }}>Date</label>
-                    <input type="date" value={eventForm.event_date} onChange={e => setEventForm(p => ({ ...p, event_date: e.target.value }))}
-                      style={{ width: '100%', padding: '10px 14px', borderRadius: '10px', border: '1px solid rgba(255,255,255,0.1)', background: '#1A1E22', color: 'white', fontSize: '13px', fontFamily: 'inherit', boxSizing: 'border-box' }} />
-                  </div>
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '12px' }}>
+                <div>
+                  <label style={{ fontSize: '10px', fontWeight: 700, color: 'rgba(255,255,255,0.4)', letterSpacing: '0.8px', textTransform: 'uppercase', display: 'block', marginBottom: '5px' }}>Type</label>
+                  <select value={eventForm.type} onChange={e => setEventForm(p => ({ ...p, type: e.target.value }))}
+                    style={{ width: '100%', padding: '9px 12px', borderRadius: '9px', border: '1px solid rgba(255,255,255,0.1)', background: '#1A1E22', color: 'white', fontSize: '13px', fontFamily: 'inherit' }}>
+                    {['conference','summit','forum','awards','workshop','other'].map(t => <option key={t} value={t}>{t.charAt(0).toUpperCase()+t.slice(1)}</option>)}
+                  </select>
                 </div>
-                <textarea value={eventForm.description} onChange={e => setEventForm(p => ({ ...p, description: e.target.value }))}
-                  placeholder="Brief description of this event..."
-                  rows={3}
-                  style={{ width: '100%', padding: '10px 14px', borderRadius: '10px', border: '1px solid rgba(255,255,255,0.1)', background: 'rgba(255,255,255,0.04)', color: 'white', fontSize: '13px', fontFamily: 'inherit', boxSizing: 'border-box', resize: 'vertical', marginBottom: '14px' }} />
-                {eventMsg && <div style={{ fontSize: '12px', color: eventMsg.includes('created') ? '#C0F43C' : '#FF6B6B', marginBottom: '10px' }}>{eventMsg}</div>}
-                <button onClick={createEvent} disabled={eventSaving}
-                  style={{ padding: '11px 20px', borderRadius: '10px', border: 'none', background: '#00A5A3', color: 'white', fontSize: '13px', fontWeight: 700, cursor: eventSaving ? 'not-allowed' : 'pointer', fontFamily: 'inherit', opacity: eventSaving ? 0.6 : 1 }}>
+                <div>
+                  <label style={{ fontSize: '10px', fontWeight: 700, color: 'rgba(255,255,255,0.4)', letterSpacing: '0.8px', textTransform: 'uppercase', display: 'block', marginBottom: '5px' }}>Date</label>
+                  <input type="date" value={eventForm.event_date} onChange={e => setEventForm(p => ({ ...p, event_date: e.target.value }))}
+                    style={{ width: '100%', padding: '9px 12px', borderRadius: '9px', border: '1px solid rgba(255,255,255,0.1)', background: '#1A1E22', color: 'white', fontSize: '13px', fontFamily: 'inherit', boxSizing: 'border-box' }} />
+                </div>
+              </div>
+              <textarea value={eventForm.description} onChange={e => setEventForm(p => ({ ...p, description: e.target.value }))}
+                placeholder="Brief description of this event…" rows={2}
+                style={{ width: '100%', padding: '9px 12px', borderRadius: '9px', border: '1px solid rgba(255,255,255,0.1)', background: 'rgba(255,255,255,0.04)', color: 'white', fontSize: '13px', fontFamily: 'inherit', boxSizing: 'border-box', resize: 'none', marginBottom: '12px' }} />
+              {eventMsg && <div style={{ fontSize: '12px', color: eventMsg.includes('created') ? '#C0F43C' : '#FF6B6B', marginBottom: '10px' }}>{eventMsg}</div>}
+              <div style={{ display: 'flex', gap: '8px' }}>
+                <button onClick={async () => { await createEvent(); if (events.length > 0) setShowCreateEvent(false) }} disabled={eventSaving}
+                  style={{ padding: '10px 22px', borderRadius: '9px', border: 'none', background: '#00A5A3', color: 'white', fontSize: '13px', fontWeight: 700, cursor: eventSaving ? 'not-allowed' : 'pointer', fontFamily: 'inherit', opacity: eventSaving ? 0.6 : 1 }}>
                   {eventSaving ? 'Creating…' : 'Create Event'}
                 </button>
+                {events.length > 0 && (
+                  <button onClick={() => setShowCreateEvent(false)}
+                    style={{ padding: '10px 18px', borderRadius: '9px', border: '1px solid rgba(255,255,255,0.1)', background: 'transparent', color: 'rgba(255,255,255,0.5)', fontSize: '13px', cursor: 'pointer', fontFamily: 'inherit' }}>Cancel</button>
+                )}
+              </div>
+            </div>
+          )
+
+          return (
+            <div>
+              {/* Header */}
+              <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: '24px' }}>
+                <div>
+                  <div style={{ fontSize: '10px', fontWeight: 800, letterSpacing: '2.5px', textTransform: 'uppercase', color: '#00A5A3', marginBottom: '6px' }}>Events</div>
+                  <h2 style={{ fontSize: '20px', fontWeight: 800, color: 'white', margin: 0 }}>Event Management</h2>
+                </div>
+                {events.length > 0 && !showCreateEvent && (
+                  <button onClick={() => setShowCreateEvent(true)}
+                    style={{ display: 'flex', alignItems: 'center', gap: '7px', padding: '10px 18px', borderRadius: '10px', border: 'none', background: '#00A5A3', color: 'white', fontSize: '13px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
+                    <svg width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                    New Event
+                  </button>
+                )}
               </div>
 
-              {/* Events list */}
-              <div>
-                {eventsLoading ? (
-                  <div style={{ color: 'rgba(255,255,255,0.4)', fontSize: '13px' }}>Loading events…</div>
-                ) : events.length === 0 ? (
-                  <div style={{ color: 'rgba(255,255,255,0.35)', fontSize: '13px' }}>No events yet. Create your first event.</div>
-                ) : (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                    {events.map(ev => (
-                      <div key={ev.id}
-                        onClick={() => { setSelectedEvent(ev); fetchEventStaff(ev.id) }}
-                        style={{ background: selectedEvent?.id === ev.id ? 'rgba(0,165,163,0.08)' : 'rgba(255,255,255,0.03)', border: `1px solid ${selectedEvent?.id === ev.id ? 'rgba(0,165,163,0.35)' : 'rgba(255,255,255,0.08)'}`, borderRadius: '14px', padding: '16px 20px', cursor: 'pointer', transition: 'all 0.15s' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '6px' }}>
-                          <div style={{ fontSize: '14px', fontWeight: 700, color: 'white' }}>{ev.name}</div>
-                          <div style={{ fontSize: '11px', fontWeight: 700, padding: '3px 10px', borderRadius: '20px', background: ev.status === 'active' ? 'rgba(192,244,60,0.15)' : ev.status === 'completed' ? 'rgba(0,165,163,0.15)' : 'rgba(255,255,255,0.08)', color: ev.status === 'active' ? '#C0F43C' : ev.status === 'completed' ? '#00A5A3' : 'rgba(255,255,255,0.5)' }}>
-                            {ev.status}
+              {/* EMPTY STATE */}
+              {!eventsLoading && events.length === 0 && (
+                <>
+                  {/* Step guide full-width */}
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', marginBottom: '32px', background: 'rgba(0,165,163,0.05)', border: '1px solid rgba(0,165,163,0.15)', borderRadius: '14px', overflow: 'hidden' }}>
+                    {[
+                      { n:'1', icon:<svg width="15" height="15" fill="none" stroke="#00A5A3" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>, label:'Create event', sub:'Name, date, city, client' },
+                      { n:'2', icon:<svg width="15" height="15" fill="none" stroke="#00A5A3" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>, label:'AI checklist', sub:'Dept-by-dept task list generated instantly' },
+                      { n:'3', icon:<svg width="15" height="15" fill="none" stroke="#00A5A3" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>, label:'Assign owners', sub:'Link each task to a team member' },
+                      { n:'4', icon:<svg width="15" height="15" fill="none" stroke="#00A5A3" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>, label:'Track progress', sub:'Staff update status from their dashboard' },
+                      { n:'5', icon:<svg width="15" height="15" fill="none" stroke="#00A5A3" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>, label:'Generate report', sub:'AI drafts from all inputs — review, comment, conclude' },
+                    ].map((s, i) => (
+                      <div key={s.n} style={{ padding: '18px 16px', borderRight: i < 4 ? '1px solid rgba(0,165,163,0.12)' : 'none' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '7px', marginBottom: '10px' }}>
+                          <div style={{ width: '22px', height: '22px', borderRadius: '50%', background: 'rgba(0,165,163,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                            <span style={{ fontSize: '10px', fontWeight: 900, color: '#00A5A3' }}>{s.n}</span>
                           </div>
+                          {s.icon}
                         </div>
-                        <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.5)', display: 'flex', gap: '16px', flexWrap: 'wrap' }}>
-                          {ev.city && <span>{ev.city}</span>}
-                          {ev.event_date && <span>{new Date(ev.event_date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}</span>}
-                          {ev.client_name && <span>{ev.client_name}</span>}
-                        </div>
+                        <div style={{ fontSize: '12px', fontWeight: 800, color: 'white', marginBottom: '4px' }}>{s.label}</div>
+                        <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.4)', lineHeight: 1.4 }}>{s.sub}</div>
                       </div>
                     ))}
                   </div>
-                )}
+                  {/* Create form centred */}
+                  <div style={{ maxWidth: '520px', margin: '0 auto' }}>{createForm}</div>
+                </>
+              )}
 
-                {/* Selected event — staff assignment panel */}
-                {selectedEvent && (
-                  <div style={{ marginTop: '20px', background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '16px', padding: '20px' }}>
-                    <div style={{ fontSize: '12px', fontWeight: 800, color: '#00A5A3', letterSpacing: '1px', textTransform: 'uppercase', marginBottom: '14px' }}>Staff on {selectedEvent.name}</div>
-                    {eventStaff.length === 0 ? (
-                      <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.35)', marginBottom: '14px' }}>No staff assigned yet.</div>
-                    ) : (
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: '14px' }}>
-                        {eventStaff.map(es => (
-                          <div key={es.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 12px', background: 'rgba(255,255,255,0.03)', borderRadius: '8px' }}>
-                            <div>
-                              <span style={{ fontSize: '13px', fontWeight: 600, color: 'white' }}>{es.staff_members?.name}</span>
-                              {es.role && <span style={{ fontSize: '11px', color: 'rgba(255,255,255,0.45)', marginLeft: '8px' }}>{es.role}</span>}
-                              <span style={{ fontSize: '11px', color: 'rgba(255,255,255,0.3)', marginLeft: '8px' }}>{es.staff_members?.department}</span>
-                            </div>
-                            <button onClick={() => removeEventStaff(es.staff_members?.id)}
-                              style={{ fontSize: '11px', color: '#FF6B6B', background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'inherit', fontWeight: 700 }}>Remove</button>
+              {/* LOADING */}
+              {eventsLoading && <div style={{ color: 'rgba(255,255,255,0.4)', fontSize: '13px', padding: '40px 0', textAlign: 'center' }}>Loading events…</div>}
+
+              {/* POPULATED STATE */}
+              {!eventsLoading && events.length > 0 && (
+                <>
+                  {/* Collapsible guide */}
+                  <details style={{ marginBottom: '20px' }}>
+                    <summary style={{ fontSize: '11px', fontWeight: 700, color: 'rgba(0,165,163,0.7)', cursor: 'pointer', userSelect: 'none', listStyle: 'none', display: 'inline-flex', alignItems: 'center', gap: '5px' }}>
+                      <svg width="11" height="11" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+                      How this section works
+                    </summary>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', marginTop: '12px', marginBottom: '4px', background: 'rgba(0,165,163,0.04)', border: '1px solid rgba(0,165,163,0.12)', borderRadius: '12px', overflow: 'hidden' }}>
+                      {[
+                        { n:'1', label:'Create event', sub:'Name, date, city, client' },
+                        { n:'2', label:'AI checklist', sub:'Open workspace → Generate Checklist' },
+                        { n:'3', label:'Assign owners', sub:'Link each task to a team member' },
+                        { n:'4', label:'Track progress', sub:'Staff update from their dashboard' },
+                        { n:'5', label:'Generate report', sub:'AI drafts from all inputs, conclude to publish' },
+                      ].map((s, i) => (
+                        <div key={s.n} style={{ padding: '12px 14px', borderRight: i < 4 ? '1px solid rgba(0,165,163,0.1)' : 'none' }}>
+                          <div style={{ width: '18px', height: '18px', borderRadius: '50%', background: 'rgba(0,165,163,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '7px' }}>
+                            <span style={{ fontSize: '9px', fontWeight: 900, color: '#00A5A3' }}>{s.n}</span>
                           </div>
-                        ))}
-                      </div>
-                    )}
-                    <div style={{ display: 'flex', gap: '8px' }}>
-                      <select value={assignStaffId} onChange={e => setAssignStaffId(e.target.value)}
-                        style={{ flex: 1, padding: '9px 12px', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.1)', background: '#1A1E22', color: 'white', fontSize: '12px', fontFamily: 'inherit' }}>
-                        <option value="">Select staff…</option>
-                        {staffList.map(s => <option key={s.id} value={s.id}>{s.name} — {s.department}</option>)}
-                      </select>
-                      <input value={assignRole} onChange={e => setAssignRole(e.target.value)} placeholder="Role (optional)"
-                        style={{ width: '130px', padding: '9px 12px', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.1)', background: 'rgba(255,255,255,0.04)', color: 'white', fontSize: '12px', fontFamily: 'inherit' }} />
-                      <button onClick={assignStaff}
-                        style={{ padding: '9px 16px', borderRadius: '8px', border: 'none', background: '#00A5A3', color: 'white', fontSize: '12px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>Add</button>
+                          <div style={{ fontSize: '11px', fontWeight: 800, color: 'white', marginBottom: '2px' }}>{s.label}</div>
+                          <div style={{ fontSize: '10px', color: 'rgba(255,255,255,0.35)', lineHeight: 1.4 }}>{s.sub}</div>
+                        </div>
+                      ))}
                     </div>
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
-        )}
+                  </details>
 
-        {/* ── Knowledge Base tab ── */}
-        {tab === 'knowledge' && (
-          <div>
-            <div style={{ marginBottom: '28px' }}>
-              <div style={{ fontSize: '10px', fontWeight: 800, letterSpacing: '2.5px', textTransform: 'uppercase', color: '#C0F43C', marginBottom: '6px' }}>Knowledge Base</div>
-              <h2 style={{ fontSize: '20px', fontWeight: 800, color: 'white', margin: 0 }}>Documents</h2>
-              <p style={{ fontSize: '13px', color: 'rgba(255,255,255,0.55)', marginTop: '6px' }}>Upload any PDF or text document. Text is extracted and stored. The original file is immediately destroyed.</p>
-            </div>
+                  {/* Inline create form */}
+                  {showCreateEvent && <div style={{ marginBottom: '24px' }}>{createForm}</div>}
 
-            <div style={{ display: 'grid', gridTemplateColumns: '380px 1fr', gap: '24px', alignItems: 'flex-start' }}>
-              {/* Upload form */}
-              <div style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '16px', padding: '24px' }}>
-                <div style={{ fontSize: '12px', fontWeight: 800, color: '#C0F43C', letterSpacing: '1px', textTransform: 'uppercase', marginBottom: '16px' }}>Upload Document</div>
-
-                <div style={{ marginBottom: '12px' }}>
-                  <label style={{ fontSize: '11px', fontWeight: 700, color: 'rgba(255,255,255,0.45)', letterSpacing: '0.8px', textTransform: 'uppercase', display: 'block', marginBottom: '5px' }}>Document Title</label>
-                  <input value={docForm.title} onChange={e => setDocForm(p => ({ ...p, title: e.target.value }))} placeholder="e.g. HR Policy Handbook 2026"
-                    style={{ width: '100%', padding: '10px 14px', borderRadius: '10px', border: '1px solid rgba(255,255,255,0.1)', background: 'rgba(255,255,255,0.04)', color: 'white', fontSize: '13px', fontFamily: 'inherit', boxSizing: 'border-box' }} />
-                </div>
-
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginBottom: '12px' }}>
-                  <div>
-                    <label style={{ fontSize: '11px', fontWeight: 700, color: 'rgba(255,255,255,0.45)', letterSpacing: '0.8px', textTransform: 'uppercase', display: 'block', marginBottom: '5px' }}>Type</label>
-                    <select value={docForm.type} onChange={e => setDocForm(p => ({ ...p, type: e.target.value }))}
-                      style={{ width: '100%', padding: '10px 12px', borderRadius: '10px', border: '1px solid rgba(255,255,255,0.1)', background: '#1A1E22', color: 'white', fontSize: '12px', fontFamily: 'inherit' }}>
-                      <option value="policy">Policy</option>
-                      <option value="event_brief">Event Brief</option>
-                      <option value="staff_doc">Staff Document</option>
-                      <option value="onboarding">Onboarding</option>
-                      <option value="other">Other</option>
-                    </select>
-                  </div>
-                  <div>
-                    <label style={{ fontSize: '11px', fontWeight: 700, color: 'rgba(255,255,255,0.45)', letterSpacing: '0.8px', textTransform: 'uppercase', display: 'block', marginBottom: '5px' }}>Visible To</label>
-                    <select value={docForm.visibility} onChange={e => setDocForm(p => ({ ...p, visibility: e.target.value }))}
-                      style={{ width: '100%', padding: '10px 12px', borderRadius: '10px', border: '1px solid rgba(255,255,255,0.1)', background: '#1A1E22', color: 'white', fontSize: '12px', fontFamily: 'inherit' }}>
-                      <option value="all">All Staff</option>
-                      <option value="event_only">Event Staff Only</option>
-                    </select>
-                  </div>
-                </div>
-
-                {docForm.visibility === 'event_only' && (
-                  <div style={{ marginBottom: '12px' }}>
-                    <label style={{ fontSize: '11px', fontWeight: 700, color: 'rgba(255,255,255,0.45)', letterSpacing: '0.8px', textTransform: 'uppercase', display: 'block', marginBottom: '5px' }}>Link to Event</label>
-                    <select value={docForm.event_id} onChange={e => setDocForm(p => ({ ...p, event_id: e.target.value }))}
-                      style={{ width: '100%', padding: '10px 12px', borderRadius: '10px', border: '1px solid rgba(255,255,255,0.1)', background: '#1A1E22', color: 'white', fontSize: '12px', fontFamily: 'inherit' }}>
-                      <option value="">Select event…</option>
-                      {events.map(ev => <option key={ev.id} value={ev.id}>{ev.name}</option>)}
-                    </select>
-                  </div>
-                )}
-
-                <div style={{ marginBottom: '16px' }}>
-                  <label style={{ fontSize: '11px', fontWeight: 700, color: 'rgba(255,255,255,0.45)', letterSpacing: '0.8px', textTransform: 'uppercase', display: 'block', marginBottom: '8px' }}>File (PDF or TXT)</label>
-                  <label style={{ display: 'block', padding: '20px', border: '1.5px dashed rgba(255,255,255,0.15)', borderRadius: '10px', textAlign: 'center', cursor: 'pointer', background: docFile ? 'rgba(192,244,60,0.05)' : 'transparent', borderColor: docFile ? 'rgba(192,244,60,0.3)' : 'rgba(255,255,255,0.15)' }}>
-                    <input type="file" accept=".pdf,.txt,.md" style={{ display: 'none' }} onChange={e => setDocFile(e.target.files?.[0] ?? null)} />
-                    {docFile ? (
-                      <div>
-                        <div style={{ fontSize: '13px', fontWeight: 700, color: '#C0F43C' }}>{docFile.name}</div>
-                        <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.4)', marginTop: '3px' }}>{(docFile.size / 1024).toFixed(0)} KB</div>
-                      </div>
-                    ) : (
-                      <div>
-                        <svg width="24" height="24" fill="none" stroke="rgba(255,255,255,0.3)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24" style={{ margin: '0 auto 8px', display: 'block' }}><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
-                        <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.4)' }}>Click to select file</div>
-                      </div>
-                    )}
-                  </label>
-                </div>
-
-                {docMsg && (
-                  <div style={{ fontSize: '12px', padding: '10px 14px', borderRadius: '8px', background: docMsg.includes('Done') ? 'rgba(192,244,60,0.08)' : 'rgba(255,107,107,0.08)', border: `1px solid ${docMsg.includes('Done') ? 'rgba(192,244,60,0.25)' : 'rgba(255,107,107,0.25)'}`, color: docMsg.includes('Done') ? '#C0F43C' : '#FF6B6B', marginBottom: '12px', lineHeight: 1.5 }}>
-                    {docMsg}
-                  </div>
-                )}
-
-                <button onClick={uploadDoc} disabled={docUploading || !docFile}
-                  style={{ width: '100%', padding: '12px', borderRadius: '10px', border: 'none', background: docUploading || !docFile ? 'rgba(255,255,255,0.08)' : '#C0F43C', color: docUploading || !docFile ? 'rgba(255,255,255,0.3)' : '#1E2124', fontSize: '13px', fontWeight: 800, cursor: docUploading || !docFile ? 'not-allowed' : 'pointer', fontFamily: 'inherit' }}>
-                  {docUploading ? 'Extracting text…' : 'Upload & Extract'}
-                </button>
-              </div>
-
-              {/* Documents list */}
-              <div>
-                {docsLoading ? (
-                  <div style={{ color: 'rgba(255,255,255,0.4)', fontSize: '13px' }}>Loading documents…</div>
-                ) : docs.length === 0 ? (
-                  <div style={{ color: 'rgba(255,255,255,0.35)', fontSize: '13px', textAlign: 'center', padding: '40px 0' }}>
-                    <svg width="40" height="40" fill="none" stroke="rgba(255,255,255,0.15)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24" style={{ margin: '0 auto 12px', display: 'block' }}><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
-                    No documents uploaded yet.
-                  </div>
-                ) : (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                    {docs.map(doc => {
-                      const typeColor: Record<string,string> = { policy: '#FF9F43', event_brief: '#00A5A3', staff_doc: '#C0F43C', onboarding: '#A478FF', other: 'rgba(255,255,255,0.4)' }
+                  {/* Events grid */}
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+                    {events.map(ev => {
+                      const tc = TYPE_COLOR[ev.type] ?? 'rgba(255,255,255,0.4)'
+                      const sc = STATUS_CFG[ev.status] ?? STATUS_CFG.planning
+                      const staffCount = (ev.event_staff as {count:number}[]|null)?.[0]?.count ?? 0
+                      const docCount   = (ev.documents   as {count:number}[]|null)?.[0]?.count ?? 0
+                      const taskCount  = (ev.event_checklist as {count:number}[]|null)?.[0]?.count ?? 0
                       return (
-                        <div key={doc.id} style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: '12px', padding: '16px 18px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px' }}>
-                          <div style={{ flex: 1, minWidth: 0 }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '5px' }}>
-                              <span style={{ fontSize: '11px', fontWeight: 700, padding: '2px 8px', borderRadius: '20px', background: `${typeColor[doc.type] ?? 'rgba(255,255,255,0.1)'}18`, color: typeColor[doc.type] ?? 'rgba(255,255,255,0.5)', border: `1px solid ${typeColor[doc.type] ?? 'rgba(255,255,255,0.1)'}40` }}>
-                                {doc.type.replace('_', ' ')}
-                              </span>
-                              {doc.visibility === 'event_only' && doc.events && (
-                                <span style={{ fontSize: '11px', color: 'rgba(255,255,255,0.4)' }}>{(doc.events as {name:string}).name}</span>
-                              )}
-                              {doc.visibility === 'all' && <span style={{ fontSize: '11px', color: 'rgba(255,255,255,0.3)' }}>All staff</span>}
+                        <div key={ev.id} style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '16px', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+                          {/* Colour bar */}
+                          <div style={{ height: '3px', background: tc, opacity: 0.7 }} />
+                          <div style={{ padding: '18px 20px', flex: 1, display: 'flex', flexDirection: 'column' }}>
+                            {/* Top row: name + badges */}
+                            <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '10px', marginBottom: '8px' }}>
+                              <div style={{ fontSize: '15px', fontWeight: 800, color: 'white', lineHeight: 1.3, flex: 1 }}>{ev.name}</div>
+                              <div style={{ display: 'flex', gap: '6px', flexShrink: 0 }}>
+                                <span style={{ fontSize: '10px', fontWeight: 700, padding: '2px 8px', borderRadius: '20px', background: `${tc}20`, color: tc, border: `1px solid ${tc}40`, whiteSpace: 'nowrap', textTransform: 'capitalize' }}>{ev.type}</span>
+                                <span style={{ fontSize: '10px', fontWeight: 700, padding: '2px 8px', borderRadius: '20px', background: sc.bg, color: sc.color, whiteSpace: 'nowrap', textTransform: 'capitalize' }}>{ev.status}</span>
+                              </div>
                             </div>
-                            <div style={{ fontSize: '14px', fontWeight: 700, color: 'white', marginBottom: '3px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{doc.title}</div>
-                            <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.35)' }}>{doc.word_count?.toLocaleString()} words · {new Date(doc.created_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}</div>
+
+                            {/* Meta row */}
+                            <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.45)', display: 'flex', gap: '12px', flexWrap: 'wrap', marginBottom: '16px' }}>
+                              {ev.city && <span>{ev.city}</span>}
+                              {ev.event_date && <span>{new Date(ev.event_date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}</span>}
+                              {ev.client_name && <span style={{ color: 'rgba(255,255,255,0.3)' }}>{ev.client_name}</span>}
+                            </div>
+
+                            {/* Stats chips */}
+                            <div style={{ display: 'flex', gap: '8px', marginBottom: '16px', flexWrap: 'wrap' }}>
+                              {[
+                                { icon: <svg width="11" height="11" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>, val: staffCount, label: 'staff' },
+                                { icon: <svg width="11" height="11" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>, val: taskCount, label: 'tasks' },
+                                { icon: <svg width="11" height="11" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>, val: docCount, label: 'docs' },
+                              ].map(chip => (
+                                <div key={chip.label} style={{ display: 'flex', alignItems: 'center', gap: '5px', padding: '4px 10px', borderRadius: '20px', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.08)' }}>
+                                  <span style={{ color: 'rgba(255,255,255,0.4)' }}>{chip.icon}</span>
+                                  <span style={{ fontSize: '11px', fontWeight: 700, color: 'white' }}>{chip.val}</span>
+                                  <span style={{ fontSize: '10px', color: 'rgba(255,255,255,0.35)' }}>{chip.label}</span>
+                                </div>
+                              ))}
+                            </div>
+
+                            {/* Actions */}
+                            <div style={{ display: 'flex', gap: '8px', marginTop: 'auto' }}>
+                              <Link href={`/admin/events/${ev.id}`}
+                                style={{ flex: 1, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '6px', padding: '9px 14px', borderRadius: '9px', background: '#00A5A3', color: 'white', fontSize: '12px', fontWeight: 700, textDecoration: 'none' }}>
+                                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2"/><rect x="9" y="3" width="6" height="4" rx="1"/></svg>
+                                Open Workspace
+                              </Link>
+                              <button onClick={() => { setSelectedEvent(ev === selectedEvent ? null : ev); if (ev !== selectedEvent) fetchEventStaff(ev.id) }}
+                                style={{ padding: '9px 14px', borderRadius: '9px', border: `1px solid ${selectedEvent?.id === ev.id ? 'rgba(0,165,163,0.4)' : 'rgba(255,255,255,0.1)'}`, background: selectedEvent?.id === ev.id ? 'rgba(0,165,163,0.1)' : 'transparent', color: selectedEvent?.id === ev.id ? '#00A5A3' : 'rgba(255,255,255,0.55)', fontSize: '12px', fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap' }}>
+                                {selectedEvent?.id === ev.id ? 'Hide Staff' : 'Assign Staff'}
+                              </button>
+                            </div>
                           </div>
-                          <button onClick={() => deleteDoc(doc.id)}
-                            style={{ padding: '6px 12px', borderRadius: '8px', border: '1px solid rgba(255,107,107,0.25)', background: 'rgba(255,107,107,0.08)', color: '#FF6B6B', fontSize: '11px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', flexShrink: 0 }}>
-                            Remove
-                          </button>
                         </div>
                       )
                     })}
                   </div>
+
+                  {/* Staff assignment panel */}
+                  {selectedEvent && (
+                    <div style={{ marginTop: '20px', background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(0,165,163,0.2)', borderRadius: '16px', padding: '20px' }}>
+                      <div style={{ fontSize: '12px', fontWeight: 800, color: '#00A5A3', letterSpacing: '1px', textTransform: 'uppercase', marginBottom: '14px' }}>Staff on {selectedEvent.name}</div>
+                      {eventStaff.length === 0 ? (
+                        <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.35)', marginBottom: '14px' }}>No staff assigned yet.</div>
+                      ) : (
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: '8px', marginBottom: '14px' }}>
+                          {eventStaff.map(es => (
+                            <div key={es.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 12px', background: 'rgba(255,255,255,0.03)', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.06)' }}>
+                              <div>
+                                <div style={{ fontSize: '12px', fontWeight: 700, color: 'white' }}>{es.staff_members?.name}</div>
+                                <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.35)' }}>{es.role || es.staff_members?.department}</div>
+                              </div>
+                              <button onClick={() => removeEventStaff(es.staff_members?.id)}
+                                style={{ fontSize: '11px', color: '#FF6B6B', background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'inherit', fontWeight: 700 }}>Remove</button>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                      <div style={{ display: 'flex', gap: '8px' }}>
+                        <select value={assignStaffId} onChange={e => setAssignStaffId(e.target.value)}
+                          style={{ flex: 1, padding: '9px 12px', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.1)', background: '#1A1E22', color: 'white', fontSize: '12px', fontFamily: 'inherit' }}>
+                          <option value="">Select staff…</option>
+                          {staffList.map(s => <option key={s.id} value={s.id}>{s.name} — {s.department}</option>)}
+                        </select>
+                        <input value={assignRole} onChange={e => setAssignRole(e.target.value)} placeholder="Role (optional)"
+                          style={{ width: '130px', padding: '9px 12px', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.1)', background: 'rgba(255,255,255,0.04)', color: 'white', fontSize: '12px', fontFamily: 'inherit' }} />
+                        <button onClick={assignStaff}
+                          style={{ padding: '9px 16px', borderRadius: '8px', border: 'none', background: '#00A5A3', color: 'white', fontSize: '12px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>Add</button>
+                      </div>
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
+          )
+        })()}
+
+        {/* ── Knowledge Base tab ── */}
+        {tab === 'knowledge' && (() => {
+          const TYPE_COLOR: Record<string,string> = { policy:'#FF9F43', event_brief:'#00A5A3', staff_doc:'#C0F43C', onboarding:'#A78BFA', event_report:'#60A5FA', other:'rgba(255,255,255,0.35)' }
+          const LAYER_CFG: Record<string,{label:string;color:string;bg:string}> = {
+            knowledge_base: { label:'Knowledge Base', color:'#00A5A3', bg:'rgba(0,165,163,0.12)' },
+            general:        { label:'General',        color:'#60A5FA', bg:'rgba(96,165,250,0.12)' },
+            specific:       { label:'Specific',       color:'#F59E0B', bg:'rgba(245,158,11,0.12)' },
+          }
+          const typeLabel = (t: string) => t.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())
+          const filteredDocs = docs.filter(d => {
+            if (docFilter === 'flagged')        return d.flagged
+            if (docFilter === 'knowledge_base') return d.layer === 'knowledge_base'
+            if (docFilter === 'general')        return d.layer === 'general'
+            if (docFilter === 'specific')       return d.layer === 'specific'
+            return true
+          })
+          const flaggedCount = docs.filter(d => d.flagged).length
+
+          const uploadForm = (
+            <div style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(192,244,60,0.2)', borderRadius: '16px', padding: '24px' }}>
+              <div style={{ fontSize: '12px', fontWeight: 800, color: '#C0F43C', letterSpacing: '1px', textTransform: 'uppercase', marginBottom: '16px' }}>Upload Document</div>
+              <div style={{ marginBottom: '12px' }}>
+                <label style={{ fontSize: '10px', fontWeight: 700, color: 'rgba(255,255,255,0.4)', letterSpacing: '0.8px', textTransform: 'uppercase', display: 'block', marginBottom: '5px' }}>Document Title</label>
+                <input value={docForm.title} onChange={e => setDocForm(p => ({ ...p, title: e.target.value }))} placeholder="e.g. HR Policy Handbook 2026"
+                  style={{ width: '100%', padding: '9px 12px', borderRadius: '9px', border: '1px solid rgba(255,255,255,0.1)', background: 'rgba(255,255,255,0.04)', color: 'white', fontSize: '13px', fontFamily: 'inherit', boxSizing: 'border-box' }} />
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginBottom: '12px' }}>
+                <div>
+                  <label style={{ fontSize: '10px', fontWeight: 700, color: 'rgba(255,255,255,0.4)', letterSpacing: '0.8px', textTransform: 'uppercase', display: 'block', marginBottom: '5px' }}>Type</label>
+                  <select value={docForm.type} onChange={e => { setDocForm(p => ({ ...p, type: e.target.value })); setOtherTypeLabel(''); setSaveAsNewType(false) }}
+                    style={{ width: '100%', padding: '9px 10px', borderRadius: '9px', border: '1px solid rgba(255,255,255,0.1)', background: '#1A1E22', color: 'white', fontSize: '12px', fontFamily: 'inherit' }}>
+                    <option value="policy">Policy</option>
+                    <option value="event_brief">Event Brief</option>
+                    <option value="staff_doc">Staff Document</option>
+                    <option value="onboarding">Onboarding</option>
+                    {customDocTypes.map(ct => <option key={ct.key} value={ct.key}>{ct.label}</option>)}
+                    <option value="other">Other…</option>
+                  </select>
+                </div>
+                <div>
+                  <label style={{ fontSize: '10px', fontWeight: 700, color: 'rgba(255,255,255,0.4)', letterSpacing: '0.8px', textTransform: 'uppercase', display: 'block', marginBottom: '5px' }}>Visible To</label>
+                  <select value={docForm.visibility} onChange={e => setDocForm(p => ({ ...p, visibility: e.target.value }))}
+                    style={{ width: '100%', padding: '9px 10px', borderRadius: '9px', border: '1px solid rgba(255,255,255,0.1)', background: '#1A1E22', color: 'white', fontSize: '12px', fontFamily: 'inherit' }}>
+                    <option value="all">All Staff</option>
+                    <option value="event_only">Event Staff Only</option>
+                  </select>
+                </div>
+              </div>
+              {docForm.type === 'other' && (
+                <div style={{ marginBottom: '12px', padding: '12px', background: 'rgba(192,244,60,0.04)', border: '1px solid rgba(192,244,60,0.12)', borderRadius: '9px' }}>
+                  <label style={{ fontSize: '10px', fontWeight: 700, color: 'rgba(255,255,255,0.4)', letterSpacing: '0.8px', textTransform: 'uppercase', display: 'block', marginBottom: '6px' }}>What type is this?</label>
+                  <input value={otherTypeLabel} onChange={e => setOtherTypeLabel(e.target.value)} placeholder="e.g. SOP, Vendor Contract"
+                    style={{ width: '100%', padding: '8px 10px', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.1)', background: 'rgba(255,255,255,0.04)', color: 'white', fontSize: '12px', fontFamily: 'inherit', boxSizing: 'border-box' }} />
+                  {otherTypeLabel.trim().length > 1 && (
+                    <label style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '8px', cursor: 'pointer' }}>
+                      <input type="checkbox" checked={saveAsNewType} onChange={e => setSaveAsNewType(e.target.checked)} style={{ accentColor: '#C0F43C', width: '13px', height: '13px' }} />
+                      <span style={{ fontSize: '11px', color: 'rgba(255,255,255,0.6)', fontWeight: 600 }}>Save &ldquo;{otherTypeLabel.trim()}&rdquo; as a permanent type</span>
+                    </label>
+                  )}
+                </div>
+              )}
+              {docForm.visibility === 'event_only' && (
+                <div style={{ marginBottom: '12px' }}>
+                  <label style={{ fontSize: '10px', fontWeight: 700, color: 'rgba(255,255,255,0.4)', letterSpacing: '0.8px', textTransform: 'uppercase', display: 'block', marginBottom: '5px' }}>Link to Event</label>
+                  <select value={docForm.event_id} onChange={e => setDocForm(p => ({ ...p, event_id: e.target.value }))}
+                    style={{ width: '100%', padding: '9px 10px', borderRadius: '9px', border: '1px solid rgba(255,255,255,0.1)', background: '#1A1E22', color: 'white', fontSize: '12px', fontFamily: 'inherit' }}>
+                    <option value="">Select event…</option>
+                    {events.map(ev => <option key={ev.id} value={ev.id}>{ev.name}</option>)}
+                  </select>
+                </div>
+              )}
+              <div style={{ marginBottom: '14px' }}>
+                <label style={{ fontSize: '10px', fontWeight: 700, color: 'rgba(255,255,255,0.4)', letterSpacing: '0.8px', textTransform: 'uppercase', display: 'block', marginBottom: '6px' }}>File (PDF or TXT)</label>
+                <label style={{ display: 'block', padding: '18px', border: `1.5px dashed ${docFile ? 'rgba(192,244,60,0.35)' : 'rgba(255,255,255,0.12)'}`, borderRadius: '10px', textAlign: 'center', cursor: 'pointer', background: docFile ? 'rgba(192,244,60,0.04)' : 'transparent' }}>
+                  <input type="file" accept=".pdf,.txt,.md" style={{ display: 'none' }} onChange={e => setDocFile(e.target.files?.[0] ?? null)} />
+                  {docFile ? (
+                    <div><div style={{ fontSize: '13px', fontWeight: 700, color: '#C0F43C' }}>{docFile.name}</div><div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.4)', marginTop: '2px' }}>{(docFile.size / 1024).toFixed(0)} KB</div></div>
+                  ) : (
+                    <div><svg width="20" height="20" fill="none" stroke="rgba(255,255,255,0.25)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24" style={{ margin: '0 auto 6px', display: 'block' }}><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg><div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.35)' }}>Click to select file</div></div>
+                  )}
+                </label>
+              </div>
+              {docMsg && <div style={{ fontSize: '12px', padding: '9px 12px', borderRadius: '8px', background: docMsg.includes('Done') ? 'rgba(192,244,60,0.07)' : 'rgba(255,107,107,0.07)', border: `1px solid ${docMsg.includes('Done') ? 'rgba(192,244,60,0.2)' : 'rgba(255,107,107,0.2)'}`, color: docMsg.includes('Done') ? '#C0F43C' : '#FF6B6B', marginBottom: '10px', lineHeight: 1.5 }}>{docMsg}</div>}
+              <div style={{ display: 'flex', gap: '8px' }}>
+                <button onClick={uploadDoc} disabled={docUploading || !docFile}
+                  style={{ flex: 1, padding: '11px', borderRadius: '9px', border: 'none', background: docUploading || !docFile ? 'rgba(255,255,255,0.07)' : '#C0F43C', color: docUploading || !docFile ? 'rgba(255,255,255,0.25)' : '#1E2124', fontSize: '13px', fontWeight: 800, cursor: docUploading || !docFile ? 'not-allowed' : 'pointer', fontFamily: 'inherit' }}>
+                  {docUploading ? 'Analysing with AI…' : 'Upload & Analyse'}
+                </button>
+                {docs.length > 0 && <button onClick={() => setShowUploadForm(false)}
+                  style={{ padding: '11px 16px', borderRadius: '9px', border: '1px solid rgba(255,255,255,0.1)', background: 'transparent', color: 'rgba(255,255,255,0.45)', fontSize: '12px', cursor: 'pointer', fontFamily: 'inherit' }}>Cancel</button>}
+              </div>
+              {docAnalysis && (
+                <div style={{ marginTop: '14px', padding: '14px', background: docAnalysis.flagged ? 'rgba(255,159,67,0.06)' : 'rgba(0,165,163,0.06)', border: `1px solid ${docAnalysis.flagged ? 'rgba(255,159,67,0.2)' : 'rgba(0,165,163,0.2)'}`, borderRadius: '12px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', marginBottom: '10px' }}>
+                    <span style={{ fontSize: '11px', fontWeight: 800, color: docAnalysis.flagged ? '#FF9F43' : '#00A5A3', textTransform: 'uppercase', letterSpacing: '0.5px' }}>{docAnalysis.flagged ? 'Low Confidence — Flagged' : 'AI Analysis Complete'}</span>
+                    <span style={{ marginLeft: 'auto', fontSize: '12px', fontWeight: 800, color: docAnalysis.confidence >= 75 ? '#C0F43C' : '#FF9F43' }}>{docAnalysis.confidence}%</span>
+                  </div>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '6px', marginBottom: '10px' }}>
+                    {[{ l:'Layer', v: docAnalysis.layer.replace('_', ' ') },{ l:'Department', v: docAnalysis.department },{ l:'Min Level', v: docAnalysis.min_level }].map(({l,v}) => (
+                      <div key={l} style={{ background: 'rgba(255,255,255,0.04)', borderRadius: '7px', padding: '7px 9px' }}>
+                        <div style={{ fontSize: '9px', color: 'rgba(255,255,255,0.3)', fontWeight: 700, textTransform: 'uppercase', marginBottom: '2px' }}>{l}</div>
+                        <div style={{ fontSize: '11px', color: 'white', fontWeight: 700, textTransform: 'capitalize' }}>{v}</div>
+                      </div>
+                    ))}
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '5px', marginBottom: '6px' }}>
+                    <div style={{ width: '5px', height: '5px', borderRadius: '50%', background: docAnalysis.tresci_use ? '#C0F43C' : 'rgba(255,255,255,0.15)', flexShrink: 0 }} />
+                    <span style={{ fontSize: '11px', color: docAnalysis.tresci_use ? '#C0F43C' : 'rgba(255,255,255,0.3)', fontWeight: 600 }}>{docAnalysis.tresci_use ? 'Tresci will use this document' : 'Not indexed by Tresci'}</span>
+                  </div>
+                  <p style={{ fontSize: '11px', color: 'rgba(255,255,255,0.5)', lineHeight: 1.6, margin: 0 }}>{docAnalysis.ai_reasoning}</p>
+                </div>
+              )}
+            </div>
+          )
+
+          return (
+            <div>
+              {/* Header */}
+              <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: '24px' }}>
+                <div>
+                  <div style={{ fontSize: '10px', fontWeight: 800, letterSpacing: '2.5px', textTransform: 'uppercase', color: '#C0F43C', marginBottom: '6px' }}>Knowledge Base</div>
+                  <h2 style={{ fontSize: '20px', fontWeight: 800, color: 'white', margin: 0 }}>Documents</h2>
+                </div>
+                {docs.length > 0 && !showUploadForm && (
+                  <button onClick={() => setShowUploadForm(true)}
+                    style={{ display: 'flex', alignItems: 'center', gap: '7px', padding: '10px 18px', borderRadius: '10px', border: 'none', background: '#C0F43C', color: '#1E2124', fontSize: '13px', fontWeight: 800, cursor: 'pointer', fontFamily: 'inherit' }}>
+                    <svg width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+                    Upload Document
+                  </button>
                 )}
               </div>
+
+              {/* EMPTY STATE */}
+              {!docsLoading && docs.length === 0 && (
+                <>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', marginBottom: '32px', background: 'rgba(192,244,60,0.04)', border: '1px solid rgba(192,244,60,0.14)', borderRadius: '14px', overflow: 'hidden' }}>
+                    {[
+                      { n:'1', label:'Upload a document', sub:'PDF or text — policy, brief, report, anything' },
+                      { n:'2', label:'AI classifies it', sub:'Decides who sees it, what it is for, confidence score' },
+                      { n:'3', label:'Goes live or flagged', sub:'High confidence = auto-live. Low = you review first' },
+                      { n:'4', label:'Tresci answers from it', sub:'Staff ask questions — Tresci reads docs to reply' },
+                    ].map((s, i) => (
+                      <div key={s.n} style={{ padding: '18px 16px', borderRight: i < 3 ? '1px solid rgba(192,244,60,0.1)' : 'none' }}>
+                        <div style={{ width: '22px', height: '22px', borderRadius: '50%', background: 'rgba(192,244,60,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '10px' }}>
+                          <span style={{ fontSize: '10px', fontWeight: 900, color: '#C0F43C' }}>{s.n}</span>
+                        </div>
+                        <div style={{ fontSize: '12px', fontWeight: 800, color: 'white', marginBottom: '4px' }}>{s.label}</div>
+                        <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.4)', lineHeight: 1.4 }}>{s.sub}</div>
+                      </div>
+                    ))}
+                  </div>
+                  <div style={{ maxWidth: '520px', margin: '0 auto' }}>{uploadForm}</div>
+                </>
+              )}
+
+              {docsLoading && <div style={{ color: 'rgba(255,255,255,0.4)', fontSize: '13px', padding: '40px 0', textAlign: 'center' }}>Loading documents…</div>}
+
+              {/* POPULATED STATE */}
+              {!docsLoading && docs.length > 0 && (
+                <>
+                  {/* Collapsible guide */}
+                  <details style={{ marginBottom: '20px' }}>
+                    <summary style={{ fontSize: '11px', fontWeight: 700, color: 'rgba(192,244,60,0.7)', cursor: 'pointer', userSelect: 'none', listStyle: 'none', display: 'inline-flex', alignItems: 'center', gap: '5px' }}>
+                      <svg width="11" height="11" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+                      How this section works
+                    </summary>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', marginTop: '12px', background: 'rgba(192,244,60,0.03)', border: '1px solid rgba(192,244,60,0.1)', borderRadius: '12px', overflow: 'hidden' }}>
+                      {[
+                        { n:'1', label:'Upload a document', sub:'PDF or text — policy, brief, report' },
+                        { n:'2', label:'AI classifies it', sub:'Layer, department, audience, confidence' },
+                        { n:'3', label:'Goes live or flagged', sub:'High confidence = auto-live, low = review' },
+                        { n:'4', label:'Tresci answers from it', sub:'Staff questions answered from your docs' },
+                      ].map((s, i) => (
+                        <div key={s.n} style={{ padding: '12px 14px', borderRight: i < 3 ? '1px solid rgba(192,244,60,0.08)' : 'none' }}>
+                          <div style={{ width: '18px', height: '18px', borderRadius: '50%', background: 'rgba(192,244,60,0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '7px' }}>
+                            <span style={{ fontSize: '9px', fontWeight: 900, color: '#C0F43C' }}>{s.n}</span>
+                          </div>
+                          <div style={{ fontSize: '11px', fontWeight: 800, color: 'white', marginBottom: '2px' }}>{s.label}</div>
+                          <div style={{ fontSize: '10px', color: 'rgba(255,255,255,0.35)', lineHeight: 1.4 }}>{s.sub}</div>
+                        </div>
+                      ))}
+                    </div>
+                  </details>
+
+                  {/* Inline upload form */}
+                  {showUploadForm && <div style={{ marginBottom: '24px' }}>{uploadForm}</div>}
+
+                  {/* Filter pills + count */}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '20px', flexWrap: 'wrap' }}>
+                    {([
+                      { key:'all',           label:`All (${docs.length})` },
+                      { key:'knowledge_base',label:`Knowledge Base (${docs.filter(d=>d.layer==='knowledge_base').length})` },
+                      { key:'general',       label:`General (${docs.filter(d=>d.layer==='general').length})` },
+                      { key:'specific',      label:`Specific (${docs.filter(d=>d.layer==='specific').length})` },
+                      ...(flaggedCount > 0 ? [{ key:'flagged', label:`Flagged (${flaggedCount})` }] : []),
+                    ] as {key:string;label:string}[]).map(f => (
+                      <button key={f.key} onClick={() => setDocFilter(f.key as typeof docFilter)}
+                        style={{ padding: '6px 14px', borderRadius: '20px', border: `1px solid ${docFilter === f.key ? (f.key === 'flagged' ? 'rgba(255,159,67,0.5)' : 'rgba(192,244,60,0.4)') : 'rgba(255,255,255,0.1)'}`, background: docFilter === f.key ? (f.key === 'flagged' ? 'rgba(255,159,67,0.1)' : 'rgba(192,244,60,0.08)') : 'transparent', color: docFilter === f.key ? (f.key === 'flagged' ? '#FF9F43' : '#C0F43C') : 'rgba(255,255,255,0.45)', fontSize: '12px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
+                        {f.label}
+                      </button>
+                    ))}
+                  </div>
+
+                  {/* Document grid */}
+                  {filteredDocs.length === 0 ? (
+                    <div style={{ padding: '40px', textAlign: 'center', color: 'rgba(255,255,255,0.3)', fontSize: '13px' }}>No documents match this filter.</div>
+                  ) : (
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '14px' }}>
+                      {filteredDocs.map(doc => {
+                        const tc   = TYPE_COLOR[doc.type] ?? 'rgba(255,255,255,0.35)'
+                        const lCfg = LAYER_CFG[doc.layer] ?? { label: doc.layer, color: 'rgba(255,255,255,0.4)', bg: 'rgba(255,255,255,0.06)' }
+                        return (
+                          <div key={doc.id} style={{ background: 'rgba(255,255,255,0.03)', border: `1px solid ${doc.flagged ? 'rgba(255,159,67,0.25)' : 'rgba(255,255,255,0.07)'}`, borderRadius: '14px', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+                            {/* Top colour strip */}
+                            <div style={{ height: '3px', background: tc, opacity: 0.8 }} />
+                            <div style={{ padding: '16px', flex: 1, display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                              {/* Badges row */}
+                              <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+                                <span style={{ fontSize: '10px', fontWeight: 700, padding: '2px 8px', borderRadius: '20px', background: `${tc}18`, color: tc, border: `1px solid ${tc}35` }}>
+                                  {typeLabel(doc.type)}
+                                </span>
+                                <span style={{ fontSize: '10px', fontWeight: 700, padding: '2px 8px', borderRadius: '20px', background: lCfg.bg, color: lCfg.color }}>
+                                  {lCfg.label}
+                                </span>
+                                {doc.flagged && (
+                                  <span style={{ fontSize: '10px', fontWeight: 700, padding: '2px 8px', borderRadius: '20px', background: 'rgba(255,159,67,0.12)', color: '#FF9F43' }}>Flagged</span>
+                                )}
+                              </div>
+
+                              {/* Title */}
+                              <div style={{ fontSize: '13px', fontWeight: 800, color: 'white', lineHeight: 1.4 }}>{doc.title}</div>
+
+                              {/* Department + level (if specific) */}
+                              {doc.layer === 'specific' && (
+                                <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.4)', display: 'flex', gap: '8px' }}>
+                                  <span>{doc.department}</span>
+                                  <span style={{ color: 'rgba(255,255,255,0.2)' }}>·</span>
+                                  <span>{doc.min_level}</span>
+                                </div>
+                              )}
+
+                              {/* Tresci indicator + confidence */}
+                              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+                                  <div style={{ width: '6px', height: '6px', borderRadius: '50%', background: doc.tresci_use ? '#C0F43C' : 'rgba(255,255,255,0.15)', flexShrink: 0 }} />
+                                  <span style={{ fontSize: '10px', fontWeight: 600, color: doc.tresci_use ? '#C0F43C' : 'rgba(255,255,255,0.3)' }}>
+                                    {doc.tresci_use ? 'Used by Tresci' : 'Not indexed'}
+                                  </span>
+                                </div>
+                                <span style={{ fontSize: '10px', fontWeight: 700, color: doc.confidence >= 75 ? 'rgba(255,255,255,0.4)' : '#FF9F43' }}>
+                                  {doc.confidence}% AI confidence
+                                </span>
+                              </div>
+
+                              {/* Footer: word count + date + remove */}
+                              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 'auto', paddingTop: '8px', borderTop: '1px solid rgba(255,255,255,0.05)' }}>
+                                <span style={{ fontSize: '10px', color: 'rgba(255,255,255,0.3)' }}>
+                                  {doc.word_count?.toLocaleString()} words · {new Date(doc.created_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}
+                                </span>
+                                <button onClick={() => deleteDoc(doc.id)}
+                                  style={{ fontSize: '10px', fontWeight: 700, color: 'rgba(255,107,107,0.6)', background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'inherit', padding: '2px 4px' }}>
+                                  Remove
+                                </button>
+                              </div>
+                            </div>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  )}
+                </>
+              )}
             </div>
-          </div>
-        )}
+          )
+        })()}
 
         {/* ── Review Queue tab (super admin only) ── */}
         {tab === 'review' && adminStaffId === 'super-admin' && (

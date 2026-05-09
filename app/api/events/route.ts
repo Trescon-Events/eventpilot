@@ -4,8 +4,25 @@ import { supabaseAdmin } from '@/app/lib/supabase'
 /* GET /api/events — list all events with staff count and doc count */
 export async function GET(req: NextRequest) {
   const staffId = req.nextUrl.searchParams.get('staff_id')
+  const id      = req.nextUrl.searchParams.get('id')
 
   try {
+    // Single event fetch by ID (for workspace page)
+    if (id) {
+      const { data, error } = await supabaseAdmin
+        .from('events')
+        .select(`
+          id, name, type, status, event_date, venue, city, client_name,
+          description, expected_attendance, created_at,
+          event_staff(count),
+          documents(count)
+        `)
+        .eq('id', id)
+        .single()
+      if (error) return NextResponse.json({ error: error.message }, { status: 404 })
+      return NextResponse.json(data)
+    }
+
     if (staffId) {
       // Events assigned to this staff member
       const { data: assignments } = await supabaseAdmin
@@ -21,7 +38,8 @@ export async function GET(req: NextRequest) {
       .select(`
         id, name, type, status, event_date, venue, city, client_name, description, created_at,
         event_staff(count),
-        documents(count)
+        documents(count),
+        event_checklist(count)
       `)
       .order('created_at', { ascending: false })
 

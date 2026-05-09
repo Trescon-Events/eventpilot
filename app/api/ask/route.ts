@@ -145,7 +145,7 @@ function isOffTopic(text: string): boolean {
   return OFF_TOPIC_SIGNALS.some(p => p.test(text))
 }
 
-const DAILY_LIMIT = 20
+const DAILY_LIMIT = 10
 
 export async function POST(req: NextRequest) {
   const { question, history = [], staff_id } = await req.json().catch(() => ({}))
@@ -178,7 +178,7 @@ export async function POST(req: NextRequest) {
 
     if (currentCount >= DAILY_LIMIT) {
       return NextResponse.json({
-        error: 'You have reached your 20-question daily limit. Your allowance resets at midnight. See you tomorrow.',
+        error: 'You have reached your 10-question daily limit. Your allowance resets at midnight. See you tomorrow.',
         daily_limit: true,
       }, { status: 429 })
     }
@@ -200,17 +200,31 @@ export async function POST(req: NextRequest) {
       supabaseAdmin.from('event_staff').select('event_id').eq('staff_id', staff_id),
     ])
 
-    // Fetch documents this staff member can access
-    const assignedEventIds = (assignmentsRes.data ?? []).map(a => a.event_id)
-    const { data: docs } = await supabaseAdmin
+    // Fetch documents this staff member can access — layer-aware
+    const LEVEL_RANK: Record<string, number> = { staff: 0, team_lead: 1, dept_head: 2, office_head: 3, super_admin: 4 }
+    const MIN_LEVEL_RANK: Record<string, number> = { all: 0, team_lead: 1, management: 3 }
+    const staffDeptForDocs  = (staffRes.data?.department ?? '').toLowerCase()
+    const staffLevelForDocs = LEVEL_RANK[staffRes.data?.job_level ?? 'staff'] ?? 0
+
+    const { data: allDocs } = await supabaseAdmin
       .from('documents')
-      .select('title, type, extracted_text')
+      .select('title, type, extracted_text, layer, department, min_level, tresci_use')
       .eq('is_active', true)
-      .or(assignedEventIds.length > 0
-        ? `visibility.eq.all,event_id.in.(${assignedEventIds.join(',')})`
-        : 'visibility.eq.all'
-      )
-      .limit(5) // cap to avoid token overflow
+      .eq('status', 'live')
+      .eq('tresci_use', true)
+
+    const docs = (allDocs ?? [])
+      .filter(doc => {
+        if (doc.layer === 'knowledge_base') return true
+        if (doc.layer === 'general') return true
+        if (doc.layer === 'specific') {
+          const deptMatch  = doc.department === 'all' || doc.department === staffDeptForDocs
+          const levelMatch = staffLevelForDocs >= (MIN_LEVEL_RANK[doc.min_level] ?? 0)
+          return deptMatch && levelMatch
+        }
+        return false
+      })
+      .slice(0, 6) // cap to avoid token overflow
 
     if (docs?.length) {
       const docSection = docs.map(d =>

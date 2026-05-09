@@ -156,6 +156,9 @@ function ProfileContent() {
   const [choosingDept, setChoosingDept] = useState(false)
   const [savingDept,   setSavingDept]   = useState(false)
 
+  /* Welcome screen state */
+  const [showWelcome, setShowWelcome] = useState(false)
+
   /* Interview state */
   const [questions, setQuestions]     = useState<Question[]>([])
   const [step, setStep]               = useState(-1)   // -1 = verify screen
@@ -183,7 +186,7 @@ function ProfileContent() {
         const qs = buildQuestions(preDept)
         setDept(preDept)
         setQuestions(qs)
-        setStep(0)
+        setShowWelcome(true)  // show intro before starting questions
       } else {
         setChoosingDept(true)
       }
@@ -399,6 +402,88 @@ function ProfileContent() {
     )
   }
 
+  /* ───────── WELCOME / INTRO SCREEN ───────── */
+  if (showWelcome) {
+    const steps = [
+      {
+        num: '01', color: '#00A5A3',
+        title: 'Answer a short questionnaire',
+        body: 'Questions about your daily work, the tools you use, and how you feel about AI today. No right or wrong answers.',
+      },
+      {
+        num: '02', color: '#A78BFA',
+        title: 'Get your TAIRS score',
+        body: 'Trescon AI Index Readiness Score — places you from AI-Unaware to AI-Forward so you know exactly where to grow.',
+      },
+      {
+        num: '03', color: '#C0F43C',
+        title: 'Courses assigned for your role',
+        body: 'The platform picks the courses most relevant to your work. Every one you complete moves your score forward.',
+      },
+    ]
+    return (
+      <div style={{ ...S.page, display: 'flex', flexDirection: 'column', height: '100vh', overflow: 'hidden' }}>
+
+        {/* Nav */}
+        <nav style={S.nav}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '7px' }}>
+            <div style={{ width: '26px', height: '26px', background: '#00A5A3', borderRadius: '7px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <svg width="12" height="12" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+            </div>
+            <span style={{ fontSize: '13px', fontWeight: 800, color: 'white' }}>Trescademy</span>
+          </div>
+          <span style={{ fontSize: '12px', color: 'rgba(255,255,255,0.3)', fontWeight: 600 }}>AI Readiness Platform · Trescon Global</span>
+        </nav>
+
+        {/* Two-column body */}
+        <div style={{ flex: 1, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0', overflow: 'hidden' }}>
+
+          {/* LEFT — headline + CTA */}
+          <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', padding: '48px 56px', borderRight: '1px solid rgba(255,255,255,0.07)' }}>
+            <div style={{ fontSize: '10px', fontWeight: 800, letterSpacing: '2.5px', textTransform: 'uppercase', color: '#00A5A3', marginBottom: '14px' }}>
+              Welcome, {firstName}
+            </div>
+            <h1 style={{ fontSize: '36px', fontWeight: 900, color: 'white', lineHeight: 1.1, letterSpacing: '-0.8px', margin: '0 0 18px' }}>
+              Your AI readiness<br />
+              <span style={{ color: '#C0F43C' }}>journey starts here.</span>
+            </h1>
+            <p style={{ fontSize: '14px', color: 'rgba(255,255,255,0.55)', lineHeight: 1.7, margin: '0 0 32px', maxWidth: '340px' }}>
+              Trescademy is Trescon Global&apos;s internal AI learning platform — built for all 300+ staff across Dubai, Bangalore, Mangalore, and Manipal. It shows you where you stand with AI and builds a learning path around your actual daily work.
+            </p>
+            <button
+              onClick={() => { setShowWelcome(false); setStep(0) }}
+              style={{ alignSelf: 'flex-start', background: '#C0F43C', color: '#1E2124', fontSize: '14px', fontWeight: 800, padding: '14px 32px', borderRadius: '50px', border: 'none', cursor: 'pointer', fontFamily: 'inherit', display: 'inline-flex', alignItems: 'center', gap: '8px' }}
+            >
+              Begin My Assessment
+              <svg width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg>
+            </button>
+            <div style={{ marginTop: '14px', fontSize: '12px', color: 'rgba(255,255,255,0.25)' }}>
+              5–8 minutes · Your answers are private
+            </div>
+          </div>
+
+          {/* RIGHT — 3 steps */}
+          <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', padding: '48px 56px', gap: '0' }}>
+            <div style={{ fontSize: '10px', fontWeight: 800, letterSpacing: '2px', textTransform: 'uppercase', color: 'rgba(255,255,255,0.3)', marginBottom: '28px' }}>
+              What happens
+            </div>
+            {steps.map((s, i) => (
+              <div key={i} style={{ display: 'flex', gap: '18px', paddingBottom: i < 2 ? '24px' : '0', marginBottom: i < 2 ? '24px' : '0', borderBottom: i < 2 ? '1px solid rgba(255,255,255,0.06)' : 'none' }}>
+                <div style={{ fontSize: '22px', fontWeight: 900, color: s.color, opacity: 0.4, lineHeight: 1, flexShrink: 0, width: '28px' }}>{s.num}</div>
+                <div>
+                  <div style={{ fontSize: '14px', fontWeight: 700, color: 'white', marginBottom: '5px', lineHeight: 1.3 }}>{s.title}</div>
+                  <div style={{ fontSize: '13px', color: 'rgba(255,255,255,0.45)', lineHeight: 1.6 }}>{s.body}</div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <style>{`@keyframes fadeSlide { from { opacity:0; transform:translateY(12px) } to { opacity:1; transform:none } }`}</style>
+      </div>
+    )
+  }
+
   /* ───────── EMAIL VERIFY SCREEN ───────── */
   if (step === -1) {
     return (
@@ -541,15 +626,6 @@ function ProfileContent() {
         {q && (
           <div key={q.id} style={{ animation: 'fadeSlide 0.35s ease' }}>
 
-            {/* Step 0: Welcome banner */}
-            {step === 0 && (
-              <div style={{ background: 'rgba(0,165,163,0.07)', border: '1px solid rgba(0,165,163,0.22)', borderRadius: '14px', padding: '14px 18px', marginBottom: '28px' }}>
-                <div style={{ fontSize: '10px', fontWeight: 800, color: '#00A5A3', letterSpacing: '1.5px', textTransform: 'uppercase', marginBottom: '6px' }}>Welcome to Trescademy, {firstName}</div>
-                <div style={{ fontSize: '13px', color: 'rgba(255,255,255,0.6)', lineHeight: 1.65 }}>
-                  These questions help us understand your role and build a learning path that fits your actual day-to-day work. There are no right or wrong answers — just be honest about how you work today.
-                </div>
-              </div>
-            )}
 
             {/* Trescademy asking indicator */}
             <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '20px' }}>
