@@ -125,7 +125,7 @@ function TeamContent() {
     <div style={{ fontFamily: 'var(--font-manrope),Manrope,sans-serif', background: '#F6FFFE', minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
       <div style={{ textAlign: 'center' }}>
         <div style={{ width: '36px', height: '36px', border: '3px solid #C8DFE0', borderTopColor: '#00A5A3', borderRadius: '50%', animation: 'spin 0.8s linear infinite', margin: '0 auto 14px' }} />
-        <div style={{ color: '#464D53', fontSize: '21px' }}>Loading team data…</div>
+        <div style={{ color: '#464D53', fontSize: '20px' }}>Loading team data…</div>
       </div>
       <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
     </div>
@@ -134,9 +134,9 @@ function TeamContent() {
   if (error) return (
     <div style={{ fontFamily: 'var(--font-manrope),Manrope,sans-serif', background: '#F6FFFE', minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#1E2124' }}>
       <div style={{ textAlign: 'center' }}>
-        <div style={{ color: '#FF6B6B', marginBottom: '8px', fontSize: '19px' }}>Error</div>
-        <p style={{ color: '#464D53', fontSize: '19px' }}>{error}</p>
-        <Link href={staffId ? `/dashboard?id=${staffId}` : '/dashboard'} style={{ color: '#00A5A3', fontSize: '19px' }}>
+        <div style={{ color: '#FF6B6B', marginBottom: '8px', fontSize: '18px' }}>Error</div>
+        <p style={{ color: '#464D53', fontSize: '18px' }}>{error}</p>
+        <Link href={staffId ? `/dashboard?id=${staffId}` : '/dashboard'} style={{ color: '#00A5A3', fontSize: '18px' }}>
           Back to My Dashboard
         </Link>
       </div>
@@ -155,14 +155,14 @@ function TeamContent() {
             <div style={{ width: '24px', height: '24px', background: '#00A5A3', borderRadius: '7px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
               <svg width="12" height="12" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
             </div>
-            <span style={{ fontSize: '21px', fontWeight: 800, color: '#1E2124' }}>Trescademy</span>
+            <span style={{ fontSize: '20px', fontWeight: 800, color: '#1E2124' }}>Trescademy</span>
           </div>
           <span style={{ color: 'rgba(15,23,42,0.16)' }}>|</span>
-          <span style={{ fontSize: '21px', fontWeight: 600, color: '#464D53' }}>Team Dashboard</span>
+          <span style={{ fontSize: '20px', fontWeight: 600, color: '#464D53' }}>Team Dashboard</span>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
           {staffId && (
-            <Link href={`/dashboard?id=${staffId}`} style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '21px', fontWeight: 700, color: '#00A5A3', background: 'rgba(0,165,163,0.12)', border: '1px solid rgba(0,165,163,0.3)', padding: '6px 14px', borderRadius: '20px', textDecoration: 'none' }}>
+            <Link href={`/dashboard?id=${staffId}`} style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '20px', fontWeight: 700, color: '#00A5A3', background: 'rgba(0,165,163,0.12)', border: '1px solid rgba(0,165,163,0.3)', padding: '6px 14px', borderRadius: '20px', textDecoration: 'none' }}>
               My Dashboard
             </Link>
           )}
@@ -180,7 +180,7 @@ function TeamContent() {
               <path d="M18.36 6.64a9 9 0 1 1-12.73 0"/>
               <line x1="12" y1="2" x2="12" y2="12"/>
             </svg>
-            <span style={{ fontSize: '21px', fontWeight: 700, color: '#FF6B6B' }}>Sign out</span>
+            <span style={{ fontSize: '20px', fontWeight: 700, color: '#FF6B6B' }}>Sign out</span>
           </button>
         </div>
       </nav>
@@ -196,9 +196,9 @@ function TeamContent() {
           </svg>
         </div>
 
-        <div style={{ fontSize: '19px', fontWeight: 800, letterSpacing: '2px', textTransform: 'uppercase', color: '#00A5A3', marginBottom: '12px' }}>Team Dashboard</div>
-        <h2 style={{ fontSize: '44px', fontWeight: 800, color: '#1E2124', margin: '0 0 10px' }}>No team members assigned yet</h2>
-        <p style={{ fontSize: '21px', color: '#464D53', maxWidth: '380px', lineHeight: 1.65, margin: '0 0 32px' }}>
+        <div style={{ fontSize: '18px', fontWeight: 800, letterSpacing: '2px', textTransform: 'uppercase', color: '#00A5A3', marginBottom: '12px' }}>Team Dashboard</div>
+        <h2 style={{ fontSize: '36px', fontWeight: 800, color: '#1E2124', margin: '0 0 10px' }}>No team members assigned yet</h2>
+        <p style={{ fontSize: '20px', color: '#464D53', maxWidth: '380px', lineHeight: 1.65, margin: '0 0 32px' }}>
           Your team dashboard is ready, but no direct reports have been linked to your profile.<br/>
           Contact your administrator to have team members added.
         </p>
@@ -206,7 +206,7 @@ function TeamContent() {
         {staffId && (
           <Link
             href={`/dashboard?id=${staffId}`}
-            style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', fontSize: '19px', fontWeight: 700, color: 'white', background: '#00A5A3', padding: '12px 22px', borderRadius: '10px', textDecoration: 'none' }}
+            style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', fontSize: '18px', fontWeight: 700, color: 'white', background: '#00A5A3', padding: '12px 22px', borderRadius: '10px', textDecoration: 'none' }}
           >
             <svg width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>
             Back to My Dashboard
@@ -253,21 +253,21 @@ function TeamContent() {
               <div style={{ width: '24px', height: '24px', background: '#00A5A3', borderRadius: '7px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                 <svg width="12" height="12" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
               </div>
-              <span style={{ fontSize: '21px', fontWeight: 800, color: '#1E2124' }}>Trescademy</span>
+              <span style={{ fontSize: '20px', fontWeight: 800, color: '#1E2124' }}>Trescademy</span>
             </div>
           </div>
           <span style={{ color: 'rgba(15,23,42,0.16)' }}>|</span>
-          <span style={{ fontSize: '21px', fontWeight: 600, color: '#464D53' }}>{scopeLabel}</span>
+          <span style={{ fontSize: '20px', fontWeight: 600, color: '#464D53' }}>{scopeLabel}</span>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
           {staffId && (
-            <Link href={`/dashboard?id=${staffId}`} style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '21px', fontWeight: 700, color: '#00A5A3', background: 'rgba(0,165,163,0.12)', border: '1px solid rgba(0,165,163,0.3)', padding: '6px 14px', borderRadius: '20px', textDecoration: 'none' }}>
+            <Link href={`/dashboard?id=${staffId}`} style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '20px', fontWeight: 700, color: '#00A5A3', background: 'rgba(0,165,163,0.12)', border: '1px solid rgba(0,165,163,0.3)', padding: '6px 14px', borderRadius: '20px', textDecoration: 'none' }}>
               <svg width="11" height="11" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>
               My Dashboard
             </Link>
           )}
           {isAdmin && (
-            <Link href="/admin" style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '21px', fontWeight: 700, color: '#3D6B00', background: 'rgba(192,244,60,0.12)', border: '1px solid rgba(192,244,60,0.3)', padding: '6px 14px', borderRadius: '20px', textDecoration: 'none' }}>
+            <Link href="/admin" style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '20px', fontWeight: 700, color: '#3D6B00', background: 'rgba(192,244,60,0.12)', border: '1px solid rgba(192,244,60,0.3)', padding: '6px 14px', borderRadius: '20px', textDecoration: 'none' }}>
               <svg width="11" height="11" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
               Admin Dashboard
             </Link>
@@ -286,7 +286,7 @@ function TeamContent() {
               <path d="M18.36 6.64a9 9 0 1 1-12.73 0"/>
               <line x1="12" y1="2" x2="12" y2="12"/>
             </svg>
-            <span style={{ fontSize: '21px', fontWeight: 700, color: '#FF6B6B' }}>Sign out</span>
+            <span style={{ fontSize: '20px', fontWeight: 700, color: '#FF6B6B' }}>Sign out</span>
           </button>
         </div>
       </nav>
@@ -295,9 +295,9 @@ function TeamContent() {
 
         {/* Header */}
         <div style={{ marginBottom: '32px' }}>
-          <div style={{ fontSize: '19px', fontWeight: 800, letterSpacing: '2px', textTransform: 'uppercase', color: '#00A5A3', marginBottom: '8px' }}>{scopeLabel}</div>
-          <h1 style={{ fontSize: '44px', fontWeight: 800, margin: '0 0 4px', color: '#1E2124' }}>{manager?.name}&apos;s Team</h1>
-          <div style={{ fontSize: '19px', color: '#464D53' }}>
+          <div style={{ fontSize: '18px', fontWeight: 800, letterSpacing: '2px', textTransform: 'uppercase', color: '#00A5A3', marginBottom: '8px' }}>{scopeLabel}</div>
+          <h1 style={{ fontSize: '36px', fontWeight: 800, margin: '0 0 4px', color: '#1E2124' }}>{manager?.name}&apos;s Team</h1>
+          <div style={{ fontSize: '18px', color: '#464D53' }}>
             {manager?.role} · {JOB_LEVEL_LABEL[manager?.job_level ?? ''] ?? manager?.job_level} · {members.length} people reporting
           </div>
         </div>
@@ -311,21 +311,21 @@ function TeamContent() {
             { label: 'Active Learners',    value: activeCount,       sub: 'completed a course' },
           ].map(({ label, value, sub }) => (
             <div key={label} style={{ background: '#FFFFFF', border: '1px solid #C8DFE0', borderRadius: '14px', padding: '18px 20px', boxShadow: '0 1px 4px rgba(0,165,163,0.06), 0 1px 2px rgba(0,0,0,0.04)' }}>
-              <div style={{ fontSize: '19px', fontWeight: 700, color: '#1E2124', textTransform: 'uppercase', letterSpacing: '1.5px', marginBottom: '6px' }}>{label}</div>
-              <div style={{ fontSize: '38px', fontWeight: 900, color: '#1E2124', marginBottom: '2px' }}>{value}</div>
-              <div style={{ fontSize: '19px', color: '#1E2124' }}>{sub}</div>
+              <div style={{ fontSize: '18px', fontWeight: 700, color: '#1E2124', textTransform: 'uppercase', letterSpacing: '1.5px', marginBottom: '6px' }}>{label}</div>
+              <div style={{ fontSize: '36px', fontWeight: 900, color: '#1E2124', marginBottom: '2px' }}>{value}</div>
+              <div style={{ fontSize: '18px', color: '#1E2124' }}>{sub}</div>
             </div>
           ))}
         </div>
 
         {/* Tier distribution */}
         <div style={{ background: '#FFFFFF', border: '1px solid #C8DFE0', borderRadius: '14px', padding: '18px 24px', marginBottom: '20px', display: 'flex', gap: '24px', alignItems: 'center', flexWrap: 'wrap', boxShadow: '0 1px 4px rgba(0,165,163,0.06), 0 1px 2px rgba(0,0,0,0.04)' }}>
-          <div style={{ fontSize: '19px', fontWeight: 700, color: '#1E2124', textTransform: 'uppercase', letterSpacing: '1.5px', flexShrink: 0 }}>AI Readiness</div>
+          <div style={{ fontSize: '18px', fontWeight: 700, color: '#1E2124', textTransform: 'uppercase', letterSpacing: '1.5px', flexShrink: 0 }}>AI Readiness</div>
           {Object.entries(tierCounts).map(([tier, count]) => count > 0 && (
             <div key={tier} style={{ display: 'flex', alignItems: 'center', gap: '7px' }}>
               <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: TIER_COLOR[tier] }} />
-              <span style={{ fontSize: '21px', fontWeight: 700, color: TIER_COLOR[tier] }}>{tier}</span>
-              <span style={{ fontSize: '21px', color: '#1E2124' }}>{count}</span>
+              <span style={{ fontSize: '20px', fontWeight: 700, color: TIER_COLOR[tier] }}>{tier}</span>
+              <span style={{ fontSize: '20px', color: '#1E2124' }}>{count}</span>
             </div>
           ))}
         </div>
@@ -335,9 +335,9 @@ function TeamContent() {
           {/* Header row */}
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '18px 24px', borderBottom: briefState === 'ready' ? '1px solid rgba(0,165,163,0.15)' : 'none' }}>
             <div>
-              <div style={{ fontSize: '19px', fontWeight: 800, letterSpacing: '2px', textTransform: 'uppercase', color: '#00A5A3', marginBottom: '4px' }}>AI-Powered</div>
-              <div style={{ fontSize: '19px', fontWeight: 800, color: '#1E2124' }}>Team Health Brief</div>
-              <div style={{ fontSize: '21px', color: '#464D53', marginTop: '2px' }}>
+              <div style={{ fontSize: '18px', fontWeight: 800, letterSpacing: '2px', textTransform: 'uppercase', color: '#00A5A3', marginBottom: '4px' }}>AI-Powered</div>
+              <div style={{ fontSize: '18px', fontWeight: 800, color: '#1E2124' }}>Team Health Brief</div>
+              <div style={{ fontSize: '20px', color: '#464D53', marginTop: '2px' }}>
                 Built from your team&apos;s real activity data — TAIRS scores, course progress, and profile completion.
               </div>
             </div>
@@ -345,7 +345,7 @@ function TeamContent() {
               {briefState === 'ready' && (
                 <button
                   onClick={generateBrief}
-                  style={{ fontSize: '21px', fontWeight: 700, color: '#464D53', background: 'none', border: '1px solid #C8DFE0', padding: '6px 14px', borderRadius: '8px', cursor: 'pointer', fontFamily: 'inherit' }}
+                  style={{ fontSize: '20px', fontWeight: 700, color: '#464D53', background: 'none', border: '1px solid #C8DFE0', padding: '6px 14px', borderRadius: '8px', cursor: 'pointer', fontFamily: 'inherit' }}
                 >
                   Regenerate
                 </button>
@@ -353,14 +353,14 @@ function TeamContent() {
               {(briefState === 'idle' || briefState === 'error') && (
                 <button
                   onClick={generateBrief}
-                  style={{ display: 'flex', alignItems: 'center', gap: '7px', fontSize: '19px', fontWeight: 800, color: 'white', background: '#00A5A3', border: 'none', padding: '9px 20px', borderRadius: '10px', cursor: 'pointer', fontFamily: 'inherit' }}
+                  style={{ display: 'flex', alignItems: 'center', gap: '7px', fontSize: '18px', fontWeight: 800, color: 'white', background: '#00A5A3', border: 'none', padding: '9px 20px', borderRadius: '10px', cursor: 'pointer', fontFamily: 'inherit' }}
                 >
                   <svg width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
                   Generate Brief
                 </button>
               )}
               {briefState === 'loading' && (
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '19px', color: '#00A5A3', fontWeight: 700 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '18px', color: '#00A5A3', fontWeight: 700 }}>
                   <div style={{ width: '16px', height: '16px', border: '2px solid rgba(0,165,163,0.3)', borderTopColor: '#00A5A3', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />
                   Analysing team data…
                 </div>
@@ -381,15 +381,15 @@ function TeamContent() {
                     { label: 'Profile Pending', value: briefStats.noProfile, color: '#A478FF' },
                   ].map(({ label, value, color }) => (
                     <div key={label} style={{ background: '#FFFFFF', border: '1px solid #C8DFE0', borderRadius: '10px', padding: '8px 14px', display: 'flex', gap: '6px', alignItems: 'baseline', boxShadow: '0 1px 4px rgba(0,165,163,0.06), 0 1px 2px rgba(0,0,0,0.04)' }}>
-                      <span style={{ fontSize: '38px', fontWeight: 900, color }}>{value}</span>
-                      <span style={{ fontSize: '19px', color: '#464D53', fontWeight: 600 }}>{label}</span>
+                      <span style={{ fontSize: '36px', fontWeight: 900, color }}>{value}</span>
+                      <span style={{ fontSize: '18px', color: '#464D53', fontWeight: 600 }}>{label}</span>
                     </div>
                   ))}
                 </div>
               )}
 
               {/* Brief text — render paragraphs and bullets */}
-              <div style={{ fontSize: '21px', color: '#464D53', lineHeight: 1.65 }}>
+              <div style={{ fontSize: '20px', color: '#464D53', lineHeight: 1.65 }}>
                 {brief.split('\n').map((line, i) => {
                   if (!line.trim()) return <div key={i} style={{ height: '8px' }} />
                   if (line.trim().startsWith('- ') || line.trim().startsWith('• ')) {
@@ -411,16 +411,16 @@ function TeamContent() {
               {gapDept && (
                 <div style={{ marginTop: '20px', padding: '16px 20px', background: 'rgba(164,120,255,0.08)', border: '1px solid rgba(164,120,255,0.2)', borderRadius: '12px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '16px', flexWrap: 'wrap' }}>
                   <div>
-                    <div style={{ fontSize: '19px', fontWeight: 700, color: '#1E2124', marginBottom: '3px' }}>
+                    <div style={{ fontSize: '18px', fontWeight: 700, color: '#1E2124', marginBottom: '3px' }}>
                       Biggest gap: <span style={{ color: '#A478FF' }}>{gapDept}</span>
                     </div>
-                    <div style={{ fontSize: '21px', color: '#464D53' }}>
+                    <div style={{ fontSize: '20px', color: '#464D53' }}>
                       Request a course built specifically for this team — it will be live in the library within minutes.
                     </div>
                   </div>
                   <a
                     href={`/admin?tab=suggest&gap=${encodeURIComponent(gapDept)}`}
-                    style={{ display: 'flex', alignItems: 'center', gap: '7px', fontSize: '19px', fontWeight: 800, color: '#A478FF', background: 'rgba(164,120,255,0.15)', border: '1px solid rgba(164,120,255,0.3)', padding: '9px 18px', borderRadius: '10px', textDecoration: 'none', whiteSpace: 'nowrap' }}
+                    style={{ display: 'flex', alignItems: 'center', gap: '7px', fontSize: '18px', fontWeight: 800, color: '#A478FF', background: 'rgba(164,120,255,0.15)', border: '1px solid rgba(164,120,255,0.3)', padding: '9px 18px', borderRadius: '10px', textDecoration: 'none', whiteSpace: 'nowrap' }}
                   >
                     <svg width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
                     Request a Course
@@ -429,14 +429,14 @@ function TeamContent() {
               )}
 
               {/* Platform impact note */}
-              <div style={{ marginTop: '16px', fontSize: '21px', color: '#1E2124', lineHeight: 1.65, borderTop: '1px solid #C8DFE0', paddingTop: '14px' }}>
+              <div style={{ marginTop: '16px', fontSize: '20px', color: '#1E2124', lineHeight: 1.65, borderTop: '1px solid #C8DFE0', paddingTop: '14px' }}>
                 Your team&apos;s engagement data directly shapes what Trescademy builds next. Courses requested here go into the live library — and are immediately recommended to staff who need them most.
               </div>
             </div>
           )}
 
           {briefState === 'error' && (
-            <div style={{ padding: '20px 24px', fontSize: '19px', color: '#FF6B6B' }}>
+            <div style={{ padding: '20px 24px', fontSize: '18px', color: '#FF6B6B' }}>
               Could not generate the brief. Please try again in a moment.
             </div>
           )}
@@ -448,13 +448,13 @@ function TeamContent() {
           <div style={{ position: 'relative', flex: '0 0 220px' }}>
             <svg width="12" height="12" fill="none" stroke="#1E2124" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24" style={{ position: 'absolute', left: '11px', top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none' }}><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
             <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search name or role…"
-              style={{ width: '100%', paddingLeft: '32px', paddingRight: '12px', paddingTop: '7px', paddingBottom: '7px', borderRadius: '20px', border: '1px solid #C8DFE0', background: '#FFFFFF', color: '#1E2124', fontSize: '21px', fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box' }} />
+              style={{ width: '100%', paddingLeft: '32px', paddingRight: '12px', paddingTop: '7px', paddingBottom: '7px', borderRadius: '20px', border: '1px solid #C8DFE0', background: '#FFFFFF', color: '#1E2124', fontSize: '20px', fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box' }} />
           </div>
 
           {/* Dept filter */}
           {depts.length > 1 && (
             <select value={deptFilter} onChange={e => setDeptFilter(e.target.value)}
-              style={{ padding: '7px 12px', borderRadius: '20px', border: '1px solid #C8DFE0', background: '#FFFFFF', color: '#1E2124', fontSize: '21px', fontFamily: 'inherit', outline: 'none', cursor: 'pointer' }}>
+              style={{ padding: '7px 12px', borderRadius: '20px', border: '1px solid #C8DFE0', background: '#FFFFFF', color: '#1E2124', fontSize: '20px', fontFamily: 'inherit', outline: 'none', cursor: 'pointer' }}>
               <option value="all">All Departments</option>
               {depts.map(d => <option key={d} value={d}>{d}</option>)}
             </select>
@@ -463,26 +463,26 @@ function TeamContent() {
           {/* Office filter */}
           {offices.length > 1 && (
             <select value={officeFilter} onChange={e => setOfficeFilter(e.target.value)}
-              style={{ padding: '7px 12px', borderRadius: '20px', border: '1px solid #C8DFE0', background: '#FFFFFF', color: '#1E2124', fontSize: '21px', fontFamily: 'inherit', outline: 'none', cursor: 'pointer' }}>
+              style={{ padding: '7px 12px', borderRadius: '20px', border: '1px solid #C8DFE0', background: '#FFFFFF', color: '#1E2124', fontSize: '20px', fontFamily: 'inherit', outline: 'none', cursor: 'pointer' }}>
               <option value="all">All Offices</option>
               {offices.map(o => <option key={o} value={o}>{OFFICE_LABEL[o] ?? o}</option>)}
             </select>
           )}
 
-          <div style={{ marginLeft: 'auto', fontSize: '21px', color: '#464D53', fontWeight: 600 }}>
+          <div style={{ marginLeft: 'auto', fontSize: '20px', color: '#464D53', fontWeight: 600 }}>
             {filtered.length} of {members.length} shown
           </div>
         </div>
 
         {/* Team member list */}
         {filtered.length === 0 ? (
-          <div style={{ padding: '60px', textAlign: 'center', color: '#464D53', fontSize: '21px' }}>
+          <div style={{ padding: '60px', textAlign: 'center', color: '#464D53', fontSize: '20px' }}>
             No team members match your filters.
           </div>
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
             {/* Header row */}
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 120px 100px 100px 100px 80px', gap: '12px', padding: '8px 20px', fontSize: '19px', fontWeight: 700, color: '#1E2124', textTransform: 'uppercase', letterSpacing: '1px' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 120px 100px 100px 100px 80px', gap: '12px', padding: '8px 20px', fontSize: '18px', fontWeight: 700, color: '#1E2124', textTransform: 'uppercase', letterSpacing: '1px' }}>
               <span>Name / Role</span>
               <span>Department</span>
               <span>TAIRS</span>
@@ -496,21 +496,21 @@ function TeamContent() {
               return (
                 <div key={m.id} style={{ display: 'grid', gridTemplateColumns: '1fr 120px 100px 100px 100px 80px', gap: '12px', alignItems: 'center', padding: '14px 20px', background: '#FFFFFF', border: '1px solid #C8DFE0', borderRadius: '12px', boxShadow: '0 1px 4px rgba(0,165,163,0.06), 0 1px 2px rgba(0,0,0,0.04)' }}>
                   <div>
-                    <div style={{ fontSize: '21px', fontWeight: 700, color: '#1E2124', marginBottom: '2px' }}>{m.name}</div>
-                    <div style={{ fontSize: '19px', color: '#1E2124' }}>
+                    <div style={{ fontSize: '20px', fontWeight: 700, color: '#1E2124', marginBottom: '2px' }}>{m.name}</div>
+                    <div style={{ fontSize: '18px', color: '#1E2124' }}>
                       {m.role ?? '—'} · {JOB_LEVEL_LABEL[m.job_level] ?? m.job_level} · {OFFICE_LABEL[m.office_id] ?? m.office_id}
                     </div>
                   </div>
-                  <div style={{ fontSize: '21px', color: '#464D53' }}>{m.department ?? '—'}</div>
+                  <div style={{ fontSize: '20px', color: '#464D53' }}>{m.department ?? '—'}</div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                    <span style={{ fontSize: '21px', fontWeight: 900, color: tc }}>{m.tairs_score}</span>
-                    <span style={{ fontSize: '19px', fontWeight: 700, color: tc, background: `${tc}18`, padding: '2px 7px', borderRadius: '6px' }}>{m.tier.replace('AI-', '')}</span>
+                    <span style={{ fontSize: '20px', fontWeight: 900, color: tc }}>{m.tairs_score}</span>
+                    <span style={{ fontSize: '18px', fontWeight: 700, color: tc, background: `${tc}18`, padding: '2px 7px', borderRadius: '6px' }}>{m.tier.replace('AI-', '')}</span>
                   </div>
-                  <div style={{ fontSize: '21px', fontWeight: 600, color: '#464D53', textTransform: 'capitalize' }}>{m.track}</div>
-                  <div style={{ fontSize: '21px', fontWeight: 800, color: m.completed_courses > 0 ? '#C0F43C' : '#1E2124' }}>
+                  <div style={{ fontSize: '20px', fontWeight: 600, color: '#464D53', textTransform: 'capitalize' }}>{m.track}</div>
+                  <div style={{ fontSize: '20px', fontWeight: 800, color: m.completed_courses > 0 ? '#C0F43C' : '#1E2124' }}>
                     {m.completed_courses}
                   </div>
-                  <div style={{ fontSize: '19px', color: '#464D53' }}>
+                  <div style={{ fontSize: '18px', color: '#464D53' }}>
                     {daysSince(m.last_active) ?? 'Never'}
                   </div>
                 </div>

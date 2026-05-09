@@ -31,7 +31,7 @@ function WelcomeContent() {
           <svg width="36" height="36" fill="none" stroke={color} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>
         </div>
 
-        <div style={{ fontSize: '19px', fontWeight: 700, letterSpacing: '2.5px', textTransform: 'uppercase', color, marginBottom: '14px' }}>
+        <div style={{ fontSize: '18px', fontWeight: 700, letterSpacing: '2.5px', textTransform: 'uppercase', color, marginBottom: '14px' }}>
           {OFFICE_NAMES[office] ?? 'Trescon'} Office — Joined
         </div>
 
@@ -39,16 +39,16 @@ function WelcomeContent() {
           You&apos;re in,<br /><span style={{ color }}>{firstName}.</span>
         </h1>
 
-        <p style={{ fontSize: '21px', color: '#464D53', lineHeight: 1.65, marginBottom: '12px' }}>
+        <p style={{ fontSize: '20px', color: '#464D53', lineHeight: 1.65, marginBottom: '12px' }}>
           Welcome to Trescademy. You are now part of something being built for everyone at Trescon.
         </p>
-        <p style={{ fontSize: '21px', color: '#464D53', lineHeight: 1.65, marginBottom: '40px' }}>
+        <p style={{ fontSize: '20px', color: '#464D53', lineHeight: 1.65, marginBottom: '40px' }}>
           Your profile is live. Head to your dashboard to see your learning path and start your first course.
         </p>
 
         {/* Next step card */}
         <div style={{ background: '#FFFFFF', border: '1px solid #C8DFE0', borderRadius: '20px', padding: '28px', marginBottom: '28px', textAlign: 'left' }}>
-          <div style={{ fontSize: '19px', fontWeight: 700, letterSpacing: '2px', textTransform: 'uppercase', color: color, marginBottom: '12px' }}>What happens next</div>
+          <div style={{ fontSize: '18px', fontWeight: 700, letterSpacing: '2px', textTransform: 'uppercase', color: color, marginBottom: '12px' }}>What happens next</div>
           {[
             'Your details are now on record in Trescademy',
             'Your profile is added to Trescademy',
@@ -60,20 +60,20 @@ function WelcomeContent() {
                 {i === 0 ? (
                   <svg width="11" height="11" fill="none" stroke={color} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>
                 ) : (
-                  <span style={{ fontSize: '19px', color: '#1E2124', fontWeight: 700 }}>{i + 1}</span>
+                  <span style={{ fontSize: '18px', color: '#1E2124', fontWeight: 700 }}>{i + 1}</span>
                 )}
               </div>
-              <span style={{ fontSize: '19px', color: i === 0 ? color : '#464D53', fontWeight: i === 0 ? 600 : 400 }}>{step}</span>
+              <span style={{ fontSize: '18px', color: i === 0 ? color : '#464D53', fontWeight: i === 0 ? 600 : 400 }}>{step}</span>
             </div>
           ))}
         </div>
 
         <div style={{ display: 'flex', gap: '12px', justifyContent: 'center', flexWrap: 'wrap' }}>
-          <Link href="/dashboard" style={{ background: color, color: '#1E2124', fontSize: '21px', fontWeight: 800, padding: '14px 28px', borderRadius: '50px', textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: '8px' }}>
+          <Link href="/dashboard" style={{ background: color, color: '#1E2124', fontSize: '20px', fontWeight: 800, padding: '14px 28px', borderRadius: '50px', textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: '8px' }}>
             <svg width="14" height="14" fill="none" stroke="#1E2124" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg>
             Go to My Dashboard
           </Link>
-          <Link href="/profile" style={{ background: '#FFFFFF', color: '#464D53', fontSize: '21px', fontWeight: 700, padding: '14px 28px', borderRadius: '50px', textDecoration: 'none', border: '1px solid #C8DFE0', display: 'inline-flex', alignItems: 'center', gap: '8px' }}>
+          <Link href="/profile" style={{ background: '#FFFFFF', color: '#464D53', fontSize: '20px', fontWeight: 700, padding: '14px 28px', borderRadius: '50px', textDecoration: 'none', border: '1px solid #C8DFE0', display: 'inline-flex', alignItems: 'center', gap: '8px' }}>
             Map My Work
             <svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg>
           </Link>

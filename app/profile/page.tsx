@@ -93,7 +93,7 @@ function ProficiencyInput({
 }) {
   if (tools.length === 0) {
     return (
-      <div style={{ padding: '20px', borderRadius: '14px', border: '1px solid #C8DFE0', color: '#464D53', fontSize: '21px', textAlign: 'center' }}>
+      <div style={{ padding: '20px', borderRadius: '14px', border: '1px solid #C8DFE0', color: '#464D53', fontSize: '20px', textAlign: 'center' }}>
         Go back and select the tools you use first.
       </div>
     )
@@ -102,10 +102,10 @@ function ProficiencyInput({
     <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
       {tools.map(tool => (
         <div key={tool}>
-          <div style={{ fontSize: '21px', fontWeight: 700, color: '#1E2124', marginBottom: '10px' }}>
+          <div style={{ fontSize: '20px', fontWeight: 700, color: '#1E2124', marginBottom: '10px' }}>
             {tool}
             {value[tool] && (
-              <span style={{ marginLeft: '10px', fontSize: '19px', fontWeight: 700, color: PROFICIENCY_LEVELS[value[tool] - 1].color, background: `${PROFICIENCY_LEVELS[value[tool] - 1].color}18`, padding: '2px 8px', borderRadius: '6px' }}>
+              <span style={{ marginLeft: '10px', fontSize: '18px', fontWeight: 700, color: PROFICIENCY_LEVELS[value[tool] - 1].color, background: `${PROFICIENCY_LEVELS[value[tool] - 1].color}18`, padding: '2px 8px', borderRadius: '6px' }}>
                 {PROFICIENCY_LEVELS[value[tool] - 1].label}
               </span>
             )}
@@ -125,8 +125,8 @@ function ProficiencyInput({
                     cursor: 'pointer', fontFamily: 'inherit', transition: 'all 0.15s ease',
                   }}
                 >
-                  <div style={{ fontSize: '19px', fontWeight: 700, color: sel ? color : '#464D53', marginBottom: '4px' }}>{label}</div>
-                  <div style={{ fontSize: '19px', color: sel ? color : '#1E2124', lineHeight: 1.4 }}>{desc}</div>
+                  <div style={{ fontSize: '18px', fontWeight: 700, color: sel ? color : '#464D53', marginBottom: '4px' }}>{label}</div>
+                  <div style={{ fontSize: '18px', color: sel ? color : '#1E2124', lineHeight: 1.4 }}>{desc}</div>
                 </button>
               )
             })}
@@ -359,8 +359,8 @@ function ProfileContent() {
     page:   { fontFamily: 'var(--font-manrope), Manrope, sans-serif', background: '#F6FFFE', minHeight: '100vh', color: '#1E2124' },
     nav:    { background: '#FFFFFF', borderBottom: '1px solid #C8DFE0', padding: '0 40px', height: '56px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', boxShadow: '0 1px 3px rgba(0,165,163,0.08)' },
     center: { maxWidth: '640px', margin: '0 auto', padding: '0 24px' },
-    label:  { fontSize: '19px', fontWeight: 800, letterSpacing: '2.5px', textTransform: 'uppercase' as const, color: '#00A5A3' },
-    input:  { width: '100%', padding: '16px 20px', borderRadius: '14px', border: '1px solid #C8DFE0', fontSize: '19px', color: '#1E2124', outline: 'none', fontFamily: 'inherit', background: '#FFFFFF', resize: 'vertical' as const, lineHeight: 1.65, boxSizing: 'border-box' as const },
+    label:  { fontSize: '18px', fontWeight: 800, letterSpacing: '2.5px', textTransform: 'uppercase' as const, color: '#00A5A3' },
+    input:  { width: '100%', padding: '16px 20px', borderRadius: '14px', border: '1px solid #C8DFE0', fontSize: '18px', color: '#1E2124', outline: 'none', fontFamily: 'inherit', background: '#FFFFFF', resize: 'vertical' as const, lineHeight: 1.65, boxSizing: 'border-box' as const },
   }
 
   /* ───────── DONE SCREEN ───────── */
@@ -372,10 +372,10 @@ function ProfileContent() {
           <svg width="36" height="36" fill="none" stroke="#C0F43C" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>
         </div>
         <div style={S.label}>You are ready to begin</div>
-        <h1 style={{ fontSize: '38px', fontWeight: 800, margin: '16px 0 12px', letterSpacing: '-0.5px', lineHeight: 1.1 }}>
+        <h1 style={{ fontSize: '36px', fontWeight: 800, margin: '16px 0 12px', letterSpacing: '-0.5px', lineHeight: 1.1 }}>
           Your AI readiness score<br />is set, <span style={{ color: '#3D6B00' }}>{firstName}.</span>
         </h1>
-        <p style={{ fontSize: '21px', color: '#464D53', lineHeight: 1.65, maxWidth: '440px', margin: '0 auto 40px' }}>
+        <p style={{ fontSize: '20px', color: '#464D53', lineHeight: 1.65, maxWidth: '440px', margin: '0 auto 40px' }}>
           Based on your answers, Trescademy has calculated your starting TAIRS score and placed you on the right learning track. Your courses are ready.
         </p>
         <div style={{ background: '#FFFFFF', border: '1px solid #C8DFE0', borderRadius: '18px', padding: '24px 28px', marginBottom: '36px', textAlign: 'left', maxWidth: '420px' }}>
@@ -388,13 +388,13 @@ function ProfileContent() {
           ].map((t, i) => (
             <div key={i} style={{ display: 'flex', gap: '10px', padding: '9px 0', borderBottom: i < 3 ? '1px solid #FFFFFF' : 'none', alignItems: 'center' }}>
               <div style={{ width: '22px', height: '22px', borderRadius: '50%', background: i === 0 ? '#C0F43C20' : '#FFFFFF', border: `1px solid ${i === 0 ? '#C0F43C50' : '#D8EAEB'}`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                <span style={{ fontSize: '19px', fontWeight: 800, color: i === 0 ? '#C0F43C' : '#1E2124' }}>{i + 1}</span>
+                <span style={{ fontSize: '18px', fontWeight: 800, color: i === 0 ? '#C0F43C' : '#1E2124' }}>{i + 1}</span>
               </div>
-              <span style={{ fontSize: '19px', color: i === 0 ? '#C0F43C' : '#464D53', fontWeight: i === 0 ? 700 : 400, lineHeight: 1.65 }}>{t}</span>
+              <span style={{ fontSize: '18px', color: i === 0 ? '#C0F43C' : '#464D53', fontWeight: i === 0 ? 700 : 400, lineHeight: 1.65 }}>{t}</span>
             </div>
           ))}
         </div>
-        <Link href={destination} style={{ background: '#C0F43C', color: '#1E2124', fontSize: '21px', fontWeight: 800, padding: '14px 32px', borderRadius: '50px', textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: '8px' }}>
+        <Link href={destination} style={{ background: '#C0F43C', color: '#1E2124', fontSize: '20px', fontWeight: 800, padding: '14px 32px', borderRadius: '50px', textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: '8px' }}>
           See My TAIRS Score
           <svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg>
         </Link>
@@ -430,9 +430,9 @@ function ProfileContent() {
             <div style={{ width: '26px', height: '26px', background: '#00A5A3', borderRadius: '7px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
               <svg width="12" height="12" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
             </div>
-            <span style={{ fontSize: '19px', fontWeight: 800, color: '#1E2124' }}>Trescademy</span>
+            <span style={{ fontSize: '18px', fontWeight: 800, color: '#1E2124' }}>Trescademy</span>
           </div>
-          <span style={{ fontSize: '21px', color: '#1E2124', fontWeight: 600 }}>AI Readiness Platform · Trescon Global</span>
+          <span style={{ fontSize: '20px', color: '#1E2124', fontWeight: 600 }}>AI Readiness Platform · Trescon Global</span>
         </nav>
 
         {/* Two-column body */}
@@ -440,39 +440,39 @@ function ProfileContent() {
 
           {/* LEFT — headline + CTA */}
           <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', padding: '48px 56px', borderRight: '1px solid #C8DFE0' }}>
-            <div style={{ fontSize: '19px', fontWeight: 800, letterSpacing: '2.5px', textTransform: 'uppercase', color: '#00A5A3', marginBottom: '14px' }}>
+            <div style={{ fontSize: '18px', fontWeight: 800, letterSpacing: '2.5px', textTransform: 'uppercase', color: '#00A5A3', marginBottom: '14px' }}>
               Welcome, {firstName}
             </div>
-            <h1 style={{ fontSize: '44px', fontWeight: 900, color: '#1E2124', lineHeight: 1.1, letterSpacing: '-0.8px', margin: '0 0 18px' }}>
+            <h1 style={{ fontSize: '36px', fontWeight: 900, color: '#1E2124', lineHeight: 1.1, letterSpacing: '-0.8px', margin: '0 0 18px' }}>
               Your AI readiness<br />
               <span style={{ color: '#3D6B00' }}>journey starts here.</span>
             </h1>
-            <p style={{ fontSize: '21px', color: '#464D53', lineHeight: 1.65, margin: '0 0 32px', maxWidth: '340px' }}>
+            <p style={{ fontSize: '20px', color: '#464D53', lineHeight: 1.65, margin: '0 0 32px', maxWidth: '340px' }}>
               Trescademy is Trescon Global&apos;s internal AI learning platform — built for all 300+ staff across Dubai, Bangalore, Mangalore, and Manipal. It shows you where you stand with AI and builds a learning path around your actual daily work.
             </p>
             <button
               onClick={() => { setShowWelcome(false); setStep(0) }}
-              style={{ alignSelf: 'flex-start', background: '#C0F43C', color: '#1E2124', fontSize: '21px', fontWeight: 800, padding: '14px 32px', borderRadius: '50px', border: 'none', cursor: 'pointer', fontFamily: 'inherit', display: 'inline-flex', alignItems: 'center', gap: '8px' }}
+              style={{ alignSelf: 'flex-start', background: '#C0F43C', color: '#1E2124', fontSize: '20px', fontWeight: 800, padding: '14px 32px', borderRadius: '50px', border: 'none', cursor: 'pointer', fontFamily: 'inherit', display: 'inline-flex', alignItems: 'center', gap: '8px' }}
             >
               Begin My Assessment
               <svg width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg>
             </button>
-            <div style={{ marginTop: '14px', fontSize: '21px', color: '#1E2124' }}>
+            <div style={{ marginTop: '14px', fontSize: '20px', color: '#1E2124' }}>
               5–8 minutes · Your answers are private
             </div>
           </div>
 
           {/* RIGHT — 3 steps */}
           <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', padding: '48px 56px', gap: '0' }}>
-            <div style={{ fontSize: '19px', fontWeight: 800, letterSpacing: '2px', textTransform: 'uppercase', color: '#1E2124', marginBottom: '28px' }}>
+            <div style={{ fontSize: '18px', fontWeight: 800, letterSpacing: '2px', textTransform: 'uppercase', color: '#1E2124', marginBottom: '28px' }}>
               What happens
             </div>
             {steps.map((s, i) => (
               <div key={i} style={{ display: 'flex', gap: '18px', paddingBottom: i < 2 ? '24px' : '0', marginBottom: i < 2 ? '24px' : '0', borderBottom: i < 2 ? '1px solid #C8DFE0' : 'none' }}>
-                <div style={{ fontSize: '38px', fontWeight: 900, color: s.color, opacity: 0.4, lineHeight: 1, flexShrink: 0, width: '28px' }}>{s.num}</div>
+                <div style={{ fontSize: '36px', fontWeight: 900, color: s.color, opacity: 0.4, lineHeight: 1, flexShrink: 0, width: '28px' }}>{s.num}</div>
                 <div>
-                  <div style={{ fontSize: '21px', fontWeight: 700, color: '#1E2124', marginBottom: '5px', lineHeight: 1.3 }}>{s.title}</div>
-                  <div style={{ fontSize: '19px', color: '#464D53', lineHeight: 1.65 }}>{s.body}</div>
+                  <div style={{ fontSize: '20px', fontWeight: 700, color: '#1E2124', marginBottom: '5px', lineHeight: 1.3 }}>{s.title}</div>
+                  <div style={{ fontSize: '18px', color: '#464D53', lineHeight: 1.65 }}>{s.body}</div>
                 </div>
               </div>
             ))}
@@ -493,13 +493,13 @@ function ProfileContent() {
             <div style={{ width: '28px', height: '28px', background: '#00A5A3', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
               <svg width="14" height="14" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
             </div>
-            <span style={{ fontSize: '21px', fontWeight: 800, color: '#1E2124' }}>Trescademy</span>
+            <span style={{ fontSize: '20px', fontWeight: 800, color: '#1E2124' }}>Trescademy</span>
           </Link>
         </nav>
         <div style={{ maxWidth: '500px', margin: '80px auto', padding: '0 24px' }}>
           <div style={S.label}>Trescademy — AI Readiness Assessment</div>
-          <h1 style={{ fontSize: '44px', fontWeight: 800, color: '#1E2124', margin: '12px 0 8px', lineHeight: 1.2 }}>Enter your work email</h1>
-          <p style={{ fontSize: '19px', color: '#464D53', lineHeight: 1.65, marginBottom: '32px' }}>
+          <h1 style={{ fontSize: '36px', fontWeight: 800, color: '#1E2124', margin: '12px 0 8px', lineHeight: 1.2 }}>Enter your work email</h1>
+          <p style={{ fontSize: '18px', color: '#464D53', lineHeight: 1.65, marginBottom: '32px' }}>
             We&apos;ll match it to your Trescon profile and take you straight into your interview. No password needed.
           </p>
           <form onSubmit={handleVerify}>
@@ -509,11 +509,11 @@ function ProfileContent() {
               onChange={e => { setEmail(e.target.value); setVerifyError('') }}
               placeholder="yourname@tresconglobal.com"
               autoFocus
-              style={{ width: '100%', padding: '16px 20px', borderRadius: '14px', border: `1.5px solid ${verifyError ? '#FF6B6B' : '#D5D9DB'}`, background: 'white', color: '#1E2124', fontSize: '21px', outline: 'none', fontFamily: 'inherit', marginBottom: '12px', boxSizing: 'border-box' }}
+              style={{ width: '100%', padding: '16px 20px', borderRadius: '14px', border: `1.5px solid ${verifyError ? '#FF6B6B' : '#D5D9DB'}`, background: 'white', color: '#1E2124', fontSize: '20px', outline: 'none', fontFamily: 'inherit', marginBottom: '12px', boxSizing: 'border-box' }}
             />
-            {verifyError && <p style={{ fontSize: '19px', color: '#E74C3C', marginBottom: '12px', fontWeight: 600 }}>{verifyError}</p>}
+            {verifyError && <p style={{ fontSize: '18px', color: '#E74C3C', marginBottom: '12px', fontWeight: 600 }}>{verifyError}</p>}
             <button type="submit" disabled={verifying || !email.trim()}
-              style={{ width: '100%', padding: '16px', borderRadius: '14px', border: 'none', background: '#00A5A3', color: 'white', fontSize: '19px', fontWeight: 800, cursor: verifying ? 'not-allowed' : 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
+              style={{ width: '100%', padding: '16px', borderRadius: '14px', border: 'none', background: '#00A5A3', color: 'white', fontSize: '18px', fontWeight: 800, cursor: verifying ? 'not-allowed' : 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
               {verifying ? 'Looking you up...' : (
                 <>
                   Start My Intelligence Interview
@@ -522,7 +522,7 @@ function ProfileContent() {
               )}
             </button>
           </form>
-          <p style={{ marginTop: '16px', fontSize: '19px', color: '#464D53' }}>
+          <p style={{ marginTop: '16px', fontSize: '18px', color: '#464D53' }}>
             Haven&apos;t joined yet?{' '}
             <Link href="/join" style={{ color: '#00A5A3', fontWeight: 700, textDecoration: 'none' }}>Join first</Link>
           </p>
@@ -540,27 +540,27 @@ function ProfileContent() {
             <div style={{ width: '26px', height: '26px', background: '#00A5A3', borderRadius: '7px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
               <svg width="12" height="12" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
             </div>
-            <span style={{ fontSize: '19px', fontWeight: 800, color: '#1E2124' }}>Trescademy</span>
+            <span style={{ fontSize: '18px', fontWeight: 800, color: '#1E2124' }}>Trescademy</span>
           </div>
         </nav>
         <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '40px 20px' }}>
           <div style={{ width: '100%', maxWidth: '560px' }}>
-            <div style={{ marginBottom: '8px', fontSize: '19px', fontWeight: 800, letterSpacing: '2px', textTransform: 'uppercase', color: '#00A5A3' }}>Welcome, {staffName}</div>
-            <h1 style={{ fontSize: '38px', fontWeight: 900, color: '#1E2124', margin: '0 0 8px', lineHeight: 1.2 }}>Which department are you in?</h1>
-            <p style={{ fontSize: '21px', color: '#464D53', margin: '0 0 28px', lineHeight: 1.65 }}>
+            <div style={{ marginBottom: '8px', fontSize: '18px', fontWeight: 800, letterSpacing: '2px', textTransform: 'uppercase', color: '#00A5A3' }}>Welcome, {staffName}</div>
+            <h1 style={{ fontSize: '36px', fontWeight: 900, color: '#1E2124', margin: '0 0 8px', lineHeight: 1.2 }}>Which department are you in?</h1>
+            <p style={{ fontSize: '20px', color: '#464D53', margin: '0 0 28px', lineHeight: 1.65 }}>
               Your questions will be tailored to your actual daily work and the AI tools most relevant to your role.
             </p>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
               {ALL_DEPARTMENTS.map(dept => (
                 <button key={dept} onClick={() => !savingDept && confirmDepartment(dept)}
-                  style={{ padding: '14px 18px', borderRadius: '12px', border: '1.5px solid #C8DFE0', background: '#FFFFFF', color: '#1E2124', fontSize: '21px', fontWeight: 700, cursor: savingDept ? 'not-allowed' : 'pointer', fontFamily: 'inherit', textAlign: 'left', transition: 'all 0.15s ease' }}
+                  style={{ padding: '14px 18px', borderRadius: '12px', border: '1.5px solid #C8DFE0', background: '#FFFFFF', color: '#1E2124', fontSize: '20px', fontWeight: 700, cursor: savingDept ? 'not-allowed' : 'pointer', fontFamily: 'inherit', textAlign: 'left', transition: 'all 0.15s ease' }}
                   onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.borderColor = '#00A5A3'; (e.currentTarget as HTMLButtonElement).style.background = 'rgba(0,165,163,0.1)' }}
                   onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.borderColor = '#C8DFE0'; (e.currentTarget as HTMLButtonElement).style.background = '#FFFFFF' }}>
                   {dept}
                 </button>
               ))}
             </div>
-            {savingDept && <div style={{ marginTop: '20px', textAlign: 'center', fontSize: '19px', color: '#464D53' }}>Setting up your assessment...</div>}
+            {savingDept && <div style={{ marginTop: '20px', textAlign: 'center', fontSize: '18px', color: '#464D53' }}>Setting up your assessment...</div>}
           </div>
         </div>
       </div>
@@ -577,17 +577,17 @@ function ProfileContent() {
             <div style={{ width: '26px', height: '26px', background: '#00A5A3', borderRadius: '7px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
               <svg width="12" height="12" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
             </div>
-            <span style={{ fontSize: '19px', fontWeight: 800, color: '#1E2124' }}>Trescademy</span>
+            <span style={{ fontSize: '18px', fontWeight: 800, color: '#1E2124' }}>Trescademy</span>
           </div>
           <span style={{ color: 'rgba(70,77,83,0.3)', margin: '0 4px' }}>|</span>
-          <span style={{ fontSize: '21px', color: '#00A5A3', fontWeight: 700 }}>Step 1 — AI Readiness Assessment</span>
+          <span style={{ fontSize: '20px', color: '#00A5A3', fontWeight: 700 }}>Step 1 — AI Readiness Assessment</span>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
             <div style={{ width: '28px', height: '28px', borderRadius: '8px', background: '#C0F43C20', border: '1px solid #C0F43C40', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              <span style={{ fontSize: '19px', fontWeight: 800, color: '#3D6B00' }}>{staffName.charAt(0)}</span>
+              <span style={{ fontSize: '18px', fontWeight: 800, color: '#3D6B00' }}>{staffName.charAt(0)}</span>
             </div>
-            <span style={{ fontSize: '21px', color: '#464D53' }}>{firstName} · {department}</span>
+            <span style={{ fontSize: '20px', color: '#464D53' }}>{firstName} · {department}</span>
           </div>
           <button
             onClick={() => {
@@ -601,7 +601,7 @@ function ProfileContent() {
             <svg width="12" height="12" fill="none" stroke="#464D53" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24">
               <path d="M18.36 6.64a9 9 0 1 1-12.73 0"/><line x1="12" y1="2" x2="12" y2="12"/>
             </svg>
-            <span style={{ fontSize: '21px', fontWeight: 600, color: '#464D53' }}>Save &amp; Exit</span>
+            <span style={{ fontSize: '20px', fontWeight: 600, color: '#464D53' }}>Save &amp; Exit</span>
           </button>
         </div>
       </nav>
@@ -615,10 +615,10 @@ function ProfileContent() {
 
         {/* Step counter */}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '40px' }}>
-          <div style={{ fontSize: '19px', fontWeight: 700, letterSpacing: '2px', color: '#1E2124', textTransform: 'uppercase' }}>
+          <div style={{ fontSize: '18px', fontWeight: 700, letterSpacing: '2px', color: '#1E2124', textTransform: 'uppercase' }}>
             Question {step + 1} of {questions.length}
           </div>
-          <div style={{ fontSize: '19px', fontWeight: 700, color: '#00A5A3', letterSpacing: '1px' }}>
+          <div style={{ fontSize: '18px', fontWeight: 700, color: '#00A5A3', letterSpacing: '1px' }}>
             {progress}% answered
           </div>
         </div>
@@ -632,11 +632,11 @@ function ProfileContent() {
               <div style={{ width: '32px', height: '32px', background: 'linear-gradient(135deg, #00A5A3, #005F7A)', borderRadius: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
                 <svg width="14" height="14" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
               </div>
-              <span style={{ fontSize: '19px', fontWeight: 700, letterSpacing: '2px', color: '#00A5A3', textTransform: 'uppercase' }}>Trescademy</span>
+              <span style={{ fontSize: '18px', fontWeight: 700, letterSpacing: '2px', color: '#00A5A3', textTransform: 'uppercase' }}>Trescademy</span>
             </div>
 
             {/* Question text */}
-            <h2 style={{ fontSize: '38px', fontWeight: 800, lineHeight: 1.3, marginBottom: '10px', letterSpacing: '-0.3px' }}>
+            <h2 style={{ fontSize: '36px', fontWeight: 800, lineHeight: 1.3, marginBottom: '10px', letterSpacing: '-0.3px' }}>
               {q.question}
             </h2>
             {(() => {
@@ -645,7 +645,7 @@ function ProfileContent() {
                 ? "Since you're already using AI, name one specific process in your role you'd want to automate first. This goes on record."
                 : q.subtext
               return displaySubtext
-                ? <p style={{ fontSize: '21px', color: '#464D53', lineHeight: 1.65, marginBottom: '28px' }}>{displaySubtext}</p>
+                ? <p style={{ fontSize: '20px', color: '#464D53', lineHeight: 1.65, marginBottom: '28px' }}>{displaySubtext}</p>
                 : <div style={{ height: '28px' }} />
             })()}
 
@@ -691,7 +691,7 @@ function ProfileContent() {
                         border: `1.5px solid ${sel ? '#C0F43C' : '#C8DFE0'}`,
                         background: sel ? '#C0F43C15' : 'transparent',
                         color: sel ? '#C0F43C' : '#464D53',
-                        fontSize: '19px', fontWeight: sel ? 700 : 500, cursor: 'pointer', fontFamily: 'inherit',
+                        fontSize: '18px', fontWeight: sel ? 700 : 500, cursor: 'pointer', fontFamily: 'inherit',
                         transition: 'all 0.15s ease',
                       }}
                     >
@@ -715,7 +715,7 @@ function ProfileContent() {
                         border: `1.5px solid ${sel ? '#00A5A3' : '#C8DFE0'}`,
                         background: sel ? 'rgba(0,165,163,0.12)' : '#FFFFFF',
                         color: sel ? 'white' : '#464D53',
-                        fontSize: '21px', fontWeight: sel ? 700 : 400, cursor: 'pointer', fontFamily: 'inherit',
+                        fontSize: '20px', fontWeight: sel ? 700 : 400, cursor: 'pointer', fontFamily: 'inherit',
                         display: 'flex', alignItems: 'center', justifyContent: 'space-between',
                         transition: 'all 0.15s ease',
                       }}
@@ -750,22 +750,22 @@ function ProfileContent() {
                           cursor: 'pointer', fontFamily: 'inherit', transition: 'all 0.15s ease',
                         }}
                       >
-                        <div style={{ fontSize: '44px', fontWeight: 800, color: sel ? col : '#464D53', marginBottom: '6px' }}>{n}</div>
-                        <div style={{ fontSize: '19px', color: sel ? col : '#1E2124', fontWeight: sel ? 700 : 400, lineHeight: 1.4 }}>{label}</div>
+                        <div style={{ fontSize: '36px', fontWeight: 800, color: sel ? col : '#464D53', marginBottom: '6px' }}>{n}</div>
+                        <div style={{ fontSize: '18px', color: sel ? col : '#1E2124', fontWeight: sel ? 700 : 400, lineHeight: 1.4 }}>{label}</div>
                       </button>
                     )
                   })}
                 </div>
                 {scaleValue > 0 && (
-                  <div style={{ background: `${SCALE_COLORS[scaleValue - 1]}15`, border: `1px solid ${SCALE_COLORS[scaleValue - 1]}30`, borderRadius: '12px', padding: '12px 16px', fontSize: '19px', color: SCALE_COLORS[scaleValue - 1], fontWeight: 600 }}>
+                  <div style={{ background: `${SCALE_COLORS[scaleValue - 1]}15`, border: `1px solid ${SCALE_COLORS[scaleValue - 1]}30`, borderRadius: '12px', padding: '12px 16px', fontSize: '18px', color: SCALE_COLORS[scaleValue - 1], fontWeight: 600 }}>
                     {(q.options ?? [])[scaleValue - 1]}
                   </div>
                 )}
                 {/* Accountability callout for levels 4–5 */}
                 {q.id === 'ai_readiness' && scaleValue >= 4 && (
                   <div style={{ marginTop: '14px', background: 'rgba(192,244,60,0.07)', border: '1px solid rgba(192,244,60,0.25)', borderRadius: '12px', padding: '14px 18px' }}>
-                    <div style={{ fontSize: '19px', fontWeight: 800, color: '#3D6B00', letterSpacing: '1px', textTransform: 'uppercase', marginBottom: '6px' }}>You are now on the advanced track</div>
-                    <div style={{ fontSize: '19px', color: '#1E2124', lineHeight: 1.65 }}>
+                    <div style={{ fontSize: '18px', fontWeight: 800, color: '#3D6B00', letterSpacing: '1px', textTransform: 'uppercase', marginBottom: '6px' }}>You are now on the advanced track</div>
+                    <div style={{ fontSize: '18px', color: '#1E2124', lineHeight: 1.65 }}>
                       The next question will ask you to describe a real AI workflow you use. This becomes your brief for the Advanced track — and you will be expected to lead an AI pilot in your department.
                     </div>
                   </div>
@@ -784,21 +784,21 @@ function ProfileContent() {
 
             {/* Hint for textarea */}
             {q.type === 'textarea' && (
-              <p style={{ fontSize: '19px', color: '#1E2124', marginTop: '10px' }}>
+              <p style={{ fontSize: '18px', color: '#1E2124', marginTop: '10px' }}>
                 Press Cmd+Enter to continue
               </p>
             )}
 
             {/* Optional hint for text */}
             {q.type === 'text' && (
-              <p style={{ fontSize: '19px', color: '#1E2124', marginTop: '10px' }}>
+              <p style={{ fontSize: '18px', color: '#1E2124', marginTop: '10px' }}>
                 Optional — skip if nothing to add
               </p>
             )}
 
             {/* Error */}
             {submitError && (
-              <div style={{ background: '#FEF2F2', border: '1px solid #FECACA', borderRadius: '10px', padding: '12px 16px', marginTop: '16px', fontSize: '19px', color: '#C0392B', fontWeight: 600 }}>
+              <div style={{ background: '#FEF2F2', border: '1px solid #FECACA', borderRadius: '10px', padding: '12px 16px', marginTop: '16px', fontSize: '18px', color: '#C0392B', fontWeight: 600 }}>
                 {submitError}
               </div>
             )}
@@ -806,7 +806,7 @@ function ProfileContent() {
             {/* Nav buttons */}
             <div style={{ display: 'flex', gap: '12px', marginTop: '32px', alignItems: 'center', justifyContent: 'space-between' }}>
               {step > 0 ? (
-                <button type="button" onClick={goBack} style={{ padding: '12px 20px', borderRadius: '12px', border: '1px solid #C8DFE0', background: 'transparent', color: '#464D53', fontSize: '19px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <button type="button" onClick={goBack} style={{ padding: '12px 20px', borderRadius: '12px', border: '1px solid #C8DFE0', background: 'transparent', color: '#464D53', fontSize: '18px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: '6px' }}>
                   <svg width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg>
                   Back
                 </button>
@@ -820,7 +820,7 @@ function ProfileContent() {
                   padding: '14px 28px', borderRadius: '14px', border: 'none',
                   background: (canAdvance || q.type === 'text') && !pending ? (isLastStep ? '#C0F43C' : '#00A5A3') : '#D8EAEB',
                   color: (canAdvance || q.type === 'text') && !pending ? (isLastStep ? '#1E2124' : 'white') : '#64748B',
-                  fontSize: '21px', fontWeight: 800, cursor: (canAdvance || q.type === 'text') && !pending ? 'pointer' : 'not-allowed',
+                  fontSize: '20px', fontWeight: 800, cursor: (canAdvance || q.type === 'text') && !pending ? 'pointer' : 'not-allowed',
                   fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: '8px',
                   transition: 'all 0.2s ease',
                 }}

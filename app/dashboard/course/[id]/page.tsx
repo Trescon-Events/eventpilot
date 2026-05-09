@@ -58,14 +58,14 @@ function MarkdownBlock({ content }: { content: string }) {
   while (i < lines.length) {
     const line = lines[i]
     if (line.startsWith('# ')) {
-      elements.push(<h2 key={i} style={{ fontSize: '38px', fontWeight: 800, color: '#1E2124', margin: '28px 0 10px', letterSpacing: '-0.2px' }}>{line.slice(2)}</h2>)
+      elements.push(<h2 key={i} style={{ fontSize: '36px', fontWeight: 800, color: '#1E2124', margin: '28px 0 10px', letterSpacing: '-0.2px' }}>{line.slice(2)}</h2>)
     } else if (line.startsWith('## ')) {
-      elements.push(<h3 key={i} style={{ fontSize: '21px', fontWeight: 800, color: '#1E2124', margin: '22px 0 8px' }}>{line.slice(3)}</h3>)
+      elements.push(<h3 key={i} style={{ fontSize: '20px', fontWeight: 800, color: '#1E2124', margin: '22px 0 8px' }}>{line.slice(3)}</h3>)
     } else if (line.startsWith('### ')) {
-      elements.push(<h4 key={i} style={{ fontSize: '19px', fontWeight: 800, color: '#00A5A3', margin: '18px 0 6px', textTransform: 'uppercase', letterSpacing: '1px' }}>{line.slice(4)}</h4>)
+      elements.push(<h4 key={i} style={{ fontSize: '18px', fontWeight: 800, color: '#00A5A3', margin: '18px 0 6px', textTransform: 'uppercase', letterSpacing: '1px' }}>{line.slice(4)}</h4>)
     } else if (line.startsWith('> ')) {
       elements.push(
-        <blockquote key={i} style={{ margin: '10px 0', borderLeft: '3px solid #00A5A3', paddingLeft: '16px', color: '#464D53', fontStyle: 'italic', fontSize: '21px', lineHeight: 1.65 }}>
+        <blockquote key={i} style={{ margin: '10px 0', borderLeft: '3px solid #00A5A3', paddingLeft: '16px', color: '#464D53', fontStyle: 'italic', fontSize: '20px', lineHeight: 1.65 }}>
           {renderInline(line.slice(2))}
         </blockquote>
       )
@@ -73,13 +73,13 @@ function MarkdownBlock({ content }: { content: string }) {
       elements.push(
         <div key={i} style={{ display: 'flex', gap: '10px', marginBottom: '6px', alignItems: 'flex-start' }}>
           <div style={{ width: '5px', height: '5px', borderRadius: '50%', background: '#00A5A3', marginTop: '8px', flexShrink: 0 }} />
-          <span style={{ fontSize: '21px', color: '#464D53', lineHeight: 1.65 }}>{renderInline(line.slice(2))}</span>
+          <span style={{ fontSize: '20px', color: '#464D53', lineHeight: 1.65 }}>{renderInline(line.slice(2))}</span>
         </div>
       )
     } else if (line.trim() === '') {
       elements.push(<div key={i} style={{ height: '8px' }} />)
     } else {
-      elements.push(<p key={i} style={{ fontSize: '21px', color: '#464D53', lineHeight: 1.65, margin: '0 0 4px' }}>{renderInline(line)}</p>)
+      elements.push(<p key={i} style={{ fontSize: '20px', color: '#464D53', lineHeight: 1.65, margin: '0 0 4px' }}>{renderInline(line)}</p>)
     }
     i++
   }
@@ -273,7 +273,7 @@ function CourseContent() {
       <div style={{ ...S.page, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
         <div style={{ textAlign: 'center' }}>
           <div style={{ width: '36px', height: '36px', border: '3px solid rgba(0,165,163,0.15)', borderTopColor: '#00A5A3', borderRadius: '50%', animation: 'spin 0.8s linear infinite', margin: '0 auto 14px' }} />
-          <div style={{ color: '#464D53', fontSize: '21px' }}>Loading course…</div>
+          <div style={{ color: '#464D53', fontSize: '20px' }}>Loading course…</div>
         </div>
       </div>
     )
@@ -283,8 +283,8 @@ function CourseContent() {
     return (
       <div style={{ ...S.page, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
         <div style={{ textAlign: 'center' }}>
-          <div style={{ fontSize: '21px', color: '#FF6B6B' }}>Course not found.</div>
-          <Link href={staffId ? `/dashboard?id=${staffId}` : '/dashboard'} style={{ display: 'inline-block', marginTop: '16px', color: '#00A5A3', fontWeight: 700, fontSize: '21px' }}>
+          <div style={{ fontSize: '20px', color: '#FF6B6B' }}>Course not found.</div>
+          <Link href={staffId ? `/dashboard?id=${staffId}` : '/dashboard'} style={{ display: 'inline-block', marginTop: '16px', color: '#00A5A3', fontWeight: 700, fontSize: '20px' }}>
             Back to Dashboard
           </Link>
         </div>
@@ -304,22 +304,22 @@ function CourseContent() {
             <div style={{ width: '44px', height: '44px', borderRadius: '12px', background: `${tierColor}18`, border: `1px solid ${tierColor}40`, display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '20px' }}>
               <svg width="20" height="20" fill="none" stroke={tierColor} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
             </div>
-            <div style={{ fontSize: '38px', fontWeight: 800, color: '#1E2124', marginBottom: '14px', lineHeight: 1.3 }}>Before you begin</div>
-            <div style={{ fontSize: '21px', color: '#464D53', lineHeight: 1.72, marginBottom: '10px' }}>
+            <div style={{ fontSize: '36px', fontWeight: 800, color: '#1E2124', marginBottom: '14px', lineHeight: 1.3 }}>Before you begin</div>
+            <div style={{ fontSize: '20px', color: '#464D53', lineHeight: 1.72, marginBottom: '10px' }}>
               This test is built entirely around <strong style={{ color: '#1E2124' }}>your specific submission</strong>. Every question is unique to what you did — not a generic quiz anyone else will see.
             </div>
-            <div style={{ fontSize: '21px', color: '#464D53', lineHeight: 1.72, marginBottom: '10px' }}>
+            <div style={{ fontSize: '20px', color: '#464D53', lineHeight: 1.72, marginBottom: '10px' }}>
               Trescademy uses AI to review the authenticity of your responses — not to penalise you, but to ensure your TAIRS score genuinely reflects your ability and helps us support you better.
             </div>
-            <div style={{ fontSize: '21px', color: '#464D53', lineHeight: 1.72, marginBottom: '24px' }}>
+            <div style={{ fontSize: '20px', color: '#464D53', lineHeight: 1.72, marginBottom: '24px' }}>
               AI is your <strong style={{ color: '#1E2124' }}>learning tool</strong> here, not your shortcut. The people who grow fastest are the ones who engage honestly.
             </div>
-            <div style={{ background: '#FFFFFF', border: '1px solid #C8DFE0', borderRadius: '12px', padding: '14px 16px', marginBottom: '24px', fontSize: '21px', color: '#464D53', lineHeight: 1.6 }}>
+            <div style={{ background: '#FFFFFF', border: '1px solid #C8DFE0', borderRadius: '12px', padding: '14px 16px', marginBottom: '24px', fontSize: '20px', color: '#464D53', lineHeight: 1.6 }}>
               Each question has a <strong style={{ color: '#1E2124' }}>45-second timer</strong>. Questions are shown one at a time and cannot be revisited. Answer from what you know.
             </div>
             <button
               onClick={startTest}
-              style={{ width: '100%', padding: '14px', borderRadius: '12px', border: 'none', background: tierColor, color: course.tier_level === 'adoption' ? 'white' : '#1E2124', fontSize: '19px', fontWeight: 800, cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}
+              style={{ width: '100%', padding: '14px', borderRadius: '12px', border: 'none', background: tierColor, color: course.tier_level === 'adoption' ? 'white' : '#1E2124', fontSize: '18px', fontWeight: 800, cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}
             >
               I understand — start my test
               <svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg>
@@ -331,14 +331,14 @@ function CourseContent() {
       {/* ── Nav ── */}
       <nav style={S.nav}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-          <Link href={staffId ? `/dashboard?id=${staffId}` : '/dashboard'} style={{ display: 'flex', alignItems: 'center', gap: '6px', textDecoration: 'none', color: '#464D53', fontSize: '19px', fontWeight: 600 }}>
+          <Link href={staffId ? `/dashboard?id=${staffId}` : '/dashboard'} style={{ display: 'flex', alignItems: 'center', gap: '6px', textDecoration: 'none', color: '#464D53', fontSize: '18px', fontWeight: 600 }}>
             <svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg>
             Dashboard
           </Link>
           <span style={{ color: 'rgba(70,77,83,0.35)' }}>/</span>
-          <span style={{ fontSize: '19px', color: '#464D53', fontWeight: 700, maxWidth: '240px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{course.title}</span>
+          <span style={{ fontSize: '18px', color: '#464D53', fontWeight: 700, maxWidth: '240px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{course.title}</span>
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '19px', fontWeight: 700, color: tierColor, textTransform: 'uppercase', letterSpacing: '1.5px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '18px', fontWeight: 700, color: tierColor, textTransform: 'uppercase', letterSpacing: '1.5px' }}>
           <div style={{ width: '6px', height: '6px', borderRadius: '50%', background: tierColor }} />
           {course.tier_level}
         </div>
@@ -354,7 +354,7 @@ function CourseContent() {
               <div key={s} style={{ flex: 1, padding: '14px 8px', textAlign: 'center', borderBottom: `2px solid ${active ? tierColor : done ? 'rgba(70,77,83,0.3)' : 'transparent'}`, cursor: done && i < step ? 'pointer' : 'default' }}
                 onClick={() => { if (done && i < step) setStep(i) }}
               >
-                <div style={{ fontSize: '19px', fontWeight: 700, color: active ? tierColor : done ? '#464D53' : 'rgba(70,77,83,0.45)', letterSpacing: '1px', textTransform: 'uppercase' }}>
+                <div style={{ fontSize: '18px', fontWeight: 700, color: active ? tierColor : done ? '#464D53' : 'rgba(70,77,83,0.45)', letterSpacing: '1px', textTransform: 'uppercase' }}>
                   {s}
                 </div>
               </div>
@@ -369,30 +369,30 @@ function CourseContent() {
         {step === 0 && (
           <div>
             <div style={{ display: 'flex', gap: '10px', alignItems: 'center', marginBottom: '20px' }}>
-              <span style={{ fontSize: '19px', fontWeight: 800, color: tierColor, textTransform: 'uppercase', letterSpacing: '1.5px', background: `${tierColor}15`, padding: '4px 12px', borderRadius: '20px' }}>
+              <span style={{ fontSize: '18px', fontWeight: 800, color: tierColor, textTransform: 'uppercase', letterSpacing: '1.5px', background: `${tierColor}15`, padding: '4px 12px', borderRadius: '20px' }}>
                 {course.tier_level} track
               </span>
-              <span style={{ fontSize: '21px', color: '#1E2124', fontWeight: 600 }}>{course.estimated_minutes} min</span>
-              {course.is_mandatory && <span style={{ fontSize: '19px', fontWeight: 700, color: '#FF9F43', background: '#FF9F4315', padding: '4px 10px', borderRadius: '20px' }}>Mandatory</span>}
+              <span style={{ fontSize: '20px', color: '#1E2124', fontWeight: 600 }}>{course.estimated_minutes} min</span>
+              {course.is_mandatory && <span style={{ fontSize: '18px', fontWeight: 700, color: '#FF9F43', background: '#FF9F4315', padding: '4px 10px', borderRadius: '20px' }}>Mandatory</span>}
             </div>
 
-            <h1 style={{ fontSize: '44px', fontWeight: 900, margin: '0 0 8px', letterSpacing: '-0.5px', lineHeight: 1.2, color: '#1E2124' }}>{course.title}</h1>
-            <p style={{ fontSize: '19px', color: '#464D53', marginBottom: '32px' }}>{course.subtitle}</p>
+            <h1 style={{ fontSize: '36px', fontWeight: 900, margin: '0 0 8px', letterSpacing: '-0.5px', lineHeight: 1.2, color: '#1E2124' }}>{course.title}</h1>
+            <p style={{ fontSize: '18px', color: '#464D53', marginBottom: '32px' }}>{course.subtitle}</p>
 
             {prevResult?.passed && (
               <div style={{ background: 'rgba(192,244,60,0.08)', border: '1px solid rgba(192,244,60,0.25)', borderRadius: '14px', padding: '16px 20px', marginBottom: '24px', display: 'flex', gap: '12px', alignItems: 'center' }}>
                 <svg width="18" height="18" fill="none" stroke="#C0F43C" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>
                 <div>
-                  <div style={{ fontSize: '19px', fontWeight: 800, color: '#3D6B00' }}>Already completed — score: {prevResult.test_score}%</div>
-                  <div style={{ fontSize: '21px', color: '#464D53' }}>You can retake this course to review the material.</div>
+                  <div style={{ fontSize: '18px', fontWeight: 800, color: '#3D6B00' }}>Already completed — score: {prevResult.test_score}%</div>
+                  <div style={{ fontSize: '20px', color: '#464D53' }}>You can retake this course to review the material.</div>
                 </div>
               </div>
             )}
 
             <div style={{ background: '#FFFFFF', border: '1px solid #C8DFE0', borderRadius: '16px', padding: '24px 28px', marginBottom: '32px', boxShadow: '0 1px 4px rgba(0,165,163,0.06), 0 1px 2px rgba(0,0,0,0.04)' }}>
-              <div style={{ fontSize: '19px', fontWeight: 800, letterSpacing: '2px', color: tierColor, textTransform: 'uppercase', marginBottom: '14px' }}>Why this matters</div>
+              <div style={{ fontSize: '18px', fontWeight: 800, letterSpacing: '2px', color: tierColor, textTransform: 'uppercase', marginBottom: '14px' }}>Why this matters</div>
               {course.overview.split('\n\n').map((para, i) => (
-                <p key={i} style={{ fontSize: '21px', color: '#464D53', lineHeight: 1.75, margin: '0 0 12px' }}>{para}</p>
+                <p key={i} style={{ fontSize: '20px', color: '#464D53', lineHeight: 1.75, margin: '0 0 12px' }}>{para}</p>
               ))}
             </div>
 
@@ -404,18 +404,18 @@ function CourseContent() {
               ].map(({ icon, label, desc }) => (
                 <div key={label} style={{ background: '#FFFFFF', border: '1px solid #C8DFE0', borderRadius: '12px', padding: '16px', textAlign: 'center', boxShadow: '0 1px 4px rgba(0,165,163,0.06), 0 1px 2px rgba(0,0,0,0.04)' }}>
                   <svg width="20" height="20" fill="none" stroke={tierColor} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24" style={{ marginBottom: '8px' }}><path d={icon}/></svg>
-                  <div style={{ fontSize: '19px', fontWeight: 800, color: '#1E2124' }}>{label}</div>
-                  <div style={{ fontSize: '19px', color: '#1E2124' }}>{desc}</div>
+                  <div style={{ fontSize: '18px', fontWeight: 800, color: '#1E2124' }}>{label}</div>
+                  <div style={{ fontSize: '18px', color: '#1E2124' }}>{desc}</div>
                 </div>
               ))}
             </div>
 
-            <div style={{ marginBottom: '24px', padding: '12px 16px', background: '#FFFFFF', border: '1px solid #C8DFE0', borderRadius: '10px', fontSize: '21px', color: '#464D53', display: 'flex', gap: '8px', alignItems: 'center' }}>
+            <div style={{ marginBottom: '24px', padding: '12px 16px', background: '#FFFFFF', border: '1px solid #C8DFE0', borderRadius: '10px', fontSize: '20px', color: '#464D53', display: 'flex', gap: '8px', alignItems: 'center' }}>
               <svg width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
               Your test draws 5 personalised questions based on your submission. Every attempt is different.
             </div>
 
-            <button onClick={() => setStep(1)} style={{ padding: '14px 26px', background: tierColor, border: 'none', borderRadius: '14px', fontSize: '19px', fontWeight: 800, color: course.tier_level === 'adoption' ? 'white' : '#1E2124', cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <button onClick={() => setStep(1)} style={{ padding: '14px 26px', background: tierColor, border: 'none', borderRadius: '14px', fontSize: '18px', fontWeight: 800, color: course.tier_level === 'adoption' ? 'white' : '#1E2124', cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: '8px' }}>
               Start Reading
               <svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg>
             </button>
@@ -425,7 +425,7 @@ function CourseContent() {
         {/* ════ STEP 1: READ ════ */}
         {step === 1 && (
           <div>
-            <div style={{ fontSize: '19px', fontWeight: 800, letterSpacing: '2px', color: tierColor, textTransform: 'uppercase', marginBottom: '24px' }}>Reading Material</div>
+            <div style={{ fontSize: '18px', fontWeight: 800, letterSpacing: '2px', color: tierColor, textTransform: 'uppercase', marginBottom: '24px' }}>Reading Material</div>
             <div style={{ background: '#FFFFFF', border: '1px solid #C8DFE0', borderRadius: '16px', padding: '32px', marginBottom: '32px', boxShadow: '0 1px 4px rgba(0,165,163,0.06), 0 1px 2px rgba(0,0,0,0.04)' }}>
               <MarkdownBlock content={course.read_content} />
             </div>
@@ -445,9 +445,9 @@ function CourseContent() {
         {/* ════ STEP 2: DO THIS ════ */}
         {step === 2 && (
           <div>
-            <div style={{ fontSize: '19px', fontWeight: 800, letterSpacing: '2px', color: tierColor, textTransform: 'uppercase', marginBottom: '8px' }}>Hands-On Task</div>
-            <h2 style={{ fontSize: '44px', fontWeight: 800, color: '#1E2124', marginBottom: '6px' }}>Do This Now</h2>
-            <p style={{ fontSize: '21px', color: '#464D53', marginBottom: '28px', lineHeight: 1.65 }}>
+            <div style={{ fontSize: '18px', fontWeight: 800, letterSpacing: '2px', color: tierColor, textTransform: 'uppercase', marginBottom: '8px' }}>Hands-On Task</div>
+            <h2 style={{ fontSize: '36px', fontWeight: 800, color: '#1E2124', marginBottom: '6px' }}>Do This Now</h2>
+            <p style={{ fontSize: '20px', color: '#464D53', marginBottom: '28px', lineHeight: 1.65 }}>
               Complete each step on your own system. Check them off as you go — then paste your output below.
             </p>
 
@@ -468,15 +468,15 @@ function CourseContent() {
                       <div style={{ width: '28px', height: '28px', borderRadius: '50%', border: `2px solid ${done ? '#C0F43C' : '#C8DFE0'}`, background: done ? '#C0F43C20' : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, marginTop: '2px' }}>
                         {done
                           ? <svg width="13" height="13" fill="none" stroke="#C0F43C" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>
-                          : <span style={{ fontSize: '19px', fontWeight: 800, color: '#1E2124' }}>{ts.step}</span>
+                          : <span style={{ fontSize: '18px', fontWeight: 800, color: '#1E2124' }}>{ts.step}</span>
                         }
                       </div>
                       <div style={{ flex: 1 }}>
-                        <div style={{ fontSize: '21px', fontWeight: 700, color: done ? 'rgba(70,77,83,0.45)' : '#1E2124', lineHeight: 1.65, textDecoration: done ? 'line-through' : 'none' }}>
+                        <div style={{ fontSize: '20px', fontWeight: 700, color: done ? 'rgba(70,77,83,0.45)' : '#1E2124', lineHeight: 1.65, textDecoration: done ? 'line-through' : 'none' }}>
                           {injectProfile(ts.instruction)}
                         </div>
                         {ts.tip && (
-                          <div style={{ marginTop: '8px', background: `${tierColor}10`, border: `1px solid ${tierColor}25`, borderRadius: '8px', padding: '8px 12px', fontSize: '21px', color: `${tierColor}`, lineHeight: 1.55, fontStyle: 'italic' }}>
+                          <div style={{ marginTop: '8px', background: `${tierColor}10`, border: `1px solid ${tierColor}25`, borderRadius: '8px', padding: '8px 12px', fontSize: '20px', color: `${tierColor}`, lineHeight: 1.55, fontStyle: 'italic' }}>
                             Tip: {ts.tip}
                           </div>
                         )}
@@ -490,14 +490,14 @@ function CourseContent() {
             {/* Submission field — mandatory, staff paste their actual AI output */}
             <div id="output-field" style={{ marginBottom: '28px', scrollMarginTop: '40px' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
-                <div style={{ fontSize: '19px', fontWeight: 800, letterSpacing: '1.5px', textTransform: 'uppercase', color: submissionError ? '#FF6B6B' : '#464D53' }}>
+                <div style={{ fontSize: '18px', fontWeight: 800, letterSpacing: '1.5px', textTransform: 'uppercase', color: submissionError ? '#FF6B6B' : '#464D53' }}>
                   Your Output
                 </div>
-                <span style={{ fontSize: '19px', fontWeight: 700, color: '#FF9F43', background: 'rgba(255,159,67,0.12)', border: '1px solid rgba(255,159,67,0.3)', padding: '2px 7px', borderRadius: '5px' }}>Required</span>
+                <span style={{ fontSize: '18px', fontWeight: 700, color: '#FF9F43', background: 'rgba(255,159,67,0.12)', border: '1px solid rgba(255,159,67,0.3)', padding: '2px 7px', borderRadius: '5px' }}>Required</span>
               </div>
               <div style={{ background: 'rgba(255,159,67,0.06)', border: '1px solid rgba(255,159,67,0.2)', borderRadius: '10px', padding: '12px 14px', marginBottom: '12px', display: 'flex', gap: '10px', alignItems: 'flex-start' }}>
                 <svg width="14" height="14" fill="none" stroke="#FF9F43" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24" style={{ flexShrink: 0, marginTop: '1px' }}><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
-                <div style={{ fontSize: '19px', color: '#464D53', lineHeight: 1.65 }}>
+                <div style={{ fontSize: '18px', color: '#464D53', lineHeight: 1.65 }}>
                   Paste what you produced — your AI prompt, the output, or a brief description of what you did. <strong style={{ color: '#1E2124' }}>This is your evidence of completing the task and is required before you can take the test.</strong>
                 </div>
               </div>
@@ -511,25 +511,25 @@ function CourseContent() {
                   padding: '14px 16px', borderRadius: '12px',
                   border: `1.5px solid ${submissionError ? '#FF6B6B' : submission.trim() ? `${tierColor}50` : '#C8DFE0'}`,
                   background: submissionError ? 'rgba(255,107,107,0.05)' : '#FFFFFF', color: '#1E2124',
-                  fontSize: '19px', fontFamily: 'inherit', lineHeight: 1.65,
+                  fontSize: '18px', fontFamily: 'inherit', lineHeight: 1.65,
                   outline: 'none', resize: 'vertical',
                 }}
               />
               {submissionError && (
-                <div style={{ marginTop: '8px', fontSize: '19px', color: '#FF6B6B', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <div style={{ marginTop: '8px', fontSize: '18px', color: '#FF6B6B', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '6px' }}>
                   <svg width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
                   You must submit your output before taking the test. Paste what you produced above.
                 </div>
               )}
               {submission.trim() && !submissionError && (
-                <div style={{ marginTop: '6px', fontSize: '19px', color: tierColor, fontWeight: 700, display: 'flex', alignItems: 'center', gap: '5px' }}>
+                <div style={{ marginTop: '6px', fontSize: '18px', color: tierColor, fontWeight: 700, display: 'flex', alignItems: 'center', gap: '5px' }}>
                   <svg width="11" height="11" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>
                   Output recorded — you are ready to take the test.
                 </div>
               )}
             </div>
 
-            <div style={{ marginBottom: '24px', fontSize: '19px', color: '#464D53' }}>
+            <div style={{ marginBottom: '24px', fontSize: '18px', color: '#464D53' }}>
               {taskDone.size} of {course.task_steps.length} steps checked off
             </div>
 
@@ -553,8 +553,8 @@ function CourseContent() {
             {generatingQ && (
               <div style={{ textAlign: 'center', padding: '60px 0' }}>
                 <div style={{ width: '48px', height: '48px', border: `3px solid ${tierColor}30`, borderTopColor: tierColor, borderRadius: '50%', animation: 'spin 0.8s linear infinite', margin: '0 auto 20px' }} />
-                <div style={{ fontSize: '21px', fontWeight: 700, color: '#1E2124', marginBottom: '8px' }}>Personalising your test</div>
-                <div style={{ fontSize: '19px', color: '#464D53' }}>Building questions from your submission…</div>
+                <div style={{ fontSize: '20px', fontWeight: 700, color: '#1E2124', marginBottom: '8px' }}>Personalising your test</div>
+                <div style={{ fontSize: '18px', color: '#464D53' }}>Building questions from your submission…</div>
               </div>
             )}
 
@@ -564,8 +564,8 @@ function CourseContent() {
                 {/* Progress + timer header */}
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '28px' }}>
                   <div>
-                    <div style={{ fontSize: '19px', fontWeight: 800, letterSpacing: '2px', color: tierColor, textTransform: 'uppercase', marginBottom: '4px' }}>Knowledge Test</div>
-                    <div style={{ fontSize: '19px', color: '#464D53' }}>Question {currentQ + 1} of {servedQuestions.length}</div>
+                    <div style={{ fontSize: '18px', fontWeight: 800, letterSpacing: '2px', color: tierColor, textTransform: 'uppercase', marginBottom: '4px' }}>Knowledge Test</div>
+                    <div style={{ fontSize: '18px', color: '#464D53' }}>Question {currentQ + 1} of {servedQuestions.length}</div>
                   </div>
                   {/* Countdown circle */}
                   <div style={{ position: 'relative', width: '52px', height: '52px' }}>
@@ -578,7 +578,7 @@ function CourseContent() {
                         style={{ transition: 'stroke-dashoffset 0.9s linear, stroke 0.3s' }}
                       />
                     </svg>
-                    <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '19px', fontWeight: 800, color: timeLeft <= 10 ? '#FF6B6B' : '#1E2124' }}>
+                    <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '18px', fontWeight: 800, color: timeLeft <= 10 ? '#FF6B6B' : '#1E2124' }}>
                       {timeLeft}
                     </div>
                   </div>
@@ -591,7 +591,7 @@ function CourseContent() {
 
                 {/* Question */}
                 <div style={{ background: '#FFFFFF', border: `1px solid #C8DFE0`, borderRadius: '16px', padding: '24px', marginBottom: '16px', boxShadow: '0 1px 4px rgba(0,165,163,0.06), 0 1px 2px rgba(0,0,0,0.04)' }}>
-                  <div style={{ fontSize: '21px', fontWeight: 700, color: '#1E2124', lineHeight: 1.55 }}>
+                  <div style={{ fontSize: '20px', fontWeight: 700, color: '#1E2124', lineHeight: 1.55 }}>
                     {servedQuestions[currentQ].question}
                   </div>
                 </div>
@@ -610,7 +610,7 @@ function CourseContent() {
                           border: `1.5px solid ${sel ? tierColor : '#C8DFE0'}`,
                           background: sel ? `${tierColor}18` : '#FFFFFF',
                           color: sel ? '#1E2124' : '#464D53',
-                          fontSize: '21px', fontWeight: sel ? 700 : 400,
+                          fontSize: '20px', fontWeight: sel ? 700 : 400,
                           cursor: qAnswered ? 'default' : 'pointer',
                           fontFamily: 'inherit',
                           display: 'flex', alignItems: 'center', gap: '12px',
@@ -628,7 +628,7 @@ function CourseContent() {
                 </div>
 
                 {qAnswered && (
-                  <div style={{ marginTop: '16px', fontSize: '21px', color: '#1E2124', textAlign: 'center' }}>
+                  <div style={{ marginTop: '16px', fontSize: '20px', color: '#1E2124', textAlign: 'center' }}>
                     Moving to next question…
                   </div>
                 )}
@@ -641,8 +641,8 @@ function CourseContent() {
                 <div style={{ width: '64px', height: '64px', borderRadius: '50%', background: `${tierColor}15`, border: `2px solid ${tierColor}`, display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 20px' }}>
                   <svg width="28" height="28" fill="none" stroke={tierColor} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>
                 </div>
-                <div style={{ fontSize: '38px', fontWeight: 800, color: '#1E2124', marginBottom: '8px' }}>All questions answered</div>
-                <div style={{ fontSize: '19px', color: '#464D53', marginBottom: '28px' }}>Submit when you are ready to see your result.</div>
+                <div style={{ fontSize: '36px', fontWeight: 800, color: '#1E2124', marginBottom: '8px' }}>All questions answered</div>
+                <div style={{ fontSize: '18px', color: '#464D53', marginBottom: '28px' }}>Submit when you are ready to see your result.</div>
                 <button
                   onClick={submitAnswers}
                   disabled={submitting}
@@ -666,11 +666,11 @@ function CourseContent() {
                   : <svg width="34" height="34" fill="none" stroke="#FF6B6B" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
                 }
               </div>
-              <div style={{ fontSize: '19px', fontWeight: 800, letterSpacing: '2px', color: result.passed ? '#C0F43C' : '#FF6B6B', textTransform: 'uppercase', marginBottom: '10px' }}>
+              <div style={{ fontSize: '18px', fontWeight: 800, letterSpacing: '2px', color: result.passed ? '#C0F43C' : '#FF6B6B', textTransform: 'uppercase', marginBottom: '10px' }}>
                 {result.passed ? 'Course Passed' : 'Not Passed Yet'}
               </div>
               <div style={{ fontSize: '52px', fontWeight: 900, color: '#1E2124', lineHeight: 1 }}>{result.score}%</div>
-              <div style={{ fontSize: '21px', color: '#464D53', marginTop: '8px' }}>
+              <div style={{ fontSize: '20px', color: '#464D53', marginTop: '8px' }}>
                 {result.correct} of {result.total} correct · {result.passed ? 'You passed! 70% was needed.' : 'You need 70% to pass.'}
               </div>
             </div>
@@ -681,10 +681,10 @@ function CourseContent() {
                 <div style={{ display: 'flex', gap: '12px', alignItems: 'flex-start' }}>
                   <svg width="18" height="18" fill="none" stroke="#FF9F43" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24" style={{ flexShrink: 0, marginTop: '2px' }}><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
                   <div>
-                    <div style={{ fontSize: '19px', fontWeight: 800, color: '#FF9F43', marginBottom: '6px' }}>
+                    <div style={{ fontSize: '18px', fontWeight: 800, color: '#FF9F43', marginBottom: '6px' }}>
                       {(result.offense_number ?? 1) >= 3 ? 'This has been noted.' : 'A private note for you'}
                     </div>
-                    <div style={{ fontSize: '19px', color: '#464D53', lineHeight: 1.65 }}>
+                    <div style={{ fontSize: '18px', color: '#464D53', lineHeight: 1.65 }}>
                       {(result.offense_number ?? 1) === 1 && 'We noticed your test responses may not fully reflect the work in your submission. No action has been taken — this is just between you and us. A retake done honestly will improve your TAIRS score and replace this result.'}
                       {(result.offense_number ?? 1) === 2 && 'This is the second time we have noticed this pattern. Your TAIRS confidence rating has been adjusted. Completing this course honestly will restore it — and your manager has not been informed.'}
                       {(result.offense_number ?? 1) >= 3 && 'This pattern has been noted across multiple attempts. Your learning progress has been flagged for a support conversation. Trescademy is here to help — please reach out to your manager or HR if you need support with the material.'}
@@ -696,7 +696,7 @@ function CourseContent() {
 
             {/* Breakdown */}
             <div style={{ marginBottom: '32px' }}>
-              <div style={{ fontSize: '19px', fontWeight: 800, letterSpacing: '2px', color: '#1E2124', textTransform: 'uppercase', marginBottom: '16px' }}>Question Breakdown</div>
+              <div style={{ fontSize: '18px', fontWeight: 800, letterSpacing: '2px', color: '#1E2124', textTransform: 'uppercase', marginBottom: '16px' }}>Question Breakdown</div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
                 {result.breakdown.map((item, i) => (
                   <div key={i} style={{ background: item.is_correct ? 'rgba(192,244,60,0.05)' : 'rgba(255,107,107,0.05)', border: `1px solid ${item.is_correct ? 'rgba(192,244,60,0.2)' : 'rgba(255,107,107,0.2)'}`, borderRadius: '14px', padding: '18px 20px' }}>
@@ -708,20 +708,20 @@ function CourseContent() {
                         }
                       </div>
                       <div>
-                        <div style={{ fontSize: '19px', fontWeight: 700, color: '#1E2124', marginBottom: '4px' }}>Q{i + 1}: {item.question}</div>
+                        <div style={{ fontSize: '18px', fontWeight: 700, color: '#1E2124', marginBottom: '4px' }}>Q{i + 1}: {item.question}</div>
                         {!item.is_correct && item.selected !== null && item.options && (
-                          <div style={{ fontSize: '21px', color: '#FF6B6B', marginBottom: '4px' }}>
+                          <div style={{ fontSize: '20px', color: '#FF6B6B', marginBottom: '4px' }}>
                             Your answer: {item.options[item.selected]}
                           </div>
                         )}
                         {item.options && (
-                          <div style={{ fontSize: '21px', color: item.is_correct ? '#C0F43C' : '#464D53' }}>
+                          <div style={{ fontSize: '20px', color: item.is_correct ? '#C0F43C' : '#464D53' }}>
                             {item.is_correct ? 'Correct: ' : 'Correct answer: '}{item.options[item.correct_index]}
                           </div>
                         )}
                       </div>
                     </div>
-                    <div style={{ fontSize: '21px', color: '#464D53', lineHeight: 1.65, paddingLeft: '34px', fontStyle: 'italic' }}>
+                    <div style={{ fontSize: '20px', color: '#464D53', lineHeight: 1.65, paddingLeft: '34px', fontStyle: 'italic' }}>
                       {item.explanation}
                     </div>
                   </div>
@@ -780,22 +780,22 @@ const S = {
   },
   backBtn: {
     padding: '12px 20px', borderRadius: '12px', border: '1px solid #C8DFE0',
-    background: '#FFFFFF', color: '#464D53', fontSize: '19px',
+    background: '#FFFFFF', color: '#464D53', fontSize: '18px',
     fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit',
     display: 'flex', alignItems: 'center', gap: '6px',
   } as React.CSSProperties,
   primaryBtn: {
     padding: '14px 26px', borderRadius: '12px', border: 'none',
-    fontSize: '21px', fontWeight: 800, cursor: 'pointer', fontFamily: 'inherit',
+    fontSize: '20px', fontWeight: 800, cursor: 'pointer', fontFamily: 'inherit',
     display: 'flex', alignItems: 'center', gap: '8px',
   } as React.CSSProperties,
   primaryBtnLink: {
     padding: '14px 26px', borderRadius: '12px', textDecoration: 'none',
-    fontSize: '21px', fontWeight: 800, display: 'inline-flex', alignItems: 'center', gap: '8px',
+    fontSize: '20px', fontWeight: 800, display: 'inline-flex', alignItems: 'center', gap: '8px',
   } as React.CSSProperties,
   backBtnLink: {
     padding: '14px 20px', borderRadius: '12px', border: '1px solid #C8DFE0',
-    color: '#464D53', fontSize: '19px', fontWeight: 700,
+    color: '#464D53', fontSize: '18px', fontWeight: 700,
     textDecoration: 'none', display: 'inline-flex', alignItems: 'center',
   } as React.CSSProperties,
 }
