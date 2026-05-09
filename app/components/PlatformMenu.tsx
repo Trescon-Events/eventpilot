@@ -295,8 +295,8 @@ export default function PlatformMenu({ staffId }: PlatformMenuProps) {
             {/* Menu header */}
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '20px 24px', borderBottom: '1px solid #C8DFE0' }}>
               <div>
-                <div style={{ fontSize: '17px', fontWeight: 800, color: '#1E2124' }}>Trescademy Platform</div>
-                <div style={{ fontSize: '14px', color: '#1E2124', marginTop: '2px' }}>All features · navigate anywhere</div>
+                <div style={{ fontSize: '19px', fontWeight: 800, color: '#1E2124' }}>Trescademy Platform</div>
+                <div style={{ fontSize: '21px', color: '#1E2124', marginTop: '2px' }}>All features · navigate anywhere</div>
               </div>
               <button
                 onClick={close}
@@ -312,7 +312,7 @@ export default function PlatformMenu({ staffId }: PlatformMenuProps) {
             <div style={{ padding: '20px 24px 28px' }}>
               {sections.map(section => (
                 <div key={section.heading} style={{ marginBottom: '28px' }}>
-                  <div style={{ fontSize: '11px', fontWeight: 800, letterSpacing: '2px', textTransform: 'uppercase', color: '#1E2124', marginBottom: '12px' }}>
+                  <div style={{ fontSize: '19px', fontWeight: 800, letterSpacing: '2px', textTransform: 'uppercase', color: '#1E2124', marginBottom: '12px' }}>
                     {section.heading}
                   </div>
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '10px' }}>
@@ -335,7 +335,7 @@ export default function PlatformMenu({ staffId }: PlatformMenuProps) {
                             <div style={{ color: item.color }}>{item.icon}</div>
                             {item.badge && (
                               <span style={{
-                                fontSize: '11px', fontWeight: 800, letterSpacing: '1px',
+                                fontSize: '19px', fontWeight: 800, letterSpacing: '1px',
                                 textTransform: 'uppercase', padding: '2px 7px',
                                 borderRadius: '20px',
                                 background: isSoon ? '#FFFFFF' : `${item.bg}`,
@@ -346,8 +346,8 @@ export default function PlatformMenu({ staffId }: PlatformMenuProps) {
                               </span>
                             )}
                           </div>
-                          <div style={{ fontSize: '15px', fontWeight: 700, color: isSoon ? '#1E2124' : '#1E2124', marginBottom: '4px' }}>{item.title}</div>
-                          <div style={{ fontSize: '13px', color: '#1E2124', lineHeight: 1.65 }}>{item.description}</div>
+                          <div style={{ fontSize: '19px', fontWeight: 700, color: isSoon ? '#1E2124' : '#1E2124', marginBottom: '4px' }}>{item.title}</div>
+                          <div style={{ fontSize: '19px', color: '#1E2124', lineHeight: 1.65 }}>{item.description}</div>
                         </div>
                       )
 

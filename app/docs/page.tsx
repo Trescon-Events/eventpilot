@@ -63,7 +63,7 @@ function formatContent(text: string) {
       elements.push(<div key={key++} style={{ height: '10px' }} />)
     } else if (/^[A-Z][A-Z\s&:]+$/.test(line.trim()) && line.trim().length > 3) {
       elements.push(
-        <div key={key++} style={{ fontSize: '13px', fontWeight: 800, letterSpacing: '1.5px', color: '#00A5A3', textTransform: 'uppercase', marginTop: '20px', marginBottom: '6px' }}>
+        <div key={key++} style={{ fontSize: '19px', fontWeight: 800, letterSpacing: '1.5px', color: '#00A5A3', textTransform: 'uppercase', marginTop: '20px', marginBottom: '6px' }}>
           {line.trim()}
         </div>
       )
@@ -71,13 +71,13 @@ function formatContent(text: string) {
       elements.push(
         <div key={key++} style={{ display: 'flex', gap: '10px', marginBottom: '5px', paddingLeft: '4px' }}>
           <div style={{ width: '5px', height: '5px', borderRadius: '50%', background: '#00A5A3', marginTop: '8px', flexShrink: 0 }} />
-          <span style={{ fontSize: '16px', color: '#464D53', lineHeight: 1.65 }}>{line.replace(/^[-•]\s/, '')}</span>
+          <span style={{ fontSize: '21px', color: '#464D53', lineHeight: 1.65 }}>{line.replace(/^[-•]\s/, '')}</span>
         </div>
       )
     } else {
       const parts = line.split(/(\*\*[^*]+\*\*)/g)
       elements.push(
-        <p key={key++} style={{ fontSize: '16px', color: '#464D53', lineHeight: 1.72, margin: '0 0 4px' }}>
+        <p key={key++} style={{ fontSize: '21px', color: '#464D53', lineHeight: 1.72, margin: '0 0 4px' }}>
           {parts.map((part, i) =>
             part.startsWith('**') && part.endsWith('**')
               ? <strong key={i} style={{ color: '#1E2124', fontWeight: 700 }}>{part.slice(2, -2)}</strong>
@@ -164,15 +164,15 @@ const [openSections, setOpenSections] = useState<Set<string>>(
               <div style={{ width: '24px', height: '24px', background: '#00A5A3', borderRadius: '7px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                 <svg width="12" height="12" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
               </div>
-              <span style={{ fontSize: '16px', fontWeight: 800, color: '#1E2124' }}>Trescademy</span>
+              <span style={{ fontSize: '21px', fontWeight: 800, color: '#1E2124' }}>Trescademy</span>
             </div>
           </Link>
           <span style={{ color: 'rgba(70,77,83,0.35)' }}>/</span>
-          <span style={{ fontSize: '15px', fontWeight: 600, color: '#464D53' }}>Platform Docs</span>
+          <span style={{ fontSize: '19px', fontWeight: 600, color: '#464D53' }}>Platform Docs</span>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
           {isAdmin && (
-            <Link href="/admin" style={{ fontSize: '13px', fontWeight: 700, color: '#C0F43C', background: 'rgba(192,244,60,0.12)', border: '1px solid rgba(192,244,60,0.3)', padding: '5px 12px', borderRadius: '8px', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <Link href="/admin" style={{ fontSize: '19px', fontWeight: 700, color: '#3D6B00', background: 'rgba(192,244,60,0.12)', border: '1px solid rgba(192,244,60,0.3)', padding: '5px 12px', borderRadius: '8px', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '6px' }}>
               <svg width="11" height="11" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg>
               Admin Dashboard
             </Link>
@@ -189,24 +189,24 @@ const [openSections, setOpenSections] = useState<Set<string>>(
           <div style={{ marginBottom: '16px', padding: '0 4px' }}>
             <input type="text" placeholder="Search docs..." value={search}
               onChange={e => setSearch(e.target.value)}
-              style={{ width: '100%', padding: '8px 12px', borderRadius: '9px', border: '1px solid #C8DFE0', background: '#FFFFFF', color: '#1E2124', fontSize: '14px', fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box' }}
+              style={{ width: '100%', padding: '8px 12px', borderRadius: '9px', border: '1px solid #C8DFE0', background: '#FFFFFF', color: '#1E2124', fontSize: '21px', fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box' }}
             />
           </div>
 
           {/* Search results */}
           {search.trim() ? (
             <div>
-              <div style={{ fontSize: '11px', fontWeight: 700, letterSpacing: '1.5px', textTransform: 'uppercase', color: '#1E2124', padding: '0 8px', marginBottom: '6px' }}>
+              <div style={{ fontSize: '19px', fontWeight: 700, letterSpacing: '1.5px', textTransform: 'uppercase', color: '#1E2124', padding: '0 8px', marginBottom: '6px' }}>
                 {searchResults.length} result{searchResults.length !== 1 ? 's' : ''}
               </div>
               {searchResults.length === 0 ? (
-                <div style={{ fontSize: '14px', color: '#464D53', padding: '12px 8px' }}>No matches found.</div>
+                <div style={{ fontSize: '21px', color: '#464D53', padding: '12px 8px' }}>No matches found.</div>
               ) : (
                 searchResults.map(item => (
                   <button key={item.slug} onClick={() => selectDoc(item.slug, item.category)}
-                    style={{ width: '100%', textAlign: 'left', padding: '8px 12px', borderRadius: '8px', border: 'none', background: activeSlug === item.slug ? '#FFFFFF' : 'transparent', color: activeSlug === item.slug ? '#1E2124' : '#464D53', fontSize: '14px', fontWeight: activeSlug === item.slug ? 700 : 500, cursor: 'pointer', fontFamily: 'inherit', marginBottom: '2px', borderLeft: activeSlug === item.slug ? `2px solid ${SECTION_COLOR[item.category] ?? '#00A5A3'}` : '2px solid transparent' }}>
+                    style={{ width: '100%', textAlign: 'left', padding: '8px 12px', borderRadius: '8px', border: 'none', background: activeSlug === item.slug ? '#FFFFFF' : 'transparent', color: activeSlug === item.slug ? '#1E2124' : '#464D53', fontSize: '21px', fontWeight: activeSlug === item.slug ? 700 : 500, cursor: 'pointer', fontFamily: 'inherit', marginBottom: '2px', borderLeft: activeSlug === item.slug ? `2px solid ${SECTION_COLOR[item.category] ?? '#00A5A3'}` : '2px solid transparent' }}>
                     {item.title}
-                    <div style={{ fontSize: '11px', color: '#1E2124', marginTop: '2px' }}>{item.category}</div>
+                    <div style={{ fontSize: '19px', color: '#1E2124', marginTop: '2px' }}>{item.category}</div>
                   </button>
                 ))
               )}
@@ -228,7 +228,7 @@ const [openSections, setOpenSections] = useState<Set<string>>(
                     style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '7px 8px', borderRadius: '8px', border: 'none', background: 'transparent', cursor: 'pointer', fontFamily: 'inherit' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                       <span style={{ color, flexShrink: 0 }}>{icon}</span>
-                      <span style={{ fontSize: '11px', fontWeight: 800, letterSpacing: '1.2px', color, textTransform: 'uppercase' }}>{sectionName}</span>
+                      <span style={{ fontSize: '19px', fontWeight: 800, letterSpacing: '1.2px', color, textTransform: 'uppercase' }}>{sectionName}</span>
                     </div>
                     <svg width="10" height="10" fill="none" stroke={color} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"
                       style={{ transform: isOpen ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 0.2s', flexShrink: 0, opacity: 0.7 }}>
@@ -238,7 +238,7 @@ const [openSections, setOpenSections] = useState<Set<string>>(
 
                   {/* Description — shown when collapsed */}
                   {!isOpen && SECTION_DESC[sectionName] && (
-                    <div style={{ fontSize: '13px', color: '#1E2124', padding: '0 8px 8px 27px', lineHeight: 1.5 }}>
+                    <div style={{ fontSize: '19px', color: '#1E2124', padding: '0 8px 8px 27px', lineHeight: 1.5 }}>
                       {SECTION_DESC[sectionName]}
                     </div>
                   )}
@@ -250,7 +250,7 @@ const [openSections, setOpenSections] = useState<Set<string>>(
                         const active = activeSlug === item.slug
                         return (
                           <button key={item.slug} onClick={() => selectDoc(item.slug, sectionName)}
-                            style={{ width: '100%', textAlign: 'left', padding: '7px 12px', borderRadius: '8px', border: 'none', background: active ? '#FFFFFF' : 'transparent', color: active ? '#1E2124' : '#464D53', fontSize: '14px', fontWeight: active ? 700 : 500, cursor: 'pointer', fontFamily: 'inherit', marginBottom: '1px', borderLeft: active ? `2px solid ${color}` : '2px solid transparent', lineHeight: 1.4 }}>
+                            style={{ width: '100%', textAlign: 'left', padding: '7px 12px', borderRadius: '8px', border: 'none', background: active ? '#FFFFFF' : 'transparent', color: active ? '#1E2124' : '#464D53', fontSize: '21px', fontWeight: active ? 700 : 500, cursor: 'pointer', fontFamily: 'inherit', marginBottom: '1px', borderLeft: active ? `2px solid ${color}` : '2px solid transparent', lineHeight: 1.4 }}>
                             {item.title}
                           </button>
                         )
@@ -263,7 +263,7 @@ const [openSections, setOpenSections] = useState<Set<string>>(
           )}
 
           {loading && !search && (
-            <div style={{ fontSize: '13px', color: '#1E2124', textAlign: 'center', paddingTop: '12px' }}>Loading…</div>
+            <div style={{ fontSize: '19px', color: '#1E2124', textAlign: 'center', paddingTop: '12px' }}>Loading…</div>
           )}
         </aside>
 
@@ -272,14 +272,14 @@ const [openSections, setOpenSections] = useState<Set<string>>(
           {/* Category badge */}
           {activeCategory && (
             <div style={{ marginBottom: '16px' }}>
-              <span style={{ fontSize: '11px', fontWeight: 700, color: SECTION_COLOR[activeCategory] ?? '#00A5A3', background: `${SECTION_COLOR[activeCategory] ?? '#00A5A3'}15`, padding: '3px 10px', borderRadius: '6px' }}>
+              <span style={{ fontSize: '19px', fontWeight: 700, color: SECTION_COLOR[activeCategory] ?? '#00A5A3', background: `${SECTION_COLOR[activeCategory] ?? '#00A5A3'}15`, padding: '3px 10px', borderRadius: '6px' }}>
                 {activeCategory}
               </span>
             </div>
           )}
 
           {/* Title + subtitle */}
-          <h1 style={{ fontSize: '32px', fontWeight: 900, color: '#1E2124', margin: '0 0 10px', letterSpacing: '-0.5px', lineHeight: 1.2 }}>
+          <h1 style={{ fontSize: '44px', fontWeight: 900, color: '#1E2124', margin: '0 0 10px', letterSpacing: '-0.5px', lineHeight: 1.2 }}>
             {activeSlug === '__scoring'       ? 'How AI Readiness Is Measured'
            : activeSlug === '__questionnaire' ? 'Trescademy Discovery Questionnaire'
            : activeDoc?.title ?? ''}
@@ -293,7 +293,7 @@ const [openSections, setOpenSections] = useState<Set<string>>(
             }
             const subtitle = subtitles[activeSlug] ?? (activeDoc ? `Part of ${activeDoc.category} — for reference.` : '')
             return subtitle ? (
-              <p style={{ fontSize: '15px', color: '#464D53', lineHeight: 1.65, margin: '0 0 28px', maxWidth: '600px' }}>
+              <p style={{ fontSize: '19px', color: '#464D53', lineHeight: 1.65, margin: '0 0 28px', maxWidth: '600px' }}>
                 {subtitle}
               </p>
             ) : null
@@ -310,18 +310,18 @@ const [openSections, setOpenSections] = useState<Set<string>>(
               </div>
             )}
             {!isBuiltIn && !activeDoc && !loading && (
-              <div style={{ color: '#1E2124', fontSize: '16px' }}>Select a document from the sidebar.</div>
+              <div style={{ color: '#1E2124', fontSize: '21px' }}>Select a document from the sidebar.</div>
             )}
           </div>
 
           {/* Footer for DB docs */}
           {!isBuiltIn && activeDoc && (
             <div style={{ marginTop: '48px', paddingTop: '20px', borderTop: '1px solid #C8DFE0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <span style={{ fontSize: '14px', color: '#1E2124' }}>
+              <span style={{ fontSize: '21px', color: '#1E2124' }}>
                 Last updated: {new Date(activeDoc.updated_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}
               </span>
               <a href={`/api/platform-docs?slug=${activeDoc.slug}`} target="_blank" rel="noreferrer"
-                style={{ fontSize: '14px', color: '#00A5A3', textDecoration: 'none', fontWeight: 600 }}>
+                style={{ fontSize: '21px', color: '#00A5A3', textDecoration: 'none', fontWeight: 600 }}>
                 Raw JSON
               </a>
             </div>

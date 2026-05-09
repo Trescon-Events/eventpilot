@@ -81,10 +81,10 @@ export default function LoginPage() {
           </div>
           <div style={{ width: '1px', height: '36px', background: 'rgba(255,255,255,0.3)' }} />
           <div>
-            <div style={{ fontSize: '17px', fontWeight: 800, color: 'white', letterSpacing: '-0.2px', lineHeight: 1.2 }}>Trescademy</div>
+            <div style={{ fontSize: '19px', fontWeight: 800, color: 'white', letterSpacing: '-0.2px', lineHeight: 1.2 }}>Trescademy</div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '4px' }}>
               <div style={{ width: '5px', height: '5px', borderRadius: '50%', background: '#C0F43C', animation: 'pulse 2s infinite' }} />
-              <span style={{ fontSize: '13px', fontWeight: 700, letterSpacing: '1.5px', textTransform: 'uppercase', color: '#00A5A3' }}>Going live soon</span>
+              <span style={{ fontSize: '19px', fontWeight: 700, letterSpacing: '1.5px', textTransform: 'uppercase', color: '#00A5A3' }}>Going live soon</span>
             </div>
           </div>
         </div>
@@ -104,12 +104,12 @@ export default function LoginPage() {
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '10px' }}>
             {['Dubai', 'Bangalore', 'Mangalore', 'Manipal'].map((city, i) => (
               <span key={city} style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                <span style={{ fontSize: '15px', fontWeight: 700, color: '#FFFFFF', letterSpacing: '0.2px' }}>{city}</span>
-                {i < 3 && <span style={{ color: '#00A5A3', fontWeight: 900, fontSize: '16px' }}>·</span>}
+                <span style={{ fontSize: '19px', fontWeight: 700, color: '#FFFFFF', letterSpacing: '0.2px' }}>{city}</span>
+                {i < 3 && <span style={{ color: '#00A5A3', fontWeight: 900, fontSize: '21px' }}>·</span>}
               </span>
             ))}
           </div>
-          <div style={{ fontSize: '15px', fontStyle: 'italic', fontWeight: 500, color: '#00A5A3', letterSpacing: '0.2px' }}>
+          <div style={{ fontSize: '19px', fontStyle: 'italic', fontWeight: 500, color: '#00A5A3', letterSpacing: '0.2px' }}>
             &ldquo;Every engagement delivers results.&rdquo; — Trescon Global
           </div>
         </div>
@@ -131,13 +131,13 @@ export default function LoginPage() {
             <div style={{ width: '44px', height: '44px', background: '#00A5A3', borderRadius: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '20px' }}>
               <svg width="20" height="20" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
             </div>
-            <h2 style={{ fontSize: '24px', fontWeight: 900, color: '#1E2124', margin: 0, letterSpacing: '-0.3px' }}>Sign in to Trescademy</h2>
+            <h2 style={{ fontSize: '44px', fontWeight: 900, color: '#1E2124', margin: 0, letterSpacing: '-0.3px' }}>Sign in to Trescademy</h2>
           </div>
 
           {/* Form */}
           <form onSubmit={handleLogin} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-              <label style={{ fontSize: '13px', fontWeight: 700, color: '#464D53', letterSpacing: '1px', textTransform: 'uppercase' }}>
+              <label style={{ fontSize: '19px', fontWeight: 700, color: '#464D53', letterSpacing: '1px', textTransform: 'uppercase' }}>
                 Work Email
               </label>
               <input
@@ -147,12 +147,12 @@ export default function LoginPage() {
                 placeholder="you@tresconglobal.com"
                 autoComplete="email"
                 disabled={loading}
-                style={{ padding: '13px 16px', borderRadius: '12px', border: '1px solid #C8DFE0', background: '#FFFFFF', color: '#1E2124', fontSize: '16px', fontFamily: 'inherit', outline: 'none' }}
+                style={{ padding: '13px 16px', borderRadius: '12px', border: '1px solid #C8DFE0', background: '#FFFFFF', color: '#1E2124', fontSize: '21px', fontFamily: 'inherit', outline: 'none' }}
               />
             </div>
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-              <label style={{ fontSize: '13px', fontWeight: 700, color: '#464D53', letterSpacing: '1px', textTransform: 'uppercase' }}>
+              <label style={{ fontSize: '19px', fontWeight: 700, color: '#464D53', letterSpacing: '1px', textTransform: 'uppercase' }}>
                 Password
               </label>
               <div style={{ position: 'relative' }}>
@@ -163,7 +163,7 @@ export default function LoginPage() {
                   placeholder="Your password"
                   autoComplete="current-password"
                   disabled={loading}
-                  style={{ width: '100%', boxSizing: 'border-box', padding: '13px 44px 13px 16px', borderRadius: '12px', border: '1px solid #C8DFE0', background: '#FFFFFF', color: '#1E2124', fontSize: '16px', fontFamily: 'inherit', outline: 'none' }}
+                  style={{ width: '100%', boxSizing: 'border-box', padding: '13px 44px 13px 16px', borderRadius: '12px', border: '1px solid #C8DFE0', background: '#FFFFFF', color: '#1E2124', fontSize: '21px', fontFamily: 'inherit', outline: 'none' }}
                 />
                 <button
                   type="button"
@@ -180,7 +180,7 @@ export default function LoginPage() {
             </div>
 
             {error && (
-              <div style={{ padding: '12px 16px', background: 'rgba(255,107,107,0.08)', border: '1px solid rgba(255,107,107,0.25)', borderRadius: '10px', fontSize: '15px', color: '#FF6B6B', fontWeight: 600 }}>
+              <div style={{ padding: '12px 16px', background: 'rgba(255,107,107,0.08)', border: '1px solid rgba(255,107,107,0.25)', borderRadius: '10px', fontSize: '19px', color: '#FF6B6B', fontWeight: 600 }}>
                 {error}
               </div>
             )}
@@ -188,7 +188,7 @@ export default function LoginPage() {
             <button
               type="submit"
               disabled={loading}
-              style={{ marginTop: '4px', padding: '14px', borderRadius: '12px', border: 'none', background: loading ? 'rgba(0,165,163,0.5)' : '#00A5A3', color: 'white', fontSize: '17px', fontWeight: 800, cursor: loading ? 'not-allowed' : 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
+              style={{ marginTop: '4px', padding: '14px', borderRadius: '12px', border: 'none', background: loading ? 'rgba(0,165,163,0.5)' : '#00A5A3', color: 'white', fontSize: '19px', fontWeight: 800, cursor: loading ? 'not-allowed' : 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
               {loading ? (
                 <>
                   <div style={{ width: '16px', height: '16px', border: '2px solid rgba(255,255,255,0.3)', borderTopColor: 'white', borderRadius: '50%', animation: 'spin 0.7s linear infinite' }} />
@@ -204,7 +204,7 @@ export default function LoginPage() {
           </form>
 
           {/* Help note */}
-          <div style={{ marginTop: '28px', padding: '14px 16px', background: '#FFFFFF', border: '1px solid #C8DFE0', borderRadius: '12px', fontSize: '14px', color: '#1E2124', lineHeight: 1.65, textAlign: 'center' }}>
+          <div style={{ marginTop: '28px', padding: '14px 16px', background: '#FFFFFF', border: '1px solid #C8DFE0', borderRadius: '12px', fontSize: '21px', color: '#1E2124', lineHeight: 1.65, textAlign: 'center' }}>
             Having trouble logging in?<br />
             Contact your manager or the HR team.
           </div>
@@ -212,7 +212,7 @@ export default function LoginPage() {
           {/* Bottom wordmark */}
           <div style={{ marginTop: '32px', textAlign: 'center', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
             <div style={{ width: '5px', height: '5px', borderRadius: '50%', background: '#00A5A3', animation: 'pulse 2s infinite' }} />
-            <span style={{ fontSize: '13px', fontWeight: 700, color: '#1E2124', letterSpacing: '1.5px', textTransform: 'uppercase' }}>Trescademy · Trescon Global</span>
+            <span style={{ fontSize: '19px', fontWeight: 700, color: '#1E2124', letterSpacing: '1.5px', textTransform: 'uppercase' }}>Trescademy · Trescon Global</span>
           </div>
         </div>
       </div>
