@@ -95,14 +95,14 @@ function LibraryContent() {
               <div style={{ width: '24px', height: '24px', background: '#00A5A3', borderRadius: '7px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                 <svg width="12" height="12" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
               </div>
-              <span style={{ fontSize: '14px', fontWeight: 800, color: 'white' }}>Trescademy</span>
+              <span style={{ fontSize: '16px', fontWeight: 800, color: '#1E2124' }}>Trescademy</span>
             </div>
           </Link>
-          <span style={{ color: 'rgba(255,255,255,0.2)' }}>|</span>
-          <span style={{ fontSize: '12px', fontWeight: 600, color: 'rgba(255,255,255,0.5)' }}>Course Library</span>
+          <span style={{ color: 'rgba(70,77,83,0.3)' }}>|</span>
+          <span style={{ fontSize: '14px', fontWeight: 600, color: '#464D53' }}>Course Library</span>
         </div>
         {staffId && (
-          <Link href={`/dashboard?id=${staffId}`} style={{ fontSize: '12px', fontWeight: 700, color: '#00A5A3', textDecoration: 'none', background: 'rgba(0,165,163,0.12)', border: '1px solid rgba(0,165,163,0.3)', padding: '6px 14px', borderRadius: '20px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+          <Link href={`/dashboard?id=${staffId}`} style={{ fontSize: '14px', fontWeight: 700, color: '#00A5A3', textDecoration: 'none', background: 'rgba(0,165,163,0.12)', border: '1px solid rgba(0,165,163,0.3)', padding: '6px 14px', borderRadius: '20px', display: 'flex', alignItems: 'center', gap: '6px' }}>
             <svg width="11" height="11" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg>
             My Dashboard
           </Link>
@@ -114,8 +114,8 @@ function LibraryContent() {
         {/* Header */}
         <div style={{ marginBottom: '32px' }}>
           <div style={{ fontSize: '11px', fontWeight: 800, letterSpacing: '2.5px', color: '#00A5A3', textTransform: 'uppercase', marginBottom: '8px' }}>Trescademy Learning Library</div>
-          <h1 style={{ fontSize: '28px', fontWeight: 900, margin: '0 0 6px', letterSpacing: '-0.4px', color: 'white' }}>All Courses</h1>
-          <p style={{ fontSize: '14px', color: 'rgba(255,255,255,0.82)', margin: 0 }}>
+          <h1 style={{ fontSize: '32px', fontWeight: 900, margin: '0 0 6px', letterSpacing: '-0.4px', color: '#1E2124' }}>All Courses</h1>
+          <p style={{ fontSize: '16px', color: '#464D53', margin: 0 }}>
             {courses.length} courses · {completedCount} completed by you
           </p>
         </div>
@@ -132,14 +132,15 @@ function LibraryContent() {
                 onClick={() => setTierFilter(tierFilter === tier ? 'all' : tier)}
                 style={{
                   padding: '16px 18px', borderRadius: '14px', textAlign: 'left', cursor: 'pointer', fontFamily: 'inherit',
-                  background: tierFilter === tier ? cfg.bg : 'rgba(255,255,255,0.03)',
-                  border: `1px solid ${tierFilter === tier ? cfg.border : 'rgba(255,255,255,0.08)'}`,
+                  background: tierFilter === tier ? cfg.bg : '#FFFFFF',
+                  border: `1px solid ${tierFilter === tier ? cfg.border : '#E6EFF0'}`,
+                  boxShadow: '0 1px 4px rgba(0,165,163,0.06), 0 1px 2px rgba(0,0,0,0.04)',
                   transition: 'all 0.15s ease',
                 }}
               >
-                <div style={{ fontSize: '10px', fontWeight: 800, color: cfg.color, textTransform: 'uppercase', letterSpacing: '1.5px', marginBottom: '6px' }}>{cfg.label}</div>
-                <div style={{ fontSize: '20px', fontWeight: 900, color: 'white', marginBottom: '2px' }}>{count}</div>
-                <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.70)' }}>{done} completed</div>
+                <div style={{ fontSize: '11px', fontWeight: 800, color: cfg.color, textTransform: 'uppercase', letterSpacing: '1.5px', marginBottom: '6px' }}>{cfg.label}</div>
+                <div style={{ fontSize: '24px', fontWeight: 900, color: '#1E2124', marginBottom: '2px' }}>{count}</div>
+                <div style={{ fontSize: '13px', color: '#464D53' }}>{done} completed</div>
               </button>
             )
           })}
@@ -150,7 +151,7 @@ function LibraryContent() {
           <div style={{ marginBottom: '32px' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '14px' }}>
               <div style={{ width: '7px', height: '7px', borderRadius: '50%', background: '#FF9F43', flexShrink: 0 }} />
-              <span style={{ fontSize: '11px', fontWeight: 800, color: '#FF9F43', textTransform: 'uppercase', letterSpacing: '2px' }}>
+              <span style={{ fontSize: '13px', fontWeight: 800, color: '#FF9F43', textTransform: 'uppercase', letterSpacing: '2px' }}>
                 Mandatory — {mandatoryUncompleted.length} remaining
               </span>
             </div>
@@ -164,14 +165,14 @@ function LibraryContent() {
                     style={{ display: 'flex', flexDirection: 'column', background: 'rgba(255,159,67,0.06)', border: '1px solid rgba(255,159,67,0.3)', borderRadius: '16px', padding: '20px', textDecoration: 'none' }}
                   >
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '10px' }}>
-                      <span style={{ fontSize: '10px', fontWeight: 800, color: '#FF9F43', background: 'rgba(255,159,67,0.15)', border: '1px solid rgba(255,159,67,0.35)', padding: '3px 9px', borderRadius: '20px' }}>Mandatory</span>
-                      <span style={{ fontSize: '10px', fontWeight: 800, color: cfg.color, background: cfg.bg, padding: '3px 9px', borderRadius: '20px', textTransform: 'uppercase', letterSpacing: '1px' }}>{cfg.label}</span>
+                      <span style={{ fontSize: '11px', fontWeight: 800, color: '#FF9F43', background: 'rgba(255,159,67,0.15)', border: '1px solid rgba(255,159,67,0.35)', padding: '3px 9px', borderRadius: '20px' }}>Mandatory</span>
+                      <span style={{ fontSize: '11px', fontWeight: 800, color: cfg.color, background: cfg.bg, padding: '3px 9px', borderRadius: '20px', textTransform: 'uppercase', letterSpacing: '1px' }}>{cfg.label}</span>
                     </div>
-                    <div style={{ fontSize: '15px', fontWeight: 800, color: 'white', marginBottom: '6px', lineHeight: 1.3, flex: 1 }}>{course.title}</div>
-                    <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.75)', marginBottom: '14px', lineHeight: 1.55 }}>{course.subtitle}</div>
+                    <div style={{ fontSize: '17px', fontWeight: 800, color: '#1E2124', marginBottom: '6px', lineHeight: 1.3, flex: 1 }}>{course.title}</div>
+                    <div style={{ fontSize: '14px', color: '#464D53', marginBottom: '14px', lineHeight: 1.65 }}>{course.subtitle}</div>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: '1px solid rgba(255,159,67,0.15)', paddingTop: '10px' }}>
-                      <span style={{ fontSize: '11px', color: 'rgba(255,255,255,0.70)', fontWeight: 600 }}>{course.estimated_minutes} min</span>
-                      <span style={{ fontSize: '11px', fontWeight: 800, color: '#FF9F43' }}>Start Now</span>
+                      <span style={{ fontSize: '13px', color: '#464D53', fontWeight: 600 }}>{course.estimated_minutes} min</span>
+                      <span style={{ fontSize: '13px', fontWeight: 800, color: '#FF9F43' }}>Start Now</span>
                     </div>
                   </Link>
                 )
@@ -182,8 +183,8 @@ function LibraryContent() {
 
         {/* All Courses — section header + filters */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '16px' }}>
-          <div style={{ width: '7px', height: '7px', borderRadius: '50%', background: 'rgba(255,255,255,0.25)', flexShrink: 0 }} />
-          <span style={{ fontSize: '11px', fontWeight: 800, color: 'rgba(255,255,255,0.5)', textTransform: 'uppercase', letterSpacing: '2px' }}>All Courses</span>
+          <div style={{ width: '7px', height: '7px', borderRadius: '50%', background: '#00A5A3', flexShrink: 0 }} />
+          <span style={{ fontSize: '13px', fontWeight: 800, color: 'rgba(70,77,83,0.55)', textTransform: 'uppercase', letterSpacing: '2px' }}>All Courses</span>
         </div>
 
         {/* Filters */}
@@ -195,7 +196,7 @@ function LibraryContent() {
               { val: 'manual', label: 'Trescademy Curated' },
               { val: 'gemini', label: 'AI Generated' },
             ].map(({ val, label }) => (
-              <button key={val} onClick={() => setSourceFilter(val)} style={{ padding: '7px 14px', borderRadius: '20px', border: `1px solid ${sourceFilter === val ? '#00A5A3' : 'rgba(255,255,255,0.12)'}`, background: sourceFilter === val ? '#00A5A315' : 'transparent', color: sourceFilter === val ? '#00A5A3' : 'rgba(255,255,255,0.6)', fontSize: '12px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
+              <button key={val} onClick={() => setSourceFilter(val)} style={{ padding: '7px 14px', borderRadius: '20px', border: `1px solid ${sourceFilter === val ? '#00A5A3' : '#E6EFF0'}`, background: sourceFilter === val ? '#00A5A315' : '#FFFFFF', color: sourceFilter === val ? '#00A5A3' : '#464D53', fontSize: '14px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
                 {label}
               </button>
             ))}
@@ -205,12 +206,12 @@ function LibraryContent() {
           <select
             value={deptFilter}
             onChange={e => setDeptFilter(e.target.value)}
-            style={{ padding: '7px 14px', borderRadius: '20px', border: '1px solid rgba(255,255,255,0.12)', background: '#1A1D20', color: 'rgba(255,255,255,0.8)', fontSize: '12px', fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', outline: 'none' }}
+            style={{ padding: '7px 14px', borderRadius: '20px', border: '1px solid #E6EFF0', background: '#FFFFFF', color: '#464D53', fontSize: '14px', fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', outline: 'none' }}
           >
             {DEPTS.map(d => <option key={d} value={d}>{d}</option>)}
           </select>
 
-          <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.70)', marginLeft: 'auto' }}>
+          <div style={{ fontSize: '14px', color: '#464D53', marginLeft: 'auto' }}>
             {filtered.length} course{filtered.length !== 1 ? 's' : ''} shown
           </div>
         </div>
@@ -218,11 +219,11 @@ function LibraryContent() {
         {/* Course grid */}
         {loading ? (
           <div style={{ textAlign: 'center', padding: '60px 0' }}>
-            <div style={{ width: '36px', height: '36px', border: '3px solid rgba(255,255,255,0.1)', borderTopColor: '#00A5A3', borderRadius: '50%', animation: 'spin 0.8s linear infinite', margin: '0 auto 14px' }} />
-            <div style={{ color: 'rgba(255,255,255,0.45)', fontSize: '13px' }}>Loading library…</div>
+            <div style={{ width: '36px', height: '36px', border: '3px solid rgba(15,23,42,0.1)', borderTopColor: '#00A5A3', borderRadius: '50%', animation: 'spin 0.8s linear infinite', margin: '0 auto 14px' }} />
+            <div style={{ color: 'rgba(70,77,83,0.55)', fontSize: '15px' }}>Loading library…</div>
           </div>
         ) : filtered.length === 0 ? (
-          <div style={{ textAlign: 'center', padding: '60px 0', color: 'rgba(255,255,255,0.45)', fontSize: '14px' }}>
+          <div style={{ textAlign: 'center', padding: '60px 0', color: '#464D53', fontSize: '16px' }}>
             No courses match the current filters.
           </div>
         ) : (
@@ -239,8 +240,9 @@ function LibraryContent() {
                   href={`/dashboard/course/${course.id}${staffId ? `?staff_id=${staffId}` : ''}`}
                   style={{
                     display: 'flex', flexDirection: 'column',
-                    background: done ? 'rgba(192,244,60,0.04)' : 'rgba(255,255,255,0.03)',
-                    border: `1px solid ${done ? 'rgba(192,244,60,0.2)' : 'rgba(255,255,255,0.08)'}`,
+                    background: done ? 'rgba(192,244,60,0.04)' : '#FFFFFF',
+                    border: `1px solid ${done ? 'rgba(192,244,60,0.2)' : '#E6EFF0'}`,
+                    boxShadow: '0 1px 4px rgba(0,165,163,0.06), 0 1px 2px rgba(0,0,0,0.04)',
                     borderRadius: '16px', padding: '22px', textDecoration: 'none',
                     transition: 'border-color 0.15s ease, transform 0.15s ease',
                     cursor: 'pointer',
@@ -249,14 +251,14 @@ function LibraryContent() {
                   {/* Top row */}
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '14px', gap: '8px' }}>
                     <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
-                      <span style={{ fontSize: '10px', fontWeight: 800, color: cfg.color, background: cfg.bg, border: `1px solid ${cfg.border}`, padding: '3px 9px', borderRadius: '20px', textTransform: 'uppercase', letterSpacing: '1px' }}>
+                      <span style={{ fontSize: '11px', fontWeight: 800, color: cfg.color, background: cfg.bg, border: `1px solid ${cfg.border}`, padding: '3px 9px', borderRadius: '20px', textTransform: 'uppercase', letterSpacing: '1px' }}>
                         {cfg.label}
                       </span>
                       {course.is_mandatory && (
-                        <span style={{ fontSize: '10px', fontWeight: 700, color: '#FF9F43', background: '#FF9F4312', padding: '3px 9px', borderRadius: '20px' }}>Mandatory</span>
+                        <span style={{ fontSize: '11px', fontWeight: 700, color: '#FF9F43', background: '#FF9F4312', padding: '3px 9px', borderRadius: '20px' }}>Mandatory</span>
                       )}
                       {course.source === 'gemini' && (
-                        <span style={{ fontSize: '10px', fontWeight: 700, color: '#A78BFA', background: '#A78BFA12', padding: '3px 9px', borderRadius: '20px' }}>AI</span>
+                        <span style={{ fontSize: '11px', fontWeight: 700, color: '#A78BFA', background: '#A78BFA12', padding: '3px 9px', borderRadius: '20px' }}>AI</span>
                       )}
                     </div>
                     {done && (
@@ -266,10 +268,10 @@ function LibraryContent() {
                     )}
                   </div>
 
-                  <div style={{ fontSize: '15px', fontWeight: 800, color: 'white', marginBottom: '6px', lineHeight: 1.3, flex: 1 }}>
+                  <div style={{ fontSize: '15px', fontWeight: 800, color: '#0F172A', marginBottom: '6px', lineHeight: 1.3, flex: 1 }}>
                     {course.title}
                   </div>
-                  <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.75)', marginBottom: '16px', lineHeight: 1.5 }}>
+                  <div style={{ fontSize: '12px', color: 'rgba(15,23,42,0.65)', marginBottom: '16px', lineHeight: 1.5 }}>
                     {course.subtitle}
                   </div>
 
@@ -277,9 +279,9 @@ function LibraryContent() {
                   {course.suggested_by_name && (
                     <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '10px', padding: '6px 10px', background: 'rgba(164,120,255,0.07)', border: '1px solid rgba(164,120,255,0.15)', borderRadius: '8px' }}>
                       <div style={{ width: '18px', height: '18px', borderRadius: '5px', background: 'rgba(164,120,255,0.25)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                        <span style={{ fontSize: '9px', fontWeight: 900, color: '#A478FF' }}>{course.suggested_by_name.charAt(0)}</span>
+                        <span style={{ fontSize: '11px', fontWeight: 900, color: '#A478FF' }}>{course.suggested_by_name.charAt(0)}</span>
                       </div>
-                      <span style={{ fontSize: '11px', color: 'rgba(255,255,255,0.5)' }}>
+                      <span style={{ fontSize: '13px', color: '#464D53' }}>
                         Suggested by <strong style={{ color: '#A478FF', fontWeight: 700 }}>{course.suggested_by_name}</strong>
                         {course.suggested_by_role && <span> · {course.suggested_by_role}</span>}
                       </span>
@@ -287,12 +289,12 @@ function LibraryContent() {
                   )}
 
                   {/* Footer */}
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: '1px solid rgba(255,255,255,0.06)', paddingTop: '12px' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: '1px solid #E6EFF0', paddingTop: '12px' }}>
                     <div style={{ display: 'flex', gap: '12px' }}>
-                      <span style={{ fontSize: '11px', color: 'rgba(255,255,255,0.70)', fontWeight: 600 }}>{course.estimated_minutes} min</span>
-                      {course.tool_name && <span style={{ fontSize: '11px', color: 'rgba(255,255,255,0.70)', fontWeight: 600 }}>{course.tool_name}</span>}
+                      <span style={{ fontSize: '13px', color: '#464D53', fontWeight: 600 }}>{course.estimated_minutes} min</span>
+                      {course.tool_name && <span style={{ fontSize: '13px', color: '#464D53', fontWeight: 600 }}>{course.tool_name}</span>}
                     </div>
-                    <div style={{ fontSize: '11px', fontWeight: 700, color: done ? '#C0F43C' : attempted ? '#FF9F43' : 'rgba(255,255,255,0.50)' }}>
+                    <div style={{ fontSize: '13px', fontWeight: 700, color: done ? '#C0F43C' : attempted ? '#FF9F43' : 'rgba(70,77,83,0.55)' }}>
                       {done ? 'Passed' : attempted ? `Score: ${completion?.test_score ?? 0}%` : 'Not started'}
                     </div>
                   </div>
@@ -311,18 +313,19 @@ function LibraryContent() {
 const S = {
   page: {
     fontFamily: 'var(--font-manrope), Manrope, sans-serif',
-    background: '#0C0E10',
+    background: '#F6FFFE',
     minHeight:  '100vh',
-    color:      'white',
+    color:      '#1E2124',
   },
   nav: {
-    background:   'rgba(255,255,255,0.03)',
-    borderBottom: '1px solid rgba(255,255,255,0.08)',
+    background:   '#FFFFFF',
+    borderBottom: '1px solid #E6EFF0',
     padding:      '0 32px',
     height:       '64px',
     display:      'flex',
     alignItems:   'center',
     justifyContent: 'space-between',
+    boxShadow:    '0 1px 3px rgba(0,165,163,0.08)',
   },
 }
 

@@ -91,9 +91,9 @@ function buildSections(staffId: string | null): PlatformSection[] {
         {
           title:       'Insights',
           description: 'Office-wide adoption trends, weekly learning activity, and team stats',
-          color:       'rgba(255,255,255,0.4)',
-          bg:          'rgba(255,255,255,0.03)',
-          border:      'rgba(255,255,255,0.08)',
+          color:       '#464D53',
+          bg:          '#EEF9F9',
+          border:      '#E6EFF0',
           badge:       'Coming Soon',
           icon: (
             <svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24">
@@ -106,9 +106,9 @@ function buildSections(staffId: string | null): PlatformSection[] {
         {
           title:       'Org Chart',
           description: 'Visual hierarchy of reporting lines and team structure',
-          color:       'rgba(255,255,255,0.4)',
-          bg:          'rgba(255,255,255,0.03)',
-          border:      'rgba(255,255,255,0.08)',
+          color:       '#464D53',
+          bg:          '#EEF9F9',
+          border:      '#E6EFF0',
           badge:       'Coming Soon',
           icon: (
             <svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24">
@@ -159,9 +159,9 @@ function buildSections(staffId: string | null): PlatformSection[] {
         {
           title:       'Content Calendar',
           description: 'Full month view of all scheduled posts across campaigns',
-          color:       'rgba(255,255,255,0.4)',
-          bg:          'rgba(255,255,255,0.03)',
-          border:      'rgba(255,255,255,0.08)',
+          color:       '#464D53',
+          bg:          '#EEF9F9',
+          border:      '#E6EFF0',
           badge:       'Coming Soon',
           icon: (
             <svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24">
@@ -196,9 +196,9 @@ function buildSections(staffId: string | null): PlatformSection[] {
           title:       'Platform Docs',
           description: 'Internal documentation for how Trescademy works',
           href:        '/docs',
-          color:       'rgba(255,255,255,0.7)',
-          bg:          'rgba(255,255,255,0.04)',
-          border:      'rgba(255,255,255,0.1)',
+          color:       '#464D53',
+          bg:          '#EEF9F9',
+          border:      '#E6EFF0',
           badge:       'Admin',
           icon: (
             <svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24">
@@ -213,9 +213,9 @@ function buildSections(staffId: string | null): PlatformSection[] {
         {
           title:       'Learning Paths',
           description: 'Assign curated learning sequences to teams or individuals',
-          color:       'rgba(255,255,255,0.4)',
-          bg:          'rgba(255,255,255,0.03)',
-          border:      'rgba(255,255,255,0.08)',
+          color:       '#464D53',
+          bg:          '#EEF9F9',
+          border:      '#E6EFF0',
           badge:       'Coming Soon',
           icon: (
             <svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24">
@@ -254,17 +254,17 @@ export default function PlatformMenu({ staffId }: PlatformMenuProps) {
         title="Platform menu"
         style={{
           width: '36px', height: '36px', borderRadius: '9px',
-          background: 'rgba(255,255,255,0.05)',
-          border: '1px solid rgba(255,255,255,0.1)',
+          background: '#EEF9F9',
+          border: '1px solid #E6EFF0',
           display: 'flex', alignItems: 'center', justifyContent: 'center',
           cursor: 'pointer', flexShrink: 0,
         }}
       >
         <svg width="15" height="15" viewBox="0 0 15 15" fill="none">
-          <rect x="1" y="1" width="5" height="5" rx="1" fill="rgba(255,255,255,0.6)"/>
-          <rect x="9" y="1" width="5" height="5" rx="1" fill="rgba(255,255,255,0.6)"/>
-          <rect x="1" y="9" width="5" height="5" rx="1" fill="rgba(255,255,255,0.6)"/>
-          <rect x="9" y="9" width="5" height="5" rx="1" fill="rgba(255,255,255,0.6)"/>
+          <rect x="1" y="1" width="5" height="5" rx="1" fill="#00A5A3"/>
+          <rect x="9" y="1" width="5" height="5" rx="1" fill="#00A5A3"/>
+          <rect x="1" y="9" width="5" height="5" rx="1" fill="#00A5A3"/>
+          <rect x="9" y="9" width="5" height="5" rx="1" fill="#00A5A3"/>
         </svg>
       </button>
 
@@ -284,8 +284,8 @@ export default function PlatformMenu({ staffId }: PlatformMenuProps) {
             onClick={e => e.stopPropagation()}
             style={{
               width: '100%', maxWidth: '860px', margin: '0 16px',
-              background: '#0F1214',
-              border: '1px solid rgba(255,255,255,0.1)',
+              background: '#FFFFFF',
+              border: '1px solid #E6EFF0',
               borderRadius: '20px',
               overflow: 'hidden',
               maxHeight: 'calc(100vh - 120px)',
@@ -293,16 +293,16 @@ export default function PlatformMenu({ staffId }: PlatformMenuProps) {
             }}
           >
             {/* Menu header */}
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '20px 24px', borderBottom: '1px solid rgba(255,255,255,0.07)' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '20px 24px', borderBottom: '1px solid #E6EFF0' }}>
               <div>
-                <div style={{ fontSize: '15px', fontWeight: 800, color: 'white' }}>Trescademy Platform</div>
-                <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.4)', marginTop: '2px' }}>All features · navigate anywhere</div>
+                <div style={{ fontSize: '17px', fontWeight: 800, color: '#1E2124' }}>Trescademy Platform</div>
+                <div style={{ fontSize: '14px', color: 'rgba(70,77,83,0.55)', marginTop: '2px' }}>All features · navigate anywhere</div>
               </div>
               <button
                 onClick={close}
-                style={{ width: '32px', height: '32px', borderRadius: '8px', background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}
+                style={{ width: '32px', height: '32px', borderRadius: '8px', background: '#EEF9F9', border: '1px solid #E6EFF0', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}
               >
-                <svg width="14" height="14" fill="none" stroke="rgba(255,255,255,0.6)" strokeWidth="2.5" strokeLinecap="round" viewBox="0 0 24 24">
+                <svg width="14" height="14" fill="none" stroke="#464D53" strokeWidth="2.5" strokeLinecap="round" viewBox="0 0 24 24">
                   <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
                 </svg>
               </button>
@@ -312,7 +312,7 @@ export default function PlatformMenu({ staffId }: PlatformMenuProps) {
             <div style={{ padding: '20px 24px 28px' }}>
               {sections.map(section => (
                 <div key={section.heading} style={{ marginBottom: '28px' }}>
-                  <div style={{ fontSize: '10px', fontWeight: 800, letterSpacing: '2px', textTransform: 'uppercase', color: 'rgba(255,255,255,0.3)', marginBottom: '12px' }}>
+                  <div style={{ fontSize: '11px', fontWeight: 800, letterSpacing: '2px', textTransform: 'uppercase', color: 'rgba(70,77,83,0.55)', marginBottom: '12px' }}>
                     {section.heading}
                   </div>
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '10px' }}>
@@ -335,19 +335,19 @@ export default function PlatformMenu({ staffId }: PlatformMenuProps) {
                             <div style={{ color: item.color }}>{item.icon}</div>
                             {item.badge && (
                               <span style={{
-                                fontSize: '9px', fontWeight: 800, letterSpacing: '1px',
+                                fontSize: '11px', fontWeight: 800, letterSpacing: '1px',
                                 textTransform: 'uppercase', padding: '2px 7px',
                                 borderRadius: '20px',
-                                background: isSoon ? 'rgba(255,255,255,0.06)' : `${item.bg}`,
+                                background: isSoon ? '#EEF9F9' : `${item.bg}`,
                                 border: `1px solid ${item.border}`,
-                                color: isSoon ? 'rgba(255,255,255,0.3)' : item.color,
+                                color: isSoon ? 'rgba(70,77,83,0.55)' : item.color,
                               }}>
                                 {item.badge}
                               </span>
                             )}
                           </div>
-                          <div style={{ fontSize: '13px', fontWeight: 700, color: isSoon ? 'rgba(255,255,255,0.4)' : 'white', marginBottom: '4px' }}>{item.title}</div>
-                          <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.4)', lineHeight: 1.55 }}>{item.description}</div>
+                          <div style={{ fontSize: '15px', fontWeight: 700, color: isSoon ? 'rgba(70,77,83,0.55)' : '#1E2124', marginBottom: '4px' }}>{item.title}</div>
+                          <div style={{ fontSize: '13px', color: 'rgba(70,77,83,0.55)', lineHeight: 1.65 }}>{item.description}</div>
                         </div>
                       )
 

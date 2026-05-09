@@ -93,7 +93,7 @@ function ProficiencyInput({
 }) {
   if (tools.length === 0) {
     return (
-      <div style={{ padding: '20px', borderRadius: '14px', border: '1px solid rgba(255,255,255,0.1)', color: 'rgba(255,255,255,0.5)', fontSize: '14px', textAlign: 'center' }}>
+      <div style={{ padding: '20px', borderRadius: '14px', border: '1px solid #E6EFF0', color: '#464D53', fontSize: '16px', textAlign: 'center' }}>
         Go back and select the tools you use first.
       </div>
     )
@@ -102,10 +102,10 @@ function ProficiencyInput({
     <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
       {tools.map(tool => (
         <div key={tool}>
-          <div style={{ fontSize: '14px', fontWeight: 700, color: 'white', marginBottom: '10px' }}>
+          <div style={{ fontSize: '16px', fontWeight: 700, color: '#1E2124', marginBottom: '10px' }}>
             {tool}
             {value[tool] && (
-              <span style={{ marginLeft: '10px', fontSize: '11px', fontWeight: 700, color: PROFICIENCY_LEVELS[value[tool] - 1].color, background: `${PROFICIENCY_LEVELS[value[tool] - 1].color}18`, padding: '2px 8px', borderRadius: '6px' }}>
+              <span style={{ marginLeft: '10px', fontSize: '13px', fontWeight: 700, color: PROFICIENCY_LEVELS[value[tool] - 1].color, background: `${PROFICIENCY_LEVELS[value[tool] - 1].color}18`, padding: '2px 8px', borderRadius: '6px' }}>
                 {PROFICIENCY_LEVELS[value[tool] - 1].label}
               </span>
             )}
@@ -120,13 +120,13 @@ function ProficiencyInput({
                   onClick={() => onChange({ ...value, [tool]: level })}
                   style={{
                     padding: '12px 10px', borderRadius: '12px', textAlign: 'left',
-                    border: `1.5px solid ${sel ? color : 'rgba(255,255,255,0.1)'}`,
-                    background: sel ? `${color}18` : 'rgba(255,255,255,0.03)',
+                    border: `1.5px solid ${sel ? color : '#E6EFF0'}`,
+                    background: sel ? `${color}18` : '#EEF9F9',
                     cursor: 'pointer', fontFamily: 'inherit', transition: 'all 0.15s ease',
                   }}
                 >
-                  <div style={{ fontSize: '13px', fontWeight: 700, color: sel ? color : 'rgba(255,255,255,0.55)', marginBottom: '4px' }}>{label}</div>
-                  <div style={{ fontSize: '10px', color: sel ? color : 'rgba(255,255,255,0.70)', lineHeight: 1.4 }}>{desc}</div>
+                  <div style={{ fontSize: '15px', fontWeight: 700, color: sel ? color : '#464D53', marginBottom: '4px' }}>{label}</div>
+                  <div style={{ fontSize: '11px', color: sel ? color : 'rgba(70,77,83,0.55)', lineHeight: 1.4 }}>{desc}</div>
                 </button>
               )
             })}
@@ -356,11 +356,11 @@ function ProfileContent() {
 
   /* ── Styles ── */
   const S = {
-    page:   { fontFamily: 'var(--font-manrope), Manrope, sans-serif', background: '#0C0E10', minHeight: '100vh', color: 'white' },
-    nav:    { background: 'rgba(255,255,255,0.04)', borderBottom: '1px solid rgba(255,255,255,0.08)', padding: '0 40px', height: '56px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' },
+    page:   { fontFamily: 'var(--font-manrope), Manrope, sans-serif', background: '#F6FFFE', minHeight: '100vh', color: '#1E2124' },
+    nav:    { background: '#FFFFFF', borderBottom: '1px solid #E6EFF0', padding: '0 40px', height: '56px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', boxShadow: '0 1px 3px rgba(0,165,163,0.08)' },
     center: { maxWidth: '640px', margin: '0 auto', padding: '0 24px' },
-    label:  { fontSize: '11px', fontWeight: 800, letterSpacing: '2.5px', textTransform: 'uppercase' as const, color: '#00A5A3' },
-    input:  { width: '100%', padding: '16px 20px', borderRadius: '14px', border: '1px solid rgba(255,255,255,0.15)', fontSize: '15px', color: 'white', outline: 'none', fontFamily: 'inherit', background: 'rgba(255,255,255,0.07)', resize: 'vertical' as const, lineHeight: 1.6, boxSizing: 'border-box' as const },
+    label:  { fontSize: '13px', fontWeight: 800, letterSpacing: '2.5px', textTransform: 'uppercase' as const, color: '#00A5A3' },
+    input:  { width: '100%', padding: '16px 20px', borderRadius: '14px', border: '1px solid #E6EFF0', fontSize: '17px', color: '#1E2124', outline: 'none', fontFamily: 'inherit', background: '#EEF9F9', resize: 'vertical' as const, lineHeight: 1.65, boxSizing: 'border-box' as const },
   }
 
   /* ───────── DONE SCREEN ───────── */
@@ -375,10 +375,10 @@ function ProfileContent() {
         <h1 style={{ fontSize: '38px', fontWeight: 800, margin: '16px 0 12px', letterSpacing: '-0.5px', lineHeight: 1.1 }}>
           Your AI readiness score<br />is set, <span style={{ color: '#C0F43C' }}>{firstName}.</span>
         </h1>
-        <p style={{ fontSize: '16px', color: 'rgba(255,255,255,0.65)', lineHeight: 1.7, maxWidth: '440px', margin: '0 auto 40px' }}>
+        <p style={{ fontSize: '18px', color: '#464D53', lineHeight: 1.65, maxWidth: '440px', margin: '0 auto 40px' }}>
           Based on your answers, Trescademy has calculated your starting TAIRS score and placed you on the right learning track. Your courses are ready.
         </p>
-        <div style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '18px', padding: '24px 28px', marginBottom: '36px', textAlign: 'left', maxWidth: '420px' }}>
+        <div style={{ background: '#EEF9F9', border: '1px solid #E6EFF0', borderRadius: '18px', padding: '24px 28px', marginBottom: '36px', textAlign: 'left', maxWidth: '420px' }}>
           <div style={{ ...S.label, marginBottom: '14px' }}>What happens next</div>
           {[
             'Your TAIRS score is live on your dashboard',
@@ -386,15 +386,15 @@ function ProfileContent() {
             'Each course you complete moves your score forward',
             'Your manager can see your progress in real time',
           ].map((t, i) => (
-            <div key={i} style={{ display: 'flex', gap: '10px', padding: '9px 0', borderBottom: i < 3 ? '1px solid rgba(255,255,255,0.07)' : 'none', alignItems: 'center' }}>
-              <div style={{ width: '22px', height: '22px', borderRadius: '50%', background: i === 0 ? '#C0F43C20' : 'rgba(255,255,255,0.05)', border: `1px solid ${i === 0 ? '#C0F43C50' : 'rgba(255,255,255,0.1)'}`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                <span style={{ fontSize: '11px', fontWeight: 800, color: i === 0 ? '#C0F43C' : 'rgba(255,255,255,0.65)' }}>{i + 1}</span>
+            <div key={i} style={{ display: 'flex', gap: '10px', padding: '9px 0', borderBottom: i < 3 ? '1px solid rgba(15,23,42,0.06)' : 'none', alignItems: 'center' }}>
+              <div style={{ width: '22px', height: '22px', borderRadius: '50%', background: i === 0 ? '#C0F43C20' : 'rgba(15,23,42,0.04)', border: `1px solid ${i === 0 ? '#C0F43C50' : 'rgba(15,23,42,0.08)'}`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                <span style={{ fontSize: '11px', fontWeight: 800, color: i === 0 ? '#C0F43C' : 'rgba(15,23,42,0.55)' }}>{i + 1}</span>
               </div>
-              <span style={{ fontSize: '13px', color: i === 0 ? '#C0F43C' : 'rgba(255,255,255,0.65)', fontWeight: i === 0 ? 700 : 400, lineHeight: 1.5 }}>{t}</span>
+              <span style={{ fontSize: '15px', color: i === 0 ? '#C0F43C' : '#464D53', fontWeight: i === 0 ? 700 : 400, lineHeight: 1.65 }}>{t}</span>
             </div>
           ))}
         </div>
-        <Link href={destination} style={{ background: '#C0F43C', color: '#1E2124', fontSize: '14px', fontWeight: 800, padding: '14px 32px', borderRadius: '50px', textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: '8px' }}>
+        <Link href={destination} style={{ background: '#C0F43C', color: '#1E2124', fontSize: '16px', fontWeight: 800, padding: '14px 32px', borderRadius: '50px', textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: '8px' }}>
           See My TAIRS Score
           <svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg>
         </Link>
@@ -430,49 +430,49 @@ function ProfileContent() {
             <div style={{ width: '26px', height: '26px', background: '#00A5A3', borderRadius: '7px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
               <svg width="12" height="12" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
             </div>
-            <span style={{ fontSize: '13px', fontWeight: 800, color: 'white' }}>Trescademy</span>
+            <span style={{ fontSize: '15px', fontWeight: 800, color: '#1E2124' }}>Trescademy</span>
           </div>
-          <span style={{ fontSize: '12px', color: 'rgba(255,255,255,0.3)', fontWeight: 600 }}>AI Readiness Platform · Trescon Global</span>
+          <span style={{ fontSize: '14px', color: 'rgba(70,77,83,0.55)', fontWeight: 600 }}>AI Readiness Platform · Trescon Global</span>
         </nav>
 
         {/* Two-column body */}
         <div style={{ flex: 1, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0', overflow: 'hidden' }}>
 
           {/* LEFT — headline + CTA */}
-          <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', padding: '48px 56px', borderRight: '1px solid rgba(255,255,255,0.07)' }}>
-            <div style={{ fontSize: '10px', fontWeight: 800, letterSpacing: '2.5px', textTransform: 'uppercase', color: '#00A5A3', marginBottom: '14px' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', padding: '48px 56px', borderRight: '1px solid #E6EFF0' }}>
+            <div style={{ fontSize: '11px', fontWeight: 800, letterSpacing: '2.5px', textTransform: 'uppercase', color: '#00A5A3', marginBottom: '14px' }}>
               Welcome, {firstName}
             </div>
-            <h1 style={{ fontSize: '36px', fontWeight: 900, color: 'white', lineHeight: 1.1, letterSpacing: '-0.8px', margin: '0 0 18px' }}>
+            <h1 style={{ fontSize: '40px', fontWeight: 900, color: '#1E2124', lineHeight: 1.1, letterSpacing: '-0.8px', margin: '0 0 18px' }}>
               Your AI readiness<br />
               <span style={{ color: '#C0F43C' }}>journey starts here.</span>
             </h1>
-            <p style={{ fontSize: '14px', color: 'rgba(255,255,255,0.55)', lineHeight: 1.7, margin: '0 0 32px', maxWidth: '340px' }}>
+            <p style={{ fontSize: '16px', color: '#464D53', lineHeight: 1.65, margin: '0 0 32px', maxWidth: '340px' }}>
               Trescademy is Trescon Global&apos;s internal AI learning platform — built for all 300+ staff across Dubai, Bangalore, Mangalore, and Manipal. It shows you where you stand with AI and builds a learning path around your actual daily work.
             </p>
             <button
               onClick={() => { setShowWelcome(false); setStep(0) }}
-              style={{ alignSelf: 'flex-start', background: '#C0F43C', color: '#1E2124', fontSize: '14px', fontWeight: 800, padding: '14px 32px', borderRadius: '50px', border: 'none', cursor: 'pointer', fontFamily: 'inherit', display: 'inline-flex', alignItems: 'center', gap: '8px' }}
+              style={{ alignSelf: 'flex-start', background: '#C0F43C', color: '#1E2124', fontSize: '16px', fontWeight: 800, padding: '14px 32px', borderRadius: '50px', border: 'none', cursor: 'pointer', fontFamily: 'inherit', display: 'inline-flex', alignItems: 'center', gap: '8px' }}
             >
               Begin My Assessment
               <svg width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg>
             </button>
-            <div style={{ marginTop: '14px', fontSize: '12px', color: 'rgba(255,255,255,0.25)' }}>
+            <div style={{ marginTop: '14px', fontSize: '14px', color: 'rgba(70,77,83,0.55)' }}>
               5–8 minutes · Your answers are private
             </div>
           </div>
 
           {/* RIGHT — 3 steps */}
           <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', padding: '48px 56px', gap: '0' }}>
-            <div style={{ fontSize: '10px', fontWeight: 800, letterSpacing: '2px', textTransform: 'uppercase', color: 'rgba(255,255,255,0.3)', marginBottom: '28px' }}>
+            <div style={{ fontSize: '11px', fontWeight: 800, letterSpacing: '2px', textTransform: 'uppercase', color: 'rgba(70,77,83,0.55)', marginBottom: '28px' }}>
               What happens
             </div>
             {steps.map((s, i) => (
-              <div key={i} style={{ display: 'flex', gap: '18px', paddingBottom: i < 2 ? '24px' : '0', marginBottom: i < 2 ? '24px' : '0', borderBottom: i < 2 ? '1px solid rgba(255,255,255,0.06)' : 'none' }}>
+              <div key={i} style={{ display: 'flex', gap: '18px', paddingBottom: i < 2 ? '24px' : '0', marginBottom: i < 2 ? '24px' : '0', borderBottom: i < 2 ? '1px solid #E6EFF0' : 'none' }}>
                 <div style={{ fontSize: '22px', fontWeight: 900, color: s.color, opacity: 0.4, lineHeight: 1, flexShrink: 0, width: '28px' }}>{s.num}</div>
                 <div>
-                  <div style={{ fontSize: '14px', fontWeight: 700, color: 'white', marginBottom: '5px', lineHeight: 1.3 }}>{s.title}</div>
-                  <div style={{ fontSize: '13px', color: 'rgba(255,255,255,0.45)', lineHeight: 1.6 }}>{s.body}</div>
+                  <div style={{ fontSize: '16px', fontWeight: 700, color: '#1E2124', marginBottom: '5px', lineHeight: 1.3 }}>{s.title}</div>
+                  <div style={{ fontSize: '15px', color: '#464D53', lineHeight: 1.65 }}>{s.body}</div>
                 </div>
               </div>
             ))}
@@ -487,19 +487,19 @@ function ProfileContent() {
   /* ───────── EMAIL VERIFY SCREEN ───────── */
   if (step === -1) {
     return (
-      <div style={{ ...S.page, background: '#F2F5F5', color: '#1E2124' }}>
-        <nav style={{ background: '#010103', padding: '0 48px', height: '60px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+      <div style={{ ...S.page, background: '#F6FFFE', color: '#1E2124' }}>
+        <nav style={{ background: '#FFFFFF', borderBottom: '1px solid #E6EFF0', boxShadow: '0 1px 3px rgba(0,165,163,0.08)', padding: '0 48px', height: '60px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           <Link href="/" style={{ display: 'flex', alignItems: 'center', gap: '10px', textDecoration: 'none' }}>
             <div style={{ width: '28px', height: '28px', background: '#00A5A3', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
               <svg width="14" height="14" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
             </div>
-            <span style={{ fontSize: '14px', fontWeight: 800, color: 'white' }}>Trescademy</span>
+            <span style={{ fontSize: '16px', fontWeight: 800, color: '#1E2124' }}>Trescademy</span>
           </Link>
         </nav>
         <div style={{ maxWidth: '500px', margin: '80px auto', padding: '0 24px' }}>
           <div style={S.label}>Trescademy — AI Readiness Assessment</div>
-          <h1 style={{ fontSize: '32px', fontWeight: 800, color: '#1E2124', margin: '12px 0 8px', lineHeight: 1.2 }}>Enter your work email</h1>
-          <p style={{ fontSize: '15px', color: '#666', lineHeight: 1.6, marginBottom: '32px' }}>
+          <h1 style={{ fontSize: '36px', fontWeight: 800, color: '#1E2124', margin: '12px 0 8px', lineHeight: 1.2 }}>Enter your work email</h1>
+          <p style={{ fontSize: '17px', color: '#464D53', lineHeight: 1.65, marginBottom: '32px' }}>
             We&apos;ll match it to your Trescon profile and take you straight into your interview. No password needed.
           </p>
           <form onSubmit={handleVerify}>
@@ -511,9 +511,9 @@ function ProfileContent() {
               autoFocus
               style={{ width: '100%', padding: '16px 20px', borderRadius: '14px', border: `1.5px solid ${verifyError ? '#FF6B6B' : '#D5D9DB'}`, background: 'white', color: '#1E2124', fontSize: '16px', outline: 'none', fontFamily: 'inherit', marginBottom: '12px', boxSizing: 'border-box' }}
             />
-            {verifyError && <p style={{ fontSize: '13px', color: '#E74C3C', marginBottom: '12px', fontWeight: 600 }}>{verifyError}</p>}
+            {verifyError && <p style={{ fontSize: '15px', color: '#E74C3C', marginBottom: '12px', fontWeight: 600 }}>{verifyError}</p>}
             <button type="submit" disabled={verifying || !email.trim()}
-              style={{ width: '100%', padding: '16px', borderRadius: '14px', border: 'none', background: '#00A5A3', color: 'white', fontSize: '15px', fontWeight: 800, cursor: verifying ? 'not-allowed' : 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
+              style={{ width: '100%', padding: '16px', borderRadius: '14px', border: 'none', background: '#00A5A3', color: 'white', fontSize: '17px', fontWeight: 800, cursor: verifying ? 'not-allowed' : 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
               {verifying ? 'Looking you up...' : (
                 <>
                   Start My Intelligence Interview
@@ -522,7 +522,7 @@ function ProfileContent() {
               )}
             </button>
           </form>
-          <p style={{ marginTop: '16px', fontSize: '13px', color: '#888' }}>
+          <p style={{ marginTop: '16px', fontSize: '15px', color: '#464D53' }}>
             Haven&apos;t joined yet?{' '}
             <Link href="/join" style={{ color: '#00A5A3', fontWeight: 700, textDecoration: 'none' }}>Join first</Link>
           </p>
@@ -540,27 +540,27 @@ function ProfileContent() {
             <div style={{ width: '26px', height: '26px', background: '#00A5A3', borderRadius: '7px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
               <svg width="12" height="12" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
             </div>
-            <span style={{ fontSize: '13px', fontWeight: 800, color: 'white' }}>Trescademy</span>
+            <span style={{ fontSize: '15px', fontWeight: 800, color: '#1E2124' }}>Trescademy</span>
           </div>
         </nav>
         <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '40px 20px' }}>
           <div style={{ width: '100%', maxWidth: '560px' }}>
-            <div style={{ marginBottom: '8px', fontSize: '11px', fontWeight: 800, letterSpacing: '2px', textTransform: 'uppercase', color: '#00A5A3' }}>Welcome, {staffName}</div>
-            <h1 style={{ fontSize: '26px', fontWeight: 900, color: 'white', margin: '0 0 8px', lineHeight: 1.2 }}>Which department are you in?</h1>
-            <p style={{ fontSize: '14px', color: 'rgba(255,255,255,0.55)', margin: '0 0 28px', lineHeight: 1.6 }}>
+            <div style={{ marginBottom: '8px', fontSize: '13px', fontWeight: 800, letterSpacing: '2px', textTransform: 'uppercase', color: '#00A5A3' }}>Welcome, {staffName}</div>
+            <h1 style={{ fontSize: '30px', fontWeight: 900, color: '#1E2124', margin: '0 0 8px', lineHeight: 1.2 }}>Which department are you in?</h1>
+            <p style={{ fontSize: '16px', color: '#464D53', margin: '0 0 28px', lineHeight: 1.65 }}>
               Your questions will be tailored to your actual daily work and the AI tools most relevant to your role.
             </p>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
               {ALL_DEPARTMENTS.map(dept => (
                 <button key={dept} onClick={() => !savingDept && confirmDepartment(dept)}
-                  style={{ padding: '14px 18px', borderRadius: '12px', border: '1.5px solid rgba(255,255,255,0.12)', background: 'rgba(255,255,255,0.05)', color: 'white', fontSize: '14px', fontWeight: 700, cursor: savingDept ? 'not-allowed' : 'pointer', fontFamily: 'inherit', textAlign: 'left', transition: 'all 0.15s ease' }}
+                  style={{ padding: '14px 18px', borderRadius: '12px', border: '1.5px solid #E6EFF0', background: '#EEF9F9', color: '#1E2124', fontSize: '16px', fontWeight: 700, cursor: savingDept ? 'not-allowed' : 'pointer', fontFamily: 'inherit', textAlign: 'left', transition: 'all 0.15s ease' }}
                   onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.borderColor = '#00A5A3'; (e.currentTarget as HTMLButtonElement).style.background = 'rgba(0,165,163,0.1)' }}
-                  onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.borderColor = 'rgba(255,255,255,0.12)'; (e.currentTarget as HTMLButtonElement).style.background = 'rgba(255,255,255,0.05)' }}>
+                  onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.borderColor = '#E6EFF0'; (e.currentTarget as HTMLButtonElement).style.background = '#EEF9F9' }}>
                   {dept}
                 </button>
               ))}
             </div>
-            {savingDept && <div style={{ marginTop: '20px', textAlign: 'center', fontSize: '13px', color: 'rgba(255,255,255,0.5)' }}>Setting up your assessment...</div>}
+            {savingDept && <div style={{ marginTop: '20px', textAlign: 'center', fontSize: '15px', color: '#464D53' }}>Setting up your assessment...</div>}
           </div>
         </div>
       </div>
@@ -577,17 +577,17 @@ function ProfileContent() {
             <div style={{ width: '26px', height: '26px', background: '#00A5A3', borderRadius: '7px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
               <svg width="12" height="12" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
             </div>
-            <span style={{ fontSize: '13px', fontWeight: 800, color: 'white' }}>Trescademy</span>
+            <span style={{ fontSize: '15px', fontWeight: 800, color: '#1E2124' }}>Trescademy</span>
           </div>
-          <span style={{ color: 'rgba(255,255,255,0.2)', margin: '0 4px' }}>|</span>
-          <span style={{ fontSize: '12px', color: '#00A5A3', fontWeight: 700 }}>Step 1 — AI Readiness Assessment</span>
+          <span style={{ color: 'rgba(70,77,83,0.3)', margin: '0 4px' }}>|</span>
+          <span style={{ fontSize: '14px', color: '#00A5A3', fontWeight: 700 }}>Step 1 — AI Readiness Assessment</span>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
             <div style={{ width: '28px', height: '28px', borderRadius: '8px', background: '#C0F43C20', border: '1px solid #C0F43C40', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
               <span style={{ fontSize: '11px', fontWeight: 800, color: '#C0F43C' }}>{staffName.charAt(0)}</span>
             </div>
-            <span style={{ fontSize: '12px', color: 'rgba(255,255,255,0.75)' }}>{firstName} · {department}</span>
+            <span style={{ fontSize: '14px', color: '#464D53' }}>{firstName} · {department}</span>
           </div>
           <button
             onClick={() => {
@@ -596,18 +596,18 @@ function ProfileContent() {
               sessionStorage.removeItem('tai_admin_staff_id')
               window.location.href = '/login'
             }}
-            style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '6px 14px', borderRadius: '10px', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.15)', cursor: 'pointer', fontFamily: 'inherit' }}
+            style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '6px 14px', borderRadius: '10px', background: '#EEF9F9', border: '1px solid #E6EFF0', cursor: 'pointer', fontFamily: 'inherit' }}
           >
-            <svg width="12" height="12" fill="none" stroke="rgba(255,255,255,0.75)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24">
+            <svg width="12" height="12" fill="none" stroke="#464D53" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24">
               <path d="M18.36 6.64a9 9 0 1 1-12.73 0"/><line x1="12" y1="2" x2="12" y2="12"/>
             </svg>
-            <span style={{ fontSize: '12px', fontWeight: 600, color: 'rgba(255,255,255,0.75)' }}>Save &amp; Exit</span>
+            <span style={{ fontSize: '14px', fontWeight: 600, color: '#464D53' }}>Save &amp; Exit</span>
           </button>
         </div>
       </nav>
 
       {/* Progress bar */}
-      <div style={{ height: '3px', background: 'rgba(255,255,255,0.08)' }}>
+      <div style={{ height: '3px', background: '#EEF2F7' }}>
         <div style={{ height: '100%', width: `${progress}%`, background: 'linear-gradient(90deg, #00A5A3, #C0F43C)', transition: 'width 0.4s ease' }} />
       </div>
 
@@ -615,10 +615,10 @@ function ProfileContent() {
 
         {/* Step counter */}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '40px' }}>
-          <div style={{ fontSize: '11px', fontWeight: 700, letterSpacing: '2px', color: 'rgba(255,255,255,0.70)', textTransform: 'uppercase' }}>
+          <div style={{ fontSize: '13px', fontWeight: 700, letterSpacing: '2px', color: 'rgba(70,77,83,0.55)', textTransform: 'uppercase' }}>
             Question {step + 1} of {questions.length}
           </div>
-          <div style={{ fontSize: '11px', fontWeight: 700, color: '#00A5A3', letterSpacing: '1px' }}>
+          <div style={{ fontSize: '13px', fontWeight: 700, color: '#00A5A3', letterSpacing: '1px' }}>
             {progress}% answered
           </div>
         </div>
@@ -632,11 +632,11 @@ function ProfileContent() {
               <div style={{ width: '32px', height: '32px', background: 'linear-gradient(135deg, #00A5A3, #005F7A)', borderRadius: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
                 <svg width="14" height="14" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
               </div>
-              <span style={{ fontSize: '11px', fontWeight: 700, letterSpacing: '2px', color: '#00A5A3', textTransform: 'uppercase' }}>Trescademy</span>
+              <span style={{ fontSize: '13px', fontWeight: 700, letterSpacing: '2px', color: '#00A5A3', textTransform: 'uppercase' }}>Trescademy</span>
             </div>
 
             {/* Question text */}
-            <h2 style={{ fontSize: '26px', fontWeight: 800, lineHeight: 1.3, marginBottom: '10px', letterSpacing: '-0.3px' }}>
+            <h2 style={{ fontSize: '30px', fontWeight: 800, lineHeight: 1.3, marginBottom: '10px', letterSpacing: '-0.3px' }}>
               {q.question}
             </h2>
             {(() => {
@@ -645,7 +645,7 @@ function ProfileContent() {
                 ? "Since you're already using AI, name one specific process in your role you'd want to automate first. This goes on record."
                 : q.subtext
               return displaySubtext
-                ? <p style={{ fontSize: '14px', color: 'rgba(255,255,255,0.82)', lineHeight: 1.65, marginBottom: '28px' }}>{displaySubtext}</p>
+                ? <p style={{ fontSize: '16px', color: '#464D53', lineHeight: 1.65, marginBottom: '28px' }}>{displaySubtext}</p>
                 : <div style={{ height: '28px' }} />
             })()}
 
@@ -688,10 +688,10 @@ function ProfileContent() {
                       key={opt} type="button" onClick={() => toggleChip(opt)}
                       style={{
                         padding: '10px 18px', borderRadius: '50px',
-                        border: `1.5px solid ${sel ? '#C0F43C' : 'rgba(255,255,255,0.15)'}`,
+                        border: `1.5px solid ${sel ? '#C0F43C' : '#E6EFF0'}`,
                         background: sel ? '#C0F43C15' : 'transparent',
-                        color: sel ? '#C0F43C' : 'rgba(255,255,255,0.55)',
-                        fontSize: '13px', fontWeight: sel ? 700 : 500, cursor: 'pointer', fontFamily: 'inherit',
+                        color: sel ? '#C0F43C' : '#464D53',
+                        fontSize: '15px', fontWeight: sel ? 700 : 500, cursor: 'pointer', fontFamily: 'inherit',
                         transition: 'all 0.15s ease',
                       }}
                     >
@@ -712,10 +712,10 @@ function ProfileContent() {
                       key={opt} type="button" onClick={() => setCurrentInput(opt)}
                       style={{
                         padding: '14px 20px', borderRadius: '14px', textAlign: 'left',
-                        border: `1.5px solid ${sel ? '#00A5A3' : 'rgba(255,255,255,0.1)'}`,
-                        background: sel ? 'rgba(0,165,163,0.12)' : 'rgba(255,255,255,0.03)',
-                        color: sel ? 'white' : 'rgba(255,255,255,0.6)',
-                        fontSize: '14px', fontWeight: sel ? 700 : 400, cursor: 'pointer', fontFamily: 'inherit',
+                        border: `1.5px solid ${sel ? '#00A5A3' : '#E6EFF0'}`,
+                        background: sel ? 'rgba(0,165,163,0.12)' : '#EEF9F9',
+                        color: sel ? 'white' : '#464D53',
+                        fontSize: '16px', fontWeight: sel ? 700 : 400, cursor: 'pointer', fontFamily: 'inherit',
                         display: 'flex', alignItems: 'center', justifyContent: 'space-between',
                         transition: 'all 0.15s ease',
                       }}
@@ -745,27 +745,27 @@ function ProfileContent() {
                         key={n} type="button" onClick={() => setCurrentInput(n)}
                         style={{
                           flex: '1 1 120px', padding: '14px 10px', borderRadius: '14px', textAlign: 'center',
-                          border: `1.5px solid ${sel ? col : 'rgba(255,255,255,0.1)'}`,
-                          background: sel ? `${col}18` : 'rgba(255,255,255,0.03)',
+                          border: `1.5px solid ${sel ? col : 'rgba(15,23,42,0.08)'}`,
+                          background: sel ? `${col}18` : 'rgba(15,23,42,0.04)',
                           cursor: 'pointer', fontFamily: 'inherit', transition: 'all 0.15s ease',
                         }}
                       >
-                        <div style={{ fontSize: '22px', fontWeight: 800, color: sel ? col : 'rgba(255,255,255,0.75)', marginBottom: '6px' }}>{n}</div>
-                        <div style={{ fontSize: '11px', color: sel ? col : 'rgba(255,255,255,0.70)', fontWeight: sel ? 700 : 400, lineHeight: 1.4 }}>{label}</div>
+                        <div style={{ fontSize: '24px', fontWeight: 800, color: sel ? col : '#464D53', marginBottom: '6px' }}>{n}</div>
+                        <div style={{ fontSize: '13px', color: sel ? col : 'rgba(70,77,83,0.55)', fontWeight: sel ? 700 : 400, lineHeight: 1.4 }}>{label}</div>
                       </button>
                     )
                   })}
                 </div>
                 {scaleValue > 0 && (
-                  <div style={{ background: `${SCALE_COLORS[scaleValue - 1]}15`, border: `1px solid ${SCALE_COLORS[scaleValue - 1]}30`, borderRadius: '12px', padding: '12px 16px', fontSize: '13px', color: SCALE_COLORS[scaleValue - 1], fontWeight: 600 }}>
+                  <div style={{ background: `${SCALE_COLORS[scaleValue - 1]}15`, border: `1px solid ${SCALE_COLORS[scaleValue - 1]}30`, borderRadius: '12px', padding: '12px 16px', fontSize: '15px', color: SCALE_COLORS[scaleValue - 1], fontWeight: 600 }}>
                     {(q.options ?? [])[scaleValue - 1]}
                   </div>
                 )}
                 {/* Accountability callout for levels 4–5 */}
                 {q.id === 'ai_readiness' && scaleValue >= 4 && (
                   <div style={{ marginTop: '14px', background: 'rgba(192,244,60,0.07)', border: '1px solid rgba(192,244,60,0.25)', borderRadius: '12px', padding: '14px 18px' }}>
-                    <div style={{ fontSize: '11px', fontWeight: 800, color: '#C0F43C', letterSpacing: '1px', textTransform: 'uppercase', marginBottom: '6px' }}>You are now on the advanced track</div>
-                    <div style={{ fontSize: '13px', color: 'rgba(255,255,255,0.65)', lineHeight: 1.6 }}>
+                    <div style={{ fontSize: '13px', fontWeight: 800, color: '#C0F43C', letterSpacing: '1px', textTransform: 'uppercase', marginBottom: '6px' }}>You are now on the advanced track</div>
+                    <div style={{ fontSize: '15px', color: 'rgba(70,77,83,0.55)', lineHeight: 1.65 }}>
                       The next question will ask you to describe a real AI workflow you use. This becomes your brief for the Advanced track — and you will be expected to lead an AI pilot in your department.
                     </div>
                   </div>
@@ -784,21 +784,21 @@ function ProfileContent() {
 
             {/* Hint for textarea */}
             {q.type === 'textarea' && (
-              <p style={{ fontSize: '11px', color: 'rgba(255,255,255,0.70)', marginTop: '10px' }}>
+              <p style={{ fontSize: '13px', color: 'rgba(70,77,83,0.55)', marginTop: '10px' }}>
                 Press Cmd+Enter to continue
               </p>
             )}
 
             {/* Optional hint for text */}
             {q.type === 'text' && (
-              <p style={{ fontSize: '11px', color: 'rgba(255,255,255,0.65)', marginTop: '10px' }}>
+              <p style={{ fontSize: '13px', color: 'rgba(70,77,83,0.55)', marginTop: '10px' }}>
                 Optional — skip if nothing to add
               </p>
             )}
 
             {/* Error */}
             {submitError && (
-              <div style={{ background: '#FEF2F2', border: '1px solid #FECACA', borderRadius: '10px', padding: '12px 16px', marginTop: '16px', fontSize: '13px', color: '#C0392B', fontWeight: 600 }}>
+              <div style={{ background: '#FEF2F2', border: '1px solid #FECACA', borderRadius: '10px', padding: '12px 16px', marginTop: '16px', fontSize: '15px', color: '#C0392B', fontWeight: 600 }}>
                 {submitError}
               </div>
             )}
@@ -806,7 +806,7 @@ function ProfileContent() {
             {/* Nav buttons */}
             <div style={{ display: 'flex', gap: '12px', marginTop: '32px', alignItems: 'center', justifyContent: 'space-between' }}>
               {step > 0 ? (
-                <button type="button" onClick={goBack} style={{ padding: '12px 20px', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.12)', background: 'transparent', color: 'rgba(255,255,255,0.5)', fontSize: '13px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <button type="button" onClick={goBack} style={{ padding: '12px 20px', borderRadius: '12px', border: '1px solid #E6EFF0', background: 'transparent', color: '#464D53', fontSize: '15px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: '6px' }}>
                   <svg width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg>
                   Back
                 </button>
@@ -818,9 +818,9 @@ function ProfileContent() {
                 onClick={isLastStep ? handleSubmit : saveCurrentAndAdvance}
                 style={{
                   padding: '14px 28px', borderRadius: '14px', border: 'none',
-                  background: (canAdvance || q.type === 'text') && !pending ? (isLastStep ? '#C0F43C' : '#00A5A3') : 'rgba(255,255,255,0.1)',
-                  color: (canAdvance || q.type === 'text') && !pending ? (isLastStep ? '#1E2124' : 'white') : 'rgba(255,255,255,0.25)',
-                  fontSize: '14px', fontWeight: 800, cursor: (canAdvance || q.type === 'text') && !pending ? 'pointer' : 'not-allowed',
+                  background: (canAdvance || q.type === 'text') && !pending ? (isLastStep ? '#C0F43C' : '#00A5A3') : 'rgba(15,23,42,0.08)',
+                  color: (canAdvance || q.type === 'text') && !pending ? (isLastStep ? '#1E2124' : 'white') : 'rgba(15,23,42,0.22)',
+                  fontSize: '16px', fontWeight: 800, cursor: (canAdvance || q.type === 'text') && !pending ? 'pointer' : 'not-allowed',
                   fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: '8px',
                   transition: 'all 0.2s ease',
                 }}
