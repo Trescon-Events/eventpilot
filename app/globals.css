@@ -1,24 +1,223 @@
 @import "tailwindcss";
 
+/* ── Design Tokens ─────────────────────────────────────────────── */
 :root {
-  --teal: #00A5A3;
-  --lime: #C0F43C;
-  --yellow: #F4ED3C;
-  --dark: #1E2124;
-  --dark2: #010103;
-  --grey: #464D53;
-  --border: #C6ECE8;
-  --light: #E6EFF0;
   --font-manrope: 'Manrope', sans-serif;
+
+  /* Teal — primary brand */
+  --teal:          #00695C;
+  --teal-dark:     #004D40;
+  --teal-mid:      #00897B;
+  --teal-light:    #E0F2F1;
+  --teal-border:   #80CBC4;
+
+  /* Lime — brand accent */
+  --lime:          #C0F43C;
+  --lime-dark:     #33691E;
+  --lime-light:    #F1F8E9;
+  --lime-border:   #AED581;
+
+  /* Indigo */
+  --indigo:        #3730A3;
+  --indigo-light:  #EEF2FF;
+  --indigo-border: #A5B4FC;
+
+  /* Purple */
+  --purple:        #6B21A8;
+  --purple-light:  #F5F3FF;
+  --purple-border: #C4B5FD;
+
+  /* Amber */
+  --amber:         #92400E;
+  --amber-light:   #FFFBEB;
+  --amber-border:  #FCD34D;
+
+  /* Red */
+  --red:           #B91C1C;
+  --red-light:     #FFF1F2;
+  --red-border:    #FCA5A5;
+
+  /* Orange (foundation / curious tier) */
+  --orange:        #C2410C;
+  --orange-light:  #FFF3E0;
+  --orange-border: #FDBA74;
+
+  /* Ink / Text — maximum contrast */
+  --ink:           #0F1923;
+  --ink2:          #2D3E50;
+  --ink3:          #5B7080;
+
+  /* Borders */
+  --border:        #B8CDD8;
+  --border-light:  #DDE8EE;
+
+  /* Surfaces */
+  --surface:       #E8EEF4;
+  --card:          #FFFFFF;
+
+  /* Shadows */
+  --shadow-sm:     0 1px 3px rgba(15,25,35,0.07), 0 1px 2px rgba(15,25,35,0.05);
+  --shadow-md:     0 4px 12px rgba(15,25,35,0.08), 0 2px 4px rgba(15,25,35,0.05);
+  --shadow-teal:   0 2px 10px rgba(0,137,123,0.14);
 }
 
 @theme inline {
   --font-sans: var(--font-manrope);
 }
 
-body {
-  font-family: var(--font-manrope), 'Manrope', sans-serif;
-  background: #F6FFFE;
-  color: #1E2124;
-  font-size: 21px;
+/* ── Reset & Base ──────────────────────────────────────────────── */
+*, *::before, *::after {
+  box-sizing: border-box;
+  min-width: 0;
 }
+
+body {
+  font-family: var(--font-manrope), sans-serif;
+  background: var(--surface);
+  color: var(--ink);
+  font-size: 14px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+
+p, span, div, td, th, label, li, a {
+  overflow-wrap: break-word;
+}
+
+/* ── Form Controls ─────────────────────────────────────────────── */
+input, select, textarea {
+  background: var(--card);
+  color: var(--ink);
+  font-family: var(--font-manrope), sans-serif;
+  font-size: 13px;
+}
+input::placeholder, textarea::placeholder { color: #94A3B8; }
+option { background: var(--card); color: var(--ink); }
+
+/* ── Navigation ────────────────────────────────────────────────── */
+.t-nav {
+  background: var(--card);
+  border-bottom: 1.5px solid var(--border-light);
+  box-shadow: 0 1px 6px rgba(15,25,35,0.06);
+  height: 64px;
+  padding: 0 36px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  flex-shrink: 0;
+}
+
+.t-nav-left  { display: flex; align-items: center; gap: 10px; }
+.t-nav-right { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+
+.t-nav-sep {
+  width: 1px; height: 20px;
+  background: var(--border-light);
+  flex-shrink: 0;
+}
+
+.t-nav-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink2);
+  white-space: nowrap;
+}
+
+/* ── Buttons ───────────────────────────────────────────────────── */
+.tbtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 14px;
+  border-radius: 10px;
+  font-size: 13px;
+  font-weight: 700;
+  font-family: var(--font-manrope), sans-serif;
+  text-decoration: none;
+  cursor: pointer;
+  border: 1.5px solid transparent;
+  white-space: nowrap;
+  transition: opacity 0.15s, transform 0.1s;
+  line-height: 1;
+  flex-shrink: 0;
+}
+.tbtn:hover  { opacity: 0.82; }
+.tbtn:active { transform: scale(0.97); }
+
+.tbtn-teal   { background: var(--teal-light);   border-color: var(--teal-border);   color: var(--teal); }
+.tbtn-indigo { background: var(--indigo-light);  border-color: var(--indigo-border); color: var(--indigo); }
+.tbtn-purple { background: var(--purple-light);  border-color: var(--purple-border); color: var(--purple); }
+.tbtn-amber  { background: var(--amber-light);   border-color: var(--amber-border);  color: var(--amber); }
+.tbtn-red    { background: var(--red-light);     border-color: var(--red-border);    color: var(--red); }
+.tbtn-ghost  { background: transparent;          border-color: var(--border);        color: var(--ink2); }
+.tbtn-solid  { background: var(--teal-mid);      border-color: var(--teal-mid);      color: #FFFFFF; }
+.tbtn-lime   { background: var(--lime);          border-color: #A3D424;              color: #1A3500; }
+
+/* ── Cards ─────────────────────────────────────────────────────── */
+.tcard {
+  background: var(--card);
+  border: 1.5px solid var(--border-light);
+  border-radius: 16px;
+  overflow: hidden;
+  box-shadow: var(--shadow-sm);
+}
+.tcard-p { padding: 24px; }
+
+/* Coloured section cards */
+.scard-teal   { background: var(--teal-light);   border: 1.5px solid var(--teal-border);   border-radius: 16px; }
+.scard-lime   { background: var(--lime-light);   border: 1.5px solid var(--lime-border);   border-radius: 16px; }
+.scard-purple { background: var(--purple-light); border: 1.5px solid var(--purple-border); border-radius: 16px; }
+.scard-amber  { background: var(--amber-light);  border: 1.5px solid var(--amber-border);  border-radius: 16px; }
+.scard-red    { background: var(--red-light);    border: 1.5px solid var(--red-border);    border-radius: 16px; }
+.scard-indigo { background: var(--indigo-light); border: 1.5px solid var(--indigo-border); border-radius: 16px; }
+.scard-orange { background: var(--orange-light); border: 1.5px solid var(--orange-border); border-radius: 16px; }
+
+/* Stat cards with coloured left accent */
+.stat-teal   { background: var(--card); border: 1px solid var(--border-light); border-left: 4px solid var(--teal-mid);   border-radius: 14px; box-shadow: var(--shadow-sm); }
+.stat-lime   { background: var(--card); border: 1px solid var(--border-light); border-left: 4px solid #7DC520;           border-radius: 14px; box-shadow: var(--shadow-sm); }
+.stat-purple { background: var(--card); border: 1px solid var(--border-light); border-left: 4px solid var(--purple);     border-radius: 14px; box-shadow: var(--shadow-sm); }
+.stat-amber  { background: var(--card); border: 1px solid var(--border-light); border-left: 4px solid #D97706;           border-radius: 14px; box-shadow: var(--shadow-sm); }
+.stat-red    { background: var(--card); border: 1px solid var(--border-light); border-left: 4px solid var(--red);        border-radius: 14px; box-shadow: var(--shadow-sm); }
+.stat-indigo { background: var(--card); border: 1px solid var(--border-light); border-left: 4px solid var(--indigo);     border-radius: 14px; box-shadow: var(--shadow-sm); }
+
+/* ── Form Fields ───────────────────────────────────────────────── */
+.tfield {
+  width: 100%;
+  padding: 10px 12px;
+  border-radius: 8px;
+  border: 1.5px solid var(--border);
+  background: var(--card);
+  color: var(--ink);
+  font-size: 13px;
+  font-family: var(--font-manrope), sans-serif;
+  outline: none;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+.tfield:focus {
+  border-color: var(--teal-mid);
+  box-shadow: 0 0 0 3px rgba(0,137,123,0.14);
+}
+
+/* ── Badges ─────────────────────────────────────────────────────── */
+.tbadge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 9px;
+  border-radius: 20px;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  border: 1px solid transparent;
+  white-space: nowrap;
+}
+.tbadge-teal   { background: var(--teal-light);   border-color: var(--teal-border);   color: var(--teal); }
+.tbadge-purple { background: var(--purple-light);  border-color: var(--purple-border); color: var(--purple); }
+.tbadge-amber  { background: var(--amber-light);   border-color: var(--amber-border);  color: var(--amber); }
+.tbadge-red    { background: var(--red-light);     border-color: var(--red-border);    color: var(--red); }
+.tbadge-grey   { background: #F1F5F9;              border-color: #CBD5E1;              color: #475569; }

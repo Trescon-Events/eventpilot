@@ -5,6 +5,7 @@ import { useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { computeTAIRS, getTier, getTrack, TIER_COLORS } from '@/app/lib/tairs'
 import PlatformMenu from '@/app/components/PlatformMenu'
+import NavBar, { SignOutBtn, MOD_TRESCADEMY } from '@/app/components/NavBar'
 
 /* ─── Types ──────────────────────────────────────────────────── */
 interface StaffMember {
@@ -95,31 +96,31 @@ function NoIdScreen() {
   }
 
   return (
-    <div style={{ fontFamily: 'var(--font-manrope), Manrope, sans-serif', background: '#F6FFFE', minHeight: '100vh', color: '#1E2124', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '24px' }}>
+    <div style={{ fontFamily: 'var(--font-manrope), Manrope, sans-serif', background: '#E8EEF4', minHeight: '100vh', color: '#0F1923', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '24px' }}>
       <div style={{ maxWidth: 440, width: '100%', textAlign: 'center' }}>
-        <div style={{ width: '48px', height: '48px', background: '#00A5A3', borderRadius: '14px', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 20px' }}>
+        <div style={{ width: '48px', height: '48px', background: '#00897B', borderRadius: '14px', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 20px' }}>
           <svg width="22" height="22" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>
         </div>
-        <div style={{ fontSize: '18px', fontWeight: 800, letterSpacing: '2px', textTransform: 'uppercase', color: '#00A5A3', marginBottom: '8px' }}>Trescademy</div>
-        <h1 style={{ fontSize: '36px', fontWeight: 800, color: '#1E2124', margin: '0 0 10px' }}>My Learning Dashboard</h1>
-        <p style={{ fontSize: '20px', color: '#464D53', lineHeight: 1.65, margin: '0 0 28px' }}>Enter your work email to access your dashboard.</p>
+        <div style={{ fontSize: '13px', fontWeight: 800, letterSpacing: '2px', textTransform: 'uppercase', color: '#00695C', marginBottom: '8px' }}>Trescademy</div>
+        <h1 style={{ fontSize: '36px', fontWeight: 800, color: '#0F1923', margin: '0 0 10px' }}>My Learning Dashboard</h1>
+        <p style={{ fontSize: '13px', color: '#2D3E50', lineHeight: 1.65, margin: '0 0 28px' }}>Enter your work email to access your dashboard.</p>
         <form onSubmit={handleEmail} style={{ display: 'flex', gap: '8px' }}>
           <input
             type="email"
             value={email}
             onChange={e => setEmail(e.target.value)}
             placeholder="you@tresconglobal.com"
-            style={{ flex: 1, padding: '11px 16px', borderRadius: '10px', border: '1px solid #C8DFE0', background: '#FFFFFF', color: '#1E2124', fontSize: '18px', fontFamily: 'inherit', outline: 'none' }}
+            style={{ flex: 1, padding: '11px 16px', borderRadius: '10px', border: '1px solid #DDE8EE', background: '#FFFFFF', color: '#0F1923', fontSize: '13px', fontFamily: 'inherit', outline: 'none' }}
           />
           <button
             type="submit"
             disabled={loading}
-            style={{ padding: '11px 20px', borderRadius: '10px', background: '#00A5A3', color: 'white', fontSize: '18px', fontWeight: 700, border: 'none', cursor: loading ? 'not-allowed' : 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap', opacity: loading ? 0.7 : 1 }}>
+            style={{ padding: '11px 20px', borderRadius: '10px', background: '#00897B', color: 'white', fontSize: '13px', fontWeight: 700, border: 'none', cursor: loading ? 'not-allowed' : 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap', opacity: loading ? 0.7 : 1 }}>
             {loading ? '...' : 'Go'}
           </button>
         </form>
-        {error && <p style={{ marginTop: '12px', fontSize: '18px', color: '#FF6B6B' }}>{error}</p>}
-        <div style={{ marginTop: '24px', padding: '14px 18px', background: '#FFFFFF', border: '1px solid #C8DFE0', borderRadius: '12px', fontSize: '20px', color: '#1E2124', lineHeight: 1.65 }}>
+        {error && <p style={{ marginTop: '12px', fontSize: '13px', color: '#FF6B6B' }}>{error}</p>}
+        <div style={{ marginTop: '24px', padding: '14px 18px', background: '#FFFFFF', border: '1px solid #DDE8EE', borderRadius: '12px', fontSize: '13px', color: '#0F1923', lineHeight: 1.65 }}>
           Use the email address your manager registered you with. Contact IT if you cannot access your account.
         </div>
       </div>
@@ -269,8 +270,8 @@ function DashboardContent() {
     return (
       <div style={{ ...S.page, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
         <div style={{ textAlign: 'center' }}>
-          <div style={{ width: '40px', height: '40px', border: '3px solid #C8DFE0', borderTopColor: '#00A5A3', borderRadius: '50%', animation: 'spin 0.8s linear infinite', margin: '0 auto 16px' }} />
-          <div style={{ color: '#464D53', fontSize: '20px' }}>Loading your dashboard…</div>
+          <div style={{ width: '40px', height: '40px', border: '3px solid #DDE8EE', borderTopColor: '#00897B', borderRadius: '50%', animation: 'spin 0.8s linear infinite', margin: '0 auto 16px' }} />
+          <div style={{ color: '#2D3E50', fontSize: '13px' }}>Loading your dashboard…</div>
         </div>
       </div>
     )
@@ -280,8 +281,8 @@ function DashboardContent() {
     return (
       <div style={{ ...S.page, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
         <div style={{ textAlign: 'center', padding: '0 24px' }}>
-          <div style={{ fontSize: '18px', color: '#FF6B6B', marginBottom: '12px' }}>Error</div>
-          <p style={{ color: '#464D53', fontSize: '18px' }}>{error || 'Something went wrong.'}</p>
+          <div style={{ fontSize: '13px', color: '#FF6B6B', marginBottom: '12px' }}>Error</div>
+          <p style={{ color: '#2D3E50', fontSize: '13px' }}>{error || 'Something went wrong.'}</p>
         </div>
       </div>
     )
@@ -300,6 +301,12 @@ function DashboardContent() {
   const tier       = getTier(score)
   const track      = getTrack(score)
   const tierConfig = TIER_COLORS[tier]
+  const TRACK_CONFIG_MAP = {
+    foundation: { color: '#0E7490', border: '#0E749060' },
+    adoption:   { color: '#7C3AED', border: '#7C3AED60' },
+    advanced:   { color: '#166534', border: '#16653460' },
+  }
+  const trackConfig = TRACK_CONFIG_MAP[track]
   const firstName  = staff.name.split(' ')[0]
 
   const completedIds    = new Set(completions.filter(c => c.passed).map(c => c.course_id))
@@ -309,9 +316,9 @@ function DashboardContent() {
   const completedMandatory = recContext?.mandatory_completed ?? courses.filter(c => c.is_mandatory && completedIds.has(c.id)).length
 
   const REC_LABEL_COLOR: Record<string, string> = {
-    mandatory:       '#FF9F43',
-    dept:            '#00A5A3',
-    track:           tierConfig.color,
+    mandatory:       '#8B1A1A',
+    dept:            '#00897B',
+    track:           trackConfig.color,
     foundation_gap:  '#F4ED3C',
     role:            '#A478FF',
   }
@@ -319,64 +326,37 @@ function DashboardContent() {
   return (
     <div style={S.page}>
       {/* ── Nav ── */}
-      <nav style={S.nav}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <div style={{ background: 'white', borderRadius: '8px', padding: '4px 10px', display: 'flex', alignItems: 'center' }}>
-              <img src="/trescon-logo.png" alt="Trescon" style={{ height: '40px', width: 'auto', display: 'block' }} />
-            </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-              <div style={{ width: '24px', height: '24px', background: '#00A5A3', borderRadius: '7px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                <svg width="12" height="12" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
-              </div>
-              <span style={{ fontSize: '20px', fontWeight: 800, color: '#1E2124' }}>Trescademy</span>
-            </div>
-          </div>
-          <span style={{ color: 'rgba(15,23,42,0.16)' }}>|</span>
-          <span style={{ fontSize: '20px', fontWeight: 600, color: '#464D53' }}>{isAdmin ? 'Personal View' : 'My Dashboard'}</span>
-        </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+      <NavBar
+        module={MOD_TRESCADEMY}
+        subtitle={isAdmin ? 'Personal View' : 'My Dashboard'}
+        homeHref={staffId ? `/dashboard?id=${staffId}` : '/dashboard'}
+        rightSlot={<>
           {(staff.has_reports || isAdmin) && (
-            <Link href={`/team?manager_id=${staffId}&staff_id=${staffId}`} style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '20px', fontWeight: 700, color: '#A478FF', background: '#FFFFFF', border: '1px solid #C8DFE0', padding: '6px 14px', borderRadius: '16px', textDecoration: 'none' }}>
-              <svg width="11" height="11" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+            <Link className="tbtn tbtn-purple" href={`/team?manager_id=${staffId}&staff_id=${staffId}`}>
+              <svg width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
               Team Dashboard
             </Link>
           )}
           {isAdmin && (
-            <Link href="/admin" style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '20px', fontWeight: 700, color: '#3D6B00', background: '#FFFFFF', border: '1px solid #C8DFE0', padding: '6px 14px', borderRadius: '16px', textDecoration: 'none' }}>
-              <svg width="11" height="11" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+            <Link className="tbtn tbtn-teal" href="/admin">
+              <svg width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
               Admin Dashboard
             </Link>
           )}
           <PlatformMenu staffId={staffId} />
-          <div style={{ width: '32px', height: '32px', borderRadius: '10px', background: `${tierConfig.color}20`, border: `1px solid ${tierConfig.color}50`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <span style={{ fontSize: '20px', fontWeight: 800, color: tierConfig.color }}>{firstName.charAt(0)}</span>
+          <div style={{ width: '30px', height: '30px', borderRadius: '8px', background: 'rgba(0,137,123,0.15)', border: '1.5px solid rgba(0,137,123,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+            <span style={{ fontSize: '13px', fontWeight: 800, color: '#00897B' }}>{firstName.charAt(0)}</span>
           </div>
-          <button
-            onClick={() => {
-              localStorage.removeItem('trescademy_staff_id')
-              localStorage.removeItem('tai_staff_id')
-              sessionStorage.removeItem('tai_admin_authed')
-              sessionStorage.removeItem('tai_admin_staff_id')
-              window.location.href = '/login'
-            }}
-            style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '6px 14px', borderRadius: '10px', background: '#FFFFFF', border: '1px solid #fecaca', cursor: 'pointer', fontFamily: 'inherit' }}
-          >
-            <svg width="13" height="13" fill="none" stroke="#FF6B6B" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24">
-              <path d="M18.36 6.64a9 9 0 1 1-12.73 0"/>
-              <line x1="12" y1="2" x2="12" y2="12"/>
-            </svg>
-            <span style={{ fontSize: '20px', fontWeight: 700, color: '#FF6B6B' }}>Sign out</span>
-          </button>
-        </div>
-      </nav>
+          <SignOutBtn />
+        </>}
+      />
 
       {/* ── Demo mode banner — auto-hides once real staff data is imported ── */}
       {isDemo && (
-        <div style={{ background: 'rgba(255,159,67,0.08)', borderBottom: '1px solid rgba(255,159,67,0.25)', padding: '10px 32px', display: 'flex', alignItems: 'center', gap: '10px' }}>
-          <svg width="14" height="14" fill="none" stroke="#FF9F43" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
-          <span style={{ fontSize: '20px', fontWeight: 700, color: '#FF9F43', animation: 'demoGlow 3s linear infinite' }}>Demo Mode</span>
-          <span style={{ fontSize: '20px', color: '#464D53' }}>The data shown on this dashboard is sample data for demonstration purposes only. It does not represent any real individual or organisation.</span>
+        <div style={{ background: 'rgba(139,26,26,0.08)', borderBottom: '1px solid rgba(139,26,26,0.25)', padding: '10px 32px', display: 'flex', alignItems: 'center', gap: '10px' }}>
+          <svg width="14" height="14" fill="none" stroke="#8B1A1A" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+          <span style={{ fontSize: '13px', fontWeight: 700, color: '#8B1A1A', animation: 'demoGlow 3s linear infinite' }}>Demo Mode</span>
+          <span style={{ fontSize: '13px', color: '#2D3E50' }}>The data shown on this dashboard is sample data for demonstration purposes only. It does not represent any real individual or organisation.</span>
         </div>
       )}
 
@@ -387,14 +367,14 @@ function DashboardContent() {
           <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginBottom: '24px' }}>
             {notifications.map(n => (
               <div key={n.id} style={{ background: 'linear-gradient(135deg, rgba(192,244,60,0.08) 0%, rgba(0,165,163,0.06) 100%)', border: '1px solid rgba(192,244,60,0.25)', borderRadius: '14px', padding: '18px 20px', display: 'flex', gap: '14px', alignItems: 'flex-start' }}>
-                <div style={{ width: '36px', height: '36px', borderRadius: '10px', background: '#FFFFFF', border: '1px solid #C8DFE0', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                  <svg width="16" height="16" fill="none" stroke="#C0F43C" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>
+                <div style={{ width: '36px', height: '36px', borderRadius: '10px', background: '#FFFFFF', border: '1px solid #DDE8EE', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                  <svg width="16" height="16" fill="none" stroke="#007A6E" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>
                 </div>
                 <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: '18px', fontWeight: 800, color: '#3D6B00', marginBottom: '4px' }}>{n.title}</div>
-                  <div style={{ fontSize: '18px', color: '#464D53', lineHeight: 1.65 }}>{n.body}</div>
+                  <div style={{ fontSize: '13px', fontWeight: 800, color: '#3D6B00', marginBottom: '4px' }}>{n.title}</div>
+                  <div style={{ fontSize: '13px', color: '#2D3E50', lineHeight: 1.65 }}>{n.body}</div>
                   {n.course_id && (
-                    <a href={`/dashboard/course/${n.course_id}${staffId ? `?staff_id=${staffId}` : ''}`} style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', marginTop: '10px', fontSize: '20px', fontWeight: 700, color: '#3D6B00', textDecoration: 'none' }}>
+                    <a href={`/dashboard/course/${n.course_id}${staffId ? `?staff_id=${staffId}` : ''}`} style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', marginTop: '10px', fontSize: '13px', fontWeight: 700, color: '#3D6B00', textDecoration: 'none' }}>
                       View Course
                       <svg width="10" height="10" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg>
                     </a>
@@ -402,9 +382,9 @@ function DashboardContent() {
                 </div>
                 <button
                   onClick={() => dismissNotification(n.id)}
-                  style={{ width: '28px', height: '28px', borderRadius: '7px', background: '#FFFFFF', border: '1px solid #C8DFE0', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', flexShrink: 0 }}
+                  style={{ width: '28px', height: '28px', borderRadius: '7px', background: '#FFFFFF', border: '1px solid #DDE8EE', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', flexShrink: 0 }}
                 >
-                  <svg width="11" height="11" fill="none" stroke="#1E2124" strokeWidth="2.5" strokeLinecap="round" viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                  <svg width="11" height="11" fill="none" stroke="#0F1923" strokeWidth="2.5" strokeLinecap="round" viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
                 </button>
               </div>
             ))}
@@ -412,54 +392,69 @@ function DashboardContent() {
         )}
 
         {/* ── Hero ── */}
-        <div style={{ background: '#FFFFFF', border: '1px solid #C8DFE0', borderRadius: '16px', padding: '32px', marginBottom: '24px', display: 'grid', gridTemplateColumns: '1fr auto', gap: '24px', alignItems: 'center', boxShadow: '0 1px 4px rgba(0,165,163,0.06), 0 1px 2px rgba(0,0,0,0.04)' }}>
-          <div>
-            <div style={{ fontSize: '18px', fontWeight: 800, letterSpacing: '2.5px', textTransform: 'uppercase', color: '#00A5A3', marginBottom: '8px' }}>
-              {completedCount === 0 ? 'Welcome to Trescademy' : 'Welcome back'}
+        <div style={{ borderRadius: '20px', marginBottom: '24px', overflow: 'hidden', boxShadow: 'none' }}>
+          {/* Rich colored header band */}
+          <div style={{ background: `linear-gradient(135deg, ${tierConfig.color} 0%, ${tierConfig.color}CC 60%, #0F1923 100%)`, padding: '16px 32px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <div style={{ width: '10px', height: '10px', borderRadius: '50%', background: 'rgba(255,255,255,0.8)' }} />
+              <span style={{ fontSize: '11px', fontWeight: 800, letterSpacing: '2.5px', textTransform: 'uppercase', color: 'rgba(255,255,255,0.9)' }}>
+                {completedCount === 0 ? 'Welcome to Trescademy' : 'Welcome back'} · {tier}
+              </span>
             </div>
-            <h1 style={{ fontSize: '36px', fontWeight: 800, margin: '0 0 4px', letterSpacing: '-0.5px', color: '#1E2124' }}>
-              {staff.name}
-            </h1>
-            <div style={{ fontSize: '18px', color: '#464D53', marginBottom: '20px' }}>
-              {staff.role} · {staff.department}
-            </div>
-            <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', alignItems: 'center' }}>
-              <div style={{ background: tierConfig.bg, border: `1px solid ${tierConfig.border}`, borderRadius: '10px', padding: '10px 18px', display: 'flex', alignItems: 'center', gap: '10px' }}>
-                <span style={{ fontSize: '36px', fontWeight: 900, color: tierConfig.color }}>{score}</span>
-                <div>
-                  <div style={{ fontSize: '18px', fontWeight: 800, color: tierConfig.color }}>{tier}</div>
-                  <div style={{ fontSize: '20px', color: 'rgba(255,255,255,0.75)' }}>AI Readiness Score · 0–100</div>
+            <span style={{ fontSize: '11px', fontWeight: 700, color: 'rgba(255,255,255,0.6)', letterSpacing: '0.5px' }}>
+              {completedCount} course{completedCount !== 1 ? 's' : ''} completed
+            </span>
+          </div>
+          {/* Body */}
+          <div style={{ background: `linear-gradient(180deg, ${tierConfig.color}12 0%, #FFFFFF 55%)`, padding: '28px 32px', display: 'grid', gridTemplateColumns: '1fr auto', gap: '24px', alignItems: 'center' }}>
+            <div>
+              <h1 style={{ fontSize: '38px', fontWeight: 900, margin: '0 0 4px', letterSpacing: '-0.7px', color: '#0F1923', lineHeight: 1.1 }}>
+                {staff.name}
+              </h1>
+              <div style={{ fontSize: '14px', color: '#5B7080', marginBottom: '22px', fontWeight: 500 }}>
+                {staff.role} · {staff.department}
+              </div>
+              <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', alignItems: 'stretch' }}>
+                <div style={{ background: tierConfig.color, borderRadius: '12px', padding: '12px 20px', display: 'flex', alignItems: 'center', gap: '12px', minWidth: '180px' }}>
+                  <span style={{ fontSize: '40px', fontWeight: 900, color: '#FFFFFF', lineHeight: 1 }}>{score}</span>
+                  <div>
+                    <div style={{ fontSize: '13px', fontWeight: 800, color: 'rgba(255,255,255,0.9)', marginBottom: '2px' }}>{tier}</div>
+                    <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.65)', fontWeight: 600 }}>TAIRS · 0–100</div>
+                  </div>
+                </div>
+                <div style={{ background: '#FFFFFF', border: `1.5px solid ${trackConfig.border}`, borderRadius: '12px', padding: '12px 20px' }}>
+                  <div style={{ fontSize: '13px', fontWeight: 800, color: trackConfig.color, marginBottom: '2px' }}>{TRACK_LABEL[track]}</div>
+                  <div style={{ fontSize: '12px', color: '#5B7080', fontWeight: 600 }}>Current learning track</div>
                 </div>
               </div>
-              <div style={{ background: '#FFFFFF', border: '1px solid #C8DFE0', borderRadius: '10px', padding: '10px 18px' }}>
-                <div style={{ fontSize: '18px', fontWeight: 700, color: '#1E2124' }}>{TRACK_LABEL[track]}</div>
-                <div style={{ fontSize: '20px', color: '#464D53' }}>Current learning track</div>
-              </div>
             </div>
-          </div>
-          {/* Circular score ring */}
-          <div style={{ textAlign: 'center', flexShrink: 0 }}>
-            <ScoreRing score={score} color={tierConfig.color} />
-            <div style={{ fontSize: '20px', color: '#464D53', marginTop: '6px', lineHeight: 1.4 }}>
-              TAIRS score<br />out of 100
+            {/* Circular score ring */}
+            <div style={{ textAlign: 'center', flexShrink: 0 }}>
+              <ScoreRing score={score} color={tierConfig.color} />
+              <div style={{ fontSize: '12px', color: '#5B7080', marginTop: '6px', lineHeight: 1.4, fontWeight: 600 }}>
+                TAIRS score<br />out of 100
+              </div>
             </div>
           </div>
         </div>
 
         {/* TAIRS explanation strip */}
-        <div style={{ display: 'flex', gap: '4px', marginTop: '16px', marginBottom: '20px', borderRadius: '10px', overflow: 'hidden' }}>
+        <div style={{ display: 'flex', gap: '6px', marginTop: '16px', marginBottom: '24px' }}>
           {[
-            { label: 'AI-Unaware', range: '0–14',   color: '#FF6B6B' },
-            { label: 'AI-Curious',  range: '15–34',  color: '#FF9F43' },
-            { label: 'AI-Aware',    range: '35–54',  color: '#7A6600' },
-            { label: 'AI-Ready',    range: '55–74',  color: '#A8E6CF' },
-            { label: 'AI-Forward',  range: '75–100', color: '#3D6B00' },
-          ].map(t => (
-            <div key={t.label} style={{ flex: 1, padding: '9px 8px', background: tier === t.label ? `${t.color}20` : '#FFFFFF', border: `1px solid ${tier === t.label ? t.color + '50' : '#C8DFE0'}`, borderRadius: '8px', textAlign: 'center' }}>
-              <div style={{ fontSize: '18px', fontWeight: 800, color: t.color, letterSpacing: '0.3px' }}>{t.label}</div>
-              <div style={{ fontSize: '18px', color: '#464D53', marginTop: '3px' }}>{t.range}</div>
-            </div>
-          ))}
+            { label: 'AI-Unaware', range: '0–14',   color: '#991B1B', bg: '#FEF2F2', border: '#FCA5A5' },
+            { label: 'AI-Curious',  range: '15–34',  color: '#C2410C', bg: '#FFF7ED', border: '#FDBA74' },
+            { label: 'AI-Aware',    range: '35–54',  color: '#92400E', bg: '#FFFBEB', border: '#FCD34D' },
+            { label: 'AI-Ready',    range: '55–74',  color: '#0E7490', bg: '#ECFEFF', border: '#67E8F9' },
+            { label: 'AI-Forward',  range: '75–100', color: '#166534', bg: '#F0FDF4', border: '#86EFAC' },
+          ].map(t => {
+            const isActive = tier === t.label
+            return (
+              <div key={t.label} style={{ flex: 1, padding: '11px 8px', background: isActive ? t.color : '#FFFFFF', border: `1.5px solid ${isActive ? t.color : '#DDE8EE'}`, borderRadius: '10px', textAlign: 'center', transition: 'all 0.2s ease',  }}>
+                <div style={{ fontSize: '10px', fontWeight: 900, color: isActive ? 'rgba(255,255,255,0.9)' : t.color, letterSpacing: '0.5px', textTransform: 'uppercase' }}>{t.label}</div>
+                <div style={{ fontSize: '11px', color: isActive ? 'rgba(255,255,255,0.7)' : '#5B7080', marginTop: '3px', fontWeight: 600 }}>{t.range}</div>
+              </div>
+            )
+          })}
         </div>
 
         {/* ── Stats strip / Journey kickstart ── */}
@@ -467,44 +462,50 @@ function DashboardContent() {
           /* Zero state — no courses completed yet */
           <div style={{ marginBottom: '24px' }}>
             <div style={{ background: 'linear-gradient(135deg, rgba(0,165,163,0.08) 0%, rgba(164,120,255,0.06) 100%)', border: '1px solid rgba(0,165,163,0.2)', borderRadius: '16px', padding: '24px 28px', marginBottom: '12px' }}>
-              <div style={{ fontSize: '18px', fontWeight: 800, letterSpacing: '2px', color: '#00A5A3', textTransform: 'uppercase', marginBottom: '10px' }}>Your AI learning journey begins here</div>
-              <p style={{ fontSize: '20px', color: '#464D53', lineHeight: 1.65, margin: '0 0 20px' }}>
-                You have been placed on the <strong style={{ color: '#1E2124' }}>{TRACK_LABEL[track]}</strong> based on your AI readiness score. Start your first course below — every course you complete moves your score forward and builds real skills you can use tomorrow.
+              <div style={{ fontSize: '13px', fontWeight: 800, letterSpacing: '2px', color: '#00695C', textTransform: 'uppercase', marginBottom: '10px' }}>Your AI learning journey begins here</div>
+              <p style={{ fontSize: '13px', color: '#2D3E50', lineHeight: 1.65, margin: '0 0 20px' }}>
+                You have been placed on the <strong style={{ color: '#0F1923' }}>{TRACK_LABEL[track]}</strong> based on your AI readiness score. Start your first course below — every course you complete moves your score forward and builds real skills you can use tomorrow.
               </p>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '10px' }}>
                 {[
-                  { step: '01', label: 'Start a course', sub: 'Pick any course and begin', done: false, color: '#00A5A3' },
-                  { step: '02', label: 'Pass the assessment', sub: '60% or higher to complete', done: false, color: '#A478FF' },
-                  { step: '03', label: 'Watch your score climb', sub: 'TAIRS updates as you learn', done: false, color: '#3D6B00' },
+                  { step: '01', label: 'Start a course', sub: 'Pick any course and begin', color: '#00695C', bg: '#00695C' },
+                  { step: '02', label: 'Pass the assessment', sub: '60% or higher to complete', color: '#A478FF', bg: '#A478FF' },
+                  { step: '03', label: 'Watch your score climb', sub: 'TAIRS updates as you learn', color: '#3D6B00', bg: '#3D6B00' },
                 ].map(item => (
-                  <div key={item.step} style={{ background: '#FFFFFF', border: `1px solid ${item.color}25`, borderRadius: '12px', padding: '14px 16px' }}>
-                    <div style={{ fontSize: '18px', fontWeight: 900, color: item.color, letterSpacing: '1.5px', marginBottom: '6px' }}>STEP {item.step}</div>
-                    <div style={{ fontSize: '18px', fontWeight: 700, color: '#1E2124', marginBottom: '4px' }}>{item.label}</div>
-                    <div style={{ fontSize: '20px', color: '#1E2124' }}>{item.sub}</div>
+                  <div key={item.step} style={{ background: item.bg, borderRadius: '14px', padding: '18px 16px' }}>
+                    <div style={{ fontSize: '11px', fontWeight: 900, color: 'rgba(255,255,255,0.7)', letterSpacing: '2px', marginBottom: '8px' }}>STEP {item.step}</div>
+                    <div style={{ fontSize: '14px', fontWeight: 800, color: '#FFFFFF', marginBottom: '4px' }}>{item.label}</div>
+                    <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.75)', lineHeight: 1.4 }}>{item.sub}</div>
                   </div>
                 ))}
               </div>
             </div>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '10px' }}>
-              <div style={{ background: '#FFFFFF', border: '1px solid #C8DFE0', borderRadius: '12px', padding: '14px 18px', display: 'flex', alignItems: 'center', gap: '10px', boxShadow: '0 1px 4px rgba(0,165,163,0.06), 0 1px 2px rgba(0,0,0,0.04)' }}>
-                <svg width="16" height="16" fill="none" stroke="rgba(70,77,83,0.5)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>
+              <div style={{ background: '#00897B', borderRadius: '14px', padding: '18px', display: 'flex', alignItems: 'center', gap: '12px' }}>
+                <div style={{ width: '40px', height: '40px', borderRadius: '12px', background: 'rgba(255,255,255,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                  <svg width="18" height="18" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>
+                </div>
                 <div>
-                  <div style={{ fontSize: '36px', fontWeight: 900, color: '#1E2124' }}>{courses.length}</div>
-                  <div style={{ fontSize: '18px', color: '#1E2124' }}>courses available</div>
+                  <div style={{ fontSize: '32px', fontWeight: 900, color: '#FFFFFF', lineHeight: 1 }}>{courses.length}</div>
+                  <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.75)', fontWeight: 600 }}>courses available</div>
                 </div>
               </div>
-              <div style={{ background: 'rgba(255,159,67,0.05)', border: '1px solid rgba(255,159,67,0.15)', borderRadius: '12px', padding: '14px 18px', display: 'flex', alignItems: 'center', gap: '10px' }}>
-                <svg width="16" height="16" fill="none" stroke="#FF9F43" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+              <div style={{ background: '#8B1A1A', borderRadius: '14px', padding: '18px', display: 'flex', alignItems: 'center', gap: '12px' }}>
+                <div style={{ width: '40px', height: '40px', borderRadius: '12px', background: 'rgba(255,255,255,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                  <svg width="18" height="18" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+                </div>
                 <div>
-                  <div style={{ fontSize: '36px', fontWeight: 900, color: '#FF9F43' }}>{totalMandatory}</div>
-                  <div style={{ fontSize: '18px', color: '#1E2124' }}>mandatory courses</div>
+                  <div style={{ fontSize: '32px', fontWeight: 900, color: '#FFFFFF', lineHeight: 1 }}>{totalMandatory}</div>
+                  <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.75)', fontWeight: 600 }}>mandatory</div>
                 </div>
               </div>
-              <div style={{ background: `${tierConfig.bg}`, border: `1px solid ${tierConfig.border}`, borderRadius: '12px', padding: '14px 18px', display: 'flex', alignItems: 'center', gap: '10px' }}>
-                <svg width="16" height="16" fill="none" stroke={tierConfig.color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+              <div style={{ background: trackConfig.color, borderRadius: '14px', padding: '18px', display: 'flex', alignItems: 'center', gap: '12px' }}>
+                <div style={{ width: '40px', height: '40px', borderRadius: '12px', background: 'rgba(255,255,255,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                  <svg width="18" height="18" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+                </div>
                 <div>
-                  <div style={{ fontSize: '20px', fontWeight: 900, color: tierConfig.color }}>{track.charAt(0).toUpperCase() + track.slice(1)}</div>
-                  <div style={{ fontSize: '18px', color: '#1E2124' }}>your starting track</div>
+                  <div style={{ fontSize: '14px', fontWeight: 900, color: '#FFFFFF', lineHeight: 1 }}>{TRACK_LABEL[track]}</div>
+                  <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.75)', fontWeight: 600 }}>your track</div>
                 </div>
               </div>
             </div>
@@ -512,30 +513,36 @@ function DashboardContent() {
         ) : (
           /* Progress state — real stats */
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '12px', marginBottom: '24px' }}>
-            {/* Completed — clickable, scrolls to section */}
+            {/* Completed */}
             <button
               onClick={() => document.getElementById('completed-section')?.scrollIntoView({ behavior: 'smooth' })}
-              style={{ background: 'rgba(192,244,60,0.05)', border: '1px solid rgba(192,244,60,0.2)', borderRadius: '14px', padding: '20px', textAlign: 'left', fontFamily: 'inherit', cursor: 'pointer' }}>
-              <div style={{ fontSize: '20px', fontWeight: 700, color: '#3D6B00', textTransform: 'uppercase', letterSpacing: '1.2px', marginBottom: '6px' }}>Courses Completed</div>
-              <div style={{ fontSize: '36px', fontWeight: 900, color: '#1E2124', marginBottom: '4px' }}>{completedCount}</div>
-              <div style={{ fontSize: '18px', color: '#3D6B00', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                View completed
-                <svg width="11" height="11" fill="none" stroke="#C0F43C" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg>
+              style={{ background: '#7DC520', borderRadius: '16px', padding: '20px', textAlign: 'left', fontFamily: 'inherit', cursor: 'pointer', border: 'none' }}>
+              <div style={{ fontSize: '11px', fontWeight: 800, color: 'rgba(255,255,255,0.8)', textTransform: 'uppercase', letterSpacing: '1.5px', marginBottom: '8px' }}>Completed</div>
+              <div style={{ fontSize: '44px', fontWeight: 900, color: '#FFFFFF', marginBottom: '4px', lineHeight: 1 }}>{completedCount}</div>
+              <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.8)', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '4px' }}>
+                View all
+                <svg width="10" height="10" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg>
               </div>
             </button>
             {/* Mandatory */}
-            <div style={{ background: completedMandatory >= totalMandatory ? 'rgba(192,244,60,0.05)' : '#FFFFFF', border: `1px solid ${completedMandatory >= totalMandatory ? 'rgba(192,244,60,0.2)' : '#D8EAEB'}`, borderRadius: '14px', padding: '20px', boxShadow: '0 1px 3px rgba(0,0,0,0.08)' }}>
-              <div style={{ fontSize: '20px', fontWeight: 700, color: completedMandatory >= totalMandatory ? '#C0F43C' : '#464D53', textTransform: 'uppercase', letterSpacing: '1.2px', marginBottom: '6px' }}>Mandatory Progress</div>
-              <div style={{ fontSize: '36px', fontWeight: 900, color: '#1E2124', marginBottom: '4px' }}>{completedMandatory}<span style={{ fontSize: '18px', color: '#1E2124', fontWeight: 700 }}>/{totalMandatory}</span></div>
-              <div style={{ fontSize: '18px', color: '#464D53' }}>
-                {completedMandatory >= totalMandatory ? 'All mandatory done' : `${totalMandatory - completedMandatory} remaining`}
-              </div>
-            </div>
+            {(() => {
+              const mandDone = completedMandatory >= totalMandatory
+              const mandColor = mandDone ? '#7DC520' : '#8B1A1A'
+              return (
+                <div style={{ background: mandColor, borderRadius: '16px', padding: '20px' }}>
+                  <div style={{ fontSize: '11px', fontWeight: 800, color: 'rgba(255,255,255,0.8)', textTransform: 'uppercase', letterSpacing: '1.5px', marginBottom: '8px' }}>Mandatory</div>
+                  <div style={{ fontSize: '44px', fontWeight: 900, color: '#FFFFFF', marginBottom: '4px', lineHeight: 1 }}>{completedMandatory}<span style={{ fontSize: '20px', fontWeight: 700, opacity: 0.7 }}>/{totalMandatory}</span></div>
+                  <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.8)', fontWeight: 600 }}>
+                    {mandDone ? 'All done!' : `${totalMandatory - completedMandatory} remaining`}
+                  </div>
+                </div>
+              )
+            })()}
             {/* Track */}
-            <div style={{ background: tierConfig.bg, border: `1px solid ${tierConfig.border}`, borderRadius: '14px', padding: '20px' }}>
-              <div style={{ fontSize: '20px', fontWeight: 700, color: tierConfig.color, textTransform: 'uppercase', letterSpacing: '1.2px', marginBottom: '6px' }}>Current Track</div>
-              <div style={{ fontSize: '36px', fontWeight: 900, color: '#1E2124', marginBottom: '4px' }}>{track.charAt(0).toUpperCase() + track.slice(1)}</div>
-              <div style={{ fontSize: '18px', color: '#464D53' }}>learning level</div>
+            <div style={{ background: trackConfig.color, borderRadius: '16px', padding: '20px' }}>
+              <div style={{ fontSize: '11px', fontWeight: 800, color: 'rgba(255,255,255,0.8)', textTransform: 'uppercase', letterSpacing: '1.5px', marginBottom: '8px' }}>Your Track</div>
+              <div style={{ fontSize: '26px', fontWeight: 900, color: '#FFFFFF', marginBottom: '4px', lineHeight: 1.1 }}>{TRACK_LABEL[track]}</div>
+              <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.75)', fontWeight: 600 }}>current learning level</div>
             </div>
           </div>
         )}
@@ -545,49 +552,49 @@ function DashboardContent() {
 
           {/* Next Up */}
           {nextCourse ? (
-            <div style={{ background: '#FFFFFF', border: `1px solid ${tierConfig.border}`, borderRadius: '16px', padding: '28px', boxShadow: '0 1px 4px rgba(0,165,163,0.06), 0 1px 2px rgba(0,0,0,0.04)' }}>
-              <div style={{ fontSize: '18px', fontWeight: 800, letterSpacing: '2px', color: tierConfig.color, textTransform: 'uppercase', marginBottom: '12px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <div style={{ background: `linear-gradient(180deg, ${tierConfig.color}10 0%, #FFFFFF 50%)`, border: `1.5px solid ${tierConfig.border}`, borderTop: `5px solid ${tierConfig.color}`, borderRadius: '16px', padding: '28px' }}>
+              <div style={{ fontSize: '13px', fontWeight: 800, letterSpacing: '2px', color: tierConfig.color, textTransform: 'uppercase', marginBottom: '12px', display: 'flex', alignItems: 'center', gap: '8px' }}>
                 Next Up
                 {'rec_label' in nextCourse && 'rec_reason' in nextCourse && nextCourse.rec_label !== 'ai' && !!nextCourse.rec_reason && (
-                  <span style={{ fontSize: '18px', fontWeight: 700, color: REC_LABEL_COLOR[nextCourse.rec_label as string] ?? tierConfig.color, background: `${REC_LABEL_COLOR[nextCourse.rec_label as string] ?? tierConfig.color}18`, padding: '2px 8px', borderRadius: '6px', letterSpacing: '0.5px', textTransform: 'none' }}>
+                  <span style={{ fontSize: '13px', fontWeight: 700, color: REC_LABEL_COLOR[nextCourse.rec_label as string] ?? tierConfig.color, background: `${REC_LABEL_COLOR[nextCourse.rec_label as string] ?? tierConfig.color}18`, padding: '2px 8px', borderRadius: '6px', letterSpacing: '0.5px', textTransform: 'none' }}>
                     {nextCourse.rec_reason as string}
                   </span>
                 )}
                 {'rec_label' in nextCourse && nextCourse.rec_label === 'ai' && (
-                  <span style={{ fontSize: '18px', fontWeight: 700, color: '#A478FF', background: 'rgba(164,120,255,0.12)', border: '1px solid rgba(164,120,255,0.25)', padding: '2px 8px', borderRadius: '6px', letterSpacing: '0.5px', textTransform: 'none' }}>
+                  <span style={{ fontSize: '13px', fontWeight: 700, color: '#A478FF', background: 'rgba(164,120,255,0.12)', border: '1px solid rgba(164,120,255,0.25)', padding: '2px 8px', borderRadius: '6px', letterSpacing: '0.5px', textTransform: 'none' }}>
                     AI-picked
                   </span>
                 )}
               </div>
               {'rec_label' in nextCourse && 'rec_reason' in nextCourse && nextCourse.rec_label === 'ai' && !!nextCourse.rec_reason && (
-                <div style={{ fontSize: '20px', color: 'rgba(164,120,255,0.9)', lineHeight: 1.65, marginBottom: '12px', fontStyle: 'italic' }}>
+                <div style={{ fontSize: '13px', color: 'rgba(164,120,255,0.9)', lineHeight: 1.65, marginBottom: '12px', fontStyle: 'italic' }}>
                   {nextCourse.rec_reason as string}
                 </div>
               )}
-              <h2 style={{ fontSize: '36px', fontWeight: 800, color: '#1E2124', margin: '0 0 6px', lineHeight: 1.25 }}>
+              <h2 style={{ fontSize: '36px', fontWeight: 800, color: '#0F1923', margin: '0 0 6px', lineHeight: 1.25 }}>
                 {nextCourse.title}
               </h2>
-              <p style={{ fontSize: '18px', color: '#464D53', margin: '0 0 8px', lineHeight: 1.65 }}>
+              <p style={{ fontSize: '13px', color: '#2D3E50', margin: '0 0 8px', lineHeight: 1.65 }}>
                 {nextCourse.subtitle}
               </p>
               <div style={{ display: 'flex', gap: '8px', alignItems: 'center', marginBottom: '20px' }}>
-                <span style={{ fontSize: '18px', fontWeight: 700, color: '#464D53', background: '#FFFFFF', padding: '3px 10px', borderRadius: '16px' }}>
+                <span style={{ fontSize: '13px', fontWeight: 700, color: '#2D3E50', background: '#FFFFFF', padding: '3px 10px', borderRadius: '16px' }}>
                   {nextCourse.estimated_minutes} min
                 </span>
                 {nextCourse.is_mandatory && (
-                  <span style={{ fontSize: '18px', fontWeight: 700, color: '#FF9F43', background: '#FF9F4315', padding: '3px 10px', borderRadius: '16px' }}>
+                  <span style={{ fontSize: '13px', fontWeight: 700, color: '#8B1A1A', background: '#8B1A1A15', padding: '3px 10px', borderRadius: '16px' }}>
                     Mandatory
                   </span>
                 )}
                 {nextCourse.tool_name && (
-                  <span style={{ fontSize: '18px', fontWeight: 700, color: '#464D53', background: '#FFFFFF', padding: '3px 10px', borderRadius: '16px' }}>
+                  <span style={{ fontSize: '13px', fontWeight: 700, color: '#2D3E50', background: '#FFFFFF', padding: '3px 10px', borderRadius: '16px' }}>
                     {nextCourse.tool_name}
                   </span>
                 )}
               </div>
               <Link
                 href={`/dashboard/course/${nextCourse.id}?staff_id=${staffId}`}
-                style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', padding: '14px 26px', background: tierConfig.color, color: score >= 55 ? 'white' : '#1E2124', borderRadius: '12px', textDecoration: 'none', fontWeight: 800, fontSize: '20px' }}
+                style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', padding: '14px 28px', background: tierConfig.color, color: '#FFFFFF', borderRadius: '12px', textDecoration: 'none', fontWeight: 800, fontSize: '14px', letterSpacing: '0.2px' }}
               >
                 Start Course
                 <svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg>
@@ -596,14 +603,14 @@ function DashboardContent() {
           ) : (
             <div style={{ background: 'rgba(192,244,60,0.05)', border: '1px solid rgba(192,244,60,0.2)', borderRadius: '16px', padding: '28px', display: 'flex', alignItems: 'center', gap: '20px' }}>
               <div style={{ width: '52px', height: '52px', borderRadius: '50%', background: '#C0F43C20', border: '2px solid #C0F43C40', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                <svg width="22" height="22" fill="none" stroke="#C0F43C" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>
+                <svg width="22" height="22" fill="none" stroke="#007A6E" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>
               </div>
               <div>
-                <div style={{ fontSize: '20px', fontWeight: 800, color: '#3D6B00', marginBottom: '6px' }}>Track Complete!</div>
-                <p style={{ fontSize: '18px', color: '#464D53', margin: 0, lineHeight: 1.65 }}>
+                <div style={{ fontSize: '13px', fontWeight: 800, color: '#3D6B00', marginBottom: '6px' }}>Track Complete!</div>
+                <p style={{ fontSize: '13px', color: '#2D3E50', margin: 0, lineHeight: 1.65 }}>
                   You've completed all {track} track courses. Explore the full library for more.
                 </p>
-                <Link href={`/dashboard/library?id=${staffId}`} style={{ display: 'inline-block', marginTop: '14px', fontSize: '18px', fontWeight: 700, color: '#3D6B00', textDecoration: 'underline' }}>
+                <Link href={`/dashboard/library?id=${staffId}`} style={{ display: 'inline-block', marginTop: '14px', fontSize: '13px', fontWeight: 700, color: '#3D6B00', textDecoration: 'underline' }}>
                   Browse Library
                 </Link>
               </div>
@@ -611,15 +618,15 @@ function DashboardContent() {
           )}
 
           {/* Daily tip */}
-          <div style={{ background: 'rgba(0,165,163,0.07)', border: '1px solid rgba(0,165,163,0.18)', borderRadius: '16px', padding: '24px' }}>
-            <div style={{ fontSize: '18px', fontWeight: 800, letterSpacing: '2px', color: '#00A5A3', textTransform: 'uppercase', marginBottom: '12px', display: 'flex', alignItems: 'center', gap: '6px' }}>
-              <svg width="12" height="12" fill="none" stroke="#00A5A3" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+          <div style={{ background: '#E0F2F1', border: '1.5px solid #80CBC4', borderRadius: '16px', padding: '24px' }}>
+            <div style={{ fontSize: '11px', fontWeight: 800, letterSpacing: '2px', color: '#00695C', textTransform: 'uppercase', marginBottom: '12px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <svg width="12" height="12" fill="none" stroke="#00695C" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
               Daily Tip
             </div>
-            <div style={{ fontSize: '18px', fontWeight: 800, color: '#1E2124', marginBottom: '10px', lineHeight: 1.3 }}>
+            <div style={{ fontSize: '14px', fontWeight: 800, color: '#0F1923', marginBottom: '10px', lineHeight: 1.3 }}>
               {tip.title}
             </div>
-            <p style={{ fontSize: '18px', color: '#464D53', margin: 0, lineHeight: 1.65 }}>
+            <p style={{ fontSize: '13px', color: '#2D3E50', margin: 0, lineHeight: 1.65 }}>
               {tip.body}
             </p>
           </div>
@@ -630,24 +637,24 @@ function DashboardContent() {
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
             <div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                <h2 style={{ fontSize: '20px', fontWeight: 800, color: '#1E2124', margin: 0 }}>Recommended For You</h2>
+                <h2 style={{ fontSize: '14px', fontWeight: 900, color: '#0F1923', margin: 0, letterSpacing: '-0.2px' }}>Recommended For You</h2>
                 {aiRecsLoading && (
                   <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
                     <div style={{ width: '12px', height: '12px', border: '2px solid rgba(164,120,255,0.3)', borderTopColor: '#A478FF', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />
-                    <span style={{ fontSize: '18px', fontWeight: 700, color: '#A478FF', letterSpacing: '0.5px' }}>AI thinking…</span>
+                    <span style={{ fontSize: '13px', fontWeight: 700, color: '#A478FF', letterSpacing: '0.5px' }}>AI thinking…</span>
                   </div>
                 )}
                 {aiRecsReady && !aiRecsLoading && (
-                  <span style={{ fontSize: '18px', fontWeight: 800, color: '#A478FF', background: 'rgba(164,120,255,0.12)', border: '1px solid rgba(164,120,255,0.25)', padding: '2px 8px', borderRadius: '16px', letterSpacing: '0.5px' }}>
+                  <span style={{ fontSize: '13px', fontWeight: 800, color: '#A478FF', background: 'rgba(164,120,255,0.12)', border: '1px solid rgba(164,120,255,0.25)', padding: '2px 8px', borderRadius: '16px', letterSpacing: '0.5px' }}>
                     AI-personalised
                   </span>
                 )}
               </div>
-              <div style={{ fontSize: '20px', color: '#464D53', marginTop: '2px' }}>
+              <div style={{ fontSize: '13px', color: '#2D3E50', marginTop: '2px' }}>
                 {aiRecsReady ? 'Chosen by AI based on your role, tasks, and learning profile' : 'Ranked by your role, department, and learning track'}
               </div>
             </div>
-            <Link href={`/dashboard/library?id=${staffId}`} style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '20px', fontWeight: 700, color: '#00A5A3', background: 'rgba(0,165,163,0.12)', border: '1px solid rgba(0,165,163,0.3)', padding: '6px 14px', borderRadius: '16px', textDecoration: 'none' }}>
+            <Link href={`/dashboard/library?id=${staffId}`} style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px', fontWeight: 700, color: '#00695C', background: 'rgba(0,165,163,0.12)', border: '1px solid rgba(0,165,163,0.3)', padding: '6px 14px', borderRadius: '16px', textDecoration: 'none' }}>
               Browse All
               <svg width="11" height="11" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg>
             </Link>
@@ -670,43 +677,44 @@ function DashboardContent() {
                     alignItems: 'center',
                     gap: '14px',
                     padding: '18px 20px',
-                    background: isNext ? `${tierConfig.bg}` : '#FFFFFF',
-                    border: `1px solid ${isNext ? tierConfig.border : '#C8DFE0'}`,
-                    boxShadow: '0 1px 4px rgba(0,165,163,0.06), 0 1px 2px rgba(0,0,0,0.04)',
-                    borderRadius: '14px',
+                    background: done ? '#FFFFFF' : isNext ? `linear-gradient(135deg, ${tierConfig.color}12 0%, #FFFFFF 70%)` : '#FFFFFF',
+                    border: `1.5px solid ${isNext ? tierConfig.border : done ? '#DDE8EE' : '#DDE8EE'}`,
+                    borderLeft: isNext ? `5px solid ${tierConfig.color}` : done ? `5px solid #7DC520` : `5px solid #DDE8EE`,
+                    boxShadow: isNext ? `0 4px 16px ${tierConfig.color}22` : '0 1px 4px rgba(15,25,35,0.04)',
+                    borderRadius: '12px',
                     textDecoration: 'none',
-                    transition: 'border-color 0.15s ease',
+                    transition: 'all 0.15s ease',
                   }}
                 >
                   {/* Step number / checkmark */}
-                  <div style={{ width: '36px', height: '36px', borderRadius: '50%', background: done ? '#C0F43C20' : isNext ? `${tierConfig.color}20` : '#F1F5F9', border: `2px solid ${done ? '#C0F43C' : isNext ? tierConfig.color : '#B8D4D5'}`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                  <div style={{ width: '36px', height: '36px', borderRadius: '50%', background: done ? '#7DC520' : isNext ? tierConfig.color : '#E8EEF4', border: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, boxShadow: done ? '0 2px 8px rgba(125,197,32,0.4)' : isNext ? `0 2px 8px ${tierConfig.color}45` : 'none' }}>
                     {done
-                      ? <svg width="14" height="14" fill="none" stroke="#C0F43C" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>
-                      : <span style={{ fontSize: '18px', fontWeight: 800, color: isNext ? tierConfig.color : '#1E2124' }}>{idx + 1}</span>
+                      ? <svg width="14" height="14" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>
+                      : <span style={{ fontSize: '13px', fontWeight: 800, color: isNext ? '#FFFFFF' : '#5B7080' }}>{idx + 1}</span>
                     }
                   </div>
                   {/* Title + reason */}
                   <div>
-                    <div style={{ fontSize: '20px', fontWeight: 700, color: done ? '#1E2124' : '#1E2124', marginBottom: '4px' }}>{course.title}</div>
+                    <div style={{ fontSize: '13px', fontWeight: 700, color: done ? '#0F1923' : '#0F1923', marginBottom: '4px' }}>{course.title}</div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap', marginBottom: recReason && !done && recLabel === 'ai' ? '5px' : '0' }}>
-                      <span style={{ fontSize: '18px', color: '#464D53' }}>{course.estimated_minutes} min</span>
+                      <span style={{ fontSize: '13px', color: '#2D3E50' }}>{course.estimated_minutes} min</span>
                       {course.is_mandatory && (
-                        <span style={{ fontSize: '18px', fontWeight: 700, color: '#FF9F43', background: '#FF9F4312', padding: '1px 7px', borderRadius: '5px' }}>Mandatory</span>
+                        <span style={{ fontSize: '13px', fontWeight: 700, color: '#8B1A1A', background: '#8B1A1A12', padding: '1px 7px', borderRadius: '5px' }}>Mandatory</span>
                       )}
                       {recReason && !done && recLabel !== 'ai' && (
-                        <span style={{ fontSize: '18px', fontWeight: 700, color: labelColor, background: `${labelColor}15`, padding: '1px 7px', borderRadius: '5px' }}>
+                        <span style={{ fontSize: '13px', fontWeight: 700, color: labelColor, background: `${labelColor}15`, padding: '1px 7px', borderRadius: '5px' }}>
                           {recReason}
                         </span>
                       )}
                     </div>
                     {recReason && !done && recLabel === 'ai' && (
-                      <div style={{ fontSize: '18px', color: 'rgba(164,120,255,0.85)', lineHeight: 1.65, fontStyle: 'italic' }}>
+                      <div style={{ fontSize: '13px', color: 'rgba(164,120,255,0.85)', lineHeight: 1.65, fontStyle: 'italic' }}>
                         {recReason}
                       </div>
                     )}
                   </div>
                   {/* Status */}
-                  <div style={{ fontSize: '18px', fontWeight: 700, color: done ? '#C0F43C' : isNext ? tierConfig.color : '#1E2124', textAlign: 'right', flexShrink: 0 }}>
+                  <div style={{ fontSize: '13px', fontWeight: 700, color: done ? '#3D6B00' : isNext ? tierConfig.color : '#0F1923', textAlign: 'right', flexShrink: 0 }}>
                     {done ? 'Done' : isNext ? 'Start' : 'View'}
                   </div>
                 </Link>
@@ -714,7 +722,7 @@ function DashboardContent() {
                   <button
                     onClick={e => { e.preventDefault(); dismissCourse(course.id) }}
                     title="Not for me"
-                    style={{ position: 'absolute', top: '8px', right: '8px', width: '20px', height: '20px', borderRadius: '50%', border: 'none', background: '#FFFFFF', color: '#1E2124', cursor: 'pointer', fontSize: '20px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'inherit' }}
+                    style={{ position: 'absolute', top: '8px', right: '8px', width: '20px', height: '20px', borderRadius: '50%', border: 'none', background: '#FFFFFF', color: '#0F1923', cursor: 'pointer', fontSize: '13px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'inherit' }}
                   >
                     <svg width="8" height="8" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
                   </button>
@@ -735,24 +743,24 @@ function DashboardContent() {
               <svg width="18" height="18" fill="none" stroke="#00A5A3" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>
             </div>
             <div>
-              <div style={{ fontSize: '20px', fontWeight: 800, color: '#1E2124', marginBottom: '2px' }}>Course Library</div>
-              <div style={{ fontSize: '20px', color: '#464D53' }}>{courses.length} courses across Foundation, Adoption &amp; Advanced tracks</div>
+              <div style={{ fontSize: '13px', fontWeight: 800, color: '#0F1923', marginBottom: '2px' }}>Course Library</div>
+              <div style={{ fontSize: '13px', color: '#2D3E50' }}>{courses.length} courses across Foundation, Adoption &amp; Advanced tracks</div>
             </div>
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '20px', fontWeight: 700, color: '#00A5A3', flexShrink: 0 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px', fontWeight: 700, color: '#00695C', flexShrink: 0 }}>
             Browse Library
             <svg width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg>
           </div>
         </Link>
 
         {/* ── What improves your score ── */}
-        <div style={{ background: '#FFFFFF', border: '1px solid #C8DFE0', borderRadius: '16px', padding: '24px 28px', marginBottom: '24px', boxShadow: '0 1px 4px rgba(0,165,163,0.06), 0 1px 2px rgba(0,0,0,0.04)' }}>
-          <h3 style={{ fontSize: '20px', fontWeight: 800, color: '#1E2124', margin: '0 0 16px' }}>How to move up from {tier}</h3>
+        <div style={{ background: '#FFFFFF', border: '1px solid #DDE8EE', borderRadius: '16px', padding: '24px 28px', marginBottom: '24px', boxShadow: '0 1px 4px rgba(0,165,163,0.06), 0 1px 2px rgba(0,0,0,0.04)' }}>
+          <h3 style={{ fontSize: '13px', fontWeight: 800, color: '#0F1923', margin: '0 0 16px' }}>How to move up from {tier}</h3>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '12px' }}>
             {getImprovementTips(tier).map((tip, i) => (
               <div key={i} style={{ display: 'flex', gap: '10px', alignItems: 'flex-start' }}>
                 <div style={{ width: '6px', height: '6px', borderRadius: '50%', background: tierConfig.color, marginTop: '5px', flexShrink: 0 }} />
-                <span style={{ fontSize: '18px', color: '#464D53', lineHeight: 1.65 }}>{tip}</span>
+                <span style={{ fontSize: '13px', color: '#2D3E50', lineHeight: 1.65 }}>{tip}</span>
               </div>
             ))}
           </div>
@@ -761,20 +769,20 @@ function DashboardContent() {
         {/* ── Completed Courses ── */}
         {completedCount > 0 && (() => {
           const TRACK_COLORS: Record<string, { color: string; bg: string; label: string }> = {
-            foundation: { color: '#FF9F43', bg: 'rgba(255,159,67,0.12)', label: 'Foundation' },
-            adoption:   { color: '#00A5A3', bg: 'rgba(0,165,163,0.12)',  label: 'Adoption'   },
-            advanced:   { color: '#3D6B00', bg: 'rgba(192,244,60,0.12)', label: 'Advanced'   },
+            foundation: { color: '#0E7490', bg: 'rgba(14,116,144,0.12)',  label: 'Foundation' },
+            adoption:   { color: '#7C3AED', bg: 'rgba(124,58,237,0.12)', label: 'Adoption'   },
+            advanced:   { color: '#166534', bg: 'rgba(22,101,52,0.12)',  label: 'Advanced'   },
           }
           const done = completions.filter(c => c.passed).map(c => ({ ...c, course: courses.find(cr => cr.id === c.course_id) })).filter(c => c.course)
           return (
             <div id="completed-section" style={{ background: 'rgba(192,244,60,0.03)', border: '1px solid rgba(192,244,60,0.15)', borderRadius: '16px', padding: '24px 28px' }}>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '20px' }}>
                 <div>
-                  <h3 style={{ fontSize: '20px', fontWeight: 800, color: '#1E2124', margin: '0 0 4px' }}>Completed Courses</h3>
-                  <div style={{ fontSize: '18px', color: '#464D53' }}>{completedCount} course{completedCount !== 1 ? 's' : ''} passed</div>
+                  <h3 style={{ fontSize: '13px', fontWeight: 800, color: '#0F1923', margin: '0 0 4px' }}>Completed Courses</h3>
+                  <div style={{ fontSize: '13px', color: '#2D3E50' }}>{completedCount} course{completedCount !== 1 ? 's' : ''} passed</div>
                 </div>
                 <div style={{ width: '38px', height: '38px', borderRadius: '50%', background: 'rgba(192,244,60,0.12)', border: '2px solid rgba(192,244,60,0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                  <svg width="16" height="16" fill="none" stroke="#C0F43C" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>
+                  <svg width="16" height="16" fill="none" stroke="#007A6E" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>
                 </div>
               </div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
@@ -783,18 +791,18 @@ function DashboardContent() {
                   return (
                     <div key={course_id} style={{ display: 'grid', gridTemplateColumns: '32px 1fr auto', alignItems: 'center', gap: '14px', padding: '14px 18px', background: 'rgba(192,244,60,0.04)', border: '1px solid rgba(192,244,60,0.1)', borderRadius: '12px' }}>
                       <div style={{ width: '32px', height: '32px', borderRadius: '50%', background: 'rgba(192,244,60,0.12)', border: '1.5px solid rgba(192,244,60,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                        <svg width="13" height="13" fill="none" stroke="#C0F43C" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>
+                        <svg width="13" height="13" fill="none" stroke="#007A6E" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>
                       </div>
                       <div>
-                        <div style={{ fontSize: '20px', fontWeight: 700, color: '#1E2124', marginBottom: '5px' }}>{course!.title}</div>
+                        <div style={{ fontSize: '13px', fontWeight: 700, color: '#0F1923', marginBottom: '5px' }}>{course!.title}</div>
                         <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
-                          <span style={{ fontSize: '18px', fontWeight: 700, color: tc.color, background: tc.bg, padding: '2px 9px', borderRadius: '6px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>{tc.label}</span>
+                          <span style={{ fontSize: '13px', fontWeight: 700, color: tc.color, background: tc.bg, padding: '2px 9px', borderRadius: '6px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>{tc.label}</span>
                           {test_score !== null && (
-                            <span style={{ fontSize: '20px', color: '#464D53', fontWeight: 600 }}>Score: {test_score}%</span>
+                            <span style={{ fontSize: '13px', color: '#2D3E50', fontWeight: 600 }}>Score: {test_score}%</span>
                           )}
                         </div>
                       </div>
-                      <Link href={`/dashboard/course/${course!.id}?staff_id=${staffId}`} style={{ fontSize: '20px', fontWeight: 700, color: '#3D6B00', textDecoration: 'none', background: 'rgba(192,244,60,0.1)', border: '1px solid rgba(192,244,60,0.25)', padding: '7px 16px', borderRadius: '16px', whiteSpace: 'nowrap', flexShrink: 0 }}>
+                      <Link href={`/dashboard/course/${course!.id}?staff_id=${staffId}`} style={{ fontSize: '13px', fontWeight: 700, color: '#3D6B00', textDecoration: 'none', background: 'rgba(192,244,60,0.1)', border: '1px solid rgba(192,244,60,0.25)', padding: '7px 16px', borderRadius: '16px', whiteSpace: 'nowrap', flexShrink: 0 }}>
                         Review
                       </Link>
                     </div>
@@ -810,19 +818,19 @@ function DashboardContent() {
       {/* ── My Events section ── */}
       {events.length > 0 && (
         <div style={{ maxWidth: '900px', margin: '0 auto', padding: '0 24px 32px' }}>
-          <div style={{ fontSize: '18px', fontWeight: 800, letterSpacing: '2px', color: '#00A5A3', textTransform: 'uppercase', marginBottom: '14px' }}>My Events</div>
+          <div style={{ fontSize: '13px', fontWeight: 800, letterSpacing: '2px', color: '#00695C', textTransform: 'uppercase', marginBottom: '14px' }}>My Events</div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
             {events.map(ev => (
               <div key={ev.id} style={{ background: 'rgba(0,165,163,0.05)', border: '1px solid rgba(0,165,163,0.2)', borderRadius: '14px', padding: '18px 20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px', flexWrap: 'wrap' }}>
                 <div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '5px' }}>
-                    <span style={{ fontSize: '20px', fontWeight: 700, color: '#1E2124' }}>{ev.name}</span>
-                    <span style={{ fontSize: '18px', fontWeight: 700, padding: '2px 8px', borderRadius: '16px', background: ev.status === 'active' ? 'rgba(192,244,60,0.15)' : '#FFFFFF', color: ev.status === 'active' ? '#C0F43C' : '#464D53' }}>{ev.status}</span>
+                    <span style={{ fontSize: '13px', fontWeight: 700, color: '#0F1923' }}>{ev.name}</span>
+                    <span style={{ fontSize: '13px', fontWeight: 700, padding: '2px 8px', borderRadius: '16px', background: ev.status === 'active' ? 'rgba(192,244,60,0.15)' : '#FFFFFF', color: ev.status === 'active' ? '#00695C' : '#2D3E50' }}>{ev.status}</span>
                   </div>
-                  <div style={{ fontSize: '20px', color: '#1E2124', display: 'flex', gap: '14px', flexWrap: 'wrap' }}>
+                  <div style={{ fontSize: '13px', color: '#0F1923', display: 'flex', gap: '14px', flexWrap: 'wrap' }}>
                     {ev.city && <span>{ev.city}</span>}
                     {ev.event_date && <span>{new Date(ev.event_date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}</span>}
-                    {ev.my_role && <span style={{ color: '#00A5A3', fontWeight: 600 }}>{ev.my_role}</span>}
+                    {ev.my_role && <span style={{ color: '#00695C', fontWeight: 600 }}>{ev.my_role}</span>}
                   </div>
                 </div>
                 <button
@@ -830,7 +838,7 @@ function DashboardContent() {
                     const chat = document.querySelector('[data-tresci-trigger]') as HTMLElement
                     if (chat) chat.click()
                   }}
-                  style={{ padding: '8px 16px', borderRadius: '16px', border: '1px solid rgba(0,165,163,0.4)', background: 'rgba(0,165,163,0.1)', color: '#00A5A3', fontSize: '20px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap' }}>
+                  style={{ padding: '8px 16px', borderRadius: '16px', border: '1px solid rgba(0,165,163,0.4)', background: 'rgba(0,165,163,0.1)', color: '#00695C', fontSize: '13px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap' }}>
                   Talk to Tresci about this event
                 </button>
               </div>
@@ -843,8 +851,8 @@ function DashboardContent() {
       {myChecklist.length > 0 && (
         <div style={{ maxWidth: '900px', margin: '0 auto', padding: '0 24px 32px' }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '14px' }}>
-            <div style={{ fontSize: '18px', fontWeight: 800, letterSpacing: '2px', color: '#92400E', textTransform: 'uppercase' }}>My Event Tasks</div>
-            <span style={{ fontSize: '18px', color: '#1E2124' }}>
+            <div style={{ fontSize: '13px', fontWeight: 800, letterSpacing: '2px', color: '#92400E', textTransform: 'uppercase' }}>My Event Tasks</div>
+            <span style={{ fontSize: '13px', color: '#0F1923' }}>
               {myChecklist.filter(i => i.status === 'done').length}/{myChecklist.length} done
             </span>
           </div>
@@ -852,7 +860,7 @@ function DashboardContent() {
             {myChecklist.map(item => {
               const isLate = item.due_date && new Date(item.due_date) < new Date() && item.status !== 'done'
               const statusColors: Record<string, { color: string; bg: string }> = {
-                not_started: { color: '#1E2124', bg: '#F1F5F9' },
+                not_started: { color: '#0F1923', bg: '#F1F5F9' },
                 in_progress: { color: '#92400E', bg: 'rgba(245,158,11,0.1)' },
                 done:        { color: '#3D6B00', bg: 'rgba(192,244,60,0.1)' },
                 overdue:     { color: '#FF6B6B', bg: 'rgba(255,107,107,0.1)' },
@@ -860,7 +868,7 @@ function DashboardContent() {
               const sc = statusColors[item.status] ?? statusColors.not_started
 
               return (
-                <div key={item.id} style={{ background: '#FFFFFF', border: `1px solid ${isLate ? 'rgba(255,107,107,0.2)' : '#C8DFE0'}`, borderRadius: '12px', padding: '14px 18px', boxShadow: '0 1px 4px rgba(0,165,163,0.06), 0 1px 2px rgba(0,0,0,0.04)' }}>
+                <div key={item.id} style={{ background: '#FFFFFF', border: `1px solid ${isLate ? 'rgba(255,107,107,0.2)' : '#DDE8EE'}`, borderRadius: '12px', padding: '14px 18px', boxShadow: '0 1px 4px rgba(0,165,163,0.06), 0 1px 2px rgba(0,0,0,0.04)' }}>
                   <div style={{ display: 'flex', alignItems: 'flex-start', gap: '12px' }}>
                     {/* Status toggle */}
                     <button
@@ -875,24 +883,24 @@ function DashboardContent() {
                         setChecklistSaving(p => ({ ...p, [item.id]: false }))
                       }}
                       style={{ width: '20px', height: '20px', borderRadius: '5px', border: `2px solid ${item.status === 'done' ? '#C0F43C' : 'rgba(15,23,42,0.16)'}`, background: item.status === 'done' ? '#C0F43C' : 'transparent', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, marginTop: '2px', transition: 'all 0.15s' }}>
-                      {item.status === 'done' && <svg width="10" height="10" fill="none" stroke="#1E2124" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>}
+                      {item.status === 'done' && <svg width="10" height="10" fill="none" stroke="#0F1923" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>}
                       {item.status === 'in_progress' && <div style={{ width: '7px', height: '7px', borderRadius: '50%', background: '#F59E0B' }} />}
                     </button>
 
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap', marginBottom: '4px' }}>
-                        <span style={{ fontSize: '18px', fontWeight: 600, color: item.status === 'done' ? '#1E2124' : '#1E2124', textDecoration: item.status === 'done' ? 'line-through' : 'none' }}>
+                        <span style={{ fontSize: '13px', fontWeight: 600, color: item.status === 'done' ? '#0F1923' : '#0F1923', textDecoration: item.status === 'done' ? 'line-through' : 'none' }}>
                           {item.title}
                         </span>
-                        <span style={{ fontSize: '18px', fontWeight: 700, padding: '2px 7px', borderRadius: '5px', background: sc.bg, color: sc.color, whiteSpace: 'nowrap' }}>
+                        <span style={{ fontSize: '13px', fontWeight: 700, padding: '2px 7px', borderRadius: '5px', background: sc.bg, color: sc.color, whiteSpace: 'nowrap' }}>
                           {item.status.replace('_', ' ')}
                         </span>
-                        {isLate && <span style={{ fontSize: '18px', fontWeight: 700, color: '#FF6B6B' }}>Overdue</span>}
+                        {isLate && <span style={{ fontSize: '13px', fontWeight: 700, color: '#FF6B6B' }}>Overdue</span>}
                       </div>
-                      <div style={{ fontSize: '18px', color: '#1E2124', display: 'flex', gap: '12px', flexWrap: 'wrap', marginBottom: '8px' }}>
+                      <div style={{ fontSize: '13px', color: '#0F1923', display: 'flex', gap: '12px', flexWrap: 'wrap', marginBottom: '8px' }}>
                         {item.events?.name && <span>{item.events.name}</span>}
                         <span style={{ color: '#64748B' }}>{item.department}</span>
-                        {item.due_date && <span style={{ color: isLate ? '#FF6B6B' : '#1E2124' }}>
+                        {item.due_date && <span style={{ color: isLate ? '#FF6B6B' : '#0F1923' }}>
                           Due {new Date(item.due_date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}
                         </span>}
                       </div>
@@ -903,7 +911,7 @@ function DashboardContent() {
                           onChange={e => setChecklistNotes(p => ({ ...p, [item.id]: e.target.value }))}
                           placeholder="Add your update or notes…"
                           rows={2}
-                          style={{ flex: 1, padding: '7px 10px', borderRadius: '8px', border: '1px solid #C8DFE0', background: '#FFFFFF', color: '#1E2124', fontSize: '20px', fontFamily: 'inherit', resize: 'none' }}
+                          style={{ flex: 1, padding: '7px 10px', borderRadius: '8px', border: '1px solid #DDE8EE', background: '#FFFFFF', color: '#0F1923', fontSize: '13px', fontFamily: 'inherit', resize: 'none' }}
                         />
                         <button
                           disabled={checklistSaving[item.id]}
@@ -916,7 +924,7 @@ function DashboardContent() {
                             setMyChecklist(prev => prev.map(i => i.id === item.id ? { ...i, notes: checklistNotes[item.id] ?? '' } : i))
                             setChecklistSaving(p => ({ ...p, [item.id]: false }))
                           }}
-                          style={{ padding: '7px 14px', borderRadius: '8px', border: 'none', background: '#F59E0B', color: '#1E2124', fontSize: '18px', fontWeight: 800, cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap' }}>
+                          style={{ padding: '7px 14px', borderRadius: '8px', border: 'none', background: '#F59E0B', color: '#0F1923', fontSize: '13px', fontWeight: 800, cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap' }}>
                           {checklistSaving[item.id] ? '…' : 'Save'}
                         </button>
                       </div>
@@ -932,22 +940,22 @@ function DashboardContent() {
       {/* ── Knowledge Base section ── */}
       {docs.length > 0 && (
         <div style={{ maxWidth: '900px', margin: '0 auto', padding: '0 24px 48px' }}>
-          <div style={{ fontSize: '18px', fontWeight: 800, letterSpacing: '2px', color: '#3D6B00', textTransform: 'uppercase', marginBottom: '14px' }}>Knowledge Base</div>
+          <div style={{ fontSize: '13px', fontWeight: 800, letterSpacing: '2px', color: '#3D6B00', textTransform: 'uppercase', marginBottom: '14px' }}>Knowledge Base</div>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: '10px' }}>
             {docs.map(doc => {
-              const typeColor: Record<string,string> = { policy: '#FF9F43', event_brief: '#00A5A3', staff_doc: '#C0F43C', onboarding: '#A478FF', other: 'rgba(255,255,255,0.4)' }
+              const typeColor: Record<string,string> = { policy: '#8B1A1A', event_brief: '#00897B', staff_doc: '#00695C', onboarding: '#A478FF', other: '#9CA3AF' }
               const tc = typeColor[doc.type] ?? 'rgba(255,255,255,0.4)'
               return (
-                <div key={doc.id} style={{ background: '#FFFFFF', border: '1px solid #C8DFE0', borderRadius: '12px', padding: '16px', boxShadow: '0 1px 4px rgba(0,165,163,0.06), 0 1px 2px rgba(0,0,0,0.04)' }}>
+                <div key={doc.id} style={{ background: '#FFFFFF', border: '1px solid #DDE8EE', borderRadius: '12px', padding: '16px', boxShadow: '0 1px 4px rgba(0,165,163,0.06), 0 1px 2px rgba(0,0,0,0.04)' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '10px' }}>
                     <div style={{ width: '32px', height: '32px', borderRadius: '8px', background: `${tc}15`, border: `1px solid ${tc}30`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
                       <svg width="14" height="14" fill="none" stroke={tc} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
                     </div>
-                    <span style={{ fontSize: '18px', fontWeight: 700, color: tc, textTransform: 'uppercase', letterSpacing: '0.8px' }}>{doc.type.replace('_', ' ')}</span>
+                    <span style={{ fontSize: '13px', fontWeight: 700, color: tc, textTransform: 'uppercase', letterSpacing: '0.8px' }}>{doc.type.replace('_', ' ')}</span>
                   </div>
-                  <div style={{ fontSize: '18px', fontWeight: 700, color: '#1E2124', marginBottom: '4px', lineHeight: 1.4 }}>{doc.title}</div>
-                  <div style={{ fontSize: '18px', color: '#1E2124', marginBottom: '12px' }}>{doc.word_count?.toLocaleString()} words</div>
-                  <Link href="/chat" style={{ fontSize: '20px', fontWeight: 700, color: tc, textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                  <div style={{ fontSize: '13px', fontWeight: 700, color: '#0F1923', marginBottom: '4px', lineHeight: 1.4 }}>{doc.title}</div>
+                  <div style={{ fontSize: '13px', color: '#0F1923', marginBottom: '12px' }}>{doc.word_count?.toLocaleString()} words</div>
+                  <Link href="/chat" style={{ fontSize: '13px', fontWeight: 700, color: tc, textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '4px' }}>
                     Talk to Tresci about this
                     <svg width="11" height="11" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg>
                   </Link>
@@ -961,29 +969,29 @@ function DashboardContent() {
       {/* ── Floating Talk to Tresci button ── */}
       <Link
         href={`/chat`}
-        style={{ position: 'fixed', bottom: '28px', right: '28px', display: 'flex', alignItems: 'center', gap: '10px', padding: '12px 20px', background: '#00A5A3', borderRadius: '50px', textDecoration: 'none', boxShadow: '0 8px 32px rgba(0,165,163,0.35)', zIndex: 100 }}
+        style={{ position: 'fixed', bottom: '28px', right: '28px', display: 'flex', alignItems: 'center', gap: '10px', padding: '12px 20px', background: '#00897B', borderRadius: '50px', textDecoration: 'none', zIndex: 100 }}
       >
         <svg width="16" height="16" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
-        <span style={{ fontSize: '18px', fontWeight: 800, color: 'white', letterSpacing: '0.1px' }}>Talk to Tresci</span>
+        <span style={{ fontSize: '13px', fontWeight: 800, color: 'white', letterSpacing: '0.1px' }}>Talk to Tresci</span>
         <div style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#C0F43C', animation: 'pulse 2s infinite' }} />
       </Link>
 
       <style>{`
         @keyframes spin  { to { transform: rotate(360deg); } }
         @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
-        @keyframes demoGlow { 0%{color:#FF9F43} 20%{color:#FF6B6B} 40%{color:#C0F43C} 60%{color:#00A5A3} 80%{color:#FF9F43} 100%{color:#FFD08A} }
+        @keyframes demoGlow { 0%{color:#8B1A1A} 20%{color:#FF6B6B} 40%{color:#C0F43C} 60%{color:#00A5A3} 80%{color:#8B1A1A} 100%{color:#FFD08A} }
       `}</style>
 
       {/* ── Feedback Card ── */}
       <div style={{ maxWidth: '900px', margin: '0 auto', padding: '0 32px 48px' }}>
-        <div style={{ background: '#FFFFFF', border: '1px solid #C8DFE0', borderRadius: '16px', padding: '28px', boxShadow: '0 1px 4px rgba(0,165,163,0.06), 0 1px 2px rgba(0,0,0,0.04)' }}>
-          <div style={{ fontSize: '18px', fontWeight: 800, letterSpacing: '2px', textTransform: 'uppercase', color: '#A478FF', marginBottom: '8px' }}>Shape This Platform</div>
-          <h3 style={{ fontSize: '36px', fontWeight: 900, color: '#1E2124', margin: '0 0 6px' }}>What should we build next?</h3>
-          <p style={{ fontSize: '18px', color: '#1E2124', margin: '0 0 18px', lineHeight: 1.65 }}>
+        <div style={{ background: '#FFFFFF', border: '1px solid #DDE8EE', borderRadius: '16px', padding: '28px', boxShadow: '0 1px 4px rgba(0,165,163,0.06), 0 1px 2px rgba(0,0,0,0.04)' }}>
+          <div style={{ fontSize: '13px', fontWeight: 800, letterSpacing: '2px', textTransform: 'uppercase', color: '#A478FF', marginBottom: '8px' }}>Shape This Platform</div>
+          <h3 style={{ fontSize: '36px', fontWeight: 900, color: '#0F1923', margin: '0 0 6px' }}>What should we build next?</h3>
+          <p style={{ fontSize: '13px', color: '#0F1923', margin: '0 0 18px', lineHeight: 1.65 }}>
             Trescademy is being built for you. If there is a feature, a course, a report, or anything else you would like to see — tell us here. Every suggestion is reviewed by the team.
           </p>
           {feedbackSent ? (
-            <div style={{ padding: '16px', background: 'rgba(192,244,60,0.08)', border: '1px solid rgba(192,244,60,0.2)', borderRadius: '12px', fontSize: '20px', color: '#3D6B00', fontWeight: 700 }}>
+            <div style={{ padding: '16px', background: 'rgba(192,244,60,0.08)', border: '1px solid rgba(192,244,60,0.2)', borderRadius: '12px', fontSize: '13px', color: '#3D6B00', fontWeight: 700 }}>
               Thank you. Your feedback has been received and will be reviewed by the team.
             </div>
           ) : (
@@ -993,7 +1001,7 @@ function DashboardContent() {
                 onChange={e => setFeedbackText(e.target.value)}
                 placeholder="e.g. I would like to see a leaderboard for our department, or a mobile app, or a course on AI for client presentations..."
                 rows={4}
-                style={{ width: '100%', padding: '14px 16px', background: '#FFFFFF', border: '1px solid #C8DFE0', borderRadius: '12px', color: '#1E2124', fontSize: '20px', fontFamily: 'inherit', resize: 'vertical', outline: 'none', boxSizing: 'border-box', lineHeight: 1.65 }}
+                style={{ width: '100%', padding: '14px 16px', background: '#FFFFFF', border: '1px solid #DDE8EE', borderRadius: '12px', color: '#0F1923', fontSize: '13px', fontFamily: 'inherit', resize: 'vertical', outline: 'none', boxSizing: 'border-box', lineHeight: 1.65 }}
               />
               <button
                 disabled={!feedbackText.trim() || feedbackSending}
@@ -1007,7 +1015,7 @@ function DashboardContent() {
                   setFeedbackSending(false)
                   setFeedbackSent(true)
                 }}
-                style={{ alignSelf: 'flex-start', padding: '12px 24px', background: '#A478FF', border: 'none', borderRadius: '10px', color: 'white', fontSize: '18px', fontWeight: 800, cursor: !feedbackText.trim() || feedbackSending ? 'not-allowed' : 'pointer', fontFamily: 'inherit', opacity: !feedbackText.trim() || feedbackSending ? 0.5 : 1 }}>
+                style={{ alignSelf: 'flex-start', padding: '12px 24px', background: '#A478FF', border: 'none', borderRadius: '10px', color: 'white', fontSize: '13px', fontWeight: 800, cursor: !feedbackText.trim() || feedbackSending ? 'not-allowed' : 'pointer', fontFamily: 'inherit', opacity: !feedbackText.trim() || feedbackSending ? 0.5 : 1 }}>
                 {feedbackSending ? 'Sending...' : 'Send Feedback'}
               </button>
             </div>
@@ -1025,12 +1033,12 @@ function ScoreRing({ score, color }: { score: number; color: string }) {
   const offset = circ - (score / 100) * circ
   return (
     <svg width="110" height="110" viewBox="0 0 110 110">
-      <circle cx="55" cy="55" r={r} fill="none" stroke="#C8DFE0" strokeWidth="8" />
+      <circle cx="55" cy="55" r={r} fill="none" stroke="#DDE8EE" strokeWidth="8" />
       <circle cx="55" cy="55" r={r} fill="none" stroke={color} strokeWidth="8"
         strokeDasharray={circ} strokeDashoffset={offset}
         strokeLinecap="round" transform="rotate(-90 55 55)" style={{ transition: 'stroke-dashoffset 1s ease' }} />
       <text x="55" y="52" textAnchor="middle" fill="#1E2124" fontSize="30" fontWeight="900" fontFamily="Manrope,sans-serif">{score}</text>
-      <text x="55" y="68" textAnchor="middle" fill="#464D53" fontSize="14" fontFamily="Manrope,sans-serif">/ 100</text>
+      <text x="55" y="68" textAnchor="middle" fill="#2A3038" fontSize="14" fontFamily="Manrope,sans-serif">/ 100</text>
     </svg>
   )
 }
@@ -1075,13 +1083,13 @@ function getImprovementTips(tier: string): string[] {
 const S = {
   page: {
     fontFamily: 'var(--font-manrope), Manrope, sans-serif',
-    background: '#F6FFFE',
+    background: '#E8EEF4',
     minHeight:  '100vh',
-    color:      '#1E2124',
+    color:      '#0F1923',
   },
   nav: {
     background:   '#FFFFFF',
-    borderBottom: '1px solid #C8DFE0',
+    borderBottom: '1px solid #DDE8EE',
     padding:      '0 32px',
     height:       '64px',
     display:      'flex',

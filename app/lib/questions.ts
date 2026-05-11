@@ -425,7 +425,7 @@ export const ALL_DEPARTMENTS = [
 /* ─── Proficiency level definitions (used by profile + questionnaire preview) ─── */
 export const PROFICIENCY_LEVELS = [
   { level: 1, label: 'Basic',     desc: 'I follow steps, someone set it up for me',    color: '#FF9F43' },
-  { level: 2, label: 'Confident', desc: 'I figure most things out myself',              color: '#F4ED3C' },
+  { level: 2, label: 'Confident', desc: 'I figure most things out myself',              color: '#7A6600' },
   { level: 3, label: 'Advanced',  desc: "Use features most people don't, troubleshoot", color: '#00A5A3' },
-  { level: 4, label: 'Builder',   desc: "I've automated with it / set it up for others", color: '#C0F43C' },
+  { level: 4, label: 'Builder',   desc: "I've automated with it / set it up for others", color: '#3D6B00' },
 ]

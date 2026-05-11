@@ -45,15 +45,15 @@ export function getTrack(score: number): 'foundation' | 'adoption' | 'advanced' 
 }
 
 export const TIER_COLORS: Record<string, { color: string; bg: string; border: string }> = {
-  'AI-Forward': { color: '#C0F43C', bg: '#C0F43C15', border: '#C0F43C40' },
-  'AI-Ready':   { color: '#00A5A3', bg: '#00A5A315', border: '#00A5A340' },
-  'AI-Aware':   { color: '#F4ED3C', bg: '#F4ED3C15', border: '#F4ED3C40' },
-  'AI-Curious': { color: '#FF9F43', bg: '#FF9F4315', border: '#FF9F4340' },
-  'AI-Unaware': { color: '#FF6B6B', bg: '#FF6B6B15', border: '#FF6B6B40' },
+  'AI-Forward': { color: '#166534', bg: '#16653415', border: '#16653440' },
+  'AI-Ready':   { color: '#0E7490', bg: '#0E749015', border: '#0E749040' },
+  'AI-Aware':   { color: '#92400E', bg: '#92400E15', border: '#92400E40' },
+  'AI-Curious': { color: '#C2410C', bg: '#C2410C15', border: '#C2410C40' },
+  'AI-Unaware': { color: '#991B1B', bg: '#991B1B15', border: '#991B1B40' },
 }
 
 export const TRACK_COLORS: Record<string, { color: string; bg: string; label: string }> = {
-  foundation: { color: '#FF9F43', bg: 'rgba(255,159,67,0.12)', label: 'Foundation' },
-  adoption:   { color: '#00A5A3', bg: 'rgba(0,165,163,0.12)',  label: 'Adoption'   },
-  advanced:   { color: '#C0F43C', bg: 'rgba(192,244,60,0.12)', label: 'Advanced'   },
+  foundation: { color: '#0E7490', bg: 'rgba(14,116,144,0.12)',  label: 'Foundation' },
+  adoption:   { color: '#7C3AED', bg: 'rgba(124,58,237,0.12)', label: 'Adoption'   },
+  advanced:   { color: '#166534', bg: 'rgba(22,101,52,0.12)',  label: 'Advanced'   },
 }

@@ -30,7 +30,7 @@ function buildSections(staffId: string | null): PlatformSection[] {
           title:       'My Dashboard',
           description: 'Your TAIRS score, track progress, and recommended courses',
           href:        id ? `/dashboard?id=${id}` : '/login',
-          color:       '#00A5A3',
+          color:       '#00897B',
           bg:          'rgba(0,165,163,0.08)',
           border:      'rgba(0,165,163,0.2)',
           icon: (
@@ -44,7 +44,7 @@ function buildSections(staffId: string | null): PlatformSection[] {
           title:       'Course Library',
           description: 'Browse all published courses across every tier and department',
           href:        id ? `/dashboard/library?id=${id}` : '/login',
-          color:       '#C0F43C',
+          color: '#3D6B00',
           bg:          'rgba(192,244,60,0.07)',
           border:      'rgba(192,244,60,0.18)',
           icon: (
@@ -75,9 +75,9 @@ function buildSections(staffId: string | null): PlatformSection[] {
           title:       'Team Dashboard',
           description: 'TAIRS overview, completion rates, and progress for your team',
           href:        id ? `/team?id=${id}` : '/login',
-          color:       '#FF9F43',
-          bg:          'rgba(255,159,67,0.08)',
-          border:      'rgba(255,159,67,0.2)',
+          color:       '#8B1A1A',
+          bg:          'rgba(139,26,26,0.08)',
+          border:      'rgba(139,26,26,0.2)',
           badge:       'Manager',
           icon: (
             <svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24">
@@ -91,9 +91,9 @@ function buildSections(staffId: string | null): PlatformSection[] {
         {
           title:       'Insights',
           description: 'Office-wide adoption trends, weekly learning activity, and team stats',
-          color:       '#464D53',
+          color:       '#2D3E50',
           bg:          '#FFFFFF',
-          border:      '#C8DFE0',
+          border:      '#DDE8EE',
           badge:       'Coming Soon',
           icon: (
             <svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24">
@@ -106,9 +106,9 @@ function buildSections(staffId: string | null): PlatformSection[] {
         {
           title:       'Org Chart',
           description: 'Visual hierarchy of reporting lines and team structure',
-          color:       '#464D53',
+          color:       '#2D3E50',
           bg:          '#FFFFFF',
-          border:      '#C8DFE0',
+          border:      '#DDE8EE',
           badge:       'Coming Soon',
           icon: (
             <svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24">
@@ -159,9 +159,9 @@ function buildSections(staffId: string | null): PlatformSection[] {
         {
           title:       'Content Calendar',
           description: 'Full month view of all scheduled posts across campaigns',
-          color:       '#464D53',
+          color:       '#2D3E50',
           bg:          '#FFFFFF',
-          border:      '#C8DFE0',
+          border:      '#DDE8EE',
           badge:       'Coming Soon',
           icon: (
             <svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24">
@@ -181,7 +181,7 @@ function buildSections(staffId: string | null): PlatformSection[] {
           title:       'Admin Dashboard',
           description: 'Manage courses, staff members, and platform configuration',
           href:        '/admin',
-          color:       '#C0F43C',
+          color: '#3D6B00',
           bg:          'rgba(192,244,60,0.07)',
           border:      'rgba(192,244,60,0.18)',
           badge:       'Admin',
@@ -196,9 +196,9 @@ function buildSections(staffId: string | null): PlatformSection[] {
           title:       'Platform Docs',
           description: 'Internal documentation for how Trescademy works',
           href:        '/docs',
-          color:       '#464D53',
+          color:       '#2D3E50',
           bg:          '#FFFFFF',
-          border:      '#C8DFE0',
+          border:      '#DDE8EE',
           badge:       'Admin',
           icon: (
             <svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24">
@@ -213,9 +213,9 @@ function buildSections(staffId: string | null): PlatformSection[] {
         {
           title:       'Learning Paths',
           description: 'Assign curated learning sequences to teams or individuals',
-          color:       '#464D53',
+          color:       '#2D3E50',
           bg:          '#FFFFFF',
-          border:      '#C8DFE0',
+          border:      '#DDE8EE',
           badge:       'Coming Soon',
           icon: (
             <svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24">
@@ -255,7 +255,7 @@ export default function PlatformMenu({ staffId }: PlatformMenuProps) {
         style={{
           width: '36px', height: '36px', borderRadius: '9px',
           background: '#FFFFFF',
-          border: '1px solid #C8DFE0',
+          border: '1px solid #DDE8EE',
           display: 'flex', alignItems: 'center', justifyContent: 'center',
           cursor: 'pointer', flexShrink: 0,
         }}
@@ -285,7 +285,7 @@ export default function PlatformMenu({ staffId }: PlatformMenuProps) {
             style={{
               width: '100%', maxWidth: '860px', margin: '0 16px',
               background: '#FFFFFF',
-              border: '1px solid #C8DFE0',
+              border: '1px solid #DDE8EE',
               borderRadius: '16px',
               overflow: 'hidden',
               maxHeight: 'calc(100vh - 120px)',
@@ -293,16 +293,16 @@ export default function PlatformMenu({ staffId }: PlatformMenuProps) {
             }}
           >
             {/* Menu header */}
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '20px 24px', borderBottom: '1px solid #C8DFE0' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '20px 24px', borderBottom: '1px solid #DDE8EE' }}>
               <div>
-                <div style={{ fontSize: '18px', fontWeight: 800, color: '#1E2124' }}>Trescademy Platform</div>
-                <div style={{ fontSize: '20px', color: '#1E2124', marginTop: '2px' }}>All features · navigate anywhere</div>
+                <div style={{ fontSize: '13px', fontWeight: 800, color: '#0F1923' }}>Trescademy Platform</div>
+                <div style={{ fontSize: '13px', color: '#0F1923', marginTop: '2px' }}>All features · navigate anywhere</div>
               </div>
               <button
                 onClick={close}
-                style={{ width: '32px', height: '32px', borderRadius: '8px', background: '#FFFFFF', border: '1px solid #C8DFE0', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}
+                style={{ width: '32px', height: '32px', borderRadius: '8px', background: '#FFFFFF', border: '1px solid #DDE8EE', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}
               >
-                <svg width="14" height="14" fill="none" stroke="#464D53" strokeWidth="2.5" strokeLinecap="round" viewBox="0 0 24 24">
+                <svg width="14" height="14" fill="none" stroke="#2A3038" strokeWidth="2.5" strokeLinecap="round" viewBox="0 0 24 24">
                   <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
                 </svg>
               </button>
@@ -312,7 +312,7 @@ export default function PlatformMenu({ staffId }: PlatformMenuProps) {
             <div style={{ padding: '20px 24px 28px' }}>
               {sections.map(section => (
                 <div key={section.heading} style={{ marginBottom: '28px' }}>
-                  <div style={{ fontSize: '18px', fontWeight: 800, letterSpacing: '2px', textTransform: 'uppercase', color: '#1E2124', marginBottom: '12px' }}>
+                  <div style={{ fontSize: '13px', fontWeight: 800, letterSpacing: '2px', textTransform: 'uppercase', color: '#0F1923', marginBottom: '12px' }}>
                     {section.heading}
                   </div>
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '10px' }}>
@@ -335,19 +335,19 @@ export default function PlatformMenu({ staffId }: PlatformMenuProps) {
                             <div style={{ color: item.color }}>{item.icon}</div>
                             {item.badge && (
                               <span style={{
-                                fontSize: '18px', fontWeight: 800, letterSpacing: '1px',
+                                fontSize: '13px', fontWeight: 800, letterSpacing: '1px',
                                 textTransform: 'uppercase', padding: '2px 7px',
                                 borderRadius: '16px',
                                 background: isSoon ? '#FFFFFF' : `${item.bg}`,
                                 border: `1px solid ${item.border}`,
-                                color: isSoon ? '#1E2124' : item.color,
+                                color: isSoon ? '#0F1923' : item.color,
                               }}>
                                 {item.badge}
                               </span>
                             )}
                           </div>
-                          <div style={{ fontSize: '18px', fontWeight: 700, color: isSoon ? '#1E2124' : '#1E2124', marginBottom: '4px' }}>{item.title}</div>
-                          <div style={{ fontSize: '18px', color: '#1E2124', lineHeight: 1.65 }}>{item.description}</div>
+                          <div style={{ fontSize: '13px', fontWeight: 700, color: isSoon ? '#0F1923' : '#0F1923', marginBottom: '4px' }}>{item.title}</div>
+                          <div style={{ fontSize: '13px', color: '#0F1923', lineHeight: 1.65 }}>{item.description}</div>
                         </div>
                       )
 

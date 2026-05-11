@@ -3,6 +3,7 @@
 import { useState, useEffect, Suspense } from 'react'
 import { useSearchParams } from 'next/navigation'
 import Link from 'next/link'
+import NavBar, { SignOutBtn, MOD_PEOPLE } from '@/app/components/NavBar'
 
 type Member = {
   id: string
@@ -31,11 +32,11 @@ type Manager = {
 }
 
 const TIER_COLOR: Record<string, string> = {
-  'AI-Forward': '#C0F43C',
-  'AI-Ready':   '#00A5A3',
-  'AI-Aware':   '#F4ED3C',
-  'AI-Curious': '#FF9F43',
-  'AI-Unaware': '#FF6B6B',
+  'AI-Forward': '#166534',
+  'AI-Ready':   '#0E7490',
+  'AI-Aware':   '#92400E',
+  'AI-Curious': '#C2410C',
+  'AI-Unaware': '#991B1B',
 }
 
 const OFFICE_LABEL: Record<string, string> = {
@@ -122,21 +123,21 @@ function TeamContent() {
   }, [managerId])
 
   if (loading) return (
-    <div style={{ fontFamily: 'var(--font-manrope),Manrope,sans-serif', background: '#F6FFFE', minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+    <div style={{ fontFamily: 'var(--font-manrope),Manrope,sans-serif', background: '#E8EEF4', minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
       <div style={{ textAlign: 'center' }}>
-        <div style={{ width: '36px', height: '36px', border: '3px solid #C8DFE0', borderTopColor: '#00A5A3', borderRadius: '50%', animation: 'spin 0.8s linear infinite', margin: '0 auto 14px' }} />
-        <div style={{ color: '#464D53', fontSize: '20px' }}>Loading team data…</div>
+        <div style={{ width: '36px', height: '36px', border: '3px solid #DDE8EE', borderTopColor: '#00897B', borderRadius: '50%', animation: 'spin 0.8s linear infinite', margin: '0 auto 14px' }} />
+        <div style={{ color: '#2D3E50', fontSize: '13px' }}>Loading team data…</div>
       </div>
       <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
     </div>
   )
 
   if (error) return (
-    <div style={{ fontFamily: 'var(--font-manrope),Manrope,sans-serif', background: '#F6FFFE', minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#1E2124' }}>
+    <div style={{ fontFamily: 'var(--font-manrope),Manrope,sans-serif', background: '#E8EEF4', minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#0F1923' }}>
       <div style={{ textAlign: 'center' }}>
-        <div style={{ color: '#FF6B6B', marginBottom: '8px', fontSize: '18px' }}>Error</div>
-        <p style={{ color: '#464D53', fontSize: '18px' }}>{error}</p>
-        <Link href={staffId ? `/dashboard?id=${staffId}` : '/dashboard'} style={{ color: '#00A5A3', fontSize: '18px' }}>
+        <div style={{ color: '#FF6B6B', marginBottom: '8px', fontSize: '13px' }}>Error</div>
+        <p style={{ color: '#2D3E50', fontSize: '13px' }}>{error}</p>
+        <Link href={staffId ? `/dashboard?id=${staffId}` : '/dashboard'} style={{ color: '#00695C', fontSize: '13px' }}>
           Back to My Dashboard
         </Link>
       </div>
@@ -144,51 +145,21 @@ function TeamContent() {
   )
 
   if (!loading && members.length === 0) return (
-    <div style={{ fontFamily: 'var(--font-manrope),Manrope,sans-serif', background: '#F6FFFE', minHeight: '100vh', color: '#1E2124' }}>
+    <div style={{ fontFamily: 'var(--font-manrope),Manrope,sans-serif', background: '#E8EEF4', minHeight: '100vh', color: '#0F1923' }}>
       {/* Nav */}
-      <nav style={{ background: '#FFFFFF', borderBottom: '1px solid #C8DFE0', boxShadow: '0 1px 3px rgba(0,165,163,0.08)', padding: '0 32px', height: '64px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-          <div style={{ background: 'white', borderRadius: '8px', padding: '4px 10px', display: 'flex', alignItems: 'center' }}>
-            <img src="/trescon-logo.png" alt="Trescon" style={{ height: '40px', width: 'auto', display: 'block' }} />
-          </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-            <div style={{ width: '24px', height: '24px', background: '#00A5A3', borderRadius: '7px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              <svg width="12" height="12" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
-            </div>
-            <span style={{ fontSize: '20px', fontWeight: 800, color: '#1E2124' }}>Trescademy</span>
-          </div>
-          <span style={{ color: 'rgba(15,23,42,0.16)' }}>|</span>
-          <span style={{ fontSize: '20px', fontWeight: 600, color: '#464D53' }}>Team Dashboard</span>
-        </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-          {staffId && (
-            <Link href={`/dashboard?id=${staffId}`} style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '20px', fontWeight: 700, color: '#00A5A3', background: 'rgba(0,165,163,0.12)', border: '1px solid rgba(0,165,163,0.3)', padding: '6px 14px', borderRadius: '16px', textDecoration: 'none' }}>
-              My Dashboard
-            </Link>
-          )}
-          <button
-            onClick={() => {
-              localStorage.removeItem('trescademy_staff_id')
-              localStorage.removeItem('tai_staff_id')
-              sessionStorage.removeItem('tai_admin_authed')
-              sessionStorage.removeItem('tai_admin_staff_id')
-              window.location.href = '/login'
-            }}
-            style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '6px 14px', borderRadius: '10px', background: '#FFFFFF', border: '1px solid #fecaca', cursor: 'pointer', fontFamily: 'inherit' }}
-          >
-            <svg width="13" height="13" fill="none" stroke="#FF6B6B" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24">
-              <path d="M18.36 6.64a9 9 0 1 1-12.73 0"/>
-              <line x1="12" y1="2" x2="12" y2="12"/>
-            </svg>
-            <span style={{ fontSize: '20px', fontWeight: 700, color: '#FF6B6B' }}>Sign out</span>
-          </button>
-        </div>
-      </nav>
+      <NavBar
+        module={MOD_PEOPLE}
+        subtitle="Team Dashboard"
+        rightSlot={<>
+          {staffId && <Link className="tbtn tbtn-teal" href={`/dashboard?id=${staffId}`}>My Dashboard</Link>}
+          <SignOutBtn />
+        </>}
+      />
 
       <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: 'calc(100vh - 64px)', padding: '40px 24px', textAlign: 'center' }}>
         {/* Icon */}
-        <div style={{ width: '72px', height: '72px', borderRadius: '16px', background: '#FFFFFF', border: '1px solid #C8DFE0', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '24px' }}>
-          <svg width="32" height="32" fill="none" stroke="#1E2124" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24">
+        <div style={{ width: '72px', height: '72px', borderRadius: '16px', background: '#FFFFFF', border: '1px solid #B8CDD8', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '24px' }}>
+          <svg width="32" height="32" fill="none" stroke="#0F1923" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24">
             <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
             <circle cx="9" cy="7" r="4"/>
             <path d="M23 21v-2a4 4 0 0 0-3-3.87"/>
@@ -196,9 +167,9 @@ function TeamContent() {
           </svg>
         </div>
 
-        <div style={{ fontSize: '18px', fontWeight: 800, letterSpacing: '2px', textTransform: 'uppercase', color: '#00A5A3', marginBottom: '12px' }}>Team Dashboard</div>
-        <h2 style={{ fontSize: '36px', fontWeight: 800, color: '#1E2124', margin: '0 0 10px' }}>No team members assigned yet</h2>
-        <p style={{ fontSize: '20px', color: '#464D53', maxWidth: '380px', lineHeight: 1.65, margin: '0 0 32px' }}>
+        <div style={{ fontSize: '13px', fontWeight: 800, letterSpacing: '2px', textTransform: 'uppercase', color: '#00695C', marginBottom: '12px' }}>Team Dashboard</div>
+        <h2 style={{ fontSize: '36px', fontWeight: 800, color: '#0F1923', margin: '0 0 10px' }}>No team members assigned yet</h2>
+        <p style={{ fontSize: '13px', color: '#2D3E50', maxWidth: '380px', lineHeight: 1.65, margin: '0 0 32px' }}>
           Your team dashboard is ready, but no direct reports have been linked to your profile.<br/>
           Contact your administrator to have team members added.
         </p>
@@ -206,7 +177,7 @@ function TeamContent() {
         {staffId && (
           <Link
             href={`/dashboard?id=${staffId}`}
-            style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', fontSize: '18px', fontWeight: 700, color: 'white', background: '#00A5A3', padding: '12px 22px', borderRadius: '10px', textDecoration: 'none' }}
+            style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', fontSize: '13px', fontWeight: 700, color: 'white', background: '#00897B', padding: '12px 22px', borderRadius: '10px', textDecoration: 'none' }}
           >
             <svg width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>
             Back to My Dashboard
@@ -240,64 +211,26 @@ function TeamContent() {
     : 'Your Team'
 
   return (
-    <div style={{ fontFamily: 'var(--font-manrope),Manrope,sans-serif', background: '#F6FFFE', minHeight: '100vh', color: '#1E2124' }}>
+    <div style={{ fontFamily: 'var(--font-manrope),Manrope,sans-serif', background: '#E8EEF4', minHeight: '100vh', color: '#0F1923' }}>
 
       {/* Nav */}
-      <nav style={{ background: '#FFFFFF', borderBottom: '1px solid #C8DFE0', boxShadow: '0 1px 3px rgba(0,165,163,0.08)', padding: '0 32px', height: '64px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <div style={{ background: 'white', borderRadius: '8px', padding: '4px 10px', display: 'flex', alignItems: 'center' }}>
-              <img src="/trescon-logo.png" alt="Trescon" style={{ height: '40px', width: 'auto', display: 'block' }} />
-            </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-              <div style={{ width: '24px', height: '24px', background: '#00A5A3', borderRadius: '7px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                <svg width="12" height="12" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
-              </div>
-              <span style={{ fontSize: '20px', fontWeight: 800, color: '#1E2124' }}>Trescademy</span>
-            </div>
-          </div>
-          <span style={{ color: 'rgba(15,23,42,0.16)' }}>|</span>
-          <span style={{ fontSize: '20px', fontWeight: 600, color: '#464D53' }}>{scopeLabel}</span>
-        </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-          {staffId && (
-            <Link href={`/dashboard?id=${staffId}`} style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '20px', fontWeight: 700, color: '#00A5A3', background: 'rgba(0,165,163,0.12)', border: '1px solid rgba(0,165,163,0.3)', padding: '6px 14px', borderRadius: '16px', textDecoration: 'none' }}>
-              <svg width="11" height="11" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>
-              My Dashboard
-            </Link>
-          )}
-          {isAdmin && (
-            <Link href="/admin" style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '20px', fontWeight: 700, color: '#3D6B00', background: '#FFFFFF', border: '1px solid #C8DFE0', padding: '6px 14px', borderRadius: '16px', textDecoration: 'none' }}>
-              <svg width="11" height="11" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
-              Admin Dashboard
-            </Link>
-          )}
-          <button
-            onClick={() => {
-              localStorage.removeItem('trescademy_staff_id')
-              localStorage.removeItem('tai_staff_id')
-              sessionStorage.removeItem('tai_admin_authed')
-              sessionStorage.removeItem('tai_admin_staff_id')
-              window.location.href = '/login'
-            }}
-            style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '6px 14px', borderRadius: '10px', background: '#FFFFFF', border: '1px solid #fecaca', cursor: 'pointer', fontFamily: 'inherit' }}
-          >
-            <svg width="13" height="13" fill="none" stroke="#FF6B6B" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24">
-              <path d="M18.36 6.64a9 9 0 1 1-12.73 0"/>
-              <line x1="12" y1="2" x2="12" y2="12"/>
-            </svg>
-            <span style={{ fontSize: '20px', fontWeight: 700, color: '#FF6B6B' }}>Sign out</span>
-          </button>
-        </div>
-      </nav>
+      <NavBar
+        module={MOD_PEOPLE}
+        subtitle={scopeLabel}
+        rightSlot={<>
+          {staffId && <Link className="tbtn tbtn-teal" href={`/dashboard?id=${staffId}`}>My Dashboard</Link>}
+          {isAdmin && <Link className="tbtn tbtn-teal" href="/admin">Admin Dashboard</Link>}
+          <SignOutBtn />
+        </>}
+      />
 
       <div style={{ maxWidth: '1040px', margin: '0 auto', padding: '40px 24px 80px' }}>
 
         {/* Header */}
         <div style={{ marginBottom: '32px' }}>
-          <div style={{ fontSize: '18px', fontWeight: 800, letterSpacing: '2px', textTransform: 'uppercase', color: '#00A5A3', marginBottom: '8px' }}>{scopeLabel}</div>
-          <h1 style={{ fontSize: '36px', fontWeight: 800, margin: '0 0 4px', color: '#1E2124' }}>{manager?.name}&apos;s Team</h1>
-          <div style={{ fontSize: '18px', color: '#464D53' }}>
+          <div style={{ fontSize: '13px', fontWeight: 800, letterSpacing: '2px', textTransform: 'uppercase', color: '#00695C', marginBottom: '8px' }}>{scopeLabel}</div>
+          <h1 style={{ fontSize: '36px', fontWeight: 800, margin: '0 0 4px', color: '#0F1923' }}>{manager?.name}&apos;s Team</h1>
+          <div style={{ fontSize: '13px', color: '#2D3E50' }}>
             {manager?.role} · {JOB_LEVEL_LABEL[manager?.job_level ?? ''] ?? manager?.job_level} · {members.length} people reporting
           </div>
         </div>
@@ -305,27 +238,27 @@ function TeamContent() {
         {/* Summary stats */}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '12px', marginBottom: '28px' }}>
           {[
-            { label: 'Team Size',          value: members.length,   sub: 'total reports' },
-            { label: 'Avg TAIRS Score',    value: avgScore,          sub: 'team average' },
-            { label: 'Courses Completed',  value: totalDone,         sub: 'across team' },
-            { label: 'Active Learners',    value: activeCount,       sub: 'completed a course' },
-          ].map(({ label, value, sub }) => (
-            <div key={label} style={{ background: '#FFFFFF', border: '1px solid #C8DFE0', borderRadius: '14px', padding: '20px', boxShadow: '0 1px 4px rgba(0,165,163,0.06), 0 1px 2px rgba(0,0,0,0.04)' }}>
-              <div style={{ fontSize: '18px', fontWeight: 700, color: '#1E2124', textTransform: 'uppercase', letterSpacing: '1.5px', marginBottom: '6px' }}>{label}</div>
-              <div style={{ fontSize: '36px', fontWeight: 900, color: '#1E2124', marginBottom: '2px' }}>{value}</div>
-              <div style={{ fontSize: '18px', color: '#1E2124' }}>{sub}</div>
+            { label: 'Team Size',          value: members.length,   sub: 'total reports',        accent: '#00897B' },
+            { label: 'Avg TAIRS Score',    value: avgScore,          sub: 'team average',          accent: '#6B21A8' },
+            { label: 'Courses Completed',  value: totalDone,         sub: 'across team',           accent: '#7DC520' },
+            { label: 'Active Learners',    value: activeCount,       sub: 'completed a course',    accent: '#D97706' },
+          ].map(({ label, value, sub, accent }) => (
+            <div key={label} style={{ background: '#FFFFFF', border: '1px solid #DDE8EE', borderLeft: `4px solid ${accent}`, borderRadius: '14px', padding: '20px 22px', boxShadow: '0 2px 8px rgba(15,25,35,0.06)' }}>
+              <div style={{ fontSize: '11px', fontWeight: 800, color: accent, textTransform: 'uppercase', letterSpacing: '1.5px', marginBottom: '10px' }}>{label}</div>
+              <div style={{ fontSize: '40px', fontWeight: 900, color: '#0F1923', marginBottom: '4px', lineHeight: 1 }}>{value}</div>
+              <div style={{ fontSize: '13px', color: '#5B7080', fontWeight: 600 }}>{sub}</div>
             </div>
           ))}
         </div>
 
         {/* Tier distribution */}
-        <div style={{ background: '#FFFFFF', border: '1px solid #C8DFE0', borderRadius: '14px', padding: '18px 24px', marginBottom: '20px', display: 'flex', gap: '24px', alignItems: 'center', flexWrap: 'wrap', boxShadow: '0 1px 4px rgba(0,165,163,0.06), 0 1px 2px rgba(0,0,0,0.04)' }}>
-          <div style={{ fontSize: '18px', fontWeight: 700, color: '#1E2124', textTransform: 'uppercase', letterSpacing: '1.5px', flexShrink: 0 }}>AI Readiness</div>
+        <div style={{ background: '#FFFFFF', border: '1px solid #DDE8EE', borderRadius: '14px', padding: '18px 24px', marginBottom: '20px', display: 'flex', gap: '8px', alignItems: 'stretch', flexWrap: 'wrap', boxShadow: '0 2px 8px rgba(15,25,35,0.06)' }}>
+          <div style={{ fontSize: '11px', fontWeight: 800, color: '#5B7080', textTransform: 'uppercase', letterSpacing: '1.5px', flexShrink: 0, display: 'flex', alignItems: 'center', marginRight: '8px' }}>AI Readiness</div>
           {Object.entries(tierCounts).map(([tier, count]) => count > 0 && (
-            <div key={tier} style={{ display: 'flex', alignItems: 'center', gap: '7px' }}>
-              <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: TIER_COLOR[tier] }} />
-              <span style={{ fontSize: '20px', fontWeight: 700, color: TIER_COLOR[tier] }}>{tier}</span>
-              <span style={{ fontSize: '20px', color: '#1E2124' }}>{count}</span>
+            <div key={tier} style={{ display: 'flex', alignItems: 'center', gap: '7px', padding: '6px 12px', background: `${TIER_COLOR[tier]}12`, border: `1px solid ${TIER_COLOR[tier]}40`, borderRadius: '8px' }}>
+              <div style={{ width: '7px', height: '7px', borderRadius: '50%', background: TIER_COLOR[tier], flexShrink: 0 }} />
+              <span style={{ fontSize: '13px', fontWeight: 800, color: TIER_COLOR[tier] }}>{tier}</span>
+              <span style={{ fontSize: '14px', fontWeight: 900, color: '#0F1923', marginLeft: '2px' }}>{count}</span>
             </div>
           ))}
         </div>
@@ -335,9 +268,9 @@ function TeamContent() {
           {/* Header row */}
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '18px 24px', borderBottom: briefState === 'ready' ? '1px solid rgba(0,165,163,0.15)' : 'none' }}>
             <div>
-              <div style={{ fontSize: '18px', fontWeight: 800, letterSpacing: '2px', textTransform: 'uppercase', color: '#00A5A3', marginBottom: '4px' }}>AI-Powered</div>
-              <div style={{ fontSize: '18px', fontWeight: 800, color: '#1E2124' }}>Team Health Brief</div>
-              <div style={{ fontSize: '20px', color: '#464D53', marginTop: '2px' }}>
+              <div style={{ fontSize: '13px', fontWeight: 800, letterSpacing: '2px', textTransform: 'uppercase', color: '#00695C', marginBottom: '4px' }}>AI-Powered</div>
+              <div style={{ fontSize: '13px', fontWeight: 800, color: '#0F1923' }}>Team Health Brief</div>
+              <div style={{ fontSize: '13px', color: '#2D3E50', marginTop: '2px' }}>
                 Built from your team&apos;s real activity data — TAIRS scores, course progress, and profile completion.
               </div>
             </div>
@@ -345,7 +278,7 @@ function TeamContent() {
               {briefState === 'ready' && (
                 <button
                   onClick={generateBrief}
-                  style={{ fontSize: '20px', fontWeight: 700, color: '#464D53', background: 'none', border: '1px solid #C8DFE0', padding: '6px 14px', borderRadius: '8px', cursor: 'pointer', fontFamily: 'inherit' }}
+                  style={{ fontSize: '13px', fontWeight: 700, color: '#2D3E50', background: 'none', border: '1px solid #B8CDD8', padding: '6px 14px', borderRadius: '8px', cursor: 'pointer', fontFamily: 'inherit' }}
                 >
                   Regenerate
                 </button>
@@ -353,15 +286,15 @@ function TeamContent() {
               {(briefState === 'idle' || briefState === 'error') && (
                 <button
                   onClick={generateBrief}
-                  style={{ display: 'flex', alignItems: 'center', gap: '7px', fontSize: '18px', fontWeight: 800, color: 'white', background: '#00A5A3', border: 'none', padding: '9px 20px', borderRadius: '10px', cursor: 'pointer', fontFamily: 'inherit' }}
+                  style={{ display: 'flex', alignItems: 'center', gap: '7px', fontSize: '13px', fontWeight: 800, color: 'white', background: '#00897B', border: 'none', padding: '9px 20px', borderRadius: '10px', cursor: 'pointer', fontFamily: 'inherit' }}
                 >
                   <svg width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
                   Generate Brief
                 </button>
               )}
               {briefState === 'loading' && (
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '18px', color: '#00A5A3', fontWeight: 700 }}>
-                  <div style={{ width: '16px', height: '16px', border: '2px solid rgba(0,165,163,0.3)', borderTopColor: '#00A5A3', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', color: '#00695C', fontWeight: 700 }}>
+                  <div style={{ width: '16px', height: '16px', border: '2px solid rgba(0,165,163,0.3)', borderTopColor: '#00897B', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />
                   Analysing team data…
                 </div>
               )}
@@ -375,33 +308,33 @@ function TeamContent() {
               {briefStats && (
                 <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', marginBottom: '20px' }}>
                   {[
-                    { label: 'Avg TAIRS', value: briefStats.avgScore, color: '#00A5A3' },
-                    { label: 'Team Size', value: briefStats.teamSize, color: '#464D53' },
-                    { label: 'No Courses Yet', value: briefStats.zeroCourses, color: '#FF9F43' },
+                    { label: 'Avg TAIRS', value: briefStats.avgScore, color: '#00695C' },
+                    { label: 'Team Size', value: briefStats.teamSize, color: '#2D3E50' },
+                    { label: 'No Courses Yet', value: briefStats.zeroCourses, color: '#8B1A1A' },
                     { label: 'Profile Pending', value: briefStats.noProfile, color: '#A478FF' },
                   ].map(({ label, value, color }) => (
-                    <div key={label} style={{ background: '#FFFFFF', border: '1px solid #C8DFE0', borderRadius: '10px', padding: '8px 14px', display: 'flex', gap: '6px', alignItems: 'baseline', boxShadow: '0 1px 4px rgba(0,165,163,0.06), 0 1px 2px rgba(0,0,0,0.04)' }}>
+                    <div key={label} style={{ background: '#FFFFFF', border: '1px solid #B8CDD8', borderRadius: '10px', padding: '8px 14px', display: 'flex', gap: '6px', alignItems: 'baseline', boxShadow: '0 1px 4px rgba(0,165,163,0.06), 0 1px 2px rgba(0,0,0,0.04)' }}>
                       <span style={{ fontSize: '36px', fontWeight: 900, color }}>{value}</span>
-                      <span style={{ fontSize: '18px', color: '#464D53', fontWeight: 600 }}>{label}</span>
+                      <span style={{ fontSize: '13px', color: '#2D3E50', fontWeight: 600 }}>{label}</span>
                     </div>
                   ))}
                 </div>
               )}
 
               {/* Brief text — render paragraphs and bullets */}
-              <div style={{ fontSize: '20px', color: '#464D53', lineHeight: 1.65 }}>
+              <div style={{ fontSize: '13px', color: '#2D3E50', lineHeight: 1.65 }}>
                 {brief.split('\n').map((line, i) => {
                   if (!line.trim()) return <div key={i} style={{ height: '8px' }} />
                   if (line.trim().startsWith('- ') || line.trim().startsWith('• ')) {
                     return (
                       <div key={i} style={{ display: 'flex', gap: '10px', marginBottom: '6px' }}>
-                        <div style={{ width: '5px', height: '5px', borderRadius: '50%', background: '#00A5A3', marginTop: '9px', flexShrink: 0 }} />
+                        <div style={{ width: '5px', height: '5px', borderRadius: '50%', background: '#00897B', marginTop: '9px', flexShrink: 0 }} />
                         <span>{line.replace(/^[-•]\s/, '')}</span>
                       </div>
                     )
                   }
                   if (/^\d+\./.test(line.trim())) {
-                    return <p key={i} style={{ margin: '0 0 6px', fontWeight: 700, color: '#1E2124' }}>{line}</p>
+                    return <p key={i} style={{ margin: '0 0 6px', fontWeight: 700, color: '#0F1923' }}>{line}</p>
                   }
                   return <p key={i} style={{ margin: '0 0 10px' }}>{line}</p>
                 })}
@@ -411,16 +344,16 @@ function TeamContent() {
               {gapDept && (
                 <div style={{ marginTop: '20px', padding: '18px 20px', background: 'rgba(164,120,255,0.08)', border: '1px solid rgba(164,120,255,0.2)', borderRadius: '12px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '16px', flexWrap: 'wrap' }}>
                   <div>
-                    <div style={{ fontSize: '18px', fontWeight: 700, color: '#1E2124', marginBottom: '3px' }}>
+                    <div style={{ fontSize: '13px', fontWeight: 700, color: '#0F1923', marginBottom: '3px' }}>
                       Biggest gap: <span style={{ color: '#A478FF' }}>{gapDept}</span>
                     </div>
-                    <div style={{ fontSize: '20px', color: '#464D53' }}>
+                    <div style={{ fontSize: '13px', color: '#2D3E50' }}>
                       Request a course built specifically for this team — it will be live in the library within minutes.
                     </div>
                   </div>
                   <a
                     href={`/admin?tab=suggest&gap=${encodeURIComponent(gapDept)}`}
-                    style={{ display: 'flex', alignItems: 'center', gap: '7px', fontSize: '18px', fontWeight: 800, color: '#A478FF', background: '#FFFFFF', border: '1px solid #C8DFE0', padding: '9px 18px', borderRadius: '10px', textDecoration: 'none', whiteSpace: 'nowrap' }}
+                    style={{ display: 'flex', alignItems: 'center', gap: '7px', fontSize: '13px', fontWeight: 800, color: '#6D28D9', background: '#F5F3FF', border: '1px solid #DDD6FE', padding: '9px 18px', borderRadius: '10px', textDecoration: 'none', whiteSpace: 'nowrap' }}
                   >
                     <svg width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
                     Request a Course
@@ -429,14 +362,14 @@ function TeamContent() {
               )}
 
               {/* Platform impact note */}
-              <div style={{ marginTop: '16px', fontSize: '20px', color: '#1E2124', lineHeight: 1.65, borderTop: '1px solid #C8DFE0', paddingTop: '14px' }}>
+              <div style={{ marginTop: '16px', fontSize: '13px', color: '#0F1923', lineHeight: 1.65, borderTop: '1px solid #DDE8EE', paddingTop: '14px' }}>
                 Your team&apos;s engagement data directly shapes what Trescademy builds next. Courses requested here go into the live library — and are immediately recommended to staff who need them most.
               </div>
             </div>
           )}
 
           {briefState === 'error' && (
-            <div style={{ padding: '20px 24px', fontSize: '18px', color: '#FF6B6B' }}>
+            <div style={{ padding: '20px 24px', fontSize: '13px', color: '#FF6B6B' }}>
               Could not generate the brief. Please try again in a moment.
             </div>
           )}
@@ -446,15 +379,15 @@ function TeamContent() {
         <div style={{ display: 'flex', gap: '10px', marginBottom: '20px', flexWrap: 'wrap', alignItems: 'center' }}>
           {/* Search */}
           <div style={{ position: 'relative', flex: '0 0 220px' }}>
-            <svg width="12" height="12" fill="none" stroke="#1E2124" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24" style={{ position: 'absolute', left: '11px', top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none' }}><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+            <svg width="12" height="12" fill="none" stroke="#0F1923" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24" style={{ position: 'absolute', left: '11px', top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none' }}><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
             <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search name or role…"
-              style={{ width: '100%', paddingLeft: '32px', paddingRight: '12px', paddingTop: '7px', paddingBottom: '7px', borderRadius: '16px', border: '1px solid #C8DFE0', background: '#FFFFFF', color: '#1E2124', fontSize: '20px', fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box' }} />
+              style={{ width: '100%', paddingLeft: '32px', paddingRight: '12px', paddingTop: '7px', paddingBottom: '7px', borderRadius: '16px', border: '1px solid #B8CDD8', background: '#FFFFFF', color: '#0F1923', fontSize: '13px', fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box' }} />
           </div>
 
           {/* Dept filter */}
           {depts.length > 1 && (
             <select value={deptFilter} onChange={e => setDeptFilter(e.target.value)}
-              style={{ padding: '7px 12px', borderRadius: '16px', border: '1px solid #C8DFE0', background: '#FFFFFF', color: '#1E2124', fontSize: '20px', fontFamily: 'inherit', outline: 'none', cursor: 'pointer' }}>
+              style={{ padding: '7px 12px', borderRadius: '16px', border: '1px solid #B8CDD8', background: '#FFFFFF', color: '#0F1923', fontSize: '13px', fontFamily: 'inherit', outline: 'none', cursor: 'pointer' }}>
               <option value="all">All Departments</option>
               {depts.map(d => <option key={d} value={d}>{d}</option>)}
             </select>
@@ -463,26 +396,26 @@ function TeamContent() {
           {/* Office filter */}
           {offices.length > 1 && (
             <select value={officeFilter} onChange={e => setOfficeFilter(e.target.value)}
-              style={{ padding: '7px 12px', borderRadius: '16px', border: '1px solid #C8DFE0', background: '#FFFFFF', color: '#1E2124', fontSize: '20px', fontFamily: 'inherit', outline: 'none', cursor: 'pointer' }}>
+              style={{ padding: '7px 12px', borderRadius: '16px', border: '1px solid #B8CDD8', background: '#FFFFFF', color: '#0F1923', fontSize: '13px', fontFamily: 'inherit', outline: 'none', cursor: 'pointer' }}>
               <option value="all">All Offices</option>
               {offices.map(o => <option key={o} value={o}>{OFFICE_LABEL[o] ?? o}</option>)}
             </select>
           )}
 
-          <div style={{ marginLeft: 'auto', fontSize: '20px', color: '#464D53', fontWeight: 600 }}>
+          <div style={{ marginLeft: 'auto', fontSize: '13px', color: '#2D3E50', fontWeight: 600 }}>
             {filtered.length} of {members.length} shown
           </div>
         </div>
 
         {/* Team member list */}
         {filtered.length === 0 ? (
-          <div style={{ padding: '60px', textAlign: 'center', color: '#464D53', fontSize: '20px' }}>
+          <div style={{ padding: '60px', textAlign: 'center', color: '#2D3E50', fontSize: '13px' }}>
             No team members match your filters.
           </div>
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
             {/* Header row */}
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 120px 100px 100px 100px 80px', gap: '12px', padding: '8px 20px', fontSize: '18px', fontWeight: 700, color: '#1E2124', textTransform: 'uppercase', letterSpacing: '1px' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 120px 100px 100px 100px 80px', gap: '12px', padding: '8px 20px', fontSize: '13px', fontWeight: 700, color: '#0F1923', textTransform: 'uppercase', letterSpacing: '1px' }}>
               <span>Name / Role</span>
               <span>Department</span>
               <span>TAIRS</span>
@@ -494,23 +427,23 @@ function TeamContent() {
             {filtered.map(m => {
               const tc = TIER_COLOR[m.tier] ?? '#aaa'
               return (
-                <div key={m.id} style={{ display: 'grid', gridTemplateColumns: '1fr 120px 100px 100px 100px 80px', gap: '12px', alignItems: 'center', padding: '14px 20px', background: '#FFFFFF', border: '1px solid #C8DFE0', borderRadius: '12px', boxShadow: '0 1px 4px rgba(0,165,163,0.06), 0 1px 2px rgba(0,0,0,0.04)' }}>
+                <div key={m.id} style={{ display: 'grid', gridTemplateColumns: '1fr 120px 100px 100px 100px 80px', gap: '12px', alignItems: 'center', padding: '14px 20px', background: '#FFFFFF', border: '1px solid #B8CDD8', borderRadius: '12px', boxShadow: '0 1px 4px rgba(0,165,163,0.06), 0 1px 2px rgba(0,0,0,0.04)' }}>
                   <div>
-                    <div style={{ fontSize: '20px', fontWeight: 700, color: '#1E2124', marginBottom: '2px' }}>{m.name}</div>
-                    <div style={{ fontSize: '18px', color: '#1E2124' }}>
+                    <div style={{ fontSize: '13px', fontWeight: 700, color: '#0F1923', marginBottom: '2px' }}>{m.name}</div>
+                    <div style={{ fontSize: '13px', color: '#5B7080' }}>
                       {m.role ?? '—'} · {JOB_LEVEL_LABEL[m.job_level] ?? m.job_level} · {OFFICE_LABEL[m.office_id] ?? m.office_id}
                     </div>
                   </div>
-                  <div style={{ fontSize: '20px', color: '#464D53' }}>{m.department ?? '—'}</div>
+                  <div style={{ fontSize: '13px', color: '#2D3E50' }}>{m.department ?? '—'}</div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                    <span style={{ fontSize: '20px', fontWeight: 900, color: tc }}>{m.tairs_score}</span>
-                    <span style={{ fontSize: '18px', fontWeight: 700, color: tc, background: `${tc}18`, padding: '2px 7px', borderRadius: '6px' }}>{m.tier.replace('AI-', '')}</span>
+                    <span style={{ fontSize: '13px', fontWeight: 900, color: tc }}>{m.tairs_score}</span>
+                    <span style={{ fontSize: '13px', fontWeight: 700, color: tc, background: `${tc}18`, padding: '2px 7px', borderRadius: '6px' }}>{m.tier.replace('AI-', '')}</span>
                   </div>
-                  <div style={{ fontSize: '20px', fontWeight: 600, color: '#464D53', textTransform: 'capitalize' }}>{m.track}</div>
-                  <div style={{ fontSize: '20px', fontWeight: 800, color: m.completed_courses > 0 ? '#C0F43C' : '#1E2124' }}>
+                  <div style={{ fontSize: '13px', fontWeight: 600, color: '#2D3E50', textTransform: 'capitalize' }}>{m.track}</div>
+                  <div style={{ fontSize: '13px', fontWeight: 800, color: m.completed_courses > 0 ? '#00695C' : '#0F1923' }}>
                     {m.completed_courses}
                   </div>
-                  <div style={{ fontSize: '18px', color: '#464D53' }}>
+                  <div style={{ fontSize: '13px', color: '#2D3E50' }}>
                     {daysSince(m.last_active) ?? 'Never'}
                   </div>
                 </div>

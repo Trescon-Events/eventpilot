@@ -20,10 +20,10 @@ const PLATFORM_COLOR: Record<string, string> = {
   Twitter: '#1D9BF0', YouTube: '#FF0000',
 }
 const STATUS_CFG: Record<string, { label: string; color: string; bg: string }> = {
-  planned:   { label: 'Planned',   color: '#464D53', bg: '#FFFFFF' },
+  planned:   { label: 'Planned',   color: '#2D3E50', bg: '#FFFFFF' },
   generated: { label: 'Generated', color: '#92400E',               bg: 'rgba(245,158,11,0.12)'  },
   approved:  { label: 'Approved',  color: '#3D6B00',               bg: 'rgba(192,244,60,0.12)'  },
-  posted:    { label: 'Posted',    color: '#00A5A3',               bg: 'rgba(0,165,163,0.12)'   },
+  posted:    { label: 'Posted',    color: '#00695C',               bg: 'rgba(0,165,163,0.12)'   },
 }
 const NARRATIVE_ROLES = ['Awareness', 'Speaker', 'Sponsor', 'Countdown', 'Live', 'Testimonial', 'Recap', 'CTA']
 
@@ -190,15 +190,15 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
   }
 
   if (loading) return (
-    <div style={{ minHeight: '100vh', background: '#F6FFFE', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#1E2124', fontSize: '18px' }}>
+    <div style={{ minHeight: '100vh', background: '#E8EEF4', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#0F1923', fontSize: '13px' }}>
       Loading campaign…
     </div>
   )
 
   if (!campaign) return (
-    <div style={{ minHeight: '100vh', background: '#F6FFFE', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '12px' }}>
-      <div style={{ color: '#1E2124', fontSize: '20px' }}>Campaign not found.</div>
-      <Link href="/content" style={{ color: '#00A5A3', fontSize: '18px' }}>Back to Content Hub</Link>
+    <div style={{ minHeight: '100vh', background: '#E8EEF4', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '12px' }}>
+      <div style={{ color: '#0F1923', fontSize: '13px' }}>Campaign not found.</div>
+      <Link href="/content" style={{ color: '#00695C', fontSize: '13px' }}>Back to Content Hub</Link>
     </div>
   )
 
@@ -208,17 +208,17 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
   const postedCount     = posts.filter(p => p.status === 'posted').length
 
   return (
-    <div style={{ minHeight: '100vh', background: '#F6FFFE', color: '#1E2124', fontFamily: 'inherit' }}>
+    <div style={{ minHeight: '100vh', background: '#E8EEF4', color: '#0F1923', fontFamily: 'inherit' }}>
       <style>{`
         .cp-btn { padding: 10px 18px; border-radius: 8px; font-size: 20px; font-weight: 700; cursor: pointer; border: none; font-family: inherit; transition: all 0.15s; }
         .cp-btn-teal { background: #00A5A3; color: white; }
         .cp-btn-teal:hover { background: #00C4C2; }
         .cp-btn-lime { background: rgba(192,244,60,0.15); color: #C0F43C; border: 1px solid rgba(192,244,60,0.3) !important; }
         .cp-btn-red  { background: rgba(255,107,107,0.12); color: #FF6B6B; border: 1px solid rgba(255,107,107,0.25) !important; }
-        .cp-btn-ghost { background: transparent; border: 1px solid #C8DFE0 !important; color: #464D53; }
+        .cp-btn-ghost { background: transparent; border: 1px solid #C8DFE0 !important; color: #2A3038; }
         .cp-btn-ghost:hover { border-color: rgba(0,165,163,0.3) !important; color: #1E2124; }
         .cp-btn:disabled { opacity: 0.4; cursor: not-allowed; }
-        .cp-tab { padding: 8px 18px; border-radius: 8px; font-size: 20px; font-weight: 700; cursor: pointer; border: 1px solid transparent; background: transparent; color: #464D53; font-family: inherit; transition: all 0.15s; }
+        .cp-tab { padding: 8px 18px; border-radius: 8px; font-size: 20px; font-weight: 700; cursor: pointer; border: 1px solid transparent; background: transparent; color: #2A3038; font-family: inherit; transition: all 0.15s; }
         .cp-tab.active { background: rgba(0,165,163,0.12); color: #00A5A3; border-color: rgba(0,165,163,0.25); }
         .post-card { background: #FFFFFF; border: 1px solid #C8DFE0; border-radius: 12px; overflow: hidden; transition: border-color 0.15s; cursor: pointer; box-shadow: 0 1px 4px rgba(0,165,163,0.06), 0 1px 2px rgba(0,0,0,0.04); }
         .post-card:hover { border-color: rgba(0,165,163,0.25); }
@@ -233,14 +233,14 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
       {/* Top bar */}
       <div style={{ borderBottom: '1px solid #C8DFE0', padding: '20px 40px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '16px', boxShadow: '0 1px 3px rgba(0,165,163,0.08)' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '14px', minWidth: 0 }}>
-          <Link href="/content" style={{ color: '#464D53', display: 'flex', flexShrink: 0 }}>
+          <Link href="/content" style={{ color: '#2D3E50', display: 'flex', flexShrink: 0 }}>
             <svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg>
           </Link>
           <div style={{ minWidth: 0 }}>
-            <div style={{ fontSize: '18px', fontWeight: 700, color: '#1E2124', letterSpacing: '1px', textTransform: 'uppercase', marginBottom: '2px' }}>
+            <div style={{ fontSize: '13px', fontWeight: 700, color: '#0F1923', letterSpacing: '1px', textTransform: 'uppercase', marginBottom: '2px' }}>
               {campaign.events?.name ?? 'Content Campaign'}
             </div>
-            <h1 style={{ fontSize: '36px', fontWeight: 900, color: '#1E2124', margin: 0, letterSpacing: '-0.02em', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            <h1 style={{ fontSize: '36px', fontWeight: 900, color: '#0F1923', margin: 0, letterSpacing: '-0.02em', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
               {campaign.name}
             </h1>
           </div>
@@ -249,14 +249,14 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
         {/* Stats */}
         <div style={{ display: 'flex', gap: '16px', flexShrink: 0 }}>
           {[
-            { label: 'Posts', val: posts.length, color: '#464D53' },
+            { label: 'Posts', val: posts.length, color: '#2D3E50' },
             { label: 'Pending', val: pendingApproval.length, color: '#92400E' },
             { label: 'Approved', val: approvedCount, color: '#3D6B00' },
-            { label: 'Posted', val: postedCount, color: '#00A5A3' },
+            { label: 'Posted', val: postedCount, color: '#00695C' },
           ].map(s => (
             <div key={s.label} style={{ textAlign: 'center' }}>
               <div style={{ fontSize: '36px', fontWeight: 900, color: s.color, lineHeight: 1 }}>{s.val}</div>
-              <div style={{ fontSize: '18px', color: '#1E2124', letterSpacing: '0.8px', textTransform: 'uppercase' }}>{s.label}</div>
+              <div style={{ fontSize: '13px', color: '#0F1923', letterSpacing: '0.8px', textTransform: 'uppercase' }}>{s.label}</div>
             </div>
           ))}
         </div>
@@ -278,17 +278,17 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
         {/* ── SCAFFOLD POSTS CTA (no posts yet) ─────────────────────────── */}
         {posts.length === 0 && planReady && (
           <div style={{ background: 'rgba(0,165,163,0.05)', border: '1px solid rgba(0,165,163,0.2)', borderRadius: '16px', padding: '28px', marginBottom: '28px' }}>
-            <div style={{ fontSize: '18px', fontWeight: 800, color: '#00A5A3', marginBottom: '8px' }}>Ready to build your post schedule?</div>
-            <div style={{ fontSize: '20px', color: '#464D53', marginBottom: '20px' }}>
+            <div style={{ fontSize: '13px', fontWeight: 800, color: '#00695C', marginBottom: '8px' }}>Ready to build your post schedule?</div>
+            <div style={{ fontSize: '13px', color: '#2D3E50', marginBottom: '20px' }}>
               {campaign.duration_weeks} weeks · {campaign.platforms.join(', ')} · {planWeeks.reduce((acc, w) => acc + w.roles.length * campaign.platforms.length, 0)} posts planned
             </div>
             {planWeeks.map(wk => (
               <div key={wk.week} style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '8px' }}>
-                <div style={{ width: 24, height: 24, borderRadius: '50%', background: 'rgba(0,165,163,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '18px', fontWeight: 800, color: '#00A5A3', flexShrink: 0 }}>{wk.week}</div>
-                <div style={{ fontSize: '20px', fontWeight: 700, color: '#464D53', minWidth: 160 }}>{wk.theme}</div>
+                <div style={{ width: 24, height: 24, borderRadius: '50%', background: 'rgba(0,165,163,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '13px', fontWeight: 800, color: '#00695C', flexShrink: 0 }}>{wk.week}</div>
+                <div style={{ fontSize: '13px', fontWeight: 700, color: '#2D3E50', minWidth: 160 }}>{wk.theme}</div>
                 <div style={{ display: 'flex', gap: '4px' }}>
                   {wk.roles.map((r, i) => (
-                    <span key={i} style={{ fontSize: '18px', padding: '2px 7px', borderRadius: '4px', background: '#FFFFFF', color: '#464D53' }}>{r}</span>
+                    <span key={i} style={{ fontSize: '13px', padding: '2px 7px', borderRadius: '4px', background: '#FFFFFF', color: '#2D3E50' }}>{r}</span>
                   ))}
                 </div>
               </div>
@@ -302,8 +302,8 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
 
         {posts.length === 0 && !planReady && !campaign.start_date && (
           <div style={{ textAlign: 'center', padding: '60px 40px', background: '#FFFFFF', border: '1px dashed #C8DFE0', borderRadius: '16px' }}>
-            <div style={{ fontSize: '20px', fontWeight: 700, color: '#464D53', marginBottom: '8px' }}>Set a start date to build the post schedule</div>
-            <div style={{ fontSize: '20px', color: '#1E2124' }}>Edit the campaign to add a start date, then return here to scaffold posts.</div>
+            <div style={{ fontSize: '13px', fontWeight: 700, color: '#2D3E50', marginBottom: '8px' }}>Set a start date to build the post schedule</div>
+            <div style={{ fontSize: '13px', color: '#0F1923' }}>Edit the campaign to add a start date, then return here to scaffold posts.</div>
           </div>
         )}
 
@@ -317,13 +317,13 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
               const anyGen   = wkPosts.some(p => generating[p.id])
 
               return (
-                <div key={wkNum} style={{ background: '#FFFFFF', border: '1px solid #C8DFE0', borderRadius: '14px', overflow: 'hidden' }}>
+                <div key={wkNum} style={{ background: '#FFFFFF', border: '1px solid #9EC8C8', borderRadius: '14px', overflow: 'hidden' }}>
                   {/* Week header */}
                   <div style={{ padding: '18px 20px', borderBottom: '1px solid #C8DFE0', display: 'flex', alignItems: 'center', gap: '14px' }}>
-                    <div style={{ width: 34, height: 34, borderRadius: '50%', background: 'rgba(0,165,163,0.15)', border: '1.5px solid rgba(0,165,163,0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '20px', fontWeight: 800, color: '#00A5A3', flexShrink: 0 }}>{wkNum}</div>
+                    <div style={{ width: 34, height: 34, borderRadius: '50%', background: 'rgba(0,165,163,0.15)', border: '1.5px solid rgba(0,165,163,0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '13px', fontWeight: 800, color: '#00695C', flexShrink: 0 }}>{wkNum}</div>
                     <div style={{ flex: 1 }}>
-                      <div style={{ fontSize: '20px', fontWeight: 800, color: '#1E2124', marginBottom: '2px' }}>{wkTheme}</div>
-                      <div style={{ fontSize: '18px', color: '#1E2124' }}>
+                      <div style={{ fontSize: '13px', fontWeight: 800, color: '#0F1923', marginBottom: '2px' }}>{wkTheme}</div>
+                      <div style={{ fontSize: '13px', color: '#0F1923' }}>
                         {wkPosts.length} posts · {genCount} generated
                       </div>
                     </div>
@@ -331,7 +331,7 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
                       className="cp-btn cp-btn-ghost"
                       disabled={anyGen || wkPosts.every(p => p.status !== 'planned')}
                       onClick={() => generateWeek(wkNum)}
-                      style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '18px' }}
+                      style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px' }}
                     >
                       {anyGen ? (
                         <svg className="spin" width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M21 12a9 9 0 1 1-9-9"/></svg>
@@ -369,26 +369,26 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
                           </div>
                           <div style={{ padding: '10px 12px' }}>
                             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '6px' }}>
-                              <span style={{ fontSize: '18px', fontWeight: 700, color: pc }}>{post.platform}</span>
-                              <span style={{ fontSize: '18px', fontWeight: 700, padding: '2px 7px', borderRadius: '10px', background: sc.bg, color: sc.color }}>{sc.label}</span>
+                              <span style={{ fontSize: '13px', fontWeight: 700, color: pc }}>{post.platform}</span>
+                              <span style={{ fontSize: '13px', fontWeight: 700, padding: '2px 7px', borderRadius: '10px', background: sc.bg, color: sc.color }}>{sc.label}</span>
                             </div>
-                            <div style={{ fontSize: '18px', color: '#1E2124', marginBottom: '4px' }}>{post.narrative_role}</div>
+                            <div style={{ fontSize: '13px', color: '#0F1923', marginBottom: '4px' }}>{post.narrative_role}</div>
                             {post.text ? (
-                              <div style={{ fontSize: '18px', color: '#464D53', lineHeight: 1.5, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
+                              <div style={{ fontSize: '13px', color: '#2D3E50', lineHeight: 1.5, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
                                 {post.text}
                               </div>
                             ) : (
-                              <div style={{ fontSize: '18px', color: '#1E2124', fontStyle: 'italic' }}>No copy yet</div>
+                              <div style={{ fontSize: '13px', color: '#0F1923', fontStyle: 'italic' }}>No copy yet</div>
                             )}
                             <div style={{ marginTop: '8px', display: 'flex', gap: '6px' }} onClick={e => e.stopPropagation()}>
                               {post.status === 'planned' && (
-                                <button className="cp-btn cp-btn-ghost" style={{ fontSize: '18px', padding: '5px 10px' }}
+                                <button className="cp-btn cp-btn-ghost" style={{ fontSize: '13px', padding: '5px 10px' }}
                                   disabled={isg} onClick={() => generatePost(post)}>
                                   Generate
                                 </button>
                               )}
                               {post.status === 'generated' && (
-                                <button className="cp-btn cp-btn-lime" style={{ fontSize: '18px', padding: '5px 10px' }}
+                                <button className="cp-btn cp-btn-lime" style={{ fontSize: '13px', padding: '5px 10px' }}
                                   disabled={busyId === post.id} onClick={() => approvePost(post.id)}>
                                   Approve
                                 </button>
@@ -407,11 +407,11 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
 
         {/* ── LIST TAB ──────────────────────────────────────────────────── */}
         {tab === 'list' && (
-          <div style={{ background: '#FFFFFF', border: '1px solid #C8DFE0', borderRadius: '14px', overflow: 'hidden' }}>
+          <div style={{ background: '#FFFFFF', border: '1px solid #9EC8C8', borderRadius: '14px', overflow: 'hidden' }}>
             {/* Header row */}
             <div style={{ display: 'grid', gridTemplateColumns: '60px 1fr 100px 90px 100px 120px', padding: '10px 16px', borderBottom: '1px solid #C8DFE0', background: 'rgba(0,165,163,0.06)' }}>
               {['Wk', 'Copy', 'Platform', 'Status', 'Role', 'Date'].map(h => (
-                <div key={h} style={{ fontSize: '18px', fontWeight: 700, color: '#1E2124', letterSpacing: '0.8px', textTransform: 'uppercase' }}>{h}</div>
+                <div key={h} style={{ fontSize: '13px', fontWeight: 700, color: '#0F1923', letterSpacing: '0.8px', textTransform: 'uppercase' }}>{h}</div>
               ))}
             </div>
             {posts.map(post => {
@@ -422,14 +422,14 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
                   style={{ display: 'grid', gridTemplateColumns: '60px 1fr 100px 90px 100px 120px', padding: '12px 16px', borderBottom: '1px solid #C8DFE0', cursor: 'pointer', transition: 'background 0.1s' }}
                   onMouseEnter={e => (e.currentTarget.style.background = 'rgba(0,165,163,0.04)')}
                   onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}>
-                  <div style={{ fontSize: '20px', color: '#1E2124', fontWeight: 700 }}>W{post.week_number}</div>
-                  <div style={{ fontSize: '20px', color: '#464D53', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', paddingRight: '12px' }}>
-                    {post.text || <span style={{ color: '#1E2124', fontStyle: 'italic' }}>No copy yet</span>}
+                  <div style={{ fontSize: '13px', color: '#0F1923', fontWeight: 700 }}>W{post.week_number}</div>
+                  <div style={{ fontSize: '13px', color: '#2D3E50', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', paddingRight: '12px' }}>
+                    {post.text || <span style={{ color: '#0F1923', fontStyle: 'italic' }}>No copy yet</span>}
                   </div>
-                  <div style={{ fontSize: '18px', fontWeight: 700, color: pc }}>{post.platform}</div>
-                  <span style={{ fontSize: '18px', fontWeight: 700, padding: '2px 8px', borderRadius: '10px', background: sc.bg, color: sc.color, alignSelf: 'center', textAlign: 'center' }}>{sc.label}</span>
-                  <div style={{ fontSize: '18px', color: '#464D53' }}>{post.narrative_role}</div>
-                  <div style={{ fontSize: '18px', color: '#464D53' }}>{fmtDate(post.scheduled_date)}</div>
+                  <div style={{ fontSize: '13px', fontWeight: 700, color: pc }}>{post.platform}</div>
+                  <span style={{ fontSize: '13px', fontWeight: 700, padding: '2px 8px', borderRadius: '10px', background: sc.bg, color: sc.color, alignSelf: 'center', textAlign: 'center' }}>{sc.label}</span>
+                  <div style={{ fontSize: '13px', color: '#2D3E50' }}>{post.narrative_role}</div>
+                  <div style={{ fontSize: '13px', color: '#2D3E50' }}>{fmtDate(post.scheduled_date)}</div>
                 </div>
               )
             })}
@@ -441,15 +441,15 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
           <div>
             {pendingApproval.length === 0 ? (
               <div style={{ textAlign: 'center', padding: '60px', background: '#FFFFFF', border: '1px dashed #C8DFE0', borderRadius: '16px' }}>
-                <div style={{ fontSize: '20px', fontWeight: 700, color: '#3D6B00', marginBottom: '6px' }}>All clear</div>
-                <div style={{ fontSize: '20px', color: '#1E2124' }}>No posts awaiting approval.</div>
+                <div style={{ fontSize: '13px', fontWeight: 700, color: '#3D6B00', marginBottom: '6px' }}>All clear</div>
+                <div style={{ fontSize: '13px', color: '#0F1923' }}>No posts awaiting approval.</div>
               </div>
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
                 {pendingApproval.map(post => {
                   const pc = PLATFORM_COLOR[post.platform] ?? '#888'
                   return (
-                    <div key={post.id} style={{ background: '#FFFFFF', border: '1px solid #C8DFE0', borderRadius: '14px', overflow: 'hidden', display: 'flex' }}>
+                    <div key={post.id} style={{ background: '#FFFFFF', border: '1px solid #9EC8C8', borderRadius: '14px', overflow: 'hidden', display: 'flex' }}>
                       <div style={{ width: 4, background: pc, flexShrink: 0 }} />
                       <div style={{ padding: '20px', flex: 1, display: 'flex', gap: '16px', alignItems: 'flex-start' }}>
                         {post.image_url && (
@@ -458,24 +458,24 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
                         )}
                         <div style={{ flex: 1, minWidth: 0 }}>
                           <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px', flexWrap: 'wrap' }}>
-                            <span style={{ fontSize: '18px', fontWeight: 700, color: pc }}>{post.platform}</span>
-                            <span style={{ fontSize: '18px', color: '#1E2124' }}>Week {post.week_number} · {post.narrative_role}</span>
-                            <span style={{ fontSize: '18px', color: '#1E2124', marginLeft: 'auto' }}>{fmtDate(post.scheduled_date)}</span>
+                            <span style={{ fontSize: '13px', fontWeight: 700, color: pc }}>{post.platform}</span>
+                            <span style={{ fontSize: '13px', color: '#0F1923' }}>Week {post.week_number} · {post.narrative_role}</span>
+                            <span style={{ fontSize: '13px', color: '#0F1923', marginLeft: 'auto' }}>{fmtDate(post.scheduled_date)}</span>
                           </div>
-                          <div style={{ fontSize: '18px', color: '#464D53', lineHeight: 1.65, marginBottom: '12px', display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
+                          <div style={{ fontSize: '13px', color: '#2D3E50', lineHeight: 1.65, marginBottom: '12px', display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
                             {post.text}
                           </div>
                           {post.revision_note && (
-                            <div style={{ background: 'rgba(255,107,107,0.08)', borderLeft: '3px solid #FF6B6B', padding: '8px 12px', borderRadius: '0 6px 6px 0', fontSize: '18px', color: '#FF6B6B', marginBottom: '10px' }}>
+                            <div style={{ background: 'rgba(255,107,107,0.08)', borderLeft: '3px solid #FF6B6B', padding: '8px 12px', borderRadius: '0 6px 6px 0', fontSize: '13px', color: '#FF6B6B', marginBottom: '10px' }}>
                               Revision note: {post.revision_note}
                             </div>
                           )}
                         </div>
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', flexShrink: 0 }}>
-                          <button className="cp-btn cp-btn-lime" style={{ fontSize: '18px' }} disabled={busyId === post.id} onClick={() => approvePost(post.id)}>
+                          <button className="cp-btn cp-btn-lime" style={{ fontSize: '13px' }} disabled={busyId === post.id} onClick={() => approvePost(post.id)}>
                             {busyId === post.id ? '…' : 'Approve'}
                           </button>
-                          <button className="cp-btn cp-btn-red" style={{ fontSize: '18px' }} onClick={() => { setRejectId(post.id); setRejectNote('') }}>
+                          <button className="cp-btn cp-btn-red" style={{ fontSize: '13px' }} onClick={() => { setRejectId(post.id); setRejectNote('') }}>
                             Revise
                           </button>
                         </div>
@@ -501,11 +501,11 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
               {/* Modal header */}
               <div style={{ padding: '20px 24px', borderBottom: '1px solid #C8DFE0', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                  <span style={{ fontSize: '20px', fontWeight: 700, color: pc }}>{post.platform}</span>
-                  <span style={{ fontSize: '18px', fontWeight: 700, padding: '2px 8px', borderRadius: '10px', background: sc.bg, color: sc.color }}>{sc.label}</span>
-                  <span style={{ fontSize: '18px', color: '#1E2124' }}>Wk {post.week_number} · {post.narrative_role}</span>
+                  <span style={{ fontSize: '13px', fontWeight: 700, color: pc }}>{post.platform}</span>
+                  <span style={{ fontSize: '13px', fontWeight: 700, padding: '2px 8px', borderRadius: '10px', background: sc.bg, color: sc.color }}>{sc.label}</span>
+                  <span style={{ fontSize: '13px', color: '#0F1923' }}>Wk {post.week_number} · {post.narrative_role}</span>
                 </div>
-                <button onClick={() => setActivePost(null)} style={{ background: 'none', border: 'none', color: '#464D53', cursor: 'pointer', padding: '4px' }}>
+                <button onClick={() => setActivePost(null)} style={{ background: 'none', border: 'none', color: '#2D3E50', cursor: 'pointer', padding: '4px' }}>
                   <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
                 </button>
               </div>
@@ -518,17 +518,17 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
                 )}
 
                 {/* Copy — editable */}
-                <label style={{ fontSize: '18px', fontWeight: 700, color: '#1E2124', letterSpacing: '0.8px', textTransform: 'uppercase', display: 'block', marginBottom: '6px' }}>Copy</label>
+                <label style={{ fontSize: '13px', fontWeight: 700, color: '#0F1923', letterSpacing: '0.8px', textTransform: 'uppercase', display: 'block', marginBottom: '6px' }}>Copy</label>
                 <textarea
                   value={post.text}
                   onChange={e => updatePostText(post.id, e.target.value)}
                   rows={8}
                   placeholder="No copy yet — click Generate below."
-                  style={{ width: '100%', padding: '12px', background: '#FFFFFF', border: '1px solid #C8DFE0', borderRadius: '10px', color: '#1E2124', fontSize: '18px', fontFamily: 'inherit', resize: 'vertical', lineHeight: 1.65, outline: 'none', boxSizing: 'border-box' }}
+                  style={{ width: '100%', padding: '12px', background: '#FFFFFF', border: '1px solid #9EC8C8', borderRadius: '10px', color: '#0F1923', fontSize: '13px', fontFamily: 'inherit', resize: 'vertical', lineHeight: 1.65, outline: 'none', boxSizing: 'border-box' }}
                 />
 
                 {post.revision_note && (
-                  <div style={{ background: 'rgba(255,107,107,0.08)', borderLeft: '3px solid #FF6B6B', padding: '10px 14px', borderRadius: '0 8px 8px 0', fontSize: '20px', color: '#FF6B6B', marginTop: '10px' }}>
+                  <div style={{ background: 'rgba(255,107,107,0.08)', borderLeft: '3px solid #FF6B6B', padding: '10px 14px', borderRadius: '0 8px 8px 0', fontSize: '13px', color: '#FF6B6B', marginTop: '10px' }}>
                     <strong>Revision requested:</strong> {post.revision_note}
                   </div>
                 )}
@@ -563,16 +563,16 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
         <div className="modal-bg" onClick={() => setRejectId(null)}>
           <div className="modal-box" style={{ maxWidth: '460px' }} onClick={e => e.stopPropagation()}>
             <div style={{ padding: '24px' }}>
-              <div style={{ fontSize: '20px', fontWeight: 800, color: '#1E2124', marginBottom: '6px' }}>Request Revision</div>
-              <div style={{ fontSize: '20px', color: '#1E2124', marginBottom: '18px' }}>Describe what needs to change. The post goes back to Generated status.</div>
+              <div style={{ fontSize: '13px', fontWeight: 800, color: '#0F1923', marginBottom: '6px' }}>Request Revision</div>
+              <div style={{ fontSize: '13px', color: '#0F1923', marginBottom: '18px' }}>Describe what needs to change. The post goes back to Generated status.</div>
               <textarea value={rejectNote} onChange={e => setRejectNote(e.target.value)}
                 placeholder="e.g. Too generic. Mention the AI in Banking theme specifically. Add a CTA to register."
                 rows={4}
-                style={{ width: '100%', padding: '11px 14px', background: '#FFFFFF', border: '1px solid #C8DFE0', borderRadius: '10px', color: '#1E2124', fontSize: '18px', fontFamily: 'inherit', resize: 'none', lineHeight: 1.65, outline: 'none', boxSizing: 'border-box' }} />
+                style={{ width: '100%', padding: '11px 14px', background: '#FFFFFF', border: '1px solid #9EC8C8', borderRadius: '10px', color: '#0F1923', fontSize: '13px', fontFamily: 'inherit', resize: 'none', lineHeight: 1.65, outline: 'none', boxSizing: 'border-box' }} />
               <div style={{ display: 'flex', gap: '10px', marginTop: '16px' }}>
                 <button onClick={() => setRejectId(null)} className="cp-btn cp-btn-ghost" style={{ flex: 1 }}>Cancel</button>
                 <button onClick={rejectPost} disabled={!rejectNote.trim() || busyId === rejectId}
-                  style={{ flex: 1, padding: '10px', borderRadius: '9px', background: '#DC2626', border: 'none', color: 'white', fontWeight: 700, fontSize: '18px', cursor: 'pointer', opacity: rejectNote.trim() ? 1 : 0.4 }}>
+                  style={{ flex: 1, padding: '10px', borderRadius: '9px', background: '#DC2626', border: 'none', color: 'white', fontWeight: 700, fontSize: '13px', cursor: 'pointer', opacity: rejectNote.trim() ? 1 : 0.4 }}>
                   Send for Revision
                 </button>
               </div>

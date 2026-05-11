@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from 'react'
 import Link from 'next/link'
 import PlatformMenu from '@/app/components/PlatformMenu'
+import NavBar, { MOD_TRESCI } from '@/app/components/NavBar'
 
 type Message = { role: 'user' | 'assistant'; text: string; flagged?: boolean }
 
@@ -37,7 +38,7 @@ function MessageBubble({ msg }: { msg: Message }) {
 
       if (line.startsWith('## ') || line.startsWith('### ')) {
         return (
-          <div key={i} style={{ fontSize: '18px', fontWeight: 800, color: '#1E2124', marginTop: '12px', marginBottom: '4px' }}>
+          <div key={i} style={{ fontSize: '13px', fontWeight: 800, color: '#0F1923', marginTop: '12px', marginBottom: '4px' }}>
             {line.replace(/^#{2,3}\s/, '')}
           </div>
         )
@@ -47,14 +48,14 @@ function MessageBubble({ msg }: { msg: Message }) {
         const content = line.replace(/^[-•]\s/, '')
         return (
           <div key={i} style={{ display: 'flex', gap: '8px', marginBottom: '3px' }}>
-            <div style={{ width: '4px', height: '4px', borderRadius: '50%', background: '#00A5A3', marginTop: '9px', flexShrink: 0 }} />
-            <span style={{ fontSize: '20px', color: '#464D53', lineHeight: 1.65 }}>{renderInline(content)}</span>
+            <div style={{ width: '4px', height: '4px', borderRadius: '50%', background: '#00897B', marginTop: '9px', flexShrink: 0 }} />
+            <span style={{ fontSize: '13px', color: '#2D3E50', lineHeight: 1.65 }}>{renderInline(content)}</span>
           </div>
         )
       }
 
       return (
-        <p key={i} style={{ fontSize: '20px', color: '#464D53', lineHeight: 1.65, margin: '0 0 4px' }}>
+        <p key={i} style={{ fontSize: '13px', color: '#2D3E50', lineHeight: 1.65, margin: '0 0 4px' }}>
           {renderInline(line)}
         </p>
       )
@@ -65,7 +66,7 @@ function MessageBubble({ msg }: { msg: Message }) {
     const parts = text.split(/(\*\*[^*]+\*\*)/g)
     return parts.map((part, i) =>
       part.startsWith('**') && part.endsWith('**')
-        ? <strong key={i} style={{ color: '#1E2124', fontWeight: 700 }}>{part.slice(2, -2)}</strong>
+        ? <strong key={i} style={{ color: '#0F1923', fontWeight: 700 }}>{part.slice(2, -2)}</strong>
         : part
     )
   }
@@ -73,7 +74,7 @@ function MessageBubble({ msg }: { msg: Message }) {
   return (
     <div style={{ display: 'flex', justifyContent: isUser ? 'flex-end' : 'flex-start', marginBottom: '16px', alignItems: 'flex-end', gap: '8px' }}>
       {!isUser && (
-        <div style={{ width: '30px', height: '30px', borderRadius: '10px', background: '#00A5A3', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, marginBottom: '2px' }}>
+        <div style={{ width: '30px', height: '30px', borderRadius: '10px', background: '#00897B', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, marginBottom: '2px' }}>
           <svg width="14" height="14" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
         </div>
       )}
@@ -82,24 +83,24 @@ function MessageBubble({ msg }: { msg: Message }) {
         maxWidth: '72%',
         padding: isUser ? '12px 16px' : '16px 20px',
         borderRadius: isUser ? '18px 18px 4px 18px' : '18px 18px 18px 4px',
-        background: isUser ? '#00A5A3' : '#FFFFFF',
-        border: isUser ? 'none' : '1px solid #C8DFE0',
+        background: isUser ? '#00897B' : '#FFFFFF',
+        border: isUser ? 'none' : '1px solid #DDE8EE',
       }}>
         {isUser ? (
-          <p style={{ fontSize: '20px', color: 'white', margin: 0, lineHeight: 1.65 }}>{msg.text}</p>
+          <p style={{ fontSize: '13px', color: 'white', margin: 0, lineHeight: 1.65 }}>{msg.text}</p>
         ) : (
           <div>{renderText(msg.text)}</div>
         )}
         {msg.flagged && (
-          <div style={{ marginTop: '10px', fontSize: '18px', color: 'rgba(255,107,107,0.8)', fontWeight: 600 }}>
+          <div style={{ marginTop: '10px', fontSize: '13px', color: '#FF6B6B', fontWeight: 600 }}>
             This question was outside my scope.
           </div>
         )}
       </div>
 
       {isUser && (
-        <div style={{ width: '30px', height: '30px', borderRadius: '10px', background: '#FFFFFF', border: '1px solid #C8DFE0', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, marginBottom: '2px' }}>
-          <svg width="13" height="13" fill="none" stroke="#1E2124" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+        <div style={{ width: '30px', height: '30px', borderRadius: '10px', background: '#FFFFFF', border: '1px solid #DDE8EE', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, marginBottom: '2px' }}>
+          <svg width="13" height="13" fill="none" stroke="#0F1923" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
         </div>
       )}
     </div>
@@ -228,45 +229,34 @@ export default function ChatPage() {
   const showQuota  = !isBlocked && sessionCount > 0 && remaining <= 3
 
   return (
-    <div style={{ fontFamily: 'var(--font-manrope), Manrope, sans-serif', background: '#F6FFFE', minHeight: '100vh', display: 'flex', flexDirection: 'column', color: '#1E2124' }}>
+    <div style={{ fontFamily: 'var(--font-manrope), Manrope, sans-serif', background: '#E8EEF4', minHeight: '100vh', display: 'flex', flexDirection: 'column', color: '#0F1923' }}>
 
       {/* Nav */}
-      <nav style={{ background: '#FFFFFF', borderBottom: '1px solid #C8DFE0', padding: '0 28px', height: '64px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0, boxShadow: '0 1px 3px rgba(0,165,163,0.08)' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
-          <Link href={staffId ? `/dashboard?id=${staffId}` : '/login'} style={{ display: 'flex', alignItems: 'center', gap: '8px', textDecoration: 'none' }}>
-            <div style={{ width: '40px', height: '40px', background: '#00A5A3', borderRadius: '11px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              <svg width="18" height="18" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
-            </div>
-            <span style={{ fontSize: '20px', fontWeight: 800, color: '#1E2124' }}>Trescademy</span>
-          </Link>
-          <span style={{ color: 'rgba(15,23,42,0.16)' }}>/</span>
+      <NavBar
+        module={MOD_TRESCI}
+        homeHref={staffId ? `/dashboard?id=${staffId}` : '/login'}
+        centerSlot={
           <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-            <div style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#C0F43C', animation: 'pulse 2s infinite' }} />
-            <span style={{ fontSize: '18px', fontWeight: 700, color: '#00A5A3' }}>Tresci</span>
-            <span style={{ fontSize: '20px', color: '#464D53', fontWeight: 500 }}>AI Learning Assistant</span>
-            <span style={{ fontSize: '18px', fontWeight: 600, color: 'rgba(192,244,60,0.7)', background: 'rgba(192,244,60,0.06)', border: '1px solid rgba(192,244,60,0.15)', borderRadius: '6px', padding: '2px 8px', marginLeft: '4px' }}>
-              {SESSION_LIMIT} questions / day
+            <div style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#3D9A00', flexShrink: 0 }} />
+            <span style={{ fontSize: '13px', color: '#2D3E50' }}>AI Learning Assistant</span>
+            <span style={{ fontSize: '11px', fontWeight: 700, color: '#3D6B00', background: '#F0FDE4', border: '1px solid #BBF7D0', borderRadius: '6px', padding: '2px 8px' }}>
+              {SESSION_LIMIT} q/day
             </span>
           </div>
-        </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+        }
+        rightSlot={<>
           {messages.length > 0 && !isBlocked && (
-            <button
-              onClick={() => { setMessages([]); setSessionCount(0) }}
-              style={{ fontSize: '20px', fontWeight: 600, color: '#464D53', background: 'none', border: '1px solid #C8DFE0', padding: '5px 12px', borderRadius: '8px', cursor: 'pointer', fontFamily: 'inherit' }}
-            >
+            <button className="tbtn tbtn-ghost" onClick={() => { setMessages([]); setSessionCount(0) }}>
               New conversation
             </button>
           )}
-          <Link
-            href={staffId ? `/dashboard?id=${staffId}` : '/login'}
-            style={{ fontSize: '20px', fontWeight: 700, color: '#464D53', background: '#FFFFFF', border: '1px solid #C8DFE0', padding: '5px 14px', borderRadius: '8px', textDecoration: 'none' }}
-          >
-            Back to Dashboard
+          <Link className="tbtn tbtn-teal" href={staffId ? `/dashboard?id=${staffId}` : '/login'}>
+            <svg width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg>
+            My Dashboard
           </Link>
           <PlatformMenu staffId={staffId} />
-        </div>
-      </nav>
+        </>}
+      />
 
       {/* Main */}
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', maxWidth: '760px', width: '100%', margin: '0 auto', padding: '0 24px' }}>
@@ -275,12 +265,12 @@ export default function ChatPage() {
         {isEmpty && !isBlocked && (
           <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'flex-start', textAlign: 'center', padding: '32px 0 24px' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '16px', marginBottom: '8px' }}>
-              <div style={{ width: '48px', height: '48px', background: 'rgba(0,165,163,0.12)', border: '1px solid rgba(0,165,163,0.25)', borderRadius: '14px', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                <svg width="22" height="22" fill="none" stroke="#00A5A3" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+              <div style={{ width: '52px', height: '52px', background: 'linear-gradient(135deg, #00897B 0%, #00695C 100%)', border: '1px solid #00695C', borderRadius: '16px', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                <svg width="24" height="24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
               </div>
-              <h1 style={{ fontSize: '36px', fontWeight: 900, color: '#1E2124', margin: 0, letterSpacing: '-0.3px' }}>Talk to Tresci</h1>
+              <h1 style={{ fontSize: '36px', fontWeight: 900, color: '#0F1923', margin: 0, letterSpacing: '-0.3px' }}>Talk to Tresci</h1>
             </div>
-            <p style={{ fontSize: '20px', color: '#464D53', margin: '0 0 36px', maxWidth: '380px', lineHeight: 1.65 }}>
+            <p style={{ fontSize: '13px', color: '#2D3E50', margin: '0 0 36px', maxWidth: '380px', lineHeight: 1.65 }}>
               Your AI learning assistant. Ask me anything about your courses, your TAIRS score, or how to use Trescademy.
             </p>
 
@@ -290,9 +280,9 @@ export default function ChatPage() {
                 <button
                   key={q}
                   onClick={() => send(q)}
-                  style={{ padding: '12px 16px', background: '#FFFFFF', border: '1px solid #C8DFE0', borderRadius: '12px', color: '#464D53', fontSize: '18px', fontWeight: 500, cursor: 'pointer', textAlign: 'left', fontFamily: 'inherit', lineHeight: 1.45, transition: 'border-color 0.15s', boxShadow: '0 1px 4px rgba(0,165,163,0.06), 0 1px 2px rgba(0,0,0,0.04)' }}
-                  onMouseEnter={e => (e.currentTarget.style.borderColor = 'rgba(0,165,163,0.4)')}
-                  onMouseLeave={e => (e.currentTarget.style.borderColor = '#C8DFE0')}
+                  style={{ padding: '12px 16px', background: '#FFFFFF', border: '1px solid #DDE8EE', borderLeft: '3px solid #00897B', borderRadius: '12px', color: '#0F1923', fontSize: '13px', fontWeight: 600, cursor: 'pointer', textAlign: 'left', fontFamily: 'inherit', lineHeight: 1.45, transition: 'all 0.15s', boxShadow: '0 2px 6px rgba(15,25,35,0.06)' }}
+                  onMouseEnter={e => { e.currentTarget.style.borderColor = '#00897B'; e.currentTarget.style.background = '#F4FFFE' }}
+                  onMouseLeave={e => { e.currentTarget.style.borderColor = '#DDE8EE'; e.currentTarget.style.background = '#FFFFFF'; e.currentTarget.style.borderLeftColor = '#00897B' }}
                 >
                   {q}
                 </button>
@@ -300,12 +290,12 @@ export default function ChatPage() {
             </div>
 
             {/* Scope note */}
-            <div style={{ marginTop: '28px', padding: '12px 20px', background: '#FFFFFF', border: '1px solid #C8DFE0', borderRadius: '10px', fontSize: '20px', color: '#464D53', lineHeight: 1.65, maxWidth: '500px', textAlign: 'center', boxShadow: '0 1px 4px rgba(0,165,163,0.06), 0 1px 2px rgba(0,0,0,0.04)' }}>
+            <div style={{ marginTop: '28px', padding: '12px 20px', background: '#FFFFFF', border: '1px solid #DDE8EE', borderRadius: '10px', fontSize: '13px', color: '#2D3E50', lineHeight: 1.65, maxWidth: '500px', textAlign: 'center', boxShadow: '0 1px 4px rgba(0,165,163,0.06), 0 1px 2px rgba(0,0,0,0.04)' }}>
               Tresci is here to support your learning — ask about your courses, TAIRS score, or how to get the most from the platform.
               For HR, IT, or personal matters, please speak to your manager or the relevant team.
               <span style={{ display: 'block', marginTop: '8px', borderTop: '1px solid #D8EAEB', paddingTop: '8px' }}>
                 <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', background: 'rgba(192,244,60,0.08)', border: '1px solid rgba(192,244,60,0.2)', borderRadius: '8px', padding: '5px 12px', color: '#3D6B00', fontWeight: 700 }}>
-                  <svg width="12" height="12" fill="none" stroke="#C0F43C" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+                  <svg width="12" height="12" fill="none" stroke="#007A6E" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
                   You have {SESSION_LIMIT} questions per day — resets at midnight.
                 </span>
               </span>
@@ -319,12 +309,12 @@ export default function ChatPage() {
             {messages.map((msg, i) => <MessageBubble key={i} msg={msg} />)}
             {loading && (
               <div style={{ display: 'flex', alignItems: 'flex-end', gap: '8px', marginBottom: '16px' }}>
-                <div style={{ width: '30px', height: '30px', borderRadius: '10px', background: '#00A5A3', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                <div style={{ width: '30px', height: '30px', borderRadius: '10px', background: '#00897B', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
                   <svg width="14" height="14" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
                 </div>
-                <div style={{ padding: '14px 18px', background: '#FFFFFF', border: '1px solid #C8DFE0', borderRadius: '18px 18px 18px 4px', display: 'flex', gap: '5px', alignItems: 'center' }}>
+                <div style={{ padding: '14px 18px', background: '#FFFFFF', border: '1px solid #DDE8EE', borderRadius: '18px 18px 18px 4px', display: 'flex', gap: '5px', alignItems: 'center' }}>
                   {[0, 1, 2].map(i => (
-                    <div key={i} style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#00A5A3', animation: `bounce 1.2s ${i * 0.2}s infinite` }} />
+                    <div key={i} style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#00897B', animation: `bounce 1.2s ${i * 0.2}s infinite` }} />
                   ))}
                 </div>
               </div>
@@ -336,32 +326,32 @@ export default function ChatPage() {
         {/* Cooldown wall — shown when session or daily limit is hit */}
         {isBlocked && (
           <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', textAlign: 'center', padding: '48px 0' }}>
-            <div style={{ width: '64px', height: '64px', background: 'rgba(255,159,67,0.1)', border: '1px solid rgba(255,159,67,0.25)', borderRadius: '16px', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '24px' }}>
-              <svg width="28" height="28" fill="none" stroke="#FF9F43" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24">
+            <div style={{ width: '64px', height: '64px', background: 'rgba(139,26,26,0.1)', border: '1px solid rgba(139,26,26,0.25)', borderRadius: '16px', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '24px' }}>
+              <svg width="28" height="28" fill="none" stroke="#8B1A1A" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24">
                 <circle cx="12" cy="12" r="10"/>
                 <polyline points="12 6 12 12 16 14"/>
               </svg>
             </div>
-            <h2 style={{ fontSize: '36px', fontWeight: 900, color: '#1E2124', margin: '0 0 10px', letterSpacing: '-0.3px' }}>
+            <h2 style={{ fontSize: '36px', fontWeight: 900, color: '#0F1923', margin: '0 0 10px', letterSpacing: '-0.3px' }}>
               Session limit reached
             </h2>
-            <p style={{ fontSize: '20px', color: '#464D53', margin: '0 0 28px', maxWidth: '340px', lineHeight: 1.65 }}>
+            <p style={{ fontSize: '13px', color: '#2D3E50', margin: '0 0 28px', maxWidth: '340px', lineHeight: 1.65 }}>
               You have used your {SESSION_LIMIT} questions for this session. Tresci will be available again in:
             </p>
-            <div style={{ background: 'rgba(255,159,67,0.08)', border: '1px solid rgba(255,159,67,0.2)', borderRadius: '16px', padding: '20px 40px', marginBottom: '32px' }}>
-              <div style={{ fontSize: '36px', fontWeight: 900, color: '#FF9F43', letterSpacing: '-1px', fontVariantNumeric: 'tabular-nums' }}>
+            <div style={{ background: 'rgba(139,26,26,0.08)', border: '1px solid rgba(139,26,26,0.2)', borderRadius: '16px', padding: '20px 40px', marginBottom: '32px' }}>
+              <div style={{ fontSize: '36px', fontWeight: 900, color: '#8B1A1A', letterSpacing: '-1px', fontVariantNumeric: 'tabular-nums' }}>
                 {timeLeft}
               </div>
-              <div style={{ fontSize: '18px', color: '#1E2124', marginTop: '4px', fontWeight: 600, letterSpacing: '1.5px', textTransform: 'uppercase' }}>
+              <div style={{ fontSize: '13px', color: '#0F1923', marginTop: '4px', fontWeight: 600, letterSpacing: '1.5px', textTransform: 'uppercase' }}>
                 Remaining
               </div>
             </div>
-            <p style={{ fontSize: '20px', color: '#1E2124', maxWidth: '320px', lineHeight: 1.65, margin: 0 }}>
+            <p style={{ fontSize: '13px', color: '#0F1923', maxWidth: '320px', lineHeight: 1.65, margin: 0 }}>
               This keeps Tresci focused and available for everyone. Your learning courses and dashboard remain fully accessible in the meantime.
             </p>
             <Link
               href={staffId ? `/dashboard?id=${staffId}` : '/login'}
-              style={{ marginTop: '24px', display: 'inline-block', fontSize: '18px', fontWeight: 700, color: '#1E2124', background: '#FFFFFF', border: '1px solid #C8DFE0', padding: '10px 24px', borderRadius: '10px', textDecoration: 'none' }}
+              style={{ marginTop: '24px', display: 'inline-block', fontSize: '13px', fontWeight: 700, color: '#0F1923', background: '#FFFFFF', border: '1px solid #DDE8EE', padding: '10px 24px', borderRadius: '10px', textDecoration: 'none' }}
             >
               Back to My Dashboard
             </Link>
@@ -373,11 +363,11 @@ export default function ChatPage() {
           <div style={{ paddingBottom: '28px', paddingTop: '12px', flexShrink: 0 }}>
             {/* Quota warning when 3 or fewer messages left */}
             {showQuota && (
-              <div style={{ marginBottom: '10px', padding: '8px 14px', background: 'rgba(255,159,67,0.08)', border: '1px solid rgba(255,159,67,0.2)', borderRadius: '10px', fontSize: '20px', color: '#FF9F43', fontWeight: 600, textAlign: 'center' }}>
+              <div style={{ marginBottom: '10px', padding: '8px 14px', background: 'rgba(139,26,26,0.08)', border: '1px solid rgba(139,26,26,0.2)', borderRadius: '10px', fontSize: '13px', color: '#8B1A1A', fontWeight: 600, textAlign: 'center' }}>
                 {remaining} question{remaining !== 1 ? 's' : ''} remaining in this session
               </div>
             )}
-            <div style={{ display: 'flex', gap: '10px', alignItems: 'flex-end', background: '#FFFFFF', border: '1px solid #C8DFE0', borderRadius: '16px', padding: '12px 14px', boxShadow: '0 1px 4px rgba(0,165,163,0.06), 0 1px 2px rgba(0,0,0,0.04)' }}>
+            <div style={{ display: 'flex', gap: '10px', alignItems: 'flex-end', background: '#FFFFFF', border: '1px solid #DDE8EE', borderRadius: '16px', padding: '12px 14px', boxShadow: '0 1px 4px rgba(0,165,163,0.06), 0 1px 2px rgba(0,0,0,0.04)' }}>
               <textarea
                 ref={inputRef}
                 value={input}
@@ -386,7 +376,7 @@ export default function ChatPage() {
                 placeholder="Talk to Tresci anything about your learning journey…"
                 rows={1}
                 disabled={loading}
-                style={{ flex: 1, background: 'none', border: 'none', outline: 'none', color: '#1E2124', fontSize: '20px', fontFamily: 'inherit', resize: 'none', lineHeight: 1.65, maxHeight: '120px', overflowY: 'auto', padding: 0 }}
+                style={{ flex: 1, background: 'none', border: 'none', outline: 'none', color: '#0F1923', fontSize: '13px', fontFamily: 'inherit', resize: 'none', lineHeight: 1.65, maxHeight: '120px', overflowY: 'auto', padding: 0 }}
                 onInput={e => {
                   const el = e.currentTarget
                   el.style.height = 'auto'
@@ -396,12 +386,12 @@ export default function ChatPage() {
               <button
                 onClick={() => send(input)}
                 disabled={!input.trim() || loading}
-                style={{ width: '36px', height: '36px', borderRadius: '10px', background: input.trim() && !loading ? '#00A5A3' : 'rgba(255,255,255,0.08)', border: 'none', cursor: input.trim() && !loading ? 'pointer' : 'default', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, transition: 'background 0.15s' }}
+                style={{ width: '36px', height: '36px', borderRadius: '10px', background: input.trim() && !loading ? '#00897B' : '#E5E7EB', border: 'none', cursor: input.trim() && !loading ? 'pointer' : 'default', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, transition: 'background 0.15s' }}
               >
                 <svg width="15" height="15" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
               </button>
             </div>
-            <div style={{ textAlign: 'center', marginTop: '8px', fontSize: '18px', color: '#1E2124', lineHeight: 1.65 }}>
+            <div style={{ textAlign: 'center', marginTop: '8px', fontSize: '12px', color: '#5B7080', lineHeight: 1.65 }}>
               Press Enter to send · Shift+Enter for new line
             </div>
           </div>
@@ -411,7 +401,7 @@ export default function ChatPage() {
       <style>{`
         @keyframes pulse  { 0%,100%{opacity:1} 50%{opacity:0.4} }
         @keyframes bounce { 0%,80%,100%{transform:translateY(0)} 40%{transform:translateY(-6px)} }
-        textarea::placeholder { color: #1E2124; }
+        textarea::placeholder { color: #9CA3AF; }
       `}</style>
     </div>
   )
