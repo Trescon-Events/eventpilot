@@ -89,6 +89,11 @@ type Comment = {
   staff: { id: string; name: string; department: string } | null
 }
 
+type EventStaffMember = {
+  id: string; role: string | null; assigned_at: string | null
+  staff_members: { id: string; name: string; email: string; department: string | null; role: string | null } | null
+}
+
 const DEPT_COLORS: Record<string, string> = {
   Operations: '#00897B',
   Marketing:  '#A78BFA',
@@ -124,8 +129,19 @@ export default function EventWorkspacePage({ params }: { params: Promise<{ id: s
   const [reportBusy,    setReportBusy]    = useState(false)
   const [commentSaving, setCommentSaving] = useState(false)
 
+  // Event editing
+  const [editing,        setEditing]        = useState(false)
+  const [editForm,       setEditForm]       = useState({ name: '', type: '', status: '', event_date: '', venue: '', city: '', client_name: '', description: '', expected_attendance: '' })
+  const [savingEdit,     setSavingEdit]     = useState(false)
+
+  // Team tab
+  const [eventStaff,     setEventStaff]     = useState<EventStaffMember[]>([])
+  const [teamSearch,     setTeamSearch]     = useState('')
+  const [addingStaff,    setAddingStaff]    = useState(false)
+  const [staffRole,      setStaffRole]      = useState('')
+
   // P&L state
-  const [pnlTab,         setPnlTab]         = useState<'overview'|'planner'|'deals'|'expenses'|'delegates'|'finance'>('overview')
+  const [pnlTab,         setPnlTab]         = useState<'overview'|'planner'|'deals'|'expenses'|'delegates'|'finance'|'team'|'hr'>('overview')
   const [pnl,            setPnl]            = useState<PnlSummary | null>(null)
   const [deals,          setDeals]          = useState<Deal[]>([])
   const [expenses,       setExpenses]       = useState<Expense[]>([])
@@ -165,7 +181,47 @@ export default function EventWorkspacePage({ params }: { params: Promise<{ id: s
     fetchAll()
     fetchPnlData()
     fetchFinanceLogs()
+    fetchEventStaff()
   }, [eventId])
+
+  async function fetchEventStaff() {
+    const res  = await fetch(`/api/events/staff?event_id=${eventId}`)
+    const data = await res.json().catch(() => [])
+    setEventStaff(Array.isArray(data) ? data : [])
+  }
+
+  async function saveEventEdit() {
+    setSavingEdit(true)
+    const body: Record<string, string | number | null> = {
+      name:        editForm.name,
+      type:        editForm.type,
+      status:      editForm.status,
+      event_date:  editForm.event_date || null,
+      venue:       editForm.venue || null,
+      city:        editForm.city || null,
+      client_name: editForm.client_name || null,
+      description: editForm.description || null,
+      expected_attendance: editForm.expected_attendance ? Number(editForm.expected_attendance) : null,
+    }
+    const res  = await fetch(`/api/events?id=${eventId}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
+    if (res.ok) { setEditing(false); fetchAll() }
+    setSavingEdit(false)
+  }
+
+  async function assignStaff(staffId: string) {
+    setAddingStaff(true)
+    await fetch('/api/events/staff', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ event_id: eventId, staff_id: staffId, role: staffRole || null }),
+    })
+    setTeamSearch(''); setStaffRole(''); setAddingStaff(false)
+    fetchEventStaff()
+  }
+
+  async function removeStaff(staffId: string) {
+    await fetch(`/api/events/staff?event_id=${eventId}&staff_id=${staffId}`, { method: 'DELETE' })
+    fetchEventStaff()
+  }
 
   async function fetchAll() {
     setLoading(true)
@@ -180,7 +236,21 @@ export default function EventWorkspacePage({ params }: { params: Promise<{ id: s
     const stData = await stRes.json().catch(() => [])
     const rpData = await rpRes.json().catch(() => null)
 
-    setEvent(Array.isArray(evData) ? evData[0] : evData)
+    const ev = Array.isArray(evData) ? evData[0] : evData
+    setEvent(ev)
+    if (ev) {
+      setEditForm({
+        name:                ev.name ?? '',
+        type:                ev.type ?? '',
+        status:              ev.status ?? '',
+        event_date:          ev.event_date?.slice(0, 10) ?? '',
+        venue:               ev.venue ?? '',
+        city:                ev.city ?? '',
+        client_name:         ev.client_name ?? '',
+        description:         ev.description ?? '',
+        expected_attendance: ev.expected_attendance ? String(ev.expected_attendance) : '',
+      })
+    }
     setChecklist(Array.isArray(clData) ? clData : [])
     setStaffList(Array.isArray(stData) ? stData : [])
     const rp = rpData?.id ? rpData : null
@@ -490,30 +560,89 @@ export default function EventWorkspacePage({ params }: { params: Promise<{ id: s
         {/* Event header */}
         <div style={{ marginBottom: '32px' }}>
           <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '24px', flexWrap: 'wrap' }}>
-            <div>
+            <div style={{ flex: 1, minWidth: 0 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '8px' }}>
                 <div style={{ fontSize: '13px', fontWeight: 800, letterSpacing: '2px', textTransform: 'uppercase', color: '#00695C' }}>Event Workspace</div>
                 <div style={{ fontSize: '13px', fontWeight: 700, padding: '2px 10px', borderRadius: '16px', background: event.status === 'active' ? 'rgba(192,244,60,0.15)' : '#FFFFFF', color: event.status === 'active' ? '#00695C' : '#2D3E50' }}>
                   {event.status}
                 </div>
+                <button onClick={() => setEditing(e => !e)}
+                  style={{ marginLeft: '4px', padding: '3px 10px', borderRadius: '8px', border: '1px solid #DDE8EE', background: editing ? '#0F1923' : '#FFFFFF', color: editing ? '#C0F43C' : '#5B7080', fontSize: '11px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
+                  {editing ? 'Cancel' : 'Edit'}
+                </button>
               </div>
-              <h1 style={{ fontSize: '36px', fontWeight: 900, color: '#0F1923', margin: '0 0 6px', letterSpacing: '-0.5px' }}>{event.name}</h1>
-              <div style={{ display: 'flex', gap: '20px', flexWrap: 'wrap' }}>
-                {event.city && <span style={{ fontSize: '13px', color: '#2D3E50' }}>{event.city}</span>}
-                {event.event_date && <span style={{ fontSize: '13px', color: '#2D3E50' }}>{new Date(event.event_date).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}</span>}
-                {event.venue && <span style={{ fontSize: '13px', color: '#2D3E50' }}>{event.venue}</span>}
-                {event.client_name && <span style={{ fontSize: '13px', color: '#2D3E50' }}>{event.client_name}</span>}
-              </div>
+
+              {!editing ? (
+                <>
+                  <h1 style={{ fontSize: '36px', fontWeight: 900, color: '#0F1923', margin: '0 0 6px', letterSpacing: '-0.5px' }}>{event.name}</h1>
+                  <div style={{ display: 'flex', gap: '20px', flexWrap: 'wrap' }}>
+                    {event.city && <span style={{ fontSize: '13px', color: '#2D3E50' }}>{event.city}</span>}
+                    {event.event_date && <span style={{ fontSize: '13px', color: '#2D3E50' }}>{new Date(event.event_date).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}</span>}
+                    {event.venue && <span style={{ fontSize: '13px', color: '#2D3E50' }}>{event.venue}</span>}
+                    {event.client_name && <span style={{ fontSize: '13px', color: '#2D3E50' }}>{event.client_name}</span>}
+                    {event.expected_attendance && <span style={{ fontSize: '13px', color: '#2D3E50' }}>{event.expected_attendance.toLocaleString()} expected</span>}
+                  </div>
+                </>
+              ) : (
+                <div style={{ background: '#F8FAFF', border: '1px solid #DDE8EE', borderRadius: '14px', padding: '20px', marginTop: '4px' }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                    <div style={{ gridColumn: '1/-1' }}>
+                      <label style={{ fontSize: '11px', fontWeight: 700, color: '#5B7080', display: 'block', marginBottom: '4px' }}>EVENT NAME</label>
+                      <input value={editForm.name} onChange={e => setEditForm(f => ({ ...f, name: e.target.value }))}
+                        style={{ width: '100%', padding: '9px 12px', borderRadius: '8px', border: '1px solid #DDE8EE', fontSize: '15px', fontWeight: 700, fontFamily: 'inherit', color: '#0F1923', boxSizing: 'border-box' }} />
+                    </div>
+                    {([
+                      ['STATUS', 'status', null, ['planning','upcoming','active','completed','cancelled']],
+                      ['TYPE',   'type',   null, ['conference','summit','forum','awards','workshop','flagship','managed','bespoke','corporate','other']],
+                      ['DATE',   'event_date', 'date', null],
+                      ['VENUE',  'venue',  null, null],
+                      ['CITY',   'city',   null, null],
+                      ['CLIENT', 'client_name', null, null],
+                      ['EXPECTED ATTENDANCE', 'expected_attendance', 'number', null],
+                    ] as [string, string, string | null, string[] | null][]).map(([label, key, type, opts]) => (
+                      <div key={key}>
+                        <label style={{ fontSize: '11px', fontWeight: 700, color: '#5B7080', display: 'block', marginBottom: '4px' }}>{label}</label>
+                        {opts ? (
+                          <select value={editForm[key as keyof typeof editForm]} onChange={e => setEditForm(f => ({ ...f, [key]: e.target.value }))}
+                            style={{ width: '100%', padding: '9px 12px', borderRadius: '8px', border: '1px solid #DDE8EE', fontSize: '13px', fontFamily: 'inherit', color: '#0F1923' }}>
+                            {opts.map(o => <option key={o} value={o}>{o}</option>)}
+                          </select>
+                        ) : (
+                          <input type={type ?? 'text'} value={editForm[key as keyof typeof editForm]} onChange={e => setEditForm(f => ({ ...f, [key]: e.target.value }))}
+                            style={{ width: '100%', padding: '9px 12px', borderRadius: '8px', border: '1px solid #DDE8EE', fontSize: '13px', fontFamily: 'inherit', color: '#0F1923', boxSizing: 'border-box' }} />
+                        )}
+                      </div>
+                    ))}
+                    <div style={{ gridColumn: '1/-1' }}>
+                      <label style={{ fontSize: '11px', fontWeight: 700, color: '#5B7080', display: 'block', marginBottom: '4px' }}>DESCRIPTION</label>
+                      <textarea value={editForm.description} onChange={e => setEditForm(f => ({ ...f, description: e.target.value }))} rows={3}
+                        style={{ width: '100%', padding: '9px 12px', borderRadius: '8px', border: '1px solid #DDE8EE', fontSize: '13px', fontFamily: 'inherit', color: '#0F1923', resize: 'vertical', boxSizing: 'border-box' }} />
+                    </div>
+                  </div>
+                  <div style={{ display: 'flex', gap: '8px', marginTop: '14px' }}>
+                    <button onClick={saveEventEdit} disabled={savingEdit || !editForm.name}
+                      style={{ padding: '10px 22px', borderRadius: '8px', border: 'none', background: '#C0F43C', color: '#0F1923', fontSize: '13px', fontWeight: 800, cursor: 'pointer', fontFamily: 'inherit', opacity: savingEdit ? 0.6 : 1 }}>
+                      {savingEdit ? 'Saving…' : 'Save Changes'}
+                    </button>
+                    <button onClick={() => setEditing(false)}
+                      style={{ padding: '10px 16px', borderRadius: '8px', border: '1px solid #DDE8EE', background: 'transparent', color: '#5B7080', fontSize: '13px', cursor: 'pointer', fontFamily: 'inherit' }}>
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* Generate checklist button */}
-            <button
-              onClick={generateChecklist}
-              disabled={generating}
-              style={{ padding: '14px 26px', borderRadius: '12px', border: 'none', background: generating ? '#E4EEF2' : '#C0F43C', color: generating ? '#0F1923' : '#0F1923', fontSize: '13px', fontWeight: 800, cursor: generating ? 'not-allowed' : 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: '8px', whiteSpace: 'nowrap' }}>
-              <svg width="15" height="15" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
-              {generating ? 'AI generating checklist…' : checklist.length > 0 ? 'Regenerate Checklist' : 'Generate Checklist with AI'}
-            </button>
+            {!editing && (
+              <button
+                onClick={generateChecklist}
+                disabled={generating}
+                style={{ padding: '14px 26px', borderRadius: '12px', border: 'none', background: generating ? '#E4EEF2' : '#C0F43C', color: '#0F1923', fontSize: '13px', fontWeight: 800, cursor: generating ? 'not-allowed' : 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: '8px', whiteSpace: 'nowrap', flexShrink: 0 }}>
+                <svg width="15" height="15" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+                {generating ? 'AI generating checklist…' : checklist.length > 0 ? 'Regenerate Checklist' : 'Generate Checklist with AI'}
+              </button>
+            )}
           </div>
 
           {msg && (
@@ -595,10 +724,17 @@ export default function EventWorkspacePage({ params }: { params: Promise<{ id: s
 
           {/* Sub-tab nav */}
           <div style={{ display: 'flex', borderBottom: '1px solid #D8EAEB', overflowX: 'auto' }}>
-            {(['overview','planner','deals','expenses','delegates','finance'] as const).map(tab => (
+            {(['overview','planner','deals','expenses','delegates','finance','hr','team'] as const).map(tab => (
               <button key={tab} onClick={() => setPnlTab(tab)}
                 style={{ padding: '14px 22px', border: 'none', background: 'none', cursor: 'pointer', fontFamily: 'inherit', fontSize: '13px', fontWeight: pnlTab === tab ? 800 : 600, color: pnlTab === tab ? '#0F1923' : '#5B7080', borderBottom: pnlTab === tab ? '2px solid #C0F43C' : '2px solid transparent', whiteSpace: 'nowrap', textTransform: 'capitalize' }}>
-                {tab === 'overview' ? 'Overview' : tab === 'planner' ? 'Budget Planner' : tab === 'deals' ? `Deals (${deals.length})` : tab === 'expenses' ? `Expenses (${expenses.length})` : tab === 'finance' ? `Finance Hours (${finLogs.length})` : `Delegates (${delegates.length})`}
+                {tab === 'overview'   ? 'Overview'
+                 : tab === 'planner' ? 'Budget Planner'
+                 : tab === 'deals'   ? `Deals (${deals.length})`
+                 : tab === 'expenses' ? `Expenses (${expenses.length})`
+                 : tab === 'finance' ? `Finance Hrs (${finLogs.length})`
+                 : tab === 'hr'      ? `HR Overhead`
+                 : tab === 'team'    ? `Team (${eventStaff.length})`
+                 : `Delegates (${delegates.length})`}
               </button>
             ))}
           </div>
@@ -1236,6 +1372,140 @@ export default function EventWorkspacePage({ params }: { params: Promise<{ id: s
                       <span style={{ fontSize: '13px', fontWeight: 700, color: '#2D3E50' }}>Total hours logged</span>
                       <span style={{ fontSize: '13px', fontWeight: 900, color: '#34D399' }}>{finLogs.reduce((s, l) => s + l.hours, 0)}h</span>
                     </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* HR OVERHEAD */}
+            {pnlTab === 'hr' && (
+              <div>
+                <div style={{ background: 'rgba(244,114,182,0.05)', border: '1px solid rgba(244,114,182,0.2)', borderRadius: '12px', padding: '14px 18px', marginBottom: '20px', fontSize: '13px', color: '#2D3E50', lineHeight: 1.65 }}>
+                  HR overhead is derived from timesheet hours logged in the HRMS against this event&apos;s project. The cost is proportionally allocated from the monthly HR cost pool.
+                  {pnl?.hr_overhead?.allocated ? (
+                    <strong style={{ display: 'block', marginTop: '6px', color: '#0F1923' }}>
+                      Current allocation: {fmt(pnl.hr_overhead.allocated)} ({pnl.hr_overhead.total_hours}h logged across HRMS timesheets)
+                    </strong>
+                  ) : (
+                    <strong style={{ display: 'block', marginTop: '6px', color: '#5B7080' }}>No HR hours linked yet — HR overhead shows as zero in this event&apos;s P&amp;L. Hours are pulled from HRMS timesheets on each nightly sync.</strong>
+                  )}
+                </div>
+
+                {(pnl?.hr_overhead?.months?.length ?? 0) > 0 && (
+                  <div style={{ background: '#F8FAFF', border: '1px solid #D8EAEB', borderRadius: '12px', padding: '16px 18px', marginBottom: '16px' }}>
+                    <div style={{ fontSize: '11px', fontWeight: 800, color: '#5B7080', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '12px' }}>Allocation by Month</div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                      {pnl?.hr_overhead.months.map(m => (
+                        <div key={m.month} style={{ display: 'flex', gap: '16px', alignItems: 'center' }}>
+                          <span style={{ fontSize: '13px', color: '#2D3E50', width: '80px' }}>{m.month}</span>
+                          <span style={{ fontSize: '13px', color: '#0F1923' }}>{m.hours}h</span>
+                          <span style={{ fontSize: '13px', color: '#5B7080' }}>{m.pct}% of HR pool</span>
+                          <span style={{ fontSize: '13px', fontWeight: 800, color: '#0F1923', marginLeft: 'auto' }}>{fmt(m.cost)}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Team timesheets from HRMS */}
+                {eventStaff.length > 0 && (
+                  <div style={{ background: '#F8FAFF', border: '1px solid #D8EAEB', borderRadius: '12px', padding: '16px 18px' }}>
+                    <div style={{ fontSize: '11px', fontWeight: 800, color: '#5B7080', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '12px' }}>Staff Deployed ({eventStaff.length})</div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                      {eventStaff.map(es => (
+                        <div key={es.id} style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '10px 14px', background: '#FFFFFF', border: '1px solid #DDE8EE', borderRadius: '10px' }}>
+                          <div style={{ width: '32px', height: '32px', borderRadius: '8px', background: 'rgba(244,114,182,0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '13px', fontWeight: 800, color: '#F472B6', flexShrink: 0 }}>
+                            {es.staff_members?.name?.charAt(0).toUpperCase() ?? '?'}
+                          </div>
+                          <div style={{ flex: 1 }}>
+                            <div style={{ fontSize: '13px', fontWeight: 700, color: '#0F1923' }}>{es.staff_members?.name ?? '—'}</div>
+                            <div style={{ fontSize: '12px', color: '#5B7080' }}>{es.staff_members?.department ?? ''}{es.role ? ` · ${es.role}` : ''}</div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* TEAM */}
+            {pnlTab === 'team' && (
+              <div>
+                {/* Search + assign */}
+                <div style={{ background: '#F8FAFF', border: '1px solid #D8EAEB', borderRadius: '14px', padding: '18px', marginBottom: '20px' }}>
+                  <div style={{ fontSize: '13px', fontWeight: 800, color: '#0F1923', marginBottom: '12px' }}>Assign Staff to Event</div>
+                  <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+                    <div style={{ flex: 2, minWidth: '200px' }}>
+                      <label style={{ fontSize: '11px', fontWeight: 700, color: '#5B7080', display: 'block', marginBottom: '4px' }}>SEARCH STAFF</label>
+                      <input value={teamSearch} onChange={e => setTeamSearch(e.target.value)} placeholder="Type name to filter…"
+                        style={{ width: '100%', padding: '9px 12px', borderRadius: '8px', border: '1px solid #D8EAEB', fontSize: '13px', fontFamily: 'inherit', color: '#0F1923', boxSizing: 'border-box' }} />
+                    </div>
+                    <div style={{ flex: 1, minWidth: '160px' }}>
+                      <label style={{ fontSize: '11px', fontWeight: 700, color: '#5B7080', display: 'block', marginBottom: '4px' }}>ROLE (OPTIONAL)</label>
+                      <input value={staffRole} onChange={e => setStaffRole(e.target.value)} placeholder="e.g. Operations Lead"
+                        style={{ width: '100%', padding: '9px 12px', borderRadius: '8px', border: '1px solid #D8EAEB', fontSize: '13px', fontFamily: 'inherit', color: '#0F1923', boxSizing: 'border-box' }} />
+                    </div>
+                  </div>
+
+                  {/* Filtered staff list */}
+                  {teamSearch.length > 1 && (
+                    <div style={{ marginTop: '10px', maxHeight: '220px', overflowY: 'auto', border: '1px solid #D8EAEB', borderRadius: '10px', background: '#FFFFFF' }}>
+                      {staffList
+                        .filter(s => s.name.toLowerCase().includes(teamSearch.toLowerCase()) && !eventStaff.some(es => es.staff_members?.id === s.id))
+                        .slice(0, 10)
+                        .map(s => (
+                          <div key={s.id} onClick={() => assignStaff(s.id)}
+                            style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '10px 14px', borderBottom: '1px solid #EEF4F4', cursor: 'pointer' }}
+                            onMouseOver={e => (e.currentTarget.style.background = '#F8FAFF')}
+                            onMouseOut={e  => (e.currentTarget.style.background = 'transparent')}>
+                            <div style={{ width: '30px', height: '30px', borderRadius: '8px', background: 'rgba(0,137,123,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '12px', fontWeight: 800, color: '#00897B', flexShrink: 0 }}>
+                              {s.name.charAt(0)}
+                            </div>
+                            <div>
+                              <div style={{ fontSize: '13px', fontWeight: 700, color: '#0F1923' }}>{s.name}</div>
+                              <div style={{ fontSize: '12px', color: '#5B7080' }}>{s.department}</div>
+                            </div>
+                            <div style={{ marginLeft: 'auto', fontSize: '12px', color: '#00897B', fontWeight: 700 }}>+ Assign</div>
+                          </div>
+                        ))}
+                      {staffList.filter(s => s.name.toLowerCase().includes(teamSearch.toLowerCase()) && !eventStaff.some(es => es.staff_members?.id === s.id)).length === 0 && (
+                        <div style={{ padding: '16px', textAlign: 'center', color: '#5B7080', fontSize: '13px' }}>No unassigned staff match &quot;{teamSearch}&quot;</div>
+                      )}
+                    </div>
+                  )}
+                </div>
+
+                {/* Current team */}
+                {eventStaff.length === 0 ? (
+                  <div style={{ textAlign: 'center', padding: '48px', color: '#5B7080', fontSize: '13px', background: '#F8FAFF', borderRadius: '14px', border: '1px solid #D8EAEB' }}>
+                    No staff assigned to this event yet. Search above to add team members.
+                  </div>
+                ) : (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                    <div style={{ fontSize: '11px', fontWeight: 800, color: '#5B7080', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '4px' }}>Event Team ({eventStaff.length})</div>
+                    {eventStaff.map(es => (
+                      <div key={es.id} style={{ display: 'flex', alignItems: 'center', gap: '14px', padding: '14px 16px', background: '#FFFFFF', border: '1px solid #D8EAEB', borderRadius: '12px' }}>
+                        <div style={{ width: '38px', height: '38px', borderRadius: '10px', background: 'rgba(0,137,123,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '15px', fontWeight: 800, color: '#00897B', flexShrink: 0 }}>
+                          {es.staff_members?.name?.charAt(0).toUpperCase() ?? '?'}
+                        </div>
+                        <div style={{ flex: 1 }}>
+                          <div style={{ fontSize: '14px', fontWeight: 700, color: '#0F1923' }}>{es.staff_members?.name ?? '—'}</div>
+                          <div style={{ fontSize: '12px', color: '#5B7080' }}>
+                            {es.staff_members?.department ?? ''}
+                            {es.staff_members?.role ? ` · ${es.staff_members.role}` : ''}
+                          </div>
+                        </div>
+                        {es.role && (
+                          <span style={{ fontSize: '12px', fontWeight: 700, padding: '3px 10px', borderRadius: '8px', background: 'rgba(0,137,123,0.08)', color: '#00897B' }}>{es.role}</span>
+                        )}
+                        <button onClick={() => removeStaff(es.staff_members!.id)}
+                          style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'rgba(255,107,107,0.5)', padding: '6px', display: 'flex', alignItems: 'center', flexShrink: 0 }}
+                          title="Remove from event">
+                          <svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                        </button>
+                      </div>
+                    ))}
                   </div>
                 )}
               </div>
