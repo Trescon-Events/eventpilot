@@ -122,7 +122,7 @@ Return ONLY a valid JSON array, no markdown fences, no explanation outside the a
 ]`
 
   try {
-    const model  = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' })
+    const model  = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' })
     const result = await model.generateContent(prompt)
     const raw    = result.response.text().trim()
 
