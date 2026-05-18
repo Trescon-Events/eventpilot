@@ -26,8 +26,7 @@ export async function GET() {
     // Total active staff by department
     supabaseAdmin
       .from('staff_members')
-      .select('department')
-      .eq('is_active', true),
+      .select('department'),
 
     // Active onboardings with progress
     supabaseAdmin

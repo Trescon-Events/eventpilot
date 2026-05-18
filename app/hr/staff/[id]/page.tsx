@@ -20,7 +20,7 @@ const C = {
 type Staff = {
   id: string; name: string; email: string; department: string | null
   role: string | null; job_level: string | null; office_id: string | null
-  manager_id: string | null; joined_at: string | null; is_active: boolean
+  manager_id: string | null; joined_at: string | null; access_enabled: boolean
 }
 
 type Contract = {
@@ -192,7 +192,7 @@ export default function StaffHRProfile() {
           <Link href="/hr" style={{ fontSize: '13px', color: C.muted, textDecoration: 'none', fontWeight: 600 }}>← HR Portal</Link>
           <div style={{ width: '1px', height: '20px', background: C.border }} />
           <div style={{ fontSize: '15px', fontWeight: 800, color: C.text }}>{staff.name}</div>
-          {!staff.is_active && pill(C.red, 'Inactive')}
+          {!staff.access_enabled && pill(C.red, 'Access Disabled')}
         </div>
       </div>
 

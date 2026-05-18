@@ -16,7 +16,6 @@ export async function POST(req: NextRequest) {
   const { data: staff, error: staffErr } = await supabaseAdmin
     .from('staff_members')
     .select('id, name, department, job_level, joined_at')
-    .eq('is_active', true)
     .order('name')
 
   if (staffErr) return NextResponse.json({ error: staffErr.message }, { status: 500 })
