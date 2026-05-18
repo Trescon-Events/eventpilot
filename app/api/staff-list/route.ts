@@ -12,7 +12,11 @@ export async function GET(req: NextRequest) {
   if (id) {
     const { data, error } = await supabaseAdmin
       .from('staff_members')
-      .select('id, name, email, department, role, office_id, job_level, manager_id, access_enabled, profile_complete, joined_at, is_active')
+      .select(`id, name, email, department, role, office_id, job_level, manager_id, access_enabled, profile_complete, joined_at, is_active,
+        phone, address, emergency_contact_name, emergency_contact_phone,
+        work_mode, company, business_unit, employee_code, skills,
+        is_management_overhead, gender, date_of_birth, salutation, blood_group,
+        data_source, last_synced_at`)
       .eq('id', id)
       .single()
     if (error) return NextResponse.json({ error: error.message }, { status: 500 })

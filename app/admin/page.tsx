@@ -385,6 +385,10 @@ export default function AdminPage() {
   const [eventStaff,    setEventStaff]    = useState<{id:string;role:string|null;staff_members:{id:string;name:string;department:string|null}}[]>([])
   const [assignStaffId, setAssignStaffId] = useState('')
   const [assignRole,    setAssignRole]    = useState('')
+  const [eventView,       setEventView]       = useState<'upcoming' | 'past'>('upcoming')
+  type EventSummary = { confirmed_revenue: number; pending_revenue: number; total_expenses: number; approved_budget: number; currency: string; net_pnl: number; margin_pct: number | null; task_total: number; task_done: number; task_pct: number; has_budget: boolean; has_revenue: boolean; has_expenses: boolean }
+  const [eventSummaries,  setEventSummaries]  = useState<Record<string, EventSummary>>({})
+  const [summariesLoading,setSummariesLoading]= useState(false)
 
   // Review Queue tab (super admin only)
   type DraftCourse = { id: string; title: string; subtitle: string; tier_level: string; dept_tags: string[]; is_mandatory: boolean; estimated_minutes: number; overview: string; suggested_by_name: string | null; suggested_by_role: string | null; created_at: string }
@@ -460,6 +464,13 @@ export default function AdminPage() {
     const data = await res.json()
     setEvents(Array.isArray(data) ? data : [])
     setEventsLoading(false)
+  }
+
+  async function fetchEventSummaries() {
+    setSummariesLoading(true)
+    const res = await fetch('/api/events/batch-summary')
+    if (res.ok) setEventSummaries(await res.json())
+    setSummariesLoading(false)
   }
 
   async function fetchEventStaff(eventId: string) {
@@ -2930,13 +2941,32 @@ export default function AdminPage() {
 
         {/* ── Events tab ── */}
         {tab === 'events' && (() => {
-          const TYPE_COLOR: Record<string,string> = { conference:'#00897B', summit:'#A78BFA', forum:'#60A5FA', awards:'#F59E0B', workshop:'#34D399', other:'#0F1923' }
+          const TYPE_COLOR: Record<string,string> = { conference:'#00897B', summit:'#A78BFA', forum:'#60A5FA', awards:'#F59E0B', workshop:'#34D399', flagship:'#8B1A1A', managed:'#3730A3', bespoke:'#5B7080', corporate:'#0F1923', others:'#B8CDD8', other:'#0F1923' }
           const STATUS_CFG: Record<string,{color:string;bg:string}> = {
             planning:  { color:'#5B7080',  bg:'#DDE8EE' },
-            active:    { color:'#3D6B00',               bg:'rgba(61,107,0,0.1)'     },
-            completed: { color:'#00897B',               bg:'rgba(0,165,163,0.12)'   },
-            cancelled: { color:'#FF6B6B',               bg:'rgba(255,107,107,0.12)' },
+            upcoming:  { color:'#3730A3',  bg:'rgba(55,48,163,0.1)' },
+            active:    { color:'#3D6B00',  bg:'rgba(61,107,0,0.1)'  },
+            completed: { color:'#00897B',  bg:'rgba(0,165,163,0.12)' },
+            cancelled: { color:'#FF6B6B',  bg:'rgba(255,107,107,0.12)' },
           }
+
+          const today    = new Date()
+          const daysUntil = (d: string | null) => d ? Math.ceil((new Date(d).getTime() - today.getTime()) / 86400000) : null
+          const fmt       = (n: number, cur = 'USD') => {
+            const abs = Math.abs(n)
+            const str = abs >= 1000000 ? `${(abs/1000000).toFixed(1)}M` : abs >= 1000 ? `${(abs/1000).toFixed(0)}K` : `${abs.toLocaleString()}`
+            return `${n < 0 ? '-' : ''}${cur === 'INR' ? '₹' : '$'}${str}`
+          }
+
+          const upcoming = events
+            .filter(e => e.status !== 'completed' && e.status !== 'cancelled')
+            .sort((a,b) => (a.event_date ?? '9999').localeCompare(b.event_date ?? '9999'))
+          const past = events
+            .filter(e => e.status === 'completed' || e.status === 'cancelled')
+            .sort((a,b) => (b.event_date ?? '').localeCompare(a.event_date ?? ''))
+
+          const totalStaff = events.reduce((s,e) => s + ((e.event_staff as {count:number}[]|null)?.[0]?.count ?? 0), 0)
+
           const createForm = (
             <div style={{ background: '#FFFFFF', border: '1px solid rgba(0,165,163,0.2)', borderRadius: '16px', padding: '24px' }}>
               <div style={{ fontSize: '13px', fontWeight: 800, color: '#00897B', letterSpacing: '1px', textTransform: 'uppercase', marginBottom: '16px' }}>New Event</div>
@@ -2988,166 +3018,229 @@ export default function AdminPage() {
 
           return (
             <div>
-              {/* Header */}
-              <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: '24px' }}>
-                <div>
-                  <div style={{ fontSize: '13px', fontWeight: 800, letterSpacing: '2.5px', textTransform: 'uppercase', color: '#00897B', marginBottom: '6px' }}>Events</div>
-                  <h2 style={{ fontSize: '13px', fontWeight: 800, color: '#0F1923', margin: 0 }}>Event Management</h2>
+              {/* ── Summary strip ── */}
+              {events.length > 0 && (
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5,1fr)', gap: '10px', marginBottom: '24px' }}>
+                  {[
+                    { label: 'Total Events',   val: events.length,                                                              color: '#0F1923', icon: '📋' },
+                    { label: 'Active',         val: events.filter(e=>e.status==='active').length,                               color: '#3D6B00', icon: '🟢' },
+                    { label: 'Upcoming',       val: events.filter(e=>e.status==='upcoming'||e.status==='planning').length,      color: '#3730A3', icon: '📅' },
+                    { label: 'Completed',      val: events.filter(e=>e.status==='completed').length,                            color: '#00897B', icon: '✅' },
+                    { label: 'Staff Deployed', val: totalStaff,                                                                 color: '#8B1A1A', icon: '👥' },
+                  ].map(s => (
+                    <div key={s.label} style={{ background: '#FFFFFF', border: '1px solid #DDE8EE', borderRadius: '12px', padding: '14px 16px' }}>
+                      <div style={{ fontSize: '11px', fontWeight: 700, color: '#8A9BAB', letterSpacing: '0.5px', textTransform: 'uppercase', marginBottom: '6px' }}>{s.label}</div>
+                      <div style={{ fontSize: '22px', fontWeight: 900, color: s.color, lineHeight: 1 }}>{s.val}</div>
+                    </div>
+                  ))}
                 </div>
-                {events.length > 0 && !showCreateEvent && (
-                  <button onClick={() => setShowCreateEvent(true)}
-                    style={{ display: 'flex', alignItems: 'center', gap: '7px', padding: '10px 18px', borderRadius: '10px', border: 'none', background: '#00897B', color: '#FFFFFF', fontSize: '13px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
-                    <svg width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-                    New Event
-                  </button>
-                )}
-              </div>
-
-              {/* EMPTY STATE */}
-              {!eventsLoading && events.length === 0 && (
-                <>
-                  {/* Step guide full-width */}
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', marginBottom: '32px', background: 'rgba(0,165,163,0.05)', border: '1px solid rgba(0,165,163,0.15)', borderRadius: '14px', overflow: 'hidden' }}>
-                    {[
-                      { n:'1', icon:<svg width="15" height="15" fill="none" stroke="#00A5A3" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>, label:'Create event', sub:'Name, date, city, client' },
-                      { n:'2', icon:<svg width="15" height="15" fill="none" stroke="#00A5A3" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>, label:'AI checklist', sub:'Dept-by-dept task list generated instantly' },
-                      { n:'3', icon:<svg width="15" height="15" fill="none" stroke="#00A5A3" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>, label:'Assign owners', sub:'Link each task to a team member' },
-                      { n:'4', icon:<svg width="15" height="15" fill="none" stroke="#00A5A3" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>, label:'Track progress', sub:'Staff update status from their dashboard' },
-                      { n:'5', icon:<svg width="15" height="15" fill="none" stroke="#00A5A3" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>, label:'Generate report', sub:'AI drafts from all inputs — review, comment, conclude' },
-                    ].map((s, i) => (
-                      <div key={s.n} style={{ padding: '18px 16px', borderRight: i < 4 ? '1px solid rgba(0,165,163,0.12)' : 'none' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '7px', marginBottom: '10px' }}>
-                          <div style={{ width: '22px', height: '22px', borderRadius: '50%', background: 'rgba(0,165,163,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                            <span style={{ fontSize: '13px', fontWeight: 900, color: '#00897B' }}>{s.n}</span>
-                          </div>
-                          {s.icon}
-                        </div>
-                        <div style={{ fontSize: '13px', fontWeight: 800, color: '#0F1923', marginBottom: '4px' }}>{s.label}</div>
-                        <div style={{ fontSize: '13px', color: '#5B7080', lineHeight: 1.4 }}>{s.sub}</div>
-                      </div>
-                    ))}
-                  </div>
-                  {/* Create form centred */}
-                  <div style={{ maxWidth: '520px', margin: '0 auto' }}>{createForm}</div>
-                </>
               )}
 
-              {/* LOADING */}
-              {eventsLoading && <div style={{ color: '#0F1923', fontSize: '13px', padding: '40px 0', textAlign: 'center' }}>Loading events…</div>}
+              {/* Loading */}
+              {eventsLoading && <div style={{ textAlign: 'center', padding: '60px 0', color: '#5B7080', fontSize: '13px' }}>Loading events…</div>}
 
-              {/* POPULATED STATE */}
+              {/* Empty state */}
+              {!eventsLoading && events.length === 0 && (
+                <div style={{ maxWidth: '520px', margin: '0 auto' }}>{createForm}</div>
+              )}
+
+              {/* Populated */}
               {!eventsLoading && events.length > 0 && (
                 <>
-                  {/* Collapsible guide */}
-                  <details style={{ marginBottom: '20px' }}>
-                    <summary style={{ fontSize: '13px', fontWeight: 700, color: 'rgba(0,165,163,0.7)', cursor: 'pointer', userSelect: 'none', listStyle: 'none', display: 'inline-flex', alignItems: 'center', gap: '5px' }}>
-                      <svg width="11" height="11" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
-                      How this section works
-                    </summary>
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', marginTop: '12px', marginBottom: '4px', background: 'rgba(0,165,163,0.04)', border: '1px solid rgba(0,165,163,0.12)', borderRadius: '12px', overflow: 'hidden' }}>
-                      {[
-                        { n:'1', label:'Create event', sub:'Name, date, city, client' },
-                        { n:'2', label:'AI checklist', sub:'Open workspace → Generate Checklist' },
-                        { n:'3', label:'Assign owners', sub:'Link each task to a team member' },
-                        { n:'4', label:'Track progress', sub:'Staff update from their dashboard' },
-                        { n:'5', label:'Generate report', sub:'AI drafts from all inputs, conclude to publish' },
-                      ].map((s, i) => (
-                        <div key={s.n} style={{ padding: '12px 14px', borderRight: i < 4 ? '1px solid rgba(0,165,163,0.1)' : 'none' }}>
-                          <div style={{ width: '18px', height: '18px', borderRadius: '50%', background: 'rgba(0,165,163,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '7px' }}>
-                            <span style={{ fontSize: '9px', fontWeight: 900, color: '#00897B' }}>{s.n}</span>
-                          </div>
-                          <div style={{ fontSize: '13px', fontWeight: 800, color: '#0F1923', marginBottom: '2px' }}>{s.label}</div>
-                          <div style={{ fontSize: '13px', color: '#5B7080', lineHeight: 1.4 }}>{s.sub}</div>
-                        </div>
-                      ))}
-                    </div>
-                  </details>
-
-                  {/* Inline create form */}
-                  {showCreateEvent && <div style={{ marginBottom: '24px' }}>{createForm}</div>}
-
-                  {/* Events grid */}
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
-                    {events.map(ev => {
-                      const tc = TYPE_COLOR[ev.type] ?? '#0F1923'
-                      const sc = STATUS_CFG[ev.status] ?? STATUS_CFG.planning
-                      const staffCount = (ev.event_staff as {count:number}[]|null)?.[0]?.count ?? 0
-                      const docCount   = (ev.documents   as {count:number}[]|null)?.[0]?.count ?? 0
-                      const taskCount  = (ev.event_checklist as {count:number}[]|null)?.[0]?.count ?? 0
-                      return (
-                        <div key={ev.id} style={{ background: '#FFFFFF', border: '1px solid #DDE8EE', borderRadius: '16px', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
-                          {/* Colour bar */}
-                          <div style={{ height: '3px', background: tc, opacity: 0.7 }} />
-                          <div style={{ padding: '20px', flex: 1, display: 'flex', flexDirection: 'column' }}>
-                            {/* Top row: name + badges */}
-                            <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '10px', marginBottom: '8px' }}>
-                              <div style={{ fontSize: '13px', fontWeight: 800, color: '#0F1923', lineHeight: 1.3, flex: 1 }}>{ev.name}</div>
-                              <div style={{ display: 'flex', gap: '6px', flexShrink: 0 }}>
-                                <span style={{ fontSize: '13px', fontWeight: 700, padding: '2px 8px', borderRadius: '16px', background: `${tc}20`, color: tc, border: `1px solid ${tc}40`, whiteSpace: 'nowrap', textTransform: 'capitalize' }}>{ev.type}</span>
-                                <span style={{ fontSize: '13px', fontWeight: 700, padding: '2px 8px', borderRadius: '16px', background: sc.bg, color: sc.color, whiteSpace: 'nowrap', textTransform: 'capitalize' }}>{ev.status}</span>
-                              </div>
-                            </div>
-
-                            {/* Meta row */}
-                            <div style={{ fontSize: '13px', color: '#5B7080', display: 'flex', gap: '12px', flexWrap: 'wrap', marginBottom: '16px' }}>
-                              {ev.city && <span>{ev.city}</span>}
-                              {ev.event_date && <span>{new Date(ev.event_date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}</span>}
-                              {ev.client_name && <span style={{ color: '#0F1923' }}>{ev.client_name}</span>}
-                            </div>
-
-                            {/* Stats chips */}
-                            <div style={{ display: 'flex', gap: '8px', marginBottom: '16px', flexWrap: 'wrap' }}>
-                              {[
-                                { icon: <svg width="11" height="11" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>, val: staffCount, label: 'staff' },
-                                { icon: <svg width="11" height="11" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>, val: taskCount, label: 'tasks' },
-                                { icon: <svg width="11" height="11" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>, val: docCount, label: 'docs' },
-                              ].map(chip => (
-                                <div key={chip.label} style={{ display: 'flex', alignItems: 'center', gap: '5px', padding: '4px 10px', borderRadius: '16px', background: '#FFFFFF', border: '1px solid #DDE8EE' }}>
-                                  <span style={{ color: '#0F1923' }}>{chip.icon}</span>
-                                  <span style={{ fontSize: '13px', fontWeight: 700, color: '#0F1923' }}>{chip.val}</span>
-                                  <span style={{ fontSize: '13px', color: '#0F1923' }}>{chip.label}</span>
-                                </div>
-                              ))}
-                            </div>
-
-                            {/* Actions */}
-                            <div style={{ display: 'flex', gap: '8px', marginTop: 'auto' }}>
-                              <Link href={`/admin/events/${ev.id}`}
-                                style={{ flex: 1, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '6px', padding: '9px 14px', borderRadius: '9px', background: '#00897B', color: '#FFFFFF', fontSize: '13px', fontWeight: 700, textDecoration: 'none' }}>
-                                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2"/><rect x="9" y="3" width="6" height="4" rx="1"/></svg>
-                                Open Workspace
-                              </Link>
-                              <button onClick={() => { setSelectedEvent(ev === selectedEvent ? null : ev); if (ev !== selectedEvent) fetchEventStaff(ev.id) }}
-                                style={{ padding: '9px 14px', borderRadius: '9px', border: `1px solid ${selectedEvent?.id === ev.id ? 'rgba(0,165,163,0.4)' : '#DDE8EE'}`, background: selectedEvent?.id === ev.id ? 'rgba(0,165,163,0.1)' : 'transparent', color: selectedEvent?.id === ev.id ? '#00695C' : '#2D3E50', fontSize: '13px', fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap' }}>
-                                {selectedEvent?.id === ev.id ? 'Hide Staff' : 'Assign Staff'}
-                              </button>
-                            </div>
-                          </div>
-                        </div>
-                      )
-                    })}
+                  {/* ── View switcher + New Event ── */}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '20px' }}>
+                    {(['upcoming','past'] as const).map(v => (
+                      <button key={v} onClick={() => {
+                        setEventView(v)
+                        if (v === 'past' && Object.keys(eventSummaries).length === 0) fetchEventSummaries()
+                      }}
+                        style={{ padding: '8px 18px', borderRadius: '8px', border: `1px solid ${eventView===v ? '#00897B' : '#DDE8EE'}`, background: eventView===v ? '#00897B' : '#FFFFFF', color: eventView===v ? '#FFFFFF' : '#5B7080', fontSize: '13px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
+                        {v === 'upcoming' ? `Upcoming & Active (${upcoming.length})` : `Past & Completed (${past.length})`}
+                      </button>
+                    ))}
+                    <div style={{ flex: 1 }} />
+                    <button onClick={() => setShowCreateEvent(s => !s)}
+                      style={{ padding: '8px 16px', borderRadius: '8px', border: 'none', background: showCreateEvent ? '#DDE8EE' : '#00897B', color: showCreateEvent ? '#5B7080' : '#FFFFFF', fontSize: '13px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
+                      {showCreateEvent ? 'Cancel' : '+ New Event'}
+                    </button>
                   </div>
 
-                  {/* Staff assignment panel */}
+                  {showCreateEvent && <div style={{ marginBottom: '24px' }}>{createForm}</div>}
+
+                  {/* ══ UPCOMING TABLE VIEW ══ */}
+                  {eventView === 'upcoming' && (
+                    <div style={{ background: '#FFFFFF', border: '1px solid #DDE8EE', borderRadius: '16px', overflow: 'hidden' }}>
+                      <div style={{ overflowX: 'auto' }}>
+                        <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: '900px' }}>
+                          <thead>
+                            <tr style={{ background: '#F4F7FA' }}>
+                              {['Event', 'Type', 'Status', 'Date', 'Countdown', 'City / Client', 'Staff', 'Tasks', 'Actions'].map(h => (
+                                <th key={h} style={{ padding: '11px 14px', textAlign: 'left', fontSize: '11px', fontWeight: 800, color: '#8A9BAB', letterSpacing: '0.7px', textTransform: 'uppercase', whiteSpace: 'nowrap', borderBottom: '1px solid #E8EEF4' }}>{h}</th>
+                              ))}
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {upcoming.map((ev, i) => {
+                              const days       = daysUntil(ev.event_date)
+                              const staffCount = (ev.event_staff    as {count:number}[]|null)?.[0]?.count ?? 0
+                              const taskCount  = (ev.event_checklist as {count:number}[]|null)?.[0]?.count ?? 0
+                              const s          = eventSummaries[ev.id]
+                              const sc         = STATUS_CFG[ev.status] ?? STATUS_CFG.planning
+                              const tc         = TYPE_COLOR[ev.type]   ?? '#5B7080'
+                              const urgency    = days === null ? '#8A9BAB' : days < 0 ? '#FF6B6B' : days <= 30 ? '#F59E0B' : days <= 90 ? '#3730A3' : '#3D6B00'
+                              const taskDone   = s?.task_done ?? 0
+                              const taskTotal  = s?.task_total ?? taskCount
+                              const taskPct    = taskTotal > 0 ? Math.round((taskDone / taskTotal) * 100) : 0
+                              return (
+                                <tr key={ev.id} style={{ borderBottom: i < upcoming.length-1 ? '1px solid #F0F4F8' : 'none', background: i%2===0 ? '#FFFFFF' : '#FAFBFC' }}>
+                                  <td style={{ padding: '13px 14px', maxWidth: '220px' }}>
+                                    <div style={{ fontSize: '13px', fontWeight: 800, color: '#0F1923', lineHeight: 1.3 }}>{ev.name}</div>
+                                    {s?.confirmed_revenue ? <div style={{ fontSize: '11px', color: '#3D6B00', fontWeight: 700, marginTop: '2px' }}>{fmt(s.confirmed_revenue, s.currency)} confirmed</div> : null}
+                                  </td>
+                                  <td style={{ padding: '13px 14px' }}>
+                                    <span style={{ fontSize: '11px', fontWeight: 700, padding: '2px 8px', borderRadius: '16px', background: `${tc}18`, color: tc, textTransform: 'capitalize', whiteSpace: 'nowrap' }}>{ev.type}</span>
+                                  </td>
+                                  <td style={{ padding: '13px 14px' }}>
+                                    <span style={{ fontSize: '11px', fontWeight: 700, padding: '2px 8px', borderRadius: '16px', background: sc.bg, color: sc.color, textTransform: 'capitalize', whiteSpace: 'nowrap' }}>{ev.status}</span>
+                                  </td>
+                                  <td style={{ padding: '13px 14px', fontSize: '13px', color: '#2D3E50', whiteSpace: 'nowrap' }}>
+                                    {ev.event_date ? new Date(ev.event_date).toLocaleDateString('en-GB',{day:'numeric',month:'short',year:'2-digit'}) : '—'}
+                                  </td>
+                                  <td style={{ padding: '13px 14px' }}>
+                                    {days !== null
+                                      ? <span style={{ fontSize: '13px', fontWeight: 900, color: urgency, whiteSpace: 'nowrap' }}>{days < 0 ? `${Math.abs(days)}d ago` : days === 0 ? 'Today' : `${days}d`}</span>
+                                      : <span style={{ color: '#C0C8D0' }}>—</span>}
+                                  </td>
+                                  <td style={{ padding: '13px 14px', fontSize: '13px', color: '#5B7080' }}>
+                                    {ev.city || '—'}
+                                    {ev.client_name && <div style={{ fontSize: '11px', color: '#8A9BAB', marginTop: '1px' }}>{ev.client_name}</div>}
+                                  </td>
+                                  <td style={{ padding: '13px 14px', fontSize: '13px', fontWeight: 700, color: '#0F1923', textAlign: 'center' }}>{staffCount || '—'}</td>
+                                  <td style={{ padding: '13px 14px', minWidth: '90px' }}>
+                                    {taskTotal > 0 ? (
+                                      <div>
+                                        <div style={{ fontSize: '11px', fontWeight: 700, color: '#0F1923', marginBottom: '4px' }}>{taskDone}/{taskTotal} <span style={{ color: '#8A9BAB', fontWeight: 400 }}>done</span></div>
+                                        <div style={{ height: '4px', background: '#E8EEF4', borderRadius: '2px', overflow: 'hidden', width: '70px' }}>
+                                          <div style={{ height: '100%', width: `${taskPct}%`, background: taskPct >= 80 ? '#3D6B00' : taskPct >= 40 ? '#F59E0B' : '#00897B', borderRadius: '2px', transition: 'width 0.3s' }} />
+                                        </div>
+                                      </div>
+                                    ) : (
+                                      <span style={{ fontSize: '11px', color: '#B8CDD8' }}>No checklist</span>
+                                    )}
+                                  </td>
+                                  <td style={{ padding: '13px 14px' }}>
+                                    <div style={{ display: 'flex', gap: '5px' }}>
+                                      <Link href={`/admin/events/${ev.id}`} style={{ padding: '5px 11px', borderRadius: '7px', background: '#00897B', color: '#FFFFFF', fontSize: '11px', fontWeight: 700, textDecoration: 'none', whiteSpace: 'nowrap' }}>Workspace</Link>
+                                      <Link href={`/admin/events/${ev.id}/plan`} style={{ padding: '5px 11px', borderRadius: '7px', border: '1px solid rgba(192,244,60,0.5)', background: 'rgba(192,244,60,0.07)', color: '#3D6B00', fontSize: '11px', fontWeight: 700, textDecoration: 'none', whiteSpace: 'nowrap' }}>Plan</Link>
+                                      <button onClick={() => { setSelectedEvent(ev === selectedEvent ? null : ev); if (ev !== selectedEvent) { fetchEventStaff(ev.id); fetchEventSummaries() } }}
+                                        style={{ padding: '5px 11px', borderRadius: '7px', border: `1px solid ${selectedEvent?.id===ev.id ? 'rgba(0,165,163,0.4)' : '#DDE8EE'}`, background: selectedEvent?.id===ev.id ? 'rgba(0,165,163,0.08)' : 'transparent', color: selectedEvent?.id===ev.id ? '#00695C' : '#5B7080', fontSize: '11px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap' }}>
+                                        Staff
+                                      </button>
+                                    </div>
+                                  </td>
+                                </tr>
+                              )
+                            })}
+                          </tbody>
+                        </table>
+                      </div>
+                      {upcoming.length === 0 && <div style={{ padding: '40px', textAlign: 'center', color: '#8A9BAB', fontSize: '13px' }}>No upcoming or active events.</div>}
+                    </div>
+                  )}
+
+                  {/* ══ PAST EVENTS P&L VIEW ══ */}
+                  {eventView === 'past' && (
+                    summariesLoading
+                      ? <div style={{ textAlign: 'center', padding: '60px 0', color: '#5B7080', fontSize: '13px' }}>Loading P&L data…</div>
+                      : (
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: '14px' }}>
+                          {past.map(ev => {
+                            const s          = eventSummaries[ev.id]
+                            const netPnl     = s ? s.net_pnl : null
+                            const missing: string[] = []
+                            if (!s?.has_budget)   missing.push('approved budget')
+                            if (!s?.has_revenue)  missing.push('deal revenue')
+                            if (!s?.has_expenses) missing.push('expense records')
+                            const hasAny = s && (s.has_budget || s.has_revenue || s.has_expenses)
+                            return (
+                              <div key={ev.id} style={{ background: '#FFFFFF', border: '1px solid #DDE8EE', borderRadius: '14px', overflow: 'hidden' }}>
+                                <div style={{ height: '3px', background: ev.status==='cancelled' ? '#FF6B6B' : netPnl !== null && netPnl >= 0 ? '#3D6B00' : netPnl !== null ? '#FF6B6B' : '#DDE8EE' }} />
+                                <div style={{ padding: '16px 18px' }}>
+                                  <div style={{ fontSize: '13px', fontWeight: 800, color: '#0F1923', lineHeight: 1.3, marginBottom: '3px' }}>{ev.name}</div>
+                                  <div style={{ fontSize: '11px', color: '#8A9BAB', marginBottom: '14px' }}>
+                                    {ev.event_date ? new Date(ev.event_date).toLocaleDateString('en-GB',{day:'numeric',month:'short',year:'numeric'}) : ''}
+                                    {ev.city ? ` · ${ev.city}` : ''}
+                                    {' · '}
+                                    <span style={{ textTransform: 'capitalize', color: ev.status==='completed' ? '#00897B' : '#FF6B6B', fontWeight: 700 }}>{ev.status}</span>
+                                  </div>
+
+                                  {hasAny ? (
+                                    <>
+                                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', marginBottom: '10px' }}>
+                                        <div style={{ padding: '10px 12px', background: '#F8FAFC', borderRadius: '8px' }}>
+                                          <div style={{ fontSize: '10px', fontWeight: 700, color: '#8A9BAB', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '3px' }}>Revenue</div>
+                                          <div style={{ fontSize: '14px', fontWeight: 900, color: '#3D6B00' }}>{s.has_revenue ? fmt(s.confirmed_revenue, s.currency) : <span style={{ color: '#C0C8D0' }}>—</span>}</div>
+                                          {s.pending_revenue > 0 && <div style={{ fontSize: '10px', color: '#F59E0B', marginTop: '2px' }}>+{fmt(s.pending_revenue, s.currency)} pending</div>}
+                                        </div>
+                                        <div style={{ padding: '10px 12px', background: '#F8FAFC', borderRadius: '8px' }}>
+                                          <div style={{ fontSize: '10px', fontWeight: 700, color: '#8A9BAB', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '3px' }}>Expenses</div>
+                                          <div style={{ fontSize: '14px', fontWeight: 900, color: '#0F1923' }}>{s.has_expenses ? fmt(s.total_expenses, s.currency) : <span style={{ color: '#C0C8D0' }}>—</span>}</div>
+                                          {s.has_budget && <div style={{ fontSize: '10px', color: '#8A9BAB', marginTop: '2px' }}>Budget: {fmt(s.approved_budget, s.currency)}</div>}
+                                        </div>
+                                      </div>
+                                      {netPnl !== null && s.has_revenue && s.has_expenses && (
+                                        <div style={{ padding: '10px 14px', borderRadius: '8px', background: netPnl >= 0 ? 'rgba(61,107,0,0.07)' : 'rgba(255,107,107,0.07)', border: `1px solid ${netPnl >= 0 ? 'rgba(61,107,0,0.18)' : 'rgba(255,107,107,0.18)'}`, marginBottom: '10px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                          <span style={{ fontSize: '11px', fontWeight: 800, color: '#8A9BAB', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Net P&L</span>
+                                          <div style={{ textAlign: 'right' }}>
+                                            <div style={{ fontSize: '15px', fontWeight: 900, color: netPnl >= 0 ? '#3D6B00' : '#FF6B6B' }}>{netPnl >= 0 ? '+' : ''}{fmt(netPnl, s.currency)}</div>
+                                            {s.margin_pct !== null && <div style={{ fontSize: '10px', fontWeight: 700, color: netPnl >= 0 ? '#3D6B00' : '#FF6B6B' }}>{s.margin_pct.toFixed(1)}% margin</div>}
+                                          </div>
+                                        </div>
+                                      )}
+                                      {missing.length > 0 && (
+                                        <div style={{ fontSize: '11px', color: '#F59E0B', background: 'rgba(245,158,11,0.07)', border: '1px solid rgba(245,158,11,0.18)', borderRadius: '7px', padding: '8px 10px', marginBottom: '10px', lineHeight: 1.5 }}>
+                                          Partial P&L — missing {missing.join(', ')}
+                                        </div>
+                                      )}
+                                    </>
+                                  ) : (
+                                    <div style={{ padding: '13px 14px', background: '#F8FAFC', borderRadius: '10px', border: '1px dashed #DDE8EE', marginBottom: '10px' }}>
+                                      <div style={{ fontSize: '11px', fontWeight: 800, color: '#8A9BAB', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '5px' }}>P&L unavailable</div>
+                                      <div style={{ fontSize: '12px', color: '#8A9BAB', lineHeight: 1.5 }}>I can give you a complete overview once the budget, deal revenue, and expenses are added in the workspace.</div>
+                                    </div>
+                                  )}
+
+                                  <Link href={`/admin/events/${ev.id}`} style={{ display: 'block', textAlign: 'center', padding: '7px', borderRadius: '8px', border: '1px solid #DDE8EE', color: '#00897B', fontSize: '12px', fontWeight: 700, textDecoration: 'none' }}>
+                                    Open Workspace
+                                  </Link>
+                                </div>
+                              </div>
+                            )
+                          })}
+                        </div>
+                      )
+                  )}
+
+                  {/* ── Staff assignment panel ── */}
                   {selectedEvent && (
                     <div style={{ marginTop: '20px', background: '#FFFFFF', border: '1px solid rgba(0,165,163,0.2)', borderRadius: '16px', padding: '20px' }}>
-                      <div style={{ fontSize: '13px', fontWeight: 800, color: '#00897B', letterSpacing: '1px', textTransform: 'uppercase', marginBottom: '14px' }}>Staff on {selectedEvent.name}</div>
-                      {eventStaff.length === 0 ? (
-                        <div style={{ fontSize: '13px', color: '#0F1923', marginBottom: '14px' }}>No staff assigned yet.</div>
-                      ) : (
-                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: '8px', marginBottom: '14px' }}>
-                          {eventStaff.map(es => (
-                            <div key={es.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 12px', background: '#FFFFFF', borderRadius: '8px', border: '1px solid #DDE8EE' }}>
-                              <div>
-                                <div style={{ fontSize: '13px', fontWeight: 700, color: '#0F1923' }}>{es.staff_members?.name}</div>
-                                <div style={{ fontSize: '13px', color: '#0F1923' }}>{es.role || es.staff_members?.department}</div>
+                      <div style={{ fontSize: '12px', fontWeight: 800, color: '#00897B', letterSpacing: '1px', textTransform: 'uppercase', marginBottom: '14px' }}>Staff on {selectedEvent.name}</div>
+                      {eventStaff.length === 0
+                        ? <div style={{ fontSize: '13px', color: '#8A9BAB', marginBottom: '14px' }}>No staff assigned yet.</div>
+                        : (
+                          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(220px,1fr))', gap: '8px', marginBottom: '14px' }}>
+                            {eventStaff.map(es => (
+                              <div key={es.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 12px', background: '#FFFFFF', borderRadius: '8px', border: '1px solid #DDE8EE' }}>
+                                <div>
+                                  <div style={{ fontSize: '13px', fontWeight: 700, color: '#0F1923' }}>{es.staff_members?.name}</div>
+                                  <div style={{ fontSize: '12px', color: '#5B7080' }}>{es.role || es.staff_members?.department}</div>
+                                </div>
+                                <button onClick={() => removeEventStaff(es.staff_members?.id)}
+                                  style={{ fontSize: '12px', color: '#FF6B6B', background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'inherit', fontWeight: 700 }}>Remove</button>
                               </div>
-                              <button onClick={() => removeEventStaff(es.staff_members?.id)}
-                                style={{ fontSize: '13px', color: '#FF6B6B', background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'inherit', fontWeight: 700 }}>Remove</button>
-                            </div>
-                          ))}
-                        </div>
-                      )}
+                            ))}
+                          </div>
+                        )}
                       <div style={{ display: 'flex', gap: '8px' }}>
                         <select value={assignStaffId} onChange={e => setAssignStaffId(e.target.value)}
                           style={{ flex: 1, padding: '9px 12px', borderRadius: '8px', border: '1px solid #DDE8EE', background: '#FFFFFF', color: '#0F1923', fontSize: '13px', fontFamily: 'inherit' }}>

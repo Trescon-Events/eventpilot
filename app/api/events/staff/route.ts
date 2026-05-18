@@ -1,10 +1,23 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/app/lib/supabase'
 
-/* GET /api/events/staff?event_id=uuid — list staff assigned to event */
+/* GET /api/events/staff?event_id=uuid — list staff assigned to event
+   GET /api/events/staff?staff_id=uuid — list events for a staff member */
 export async function GET(req: NextRequest) {
   const eventId = req.nextUrl.searchParams.get('event_id')
-  if (!eventId) return NextResponse.json({ error: 'event_id required' }, { status: 400 })
+  const staffId = req.nextUrl.searchParams.get('staff_id')
+
+  if (staffId) {
+    const { data, error } = await supabaseAdmin
+      .from('event_staff')
+      .select('id, role, event:event_id(id, name, type, status, event_date, city)')
+      .eq('staff_id', staffId)
+      .order('id', { ascending: false })
+    if (error) return NextResponse.json([], { status: 500 })
+    return NextResponse.json(data ?? [])
+  }
+
+  if (!eventId) return NextResponse.json({ error: 'event_id or staff_id required' }, { status: 400 })
 
   const { data, error } = await supabaseAdmin
     .from('event_staff')

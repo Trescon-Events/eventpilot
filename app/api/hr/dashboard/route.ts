@@ -60,8 +60,7 @@ export async function GET() {
       .from('hr_alerts')
       .select('id, type, title, staff_id, due_date, status, staff:staff_id(name, department)')
       .in('status', ['open', 'acknowledged'])
-      .order('due_date', { ascending: true, nullsFirst: false })
-      .limit(20),
+      .order('due_date', { ascending: true, nullsFirst: false }),
 
     // Overdue training assignments
     supabaseAdmin
@@ -86,7 +85,7 @@ export async function GET() {
       .from('staff_employment_history')
       .select('id, staff_id, change_type, new_value, notes, created_at, staff:staff_id(name, department)')
       .order('created_at', { ascending: false })
-      .limit(20),
+      .limit(50),
 
     // Staff on leave today
     supabaseAdmin

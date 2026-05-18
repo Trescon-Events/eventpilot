@@ -48,29 +48,57 @@ export async function GET(req: NextRequest) {
     { data: projects },
     { data: allocations },
     { data: timesheets },
+    { data: hrmsLeaveBalances },
   ] = await Promise.all([
-    hrms.from('profiles').select('id, full_name, email, department, designation, location, reporting_manager_id, hire_date').eq('is_active', true),
+    hrms.from('profiles').select(`
+      id, full_name, email, department, designation, location, reporting_manager_id, hire_date,
+      phone, address, emergency_contact_name, emergency_contact_phone,
+      work_mode, company, business_unit, employee_code, skills,
+      is_management_overhead, gender, date_of_birth, salutation,
+      blood_group, timezone_override, timesheet_exempted, attendance_exempted
+    `).eq('is_active', true),
     hrms.from('projects').select('*'),
     hrms.from('allocations').select('id, project_id, staff_id'),
     hrms.from('timesheet_entries').select('id, staff_id, project_id, entry_date, hours, task_description, status'),
+    hrms.from('leave_balances').select('id, staff_id, leave_type, year_cycle, total_entitled, used, carried_forward, remaining'),
   ])
 
   // ── Fetch existing Trescademy data ──
   const { data: existingStaff } = await supabaseAdmin.from('staff_members').select('email, profile_complete')
   const existingMap = Object.fromEntries((existingStaff ?? []).map(s => [s.email.toLowerCase(), s.profile_complete]))
 
-  // ── Sync staff ──
-  const staffRows = (profiles ?? []).map(p => {
+  // ── Sync staff — full profile ──
+  const staffRows = (profiles ?? []).map((p: any) => {
     const email = p.email?.trim().toLowerCase()
     return {
-      name:             p.full_name?.trim() ?? email,
+      name:                     p.full_name?.trim() ?? email,
       email,
-      department:       p.department ?? null,
-      role:             p.designation ?? null,
-      office_id:        LOCATION_MAP[p.location ?? ''] ?? 'dubai',
-      job_level:        'staff',
-      profile_complete: existingMap[email] ?? false,
-      joined_at:        p.hire_date ?? null,
+      department:               p.department ?? null,
+      role:                     p.designation ?? null,
+      office_id:                LOCATION_MAP[(p.location ?? '').toLowerCase()] ?? 'dubai',
+      job_level:                'staff',
+      profile_complete:         existingMap[email] ?? false,
+      joined_at:                p.hire_date ?? null,
+      // Extended profile fields
+      phone:                    p.phone ?? null,
+      address:                  p.address ?? null,
+      emergency_contact_name:   p.emergency_contact_name ?? null,
+      emergency_contact_phone:  p.emergency_contact_phone ?? null,
+      work_mode:                p.work_mode ?? null,
+      company:                  p.company ?? null,
+      business_unit:            p.business_unit ?? null,
+      employee_code:            p.employee_code ?? null,
+      skills:                   p.skills ?? null,
+      is_management_overhead:   p.is_management_overhead ?? false,
+      gender:                   p.gender ?? null,
+      date_of_birth:            p.date_of_birth ?? null,
+      salutation:               p.salutation ?? null,
+      blood_group:              p.blood_group ?? null,
+      timezone_override:        p.timezone_override ?? null,
+      timesheet_exempted:       p.timesheet_exempted ?? false,
+      attendance_exempted:      p.attendance_exempted ?? false,
+      data_source:              'hrms',
+      last_synced_at:           new Date().toISOString(),
     }
   })
 
@@ -133,12 +161,107 @@ export async function GET(req: NextRequest) {
 
   await supabaseAdmin.from('event_timesheet').upsert(tsRows, { onConflict: 'hrms_entry_id', ignoreDuplicates: false })
 
+  // ── Sync leave balances ───────────────────────────────────────────────────
+  // Map HRMS leave_type strings → TAOS leave_type_ids via code lookup
+  let leaveBalancesSynced = 0
+  try {
+    const { data: leaveTypes } = await supabaseAdmin
+      .from('leave_types')
+      .select('id, code, name')
+
+    // Build map: lowercase hrms leave_type string → taos leave_type_id
+    const LEAVE_TYPE_MAP: Record<string, string> = {}
+    for (const lt of leaveTypes ?? []) {
+      // Match by code prefix or name keyword
+      const key = lt.name.toLowerCase()
+      if (key.includes('annual'))    LEAVE_TYPE_MAP['annual']    = lt.id
+      if (key.includes('sick'))      LEAVE_TYPE_MAP['sick']      = lt.id
+      if (key.includes('emergency')) LEAVE_TYPE_MAP['emergency'] = lt.id
+      if (key.includes('maternity')) LEAVE_TYPE_MAP['maternity'] = lt.id
+      if (key.includes('paternity')) LEAVE_TYPE_MAP['paternity'] = lt.id
+      if (key.includes('unpaid'))    LEAVE_TYPE_MAP['unpaid']    = lt.id
+      if (key.includes('casual'))    LEAVE_TYPE_MAP['casual']    = lt.id
+      if (key.includes('comp'))      LEAVE_TYPE_MAP['comp']      = lt.id
+    }
+
+    const balanceRows = (hrmsLeaveBalances ?? [])
+      .map((b: any) => {
+        const taosStaffId  = taosStaffMap[hrmsEmailMap[b.staff_id]]
+        const leaveTypeId  = LEAVE_TYPE_MAP[b.leave_type?.toLowerCase() ?? '']
+        if (!taosStaffId || !leaveTypeId) return null
+        return {
+          hrms_balance_id: b.id,
+          staff_id:        taosStaffId,
+          leave_type_id:   leaveTypeId,
+          year:            Number(b.year_cycle ?? new Date().getFullYear()),
+          entitled_days:   Number(b.total_entitled ?? 0),
+          used_days:       Number(b.used ?? 0),
+          pending_days:    0,
+          carried_over:    Number(b.carried_forward ?? 0),
+        }
+      })
+      .filter(Boolean) as object[]
+
+    if (balanceRows.length > 0) {
+      await supabaseAdmin
+        .from('staff_leave_balances')
+        .upsert(balanceRows, { onConflict: 'hrms_balance_id', ignoreDuplicates: false })
+      leaveBalancesSynced = balanceRows.length
+    }
+  } catch {
+    // Best-effort
+  }
+
+  // ── Auto-seed checklists for events that don't have one yet ──
+  // Only seeds NEW events (no existing checklist rows). Safe to run every sync.
+  let checklistsSeeded = 0
+  try {
+    const { data: templates } = await supabaseAdmin
+      .from('event_task_templates')
+      .select('department, workstream, title, depends_on, priority, sort_order')
+      .eq('is_active', true)
+      .order('department').order('sort_order')
+
+    if (templates && templates.length > 0) {
+      // Find all event IDs that already have at least one checklist row
+      const allEventIds = Object.values(taosEventMap)
+      const { data: existing } = await supabaseAdmin
+        .from('event_checklist')
+        .select('event_id')
+        .in('event_id', allEventIds)
+
+      const seededIds = new Set((existing ?? []).map(r => r.event_id))
+      const unseededIds = allEventIds.filter(id => id && !seededIds.has(id))
+
+      if (unseededIds.length > 0) {
+        const checklistRows = unseededIds.flatMap(event_id =>
+          templates.map(t => ({
+            event_id,
+            department: t.department,
+            workstream: t.workstream,
+            title:      t.title,
+            depends_on: t.depends_on,
+            priority:   t.priority,
+            sort_order: t.sort_order,
+            status:     'not_started',
+          }))
+        )
+        await supabaseAdmin.from('event_checklist').insert(checklistRows)
+        checklistsSeeded = unseededIds.length
+      }
+    }
+  } catch {
+    // Best-effort — don't fail sync if template seeding fails
+  }
+
   return NextResponse.json({
-    success:     true,
-    synced_at:   new Date().toISOString(),
-    staff:       staffRows.length,
-    projects:    eventRows.length,
-    allocations: allocRows.length,
-    timesheets:  tsRows.length,
+    success:              true,
+    synced_at:            new Date().toISOString(),
+    staff:                staffRows.length,
+    projects:             eventRows.length,
+    allocations:          allocRows.length,
+    timesheets:           tsRows.length,
+    leave_balances:       leaveBalancesSynced,
+    checklists_seeded:    checklistsSeeded,
   })
 }

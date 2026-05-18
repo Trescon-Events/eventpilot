@@ -73,6 +73,35 @@ export async function POST(req: NextRequest) {
     .single()
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+
+  // ── Auto-seed checklist from master template ──────────────────────────────
+  // Fetch all active templates and instantiate them for this event immediately.
+  // If templates haven't been seeded yet (SQL not run), this silently skips.
+  try {
+    const { data: templates } = await supabaseAdmin
+      .from('event_task_templates')
+      .select('department, workstream, title, depends_on, priority, sort_order')
+      .eq('is_active', true)
+      .order('department')
+      .order('sort_order')
+
+    if (templates && templates.length > 0) {
+      const rows = templates.map(t => ({
+        event_id:   data.id,
+        department: t.department,
+        workstream: t.workstream,
+        title:      t.title,
+        depends_on: t.depends_on,
+        priority:   t.priority,
+        sort_order: t.sort_order,
+        status:     'not_started',
+      }))
+      await supabaseAdmin.from('event_checklist').insert(rows)
+    }
+  } catch {
+    // Template seeding is best-effort — don't fail event creation
+  }
+
   return NextResponse.json(data)
 }
 

@@ -150,6 +150,9 @@ export default function HRDashboard() {
             <Link href="/hr/onboarding" style={{ padding: '8px 16px', borderRadius: '10px', border: `1px solid ${C.border}`, fontSize: '13px', fontWeight: 700, color: C.text, textDecoration: 'none', background: C.surface }}>
               Onboarding
             </Link>
+            <Link href="/hr/attendance" style={{ padding: '8px 16px', borderRadius: '10px', border: `1px solid ${C.border}`, fontSize: '13px', fontWeight: 700, color: C.text, textDecoration: 'none', background: C.surface }}>
+              Attendance
+            </Link>
             <Link href="/hr/leave" style={{ padding: '8px 16px', borderRadius: '10px', border: `1px solid ${C.border}`, fontSize: '13px', fontWeight: 700, color: C.text, textDecoration: 'none', background: C.surface }}>
               Leave Manager
             </Link>
