@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/app/lib/supabase'
 import { GoogleGenerativeAI } from '@google/generative-ai'
-import * as pdfParse from 'pdf-parse'
+
+export const maxDuration = 60
 
 /*
   POST /api/documents/submit
@@ -95,21 +96,25 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'file, title and staff_id are required' }, { status: 400 })
     }
 
-    // Extract text
-    const bytes  = await file.arrayBuffer()
-    const buffer = Buffer.from(bytes)
+    // Extract text — PDF read by Gemini vision (handles text + scanned), file never stored
+    const buffer = Buffer.from(await file.arrayBuffer())
     let extractedText = ''
 
     if (file.name.toLowerCase().endsWith('.pdf')) {
-      const parsed  = await (pdfParse as unknown as (b: Buffer) => Promise<{ text: string }>)(buffer)
-      extractedText = parsed.text?.trim() ?? ''
+      const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!)
+      const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash' })
+      const result = await model.generateContent([
+        { inlineData: { mimeType: 'application/pdf', data: buffer.toString('base64') } },
+        { text: 'Extract all text content from this PDF document. Return only the raw text, preserving paragraphs and structure. No commentary.' },
+      ])
+      extractedText = result.response.text().trim()
     } else {
       extractedText = buffer.toString('utf-8').trim()
     }
 
     if (!extractedText) {
       return NextResponse.json({
-        error: 'Could not extract text. Use a text-based PDF, not a scanned image.',
+        error: 'Could not extract any text from this file. Check that the file has readable content and try again.',
       }, { status: 422 })
     }
 

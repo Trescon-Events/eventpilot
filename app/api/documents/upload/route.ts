@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/app/lib/supabase'
 import { GoogleGenerativeAI } from '@google/generative-ai'
-import * as pdfParse from 'pdf-parse'
 
 export const maxDuration = 60
 
@@ -10,11 +9,13 @@ export const maxDuration = 60
   For: super_admin, office_head, dept_head — direct upload, no approval needed.
 
   Flow:
-  1. Extract text from file
-  2. Pull uploader's profile from staff_members
-  3. Send content + profile to Gemini → get layer, department, min_level, tresci_use, reasoning, confidence
-  4. Auto-save if confidence >= 75, flag if below
-  5. Return saved document with AI analysis
+  1. Read file bytes
+  2. For PDFs: Gemini reads the PDF natively (handles text-based AND scanned/image PDFs)
+     For TXT/MD: plain UTF-8 decode
+  3. Pull uploader profile
+  4. Gemini classifies the extracted content
+  5. Save extracted text to DB — original file is never stored, destroyed after read
+  6. Return saved document with AI analysis
 */
 
 const DEPARTMENTS = ['all', 'marketing', 'finance', 'sales', 'operations', 'events', 'hr', 'it']
@@ -25,6 +26,33 @@ function sanitise(val: string, allowed: string[], fallback: string): string {
   return allowed.includes(val?.toLowerCase()) ? val.toLowerCase() : fallback
 }
 
+// ── Step 1: Extract text ──────────────────────────────────────────────────────
+// PDFs are passed to Gemini as inline base64 — Gemini reads text AND scanned pages.
+// Text files are decoded directly. PDF file is never written to disk or stored.
+async function extractText(buffer: Buffer, fileName: string): Promise<string> {
+  if (!fileName.toLowerCase().endsWith('.pdf')) {
+    return buffer.toString('utf-8').trim()
+  }
+
+  const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!)
+  const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash' })
+
+  const result = await model.generateContent([
+    {
+      inlineData: {
+        mimeType: 'application/pdf',
+        data: buffer.toString('base64'),
+      },
+    },
+    {
+      text: 'Extract all text content from this PDF document. Return only the raw text exactly as it appears — preserve headings, paragraphs, lists, and section structure. Do not summarise, do not add commentary, do not add formatting characters. Return the full text.',
+    },
+  ])
+
+  return result.response.text().trim()
+}
+
+// ── Step 2: Classify ──────────────────────────────────────────────────────────
 async function analyseWithGemini(
   title: string,
   extractedText: string,
@@ -117,6 +145,7 @@ Return ONLY valid JSON, no markdown:
   }
 }
 
+// ── Route ─────────────────────────────────────────────────────────────────────
 export async function POST(req: NextRequest) {
   try {
     const form        = await req.formData()
@@ -129,27 +158,19 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'file, title and type are required' }, { status: 400 })
     }
 
-    // Extract text
-    const bytes  = await file.arrayBuffer()
-    const buffer = Buffer.from(bytes)
-    let extractedText = ''
+    // Read file bytes — this is the only time the file exists in memory
+    const buffer = Buffer.from(await file.arrayBuffer())
 
-    if (file.name.toLowerCase().endsWith('.pdf')) {
-      const parsed  = await (pdfParse as unknown as (b: Buffer) => Promise<{ text: string }>)(buffer)
-      extractedText = parsed.text?.trim() ?? ''
-    } else {
-      extractedText = buffer.toString('utf-8').trim()
-    }
+    // Extract text — PDF is read by Gemini vision, never stored
+    const extractedText = await extractText(buffer, file.name)
 
     if (!extractedText) {
       return NextResponse.json({
-        error: 'Could not extract text from this file. The PDF may be a scanned image — re-export it as a text-based PDF and try again.',
+        error: 'Could not extract any text from this file. Check that the file has readable content and try again.',
       }, { status: 422 })
     }
 
     const wordCount = extractedText.split(/\s+/).filter(Boolean).length
-
-    // Resolve final type — if user chose 'other' the custom label comes as type value already normalised
     const finalType = type === 'other' ? 'other' : type
 
     // Pull uploader profile
@@ -163,29 +184,28 @@ export async function POST(req: NextRequest) {
       if (staffData) uploader = staffData
     }
 
-    // Gemini analysis
+    // Classify
     const analysis = await analyseWithGemini(title, extractedText, uploader, finalType !== 'other' ? finalType : undefined)
+    const flagged   = analysis.confidence < 75
 
-    const flagged = analysis.confidence < 75
-
-    // Save document
+    // Save extracted text to DB — original file is gone, never persisted
     const { data, error } = await supabaseAdmin
       .from('documents')
       .insert({
         title,
-        type:         finalType,
+        type:           finalType,
         extracted_text: extractedText,
-        word_count:   wordCount,
-        visibility:   'all',           // legacy field — kept for backwards compat
-        uploaded_by:  uploaded_by || null,
-        submitted_by: uploaded_by || null,
-        status:       'live',
-        layer:        analysis.layer,
-        department:   analysis.department,
-        min_level:    analysis.min_level,
-        tresci_use:   analysis.tresci_use,
-        ai_reasoning: analysis.ai_reasoning,
-        confidence:   analysis.confidence,
+        word_count:     wordCount,
+        visibility:     'all',
+        uploaded_by:    uploaded_by || null,
+        submitted_by:   uploaded_by || null,
+        status:         'live',
+        layer:          analysis.layer,
+        department:     analysis.department,
+        min_level:      analysis.min_level,
+        tresci_use:     analysis.tresci_use,
+        ai_reasoning:   analysis.ai_reasoning,
+        confidence:     analysis.confidence,
         flagged,
       })
       .select('id, title, word_count, layer, department, min_level, tresci_use, ai_reasoning, confidence, flagged')
@@ -194,15 +214,15 @@ export async function POST(req: NextRequest) {
     if (error) throw error
 
     return NextResponse.json({
-      success:      true,
-      document:     data,
-      analysis:     {
-        layer:        analysis.layer,
-        department:   analysis.department,
-        min_level:    analysis.min_level,
-        tresci_use:   analysis.tresci_use,
-        ai_reasoning: analysis.ai_reasoning,
-        confidence:   analysis.confidence,
+      success:  true,
+      document: data,
+      analysis: {
+        layer:          analysis.layer,
+        department:     analysis.department,
+        min_level:      analysis.min_level,
+        tresci_use:     analysis.tresci_use,
+        ai_reasoning:   analysis.ai_reasoning,
+        confidence:     analysis.confidence,
         flagged,
         suggested_type: analysis.suggested_type,
       },
