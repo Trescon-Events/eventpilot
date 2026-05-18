@@ -30,6 +30,49 @@ type Event = {
 
 type StaffMember = { id: string; name: string; department: string }
 
+type ExpenseCategory = { id: string; name: string; sort_order: number }
+
+type Deal = {
+  id: string; deal_type: string; company_name: string; contact_name: string | null
+  description: string | null; amount: number; deal_currency: string
+  exchange_rate: number; converted_amount: number; status: string
+  deal_date: string | null; notes: string | null; created_at: string
+  logged_by: { id: string; name: string } | null
+}
+
+type Expense = {
+  id: string; description: string; amount: number; expense_currency: string
+  exchange_rate: number; converted_amount: number; expense_date: string | null
+  receipt_ref: string | null; notes: string | null; created_at: string
+  logged_by: { id: string; name: string } | null
+  category: { id: string; name: string } | null
+}
+
+type Delegate = {
+  id: string; full_name: string; company: string | null; job_title: string | null
+  industry: string | null; seniority_tier: string; status: string
+  invite_date: string | null; notes: string | null; created_at: string
+  invited_by: { id: string; name: string } | null
+}
+
+type PnlSummary = {
+  currency: string; exchange_rate: number; approved_budget: number
+  revenue: { confirmed: number; pending: number; by_type: Record<string, number> }
+  expenses: { total: number }
+  finance_overhead: { allocated: number; total_hours: number; months: Array<{ month: string; hours: number; pct: number; cost: number }>; note: string | null }
+  hr_overhead: { allocated: number; total_hours: number; months: Array<{ month: string; hours: number; pct: number; cost: number }>; note: string | null }
+  total_cost: number
+  net_pnl: number; budget_variance: number
+  planner: {
+    total_planned: number; unallocated: number
+    categories: Array<{
+      category_id: string; category_name: string; sort_order: number
+      planned: number; actual: number; remaining: number; status: string
+    }>
+  }
+  delegates: { invited: number; confirmed: number; declined: number; attended: number; by_tier: Record<string, number> }
+}
+
 type DraftReport = {
   id: string
   title: string
@@ -81,8 +124,47 @@ export default function EventWorkspacePage({ params }: { params: Promise<{ id: s
   const [reportBusy,    setReportBusy]    = useState(false)
   const [commentSaving, setCommentSaving] = useState(false)
 
+  // P&L state
+  const [pnlTab,         setPnlTab]         = useState<'overview'|'planner'|'deals'|'expenses'|'delegates'|'finance'>('overview')
+  const [pnl,            setPnl]            = useState<PnlSummary | null>(null)
+  const [deals,          setDeals]          = useState<Deal[]>([])
+  const [expenses,       setExpenses]       = useState<Expense[]>([])
+  const [delegates,      setDelegates]      = useState<Delegate[]>([])
+  const [categories,     setCategories]     = useState<ExpenseCategory[]>([])
+  const [budget,         setBudget]         = useState<{ budget: { currency: string; approved_budget: number; exchange_rate_to_usd: number; notes?: string | null } | null; allocations: Array<{ category_id: string; planned_amount: number; category: ExpenseCategory }> } | null>(null)
+  const [pnlLoading,     setPnlLoading]     = useState(false)
+  const [pnlMsg,         setPnlMsg]         = useState('')
+
+  // Budget form
+  const [budgetForm,     setBudgetForm]     = useState({ currency: 'USD', approved_budget: '', exchange_rate_to_usd: '84', notes: '' })
+  const [allocations,    setAllocations]    = useState<Record<string, string>>({})
+  const [savingBudget,   setSavingBudget]   = useState(false)
+
+  // Deal form
+  const [dealForm,       setDealForm]       = useState({ deal_type: 'sponsorship', company_name: '', contact_name: '', description: '', amount: '', deal_currency: 'USD', exchange_rate: '1', status: 'pending', deal_date: '', notes: '' })
+  const [savingDeal,     setSavingDeal]     = useState(false)
+  const [showDealForm,   setShowDealForm]   = useState(false)
+
+  // Expense form
+  const [expForm,        setExpForm]        = useState({ category_id: '', description: '', amount: '', expense_currency: 'USD', exchange_rate: '1', expense_date: '', receipt_ref: '', notes: '' })
+  const [savingExp,      setSavingExp]      = useState(false)
+  const [showExpForm,    setShowExpForm]    = useState(false)
+
+  // Finance work log state
+  const [finLogs,        setFinLogs]        = useState<Array<{ id: string; hours: number; description: string; log_date: string; event: { id: string; name: string } | null; staff: { id: string; name: string } | null }>>([])
+  const [finForm,        setFinForm]        = useState({ hours: '', description: '', log_date: new Date().toISOString().slice(0, 10) })
+  const [savingFin,      setSavingFin]      = useState(false)
+  const [showFinForm,    setShowFinForm]    = useState(false)
+
+  // Delegate form
+  const [delForm,        setDelForm]        = useState({ full_name: '', company: '', job_title: '', industry: '', seniority_tier: 'other', status: 'pending', invite_date: '', notes: '' })
+  const [savingDel,      setSavingDel]      = useState(false)
+  const [showDelForm,    setShowDelForm]    = useState(false)
+
   useEffect(() => {
     fetchAll()
+    fetchPnlData()
+    fetchFinanceLogs()
   }, [eventId])
 
   async function fetchAll() {
@@ -105,6 +187,145 @@ export default function EventWorkspacePage({ params }: { params: Promise<{ id: s
     setReport(rp)
     if (rp) fetchComments(rp.id)
     setLoading(false)
+  }
+
+  async function fetchPnlData() {
+    setPnlLoading(true)
+    const [pnlRes, dealsRes, expRes, delRes, catRes, budRes] = await Promise.all([
+      fetch(`/api/events/pnl?event_id=${eventId}`),
+      fetch(`/api/events/deals?event_id=${eventId}`),
+      fetch(`/api/events/expenses?event_id=${eventId}`),
+      fetch(`/api/events/delegates?event_id=${eventId}`),
+      fetch('/api/expense-categories'),
+      fetch(`/api/events/budget?event_id=${eventId}`),
+    ])
+    const [pnlData, dealsData, expData, delData, catData, budData] = await Promise.all([
+      pnlRes.json().catch(() => null),
+      dealsRes.json().catch(() => []),
+      expRes.json().catch(() => []),
+      delRes.json().catch(() => []),
+      catRes.json().catch(() => []),
+      budRes.json().catch(() => null),
+    ])
+    if (pnlData && !pnlData.error) setPnl(pnlData)
+    setDeals(Array.isArray(dealsData) ? dealsData : [])
+    setExpenses(Array.isArray(expData) ? expData : [])
+    setDelegates(Array.isArray(delData) ? delData : [])
+    setCategories(Array.isArray(catData) ? catData.filter((c: ExpenseCategory & { is_active: boolean }) => c.is_active) : [])
+    if (budData && !budData.error) {
+      setBudget(budData)
+      if (budData.budget) {
+        setBudgetForm(f => ({ ...f, currency: budData.budget.currency, approved_budget: String(budData.budget.approved_budget), exchange_rate_to_usd: String(budData.budget.exchange_rate_to_usd), notes: budData.budget.notes ?? '' }))
+        const allocMap: Record<string, string> = {}
+        for (const a of budData.allocations ?? []) allocMap[a.category_id] = String(a.planned_amount)
+        setAllocations(allocMap)
+      }
+    }
+    setPnlLoading(false)
+  }
+
+  const fmt = (n: number, currency?: string) => {
+    const cur = currency ?? budget?.budget?.currency ?? 'USD'
+    return new Intl.NumberFormat('en-US', { style: 'currency', currency: cur, maximumFractionDigits: 0 }).format(n)
+  }
+
+  async function saveBudget() {
+    setSavingBudget(true); setPnlMsg('')
+    const allocationRows = categories.map(c => ({ category_id: c.id, planned_amount: Number(allocations[c.id] ?? 0) }))
+    const res = await fetch('/api/events/budget', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ event_id: eventId, ...budgetForm, approved_budget: Number(budgetForm.approved_budget), exchange_rate_to_usd: Number(budgetForm.exchange_rate_to_usd), allocations: allocationRows }),
+    })
+    const data = await res.json()
+    if (res.ok) { setPnlMsg('Budget saved.'); fetchPnlData() } else { setPnlMsg(data.error ?? 'Failed to save budget.') }
+    setSavingBudget(false)
+  }
+
+  async function saveDeal() {
+    setSavingDeal(true); setPnlMsg('')
+    const res = await fetch('/api/events/deals', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ event_id: eventId, ...dealForm, amount: Number(dealForm.amount), exchange_rate: Number(dealForm.exchange_rate) }),
+    })
+    const data = await res.json()
+    if (res.ok) { setShowDealForm(false); setDealForm({ deal_type: 'sponsorship', company_name: '', contact_name: '', description: '', amount: '', deal_currency: 'USD', exchange_rate: '1', status: 'pending', deal_date: '', notes: '' }); fetchPnlData() }
+    else { setPnlMsg(data.error ?? 'Failed to save deal.') }
+    setSavingDeal(false)
+  }
+
+  async function updateDealStatus(id: string, status: string) {
+    await fetch('/api/events/deals', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id, status }) })
+    fetchPnlData()
+  }
+
+  async function deleteDeal(id: string) {
+    await fetch(`/api/events/deals?id=${id}`, { method: 'DELETE' })
+    fetchPnlData()
+  }
+
+  async function saveExpense() {
+    setSavingExp(true); setPnlMsg('')
+    const res = await fetch('/api/events/expenses', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ event_id: eventId, ...expForm, amount: Number(expForm.amount), exchange_rate: Number(expForm.exchange_rate), category_id: expForm.category_id || null }),
+    })
+    const data = await res.json()
+    if (res.ok) { setShowExpForm(false); setExpForm({ category_id: '', description: '', amount: '', expense_currency: 'USD', exchange_rate: '1', expense_date: '', receipt_ref: '', notes: '' }); fetchPnlData() }
+    else { setPnlMsg(data.error ?? 'Failed to save expense.') }
+    setSavingExp(false)
+  }
+
+  async function deleteExpense(id: string) {
+    await fetch(`/api/events/expenses?id=${id}`, { method: 'DELETE' })
+    fetchPnlData()
+  }
+
+  async function fetchFinanceLogs() {
+    const res  = await fetch(`/api/finance/work-logs?event_id=${eventId}`)
+    const data = await res.json().catch(() => [])
+    setFinLogs(Array.isArray(data) ? data : [])
+  }
+
+  async function saveFinLog() {
+    setSavingFin(true); setPnlMsg('')
+    const res = await fetch('/api/finance/work-logs', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ event_id: eventId, hours: Number(finForm.hours), description: finForm.description, log_date: finForm.log_date }),
+    })
+    const data = await res.json()
+    if (res.ok) {
+      setShowFinForm(false)
+      setFinForm({ hours: '', description: '', log_date: new Date().toISOString().slice(0, 10) })
+      fetchFinanceLogs(); fetchPnlData()
+    } else { setPnlMsg(data.error ?? 'Failed to log hours.') }
+    setSavingFin(false)
+  }
+
+  async function deleteFinLog(id: string) {
+    await fetch(`/api/finance/work-logs?id=${id}`, { method: 'DELETE' })
+    fetchFinanceLogs(); fetchPnlData()
+  }
+
+  async function saveDelegate() {
+    setSavingDel(true); setPnlMsg('')
+    const res = await fetch('/api/events/delegates', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ event_id: eventId, ...delForm }),
+    })
+    const data = await res.json()
+    if (res.ok) { setShowDelForm(false); setDelForm({ full_name: '', company: '', job_title: '', industry: '', seniority_tier: 'other', status: 'pending', invite_date: '', notes: '' }); fetchPnlData() }
+    else { setPnlMsg(data.error ?? 'Failed to save delegate.') }
+    setSavingDel(false)
+  }
+
+  async function updateDelegateStatus(id: string, status: string) {
+    await fetch('/api/events/delegates', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id, status }) })
+    fetchPnlData()
+  }
+
+  async function deleteDelegate(id: string) {
+    await fetch(`/api/events/delegates?id=${id}`, { method: 'DELETE' })
+    fetchPnlData()
   }
 
   async function fetchComments(docId: string) {
@@ -324,6 +545,685 @@ export default function EventWorkspacePage({ params }: { params: Promise<{ id: s
             Open Campaigns
           </Link>
         </div>
+
+        {/* ── P&L Section ───────────────────────────────────────────────── */}
+        <div style={{ marginBottom: '40px', background: '#FFFFFF', border: '1px solid #D8EAEB', borderRadius: '20px', overflow: 'hidden' }}>
+
+          {/* Section header */}
+          <div style={{ padding: '22px 28px', borderBottom: '1px solid #D8EAEB', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '16px', flexWrap: 'wrap' }}>
+            <div>
+              <div style={{ fontSize: '11px', fontWeight: 800, letterSpacing: '2px', textTransform: 'uppercase', color: '#34D399', marginBottom: '4px' }}>Finance</div>
+              <h2 style={{ fontSize: '22px', fontWeight: 900, color: '#0F1923', margin: 0 }}>Event P&amp;L</h2>
+            </div>
+            {pnl && (
+              <div style={{ display: 'flex', gap: '16px', flexWrap: 'wrap' }}>
+                <div style={{ textAlign: 'right' }}>
+                  <div style={{ fontSize: '11px', color: '#5B7080', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '1px' }}>Net P&amp;L</div>
+                  <div style={{ fontSize: '22px', fontWeight: 900, color: pnl.net_pnl >= 0 ? '#3D6B00' : '#DC2626' }}>{fmt(pnl.net_pnl)}</div>
+                </div>
+                <div style={{ textAlign: 'right' }}>
+                  <div style={{ fontSize: '11px', color: '#5B7080', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '1px' }}>Revenue</div>
+                  <div style={{ fontSize: '22px', fontWeight: 900, color: '#00695C' }}>{fmt(pnl.revenue.confirmed)}</div>
+                </div>
+                <div style={{ textAlign: 'right' }}>
+                  <div style={{ fontSize: '11px', color: '#5B7080', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '1px' }}>Expenses</div>
+                  <div style={{ fontSize: '22px', fontWeight: 900, color: '#0F1923' }}>{fmt(pnl.expenses.total)}</div>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Sub-tab nav */}
+          <div style={{ display: 'flex', borderBottom: '1px solid #D8EAEB', overflowX: 'auto' }}>
+            {(['overview','planner','deals','expenses','delegates','finance'] as const).map(tab => (
+              <button key={tab} onClick={() => setPnlTab(tab)}
+                style={{ padding: '14px 22px', border: 'none', background: 'none', cursor: 'pointer', fontFamily: 'inherit', fontSize: '13px', fontWeight: pnlTab === tab ? 800 : 600, color: pnlTab === tab ? '#0F1923' : '#5B7080', borderBottom: pnlTab === tab ? '2px solid #C0F43C' : '2px solid transparent', whiteSpace: 'nowrap', textTransform: 'capitalize' }}>
+                {tab === 'overview' ? 'Overview' : tab === 'planner' ? 'Budget Planner' : tab === 'deals' ? `Deals (${deals.length})` : tab === 'expenses' ? `Expenses (${expenses.length})` : tab === 'finance' ? `Finance Hours (${finLogs.length})` : `Delegates (${delegates.length})`}
+              </button>
+            ))}
+          </div>
+
+          <div style={{ padding: '24px 28px' }}>
+            {pnlMsg && <div style={{ marginBottom: '16px', padding: '10px 14px', borderRadius: '8px', background: pnlMsg.includes('ailed') ? 'rgba(255,107,107,0.08)' : 'rgba(192,244,60,0.08)', border: `1px solid ${pnlMsg.includes('ailed') ? 'rgba(255,107,107,0.2)' : 'rgba(192,244,60,0.2)'}`, color: pnlMsg.includes('ailed') ? '#DC2626' : '#3D6B00', fontSize: '13px' }}>{pnlMsg}</div>}
+
+            {/* OVERVIEW */}
+            {pnlTab === 'overview' && (
+              <div>
+                {pnlLoading ? <div style={{ textAlign: 'center', padding: '40px', color: '#5B7080', fontSize: '13px' }}>Loading P&amp;L…</div> : !pnl ? (
+                  <div style={{ textAlign: 'center', padding: '48px', color: '#5B7080', fontSize: '13px' }}>
+                    No budget set yet. Go to <strong>Budget Planner</strong> to set an approved budget.
+                  </div>
+                ) : (
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
+                    {/* Revenue */}
+                    <div style={{ background: '#F8FFFE', border: '1px solid #D8EAEB', borderRadius: '14px', padding: '20px' }}>
+                      <div style={{ fontSize: '11px', fontWeight: 800, letterSpacing: '1.5px', textTransform: 'uppercase', color: '#00695C', marginBottom: '14px' }}>Revenue</div>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                          <span style={{ fontSize: '13px', color: '#2D3E50' }}>Confirmed</span>
+                          <span style={{ fontSize: '13px', fontWeight: 800, color: '#00695C' }}>{fmt(pnl.revenue.confirmed)}</span>
+                        </div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                          <span style={{ fontSize: '13px', color: '#2D3E50' }}>Pending</span>
+                          <span style={{ fontSize: '13px', fontWeight: 600, color: '#D97706' }}>{fmt(pnl.revenue.pending)}</span>
+                        </div>
+                        {Object.entries(pnl.revenue.by_type).map(([type, amt]) => (
+                          <div key={type} style={{ display: 'flex', justifyContent: 'space-between', paddingLeft: '12px', borderLeft: '2px solid rgba(0,165,163,0.2)' }}>
+                            <span style={{ fontSize: '13px', color: '#5B7080', textTransform: 'capitalize' }}>{type.replace(/_/g, ' ')}</span>
+                            <span style={{ fontSize: '13px', color: '#2D3E50' }}>{fmt(amt)}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                    {/* Expenses + Finance overhead */}
+                    <div style={{ background: '#FFF9F9', border: '1px solid #D8EAEB', borderRadius: '14px', padding: '20px' }}>
+                      <div style={{ fontSize: '11px', fontWeight: 800, letterSpacing: '1.5px', textTransform: 'uppercase', color: '#DC2626', marginBottom: '14px' }}>Costs</div>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                          <span style={{ fontSize: '13px', color: '#2D3E50' }}>Direct expenses</span>
+                          <span style={{ fontSize: '13px', fontWeight: 700, color: '#0F1923' }}>{fmt(pnl.expenses.total)}</span>
+                        </div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                          <span style={{ fontSize: '13px', color: '#2D3E50' }}>Finance overhead
+                            {pnl.finance_overhead.total_hours > 0 && <span style={{ marginLeft: '6px', fontSize: '11px', color: '#5B7080' }}>{pnl.finance_overhead.total_hours}h</span>}
+                          </span>
+                          <span style={{ fontSize: '13px', fontWeight: 700, color: pnl.finance_overhead.allocated > 0 ? '#0F1923' : '#5B7080' }}>
+                            {pnl.finance_overhead.allocated > 0 ? fmt(pnl.finance_overhead.allocated) : '—'}
+                          </span>
+                        </div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                          <span style={{ fontSize: '13px', color: '#2D3E50' }}>HR overhead
+                            {pnl.hr_overhead.total_hours > 0 && <span style={{ marginLeft: '6px', fontSize: '11px', color: '#5B7080' }}>{pnl.hr_overhead.total_hours}h</span>}
+                          </span>
+                          <span style={{ fontSize: '13px', fontWeight: 700, color: pnl.hr_overhead.allocated > 0 ? '#0F1923' : '#5B7080' }}>
+                            {pnl.hr_overhead.allocated > 0 ? fmt(pnl.hr_overhead.allocated) : '—'}
+                          </span>
+                        </div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', paddingTop: '8px', borderTop: '1px solid #EEF2F7' }}>
+                          <span style={{ fontSize: '13px', fontWeight: 800, color: '#0F1923' }}>Total cost</span>
+                          <span style={{ fontSize: '13px', fontWeight: 900, color: '#0F1923' }}>{fmt(pnl.total_cost)}</span>
+                        </div>
+                      </div>
+                    </div>
+                    {/* Net P&L */}
+                    <div style={{ background: pnl.net_pnl >= 0 ? 'rgba(192,244,60,0.06)' : 'rgba(255,107,107,0.06)', border: `1px solid ${pnl.net_pnl >= 0 ? 'rgba(192,244,60,0.25)' : 'rgba(255,107,107,0.25)'}`, borderRadius: '14px', padding: '20px' }}>
+                      <div style={{ fontSize: '11px', fontWeight: 800, letterSpacing: '1.5px', textTransform: 'uppercase', color: pnl.net_pnl >= 0 ? '#3D6B00' : '#DC2626', marginBottom: '6px' }}>Net P&amp;L (confirmed)</div>
+                      <div style={{ fontSize: '36px', fontWeight: 900, color: pnl.net_pnl >= 0 ? '#3D6B00' : '#DC2626' }}>{fmt(pnl.net_pnl)}</div>
+                    </div>
+                    {/* Budget vs Actuals */}
+                    <div style={{ background: '#F8FAFF', border: '1px solid #D8EAEB', borderRadius: '14px', padding: '20px' }}>
+                      <div style={{ fontSize: '11px', fontWeight: 800, letterSpacing: '1.5px', textTransform: 'uppercase', color: '#5B7080', marginBottom: '8px' }}>Budget vs Actuals</div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '6px' }}>
+                        <span style={{ fontSize: '13px', color: '#2D3E50' }}>Approved budget</span>
+                        <span style={{ fontSize: '13px', fontWeight: 700, color: '#0F1923' }}>{fmt(pnl.approved_budget)}</span>
+                      </div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '10px' }}>
+                        <span style={{ fontSize: '13px', color: '#2D3E50' }}>Spent</span>
+                        <span style={{ fontSize: '13px', fontWeight: 700, color: '#0F1923' }}>{fmt(pnl.expenses.total)}</span>
+                      </div>
+                      <div style={{ height: '6px', background: '#EEF2F7', borderRadius: '3px', overflow: 'hidden', marginBottom: '6px' }}>
+                        <div style={{ height: '100%', width: `${Math.min(100, pnl.approved_budget > 0 ? (pnl.total_cost / pnl.approved_budget) * 100 : 0)}%`, background: pnl.budget_variance < 0 ? '#DC2626' : '#C0F43C', borderRadius: '3px' }} />
+                      </div>
+                      <div style={{ fontSize: '13px', fontWeight: 700, color: pnl.budget_variance >= 0 ? '#3D6B00' : '#DC2626' }}>
+                        {pnl.budget_variance >= 0 ? `${fmt(pnl.budget_variance)} remaining` : `${fmt(Math.abs(pnl.budget_variance))} over budget`}
+                      </div>
+                    </div>
+                    {/* Delegates snapshot */}
+                    <div style={{ gridColumn: '1 / -1', background: '#F8FAFF', border: '1px solid #D8EAEB', borderRadius: '14px', padding: '20px' }}>
+                      <div style={{ fontSize: '11px', fontWeight: 800, letterSpacing: '1.5px', textTransform: 'uppercase', color: '#5B7080', marginBottom: '14px' }}>Delegates</div>
+                      <div style={{ display: 'flex', gap: '32px', flexWrap: 'wrap' }}>
+                        {[
+                          { label: 'Invited',   val: pnl.delegates.invited   },
+                          { label: 'Confirmed', val: pnl.delegates.confirmed, color: '#3D6B00' },
+                          { label: 'Attended',  val: pnl.delegates.attended,  color: '#00695C' },
+                          { label: 'Declined',  val: pnl.delegates.declined,  color: '#DC2626' },
+                        ].map(s => (
+                          <div key={s.label}>
+                            <div style={{ fontSize: '28px', fontWeight: 900, color: s.color ?? '#0F1923' }}>{s.val}</div>
+                            <div style={{ fontSize: '11px', color: '#5B7080', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '1px' }}>{s.label}</div>
+                          </div>
+                        ))}
+                        <div style={{ marginLeft: 'auto', display: 'flex', gap: '16px', flexWrap: 'wrap', alignItems: 'center' }}>
+                          {Object.entries(pnl.delegates.by_tier).map(([tier, count]) => (
+                            <div key={tier} style={{ textAlign: 'center' }}>
+                              <div style={{ fontSize: '20px', fontWeight: 800, color: '#0F1923' }}>{count}</div>
+                              <div style={{ fontSize: '11px', color: '#5B7080', textTransform: 'capitalize' }}>{tier.replace(/_/g, ' ')}</div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* BUDGET PLANNER */}
+            {pnlTab === 'planner' && (
+              <div>
+                <div style={{ display: 'grid', gridTemplateColumns: '340px 1fr', gap: '28px', alignItems: 'flex-start' }}>
+                  {/* Budget setup form */}
+                  <div style={{ background: '#F8FAFF', border: '1px solid #D8EAEB', borderRadius: '14px', padding: '20px' }}>
+                    <div style={{ fontSize: '13px', fontWeight: 800, color: '#0F1923', marginBottom: '16px' }}>Approved Budget</div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                      <div>
+                        <label style={{ fontSize: '11px', fontWeight: 700, color: '#5B7080', display: 'block', marginBottom: '4px' }}>CURRENCY</label>
+                        <select value={budgetForm.currency} onChange={e => setBudgetForm(f => ({ ...f, currency: e.target.value }))}
+                          style={{ width: '100%', padding: '9px 12px', borderRadius: '8px', border: '1px solid #D8EAEB', background: '#FFFFFF', color: '#0F1923', fontSize: '13px', fontFamily: 'inherit' }}>
+                          <option value="USD">USD — US Dollar</option>
+                          <option value="INR">INR — Indian Rupee</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label style={{ fontSize: '11px', fontWeight: 700, color: '#5B7080', display: 'block', marginBottom: '4px' }}>TOTAL BUDGET</label>
+                        <input type="number" placeholder="0" value={budgetForm.approved_budget} onChange={e => setBudgetForm(f => ({ ...f, approved_budget: e.target.value }))}
+                          style={{ width: '100%', padding: '9px 12px', borderRadius: '8px', border: '1px solid #D8EAEB', background: '#FFFFFF', color: '#0F1923', fontSize: '13px', fontFamily: 'inherit' }} />
+                      </div>
+                      {budgetForm.currency === 'INR' && (
+                        <div>
+                          <label style={{ fontSize: '11px', fontWeight: 700, color: '#5B7080', display: 'block', marginBottom: '4px' }}>INR → USD RATE</label>
+                          <input type="number" placeholder="84" value={budgetForm.exchange_rate_to_usd} onChange={e => setBudgetForm(f => ({ ...f, exchange_rate_to_usd: e.target.value }))}
+                            style={{ width: '100%', padding: '9px 12px', borderRadius: '8px', border: '1px solid #D8EAEB', background: '#FFFFFF', color: '#0F1923', fontSize: '13px', fontFamily: 'inherit' }} />
+                        </div>
+                      )}
+                      <div>
+                        <label style={{ fontSize: '11px', fontWeight: 700, color: '#5B7080', display: 'block', marginBottom: '4px' }}>NOTES</label>
+                        <textarea rows={2} placeholder="Optional notes…" value={budgetForm.notes} onChange={e => setBudgetForm(f => ({ ...f, notes: e.target.value }))}
+                          style={{ width: '100%', padding: '9px 12px', borderRadius: '8px', border: '1px solid #D8EAEB', background: '#FFFFFF', color: '#0F1923', fontSize: '13px', fontFamily: 'inherit', resize: 'vertical' }} />
+                      </div>
+                      <div style={{ paddingTop: '8px', borderTop: '1px solid #D8EAEB' }}>
+                        <div style={{ fontSize: '13px', fontWeight: 700, color: '#0F1923', marginBottom: '10px' }}>Allocate by Category</div>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                          {categories.map(cat => (
+                            <div key={cat.id} style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                              <span style={{ fontSize: '13px', color: '#2D3E50', flex: 1, minWidth: 0 }}>{cat.name}</span>
+                              <input type="number" placeholder="0" value={allocations[cat.id] ?? ''} onChange={e => setAllocations(a => ({ ...a, [cat.id]: e.target.value }))}
+                                style={{ width: '90px', padding: '6px 10px', borderRadius: '6px', border: '1px solid #D8EAEB', background: '#FFFFFF', color: '#0F1923', fontSize: '13px', fontFamily: 'inherit', textAlign: 'right' }} />
+                            </div>
+                          ))}
+                          <div style={{ display: 'flex', justifyContent: 'space-between', paddingTop: '6px', borderTop: '1px solid #EEF2F7' }}>
+                            <span style={{ fontSize: '13px', color: '#5B7080' }}>Total allocated</span>
+                            <span style={{ fontSize: '13px', fontWeight: 800, color: '#0F1923' }}>
+                              {(budgetForm.currency === 'INR' ? '₹' : '$')}{Object.values(allocations).reduce((s, v) => s + (Number(v) || 0), 0).toLocaleString()}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                      <button onClick={saveBudget} disabled={savingBudget || !budgetForm.approved_budget}
+                        style={{ padding: '12px', borderRadius: '10px', border: 'none', background: budgetForm.approved_budget ? '#C0F43C' : '#EEF2F7', color: '#0F1923', fontSize: '13px', fontWeight: 800, cursor: budgetForm.approved_budget ? 'pointer' : 'not-allowed', fontFamily: 'inherit', marginTop: '4px' }}>
+                        {savingBudget ? 'Saving…' : 'Save Budget'}
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Planner table */}
+                  <div>
+                    {!pnl || pnl.planner.categories.length === 0 ? (
+                      <div style={{ textAlign: 'center', padding: '60px', color: '#5B7080', fontSize: '13px', background: '#F8FAFF', borderRadius: '14px', border: '1px solid #D8EAEB' }}>
+                        Set allocations on the left to see the dynamic planner.
+                      </div>
+                    ) : (
+                      <div style={{ background: '#FFFFFF', border: '1px solid #D8EAEB', borderRadius: '14px', overflow: 'hidden' }}>
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 110px 110px 110px 90px', gap: '0', padding: '12px 18px', background: '#F8FAFF', borderBottom: '1px solid #D8EAEB' }}>
+                          {['Category','Planned','Actual','Remaining',''].map(h => (
+                            <div key={h} style={{ fontSize: '11px', fontWeight: 800, color: '#5B7080', textTransform: 'uppercase', letterSpacing: '1px', textAlign: h === 'Category' ? 'left' : 'right' }}>{h}</div>
+                          ))}
+                        </div>
+                        {pnl.planner.categories.map(cat => {
+                          const statusColor = cat.status === 'over_budget' ? '#DC2626' : cat.status === 'near_limit' ? '#D97706' : cat.status === 'unplanned' ? '#DC2626' : cat.status === 'not_started' ? '#5B7080' : '#3D6B00'
+                          const barPct = cat.planned > 0 ? Math.min(100, (cat.actual / cat.planned) * 100) : cat.actual > 0 ? 100 : 0
+                          return (
+                            <div key={cat.category_id} style={{ display: 'grid', gridTemplateColumns: '1fr 110px 110px 110px 90px', padding: '14px 18px', borderBottom: '1px solid #EEF2F7', alignItems: 'center' }}>
+                              <div>
+                                <div style={{ fontSize: '13px', fontWeight: 600, color: '#0F1923', marginBottom: '4px' }}>{cat.category_name}</div>
+                                <div style={{ height: '4px', background: '#EEF2F7', borderRadius: '2px', overflow: 'hidden', maxWidth: '160px' }}>
+                                  <div style={{ height: '100%', width: `${barPct}%`, background: cat.status === 'over_budget' ? '#DC2626' : cat.status === 'near_limit' ? '#D97706' : '#C0F43C', borderRadius: '2px', transition: 'width 0.4s ease' }} />
+                                </div>
+                              </div>
+                              <div style={{ textAlign: 'right', fontSize: '13px', color: '#2D3E50' }}>{fmt(cat.planned)}</div>
+                              <div style={{ textAlign: 'right', fontSize: '13px', fontWeight: 700, color: '#0F1923' }}>{fmt(cat.actual)}</div>
+                              <div style={{ textAlign: 'right', fontSize: '13px', fontWeight: 800, color: statusColor }}>{fmt(Math.abs(cat.remaining))}{cat.remaining < 0 ? ' over' : ''}</div>
+                              <div style={{ textAlign: 'right' }}>
+                                <span style={{ fontSize: '11px', fontWeight: 700, padding: '3px 8px', borderRadius: '10px', background: `${statusColor}18`, color: statusColor, textTransform: 'capitalize', whiteSpace: 'nowrap' }}>
+                                  {cat.status.replace(/_/g, ' ')}
+                                </span>
+                              </div>
+                            </div>
+                          )
+                        })}
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 110px 110px 110px 90px', padding: '14px 18px', background: '#F8FAFF', borderTop: '1px solid #D8EAEB' }}>
+                          <div style={{ fontSize: '13px', fontWeight: 800, color: '#0F1923' }}>Total</div>
+                          <div style={{ textAlign: 'right', fontSize: '13px', fontWeight: 800, color: '#0F1923' }}>{fmt(pnl.planner.total_planned)}</div>
+                          <div style={{ textAlign: 'right', fontSize: '13px', fontWeight: 800, color: '#0F1923' }}>{fmt(pnl.expenses.total)}</div>
+                          <div style={{ textAlign: 'right', fontSize: '13px', fontWeight: 800, color: pnl.budget_variance >= 0 ? '#3D6B00' : '#DC2626' }}>{fmt(Math.abs(pnl.budget_variance))}{pnl.budget_variance < 0 ? ' over' : ' left'}</div>
+                          <div />
+                        </div>
+                        {pnl.planner.unallocated !== 0 && (
+                          <div style={{ padding: '10px 18px', background: 'rgba(245,158,11,0.04)', borderTop: '1px solid rgba(245,158,11,0.15)', fontSize: '13px', color: '#D97706', fontWeight: 600 }}>
+                            {fmt(Math.abs(pnl.planner.unallocated))} {pnl.planner.unallocated > 0 ? 'unallocated from total budget' : 'allocated beyond total budget'}
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* DEALS */}
+            {pnlTab === 'deals' && (
+              <div>
+                <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '16px' }}>
+                  <button onClick={() => setShowDealForm(v => !v)}
+                    style={{ padding: '10px 20px', borderRadius: '10px', border: 'none', background: '#C0F43C', color: '#0F1923', fontSize: '13px', fontWeight: 800, cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <svg width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                    Add Deal
+                  </button>
+                </div>
+
+                {showDealForm && (
+                  <div style={{ background: '#F8FAFF', border: '1px solid #D8EAEB', borderRadius: '14px', padding: '20px', marginBottom: '20px' }}>
+                    <div style={{ fontSize: '13px', fontWeight: 800, color: '#0F1923', marginBottom: '14px' }}>New Deal</div>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                      <div>
+                        <label style={{ fontSize: '11px', fontWeight: 700, color: '#5B7080', display: 'block', marginBottom: '4px' }}>TYPE</label>
+                        <select value={dealForm.deal_type} onChange={e => setDealForm(f => ({ ...f, deal_type: e.target.value }))}
+                          style={{ width: '100%', padding: '9px 12px', borderRadius: '8px', border: '1px solid #D8EAEB', background: '#FFFFFF', color: '#0F1923', fontSize: '13px', fontFamily: 'inherit' }}>
+                          {['sponsorship','exhibition','delegate_package','media_partner','other'].map(t => <option key={t} value={t}>{t.replace(/_/g,' ')}</option>)}
+                        </select>
+                      </div>
+                      <div>
+                        <label style={{ fontSize: '11px', fontWeight: 700, color: '#5B7080', display: 'block', marginBottom: '4px' }}>STATUS</label>
+                        <select value={dealForm.status} onChange={e => setDealForm(f => ({ ...f, status: e.target.value }))}
+                          style={{ width: '100%', padding: '9px 12px', borderRadius: '8px', border: '1px solid #D8EAEB', background: '#FFFFFF', color: '#0F1923', fontSize: '13px', fontFamily: 'inherit' }}>
+                          {['pending','confirmed','cancelled'].map(s => <option key={s} value={s}>{s}</option>)}
+                        </select>
+                      </div>
+                      <div style={{ gridColumn: '1 / -1' }}>
+                        <label style={{ fontSize: '11px', fontWeight: 700, color: '#5B7080', display: 'block', marginBottom: '4px' }}>COMPANY *</label>
+                        <input value={dealForm.company_name} onChange={e => setDealForm(f => ({ ...f, company_name: e.target.value }))} placeholder="Company name"
+                          style={{ width: '100%', padding: '9px 12px', borderRadius: '8px', border: '1px solid #D8EAEB', background: '#FFFFFF', color: '#0F1923', fontSize: '13px', fontFamily: 'inherit' }} />
+                      </div>
+                      <div>
+                        <label style={{ fontSize: '11px', fontWeight: 700, color: '#5B7080', display: 'block', marginBottom: '4px' }}>CONTACT</label>
+                        <input value={dealForm.contact_name} onChange={e => setDealForm(f => ({ ...f, contact_name: e.target.value }))} placeholder="Contact name"
+                          style={{ width: '100%', padding: '9px 12px', borderRadius: '8px', border: '1px solid #D8EAEB', background: '#FFFFFF', color: '#0F1923', fontSize: '13px', fontFamily: 'inherit' }} />
+                      </div>
+                      <div>
+                        <label style={{ fontSize: '11px', fontWeight: 700, color: '#5B7080', display: 'block', marginBottom: '4px' }}>DATE</label>
+                        <input type="date" value={dealForm.deal_date} onChange={e => setDealForm(f => ({ ...f, deal_date: e.target.value }))}
+                          style={{ width: '100%', padding: '9px 12px', borderRadius: '8px', border: '1px solid #D8EAEB', background: '#FFFFFF', color: '#0F1923', fontSize: '13px', fontFamily: 'inherit' }} />
+                      </div>
+                      <div>
+                        <label style={{ fontSize: '11px', fontWeight: 700, color: '#5B7080', display: 'block', marginBottom: '4px' }}>AMOUNT *</label>
+                        <input type="number" value={dealForm.amount} onChange={e => setDealForm(f => ({ ...f, amount: e.target.value }))} placeholder="0"
+                          style={{ width: '100%', padding: '9px 12px', borderRadius: '8px', border: '1px solid #D8EAEB', background: '#FFFFFF', color: '#0F1923', fontSize: '13px', fontFamily: 'inherit' }} />
+                      </div>
+                      <div>
+                        <label style={{ fontSize: '11px', fontWeight: 700, color: '#5B7080', display: 'block', marginBottom: '4px' }}>CURRENCY</label>
+                        <input value={dealForm.deal_currency} onChange={e => setDealForm(f => ({ ...f, deal_currency: e.target.value.toUpperCase() }))} placeholder="USD"
+                          style={{ width: '100%', padding: '9px 12px', borderRadius: '8px', border: '1px solid #D8EAEB', background: '#FFFFFF', color: '#0F1923', fontSize: '13px', fontFamily: 'inherit' }} />
+                      </div>
+                      <div>
+                        <label style={{ fontSize: '11px', fontWeight: 700, color: '#5B7080', display: 'block', marginBottom: '4px' }}>EXCHANGE RATE → event currency</label>
+                        <input type="number" step="0.0001" value={dealForm.exchange_rate} onChange={e => setDealForm(f => ({ ...f, exchange_rate: e.target.value }))} placeholder="1"
+                          style={{ width: '100%', padding: '9px 12px', borderRadius: '8px', border: '1px solid #D8EAEB', background: '#FFFFFF', color: '#0F1923', fontSize: '13px', fontFamily: 'inherit' }} />
+                      </div>
+                      <div style={{ gridColumn: '1 / -1' }}>
+                        <label style={{ fontSize: '11px', fontWeight: 700, color: '#5B7080', display: 'block', marginBottom: '4px' }}>NOTES</label>
+                        <input value={dealForm.notes} onChange={e => setDealForm(f => ({ ...f, notes: e.target.value }))} placeholder="Optional notes"
+                          style={{ width: '100%', padding: '9px 12px', borderRadius: '8px', border: '1px solid #D8EAEB', background: '#FFFFFF', color: '#0F1923', fontSize: '13px', fontFamily: 'inherit' }} />
+                      </div>
+                    </div>
+                    <div style={{ display: 'flex', gap: '8px', marginTop: '14px' }}>
+                      <button onClick={saveDeal} disabled={savingDeal || !dealForm.company_name || !dealForm.amount}
+                        style={{ padding: '10px 22px', borderRadius: '8px', border: 'none', background: '#C0F43C', color: '#0F1923', fontSize: '13px', fontWeight: 800, cursor: 'pointer', fontFamily: 'inherit' }}>
+                        {savingDeal ? 'Saving…' : 'Save Deal'}
+                      </button>
+                      <button onClick={() => setShowDealForm(false)} style={{ padding: '10px 16px', borderRadius: '8px', border: '1px solid #D8EAEB', background: 'transparent', color: '#0F1923', fontSize: '13px', cursor: 'pointer', fontFamily: 'inherit' }}>Cancel</button>
+                    </div>
+                  </div>
+                )}
+
+                {deals.length === 0 ? (
+                  <div style={{ textAlign: 'center', padding: '48px', color: '#5B7080', fontSize: '13px', background: '#F8FAFF', borderRadius: '14px', border: '1px solid #D8EAEB' }}>No deals logged yet.</div>
+                ) : (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                    {deals.map(deal => (
+                      <div key={deal.id} style={{ display: 'grid', gridTemplateColumns: '1fr auto auto auto', gap: '12px', alignItems: 'center', padding: '14px 18px', background: '#FFFFFF', border: '1px solid #D8EAEB', borderRadius: '12px' }}>
+                        <div>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '3px' }}>
+                            <span style={{ fontSize: '13px', fontWeight: 800, color: '#0F1923' }}>{deal.company_name}</span>
+                            <span style={{ fontSize: '11px', fontWeight: 700, padding: '2px 7px', borderRadius: '8px', background: deal.status === 'confirmed' ? 'rgba(192,244,60,0.15)' : deal.status === 'cancelled' ? 'rgba(255,107,107,0.1)' : 'rgba(245,158,11,0.1)', color: deal.status === 'confirmed' ? '#3D6B00' : deal.status === 'cancelled' ? '#DC2626' : '#D97706' }}>
+                              {deal.status}
+                            </span>
+                            <span style={{ fontSize: '11px', color: '#5B7080', textTransform: 'capitalize' }}>{deal.deal_type.replace(/_/g,' ')}</span>
+                          </div>
+                          {deal.contact_name && <div style={{ fontSize: '13px', color: '#5B7080' }}>{deal.contact_name}</div>}
+                          {deal.notes && <div style={{ fontSize: '13px', color: '#5B7080', marginTop: '2px' }}>{deal.notes}</div>}
+                        </div>
+                        <div style={{ textAlign: 'right' }}>
+                          <div style={{ fontSize: '15px', fontWeight: 900, color: '#0F1923' }}>{new Intl.NumberFormat('en-US', { style: 'currency', currency: deal.deal_currency, maximumFractionDigits: 0 }).format(deal.amount)}</div>
+                          {deal.deal_currency !== (budget?.budget?.currency ?? 'USD') && (
+                            <div style={{ fontSize: '11px', color: '#5B7080' }}>= {fmt(deal.converted_amount)}</div>
+                          )}
+                        </div>
+                        <select value={deal.status} onChange={e => updateDealStatus(deal.id, e.target.value)}
+                          style={{ padding: '6px 10px', borderRadius: '8px', border: '1px solid #D8EAEB', background: '#FFFFFF', color: '#0F1923', fontSize: '13px', fontFamily: 'inherit', cursor: 'pointer' }}>
+                          {['pending','confirmed','cancelled'].map(s => <option key={s} value={s}>{s}</option>)}
+                        </select>
+                        <button onClick={() => deleteDeal(deal.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'rgba(255,107,107,0.5)', padding: '4px', display: 'flex', alignItems: 'center' }}>
+                          <svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
+                        </button>
+                      </div>
+                    ))}
+                    <div style={{ padding: '12px 18px', background: '#F8FAFF', border: '1px solid #D8EAEB', borderRadius: '10px', display: 'flex', justifyContent: 'space-between' }}>
+                      <span style={{ fontSize: '13px', fontWeight: 700, color: '#2D3E50' }}>Confirmed revenue</span>
+                      <span style={{ fontSize: '13px', fontWeight: 900, color: '#3D6B00' }}>{fmt(deals.filter(d => d.status === 'confirmed').reduce((s, d) => s + d.converted_amount, 0))}</span>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* EXPENSES */}
+            {pnlTab === 'expenses' && (
+              <div>
+                <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '16px' }}>
+                  <button onClick={() => setShowExpForm(v => !v)}
+                    style={{ padding: '10px 20px', borderRadius: '10px', border: 'none', background: '#C0F43C', color: '#0F1923', fontSize: '13px', fontWeight: 800, cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <svg width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                    Log Expense
+                  </button>
+                </div>
+
+                {showExpForm && (
+                  <div style={{ background: '#F8FAFF', border: '1px solid #D8EAEB', borderRadius: '14px', padding: '20px', marginBottom: '20px' }}>
+                    <div style={{ fontSize: '13px', fontWeight: 800, color: '#0F1923', marginBottom: '14px' }}>New Expense</div>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                      <div style={{ gridColumn: '1 / -1' }}>
+                        <label style={{ fontSize: '11px', fontWeight: 700, color: '#5B7080', display: 'block', marginBottom: '4px' }}>CATEGORY</label>
+                        <select value={expForm.category_id} onChange={e => setExpForm(f => ({ ...f, category_id: e.target.value }))}
+                          style={{ width: '100%', padding: '9px 12px', borderRadius: '8px', border: '1px solid #D8EAEB', background: '#FFFFFF', color: '#0F1923', fontSize: '13px', fontFamily: 'inherit' }}>
+                          <option value="">Select category…</option>
+                          {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                        </select>
+                      </div>
+                      <div style={{ gridColumn: '1 / -1' }}>
+                        <label style={{ fontSize: '11px', fontWeight: 700, color: '#5B7080', display: 'block', marginBottom: '4px' }}>DESCRIPTION *</label>
+                        <input value={expForm.description} onChange={e => setExpForm(f => ({ ...f, description: e.target.value }))} placeholder="What is this expense for?"
+                          style={{ width: '100%', padding: '9px 12px', borderRadius: '8px', border: '1px solid #D8EAEB', background: '#FFFFFF', color: '#0F1923', fontSize: '13px', fontFamily: 'inherit' }} />
+                      </div>
+                      <div>
+                        <label style={{ fontSize: '11px', fontWeight: 700, color: '#5B7080', display: 'block', marginBottom: '4px' }}>AMOUNT *</label>
+                        <input type="number" value={expForm.amount} onChange={e => setExpForm(f => ({ ...f, amount: e.target.value }))} placeholder="0"
+                          style={{ width: '100%', padding: '9px 12px', borderRadius: '8px', border: '1px solid #D8EAEB', background: '#FFFFFF', color: '#0F1923', fontSize: '13px', fontFamily: 'inherit' }} />
+                      </div>
+                      <div>
+                        <label style={{ fontSize: '11px', fontWeight: 700, color: '#5B7080', display: 'block', marginBottom: '4px' }}>CURRENCY</label>
+                        <input value={expForm.expense_currency} onChange={e => setExpForm(f => ({ ...f, expense_currency: e.target.value.toUpperCase() }))} placeholder="USD"
+                          style={{ width: '100%', padding: '9px 12px', borderRadius: '8px', border: '1px solid #D8EAEB', background: '#FFFFFF', color: '#0F1923', fontSize: '13px', fontFamily: 'inherit' }} />
+                      </div>
+                      <div>
+                        <label style={{ fontSize: '11px', fontWeight: 700, color: '#5B7080', display: 'block', marginBottom: '4px' }}>EXCHANGE RATE → event currency</label>
+                        <input type="number" step="0.0001" value={expForm.exchange_rate} onChange={e => setExpForm(f => ({ ...f, exchange_rate: e.target.value }))} placeholder="1"
+                          style={{ width: '100%', padding: '9px 12px', borderRadius: '8px', border: '1px solid #D8EAEB', background: '#FFFFFF', color: '#0F1923', fontSize: '13px', fontFamily: 'inherit' }} />
+                      </div>
+                      <div>
+                        <label style={{ fontSize: '11px', fontWeight: 700, color: '#5B7080', display: 'block', marginBottom: '4px' }}>DATE</label>
+                        <input type="date" value={expForm.expense_date} onChange={e => setExpForm(f => ({ ...f, expense_date: e.target.value }))}
+                          style={{ width: '100%', padding: '9px 12px', borderRadius: '8px', border: '1px solid #D8EAEB', background: '#FFFFFF', color: '#0F1923', fontSize: '13px', fontFamily: 'inherit' }} />
+                      </div>
+                      <div>
+                        <label style={{ fontSize: '11px', fontWeight: 700, color: '#5B7080', display: 'block', marginBottom: '4px' }}>RECEIPT REF</label>
+                        <input value={expForm.receipt_ref} onChange={e => setExpForm(f => ({ ...f, receipt_ref: e.target.value }))} placeholder="Reference #"
+                          style={{ width: '100%', padding: '9px 12px', borderRadius: '8px', border: '1px solid #D8EAEB', background: '#FFFFFF', color: '#0F1923', fontSize: '13px', fontFamily: 'inherit' }} />
+                      </div>
+                    </div>
+                    <div style={{ display: 'flex', gap: '8px', marginTop: '14px' }}>
+                      <button onClick={saveExpense} disabled={savingExp || !expForm.description || !expForm.amount}
+                        style={{ padding: '10px 22px', borderRadius: '8px', border: 'none', background: '#C0F43C', color: '#0F1923', fontSize: '13px', fontWeight: 800, cursor: 'pointer', fontFamily: 'inherit' }}>
+                        {savingExp ? 'Saving…' : 'Log Expense'}
+                      </button>
+                      <button onClick={() => setShowExpForm(false)} style={{ padding: '10px 16px', borderRadius: '8px', border: '1px solid #D8EAEB', background: 'transparent', color: '#0F1923', fontSize: '13px', cursor: 'pointer', fontFamily: 'inherit' }}>Cancel</button>
+                    </div>
+                  </div>
+                )}
+
+                {expenses.length === 0 ? (
+                  <div style={{ textAlign: 'center', padding: '48px', color: '#5B7080', fontSize: '13px', background: '#F8FAFF', borderRadius: '14px', border: '1px solid #D8EAEB' }}>No expenses logged yet.</div>
+                ) : (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                    {expenses.map(exp => (
+                      <div key={exp.id} style={{ display: 'grid', gridTemplateColumns: '1fr auto auto', gap: '12px', alignItems: 'center', padding: '12px 18px', background: '#FFFFFF', border: '1px solid #D8EAEB', borderRadius: '10px' }}>
+                        <div>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '2px' }}>
+                            <span style={{ fontSize: '13px', fontWeight: 700, color: '#0F1923' }}>{exp.description}</span>
+                            {exp.category && <span style={{ fontSize: '11px', color: '#5B7080', padding: '2px 7px', borderRadius: '6px', background: '#EEF2F7' }}>{exp.category.name}</span>}
+                          </div>
+                          <div style={{ fontSize: '12px', color: '#5B7080' }}>
+                            {exp.expense_date && <span>{new Date(exp.expense_date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}</span>}
+                            {exp.receipt_ref && <span style={{ marginLeft: '10px' }}>Ref: {exp.receipt_ref}</span>}
+                            {exp.logged_by && <span style={{ marginLeft: '10px' }}>by {exp.logged_by.name}</span>}
+                          </div>
+                        </div>
+                        <div style={{ textAlign: 'right' }}>
+                          <div style={{ fontSize: '14px', fontWeight: 900, color: '#0F1923' }}>{new Intl.NumberFormat('en-US', { style: 'currency', currency: exp.expense_currency, maximumFractionDigits: 0 }).format(exp.amount)}</div>
+                          {exp.expense_currency !== (budget?.budget?.currency ?? 'USD') && (
+                            <div style={{ fontSize: '11px', color: '#5B7080' }}>= {fmt(exp.converted_amount)}</div>
+                          )}
+                        </div>
+                        <button onClick={() => deleteExpense(exp.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'rgba(255,107,107,0.5)', padding: '4px', display: 'flex', alignItems: 'center' }}>
+                          <svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
+                        </button>
+                      </div>
+                    ))}
+                    <div style={{ padding: '12px 18px', background: '#F8FAFF', border: '1px solid #D8EAEB', borderRadius: '10px', display: 'flex', justifyContent: 'space-between' }}>
+                      <span style={{ fontSize: '13px', fontWeight: 700, color: '#2D3E50' }}>Total expenses</span>
+                      <span style={{ fontSize: '13px', fontWeight: 900, color: '#0F1923' }}>{fmt(expenses.reduce((s, e) => s + e.converted_amount, 0))}</span>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* DELEGATES */}
+            {pnlTab === 'delegates' && (
+              <div>
+                <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '16px' }}>
+                  <button onClick={() => setShowDelForm(v => !v)}
+                    style={{ padding: '10px 20px', borderRadius: '10px', border: 'none', background: '#C0F43C', color: '#0F1923', fontSize: '13px', fontWeight: 800, cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <svg width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                    Add Delegate
+                  </button>
+                </div>
+
+                {showDelForm && (
+                  <div style={{ background: '#F8FAFF', border: '1px solid #D8EAEB', borderRadius: '14px', padding: '20px', marginBottom: '20px' }}>
+                    <div style={{ fontSize: '13px', fontWeight: 800, color: '#0F1923', marginBottom: '14px' }}>New Delegate</div>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                      {[
+                        { label: 'FULL NAME *', key: 'full_name', placeholder: 'Full name' },
+                        { label: 'COMPANY', key: 'company', placeholder: 'Organisation' },
+                        { label: 'JOB TITLE', key: 'job_title', placeholder: 'Title' },
+                        { label: 'INDUSTRY', key: 'industry', placeholder: 'Industry' },
+                      ].map(f => (
+                        <div key={f.key}>
+                          <label style={{ fontSize: '11px', fontWeight: 700, color: '#5B7080', display: 'block', marginBottom: '4px' }}>{f.label}</label>
+                          <input value={(delForm as Record<string,string>)[f.key]} onChange={e => setDelForm(d => ({ ...d, [f.key]: e.target.value }))} placeholder={f.placeholder}
+                            style={{ width: '100%', padding: '9px 12px', borderRadius: '8px', border: '1px solid #D8EAEB', background: '#FFFFFF', color: '#0F1923', fontSize: '13px', fontFamily: 'inherit' }} />
+                        </div>
+                      ))}
+                      <div>
+                        <label style={{ fontSize: '11px', fontWeight: 700, color: '#5B7080', display: 'block', marginBottom: '4px' }}>SENIORITY</label>
+                        <select value={delForm.seniority_tier} onChange={e => setDelForm(f => ({ ...f, seniority_tier: e.target.value }))}
+                          style={{ width: '100%', padding: '9px 12px', borderRadius: '8px', border: '1px solid #D8EAEB', background: '#FFFFFF', color: '#0F1923', fontSize: '13px', fontFamily: 'inherit' }}>
+                          {[['c_suite','C-Suite'],['director','Director'],['senior_manager','Senior Manager'],['manager','Manager'],['other','Other']].map(([v,l]) => <option key={v} value={v}>{l}</option>)}
+                        </select>
+                      </div>
+                      <div>
+                        <label style={{ fontSize: '11px', fontWeight: 700, color: '#5B7080', display: 'block', marginBottom: '4px' }}>STATUS</label>
+                        <select value={delForm.status} onChange={e => setDelForm(f => ({ ...f, status: e.target.value }))}
+                          style={{ width: '100%', padding: '9px 12px', borderRadius: '8px', border: '1px solid #D8EAEB', background: '#FFFFFF', color: '#0F1923', fontSize: '13px', fontFamily: 'inherit' }}>
+                          {['pending','confirmed','declined','attended'].map(s => <option key={s} value={s}>{s}</option>)}
+                        </select>
+                      </div>
+                      <div>
+                        <label style={{ fontSize: '11px', fontWeight: 700, color: '#5B7080', display: 'block', marginBottom: '4px' }}>INVITE DATE</label>
+                        <input type="date" value={delForm.invite_date} onChange={e => setDelForm(f => ({ ...f, invite_date: e.target.value }))}
+                          style={{ width: '100%', padding: '9px 12px', borderRadius: '8px', border: '1px solid #D8EAEB', background: '#FFFFFF', color: '#0F1923', fontSize: '13px', fontFamily: 'inherit' }} />
+                      </div>
+                      <div style={{ gridColumn: '1 / -1' }}>
+                        <label style={{ fontSize: '11px', fontWeight: 700, color: '#5B7080', display: 'block', marginBottom: '4px' }}>NOTES</label>
+                        <input value={delForm.notes} onChange={e => setDelForm(f => ({ ...f, notes: e.target.value }))} placeholder="Optional notes"
+                          style={{ width: '100%', padding: '9px 12px', borderRadius: '8px', border: '1px solid #D8EAEB', background: '#FFFFFF', color: '#0F1923', fontSize: '13px', fontFamily: 'inherit' }} />
+                      </div>
+                    </div>
+                    <div style={{ display: 'flex', gap: '8px', marginTop: '14px' }}>
+                      <button onClick={saveDelegate} disabled={savingDel || !delForm.full_name}
+                        style={{ padding: '10px 22px', borderRadius: '8px', border: 'none', background: '#C0F43C', color: '#0F1923', fontSize: '13px', fontWeight: 800, cursor: 'pointer', fontFamily: 'inherit' }}>
+                        {savingDel ? 'Saving…' : 'Add Delegate'}
+                      </button>
+                      <button onClick={() => setShowDelForm(false)} style={{ padding: '10px 16px', borderRadius: '8px', border: '1px solid #D8EAEB', background: 'transparent', color: '#0F1923', fontSize: '13px', cursor: 'pointer', fontFamily: 'inherit' }}>Cancel</button>
+                    </div>
+                  </div>
+                )}
+
+                {delegates.length === 0 ? (
+                  <div style={{ textAlign: 'center', padding: '48px', color: '#5B7080', fontSize: '13px', background: '#F8FAFF', borderRadius: '14px', border: '1px solid #D8EAEB' }}>No delegates added yet.</div>
+                ) : (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                    {delegates.map(d => {
+                      const tierLabel: Record<string,string> = { c_suite: 'C-Suite', director: 'Director', senior_manager: 'Sr. Manager', manager: 'Manager', other: 'Other' }
+                      const statusColor: Record<string,string> = { pending: '#D97706', confirmed: '#3D6B00', declined: '#DC2626', attended: '#00695C' }
+                      return (
+                        <div key={d.id} style={{ display: 'grid', gridTemplateColumns: '1fr auto auto auto', gap: '12px', alignItems: 'center', padding: '12px 18px', background: '#FFFFFF', border: '1px solid #D8EAEB', borderRadius: '10px' }}>
+                          <div>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '2px' }}>
+                              <span style={{ fontSize: '13px', fontWeight: 800, color: '#0F1923' }}>{d.full_name}</span>
+                              <span style={{ fontSize: '11px', fontWeight: 700, padding: '2px 7px', borderRadius: '8px', background: `${statusColor[d.status] ?? '#5B7080'}18`, color: statusColor[d.status] ?? '#5B7080' }}>{d.status}</span>
+                              <span style={{ fontSize: '11px', color: '#5B7080', padding: '2px 7px', borderRadius: '6px', background: '#EEF2F7' }}>{tierLabel[d.seniority_tier] ?? d.seniority_tier}</span>
+                            </div>
+                            <div style={{ fontSize: '12px', color: '#5B7080' }}>
+                              {d.job_title && <span>{d.job_title}</span>}
+                              {d.company && <span>{d.job_title ? ' · ' : ''}{d.company}</span>}
+                              {d.industry && <span> · {d.industry}</span>}
+                            </div>
+                          </div>
+                          <select value={d.status} onChange={e => updateDelegateStatus(d.id, e.target.value)}
+                            style={{ padding: '6px 10px', borderRadius: '8px', border: '1px solid #D8EAEB', background: '#FFFFFF', color: '#0F1923', fontSize: '13px', fontFamily: 'inherit', cursor: 'pointer' }}>
+                            {['pending','confirmed','declined','attended'].map(s => <option key={s} value={s}>{s}</option>)}
+                          </select>
+                          <button onClick={() => deleteDelegate(d.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'rgba(255,107,107,0.5)', padding: '4px', display: 'flex', alignItems: 'center' }}>
+                            <svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
+                          </button>
+                        </div>
+                      )
+                    })}
+                  </div>
+                )}
+              </div>
+            )}
+            {/* FINANCE HOURS */}
+            {pnlTab === 'finance' && (
+              <div>
+                <div style={{ background: 'rgba(52,211,153,0.05)', border: '1px solid rgba(52,211,153,0.2)', borderRadius: '12px', padding: '14px 18px', marginBottom: '20px', fontSize: '13px', color: '#2D3E50', lineHeight: 1.65 }}>
+                  Finance logs hours against this event. Their monthly cost pool is shared across all events proportionally — the more hours Finance spends on this event, the larger its share of Finance overhead in the P&L.
+                  {pnl?.finance_overhead.allocated ? (
+                    <strong style={{ display: 'block', marginTop: '6px', color: '#0F1923' }}>
+                      Current allocation: {fmt(pnl.finance_overhead.allocated)} ({pnl.finance_overhead.total_hours}h logged)
+                    </strong>
+                  ) : (
+                    <strong style={{ display: 'block', marginTop: '6px', color: '#5B7080' }}>No hours logged yet — Finance overhead shows as zero in this event&apos;s P&amp;L.</strong>
+                  )}
+                </div>
+
+                <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '16px' }}>
+                  <button onClick={() => setShowFinForm(v => !v)}
+                    style={{ padding: '10px 20px', borderRadius: '10px', border: 'none', background: '#C0F43C', color: '#0F1923', fontSize: '13px', fontWeight: 800, cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <svg width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                    Log Hours
+                  </button>
+                </div>
+
+                {showFinForm && (
+                  <div style={{ background: '#F8FAFF', border: '1px solid #D8EAEB', borderRadius: '14px', padding: '20px', marginBottom: '20px' }}>
+                    <div style={{ fontSize: '13px', fontWeight: 800, color: '#0F1923', marginBottom: '14px' }}>Log Finance Hours</div>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                      <div>
+                        <label style={{ fontSize: '11px', fontWeight: 700, color: '#5B7080', display: 'block', marginBottom: '4px' }}>HOURS *</label>
+                        <input type="number" step="0.5" min="0.5" value={finForm.hours} onChange={e => setFinForm(f => ({ ...f, hours: e.target.value }))} placeholder="e.g. 2.5"
+                          style={{ width: '100%', padding: '9px 12px', borderRadius: '8px', border: '1px solid #D8EAEB', background: '#FFFFFF', color: '#0F1923', fontSize: '13px', fontFamily: 'inherit' }} />
+                      </div>
+                      <div>
+                        <label style={{ fontSize: '11px', fontWeight: 700, color: '#5B7080', display: 'block', marginBottom: '4px' }}>DATE</label>
+                        <input type="date" value={finForm.log_date} onChange={e => setFinForm(f => ({ ...f, log_date: e.target.value }))}
+                          style={{ width: '100%', padding: '9px 12px', borderRadius: '8px', border: '1px solid #D8EAEB', background: '#FFFFFF', color: '#0F1923', fontSize: '13px', fontFamily: 'inherit' }} />
+                      </div>
+                      <div style={{ gridColumn: '1 / -1' }}>
+                        <label style={{ fontSize: '11px', fontWeight: 700, color: '#5B7080', display: 'block', marginBottom: '4px' }}>DESCRIPTION *</label>
+                        <input value={finForm.description} onChange={e => setFinForm(f => ({ ...f, description: e.target.value }))} placeholder="What Finance work was done for this event?"
+                          style={{ width: '100%', padding: '9px 12px', borderRadius: '8px', border: '1px solid #D8EAEB', background: '#FFFFFF', color: '#0F1923', fontSize: '13px', fontFamily: 'inherit' }} />
+                      </div>
+                    </div>
+                    <div style={{ display: 'flex', gap: '8px', marginTop: '14px' }}>
+                      <button onClick={saveFinLog} disabled={savingFin || !finForm.hours || !finForm.description}
+                        style={{ padding: '10px 22px', borderRadius: '8px', border: 'none', background: '#C0F43C', color: '#0F1923', fontSize: '13px', fontWeight: 800, cursor: 'pointer', fontFamily: 'inherit' }}>
+                        {savingFin ? 'Saving…' : 'Log Hours'}
+                      </button>
+                      <button onClick={() => setShowFinForm(false)} style={{ padding: '10px 16px', borderRadius: '8px', border: '1px solid #D8EAEB', background: 'transparent', color: '#0F1923', fontSize: '13px', cursor: 'pointer', fontFamily: 'inherit' }}>Cancel</button>
+                    </div>
+                  </div>
+                )}
+
+                {/* Monthly breakdown */}
+                {(pnl?.finance_overhead.months?.length ?? 0) > 0 && (
+                  <div style={{ background: '#F8FAFF', border: '1px solid #D8EAEB', borderRadius: '12px', padding: '16px 18px', marginBottom: '16px' }}>
+                    <div style={{ fontSize: '11px', fontWeight: 800, color: '#5B7080', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '12px' }}>Allocation by Month</div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                      {pnl?.finance_overhead.months.map(m => (
+                        <div key={m.month} style={{ display: 'flex', gap: '16px', alignItems: 'center' }}>
+                          <span style={{ fontSize: '13px', color: '#2D3E50', width: '80px' }}>{m.month}</span>
+                          <span style={{ fontSize: '13px', color: '#0F1923' }}>{m.hours}h</span>
+                          <span style={{ fontSize: '13px', color: '#5B7080' }}>{m.pct}% of Finance pool</span>
+                          <span style={{ fontSize: '13px', fontWeight: 800, color: '#0F1923', marginLeft: 'auto' }}>{fmt(m.cost)}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {finLogs.length === 0 ? (
+                  <div style={{ textAlign: 'center', padding: '48px', color: '#5B7080', fontSize: '13px', background: '#F8FAFF', borderRadius: '14px', border: '1px solid #D8EAEB' }}>No Finance hours logged for this event yet.</div>
+                ) : (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                    {finLogs.map(log => (
+                      <div key={log.id} style={{ display: 'grid', gridTemplateColumns: '60px 1fr auto auto', gap: '12px', alignItems: 'center', padding: '12px 18px', background: '#FFFFFF', border: '1px solid #D8EAEB', borderRadius: '10px' }}>
+                        <div style={{ fontSize: '15px', fontWeight: 900, color: '#34D399' }}>{log.hours}h</div>
+                        <div>
+                          <div style={{ fontSize: '13px', fontWeight: 600, color: '#0F1923' }}>{log.description}</div>
+                          {log.staff && <div style={{ fontSize: '12px', color: '#5B7080' }}>{log.staff.name}</div>}
+                        </div>
+                        <div style={{ fontSize: '12px', color: '#5B7080', whiteSpace: 'nowrap' }}>
+                          {new Date(log.log_date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}
+                        </div>
+                        <button onClick={() => deleteFinLog(log.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'rgba(255,107,107,0.5)', padding: '4px', display: 'flex', alignItems: 'center' }}>
+                          <svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
+                        </button>
+                      </div>
+                    ))}
+                    <div style={{ padding: '12px 18px', background: '#F8FAFF', border: '1px solid #D8EAEB', borderRadius: '10px', display: 'flex', justifyContent: 'space-between' }}>
+                      <span style={{ fontSize: '13px', fontWeight: 700, color: '#2D3E50' }}>Total hours logged</span>
+                      <span style={{ fontSize: '13px', fontWeight: 900, color: '#34D399' }}>{finLogs.reduce((s, l) => s + l.hours, 0)}h</span>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+          </div>
+        </div>
+        {/* ── End P&L Section ────────────────────────────────────────────── */}
 
         {/* Progress stats */}
         {checklist.length > 0 && (

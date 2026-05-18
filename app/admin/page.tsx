@@ -537,11 +537,14 @@ export default function AdminPage() {
         fetchDocs()
         if (saveAsNewType) fetchCustomDocTypes()
       } else {
-        const msg = (data.error as string) ?? (res.status === 504 ? 'Upload timed out — the AI took too long. Try a smaller file or try again.' : 'Upload failed.')
+        const msg = (data.error as string) ??
+          (res.status === 504 ? 'Tresci took too long to process this document. Try a smaller file or try again in a moment.' :
+           res.status === 503 ? 'Tresci is under high load right now. Please wait a moment and try again — your document has not been saved.' :
+           'Something went wrong while processing your document. Please try again.')
         setDocMsg(msg)
       }
     } catch {
-      setDocMsg('Upload failed — check your connection and try again.')
+      setDocMsg('Could not reach the server. Check your connection and try again.')
     }
     setDocUploading(false)
   }
@@ -1159,6 +1162,10 @@ export default function AdminPage() {
           <Link href={adminStaffId ? `/dashboard?id=${adminStaffId}` : '/dashboard'} style={{ background: '#FFFFFF', border: '1px solid #DDE8EE', color: '#374151', fontSize: '13px', fontWeight: 700, padding: '8px 16px', borderRadius: '10px', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '6px' }}>
             <svg width="13" height="13" fill="none" stroke="#00A5A3" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>
             My Learning
+          </Link>
+          <Link href="/hr" style={{ background: '#FFFFFF', border: '1px solid #DDE8EE', color: '#374151', fontSize: '13px', fontWeight: 700, padding: '8px 16px', borderRadius: '10px', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <svg width="13" height="13" fill="none" stroke="#00A5A3" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+            HR Portal
           </Link>
           <Link href="/docs" style={{ background: '#FFFFFF', border: '1px solid #DDE8EE', color: '#374151', fontSize: '13px', fontWeight: 700, padding: '8px 16px', borderRadius: '10px', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '6px' }}>
             <svg width="13" height="13" fill="none" stroke="#00A5A3" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>

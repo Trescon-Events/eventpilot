@@ -343,6 +343,12 @@ function DashboardContent() {
               Admin Dashboard
             </Link>
           )}
+          {isAdmin && (
+            <Link className="tbtn tbtn-purple" href="/hr">
+              <svg width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+              HR Portal
+            </Link>
+          )}
           <PlatformMenu staffId={staffId} />
           <div style={{ width: '30px', height: '30px', borderRadius: '8px', background: 'rgba(0,137,123,0.15)', border: '1.5px solid rgba(0,137,123,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
             <span style={{ fontSize: '13px', fontWeight: 800, color: '#00897B' }}>{firstName.charAt(0)}</span>

@@ -177,7 +177,15 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ success: true, document: data, analysis })
   } catch (e) {
-    console.error('document submit error:', e)
-    return NextResponse.json({ error: 'Submission failed' }, { status: 500 })
+    const msg = e instanceof Error ? e.message : String(e)
+    console.error('document submit error:', msg)
+
+    if (msg.includes('503') || msg.toLowerCase().includes('overloaded') || msg.toLowerCase().includes('service unavailable')) {
+      return NextResponse.json({
+        error: 'Tresci is under high load right now. Please wait a moment and try again — your document has not been saved.',
+      }, { status: 503 })
+    }
+
+    return NextResponse.json({ error: 'Something went wrong while processing your document. Please try again.' }, { status: 500 })
   }
 }
