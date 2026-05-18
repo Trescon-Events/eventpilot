@@ -104,6 +104,22 @@ export default function HRDashboard() {
   const [data, setData]   = useState<DashData | null>(null)
   const [loading, setLoading] = useState(true)
   const [tab, setTab]     = useState<'overview' | 'leave' | 'alerts' | 'training' | 'history'>('overview')
+  const [initState, setInitState] = useState<'idle' | 'running' | 'done' | 'error'>('idle')
+  const [initResult, setInitResult] = useState<{ total_staff: number; contracts_created: number; balances_created: number; history_created: number } | null>(null)
+
+  async function runInit() {
+    setInitState('running')
+    try {
+      const res  = await fetch('/api/hr/init', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({}) })
+      const data = await res.json()
+      setInitResult(data)
+      setInitState('done')
+      // Reload dashboard data after init
+      fetch('/api/hr/dashboard').then(r => r.json()).then(d => setData(d))
+    } catch {
+      setInitState('error')
+    }
+  }
 
   useEffect(() => {
     fetch('/api/hr/dashboard')
@@ -153,6 +169,45 @@ export default function HRDashboard() {
 
         {!loading && !data && (
           <div style={{ textAlign: 'center', padding: '80px', color: C.red, fontSize: '15px' }}>Failed to load dashboard data.</div>
+        )}
+
+        {/* ── HRMS Initialisation Banner ── */}
+        {initState === 'idle' && (
+          <div style={{ background: C.amber + '15', border: `1px solid ${C.amber}40`, borderRadius: '14px', padding: '16px 20px', marginBottom: '24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '16px' }}>
+            <div>
+              <div style={{ fontSize: '13px', fontWeight: 800, color: C.amber, marginBottom: '2px' }}>First-time setup required</div>
+              <div style={{ fontSize: '13px', color: C.muted }}>Create starter contracts, leave balances (2026), and employment history for all active staff. Safe to run — skips anyone already set up.</div>
+            </div>
+            <button
+              onClick={runInit}
+              style={{ padding: '10px 20px', borderRadius: '10px', background: C.amber, color: '#fff', fontSize: '13px', fontWeight: 700, border: 'none', cursor: 'pointer', whiteSpace: 'nowrap', fontFamily: 'inherit' }}>
+              Initialise HRMS
+            </button>
+          </div>
+        )}
+
+        {initState === 'running' && (
+          <div style={{ background: C.green + '10', border: `1px solid ${C.green}30`, borderRadius: '14px', padding: '16px 20px', marginBottom: '24px', fontSize: '13px', color: C.green, fontWeight: 700 }}>
+            Setting up HRMS records for all staff...
+          </div>
+        )}
+
+        {initState === 'done' && initResult && (
+          <div style={{ background: C.green + '10', border: `1px solid ${C.green}30`, borderRadius: '14px', padding: '16px 20px', marginBottom: '24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <div>
+              <div style={{ fontSize: '13px', fontWeight: 800, color: C.green, marginBottom: '4px' }}>HRMS initialised successfully</div>
+              <div style={{ fontSize: '13px', color: C.muted }}>
+                {initResult.total_staff} staff · {initResult.contracts_created} contracts created · {initResult.balances_created} leave balance rows · {initResult.history_created} hire records
+              </div>
+            </div>
+            <button onClick={() => setInitState('idle')} style={{ fontSize: '12px', color: C.muted, background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'inherit' }}>dismiss</button>
+          </div>
+        )}
+
+        {initState === 'error' && (
+          <div style={{ background: C.red + '10', border: `1px solid ${C.red}30`, borderRadius: '14px', padding: '16px 20px', marginBottom: '24px', fontSize: '13px', color: C.red, fontWeight: 700 }}>
+            Initialisation failed — check the console and try again.
+          </div>
         )}
 
         {data && (
