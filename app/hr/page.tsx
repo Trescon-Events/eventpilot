@@ -147,8 +147,8 @@ export default function HRDashboard() {
             <div style={{ fontSize: '15px', fontWeight: 800, color: C.text }}>HR Portal</div>
           </div>
           <div style={{ display: 'flex', gap: '8px' }}>
-            <Link href="/hr/onboarding" style={{ padding: '8px 16px', borderRadius: '10px', border: `1px solid ${C.border}`, fontSize: '13px', fontWeight: 700, color: C.text, textDecoration: 'none', background: C.surface }}>
-              Onboarding
+            <Link href="/hr/recruitment" style={{ padding: '8px 16px', borderRadius: '10px', background: C.purple + '15', border: `1px solid ${C.purple}30`, fontSize: '13px', fontWeight: 700, color: C.purple, textDecoration: 'none' }}>
+              Recruitment
             </Link>
             <Link href="/hr/attendance" style={{ padding: '8px 16px', borderRadius: '10px', border: `1px solid ${C.border}`, fontSize: '13px', fontWeight: 700, color: C.text, textDecoration: 'none', background: C.surface }}>
               Attendance
@@ -259,31 +259,45 @@ export default function HRDashboard() {
                   </div>
                 </div>
 
-                {/* Active onboardings */}
+                {/* Recruitment pipeline shortcut */}
                 <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: '16px', padding: '24px' }}>
-                  <div style={{ fontSize: '13px', fontWeight: 700, color: C.muted, letterSpacing: '1px', textTransform: 'uppercase', marginBottom: '16px' }}>Active Onboardings</div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+                    <div style={{ fontSize: '13px', fontWeight: 700, color: C.muted, letterSpacing: '1px', textTransform: 'uppercase' }}>Recruitment</div>
+                    <Link href="/hr/recruitment" style={{ fontSize: '12px', fontWeight: 700, color: C.purple, textDecoration: 'none' }}>Open Pipeline →</Link>
+                  </div>
                   {data.onboarding.records.length === 0 ? (
-                    <div style={{ color: C.muted, fontSize: '13px' }}>No active onboardings.</div>
+                    <div>
+                      <div style={{ color: C.muted, fontSize: '13px', marginBottom: '16px' }}>No active onboardings.</div>
+                      <Link href="/hr/recruitment" style={{ display: 'block', padding: '14px 18px', borderRadius: '12px', background: C.purple + '10', border: `1px solid ${C.purple}25`, textDecoration: 'none', textAlign: 'center' }}>
+                        <div style={{ fontSize: '14px', fontWeight: 800, color: C.purple }}>Open Recruitment Pipeline</div>
+                        <div style={{ fontSize: '12px', color: C.muted, marginTop: '4px' }}>Manage positions, screen candidates with AI, schedule interviews</div>
+                      </Link>
+                    </div>
                   ) : (
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                      {data.onboarding.records.map(ob => {
-                        const pct = ob.task_count > 0 ? Math.round((ob.tasks_done / ob.task_count) * 100) : 0
-                        return (
-                          <Link key={ob.id} href={`/hr/staff/${ob.staff_id}`} style={{ textDecoration: 'none' }}>
-                            <div style={{ border: `1px solid ${C.border}`, borderRadius: '12px', padding: '14px 16px', display: 'flex', flexDirection: 'column', gap: '6px', background: C.bg }}>
-                              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                <div style={{ fontSize: '13px', fontWeight: 700, color: C.text }}>{ob.staff?.name ?? ob.staff_id}</div>
-                                <div style={{ fontSize: '12px', color: C.muted }}>{pct}%</div>
+                    <div>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginBottom: '16px' }}>
+                        {data.onboarding.records.map(ob => {
+                          const pct = ob.task_count > 0 ? Math.round((ob.tasks_done / ob.task_count) * 100) : 0
+                          return (
+                            <Link key={ob.id} href={`/hr/staff/${ob.staff_id}`} style={{ textDecoration: 'none' }}>
+                              <div style={{ border: `1px solid ${C.border}`, borderRadius: '12px', padding: '14px 16px', display: 'flex', flexDirection: 'column', gap: '6px', background: C.bg }}>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                  <div style={{ fontSize: '13px', fontWeight: 700, color: C.text }}>{ob.staff?.name ?? ob.staff_id}</div>
+                                  <div style={{ fontSize: '12px', color: C.muted }}>{pct}%</div>
+                                </div>
+                                <div style={{ fontSize: '12px', color: C.muted }}>{ob.staff?.department} · started {ob.started_at}</div>
+                                <div style={{ height: '4px', background: C.border, borderRadius: '2px', overflow: 'hidden' }}>
+                                  <div style={{ height: '100%', width: `${pct}%`, background: pct === 100 ? C.green : C.amber, borderRadius: '2px' }} />
+                                </div>
+                                <div style={{ fontSize: '11px', color: C.muted }}>{ob.tasks_done}/{ob.task_count} tasks complete</div>
                               </div>
-                              <div style={{ fontSize: '12px', color: C.muted }}>{ob.staff?.department} · started {ob.started_at}</div>
-                              <div style={{ height: '4px', background: C.border, borderRadius: '2px', overflow: 'hidden' }}>
-                                <div style={{ height: '100%', width: `${pct}%`, background: pct === 100 ? C.green : C.amber, borderRadius: '2px' }} />
-                              </div>
-                              <div style={{ fontSize: '11px', color: C.muted }}>{ob.tasks_done}/{ob.task_count} tasks complete</div>
-                            </div>
-                          </Link>
-                        )
-                      })}
+                            </Link>
+                          )
+                        })}
+                      </div>
+                      <Link href="/hr/recruitment" style={{ display: 'block', padding: '10px', borderRadius: '10px', background: C.purple + '10', textDecoration: 'none', textAlign: 'center', fontSize: '12px', fontWeight: 700, color: C.purple }}>
+                        View Recruitment Pipeline →
+                      </Link>
                     </div>
                   )}
                 </div>
