@@ -33,7 +33,7 @@ async function analyseWithGemini(
   tresci_use: boolean; ai_reasoning: string; confidence: number; suggested_type: string
 }> {
   const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!)
-  const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash' })
+  const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' })
 
   const prompt = `You are the document intelligence system for Trescademy, Trescon Global's internal platform.
 
@@ -102,7 +102,7 @@ export async function POST(req: NextRequest) {
 
     if (file.name.toLowerCase().endsWith('.pdf')) {
       const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!)
-      const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash' })
+      const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' })
       const result = await model.generateContent([
         { inlineData: { mimeType: 'application/pdf', data: buffer.toString('base64') } },
         { text: 'Extract all text content from this PDF document. Return only the raw text, preserving paragraphs and structure. No commentary.' },

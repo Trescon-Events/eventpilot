@@ -91,7 +91,7 @@ Return ONLY valid JSON in this exact format — no markdown, no explanation:
 }`
 
   try {
-    const model  = genAI.getGenerativeModel({ model: 'gemini-2.0-flash' })
+    const model  = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' })
     const result = await model.generateContent(prompt)
     const raw    = result.response.text().trim()
 

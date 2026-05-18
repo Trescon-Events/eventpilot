@@ -15,7 +15,7 @@ async function generateChecklist(event: {
   client_name: string | null; expected_attendance: number | null
 }): Promise<{ department: string; title: string; sort_order: number }[]> {
   const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!)
-  const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash' })
+  const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' })
 
   const weeksOut = event.event_date
     ? Math.round((new Date(event.event_date).getTime() - Date.now()) / (7 * 24 * 60 * 60 * 1000))

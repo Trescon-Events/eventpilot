@@ -14,7 +14,7 @@ export async function POST(req: NextRequest) {
   }
 
   const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!)
-  const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash' })
+  const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' })
 
   const prompt = `You are TAI — the AI course designer for TAI Academy at Trescon Global, a B2B events company with 4 offices: Dubai, Bangalore, Mangalore, and Manipal.
 
