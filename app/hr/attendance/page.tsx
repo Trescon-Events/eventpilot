@@ -12,10 +12,9 @@ const C = {
   muted:   '#5B7080',
   green:   '#00897B',
   amber:   '#D97706',
-  red:     '#B91C1C',
+  red:     '#8B1A1A',
   purple:  '#6C54B5',
   blue:    '#1565C0',
-  indigo:  '#3949AB',
 }
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -1014,7 +1013,7 @@ export default function AttendancePage() {
                           {r.late_arrival    && pill(C.amber,  'Late')}
                           {r.early_leave     && pill(C.red,    'Early out')}
                           {r.location === 'travel'      && pill(C.blue,   'Travel')}
-                          {r.location === 'client_site' && pill(C.indigo, 'Client site')}
+                          {r.location === 'client_site' && pill(C.purple, 'Client site')}
                         </div>
                       </td>
 

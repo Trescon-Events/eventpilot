@@ -115,7 +115,10 @@ export default function HRDashboard() {
       setInitResult(data)
       setInitState('done')
       // Reload dashboard data after init
-      fetch('/api/hr/dashboard').then(r => r.json()).then(d => setData(d))
+      setLoading(true)
+      fetch('/api/hr/dashboard').then(r => r.json()).then(d => { setData(d); setLoading(false) })
+      // Auto-dismiss after 5s
+      setTimeout(() => setInitState('idle'), 5000)
     } catch {
       setInitState('error')
     }
@@ -142,7 +145,7 @@ export default function HRDashboard() {
       <div style={{ background: C.surface, borderBottom: `1px solid ${C.border}`, padding: '0 32px' }}>
         <div style={{ maxWidth: '1200px', margin: '0 auto', display: 'flex', alignItems: 'center', justifyContent: 'space-between', height: '60px' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-            <Link href="/admin" style={{ fontSize: '13px', color: C.muted, textDecoration: 'none', fontWeight: 600 }}>← Admin</Link>
+            <Link href="/admin" style={{ fontSize: '13px', color: C.muted, textDecoration: 'none', fontWeight: 600 }}>← Dashboard</Link>
             <div style={{ width: '1px', height: '20px', background: C.border }} />
             <div style={{ fontSize: '15px', fontWeight: 800, color: C.text }}>HR Portal</div>
           </div>
@@ -150,6 +153,12 @@ export default function HRDashboard() {
             <Link href="/hr/recruitment" style={{ padding: '8px 16px', borderRadius: '10px', background: C.purple + '15', border: `1px solid ${C.purple}30`, fontSize: '13px', fontWeight: 700, color: C.purple, textDecoration: 'none' }}>
               Recruitment
             </Link>
+            {data?.onboarding.active_count ? (
+              <Link href="/hr/onboarding" style={{ padding: '8px 16px', borderRadius: '10px', background: C.amber + '15', border: `1px solid ${C.amber}30`, fontSize: '13px', fontWeight: 700, color: C.amber, textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                Onboarding
+                <span style={{ background: C.amber, color: '#fff', borderRadius: '8px', fontSize: '11px', fontWeight: 800, padding: '1px 6px' }}>{data.onboarding.active_count}</span>
+              </Link>
+            ) : null}
             <Link href="/hr/attendance" style={{ padding: '8px 16px', borderRadius: '10px', border: `1px solid ${C.border}`, fontSize: '13px', fontWeight: 700, color: C.text, textDecoration: 'none', background: C.surface }}>
               Attendance
             </Link>
@@ -158,7 +167,7 @@ export default function HRDashboard() {
             </Link>
             <button
               onClick={() => fetch('/api/hr/alerts?run_checks=true', { method: 'POST' }).then(() => window.location.reload())}
-              style={{ padding: '8px 16px', borderRadius: '10px', background: C.green, color: '#fff', fontSize: '13px', fontWeight: 700, border: 'none', cursor: 'pointer' }}>
+              style={{ padding: '8px 16px', borderRadius: '10px', background: C.surface, color: C.green, fontSize: '13px', fontWeight: 700, border: `1px solid ${C.green}40`, cursor: 'pointer', fontFamily: 'inherit' }}>
               Run Alert Checks
             </button>
           </div>
@@ -174,18 +183,22 @@ export default function HRDashboard() {
           <div style={{ textAlign: 'center', padding: '80px', color: C.red, fontSize: '15px' }}>Failed to load dashboard data.</div>
         )}
 
-        {/* ── HRMS Initialisation Banner ── */}
-        {initState === 'idle' && (
+        {/* ── HRMS Initialisation Banner — only shown if no contracts exist yet ── */}
+        {initState === 'idle' && data && data.headcount.total > 0 && data.onboarding.active_count === 0 && data.contracts.expiring_soon_count === 0 && (
           <div style={{ background: C.amber + '15', border: `1px solid ${C.amber}40`, borderRadius: '14px', padding: '16px 20px', marginBottom: '24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '16px' }}>
             <div>
-              <div style={{ fontSize: '13px', fontWeight: 800, color: C.amber, marginBottom: '2px' }}>First-time setup required</div>
-              <div style={{ fontSize: '13px', color: C.muted }}>Create starter contracts, leave balances (2026), and employment history for all active staff. Safe to run — skips anyone already set up.</div>
+              <div style={{ fontSize: '13px', fontWeight: 800, color: C.amber, marginBottom: '2px' }}>First-time setup</div>
+              <div style={{ fontSize: '13px', color: C.muted }}>Create starter contracts, leave balances, and employment history for all active staff. Safe to run — skips anyone already set up.</div>
             </div>
-            <button
-              onClick={runInit}
-              style={{ padding: '10px 20px', borderRadius: '10px', background: C.amber, color: '#fff', fontSize: '13px', fontWeight: 700, border: 'none', cursor: 'pointer', whiteSpace: 'nowrap', fontFamily: 'inherit' }}>
-              Initialise HRMS
-            </button>
+            <div style={{ display: 'flex', gap: '8px', flexShrink: 0 }}>
+              <button onClick={() => setInitState('done')} style={{ padding: '10px 14px', borderRadius: '10px', background: 'transparent', color: C.muted, fontSize: '13px', fontWeight: 600, border: `1px solid ${C.border}`, cursor: 'pointer', fontFamily: 'inherit' }}>
+                Dismiss
+              </button>
+              <button onClick={runInit}
+                style={{ padding: '10px 20px', borderRadius: '10px', background: C.amber, color: '#fff', fontSize: '13px', fontWeight: 700, border: 'none', cursor: 'pointer', whiteSpace: 'nowrap', fontFamily: 'inherit' }}>
+                Initialise HRMS
+              </button>
+            </div>
           </div>
         )}
 
@@ -215,14 +228,14 @@ export default function HRDashboard() {
 
         {data && (
           <>
-            {/* Stat strip */}
+            {/* Stat strip — action items first, then headcount context */}
             <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', marginBottom: '28px' }}>
-              {statCard('Total Staff',     data.headcount.total,                           'active employees',    C.green)}
-              {statCard('On Leave Today',  data.headcount.on_leave_today,                  'approved today',      C.purple)}
-              {statCard('Onboarding',      data.onboarding.active_count,                   'in progress',         C.amber)}
-              {statCard('Offboarding',     data.offboarding.active_count,                  'in progress',         C.red)}
-              {statCard('Leave Pending',   data.leave.pending_count,                       'awaiting approval',   C.amber)}
-              {statCard('Open Alerts',     data.alerts.open_count,                         'need attention',      C.red)}
+              {statCard('Total Staff',       data.headcount.total,              'active employees',    C.green)}
+              {statCard('Leave Pending',     data.leave.pending_count,          'awaiting approval',   C.amber)}
+              {statCard('Open Alerts',       data.alerts.open_count,            'need attention',      C.red)}
+              {statCard('On Leave Today',    data.headcount.on_leave_today,     'approved today',      C.purple)}
+              {statCard('Being Onboarded',   data.onboarding.active_count,      'in progress',         C.amber)}
+              {statCard('Offboarding',       data.offboarding.active_count,     'in progress',         C.red)}
             </div>
 
             {/* Tabs */}

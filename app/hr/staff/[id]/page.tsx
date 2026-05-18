@@ -269,17 +269,17 @@ export default function StaffHRProfile() {
   }
 
   const tabs: { id: TabId; label: string }[] = [
-    { id: 'overview',     label: 'Overview'     },
-    { id: 'leave',        label: 'Leave'        },
-    { id: 'events',       label: `Events${eventAssignments.length ? ` (${eventAssignments.length})` : ''}` },
-    { id: 'attendance',   label: 'Attendance'   },
-    { id: 'timesheets',   label: 'Timesheets'   },
-    { id: 'training',     label: 'Training'     },
-    { id: 'documents',    label: 'Documents'    },
-    { id: 'assets',       label: 'Assets'       },
-    { id: 'salary',       label: 'Salary'       },
-    { id: 'performance',  label: 'Performance'  },
-    { id: 'offboarding',  label: 'Offboarding'  },
+    { id: 'overview',    label: 'Overview'    },
+    { id: 'events',      label: `Events${eventAssignments.length ? ` (${eventAssignments.length})` : ''}` },
+    { id: 'attendance',  label: 'Attendance'  },
+    { id: 'timesheets',  label: 'Timesheets'  },
+    { id: 'leave',       label: 'Leave'       },
+    { id: 'training',    label: 'Training'    },
+    { id: 'documents',   label: 'Documents'   },
+    { id: 'assets',      label: 'Assets'      },
+    { id: 'salary',      label: 'Salary'      },
+    { id: 'performance', label: 'Performance' },
+    { id: 'offboarding', label: 'Offboarding' },
   ]
 
   if (loading) {
@@ -295,7 +295,7 @@ export default function StaffHRProfile() {
       <div style={{ minHeight: '100vh', background: C.bg, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
         <div style={{ textAlign: 'center' }}>
           <div style={{ fontSize: '15px', color: C.red, marginBottom: '12px' }}>Staff member not found.</div>
-          <Link href="/hr" style={{ color: C.green, fontWeight: 700 }}>← Back to HR Portal</Link>
+          <Link href="/hr" style={{ fontSize: '13px', color: C.muted, textDecoration: 'none', fontWeight: 600 }}>← HR Portal</Link>
         </div>
       </div>
     )
@@ -535,6 +535,7 @@ export default function StaffHRProfile() {
                       setLeaveSaving(true); setLeaveMsg('')
                       const start = new Date(leaveForm.start_date)
                       const end   = new Date(leaveForm.end_date)
+                      if (end < start) { setLeaveMsg('End date cannot be before start date.'); setLeaveSaving(false); return }
                       const days  = Math.max(1, Math.round((end.getTime() - start.getTime()) / 86400000) + 1)
                       const res   = await fetch('/api/hr/leave-requests', {
                         method: 'POST', headers: { 'Content-Type': 'application/json' },
