@@ -3,6 +3,8 @@ import { supabaseAdmin } from '@/app/lib/supabase'
 import { GoogleGenerativeAI } from '@google/generative-ai'
 import * as pdfParse from 'pdf-parse'
 
+export const maxDuration = 60
+
 /*
   POST /api/documents/upload
   For: super_admin, office_head, dept_head — direct upload, no approval needed.
@@ -141,7 +143,7 @@ export async function POST(req: NextRequest) {
 
     if (!extractedText) {
       return NextResponse.json({
-        error: 'Could not extract text from this file. Use a text-based PDF, not a scanned image.',
+        error: 'Could not extract text from this file. The PDF may be a scanned image — re-export it as a text-based PDF and try again.',
       }, { status: 422 })
     }
 

@@ -523,19 +523,25 @@ export default function AdminPage() {
     form.append('visibility', docForm.visibility)
     if (docForm.event_id) form.append('event_id', docForm.event_id)
     if (adminStaffId) form.append('uploaded_by', adminStaffId)
-    const res  = await fetch('/api/documents/upload', { method: 'POST', body: form })
-    const data = await res.json()
-    if (res.ok) {
-      setDocMsg(`Done. ${data.document?.word_count?.toLocaleString()} words extracted.${data.analysis?.flagged ? ' Flagged for review — low confidence.' : ''}`)
-      setDocAnalysis(data.analysis ?? null)
-      setDocFile(null)
-      setDocForm({ title: '', type: 'policy', visibility: 'all', event_id: '' })
-      setOtherTypeLabel('')
-      setSaveAsNewType(false)
-      fetchDocs()
-      if (saveAsNewType) fetchCustomDocTypes()
-    } else {
-      setDocMsg(data.error ?? 'Upload failed.')
+    try {
+      const res  = await fetch('/api/documents/upload', { method: 'POST', body: form })
+      let data: Record<string, unknown> = {}
+      try { data = await res.json() } catch { /* non-JSON response e.g. 504 timeout */ }
+      if (res.ok) {
+        setDocMsg(`Done. ${(data.document as Record<string,unknown>)?.word_count?.toLocaleString()} words extracted.${(data.analysis as Record<string,unknown>)?.flagged ? ' Flagged for review — low confidence.' : ''}`)
+        setDocAnalysis(data.analysis as never ?? null)
+        setDocFile(null)
+        setDocForm({ title: '', type: 'policy', visibility: 'all', event_id: '' })
+        setOtherTypeLabel('')
+        setSaveAsNewType(false)
+        fetchDocs()
+        if (saveAsNewType) fetchCustomDocTypes()
+      } else {
+        const msg = (data.error as string) ?? (res.status === 504 ? 'Upload timed out — the AI took too long. Try a smaller file or try again.' : 'Upload failed.')
+        setDocMsg(msg)
+      }
+    } catch {
+      setDocMsg('Upload failed — check your connection and try again.')
     }
     setDocUploading(false)
   }
