@@ -3024,8 +3024,7 @@ export default function AdminPage() {
             const d = daysUntil(ev.event_date)
             const staff = (ev.event_staff as {count:number}[]|null)?.[0]?.count ?? 0
             const tasks = (ev.event_checklist as {count:number}[]|null)?.[0]?.count ?? 0
-            return (d !== null && d < -7 && ev.status === 'active') ||
-                   (d !== null && d <= 45 && staff === 0) ||
+            return (d !== null && d <= 45 && staff === 0) ||
                    (d !== null && d <= 30 && tasks === 0)
           })
           const thisMonthCount = upcoming.filter(ev => { const d = daysUntil(ev.event_date); return d !== null && d >= 0 && d <= 30 }).length
@@ -3101,21 +3100,20 @@ export default function AdminPage() {
                       const taskTotal  = s?.task_total ?? taskCount
                       const taskPct    = taskTotal > 0 ? Math.round((taskDone / taskTotal) * 100) : 0
                       const alerts: string[] = []
-                      if (days !== null && days < -7 && ev.status === 'active') alerts.push(`Date passed ${Math.abs(days)}d ago`)
                       if (staffCount === 0) alerts.push('No staff assigned')
                       if (taskTotal === 0) alerts.push('No checklist yet')
                       else if (days !== null && days <= 30 && taskPct < 15 && taskDone === 0) alerts.push('Tasks not started')
-                      const isUrgent = (days !== null && days < -7 && ev.status === 'active') ||
-                                       (days !== null && days <= 45 && staffCount === 0) ||
+                      const isUrgent = (days !== null && days <= 45 && staffCount === 0) ||
                                        (days !== null && days <= 30 && taskTotal === 0)
                       return { ev, days, staffCount, taskTotal, taskDone, taskPct, alerts, isUrgent, s }
                     })
 
                     const groups = [
-                      { key: 'attn',  label: 'Needs attention', color: '#8B1A1A', items: annotated.filter(x => x.isUrgent) },
-                      { key: 'month', label: 'This month',       color: '#3730A3', items: annotated.filter(x => !x.isUrgent && x.days !== null && x.days >= 0 && x.days <= 30) },
-                      { key: 'soon',  label: 'Coming up',        color: '#1565C0', items: annotated.filter(x => !x.isUrgent && x.days !== null && x.days > 30 && x.days <= 90) },
-                      { key: 'later', label: 'Later',            color: '#3D6B00', items: annotated.filter(x => !x.isUrgent && (x.days === null || x.days > 90)) },
+                      { key: 'attn',    label: 'Needs attention', color: '#8B1A1A', items: annotated.filter(x => x.isUrgent) },
+                      { key: 'ongoing', label: 'In progress',     color: '#00897B', items: annotated.filter(x => !x.isUrgent && x.days !== null && x.days < 0) },
+                      { key: 'month',   label: 'This month',      color: '#3730A3', items: annotated.filter(x => !x.isUrgent && x.days !== null && x.days >= 0 && x.days <= 30) },
+                      { key: 'soon',    label: 'Coming up',       color: '#1565C0', items: annotated.filter(x => !x.isUrgent && x.days !== null && x.days > 30 && x.days <= 90) },
+                      { key: 'later',   label: 'Later',           color: '#3D6B00', items: annotated.filter(x => !x.isUrgent && (x.days === null || x.days > 90)) },
                     ]
 
                     return (
