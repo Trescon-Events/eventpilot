@@ -35,29 +35,15 @@ export async function POST(req: NextRequest) {
 
     if (!staff) {
       // No staff record yet (pre-HR import) — synthetic super admin, skip questionnaire
-      return NextResponse.json({
-        id:          'super-admin',
-        name:        'Super Admin',
-        department:  null,
-        role:        'Super Admin',
-        office_id:   null,
-        job_level:   'super_admin',
-        is_admin:    true,
-        has_reports: true,
-        has_profile: true,
-      })
+      const syntheticSession = Buffer.from(JSON.stringify({ sid: 'super-admin', jl: 'super_admin', adm: true, dept: '' })).toString('base64')
+      const r = NextResponse.json({ id: 'super-admin', name: 'Super Admin', department: null, role: 'Super Admin', office_id: null, job_level: 'super_admin', is_admin: true, has_reports: true, has_profile: true })
+      r.cookies.set('tcs_session', syntheticSession, { httpOnly: true, secure: process.env.NODE_ENV === 'production', sameSite: 'lax', maxAge: 60 * 60 * 8, path: '/' })
+      return r
     }
-    return NextResponse.json({
-      id:          staff.id,
-      name:        staff.name,
-      department:  staff.department,
-      role:        staff.role,
-      office_id:   staff.office_id,
-      job_level:   staff.job_level ?? 'super_admin',
-      is_admin:    true,
-      has_reports: true,
-      has_profile: true, // super admin never goes through the questionnaire
-    })
+    const adminSession = Buffer.from(JSON.stringify({ sid: staff.id, jl: staff.job_level ?? 'super_admin', adm: true, dept: staff.department ?? '' })).toString('base64')
+    const r = NextResponse.json({ id: staff.id, name: staff.name, department: staff.department, role: staff.role, office_id: staff.office_id, job_level: staff.job_level ?? 'super_admin', is_admin: true, has_reports: true, has_profile: true })
+    r.cookies.set('tcs_session', adminSession, { httpOnly: true, secure: process.env.NODE_ENV === 'production', sameSite: 'lax', maxAge: 60 * 60 * 8, path: '/' })
+    return r
   }
 
   // ── Regular staff path ──
@@ -94,11 +80,11 @@ export async function POST(req: NextRequest) {
     supabaseAdmin.from('staff_task_profiles').select('*', { count: 'exact', head: true }).eq('staff_id', staff.id),
   ])
 
-  const jobLevel  = staff.job_level ?? 'staff'
-  const isAdmin   = jobLevel === 'super_admin' || jobLevel === 'office_head'
+  const jobLevel   = staff.job_level ?? 'staff'
+  const isAdmin    = jobLevel === 'super_admin' || jobLevel === 'office_head'
   const hasProfile = (profileCount ?? 0) > 0
 
-  return NextResponse.json({
+  const responseBody = {
     id:          staff.id,
     name:        staff.name,
     department:  staff.department,
@@ -108,5 +94,22 @@ export async function POST(req: NextRequest) {
     is_admin:    isAdmin,
     has_reports: (reportCount ?? 0) > 0,
     has_profile: hasProfile,
+  }
+
+  const sessionPayload = Buffer.from(JSON.stringify({
+    sid:  staff.id,
+    jl:   jobLevel,
+    adm:  isAdmin,
+    dept: staff.department ?? '',
+  })).toString('base64')
+
+  const res = NextResponse.json(responseBody)
+  res.cookies.set('tcs_session', sessionPayload, {
+    httpOnly: true,
+    secure:   process.env.NODE_ENV === 'production',
+    sameSite: 'lax',
+    maxAge:   60 * 60 * 8, // 8 hours
+    path:     '/',
   })
+  return res
 }

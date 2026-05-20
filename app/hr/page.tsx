@@ -106,6 +106,18 @@ export default function HRDashboard() {
   const [tab, setTab]     = useState<'overview' | 'leave' | 'alerts' | 'training' | 'history'>('overview')
   const [initState, setInitState] = useState<'idle' | 'running' | 'done' | 'error'>('idle')
   const [initResult, setInitResult] = useState<{ total_staff: number; contracts_created: number; balances_created: number; history_created: number } | null>(null)
+  const [initBannerDismissed, setInitBannerDismissed] = useState<boolean>(false)
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      setInitBannerDismissed(localStorage.getItem('hrms_init_done') === 'true')
+    }
+  }, [])
+
+  function dismissInitBanner() {
+    localStorage.setItem('hrms_init_done', 'true')
+    setInitBannerDismissed(true)
+  }
 
   async function runInit() {
     setInitState('running')
@@ -114,11 +126,11 @@ export default function HRDashboard() {
       const data = await res.json()
       setInitResult(data)
       setInitState('done')
+      localStorage.setItem('hrms_init_done', 'true')
+      setInitBannerDismissed(true)
       // Reload dashboard data after init
       setLoading(true)
       fetch('/api/hr/dashboard').then(r => r.json()).then(d => { setData(d); setLoading(false) })
-      // Auto-dismiss after 5s
-      setTimeout(() => setInitState('idle'), 5000)
     } catch {
       setInitState('error')
     }
@@ -183,15 +195,15 @@ export default function HRDashboard() {
           <div style={{ textAlign: 'center', padding: '80px', color: C.red, fontSize: '15px' }}>Failed to load dashboard data.</div>
         )}
 
-        {/* ── HRMS Initialisation Banner — only shown if no contracts exist yet ── */}
-        {initState === 'idle' && data && data.headcount.total > 0 && data.onboarding.active_count === 0 && data.contracts.expiring_soon_count === 0 && (
+        {/* ── HRMS Initialisation Banner — only shown until dismissed or init run ── */}
+        {!initBannerDismissed && initState === 'idle' && data && data.headcount.total > 0 && data.onboarding.active_count === 0 && data.contracts.expiring_soon_count === 0 && (
           <div style={{ background: C.amber + '15', border: `1px solid ${C.amber}40`, borderRadius: '14px', padding: '16px 20px', marginBottom: '24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '16px' }}>
             <div>
               <div style={{ fontSize: '13px', fontWeight: 800, color: C.amber, marginBottom: '2px' }}>First-time setup</div>
               <div style={{ fontSize: '13px', color: C.muted }}>Create starter contracts, leave balances, and employment history for all active staff. Safe to run — skips anyone already set up.</div>
             </div>
             <div style={{ display: 'flex', gap: '8px', flexShrink: 0 }}>
-              <button onClick={() => setInitState('done')} style={{ padding: '10px 14px', borderRadius: '10px', background: 'transparent', color: C.muted, fontSize: '13px', fontWeight: 600, border: `1px solid ${C.border}`, cursor: 'pointer', fontFamily: 'inherit' }}>
+              <button onClick={dismissInitBanner} style={{ padding: '10px 14px', borderRadius: '10px', background: 'transparent', color: C.muted, fontSize: '13px', fontWeight: 600, border: `1px solid ${C.border}`, cursor: 'pointer', fontFamily: 'inherit' }}>
                 Dismiss
               </button>
               <button onClick={runInit}

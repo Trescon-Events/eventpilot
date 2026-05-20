@@ -28,6 +28,7 @@ const SECTION_ORDER = [
   'Platform Overview',
   'How the Platform Works',
   'User Guide',
+  'Operations Reference',
   'Technical Reference',
 ]
 
@@ -36,6 +37,7 @@ const SECTION_DESC: Record<string, string> = {
   'Platform Overview':     'What Trescademy is, how it works, and what the numbers mean',
   'How the Platform Works': 'The logic behind recommendations, hierarchy, and learning tracks',
   'User Guide':            'Step-by-step guides for staff, managers, and admins',
+  'Operations Reference':  'Event execution workflows, RACI governance, and access control',
   'Technical Reference':   'API endpoints, data structure, and platform architecture',
 }
 
@@ -44,6 +46,7 @@ const SECTION_COLOR: Record<string, string> = {
   'Platform Overview':     '#00897B',
   'How the Platform Works': '#C0F43C',
   'User Guide':            '#A478FF',
+  'Operations Reference':  '#7C3AED',
   'Technical Reference':   '#8B1A1A',
 }
 
@@ -52,6 +55,7 @@ const SECTION_ICON: Record<string, React.ReactNode> = {
   'Platform Overview':     <svg width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>,
   'How the Platform Works': <svg width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>,
   'User Guide':            <svg width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>,
+  'Operations Reference':  <svg width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>,
   'Technical Reference':   <svg width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/></svg>,
 }
 

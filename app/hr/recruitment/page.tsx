@@ -88,6 +88,11 @@ function CandidateCard({ app, onMove, onScreen, onView }: {
   const nextInterview = app.interviews?.find(i => i.status === 'scheduled')
   const latestRound   = app.interviews?.sort((a, b) => b.round_number - a.round_number)[0]
 
+  // Needs action: applied with no AI score yet
+  const needsScreen = app.stage === 'applied' && app.ai_score == null
+  // Offer stage: awaiting decision
+  const awaitingDecision = app.stage === 'offer'
+
   return (
     <div
       onClick={() => onView(app)}
@@ -97,9 +102,22 @@ function CandidateCard({ app, onMove, onScreen, onView }: {
     >
       {/* Name + source */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '6px' }}>
-        <div style={{ fontSize: '13px', fontWeight: 800, color: C.text }}>{app.candidate?.full_name}</div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+          {needsScreen && (
+            <span style={{ color: C.amber, fontSize: '12px', lineHeight: 1, flexShrink: 0 }}>●</span>
+          )}
+          {awaitingDecision && (
+            <span style={{ color: C.green, fontSize: '12px', lineHeight: 1, flexShrink: 0, animation: 'pulse 1.5s ease-in-out infinite' }}>●</span>
+          )}
+          <div style={{ fontSize: '13px', fontWeight: 800, color: C.text }}>{app.candidate?.full_name}</div>
+        </div>
         {pill(C.muted, app.candidate?.source ?? 'direct')}
       </div>
+
+      {awaitingDecision && (
+        <div style={{ fontSize: '11px', color: C.green, fontWeight: 700, marginBottom: '6px' }}>Awaiting decision</div>
+      )}
+
       <div style={{ fontSize: '12px', color: C.muted, marginBottom: '10px' }}>{app.candidate?.email}</div>
 
       {/* AI score */}
@@ -130,7 +148,17 @@ function CandidateCard({ app, onMove, onScreen, onView }: {
 
       {/* Quick actions */}
       <div onClick={e => e.stopPropagation()} style={{ display: 'flex', gap: '6px', marginTop: '8px', flexWrap: 'wrap' }}>
-        {app.stage === 'applied' && (
+        {/* "Screen now" is the FIRST and most prominent action when needs screening */}
+        {needsScreen && (
+          <button
+            disabled={acting}
+            onClick={async () => { setActing(true); await onScreen(app.id); setActing(false) }}
+            style={{ padding: '5px 12px', borderRadius: '6px', background: C.amber, color: '#fff', fontSize: '11px', fontWeight: 700, border: 'none', cursor: 'pointer', fontFamily: 'inherit', flexShrink: 0 }}>
+            Screen now
+          </button>
+        )}
+        {/* Regular AI Screen button for applied with no score (non-needsScreen path handled above) */}
+        {app.stage === 'applied' && !needsScreen && (
           <button
             disabled={acting}
             onClick={async () => { setActing(true); await onScreen(app.id); setActing(false) }}
@@ -651,6 +679,7 @@ export default function RecruitmentPage() {
   const activeStages = kanban?.stage_order.filter(s => !['rejected', 'withdrawn', 'hired'].includes(s)) ?? []
   const totalActive  = kanban ? Object.entries(kanban.grouped).filter(([s]) => ACTIVE_STAGES.includes(s)).reduce((sum, [, apps]) => sum + apps.length, 0) : 0
   const totalHired   = kanban?.grouped['hired']?.length ?? 0
+  const totalRejected = kanban?.grouped['rejected']?.length ?? 0
 
   if (loading) {
     return (
@@ -665,15 +694,17 @@ export default function RecruitmentPage() {
       {/* Header */}
       <div style={{ background: C.surface, borderBottom: `1px solid ${C.border}`, padding: '0 32px', position: 'sticky', top: 0, zIndex: 10 }}>
         <div style={{ maxWidth: '1400px', margin: '0 auto', display: 'flex', alignItems: 'center', justifyContent: 'space-between', height: '60px' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
             <Link href="/hr" style={{ fontSize: '13px', color: C.muted, textDecoration: 'none', fontWeight: 600 }}>← HR Portal</Link>
-            <div style={{ width: '1px', height: '20px', background: C.border }} />
-            <div style={{ fontSize: '15px', fontWeight: 800, color: C.text }}>Recruitment</div>
+            <span style={{ color: C.border, fontSize: '13px' }}>/</span>
+            <Link href="/hr/recruitment" style={{ fontSize: '13px', color: C.muted, textDecoration: 'none', fontWeight: 600 }}>Recruitment</Link>
             {activeReq && (
               <>
-                <div style={{ width: '1px', height: '20px', background: C.border }} />
-                <div style={{ fontSize: '14px', fontWeight: 700, color: C.text }}>{activeReq.title}</div>
-                {activeReq.department && <span style={{ fontSize: '12px', color: C.muted }}>{activeReq.department}</span>}
+                <span style={{ color: C.border, fontSize: '13px' }}>/</span>
+                <span style={{ fontSize: '14px', fontWeight: 700, color: C.text }}>{activeReq.title}</span>
+                {activeReq.department && (
+                  <span style={{ fontSize: '12px', color: C.muted }}>{activeReq.department}</span>
+                )}
               </>
             )}
           </div>
@@ -712,21 +743,59 @@ export default function RecruitmentPage() {
               </button>
             </div>
           ) : (
-            requisitions.map(req => (
-              <div key={req.id} onClick={() => setActiveReqId(req.id)}
-                style={{ padding: '16px 20px', borderBottom: `1px solid ${C.border}`, cursor: 'pointer', background: activeReqId === req.id ? C.green + '08' : 'transparent', borderLeft: activeReqId === req.id ? `3px solid ${C.green}` : '3px solid transparent' }}>
-                <div style={{ fontSize: '13px', fontWeight: 800, color: C.text, marginBottom: '4px' }}>{req.title}</div>
-                <div style={{ fontSize: '12px', color: C.muted, marginBottom: '6px' }}>
-                  {req.department ?? '—'} {req.location ? `· ${req.location}` : ''}
+            requisitions.map(req => {
+              const isActive = activeReqId === req.id
+              // Build pipeline mini-funnel for the active position
+              const pipelineStages = isActive && kanban
+                ? ACTIVE_STAGES.map(s => ({ stage: s, label: STAGES[s]?.label ?? s, count: kanban.grouped[s]?.length ?? 0 })).filter(s => ['applied', 'ai_screening', 'shortlisted', 'interview_r1', 'offer'].includes(s.stage))
+                : null
+
+              return (
+                <div key={req.id} onClick={() => setActiveReqId(req.id)}
+                  style={{
+                    padding: '14px 16px',
+                    borderBottom: `1px solid ${C.border}`,
+                    cursor: 'pointer',
+                    background: isActive ? C.green + '08' : 'transparent',
+                    borderLeft: isActive ? `3px solid ${C.green}` : '3px solid transparent',
+                  }}>
+                  <div style={{ fontSize: '13px', fontWeight: 800, color: C.text, marginBottom: '3px' }}>{req.title}</div>
+                  <div style={{ fontSize: '12px', color: C.muted, marginBottom: '8px' }}>
+                    {req.department ?? '—'}{req.location ? ` · ${req.location}` : ''}
+                  </div>
+
+                  {/* Status + headcount pills */}
+                  <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', marginBottom: pipelineStages ? '10px' : '0' }}>
+                    <span style={{ fontSize: '11px', fontWeight: 700, padding: '2px 7px', borderRadius: '8px', background: req.status === 'open' ? C.green + '15' : C.muted + '15', color: req.status === 'open' ? C.green : C.muted }}>
+                      {req.status}
+                    </span>
+                    <span style={{ fontSize: '11px', color: C.muted }}>×{req.headcount}</span>
+                  </div>
+
+                  {/* Mini pipeline funnel for active position */}
+                  {pipelineStages && (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '4px', flexWrap: 'wrap' }}>
+                      {pipelineStages.map((s, idx) => (
+                        <div key={s.stage} style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                          <div style={{ textAlign: 'center' }}>
+                            <div style={{ fontSize: '13px', fontWeight: 800, color: s.count > 0 ? C.text : C.border, lineHeight: 1 }}>{s.count}</div>
+                            <div style={{ fontSize: '9px', color: C.muted, whiteSpace: 'nowrap', marginTop: '1px' }}>{s.label}</div>
+                          </div>
+                          {idx < pipelineStages.length - 1 && (
+                            <span style={{ color: C.border, fontSize: '10px', marginBottom: '10px' }}>›</span>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* For non-active: show total count if kanban was previously loaded */}
+                  {!isActive && (
+                    <div style={{ fontSize: '11px', color: C.muted }}></div>
+                  )}
                 </div>
-                <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
-                  <span style={{ fontSize: '11px', fontWeight: 700, padding: '2px 7px', borderRadius: '8px', background: req.status === 'open' ? C.green + '15' : C.muted + '15', color: req.status === 'open' ? C.green : C.muted }}>
-                    {req.status}
-                  </span>
-                  <span style={{ fontSize: '11px', color: C.muted }}>×{req.headcount}</span>
-                </div>
-              </div>
-            ))
+              )
+            })
           )}
         </div>
 
@@ -738,13 +807,21 @@ export default function RecruitmentPage() {
             </div>
           ) : (
             <>
-              {/* Pipeline stats */}
-              <div style={{ padding: '16px 24px', borderBottom: `1px solid ${C.border}`, background: C.surface, display: 'flex', gap: '20px', alignItems: 'center', flexShrink: 0 }}>
-                <div style={{ fontSize: '13px', color: C.muted }}><strong style={{ color: C.text, fontWeight: 800 }}>{totalActive}</strong> in pipeline</div>
-                <div style={{ fontSize: '13px', color: C.muted }}><strong style={{ color: C.green, fontWeight: 800 }}>{totalHired}</strong> hired</div>
-                <div style={{ fontSize: '13px', color: C.muted }}><strong style={{ color: C.red, fontWeight: 800 }}>{kanban.grouped['rejected']?.length ?? 0}</strong> rejected</div>
+              {/* Pipeline stats bar — 3 prominent stat cards */}
+              <div style={{ padding: '16px 24px', borderBottom: `1px solid ${C.border}`, background: C.surface, display: 'flex', gap: '12px', alignItems: 'center', flexShrink: 0, flexWrap: 'wrap' }}>
+                {[
+                  { label: 'In Pipeline', value: totalActive,   color: C.text    },
+                  { label: 'Hired',        value: totalHired,    color: C.green   },
+                  { label: 'Rejected',     value: totalRejected, color: C.red     },
+                ].map(({ label, value, color }) => (
+                  <div key={label} style={{ background: C.bg, border: `1px solid ${C.border}`, borderRadius: '12px', padding: '10px 18px', display: 'flex', flexDirection: 'column', gap: '2px', minWidth: '80px' }}>
+                    <div style={{ fontSize: '24px', fontWeight: 900, color, lineHeight: 1 }}>{value}</div>
+                    <div style={{ fontSize: '10px', fontWeight: 700, color: C.muted, textTransform: 'uppercase', letterSpacing: '0.6px' }}>{label}</div>
+                  </div>
+                ))}
+
                 {activeReq?.salary_min && (
-                  <div style={{ fontSize: '13px', color: C.muted, marginLeft: 'auto' }}>
+                  <div style={{ marginLeft: 'auto', fontSize: '13px', color: C.muted, alignSelf: 'center' }}>
                     {activeReq.currency} {activeReq.salary_min.toLocaleString()} – {activeReq.salary_max?.toLocaleString() ?? '?'}
                   </div>
                 )}
@@ -757,8 +834,8 @@ export default function RecruitmentPage() {
                   const cfg = STAGES[stage]
                   return (
                     <div key={stage} style={{ minWidth: '240px', maxWidth: '280px', flex: '0 0 240px', borderRight: `1px solid ${C.border}`, display: 'flex', flexDirection: 'column', background: C.bg }}>
-                      {/* Column header */}
-                      <div style={{ padding: '14px 16px', background: C.surface, borderBottom: `1px solid ${C.border}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0 }}>
+                      {/* Column header with colored top border */}
+                      <div style={{ borderTop: `3px solid ${cfg.color}`, padding: '14px 16px', background: C.surface, borderBottom: `1px solid ${C.border}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0 }}>
                         <div>
                           <div style={{ fontSize: '12px', fontWeight: 800, color: cfg.color }}>{cfg.label}</div>
                           <div style={{ fontSize: '11px', color: C.muted }}>{cfg.description}</div>
@@ -794,7 +871,7 @@ export default function RecruitmentPage() {
                   const cfg = STAGES[stage]
                   return (
                     <div key={stage} style={{ minWidth: '200px', flex: '0 0 200px', borderRight: `1px solid ${C.border}`, display: 'flex', flexDirection: 'column', background: C.bg, opacity: 0.85 }}>
-                      <div style={{ padding: '14px 16px', background: C.surface, borderBottom: `1px solid ${C.border}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0 }}>
+                      <div style={{ borderTop: `3px solid ${cfg.color}`, padding: '14px 16px', background: C.surface, borderBottom: `1px solid ${C.border}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0 }}>
                         <div style={{ fontSize: '12px', fontWeight: 800, color: cfg.color }}>{cfg.label}</div>
                         <span style={{ background: cfg.color + '20', color: cfg.color, fontSize: '12px', fontWeight: 800, padding: '2px 8px', borderRadius: '10px' }}>{stageApps.length}</span>
                       </div>

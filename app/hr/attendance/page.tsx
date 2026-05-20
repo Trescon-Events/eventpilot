@@ -433,7 +433,9 @@ export default function AttendancePage() {
     if (!Array.isArray(data)) return
 
     const byDate: Record<string, number> = {}
+    const datesWithRecords = new Set<string>()
     for (const r of data) {
+      datesWithRecords.add(r.date)
       if (['present', 'wfh', 'half_day'].includes(r.status)) {
         byDate[r.date] = (byDate[r.date] ?? 0) + 1
       }
@@ -442,7 +444,10 @@ export default function AttendancePage() {
     const points: TrendPoint[] = []
     for (let i = 29; i >= 0; i--) {
       const d = new Date(); d.setDate(d.getDate() - i)
+      const dow = d.getDay()
+      if (dow === 0 || dow === 6) continue  // skip weekends — no attendance expected
       const dateStr = d.toISOString().slice(0, 10)
+      if (!datesWithRecords.has(dateStr)) continue  // skip days with no records at all (sync not done)
       const present = byDate[dateStr] ?? 0
       points.push({ date: dateStr, present, total, rate: Math.round((present / total) * 100) })
     }
@@ -557,12 +562,12 @@ export default function AttendancePage() {
     })
   }, [baseRows, search, officeFilter, deptFilter, statusFilter, mode])
 
-  // ── Trend values ──────────────────────────────────────────────────────────
+  // ── Trend values — weekends and no-data days already excluded from trendData ─
   const sparkValues = trendData.map(p => p.rate)
   const avgRate = sparkValues.length > 0
     ? Math.round(sparkValues.reduce((a, b) => a + b, 0) / sparkValues.length)
     : 0
-  const last7 = trendData.slice(-7)
+  const last7 = trendData.slice(-7) // last 7 working days with data
 
   // ── Derived booleans ──────────────────────────────────────────────────────
   const isToday = mode === 'day' && selectedDate === today
@@ -682,18 +687,12 @@ export default function AttendancePage() {
   return (
     <div style={{ minHeight: '100vh', background: C.bg, fontFamily: 'system-ui, sans-serif' }}>
 
-      {/* ── Top bar ── */}
+      {/* ── Top bar (sticky) ── */}
       <div style={{ background: C.surface, borderBottom: `1px solid ${C.border}`, padding: '0 32px', position: 'sticky', top: 0, zIndex: 50 }}>
         <div style={{ maxWidth: '1280px', margin: '0 auto', display: 'flex', alignItems: 'center', height: '60px', gap: '10px' }}>
           <Link href="/hr" style={{ fontSize: '13px', color: C.muted, textDecoration: 'none', fontWeight: 600, flexShrink: 0 }}>← HR Portal</Link>
           <div style={{ width: '1px', height: '20px', background: C.border }} />
           <span style={{ fontSize: '15px', fontWeight: 800, color: C.text, flexShrink: 0 }}>Attendance</span>
-
-          {lastSynced && (
-            <span style={{ fontSize: '11px', color: C.muted }}>
-              · Synced {new Date(lastSynced).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
-            </span>
-          )}
 
           <div style={{ flex: 1 }} />
 
@@ -724,6 +723,35 @@ export default function AttendancePage() {
 
       <div style={{ maxWidth: '1280px', margin: '0 auto', padding: '24px 32px' }}>
 
+        {/* ── Last synced (below header) ── */}
+        {lastSynced && (
+          <div style={{ fontSize: '11px', color: C.muted, marginBottom: '16px' }}>
+            Last synced: {new Date(lastSynced).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+          </div>
+        )}
+
+        {/* ── Summary hero card (today / day mode) ── */}
+        {mode === 'day' && !loading && (
+          <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: '16px', padding: '20px 24px', marginBottom: '16px' }}>
+            <div style={{ fontSize: '11px', fontWeight: 700, color: C.muted, textTransform: 'uppercase', letterSpacing: '0.8px', marginBottom: '14px' }}>
+              {isToday ? "Today's Attendance" : fmtDateLong(selectedDate)}
+            </div>
+            <div style={{ display: 'flex', gap: '32px', flexWrap: 'wrap' }}>
+              {[
+                { label: 'Present',   value: stats.present,   color: C.green  },
+                { label: 'Absent',    value: stats.absent,    color: C.red    },
+                { label: 'Late',      value: stats.late,      color: C.amber  },
+                { label: 'No Record', value: stats.no_record, color: C.red    },
+              ].map(({ label, value, color }) => (
+                <div key={label} style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                  <div style={{ fontSize: '36px', fontWeight: 900, color: value > 0 ? color : C.border, lineHeight: 1 }}>{value}</div>
+                  <div style={{ fontSize: '11px', fontWeight: 700, color: C.muted, textTransform: 'uppercase', letterSpacing: '0.6px' }}>{label}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
         {/* ── Office strip ── */}
         {offices.length > 0 && (
           <div style={{ display: 'flex', gap: '8px', marginBottom: '16px', flexWrap: 'wrap' }}>
@@ -735,7 +763,7 @@ export default function AttendancePage() {
               return (
                 <button key={o} onClick={() => toggleOffice(o)} style={{
                   display: 'flex', alignItems: 'center', gap: '10px',
-                  padding: '10px 16px', borderRadius: '12px',
+                  padding: '8px 12px', borderRadius: '12px',
                   border: `2px solid ${active ? col : C.border}`,
                   background: active ? col + '10' : C.surface,
                   cursor: 'pointer', fontFamily: 'inherit', outline: 'none',
@@ -754,7 +782,7 @@ export default function AttendancePage() {
             })}
             {officeFilter.size > 0 && (
               <button onClick={() => setOfficeFilter(new Set())}
-                style={{ padding: '10px 14px', borderRadius: '12px', border: `1px solid ${C.border}`, background: C.surface, fontSize: '12px', color: C.muted, cursor: 'pointer', fontFamily: 'inherit' }}>
+                style={{ padding: '8px 12px', borderRadius: '12px', border: `1px solid ${C.border}`, background: C.surface, fontSize: '12px', color: C.muted, cursor: 'pointer', fontFamily: 'inherit' }}>
                 Show all offices
               </button>
             )}
@@ -823,7 +851,7 @@ export default function AttendancePage() {
         {trendReady && trendData.length > 0 && (
           <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: '12px', padding: '16px 20px', marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '24px', flexWrap: 'wrap' }}>
             <div style={{ flexShrink: 0 }}>
-              <div style={{ fontSize: '10px', fontWeight: 700, color: C.muted, textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '2px' }}>30-day avg attendance</div>
+              <div style={{ fontSize: '10px', fontWeight: 700, color: C.muted, textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '2px' }}>30-day avg (working days)</div>
               <div style={{ fontSize: '32px', fontWeight: 900, color: avgRate >= 80 ? C.green : avgRate >= 60 ? C.amber : C.red, lineHeight: 1 }}>{avgRate}%</div>
               <div style={{ fontSize: '11px', color: C.muted, marginTop: '2px' }}>{staffList.length} staff tracked</div>
             </div>
@@ -833,7 +861,7 @@ export default function AttendancePage() {
             <div style={{ flex: 1 }} />
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: '3px', minWidth: '160px' }}>
-              <div style={{ fontSize: '10px', fontWeight: 700, color: C.muted, textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '4px' }}>Last 7 days</div>
+              <div style={{ fontSize: '10px', fontWeight: 700, color: C.muted, textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '4px' }}>Last 7 working days</div>
               {last7.map(p => (
                 <div key={p.date} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '12px' }}>
                   <span style={{ fontSize: '11px', color: C.muted }}>{fmtDate(p.date)}</span>
@@ -841,20 +869,6 @@ export default function AttendancePage() {
                 </div>
               ))}
             </div>
-          </div>
-        )}
-
-        {/* ── Absence alert (today only) ── */}
-        {isToday && stats.no_record > 0 && (
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', background: C.red + '0D', border: `1px solid ${C.red}40`, borderRadius: '10px', padding: '10px 16px', marginBottom: '16px' }}>
-            <span style={{ fontSize: '16px' }}>⚠</span>
-            <span style={{ fontSize: '13px', fontWeight: 700, color: C.red }}>
-              {stats.no_record} staff {stats.no_record === 1 ? 'has' : 'have'} no attendance record for today
-            </span>
-            <button onClick={() => setStatusFilter(statusFilter === 'no_record' ? null : 'no_record')}
-              style={{ marginLeft: 'auto', padding: '4px 12px', borderRadius: '8px', border: `1px solid ${C.red}`, fontSize: '12px', fontWeight: 700, color: C.red, background: 'transparent', cursor: 'pointer', fontFamily: 'inherit', flexShrink: 0 }}>
-              {statusFilter === 'no_record' ? 'Show all' : 'Show missing'}
-            </button>
           </div>
         )}
 
@@ -942,9 +956,11 @@ export default function AttendancePage() {
                   const isSelect = selectedKeys.has(r.key)
                   const rowBg    = isSelect ? C.green + '08' : noRec ? C.red + '05' : i % 2 === 0 ? C.surface : C.bg
                   const sc       = STATUS_COLOR[r.status] ?? C.muted
+                  // 3px left border on rows that have a record, matching status color
+                  const leftBorder = r.hasRecord ? `3px solid ${sc}` : `3px solid transparent`
 
                   return (
-                    <tr key={r.key} style={{ borderBottom: i < filtered.length - 1 ? `1px solid ${C.border}` : 'none', background: rowBg }}>
+                    <tr key={r.key} style={{ borderBottom: i < filtered.length - 1 ? `1px solid ${C.border}` : 'none', background: rowBg, borderLeft: leftBorder }}>
 
                       {/* Checkbox */}
                       <td style={{ padding: '10px 14px' }}>
@@ -955,7 +971,7 @@ export default function AttendancePage() {
 
                       {/* Name */}
                       <td style={{ padding: '10px 12px' }}>
-                        <Link href={`/hr/staff/${r.staff_id}`} style={{ fontSize: '13px', fontWeight: 700, color: C.text, textDecoration: 'none' }}>
+                        <Link href={`/hr/staff/${r.staff_id}`} style={{ fontSize: '14px', fontWeight: 800, color: C.text, textDecoration: 'none' }}>
                           {r.name}
                         </Link>
                       </td>

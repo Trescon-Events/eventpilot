@@ -652,6 +652,26 @@ export default function EventWorkspacePage({ params }: { params: Promise<{ id: s
           )}
         </div>
 
+        {/* Execution Flow shortcut */}
+        <div style={{ marginBottom: '16px', background: 'rgba(124,58,237,0.05)', border: '1px solid rgba(124,58,237,0.25)', borderRadius: '16px', padding: '20px 24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '16px', flexWrap: 'wrap' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+            <div style={{ width: '44px', height: '44px', background: 'rgba(124,58,237,0.12)', border: '1px solid rgba(124,58,237,0.3)', borderRadius: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, fontSize: '20px' }}>
+              🎯
+            </div>
+            <div>
+              <div style={{ fontSize: '13px', fontWeight: 800, color: '#0F1923', marginBottom: '3px' }}>Execution Flow & RACI</div>
+              <div style={{ fontSize: '13px', color: '#2D3E50' }}>5-phase RACI governance — responsibilities, approvals, milestone tracking, red flags, COO overrides</div>
+            </div>
+          </div>
+          <Link
+            href={`/admin/events/${eventId}/execution`}
+            style={{ padding: '10px 20px', borderRadius: '10px', background: '#7C3AED', border: 'none', color: '#fff', fontSize: '13px', fontWeight: 800, textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '8px', whiteSpace: 'nowrap' }}
+          >
+            <svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+            Open Execution Flow
+          </Link>
+        </div>
+
         {/* Planning Board shortcut */}
         <div style={{ marginBottom: '16px', background: 'rgba(192,244,60,0.05)', border: '1px solid rgba(192,244,60,0.25)', borderRadius: '16px', padding: '20px 24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '16px', flexWrap: 'wrap' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
@@ -673,7 +693,7 @@ export default function EventWorkspacePage({ params }: { params: Promise<{ id: s
         </div>
 
         {/* Content Campaigns shortcut */}
-        <div style={{ marginBottom: '32px', background: 'rgba(167,139,250,0.05)', border: '1px solid rgba(167,139,250,0.18)', borderRadius: '16px', padding: '20px 24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '16px', flexWrap: 'wrap' }}>
+        <div style={{ marginBottom: '16px', background: 'rgba(167,139,250,0.05)', border: '1px solid rgba(167,139,250,0.18)', borderRadius: '16px', padding: '20px 24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '16px', flexWrap: 'wrap' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
             <div style={{ width: '44px', height: '44px', background: 'rgba(167,139,250,0.12)', border: '1px solid rgba(167,139,250,0.25)', borderRadius: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
               <svg width="20" height="20" fill="none" stroke="#A78BFA" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24">
@@ -692,6 +712,26 @@ export default function EventWorkspacePage({ params }: { params: Promise<{ id: s
           >
             <svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
             Open Campaigns
+          </Link>
+        </div>
+
+        {/* Event Website shortcut */}
+        <div style={{ marginBottom: '16px', background: 'rgba(0,105,92,0.04)', border: '1px solid rgba(0,105,92,0.18)', borderRadius: '16px', padding: '20px 24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '16px', flexWrap: 'wrap' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+            <div style={{ width: '44px', height: '44px', background: 'rgba(0,105,92,0.1)', border: '1px solid rgba(0,105,92,0.2)', borderRadius: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, fontSize: '20px' }}>
+              🌐
+            </div>
+            <div>
+              <div style={{ fontSize: '13px', fontWeight: 800, color: '#0F1923', marginBottom: '3px' }}>Event Website</div>
+              <div style={{ fontSize: '13px', color: '#2D3E50' }}>Build and publish a public-facing marketing website for this event</div>
+            </div>
+          </div>
+          <Link
+            href={`/admin/events/${eventId}/website`}
+            style={{ padding: '10px 20px', borderRadius: '10px', background: 'rgba(0,105,92,0.12)', border: '1px solid rgba(0,105,92,0.25)', color: '#00695C', fontSize: '13px', fontWeight: 700, textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '8px', whiteSpace: 'nowrap' }}
+          >
+            <svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+            Build Website
           </Link>
         </div>
 
