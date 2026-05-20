@@ -410,9 +410,10 @@ export default function ExecutionPage({ params }: { params: Promise<{ id: string
   const [ovrField,  setOvrField]    = useState('due_date')
   const [ovrValue,  setOvrValue]    = useState('')
   const [ovrReason, setOvrReason]   = useState('')
-  const [cfgDays,   setCfgDays]     = useState('')
-  const [cfgStart,  setCfgStart]    = useState('')
-  const [saving,    setSaving]      = useState(false)
+  const [cfgDays,       setCfgDays]       = useState('')
+  const [cfgStart,      setCfgStart]      = useState('')
+  const [timelineEdits, setTimelineEdits] = useState<Record<string, string>>({})
+  const [saving,        setSaving]        = useState(false)
 
   async function load() {
     setLoading(true)
@@ -543,6 +544,8 @@ export default function ExecutionPage({ params }: { params: Promise<{ id: string
   async function submitConfig() {
     if (!cfgDays || !cfgStart) return
     setSaving(true)
+
+    // 1. Save cycle config
     await fetch('/api/events/raci/config', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -552,6 +555,23 @@ export default function ExecutionPage({ params }: { params: Promise<{ id: string
         cycle_start_date: cfgStart,
       }),
     })
+
+    // 2. Save any changed due dates as overrides (in parallel)
+    const overridePromises = checkpoints
+      .filter(cp => timelineEdits[cp.id] !== undefined && timelineEdits[cp.id] !== (cp.due_date ?? ''))
+      .map(cp => fetch('/api/events/raci/override', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          checkpoint_id: cp.id,
+          event_id:      eventId,
+          field:         'due_date',
+          new_value:     timelineEdits[cp.id],
+          reason:        'Bulk timeline edit via Edit Timelines',
+        }),
+      }))
+    if (overridePromises.length > 0) await Promise.all(overridePromises)
+
     setSaving(false)
     setConfigModal(false)
     load()
@@ -585,9 +605,16 @@ export default function ExecutionPage({ params }: { params: Promise<{ id: string
               <div style={{ fontSize: '12px', color: MUTED, fontWeight: 600 }}>Event: {fmtDate(event.event_date)}</div>
             )}
             <button
-              onClick={() => { setCfgDays(String(config?.total_cycle_days ?? '')); setCfgStart(config?.cycle_start_date ?? ''); setConfigModal(true) }}
+              onClick={() => {
+                setCfgDays(String(config?.total_cycle_days ?? ''))
+                setCfgStart(config?.cycle_start_date ?? '')
+                const edits: Record<string, string> = {}
+                checkpoints.forEach(cp => { edits[cp.id] = cp.due_date ?? '' })
+                setTimelineEdits(edits)
+                setConfigModal(true)
+              }}
               style={{ padding: '8px 16px', borderRadius: '10px', background: config ? SURFACE : ACCENT, color: config ? DARK : DARK, fontSize: '12px', fontWeight: 700, border: `1px solid ${BORDER}`, cursor: 'pointer', fontFamily: 'inherit' }}>
-              {config ? 'Edit COO Config' : 'Set Up Execution'}
+              {config ? 'Edit Timelines' : 'Set Up Execution'}
             </button>
           </div>
         </div>
@@ -700,7 +727,7 @@ export default function ExecutionPage({ params }: { params: Promise<{ id: string
       {(updateModal || approveModal || overrideModal || configModal) && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '16px' }}
           onClick={e => { if (e.target === e.currentTarget) { setUpdateModal(null); setApproveModal(null); setOverrideModal(null); setConfigModal(false) } }}>
-          <div style={{ background: SURFACE, borderRadius: '16px', padding: '28px', width: '100%', maxWidth: '480px', maxHeight: '90vh', overflowY: 'auto' }}>
+          <div style={{ background: SURFACE, borderRadius: '16px', padding: '28px', width: '100%', maxWidth: configModal ? '720px' : '480px', maxHeight: '90vh', overflowY: 'auto' }}>
 
             {/* Update Status Modal */}
             {updateModal && (
@@ -820,40 +847,96 @@ export default function ExecutionPage({ params }: { params: Promise<{ id: string
               </>
             )}
 
-            {/* COO Config Modal */}
-            {configModal && (
-              <>
-                <div style={{ fontSize: '16px', fontWeight: 800, color: DARK, marginBottom: '4px' }}>{config ? 'Edit Execution Config' : 'COO Execution Setup'}</div>
-                <div style={{ fontSize: '13px', color: MUTED, marginBottom: '20px' }}>
-                  Set the event cycle duration and start date. All fixed-duration item deadlines, cycle-based milestone dates, and pre-event window dates are calculated from these values.
-                </div>
-                <label style={{ fontSize: '11px', fontWeight: 700, color: MUTED, textTransform: 'uppercase', letterSpacing: '1px', display: 'block', marginBottom: '6px' }}>Cycle Start Date</label>
-                <input type="date" value={cfgStart} onChange={e => setCfgStart(e.target.value)}
-                  style={{ width: '100%', padding: '10px 12px', borderRadius: '8px', border: `1px solid ${BORDER}`, fontSize: '13px', marginBottom: '16px', fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box' }} />
-                <label style={{ fontSize: '11px', fontWeight: 700, color: MUTED, textTransform: 'uppercase', letterSpacing: '1px', display: 'block', marginBottom: '6px' }}>Total Cycle Duration (days)</label>
-                <input type="number" value={cfgDays} onChange={e => setCfgDays(e.target.value)} min="30" max="730"
-                  placeholder="e.g. 180 for a 6-month event cycle"
-                  style={{ width: '100%', padding: '10px 12px', borderRadius: '8px', border: `1px solid ${BORDER}`, fontSize: '13px', marginBottom: '8px', fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box' }} />
-                <div style={{ fontSize: '11px', color: MUTED, marginBottom: '20px' }}>
-                  Phase 1–3 fixed-duration items are scheduled from cycle start. Phase 4 cycle milestones are distributed across the cycle. Phase 5 pre-event deadlines count back from the event date.
-                </div>
-                {config && (
-                  <div style={{ padding: '10px 14px', borderRadius: '8px', background: '#D9770618', border: '1px solid #D9770630', fontSize: '12px', color: '#D97706', fontWeight: 600, marginBottom: '16px' }}>
-                    Reconfiguring will recalculate all un-overridden due dates. Manually overridden dates are preserved.
+            {/* Edit Timelines Modal */}
+            {configModal && (() => {
+              const phaseLabels = ['Concept', 'Planning', 'Assets', 'Cycle Tracks', 'Pre-Event Lock']
+              const byPhase = [1,2,3,4,5].map(p => ({
+                phase: p,
+                label: phaseLabels[p-1],
+                color: PHASE_COLORS[p-1],
+                items: checkpoints.filter(c => c.phase === p).sort((a,b) => a.sort_order - b.sort_order),
+              })).filter(g => g.items.length > 0)
+              const changedCount = checkpoints.filter(cp =>
+                timelineEdits[cp.id] !== undefined && timelineEdits[cp.id] !== (cp.due_date ?? '')
+              ).length
+
+              return (
+                <>
+                  <div style={{ fontSize: '16px', fontWeight: 800, color: DARK, marginBottom: '2px' }}>
+                    {config ? 'Edit Timelines' : 'Set Up Execution'}
                   </div>
-                )}
-                <div style={{ display: 'flex', gap: '10px' }}>
-                  <button onClick={submitConfig} disabled={saving || !cfgDays || !cfgStart}
-                    style={{ flex: 1, padding: '11px', borderRadius: '10px', background: ACCENT, color: DARK, fontSize: '13px', fontWeight: 700, border: 'none', cursor: 'pointer', fontFamily: 'inherit', opacity: (saving || !cfgDays || !cfgStart) ? 0.6 : 1 }}>
-                    {saving ? 'Saving…' : config ? 'Update Config' : 'Configure & Seed Checkpoints'}
-                  </button>
-                  <button onClick={() => setConfigModal(false)}
-                    style={{ padding: '11px 18px', borderRadius: '10px', background: BG, color: MUTED, fontSize: '13px', fontWeight: 700, border: `1px solid ${BORDER}`, cursor: 'pointer', fontFamily: 'inherit' }}>
-                    Cancel
-                  </button>
-                </div>
-              </>
-            )}
+                  <div style={{ fontSize: '13px', color: MUTED, marginBottom: '24px' }}>
+                    Set the cycle config and adjust individual due dates — all in one place.
+                  </div>
+
+                  {/* ── Section 1: Cycle Config ── */}
+                  <div style={{ background: '#6366F108', border: '1px solid #6366F130', borderRadius: '12px', padding: '16px 20px', marginBottom: '24px' }}>
+                    <div style={{ fontSize: '11px', fontWeight: 800, color: '#6366F1', letterSpacing: '1.5px', textTransform: 'uppercase', marginBottom: '14px' }}>Cycle Configuration</div>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px' }}>
+                      <div>
+                        <label style={{ fontSize: '11px', fontWeight: 700, color: MUTED, textTransform: 'uppercase', letterSpacing: '1px', display: 'block', marginBottom: '6px' }}>Cycle Start Date</label>
+                        <input type="date" value={cfgStart} onChange={e => setCfgStart(e.target.value)}
+                          style={{ width: '100%', padding: '9px 12px', borderRadius: '8px', border: `1px solid ${BORDER}`, fontSize: '13px', fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box' }} />
+                      </div>
+                      <div>
+                        <label style={{ fontSize: '11px', fontWeight: 700, color: MUTED, textTransform: 'uppercase', letterSpacing: '1px', display: 'block', marginBottom: '6px' }}>Cycle Duration (days)</label>
+                        <input type="number" value={cfgDays} onChange={e => setCfgDays(e.target.value)} min="30" max="730"
+                          placeholder="e.g. 180"
+                          style={{ width: '100%', padding: '9px 12px', borderRadius: '8px', border: `1px solid ${BORDER}`, fontSize: '13px', fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box' }} />
+                      </div>
+                    </div>
+                    {config && (
+                      <div style={{ marginTop: '10px', fontSize: '11px', color: '#D97706', fontWeight: 600 }}>
+                        Updating cycle config recalculates all un-overridden dates. Manual overrides below are preserved.
+                      </div>
+                    )}
+                  </div>
+
+                  {/* ── Section 2: All checkpoint due dates ── */}
+                  <div style={{ fontSize: '11px', fontWeight: 800, color: MUTED, letterSpacing: '1.5px', textTransform: 'uppercase', marginBottom: '12px' }}>
+                    Due Dates — All Checkpoints {changedCount > 0 && <span style={{ color: '#D97706', marginLeft: '8px' }}>{changedCount} changed</span>}
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', marginBottom: '24px' }}>
+                    {byPhase.map(grp => (
+                      <div key={grp.phase}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
+                          <div style={{ width: '6px', height: '6px', borderRadius: '50%', background: grp.color }} />
+                          <span style={{ fontSize: '11px', fontWeight: 800, color: grp.color, letterSpacing: '1px', textTransform: 'uppercase' }}>Phase {grp.phase} — {grp.label}</span>
+                          <div style={{ flex: 1, height: '1px', background: BORDER }} />
+                        </div>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                          {grp.items.map(cp => {
+                            const edited = timelineEdits[cp.id] !== undefined && timelineEdits[cp.id] !== (cp.due_date ?? '')
+                            return (
+                              <div key={cp.id} style={{ display: 'grid', gridTemplateColumns: '1fr 160px', gap: '10px', alignItems: 'center', padding: '7px 10px', borderRadius: '8px', background: edited ? '#D9770608' : 'transparent', border: `1px solid ${edited ? '#D9770630' : 'transparent'}` }}>
+                                <div style={{ fontSize: '12px', color: DARK, fontWeight: edited ? 700 : 500, lineHeight: 1.3 }}>
+                                  {cp.name}
+                                  {edited && <span style={{ marginLeft: '6px', fontSize: '10px', color: '#D97706', fontWeight: 800 }}>edited</span>}
+                                </div>
+                                <input type="date" value={timelineEdits[cp.id] ?? cp.due_date ?? ''}
+                                  onChange={e => setTimelineEdits(prev => ({ ...prev, [cp.id]: e.target.value }))}
+                                  style={{ padding: '6px 8px', borderRadius: '7px', border: `1px solid ${edited ? '#D97706' : BORDER}`, fontSize: '12px', fontFamily: 'inherit', outline: 'none', color: DARK, background: SURFACE }} />
+                              </div>
+                            )
+                          })}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+
+                  <div style={{ display: 'flex', gap: '10px' }}>
+                    <button onClick={submitConfig} disabled={saving || !cfgDays || !cfgStart}
+                      style={{ flex: 1, padding: '11px', borderRadius: '10px', background: ACCENT, color: DARK, fontSize: '13px', fontWeight: 700, border: 'none', cursor: (saving || !cfgDays || !cfgStart) ? 'not-allowed' : 'pointer', fontFamily: 'inherit', opacity: (saving || !cfgDays || !cfgStart) ? 0.6 : 1 }}>
+                      {saving ? 'Saving…' : `Save${changedCount > 0 ? ` (${changedCount} date change${changedCount !== 1 ? 's' : ''})` : ''}`}
+                    </button>
+                    <button onClick={() => setConfigModal(false)}
+                      style={{ padding: '11px 18px', borderRadius: '10px', background: BG, color: MUTED, fontSize: '13px', fontWeight: 700, border: `1px solid ${BORDER}`, cursor: 'pointer', fontFamily: 'inherit' }}>
+                      Cancel
+                    </button>
+                  </div>
+                </>
+              )
+            })()}
           </div>
         </div>
       )}
