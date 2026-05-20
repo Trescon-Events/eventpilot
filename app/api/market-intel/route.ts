@@ -242,8 +242,18 @@ Return ONLY valid JSON — no markdown, no explanation, just the JSON object:
 }`
 
   try {
-    const model  = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' })
-    const result = await model.generateContent(prompt)
+    let result
+    for (const modelName of ['gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-1.5-flash-latest']) {
+      try {
+        result = await genAI.getGenerativeModel({ model: modelName }).generateContent(prompt)
+        break
+      } catch (e: unknown) {
+        const msg = String(e)
+        if (msg.includes('503') || msg.includes('503') || msg.includes('overloaded') || msg.includes('unavailable')) continue
+        throw e
+      }
+    }
+    if (!result) throw new Error('All Gemini models are currently unavailable. Please try again in a moment.')
     const raw    = result.response.text().trim()
 
     const jsonMatch = raw.match(/\{[\s\S]*\}/)
