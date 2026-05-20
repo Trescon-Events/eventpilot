@@ -3140,19 +3140,24 @@ export default function AdminPage() {
                                 const tc = TYPE_COLOR[ev.type]   ?? '#5B7080'
                                 const urgencyColor  = days === null ? '#8A9BAB' : days < 0 ? '#00897B' : days <= 14 ? '#D97706' : days <= 30 ? '#3730A3' : days <= 90 ? '#1565C0' : '#3D6B00'
                                 const borderColor   = days === null ? '#DDE8EE' : days < 0 ? 'rgba(0,137,123,0.2)' : days <= 14 ? 'rgba(217,119,6,0.3)' : days <= 30 ? 'rgba(55,48,163,0.2)' : '#DDE8EE'
-                                // Date label: show range if end_date exists, else single date
-                                const fmtD = (iso: string) => new Date(iso + 'T00:00:00').toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })
+                                // Date display — always include year; range if end_date set
+                                const fmtFull  = (iso: string) => new Date(iso + 'T00:00:00').toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
+                                const fmtShort = (iso: string) => new Date(iso + 'T00:00:00').toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })
                                 const hasEnd = ev.end_date && ev.end_date !== ev.event_date
-                                const dateLabel = !ev.event_date ? 'No date' : hasEnd
+                                const dateLabel = !ev.event_date ? 'No date set' : hasEnd
                                   ? (() => {
                                       const s = new Date(ev.event_date + 'T00:00:00')
                                       const e = new Date(ev.end_date! + 'T00:00:00')
                                       return s.getMonth() === e.getMonth()
-                                        ? `${s.getDate()}–${e.getDate()} ${s.toLocaleDateString('en-GB',{month:'short'})}`
-                                        : `${fmtD(ev.event_date)} – ${fmtD(ev.end_date!)}`
+                                        ? `${s.getDate()}–${e.getDate()} ${s.toLocaleDateString('en-GB',{month:'short'})} ${s.getFullYear()}`
+                                        : `${fmtShort(ev.event_date)} – ${fmtFull(ev.end_date!)}`
                                     })()
-                                  : fmtD(ev.event_date)
-                                const countdownLabel = days === null ? '' : days < 0 ? '' : days === 0 ? 'Today' : days === 1 ? 'Tomorrow' : `In ${days}d`
+                                  : fmtFull(ev.event_date)
+                                // Upcoming: countdown is primary, date is secondary
+                                // In-progress: date is primary, no countdown
+                                const isPast         = days !== null && days < 0
+                                const primaryLabel   = isPast ? dateLabel : days === 0 ? 'Today' : days === 1 ? 'Tomorrow' : days !== null ? `In ${days}d` : dateLabel
+                                const secondaryLabel = isPast ? '' : (days === 0 || days === 1) ? dateLabel : days !== null ? dateLabel : ''
                                 return (
                                   <div key={ev.id} style={{ background: '#FFFFFF', border: `1px solid ${borderColor}`, borderLeft: `4px solid ${urgencyColor}`, borderRadius: '12px', padding: '16px 18px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
                                     {/* Alert pills */}
@@ -3167,8 +3172,8 @@ export default function AdminPage() {
                                     <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '10px' }}>
                                       <div style={{ fontSize: '14px', fontWeight: 800, color: '#0F1923', lineHeight: 1.3 }}>{ev.name}</div>
                                       <div style={{ textAlign: 'right', flexShrink: 0 }}>
-                                        <div style={{ fontSize: '13px', fontWeight: 900, color: urgencyColor, whiteSpace: 'nowrap' }}>{dateLabel}</div>
-                                        {countdownLabel && <div style={{ fontSize: '11px', fontWeight: 700, color: '#8A9BAB', whiteSpace: 'nowrap', marginTop: '1px' }}>{countdownLabel}</div>}
+                                        <div style={{ fontSize: '13px', fontWeight: 900, color: urgencyColor, whiteSpace: 'nowrap' }}>{primaryLabel}</div>
+                                        {secondaryLabel && <div style={{ fontSize: '11px', color: '#8A9BAB', whiteSpace: 'nowrap', marginTop: '2px' }}>{secondaryLabel}</div>}
                                       </div>
                                     </div>
                                     {/* Meta row */}
