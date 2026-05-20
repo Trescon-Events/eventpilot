@@ -668,11 +668,11 @@ export default function AdminPage() {
   }
 
   const TOUR_STEPS = [
-    { id: 'tour-tabs',             title: 'Your main sections',         desc: 'Navigate between Overview, All Staff, Intelligence, Content Studio, Events, Knowledge Base, and more using these tabs.' },
+    { id: 'tour-tabs',             title: 'Your main sections',         desc: 'Navigate between Overview, All Staff, Intelligence, Learning Lab, Events, Knowledge Base, and more using these tabs.' },
     { id: 'tour-stats',            title: 'Org readiness at a glance',  desc: 'Total staff in the system, how many have completed their profile, and your organisation\'s live TAIRS score — all updating in real time.' },
     { id: 'tour-started',          title: 'Your first 3 actions',       desc: 'Complete these three steps to get Trescademy fully running. Each one unlocks more of the platform for your team.' },
     { id: 'tour-intelligence-tab', title: 'Intelligence tab',           desc: 'AI-generated analysis of your org\'s readiness. Department breakdowns, tier distributions, and what to do about gaps — with no manual input.' },
-    { id: 'tour-studio-tab',       title: 'Content Studio',             desc: 'Describe a skill gap, pick a department, and Gemini generates a full course with reading content, tasks, and a quiz. Ready to publish in under a minute.' },
+    { id: 'tour-studio-tab',       title: 'Learning Lab',             desc: 'Describe a skill gap, pick a department, and Gemini generates a full course with reading content, tasks, and a quiz. Ready to publish in under a minute.' },
     { id: 'tour-tresci-btn',       title: 'Tresci — your AI assistant', desc: 'Ask Tresci anything: team progress, how to use a feature, what a TAIRS score means, or what to do next. It knows your org data.' },
   ]
 
@@ -1261,7 +1261,7 @@ export default function AdminPage() {
                 ['intelligence', 'Intelligence'],
                 ['learning',     'Staff Learning'],
                 ['action',       'Playbook'],
-                ['suggest',      'Content Studio'],
+                ['suggest',      'Learning Lab'],
                 ['events',       'Events'],
                 ['knowledge',    'Knowledge Base'],
                 ...(adminStaffId === 'super-admin' ? [['review', 'Review Queue']] : []),
@@ -1312,7 +1312,7 @@ export default function AdminPage() {
               {[
                 { key: 'staff', label: 'View your staff and their AI readiness scores', action: () => { setTab('people'); fetchStaffList(); markProgress('staff') }, tab: 'People' },
                 { key: 'brief', label: 'Explore the Intelligence tab to see org-wide insights', action: () => { setTab('intelligence'); markProgress('brief') }, tab: 'Intelligence' },
-                { key: 'course', label: 'Build your first course in Content Studio', action: () => { setTab('suggest'); markProgress('course') }, tab: 'Content Studio' },
+                { key: 'course', label: 'Build your first course in Learning Lab', action: () => { setTab('suggest'); markProgress('course') }, tab: 'Learning Lab' },
               ].map(step => {
                 const done = gettingStarted[step.key as keyof typeof gettingStarted]
                 return (
@@ -2755,7 +2755,7 @@ export default function AdminPage() {
         {tab === 'suggest' && (
           <div style={{ maxWidth: '720px' }}>
             <div style={{ marginBottom: '28px' }}>
-              <div style={{ fontSize: '13px', fontWeight: 800, letterSpacing: '2px', textTransform: 'uppercase', color: '#A478FF', marginBottom: '6px' }}>Content Studio</div>
+              <div style={{ fontSize: '13px', fontWeight: 800, letterSpacing: '2px', textTransform: 'uppercase', color: '#A478FF', marginBottom: '6px' }}>Learning Lab</div>
               <h2 style={{ fontSize: '36px', fontWeight: 900, color: '#0F1923', margin: '0 0 6px' }}>Build a Course</h2>
               <p style={{ fontSize: '13px', color: '#5B7080', margin: 0, lineHeight: 1.6 }}>Describe the gap you have spotted. Gemini will design a full course — overview, tasks, and 10 quiz questions — ready to review and publish. The person who suggested it gets credited on the course card and receives a notification on their dashboard when it goes live.</p>
             </div>
@@ -3684,7 +3684,7 @@ export default function AdminPage() {
             <div style={{ marginBottom: '28px' }}>
               <div style={{ fontSize: '13px', fontWeight: 800, letterSpacing: '2px', textTransform: 'uppercase', color: '#FF6B6B', marginBottom: '6px' }}>Review Queue</div>
               <h2 style={{ fontSize: '36px', fontWeight: 900, color: '#0F1923', margin: '0 0 6px' }}>Courses Pending Approval</h2>
-              <p style={{ fontSize: '13px', color: '#5B7080', margin: 0, lineHeight: 1.6 }}>These courses were generated via Content Studio and are waiting for your review. Approve to publish them to the library, or reject to remove them.</p>
+              <p style={{ fontSize: '13px', color: '#5B7080', margin: 0, lineHeight: 1.6 }}>These courses were generated via Learning Lab and are waiting for your review. Approve to publish them to the library, or reject to remove them.</p>
             </div>
 
             {reviewMsg && (
@@ -3697,7 +3697,7 @@ export default function AdminPage() {
               <div style={{ padding: '60px', textAlign: 'center', color: '#0F1923', fontSize: '13px' }}>Loading drafts...</div>
             ) : draftCourses.length === 0 ? (
               <div style={{ padding: '60px', textAlign: 'center', background: '#FFFFFF', border: '1px solid #DDE8EE', borderRadius: '16px' }}>
-                <div style={{ fontSize: '13px', color: '#5B7080' }}>No courses pending review. When someone submits a course via Content Studio it will appear here.</div>
+                <div style={{ fontSize: '13px', color: '#5B7080' }}>No courses pending review. When someone submits a course via Learning Lab it will appear here.</div>
               </div>
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
@@ -3866,7 +3866,7 @@ export default function AdminPage() {
                   {[
                     'TAIRS scoring — live AI readiness score for every staff member',
                     'Personal dashboard with role-specific course recommendations',
-                    'AI-generated courses via Content Studio — ready to publish in minutes',
+                    'AI-generated courses via Learning Lab — ready to publish in minutes',
                     'Tresci — internal AI assistant scoped to Trescademy and your org',
                     'Admin dashboard with org-wide intelligence and tier breakdowns',
                     'Full HRMS — attendance, leave, recruitment, contracts, payroll',
