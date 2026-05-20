@@ -243,7 +243,7 @@ Return ONLY valid JSON — no markdown, no explanation, just the JSON object:
 
   try {
     let result
-    for (const modelName of ['gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-1.5-flash-latest']) {
+    for (const modelName of ['gemini-2.5-flash', 'gemini-flash-latest', 'gemini-2.0-flash', 'gemini-1.5-flash-latest']) {
       try {
         result = await genAI.getGenerativeModel({ model: modelName }).generateContent(prompt)
         break
