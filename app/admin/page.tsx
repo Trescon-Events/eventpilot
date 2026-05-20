@@ -355,7 +355,10 @@ export default function AdminPage() {
   })
   const [tourStep,    setTourStep]    = useState<number | null>(null)
   const [tourRect,    setTourRect]    = useState<DOMRect | null>(null)
-  const [showRoadmap, setShowRoadmap] = useState(false)
+  const [showRoadmap,   setShowRoadmap]   = useState(false)
+  const [suggText,      setSuggText]      = useState('')
+  const [suggSending,   setSuggSending]   = useState(false)
+  const [suggSent,      setSuggSent]      = useState(false)
   const [gettingStarted, setGettingStarted] = useState(() => {
     if (typeof window === 'undefined') return { staff: false, brief: false, course: false }
     const stored = localStorage.getItem('tresci_admin_progress')
@@ -1187,7 +1190,7 @@ export default function AdminPage() {
             AI Insights
           </Link>
           <button
-            onClick={() => setShowRoadmap(true)}
+            onClick={() => { setShowRoadmap(true); setSuggSent(false); setSuggText('') }}
             style={{ background: '#FFFFFF', border: '1px solid #DDE8EE', color: '#374151', fontSize: '13px', fontWeight: 700, padding: '8px 16px', borderRadius: '10px', cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: '6px' }}>
             <svg width="13" height="13" fill="none" stroke="#00A5A3" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
             What&apos;s Next
@@ -3624,14 +3627,14 @@ export default function AdminPage() {
           <div style={{ flex: 1, background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)' }} onClick={() => setShowRoadmap(false)} />
 
           {/* Drawer */}
-          <div style={{ width: '520px', background: '#FFFFFF', borderLeft: '1px solid rgba(164,120,255,0.25)', height: '100%', overflowY: 'auto', animation: 'slideInRight 0.25s ease', display: 'flex', flexDirection: 'column' }}>
+          <div style={{ width: '560px', background: '#FFFFFF', borderLeft: '1px solid rgba(164,120,255,0.25)', height: '100%', overflowY: 'auto', animation: 'slideInRight 0.25s ease', display: 'flex', flexDirection: 'column' }}>
 
             {/* Header */}
             <div style={{ padding: '28px 32px 24px', borderBottom: '1px solid #DDE8EE', position: 'sticky', top: 0, background: '#FFFFFF', zIndex: 1 }}>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                 <div>
-                  <div style={{ fontSize: '13px', fontWeight: 800, letterSpacing: '2px', textTransform: 'uppercase', color: '#A478FF', marginBottom: '4px' }}>Platform Roadmap</div>
-                  <div style={{ fontSize: '13px', fontWeight: 900, color: '#0F1923', letterSpacing: '-0.3px' }}>What&apos;s next for Trescademy</div>
+                  <div style={{ fontSize: '11px', fontWeight: 800, letterSpacing: '2px', textTransform: 'uppercase', color: '#A478FF', marginBottom: '4px' }}>Platform Roadmap</div>
+                  <div style={{ fontSize: '18px', fontWeight: 900, color: '#0F1923', letterSpacing: '-0.3px' }}>What&apos;s next for Trescademy</div>
                 </div>
                 <button onClick={() => setShowRoadmap(false)} style={{ width: '36px', height: '36px', borderRadius: '10px', border: '1px solid #DDE8EE', background: '#FFFFFF', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                   <svg width="14" height="14" fill="none" stroke="#5B7080" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
@@ -3641,11 +3644,85 @@ export default function AdminPage() {
 
             <div style={{ padding: '28px 32px', display: 'flex', flexDirection: 'column', gap: '32px' }}>
 
-              {/* ── Section 1: What's live ── */}
+              {/* ── Build Log ── */}
               <div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '16px' }}>
-                  <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#C0F43C',  }} />
-                  <div style={{ fontSize: '13px', fontWeight: 800, letterSpacing: '1.8px', textTransform: 'uppercase', color: '#00695C' }}>Live now</div>
+                  <svg width="14" height="14" fill="none" stroke="#1565C0" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+                  <div style={{ fontSize: '11px', fontWeight: 800, letterSpacing: '1.8px', textTransform: 'uppercase', color: '#1565C0' }}>Build Log — what shipped &amp; when</div>
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
+                  {[
+                    { date: '20 May 2026', items: [
+                      'Docs text visibility fixed across Scoring Guide and Discovery Questionnaire',
+                      'HR portal redesigned — Recruitment, Attendance, and Leave with action-first layout',
+                      'Cookie-based auth middleware — server-side route protection for all pages',
+                      'Attendance trend: weekends and un-synced days correctly excluded from chart',
+                      'Platform docs: duplicate sidebar entry removed',
+                    ]},
+                    { date: '19 May 2026', items: [
+                      'Events workspace: edit mode, Team tab, HR overhead tracking',
+                      'Recruitment pipeline: full end-to-end hiring flow (requisition → screen → offer → hire)',
+                      'Staff profile: events tab, leave request form, HRMS fields',
+                    ]},
+                    { date: '18 May 2026', items: [
+                      'Full HRMS launched — attendance, leave, contracts, payroll grades, onboarding',
+                      'Event P&L system with revenue and cost tracking per event',
+                      'Document processing upgraded: Gemini reads text and scanned PDFs natively',
+                      'HRMS one-time init flow with admin dashboard bootstrap banner',
+                    ]},
+                    { date: '11 May 2026', items: [
+                      'HRMS sync with Trescon Resource Planner (staff, projects, allocations, timesheets)',
+                      'Admin login: accepts all senior staff, not just super admin',
+                    ]},
+                    { date: '10 May 2026', items: [
+                      'Platform-wide Trescon-brand light theme applied',
+                      'Standardised font sizes, card design, and text visibility across all pages',
+                      'TAIRS tier colours corrected; nav buttons cleaned up',
+                    ]},
+                    { date: '9 May 2026', items: [
+                      'Content engine launched: AI-generated posts, campaign management, approval flow',
+                      'Events workspace with checklist, budget, and deal tracking',
+                    ]},
+                    { date: '27 Apr 2026', items: [
+                      'Guided tour for new admins',
+                      'What\'s Next roadmap panel',
+                      'Welcome modal redesign with per-user localStorage state',
+                      'Dynamic TAIRS scoring with live tier display',
+                    ]},
+                    { date: '25 Apr 2026', items: [
+                      'Staff and admin login by email (no more staff ID entry)',
+                      'My Learning links from admin directly to staff dashboard',
+                    ]},
+                    { date: '24 Apr 2026', items: [
+                      'Initial platform launch: TAIRS scoring, AI readiness questionnaire',
+                      'Admin dashboard with org-wide intelligence and tier breakdowns',
+                      'Tresci — internal AI assistant scoped to Trescademy',
+                      'Course generation and staff onboarding flow',
+                    ]},
+                  ].map((day, di) => (
+                    <div key={di}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '10px 0 6px' }}>
+                        <div style={{ fontSize: '11px', fontWeight: 800, color: '#1565C0', background: 'rgba(21,101,192,0.08)', border: '1px solid rgba(21,101,192,0.2)', borderRadius: '6px', padding: '2px 8px', whiteSpace: 'nowrap' }}>{day.date}</div>
+                        <div style={{ flex: 1, height: '1px', background: '#DDE8EE' }} />
+                      </div>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', paddingLeft: '4px' }}>
+                        {day.items.map((item, ii) => (
+                          <div key={ii} style={{ display: 'flex', gap: '8px', alignItems: 'flex-start' }}>
+                            <div style={{ width: '5px', height: '5px', borderRadius: '50%', background: '#DDE8EE', marginTop: '6px', flexShrink: 0 }} />
+                            <span style={{ fontSize: '13px', color: '#5B7080', lineHeight: 1.5 }}>{item}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* ── What's live ── */}
+              <div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '16px' }}>
+                  <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#C0F43C' }} />
+                  <div style={{ fontSize: '11px', fontWeight: 800, letterSpacing: '1.8px', textTransform: 'uppercase', color: '#00695C' }}>Live now</div>
                 </div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                   {[
@@ -3654,9 +3731,11 @@ export default function AdminPage() {
                     'AI-generated courses via Content Studio — ready to publish in minutes',
                     'Tresci — internal AI assistant scoped to Trescademy and your org',
                     'Admin dashboard with org-wide intelligence and tier breakdowns',
-                    'Events Hub and Knowledge Base for company documents',
+                    'Full HRMS — attendance, leave, recruitment, contracts, payroll',
+                    'Events Hub with RACI governance, P&L, and execution flow',
+                    'Knowledge Base for company documents',
                   ].map((item, i) => (
-                    <div key={i} style={{ display: 'flex', gap: '10px', alignItems: 'flex-start', padding: '10px 14px', background: 'rgba(192,244,60,0.05)', border: '1px solid rgba(192,244,60,0.12)', borderRadius: '10px' }}>
+                    <div key={i} style={{ display: 'flex', gap: '10px', alignItems: 'flex-start', padding: '10px 14px', background: 'rgba(192,244,60,0.05)', border: '1px solid rgba(192,244,60,0.18)', borderRadius: '10px' }}>
                       <svg width="13" height="13" style={{ flexShrink: 0, marginTop: '2px' }} fill="none" stroke="#3D6B00" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>
                       <span style={{ fontSize: '13px', color: '#5B7080', lineHeight: 1.5 }}>{item}</span>
                     </div>
@@ -3664,11 +3743,11 @@ export default function AdminPage() {
                 </div>
               </div>
 
-              {/* ── Section 2: Phase 2 ── */}
+              {/* ── Phase 2 ── */}
               <div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '16px' }}>
                   <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#8B1A1A' }} />
-                  <div style={{ fontSize: '13px', fontWeight: 800, letterSpacing: '1.8px', textTransform: 'uppercase', color: '#8B1A1A' }}>Phase 2 — Rolling out next</div>
+                  <div style={{ fontSize: '11px', fontWeight: 800, letterSpacing: '1.8px', textTransform: 'uppercase', color: '#8B1A1A' }}>Phase 2 — Rolling out next</div>
                 </div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                   {[
@@ -3685,11 +3764,11 @@ export default function AdminPage() {
                 </div>
               </div>
 
-              {/* ── Section 3: Phase 3 ── */}
+              {/* ── Phase 3 ── */}
               <div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '16px' }}>
                   <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#A478FF' }} />
-                  <div style={{ fontSize: '13px', fontWeight: 800, letterSpacing: '1.8px', textTransform: 'uppercase', color: '#A478FF' }}>Phase 3 — Intelligence deepens</div>
+                  <div style={{ fontSize: '11px', fontWeight: 800, letterSpacing: '1.8px', textTransform: 'uppercase', color: '#A478FF' }}>Phase 3 — Intelligence deepens</div>
                 </div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                   {[
@@ -3706,36 +3785,53 @@ export default function AdminPage() {
                 </div>
               </div>
 
-              {/* ── Section 4: How AI shapes the roadmap ── */}
-              <div style={{ background: 'rgba(0,165,163,0.06)', border: '1px solid rgba(0,165,163,0.2)', borderRadius: '16px', padding: '22px' }}>
-                <div style={{ fontSize: '13px', fontWeight: 800, letterSpacing: '1.8px', textTransform: 'uppercase', color: '#00897B', marginBottom: '12px' }}>How AI decides what gets built</div>
-                <p style={{ fontSize: '13px', color: '#5B7080', lineHeight: 1.75, margin: '0 0 16px' }}>
-                  Trescademy doesn&apos;t wait for a committee to decide what to build next. Every interaction is data. The AI reads patterns across all staff and surfaces what the organisation actually needs.
-                </p>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                  {[
-                    { signal: 'Questionnaire responses', output: 'Identifies skill gaps by department and role. Drives which courses get generated first.' },
-                    { signal: 'Course completions and drop-offs', output: 'Courses with low pass rates or high abandonment get flagged. AI rebuilds or reorders them.' },
-                    { signal: 'Tresci questions asked', output: 'The most common questions reveal what staff don\'t understand. Becomes new platform documentation.' },
-                    { signal: 'Manager feedback and ratings', output: 'Leadership priorities re-rank the build order. The platform adapts to what the business needs most.' },
-                  ].map((row, i) => (
-                    <div key={i} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', padding: '10px 12px', background: 'rgba(0,165,163,0.06)', borderRadius: '10px', border: '1px solid rgba(0,165,163,0.12)' }}>
-                      <div>
-                        <div style={{ fontSize: '13px', fontWeight: 700, color: '#00897B', letterSpacing: '1px', textTransform: 'uppercase', marginBottom: '3px' }}>Signal</div>
-                        <div style={{ fontSize: '13px', color: '#0F1923', fontWeight: 600, lineHeight: 1.4 }}>{row.signal}</div>
-                      </div>
-                      <div>
-                        <div style={{ fontSize: '13px', fontWeight: 700, color: '#5B7080', letterSpacing: '1px', textTransform: 'uppercase', marginBottom: '3px' }}>Output</div>
-                        <div style={{ fontSize: '13px', color: '#5B7080', lineHeight: 1.4 }}>{row.output}</div>
-                      </div>
-                    </div>
-                  ))}
+              {/* ── Suggestion Box ── */}
+              <div style={{ background: 'rgba(0,137,123,0.05)', border: '1px solid rgba(0,137,123,0.2)', borderRadius: '16px', padding: '24px' }}>
+                <div style={{ fontSize: '11px', fontWeight: 800, letterSpacing: '1.8px', textTransform: 'uppercase', color: '#00897B', marginBottom: '6px' }}>Suggest something</div>
+                <div style={{ fontSize: '13px', color: '#5B7080', lineHeight: 1.6, marginBottom: '16px' }}>
+                  What should we build next? Flag a gap, request a feature, or share what&apos;s not working. Every submission is reviewed.
                 </div>
+                {suggSent ? (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '14px 16px', background: 'rgba(0,137,123,0.08)', borderRadius: '10px', border: '1px solid rgba(0,137,123,0.2)' }}>
+                    <svg width="16" height="16" fill="none" stroke="#00897B" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>
+                    <span style={{ fontSize: '13px', fontWeight: 700, color: '#00897B' }}>Received — thank you. We&apos;ll review it before the next build cycle.</span>
+                  </div>
+                ) : (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                    <textarea
+                      value={suggText}
+                      onChange={e => setSuggText(e.target.value)}
+                      placeholder="Describe the feature, gap, or issue…"
+                      rows={4}
+                      style={{ width: '100%', padding: '12px 14px', borderRadius: '10px', border: '1px solid #DDE8EE', background: '#FFFFFF', fontSize: '13px', color: '#0F1923', lineHeight: 1.6, fontFamily: 'inherit', resize: 'vertical', outline: 'none', boxSizing: 'border-box' }}
+                    />
+                    <button
+                      disabled={!suggText.trim() || suggSending}
+                      onClick={async () => {
+                        if (!suggText.trim()) return
+                        setSuggSending(true)
+                        try {
+                          await fetch('/api/feedback', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ name: 'Management', department: 'Admin', message: suggText.trim() }),
+                          })
+                          setSuggSent(true)
+                          setSuggText('')
+                        } finally {
+                          setSuggSending(false)
+                        }
+                      }}
+                      style={{ alignSelf: 'flex-end', padding: '10px 22px', borderRadius: '10px', border: 'none', background: suggText.trim() && !suggSending ? '#00897B' : '#DDE8EE', color: suggText.trim() && !suggSending ? '#FFFFFF' : '#5B7080', fontSize: '13px', fontWeight: 700, cursor: suggText.trim() && !suggSending ? 'pointer' : 'not-allowed', fontFamily: 'inherit', transition: 'background 0.15s' }}>
+                      {suggSending ? 'Sending…' : 'Submit suggestion'}
+                    </button>
+                  </div>
+                )}
               </div>
 
               {/* ── Footer note ── */}
               <div style={{ textAlign: 'center', fontSize: '13px', color: '#5B7080', lineHeight: 1.7, paddingBottom: '8px' }}>
-                This roadmap updates as the platform learns.<br />Feedback from your team shapes every build decision.
+                This roadmap updates as the platform learns.<br />Your suggestions shape every build decision.
               </div>
 
             </div>
