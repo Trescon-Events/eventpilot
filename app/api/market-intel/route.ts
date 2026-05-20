@@ -18,6 +18,15 @@ const SKIP_SIGNALS = [
   'terms', 'cookie', 'sitemap', 'login', 'register', 'signup', 'faq',
 ]
 
+// Common sponsor/partner paths to always try
+const FORCED_PATHS = [
+  '/sponsors', '/sponsor', '/partners', '/partner', '/exhibitors', '/exhibitor',
+  '/our-partners', '/our-sponsors', '/sponsorship', '/about/sponsors',
+  '/about/partners', '/supporters', '/ecosystem', '/media-partners',
+  '/knowledge-partners', '/presenting-partners',
+]
+
+// ── Fetch with plain HTML ──────────────────────────────────────────────────────
 async function fetchPage(url: string): Promise<string> {
   try {
     const res = await fetch(url, {
@@ -37,6 +46,87 @@ async function fetchPage(url: string): Promise<string> {
   } catch {
     return ''
   }
+}
+
+// ── Jina Reader — JS-rendered fallback ────────────────────────────────────────
+// Jina.ai renders the page server-side and returns clean markdown.
+// Used when direct fetch yields thin content (< 800 chars after stripping).
+async function fetchViaJina(url: string): Promise<string> {
+  try {
+    const jinaUrl = `https://r.jina.ai/${url}`
+    const res = await fetch(jinaUrl, {
+      headers: {
+        'Accept': 'text/plain',
+        'X-Return-Format': 'markdown',
+        'X-Timeout': '15',
+      },
+      signal: AbortSignal.timeout(18000),
+    })
+    if (!res.ok) return ''
+    return await res.text()
+  } catch {
+    return ''
+  }
+}
+
+// ── Sitemap parser ────────────────────────────────────────────────────────────
+async function fetchSitemapUrls(baseUrl: string): Promise<string[]> {
+  const base = new URL(baseUrl)
+  const candidates = [
+    `${base.origin}/sitemap.xml`,
+    `${base.origin}/sitemap_index.xml`,
+    `${base.origin}/sitemap-0.xml`,
+  ]
+  const urls: string[] = []
+  for (const sitemapUrl of candidates) {
+    try {
+      const res = await fetch(sitemapUrl, { signal: AbortSignal.timeout(6000) })
+      if (!res.ok) continue
+      const xml = await res.text()
+      const matches = xml.match(/<loc>([^<]+)<\/loc>/g) ?? []
+      for (const m of matches) {
+        const u = m.replace(/<\/?loc>/g, '').trim()
+        if (u.startsWith(base.origin)) urls.push(u)
+      }
+      if (urls.length > 0) break
+    } catch { /* skip */ }
+  }
+  return urls.slice(0, 200)
+}
+
+// ── Alt text extraction from image logo grids ─────────────────────────────────
+function extractImageAltText(html: string): string[] {
+  const alts: string[] = []
+  // Look for img tags with meaningful alt text (>2 chars, not generic)
+  const imgRe = /<img[^>]+alt=["']([^"']{3,80})["'][^>]*>/gi
+  const generic = /^(logo|image|img|photo|icon|banner|slide|arrow|close|menu|search|placeholder|loading)$/i
+  let m
+  while ((m = imgRe.exec(html)) !== null) {
+    const alt = m[1].trim()
+    if (!generic.test(alt) && !/^\d+$/.test(alt)) {
+      alts.push(alt)
+    }
+  }
+  return [...new Set(alts)]
+}
+
+// ── Smart fetch: try direct, fallback to Jina if thin ────────────────────────
+async function smartFetch(url: string): Promise<{ text: string; method: 'direct' | 'jina' | 'none'; altTexts: string[] }> {
+  const html = await fetchPage(url)
+  const rawText = html ? stripHtml(html) : ''
+  const altTexts = html ? extractImageAltText(html) : []
+
+  if (rawText.length >= 800) {
+    return { text: rawText, method: 'direct', altTexts }
+  }
+
+  // Too thin — try Jina Reader for JS-rendered content
+  const jinaText = await fetchViaJina(url)
+  if (jinaText.length > rawText.length) {
+    return { text: jinaText, method: 'jina', altTexts }
+  }
+
+  return { text: rawText || jinaText, method: rawText.length > 0 ? 'direct' : 'none', altTexts }
 }
 
 function extractLinks(html: string, baseUrl: string): string[] {
@@ -110,7 +200,7 @@ function classifySite(html: string, text: string): {
   if (lower.match(/booth|stand|floor plan/))               commercialIndicators.push('exhibition floor structure detected')
   if (lower.match(/logo/))                                  commercialIndicators.push('logo grid likely present')
   if (html.match(/loading="lazy"|data-src=/i))             commercialIndicators.push('lazy-loaded content detected')
-  if (html.match(/react|nextjs|__next/i))                  commercialIndicators.push('JS-rendered site — may have dynamic content')
+  if (html.match(/react|nextjs|__next/i))                  commercialIndicators.push('JS-rendered site — Jina fallback used')
 
   const renderingHints: string[] = []
   if (html.includes('__next'))    renderingHints.push('Next.js')
@@ -165,34 +255,50 @@ export async function POST(req: NextRequest) {
     .select()
     .single()
 
-  if (scanErr || !scanRow) {
-    // Proceed without DB if table doesn't exist yet
-    console.warn('market_intel_scans insert failed:', scanErr?.message)
-  }
-
+  if (scanErr) console.warn('market_intel_scans insert failed:', scanErr?.message)
   const scanId = scanRow?.id ?? null
 
   // ── Phase A: Reconnaissance ──────────────────────────────────────────────────
-  const homepageHtml = await fetchPage(targetUrl)
-  if (!homepageHtml) {
+  const homepageHtml  = await fetchPage(targetUrl)
+  const homepageJina  = homepageHtml.length < 800 ? await fetchViaJina(targetUrl) : ''
+  const homepageText  = homepageHtml ? stripHtml(homepageHtml) : homepageJina
+  const homepageAltTexts = homepageHtml ? extractImageAltText(homepageHtml) : []
+
+  if (!homepageText && !homepageJina) {
     if (scanId) {
-      await supabaseAdmin.from('market_intel_scans').update({ status: 'failed', error_message: 'Could not reach URL', completed_at: new Date().toISOString() }).eq('id', scanId)
+      await supabaseAdmin.from('market_intel_scans').update({
+        status: 'failed', error_message: 'Could not reach URL', completed_at: new Date().toISOString(),
+      }).eq('id', scanId)
     }
     return NextResponse.json({
       error: 'Could not reach this URL. The site may block automated access or the URL is incorrect.',
     }, { status: 422 })
   }
 
-  const homepageText = stripHtml(homepageHtml)
-  const siteClass    = classifySite(homepageHtml, homepageText)
-  const allLinks     = extractLinks(homepageHtml, targetUrl)
+  const siteClass = classifySite(homepageHtml, homepageText)
+  const allLinks  = extractLinks(homepageHtml, targetUrl)
 
-  // ── Phase B: Hypothesis — score and rank sub-pages ───────────────────────────
-  const ranked = allLinks
+  // ── Phase B: Sitemap discovery + forced paths + link scoring ─────────────────
+  const base = new URL(targetUrl)
+
+  // Forced commercial paths — always try these regardless of link discovery
+  const forcedUrls = FORCED_PATHS
+    .map(p => `${base.origin}${p}`)
+    .filter(u => !allLinks.includes(u))
+
+  // Sitemap-discovered URLs with commercial signals
+  const sitemapUrls = await fetchSitemapUrls(targetUrl)
+  const sitemapCommercial = sitemapUrls
+    .filter(u => scoreLink(u) > 0)
+    .sort((a, b) => scoreLink(b) - scoreLink(a))
+    .slice(0, 10)
+
+  // Score all discovered links
+  const ranked = [...new Set([...allLinks, ...sitemapCommercial])]
     .map(url => ({ url, score: scoreLink(url) }))
     .filter(l => l.score > 0)
     .sort((a, b) => b.score - a.score)
-    .slice(0, 15)
+    .slice(0, 20)
 
   const hypotheses = ranked.slice(0, 5).map(l => ({
     url: l.url,
@@ -200,49 +306,104 @@ export async function POST(req: NextRequest) {
     confidence: Math.min(0.95, 0.5 + l.score / 100),
   }))
 
-  // ── Phase C: Adaptive Exploration — fetch top pages ──────────────────────────
-  const pagesToFetch = ranked.slice(0, 10).map(l => l.url)
+  // ── Phase C: Adaptive Exploration — fetch top scored + forced paths ───────────
+  // Forced paths first (highest value), then scored links, deduplicated
+  const pagesToFetch = [
+    ...forcedUrls.slice(0, 6),
+    ...ranked.slice(0, 12).map(l => l.url),
+  ].filter((u, i, arr) => arr.indexOf(u) === i).slice(0, 18)
+
   const subPages = await Promise.all(
     pagesToFetch.map(async url => {
-      const html = await fetchPage(url)
-      const text = html ? stripHtml(html) : ''
-      return text ? { url, text: text.slice(0, 12000) } : null
+      const { text, method, altTexts } = await smartFetch(url)
+      return text ? { url, text: text.slice(0, 14000), method, altTexts, html: '' } : null
     })
   )
-  const fetchedPages = subPages.filter(Boolean) as { url: string; text: string }[]
+  const fetchedPages = subPages.filter(Boolean) as { url: string; text: string; method: string; altTexts: string[]; html: string }[]
+
+  // ── Phase C2: Second-level crawl — follow sub-links from commercial pages ────
+  // For each high-value fetched page, extract its links and crawl promising sub-pages
+  const level2Seen = new Set<string>(pagesToFetch)
+  level2Seen.add(targetUrl)
+
+  const level2Candidates: string[] = []
+  for (const page of fetchedPages.slice(0, 8)) {
+    // Re-fetch raw HTML to extract links (smartFetch may have used Jina text)
+    const rawHtml = await fetchPage(page.url)
+    if (!rawHtml) continue
+    const subLinks = extractLinks(rawHtml, targetUrl)
+    for (const link of subLinks) {
+      if (!level2Seen.has(link) && scoreLink(link) > 0) {
+        level2Candidates.push(link)
+        level2Seen.add(link)
+      }
+    }
+  }
+
+  // Score, deduplicate, fetch top second-level pages
+  const level2ToFetch = level2Candidates
+    .map(u => ({ url: u, score: scoreLink(u) }))
+    .sort((a, b) => b.score - a.score)
+    .slice(0, 8)
+    .map(l => l.url)
+
+  const level2Pages = await Promise.all(
+    level2ToFetch.map(async url => {
+      const { text, method, altTexts } = await smartFetch(url)
+      return text ? { url, text: text.slice(0, 10000), method, altTexts, html: '' } : null
+    })
+  )
+  const fetchedLevel2 = level2Pages.filter(Boolean) as { url: string; text: string; method: string; altTexts: string[]; html: string }[]
+  fetchedPages.push(...fetchedLevel2)
+
+  // Collect all alt texts found across all pages
+  const allAltTexts = [...new Set([
+    ...homepageAltTexts,
+    ...fetchedPages.flatMap(p => p.altTexts),
+  ])]
 
   // ── Phase D: AI Extraction ───────────────────────────────────────────────────
   const contentBlocks = [
-    `=== HOMEPAGE (${targetUrl}) ===\n${homepageText.slice(0, 20000)}`,
-    ...fetchedPages.map(p => `=== PAGE: ${p.url} ===\n${p.text}`),
-  ].join('\n\n').slice(0, 90000)
+    `=== HOMEPAGE (${targetUrl}) ===\n${(homepageJina || homepageText).slice(0, 20000)}`,
+    ...fetchedPages.map(p => `=== PAGE [${p.method}]: ${p.url} ===\n${p.text}`),
+  ].join('\n\n').slice(0, 100000)
 
   const siteMeta = JSON.stringify({
     terminology_detected:       siteClass.terminology,
     rendering_hints:            siteClass.renderingHints,
     commercial_indicators:      siteClass.commercialIndicators,
     pages_fetched:              fetchedPages.length + 1,
-    commercial_pages_attempted: pagesToFetch.length,
+    forced_paths_tried:         forcedUrls.length,
+    sitemap_commercial_urls:    sitemapCommercial.length,
+    image_alt_texts_extracted:  allAltTexts.length,
   })
+
+  const altTextBlock = allAltTexts.length > 0
+    ? `\n\nIMAGE ALT TEXTS (company names extracted from logo images — treat each as a potential participant):\n${allAltTexts.join('\n')}`
+    : ''
 
   const prompt = `You are an elite commercial intelligence analyst. Analyze this event website and extract all commercial participants with maximum precision.
 
 SITE METADATA (pre-analysis):
 ${siteMeta}
 
+CRITICAL EXTRACTION NOTES:
+- Many event sites render sponsor logos as images without visible text. Use the IMAGE ALT TEXTS section below — these are company names extracted directly from logo image tags.
+- If a page uses JavaScript rendering and content seems sparse, cross-reference alt texts with section headings to infer tier placement.
+- Infer sponsorship tier from visual ordering, section names, or font size hints in the text.
+- If you find speaker affiliations from companies in sponsor/partner sections, treat those companies as commercial participants.
+- Do NOT hallucinate. Only include companies with at least one piece of evidence.
+
 WEBSITE CONTENT:
-${contentBlocks}
+${contentBlocks}${altTextBlock}
 
 EXTRACTION RULES:
-- Extract EVERY company that appears as a sponsor, exhibitor, partner, supporter, media partner, knowledge partner, ecosystem partner, or any commercial association
+- Extract EVERY company: sponsor, exhibitor, partner, supporter, media partner, knowledge partner, ecosystem partner, or any commercial association
 - Use canonical company names (e.g. "Amazon Web Services" not "AWS")
-- Infer tier from visual hierarchy, section headings, or ordering cues
-- For each company, try to infer: official domain, contact email/name/title if visible, HQ location/country, industry sector, company size
-- Set confidence based on how explicitly the company is named vs inferred
-- Only include companies you are genuinely confident exist on this site
-- Do NOT hallucinate companies not present in the content
+- For each company, capture: official domain, contact email/name/title if visible, HQ location/country, industry sector, company size
+- Set confidence: 0.9+ for explicitly named, 0.7+ for alt-text extracted, 0.5+ for speaker-inferred
 
-Return ONLY valid JSON — no markdown, no explanation, just the JSON object:
+Return ONLY valid JSON — no markdown, no explanation:
 
 {
   "event": {
@@ -256,9 +417,10 @@ Return ONLY valid JSON — no markdown, no explanation, just the JSON object:
   "site_analysis": {
     "site_type": "conference|exhibition|summit|forum|awards|expo|other",
     "rendering_model": "static|wordpress|nextjs|nuxt|custom-cms",
-    "commercial_structure": "one sentence describing how sponsors/partners are organized on this site",
+    "commercial_structure": "one sentence describing how sponsors/partners are organized",
     "terminology_used": ["exact terms found on site"],
     "information_richness": "high|medium|low",
+    "extraction_challenges": "brief note on what made extraction harder (image logos, JS rendering, etc.)",
     "pages_analyzed": ${fetchedPages.length + 1}
   },
   "hypotheses": [
@@ -285,15 +447,19 @@ Return ONLY valid JSON — no markdown, no explanation, just the JSON object:
       "industry_sector": "primary industry of the company or null",
       "company_size": "startup|sme|enterprise|global or null",
       "confidence": 0.95,
-      "evidence": ["list specific evidence: page URL, section heading, exact text found"],
-      "extraction_method": "explicit_text|section_heading|link_analysis|contextual_inference"
+      "evidence": ["source: page URL or section name, exact text or alt text found"],
+      "extraction_method": "explicit_text|image_alt_text|section_heading|speaker_inference|contextual_inference"
     }
   ],
-  "intelligence_summary": "3-4 sentence strategic summary of the commercial participation landscape, notable patterns, and what this reveals about the event's positioning",
+  "intelligence_summary": "3-4 sentence strategic summary including any extraction challenges, what was found vs what was image-only, and what this reveals about the event's commercial positioning",
   "crawl_summary": {
     "homepage_analyzed": true,
     "sub_pages_fetched": ${fetchedPages.length},
+    "level2_pages_fetched": ${fetchedLevel2.length},
     "total_links_discovered": ${allLinks.length},
+    "sitemap_urls_found": ${sitemapCommercial.length},
+    "forced_paths_tried": ${forcedUrls.length},
+    "image_alt_texts_found": ${allAltTexts.length},
     "commercial_signals_found": ${siteClass.commercialIndicators.length},
     "total_participants_extracted": 0
   }
@@ -322,7 +488,6 @@ Return ONLY valid JSON — no markdown, no explanation, just the JSON object:
 
     // ── Save to Supabase ─────────────────────────────────────────────────────
     if (scanId) {
-      // Update scan record
       await supabaseAdmin.from('market_intel_scans').update({
         event_name:           parsed.event?.name ?? null,
         industry:             parsed.event?.industry ?? null,
@@ -339,32 +504,30 @@ Return ONLY valid JSON — no markdown, no explanation, just the JSON object:
         completed_at:         new Date().toISOString(),
       }).eq('id', scanId)
 
-      // Insert companies
       if (parsed.participants?.length > 0) {
         const companies = parsed.participants.map((p: Record<string, unknown>) => ({
-          scan_id:                    scanId,
-          event_id:                   eventId,
-          company_name:               p.company_name,
-          canonical_name:             p.company_name,
-          official_domain:            p.official_domain ?? null,
-          company_website:            p.company_website ?? null,
-          participant_type:           p.participant_type ?? null,
-          tier:                       p.tier === 'null' ? null : (p.tier ?? null),
-          sponsorship_category:       p.sponsorship_category ?? null,
-          contact_email:              p.contact_email ?? null,
-          contact_name:               p.contact_name ?? null,
-          contact_title:              p.contact_title ?? null,
-          contact_linkedin:           p.contact_linkedin ?? null,
-          hq_location:                p.hq_location ?? null,
-          hq_country:                 p.hq_country ?? null,
-          industry_sector:            p.industry_sector ?? null,
-          company_size:               p.company_size ?? null,
-          confidence:                 p.confidence ?? null,
-          evidence:                   p.evidence ?? [],
-          extraction_method:          p.extraction_method ?? null,
-          source_page_url:            targetUrl,
+          scan_id:              scanId,
+          event_id:             eventId,
+          company_name:         p.company_name,
+          canonical_name:       p.company_name,
+          official_domain:      p.official_domain ?? null,
+          company_website:      p.company_website ?? null,
+          participant_type:     p.participant_type ?? null,
+          tier:                 p.tier === 'null' ? null : (p.tier ?? null),
+          sponsorship_category: p.sponsorship_category ?? null,
+          contact_email:        p.contact_email ?? null,
+          contact_name:         p.contact_name ?? null,
+          contact_title:        p.contact_title ?? null,
+          contact_linkedin:     p.contact_linkedin ?? null,
+          hq_location:          p.hq_location ?? null,
+          hq_country:           p.hq_country ?? null,
+          industry_sector:      p.industry_sector ?? null,
+          company_size:         p.company_size ?? null,
+          confidence:           p.confidence ?? null,
+          evidence:             p.evidence ?? [],
+          extraction_method:    p.extraction_method ?? null,
+          source_page_url:      targetUrl,
         }))
-
         await supabaseAdmin.from('market_intel_companies').insert(companies)
       }
     }
