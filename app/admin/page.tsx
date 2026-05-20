@@ -3019,23 +3019,42 @@ export default function AdminPage() {
             </div>
           )
 
+          // ── Intelligence signals ────────────────────────────────────────────
+          const alertEvents = upcoming.filter(ev => {
+            const d = daysUntil(ev.event_date)
+            const staff = (ev.event_staff as {count:number}[]|null)?.[0]?.count ?? 0
+            const tasks = (ev.event_checklist as {count:number}[]|null)?.[0]?.count ?? 0
+            return (d !== null && d < -7 && ev.status === 'active') ||
+                   (d !== null && d <= 45 && staff === 0) ||
+                   (d !== null && d <= 30 && tasks === 0)
+          })
+          const thisMonthCount = upcoming.filter(ev => { const d = daysUntil(ev.event_date); return d !== null && d >= 0 && d <= 30 }).length
+
           return (
             <div>
-              {/* ── Summary strip ── */}
+              {/* ── Intelligence header ── */}
               {events.length > 0 && (
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5,1fr)', gap: '10px', marginBottom: '24px' }}>
-                  {[
-                    { label: 'Total Events',   val: events.length,                                                              color: '#0F1923', icon: '📋' },
-                    { label: 'Active',         val: events.filter(e=>e.status==='active').length,                               color: '#3D6B00', icon: '🟢' },
-                    { label: 'Upcoming',       val: events.filter(e=>e.status==='upcoming'||e.status==='planning').length,      color: '#3730A3', icon: '📅' },
-                    { label: 'Completed',      val: events.filter(e=>e.status==='completed').length,                            color: '#00897B', icon: '✅' },
-                    { label: 'Staff Deployed', val: totalStaff,                                                                 color: '#8B1A1A', icon: '👥' },
-                  ].map(s => (
-                    <div key={s.label} style={{ background: '#FFFFFF', border: '1px solid #DDE8EE', borderRadius: '12px', padding: '14px 16px' }}>
-                      <div style={{ fontSize: '11px', fontWeight: 700, color: '#8A9BAB', letterSpacing: '0.5px', textTransform: 'uppercase', marginBottom: '6px' }}>{s.label}</div>
-                      <div style={{ fontSize: '22px', fontWeight: 900, color: s.color, lineHeight: 1 }}>{s.val}</div>
-                    </div>
-                  ))}
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: '10px', marginBottom: '24px' }}>
+                  <div style={{ background: alertEvents.length > 0 ? 'rgba(139,26,26,0.05)' : 'rgba(61,107,0,0.05)', border: `1px solid ${alertEvents.length > 0 ? 'rgba(139,26,26,0.25)' : 'rgba(61,107,0,0.2)'}`, borderRadius: '12px', padding: '16px 18px' }}>
+                    <div style={{ fontSize: '11px', fontWeight: 700, color: alertEvents.length > 0 ? '#8B1A1A' : '#3D6B00', letterSpacing: '0.5px', textTransform: 'uppercase', marginBottom: '6px' }}>Needs attention</div>
+                    <div style={{ fontSize: '28px', fontWeight: 900, color: alertEvents.length > 0 ? '#8B1A1A' : '#3D6B00', lineHeight: 1 }}>{alertEvents.length}</div>
+                    <div style={{ fontSize: '11px', color: alertEvents.length > 0 ? '#8B1A1A' : '#3D6B00', marginTop: '4px', opacity: 0.7 }}>{alertEvents.length === 0 ? 'All clear' : 'events have gaps'}</div>
+                  </div>
+                  <div style={{ background: '#FFFFFF', border: '1px solid #DDE8EE', borderRadius: '12px', padding: '16px 18px' }}>
+                    <div style={{ fontSize: '11px', fontWeight: 700, color: '#8A9BAB', letterSpacing: '0.5px', textTransform: 'uppercase', marginBottom: '6px' }}>This month</div>
+                    <div style={{ fontSize: '28px', fontWeight: 900, color: '#3730A3', lineHeight: 1 }}>{thisMonthCount}</div>
+                    <div style={{ fontSize: '11px', color: '#8A9BAB', marginTop: '4px' }}>events in next 30 days</div>
+                  </div>
+                  <div style={{ background: '#FFFFFF', border: '1px solid #DDE8EE', borderRadius: '12px', padding: '16px 18px' }}>
+                    <div style={{ fontSize: '11px', fontWeight: 700, color: '#8A9BAB', letterSpacing: '0.5px', textTransform: 'uppercase', marginBottom: '6px' }}>Staff deployed</div>
+                    <div style={{ fontSize: '28px', fontWeight: 900, color: '#0F1923', lineHeight: 1 }}>{totalStaff}</div>
+                    <div style={{ fontSize: '11px', color: '#8A9BAB', marginTop: '4px' }}>across {upcoming.length} active events</div>
+                  </div>
+                  <div style={{ background: '#FFFFFF', border: '1px solid #DDE8EE', borderRadius: '12px', padding: '16px 18px' }}>
+                    <div style={{ fontSize: '11px', fontWeight: 700, color: '#8A9BAB', letterSpacing: '0.5px', textTransform: 'uppercase', marginBottom: '6px' }}>Portfolio</div>
+                    <div style={{ fontSize: '28px', fontWeight: 900, color: '#0F1923', lineHeight: 1 }}>{events.length}</div>
+                    <div style={{ fontSize: '11px', color: '#8A9BAB', marginTop: '4px' }}>{events.filter(e=>e.status==='completed').length} completed · {past.length} in archive</div>
+                  </div>
                 </div>
               )}
 
@@ -3070,87 +3089,120 @@ export default function AdminPage() {
 
                   {showCreateEvent && <div style={{ marginBottom: '24px' }}>{createForm}</div>}
 
-                  {/* ══ UPCOMING TABLE VIEW ══ */}
-                  {eventView === 'upcoming' && (
-                    <div style={{ background: '#FFFFFF', border: '1px solid #DDE8EE', borderRadius: '16px', overflow: 'hidden' }}>
-                      <div style={{ overflowX: 'auto' }}>
-                        <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: '900px' }}>
-                          <thead>
-                            <tr style={{ background: '#F4F7FA' }}>
-                              {['Event', 'Type', 'Status', 'Date', 'Countdown', 'City / Client', 'Staff', 'Tasks', 'Actions'].map(h => (
-                                <th key={h} style={{ padding: '11px 14px', textAlign: 'left', fontSize: '11px', fontWeight: 800, color: '#8A9BAB', letterSpacing: '0.7px', textTransform: 'uppercase', whiteSpace: 'nowrap', borderBottom: '1px solid #E8EEF4' }}>{h}</th>
-                              ))}
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {upcoming.map((ev, i) => {
-                              const days       = daysUntil(ev.event_date)
-                              const staffCount = (ev.event_staff    as {count:number}[]|null)?.[0]?.count ?? 0
-                              const taskCount  = (ev.event_checklist as {count:number}[]|null)?.[0]?.count ?? 0
-                              const s          = eventSummaries[ev.id]
-                              const sc         = STATUS_CFG[ev.status] ?? STATUS_CFG.planning
-                              const tc         = TYPE_COLOR[ev.type]   ?? '#5B7080'
-                              const urgency    = days === null ? '#8A9BAB' : days < 0 ? '#FF6B6B' : days <= 30 ? '#F59E0B' : days <= 90 ? '#3730A3' : '#3D6B00'
-                              const taskDone   = s?.task_done ?? 0
-                              const taskTotal  = s?.task_total ?? taskCount
-                              const taskPct    = taskTotal > 0 ? Math.round((taskDone / taskTotal) * 100) : 0
-                              return (
-                                <tr key={ev.id} style={{ borderBottom: i < upcoming.length-1 ? '1px solid #F0F4F8' : 'none', background: i%2===0 ? '#FFFFFF' : '#FAFBFC' }}>
-                                  <td style={{ padding: '13px 14px', maxWidth: '220px' }}>
-                                    <div style={{ fontSize: '13px', fontWeight: 800, color: '#0F1923', lineHeight: 1.3 }}>{ev.name}</div>
-                                    {s?.confirmed_revenue ? <div style={{ fontSize: '11px', color: '#3D6B00', fontWeight: 700, marginTop: '2px' }}>{fmt(s.confirmed_revenue, s.currency)} confirmed</div> : null}
-                                  </td>
-                                  <td style={{ padding: '13px 14px' }}>
-                                    <span style={{ fontSize: '11px', fontWeight: 700, padding: '2px 8px', borderRadius: '16px', background: `${tc}18`, color: tc, textTransform: 'capitalize', whiteSpace: 'nowrap' }}>{ev.type}</span>
-                                  </td>
-                                  <td style={{ padding: '13px 14px' }}>
-                                    <span style={{ fontSize: '11px', fontWeight: 700, padding: '2px 8px', borderRadius: '16px', background: sc.bg, color: sc.color, textTransform: 'capitalize', whiteSpace: 'nowrap' }}>{ev.status}</span>
-                                  </td>
-                                  <td style={{ padding: '13px 14px', fontSize: '13px', color: '#2D3E50', whiteSpace: 'nowrap' }}>
-                                    {ev.event_date ? new Date(ev.event_date).toLocaleDateString('en-GB',{day:'numeric',month:'short',year:'2-digit'}) : '—'}
-                                  </td>
-                                  <td style={{ padding: '13px 14px' }}>
-                                    {days !== null
-                                      ? <span style={{ fontSize: '13px', fontWeight: 900, color: urgency, whiteSpace: 'nowrap' }}>{days < 0 ? `${Math.abs(days)}d ago` : days === 0 ? 'Today' : `${days}d`}</span>
-                                      : <span style={{ color: '#C0C8D0' }}>—</span>}
-                                  </td>
-                                  <td style={{ padding: '13px 14px', fontSize: '13px', color: '#5B7080' }}>
-                                    {ev.city || '—'}
-                                    {ev.client_name && <div style={{ fontSize: '11px', color: '#8A9BAB', marginTop: '1px' }}>{ev.client_name}</div>}
-                                  </td>
-                                  <td style={{ padding: '13px 14px', fontSize: '13px', fontWeight: 700, color: '#0F1923', textAlign: 'center' }}>{staffCount || '—'}</td>
-                                  <td style={{ padding: '13px 14px', minWidth: '90px' }}>
-                                    {taskTotal > 0 ? (
-                                      <div>
-                                        <div style={{ fontSize: '11px', fontWeight: 700, color: '#0F1923', marginBottom: '4px' }}>{taskDone}/{taskTotal} <span style={{ color: '#8A9BAB', fontWeight: 400 }}>done</span></div>
-                                        <div style={{ height: '4px', background: '#E8EEF4', borderRadius: '2px', overflow: 'hidden', width: '70px' }}>
-                                          <div style={{ height: '100%', width: `${taskPct}%`, background: taskPct >= 80 ? '#3D6B00' : taskPct >= 40 ? '#F59E0B' : '#00897B', borderRadius: '2px', transition: 'width 0.3s' }} />
-                                        </div>
+                  {/* ══ UPCOMING — GROUPED INTELLIGENCE CARDS ══ */}
+                  {eventView === 'upcoming' && (() => {
+                    // Compute per-event signals
+                    const annotated = upcoming.map(ev => {
+                      const days       = daysUntil(ev.event_date)
+                      const staffCount = (ev.event_staff    as {count:number}[]|null)?.[0]?.count ?? 0
+                      const taskCount  = (ev.event_checklist as {count:number}[]|null)?.[0]?.count ?? 0
+                      const s          = eventSummaries[ev.id]
+                      const taskDone   = s?.task_done ?? 0
+                      const taskTotal  = s?.task_total ?? taskCount
+                      const taskPct    = taskTotal > 0 ? Math.round((taskDone / taskTotal) * 100) : 0
+                      const alerts: string[] = []
+                      if (days !== null && days < -7 && ev.status === 'active') alerts.push(`Date passed ${Math.abs(days)}d ago`)
+                      if (staffCount === 0) alerts.push('No staff assigned')
+                      if (taskTotal === 0) alerts.push('No checklist yet')
+                      else if (days !== null && days <= 30 && taskPct < 15 && taskDone === 0) alerts.push('Tasks not started')
+                      const isUrgent = (days !== null && days < -7 && ev.status === 'active') ||
+                                       (days !== null && days <= 45 && staffCount === 0) ||
+                                       (days !== null && days <= 30 && taskTotal === 0)
+                      return { ev, days, staffCount, taskTotal, taskDone, taskPct, alerts, isUrgent, s }
+                    })
+
+                    const groups = [
+                      { key: 'attn',  label: 'Needs attention', color: '#8B1A1A', items: annotated.filter(x => x.isUrgent) },
+                      { key: 'month', label: 'This month',       color: '#3730A3', items: annotated.filter(x => !x.isUrgent && x.days !== null && x.days >= 0 && x.days <= 30) },
+                      { key: 'soon',  label: 'Coming up',        color: '#1565C0', items: annotated.filter(x => !x.isUrgent && x.days !== null && x.days > 30 && x.days <= 90) },
+                      { key: 'later', label: 'Later',            color: '#3D6B00', items: annotated.filter(x => !x.isUrgent && (x.days === null || x.days > 90)) },
+                    ]
+
+                    return (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '28px' }}>
+                        {upcoming.length === 0 && <div style={{ padding: '40px', textAlign: 'center', color: '#8A9BAB', fontSize: '13px' }}>No upcoming or active events.</div>}
+                        {groups.map(grp => grp.items.length === 0 ? null : (
+                          <div key={grp.key}>
+                            {/* Group header */}
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '12px' }}>
+                              <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: grp.color, flexShrink: 0 }} />
+                              <div style={{ fontSize: '11px', fontWeight: 800, letterSpacing: '1.5px', textTransform: 'uppercase', color: grp.color }}>{grp.label}</div>
+                              <div style={{ flex: 1, height: '1px', background: '#E8EEF4' }} />
+                              <div style={{ fontSize: '11px', fontWeight: 700, color: '#8A9BAB' }}>{grp.items.length} event{grp.items.length !== 1 ? 's' : ''}</div>
+                            </div>
+                            {/* Cards grid */}
+                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2,1fr)', gap: '10px' }}>
+                              {grp.items.map(({ ev, days, staffCount, taskTotal, taskDone, taskPct, alerts, s }) => {
+                                const sc = STATUS_CFG[ev.status] ?? STATUS_CFG.planning
+                                const tc = TYPE_COLOR[ev.type]   ?? '#5B7080'
+                                const urgencyColor  = days === null ? '#8A9BAB' : days < 0 ? '#8B1A1A' : days <= 14 ? '#D97706' : days <= 30 ? '#3730A3' : days <= 90 ? '#1565C0' : '#3D6B00'
+                                const borderColor   = days === null ? '#DDE8EE' : days < 0 ? 'rgba(139,26,26,0.3)' : days <= 14 ? 'rgba(217,119,6,0.3)' : days <= 30 ? 'rgba(55,48,163,0.2)' : '#DDE8EE'
+                                const daysLabel     = days === null ? 'No date' : days < 0 ? `${Math.abs(days)}d ago` : days === 0 ? 'Today' : days === 1 ? 'Tomorrow' : `${days}d`
+                                return (
+                                  <div key={ev.id} style={{ background: '#FFFFFF', border: `1px solid ${borderColor}`, borderLeft: `4px solid ${urgencyColor}`, borderRadius: '12px', padding: '16px 18px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                                    {/* Alert pills */}
+                                    {alerts.length > 0 && (
+                                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '5px' }}>
+                                        {alerts.map((a, ai) => (
+                                          <span key={ai} style={{ fontSize: '10px', fontWeight: 700, padding: '2px 7px', borderRadius: '5px', background: 'rgba(217,119,6,0.1)', color: '#92400E', border: '1px solid rgba(217,119,6,0.2)' }}>⚠ {a}</span>
+                                        ))}
                                       </div>
-                                    ) : (
-                                      <span style={{ fontSize: '11px', color: '#B8CDD8' }}>No checklist</span>
                                     )}
-                                  </td>
-                                  <td style={{ padding: '13px 14px' }}>
-                                    <div style={{ display: 'flex', gap: '5px' }}>
-                                      <Link href={`/admin/events/${ev.id}`} style={{ padding: '5px 11px', borderRadius: '7px', background: '#00897B', color: '#FFFFFF', fontSize: '11px', fontWeight: 700, textDecoration: 'none', whiteSpace: 'nowrap' }}>Workspace</Link>
-                                      <Link href={`/admin/events/${ev.id}/plan`} style={{ padding: '5px 11px', borderRadius: '7px', border: '1px solid rgba(192,244,60,0.5)', background: 'rgba(192,244,60,0.07)', color: '#3D6B00', fontSize: '11px', fontWeight: 700, textDecoration: 'none', whiteSpace: 'nowrap' }}>Plan</Link>
-                                      <Link href={`/admin/events/${ev.id}/execution`} style={{ padding: '5px 11px', borderRadius: '7px', border: '1px solid rgba(124,58,237,0.4)', background: 'rgba(124,58,237,0.07)', color: '#7C3AED', fontSize: '11px', fontWeight: 700, textDecoration: 'none', whiteSpace: 'nowrap' }}>RACI</Link>
+                                    {/* Name + countdown */}
+                                    <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '10px' }}>
+                                      <div style={{ fontSize: '14px', fontWeight: 800, color: '#0F1923', lineHeight: 1.3 }}>{ev.name}</div>
+                                      <span style={{ fontSize: '13px', fontWeight: 900, color: urgencyColor, whiteSpace: 'nowrap', flexShrink: 0 }}>{daysLabel}</span>
+                                    </div>
+                                    {/* Meta row */}
+                                    <div style={{ display: 'flex', gap: '5px', alignItems: 'center', flexWrap: 'wrap' }}>
+                                      <span style={{ fontSize: '10px', fontWeight: 700, padding: '2px 6px', borderRadius: '5px', background: `${tc}18`, color: tc, textTransform: 'capitalize' }}>{ev.type}</span>
+                                      <span style={{ fontSize: '10px', fontWeight: 700, padding: '2px 6px', borderRadius: '5px', background: sc.bg, color: sc.color, textTransform: 'capitalize' }}>{ev.status}</span>
+                                      {ev.city && <span style={{ fontSize: '11px', color: '#8A9BAB' }}>{ev.city}</span>}
+                                      {ev.client_name && <span style={{ fontSize: '11px', color: '#8A9BAB' }}>· {ev.client_name}</span>}
+                                    </div>
+                                    {/* Staff + tasks */}
+                                    <div style={{ display: 'flex', gap: '16px', alignItems: 'center' }}>
+                                      <div style={{ display: 'flex', gap: '5px', alignItems: 'center', flexShrink: 0 }}>
+                                        <svg width="12" height="12" fill="none" stroke={staffCount === 0 ? '#D97706' : '#8A9BAB'} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+                                        <span style={{ fontSize: '13px', fontWeight: 700, color: staffCount === 0 ? '#D97706' : '#2D3E50' }}>{staffCount || '—'}</span>
+                                        <span style={{ fontSize: '11px', color: '#8A9BAB' }}>staff</span>
+                                      </div>
+                                      <div style={{ flex: 1 }}>
+                                        {taskTotal > 0 ? (
+                                          <div style={{ display: 'flex', alignItems: 'center', gap: '7px' }}>
+                                            <div style={{ flex: 1, height: '5px', background: '#E8EEF4', borderRadius: '3px', overflow: 'hidden' }}>
+                                              <div style={{ height: '100%', width: `${taskPct}%`, background: taskPct >= 80 ? '#3D6B00' : taskPct >= 40 ? '#D97706' : '#8B1A1A', borderRadius: '3px' }} />
+                                            </div>
+                                            <span style={{ fontSize: '10px', fontWeight: 700, color: '#8A9BAB', whiteSpace: 'nowrap' }}>{taskDone}/{taskTotal}</span>
+                                          </div>
+                                        ) : (
+                                          <span style={{ fontSize: '11px', color: '#C0C8D0' }}>No checklist</span>
+                                        )}
+                                      </div>
+                                    </div>
+                                    {/* Revenue if available */}
+                                    {s?.confirmed_revenue ? (
+                                      <div style={{ fontSize: '11px', color: '#3D6B00', fontWeight: 700 }}>{fmt(s.confirmed_revenue, s.currency)} confirmed revenue</div>
+                                    ) : null}
+                                    {/* Actions */}
+                                    <div style={{ display: 'flex', gap: '5px', paddingTop: '2px' }}>
+                                      <Link href={`/admin/events/${ev.id}`} style={{ flex: 1, textAlign: 'center', padding: '7px 8px', borderRadius: '7px', background: '#00897B', color: '#FFFFFF', fontSize: '11px', fontWeight: 700, textDecoration: 'none' }}>Workspace</Link>
+                                      <Link href={`/admin/events/${ev.id}/plan`} style={{ padding: '7px 9px', borderRadius: '7px', border: '1px solid rgba(192,244,60,0.5)', background: 'rgba(192,244,60,0.07)', color: '#3D6B00', fontSize: '11px', fontWeight: 700, textDecoration: 'none' }}>Plan</Link>
+                                      <Link href={`/admin/events/${ev.id}/execution`} style={{ padding: '7px 9px', borderRadius: '7px', border: '1px solid rgba(124,58,237,0.4)', background: 'rgba(124,58,237,0.07)', color: '#7C3AED', fontSize: '11px', fontWeight: 700, textDecoration: 'none' }}>RACI</Link>
                                       <button onClick={() => { setSelectedEvent(ev === selectedEvent ? null : ev); if (ev !== selectedEvent) { fetchEventStaff(ev.id); fetchEventSummaries() } }}
-                                        style={{ padding: '5px 11px', borderRadius: '7px', border: `1px solid ${selectedEvent?.id===ev.id ? 'rgba(0,165,163,0.4)' : '#DDE8EE'}`, background: selectedEvent?.id===ev.id ? 'rgba(0,165,163,0.08)' : 'transparent', color: selectedEvent?.id===ev.id ? '#00695C' : '#5B7080', fontSize: '11px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap' }}>
+                                        style={{ padding: '7px 9px', borderRadius: '7px', border: `1px solid ${selectedEvent?.id===ev.id ? 'rgba(0,165,163,0.4)' : '#DDE8EE'}`, background: selectedEvent?.id===ev.id ? 'rgba(0,165,163,0.08)' : 'transparent', color: selectedEvent?.id===ev.id ? '#00695C' : '#5B7080', fontSize: '11px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
                                         Staff
                                       </button>
                                     </div>
-                                  </td>
-                                </tr>
-                              )
-                            })}
-                          </tbody>
-                        </table>
+                                  </div>
+                                )
+                              })}
+                            </div>
+                          </div>
+                        ))}
                       </div>
-                      {upcoming.length === 0 && <div style={{ padding: '40px', textAlign: 'center', color: '#8A9BAB', fontSize: '13px' }}>No upcoming or active events.</div>}
-                    </div>
-                  )}
+                    )
+                  })()}
 
                   {/* ══ PAST EVENTS P&L VIEW ══ */}
                   {eventView === 'past' && (
