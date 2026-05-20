@@ -318,6 +318,14 @@ function CheckpointRow({
               style={{ padding: '7px 16px', borderRadius: '8px', background: 'transparent', color: '#D97706', fontSize: '12px', fontWeight: 700, border: `1px solid #D97706`, cursor: 'pointer', fontFamily: 'inherit' }}>
               COO Override
             </button>
+            {/* Market Intel tool — shown on Marketing Brief checkpoint */}
+            {cp.name.toLowerCase().includes('marketing brief') && (
+              <a href={`/admin/events/${cp.event_id}/market-intel`}
+                onClick={e => e.stopPropagation()}
+                style={{ padding: '7px 14px', borderRadius: '8px', background: '#6366F1', color: '#fff', fontSize: '12px', fontWeight: 700, border: 'none', cursor: 'pointer', fontFamily: 'inherit', textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: '5px' }}>
+                🔭 Market Intel
+              </a>
+            )}
           </div>
         </div>
       )}
