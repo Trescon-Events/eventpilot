@@ -94,19 +94,53 @@ async function fetchSitemapUrls(baseUrl: string): Promise<string[]> {
   return urls.slice(0, 200)
 }
 
-// ── Alt text extraction from image logo grids ─────────────────────────────────
+// ── Contextual alt text extraction — sponsor/partner sections only ────────────
+// Instead of grabbing all alt text (noisy), we:
+// 1. Find HTML blocks that contain commercial keyword headings
+// 2. Extract alt text only from <img> tags within those blocks
+// 3. Apply strict filters: length, no generics, must look like a brand name
 function extractImageAltText(html: string): string[] {
+  // Commercial section keywords — signals we're inside a sponsor/partner block
+  const SECTION_SIGNALS = /sponsor|partner|exhibitor|supporter|platinum|gold|silver|bronze|diamond|media.partner|knowledge.partner|ecosystem|powered.by|in.association|affiliate|backer/i
+
+  // Hard blocklist — definitely not company names
+  const JUNK = /^(logo|image|img|photo|icon|banner|slide|arrow|close|menu|search|placeholder|loading|next|prev|previous|play|pause|mute|share|download|upload|check|tick|cross|star|home|back|forward|left|right|up|down|zoom|edit|delete|add|remove|yes|no|ok|cancel|submit|send|get|go|view|read|more|less|show|hide|open|bg|background|decoration|pattern|texture|shape|gradient|wave|line|dot|circle|square|triangle|avatar|profile|user|person|team|staff|people|speaker|judge|jury|panelist|moderator|chairman|ceo|cto|cmo|coo|vp|svp|director|manager|head|lead|founder|co.founder|president|trustee|advisor|volunteer|delegate|attendee|visitor|exhibitor.logo|partner.logo|sponsor.logo|client.logo|brand.logo|company.logo|organisation.logo|organization.logo|\d+|\s*)$/i
+
+  // Must look like a brand: starts with capital or number, reasonable length, no pure symbols
+  const LOOKS_LIKE_BRAND = /^[A-Z0-9][A-Za-z0-9\s\.\-\&\,\'\"\/\(\)]{1,59}$/
+
   const alts: string[] = []
-  // Look for img tags with meaningful alt text (>2 chars, not generic)
-  const imgRe = /<img[^>]+alt=["']([^"']{3,80})["'][^>]*>/gi
-  const generic = /^(logo|image|img|photo|icon|banner|slide|arrow|close|menu|search|placeholder|loading)$/i
-  let m
-  while ((m = imgRe.exec(html)) !== null) {
-    const alt = m[1].trim()
-    if (!generic.test(alt) && !/^\d+$/.test(alt)) {
-      alts.push(alt)
+
+  // Strategy: find blocks of HTML around commercial keywords, extract img alt within ±2000 chars
+  let searchHtml = html
+  let offset = 0
+
+  while (offset < html.length) {
+    const match = SECTION_SIGNALS.exec(searchHtml)
+    if (!match) break
+
+    const blockStart = Math.max(0, offset + match.index - 1500)
+    const blockEnd   = Math.min(html.length, offset + match.index + 1500)
+    const block      = html.slice(blockStart, blockEnd)
+
+    // Extract all img alt texts within this block
+    const imgRe = /<img[^>]+alt=["']([^"']{2,70})["'][^>]*>/gi
+    let imgMatch
+    while ((imgMatch = imgRe.exec(block)) !== null) {
+      const raw = imgMatch[1].trim()
+      if (
+        !JUNK.test(raw) &&
+        LOOKS_LIKE_BRAND.test(raw) &&
+        raw.split(' ').length <= 8   // max 8 words — company names aren't sentences
+      ) {
+        alts.push(raw)
+      }
     }
+
+    offset += match.index + 1
+    searchHtml = html.slice(offset)
   }
+
   return [...new Set(alts)]
 }
 
