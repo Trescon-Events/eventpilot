@@ -45,8 +45,27 @@ export async function GET(req: NextRequest) {
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
+  // Deduplicate by master_id — keep earliest sort_order occurrence
+  const seenMaster = new Set<string>()
+  const deduped = (checkpoints ?? []).filter(c => {
+    if (seenMaster.has(c.master_id)) return false
+    seenMaster.add(c.master_id)
+    return true
+  })
+
+  // Fetch duration data from master template
+  const masterIds = deduped.map(c => c.master_id)
+  const masterMap: Record<string, { default_duration_days: number | null; default_pre_event_days: number | null }> = {}
+  if (masterIds.length) {
+    const { data: masterRows } = await supabaseAdmin
+      .from('event_raci_master')
+      .select('id, default_duration_days, default_pre_event_days')
+      .in('id', masterIds)
+    ;(masterRows ?? []).forEach(m => { masterMap[m.id] = m })
+  }
+
   // Attach latest approval per checkpoint
-  const ids = (checkpoints ?? []).map(c => c.id)
+  const ids = deduped.map(c => c.id)
   let approvalMap: Record<string, object> = {}
   if (ids.length) {
     const { data: approvals } = await supabaseAdmin
@@ -75,13 +94,14 @@ export async function GET(req: NextRequest) {
     })
   }
 
-  const enriched = (checkpoints ?? []).map(c => ({
+  const enriched = deduped.map(c => ({
     ...c,
+    default_duration_days:   masterMap[c.master_id]?.default_duration_days   ?? null,
+    default_pre_event_days:  masterMap[c.master_id]?.default_pre_event_days  ?? null,
     latest_approval: approvalMap[c.id] ?? null,
     overrides: overrideMap[c.id] ?? [],
   }))
 
-  // Also return red flags
   const today = new Date().toISOString().slice(0, 10)
   const redFlags = enriched.filter(c =>
     (c.due_date && c.due_date < today && !['complete','approved','rejected'].includes(c.status)) ||

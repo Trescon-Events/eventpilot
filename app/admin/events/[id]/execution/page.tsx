@@ -23,6 +23,8 @@ type Checkpoint = {
   approver_roles: string[]
   depends_on_names: string[]
   due_date: string | null
+  default_duration_days: number | null
+  default_pre_event_days: number | null
   status: 'not_started' | 'in_progress' | 'complete' | 'pending_approval' | 'approved' | 'rejected' | 'overdue'
   completion_notes: string | null
   completed_at: string | null
@@ -413,6 +415,7 @@ export default function ExecutionPage({ params }: { params: Promise<{ id: string
   const [cfgDays,       setCfgDays]       = useState('')
   const [cfgStart,      setCfgStart]      = useState('')
   const [timelineEdits, setTimelineEdits] = useState<Record<string, string>>({})
+  const [bulkReason,    setBulkReason]    = useState('')
   const [saving,        setSaving]        = useState(false)
 
   async function load() {
@@ -567,7 +570,7 @@ export default function ExecutionPage({ params }: { params: Promise<{ id: string
           event_id:      eventId,
           field:         'due_date',
           new_value:     timelineEdits[cp.id],
-          reason:        'Bulk timeline edit via Edit Timelines',
+          reason:        bulkReason.trim() || 'Timeline adjustment via Edit Timelines',
         }),
       }))
     if (overridePromises.length > 0) await Promise.all(overridePromises)
@@ -611,6 +614,7 @@ export default function ExecutionPage({ params }: { params: Promise<{ id: string
                 const edits: Record<string, string> = {}
                 checkpoints.forEach(cp => { edits[cp.id] = cp.due_date ?? '' })
                 setTimelineEdits(edits)
+                setBulkReason('')
                 setConfigModal(true)
               }}
               style={{ padding: '8px 16px', borderRadius: '10px', background: config ? SURFACE : ACCENT, color: config ? DARK : DARK, fontSize: '12px', fontWeight: 700, border: `1px solid ${BORDER}`, cursor: 'pointer', fontFamily: 'inherit' }}>
@@ -907,11 +911,21 @@ export default function ExecutionPage({ params }: { params: Promise<{ id: string
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
                           {grp.items.map(cp => {
                             const edited = timelineEdits[cp.id] !== undefined && timelineEdits[cp.id] !== (cp.due_date ?? '')
+                            const durationLabel = cp.timeline_type === 'fixed_duration' && cp.default_duration_days
+                              ? `${cp.default_duration_days}d from start`
+                              : cp.timeline_type === 'fixed_pre_event' && cp.default_pre_event_days
+                              ? `${cp.default_pre_event_days}d before event`
+                              : cp.timeline_type === 'cycle_dependent' && cp.cycle_milestone_pct
+                              ? `${cp.cycle_milestone_pct}% into cycle`
+                              : null
                             return (
                               <div key={cp.id} style={{ display: 'grid', gridTemplateColumns: '1fr 160px', gap: '10px', alignItems: 'center', padding: '7px 10px', borderRadius: '8px', background: edited ? '#D9770608' : 'transparent', border: `1px solid ${edited ? '#D9770630' : 'transparent'}` }}>
-                                <div style={{ fontSize: '12px', color: DARK, fontWeight: edited ? 700 : 500, lineHeight: 1.3 }}>
-                                  {cp.name}
-                                  {edited && <span style={{ marginLeft: '6px', fontSize: '10px', color: '#D97706', fontWeight: 800 }}>edited</span>}
+                                <div style={{ lineHeight: 1.4 }}>
+                                  <div style={{ fontSize: '12px', color: DARK, fontWeight: edited ? 700 : 500 }}>
+                                    {cp.name}
+                                    {edited && <span style={{ marginLeft: '6px', fontSize: '10px', color: '#D97706', fontWeight: 800 }}>edited</span>}
+                                  </div>
+                                  {durationLabel && <div style={{ fontSize: '10px', color: MUTED, marginTop: '2px' }}>{durationLabel}</div>}
                                 </div>
                                 <input type="date" value={timelineEdits[cp.id] ?? cp.due_date ?? ''}
                                   onChange={e => setTimelineEdits(prev => ({ ...prev, [cp.id]: e.target.value }))}
@@ -924,9 +938,21 @@ export default function ExecutionPage({ params }: { params: Promise<{ id: string
                     ))}
                   </div>
 
+                  {/* Reason — required if any dates changed */}
+                  {changedCount > 0 && (
+                    <div style={{ marginBottom: '16px' }}>
+                      <label style={{ fontSize: '11px', fontWeight: 700, color: '#D97706', textTransform: 'uppercase', letterSpacing: '1px', display: 'block', marginBottom: '6px' }}>
+                        Reason for changes * (required)
+                      </label>
+                      <textarea value={bulkReason} onChange={e => setBulkReason(e.target.value)} rows={2}
+                        placeholder="Why are these dates being adjusted? This is logged against each override for audit."
+                        style={{ width: '100%', padding: '9px 12px', borderRadius: '8px', border: `1px solid ${bulkReason.trim() ? BORDER : '#D97706'}`, fontSize: '13px', fontFamily: 'inherit', outline: 'none', resize: 'vertical', boxSizing: 'border-box' }} />
+                    </div>
+                  )}
+
                   <div style={{ display: 'flex', gap: '10px' }}>
-                    <button onClick={submitConfig} disabled={saving || !cfgDays || !cfgStart}
-                      style={{ flex: 1, padding: '11px', borderRadius: '10px', background: ACCENT, color: DARK, fontSize: '13px', fontWeight: 700, border: 'none', cursor: (saving || !cfgDays || !cfgStart) ? 'not-allowed' : 'pointer', fontFamily: 'inherit', opacity: (saving || !cfgDays || !cfgStart) ? 0.6 : 1 }}>
+                    <button onClick={submitConfig} disabled={saving || !cfgDays || !cfgStart || (changedCount > 0 && !bulkReason.trim())}
+                      style={{ flex: 1, padding: '11px', borderRadius: '10px', background: ACCENT, color: DARK, fontSize: '13px', fontWeight: 700, border: 'none', cursor: (saving || !cfgDays || !cfgStart || (changedCount > 0 && !bulkReason.trim())) ? 'not-allowed' : 'pointer', fontFamily: 'inherit', opacity: (saving || !cfgDays || !cfgStart || (changedCount > 0 && !bulkReason.trim())) ? 0.6 : 1 }}>
                       {saving ? 'Saving…' : `Save${changedCount > 0 ? ` (${changedCount} date change${changedCount !== 1 ? 's' : ''})` : ''}`}
                     </button>
                     <button onClick={() => setConfigModal(false)}
