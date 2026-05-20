@@ -21,6 +21,7 @@ type Event = {
   type: string
   status: string
   event_date: string | null
+  end_date: string | null
   venue: string | null
   city: string | null
   client_name: string | null
@@ -131,7 +132,7 @@ export default function EventWorkspacePage({ params }: { params: Promise<{ id: s
 
   // Event editing
   const [editing,        setEditing]        = useState(false)
-  const [editForm,       setEditForm]       = useState({ name: '', type: '', status: '', event_date: '', venue: '', city: '', client_name: '', description: '', expected_attendance: '' })
+  const [editForm,       setEditForm]       = useState({ name: '', type: '', status: '', event_date: '', end_date: '', venue: '', city: '', client_name: '', description: '', expected_attendance: '' })
   const [savingEdit,     setSavingEdit]     = useState(false)
 
   // Team tab
@@ -197,6 +198,7 @@ export default function EventWorkspacePage({ params }: { params: Promise<{ id: s
       type:        editForm.type,
       status:      editForm.status,
       event_date:  editForm.event_date || null,
+      end_date:    editForm.end_date || null,
       venue:       editForm.venue || null,
       city:        editForm.city || null,
       client_name: editForm.client_name || null,
@@ -244,6 +246,7 @@ export default function EventWorkspacePage({ params }: { params: Promise<{ id: s
         type:                ev.type ?? '',
         status:              ev.status ?? '',
         event_date:          ev.event_date?.slice(0, 10) ?? '',
+        end_date:            ev.end_date?.slice(0, 10) ?? '',
         venue:               ev.venue ?? '',
         city:                ev.city ?? '',
         client_name:         ev.client_name ?? '',
@@ -594,7 +597,8 @@ export default function EventWorkspacePage({ params }: { params: Promise<{ id: s
                     {([
                       ['STATUS', 'status', null, ['planning','upcoming','active','completed','cancelled']],
                       ['TYPE',   'type',   null, ['conference','summit','forum','awards','workshop','flagship','managed','bespoke','corporate','other']],
-                      ['DATE',   'event_date', 'date', null],
+                      ['START DATE', 'event_date', 'date', null],
+                      ['END DATE',   'end_date',   'date', null],
                       ['VENUE',  'venue',  null, null],
                       ['CITY',   'city',   null, null],
                       ['CLIENT', 'client_name', null, null],
