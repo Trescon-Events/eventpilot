@@ -373,7 +373,7 @@ export default function AdminPage() {
   // Events tab
   type EventRow = {
     id: string; name: string; type: string; status: string
-    event_date: string | null; venue: string | null; city: string | null
+    event_date: string | null; end_date: string | null; venue: string | null; city: string | null
     client_name: string | null; description: string | null
     event_staff?: { count: number }[] | null
     documents?:   { count: number }[] | null
@@ -381,7 +381,7 @@ export default function AdminPage() {
   }
   const [events,        setEvents]        = useState<EventRow[]>([])
   const [eventsLoading, setEventsLoading] = useState(false)
-  const [eventForm,     setEventForm]     = useState({ name: '', type: 'conference', status: 'planning', event_date: '', venue: '', city: '', client_name: '', description: '' })
+  const [eventForm,     setEventForm]     = useState({ name: '', type: 'conference', status: 'planning', event_date: '', end_date: '', venue: '', city: '', client_name: '', description: '' })
   const [eventSaving,   setEventSaving]   = useState(false)
   const [eventMsg,      setEventMsg]      = useState('')
   const [selectedEvent, setSelectedEvent] = useState<EventRow | null>(null)
@@ -486,7 +486,7 @@ export default function AdminPage() {
     if (!eventForm.name.trim()) { setEventMsg('Event name is required.'); return }
     setEventSaving(true); setEventMsg('')
     const res = await fetch('/api/events', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(eventForm) })
-    if (res.ok) { setEventMsg('Event created.'); setEventForm({ name: '', type: 'conference', status: 'planning', event_date: '', venue: '', city: '', client_name: '', description: '' }); fetchEvents() }
+    if (res.ok) { setEventMsg('Event created.'); setEventForm({ name: '', type: 'conference', status: 'planning', event_date: '', end_date: '', venue: '', city: '', client_name: '', description: '' }); fetchEvents() }
     else { setEventMsg('Failed to create event.') }
     setEventSaving(false)
   }
@@ -2997,8 +2997,13 @@ export default function AdminPage() {
                   </select>
                 </div>
                 <div>
-                  <label style={{ fontSize: '13px', fontWeight: 700, color: '#5B7080', letterSpacing: '0.8px', textTransform: 'uppercase', display: 'block', marginBottom: '5px' }}>Date</label>
+                  <label style={{ fontSize: '13px', fontWeight: 700, color: '#5B7080', letterSpacing: '0.8px', textTransform: 'uppercase', display: 'block', marginBottom: '5px' }}>Start Date</label>
                   <input type="date" value={eventForm.event_date} onChange={e => setEventForm(p => ({ ...p, event_date: e.target.value }))}
+                    style={{ width: '100%', padding: '9px 12px', borderRadius: '9px', border: '1px solid #DDE8EE', background: '#FFFFFF', color: '#0F1923', fontSize: '13px', fontFamily: 'inherit', boxSizing: 'border-box' }} />
+                </div>
+                <div>
+                  <label style={{ fontSize: '13px', fontWeight: 700, color: '#5B7080', letterSpacing: '0.8px', textTransform: 'uppercase', display: 'block', marginBottom: '5px' }}>End Date</label>
+                  <input type="date" value={eventForm.end_date} onChange={e => setEventForm(p => ({ ...p, end_date: e.target.value }))}
                     style={{ width: '100%', padding: '9px 12px', borderRadius: '9px', border: '1px solid #DDE8EE', background: '#FFFFFF', color: '#0F1923', fontSize: '13px', fontFamily: 'inherit', boxSizing: 'border-box' }} />
                 </div>
               </div>
@@ -3135,7 +3140,19 @@ export default function AdminPage() {
                                 const tc = TYPE_COLOR[ev.type]   ?? '#5B7080'
                                 const urgencyColor  = days === null ? '#8A9BAB' : days < 0 ? '#00897B' : days <= 14 ? '#D97706' : days <= 30 ? '#3730A3' : days <= 90 ? '#1565C0' : '#3D6B00'
                                 const borderColor   = days === null ? '#DDE8EE' : days < 0 ? 'rgba(0,137,123,0.2)' : days <= 14 ? 'rgba(217,119,6,0.3)' : days <= 30 ? 'rgba(55,48,163,0.2)' : '#DDE8EE'
-                                const daysLabel     = days === null ? 'No date' : days < 0 ? (ev.event_date ? new Date(ev.event_date).toLocaleDateString('en-GB',{day:'numeric',month:'short'}) : '—') : days === 0 ? 'Today' : days === 1 ? 'Tomorrow' : `In ${days}d`
+                                // Date label: show range if end_date exists, else single date
+                                const fmtD = (iso: string) => new Date(iso + 'T00:00:00').toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })
+                                const hasEnd = ev.end_date && ev.end_date !== ev.event_date
+                                const dateLabel = !ev.event_date ? 'No date' : hasEnd
+                                  ? (() => {
+                                      const s = new Date(ev.event_date + 'T00:00:00')
+                                      const e = new Date(ev.end_date! + 'T00:00:00')
+                                      return s.getMonth() === e.getMonth()
+                                        ? `${s.getDate()}–${e.getDate()} ${s.toLocaleDateString('en-GB',{month:'short'})}`
+                                        : `${fmtD(ev.event_date)} – ${fmtD(ev.end_date!)}`
+                                    })()
+                                  : fmtD(ev.event_date)
+                                const countdownLabel = days === null ? '' : days < 0 ? '' : days === 0 ? 'Today' : days === 1 ? 'Tomorrow' : `In ${days}d`
                                 return (
                                   <div key={ev.id} style={{ background: '#FFFFFF', border: `1px solid ${borderColor}`, borderLeft: `4px solid ${urgencyColor}`, borderRadius: '12px', padding: '16px 18px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
                                     {/* Alert pills */}
@@ -3146,10 +3163,13 @@ export default function AdminPage() {
                                         ))}
                                       </div>
                                     )}
-                                    {/* Name + countdown */}
+                                    {/* Name + date */}
                                     <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '10px' }}>
                                       <div style={{ fontSize: '14px', fontWeight: 800, color: '#0F1923', lineHeight: 1.3 }}>{ev.name}</div>
-                                      <span style={{ fontSize: '13px', fontWeight: 900, color: urgencyColor, whiteSpace: 'nowrap', flexShrink: 0 }}>{daysLabel}</span>
+                                      <div style={{ textAlign: 'right', flexShrink: 0 }}>
+                                        <div style={{ fontSize: '13px', fontWeight: 900, color: urgencyColor, whiteSpace: 'nowrap' }}>{dateLabel}</div>
+                                        {countdownLabel && <div style={{ fontSize: '11px', fontWeight: 700, color: '#8A9BAB', whiteSpace: 'nowrap', marginTop: '1px' }}>{countdownLabel}</div>}
+                                      </div>
                                     </div>
                                     {/* Meta row */}
                                     <div style={{ display: 'flex', gap: '5px', alignItems: 'center', flexWrap: 'wrap' }}>

@@ -12,7 +12,7 @@ export async function GET(req: NextRequest) {
       const { data, error } = await supabaseAdmin
         .from('events')
         .select(`
-          id, name, type, status, event_date, venue, city, client_name,
+          id, name, type, status, event_date, end_date, venue, city, client_name,
           description, expected_attendance, created_at,
           event_staff(count),
           documents(count)
@@ -36,7 +36,7 @@ export async function GET(req: NextRequest) {
     const { data, error } = await supabaseAdmin
       .from('events')
       .select(`
-        id, name, type, status, event_date, venue, city, client_name, description, created_at,
+        id, name, type, status, event_date, end_date, venue, city, client_name, description, created_at,
         event_staff(count),
         documents(count),
         event_checklist(count)
@@ -63,6 +63,7 @@ export async function POST(req: NextRequest) {
       type:        body.type        || 'conference',
       status:      body.status      || 'planning',
       event_date:  body.event_date  || null,
+      end_date:    body.end_date    || null,
       venue:       body.venue       || null,
       city:        body.city        || null,
       client_name: body.client_name || null,
