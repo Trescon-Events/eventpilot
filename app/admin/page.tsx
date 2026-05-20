@@ -2961,11 +2961,19 @@ export default function AdminPage() {
             return `${n < 0 ? '-' : ''}${cur === 'INR' ? '₹' : '$'}${str}`
           }
 
+          const todayStr = new Date().toISOString().slice(0, 10)
           const upcoming = events
-            .filter(e => e.status !== 'completed' && e.status !== 'cancelled')
+            .filter(e => {
+              if (e.status === 'completed' || e.status === 'cancelled') return false
+              if (!e.event_date) return true                          // no date yet → treat as upcoming
+              if (e.event_date >= todayStr) return true              // starts today or later
+              if (e.end_date && e.end_date >= todayStr) return true  // multi-day, still running
+              return false
+            })
             .sort((a,b) => (a.event_date ?? '9999').localeCompare(b.event_date ?? '9999'))
+          // Past = anything whose date has passed (incl. active events that were never delivered)
           const past = events
-            .filter(e => e.status === 'completed' || e.status === 'cancelled')
+            .filter(e => !upcoming.includes(e))
             .sort((a,b) => (b.event_date ?? '').localeCompare(a.event_date ?? ''))
 
           const totalStaff = events.reduce((s,e) => s + ((e.event_staff as {count:number}[]|null)?.[0]?.count ?? 0), 0)
@@ -3110,7 +3118,7 @@ export default function AdminPage() {
                         if (v === 'past' && Object.keys(eventSummaries).length === 0) fetchEventSummaries()
                       }}
                         style={{ padding: '8px 18px', borderRadius: '8px', border: `1px solid ${eventView===v ? '#00897B' : '#DDE8EE'}`, background: eventView===v ? '#00897B' : '#FFFFFF', color: eventView===v ? '#FFFFFF' : '#5B7080', fontSize: '13px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
-                        {v === 'upcoming' ? `Upcoming & Active (${upcoming.length})` : `Past & Completed (${past.length})`}
+                        {v === 'upcoming' ? `Active & Upcoming (${upcoming.length})` : `Past Events (${past.length})`}
                       </button>
                     ))}
                     <div style={{ flex: 1 }} />
@@ -3145,16 +3153,14 @@ export default function AdminPage() {
                     })
 
                     const groups = [
-                      // Past-date events still marked active — planned but never delivered
-                      { key: 'gap',   label: 'Execution gap — planned, not delivered', color: '#8B1A1A', items: annotated.filter(x => x.days !== null && x.days < 0) },
-                      // Upcoming events with critical gaps
-                      { key: 'attn',  label: 'Needs attention',                        color: '#D97706', items: annotated.filter(x => x.isUrgent) },
+                      // Upcoming events with critical gaps (within 45d no staff, within 30d no checklist)
+                      { key: 'attn',  label: 'Needs attention', color: '#D97706', items: annotated.filter(x => x.isUrgent) },
                       // Next 30 days, no critical gap
-                      { key: 'month', label: 'Next 30 days',                           color: '#3730A3', items: annotated.filter(x => !x.isUrgent && x.days !== null && x.days >= 0 && x.days <= 30) },
+                      { key: 'month', label: 'Next 30 days',    color: '#3730A3', items: annotated.filter(x => !x.isUrgent && x.days !== null && x.days >= 0 && x.days <= 30) },
                       // 31–90 days out
-                      { key: 'soon',  label: 'Coming up',                              color: '#1565C0', items: annotated.filter(x => !x.isUrgent && x.days !== null && x.days > 30 && x.days <= 90) },
+                      { key: 'soon',  label: 'Coming up',       color: '#1565C0', items: annotated.filter(x => !x.isUrgent && x.days !== null && x.days > 30 && x.days <= 90) },
                       // No date or 90+ days
-                      { key: 'later', label: 'Later',                                  color: '#3D6B00', items: annotated.filter(x => !x.isUrgent && (x.days === null || x.days > 90)) },
+                      { key: 'later', label: 'Later',           color: '#3D6B00', items: annotated.filter(x => !x.isUrgent && (x.days === null || x.days > 90)) },
                     ]
 
                     return (
@@ -3267,9 +3273,26 @@ export default function AdminPage() {
                   {eventView === 'past' && (
                     summariesLoading
                       ? <div style={{ textAlign: 'center', padding: '60px 0', color: '#5B7080', fontSize: '13px' }}>Loading P&L data…</div>
-                      : (
-                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: '14px' }}>
-                          {past.map(ev => {
+                      : (() => {
+                          const gapEvents       = past.filter(e => e.status !== 'completed' && e.status !== 'cancelled')
+                          const deliveredEvents = past.filter(e => e.status === 'completed' || e.status === 'cancelled')
+                          const pastGroups = [
+                            { key: 'gap',       label: 'Execution gap — dated & active, never marked complete', color: '#8B1A1A', items: gapEvents },
+                            { key: 'delivered', label: 'Delivered',                                             color: '#3D6B00', items: deliveredEvents },
+                          ]
+                          return (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '28px' }}>
+                          {past.length === 0 && <div style={{ textAlign: 'center', padding: '40px', color: '#8A9BAB', fontSize: '13px' }}>No past events yet.</div>}
+                          {pastGroups.map(grp => grp.items.length === 0 ? null : (
+                            <div key={grp.key}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '14px' }}>
+                                <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: grp.color, flexShrink: 0 }} />
+                                <div style={{ fontSize: '11px', fontWeight: 800, letterSpacing: '1.5px', textTransform: 'uppercase', color: grp.color }}>{grp.label}</div>
+                                <div style={{ flex: 1, height: '1px', background: '#E8EEF4' }} />
+                                <div style={{ fontSize: '11px', fontWeight: 700, color: '#8A9BAB' }}>{grp.items.length} event{grp.items.length !== 1 ? 's' : ''}</div>
+                              </div>
+                              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: '14px' }}>
+                          {grp.items.map(ev => {
                             const s          = eventSummaries[ev.id]
                             const netPnl     = s ? s.net_pnl : null
                             const missing: string[] = []
@@ -3332,8 +3355,12 @@ export default function AdminPage() {
                               </div>
                             )
                           })}
+                              </div>
+                            </div>
+                          ))}
                         </div>
-                      )
+                          )
+                        })()
                   )}
 
                   {/* ── Staff assignment panel ── */}
