@@ -3133,9 +3133,9 @@ export default function AdminPage() {
                               {grp.items.map(({ ev, days, staffCount, taskTotal, taskDone, taskPct, alerts, s }) => {
                                 const sc = STATUS_CFG[ev.status] ?? STATUS_CFG.planning
                                 const tc = TYPE_COLOR[ev.type]   ?? '#5B7080'
-                                const urgencyColor  = days === null ? '#8A9BAB' : days < 0 ? '#8B1A1A' : days <= 14 ? '#D97706' : days <= 30 ? '#3730A3' : days <= 90 ? '#1565C0' : '#3D6B00'
-                                const borderColor   = days === null ? '#DDE8EE' : days < 0 ? 'rgba(139,26,26,0.3)' : days <= 14 ? 'rgba(217,119,6,0.3)' : days <= 30 ? 'rgba(55,48,163,0.2)' : '#DDE8EE'
-                                const daysLabel     = days === null ? 'No date' : days < 0 ? `${Math.abs(days)}d ago` : days === 0 ? 'Today' : days === 1 ? 'Tomorrow' : `${days}d`
+                                const urgencyColor  = days === null ? '#8A9BAB' : days < 0 ? '#00897B' : days <= 14 ? '#D97706' : days <= 30 ? '#3730A3' : days <= 90 ? '#1565C0' : '#3D6B00'
+                                const borderColor   = days === null ? '#DDE8EE' : days < 0 ? 'rgba(0,137,123,0.2)' : days <= 14 ? 'rgba(217,119,6,0.3)' : days <= 30 ? 'rgba(55,48,163,0.2)' : '#DDE8EE'
+                                const daysLabel     = days === null ? 'No date' : days < 0 ? (ev.event_date ? new Date(ev.event_date).toLocaleDateString('en-GB',{day:'numeric',month:'short'}) : '—') : days === 0 ? 'Today' : days === 1 ? 'Tomorrow' : `In ${days}d`
                                 return (
                                   <div key={ev.id} style={{ background: '#FFFFFF', border: `1px solid ${borderColor}`, borderLeft: `4px solid ${urgencyColor}`, borderRadius: '12px', padding: '16px 18px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
                                     {/* Alert pills */}
