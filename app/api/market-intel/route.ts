@@ -333,7 +333,7 @@ Return ONLY valid JSON — no markdown, no explanation, just the JSON object:
         commercial_structure: parsed.site_analysis?.commercial_structure ?? null,
         terminology_used:     parsed.site_analysis?.terminology_used ?? [],
         intelligence_summary: parsed.intelligence_summary ?? null,
-        pages_scanned:        parsed.crawl_summary?.sub_pages_fetched + 1 ?? 1,
+        pages_scanned:        (parsed.crawl_summary?.sub_pages_fetched ?? 0) + 1,
         participants_found:   parsed.participants?.length ?? 0,
         status:               'complete',
         completed_at:         new Date().toISOString(),
