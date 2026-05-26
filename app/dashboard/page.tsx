@@ -163,6 +163,16 @@ function DashboardContent() {
   const [feedbackSent,  setFeedbackSent]  = useState(false)
   const [feedbackSending, setFeedbackSending] = useState(false)
   const [dismissedIds,  setDismissedIds]  = useState<Set<string>>(new Set())
+  // Change password
+  const [showChangePw,  setShowChangePw]  = useState(false)
+  const [cpCurrent,     setCpCurrent]     = useState('')
+  const [cpNew,         setCpNew]         = useState('')
+  const [cpConfirm,     setCpConfirm]     = useState('')
+  const [cpLoading,     setCpLoading]     = useState(false)
+  const [cpError,       setCpError]       = useState('')
+  const [cpDone,        setCpDone]        = useState(false)
+  const [showCpC,       setShowCpC]       = useState(false)
+  const [showCpN,       setShowCpN]       = useState(false)
   const isAdmin = typeof window !== 'undefined' && sessionStorage.getItem('tai_admin_authed') === '1'
 
   const tip = DAILY_TIPS[new Date().getDate() % DAILY_TIPS.length]
@@ -987,6 +997,133 @@ function DashboardContent() {
         @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
         @keyframes demoGlow { 0%{color:#8B1A1A} 20%{color:#FF6B6B} 40%{color:#C0F43C} 60%{color:#00A5A3} 80%{color:#8B1A1A} 100%{color:#FFD08A} }
       `}</style>
+
+      {/* ── Change Password ── */}
+      <div style={{ maxWidth: '900px', margin: '0 auto', padding: '0 32px 24px' }}>
+        <div style={{ background: '#FFFFFF', border: '1px solid #DDE8EE', borderRadius: '16px', padding: '22px 28px', boxShadow: '0 1px 4px rgba(0,165,163,0.06), 0 1px 2px rgba(0,0,0,0.04)' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+              <div style={{ width: '36px', height: '36px', borderRadius: '10px', background: '#E0F7F6', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                <svg width="16" height="16" viewBox="0 0 20 20" fill="none">
+                  <rect x="3" y="9" width="14" height="10" rx="2" stroke="#00695C" strokeWidth="1.5"/>
+                  <path d="M6 9V6a4 4 0 0 1 8 0v3" stroke="#00695C" strokeWidth="1.5" strokeLinecap="round"/>
+                  <circle cx="10" cy="14" r="1.5" fill="#00695C"/>
+                </svg>
+              </div>
+              <div>
+                <div style={{ fontSize: '13px', fontWeight: 800, color: '#0F1923' }}>Change Password</div>
+                <div style={{ fontSize: '13px', color: '#5B7080' }}>Update your account password</div>
+              </div>
+            </div>
+            <button
+              onClick={() => { setShowChangePw(v => !v); setCpError(''); setCpDone(false); setCpCurrent(''); setCpNew(''); setCpConfirm('') }}
+              style={{ padding: '8px 18px', borderRadius: '10px', border: '1.5px solid #DDE8EE', background: showChangePw ? '#E0F7F6' : '#FFFFFF', color: showChangePw ? '#00695C' : '#0F1923', fontSize: '13px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', transition: 'all 0.15s' }}>
+              {showChangePw ? 'Cancel' : 'Change'}
+            </button>
+          </div>
+
+          {showChangePw && !cpDone && (
+            <form onSubmit={async (e) => {
+              e.preventDefault()
+              if (!cpCurrent.trim()) { setCpError('Enter your current password.'); return }
+              if (cpNew.length < 8)  { setCpError('New password must be at least 8 characters.'); return }
+              if (cpNew === cpCurrent) { setCpError('New password must be different from current.'); return }
+              if (cpNew !== cpConfirm) { setCpError('Passwords do not match.'); return }
+              setCpLoading(true); setCpError('')
+              try {
+                const res  = await fetch('/api/change-password', {
+                  method:  'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body:    JSON.stringify({ staff_id: staffId, current_password: cpCurrent, new_password: cpNew }),
+                })
+                const data = await res.json()
+                if (!res.ok) { setCpError(data.error ?? 'Failed to change password.'); setCpLoading(false); return }
+                setCpDone(true)
+              } catch { setCpError('Something went wrong. Try again.') }
+              finally { setCpLoading(false) }
+            }} style={{ marginTop: '20px', display: 'flex', flexDirection: 'column', gap: '14px' }}>
+              {/* Current password */}
+              <div>
+                <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#0F1923', marginBottom: '6px' }}>Current password</label>
+                <div style={{ position: 'relative' }}>
+                  <input type={showCpC ? 'text' : 'password'} value={cpCurrent} onChange={e => { setCpCurrent(e.target.value); setCpError('') }}
+                    placeholder="Your current password"
+                    style={{ width: '100%', padding: '11px 40px 11px 14px', borderRadius: '10px', border: '1.5px solid #DDE8EE', fontSize: '14px', outline: 'none', boxSizing: 'border-box', color: '#0F1923', fontFamily: 'inherit' }}
+                    onFocus={e => (e.target.style.borderColor = '#00695C')}
+                    onBlur={e  => (e.target.style.borderColor = '#DDE8EE')}
+                  />
+                  <button type="button" onClick={() => setShowCpC(v => !v)}
+                    style={{ position: 'absolute', right: '12px', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', color: '#5B7080', padding: 0, display: 'flex', alignItems: 'center' }}>
+                    {showCpC
+                      ? <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" viewBox="0 0 16 16"><path d="M2 2l12 12M6.5 6.6A2 2 0 0 0 9.4 9.5M4.2 4.3C2.6 5.4 1 8 1 8s2.5 5 7 5c1.4 0 2.7-.4 3.8-1M7 3.1C7.3 3 7.7 3 8 3c4.5 0 7 5 7 5s-.7 1.4-2 2.7"/></svg>
+                      : <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.3" viewBox="0 0 16 16"><path d="M1 8s2.5-5 7-5 7 5 7 5-2.5 5-7 5-7-5-7-5Z"/><circle cx="8" cy="8" r="2"/></svg>}
+                  </button>
+                </div>
+              </div>
+
+              {/* New password */}
+              <div>
+                <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#0F1923', marginBottom: '6px' }}>
+                  New password <span style={{ color: '#94A3B8', fontWeight: 500 }}>(min 8 characters)</span>
+                </label>
+                <div style={{ position: 'relative' }}>
+                  <input type={showCpN ? 'text' : 'password'} value={cpNew} onChange={e => { setCpNew(e.target.value); setCpError('') }}
+                    placeholder="Choose a strong password"
+                    style={{ width: '100%', padding: '11px 40px 11px 14px', borderRadius: '10px', border: '1.5px solid #DDE8EE', fontSize: '14px', outline: 'none', boxSizing: 'border-box', color: '#0F1923', fontFamily: 'inherit' }}
+                    onFocus={e => (e.target.style.borderColor = '#00695C')}
+                    onBlur={e  => (e.target.style.borderColor = '#DDE8EE')}
+                  />
+                  <button type="button" onClick={() => setShowCpN(v => !v)}
+                    style={{ position: 'absolute', right: '12px', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', color: '#5B7080', padding: 0, display: 'flex', alignItems: 'center' }}>
+                    {showCpN
+                      ? <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" viewBox="0 0 16 16"><path d="M2 2l12 12M6.5 6.6A2 2 0 0 0 9.4 9.5M4.2 4.3C2.6 5.4 1 8 1 8s2.5 5 7 5c1.4 0 2.7-.4 3.8-1M7 3.1C7.3 3 7.7 3 8 3c4.5 0 7 5 7 5s-.7 1.4-2 2.7"/></svg>
+                      : <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.3" viewBox="0 0 16 16"><path d="M1 8s2.5-5 7-5 7 5 7 5-2.5 5-7 5-7-5-7-5Z"/><circle cx="8" cy="8" r="2"/></svg>}
+                  </button>
+                </div>
+                {cpNew.length > 0 && (
+                  <div style={{ marginTop: '6px', display: 'flex', gap: '4px', alignItems: 'center' }}>
+                    {[cpNew.length >= 8, /[A-Z]/.test(cpNew), /[0-9]/.test(cpNew), /[^A-Za-z0-9]/.test(cpNew)].map((met, i) => (
+                      <div key={i} style={{ height: '3px', flex: 1, borderRadius: '2px', background: met ? '#00695C' : '#DDE8EE', transition: 'background 0.2s' }} />
+                    ))}
+                    <span style={{ fontSize: '10px', color: '#5B7080', marginLeft: '4px', whiteSpace: 'nowrap' }}>
+                      {cpNew.length < 8 ? 'Too short' : !/[A-Z]/.test(cpNew) ? 'Add uppercase' : !/[0-9]/.test(cpNew) ? 'Add number' : !/[^A-Za-z0-9]/.test(cpNew) ? 'Add symbol' : 'Strong'}
+                    </span>
+                  </div>
+                )}
+              </div>
+
+              {/* Confirm */}
+              <div>
+                <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#0F1923', marginBottom: '6px' }}>Confirm new password</label>
+                <input type="password" value={cpConfirm} onChange={e => { setCpConfirm(e.target.value); setCpError('') }}
+                  placeholder="Re-enter new password"
+                  style={{ width: '100%', padding: '11px 14px', borderRadius: '10px', border: `1.5px solid ${cpConfirm && cpConfirm !== cpNew ? '#FCA5A5' : '#DDE8EE'}`, fontSize: '14px', outline: 'none', boxSizing: 'border-box', color: '#0F1923', fontFamily: 'inherit' }}
+                  onFocus={e => (e.target.style.borderColor = '#00695C')}
+                  onBlur={e  => (e.target.style.borderColor = cpConfirm && cpConfirm !== cpNew ? '#FCA5A5' : '#DDE8EE')}
+                />
+                {cpConfirm && cpConfirm !== cpNew && <div style={{ fontSize: '11px', color: '#DC2626', marginTop: '4px' }}>Passwords do not match</div>}
+              </div>
+
+              {cpError && (
+                <div style={{ background: '#FFF1F2', border: '1px solid #FCA5A5', borderRadius: '10px', padding: '10px 14px', fontSize: '13px', color: '#DC2626' }}>
+                  {cpError}
+                </div>
+              )}
+
+              <button type="submit" disabled={cpLoading}
+                style={{ padding: '12px', borderRadius: '10px', background: cpLoading ? '#B8CDD8' : '#00695C', color: 'white', fontSize: '14px', fontWeight: 800, border: 'none', cursor: cpLoading ? 'not-allowed' : 'pointer', fontFamily: 'inherit', transition: 'background 0.15s' }}>
+                {cpLoading ? 'Saving…' : 'Update password'}
+              </button>
+            </form>
+          )}
+
+          {cpDone && (
+            <div style={{ marginTop: '16px', padding: '14px 16px', background: 'rgba(0,105,92,0.08)', border: '1px solid rgba(0,105,92,0.2)', borderRadius: '10px', fontSize: '13px', color: '#00695C', fontWeight: 700 }}>
+              Password updated successfully.
+            </div>
+          )}
+        </div>
+      </div>
 
       {/* ── Feedback Card ── */}
       <div style={{ maxWidth: '900px', margin: '0 auto', padding: '0 32px 48px' }}>

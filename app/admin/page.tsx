@@ -168,10 +168,10 @@ export default function AdminPage() {
   const [codeError, setCodeError] = useState('')
   const [members, setMembers] = useState<Member[]>([])
   const [tasks, setTasks]     = useState<TaskProfile[]>([])
-  const [tab, setTab]         = useState<'overview' | 'people' | 'intelligence' | 'action' | 'learning' | 'suggest' | 'events' | 'knowledge' | 'review'>('overview')
+  const [tab, setTab]         = useState<'overview' | 'people' | 'intelligence' | 'action' | 'learning' | 'suggest' | 'events' | 'knowledge' | 'review' | 'toolkit'>('overview')
 
   // Staff Management tab state
-  const [staffList,       setStaffList]       = useState<{id:string;name:string;email:string;department:string|null;role:string|null;office_id:string|null;job_level:string;manager_id:string|null}[]>([])
+  const [staffList,       setStaffList]       = useState<{id:string;name:string;email:string;department:string|null;role:string|null;office_id:string|null;job_level:string;manager_id:string|null;toolkit_access?:boolean;access_enabled?:boolean}[]>([])
   const [staffLoading,    setStaffLoading]    = useState(false)
   const [csvText,         setCsvText]         = useState('')
   const [csvParsed,       setCsvParsed]       = useState<Record<string,string>[]>([])
@@ -1265,13 +1265,14 @@ export default function AdminPage() {
                 ['events',       'Events'],
                 ['knowledge',    'Knowledge Base'],
                 ...(adminStaffId === 'super-admin' ? [['review', 'Review Queue']] : []),
+                ['toolkit',      'Toolkit'],
               ] as [typeof tab, string][]).map(([t, label]) => {
                 const accent  = TAB_ACCENT[t] ?? '#00897B'
                 const active  = tab === t
                 return (
                   <button key={t}
                     id={t === 'intelligence' ? 'tour-intelligence-tab' : t === 'suggest' ? 'tour-studio-tab' : undefined}
-                    onClick={() => { setTab(t as typeof tab); if (t === 'learning') fetchLearning(); if (t === 'people') { fetchStaffList(); markProgress('staff') } if (t === 'events') { fetchEvents(); fetchEventSummaries(); } if (t === 'knowledge') { fetchDocs(); fetchCustomDocTypes(); } if (t === 'review') fetchDrafts(); if (t === 'suggest') markProgress('course') }}
+                    onClick={() => { if (t === 'toolkit') { window.location.href = '/admin/toolkit'; return; } setTab(t as typeof tab); if (t === 'learning') fetchLearning(); if (t === 'people') { fetchStaffList(); markProgress('staff') } if (t === 'events') { fetchEvents(); fetchEventSummaries(); } if (t === 'knowledge') { fetchDocs(); fetchCustomDocTypes(); } if (t === 'review') fetchDrafts(); if (t === 'suggest') markProgress('course') }}
                     style={{
                       padding:         active ? '9px 22px' : '9px 20px',
                       borderRadius:    '10px',
@@ -1982,6 +1983,31 @@ export default function AdminPage() {
           </div>
         )}
 
+        {/* ── Toolkit Banner (overview only) ── */}
+        {tab === 'overview' && (
+          <div style={{ marginBottom: '28px' }}>
+            <Link href="/admin/toolkit"
+              style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: '#0F1923', borderRadius: '16px', padding: '22px 28px', textDecoration: 'none', gap: '20px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+                <div style={{ width: '44px', height: '44px', borderRadius: '12px', background: 'rgba(192,244,60,0.12)', border: '1px solid rgba(192,244,60,0.25)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                  <svg width="20" height="20" fill="none" stroke="#C0F43C" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24">
+                    <path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/>
+                  </svg>
+                </div>
+                <div>
+                  <div style={{ fontSize: '11px', fontWeight: 800, letterSpacing: '2px', textTransform: 'uppercase', color: '#C0F43C', marginBottom: '4px' }}>Internal Tools</div>
+                  <div style={{ fontSize: '16px', fontWeight: 900, color: '#FFFFFF' }}>The Toolkit</div>
+                  <div style={{ fontSize: '13px', color: 'rgba(255,255,255,0.5)', marginTop: '2px' }}>Website Builder · DRT · Outreach — authorised team members only</div>
+                </div>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#C0F43C', fontSize: '13px', fontWeight: 800, flexShrink: 0 }}>
+                Open Toolkit
+                <svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg>
+              </div>
+            </Link>
+          </div>
+        )}
+
         {/* ── People tab ── */}
         {tab === 'people' && (() => {
           const memberById: Record<string, Member> = Object.fromEntries(members.map(m => [m.id, m]))
@@ -2119,7 +2145,7 @@ export default function AdminPage() {
               ) : (
                 <div style={{ background: '#FFFFFF', border: '1px solid #DDE8EE', borderRadius: '16px', overflow: 'hidden' }}>
                   {/* Header */}
-                  <div style={{ display: 'grid', gridTemplateColumns: '2.5fr 1.8fr 1fr 1fr 1.2fr 1.1fr 110px', padding: '10px 20px', background: '#E8EEF4', borderBottom: '1px solid #DDE8EE' }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: '2.5fr 1.8fr 1fr 1fr 1.2fr 1.1fr 180px', padding: '10px 20px', background: '#E8EEF4', borderBottom: '1px solid #DDE8EE' }}>
                     {['Name', 'Department / Role', 'Office', 'Level', 'Platform Status', 'AI Score', ''].map(h => (
                       <div key={h} style={{ fontSize: '9px', fontWeight: 700, letterSpacing: '1.5px', textTransform: 'uppercase', color: '#5B7080' }}>{h}</div>
                     ))}
@@ -2135,7 +2161,7 @@ export default function AdminPage() {
                     else if (!p.profile_complete) { statusLabel = 'Awaiting Profile'; statusColor = '#92400E'; statusBg = '#92400E15' }
                     else                     { statusLabel = 'Active';           statusColor = '#166534'; statusBg = '#16653415' }
                     return (
-                      <div key={p.id} style={{ display: 'grid', gridTemplateColumns: '2.5fr 1.8fr 1fr 1fr 1.2fr 1.1fr 110px', alignItems: 'center', padding: '12px 20px', borderBottom: idx < filtered.length - 1 ? '1px solid #E8EEF4' : 'none' }}>
+                      <div key={p.id} style={{ display: 'grid', gridTemplateColumns: '2.5fr 1.8fr 1fr 1fr 1.2fr 1.1fr 180px', alignItems: 'center', padding: '12px 20px', borderBottom: idx < filtered.length - 1 ? '1px solid #E8EEF4' : 'none' }}>
                         {/* Name + email */}
                         <div style={{ display: 'flex', alignItems: 'center', gap: '10px', minWidth: 0 }}>
                           <div style={{ width: '30px', height: '30px', borderRadius: '8px', background: `${off?.color ?? '#00897B'}18`, border: `1px solid ${off?.color ?? '#00897B'}30`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
@@ -2177,12 +2203,18 @@ export default function AdminPage() {
                           )}
                         </div>
                         {/* Actions */}
-                        <div style={{ display: 'flex', gap: '5px', justifyContent: 'flex-end' }}>
+                        <div style={{ display: 'flex', gap: '5px', justifyContent: 'flex-end', flexWrap: 'wrap' }}>
                           <button onClick={async () => {
                             await fetch('/api/staff-access', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: p.id, enabled: !p.access_enabled }) })
                             fetchStaffList()
                           }} style={{ padding: '4px 10px', borderRadius: '6px', border: `1px solid ${p.access_enabled ? '#DDE8EE' : 'rgba(22,101,52,0.3)'}`, background: p.access_enabled ? '#FFFFFF' : 'rgba(22,101,52,0.07)', color: p.access_enabled ? '#5B7080' : '#166534', fontSize: '11px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap' }}>
                             {p.access_enabled ? 'Disable' : 'Enable'}
+                          </button>
+                          <button onClick={async () => {
+                            await fetch('/api/toolkit-access', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: p.id, toolkit_access: !p.toolkit_access }) })
+                            fetchStaffList()
+                          }} style={{ padding: '4px 10px', borderRadius: '6px', border: `1px solid ${p.toolkit_access ? 'rgba(192,244,60,0.4)' : '#DDE8EE'}`, background: p.toolkit_access ? 'rgba(192,244,60,0.1)' : '#FFFFFF', color: p.toolkit_access ? '#3D6B00' : '#5B7080', fontSize: '11px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap' }} title={p.toolkit_access ? 'Remove Toolkit access' : 'Grant Toolkit access'}>
+                            {p.toolkit_access ? 'Toolkit ✓' : 'Toolkit'}
                           </button>
                           <Link href={`/dashboard?id=${p.id}`} style={{ display: 'inline-flex', alignItems: 'center', gap: '3px', padding: '4px 10px', borderRadius: '6px', border: '1px solid #DDE8EE', background: '#FFFFFF', color: '#00897B', fontSize: '11px', fontWeight: 700, textDecoration: 'none', whiteSpace: 'nowrap' }}>
                             <svg width="10" height="10" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg>

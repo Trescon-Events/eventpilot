@@ -2,9 +2,10 @@ import { NextRequest, NextResponse } from 'next/server'
 import { GoogleGenerativeAI } from '@google/generative-ai'
 import { supabaseAdmin } from '@/app/lib/supabase'
 
+export const maxDuration = 300
+
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY ?? '')
 
-// Keywords that signal commercial participation pages
 const COMMERCIAL_SIGNALS = [
   'sponsor', 'exhibitor', 'partner', 'supporter', 'backer', 'pavilion',
   'powered-by', 'association', 'affiliate', 'vendor', 'booth',
@@ -12,13 +13,11 @@ const COMMERCIAL_SIGNALS = [
   'knowledge-partner', 'community-partner', 'ecosystem',
 ]
 
-// Keywords that indicate noise pages to skip
 const SKIP_SIGNALS = [
   'blog', 'news', 'press', 'careers', 'jobs', 'contact', 'privacy',
   'terms', 'cookie', 'sitemap', 'login', 'register', 'signup', 'faq',
 ]
 
-// Common sponsor/partner paths to always try
 const FORCED_PATHS = [
   '/sponsors', '/sponsor', '/partners', '/partner', '/exhibitors', '/exhibitor',
   '/our-partners', '/our-sponsors', '/sponsorship', '/about/sponsors',
@@ -26,7 +25,14 @@ const FORCED_PATHS = [
   '/knowledge-partners', '/presenting-partners',
 ]
 
-// ── Fetch with plain HTML ──────────────────────────────────────────────────────
+const SPEAKER_PATHS = [
+  '/speakers', '/speaker', '/keynote', '/keynotes', '/keynote-speakers',
+  '/agenda', '/sessions', '/programme', '/schedule', '/panelists',
+  '/conference-speakers', '/featured-speakers', '/moderators',
+]
+
+// ── Fetch helpers ─────────────────────────────────────────────────────────────
+
 async function fetchPage(url: string): Promise<string> {
   try {
     const res = await fetch(url, {
@@ -48,28 +54,39 @@ async function fetchPage(url: string): Promise<string> {
   }
 }
 
-// ── Jina Reader — JS-rendered fallback ────────────────────────────────────────
-// Jina.ai renders the page server-side and returns clean markdown.
-// Used when direct fetch yields thin content (< 800 chars after stripping).
-async function fetchViaJina(url: string): Promise<string> {
+async function fetchViaJina(url: string): Promise<{ text: string; rateLimited: boolean }> {
   try {
     const jinaUrl = `https://r.jina.ai/${url}`
     const res = await fetch(jinaUrl, {
-      headers: {
-        'Accept': 'text/plain',
-        'X-Return-Format': 'markdown',
-        'X-Timeout': '15',
-      },
+      headers: { 'Accept': 'text/plain', 'X-Return-Format': 'markdown', 'X-Timeout': '15' },
       signal: AbortSignal.timeout(18000),
     })
+    if (res.status === 429) return { text: '', rateLimited: true }
+    if (!res.ok) return { text: '', rateLimited: false }
+    return { text: await res.text(), rateLimited: false }
+  } catch {
+    return { text: '', rateLimited: false }
+  }
+}
+
+async function fetchViaFirecrawl(url: string): Promise<string> {
+  const apiKey = process.env.FIRECRAWL_API_KEY
+  if (!apiKey) return ''
+  try {
+    const res = await fetch('https://api.firecrawl.dev/v1/scrape', {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ url, formats: ['markdown'] }),
+      signal: AbortSignal.timeout(25000),
+    })
     if (!res.ok) return ''
-    return await res.text()
+    const json = await res.json()
+    return json?.data?.markdown ?? ''
   } catch {
     return ''
   }
 }
 
-// ── Sitemap parser ────────────────────────────────────────────────────────────
 async function fetchSitemapUrls(baseUrl: string): Promise<string[]> {
   const base = new URL(baseUrl)
   const candidates = [
@@ -94,73 +111,52 @@ async function fetchSitemapUrls(baseUrl: string): Promise<string[]> {
   return urls.slice(0, 200)
 }
 
-// ── Contextual alt text extraction — sponsor/partner sections only ────────────
-// Instead of grabbing all alt text (noisy), we:
-// 1. Find HTML blocks that contain commercial keyword headings
-// 2. Extract alt text only from <img> tags within those blocks
-// 3. Apply strict filters: length, no generics, must look like a brand name
 function extractImageAltText(html: string): string[] {
-  // Commercial section keywords — signals we're inside a sponsor/partner block
   const SECTION_SIGNALS = /sponsor|partner|exhibitor|supporter|platinum|gold|silver|bronze|diamond|media.partner|knowledge.partner|ecosystem|powered.by|in.association|affiliate|backer/i
-
-  // Hard blocklist — definitely not company names
   const JUNK = /^(logo|image|img|photo|icon|banner|slide|arrow|close|menu|search|placeholder|loading|next|prev|previous|play|pause|mute|share|download|upload|check|tick|cross|star|home|back|forward|left|right|up|down|zoom|edit|delete|add|remove|yes|no|ok|cancel|submit|send|get|go|view|read|more|less|show|hide|open|bg|background|decoration|pattern|texture|shape|gradient|wave|line|dot|circle|square|triangle|avatar|profile|user|person|team|staff|people|speaker|judge|jury|panelist|moderator|chairman|ceo|cto|cmo|coo|vp|svp|director|manager|head|lead|founder|co.founder|president|trustee|advisor|volunteer|delegate|attendee|visitor|exhibitor.logo|partner.logo|sponsor.logo|client.logo|brand.logo|company.logo|organisation.logo|organization.logo|\d+|\s*)$/i
-
-  // Must look like a brand: starts with capital or number, reasonable length, no pure symbols
   const LOOKS_LIKE_BRAND = /^[A-Z0-9][A-Za-z0-9\s\.\-\&\,\'\"\/\(\)]{1,59}$/
-
   const alts: string[] = []
-
-  // Strategy: find blocks of HTML around commercial keywords, extract img alt within ±2000 chars
   let searchHtml = html
   let offset = 0
-
   while (offset < html.length) {
     const match = SECTION_SIGNALS.exec(searchHtml)
     if (!match) break
-
     const blockStart = Math.max(0, offset + match.index - 1500)
     const blockEnd   = Math.min(html.length, offset + match.index + 1500)
     const block      = html.slice(blockStart, blockEnd)
-
-    // Extract all img alt texts within this block
     const imgRe = /<img[^>]+alt=["']([^"']{2,70})["'][^>]*>/gi
     let imgMatch
     while ((imgMatch = imgRe.exec(block)) !== null) {
       const raw = imgMatch[1].trim()
-      if (
-        !JUNK.test(raw) &&
-        LOOKS_LIKE_BRAND.test(raw) &&
-        raw.split(' ').length <= 8   // max 8 words — company names aren't sentences
-      ) {
+      if (!JUNK.test(raw) && LOOKS_LIKE_BRAND.test(raw) && raw.split(' ').length <= 8) {
         alts.push(raw)
       }
     }
-
     offset += match.index + 1
     searchHtml = html.slice(offset)
   }
-
   return [...new Set(alts)]
 }
 
-// ── Smart fetch: try direct, fallback to Jina if thin ────────────────────────
-async function smartFetch(url: string): Promise<{ text: string; method: 'direct' | 'jina' | 'none'; altTexts: string[] }> {
+type FetchResult = { text: string; method: 'direct' | 'jina' | 'firecrawl' | 'none'; altTexts: string[] }
+type Credits = { gemini: number; firecrawl: number; jina: number }
+
+async function smartFetch(url: string, credits: Credits): Promise<FetchResult> {
   const html = await fetchPage(url)
   const rawText = html ? stripHtml(html) : ''
   const altTexts = html ? extractImageAltText(html) : []
-
-  if (rawText.length >= 800) {
-    return { text: rawText, method: 'direct', altTexts }
+  if (rawText.length >= 800) return { text: rawText, method: 'direct', altTexts }
+  const jina = await fetchViaJina(url)
+  if (!jina.rateLimited && jina.text.length > rawText.length) {
+    credits.jina++
+    return { text: jina.text, method: 'jina', altTexts }
   }
-
-  // Too thin — try Jina Reader for JS-rendered content
-  const jinaText = await fetchViaJina(url)
-  if (jinaText.length > rawText.length) {
-    return { text: jinaText, method: 'jina', altTexts }
+  const firecrawlText = await fetchViaFirecrawl(url)
+  if (firecrawlText.length > rawText.length) {
+    credits.firecrawl++
+    return { text: firecrawlText, method: 'firecrawl', altTexts }
   }
-
-  return { text: rawText || jinaText, method: rawText.length > 0 ? 'direct' : 'none', altTexts }
+  return { text: rawText || jina.text || firecrawlText, method: rawText.length > 0 ? 'direct' : 'none', altTexts }
 }
 
 function extractLinks(html: string, baseUrl: string): string[] {
@@ -172,13 +168,9 @@ function extractLinks(html: string, baseUrl: string): string[] {
     try {
       const href = m[1]
       let full: string
-      if (href.startsWith('http')) {
-        full = href
-      } else if (href.startsWith('/')) {
-        full = base.origin + href
-      } else {
-        continue
-      }
+      if (href.startsWith('http')) full = href
+      else if (href.startsWith('/')) full = base.origin + href
+      else continue
       const u = new URL(full)
       if (u.hostname !== base.hostname) continue
       const clean = u.origin + u.pathname.replace(/\/$/, '')
@@ -210,15 +202,10 @@ function scoreLink(url: string): number {
   return score
 }
 
-function classifySite(html: string, text: string): {
-  terminology: string[]
-  renderingHints: string[]
-  commercialIndicators: string[]
-} {
+function classifySite(html: string, text: string) {
   const lower = text.toLowerCase()
   const terminology: string[] = []
   const commercialIndicators: string[] = []
-
   const termMap: Record<string, string> = {
     'sponsor': 'sponsors', 'exhibitor': 'exhibitors', 'partner': 'partners',
     'supporter': 'supporters', 'knowledge partner': 'knowledge partners',
@@ -229,281 +216,335 @@ function classifySite(html: string, text: string): {
   for (const [kw, label] of Object.entries(termMap)) {
     if (lower.includes(kw)) terminology.push(label)
   }
-
   if (lower.match(/platinum|gold|silver|bronze|diamond/)) commercialIndicators.push('tiered sponsorship structure detected')
   if (lower.match(/booth|stand|floor plan/))               commercialIndicators.push('exhibition floor structure detected')
   if (lower.match(/logo/))                                  commercialIndicators.push('logo grid likely present')
   if (html.match(/loading="lazy"|data-src=/i))             commercialIndicators.push('lazy-loaded content detected')
-  if (html.match(/react|nextjs|__next/i))                  commercialIndicators.push('JS-rendered site — Jina fallback used')
-
   const renderingHints: string[] = []
   if (html.includes('__next'))    renderingHints.push('Next.js')
   if (html.includes('nuxt'))      renderingHints.push('Nuxt.js')
   if (html.includes('gatsby'))    renderingHints.push('Gatsby')
   if (html.includes('wp-content')) renderingHints.push('WordPress')
   if (renderingHints.length === 0) renderingHints.push('Static HTML')
-
   return { terminology, renderingHints, commercialIndicators }
 }
 
-// ── GET — fetch saved companies for an event ───────────────────────────────────
+// ── Aggregate job stats after each scan completes ─────────────────────────────
+async function aggregateJobStats(jobId: string) {
+  const { data } = await supabaseAdmin
+    .from('market_intel_scans')
+    .select('status, participants_found, speakers_found, credits_gemini_calls, credits_firecrawl_pages, credits_jina_pages, partial_failures')
+    .eq('job_id', jobId)
+
+  if (!data || data.length === 0) return
+
+  const completed = data.filter((s: { status: string }) => s.status === 'complete').length
+  const failed    = data.filter((s: { status: string }) => s.status === 'failed').length
+  const total     = data.length
+  const allDone   = completed + failed === total
+
+  const sum = (field: string) =>
+    data.reduce((acc: number, s: Record<string, number>) => acc + (s[field] ?? 0), 0)
+
+  const allPartialFailures = data
+    .flatMap((s: { partial_failures?: unknown[] }) => s.partial_failures ?? [])
+
+  await supabaseAdmin.from('market_intel_jobs').update({
+    completed_urls:          completed,
+    failed_urls:             failed,
+    participants_found:      sum('participants_found'),
+    speakers_found:          sum('speakers_found'),
+    credits_gemini_calls:    sum('credits_gemini_calls'),
+    credits_firecrawl_pages: sum('credits_firecrawl_pages'),
+    credits_jina_pages:      sum('credits_jina_pages'),
+    partial_failures:        allPartialFailures,
+    ...(allDone ? { status: failed === total ? 'failed' : 'complete', completed_at: new Date().toISOString() } : {}),
+  }).eq('id', jobId)
+}
+
+// ── GET — fetch companies + speakers for event/scan/job ───────────────────────
 export async function GET(req: NextRequest) {
   const eventId = req.nextUrl.searchParams.get('event_id')
   const scanId  = req.nextUrl.searchParams.get('scan_id')
+  const jobId   = req.nextUrl.searchParams.get('job_id')
 
-  if (!eventId && !scanId) {
-    return NextResponse.json({ error: 'event_id or scan_id required' }, { status: 400 })
+  if (!eventId && !scanId && !jobId) {
+    return NextResponse.json({ error: 'event_id, scan_id, or job_id required' }, { status: 400 })
   }
 
-  let companiesQuery = supabaseAdmin.from('market_intel_companies').select('*')
-  if (scanId)  companiesQuery = companiesQuery.eq('scan_id', scanId)
-  if (eventId) companiesQuery = companiesQuery.eq('event_id', eventId)
-
-  const { data: companies, error: cErr } = await companiesQuery
-    .eq('is_duplicate', false)
-    .order('created_at', { ascending: false })
-
+  // Companies
+  let cq = supabaseAdmin.from('market_intel_companies').select('*').eq('is_duplicate', false)
+  if (jobId)   cq = supabaseAdmin.from('market_intel_companies').select('*').eq('is_duplicate', false)
+  if (scanId)  cq = cq.eq('scan_id', scanId)
+  else if (jobId) {
+    // get scan_ids for this job
+    const { data: scans } = await supabaseAdmin.from('market_intel_scans').select('id').eq('job_id', jobId)
+    const scanIds = (scans ?? []).map((s: { id: string }) => s.id)
+    if (scanIds.length > 0) cq = cq.in('scan_id', scanIds)
+    else cq = cq.eq('scan_id', 'none')
+  } else if (eventId) {
+    cq = cq.eq('event_id', eventId)
+  }
+  const { data: companies, error: cErr } = await cq.order('created_at', { ascending: false })
   if (cErr) return NextResponse.json({ error: cErr.message }, { status: 500 })
 
-  let scansQuery = supabaseAdmin.from('market_intel_scans').select('*')
-  if (eventId) scansQuery = scansQuery.eq('event_id', eventId)
-  if (scanId)  scansQuery = scansQuery.eq('id', scanId)
+  // Speakers
+  let sq = supabaseAdmin.from('market_intel_speakers').select('*').eq('is_duplicate', false)
+  if (scanId)  sq = sq.eq('scan_id', scanId)
+  else if (jobId) sq = sq.eq('job_id', jobId)
+  else if (eventId) sq = sq.eq('event_id', eventId)
+  const { data: speakers } = await sq.order('created_at', { ascending: false })
 
-  const { data: scans } = await scansQuery.order('created_at', { ascending: false })
+  // Scans
+  let scansQ = supabaseAdmin.from('market_intel_scans').select('*')
+  if (jobId)   scansQ = scansQ.eq('job_id', jobId)
+  else if (eventId) scansQ = scansQ.eq('event_id', eventId)
+  if (scanId)  scansQ = scansQ.eq('id', scanId)
+  const { data: scans } = await scansQ.order('created_at', { ascending: false })
 
-  return NextResponse.json({ companies: companies ?? [], scans: scans ?? [] })
+  return NextResponse.json({ companies: companies ?? [], speakers: speakers ?? [], scans: scans ?? [] })
 }
 
 // ── POST — run a scan ──────────────────────────────────────────────────────────
 export async function POST(req: NextRequest) {
   const body = await req.json().catch(() => null)
-  if (!body?.url) return NextResponse.json({ error: 'url required' }, { status: 400 })
+  if (!body?.url) return NextResponse.json({ error: 'url required', failure_reason: 'invalid_request' }, { status: 400 })
 
-  const targetUrl = body.url.trim().replace(/\/$/, '')
-  const eventId   = body.event_id ?? null
-
-  // ── Create scan record ───────────────────────────────────────────────────────
-  const { data: scanRow, error: scanErr } = await supabaseAdmin
-    .from('market_intel_scans')
-    .insert({ source_url: targetUrl, event_id: eventId, status: 'running' })
-    .select()
-    .single()
-
-  if (scanErr) console.warn('market_intel_scans insert failed:', scanErr?.message)
-  const scanId = scanRow?.id ?? null
-
-  // ── Phase A: Reconnaissance ──────────────────────────────────────────────────
-  const homepageHtml  = await fetchPage(targetUrl)
-  const homepageJina  = homepageHtml.length < 800 ? await fetchViaJina(targetUrl) : ''
-  const homepageText  = homepageHtml ? stripHtml(homepageHtml) : homepageJina
-  const homepageAltTexts = homepageHtml ? extractImageAltText(homepageHtml) : []
-
-  if (!homepageText && !homepageJina) {
-    if (scanId) {
-      await supabaseAdmin.from('market_intel_scans').update({
-        status: 'failed', error_message: 'Could not reach URL', completed_at: new Date().toISOString(),
-      }).eq('id', scanId)
-    }
-    return NextResponse.json({
-      error: 'Could not reach this URL. The site may block automated access or the URL is incorrect.',
-    }, { status: 422 })
+  let rawUrl = body.url.trim().replace(/\/$/, '')
+  if (!rawUrl.startsWith('http://') && !rawUrl.startsWith('https://')) {
+    rawUrl = 'https://' + rawUrl
   }
+  const targetUrl    = rawUrl
+  const eventId      = body.event_id ?? null
+  const jobId        = body.job_id ?? null
+  const isFreshRescan = body.is_fresh_rescan === true
 
-  const siteClass = classifySite(homepageHtml, homepageText)
-  const allLinks  = extractLinks(homepageHtml, targetUrl)
+  const credits: Credits = { gemini: 0, firecrawl: 0, jina: 0 }
+  let scanId: string | null = null
 
-  // ── Phase B: Sitemap discovery + forced paths + link scoring ─────────────────
-  const base = new URL(targetUrl)
+  try {
+    // ── Create scan record ─────────────────────────────────────────────────────
+    const { data: scanRow, error: scanErr } = await supabaseAdmin
+      .from('market_intel_scans')
+      .insert({ source_url: targetUrl, event_id: eventId, job_id: jobId, status: 'running', is_fresh_rescan: isFreshRescan })
+      .select()
+      .single()
+    if (scanErr) console.warn('market_intel_scans insert failed:', scanErr?.message)
+    scanId = scanRow?.id ?? null
 
-  // Forced commercial paths — always try these regardless of link discovery
-  const forcedUrls = FORCED_PATHS
-    .map(p => `${base.origin}${p}`)
-    .filter(u => !allLinks.includes(u))
-
-  // Sitemap-discovered URLs with commercial signals
-  const sitemapUrls = await fetchSitemapUrls(targetUrl)
-  const sitemapCommercial = sitemapUrls
-    .filter(u => scoreLink(u) > 0)
-    .sort((a, b) => scoreLink(b) - scoreLink(a))
-    .slice(0, 10)
-
-  // Score all discovered links
-  const ranked = [...new Set([...allLinks, ...sitemapCommercial])]
-    .map(url => ({ url, score: scoreLink(url) }))
-    .filter(l => l.score > 0)
-    .sort((a, b) => b.score - a.score)
-    .slice(0, 20)
-
-  const hypotheses = ranked.slice(0, 5).map(l => ({
-    url: l.url,
-    reasoning: `Score ${l.score} — URL pattern suggests commercial participation content`,
-    confidence: Math.min(0.95, 0.5 + l.score / 100),
-  }))
-
-  // ── Phase C: Adaptive Exploration — fetch top scored + forced paths ───────────
-  // Forced paths first (highest value), then scored links, deduplicated
-  const pagesToFetch = [
-    ...forcedUrls.slice(0, 6),
-    ...ranked.slice(0, 12).map(l => l.url),
-  ].filter((u, i, arr) => arr.indexOf(u) === i).slice(0, 18)
-
-  const subPages = await Promise.all(
-    pagesToFetch.map(async url => {
-      const { text, method, altTexts } = await smartFetch(url)
-      return text ? { url, text: text.slice(0, 14000), method, altTexts, html: '' } : null
-    })
-  )
-  const fetchedPages = subPages.filter(Boolean) as { url: string; text: string; method: string; altTexts: string[]; html: string }[]
-
-  // ── Phase C2: Second-level crawl — follow sub-links from commercial pages ────
-  // For each high-value fetched page, extract its links and crawl promising sub-pages
-  const level2Seen = new Set<string>(pagesToFetch)
-  level2Seen.add(targetUrl)
-
-  const level2Candidates: string[] = []
-  for (const page of fetchedPages.slice(0, 8)) {
-    // Re-fetch raw HTML to extract links (smartFetch may have used Jina text)
-    const rawHtml = await fetchPage(page.url)
-    if (!rawHtml) continue
-    const subLinks = extractLinks(rawHtml, targetUrl)
-    for (const link of subLinks) {
-      if (!level2Seen.has(link) && scoreLink(link) > 0) {
-        level2Candidates.push(link)
-        level2Seen.add(link)
+    // ── Phase A: Reconnaissance ────────────────────────────────────────────────
+    const homepageHtml = await fetchPage(targetUrl)
+    const rawHomepageText = homepageHtml ? stripHtml(homepageHtml) : ''
+    let homepageJina = ''
+    if (rawHomepageText.length < 800) {
+      const jina = await fetchViaJina(targetUrl)
+      if (!jina.rateLimited && jina.text.length > rawHomepageText.length) {
+        homepageJina = jina.text
+        credits.jina++
+      } else {
+        const fc = await fetchViaFirecrawl(targetUrl)
+        if (fc.length > rawHomepageText.length) {
+          homepageJina = fc
+          credits.firecrawl++
+        }
       }
     }
-  }
+    const homepageText    = rawHomepageText || homepageJina
+    const homepageAltTexts = homepageHtml ? extractImageAltText(homepageHtml) : []
 
-  // Score, deduplicate, fetch top second-level pages
-  const level2ToFetch = level2Candidates
-    .map(u => ({ url: u, score: scoreLink(u) }))
-    .sort((a, b) => b.score - a.score)
-    .slice(0, 8)
-    .map(l => l.url)
+    if (!homepageText) {
+      if (scanId) {
+        await supabaseAdmin.from('market_intel_scans').update({
+          status: 'failed', error_message: 'Could not reach URL', completed_at: new Date().toISOString(),
+        }).eq('id', scanId)
+      }
+      return NextResponse.json({
+        error: 'Could not reach this URL. The site may block automated access or the URL is incorrect.',
+        failure_reason: 'network',
+      }, { status: 422 })
+    }
 
-  const level2Pages = await Promise.all(
-    level2ToFetch.map(async url => {
-      const { text, method, altTexts } = await smartFetch(url)
-      return text ? { url, text: text.slice(0, 10000), method, altTexts, html: '' } : null
+    const siteClass = classifySite(homepageHtml, homepageText)
+    const allLinks  = extractLinks(homepageHtml, targetUrl)
+
+    // ── Phase B: Page discovery ────────────────────────────────────────────────
+    const base = new URL(targetUrl)
+    const forcedCommercial = FORCED_PATHS.map(p => `${base.origin}${p}`).filter(u => !allLinks.includes(u))
+    const forcedSpeaker    = SPEAKER_PATHS.map(p => `${base.origin}${p}`).filter(u => !allLinks.includes(u))
+    const sitemapUrls      = await fetchSitemapUrls(targetUrl)
+    const sitemapCommercial = sitemapUrls.filter(u => scoreLink(u) > 0).sort((a, b) => scoreLink(b) - scoreLink(a)).slice(0, 10)
+
+    const ranked = [...new Set([...allLinks, ...sitemapCommercial])]
+      .map(url => ({ url, score: scoreLink(url) }))
+      .filter(l => l.score > 0)
+      .sort((a, b) => b.score - a.score)
+      .slice(0, 20)
+
+    const hypotheses = ranked.slice(0, 5).map(l => ({
+      url: l.url,
+      reasoning: `Score ${l.score} — URL pattern suggests commercial participation content`,
+      confidence: Math.min(0.95, 0.5 + l.score / 100),
+    }))
+
+    // ── Phase C: Fetch commercial + speaker pages ──────────────────────────────
+    const pagesToFetch = [
+      ...forcedCommercial.slice(0, 6),
+      ...forcedSpeaker.slice(0, 4),
+      ...ranked.slice(0, 10).map(l => l.url),
+    ].filter((u, i, arr) => arr.indexOf(u) === i).slice(0, 20)
+
+    const subPages = await Promise.all(
+      pagesToFetch.map(async url => {
+        const { text, method, altTexts } = await smartFetch(url, credits)
+        return text ? { url, text: text.slice(0, 14000), method, altTexts } : null
+      })
+    )
+    const fetchedPages = subPages.filter(Boolean) as { url: string; text: string; method: string; altTexts: string[] }[]
+
+    // Level-2 crawl
+    const level2Seen = new Set<string>(pagesToFetch)
+    level2Seen.add(targetUrl)
+    const level2Candidates: string[] = []
+    for (const page of fetchedPages.slice(0, 8)) {
+      const rawHtml = await fetchPage(page.url)
+      if (!rawHtml) continue
+      const subLinks = extractLinks(rawHtml, targetUrl)
+      for (const link of subLinks) {
+        if (!level2Seen.has(link) && scoreLink(link) > 0) {
+          level2Candidates.push(link)
+          level2Seen.add(link)
+        }
+      }
+    }
+    const level2Pages = await Promise.all(
+      level2Candidates.map(u => ({ url: u, score: scoreLink(u) }))
+        .sort((a, b) => b.score - a.score)
+        .slice(0, 8)
+        .map(async ({ url }) => {
+          const { text, method, altTexts } = await smartFetch(url, credits)
+          return text ? { url, text: text.slice(0, 10000), method, altTexts } : null
+        })
+    )
+    const fetchedLevel2 = level2Pages.filter(Boolean) as { url: string; text: string; method: string; altTexts: string[] }[]
+    fetchedPages.push(...fetchedLevel2)
+
+    const allAltTexts = [...new Set([...homepageAltTexts, ...fetchedPages.flatMap(p => p.altTexts)])]
+
+    // ── Phase D: AI Extraction ─────────────────────────────────────────────────
+    const contentBlocks = [
+      `=== HOMEPAGE (${targetUrl}) ===\n${(homepageJina || homepageText).slice(0, 20000)}`,
+      ...fetchedPages.map(p => `=== PAGE [${p.method}]: ${p.url} ===\n${p.text}`),
+    ].join('\n\n').slice(0, 100000)
+
+    const siteMeta = JSON.stringify({
+      terminology_detected:      siteClass.terminology,
+      rendering_hints:           siteClass.renderingHints,
+      commercial_indicators:     siteClass.commercialIndicators,
+      pages_fetched:             fetchedPages.length + 1,
+      image_alt_texts_extracted: allAltTexts.length,
     })
-  )
-  const fetchedLevel2 = level2Pages.filter(Boolean) as { url: string; text: string; method: string; altTexts: string[]; html: string }[]
-  fetchedPages.push(...fetchedLevel2)
 
-  // Collect all alt texts found across all pages
-  const allAltTexts = [...new Set([
-    ...homepageAltTexts,
-    ...fetchedPages.flatMap(p => p.altTexts),
-  ])]
+    const altTextBlock = allAltTexts.length > 0
+      ? `\n\nIMAGE ALT TEXTS (company names from logo images):\n${allAltTexts.join('\n')}`
+      : ''
 
-  // ── Phase D: AI Extraction ───────────────────────────────────────────────────
-  const contentBlocks = [
-    `=== HOMEPAGE (${targetUrl}) ===\n${(homepageJina || homepageText).slice(0, 20000)}`,
-    ...fetchedPages.map(p => `=== PAGE [${p.method}]: ${p.url} ===\n${p.text}`),
-  ].join('\n\n').slice(0, 100000)
+    const prompt = `You are an elite commercial intelligence analyst. Analyze this event website and extract all commercial participants AND speakers.
 
-  const siteMeta = JSON.stringify({
-    terminology_detected:       siteClass.terminology,
-    rendering_hints:            siteClass.renderingHints,
-    commercial_indicators:      siteClass.commercialIndicators,
-    pages_fetched:              fetchedPages.length + 1,
-    forced_paths_tried:         forcedUrls.length,
-    sitemap_commercial_urls:    sitemapCommercial.length,
-    image_alt_texts_extracted:  allAltTexts.length,
-  })
-
-  const altTextBlock = allAltTexts.length > 0
-    ? `\n\nIMAGE ALT TEXTS (company names extracted from logo images — treat each as a potential participant):\n${allAltTexts.join('\n')}`
-    : ''
-
-  const prompt = `You are an elite commercial intelligence analyst. Analyze this event website and extract all commercial participants with maximum precision.
-
-SITE METADATA (pre-analysis):
+SITE METADATA:
 ${siteMeta}
-
-CRITICAL EXTRACTION NOTES:
-- Many event sites render sponsor logos as images without visible text. Use the IMAGE ALT TEXTS section below — these are company names extracted directly from logo image tags.
-- If a page uses JavaScript rendering and content seems sparse, cross-reference alt texts with section headings to infer tier placement.
-- Infer sponsorship tier from visual ordering, section names, or font size hints in the text.
-- If you find speaker affiliations from companies in sponsor/partner sections, treat those companies as commercial participants.
-- Do NOT hallucinate. Only include companies with at least one piece of evidence.
 
 WEBSITE CONTENT:
 ${contentBlocks}${altTextBlock}
 
-EXTRACTION RULES:
-- Extract EVERY company: sponsor, exhibitor, partner, supporter, media partner, knowledge partner, ecosystem partner, or any commercial association
-- Use canonical company names (e.g. "Amazon Web Services" not "AWS")
-- For each company, capture: official domain, contact email/name/title if visible, HQ location/country, industry sector, company size
+EXTRACTION RULES — COMPANIES:
+- Extract EVERY company: sponsor, exhibitor, partner, supporter, media partner, knowledge partner, ecosystem partner
+- Use canonical names (e.g. "Amazon Web Services" not "AWS")
 - Set confidence: 0.9+ for explicitly named, 0.7+ for alt-text extracted, 0.5+ for speaker-inferred
+- description = one sentence: what the company does (products/solutions)
+- company_linkedin_url = LinkedIn company page URL only if clearly visible on the site
 
-Return ONLY valid JSON — no markdown, no explanation:
+EXTRACTION RULES — SPEAKERS:
+- Extract every named speaker, keynote presenter, panelist, moderator, session chair
+- Include job_title, speaker_company, speaker_company_url (website), linkedin_url
+- Only include speakers where at minimum their name is visible; fill other fields only if found
+- confidence: 0.9 if full profile visible, 0.7 if name+company only
+
+Do NOT hallucinate. Only include entries with at least one piece of evidence.
+
+Return ONLY valid JSON:
 
 {
   "event": {
     "name": "full event name",
-    "edition": "year or edition if visible",
-    "industry": "primary industry/sector",
+    "edition": "year or edition",
+    "industry": "primary industry",
     "location": "city, country",
     "website": "${targetUrl}",
-    "organizer": "organizer name if found"
+    "organizer": "organizer name or null"
   },
   "site_analysis": {
     "site_type": "conference|exhibition|summit|forum|awards|expo|other",
     "rendering_model": "static|wordpress|nextjs|nuxt|custom-cms",
-    "commercial_structure": "one sentence describing how sponsors/partners are organized",
-    "terminology_used": ["exact terms found on site"],
+    "commercial_structure": "one sentence",
+    "terminology_used": ["terms found"],
     "information_richness": "high|medium|low",
-    "extraction_challenges": "brief note on what made extraction harder (image logos, JS rendering, etc.)",
+    "extraction_challenges": "brief note on what made extraction harder",
     "pages_analyzed": ${fetchedPages.length + 1}
   },
   "hypotheses": [
-    {
-      "hypothesis": "what you expected to find",
-      "validated": true,
-      "finding": "what you actually found"
-    }
+    { "hypothesis": "what you expected", "validated": true, "finding": "what you found" }
   ],
   "participants": [
     {
       "company_name": "Canonical Company Name",
       "official_domain": "domain.com or null",
       "company_website": "https://domain.com or null",
+      "company_linkedin_url": "https://linkedin.com/company/... or null",
+      "description": "One sentence describing what this company does",
       "participant_type": "sponsor|exhibitor|partner|media_partner|knowledge_partner|supporter|technology_partner|other",
       "tier": "platinum|gold|silver|bronze|diamond|strategic|associate|general|null",
-      "sponsorship_category": "technology|finance|media|government|automotive|healthcare|other or null",
-      "contact_email": "email if found or null",
-      "contact_name": "contact person name if found or null",
-      "contact_title": "contact person title if found or null",
-      "contact_linkedin": "linkedin url if found or null",
+      "sponsorship_category": "technology|finance|media|government|automotive|healthcare|other|null",
+      "contact_email": "email or null",
+      "contact_name": "contact person name or null",
+      "contact_title": "contact person title or null",
+      "contact_linkedin": "linkedin url or null",
       "hq_location": "city, country or null",
-      "hq_country": "country name or null",
-      "industry_sector": "primary industry of the company or null",
-      "company_size": "startup|sme|enterprise|global or null",
+      "hq_country": "country or null",
+      "industry_sector": "industry or null",
+      "company_size": "startup|sme|enterprise|global|null",
       "confidence": 0.95,
-      "evidence": ["source: page URL or section name, exact text or alt text found"],
+      "evidence": ["source: page URL or section name"],
       "extraction_method": "explicit_text|image_alt_text|section_heading|speaker_inference|contextual_inference"
     }
   ],
-  "intelligence_summary": "3-4 sentence strategic summary including any extraction challenges, what was found vs what was image-only, and what this reveals about the event's commercial positioning",
+  "speakers": [
+    {
+      "speaker_name": "Full Name",
+      "job_title": "title or null",
+      "speaker_company": "company name or null",
+      "speaker_company_url": "https://... or null",
+      "linkedin_url": "https://linkedin.com/in/... or null",
+      "confidence": 0.9,
+      "evidence": ["source page or section"]
+    }
+  ],
+  "intelligence_summary": "3-4 sentence strategic summary including extraction challenges, what was found vs image-only, commercial positioning",
   "crawl_summary": {
     "homepage_analyzed": true,
     "sub_pages_fetched": ${fetchedPages.length},
     "level2_pages_fetched": ${fetchedLevel2.length},
     "total_links_discovered": ${allLinks.length},
-    "sitemap_urls_found": ${sitemapCommercial.length},
-    "forced_paths_tried": ${forcedUrls.length},
     "image_alt_texts_found": ${allAltTexts.length},
-    "commercial_signals_found": ${siteClass.commercialIndicators.length},
-    "total_participants_extracted": 0
+    "total_participants_extracted": 0,
+    "total_speakers_extracted": 0
   }
 }`
 
-  try {
     let result
     for (const modelName of ['gemini-2.5-flash', 'gemini-flash-latest', 'gemini-2.0-flash', 'gemini-1.5-flash-latest']) {
       try {
         result = await genAI.getGenerativeModel({ model: modelName }).generateContent(prompt)
+        credits.gemini++
         break
       } catch (e: unknown) {
         const msg = String(e)
@@ -511,41 +552,76 @@ Return ONLY valid JSON — no markdown, no explanation:
         throw e
       }
     }
-    if (!result) throw new Error('All Gemini models are currently unavailable. Please try again in a moment.')
-    const raw = result.response.text().trim()
+    if (!result) throw new Error('All Gemini models are currently unavailable. Please try again.')
 
+    const raw = result.response.text().trim()
     const jsonMatch = raw.match(/\{[\s\S]*\}/)
     if (!jsonMatch) throw new Error('No JSON in AI response')
 
     const parsed = JSON.parse(jsonMatch[0])
-    parsed.crawl_summary.total_participants_extracted = parsed.participants?.length ?? 0
+    const participants: Record<string, unknown>[] = parsed.participants ?? []
+    const speakers: Record<string, unknown>[]     = parsed.speakers ?? []
+    parsed.crawl_summary.total_participants_extracted = participants.length
+    parsed.crawl_summary.total_speakers_extracted     = speakers.length
 
-    // ── Save to Supabase ─────────────────────────────────────────────────────
+    // ── Partial failures tracking ──────────────────────────────────────────────
+    const partialFailures: { type: string; potential: number; extracted: number; reason: string }[] = []
+    const altTextCompanyGap = allAltTexts.length - participants.length
+    if (allAltTexts.length > 4 && altTextCompanyGap > 4) {
+      partialFailures.push({
+        type: 'companies',
+        potential: allAltTexts.length,
+        extracted: participants.length,
+        reason: `${altTextCompanyGap} potential companies detected via logo alt-text but could not be matched — possible causes: non-Latin script, overly generic image labels, or ambiguous brand names`,
+      })
+    }
+    if (parsed.site_analysis?.extraction_challenges && parsed.site_analysis.extraction_challenges.length > 10) {
+      partialFailures.push({
+        type: 'general',
+        potential: 0,
+        extracted: 0,
+        reason: parsed.site_analysis.extraction_challenges,
+      })
+    }
+
+    // ── Save to Supabase ───────────────────────────────────────────────────────
     if (scanId) {
       await supabaseAdmin.from('market_intel_scans').update({
-        event_name:           parsed.event?.name ?? null,
-        industry:             parsed.event?.industry ?? null,
-        location:             parsed.event?.location ?? null,
-        organizer:            parsed.event?.organizer ?? null,
-        site_type:            parsed.site_analysis?.site_type ?? null,
-        rendering_model:      parsed.site_analysis?.rendering_model ?? null,
-        commercial_structure: parsed.site_analysis?.commercial_structure ?? null,
-        terminology_used:     parsed.site_analysis?.terminology_used ?? [],
-        intelligence_summary: parsed.intelligence_summary ?? null,
-        pages_scanned:        (parsed.crawl_summary?.sub_pages_fetched ?? 0) + 1,
-        participants_found:   parsed.participants?.length ?? 0,
-        status:               'complete',
-        completed_at:         new Date().toISOString(),
+        event_name:              parsed.event?.name ?? null,
+        industry:                parsed.event?.industry ?? null,
+        location:                parsed.event?.location ?? null,
+        organizer:               parsed.event?.organizer ?? null,
+        site_type:               parsed.site_analysis?.site_type ?? null,
+        rendering_model:         parsed.site_analysis?.rendering_model ?? null,
+        commercial_structure:    parsed.site_analysis?.commercial_structure ?? null,
+        terminology_used:        parsed.site_analysis?.terminology_used ?? [],
+        intelligence_summary:    parsed.intelligence_summary ?? null,
+        pages_scanned:           (parsed.crawl_summary?.sub_pages_fetched ?? 0) + 1,
+        participants_found:      participants.length,
+        speakers_found:          speakers.length,
+        partial_failures:        partialFailures,
+        credits_gemini_calls:    credits.gemini,
+        credits_firecrawl_pages: credits.firecrawl,
+        credits_jina_pages:      credits.jina,
+        status:                  'complete',
+        completed_at:            new Date().toISOString(),
       }).eq('id', scanId)
+    }
 
-      if (parsed.participants?.length > 0) {
-        const companies = parsed.participants.map((p: Record<string, unknown>) => ({
+    // ── Upsert companies ───────────────────────────────────────────────────────
+    if (eventId && participants.length > 0) {
+      for (const p of participants) {
+        const name = String(p.company_name ?? '').trim()
+        if (!name) continue
+        const row = {
           scan_id:              scanId,
           event_id:             eventId,
-          company_name:         p.company_name,
-          canonical_name:       p.company_name,
+          company_name:         name,
+          canonical_name:       name,
           official_domain:      p.official_domain ?? null,
           company_website:      p.company_website ?? null,
+          company_linkedin_url: p.company_linkedin_url ?? null,
+          description:          p.description ?? null,
           participant_type:     p.participant_type ?? null,
           tier:                 p.tier === 'null' ? null : (p.tier ?? null),
           sponsorship_category: p.sponsorship_category ?? null,
@@ -561,25 +637,85 @@ Return ONLY valid JSON — no markdown, no explanation:
           evidence:             p.evidence ?? [],
           extraction_method:    p.extraction_method ?? null,
           source_page_url:      targetUrl,
-        }))
-        await supabaseAdmin.from('market_intel_companies').insert(companies)
+        }
+        // Check if already exists
+        const { data: existing } = await supabaseAdmin
+          .from('market_intel_companies')
+          .select('id')
+          .eq('event_id', eventId)
+          .ilike('company_name', name)
+          .limit(1)
+          .single()
+        if (existing) {
+          await supabaseAdmin.from('market_intel_companies')
+            .update({ ...row, modified_at: new Date().toISOString() })
+            .eq('id', existing.id)
+        } else {
+          await supabaseAdmin.from('market_intel_companies').insert(row)
+        }
       }
     }
+
+    // ── Upsert speakers ────────────────────────────────────────────────────────
+    if (eventId && speakers.length > 0) {
+      for (const s of speakers) {
+        const name = String(s.speaker_name ?? '').trim()
+        if (!name) continue
+        const row = {
+          scan_id:            scanId,
+          job_id:             jobId,
+          event_id:           eventId,
+          speaker_name:       name,
+          job_title:          s.job_title ?? null,
+          speaker_company:    s.speaker_company ?? null,
+          speaker_company_url: s.speaker_company_url ?? null,
+          linkedin_url:       s.linkedin_url ?? null,
+          confidence:         s.confidence ?? null,
+          evidence:           s.evidence ?? [],
+          source_page_url:    targetUrl,
+        }
+        const { data: existing } = await supabaseAdmin
+          .from('market_intel_speakers')
+          .select('id')
+          .eq('event_id', eventId)
+          .ilike('speaker_name', name)
+          .limit(1)
+          .single()
+        if (existing) {
+          await supabaseAdmin.from('market_intel_speakers')
+            .update({ ...row, modified_at: new Date().toISOString() })
+            .eq('id', existing.id)
+        } else {
+          await supabaseAdmin.from('market_intel_speakers').insert(row)
+        }
+      }
+    }
+
+    // ── Update job aggregate ───────────────────────────────────────────────────
+    if (jobId) await aggregateJobStats(jobId)
 
     return NextResponse.json({
       ...parsed,
       hypotheses_generated: hypotheses,
       scan_id: scanId,
+      credits: { gemini: credits.gemini, firecrawl: credits.firecrawl, jina: credits.jina },
+      partial_failures: partialFailures,
     })
+
   } catch (e) {
-    console.error('market-intel AI error:', e)
+    console.error('market-intel error:', e)
+    const msg = String(e)
+    const failure_reason = msg.includes('network') || msg.includes('fetch') ? 'network'
+      : msg.includes('JSON') || msg.includes('parse') ? 'parse'
+      : msg.includes('rate') || msg.includes('quota') ? 'rate_limit'
+      : msg.includes('timeout') || msg.includes('abort') ? 'timeout'
+      : 'ai'
     if (scanId) {
       await supabaseAdmin.from('market_intel_scans').update({
-        status: 'failed',
-        error_message: String(e),
-        completed_at: new Date().toISOString(),
+        status: 'failed', error_message: msg, completed_at: new Date().toISOString(),
       }).eq('id', scanId)
     }
-    return NextResponse.json({ error: 'AI extraction failed: ' + String(e) }, { status: 500 })
+    if (jobId) await aggregateJobStats(jobId).catch(() => {})
+    return NextResponse.json({ error: msg, failure_reason }, { status: 500 })
   }
 }

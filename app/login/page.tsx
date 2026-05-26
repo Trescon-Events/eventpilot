@@ -10,6 +10,32 @@ export default function LoginPage() {
   const [loading,  setLoading]  = useState(false)
   const [error,    setError]    = useState('')
 
+  // Forgot password flow
+  const [showForgot,   setShowForgot]   = useState(false)
+  const [fpEmail,      setFpEmail]      = useState('')
+  const [fpLoading,    setFpLoading]    = useState(false)
+  const [fpSent,       setFpSent]       = useState(false)
+  const [fpError,      setFpError]      = useState('')
+
+  async function handleForgotPassword(e: React.FormEvent) {
+    e.preventDefault()
+    if (!fpEmail.trim()) { setFpError('Enter your work email.'); return }
+    setFpLoading(true)
+    setFpError('')
+    try {
+      await fetch('/api/forgot-password', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({ email: fpEmail.trim() }),
+      })
+      setFpSent(true)
+    } catch {
+      setFpError('Something went wrong. Try again.')
+    } finally {
+      setFpLoading(false)
+    }
+  }
+
   async function handleLogin(e: React.FormEvent) {
     e.preventDefault()
     if (!email.trim() || !password.trim()) { setError('Enter your email and password.'); return }
@@ -32,6 +58,12 @@ export default function LoginPage() {
         sessionStorage.removeItem('tai_admin_staff_id')
       }
       const destination = data.is_admin ? '/admin' : `/dashboard?id=${data.id}`
+      // Force password change before anything else
+      if (data.must_change_password && data.id !== 'super-admin') {
+        const name = encodeURIComponent(data.name ?? '')
+        window.location.href = `/set-password?id=${data.id}&name=${name}&next=${encodeURIComponent(destination)}`
+        return
+      }
       if (!data.has_profile && data.id !== 'super-admin' && data.job_level !== 'super_admin') {
         const name = encodeURIComponent(data.name ?? '')
         const dept = encodeURIComponent(data.department ?? 'Other')
@@ -143,6 +175,38 @@ export default function LoginPage() {
             <h2 style={{ fontSize: '32px', fontWeight: 900, color: '#0F1923', margin: 0, letterSpacing: '-0.5px', lineHeight: 1.1 }}>Sign in to<br />Trescademy</h2>
           </div>
 
+          {/* Forgot password panel */}
+          {showForgot && (
+            <div style={{ marginBottom: '28px', padding: '24px', background: '#F0F4F8', borderRadius: '14px', border: '1px solid #DDE8EE' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '14px' }}>
+                <div style={{ fontSize: '15px', fontWeight: 800, color: '#0F1923' }}>Reset your password</div>
+                <button type="button" onClick={() => { setShowForgot(false); setFpSent(false); setFpError(''); setFpEmail('') }}
+                  style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#5B7080', padding: 0, fontSize: '20px', lineHeight: 1 }}>×</button>
+              </div>
+              {fpSent ? (
+                <div style={{ fontSize: '14px', color: '#00695C', fontWeight: 600, lineHeight: 1.55 }}>
+                  If that email is registered, a reset link has been sent. Check your inbox (and spam folder).
+                </div>
+              ) : (
+                <form onSubmit={handleForgotPassword} style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                  <input
+                    type="email"
+                    value={fpEmail}
+                    onChange={e => { setFpEmail(e.target.value); setFpError('') }}
+                    placeholder="your.email@tresconglobal.com"
+                    className="tfield"
+                    style={{ padding: '12px 14px', borderRadius: '10px', fontSize: '14px' }}
+                  />
+                  {fpError && <div style={{ fontSize: '12px', color: '#DC2626' }}>{fpError}</div>}
+                  <button type="submit" disabled={fpLoading}
+                    style={{ padding: '12px', borderRadius: '10px', background: fpLoading ? '#B8CDD8' : '#00697B', color: 'white', fontSize: '14px', fontWeight: 800, border: 'none', cursor: fpLoading ? 'not-allowed' : 'pointer', fontFamily: 'inherit' }}>
+                    {fpLoading ? 'Sending…' : 'Send reset link'}
+                  </button>
+                </form>
+              )}
+            </div>
+          )}
+
           {/* Form */}
           <form onSubmit={handleLogin} style={{ display: 'flex', flexDirection: 'column', gap: '18px' }}>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '7px' }}>
@@ -162,9 +226,15 @@ export default function LoginPage() {
             </div>
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: '7px' }}>
-              <label style={{ fontSize: '12px', fontWeight: 800, color: '#0F1923', letterSpacing: '1.2px', textTransform: 'uppercase' }}>
-                Password
-              </label>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <label style={{ fontSize: '12px', fontWeight: 800, color: '#0F1923', letterSpacing: '1.2px', textTransform: 'uppercase' }}>
+                  Password
+                </label>
+                <button type="button" onClick={() => { setShowForgot(true); setFpSent(false); setFpError(''); setFpEmail(email) }}
+                  style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '12px', fontWeight: 700, color: '#00695C', padding: 0, fontFamily: 'inherit', textDecoration: 'underline' }}>
+                  Forgot password?
+                </button>
+              </div>
               <div style={{ position: 'relative' }}>
                 <input
                   type={showPass ? 'text' : 'password'}

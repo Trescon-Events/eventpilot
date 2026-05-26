@@ -49,7 +49,7 @@ export async function POST(req: NextRequest) {
   // ── Regular staff path ──
   const { data: staff, error } = await supabaseAdmin
     .from('staff_members')
-    .select('id, name, department, role, office_id, job_level, manager_id, password_hash, access_enabled')
+    .select('id, name, department, role, office_id, job_level, manager_id, password_hash, access_enabled, must_change_password')
     .eq('email', cleanEmail)
     .single()
 
@@ -85,15 +85,16 @@ export async function POST(req: NextRequest) {
   const hasProfile = (profileCount ?? 0) > 0
 
   const responseBody = {
-    id:          staff.id,
-    name:        staff.name,
-    department:  staff.department,
-    role:        staff.role,
-    office_id:   staff.office_id,
-    job_level:   jobLevel,
-    is_admin:    isAdmin,
-    has_reports: (reportCount ?? 0) > 0,
-    has_profile: hasProfile,
+    id:                  staff.id,
+    name:                staff.name,
+    department:          staff.department,
+    role:                staff.role,
+    office_id:           staff.office_id,
+    job_level:           jobLevel,
+    is_admin:            isAdmin,
+    has_reports:         (reportCount ?? 0) > 0,
+    has_profile:         hasProfile,
+    must_change_password: staff.must_change_password ?? false,
   }
 
   const sessionPayload = Buffer.from(JSON.stringify({
