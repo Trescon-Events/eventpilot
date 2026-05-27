@@ -2063,11 +2063,38 @@ export default function AdminPage() {
                 <div>
                   <div style={{ fontSize: '11px', fontWeight: 800, letterSpacing: '2px', textTransform: 'uppercase', color: '#C0F43C', marginBottom: '4px' }}>Internal Tools</div>
                   <div style={{ fontSize: '16px', fontWeight: 900, color: '#FFFFFF' }}>The Toolkit</div>
-                  <div style={{ fontSize: '13px', color: 'rgba(255,255,255,0.5)', marginTop: '2px' }}>Website Builder · DRT · Outreach — authorised team members only</div>
+                  <div style={{ fontSize: '13px', color: 'rgba(255,255,255,0.5)', marginTop: '2px' }}>Website Builder · DRT · Outreach · Smart Data — authorised team members only</div>
                 </div>
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#C0F43C', fontSize: '13px', fontWeight: 800, flexShrink: 0 }}>
                 Open Toolkit
+                <svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg>
+              </div>
+            </Link>
+          </div>
+        )}
+
+        {/* ── Smart Data Banner (overview only) ── */}
+        {tab === 'overview' && (
+          <div style={{ marginBottom: '28px' }}>
+            <Link href="/data/extract/file"
+              style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'rgba(0,165,163,0.06)', border: '1px solid rgba(0,165,163,0.25)', borderRadius: '16px', padding: '22px 28px', textDecoration: 'none', gap: '20px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+                <div style={{ width: '44px', height: '44px', borderRadius: '12px', background: 'rgba(0,165,163,0.12)', border: '1px solid rgba(0,165,163,0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                  <svg width="20" height="20" fill="none" stroke="#00A5A3" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24">
+                    <ellipse cx="12" cy="5" rx="9" ry="3"/>
+                    <path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/>
+                    <path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/>
+                  </svg>
+                </div>
+                <div>
+                  <div style={{ fontSize: '11px', fontWeight: 800, letterSpacing: '2px', textTransform: 'uppercase', color: '#00A5A3', marginBottom: '4px' }}>Data Intelligence</div>
+                  <div style={{ fontSize: '16px', fontWeight: 900, color: '#0F1923' }}>Smart Data</div>
+                  <div style={{ fontSize: '13px', color: '#5B7080', marginTop: '2px' }}>Lead Extraction · LinkedIn Enrichment · Email Guesser · Contacts & Companies</div>
+                </div>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#00A5A3', fontSize: '13px', fontWeight: 800, flexShrink: 0 }}>
+                Open Smart Data
                 <svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg>
               </div>
             </Link>
