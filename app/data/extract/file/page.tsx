@@ -54,10 +54,10 @@ const btn = (disabled: boolean, accent: string): React.CSSProperties => ({
 })
 
 const STEPS = [
-  { label: 'Lead Extraction', href: '/data/extract/file', active: true },
-  { label: 'LinkedIn Targeting', href: '/data/extract/detail', active: false },
-  { label: 'Data Enrichment', href: '/data/enrichment', active: false },
-  { label: 'Email Guesser', href: '/data/email-guesser', active: false },
+  { label: 'Lead Extraction', href: '/data/extract/file',  active: true,  color: '#00A5A3' },
+  { label: 'L2 Taxonomy',     href: '/data/l2',            active: false, color: '#6366F1' },
+  { label: 'Data Enrichment', href: '/data/enrichment',    active: false, color: '#D97706' },
+  { label: 'Email Recovery',  href: '/data/email-guesser', active: false, color: '#7C3AED' },
 ]
 
 export default function LeadExtractionPage() {
@@ -143,29 +143,33 @@ export default function LeadExtractionPage() {
     <div style={{ minHeight: '100vh', background: '#F8FAFB', fontFamily: 'system-ui, sans-serif' }}>
 
       {/* Page header */}
-      <div style={{ background: 'linear-gradient(135deg, #00A5A3 0%, #00897B 100%)', padding: '20px 28px 24px' }}>
-        {/* Flow breadcrumb */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '16px', flexWrap: 'wrap' }}>
+      <div style={{ background: '#FFFFFF', borderBottom: '1px solid #DDE8EE', padding: '20px 28px 20px' }}>
+        {/* Flow slabs */}
+        <div style={{ display: 'flex', alignItems: 'stretch', gap: '8px', marginBottom: '18px', flexWrap: 'wrap' }}>
           {STEPS.map((s, i) => (
-            <div key={s.href} style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <div key={s.href} style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
               <Link href={s.href} style={{
-                padding: '4px 12px', borderRadius: '20px', fontSize: '12px', fontWeight: 700,
-                background: s.active ? 'rgba(255,255,255,0.25)' : 'rgba(255,255,255,0.1)',
-                color: s.active ? '#FFFFFF' : 'rgba(255,255,255,0.65)',
-                textDecoration: 'none', border: s.active ? '1px solid rgba(255,255,255,0.4)' : '1px solid rgba(255,255,255,0.15)',
+                padding: '8px 18px', borderRadius: '10px', fontSize: '13px', fontWeight: 700,
+                background: s.active ? s.color : `${s.color}12`,
+                color: s.active ? '#FFFFFF' : s.color,
+                textDecoration: 'none',
+                border: `1.5px solid ${s.active ? s.color : `${s.color}40`}`,
+                boxShadow: s.active ? `0 4px 12px ${s.color}40` : 'none',
+                display: 'flex', alignItems: 'center', gap: '7px',
               }}>
+                <span style={{ width: '7px', height: '7px', borderRadius: '50%', background: s.active ? '#FFFFFF' : s.color, flexShrink: 0 }} />
                 {s.label}
               </Link>
               {i < STEPS.length - 1 && (
-                <svg width="12" height="12" fill="none" stroke="rgba(255,255,255,0.4)" strokeWidth="2" strokeLinecap="round" viewBox="0 0 24 24">
+                <svg width="12" height="12" fill="none" stroke="#DDE8EE" strokeWidth="2.5" strokeLinecap="round" viewBox="0 0 24 24">
                   <polyline points="9 18 15 12 9 6"/>
                 </svg>
               )}
             </div>
           ))}
         </div>
-        <div style={{ fontSize: '24px', fontWeight: 900, color: '#FFFFFF', marginBottom: '4px', letterSpacing: '-0.3px' }}>Lead Extraction</div>
-        <div style={{ fontSize: '14px', color: 'rgba(255,255,255,0.75)' }}>Extract company names and website URLs from multiple sources</div>
+        <div style={{ fontSize: '22px', fontWeight: 900, color: '#0F1923', marginBottom: '3px', letterSpacing: '-0.3px' }}>Lead Extraction</div>
+        <div style={{ fontSize: '14px', color: '#6B7280' }}>Extract company names and website URLs from multiple sources</div>
       </div>
 
       {/* 2×2 grid */}
