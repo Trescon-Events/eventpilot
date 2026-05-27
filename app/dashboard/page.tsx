@@ -240,7 +240,7 @@ function DashboardContent() {
       setRecContext(data.recommendations?.context ?? null)
       setNotifications(data.notifications ?? [])
       setLoading(false)
-      /* Fire AI recommendations async — dashboard shows immediately, recs upgrade in background */
+      /* Fire AI recommendations async — cached for 30 min so Gemini isn't hit on every page load */
       loadAiRecs()
     } catch {
       setError('Failed to load dashboard data.')
@@ -250,6 +250,23 @@ function DashboardContent() {
 
   async function loadAiRecs() {
     if (!staffId || staffId === 'super-admin') return
+
+    // Check localStorage cache — skip Gemini call if fresh (< 30 min old)
+    const CACHE_KEY = `tresci_recs_${staffId}`
+    const CACHE_TTL = 30 * 60 * 1000 // 30 minutes
+    try {
+      const cached = localStorage.getItem(CACHE_KEY)
+      if (cached) {
+        const { ts, recs } = JSON.parse(cached)
+        if (Date.now() - ts < CACHE_TTL && Array.isArray(recs) && recs.length > 0) {
+          setRecPrimary(recs[0])
+          setRecList(recs.slice(1))
+          setAiRecsReady(true)
+          return // skip Gemini — use cached
+        }
+      }
+    } catch { /* ignore bad cache */ }
+
     setAiRecsLoading(true)
     try {
       const res = await fetch('/api/recommendations', {
@@ -264,6 +281,8 @@ function DashboardContent() {
         setRecPrimary(recs[0])
         setRecList(recs.slice(1))
         setAiRecsReady(true)
+        // Cache for 30 minutes
+        try { localStorage.setItem(CACHE_KEY, JSON.stringify({ ts: Date.now(), recs })) } catch { /* ignore */ }
       }
     } catch {
       /* Silently fail — rule-based recs remain */
