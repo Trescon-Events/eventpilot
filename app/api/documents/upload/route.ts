@@ -1,8 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/app/lib/supabase'
 import { GoogleGenerativeAI } from '@google/generative-ai'
+import { GoogleAIFileManager } from '@google/generative-ai/server'
+import { writeFile, unlink } from 'fs/promises'
+import { join } from 'path'
+import { tmpdir } from 'os'
 
-export const maxDuration = 60
+export const maxDuration = 120
 
 /*
   POST /api/documents/upload
@@ -10,11 +14,12 @@ export const maxDuration = 60
 
   Flow:
   1. Read file bytes
-  2. For PDFs: Gemini reads the PDF natively (handles text-based AND scanned/image PDFs)
+  2. For PDFs > 5 MB: write to /tmp, upload via Gemini File API (supports up to 2 GB), extract text, clean up
+     For PDFs <= 5 MB: pass as inline base64 (faster)
      For TXT/MD: plain UTF-8 decode
   3. Pull uploader profile
   4. Gemini classifies the extracted content
-  5. Save extracted text to DB — original file is never stored, destroyed after read
+  5. Save extracted text to DB — original file is never stored
   6. Return saved document with AI analysis
 */
 
@@ -22,13 +27,14 @@ const DEPARTMENTS = ['all', 'marketing', 'finance', 'sales', 'operations', 'even
 const LAYERS      = ['knowledge_base', 'general', 'specific']
 const LEVELS      = ['all', 'team_lead', 'management']
 
+const MAX_FILE_BYTES = 50 * 1024 * 1024 // 50 MB hard limit
+const INLINE_THRESHOLD = 5 * 1024 * 1024 // Use File API above 5 MB
+
 function sanitise(val: string, allowed: string[], fallback: string): string {
   return allowed.includes(val?.toLowerCase()) ? val.toLowerCase() : fallback
 }
 
 // ── Step 1: Extract text ──────────────────────────────────────────────────────
-// PDFs are passed to Gemini as inline base64 — Gemini reads text AND scanned pages.
-// Text files are decoded directly. PDF file is never written to disk or stored.
 async function extractText(buffer: Buffer, fileName: string): Promise<string> {
   if (!fileName.toLowerCase().endsWith('.pdf')) {
     return buffer.toString('utf-8').trim()
@@ -36,7 +42,36 @@ async function extractText(buffer: Buffer, fileName: string): Promise<string> {
 
   const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!)
   const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' })
+  const extractPrompt = 'Extract all text content from this PDF document. Return only the raw text exactly as it appears — preserve headings, paragraphs, lists, and section structure. Do not summarise, do not add commentary, do not add formatting characters. Return the full text.'
 
+  // Large PDFs: upload via File API then reference by URI
+  if (buffer.byteLength > INLINE_THRESHOLD) {
+    const fileManager = new GoogleAIFileManager(process.env.GEMINI_API_KEY!)
+    const tmpPath = join(tmpdir(), `doc_${Date.now()}_${Math.random().toString(36).slice(2)}.pdf`)
+
+    try {
+      await writeFile(tmpPath, buffer)
+      const uploadRes = await fileManager.uploadFile(tmpPath, {
+        mimeType: 'application/pdf',
+        displayName: fileName,
+      })
+      const fileUri = uploadRes.file.uri
+
+      const result = await model.generateContent([
+        { fileData: { mimeType: 'application/pdf', fileUri } },
+        { text: extractPrompt },
+      ])
+
+      // Clean up uploaded file from Gemini
+      await fileManager.deleteFile(uploadRes.file.name).catch(() => {/* ignore */})
+
+      return result.response.text().trim()
+    } finally {
+      await unlink(tmpPath).catch(() => {/* ignore */})
+    }
+  }
+
+  // Small PDFs: inline base64 (faster, no temp file needed)
   const result = await model.generateContent([
     {
       inlineData: {
@@ -44,9 +79,7 @@ async function extractText(buffer: Buffer, fileName: string): Promise<string> {
         data: buffer.toString('base64'),
       },
     },
-    {
-      text: 'Extract all text content from this PDF document. Return only the raw text exactly as it appears — preserve headings, paragraphs, lists, and section structure. Do not summarise, do not add commentary, do not add formatting characters. Return the full text.',
-    },
+    { text: extractPrompt },
   ])
 
   return result.response.text().trim()
@@ -158,10 +191,16 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'file, title and type are required' }, { status: 400 })
     }
 
-    // Read file bytes — this is the only time the file exists in memory
+    if (file.size > MAX_FILE_BYTES) {
+      return NextResponse.json({
+        error: `File is too large (${(file.size / 1024 / 1024).toFixed(0)} MB). Maximum allowed is 50 MB. Compress your PDF first using smallpdf.com or Adobe Acrobat.`,
+      }, { status: 413 })
+    }
+
+    // Read file bytes
     const buffer = Buffer.from(await file.arrayBuffer())
 
-    // Extract text — PDF is read by Gemini vision, never stored
+    // Extract text
     const extractedText = await extractText(buffer, file.name)
 
     if (!extractedText) {
