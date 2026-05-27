@@ -65,6 +65,22 @@ const TOOLS = [
       </svg>
     ),
   },
+  {
+    id:          'smart-data',
+    label:       'Smart Data',
+    description: 'Extract leads from files and URLs, enrich contacts via LinkedIn and Apollo, verify emails, and manage your B2B database.',
+    accent:      '#00A5A3',
+    href:        '/data/extract/file',
+    needsEvent:  false,
+    badge:       'Data Intelligence',
+    icon: (
+      <svg width="24" height="24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24">
+        <ellipse cx="12" cy="5" rx="9" ry="3"/>
+        <path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/>
+        <path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/>
+      </svg>
+    ),
+  },
 ]
 
 function EventPicker({ tool, events, onClose }: {
@@ -174,7 +190,7 @@ function ToolCard({ tool, events }: { tool: typeof TOOLS[number]; events: Event[
             style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', padding: '12px 20px', borderRadius: '11px', background: tool.accent, color: '#FFFFFF', fontSize: '14px', fontWeight: 800, textDecoration: 'none', alignSelf: 'flex-start', transition: 'opacity 0.15s' }}
             onMouseEnter={e => ((e.currentTarget as HTMLElement).style.opacity = '0.88')}
             onMouseLeave={e => ((e.currentTarget as HTMLElement).style.opacity = '1')}>
-            Open Outreach
+            Open {tool.label}
             <svg width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg>
           </Link>
         )}
