@@ -296,73 +296,11 @@ export default function ToolkitPage() {
           </p>
         </div>
 
-        {/* ── Section: Event Tools ── */}
-        <div style={{ marginBottom: '48px' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '14px', marginBottom: '20px' }}>
-            <div style={{ fontSize: '11px', fontWeight: 800, letterSpacing: '2.5px', textTransform: 'uppercase', color: '#5B7080' }}>Event Tools</div>
-            <div style={{ flex: 1, height: '1px', background: '#DDE8EE' }} />
-          </div>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '20px' }}>
-            {TOOLS.filter(t => t.needsEvent).map(tool => (
-              <ToolCard key={tool.id} tool={tool} events={events} />
-            ))}
-            {/* Outreach — not event-specific but part of event workflow */}
-            {TOOLS.filter(t => !t.needsEvent && t.id === 'outreach').map(tool => (
-              <ToolCard key={tool.id} tool={tool} events={events} />
-            ))}
-          </div>
-        </div>
-
-        {/* ── Section: Data Intelligence ── */}
-        <div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '14px', marginBottom: '20px' }}>
-            <div style={{ fontSize: '11px', fontWeight: 800, letterSpacing: '2.5px', textTransform: 'uppercase', color: '#00A5A3' }}>Data Intelligence</div>
-            <div style={{ flex: 1, height: '1px', background: 'rgba(0,165,163,0.2)' }} />
-          </div>
-
-          {/* Smart Data — full-width featured card */}
-          <Link href="/data/extract/file" style={{ textDecoration: 'none', display: 'block' }}>
-            <div style={{
-              background: 'linear-gradient(135deg, rgba(0,165,163,0.08) 0%, rgba(0,165,163,0.03) 100%)',
-              border: '1.5px solid rgba(0,165,163,0.3)',
-              borderRadius: '20px',
-              padding: '36px 40px',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '32px',
-              cursor: 'pointer',
-              transition: 'border-color 0.2s, box-shadow 0.2s',
-            }}
-              onMouseEnter={e => { (e.currentTarget as HTMLElement).style.borderColor = '#00A5A3'; (e.currentTarget as HTMLElement).style.boxShadow = '0 8px 32px rgba(0,165,163,0.15)' }}
-              onMouseLeave={e => { (e.currentTarget as HTMLElement).style.borderColor = 'rgba(0,165,163,0.3)'; (e.currentTarget as HTMLElement).style.boxShadow = 'none' }}
-            >
-              {/* Icon */}
-              <div style={{ width: '72px', height: '72px', borderRadius: '18px', background: 'rgba(0,165,163,0.12)', border: '1px solid rgba(0,165,163,0.25)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#00A5A3', flexShrink: 0 }}>
-                <svg width="32" height="32" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24">
-                  <ellipse cx="12" cy="5" rx="9" ry="3"/>
-                  <path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/>
-                  <path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/>
-                </svg>
-              </div>
-
-              {/* Text */}
-              <div style={{ flex: 1 }}>
-                <div style={{ fontSize: '11px', fontWeight: 800, letterSpacing: '2px', textTransform: 'uppercase', color: '#00A5A3', marginBottom: '8px' }}>Data Intelligence</div>
-                <div style={{ fontSize: '24px', fontWeight: 900, color: '#0F1923', marginBottom: '10px', letterSpacing: '-0.5px' }}>Smart Data</div>
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
-                  {['Lead Extraction', 'URL Extractor', 'LinkedIn Enricher', 'Email Verifier', 'Email Guesser', 'Contacts CRM', 'Companies DB'].map(tag => (
-                    <span key={tag} style={{ fontSize: '12px', fontWeight: 700, color: '#00A5A3', background: 'rgba(0,165,163,0.1)', border: '1px solid rgba(0,165,163,0.2)', padding: '4px 10px', borderRadius: '20px' }}>{tag}</span>
-                  ))}
-                </div>
-              </div>
-
-              {/* CTA */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '14px 24px', borderRadius: '12px', background: '#00A5A3', color: '#FFFFFF', fontSize: '14px', fontWeight: 800, flexShrink: 0 }}>
-                Open Smart Data
-                <svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg>
-              </div>
-            </div>
-          </Link>
+        {/* All tools — single flat grid */}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '20px' }}>
+          {TOOLS.map(tool => (
+            <ToolCard key={tool.id} tool={tool} events={events} />
+          ))}
         </div>
       </div>
 
