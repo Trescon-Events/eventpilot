@@ -177,6 +177,10 @@ function DashboardContent() {
 
   const tip = DAILY_TIPS[new Date().getDate() % DAILY_TIPS.length]
 
+  // useMemo must be declared here — before any conditional early returns — to satisfy React Rules of Hooks
+  const completedIds   = useMemo(() => new Set(completions.filter(c => c.passed).map(c => c.course_id)), [completions])
+  const completedCount = useMemo(() => completions.filter(c => c.passed).length, [completions])
+
   useEffect(() => {
     if (!staffId) { setError('No staff ID provided. Please access this page via your dashboard link.'); setLoading(false); return }
     const stored = localStorage.getItem(`tresci_dismissed_${staffId}`)
@@ -338,9 +342,7 @@ function DashboardContent() {
   const trackConfig = TRACK_CONFIG_MAP[track]
   const firstName  = staff.name.split(' ')[0]
 
-  const completedIds    = useMemo(() => new Set(completions.filter(c => c.passed).map(c => c.course_id)), [completions])
   const nextCourse      = recPrimary ?? courses.find(c => !completedIds.has(c.id)) ?? null
-  const completedCount  = useMemo(() => completions.filter(c => c.passed).length, [completions])
   const totalMandatory  = recContext?.mandatory_total  ?? courses.filter(c => c.is_mandatory).length
   const completedMandatory = recContext?.mandatory_completed ?? courses.filter(c => c.is_mandatory && completedIds.has(c.id)).length
 
