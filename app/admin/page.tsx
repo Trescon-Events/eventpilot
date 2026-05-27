@@ -160,6 +160,14 @@ function QuestionnaireView({ qDept, setQDept }: { qDept: string; setQDept: (d: s
   )
 }
 
+const PLAYBOOK_TIERS = [
+  { tier: 'AI-Forward',  range: '75–100', color: '#166534', action: 'Assign as AI Pilot Leads. They run the first automation sprint for their department.', owner: 'AI Lead + Dept Head', by: 'This sprint' },
+  { tier: 'AI-Ready',    range: '55–74',  color: '#0E7490', action: 'Pair with an AI-Forward colleague. Start a 30-day tool adoption plan with one specific workflow to automate.', owner: 'Trescademy Training', by: '30 days' },
+  { tier: 'AI-Aware',    range: '35–54',  color: '#92400E', action: 'Foundation workshop (half day). Pick one tool for their role and commit to using it daily for 2 weeks.', owner: 'Trescademy Training + HR', by: '60 days' },
+  { tier: 'AI-Curious',  range: '15–34',  color: '#C2410C', action: "Awareness session first — why AI matters for their specific role. Then intro to ChatGPT basics.", owner: 'HR + Trescademy', by: '90 days' },
+  { tier: 'AI-Unaware',  range: '0–14',   color: '#991B1B', action: 'Digital literacy assessment first. Build a personalised catch-up plan before any AI training.', owner: 'HR', by: '120 days' },
+]
+
 export default function AdminPage() {
   const [authed, setAuthed]   = useState(() => typeof window !== 'undefined' && sessionStorage.getItem('tai_admin_authed') === '1')
   const [adminStaffId, setAdminStaffId] = useState(() => typeof window !== 'undefined' ? sessionStorage.getItem('tai_admin_staff_id') ?? '' : '')
@@ -1325,7 +1333,7 @@ export default function AdminPage() {
                 ['people',       'People'],
                 ['intelligence', 'Intelligence'],
                 ['learning',     'Staff Learning'],
-                ['action',       'Playbook'],
+                ['action',       'Playbook' ],
                 ['suggest',      'Learning Lab'],
                 ['events',       'Events'],
                 ['knowledge',    'Knowledge Base'],
@@ -1338,7 +1346,7 @@ export default function AdminPage() {
                 return (
                   <button key={t}
                     id={t === 'intelligence' ? 'tour-intelligence-tab' : t === 'suggest' ? 'tour-studio-tab' : undefined}
-                    onClick={() => { if (t === 'toolkit') { window.location.href = '/admin/toolkit'; return; } setTab(t as typeof tab); if (t === 'learning') fetchLearning(); if (t === 'people') { fetchStaffList(); markProgress('staff') } if (t === 'events') { fetchEvents(); fetchEventSummaries(); } if (t === 'knowledge') { fetchDocs(); fetchCustomDocTypes(); } if (t === 'review') fetchDrafts(); if (t === 'suggest') markProgress('course'); if (t === 'security') fetchSecurity() }}
+                    onClick={() => { if (t === 'toolkit') { window.location.href = '/admin/toolkit'; return; } if (t === 'action') { window.location.href = '/docs?slug=__playbook'; return; } setTab(t as typeof tab); if (t === 'learning') fetchLearning(); if (t === 'people') { fetchStaffList(); markProgress('staff') } if (t === 'events') { fetchEvents(); fetchEventSummaries(); } if (t === 'knowledge') { fetchDocs(); fetchCustomDocTypes(); } if (t === 'review') fetchDrafts(); if (t === 'suggest') markProgress('course'); if (t === 'security') fetchSecurity() }}
                     style={{
                       padding:         active ? '9px 22px' : '9px 20px',
                       borderRadius:    '10px',
@@ -2492,6 +2500,67 @@ export default function AdminPage() {
                   </div>
                 )}
               </div>
+
+              {/* Live Department Action Matrix */}
+              <div style={{ background: '#FFFFFF', border: '1px solid #DDE8EE', borderRadius: '16px', overflow: 'hidden', marginBottom: '24px' }}>
+                <div style={{ padding: '18px 24px', borderBottom: '1px solid #DDE8EE' }}>
+                  <div style={{ fontSize: '13px', fontWeight: 700, letterSpacing: '2px', textTransform: 'uppercase', color: '#5B7080', marginBottom: '3px' }}>Department Action Matrix — Live</div>
+                  <div style={{ fontSize: '13px', color: '#5B7080' }}>Each department mapped to its current tier and the recommended action to take now. Updates as more staff complete interviews.</div>
+                </div>
+                {sortedDeptTairs.length === 0 ? (
+                  <div style={{ padding: '48px', textAlign: 'center', fontSize: '13px', color: '#5B7080' }}>No interview data yet. Seed demo data or wait for staff to complete interviews.</div>
+                ) : (
+                  <div style={{ overflowX: 'auto' }}>
+                    <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                      <thead>
+                        <tr style={{ background: '#FFFFFF' }}>
+                          {['Department', 'TAIRS', 'Tier', 'People', 'Coverage', 'AI Priority', 'TAI Action', 'Owner', 'By'].map(h => (
+                            <th key={h} style={{ padding: '9px 14px', textAlign: 'left', fontSize: '9px', fontWeight: 700, letterSpacing: '1px', textTransform: 'uppercase', color: '#5B7080', borderBottom: '1px solid #DDE8EE', whiteSpace: 'nowrap' }}>{h}</th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {sortedDeptTairs.map((d, i) => {
+                          const tier    = tairsTier(d.score)
+                          const play    = PLAYBOOK_TIERS.find(p => p.tier === tier.label) ?? PLAYBOOK_TIERS[4]
+                          const impact  = d.impact
+                          const covPct  = d.joined > 0 ? Math.round(d.interviewed / d.joined * 100) : 0
+                          return (
+                            <tr key={d.dept} style={{ borderBottom: i < sortedDeptTairs.length - 1 ? '1px solid #E8EEF4' : 'none', background: i === 0 ? `${tier.color}04` : 'transparent' }}>
+                              <td style={{ padding: '13px 14px' }}>
+                                <div style={{ fontSize: '13px', fontWeight: 700, color: '#0F1923' }}>{d.dept}</div>
+                              </td>
+                              <td style={{ padding: '13px 14px', textAlign: 'center' }}>
+                                <span style={{ fontSize: '13px', fontWeight: 900, color: tier.color }}>{d.score}</span>
+                              </td>
+                              <td style={{ padding: '13px 10px', whiteSpace: 'nowrap' }}>
+                                <span style={{ fontSize: '9px', fontWeight: 800, color: tier.color, background: `${tier.color}15`, padding: '2px 7px', borderRadius: '5px', border: `1px solid ${tier.color}25` }}>{tier.label}</span>
+                              </td>
+                              <td style={{ padding: '13px 14px', fontSize: '13px', color: '#5B7080', textAlign: 'center' }}>{d.joined}</td>
+                              <td style={{ padding: '13px 14px' }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                  <div style={{ width: '44px', height: '4px', background: '#E8EEF4', borderRadius: '2px', overflow: 'hidden' }}>
+                                    <div style={{ height: '100%', width: `${covPct}%`, background: covPct === 100 ? '#C0F43C' : '#00897B', borderRadius: '2px' }} />
+                                  </div>
+                                  <span style={{ fontSize: '13px', color: '#5B7080', fontWeight: 700 }}>{covPct}%</span>
+                                </div>
+                              </td>
+                              <td style={{ padding: '13px 10px', whiteSpace: 'nowrap' }}>
+                                <span style={{ fontSize: '9px', fontWeight: 800, color: impact.color, background: `${impact.color}15`, padding: '2px 7px', borderRadius: '5px' }}>{impact.priority}</span>
+                              </td>
+                              <td style={{ padding: '13px 14px', fontSize: '13px', color: '#0F1923', fontWeight: 600, maxWidth: '200px', lineHeight: 1.5 }}>{play.action}</td>
+                              <td style={{ padding: '13px 14px', fontSize: '13px', color: tier.color, fontWeight: 700, whiteSpace: 'nowrap' }}>{play.owner}</td>
+                              <td style={{ padding: '13px 14px', whiteSpace: 'nowrap' }}>
+                                <span style={{ fontSize: '11px', fontWeight: 800, color: tier.color, background: `${tier.color}18`, border: `1px solid ${tier.color}40`, padding: '3px 8px', borderRadius: '5px' }}>{play.by}</span>
+                              </td>
+                            </tr>
+                          )
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
             </div>
           )
         })()}
@@ -2671,183 +2740,6 @@ export default function AdminPage() {
             </div>
           )
         })()}
-
-        {/* ── Playbook tab ── */}
-        {tab === 'action' && (() => {
-          const PLAYBOOK = [
-            {
-              tier: 'AI-Forward',  range: '75–100', color: '#166534',
-              means: 'Already building AI workflows. Has hands-on experience integrating multiple tools.',
-              action: 'Assign as AI Pilot Leads. They run the first automation sprint for their department.',
-              next: 'Book them into a 1-hour AI pilot kickoff. Give them a problem statement and 30 days to ship a working automation.',
-              owner: 'AI Lead + Dept Head',
-              by: 'This sprint',
-            },
-            {
-              tier: 'AI-Ready',    range: '55–74',  color: '#0E7490',
-              means: 'Uses AI regularly. Comfortable with tools but not yet building systematic workflows.',
-              action: 'Pair with an AI-Forward colleague. Start a 30-day tool adoption plan with one specific workflow to automate.',
-              next: 'Enroll in Trescademy Intermediate track. Weekly 45-min session + one workflow deliverable per week.',
-              owner: 'Trescademy Training',
-              by: '30 days',
-            },
-            {
-              tier: 'AI-Aware',    range: '35–54',  color: '#92400E',
-              means: 'Knows what AI is and has tried it, but not using it consistently in their daily work.',
-              action: 'Foundation workshop (half day). Pick one tool for their role and commit to using it daily for 2 weeks.',
-              next: '2-week AI daily habit challenge. Each person picks one task to do with AI every day and logs it.',
-              owner: 'Trescademy Training + HR',
-              by: '60 days',
-            },
-            {
-              tier: 'AI-Curious',  range: '15–34',  color: '#C2410C',
-              means: 'Heard about AI but hasn\'t used it in a work context. Low digital tool sophistication.',
-              action: 'Awareness session first — why AI matters for their specific role. Then intro to ChatGPT basics.',
-              next: 'Department-specific AI demo: show them 3 things AI can do for their exact job today. No theory.',
-              owner: 'HR + Trescademy',
-              by: '90 days',
-            },
-            {
-              tier: 'AI-Unaware',  range: '0–14',   color: '#991B1B',
-              means: 'Not actively using digital tools beyond basics. AI adoption needs to start from digital literacy.',
-              action: 'Digital literacy assessment first. Build a personalised catch-up plan before any AI training.',
-              next: 'One-on-one session with HR to understand barriers. Set up a buddy from AI-Aware tier.',
-              owner: 'HR',
-              by: '120 days',
-            },
-          ]
-
-          return (
-            <div>
-
-              {/* Tier Playbook Table */}
-              <div style={{ background: '#FFFFFF', border: '1px solid #DDE8EE', borderRadius: '16px', overflow: 'hidden', marginBottom: '24px' }}>
-                <div style={{ padding: '18px 24px', borderBottom: '1px solid #DDE8EE', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                  <div>
-                    <div style={{ fontSize: '13px', fontWeight: 700, letterSpacing: '2px', textTransform: 'uppercase', color: '#5B7080', marginBottom: '3px' }}>AI Readiness Playbook</div>
-                    <div style={{ fontSize: '13px', color: '#5B7080' }}>What each TAIRS tier means and exactly what to do next for each group of people.</div>
-                  </div>
-                </div>
-                <div style={{ overflowX: 'auto' }}>
-                  <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-                    <thead>
-                      <tr style={{ background: '#FFFFFF' }}>
-                        {['Tier', 'Score Range', 'What it means', 'Recommended Action', 'Immediate Next Step', 'Owner', 'By'].map(h => (
-                          <th key={h} style={{ padding: '9px 16px', textAlign: 'left', fontSize: '9px', fontWeight: 700, letterSpacing: '1px', textTransform: 'uppercase', color: '#5B7080', borderBottom: '1px solid #DDE8EE', whiteSpace: 'nowrap' }}>{h}</th>
-                        ))}
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {PLAYBOOK.map((row, i) => (
-                        <tr key={row.tier} style={{ borderBottom: i < PLAYBOOK.length - 1 ? '1px solid #DDE8EE' : 'none' }}>
-                          <td style={{ padding: '14px 16px', whiteSpace: 'nowrap' }}>
-                            <span style={{ fontSize: '13px', fontWeight: 800, color: row.color, background: `${row.color}15`, padding: '3px 8px', borderRadius: '6px', border: `1px solid ${row.color}30` }}>{row.tier}</span>
-                          </td>
-                          <td style={{ padding: '14px 16px', fontSize: '13px', fontWeight: 700, color: row.color, whiteSpace: 'nowrap' }}>{row.range}</td>
-                          <td style={{ padding: '14px 16px', fontSize: '13px', color: '#5B7080', maxWidth: '200px', lineHeight: 1.5 }}>{row.means}</td>
-                          <td style={{ padding: '14px 16px', fontSize: '13px', color: '#0F1923', fontWeight: 600, maxWidth: '220px', lineHeight: 1.5 }}>{row.action}</td>
-                          <td style={{ padding: '14px 16px', fontSize: '13px', color: '#5B7080', maxWidth: '200px', lineHeight: 1.5 }}>{row.next}</td>
-                          <td style={{ padding: '14px 16px', fontSize: '13px', color: row.color, fontWeight: 700, whiteSpace: 'nowrap' }}>{row.owner}</td>
-                          <td style={{ padding: '14px 16px', whiteSpace: 'nowrap' }}>
-                            <span style={{ fontSize: '13px', fontWeight: 800, color: row.color, background: `${row.color}18`, border: `1px solid ${row.color}35`, padding: '3px 8px', borderRadius: '5px' }}>{row.by}</span>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-
-              {/* Live Department Action Matrix */}
-              <div style={{ background: '#FFFFFF', border: '1px solid #DDE8EE', borderRadius: '16px', overflow: 'hidden', marginBottom: '24px' }}>
-                <div style={{ padding: '18px 24px', borderBottom: '1px solid #DDE8EE' }}>
-                  <div style={{ fontSize: '13px', fontWeight: 700, letterSpacing: '2px', textTransform: 'uppercase', color: '#5B7080', marginBottom: '3px' }}>Department Action Matrix — Live</div>
-                  <div style={{ fontSize: '13px', color: '#5B7080' }}>Each department mapped to its current tier and the recommended action to take now. Updates as more staff complete interviews.</div>
-                </div>
-                {sortedDeptTairs.length === 0 ? (
-                  <div style={{ padding: '48px', textAlign: 'center', fontSize: '13px', color: '#5B7080' }}>No interview data yet. Seed demo data or wait for staff to complete interviews.</div>
-                ) : (
-                  <div style={{ overflowX: 'auto' }}>
-                    <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-                      <thead>
-                        <tr style={{ background: '#FFFFFF' }}>
-                          {['Department', 'TAIRS', 'Tier', 'People', 'Coverage', 'AI Priority', 'TAI Action', 'Owner', 'By'].map(h => (
-                            <th key={h} style={{ padding: '9px 14px', textAlign: 'left', fontSize: '9px', fontWeight: 700, letterSpacing: '1px', textTransform: 'uppercase', color: '#5B7080', borderBottom: '1px solid #DDE8EE', whiteSpace: 'nowrap' }}>{h}</th>
-                          ))}
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {sortedDeptTairs.map((d, i) => {
-                          const tier    = tairsTier(d.score)
-                          const play    = PLAYBOOK.find(p => p.tier === tier.label) ?? PLAYBOOK[4]
-                          const impact  = d.impact
-                          const covPct  = d.joined > 0 ? Math.round(d.interviewed / d.joined * 100) : 0
-                          return (
-                            <tr key={d.dept} style={{ borderBottom: i < sortedDeptTairs.length - 1 ? '1px solid #E8EEF4' : 'none', background: i === 0 ? `${tier.color}04` : 'transparent' }}>
-                              <td style={{ padding: '13px 14px' }}>
-                                <div style={{ fontSize: '13px', fontWeight: 700, color: '#0F1923' }}>{d.dept}</div>
-                              </td>
-                              <td style={{ padding: '13px 14px', textAlign: 'center' }}>
-                                <span style={{ fontSize: '13px', fontWeight: 900, color: tier.color }}>{d.score}</span>
-                              </td>
-                              <td style={{ padding: '13px 10px', whiteSpace: 'nowrap' }}>
-                                <span style={{ fontSize: '9px', fontWeight: 800, color: tier.color, background: `${tier.color}15`, padding: '2px 7px', borderRadius: '5px', border: `1px solid ${tier.color}25` }}>{tier.label}</span>
-                              </td>
-                              <td style={{ padding: '13px 14px', fontSize: '13px', color: '#5B7080', textAlign: 'center' }}>{d.joined}</td>
-                              <td style={{ padding: '13px 14px' }}>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                                  <div style={{ width: '44px', height: '4px', background: '#E8EEF4', borderRadius: '2px', overflow: 'hidden' }}>
-                                    <div style={{ height: '100%', width: `${covPct}%`, background: covPct === 100 ? '#C0F43C' : '#00897B', borderRadius: '2px' }} />
-                                  </div>
-                                  <span style={{ fontSize: '13px', color: '#5B7080', fontWeight: 700 }}>{covPct}%</span>
-                                </div>
-                              </td>
-                              <td style={{ padding: '13px 10px', whiteSpace: 'nowrap' }}>
-                                <span style={{ fontSize: '9px', fontWeight: 800, color: impact.color, background: `${impact.color}15`, padding: '2px 7px', borderRadius: '5px' }}>{impact.priority}</span>
-                              </td>
-                              <td style={{ padding: '13px 14px', fontSize: '13px', color: '#0F1923', fontWeight: 600, maxWidth: '200px', lineHeight: 1.5 }}>{play.action}</td>
-                              <td style={{ padding: '13px 14px', fontSize: '13px', color: tier.color, fontWeight: 700, whiteSpace: 'nowrap' }}>{play.owner}</td>
-                              <td style={{ padding: '13px 14px', whiteSpace: 'nowrap' }}>
-                                <span style={{ fontSize: '11px', fontWeight: 800, color: tier.color, background: `${tier.color}18`, border: `1px solid ${tier.color}40`, padding: '3px 8px', borderRadius: '5px' }}>{play.by}</span>
-                              </td>
-                            </tr>
-                          )
-                        })}
-                      </tbody>
-                    </table>
-                  </div>
-                )}
-              </div>
-
-              {/* Dev Tools — collapsed by default */}
-              <div style={{ marginTop: '8px' }}>
-                <button onClick={() => setShowDevTools(v => !v)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'inherit', color: '#0F1923', fontSize: '13px', display: 'flex', alignItems: 'center', gap: '5px', padding: '4px 0' }}>
-                  <svg width="10" height="10" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polyline points={showDevTools ? '18 15 12 9 6 15' : '6 9 12 15 18 9'}/></svg>
-                  Dev tools
-                </button>
-                {showDevTools && (
-                  <div style={{ background: '#FFFFFF', border: '1px dashed #DDE8EE', borderRadius: '12px', padding: '18px 20px', marginTop: '8px' }}>
-                    <div style={{ fontSize: '13px', fontWeight: 700, letterSpacing: '1.5px', textTransform: 'uppercase', color: '#0F1923', marginBottom: '10px' }}>Demo Data</div>
-                    <div style={{ fontSize: '13px', color: '#5B7080', marginBottom: '12px' }}>
-                      Seed 21 demo staff across 4 offices. All use <code style={{ background: '#FFFFFF', padding: '1px 4px', borderRadius: '3px', fontSize: '13px' }}>@demo.tai</code> emails — safe to clear.
-                    </div>
-                    <div style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
-                      <button onClick={seedDemo} disabled={seedLoading} style={{ padding: '7px 16px', borderRadius: '8px', border: 'none', background: 'rgba(0,165,163,0.2)', color: '#00897B', fontSize: '13px', fontWeight: 700, cursor: seedLoading ? 'not-allowed' : 'pointer', fontFamily: 'inherit' }}>
-                        {seedLoading ? 'Working...' : 'Seed Demo'}
-                      </button>
-                      <button onClick={clearDemo} disabled={seedLoading} style={{ padding: '7px 16px', borderRadius: '8px', border: '1px solid rgba(255,107,107,0.2)', background: 'transparent', color: 'rgba(255,107,107,0.7)', fontSize: '13px', fontWeight: 700, cursor: seedLoading ? 'not-allowed' : 'pointer', fontFamily: 'inherit' }}>
-                        Clear Demo
-                      </button>
-                      {seedMsg && <span style={{ fontSize: '13px', color: seedMsg.includes('failed') || seedMsg.includes('Error') ? '#FF6B6B' : '#3D6B00', fontWeight: 600 }}>{seedMsg}</span>}
-                    </div>
-                  </div>
-                )}
-              </div>
-
-            </div>
-          )
-        })()}
-
 
         {/* ── Suggest a Course tab ── */}
         {tab === 'suggest' && (

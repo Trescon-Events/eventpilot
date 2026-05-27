@@ -104,14 +104,14 @@ export default function DataLayout({ children }: { children: React.ReactNode }) 
         {/* Back to platform + logo */}
         <div style={{ padding: '14px 20px 14px', borderBottom: '1px solid #DDE8EE', flexShrink: 0 }}>
           {/* Back link */}
-          <Link href="/dashboard" style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', color: '#9CA3AF', textDecoration: 'none', marginBottom: '14px' }}
+          <Link href="/admin/toolkit" style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', color: '#9CA3AF', textDecoration: 'none', marginBottom: '14px' }}
             onMouseEnter={e => (e.currentTarget.style.color = '#00A5A3')}
             onMouseLeave={e => (e.currentTarget.style.color = '#9CA3AF')}
           >
             <svg width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" viewBox="0 0 24 24">
               <polyline points="15 18 9 12 15 6"/>
             </svg>
-            Back to Trescademy
+            Back to Toolkit
           </Link>
           {/* Module identity */}
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>

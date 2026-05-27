@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import ScoringGuideContent from './ScoringGuideContent'
 import QuestionnaireContent from './QuestionnaireContent'
+import PlaybookContent from './PlaybookContent'
 import NavBar, { MOD_KNOWLEDGE } from '@/app/components/NavBar'
 
 type Doc = {
@@ -20,6 +21,7 @@ type Doc = {
 const BUILT_IN: { slug: string; title: string; category: string }[] = [
   { slug: '__scoring',       title: 'TAIRS Scoring Guide',     category: 'Platform Reference' },
   { slug: '__questionnaire', title: 'Discovery Questionnaire', category: 'Platform Reference' },
+  { slug: '__playbook',      title: 'AI Readiness Playbook',   category: 'Operations Reference' },
 ]
 
 // Priority order — determines sidebar section sequence
@@ -97,13 +99,19 @@ function formatContent(text: string) {
 
 export default function DocsPage() {
   const [docs,       setDocs]       = useState<Doc[]>([])
-  const [activeSlug, setActiveSlug] = useState<string>('__scoring')
+  const [activeSlug, setActiveSlug] = useState<string>(() => {
+    if (typeof window !== 'undefined') {
+      const p = new URLSearchParams(window.location.search).get('slug')
+      if (p) return p
+    }
+    return '__scoring'
+  })
   const [loading,    setLoading]    = useState(true)
   const [search,     setSearch]     = useState('')
   const [isAdmin,    setIsAdmin]    = useState(false)
-  // Sections open by default: Platform Reference + Platform Overview
-const [openSections, setOpenSections] = useState<Set<string>>(
-    new Set(['Platform Reference', 'Platform Overview'])
+  // Sections open by default
+  const [openSections, setOpenSections] = useState<Set<string>>(
+    new Set(['Platform Reference', 'Platform Overview', 'Operations Reference'])
   )
 
   useEffect(() => {
@@ -270,6 +278,7 @@ const [openSections, setOpenSections] = useState<Set<string>>(
           <h1 style={{ fontSize: '36px', fontWeight: 900, color: '#0F1923', margin: '0 0 10px', letterSpacing: '-0.5px', lineHeight: 1.2 }}>
             {activeSlug === '__scoring'       ? 'How AI Readiness Is Measured'
            : activeSlug === '__questionnaire' ? 'Trescademy Discovery Questionnaire'
+           : activeSlug === '__playbook'      ? 'AI Readiness Playbook'
            : activeDoc?.title ?? ''}
           </h1>
 
@@ -278,6 +287,7 @@ const [openSections, setOpenSections] = useState<Set<string>>(
             const subtitles: Record<string, string> = {
               '__scoring':       'Reference only — explains how TAIRS scores are calculated. Nothing here changes your score.',
               '__questionnaire': 'A read-only preview of what your staff will see when they join. Select a department to explore the questions. No answers are collected here.',
+              '__playbook':      'What each TAIRS tier means and exactly what to do next. Use alongside the live Department Action Matrix in the Admin Intelligence tab.',
             }
             const subtitle = subtitles[activeSlug] ?? (activeDoc ? `Part of ${activeDoc.category} — for reference.` : '')
             return subtitle ? (
@@ -291,6 +301,7 @@ const [openSections, setOpenSections] = useState<Set<string>>(
           <div style={{ borderTop: '1px solid #C8DFE0', paddingTop: '28px' }}>
             {activeSlug === '__scoring'       && <ScoringGuideContent />}
             {activeSlug === '__questionnaire' && <QuestionnaireContent />}
+            {activeSlug === '__playbook'      && <PlaybookContent />}
             {!isBuiltIn && activeDoc         && formatContent(activeDoc.content)}
             {!isBuiltIn && !activeDoc && loading && (
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '300px' }}>
