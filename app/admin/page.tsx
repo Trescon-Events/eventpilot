@@ -523,42 +523,86 @@ export default function AdminPage() {
     if (docForm.type === 'other' && !otherTypeLabel.trim()) { setDocMsg('Please specify what type this document is.'); return }
     setDocUploading(true); setDocMsg('')
 
-    // If type is 'other', use the custom label normalised to snake_case as the stored type key
     const finalType = docForm.type === 'other'
       ? otherTypeLabel.trim().toLowerCase().replace(/\s+/g, '_')
       : docForm.type
 
     setDocAnalysis(null)
     const adminStaffId = sessionStorage.getItem('tai_admin_staff_id')
-    const form = new FormData()
-    form.append('file', docFile)
-    form.append('title', docForm.title)
-    form.append('type', finalType)
-    form.append('visibility', docForm.visibility)
-    if (docForm.event_id) form.append('event_id', docForm.event_id)
-    if (adminStaffId) form.append('uploaded_by', adminStaffId)
+
     try {
-      const res  = await fetch('/api/documents/upload', { method: 'POST', body: form })
       let data: Record<string, unknown> = {}
-      try { data = await res.json() } catch { /* non-JSON response e.g. 504 timeout */ }
-      if (res.ok) {
-        setDocMsg(`Done. ${(data.document as Record<string,unknown>)?.word_count?.toLocaleString()} words extracted.${(data.analysis as Record<string,unknown>)?.flagged ? ' Flagged for review — low confidence.' : ''}`)
-        setDocAnalysis(data.analysis as never ?? null)
-        setDocFile(null)
-        setDocForm({ title: '', type: 'policy', visibility: 'all', event_id: '' })
-        setOtherTypeLabel('')
-        setSaveAsNewType(false)
-        fetchDocs()
-        if (saveAsNewType) fetchCustomDocTypes()
+
+      // Large files (> 4 MB): upload directly to Supabase Storage, then process server-side
+      if (docFile.size > 4 * 1024 * 1024) {
+        setDocMsg('Uploading to secure storage…')
+
+        // Step 1: get a signed upload URL
+        const urlRes = await fetch(`/api/documents/upload-url?filename=${encodeURIComponent(docFile.name)}`)
+        if (!urlRes.ok) throw new Error('Could not prepare upload. Please try again.')
+        const { signed_url, path } = await urlRes.json()
+
+        // Step 2: upload directly to Supabase Storage (bypasses Vercel body limit)
+        setDocMsg('Uploading file… this may take a moment for large files.')
+        const putRes = await fetch(signed_url, {
+          method: 'PUT',
+          headers: { 'Content-Type': docFile.type || 'application/octet-stream' },
+          body: docFile,
+        })
+        if (!putRes.ok) throw new Error('File upload failed. Please try again.')
+
+        // Step 3: trigger server-side processing
+        setDocMsg('Analysing with AI… (large files may take 1–2 minutes)')
+        const processRes = await fetch('/api/documents/process', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            storage_path: path,
+            title: docForm.title,
+            type: finalType,
+            visibility: docForm.visibility,
+            event_id: docForm.event_id || undefined,
+            uploaded_by: adminStaffId || undefined,
+          }),
+        })
+        try { data = await processRes.json() } catch { /* ignore */ }
+        if (!processRes.ok) {
+          setDocMsg((data.error as string) ?? 'Processing failed. Please try again.')
+          setDocUploading(false); return
+        }
+
       } else {
-        const msg = (data.error as string) ??
-          (res.status === 504 ? 'Tresci took too long to process this document. Try a smaller file or try again in a moment.' :
-           res.status === 503 ? 'Tresci is under high load right now. Please wait a moment and try again — your document has not been saved.' :
-           'Something went wrong while processing your document. Please try again.')
-        setDocMsg(msg)
+        // Small files: send directly through API route
+        const form = new FormData()
+        form.append('file', docFile)
+        form.append('title', docForm.title)
+        form.append('type', finalType)
+        form.append('visibility', docForm.visibility)
+        if (docForm.event_id) form.append('event_id', docForm.event_id)
+        if (adminStaffId) form.append('uploaded_by', adminStaffId)
+
+        const res = await fetch('/api/documents/upload', { method: 'POST', body: form })
+        try { data = await res.json() } catch { /* non-JSON e.g. 504 */ }
+        if (!res.ok) {
+          const msg = (data.error as string) ??
+            (res.status === 504 ? 'Tresci took too long. Try again in a moment.' :
+             res.status === 503 ? 'Tresci is under high load. Please wait and try again.' :
+             'Something went wrong. Please try again.')
+          setDocMsg(msg); setDocUploading(false); return
+        }
       }
-    } catch {
-      setDocMsg('Could not reach the server. Check your connection and try again.')
+
+      setDocMsg(`Done. ${(data.document as Record<string,unknown>)?.word_count?.toLocaleString()} words extracted.${(data.analysis as Record<string,unknown>)?.flagged ? ' Flagged for review — low confidence.' : ''}`)
+      setDocAnalysis(data.analysis as never ?? null)
+      setDocFile(null)
+      setDocForm({ title: '', type: 'policy', visibility: 'all', event_id: '' })
+      setOtherTypeLabel('')
+      setSaveAsNewType(false)
+      fetchDocs()
+      if (saveAsNewType) fetchCustomDocTypes()
+
+    } catch (e) {
+      setDocMsg(e instanceof Error ? e.message : 'Could not reach the server. Check your connection and try again.')
     }
     setDocUploading(false)
   }
@@ -3512,10 +3556,10 @@ export default function AdminPage() {
                   {docFile ? (
                     <div>
                       <div style={{ fontSize: '13px', fontWeight: 700, color: '#00695C' }}>{docFile.name}</div>
-                      <div style={{ fontSize: '13px', color: docFile.size > 50 * 1024 * 1024 ? '#DC2626' : '#0F1923', marginTop: '2px' }}>
+                      <div style={{ fontSize: '13px', color: docFile.size > 200 * 1024 * 1024 ? '#DC2626' : '#0F1923', marginTop: '2px' }}>
                         {docFile.size >= 1024 * 1024 ? `${(docFile.size / 1024 / 1024).toFixed(1)} MB` : `${(docFile.size / 1024).toFixed(0)} KB`}
-                        {docFile.size > 50 * 1024 * 1024 && ' — too large (max 50 MB)'}
-                        {docFile.size > 20 * 1024 * 1024 && docFile.size <= 50 * 1024 * 1024 && ' — large file, processing may take up to 2 minutes'}
+                        {docFile.size > 200 * 1024 * 1024 && ' — too large (max 200 MB)'}
+                        {docFile.size > 10 * 1024 * 1024 && docFile.size <= 200 * 1024 * 1024 && ' — large file, will upload to secure storage first'}
                       </div>
                     </div>
                   ) : (
@@ -3525,7 +3569,7 @@ export default function AdminPage() {
               </div>
               {docMsg && <div style={{ fontSize: '13px', padding: '9px 12px', borderRadius: '8px', background: docMsg.includes('Done') ? 'rgba(192,244,60,0.07)' : 'rgba(255,107,107,0.07)', border: `1px solid ${docMsg.includes('Done') ? 'rgba(192,244,60,0.2)' : 'rgba(255,107,107,0.2)'}`, color: docMsg.includes('Done') ? '#3D6B00' : '#FF6B6B', marginBottom: '10px', lineHeight: 1.5 }}>{docMsg}</div>}
               <div style={{ display: 'flex', gap: '8px' }}>
-                <button onClick={uploadDoc} disabled={docUploading || !docFile || (!!docFile && docFile.size > 50 * 1024 * 1024)}
+                <button onClick={uploadDoc} disabled={docUploading || !docFile || (!!docFile && docFile.size > 200 * 1024 * 1024)}
                   style={{ flex: 1, padding: '11px', borderRadius: '9px', border: 'none', background: docUploading || !docFile || (!!docFile && docFile.size > 50 * 1024 * 1024) ? '#DDE8EE' : '#C0F43C', color: '#0F1923', fontSize: '13px', fontWeight: 800, cursor: docUploading || !docFile || (!!docFile && docFile.size > 50 * 1024 * 1024) ? 'not-allowed' : 'pointer', fontFamily: 'inherit' }}>
                   {docUploading ? 'Analysing with AI… (large files may take 1–2 min)' : 'Upload & Analyse'}
                 </button>
