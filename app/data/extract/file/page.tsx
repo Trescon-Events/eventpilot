@@ -54,10 +54,10 @@ const btn = (disabled: boolean, accent: string): React.CSSProperties => ({
 })
 
 const STEPS = [
-  { label: 'Lead Extraction', href: '/data/extract/file',  active: true,  color: '#00A5A3' },
-  { label: 'L2 Taxonomy',     href: '/data/l2',            active: false, color: '#6366F1' },
-  { label: 'Data Enrichment', href: '/data/enrichment',    active: false, color: '#D97706' },
-  { label: 'Email Recovery',  href: '/data/email-guesser', active: false, color: '#7C3AED' },
+  { label: 'Lead Extraction',      href: '/data/extract/file',   active: true,  color: '#00A5A3' },
+  { label: 'LinkedIn Targeting',   href: '/data/extract/detail', active: false, color: '#6366F1' },
+  { label: 'Data Enrichment',      href: '/data/enrichment',     active: false, color: '#D97706' },
+  { label: 'Email Guesser',        href: '/data/email-guesser',  active: false, color: '#7C3AED' },
 ]
 
 export default function LeadExtractionPage() {
