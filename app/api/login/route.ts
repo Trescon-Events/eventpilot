@@ -21,8 +21,8 @@ function getClientIp(req: NextRequest): string {
   )
 }
 
-function logAttempt(email: string, ip: string, success: boolean, reason: string) {
-  void supabaseAdmin.from('login_attempts').insert({ email, ip, success, reason })
+async function logAttempt(email: string, ip: string, success: boolean, reason: string) {
+  await supabaseAdmin.from('login_attempts').insert({ email, ip, success, reason })
 }
 
 export async function POST(req: NextRequest) {
@@ -49,7 +49,7 @@ export async function POST(req: NextRequest) {
       .gte('attempted_at', windowStart)
 
     if ((failCount ?? 0) >= MAX_FAILED_ATTEMPTS) {
-      logAttempt(cleanEmail, ip, false, 'rate_limited')
+      await logAttempt(cleanEmail, ip, false, 'rate_limited')
       return NextResponse.json({
         error: 'Too many failed attempts. Your account is locked for 15 minutes. Contact your admin if you need immediate access.',
       }, { status: 429 })
@@ -59,7 +59,7 @@ export async function POST(req: NextRequest) {
   // ── Super admin path ───────────────────────────────────────────────────
   if (cleanEmail === superAdminEmail) {
     if (password !== superAdminPass) {
-      logAttempt(cleanEmail, ip, false, 'wrong_password')
+      await logAttempt(cleanEmail, ip, false, 'wrong_password')
       return NextResponse.json({ error: 'Incorrect password.' }, { status: 401 })
     }
     const { data: staff } = await supabaseAdmin
@@ -68,7 +68,7 @@ export async function POST(req: NextRequest) {
       .eq('email', cleanEmail)
       .single()
 
-    logAttempt(cleanEmail, ip, true, 'super_admin_ok')
+    await logAttempt(cleanEmail, ip, true, 'super_admin_ok')
 
     if (!staff) {
       const syntheticSession = Buffer.from(JSON.stringify({ sid: 'super-admin', jl: 'super_admin', adm: true, dept: '' })).toString('base64')
@@ -90,12 +90,12 @@ export async function POST(req: NextRequest) {
     .single()
 
   if (error || !staff) {
-    logAttempt(cleanEmail, ip, false, 'not_found')
+    await logAttempt(cleanEmail, ip, false, 'not_found')
     return NextResponse.json({ error: 'No account found for this email. Contact your admin.' }, { status: 404 })
   }
 
   if (staff.access_enabled === false) {
-    logAttempt(cleanEmail, ip, false, 'account_disabled')
+    await logAttempt(cleanEmail, ip, false, 'account_disabled')
     return NextResponse.json({ error: 'Your account is not yet active. You will receive an email when access opens.' }, { status: 403 })
   }
 
@@ -109,7 +109,7 @@ export async function POST(req: NextRequest) {
 
   if (officeIps.length > 0 && !isAdmin) {
     if (!officeIps.includes(ip)) {
-      logAttempt(cleanEmail, ip, false, 'ip_blocked')
+      await logAttempt(cleanEmail, ip, false, 'ip_blocked')
       return NextResponse.json({
         error: 'Access is restricted to the office network. Please connect to the Trescon office Wi-Fi and try again.',
       }, { status: 403 })
@@ -125,12 +125,12 @@ export async function POST(req: NextRequest) {
   }
 
   if (!passwordValid) {
-    logAttempt(cleanEmail, ip, false, 'wrong_password')
+    await logAttempt(cleanEmail, ip, false, 'wrong_password')
     return NextResponse.json({ error: 'Incorrect password. Use your temporary password from your welcome email.' }, { status: 401 })
   }
 
   // ── Successful login ───────────────────────────────────────────────────
-  logAttempt(cleanEmail, ip, true, 'ok')
+  await logAttempt(cleanEmail, ip, true, 'ok')
 
   const [{ count: reportCount }, { count: profileCount }] = await Promise.all([
     supabaseAdmin.from('staff_members').select('*', { count: 'exact', head: true }).eq('manager_id', staff.id),
