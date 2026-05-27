@@ -15,8 +15,15 @@ export async function GET(req: NextRequest) {
 
   const path = `${Date.now()}_${Math.random().toString(36).slice(2)}_${filename.replace(/[^a-zA-Z0-9._-]/g, '_')}`
 
-  // Ensure bucket exists
-  await supabaseAdmin.storage.createBucket('doc-uploads', { public: false }).catch(() => {/* already exists */})
+  // Ensure bucket exists with 500 MB limit
+  const { error: bucketErr } = await supabaseAdmin.storage.createBucket('doc-uploads', {
+    public: false,
+    fileSizeLimit: 500 * 1024 * 1024,
+  })
+  // If bucket already exists, update its size limit
+  if (bucketErr) {
+    await supabaseAdmin.storage.updateBucket('doc-uploads', { fileSizeLimit: 500 * 1024 * 1024 }).catch(() => {})
+  }
 
   const { data, error } = await supabaseAdmin.storage
     .from('doc-uploads')
