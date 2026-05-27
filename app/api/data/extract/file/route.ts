@@ -102,11 +102,9 @@ export async function POST(req: NextRequest) {
       /* ── PDF ── */
       if (ext === 'pdf') {
         try {
-          const pdfParse = await import('pdf-parse').catch(() => null)
-          if (!pdfParse) {
-            return NextResponse.json({ error: 'pdf-parse package not installed. Run: npm install pdf-parse' }, { status: 500 })
-          }
-          const parsed  = await pdfParse.default(Buffer.from(bytes))
+          // eslint-disable-next-line @typescript-eslint/no-require-imports
+          const pdfParse = require('pdf-parse') as (buf: Buffer) => Promise<{ text: string }>
+          const parsed  = await pdfParse(Buffer.from(bytes))
           const text    = parsed.text
           const results = extractFromText(text)
           return NextResponse.json({ results, count: results.length })
