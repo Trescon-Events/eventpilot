@@ -74,10 +74,14 @@ export default function LeadExtractionPage() {
   const fileRef2                  = useRef<HTMLInputElement>(null)
 
   /* ── Website Finder — Directory URLs state ── */
+  const [file3, setFile3]           = useState<File | null>(null)
+  const [drag3, setDrag3]           = useState(false)
+  const [dirParsing, setDirParsing] = useState(false)
   const [dirText, setDirText]       = useState('')
   const [dirExtracting, setDirExtracting] = useState(false)
   const [dirRes, setDirRes]         = useState<any[]>([])
   const [dirSetup, setDirSetup]     = useState(false)
+  const fileRef3                    = useRef<HTMLInputElement>(null)
 
   /* ── handlers ── */
   const analyzeFile = async (f: File | null, setter: (v: any[]) => void, setLoading: (v: boolean) => void) => {
@@ -106,6 +110,23 @@ export default function LeadExtractionPage() {
       if (data.setup_required) { setSetup(true); return }
       setter(data.results ?? [])
     } finally { setLoading(false) }
+  }
+
+  /* Parse Excel → extract URLs into the dirText textarea */
+  const parseDirFile = async (f: File | null) => {
+    if (!f) return
+    setDirParsing(true)
+    try {
+      const form = new FormData()
+      form.append('file', f)
+      const res  = await fetch('/api/data/extract/file', { method: 'POST', body: form })
+      const data = await res.json()
+      const urls = (data.results ?? [])
+        .map((r: any) => r.website || r.raw || '')
+        .filter((u: string) => u.startsWith('http'))
+        .join('\n')
+      setDirText(urls)
+    } finally { setDirParsing(false) }
   }
 
   const allResults = [...fileRes, ...urlRes, ...findRes, ...dirRes]
@@ -279,23 +300,51 @@ export default function LeadExtractionPage() {
             </div>
             <div>
               <div style={{ fontSize: '15px', fontWeight: 700, color: '#0F1923' }}>Website Finder — From Directory URLs</div>
-              <div style={{ fontSize: '13px', color: '#6B7280', marginTop: '2px' }}>Finds Company URLs from company details pages of directories / Exhibitor lists</div>
+              <div style={{ fontSize: '13px', color: '#6B7280', marginTop: '2px' }}>Finds company URLs from exhibitor / directory detail pages</div>
             </div>
           </div>
 
-          <div>
-            <div style={{ fontSize: '14px', fontWeight: 600, color: '#0F1923', marginBottom: '4px' }}>Upload Excel with URLs</div>
-            <div style={{ fontSize: '13px', color: '#9CA3AF', marginBottom: '12px' }}>Company detail page links</div>
-            <div
-              style={{ ...dropZone(false), padding: '24px', cursor: 'default' }}
-            >
-              <svg width="22" height="22" fill="none" stroke="#9CA3AF" strokeWidth="1.5" strokeLinecap="round" viewBox="0 0 24 24" style={{ marginBottom: '8px' }}>
-                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/>
-              </svg>
-              <span style={{ fontSize: '14px', color: '#0F1923', fontWeight: 500 }}>Upload Excel with URLs</span>
-              <span style={{ fontSize: '12px', color: '#9CA3AF', marginTop: '4px' }}>Company detail page links</span>
-            </div>
+          {/* Step 1 — Upload Excel with detail page URLs */}
+          <input ref={fileRef3} type="file" accept=".xlsx,.xls,.csv,.txt" style={{ display: 'none' }} onChange={e => { const f = e.target.files?.[0] ?? null; setFile3(f); parseDirFile(f) }} />
+
+          <div
+            style={dropZone(drag3)}
+            onDragOver={e => { e.preventDefault(); setDrag3(true) }}
+            onDragLeave={() => setDrag3(false)}
+            onDrop={e => { e.preventDefault(); setDrag3(false); const f = e.dataTransfer.files[0] ?? null; setFile3(f); parseDirFile(f) }}
+            onClick={() => fileRef3.current?.click()}
+          >
+            <svg width="22" height="22" fill="none" stroke="#9CA3AF" strokeWidth="1.5" strokeLinecap="round" viewBox="0 0 24 24" style={{ marginBottom: '8px' }}>
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/>
+            </svg>
+            {dirParsing ? (
+              <span style={{ fontSize: '14px', color: '#6B7280' }}>Parsing Excel…</span>
+            ) : file3 ? (
+              <div>
+                <div style={{ fontSize: '14px', fontWeight: 600, color: '#0F1923' }}>{file3.name}</div>
+                <div style={{ fontSize: '12px', color: '#9CA3AF', marginTop: '3px' }}>Click to change</div>
+              </div>
+            ) : (
+              <div>
+                <div style={{ fontSize: '14px', color: '#0F1923', fontWeight: 500 }}>Upload Excel with URLs</div>
+                <div style={{ fontSize: '12px', color: '#9CA3AF', marginTop: '3px' }}>Company detail page links · or paste below</div>
+              </div>
+            )}
           </div>
+
+          {/* Step 2 — URLs (auto-filled from Excel or paste manually) */}
+          <textarea
+            value={dirText}
+            onChange={e => setDirText(e.target.value)}
+            placeholder={'https://directory.com/exhibitors/company-a\nhttps://directory.com/exhibitors/company-b'}
+            rows={4}
+            style={{
+              width: '100%', padding: '10px 12px', borderRadius: '9px',
+              border: '1px solid #DDE8EE', fontSize: '13px', color: '#0F1923',
+              background: '#FAFBFC', resize: 'vertical', outline: 'none',
+              fontFamily: 'system-ui', lineHeight: 1.6, boxSizing: 'border-box',
+            }}
+          />
 
           {dirSetup && (
             <div style={{ padding: '12px 14px', background: 'rgba(245,158,11,0.06)', border: '1px solid rgba(245,158,11,0.2)', borderRadius: '9px', fontSize: '13px', color: '#92400E' }}>
