@@ -81,6 +81,20 @@ const TOOLS = [
       </svg>
     ),
   },
+  {
+    id:          'tresagent',
+    label:       'TresAgent',
+    description: 'AI-powered voice and WhatsApp outreach agent. Automates delegate acquisition at scale across events.',
+    accent:      '#EC4899',
+    href:        'https://trescon-reach.vercel.app',
+    needsEvent:  false,
+    badge:       'AI Agent',
+    icon: (
+      <svg width="24" height="24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24">
+        <path d="M12 2a10 10 0 1 0 10 10"/><path d="M12 6v6l4 2"/><circle cx="19" cy="5" r="3"/>
+      </svg>
+    ),
+  },
 ]
 
 function EventPicker({ tool, events, onClose }: {
@@ -296,20 +310,6 @@ export default function ToolkitPage() {
             {TOOLS.filter(t => !t.needsEvent && t.id === 'outreach').map(tool => (
               <ToolCard key={tool.id} tool={tool} events={events} />
             ))}
-            {/* TresAgent — coming soon */}
-            <div style={{ background: '#FFFFFF', border: '1px solid #DDE8EE', borderRadius: '20px', padding: '32px', position: 'relative', overflow: 'hidden', opacity: 0.5 }}>
-              <div style={{ position: 'absolute', top: '16px', right: '16px', fontSize: '10px', fontWeight: 800, letterSpacing: '1.5px', textTransform: 'uppercase', color: '#5B7080', background: '#E8EEF4', padding: '4px 10px', borderRadius: '16px' }}>
-                Coming Soon
-              </div>
-              <div style={{ width: '52px', height: '52px', borderRadius: '14px', background: '#E8EEF4', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '20px', color: '#B8CDD8' }}>
-                <svg width="24" height="24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24">
-                  <path d="M12 2a10 10 0 1 0 10 10"/><path d="M12 6v6l4 2"/><circle cx="19" cy="5" r="3"/>
-                </svg>
-              </div>
-              <div style={{ fontSize: '10px', fontWeight: 800, letterSpacing: '2px', textTransform: 'uppercase', color: '#B8CDD8', marginBottom: '8px' }}>AI Agent</div>
-              <div style={{ fontSize: '20px', fontWeight: 900, color: '#0F1923', marginBottom: '10px' }}>TresAgent</div>
-              <div style={{ fontSize: '15px', color: '#5B7080', lineHeight: 1.6 }}>AI-powered voice and WhatsApp outreach agent. Automates delegate acquisition at scale.</div>
-            </div>
           </div>
         </div>
 
