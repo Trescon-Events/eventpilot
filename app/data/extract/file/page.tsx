@@ -3,20 +3,28 @@
 import { useState, useRef } from 'react'
 import Link from 'next/link'
 
-/* ── shared styles ── */
-const card: React.CSSProperties = {
+/* ── per-card accent colours ── */
+const ACCENTS = {
+  teal:   { color: '#00A5A3', bg: 'rgba(0,165,163,0.08)',   border: 'rgba(0,165,163,0.25)',   stripe: '#00A5A3' },
+  indigo: { color: '#6366F1', bg: 'rgba(99,102,241,0.08)',  border: 'rgba(99,102,241,0.25)',  stripe: '#6366F1' },
+  amber:  { color: '#D97706', bg: 'rgba(217,119,6,0.08)',   border: 'rgba(217,119,6,0.25)',   stripe: '#F59E0B' },
+  purple: { color: '#7C3AED', bg: 'rgba(124,58,237,0.08)',  border: 'rgba(124,58,237,0.25)',  stripe: '#7C3AED' },
+}
+
+const card = (accent: keyof typeof ACCENTS): React.CSSProperties => ({
   background: '#FFFFFF',
-  border: '1px solid #DDE8EE',
+  border: `1px solid ${ACCENTS[accent].border}`,
   borderRadius: '14px',
+  borderTop: `3px solid ${ACCENTS[accent].stripe}`,
   padding: '24px',
   display: 'flex',
   flexDirection: 'column',
   gap: '16px',
-}
+})
 
-const dropZone = (active: boolean): React.CSSProperties => ({
-  border: `1px dashed ${active ? '#00A5A3' : '#DDE8EE'}`,
-  background: active ? 'rgba(0,165,163,0.05)' : '#FAFBFC',
+const dropZone = (active: boolean, accent: string): React.CSSProperties => ({
+  border: `1px dashed ${active ? accent : '#DDE8EE'}`,
+  background: active ? `${accent}10` : '#FAFBFC',
   borderRadius: '10px',
   padding: '32px 24px',
   display: 'flex',
@@ -28,10 +36,10 @@ const dropZone = (active: boolean): React.CSSProperties => ({
   transition: 'all 0.15s',
 })
 
-const btn = (disabled: boolean): React.CSSProperties => ({
+const btn = (disabled: boolean, accent: string): React.CSSProperties => ({
   padding: '11px 20px',
   borderRadius: '9px',
-  background: disabled ? '#F3F4F6' : '#00A5A3',
+  background: disabled ? '#F3F4F6' : accent,
   color: disabled ? '#9CA3AF' : '#FFFFFF',
   border: 'none',
   cursor: disabled ? 'default' : 'pointer',
@@ -135,39 +143,39 @@ export default function LeadExtractionPage() {
     <div style={{ minHeight: '100vh', background: '#F8FAFB', fontFamily: 'system-ui, sans-serif' }}>
 
       {/* Page header */}
-      <div style={{ background: '#FFFFFF', borderBottom: '1px solid #DDE8EE', padding: '16px 28px' }}>
+      <div style={{ background: 'linear-gradient(135deg, #00A5A3 0%, #00897B 100%)', padding: '20px 28px 24px' }}>
         {/* Flow breadcrumb */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '14px', flexWrap: 'wrap' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '16px', flexWrap: 'wrap' }}>
           {STEPS.map((s, i) => (
             <div key={s.href} style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
               <Link href={s.href} style={{
-                padding: '4px 12px', borderRadius: '20px', fontSize: '13px', fontWeight: s.active ? 700 : 500,
-                background: s.active ? '#00A5A3' : 'transparent',
-                color: s.active ? '#FFFFFF' : '#9CA3AF',
-                textDecoration: 'none', border: s.active ? 'none' : '1px solid #DDE8EE',
+                padding: '4px 12px', borderRadius: '20px', fontSize: '12px', fontWeight: 700,
+                background: s.active ? 'rgba(255,255,255,0.25)' : 'rgba(255,255,255,0.1)',
+                color: s.active ? '#FFFFFF' : 'rgba(255,255,255,0.65)',
+                textDecoration: 'none', border: s.active ? '1px solid rgba(255,255,255,0.4)' : '1px solid rgba(255,255,255,0.15)',
               }}>
                 {s.label}
               </Link>
               {i < STEPS.length - 1 && (
-                <svg width="14" height="14" fill="none" stroke="#DDE8EE" strokeWidth="2" strokeLinecap="round" viewBox="0 0 24 24">
+                <svg width="12" height="12" fill="none" stroke="rgba(255,255,255,0.4)" strokeWidth="2" strokeLinecap="round" viewBox="0 0 24 24">
                   <polyline points="9 18 15 12 9 6"/>
                 </svg>
               )}
             </div>
           ))}
         </div>
-        <div style={{ fontSize: '22px', fontWeight: 800, color: '#0F1923', marginBottom: '4px' }}>Lead Extraction</div>
-        <div style={{ fontSize: '15px', color: '#6B7280' }}>Extract company names and website URLs from multiple sources</div>
+        <div style={{ fontSize: '24px', fontWeight: 900, color: '#FFFFFF', marginBottom: '4px', letterSpacing: '-0.3px' }}>Lead Extraction</div>
+        <div style={{ fontSize: '14px', color: 'rgba(255,255,255,0.75)' }}>Extract company names and website URLs from multiple sources</div>
       </div>
 
       {/* 2×2 grid */}
       <div style={{ padding: '24px 28px', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px', maxWidth: '1100px' }}>
 
         {/* Card 1 — Company & URL Finder - Files */}
-        <div style={card}>
+        <div style={card('teal')}>
           <div style={{ display: 'flex', alignItems: 'flex-start', gap: '14px' }}>
-            <div style={{ width: '36px', height: '36px', borderRadius: '9px', background: 'rgba(0,165,163,0.08)', border: '1px solid rgba(0,165,163,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-              <svg width="16" height="16" fill="none" stroke="#00A5A3" strokeWidth="2" strokeLinecap="round" viewBox="0 0 24 24">
+            <div style={{ width: '36px', height: '36px', borderRadius: '9px', background: ACCENTS.teal.bg, border: `1px solid ${ACCENTS.teal.border}`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+              <svg width="16" height="16" fill="none" stroke={ACCENTS.teal.color} strokeWidth="2" strokeLinecap="round" viewBox="0 0 24 24">
                 <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/>
               </svg>
             </div>
@@ -180,7 +188,7 @@ export default function LeadExtractionPage() {
           <input ref={fileRef1} type="file" accept=".pdf,.xlsx,.xls,.csv,.txt,.docx,.doc,.png,.jpg,.jpeg" style={{ display: 'none' }} onChange={e => setFile1(e.target.files?.[0] ?? null)} />
 
           <div
-            style={dropZone(drag1)}
+            style={dropZone(drag1, ACCENTS.teal.color)}
             onDragOver={e => { e.preventDefault(); setDrag1(true) }}
             onDragLeave={() => setDrag1(false)}
             onDrop={e => { e.preventDefault(); setDrag1(false); setFile1(e.dataTransfer.files[0] ?? null) }}
@@ -202,17 +210,17 @@ export default function LeadExtractionPage() {
             )}
           </div>
 
-          <button onClick={() => analyzeFile(file1, setFileRes, setAnalyzing)} disabled={!file1 || analyzing} style={btn(!file1 || analyzing)}>
+          <button onClick={() => analyzeFile(file1, setFileRes, setAnalyzing)} disabled={!file1 || analyzing} style={btn(!file1 || analyzing, ACCENTS.teal.color)}>
             {analyzing ? 'Analyzing…' : 'Analyze File →'}
           </button>
           {fileRes.length > 0 && <div style={{ fontSize: '13px', color: '#059669', fontWeight: 600 }}>{fileRes.length} records extracted</div>}
         </div>
 
         {/* Card 2 — URL Extractor */}
-        <div style={card}>
+        <div style={card('indigo')}>
           <div style={{ display: 'flex', alignItems: 'flex-start', gap: '14px' }}>
-            <div style={{ width: '36px', height: '36px', borderRadius: '9px', background: 'rgba(0,165,163,0.08)', border: '1px solid rgba(0,165,163,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-              <svg width="16" height="16" fill="none" stroke="#00A5A3" strokeWidth="2" strokeLinecap="round" viewBox="0 0 24 24">
+            <div style={{ width: '36px', height: '36px', borderRadius: '9px', background: ACCENTS.indigo.bg, border: `1px solid ${ACCENTS.indigo.border}`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+              <svg width="16" height="16" fill="none" stroke={ACCENTS.indigo.color} strokeWidth="2" strokeLinecap="round" viewBox="0 0 24 24">
                 <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>
               </svg>
             </div>
@@ -244,17 +252,17 @@ export default function LeadExtractionPage() {
             </div>
           )}
 
-          <button onClick={() => extractUrls(urlText, setUrlRes, setExtracting, setUrlSetup)} disabled={!urlText.trim() || extracting} style={btn(!urlText.trim() || extracting)}>
+          <button onClick={() => extractUrls(urlText, setUrlRes, setExtracting, setUrlSetup)} disabled={!urlText.trim() || extracting} style={btn(!urlText.trim() || extracting, ACCENTS.indigo.color)}>
             {extracting ? 'Extracting…' : 'Extract Companies →'}
           </button>
           {urlRes.length > 0 && <div style={{ fontSize: '13px', color: '#059669', fontWeight: 600 }}>{urlRes.length} companies extracted</div>}
         </div>
 
         {/* Card 3 — Website Finder from Company Names */}
-        <div style={card}>
+        <div style={card('amber')}>
           <div style={{ display: 'flex', alignItems: 'flex-start', gap: '14px' }}>
-            <div style={{ width: '36px', height: '36px', borderRadius: '9px', background: 'rgba(0,165,163,0.08)', border: '1px solid rgba(0,165,163,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-              <svg width="16" height="16" fill="none" stroke="#00A5A3" strokeWidth="2" strokeLinecap="round" viewBox="0 0 24 24">
+            <div style={{ width: '36px', height: '36px', borderRadius: '9px', background: ACCENTS.amber.bg, border: `1px solid ${ACCENTS.amber.border}`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+              <svg width="16" height="16" fill="none" stroke={ACCENTS.amber.color} strokeWidth="2" strokeLinecap="round" viewBox="0 0 24 24">
                 <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
               </svg>
             </div>
@@ -267,7 +275,7 @@ export default function LeadExtractionPage() {
           <input ref={fileRef2} type="file" accept=".xlsx,.xls,.csv,.txt,.docx,.doc" style={{ display: 'none' }} onChange={e => setFile2(e.target.files?.[0] ?? null)} />
 
           <div
-            style={{ ...dropZone(drag2), padding: '24px' }}
+            style={{ ...dropZone(drag2, ACCENTS.amber.color), padding: '24px' }}
             onDragOver={e => { e.preventDefault(); setDrag2(true) }}
             onDragLeave={() => setDrag2(false)}
             onDrop={e => { e.preventDefault(); setDrag2(false); setFile2(e.dataTransfer.files[0] ?? null) }}
@@ -284,17 +292,17 @@ export default function LeadExtractionPage() {
 
           <div style={{ fontSize: '13px', color: '#9CA3AF' }}>Supports company lists with optional Country column for better accuracy</div>
 
-          <button onClick={() => analyzeFile(file2, setFindRes, setFinding)} disabled={!file2 || finding} style={btn(!file2 || finding)}>
+          <button onClick={() => analyzeFile(file2, setFindRes, setFinding)} disabled={!file2 || finding} style={btn(!file2 || finding, ACCENTS.amber.color)}>
             {finding ? 'Finding…' : 'Analyze File →'}
           </button>
           {findRes.length > 0 && <div style={{ fontSize: '13px', color: '#059669', fontWeight: 600 }}>{findRes.length} websites found</div>}
         </div>
 
         {/* Card 4 — Website Finder from Directory URLs */}
-        <div style={card}>
+        <div style={card('purple')}>
           <div style={{ display: 'flex', alignItems: 'flex-start', gap: '14px' }}>
-            <div style={{ width: '36px', height: '36px', borderRadius: '9px', background: 'rgba(0,165,163,0.08)', border: '1px solid rgba(0,165,163,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-              <svg width="16" height="16" fill="none" stroke="#00A5A3" strokeWidth="2" strokeLinecap="round" viewBox="0 0 24 24">
+            <div style={{ width: '36px', height: '36px', borderRadius: '9px', background: ACCENTS.purple.bg, border: `1px solid ${ACCENTS.purple.border}`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+              <svg width="16" height="16" fill="none" stroke={ACCENTS.purple.color} strokeWidth="2" strokeLinecap="round" viewBox="0 0 24 24">
                 <circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/>
               </svg>
             </div>
@@ -308,7 +316,7 @@ export default function LeadExtractionPage() {
           <input ref={fileRef3} type="file" accept=".xlsx,.xls,.csv,.txt" style={{ display: 'none' }} onChange={e => { const f = e.target.files?.[0] ?? null; setFile3(f); parseDirFile(f) }} />
 
           <div
-            style={dropZone(drag3)}
+            style={dropZone(drag3, ACCENTS.purple.color)}
             onDragOver={e => { e.preventDefault(); setDrag3(true) }}
             onDragLeave={() => setDrag3(false)}
             onDrop={e => { e.preventDefault(); setDrag3(false); const f = e.dataTransfer.files[0] ?? null; setFile3(f); parseDirFile(f) }}
@@ -352,7 +360,7 @@ export default function LeadExtractionPage() {
             </div>
           )}
 
-          <button onClick={() => extractUrls(dirText, setDirRes, setDirExtracting, setDirSetup)} disabled={!dirText.trim() || dirExtracting} style={btn(!dirText.trim() || dirExtracting)}>
+          <button onClick={() => extractUrls(dirText, setDirRes, setDirExtracting, setDirSetup)} disabled={!dirText.trim() || dirExtracting} style={btn(!dirText.trim() || dirExtracting, ACCENTS.purple.color)}>
             {dirExtracting ? 'Extracting…' : 'Extract from Pages →'}
           </button>
           {dirRes.length > 0 && <div style={{ fontSize: '13px', color: '#059669', fontWeight: 600 }}>{dirRes.length} companies extracted</div>}
