@@ -359,11 +359,13 @@ export default function EventWebsiteAdmin({ params }: { params: Promise<{ id: st
 
       {/* Nav */}
       <nav style={{ background: C.surface, borderBottom: `1px solid ${C.border}`, padding: '0 32px', height: '64px', display: 'flex', alignItems: 'center', gap: '16px', position: 'sticky', top: 0, zIndex: 100, boxShadow: '0 1px 3px rgba(0,165,163,0.06)' }}>
-        <Link href={`/admin/events/${eventId}`} style={{ fontSize: '13px', color: C.text, textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '6px' }}>
+        <Link href="/admin/toolkit" style={{ fontSize: '13px', color: C.muted, textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '6px', fontWeight: 600 }}>
           <svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M19 12H5M12 5l-7 7 7 7"/></svg>
-          {eventName}
+          Toolkit
         </Link>
-        <span style={{ color: C.sub }}>/</span>
+        <span style={{ color: C.border }}>/</span>
+        <span style={{ fontSize: '13px', color: C.muted, fontWeight: 500 }}>{eventName}</span>
+        <span style={{ color: C.border }}>/</span>
         <span style={{ fontSize: '13px', fontWeight: 700 }}>Website</span>
         <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '10px' }}>
           {settings.status === 'live' && settings.slug && (

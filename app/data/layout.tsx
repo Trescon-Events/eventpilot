@@ -1,5 +1,6 @@
 'use client'
 
+import { useState, useEffect } from 'react'
 import { usePathname } from 'next/navigation'
 import Link from 'next/link'
 
@@ -85,6 +86,14 @@ function NavIcon({ name }: { name: string }) {
 
 export default function DataLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
+  const [session, setSession] = useState<{ adm?: boolean; sid?: string } | null>(null)
+
+  useEffect(() => {
+    fetch('/api/auth/session').then(r => r.json()).then(s => setSession(s)).catch(() => {})
+  }, [])
+
+  const backHref  = session?.adm ? '/admin/toolkit' : session?.sid ? `/dashboard?id=${session.sid}` : '/dashboard'
+  const backLabel = session?.adm ? 'Back to Toolkit' : 'Back to Dashboard'
 
   const isActive = (href: string) => {
     const base = href.split('?')[0]
@@ -104,14 +113,14 @@ export default function DataLayout({ children }: { children: React.ReactNode }) 
         {/* Back to platform + logo */}
         <div style={{ padding: '14px 20px 14px', borderBottom: '1px solid #DDE8EE', flexShrink: 0 }}>
           {/* Back link */}
-          <Link href="/admin/toolkit" style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', color: '#9CA3AF', textDecoration: 'none', marginBottom: '14px' }}
+          <Link href={backHref} style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', color: '#9CA3AF', textDecoration: 'none', marginBottom: '14px' }}
             onMouseEnter={e => (e.currentTarget.style.color = '#00A5A3')}
             onMouseLeave={e => (e.currentTarget.style.color = '#9CA3AF')}
           >
             <svg width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" viewBox="0 0 24 24">
               <polyline points="15 18 9 12 15 6"/>
             </svg>
-            Back to Toolkit
+            {backLabel}
           </Link>
           {/* Module identity */}
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>

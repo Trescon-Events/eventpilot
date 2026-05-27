@@ -476,6 +476,49 @@ function DashboardContent() {
           </div>
         </div>
 
+        {/* ── Your Platform Access ── */}
+        {(() => {
+          const tiles = [
+            { label: 'My Learning',    sub: 'Courses & TAIRS score',   color: '#00897B', href: `/dashboard?id=${staffId}`,              icon: <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" viewBox="0 0 24 24"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>, show: true },
+            { label: 'Course Library', sub: 'Browse all courses',       color: '#6366F1', href: `/dashboard/library?id=${staffId}`,       icon: <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M9 3v18M3 9h6M3 15h6"/></svg>, show: true },
+            { label: 'Smart Data',     sub: 'Lead extraction & CRM',    color: '#00A5A3', href: '/data/extract/file',                     icon: <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" viewBox="0 0 24 24"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/></svg>, show: true },
+            { label: 'Talk to Tresci', sub: 'AI learning assistant',    color: '#7C3AED', href: '/chat',                                  icon: <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>, show: true },
+            { label: 'My Events',      sub: 'Event roles, tasks & allocation', color: '#D97706', href: `/dashboard?id=${staffId}#events`, icon: <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>, show: true },
+            { label: 'HR Portal',      sub: 'Leave, onboarding & org',  color: '#EC4899', href: '/hr',                                  icon: <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>, show: !!(isAdmin || staff.department === 'HR') },
+            { label: 'Team Dashboard', sub: 'Your team TAIRS & progress', color: '#8B5CF6', href: `/team?manager_id=${staffId}&staff_id=${staffId}`, icon: <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>, show: !!(staff.has_reports || isAdmin) },
+            { label: 'Content Hub',    sub: 'Campaigns & social posts',  color: '#0EA5E9', href: '/content',                              icon: <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" viewBox="0 0 24 24"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>, show: !!(staff.department === 'Marketing' || isAdmin) },
+            { label: 'Admin Panel',    sub: 'Staff, HR & platform ops',  color: '#0F1923', href: '/admin',                                icon: <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>, show: !!isAdmin },
+            { label: 'Toolkit',        sub: 'Smart Data, events & more', color: '#00695C', href: '/admin/toolkit',                        icon: <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" viewBox="0 0 24 24"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg>, show: !!isAdmin },
+          ].filter(t => t.show)
+          return (
+            <div style={{ marginBottom: '24px' }}>
+              <div style={{ fontSize: '11px', fontWeight: 800, letterSpacing: '2px', textTransform: 'uppercase', color: '#9CA3AF', marginBottom: '12px' }}>Your Platform Access</div>
+              <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+                {tiles.map(t => (
+                  <Link key={t.label} href={t.href} style={{
+                    display: 'flex', alignItems: 'center', gap: '10px',
+                    padding: '10px 14px', borderRadius: '12px',
+                    background: '#FFFFFF', border: `1.5px solid ${t.color}25`,
+                    textDecoration: 'none', transition: 'border-color 0.15s, box-shadow 0.15s',
+                    flexShrink: 0,
+                  }}
+                    onMouseEnter={e => { e.currentTarget.style.borderColor = t.color; e.currentTarget.style.boxShadow = `0 2px 10px ${t.color}20` }}
+                    onMouseLeave={e => { e.currentTarget.style.borderColor = `${t.color}25`; e.currentTarget.style.boxShadow = 'none' }}
+                  >
+                    <div style={{ width: '32px', height: '32px', borderRadius: '8px', background: `${t.color}12`, border: `1px solid ${t.color}30`, display: 'flex', alignItems: 'center', justifyContent: 'center', color: t.color, flexShrink: 0 }}>
+                      {t.icon}
+                    </div>
+                    <div>
+                      <div style={{ fontSize: '13px', fontWeight: 700, color: '#0F1923' }}>{t.label}</div>
+                      <div style={{ fontSize: '11px', color: '#9CA3AF', marginTop: '1px' }}>{t.sub}</div>
+                    </div>
+                  </Link>
+                ))}
+              </div>
+            </div>
+          )
+        })()}
+
         {/* TAIRS explanation strip */}
         <div style={{ display: 'flex', gap: '6px', marginTop: '16px', marginBottom: '24px' }}>
           {[
