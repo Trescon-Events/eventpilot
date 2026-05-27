@@ -537,19 +537,22 @@ export default function AdminPage() {
       if (docFile.size > 4 * 1024 * 1024) {
         setDocMsg('Uploading to secure storage…')
 
-        // Step 1: get a signed upload URL
+        // Step 1: get signed upload path + token from server
         const urlRes = await fetch(`/api/documents/upload-url?filename=${encodeURIComponent(docFile.name)}`)
         if (!urlRes.ok) throw new Error('Could not prepare upload. Please try again.')
-        const { signed_url, path } = await urlRes.json()
+        const { path, token } = await urlRes.json()
 
-        // Step 2: upload directly to Supabase Storage (bypasses Vercel body limit)
+        // Step 2: use Supabase JS client to upload (handles auth headers correctly)
         setDocMsg('Uploading file… this may take a moment for large files.')
-        const putRes = await fetch(signed_url, {
-          method: 'PUT',
-          headers: { 'Content-Type': docFile.type || 'application/octet-stream' },
-          body: docFile,
-        })
-        if (!putRes.ok) throw new Error('File upload failed. Please try again.')
+        const { createClient } = await import('@supabase/supabase-js')
+        const sbClient = createClient(
+          process.env.NEXT_PUBLIC_SUPABASE_URL!,
+          process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+        )
+        const { error: upErr } = await sbClient.storage
+          .from('doc-uploads')
+          .uploadToSignedUrl(path, token, docFile, { contentType: docFile.type || 'application/octet-stream' })
+        if (upErr) throw new Error(`File upload failed: ${upErr.message}`)
 
         // Step 3: trigger server-side processing
         setDocMsg('Analysing with AI… (large files may take 1–2 minutes)')
