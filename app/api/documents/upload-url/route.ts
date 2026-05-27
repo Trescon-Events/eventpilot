@@ -22,7 +22,7 @@ export async function GET(req: NextRequest) {
   })
   // If bucket already exists, update its size limit
   if (bucketErr) {
-    await supabaseAdmin.storage.updateBucket('doc-uploads', { fileSizeLimit: 500 * 1024 * 1024 }).catch(() => {})
+    await supabaseAdmin.storage.updateBucket('doc-uploads', { public: false, fileSizeLimit: 500 * 1024 * 1024 }).catch(() => {})
   }
 
   const { data, error } = await supabaseAdmin.storage
