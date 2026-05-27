@@ -37,6 +37,22 @@ const TOOLS = [
     ),
   },
   {
+    id:          'smart-data',
+    label:       'Smart Data',
+    description: 'Extract leads from files and URLs, enrich contacts via LinkedIn and Apollo, verify emails, and manage your B2B database.',
+    accent:      '#00A5A3',
+    href:        '/data/extract/file',
+    needsEvent:  false,
+    badge:       'Data Intelligence',
+    icon: (
+      <svg width="24" height="24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24">
+        <ellipse cx="12" cy="5" rx="9" ry="3"/>
+        <path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/>
+        <path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/>
+      </svg>
+    ),
+  },
+  {
     id:          'brand-studio',
     label:       'Brand Studio',
     description: 'AI brand identity + Imagen 3 visual asset generation for events. Colours, fonts, tone, key messages, and visual assets in one place.',
@@ -62,22 +78,6 @@ const TOOLS = [
     icon: (
       <svg width="24" height="24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24">
         <path d="M22 2 11 13M22 2 15 22 11 13 2 9l20-7z"/>
-      </svg>
-    ),
-  },
-  {
-    id:          'smart-data',
-    label:       'Smart Data',
-    description: 'Extract leads from files and URLs, enrich contacts via LinkedIn and Apollo, verify emails, and manage your B2B database.',
-    accent:      '#00A5A3',
-    href:        '/data/extract/file',
-    needsEvent:  false,
-    badge:       'Data Intelligence',
-    icon: (
-      <svg width="24" height="24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24">
-        <ellipse cx="12" cy="5" rx="9" ry="3"/>
-        <path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/>
-        <path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/>
       </svg>
     ),
   },
