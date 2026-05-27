@@ -3566,14 +3566,14 @@ export default function AdminPage() {
                       </div>
                     </div>
                   ) : (
-                    <div><svg width="20" height="20" fill="none" stroke="#0F1923" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24" style={{ margin: '0 auto 6px', display: 'block' }}><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg><div style={{ fontSize: '13px', color: '#0F1923' }}>Click to select file</div><div style={{ fontSize: '13px', color: '#0F1923', marginTop: '2px' }}>PDF or TXT · max 50 MB</div></div>
+                    <div><svg width="20" height="20" fill="none" stroke="#0F1923" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24" style={{ margin: '0 auto 6px', display: 'block' }}><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg><div style={{ fontSize: '13px', color: '#0F1923' }}>Click to select file</div><div style={{ fontSize: '13px', color: '#0F1923', marginTop: '2px' }}>PDF or TXT · no size limit</div></div>
                   )}
                 </label>
               </div>
               {docMsg && <div style={{ fontSize: '13px', padding: '9px 12px', borderRadius: '8px', background: docMsg.includes('Done') ? 'rgba(192,244,60,0.07)' : 'rgba(255,107,107,0.07)', border: `1px solid ${docMsg.includes('Done') ? 'rgba(192,244,60,0.2)' : 'rgba(255,107,107,0.2)'}`, color: docMsg.includes('Done') ? '#3D6B00' : '#FF6B6B', marginBottom: '10px', lineHeight: 1.5 }}>{docMsg}</div>}
               <div style={{ display: 'flex', gap: '8px' }}>
                 <button onClick={uploadDoc} disabled={docUploading || !docFile || (!!docFile && docFile.size > 200 * 1024 * 1024)}
-                  style={{ flex: 1, padding: '11px', borderRadius: '9px', border: 'none', background: docUploading || !docFile || (!!docFile && docFile.size > 50 * 1024 * 1024) ? '#DDE8EE' : '#C0F43C', color: '#0F1923', fontSize: '13px', fontWeight: 800, cursor: docUploading || !docFile || (!!docFile && docFile.size > 50 * 1024 * 1024) ? 'not-allowed' : 'pointer', fontFamily: 'inherit' }}>
+                  style={{ flex: 1, padding: '11px', borderRadius: '9px', border: 'none', background: docUploading || !docFile || (!!docFile && docFile.size > 200 * 1024 * 1024) ? '#DDE8EE' : '#C0F43C', color: '#0F1923', fontSize: '13px', fontWeight: 800, cursor: docUploading || !docFile || (!!docFile && docFile.size > 200 * 1024 * 1024) ? 'not-allowed' : 'pointer', fontFamily: 'inherit' }}>
                   {docUploading ? 'Analysing with AI… (large files may take 1–2 min)' : 'Upload & Analyse'}
                 </button>
                 {docs.length > 0 && <button onClick={() => setShowUploadForm(false)}
