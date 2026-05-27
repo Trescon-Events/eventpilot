@@ -167,7 +167,7 @@ export default function MarketIntelPage({ params }: { params: Promise<{ id: stri
     if (!urls.length) return
     const jobId = await scanManager.startJob(urls, eventId)
     if (!jobId) {
-      alert('Maximum 2 concurrent jobs. Wait for a job to finish before starting a new one.')
+      alert('A scan is already running. Wait for it to finish before starting a new one.')
     } else {
       setTab('companies')
       if (isFreshRescan) {
