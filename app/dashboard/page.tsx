@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, Suspense } from 'react'
+import { useState, useEffect, useMemo, Suspense } from 'react'
 import { useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { computeTAIRS, getTier, getTrack, TIER_COLORS } from '@/app/lib/tairs'
@@ -338,9 +338,9 @@ function DashboardContent() {
   const trackConfig = TRACK_CONFIG_MAP[track]
   const firstName  = staff.name.split(' ')[0]
 
-  const completedIds    = new Set(completions.filter(c => c.passed).map(c => c.course_id))
+  const completedIds    = useMemo(() => new Set(completions.filter(c => c.passed).map(c => c.course_id)), [completions])
   const nextCourse      = recPrimary ?? courses.find(c => !completedIds.has(c.id)) ?? null
-  const completedCount  = completions.filter(c => c.passed).length
+  const completedCount  = useMemo(() => completions.filter(c => c.passed).length, [completions])
   const totalMandatory  = recContext?.mandatory_total  ?? courses.filter(c => c.is_mandatory).length
   const completedMandatory = recContext?.mandatory_completed ?? courses.filter(c => c.is_mandatory && completedIds.has(c.id)).length
 
@@ -696,7 +696,7 @@ function DashboardContent() {
           </div>
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-            {(recList.length > 0 ? recList.filter(c => !dismissedIds.has(c.id)) : courses.filter(c => !dismissedIds.has(c.id)).slice(0, 5)).map((course, idx) => {
+            {(recList.length > 0 ? recList : courses.slice(0, 5)).filter(c => !dismissedIds.has(c.id)).map((course, idx) => {
               const done    = completedIds.has(course.id)
               const recLabel = 'rec_label' in course ? course.rec_label as string : null
               const recReason = 'rec_reason' in course ? course.rec_reason as string : null
@@ -808,7 +808,7 @@ function DashboardContent() {
             adoption:   { color: '#7C3AED', bg: 'rgba(124,58,237,0.12)', label: 'Adoption'   },
             advanced:   { color: '#166534', bg: 'rgba(22,101,52,0.12)',  label: 'Advanced'   },
           }
-          const done = completions.filter(c => c.passed).map(c => ({ ...c, course: courses.find(cr => cr.id === c.course_id) })).filter(c => c.course)
+          const done = completions.filter(c => c.passed && courses.some(cr => cr.id === c.course_id)).map(c => ({ ...c, course: courses.find(cr => cr.id === c.course_id) }))
           return (
             <div id="completed-section" style={{ background: 'rgba(192,244,60,0.03)', border: '1px solid rgba(192,244,60,0.15)', borderRadius: '16px', padding: '24px 28px' }}>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '20px' }}>

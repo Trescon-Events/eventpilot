@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import Link from 'next/link'
 
 /* ── Types ──────────────────────────────────────────────────────────── */
@@ -136,6 +136,10 @@ export default function HRDashboard() {
     }
   }
 
+  const refreshDashboard = useCallback(() => {
+    fetch('/api/hr/dashboard').then(r => r.json()).then(d => setData(d)).catch(() => {})
+  }, [])
+
   useEffect(() => {
     fetch('/api/hr/dashboard')
       .then(r => r.json())
@@ -178,7 +182,7 @@ export default function HRDashboard() {
               Leave Manager
             </Link>
             <button
-              onClick={() => fetch('/api/hr/alerts?run_checks=true', { method: 'POST' }).then(() => window.location.reload())}
+              onClick={() => fetch('/api/hr/alerts?run_checks=true', { method: 'POST' }).then(refreshDashboard)}
               style={{ padding: '8px 16px', borderRadius: '10px', background: C.surface, color: C.green, fontSize: '13px', fontWeight: 700, border: `1px solid ${C.green}40`, cursor: 'pointer', fontFamily: 'inherit' }}>
               Run Alert Checks
             </button>
@@ -386,9 +390,7 @@ export default function HRDashboard() {
                 {data.leave.pending_requests.length === 0 ? (
                   <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: '16px', padding: '40px', textAlign: 'center', color: C.muted }}>No pending leave requests.</div>
                 ) : data.leave.pending_requests.map(req => (
-                  <LeaveApprovalCard key={req.id} req={req} onAction={() => {
-                    fetch('/api/hr/dashboard').then(r => r.json()).then(d => setData(d))
-                  }} />
+                  <LeaveApprovalCard key={req.id} req={req} onAction={refreshDashboard} />
                 ))}
               </div>
             )}
@@ -399,9 +401,7 @@ export default function HRDashboard() {
                 {data.alerts.records.length === 0 ? (
                   <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: '16px', padding: '40px', textAlign: 'center', color: C.muted }}>No open alerts.</div>
                 ) : data.alerts.records.map(alert => (
-                  <AlertCard key={alert.id} alert={alert} onResolve={() => {
-                    fetch('/api/hr/dashboard').then(r => r.json()).then(d => setData(d))
-                  }} />
+                  <AlertCard key={alert.id} alert={alert} onResolve={refreshDashboard} />
                 ))}
               </div>
             )}

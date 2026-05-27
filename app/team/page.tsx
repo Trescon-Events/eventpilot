@@ -92,11 +92,14 @@ function TeamContent() {
     if (!managerId || briefState === 'loading') return
     setBriefState('loading')
     setBrief('')
+    const controller = new AbortController()
+    const timeout = setTimeout(() => controller.abort(), 30000)
     try {
       const res  = await fetch('/api/team-brief', {
         method:  'POST',
         headers: { 'Content-Type': 'application/json' },
         body:    JSON.stringify({ manager_id: managerId }),
+        signal:  controller.signal,
       })
       const data = await res.json()
       if (!res.ok || data.error) { setBriefState('error'); return }
@@ -106,6 +109,8 @@ function TeamContent() {
       setBriefState('ready')
     } catch {
       setBriefState('error')
+    } finally {
+      clearTimeout(timeout)
     }
   }
 
