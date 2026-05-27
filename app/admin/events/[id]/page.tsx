@@ -750,6 +750,29 @@ export default function EventWorkspacePage({ params }: { params: Promise<{ id: s
           </Link>
         </div>
 
+        {/* Brand Studio shortcut */}
+        <div style={{ marginBottom: '16px', background: 'rgba(167,139,250,0.04)', border: '1px solid rgba(167,139,250,0.2)', borderRadius: '16px', padding: '20px 24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '16px', flexWrap: 'wrap' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+            <div style={{ width: '44px', height: '44px', background: 'rgba(167,139,250,0.12)', border: '1px solid rgba(167,139,250,0.25)', borderRadius: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, color: '#A78BFA' }}>
+              <svg width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24">
+                <circle cx="13.5" cy="6.5" r="2.5"/><circle cx="17.5" cy="10.5" r="2.5"/><circle cx="8.5" cy="7.5" r="2.5"/><circle cx="6.5" cy="12.5" r="2.5"/>
+                <path d="M12 22C6.477 22 2 17.523 2 12S6.477 2 12 2s10 4.477 10 10c0 .833-.106 1.641-.305 2.413A4 4 0 0 1 12 22z"/>
+              </svg>
+            </div>
+            <div>
+              <div style={{ fontSize: '13px', fontWeight: 800, color: '#0F1923', marginBottom: '3px' }}>Brand Studio</div>
+              <div style={{ fontSize: '13px', color: '#2D3E50' }}>AI brand identity and Imagen 3 visual asset generation for this event</div>
+            </div>
+          </div>
+          <Link
+            href={`/admin/events/${eventId}/brand`}
+            style={{ padding: '10px 20px', borderRadius: '10px', background: 'rgba(167,139,250,0.12)', border: '1px solid rgba(167,139,250,0.3)', color: '#A78BFA', fontSize: '13px', fontWeight: 700, textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '8px', whiteSpace: 'nowrap' }}
+          >
+            <svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+            Open Brand Studio
+          </Link>
+        </div>
+
         {/* ── P&L Section ───────────────────────────────────────────────── */}
         <div style={{ marginBottom: '40px', background: '#FFFFFF', border: '1px solid #D8EAEB', borderRadius: '20px', overflow: 'hidden' }}>
 
