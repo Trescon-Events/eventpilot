@@ -83,12 +83,14 @@ export async function GET(req: NextRequest) {
     .select('staff_id, ai_readiness')
     .in('staff_id', teamIds)
 
-  // Fetch completions for all team members in one query
+  // Fetch completions for all team members in one query (with tier_level for accurate TAIRS)
   const { data: completions } = await supabaseAdmin
     .from('course_completions')
-    .select('staff_id, course_id, passed, completed_at')
+    .select('staff_id, course_id, passed, completed_at, courses(tier_level)')
     .in('staff_id', teamIds)
-    .eq('passed', true)
+
+  type TairsCompletion = { passed: boolean; courses?: { tier_level: string } | null }
+  type CompletionRow   = { staff_id: string; passed: boolean; completed_at: string } & TairsCompletion
 
   // Group by staff_id
   const taskMap: Record<string, number[]> = {}
@@ -97,17 +99,25 @@ export async function GET(req: NextRequest) {
     taskMap[t.staff_id].push(t.ai_readiness ?? 1)
   }
 
+  const completionsByStaff: Record<string, TairsCompletion[]> = {}
   const completionMap: Record<string, number> = {}
   const lastActiveMap: Record<string, string> = {}
-  for (const c of completions ?? []) {
-    completionMap[c.staff_id] = (completionMap[c.staff_id] ?? 0) + 1
-    if (!lastActiveMap[c.staff_id] || c.completed_at > lastActiveMap[c.staff_id]) {
-      lastActiveMap[c.staff_id] = c.completed_at
+  for (const c of (completions as unknown as CompletionRow[] ?? [])) {
+    if (!completionsByStaff[c.staff_id]) completionsByStaff[c.staff_id] = []
+    completionsByStaff[c.staff_id].push(c)
+    if (c.passed) {
+      completionMap[c.staff_id] = (completionMap[c.staff_id] ?? 0) + 1
+      if (!lastActiveMap[c.staff_id] || c.completed_at > lastActiveMap[c.staff_id]) {
+        lastActiveMap[c.staff_id] = c.completed_at
+      }
     }
   }
 
   const members = teamMembers.map(m => {
-    const score = computeTAIRS((taskMap[m.id] ?? []).map(r => ({ ai_readiness: r })))
+    const score = computeTAIRS(
+      (taskMap[m.id] ?? []).map(r => ({ ai_readiness: r })),
+      completionsByStaff[m.id] ?? [],
+    )
     const tier  = getTier(score)
     return {
       ...m,

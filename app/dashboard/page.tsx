@@ -44,6 +44,7 @@ interface Completion {
   passed: boolean
   test_score: number | null
   attempt_count: number
+  courses?: { tier_level: string } | null
 }
 
 const TRACK_LABEL: Record<string, string> = {
@@ -330,7 +331,7 @@ function DashboardContent() {
     })
   }
 
-  const score      = computeTAIRS(tasks)
+  const score      = computeTAIRS(tasks, completions)
   const tier       = getTier(score)
   const track      = getTrack(score)
   const tierConfig = TIER_COLORS[tier]

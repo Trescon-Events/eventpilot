@@ -31,7 +31,7 @@ export async function POST(req: NextRequest) {
       .eq('staff_id', staff_id),
     supabaseAdmin
       .from('course_completions')
-      .select('course_id, passed')
+      .select('course_id, passed, courses(tier_level)')
       .eq('staff_id', staff_id),
     getCachedCourses(),
   ])
@@ -45,7 +45,7 @@ export async function POST(req: NextRequest) {
   const completions  = completionsRes.data ?? []
   const completedIds = new Set(completions.filter(c => c.passed).map(c => c.course_id))
 
-  const score = computeTAIRS(tasks)
+  const score = computeTAIRS(tasks, completions as unknown as { passed: boolean; courses?: { tier_level: string } | null }[])
   const tier  = getTier(score)
   const track = getTrack(score)
 

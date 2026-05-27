@@ -44,8 +44,7 @@ export async function POST(req: NextRequest) {
       .select('staff_id, ai_readiness'),
     supabaseAdmin
       .from('course_completions')
-      .select('staff_id, passed')
-      .eq('passed', true),
+      .select('staff_id, passed, courses(tier_level)'),
   ])
 
   const allStaff = (allStaffRes.data ?? []) as StaffRow[]
@@ -69,6 +68,9 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'No team members found under this manager.' }, { status: 400 })
   }
 
+  type TairsCompletion = { passed: boolean; courses?: { tier_level: string } | null }
+  type CompletionRow   = { staff_id: string } & TairsCompletion
+
   /* ── Build lookup maps ── */
   const taskMap: Record<string, number[]> = {}
   for (const t of taskRes.data ?? []) {
@@ -76,15 +78,18 @@ export async function POST(req: NextRequest) {
     taskMap[t.staff_id].push(t.ai_readiness ?? 1)
   }
 
+  const completionsByStaff: Record<string, TairsCompletion[]> = {}
   const completionCount: Record<string, number> = {}
-  for (const c of completionRes.data ?? []) {
-    completionCount[c.staff_id] = (completionCount[c.staff_id] ?? 0) + 1
+  for (const c of (completionRes.data as unknown as CompletionRow[] ?? [])) {
+    if (!completionsByStaff[c.staff_id]) completionsByStaff[c.staff_id] = []
+    completionsByStaff[c.staff_id].push(c)
+    if (c.passed) completionCount[c.staff_id] = (completionCount[c.staff_id] ?? 0) + 1
   }
 
   /* ── Score each member ── */
   const scored = teamMembers.map(m => {
     const tasks = (taskMap[m.id] ?? []).map(r => ({ ai_readiness: r }))
-    const score = computeTAIRS(tasks)
+    const score = computeTAIRS(tasks, completionsByStaff[m.id] ?? [])
     return { ...m, score, tier: getTier(score), completedCourses: completionCount[m.id] ?? 0 }
   })
 
