@@ -12,7 +12,7 @@ export async function PATCH(req: NextRequest) {
     const { error } = await supabaseAdmin
       .from('staff_members')
       .update({ access_enabled: enabled })
-      .neq('id', 'placeholder')   // update all rows
+      .not('id', 'is', null)   // update all rows
     if (error) return NextResponse.json({ error: error.message }, { status: 500 })
     return NextResponse.json({ ok: true })
   }
