@@ -74,7 +74,12 @@ export function middleware(req: NextRequest) {
     }
   }
 
-  // /hr/* → admin or HR department
+  // /my-hr → accessible to ALL authenticated users (self-service HR portal)
+  if (pathname.startsWith('/my-hr')) {
+    return NextResponse.next()
+  }
+
+  // /hr/* → admin or HR department only
   if (pathname.startsWith('/hr')) {
     const isHR = session.dept === 'HR' || session.adm
     if (!isHR) {
