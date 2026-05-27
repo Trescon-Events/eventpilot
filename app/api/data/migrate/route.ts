@@ -30,7 +30,7 @@ function smartdataClient() {
   return createClient(SD_URL, key)
 }
 
-async function migrateCompanies(sd: ReturnType<typeof createClient>, batchSize: number, offset: number, dryRun: boolean) {
+async function migrateCompanies(sd: ReturnType<typeof createClient<any>>, batchSize: number, offset: number, dryRun: boolean) {
   const { data, error, count } = await sd
     .from('sd_company_records')
     .select('*', { count: 'exact' })
@@ -62,7 +62,7 @@ async function migrateCompanies(sd: ReturnType<typeof createClient>, batchSize: 
   return { fetched: data.length, inserted: data.length, duplicates: 0, skipped: 0, total: count ?? 0 }
 }
 
-async function migrateContacts(sd: ReturnType<typeof createClient>, batchSize: number, offset: number, dryRun: boolean) {
+async function migrateContacts(sd: ReturnType<typeof createClient<any>>, batchSize: number, offset: number, dryRun: boolean) {
   const { data, error, count } = await sd
     .from('sd_contact_records')
     .select('*', { count: 'exact' })
