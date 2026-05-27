@@ -92,7 +92,7 @@ export default function DataLayout({ children }: { children: React.ReactNode }) 
     fetch('/api/auth/session').then(r => r.json()).then(s => setSession(s)).catch(() => {})
   }, [])
 
-  const backHref  = session?.adm ? '/admin/toolkit' : session?.sid ? `/dashboard?id=${session.sid}` : '/dashboard'
+  const backHref  = session === null ? null : session.adm ? '/admin/toolkit' : session.sid ? `/dashboard?id=${session.sid}` : '/dashboard'
   const backLabel = session?.adm ? 'Back to Toolkit' : 'Back to Dashboard'
 
   const isActive = (href: string) => {
@@ -113,15 +113,17 @@ export default function DataLayout({ children }: { children: React.ReactNode }) 
         {/* Back to platform + logo */}
         <div style={{ padding: '14px 20px 14px', borderBottom: '1px solid #DDE8EE', flexShrink: 0 }}>
           {/* Back link */}
-          <Link href={backHref} style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', color: '#9CA3AF', textDecoration: 'none', marginBottom: '14px' }}
-            onMouseEnter={e => (e.currentTarget.style.color = '#00A5A3')}
-            onMouseLeave={e => (e.currentTarget.style.color = '#9CA3AF')}
-          >
-            <svg width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" viewBox="0 0 24 24">
-              <polyline points="15 18 9 12 15 6"/>
-            </svg>
-            {backLabel}
-          </Link>
+          {backHref && (
+            <Link href={backHref} style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', color: '#9CA3AF', textDecoration: 'none', marginBottom: '14px' }}
+              onMouseEnter={e => (e.currentTarget.style.color = '#00A5A3')}
+              onMouseLeave={e => (e.currentTarget.style.color = '#9CA3AF')}
+            >
+              <svg width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" viewBox="0 0 24 24">
+                <polyline points="15 18 9 12 15 6"/>
+              </svg>
+              {backLabel}
+            </Link>
+          )}
           {/* Module identity */}
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
             <div style={{ width: '32px', height: '32px', borderRadius: '8px', background: 'rgba(0,165,163,0.1)', border: '1px solid rgba(0,165,163,0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
