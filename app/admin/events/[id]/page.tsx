@@ -142,7 +142,18 @@ export default function EventWorkspacePage({ params }: { params: Promise<{ id: s
   const [staffRole,      setStaffRole]      = useState('')
 
   // P&L state
-  const [pnlTab,         setPnlTab]         = useState<'overview'|'planner'|'deals'|'expenses'|'delegates'|'finance'|'team'|'hr'>('overview')
+  const [pnlTab,         setPnlTab]         = useState<'overview'|'planner'|'deals'|'expenses'|'delegates'|'finance'|'team'|'hr'|'social'|'content'>('overview')
+  // Social accounts tab
+  type SocialAccount = { id: string; platform: string; page_name: string; page_url: string; page_id: string; access_token: string; updated_at: string }
+  const [socialAccounts,   setSocialAccounts]   = useState<SocialAccount[]>([])
+  const [socialLoading,    setSocialLoading]    = useState(false)
+  const [socialForm,       setSocialForm]       = useState({ platform: 'Facebook', page_name: '', page_url: '', page_id: '', access_token: '' })
+  const [socialSaving,     setSocialSaving]     = useState(false)
+  const [socialMsg,        setSocialMsg]        = useState('')
+  // Content campaigns tab
+  type ContentCampaign = { id: string; name: string; phase: string; status: string; platforms: string[]; created_at: string; content_posts: { count: number }[] | null }
+  const [contentCampaigns, setContentCampaigns] = useState<ContentCampaign[]>([])
+  const [contentLoading,   setContentLoading]   = useState(false)
   const [pnl,            setPnl]            = useState<PnlSummary | null>(null)
   const [deals,          setDeals]          = useState<Deal[]>([])
   const [expenses,       setExpenses]       = useState<Expense[]>([])
@@ -768,16 +779,28 @@ export default function EventWorkspacePage({ params }: { params: Promise<{ id: s
 
           {/* Sub-tab nav */}
           <div style={{ display: 'flex', borderBottom: '1px solid #D8EAEB', overflowX: 'auto' }}>
-            {(['overview','planner','deals','expenses','delegates','finance','hr','team'] as const).map(tab => (
-              <button key={tab} onClick={() => setPnlTab(tab)}
-                style={{ padding: '14px 22px', border: 'none', background: 'none', cursor: 'pointer', fontFamily: 'inherit', fontSize: '13px', fontWeight: pnlTab === tab ? 800 : 600, color: pnlTab === tab ? '#0F1923' : '#5B7080', borderBottom: pnlTab === tab ? '2px solid #C0F43C' : '2px solid transparent', whiteSpace: 'nowrap', textTransform: 'capitalize' }}>
-                {tab === 'overview'   ? 'Overview'
-                 : tab === 'planner' ? 'Budget Planner'
-                 : tab === 'deals'   ? `Deals (${deals.length})`
+            {(['overview','planner','deals','expenses','delegates','finance','hr','team','content','social'] as const).map(tab => (
+              <button key={tab} onClick={() => {
+                setPnlTab(tab)
+                if (tab === 'social' && socialAccounts.length === 0) {
+                  setSocialLoading(true)
+                  fetch(`/api/events/social-accounts?event_id=${eventId}`).then(r => r.json()).then(d => { setSocialAccounts(Array.isArray(d) ? d : []); setSocialLoading(false) }).catch(() => setSocialLoading(false))
+                }
+                if (tab === 'content') {
+                  setContentLoading(true)
+                  fetch(`/api/content/campaigns?event_id=${eventId}`).then(r => r.json()).then(d => { setContentCampaigns(Array.isArray(d) ? d : (d.campaigns ?? [])); setContentLoading(false) }).catch(() => setContentLoading(false))
+                }
+              }}
+                style={{ padding: '14px 22px', border: 'none', background: 'none', cursor: 'pointer', fontFamily: 'inherit', fontSize: '13px', fontWeight: pnlTab === tab ? 800 : 600, color: pnlTab === tab ? '#0F1923' : tab === 'social' ? '#0A66C2' : tab === 'content' ? '#A78BFA' : '#5B7080', borderBottom: pnlTab === tab ? `2px solid ${tab === 'social' ? '#0A66C2' : tab === 'content' ? '#A78BFA' : '#C0F43C'}` : '2px solid transparent', whiteSpace: 'nowrap' }}>
+                {tab === 'overview'  ? 'Overview'
+                 : tab === 'planner'  ? 'Budget Planner'
+                 : tab === 'deals'    ? `Deals (${deals.length})`
                  : tab === 'expenses' ? `Expenses (${expenses.length})`
-                 : tab === 'finance' ? `Finance Hrs (${finLogs.length})`
-                 : tab === 'hr'      ? `HR Overhead`
-                 : tab === 'team'    ? `Team (${eventStaff.length})`
+                 : tab === 'finance'  ? `Finance Hrs (${finLogs.length})`
+                 : tab === 'hr'       ? 'HR Overhead'
+                 : tab === 'team'     ? `Team (${eventStaff.length})`
+                 : tab === 'social'   ? 'Social Accounts'
+                 : tab === 'content'  ? 'Content Campaigns'
                  : `Delegates (${delegates.length})`}
               </button>
             ))}
@@ -1921,6 +1944,171 @@ export default function EventWorkspacePage({ params }: { params: Promise<{ id: s
         </div>
 
       </div>
+
+      {/* ── SOCIAL ACCOUNTS TAB ── */}
+      {pnlTab === 'social' && (
+        <div style={{ padding: '24px 28px' }}>
+          <div style={{ marginBottom: '24px' }}>
+            <div style={{ fontSize: '13px', fontWeight: 800, letterSpacing: '2px', textTransform: 'uppercase', color: '#0A66C2', marginBottom: '4px' }}>Social Accounts</div>
+            <div style={{ fontSize: '14px', color: '#5B7080' }}>Connect the social media pages for this event. Paste the page URL and access token once — used for all publishing.</div>
+          </div>
+
+          {/* Connected accounts */}
+          {socialLoading ? (
+            <div style={{ padding: '32px', textAlign: 'center', color: '#5B7080', fontSize: '13px' }}>Loading…</div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginBottom: '28px' }}>
+              {(['Facebook', 'Instagram', 'LinkedIn'] as const).map(platform => {
+                const acc = socialAccounts.find(a => a.platform === platform)
+                const colors: Record<string, string> = { Facebook: '#1877F2', Instagram: '#E1306C', LinkedIn: '#0A66C2' }
+                const color = colors[platform]
+                return (
+                  <div key={platform} style={{ background: '#FFFFFF', border: `1px solid ${acc ? color + '30' : '#DDE8EE'}`, borderRadius: '14px', padding: '18px 20px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: acc ? '12px' : '0' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                        <div style={{ width: '32px', height: '32px', borderRadius: '8px', background: `${color}15`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                          <svg width="16" height="16" fill={color} viewBox="0 0 24 24">
+                            {platform === 'Facebook' && <path d="M18 2h-3a5 5 0 0 0-5 5v3H7v4h3v8h4v-8h3l1-4h-4V7a1 1 0 0 1 1-1h3z"/>}
+                            {platform === 'Instagram' && <><rect x="2" y="2" width="20" height="20" rx="5" ry="5"/><path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z" fill="white"/><line x1="17.5" y1="6.5" x2="17.51" y2="6.5" stroke="white" strokeWidth="2"/></>}
+                            {platform === 'LinkedIn' && <><path d="M16 8a6 6 0 0 1 6 6v7h-4v-7a2 2 0 0 0-2-2 2 2 0 0 0-2 2v7h-4v-7a6 6 0 0 1 6-6z"/><rect x="2" y="9" width="4" height="12"/><circle cx="4" cy="4" r="2"/></>}
+                          </svg>
+                        </div>
+                        <div>
+                          <div style={{ fontSize: '13px', fontWeight: 800, color: '#0F1923' }}>{platform}</div>
+                          {acc?.page_name && <div style={{ fontSize: '11px', color: '#5B7080' }}>{acc.page_name}</div>}
+                        </div>
+                      </div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        {acc ? (
+                          <span style={{ fontSize: '11px', fontWeight: 700, color: '#3D6B00', background: 'rgba(192,244,60,0.12)', padding: '3px 10px', borderRadius: '8px' }}>Connected</span>
+                        ) : (
+                          <span style={{ fontSize: '11px', fontWeight: 700, color: '#5B7080', background: '#F1F5F9', padding: '3px 10px', borderRadius: '8px' }}>Not connected</span>
+                        )}
+                        {acc && (
+                          <button onClick={async () => {
+                            await fetch(`/api/events/social-accounts?id=${acc.id}`, { method: 'DELETE' })
+                            setSocialAccounts(prev => prev.filter(a => a.id !== acc.id))
+                          }} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#DC2626', fontSize: '11px', fontWeight: 700, padding: '3px 8px', borderRadius: '6px' }}>
+                            Remove
+                          </button>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Inline form — always shown for quick edit */}
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                      <div>
+                        <label style={{ display: 'block', fontSize: '10px', fontWeight: 700, color: '#5B7080', letterSpacing: '1px', textTransform: 'uppercase', marginBottom: '4px' }}>Page Name</label>
+                        <input defaultValue={acc?.page_name ?? ''} id={`${platform}-name`}
+                          placeholder="e.g. World AI Show Dubai"
+                          style={{ width: '100%', padding: '8px 10px', borderRadius: '8px', border: '1px solid #DDE8EE', fontSize: '13px', fontFamily: 'inherit', color: '#0F1923', boxSizing: 'border-box' }} />
+                      </div>
+                      <div>
+                        <label style={{ display: 'block', fontSize: '10px', fontWeight: 700, color: '#5B7080', letterSpacing: '1px', textTransform: 'uppercase', marginBottom: '4px' }}>Page URL</label>
+                        <input defaultValue={acc?.page_url ?? ''} id={`${platform}-url`}
+                          placeholder="https://facebook.com/worldaishow"
+                          style={{ width: '100%', padding: '8px 10px', borderRadius: '8px', border: '1px solid #DDE8EE', fontSize: '13px', fontFamily: 'inherit', color: '#0F1923', boxSizing: 'border-box' }} />
+                      </div>
+                      <div>
+                        <label style={{ display: 'block', fontSize: '10px', fontWeight: 700, color: '#5B7080', letterSpacing: '1px', textTransform: 'uppercase', marginBottom: '4px' }}>Page ID</label>
+                        <input defaultValue={acc?.page_id ?? ''} id={`${platform}-id`}
+                          placeholder="Numeric page ID"
+                          style={{ width: '100%', padding: '8px 10px', borderRadius: '8px', border: '1px solid #DDE8EE', fontSize: '13px', fontFamily: 'inherit', color: '#0F1923', boxSizing: 'border-box' }} />
+                      </div>
+                      <div>
+                        <label style={{ display: 'block', fontSize: '10px', fontWeight: 700, color: '#5B7080', letterSpacing: '1px', textTransform: 'uppercase', marginBottom: '4px' }}>
+                          Access Token <span style={{ color: '#B8CDD8', fontWeight: 500 }}>(paste from Meta/LinkedIn)</span>
+                        </label>
+                        <input defaultValue={acc?.access_token ?? ''} id={`${platform}-token`}
+                          type="password"
+                          placeholder={acc ? '••••••••' : 'Paste token here — or type DUMMY to test'}
+                          style={{ width: '100%', padding: '8px 10px', borderRadius: '8px', border: '1px solid #DDE8EE', fontSize: '13px', fontFamily: 'inherit', color: '#0F1923', boxSizing: 'border-box' }} />
+                      </div>
+                    </div>
+                    <button
+                      onClick={async () => {
+                        const name  = (document.getElementById(`${platform}-name`)  as HTMLInputElement).value
+                        const url   = (document.getElementById(`${platform}-url`)   as HTMLInputElement).value
+                        const pid   = (document.getElementById(`${platform}-id`)    as HTMLInputElement).value
+                        const token = (document.getElementById(`${platform}-token`) as HTMLInputElement).value
+                        if (!token) return
+                        setSocialSaving(true)
+                        const res  = await fetch('/api/events/social-accounts', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ event_id: eventId, platform, page_name: name, page_url: url, page_id: pid, access_token: token }) })
+                        const data = await res.json()
+                        if (res.ok) setSocialAccounts(prev => { const next = prev.filter(a => a.platform !== platform); return [...next, data] })
+                        setSocialSaving(false)
+                        setSocialMsg(res.ok ? `${platform} saved.` : data.error ?? 'Error')
+                        setTimeout(() => setSocialMsg(''), 3000)
+                      }}
+                      style={{ marginTop: '10px', padding: '8px 18px', borderRadius: '8px', background: color, color: '#FFFFFF', fontSize: '12px', fontWeight: 800, border: 'none', cursor: 'pointer', fontFamily: 'inherit', opacity: socialSaving ? 0.7 : 1 }}>
+                      {socialSaving ? 'Saving…' : `Save ${platform}`}
+                    </button>
+                  </div>
+                )
+              })}
+            </div>
+          )}
+
+          {socialMsg && <div style={{ padding: '10px 14px', borderRadius: '8px', background: 'rgba(192,244,60,0.08)', border: '1px solid rgba(192,244,60,0.2)', color: '#3D6B00', fontSize: '13px', fontWeight: 600 }}>{socialMsg}</div>}
+
+          <div style={{ marginTop: '20px', padding: '14px 16px', background: '#F8FAFF', border: '1px solid #DDE8EE', borderRadius: '10px', fontSize: '12px', color: '#5B7080', lineHeight: 1.65 }}>
+            <strong style={{ color: '#0F1923' }}>Where to get your access token:</strong><br />
+            <strong>Facebook / Instagram:</strong> Meta Business Manager → Settings → Page Access Tokens<br />
+            <strong>LinkedIn:</strong> LinkedIn Developer Portal → Your App → Auth → OAuth Tokens<br />
+            Type <code style={{ background: '#E8EEF4', padding: '1px 5px', borderRadius: '4px' }}>DUMMY</code> in the token field to test publishing in simulation mode.
+          </div>
+        </div>
+      )}
+
+      {/* ── CONTENT CAMPAIGNS TAB ── */}
+      {pnlTab === 'content' && (
+        <div style={{ padding: '24px 28px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '20px' }}>
+            <div>
+              <div style={{ fontSize: '13px', fontWeight: 800, letterSpacing: '2px', textTransform: 'uppercase', color: '#A78BFA', marginBottom: '4px' }}>Content Campaigns</div>
+              <div style={{ fontSize: '14px', color: '#5B7080' }}>All social media campaigns linked to this event.</div>
+            </div>
+            <a href={`/content?event_id=${eventId}`}
+              style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', padding: '9px 18px', borderRadius: '10px', background: '#A78BFA', color: '#FFFFFF', fontSize: '13px', fontWeight: 800, textDecoration: 'none' }}>
+              + New Campaign
+            </a>
+          </div>
+
+          {contentLoading ? (
+            <div style={{ padding: '32px', textAlign: 'center', color: '#5B7080', fontSize: '13px' }}>Loading…</div>
+          ) : contentCampaigns.length === 0 ? (
+            <div style={{ padding: '40px', textAlign: 'center', background: '#FFFFFF', border: '1px solid #DDE8EE', borderRadius: '14px' }}>
+              <div style={{ fontSize: '14px', fontWeight: 700, color: '#0F1923', marginBottom: '8px' }}>No campaigns yet</div>
+              <div style={{ fontSize: '13px', color: '#5B7080', marginBottom: '20px' }}>Create your first campaign for this event.</div>
+              <a href={`/content?event_id=${eventId}`} style={{ display: 'inline-block', padding: '10px 24px', borderRadius: '10px', background: '#A78BFA', color: 'white', fontSize: '13px', fontWeight: 800, textDecoration: 'none' }}>
+                Create Campaign
+              </a>
+            </div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+              {contentCampaigns.map((c: ContentCampaign) => {
+                const PHASE_COLOR: Record<string, string> = { pre_event: '#A78BFA', live_week: '#3D6B00', post_event: '#00695C', always_on: '#92400E' }
+                const PHASE_LABEL: Record<string, string> = { pre_event: 'Pre-Event', live_week: 'Live Week', post_event: 'Post-Event', always_on: 'Always On' }
+                const postCount = c.content_posts?.[0]?.count ?? 0
+                return (
+                  <a key={c.id} href={`/content/campaigns/${c.id}`}
+                    style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '16px 20px', background: '#FFFFFF', border: '1px solid #DDE8EE', borderRadius: '12px', textDecoration: 'none', gap: '12px' }}>
+                    <div>
+                      <div style={{ fontSize: '14px', fontWeight: 700, color: '#0F1923', marginBottom: '4px' }}>{c.name}</div>
+                      <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
+                        <span style={{ fontSize: '11px', fontWeight: 700, color: PHASE_COLOR[c.phase] ?? '#5B7080', background: `${PHASE_COLOR[c.phase] ?? '#5B7080'}15`, padding: '2px 8px', borderRadius: '6px' }}>{PHASE_LABEL[c.phase] ?? c.phase}</span>
+                        <span style={{ fontSize: '11px', color: '#5B7080' }}>{postCount} posts</span>
+                        {c.platforms?.map((p: string) => <span key={p} style={{ fontSize: '11px', color: '#5B7080', background: '#F1F5F9', padding: '2px 7px', borderRadius: '5px' }}>{p}</span>)}
+                      </div>
+                    </div>
+                    <svg width="14" height="14" fill="none" stroke="#A78BFA" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg>
+                  </a>
+                )
+              })}
+            </div>
+          )}
+        </div>
+      )}
 
       <style>{`
         input[type="date"]::-webkit-calendar-picker-indicator { filter: invert(0.5); }

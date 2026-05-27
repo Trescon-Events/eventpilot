@@ -42,6 +42,8 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
   const [posts,    setPosts]      = useState<Post[]>([])
   const [loading,  setLoading]    = useState(true)
   const [generating, setGenerating] = useState<Record<string, boolean>>({})
+  const [generatingAll, setGeneratingAll] = useState(false)
+  const [publishingId, setPublishingId] = useState<string | null>(null)
   const [activePost, setActivePost] = useState<Post | null>(null)
   const [viewMode, setViewMode]   = useState<'weeks' | 'calendar' | 'list'>('weeks')
   const [rejectId, setRejectId]   = useState<string | null>(null)
@@ -162,6 +164,32 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
     for (const p of weekPosts) await generatePost(p)
   }
 
+  async function generateAll() {
+    const planned = posts.filter(p => p.status === 'planned')
+    if (!planned.length) return
+    setGeneratingAll(true)
+    for (const p of planned) await generatePost(p)
+    setGeneratingAll(false)
+  }
+
+  async function publishPost(postId: string) {
+    if (!campaign?.event_id) return
+    setPublishingId(postId)
+    try {
+      const res = await fetch('/api/content/publish', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ post_id: postId, event_id: campaign.event_id }),
+      })
+      if (res.ok) {
+        setPosts(ps => ps.map(p => p.id === postId ? { ...p, status: 'posted' } : p))
+        if (activePost?.id === postId) setActivePost(prev => prev ? { ...prev, status: 'posted' } : prev)
+      }
+    } finally {
+      setPublishingId(null)
+    }
+  }
+
   async function approvePost(postId: string) {
     setBusyId(postId)
     await fetch(`/api/content/posts/${postId}/approve`, { method: 'PATCH' })
@@ -246,27 +274,40 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
           </div>
         </div>
 
-        {/* Stats */}
-        <div style={{ display: 'flex', gap: '16px', flexShrink: 0 }}>
-          {[
-            { label: 'Posts', val: posts.length, color: '#2D3E50' },
-            { label: 'Pending', val: pendingApproval.length, color: '#92400E' },
-            { label: 'Approved', val: approvedCount, color: '#3D6B00' },
-            { label: 'Posted', val: postedCount, color: '#00695C' },
-          ].map(s => (
-            <div key={s.label} style={{ textAlign: 'center' }}>
-              <div style={{ fontSize: '36px', fontWeight: 900, color: s.color, lineHeight: 1 }}>{s.val}</div>
-              <div style={{ fontSize: '13px', color: '#0F1923', letterSpacing: '0.8px', textTransform: 'uppercase' }}>{s.label}</div>
-            </div>
-          ))}
+        {/* Stats + Generate All */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '24px', flexShrink: 0 }}>
+          <div style={{ display: 'flex', gap: '16px' }}>
+            {[
+              { label: 'Posts', val: posts.length, color: '#2D3E50' },
+              { label: 'Pending', val: pendingApproval.length, color: '#92400E' },
+              { label: 'Approved', val: approvedCount, color: '#3D6B00' },
+              { label: 'Posted', val: postedCount, color: '#00695C' },
+            ].map(s => (
+              <div key={s.label} style={{ textAlign: 'center' }}>
+                <div style={{ fontSize: '36px', fontWeight: 900, color: s.color, lineHeight: 1 }}>{s.val}</div>
+                <div style={{ fontSize: '13px', color: '#0F1923', letterSpacing: '0.8px', textTransform: 'uppercase' }}>{s.label}</div>
+              </div>
+            ))}
+          </div>
+          {posts.some(p => p.status === 'planned') && (
+            <button className="cp-btn cp-btn-teal" disabled={generatingAll}
+              onClick={generateAll}
+              style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', padding: '10px 20px' }}>
+              {generatingAll
+                ? <><svg className="spin" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M21 12a9 9 0 1 1-9-9"/></svg> Generating…</>
+                : <><svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" viewBox="0 0 24 24"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg> Generate All</>
+              }
+            </button>
+          )}
         </div>
       </div>
 
       {/* Tabs */}
       <div style={{ padding: '16px 40px', borderBottom: '1px solid #C8DFE0', display: 'flex', gap: '6px' }}>
         {([
-          { key: 'weeks', label: 'Campaign Weeks' },
-          { key: 'list',  label: 'List View' },
+          { key: 'weeks',     label: 'Campaign Weeks' },
+          { key: 'calendar',  label: 'Calendar' },
+          { key: 'list',      label: 'List View' },
           { key: 'approvals', label: `Approvals${pendingApproval.length ? ` (${pendingApproval.length})` : ''}` },
         ] as const).map(t => (
           <button key={t.key} className={`cp-tab${tab === t.key ? ' active' : ''}`} onClick={() => setTab(t.key)}>{t.label}</button>
@@ -393,6 +434,16 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
                                   Approve
                                 </button>
                               )}
+                              {post.status === 'approved' && campaign?.event_id && (
+                                <button className="cp-btn cp-btn-teal" style={{ fontSize: '13px', padding: '5px 10px', display: 'flex', alignItems: 'center', gap: '4px' }}
+                                  disabled={publishingId === post.id} onClick={() => publishPost(post.id)}>
+                                  {publishingId === post.id
+                                    ? <svg className="spin" width="11" height="11" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M21 12a9 9 0 1 1-9-9"/></svg>
+                                    : <svg width="11" height="11" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" viewBox="0 0 24 24"><line x1="12" y1="19" x2="12" y2="5"/><polyline points="5 12 12 5 19 12"/></svg>
+                                  }
+                                  {publishingId === post.id ? '…' : 'Publish'}
+                                </button>
+                              )}
                             </div>
                           </div>
                         </div>
@@ -436,57 +487,197 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
           </div>
         )}
 
-        {/* ── APPROVALS TAB ─────────────────────────────────────────────── */}
-        {tab === 'approvals' && (
-          <div>
-            {pendingApproval.length === 0 ? (
-              <div style={{ textAlign: 'center', padding: '60px', background: '#FFFFFF', border: '1px dashed #C8DFE0', borderRadius: '16px' }}>
-                <div style={{ fontSize: '13px', fontWeight: 700, color: '#3D6B00', marginBottom: '6px' }}>All clear</div>
-                <div style={{ fontSize: '13px', color: '#0F1923' }}>No posts awaiting approval.</div>
-              </div>
-            ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                {pendingApproval.map(post => {
-                  const pc = PLATFORM_COLOR[post.platform] ?? '#888'
-                  return (
-                    <div key={post.id} style={{ background: '#FFFFFF', border: '1px solid #9EC8C8', borderRadius: '14px', overflow: 'hidden', display: 'flex' }}>
-                      <div style={{ width: 4, background: pc, flexShrink: 0 }} />
-                      <div style={{ padding: '20px', flex: 1, display: 'flex', gap: '16px', alignItems: 'flex-start' }}>
-                        {post.image_url && (
-                          // eslint-disable-next-line @next/next/no-img-element
-                          <img src={post.image_url} alt="" style={{ width: 64, height: 64, objectFit: 'cover', borderRadius: '8px', flexShrink: 0 }} />
-                        )}
-                        <div style={{ flex: 1, minWidth: 0 }}>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px', flexWrap: 'wrap' }}>
-                            <span style={{ fontSize: '13px', fontWeight: 700, color: pc }}>{post.platform}</span>
-                            <span style={{ fontSize: '13px', color: '#0F1923' }}>Week {post.week_number} · {post.narrative_role}</span>
-                            <span style={{ fontSize: '13px', color: '#0F1923', marginLeft: 'auto' }}>{fmtDate(post.scheduled_date)}</span>
-                          </div>
-                          <div style={{ fontSize: '13px', color: '#2D3E50', lineHeight: 1.65, marginBottom: '12px', display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
-                            {post.text}
-                          </div>
-                          {post.revision_note && (
-                            <div style={{ background: 'rgba(255,107,107,0.08)', borderLeft: '3px solid #FF6B6B', padding: '8px 12px', borderRadius: '0 6px 6px 0', fontSize: '13px', color: '#FF6B6B', marginBottom: '10px' }}>
-                              Revision note: {post.revision_note}
-                            </div>
-                          )}
-                        </div>
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', flexShrink: 0 }}>
-                          <button className="cp-btn cp-btn-lime" style={{ fontSize: '13px' }} disabled={busyId === post.id} onClick={() => approvePost(post.id)}>
-                            {busyId === post.id ? '…' : 'Approve'}
-                          </button>
-                          <button className="cp-btn cp-btn-red" style={{ fontSize: '13px' }} onClick={() => { setRejectId(post.id); setRejectNote('') }}>
-                            Revise
-                          </button>
-                        </div>
-                      </div>
+        {/* ── CALENDAR TAB ──────────────────────────────────────────────── */}
+        {tab === 'calendar' && (() => {
+          if (!posts.length) return (
+            <div style={{ textAlign: 'center', padding: '60px', background: '#FFFFFF', border: '1px dashed #C8DFE0', borderRadius: '16px' }}>
+              <div style={{ fontSize: '13px', color: '#0F1923' }}>No posts scheduled yet.</div>
+            </div>
+          )
+
+          // Group posts by date
+          const byDate: Record<string, Post[]> = {}
+          posts.forEach(p => {
+            if (!byDate[p.scheduled_date]) byDate[p.scheduled_date] = []
+            byDate[p.scheduled_date].push(p)
+          })
+
+          // Determine calendar month range
+          const allDates = Object.keys(byDate).sort()
+          const start = new Date(allDates[0] + 'T00:00:00')
+          const end   = new Date(allDates[allDates.length - 1] + 'T00:00:00')
+
+          // Build months to render
+          const months: { year: number; month: number }[] = []
+          const cur = new Date(start.getFullYear(), start.getMonth(), 1)
+          const endMonth = new Date(end.getFullYear(), end.getMonth(), 1)
+          while (cur <= endMonth) {
+            months.push({ year: cur.getFullYear(), month: cur.getMonth() })
+            cur.setMonth(cur.getMonth() + 1)
+          }
+
+          const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
+          const MONTH_NAMES = ['January','February','March','April','May','June','July','August','September','October','November','December']
+
+          return (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '28px' }}>
+              {months.map(({ year, month }) => {
+                const firstDay = new Date(year, month, 1).getDay()
+                const daysInMonth = new Date(year, month + 1, 0).getDate()
+                const cells: (number | null)[] = [...Array(firstDay).fill(null), ...Array.from({ length: daysInMonth }, (_, i) => i + 1)]
+                while (cells.length % 7 !== 0) cells.push(null)
+
+                return (
+                  <div key={`${year}-${month}`} style={{ background: '#FFFFFF', border: '1px solid #9EC8C8', borderRadius: '14px', overflow: 'hidden' }}>
+                    <div style={{ padding: '14px 20px', borderBottom: '1px solid #C8DFE0', background: 'rgba(0,165,163,0.06)' }}>
+                      <span style={{ fontSize: '13px', fontWeight: 800, color: '#0F1923', letterSpacing: '0.5px', textTransform: 'uppercase' }}>{MONTH_NAMES[month]} {year}</span>
                     </div>
-                  )
-                })}
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', borderBottom: '1px solid #C8DFE0' }}>
+                      {DAYS.map(d => (
+                        <div key={d} style={{ padding: '8px 10px', textAlign: 'center', fontSize: '13px', fontWeight: 700, color: '#0F1923', letterSpacing: '0.6px', textTransform: 'uppercase', borderRight: '1px solid #C8DFE0' }}>{d}</div>
+                      ))}
+                    </div>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)' }}>
+                      {cells.map((day, ci) => {
+                        if (!day) return <div key={`e-${ci}`} style={{ minHeight: 80, borderRight: '1px solid #C8DFE0', borderBottom: '1px solid #C8DFE0', background: 'rgba(0,0,0,0.02)' }} />
+                        const dateKey = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`
+                        const dayPosts = byDate[dateKey] ?? []
+                        const today = new Date().toISOString().slice(0, 10)
+                        const isToday = dateKey === today
+                        return (
+                          <div key={dateKey} style={{ minHeight: 80, borderRight: '1px solid #C8DFE0', borderBottom: '1px solid #C8DFE0', padding: '6px', background: isToday ? 'rgba(0,165,163,0.04)' : 'transparent' }}>
+                            <div style={{ fontSize: '13px', fontWeight: isToday ? 800 : 600, color: isToday ? '#00A5A3' : '#0F1923', marginBottom: '4px' }}>{day}</div>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                              {dayPosts.map(p => {
+                                const pc = PLATFORM_COLOR[p.platform] ?? '#888'
+                                const sc = STATUS_CFG[p.status] ?? STATUS_CFG.planned
+                                return (
+                                  <div key={p.id} onClick={() => setActivePost(p)}
+                                    style={{ fontSize: '11px', padding: '2px 5px', borderRadius: '4px', background: sc.bg || 'rgba(0,165,163,0.08)', color: pc, fontWeight: 700, cursor: 'pointer', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', border: `1px solid ${pc}30` }}
+                                    title={`${p.platform} — ${p.narrative_role}${p.text ? ': ' + p.text.slice(0, 60) : ''}`}>
+                                    {p.platform.slice(0, 2)} · {p.narrative_role.slice(0, 8)}
+                                  </div>
+                                )
+                              })}
+                            </div>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          )
+        })()}
+
+        {/* ── APPROVALS TAB ─────────────────────────────────────────────── */}
+        {tab === 'approvals' && (() => {
+          const approvedPosts = posts.filter(p => p.status === 'approved')
+          return (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+
+              {/* Pending approval section */}
+              <div>
+                <div style={{ fontSize: '13px', fontWeight: 800, color: '#92400E', letterSpacing: '1px', textTransform: 'uppercase', marginBottom: '12px' }}>
+                  Awaiting Approval{pendingApproval.length ? ` — ${pendingApproval.length}` : ''}
+                </div>
+                {pendingApproval.length === 0 ? (
+                  <div style={{ textAlign: 'center', padding: '40px', background: '#FFFFFF', border: '1px dashed #C8DFE0', borderRadius: '16px' }}>
+                    <div style={{ fontSize: '13px', fontWeight: 700, color: '#3D6B00', marginBottom: '6px' }}>All clear</div>
+                    <div style={{ fontSize: '13px', color: '#0F1923' }}>No posts awaiting approval.</div>
+                  </div>
+                ) : (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                    {pendingApproval.map(post => {
+                      const pc = PLATFORM_COLOR[post.platform] ?? '#888'
+                      return (
+                        <div key={post.id} style={{ background: '#FFFFFF', border: '1px solid #9EC8C8', borderRadius: '14px', overflow: 'hidden', display: 'flex' }}>
+                          <div style={{ width: 4, background: pc, flexShrink: 0 }} />
+                          <div style={{ padding: '20px', flex: 1, display: 'flex', gap: '16px', alignItems: 'flex-start' }}>
+                            {post.image_url && (
+                              // eslint-disable-next-line @next/next/no-img-element
+                              <img src={post.image_url} alt="" style={{ width: 64, height: 64, objectFit: 'cover', borderRadius: '8px', flexShrink: 0 }} />
+                            )}
+                            <div style={{ flex: 1, minWidth: 0 }}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px', flexWrap: 'wrap' }}>
+                                <span style={{ fontSize: '13px', fontWeight: 700, color: pc }}>{post.platform}</span>
+                                <span style={{ fontSize: '13px', color: '#0F1923' }}>Week {post.week_number} · {post.narrative_role}</span>
+                                <span style={{ fontSize: '13px', color: '#0F1923', marginLeft: 'auto' }}>{fmtDate(post.scheduled_date)}</span>
+                              </div>
+                              <div style={{ fontSize: '15px', color: '#2D3E50', lineHeight: 1.65, marginBottom: '12px', whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
+                                {post.text}
+                              </div>
+                              {post.revision_note && (
+                                <div style={{ background: 'rgba(255,107,107,0.08)', borderLeft: '3px solid #FF6B6B', padding: '8px 12px', borderRadius: '0 6px 6px 0', fontSize: '13px', color: '#FF6B6B', marginBottom: '10px' }}>
+                                  Revision note: {post.revision_note}
+                                </div>
+                              )}
+                            </div>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', flexShrink: 0 }}>
+                              <button className="cp-btn cp-btn-lime" style={{ fontSize: '13px' }} disabled={busyId === post.id} onClick={() => approvePost(post.id)}>
+                                {busyId === post.id ? '…' : 'Approve'}
+                              </button>
+                              <button className="cp-btn cp-btn-red" style={{ fontSize: '13px' }} onClick={() => { setRejectId(post.id); setRejectNote('') }}>
+                                Revise
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
+                )}
               </div>
-            )}
-          </div>
-        )}
+
+              {/* Approved — ready to publish */}
+              {approvedPosts.length > 0 && (
+                <div>
+                  <div style={{ fontSize: '13px', fontWeight: 800, color: '#3D6B00', letterSpacing: '1px', textTransform: 'uppercase', marginBottom: '12px' }}>
+                    Approved — Ready to Publish ({approvedPosts.length})
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                    {approvedPosts.map(post => {
+                      const pc = PLATFORM_COLOR[post.platform] ?? '#888'
+                      return (
+                        <div key={post.id} style={{ background: '#FFFFFF', border: '1px solid #9EC8C8', borderRadius: '14px', overflow: 'hidden', display: 'flex' }}>
+                          <div style={{ width: 4, background: '#3D6B00', flexShrink: 0 }} />
+                          <div style={{ padding: '20px', flex: 1, display: 'flex', gap: '16px', alignItems: 'flex-start' }}>
+                            {post.image_url && (
+                              // eslint-disable-next-line @next/next/no-img-element
+                              <img src={post.image_url} alt="" style={{ width: 64, height: 64, objectFit: 'cover', borderRadius: '8px', flexShrink: 0 }} />
+                            )}
+                            <div style={{ flex: 1, minWidth: 0 }}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px', flexWrap: 'wrap' }}>
+                                <span style={{ fontSize: '13px', fontWeight: 700, color: pc }}>{post.platform}</span>
+                                <span style={{ fontSize: '13px', color: '#0F1923' }}>Week {post.week_number} · {post.narrative_role}</span>
+                                <span style={{ fontSize: '13px', padding: '2px 8px', borderRadius: '10px', background: 'rgba(192,244,60,0.12)', color: '#3D6B00', fontWeight: 700 }}>Approved</span>
+                                <span style={{ fontSize: '13px', color: '#0F1923', marginLeft: 'auto' }}>{fmtDate(post.scheduled_date)}</span>
+                              </div>
+                              <div style={{ fontSize: '15px', color: '#2D3E50', lineHeight: 1.65, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
+                                {post.text}
+                              </div>
+                            </div>
+                            {campaign?.event_id && (
+                              <button className="cp-btn cp-btn-teal" style={{ fontSize: '13px', flexShrink: 0, display: 'flex', alignItems: 'center', gap: '6px' }}
+                                disabled={publishingId === post.id} onClick={() => publishPost(post.id)}>
+                                {publishingId === post.id
+                                  ? <><svg className="spin" width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M21 12a9 9 0 1 1-9-9"/></svg> Publishing…</>
+                                  : <><svg width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" viewBox="0 0 24 24"><line x1="12" y1="19" x2="12" y2="5"/><polyline points="5 12 12 5 19 12"/></svg> Publish</>
+                                }
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
+                </div>
+              )}
+
+            </div>
+          )
+        })()}
       </div>
 
       {/* ── POST DETAIL MODAL ─────────────────────────────────────────────── */}
@@ -550,6 +741,15 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
                   )}
                   {post.status === 'generated' && (
                     <button className="cp-btn cp-btn-red" onClick={() => { setActivePost(null); setRejectId(post.id); setRejectNote('') }}>Request Revision</button>
+                  )}
+                  {post.status === 'approved' && campaign?.event_id && (
+                    <button className="cp-btn cp-btn-teal" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}
+                      disabled={publishingId === post.id} onClick={() => publishPost(post.id)}>
+                      {publishingId === post.id
+                        ? <><svg className="spin" width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M21 12a9 9 0 1 1-9-9"/></svg> Publishing…</>
+                        : <><svg width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" viewBox="0 0 24 24"><line x1="12" y1="19" x2="12" y2="5"/><polyline points="5 12 12 5 19 12"/></svg> Publish Now</>
+                      }
+                    </button>
                   )}
                 </div>
               </div>
