@@ -168,7 +168,24 @@ export default function AdminPage() {
   const [codeError, setCodeError] = useState('')
   const [members, setMembers] = useState<Member[]>([])
   const [tasks, setTasks]     = useState<TaskProfile[]>([])
-  const [tab, setTab]         = useState<'overview' | 'people' | 'intelligence' | 'action' | 'learning' | 'suggest' | 'events' | 'knowledge' | 'review' | 'toolkit'>('overview')
+  const [tab, setTab]         = useState<'overview' | 'people' | 'intelligence' | 'action' | 'learning' | 'suggest' | 'events' | 'knowledge' | 'review' | 'toolkit' | 'security'>('overview')
+
+  // Security tab state
+  type AuditRow = { id: string; email: string; ip: string | null; success: boolean; reason: string | null; attempted_at: string }
+  type SecurityData = { today_logins: number; today_failures: number; locked_now: string[]; recent: AuditRow[] }
+  const [securityData,    setSecurityData]    = useState<SecurityData | null>(null)
+  const [securityLoading, setSecurityLoading] = useState(false)
+
+  async function fetchSecurity() {
+    if (securityLoading) return
+    setSecurityLoading(true)
+    try {
+      const res = await fetch('/api/security/audit')
+      if (res.ok) setSecurityData(await res.json())
+    } finally {
+      setSecurityLoading(false)
+    }
+  }
 
   // Staff Management tab state
   const [staffList,       setStaffList]       = useState<{id:string;name:string;email:string;department:string|null;role:string|null;office_id:string|null;job_level:string;manager_id:string|null;toolkit_access?:boolean;access_enabled?:boolean}[]>([])
@@ -1299,6 +1316,7 @@ export default function AdminPage() {
             events:       '#00897B',
             knowledge:    '#166534',
             review:       '#991B1B',
+            security:     '#1D4ED8',
           }
           return (
             <div id="tour-tabs" style={{ display: 'flex', gap: '6px', marginBottom: '28px', flexWrap: 'wrap' }}>
@@ -1312,6 +1330,7 @@ export default function AdminPage() {
                 ['events',       'Events'],
                 ['knowledge',    'Knowledge Base'],
                 ...(adminStaffId === 'super-admin' ? [['review', 'Review Queue']] : []),
+                ...(adminStaffId === 'super-admin' ? [['security', 'Security']] : []),
                 ['toolkit',      'Toolkit'],
               ] as [typeof tab, string][]).map(([t, label]) => {
                 const accent  = TAB_ACCENT[t] ?? '#00897B'
@@ -1319,7 +1338,7 @@ export default function AdminPage() {
                 return (
                   <button key={t}
                     id={t === 'intelligence' ? 'tour-intelligence-tab' : t === 'suggest' ? 'tour-studio-tab' : undefined}
-                    onClick={() => { if (t === 'toolkit') { window.location.href = '/admin/toolkit'; return; } setTab(t as typeof tab); if (t === 'learning') fetchLearning(); if (t === 'people') { fetchStaffList(); markProgress('staff') } if (t === 'events') { fetchEvents(); fetchEventSummaries(); } if (t === 'knowledge') { fetchDocs(); fetchCustomDocTypes(); } if (t === 'review') fetchDrafts(); if (t === 'suggest') markProgress('course') }}
+                    onClick={() => { if (t === 'toolkit') { window.location.href = '/admin/toolkit'; return; } setTab(t as typeof tab); if (t === 'learning') fetchLearning(); if (t === 'people') { fetchStaffList(); markProgress('staff') } if (t === 'events') { fetchEvents(); fetchEventSummaries(); } if (t === 'knowledge') { fetchDocs(); fetchCustomDocTypes(); } if (t === 'review') fetchDrafts(); if (t === 'suggest') markProgress('course'); if (t === 'security') fetchSecurity() }}
                     style={{
                       padding:         active ? '9px 22px' : '9px 20px',
                       borderRadius:    '10px',
@@ -3837,6 +3856,114 @@ export default function AdminPage() {
                   )
                 })}
               </div>
+            )}
+          </div>
+        )}
+
+        {/* ── Security Tab (super admin only) ── */}
+        {tab === 'security' && adminStaffId === 'super-admin' && (
+          <div>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '24px' }}>
+              <div>
+                <div style={{ fontSize: '11px', fontWeight: 800, letterSpacing: '2px', textTransform: 'uppercase', color: '#1D4ED8', marginBottom: '4px' }}>Security</div>
+                <div style={{ fontSize: '22px', fontWeight: 900, color: '#0F1923', letterSpacing: '-0.4px' }}>Login Audit &amp; Access Control</div>
+              </div>
+              <button onClick={fetchSecurity} style={{ padding: '8px 18px', borderRadius: '10px', border: '1px solid #DDE8EE', background: '#FFFFFF', color: '#1D4ED8', fontSize: '13px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <svg width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-3.82"/></svg>
+                Refresh
+              </button>
+            </div>
+
+            {securityLoading && (
+              <div style={{ textAlign: 'center', padding: '60px', color: '#5B7080', fontSize: '13px' }}>Loading security data…</div>
+            )}
+
+            {!securityLoading && !securityData && (
+              <div style={{ textAlign: 'center', padding: '60px', color: '#5B7080', fontSize: '13px' }}>Click Refresh to load security data.</div>
+            )}
+
+            {securityData && (
+              <>
+                {/* Stats row */}
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '16px', marginBottom: '28px' }}>
+                  {[
+                    { label: 'Logins Today',    value: securityData.today_logins,   color: '#166534', bg: 'rgba(22,101,52,0.06)' },
+                    { label: 'Failed Today',     value: securityData.today_failures, color: '#991B1B', bg: 'rgba(153,27,27,0.06)' },
+                    { label: 'Locked Right Now', value: securityData.locked_now.length, color: '#92400E', bg: 'rgba(146,64,14,0.06)' },
+                  ].map(s => (
+                    <div key={s.label} style={{ background: s.bg, border: `1px solid ${s.color}22`, borderRadius: '14px', padding: '20px 24px' }}>
+                      <div style={{ fontSize: '28px', fontWeight: 900, color: s.color, letterSpacing: '-1px' }}>{s.value}</div>
+                      <div style={{ fontSize: '12px', fontWeight: 700, color: s.color, marginTop: '4px', opacity: 0.8 }}>{s.label}</div>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Locked accounts */}
+                {securityData.locked_now.length > 0 && (
+                  <div style={{ background: 'rgba(153,27,27,0.04)', border: '1px solid rgba(153,27,27,0.2)', borderRadius: '14px', padding: '20px 24px', marginBottom: '24px' }}>
+                    <div style={{ fontSize: '11px', fontWeight: 800, letterSpacing: '1.8px', textTransform: 'uppercase', color: '#991B1B', marginBottom: '12px' }}>Locked Now (5+ failures in last 15 min)</div>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+                      {securityData.locked_now.map(email => (
+                        <span key={email} style={{ background: 'rgba(153,27,27,0.08)', border: '1px solid rgba(153,27,27,0.25)', borderRadius: '8px', padding: '4px 12px', fontSize: '13px', fontWeight: 700, color: '#991B1B' }}>{email}</span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Login activity feed */}
+                <div style={{ background: '#FFFFFF', border: '1px solid #DDE8EE', borderRadius: '14px', overflow: 'hidden' }}>
+                  <div style={{ padding: '18px 24px', borderBottom: '1px solid #DDE8EE', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <svg width="14" height="14" fill="none" stroke="#1D4ED8" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+                    <div style={{ fontSize: '13px', fontWeight: 800, color: '#0F1923' }}>Recent Login Activity</div>
+                    <span style={{ fontSize: '11px', color: '#5B7080', marginLeft: 'auto' }}>Last {securityData.recent.length} attempts</span>
+                  </div>
+                  <div style={{ overflowX: 'auto' }}>
+                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
+                      <thead>
+                        <tr style={{ background: '#F8FAFC' }}>
+                          {['Time', 'Email', 'IP Address', 'Result', 'Reason'].map(h => (
+                            <th key={h} style={{ padding: '10px 16px', textAlign: 'left', fontSize: '11px', fontWeight: 800, letterSpacing: '1.2px', textTransform: 'uppercase', color: '#5B7080', borderBottom: '1px solid #DDE8EE', whiteSpace: 'nowrap' }}>{h}</th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {securityData.recent.map(row => {
+                          const t = new Date(row.attempted_at)
+                          const timeStr = t.toLocaleString('en-GB', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })
+                          const REASON_LABEL: Record<string, string> = {
+                            ok: 'Login OK', super_admin_ok: 'Admin Login', wrong_password: 'Wrong Password',
+                            not_found: 'Email Not Found', account_disabled: 'Account Disabled',
+                            rate_limited: 'Rate Limited', ip_blocked: 'IP Blocked',
+                          }
+                          return (
+                            <tr key={row.id} style={{ borderBottom: '1px solid #F0F4F8' }}>
+                              <td style={{ padding: '10px 16px', color: '#5B7080', whiteSpace: 'nowrap' }}>{timeStr}</td>
+                              <td style={{ padding: '10px 16px', color: '#0F1923', fontWeight: 600, maxWidth: '200px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{row.email}</td>
+                              <td style={{ padding: '10px 16px', color: '#5B7080', fontFamily: 'monospace', fontSize: '12px' }}>{row.ip ?? '—'}</td>
+                              <td style={{ padding: '10px 16px' }}>
+                                <span style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', padding: '2px 10px', borderRadius: '6px', fontSize: '11px', fontWeight: 800, background: row.success ? 'rgba(22,101,52,0.08)' : 'rgba(153,27,27,0.08)', color: row.success ? '#166534' : '#991B1B' }}>
+                                  {row.success ? 'Success' : 'Failed'}
+                                </span>
+                              </td>
+                              <td style={{ padding: '10px 16px', color: '#5B7080' }}>{REASON_LABEL[row.reason ?? ''] ?? row.reason ?? '—'}</td>
+                            </tr>
+                          )
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+
+                {/* IP Allowlist config note */}
+                <div style={{ marginTop: '24px', background: 'rgba(29,78,216,0.04)', border: '1px solid rgba(29,78,216,0.15)', borderRadius: '14px', padding: '20px 24px' }}>
+                  <div style={{ fontSize: '12px', fontWeight: 800, letterSpacing: '1.5px', textTransform: 'uppercase', color: '#1D4ED8', marginBottom: '8px' }}>IP Allowlist</div>
+                  <div style={{ fontSize: '13px', color: '#2D3E50', lineHeight: 1.7 }}>
+                    To restrict staff logins to office networks only, add the <strong>OFFICE_IPS</strong> environment variable in Vercel with a comma-separated list of your office public IPs.<br/>
+                    Example: <span style={{ fontFamily: 'monospace', background: '#F0F4F8', padding: '1px 6px', borderRadius: '4px', fontSize: '12px' }}>203.0.113.10,198.51.100.42</span><br/>
+                    Admins (dept_head and above) are always exempt from IP restrictions.
+                  </div>
+                </div>
+              </>
             )}
           </div>
         )}
