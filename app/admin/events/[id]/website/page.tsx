@@ -30,6 +30,7 @@ type WebsiteSettings = {
   venue_name: string | null; venue_city: string | null
   venue_address: string | null; venue_date_display: string | null
   theme_primary: string; theme_accent: string; theme_teal: string
+  media_kit_url: string | null; brand_kit_url: string | null
   konfhub_event_id: string | null; konfhub_api_key: string | null
   konfhub_speaker_ticket: string | null; konfhub_partner_ticket: string | null
 }
@@ -486,6 +487,18 @@ export default function EventWebsiteAdmin({ params }: { params: Promise<{ id: st
                 <div style={{ fontSize: '12px', fontWeight: 800, color: C.muted, letterSpacing: '1.5px', textTransform: 'uppercase', marginBottom: '18px' }}>URL Slug</div>
                 <Field label="Slug" value={settings.slug ?? ''} onChange={SET('slug')} placeholder="vault-2047-mumbai-2026" />
                 {settings.slug && <div style={{ fontSize: '11px', color: C.muted, marginTop: '6px' }}>/events/{settings.slug}</div>}
+              </div>
+            </div>
+
+            {/* Media & Brand */}
+            <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: '16px', padding: '24px', gridColumn: '1/-1' }}>
+              <div style={{ fontSize: '12px', fontWeight: 800, color: C.muted, letterSpacing: '1.5px', textTransform: 'uppercase', marginBottom: '18px' }}>Media &amp; Brand Kit</div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px' }}>
+                <Field label="Media Kit URL" value={settings.media_kit_url ?? ''} onChange={SET('media_kit_url')} placeholder="/ai2047-media-kit.html" />
+                <Field label="Brand Guidelines URL" value={settings.brand_kit_url ?? ''} onChange={SET('brand_kit_url')} placeholder="/ai2047-brand-hub.html" />
+              </div>
+              <div style={{ marginTop: '10px', padding: '10px 14px', borderRadius: '8px', background: 'rgba(0,165,163,0.06)', border: '1px solid rgba(0,165,163,0.18)', fontSize: '12px', color: C.muted }}>
+                When set, a &ldquo;Media&rdquo; link appears in the nav and a Press &amp; Media section is added to the event page with download buttons for both resources.
               </div>
             </div>
 

@@ -102,18 +102,37 @@ function EventPicker({ tool, events, onClose }: {
   events: Event[]
   onClose: () => void
 }) {
+  const [query, setQuery] = useState('')
+  const filtered = query.trim()
+    ? events.filter(e => e.name.toLowerCase().includes(query.toLowerCase()) || (e.city ?? '').toLowerCase().includes(query.toLowerCase()))
+    : events
+
   return (
     <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '24px' }}
       onClick={onClose}>
       <div style={{ background: '#FFFFFF', borderRadius: '20px', padding: '32px', width: '100%', maxWidth: '480px', maxHeight: '80vh', display: 'flex', flexDirection: 'column', boxShadow: '0 24px 64px rgba(0,0,0,0.2)' }}
         onClick={e => e.stopPropagation()}>
 
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '20px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
           <div>
             <div style={{ fontSize: '16px', fontWeight: 900, color: '#0F1923' }}>Select an event</div>
             <div style={{ fontSize: '13px', color: '#5B7080', marginTop: '3px' }}>Opening: {tool.label}</div>
           </div>
           <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#5B7080', padding: '4px', fontSize: '20px', lineHeight: 1 }}>×</button>
+        </div>
+
+        <div style={{ position: 'relative', marginBottom: '16px' }}>
+          <svg width="14" height="14" fill="none" stroke="#5B7080" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"
+            style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none' }}>
+            <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
+          </svg>
+          <input
+            autoFocus
+            value={query}
+            onChange={e => setQuery(e.target.value)}
+            placeholder="Search events…"
+            style={{ width: '100%', padding: '10px 12px 10px 34px', borderRadius: '10px', border: '1px solid #DDE8EE', fontSize: '13px', fontFamily: 'inherit', color: '#0F1923', boxSizing: 'border-box', outline: 'none' }}
+          />
         </div>
 
         <div style={{ overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '8px' }}>
@@ -130,12 +149,12 @@ function EventPicker({ tool, events, onClose }: {
               <svg width="14" height="14" fill="none" stroke={tool.accent} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg>
             </Link>
           )}
-          {tool.id === 'drt' && events.length > 0 && (
+          {tool.id === 'drt' && filtered.length > 0 && (
             <div style={{ fontSize: '10px', fontWeight: 800, letterSpacing: '1.5px', textTransform: 'uppercase', color: '#B8CDD8', padding: '4px 4px 2px' }}>Or pick an event</div>
           )}
-          {events.length === 0 && tool.id !== 'drt' ? (
-            <div style={{ padding: '32px', textAlign: 'center', color: '#5B7080', fontSize: '14px' }}>No events found.</div>
-          ) : events.map(ev => (
+          {filtered.length === 0 ? (
+            <div style={{ padding: '32px', textAlign: 'center', color: '#5B7080', fontSize: '14px' }}>No events match &ldquo;{query}&rdquo;.</div>
+          ) : filtered.map(ev => (
             <Link key={ev.id} href={tool.route!(ev.id)}
               style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 16px', borderRadius: '12px', border: '1px solid #DDE8EE', background: '#FAFBFC', textDecoration: 'none', transition: 'border-color 0.15s, background 0.15s' }}
               onMouseEnter={e => { (e.currentTarget as HTMLElement).style.borderColor = tool.accent; (e.currentTarget as HTMLElement).style.background = `${tool.accent}08` }}

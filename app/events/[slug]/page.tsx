@@ -24,6 +24,7 @@ type Website = {
   venue_name: string | null; venue_city: string | null
   venue_address: string | null; venue_date_display: string | null
   theme_primary: string; theme_accent: string; theme_teal: string
+  media_kit_url: string | null; brand_kit_url: string | null
 }
 type EventRow = { name: string; event_date: string | null; city: string | null; description: string | null }
 
@@ -187,6 +188,7 @@ export default async function EventPublicPage({ params }: { params: Promise<{ sl
             {speakers.length > 0 && <a href="#speakers" style={{ fontSize: '13px', color: 'rgba(240,237,232,0.6)', fontWeight: 500 }}>Speakers</a>}
             {agenda.length   > 0 && <a href="#agenda"   style={{ fontSize: '13px', color: 'rgba(240,237,232,0.6)', fontWeight: 500 }}>Agenda</a>}
             {sponsors.length > 0 && <a href="#sponsors" style={{ fontSize: '13px', color: 'rgba(240,237,232,0.6)', fontWeight: 500 }}>Partners</a>}
+            {w.media_kit_url && <a href="#media" style={{ fontSize: '13px', color: 'rgba(240,237,232,0.6)', fontWeight: 500 }}>Media</a>}
             {w.hero_cta_url && (
               <a href={w.hero_cta_url} className="ev-nav-cta" target="_blank" rel="noreferrer">
                 {w.hero_cta_label || 'Register'}
@@ -364,6 +366,35 @@ export default async function EventPublicPage({ params }: { params: Promise<{ sl
           </section>
         )}
 
+        {/* Press & Media */}
+        {(w.media_kit_url || w.brand_kit_url) && (
+          <section id="media" className="ev-section">
+            <div className="ev-wrap">
+              <div className="ev-label">Press &amp; Media</div>
+              <h2 className="ev-h2">Media Resources</h2>
+              <p className="ev-body" style={{ maxWidth: '620px', marginBottom: '40px' }}>
+                Download logos, brand assets, speaker profiles, and press materials for editorial and promotional use.
+              </p>
+              <div style={{ display: 'flex', gap: '16px', flexWrap: 'wrap' }}>
+                {w.media_kit_url && (
+                  <a href={w.media_kit_url} target="_blank" rel="noreferrer"
+                    style={{ display: 'inline-flex', alignItems: 'center', gap: '10px', padding: '16px 28px', borderRadius: '12px', background: `${A}18`, border: `1px solid ${A}33`, color: 'rgba(240,237,232,0.95)', fontWeight: 700, fontSize: '15px', textDecoration: 'none' }}>
+                    <svg width="18" height="18" fill="none" stroke={A} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                    Download Media Kit
+                  </a>
+                )}
+                {w.brand_kit_url && (
+                  <a href={w.brand_kit_url} target="_blank" rel="noreferrer"
+                    style={{ display: 'inline-flex', alignItems: 'center', gap: '10px', padding: '16px 28px', borderRadius: '12px', background: `${T}10`, border: `1px solid ${T}30`, color: 'rgba(240,237,232,0.85)', fontWeight: 700, fontSize: '15px', textDecoration: 'none' }}>
+                    <svg width="18" height="18" fill="none" stroke={T} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="10" r="3"/><path d="M7 20.662V19a2 2 0 0 1 2-2h6a2 2 0 0 1 2 2v1.662"/></svg>
+                    Brand Guidelines
+                  </a>
+                )}
+              </div>
+            </div>
+          </section>
+        )}
+
         {/* Register CTA */}
         {w.hero_cta_url && (
           <section className="ev-register" id="register">
@@ -378,8 +409,16 @@ export default async function EventPublicPage({ params }: { params: Promise<{ sl
         {/* Footer */}
         <footer className="ev-footer">
           <div style={{ fontWeight: 800, fontSize: '16px', letterSpacing: '-0.03em', color: 'rgba(240,237,232,0.85)' }}>{ev?.name ?? title}</div>
-          <div style={{ fontSize: '12px', color: 'rgba(240,237,232,0.3)' }}>
-            {w.venue_date_display || [eventDate, ev?.city].filter(Boolean).join(' · ')}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
+            {w.media_kit_url && (
+              <a href={w.media_kit_url} target="_blank" rel="noreferrer" style={{ fontSize: '12px', color: 'rgba(240,237,232,0.4)', fontWeight: 600 }}>Media Kit</a>
+            )}
+            {w.brand_kit_url && (
+              <a href={w.brand_kit_url} target="_blank" rel="noreferrer" style={{ fontSize: '12px', color: 'rgba(240,237,232,0.4)', fontWeight: 600 }}>Brand Kit</a>
+            )}
+            <div style={{ fontSize: '12px', color: 'rgba(240,237,232,0.3)' }}>
+              {w.venue_date_display || [eventDate, ev?.city].filter(Boolean).join(' · ')}
+            </div>
           </div>
         </footer>
 

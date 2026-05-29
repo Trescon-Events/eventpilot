@@ -128,3 +128,8 @@ create trigger trg_event_website_updated_at
 -- Run this once if bucket doesn't exist:
 -- insert into storage.buckets (id, name, public) values ('event-website-assets', 'event-website-assets', true)
 -- on conflict do nothing;
+
+-- ── Migration: Media Kit & Brand Guidelines URLs ───────────────────────────────
+-- Run once to add media/brand kit fields to existing event_websites tables:
+alter table event_websites add column if not exists media_kit_url  text;
+alter table event_websites add column if not exists brand_kit_url  text;
