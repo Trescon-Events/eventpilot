@@ -31,6 +31,12 @@ type WebsiteSettings = {
   venue_address: string | null; venue_date_display: string | null
   theme_primary: string; theme_accent: string; theme_teal: string
   media_kit_url: string | null; brand_kit_url: string | null
+  brand_doc_url: string | null
+  logo_primary_url: string | null; logo_white_url: string | null
+  logo_dark_url: string | null; logo_horizontal_url: string | null
+  brand_font_heading: string | null; brand_font_body: string | null
+  brand_color_1: string | null; brand_color_2: string | null; brand_color_3: string | null
+  brand_color_4: string | null; brand_color_5: string | null
   konfhub_event_id: string | null; konfhub_api_key: string | null
   konfhub_speaker_ticket: string | null; konfhub_partner_ticket: string | null
 }
@@ -52,7 +58,7 @@ type Sponsor = {
   konfhub_booking_id: string | null; order_index: number; active: boolean
 }
 
-type Tab = 'settings' | 'speakers' | 'agenda' | 'sponsors'
+type Tab = 'brand' | 'settings' | 'speakers' | 'agenda' | 'sponsors'
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 const TIER_ORDER = ['keynote', 'speaker', 'panelist', 'moderator']
@@ -161,7 +167,7 @@ function Modal({ title, onClose, children }: { title: string; onClose: () => voi
 export default function EventWebsiteAdmin({ params }: { params: Promise<{ id: string }> }) {
   const { id: eventId } = use(params)
 
-  const [tab,       setTab]       = useState<Tab>('settings')
+  const [tab,       setTab]       = useState<Tab>('brand')
   const [eventName, setEventName] = useState('')
   const [loading,   setLoading]   = useState(true)
   const [msg,       setMsg]       = useState('')
@@ -403,13 +409,151 @@ export default function EventWebsiteAdmin({ params }: { params: Promise<{ id: st
 
         {/* Tab bar */}
         <div style={{ display: 'flex', gap: '4px', background: C.surface, border: `1px solid ${C.border}`, borderRadius: '12px', padding: '6px', marginBottom: '24px', width: 'fit-content' }}>
-          {(['settings', 'speakers', 'agenda', 'sponsors'] as Tab[]).map(t => (
+          {(['brand', 'settings', 'speakers', 'agenda', 'sponsors'] as Tab[]).map(t => (
             <button key={t} onClick={() => setTab(t)}
               style={{ padding: '8px 20px', borderRadius: '8px', border: 'none', background: tab === t ? C.text : 'transparent', color: tab === t ? C.green : C.muted, fontSize: '13px', fontWeight: tab === t ? 700 : 500, cursor: 'pointer', fontFamily: 'inherit', textTransform: 'capitalize' }}>
-              {t === 'speakers' ? `Speakers (${speakers.length})` : t === 'agenda' ? `Agenda (${agenda.length})` : t === 'sponsors' ? `Sponsors (${sponsors.length})` : 'Settings'}
+              {t === 'speakers' ? `Speakers (${speakers.length})` : t === 'agenda' ? `Agenda (${agenda.length})` : t === 'sponsors' ? `Sponsors (${sponsors.length})` : t === 'brand' ? 'Brand' : 'Settings'}
             </button>
           ))}
         </div>
+
+        {/* ── BRAND ────────────────────────────────────────────────────── */}
+        {tab === 'brand' && (
+          <div style={{ display: 'grid', gap: '20px' }}>
+
+            {/* Step 1 — Brand Document */}
+            <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: '16px', padding: '24px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '6px' }}>
+                <div style={{ width: '24px', height: '24px', borderRadius: '50%', background: C.teal, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '12px', fontWeight: 900, color: '#fff', flexShrink: 0 }}>1</div>
+                <div style={{ fontSize: '13px', fontWeight: 800, color: C.text }}>Brand Guidelines Document</div>
+              </div>
+              <div style={{ fontSize: '12px', color: C.muted, marginBottom: '16px', paddingLeft: '34px' }}>Upload your brand PDF. Once uploaded, manually set the colours and fonts extracted from it below.</div>
+              <div style={{ paddingLeft: '34px' }}>
+                <ImageUpload label="Brand PDF / Guidelines Doc" value={settings.brand_doc_url ?? null} eventId={eventId} section="brand_doc" onUpload={v => setSettings(s => ({ ...s, brand_doc_url: v }))} />
+                {settings.brand_doc_url && (
+                  <a href={settings.brand_doc_url} target="_blank" rel="noreferrer"
+                    style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', marginTop: '10px', fontSize: '12px', color: C.teal, fontWeight: 600, textDecoration: 'none' }}>
+                    <svg width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+                    View uploaded document
+                  </a>
+                )}
+              </div>
+            </div>
+
+            {/* Step 2 — Logos */}
+            <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: '16px', padding: '24px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '6px' }}>
+                <div style={{ width: '24px', height: '24px', borderRadius: '50%', background: C.teal, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '12px', fontWeight: 900, color: '#fff', flexShrink: 0 }}>2</div>
+                <div style={{ fontSize: '13px', fontWeight: 800, color: C.text }}>Logo Variants</div>
+              </div>
+              <div style={{ fontSize: '12px', color: C.muted, marginBottom: '16px', paddingLeft: '34px' }}>Upload all logo versions — used across the website and in the media kit.</div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', paddingLeft: '34px' }}>
+                <div style={{ background: '#0F1923', borderRadius: '10px', padding: '16px' }}>
+                  <ImageUpload label="Primary Logo (colour)" value={settings.logo_primary_url ?? null} eventId={eventId} section="logo_primary" onUpload={v => setSettings(s => ({ ...s, logo_primary_url: v }))} />
+                </div>
+                <div style={{ background: '#0F1923', borderRadius: '10px', padding: '16px' }}>
+                  <ImageUpload label="White / Light Logo" value={settings.logo_white_url ?? null} eventId={eventId} section="logo_white" onUpload={v => setSettings(s => ({ ...s, logo_white_url: v }))} />
+                </div>
+                <div style={{ background: '#F8FAFF', borderRadius: '10px', padding: '16px', border: `1px solid ${C.border}` }}>
+                  <ImageUpload label="Dark Logo (on white)" value={settings.logo_dark_url ?? null} eventId={eventId} section="logo_dark" onUpload={v => setSettings(s => ({ ...s, logo_dark_url: v }))} />
+                </div>
+                <div style={{ background: '#F8FAFF', borderRadius: '10px', padding: '16px', border: `1px solid ${C.border}` }}>
+                  <ImageUpload label="Horizontal / Wide Logo" value={settings.logo_horizontal_url ?? null} eventId={eventId} section="logo_horizontal" onUpload={v => setSettings(s => ({ ...s, logo_horizontal_url: v }))} />
+                </div>
+              </div>
+            </div>
+
+            {/* Step 3 — Colours */}
+            <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: '16px', padding: '24px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '6px' }}>
+                <div style={{ width: '24px', height: '24px', borderRadius: '50%', background: C.teal, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '12px', fontWeight: 900, color: '#fff', flexShrink: 0 }}>3</div>
+                <div style={{ fontSize: '13px', fontWeight: 800, color: C.text }}>Brand Colours</div>
+              </div>
+              <div style={{ fontSize: '12px', color: C.muted, marginBottom: '16px', paddingLeft: '34px' }}>Enter the exact hex codes from your brand document. The first 3 map directly to the website theme.</div>
+              <div style={{ paddingLeft: '34px' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: '12px', marginBottom: '20px' }}>
+                  {([
+                    { key: 'brand_color_1', label: 'Primary' },
+                    { key: 'brand_color_2', label: 'Accent' },
+                    { key: 'brand_color_3', label: 'Secondary' },
+                    { key: 'brand_color_4', label: 'Colour 4' },
+                    { key: 'brand_color_5', label: 'Colour 5' },
+                  ] as { key: keyof WebsiteSettings; label: string }[]).map(({ key, label }) => {
+                    const val = (settings[key] as string) ?? '#000000'
+                    return (
+                      <div key={key}>
+                        <div style={{ fontSize: '10px', fontWeight: 700, color: C.muted, textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '6px' }}>{label}</div>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                          <div style={{ width: '100%', height: '48px', borderRadius: '8px', background: val, border: `1px solid ${C.border}` }} />
+                          <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
+                            <input type="color" value={val} onChange={e => setSettings(s => ({ ...s, [key]: e.target.value }))}
+                              style={{ width: '28px', height: '28px', border: 'none', background: 'none', cursor: 'pointer', padding: 0, flexShrink: 0 }} />
+                            <input value={val} onChange={e => setSettings(s => ({ ...s, [key]: e.target.value }))}
+                              style={{ flex: 1, padding: '5px 8px', borderRadius: '6px', border: `1px solid ${C.border}`, fontSize: '11px', fontFamily: 'monospace', color: C.text, minWidth: 0 }} />
+                          </div>
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+                <button
+                  onClick={() => {
+                    const c1 = settings.brand_color_1 || settings.theme_primary
+                    const c2 = settings.brand_color_2 || settings.theme_accent
+                    const c3 = settings.brand_color_3 || settings.theme_teal
+                    setSettings(s => ({ ...s, theme_primary: c1 ?? '#080A0C', theme_accent: c2 ?? '#E07B2C', theme_teal: c3 ?? '#00B4B0' }))
+                    showMsg('Colours applied to website theme.')
+                  }}
+                  style={{ padding: '10px 20px', borderRadius: '8px', border: 'none', background: C.green, color: C.text, fontSize: '12px', fontWeight: 800, cursor: 'pointer', fontFamily: 'inherit' }}>
+                  Apply Colours to Website Theme
+                </button>
+                <div style={{ fontSize: '11px', color: C.muted, marginTop: '8px' }}>Maps Primary → Background, Accent → Buttons/Highlights, Secondary → Teal accents.</div>
+              </div>
+            </div>
+
+            {/* Step 4 — Typography */}
+            <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: '16px', padding: '24px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '6px' }}>
+                <div style={{ width: '24px', height: '24px', borderRadius: '50%', background: C.teal, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '12px', fontWeight: 900, color: '#fff', flexShrink: 0 }}>4</div>
+                <div style={{ fontSize: '13px', fontWeight: 800, color: C.text }}>Typography</div>
+              </div>
+              <div style={{ fontSize: '12px', color: C.muted, marginBottom: '16px', paddingLeft: '34px' }}>Font names from your brand document (must be available on Google Fonts).</div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px', paddingLeft: '34px' }}>
+                <Field label="Heading Font" value={settings.brand_font_heading ?? ''} onChange={v => setSettings(s => ({ ...s, brand_font_heading: v }))} placeholder="e.g. Inter, Sora, Manrope" />
+                <Field label="Body Font" value={settings.brand_font_body ?? ''} onChange={v => setSettings(s => ({ ...s, brand_font_body: v }))} placeholder="e.g. Inter, DM Sans" />
+              </div>
+              {(settings.brand_font_heading || settings.brand_font_body) && (
+                <div style={{ marginTop: '12px', paddingLeft: '34px' }}>
+                  <div style={{ padding: '14px 16px', borderRadius: '8px', background: '#F8FAFF', border: `1px solid ${C.border}` }}>
+                    <div style={{ fontFamily: settings.brand_font_heading ?? 'inherit', fontSize: '22px', fontWeight: 900, color: C.text, marginBottom: '6px' }}>Heading Preview — {settings.brand_font_heading || 'system font'}</div>
+                    <div style={{ fontFamily: settings.brand_font_body ?? 'inherit', fontSize: '14px', color: C.muted, lineHeight: 1.6 }}>Body text preview — {settings.brand_font_body || 'system font'}. The quick brown fox jumps over the lazy dog.</div>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Step 5 — Additional Assets */}
+            <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: '16px', padding: '24px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '6px' }}>
+                <div style={{ width: '24px', height: '24px', borderRadius: '50%', background: C.teal, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '12px', fontWeight: 900, color: '#fff', flexShrink: 0 }}>5</div>
+                <div style={{ fontSize: '13px', fontWeight: 800, color: C.text }}>Media Kit & Brand Hub Links</div>
+              </div>
+              <div style={{ fontSize: '12px', color: C.muted, marginBottom: '16px', paddingLeft: '34px' }}>Links to the full brand hub and media kit — shown on the public event website.</div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px', paddingLeft: '34px' }}>
+                <Field label="Media Kit URL" value={settings.media_kit_url ?? ''} onChange={v => setSettings(s => ({ ...s, media_kit_url: v }))} placeholder="/ai2047-media-kit.html" />
+                <Field label="Brand Hub URL" value={settings.brand_kit_url ?? ''} onChange={v => setSettings(s => ({ ...s, brand_kit_url: v }))} placeholder="/ai2047-brand-hub.html" />
+              </div>
+            </div>
+
+            {/* Save */}
+            <div>
+              <button onClick={saveSettings} disabled={savingSettings}
+                style={{ padding: '12px 28px', borderRadius: '10px', border: 'none', background: C.green, color: C.text, fontSize: '13px', fontWeight: 800, cursor: 'pointer', fontFamily: 'inherit', opacity: savingSettings ? 0.6 : 1 }}>
+                {savingSettings ? 'Saving…' : 'Save Brand Settings'}
+              </button>
+            </div>
+          </div>
+        )}
 
         {/* ── SETTINGS ─────────────────────────────────────────────────── */}
         {tab === 'settings' && (
@@ -487,18 +631,6 @@ export default function EventWebsiteAdmin({ params }: { params: Promise<{ id: st
                 <div style={{ fontSize: '12px', fontWeight: 800, color: C.muted, letterSpacing: '1.5px', textTransform: 'uppercase', marginBottom: '18px' }}>URL Slug</div>
                 <Field label="Slug" value={settings.slug ?? ''} onChange={SET('slug')} placeholder="vault-2047-mumbai-2026" />
                 {settings.slug && <div style={{ fontSize: '11px', color: C.muted, marginTop: '6px' }}>/events/{settings.slug}</div>}
-              </div>
-            </div>
-
-            {/* Media & Brand */}
-            <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: '16px', padding: '24px', gridColumn: '1/-1' }}>
-              <div style={{ fontSize: '12px', fontWeight: 800, color: C.muted, letterSpacing: '1.5px', textTransform: 'uppercase', marginBottom: '18px' }}>Media &amp; Brand Kit</div>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px' }}>
-                <Field label="Media Kit URL" value={settings.media_kit_url ?? ''} onChange={SET('media_kit_url')} placeholder="/ai2047-media-kit.html" />
-                <Field label="Brand Guidelines URL" value={settings.brand_kit_url ?? ''} onChange={SET('brand_kit_url')} placeholder="/ai2047-brand-hub.html" />
-              </div>
-              <div style={{ marginTop: '10px', padding: '10px 14px', borderRadius: '8px', background: 'rgba(0,165,163,0.06)', border: '1px solid rgba(0,165,163,0.18)', fontSize: '12px', color: C.muted }}>
-                When set, a &ldquo;Media&rdquo; link appears in the nav and a Press &amp; Media section is added to the event page with download buttons for both resources.
               </div>
             </div>
 

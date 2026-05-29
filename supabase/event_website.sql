@@ -130,6 +130,19 @@ create trigger trg_event_website_updated_at
 -- on conflict do nothing;
 
 -- ── Migration: Media Kit & Brand Guidelines URLs ───────────────────────────────
--- Run once to add media/brand kit fields to existing event_websites tables:
-alter table event_websites add column if not exists media_kit_url  text;
-alter table event_websites add column if not exists brand_kit_url  text;
+alter table event_websites add column if not exists media_kit_url        text;
+alter table event_websites add column if not exists brand_kit_url        text;
+
+-- ── Migration: Brand Setup — logos, colours, fonts ────────────────────────────
+alter table event_websites add column if not exists brand_doc_url        text;
+alter table event_websites add column if not exists logo_primary_url     text;
+alter table event_websites add column if not exists logo_white_url       text;
+alter table event_websites add column if not exists logo_dark_url        text;
+alter table event_websites add column if not exists logo_horizontal_url  text;
+alter table event_websites add column if not exists brand_font_heading   text;
+alter table event_websites add column if not exists brand_font_body      text;
+alter table event_websites add column if not exists brand_color_1        text;
+alter table event_websites add column if not exists brand_color_2        text;
+alter table event_websites add column if not exists brand_color_3        text;
+alter table event_websites add column if not exists brand_color_4        text;
+alter table event_websites add column if not exists brand_color_5        text;
