@@ -37,6 +37,10 @@ type WebsiteSettings = {
   brand_font_heading: string | null; brand_font_body: string | null
   brand_color_1: string | null; brand_color_2: string | null; brand_color_3: string | null
   brand_color_4: string | null; brand_color_5: string | null
+  pattern_1_url: string | null; pattern_2_url: string | null; pattern_3_url: string | null
+  pattern_4_url: string | null; pattern_5_url: string | null
+  bg_about_url: string | null; bg_sponsors_url: string | null; bg_agenda_url: string | null
+  page_settings: PageSettings | null
   konfhub_event_id: string | null; konfhub_api_key: string | null
   konfhub_speaker_ticket: string | null; konfhub_partner_ticket: string | null
 }
@@ -58,7 +62,10 @@ type Sponsor = {
   konfhub_booking_id: string | null; order_index: number; active: boolean
 }
 
-type Tab = 'brand' | 'settings' | 'speakers' | 'agenda' | 'sponsors'
+type PageSection = { enabled: boolean; layout?: string; show_bio?: boolean; filter_tier?: boolean; show_website?: boolean }
+type PageSettings = { sections: Record<string, PageSection>; order: string[] }
+type TeamMember  = { id: string; name: string | null; email: string; role: string; status: string; invite_token: string; created_at: string }
+type Tab = 'brand' | 'pages' | 'settings' | 'speakers' | 'agenda' | 'sponsors' | 'team'
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 const TIER_ORDER = ['keynote', 'speaker', 'panelist', 'moderator']
@@ -199,6 +206,30 @@ export default function EventWebsiteAdmin({ params }: { params: Promise<{ id: st
   const [editSponsor,  setEditSponsor]  = useState<Partial<Sponsor> | null>(null)
   const [savingSpn,    setSavingSpn]    = useState(false)
 
+  // Team
+  const [team,        setTeam]        = useState<TeamMember[]>([])
+  const [teamLoading, setTeamLoading] = useState(false)
+  const [teamModal,   setTeamModal]   = useState(false)
+  const [editTeam,    setEditTeam]    = useState<Partial<TeamMember> | null>(null)
+  const [savingTeam,  setSavingTeam]  = useState(false)
+
+  // Pages
+  const DEFAULT_PAGES: PageSettings = {
+    sections: {
+      hero:     { enabled: true,  layout: 'fullscreen' },
+      about:    { enabled: true },
+      stats:    { enabled: true },
+      speakers: { enabled: true,  layout: 'grid',     show_bio: true,  filter_tier: true },
+      agenda:   { enabled: true,  layout: 'tabs' },
+      partners: { enabled: true,  layout: 'logo_wall', show_website: true },
+      media:    { enabled: true,  layout: 'cards' },
+      venue:    { enabled: true },
+      register: { enabled: true },
+    },
+    order: ['hero','about','stats','speakers','agenda','partners','media','venue','register']
+  }
+  const [pageSettings, setPageSettings] = useState<PageSettings>(DEFAULT_PAGES)
+
   useEffect(() => {
     async function loadBase() {
       const [evRes, webRes] = await Promise.all([
@@ -219,6 +250,8 @@ export default function EventWebsiteAdmin({ params }: { params: Promise<{ id: st
   useEffect(() => { if (tab === 'speakers') loadSpeakers() }, [tab])
   useEffect(() => { if (tab === 'agenda')   loadAgenda()   }, [tab])
   useEffect(() => { if (tab === 'sponsors') loadSponsors() }, [tab])
+  useEffect(() => { if (tab === 'team')     loadTeam()     }, [tab])
+  useEffect(() => { if (settings.page_settings) setPageSettings(settings.page_settings) }, [settings.page_settings])
 
   async function loadSpeakers() {
     setSpLoading(true)
@@ -345,6 +378,80 @@ export default function EventWebsiteAdmin({ params }: { params: Promise<{ id: st
     loadSponsors()
   }
 
+  // ── Team CRUD ────────────────────────────────────────────────────────────────
+  async function loadTeam() {
+    setTeamLoading(true)
+    const res  = await fetch(`/api/events/team?event_id=${eventId}`)
+    const data = await res.json().catch(() => [])
+    setTeam(Array.isArray(data) ? data : [])
+    setTeamLoading(false)
+  }
+
+  async function saveTeamMember() {
+    if (!editTeam?.email) return
+    setSavingTeam(true)
+    const payload = { ...editTeam, event_id: eventId }
+    const isNew   = !editTeam.id
+    const url     = isNew ? '/api/events/team' : `/api/events/team?id=${editTeam.id}`
+    const res     = await fetch(url, { method: isNew ? 'POST' : 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(isNew ? payload : editTeam) })
+    const data    = await res.json()
+    if (res.ok) { setTeamModal(false); setEditTeam(null); loadTeam(); showMsg(isNew ? 'Member added.' : 'Updated.') }
+    else showMsg(data.error ?? 'Failed.', false)
+    setSavingTeam(false)
+  }
+
+  async function deleteTeamMember(id: string) {
+    if (!confirm('Remove this team member?')) return
+    await fetch(`/api/events/team?id=${id}`, { method: 'DELETE' })
+    loadTeam()
+  }
+
+  async function savePageSettings() {
+    setSavingSettings(true)
+    const payload = { ...settings, event_id: eventId, page_settings: pageSettings }
+    const res  = await fetch('/api/events/website', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) })
+    const data = await res.json()
+    if (res.ok) { setSettings(data); showMsg('Page layout saved.') }
+    else showMsg(data.error ?? 'Save failed.', false)
+    setSavingSettings(false)
+  }
+
+  function exportBrandConfig() {
+    const lines = [
+      `EVENT: ${eventName}`,
+      ``,
+      `COLOURS`,
+      `  Primary:   ${settings.brand_color_1 ?? settings.theme_primary ?? ''}`,
+      `  Accent:    ${settings.brand_color_2 ?? settings.theme_accent  ?? ''}`,
+      `  Secondary: ${settings.brand_color_3 ?? settings.theme_teal    ?? ''}`,
+      `  Colour 4:  ${settings.brand_color_4 ?? ''}`,
+      `  Colour 5:  ${settings.brand_color_5 ?? ''}`,
+      ``,
+      `FONTS`,
+      `  Heading: ${settings.brand_font_heading ?? ''}`,
+      `  Body:    ${settings.brand_font_body    ?? ''}`,
+      ``,
+      `LOGOS`,
+      `  Primary:    ${settings.logo_primary_url    ?? ''}`,
+      `  White:      ${settings.logo_white_url      ?? ''}`,
+      `  Dark:       ${settings.logo_dark_url       ?? ''}`,
+      `  Horizontal: ${settings.logo_horizontal_url ?? ''}`,
+      ``,
+      `MEDIA`,
+      `  Media Kit: ${settings.media_kit_url ?? ''}`,
+      `  Brand Hub: ${settings.brand_kit_url ?? ''}`,
+      ``,
+      `EVENT`,
+      `  Date:  ${settings.venue_date_display ?? ''}`,
+      `  Venue: ${[settings.venue_name, settings.venue_city].filter(Boolean).join(', ')}`,
+    ]
+    const blob = new Blob([lines.join('\n')], { type: 'text/plain' })
+    const url  = URL.createObjectURL(blob)
+    const a    = document.createElement('a')
+    a.href = url; a.download = `${(eventName || 'event').replace(/\s+/g,'-').toLowerCase()}-brand-config.txt`
+    a.click(); URL.revokeObjectURL(url)
+  }
+
   // ── Derived ──────────────────────────────────────────────────────────────────
   const spByTier  = TIER_ORDER.reduce<Record<string, Speaker[]>>((a, t) => { a[t] = speakers.filter(s => s.tier === t); return a }, {})
   const agByDay   = agenda.reduce<Record<number, AgendaItem[]>>((a, ag) => { a[ag.day] = [...(a[ag.day] ?? []), ag]; return a }, {})
@@ -408,11 +515,11 @@ export default function EventWebsiteAdmin({ params }: { params: Promise<{ id: st
         )}
 
         {/* Tab bar */}
-        <div style={{ display: 'flex', gap: '4px', background: C.surface, border: `1px solid ${C.border}`, borderRadius: '12px', padding: '6px', marginBottom: '24px', width: 'fit-content' }}>
-          {(['brand', 'settings', 'speakers', 'agenda', 'sponsors'] as Tab[]).map(t => (
+        <div style={{ display: 'flex', gap: '4px', background: C.surface, border: `1px solid ${C.border}`, borderRadius: '12px', padding: '6px', marginBottom: '24px', flexWrap: 'wrap' }}>
+          {(['brand','pages','settings','speakers','agenda','sponsors','team'] as Tab[]).map(t => (
             <button key={t} onClick={() => setTab(t)}
-              style={{ padding: '8px 20px', borderRadius: '8px', border: 'none', background: tab === t ? C.text : 'transparent', color: tab === t ? C.green : C.muted, fontSize: '13px', fontWeight: tab === t ? 700 : 500, cursor: 'pointer', fontFamily: 'inherit', textTransform: 'capitalize' }}>
-              {t === 'speakers' ? `Speakers (${speakers.length})` : t === 'agenda' ? `Agenda (${agenda.length})` : t === 'sponsors' ? `Sponsors (${sponsors.length})` : t === 'brand' ? 'Brand' : 'Settings'}
+              style={{ padding: '8px 18px', borderRadius: '8px', border: 'none', background: tab === t ? C.text : 'transparent', color: tab === t ? C.green : C.muted, fontSize: '13px', fontWeight: tab === t ? 700 : 500, cursor: 'pointer', fontFamily: 'inherit' }}>
+              {t === 'speakers' ? `Speakers (${speakers.length})` : t === 'agenda' ? `Agenda (${agenda.length})` : t === 'sponsors' ? `Sponsors (${sponsors.length})` : t === 'team' ? `Team (${team.length})` : t === 'brand' ? 'Brand' : t === 'pages' ? 'Pages' : 'Settings'}
             </button>
           ))}
         </div>
@@ -459,6 +566,36 @@ export default function EventWebsiteAdmin({ params }: { params: Promise<{ id: st
                 </div>
                 <div style={{ background: '#F8FAFF', borderRadius: '10px', padding: '16px', border: `1px solid ${C.border}` }}>
                   <ImageUpload label="Horizontal / Wide Logo" value={settings.logo_horizontal_url ?? null} eventId={eventId} section="logo_horizontal" onUpload={v => setSettings(s => ({ ...s, logo_horizontal_url: v }))} />
+                </div>
+              </div>
+            </div>
+
+            {/* Step 2b — Patterns & Section Backgrounds */}
+            <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: '16px', padding: '24px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '6px' }}>
+                <div style={{ width: '24px', height: '24px', borderRadius: '50%', background: '#6366F1', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '11px', fontWeight: 900, color: '#fff', flexShrink: 0 }}>2b</div>
+                <div style={{ fontSize: '13px', fontWeight: 800, color: C.text }}>Patterns, Textures & Section Backgrounds</div>
+              </div>
+              <div style={{ fontSize: '12px', color: C.muted, marginBottom: '16px', paddingLeft: '34px' }}>Upload brand patterns and textures. Section backgrounds override the global theme per section.</div>
+              <div style={{ paddingLeft: '34px' }}>
+                <div style={{ fontSize: '11px', fontWeight: 800, color: C.muted, letterSpacing: '1px', textTransform: 'uppercase', marginBottom: '10px' }}>Brand Patterns / Textures (up to 5)</div>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: '12px', marginBottom: '20px' }}>
+                  {([1,2,3,4,5] as const).map(n => {
+                    const k = `pattern_${n}_url` as keyof WebsiteSettings
+                    const v = settings[k] as string | null
+                    return (
+                      <div key={n} style={{ background: '#F8FAFF', border: `1px solid ${C.border}`, borderRadius: '10px', padding: '10px' }}>
+                        {v && <div style={{ width: '100%', height: '56px', borderRadius: '6px', backgroundImage: `url(${v})`, backgroundSize: 'cover', backgroundPosition: 'center', marginBottom: '8px' }} />}
+                        <ImageUpload label={`Pattern ${n}`} value={v ?? null} eventId={eventId} section={`pattern_${n}`} onUpload={val => setSettings(s => ({ ...s, [k]: val }))} />
+                      </div>
+                    )
+                  })}
+                </div>
+                <div style={{ fontSize: '11px', fontWeight: 800, color: C.muted, letterSpacing: '1px', textTransform: 'uppercase', marginBottom: '10px' }}>Section Backgrounds</div>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '14px' }}>
+                  <ImageUpload label="About Section BG" value={settings.bg_about_url ?? null} eventId={eventId} section="bg_about" onUpload={v => setSettings(s => ({ ...s, bg_about_url: v }))} />
+                  <ImageUpload label="Agenda Section BG" value={settings.bg_agenda_url ?? null} eventId={eventId} section="bg_agenda" onUpload={v => setSettings(s => ({ ...s, bg_agenda_url: v }))} />
+                  <ImageUpload label="Partners Section BG" value={settings.bg_sponsors_url ?? null} eventId={eventId} section="bg_sponsors" onUpload={v => setSettings(s => ({ ...s, bg_sponsors_url: v }))} />
                 </div>
               </div>
             </div>
@@ -545,15 +682,102 @@ export default function EventWebsiteAdmin({ params }: { params: Promise<{ id: st
               </div>
             </div>
 
-            {/* Save */}
-            <div>
+            {/* Save + Export */}
+            <div style={{ display: 'flex', gap: '10px' }}>
               <button onClick={saveSettings} disabled={savingSettings}
                 style={{ padding: '12px 28px', borderRadius: '10px', border: 'none', background: C.green, color: C.text, fontSize: '13px', fontWeight: 800, cursor: 'pointer', fontFamily: 'inherit', opacity: savingSettings ? 0.6 : 1 }}>
                 {savingSettings ? 'Saving…' : 'Save Brand Settings'}
               </button>
+              <button onClick={exportBrandConfig}
+                style={{ padding: '12px 20px', borderRadius: '10px', border: `1px solid ${C.border}`, background: C.surface, color: C.sub, fontSize: '13px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <svg width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                Export Brand Config
+              </button>
             </div>
           </div>
         )}
+
+        {/* ── PAGES ────────────────────────────────────────────────────── */}
+        {tab === 'pages' && (() => {
+          const SECTION_META: Record<string, { label: string; layouts?: string[]; extras?: { key: string; label: string }[] }> = {
+            hero:     { label: 'Hero Banner',         layouts: ['fullscreen','split','minimal'] },
+            about:    { label: 'About the Event' },
+            stats:    { label: 'Stats Bar' },
+            speakers: { label: 'Speakers',            layouts: ['grid','list','featured'], extras: [{ key: 'show_bio', label: 'Show bio' },{ key: 'filter_tier', label: 'Tier filters' }] },
+            agenda:   { label: 'Agenda / Programme',  layouts: ['tabs','timeline','table'] },
+            partners: { label: 'Sponsors & Partners', layouts: ['logo_wall','card_grid'],  extras: [{ key: 'show_website', label: 'Show website link' }] },
+            media:    { label: 'Press & Media',       layouts: ['cards','minimal'] },
+            venue:    { label: 'Venue & Location' },
+            register: { label: 'Register CTA' },
+          }
+          const order = pageSettings.order ?? Object.keys(SECTION_META)
+          function move(idx: number, dir: -1 | 1) {
+            const o = [...order]; const t2 = idx + dir
+            if (t2 < 0 || t2 >= o.length) return
+            ;[o[idx], o[t2]] = [o[t2], o[idx]]
+            setPageSettings(ps => ({ ...ps, order: o }))
+          }
+          function toggle(key: string, val: boolean) {
+            setPageSettings(ps => ({ ...ps, sections: { ...ps.sections, [key]: { ...(ps.sections[key] ?? { enabled: true }), enabled: val } } }))
+          }
+          function setLayout2(key: string, layout: string) {
+            setPageSettings(ps => ({ ...ps, sections: { ...ps.sections, [key]: { ...(ps.sections[key] ?? { enabled: true }), layout } } }))
+          }
+          function setExtra(key: string, xKey: string, val: boolean) {
+            setPageSettings(ps => ({ ...ps, sections: { ...ps.sections, [key]: { ...(ps.sections[key] ?? { enabled: true }), [xKey]: val } } }))
+          }
+          return (
+            <div>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '20px' }}>
+                <div>
+                  <div style={{ fontSize: '15px', fontWeight: 800 }}>Page Sections</div>
+                  <div style={{ fontSize: '12px', color: C.muted, marginTop: '2px' }}>Toggle sections on/off, pick layouts, and set display order with the arrows.</div>
+                </div>
+                <button onClick={savePageSettings} disabled={savingSettings}
+                  style={{ padding: '10px 22px', borderRadius: '8px', border: 'none', background: C.green, color: C.text, fontSize: '12px', fontWeight: 800, cursor: 'pointer', fontFamily: 'inherit', opacity: savingSettings ? 0.6 : 1 }}>
+                  {savingSettings ? 'Saving…' : 'Save Page Layout'}
+                </button>
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                {order.map((key, idx) => {
+                  const meta   = SECTION_META[key]; if (!meta) return null
+                  const sec    = pageSettings.sections[key] ?? { enabled: true }
+                  const active = sec.enabled !== false
+                  return (
+                    <div key={key} style={{ background: C.surface, border: `1px solid ${active ? C.teal+'44' : C.border}`, borderRadius: '14px', padding: '16px 20px', display: 'flex', alignItems: 'flex-start', gap: '14px', opacity: active ? 1 : 0.55, transition: 'all 0.15s' }}>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '3px', flexShrink: 0, marginTop: '2px' }}>
+                        <button onClick={() => move(idx, -1)} disabled={idx === 0} style={{ background: 'none', border: `1px solid ${C.border}`, borderRadius: '4px', cursor: idx === 0 ? 'default' : 'pointer', padding: '1px 6px', fontSize: '9px', color: C.muted, opacity: idx === 0 ? 0.3 : 1 }}>▲</button>
+                        <button onClick={() => move(idx, 1)} disabled={idx === order.length-1} style={{ background: 'none', border: `1px solid ${C.border}`, borderRadius: '4px', cursor: idx === order.length-1 ? 'default' : 'pointer', padding: '1px 6px', fontSize: '9px', color: C.muted, opacity: idx === order.length-1 ? 0.3 : 1 }}>▼</button>
+                      </div>
+                      <button onClick={() => toggle(key, !active)}
+                        style={{ width: '38px', height: '22px', borderRadius: '11px', border: 'none', background: active ? C.teal : '#CBD5E1', cursor: 'pointer', position: 'relative', flexShrink: 0, marginTop: '2px', transition: 'background 0.15s' }}>
+                        <span style={{ position: 'absolute', top: '3px', left: active ? '19px' : '3px', width: '16px', height: '16px', borderRadius: '50%', background: '#fff', transition: 'left 0.15s' }} />
+                      </button>
+                      <div style={{ flex: 1 }}>
+                        <div style={{ fontWeight: 700, fontSize: '14px', color: C.text, marginBottom: '8px' }}>{meta.label}</div>
+                        <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center' }}>
+                          {meta.layouts && meta.layouts.map(l => (
+                            <button key={l} onClick={() => setLayout2(key, l)}
+                              style={{ padding: '4px 12px', borderRadius: '6px', border: `1px solid ${sec.layout === l ? C.teal : C.border}`, background: sec.layout === l ? C.teal+'18' : 'transparent', color: sec.layout === l ? C.teal : C.muted, fontSize: '11px', fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>
+                              {l.replace('_',' ')}
+                            </button>
+                          ))}
+                          {meta.extras?.map(ex => (
+                            <label key={ex.key} style={{ display: 'flex', alignItems: 'center', gap: '5px', fontSize: '11px', color: C.muted, cursor: 'pointer' }}>
+                              <input type="checkbox" checked={(sec as Record<string,unknown>)[ex.key] !== false} onChange={e => setExtra(key, ex.key, e.target.checked)} style={{ accentColor: C.teal }} />
+                              {ex.label}
+                            </label>
+                          ))}
+                        </div>
+                      </div>
+                      <div style={{ fontSize: '11px', fontWeight: 700, color: C.muted, flexShrink: 0, paddingTop: '2px' }}>{String(idx+1).padStart(2,'0')}</div>
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+          )
+        })()}
 
         {/* ── SETTINGS ─────────────────────────────────────────────────── */}
         {tab === 'settings' && (
@@ -820,6 +1044,89 @@ export default function EventWebsiteAdmin({ params }: { params: Promise<{ id: st
             )}
           </div>
         )}
+
+        {/* ── TEAM ─────────────────────────────────────────────────────── */}
+        {tab === 'team' && (
+          <div>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '20px' }}>
+              <div>
+                <div style={{ fontSize: '15px', fontWeight: 800 }}>Team Dashboard</div>
+                <div style={{ fontSize: '12px', color: C.muted, marginTop: '2px' }}>Manage who can contribute to this event website.</div>
+              </div>
+              <button onClick={() => { setEditTeam({ role: 'content', status: 'pending' }); setTeamModal(true) }}
+                style={{ padding: '9px 18px', borderRadius: '8px', border: 'none', background: C.green, color: C.text, fontSize: '12px', fontWeight: 800, cursor: 'pointer', fontFamily: 'inherit' }}>
+                + Add Member
+              </button>
+            </div>
+
+            {/* Role legend */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '12px', marginBottom: '24px' }}>
+              {[
+                { role: 'admin',   color: C.purple, desc: 'Full access — publish, delete, all settings' },
+                { role: 'content', color: C.teal,   desc: 'Add/edit speakers and agenda only' },
+                { role: 'design',  color: C.amber,  desc: 'Upload logos, patterns, brand assets' },
+              ].map(r => (
+                <div key={r.role} style={{ padding: '14px 16px', borderRadius: '10px', background: `${r.color}08`, border: `1px solid ${r.color}25` }}>
+                  <div style={{ fontSize: '11px', fontWeight: 800, color: r.color, textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '4px' }}>{r.role}</div>
+                  <div style={{ fontSize: '12px', color: C.muted }}>{r.desc}</div>
+                </div>
+              ))}
+            </div>
+
+            {/* Pending speaker approvals */}
+            {speakers.filter(s => s.status === 'pending').length > 0 && (
+              <div style={{ marginBottom: '24px' }}>
+                <div style={{ fontSize: '11px', fontWeight: 800, color: C.amber, letterSpacing: '1px', textTransform: 'uppercase', marginBottom: '10px' }}>
+                  Pending Approvals ({speakers.filter(s => s.status === 'pending').length})
+                </div>
+                <div style={{ background: C.surface, border: `1px solid rgba(245,158,11,0.3)`, borderRadius: '14px', overflow: 'hidden' }}>
+                  {speakers.filter(s => s.status === 'pending').map((sp, i, arr) => (
+                    <div key={sp.id} style={{ display: 'flex', alignItems: 'center', gap: '14px', padding: '14px 20px', borderBottom: i < arr.length-1 ? `1px solid ${C.border}` : 'none' }}>
+                      <div style={{ flex: 1 }}>
+                        <div style={{ fontWeight: 700, fontSize: '14px' }}>{sp.name}</div>
+                        <div style={{ fontSize: '12px', color: C.muted }}>{[sp.role, sp.company].filter(Boolean).join(' · ')}</div>
+                      </div>
+                      <div style={{ display: 'flex', gap: '6px' }}>
+                        <button onClick={async () => { await fetch(`/api/events/speakers?id=${sp.id}`, { method: 'PATCH', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ status: 'approved', active: true }) }); loadSpeakers(); showMsg(`${sp.name} approved.`) }}
+                          style={{ padding: '6px 14px', borderRadius: '6px', border: 'none', background: 'rgba(192,244,60,0.15)', color: C.teal, fontSize: '12px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>Approve</button>
+                        <button onClick={async () => { await fetch(`/api/events/speakers?id=${sp.id}`, { method: 'PATCH', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ status: 'rejected' }) }); loadSpeakers(); showMsg(`Rejected.`, false) }}
+                          style={{ padding: '6px 14px', borderRadius: '6px', border: `1px solid rgba(255,107,107,0.3)`, background: 'rgba(255,107,107,0.08)', color: C.red, fontSize: '12px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>Reject</button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Team list */}
+            {teamLoading ? <div style={{ textAlign: 'center', padding: '48px', fontSize: '13px', color: C.muted }}>Loading…</div>
+            : team.length === 0 ? (
+              <div style={{ textAlign: 'center', padding: '64px', color: C.muted, fontSize: '13px', background: C.surface, borderRadius: '14px', border: `1px dashed ${C.border}` }}>
+                No team members yet
+              </div>
+            ) : (
+              <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: '14px', overflow: 'hidden' }}>
+                {team.map((m, i) => (
+                  <div key={m.id} style={{ display: 'flex', alignItems: 'center', gap: '14px', padding: '14px 20px', borderBottom: i < team.length-1 ? `1px solid ${C.border}` : 'none' }}>
+                    <div style={{ width: '36px', height: '36px', borderRadius: '18px', background: m.role === 'admin' ? `${C.purple}22` : m.role === 'design' ? `${C.amber}22` : `${C.teal}22`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '14px', fontWeight: 900, color: m.role === 'admin' ? C.purple : m.role === 'design' ? C.amber : C.teal, flexShrink: 0 }}>
+                      {(m.name ?? m.email).charAt(0).toUpperCase()}
+                    </div>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontWeight: 700, fontSize: '14px' }}>{m.name ?? m.email}</div>
+                      <div style={{ fontSize: '12px', color: C.muted }}>{m.email}</div>
+                    </div>
+                    <span style={{ fontSize: '11px', fontWeight: 700, padding: '2px 8px', borderRadius: '20px', background: m.role === 'admin' ? `${C.purple}18` : m.role === 'design' ? `${C.amber}18` : `${C.teal}18`, color: m.role === 'admin' ? C.purple : m.role === 'design' ? C.amber : C.teal }}>{m.role}</span>
+                    <span style={{ fontSize: '11px', fontWeight: 700, padding: '2px 8px', borderRadius: '20px', background: m.status === 'accepted' ? 'rgba(192,244,60,0.12)' : 'rgba(91,112,128,0.1)', color: m.status === 'accepted' ? C.teal : C.muted }}>{m.status}</span>
+                    <div style={{ display: 'flex', gap: '6px' }}>
+                      <button onClick={() => { setEditTeam(m); setTeamModal(true) }} style={{ padding: '5px 12px', borderRadius: '6px', border: `1px solid ${C.border}`, background: '#F8FAFF', color: C.sub, fontSize: '11px', cursor: 'pointer', fontFamily: 'inherit' }}>Edit</button>
+                      <button onClick={() => deleteTeamMember(m.id)} style={{ padding: '5px 10px', borderRadius: '6px', border: `1px solid rgba(255,107,107,0.3)`, background: 'rgba(255,107,107,0.08)', color: C.red, fontSize: '11px', cursor: 'pointer', fontFamily: 'inherit' }}>×</button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       {/* ── SPEAKER MODAL ─────────────────────────────────────────────── */}
@@ -908,6 +1215,31 @@ export default function EventWebsiteAdmin({ params }: { params: Promise<{ id: st
             <button onClick={saveSponsor} disabled={savingSpn || !editSponsor.name}
               style={{ padding: '11px', borderRadius: '8px', border: 'none', background: C.green, color: C.text, fontSize: '13px', fontWeight: 800, cursor: 'pointer', fontFamily: 'inherit', opacity: savingSpn ? 0.6 : 1 }}>
               {savingSpn ? 'Saving…' : editSponsor.id ? 'Save Changes' : 'Add Sponsor'}
+            </button>
+          </div>
+        </Modal>
+      )}
+
+      {/* ── TEAM MODAL ────────────────────────────────────────────────── */}
+      {teamModal && editTeam && (
+        <Modal title={editTeam.id ? 'Edit Team Member' : 'Add Team Member'} onClose={() => { setTeamModal(false); setEditTeam(null) }}>
+          <div style={{ display: 'grid', gap: '14px' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px' }}>
+              <Field label="Full Name" value={editTeam.name ?? ''} onChange={v => setEditTeam(s => ({ ...s, name: v }))} placeholder="Jane Smith" />
+              <Field label="Email *" value={editTeam.email ?? ''} onChange={v => setEditTeam(s => ({ ...s, email: v }))} type="email" placeholder="jane@company.com" />
+            </div>
+            <SelectField label="Role" value={editTeam.role ?? 'content'} onChange={v => setEditTeam(s => ({ ...s, role: v }))}
+              options={[
+                { value: 'content', label: 'Content — add speakers & agenda' },
+                { value: 'design',  label: 'Design — upload logos, patterns, images' },
+                { value: 'admin',   label: 'Admin — full access' },
+              ]} />
+            <div style={{ padding: '10px 14px', borderRadius: '8px', background: `${C.teal}08`, border: `1px solid ${C.teal}25`, fontSize: '12px', color: C.muted }}>
+              Team members are managed by email. They access their role-specific sections through the event admin panel.
+            </div>
+            <button onClick={saveTeamMember} disabled={savingTeam || !editTeam.email}
+              style={{ padding: '11px', borderRadius: '8px', border: 'none', background: C.green, color: C.text, fontSize: '13px', fontWeight: 800, cursor: 'pointer', fontFamily: 'inherit', opacity: savingTeam ? 0.6 : 1 }}>
+              {savingTeam ? 'Saving…' : editTeam.id ? 'Save Changes' : 'Add to Team'}
             </button>
           </div>
         </Modal>

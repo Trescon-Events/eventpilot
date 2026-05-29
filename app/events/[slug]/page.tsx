@@ -25,6 +25,8 @@ type Website = {
   venue_address: string | null; venue_date_display: string | null
   theme_primary: string; theme_accent: string; theme_teal: string
   media_kit_url: string | null; brand_kit_url: string | null
+  bg_about_url: string | null; bg_sponsors_url: string | null; bg_agenda_url: string | null
+  page_settings: { sections?: Record<string, { enabled?: boolean; layout?: string }>; order?: string[] } | null
 }
 type EventRow = { name: string; event_date: string | null; city: string | null; description: string | null }
 
@@ -124,6 +126,9 @@ export default async function EventPublicPage({ params }: { params: Promise<{ sl
 
     /* Speaker cards */
     .ev-speaker-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px,1fr)); gap: 20px; }
+    .ev-speaker-list { display: flex; flex-direction: column; gap: 12px; }
+    .ev-speaker-list .ev-speaker-card { display: flex; align-items: center; gap: 20px; text-align: left; padding: 16px 24px; }
+    .ev-speaker-list .ev-speaker-photo, .ev-speaker-list .ev-speaker-initial { margin: 0; flex-shrink: 0; }
     .ev-speaker-card { position: relative; background: rgba(255,255,255,0.03); border: 1px solid rgba(240,237,232,0.06); border-radius: 16px; padding: 28px 20px; text-align: center; transition: border-color 0.2s; }
     .ev-speaker-card:hover { border-color: rgba(224,123,44,0.35); }
     .ev-speaker-photo { width: 96px; height: 96px; border-radius: 48px; object-fit: cover; margin: 0 auto 16px; display: block; border: 2px solid ${A}; }
@@ -172,6 +177,15 @@ export default async function EventPublicPage({ params }: { params: Promise<{ sl
       .ev-footer { flex-direction: column; gap: 12px; text-align: center; }
     }
   `
+
+  function sec(key: string) {
+    if (!w.page_settings?.sections) return true
+    const s = w.page_settings.sections[key]
+    return s ? s.enabled !== false : true
+  }
+  function layout(key: string, fallback: string) {
+    return w.page_settings?.sections?.[key]?.layout ?? fallback
+  }
 
   const title = w.hero_headline || ev?.name || 'Event'
   const eventDate = ev?.event_date ? new Date(ev.event_date).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' }) : null
@@ -227,7 +241,7 @@ export default async function EventPublicPage({ params }: { params: Promise<{ sl
         </section>
 
         {/* Stats bar */}
-        {hasStats && (
+        {sec('stats') && hasStats && (
           <div className="ev-stats">
             {[
               { num: w.stat_attendees,  label: 'Attendees'  },
@@ -244,7 +258,7 @@ export default async function EventPublicPage({ params }: { params: Promise<{ sl
         )}
 
         {/* About */}
-        {w.about_body && (
+        {sec('about') && w.about_body && (
           <section className="ev-section">
             <div className="ev-wrap">
               <div className="ev-label">About</div>
@@ -255,7 +269,7 @@ export default async function EventPublicPage({ params }: { params: Promise<{ sl
         )}
 
         {/* Speakers */}
-        {speakers.length > 0 && (
+        {sec('speakers') && speakers.length > 0 && (
           <section id="speakers" className="ev-section-alt">
             <div className="ev-wrap">
               <div className="ev-label">Speakers</div>
@@ -263,7 +277,7 @@ export default async function EventPublicPage({ params }: { params: Promise<{ sl
               {TIER_ORDER.map(tier => (spByTier[tier] ?? []).length > 0 && (
                 <div key={tier} style={{ marginBottom: '48px' }}>
                   <div className="ev-tier-label">{tier === 'keynote' ? 'Keynote' : tier === 'panelist' ? 'Panelists' : tier === 'moderator' ? 'Moderators' : 'Speakers'}</div>
-                  <div className="ev-speaker-grid">
+                  <div className={layout('speakers','grid') === 'list' ? 'ev-speaker-list' : 'ev-speaker-grid'}>
                     {(spByTier[tier] ?? []).map(sp => (
                       <div key={sp.id} className="ev-speaker-card">
                         {sp.photo_url ? (
@@ -291,7 +305,7 @@ export default async function EventPublicPage({ params }: { params: Promise<{ sl
         )}
 
         {/* Agenda */}
-        {agenda.length > 0 && (
+        {sec('agenda') && agenda.length > 0 && (
           <section id="agenda" className="ev-section">
             <div className="ev-wrap">
               <div className="ev-label">Programme</div>
@@ -324,8 +338,8 @@ export default async function EventPublicPage({ params }: { params: Promise<{ sl
         )}
 
         {/* Sponsors */}
-        {sponsors.length > 0 && (
-          <section id="sponsors" className="ev-section-alt">
+        {sec('partners') && sponsors.length > 0 && (
+          <section id="sponsors" className="ev-section-alt" style={w.bg_sponsors_url ? { backgroundImage: `url(${w.bg_sponsors_url})`, backgroundSize: 'cover', backgroundPosition: 'center' } : {}}>
             <div className="ev-wrap" style={{ textAlign: 'center' }}>
               <div className="ev-label">Sponsors &amp; Partners</div>
               <h2 className="ev-h2 ev-h2-center">Our Partners</h2>
@@ -351,7 +365,7 @@ export default async function EventPublicPage({ params }: { params: Promise<{ sl
         )}
 
         {/* Venue */}
-        {(w.venue_name || w.venue_city) && (
+        {sec('venue') && (w.venue_name || w.venue_city) && (
           <section className="ev-section">
             <div className="ev-wrap">
               <div className="ev-label">Location</div>
@@ -367,7 +381,7 @@ export default async function EventPublicPage({ params }: { params: Promise<{ sl
         )}
 
         {/* Press & Media */}
-        {(w.media_kit_url || w.brand_kit_url) && (
+        {sec('media') && (w.media_kit_url || w.brand_kit_url) && (
           <section id="media" className="ev-section">
             <div className="ev-wrap">
               <div className="ev-label">Press &amp; Media</div>
@@ -396,7 +410,7 @@ export default async function EventPublicPage({ params }: { params: Promise<{ sl
         )}
 
         {/* Register CTA */}
-        {w.hero_cta_url && (
+        {sec('register') && w.hero_cta_url && (
           <section className="ev-register" id="register">
             <div className="ev-label" style={{ textAlign: 'center' }}>Secure Your Seat</div>
             <h2 className="ev-h2 ev-h2-center" style={{ marginBottom: '32px' }}>Join {w.stat_attendees ?? 'thousands of'} leaders</h2>

@@ -146,3 +146,27 @@ alter table event_websites add column if not exists brand_color_2        text;
 alter table event_websites add column if not exists brand_color_3        text;
 alter table event_websites add column if not exists brand_color_4        text;
 alter table event_websites add column if not exists brand_color_5        text;
+
+-- ── Migration: Patterns, section backgrounds, page settings ───────────────────
+alter table event_websites add column if not exists pattern_1_url    text;
+alter table event_websites add column if not exists pattern_2_url    text;
+alter table event_websites add column if not exists pattern_3_url    text;
+alter table event_websites add column if not exists pattern_4_url    text;
+alter table event_websites add column if not exists pattern_5_url    text;
+alter table event_websites add column if not exists bg_about_url     text;
+alter table event_websites add column if not exists bg_sponsors_url  text;
+alter table event_websites add column if not exists bg_agenda_url    text;
+alter table event_websites add column if not exists page_settings    jsonb default '{}';
+
+-- ── Team members table ────────────────────────────────────────────────────────
+create table if not exists event_team_members (
+  id           uuid primary key default gen_random_uuid(),
+  event_id     uuid references events(id) on delete cascade not null,
+  name         text,
+  email        text not null,
+  role         text default 'content' check (role in ('admin','content','design')),
+  invite_token text unique default gen_random_uuid()::text,
+  status       text default 'pending' check (status in ('pending','accepted')),
+  created_at   timestamptz default now()
+);
+create index if not exists idx_event_team_event_id on event_team_members(event_id);
