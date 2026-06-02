@@ -152,6 +152,12 @@ export default function LeadExtractionPage() {
 
   const allResults = [...fileRes, ...urlRes, ...findRes, ...dirRes]
 
+  // All columns from the richest result set (fileRes has _row with full data)
+  const allRawKeys: string[] = fileRes.length > 0 && fileRes[0]?._row
+    ? Object.keys(fileRes[0]._row)
+    : []
+  const useRichTable = allRawKeys.length > 2
+
   return (
     <div style={{ minHeight: '100vh', background: '#F8FAFB', fontFamily: 'system-ui, sans-serif' }}>
 
@@ -375,23 +381,47 @@ export default function LeadExtractionPage() {
 
       {/* Combined results */}
       {allResults.length > 0 && (
-        <div style={{ padding: '0 28px 32px', maxWidth: '1100px' }}>
-          <div style={{ background: '#FFFFFF', border: '1px solid #DDE8EE', borderRadius: '14px', overflow: 'hidden' }}>
+        <div style={{ padding: '0 28px 32px', maxWidth: useRichTable ? '100%' : '1100px', overflowX: 'auto' }}>
+          <div style={{ background: '#FFFFFF', border: '1px solid #DDE8EE', borderRadius: '14px', overflow: 'hidden', minWidth: useRichTable ? '900px' : 'auto' }}>
             <div style={{ padding: '14px 20px', borderBottom: '1px solid #DDE8EE', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <span style={{ fontSize: '15px', fontWeight: 700, color: '#0F1923' }}>Extraction Results</span>
               <span style={{ fontSize: '13px', color: '#6B7280' }}>{allResults.length} records</span>
             </div>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', padding: '10px 20px', background: '#F8FAFB', borderBottom: '1px solid #DDE8EE' }}>
-              {['Company', 'Website'].map(h => (
-                <div key={h} style={{ fontSize: '11px', fontWeight: 700, color: '#9CA3AF', textTransform: 'uppercase', letterSpacing: '1px' }}>{h}</div>
-              ))}
-            </div>
-            {allResults.map((r, i) => (
-              <div key={i} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', padding: '11px 20px', borderBottom: i < allResults.length - 1 ? '1px solid #F3F4F6' : 'none' }}>
-                <div style={{ fontSize: '14px', color: '#0F1923', fontWeight: 500 }}>{r.name || '—'}</div>
-                <div style={{ fontSize: '14px', color: '#00A5A3' }}>{r.website || '—'}</div>
-              </div>
-            ))}
+
+            {useRichTable ? (
+              /* Rich table — all columns from Excel */
+              <>
+                <div style={{ display: 'grid', gridTemplateColumns: allRawKeys.map(() => '1fr').join(' '), padding: '10px 20px', background: '#F8FAFB', borderBottom: '1px solid #DDE8EE', gap: '12px' }}>
+                  {allRawKeys.map(h => (
+                    <div key={h} style={{ fontSize: '11px', fontWeight: 700, color: '#9CA3AF', textTransform: 'uppercase', letterSpacing: '0.8px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{h}</div>
+                  ))}
+                </div>
+                {allResults.map((r: any, i: number) => (
+                  <div key={i} style={{ display: 'grid', gridTemplateColumns: allRawKeys.map(() => '1fr').join(' '), padding: '10px 20px', borderBottom: i < allResults.length - 1 ? '1px solid #F3F4F6' : 'none', gap: '12px', background: i % 2 === 0 ? '#FFFFFF' : '#FAFBFC' }}>
+                    {allRawKeys.map(k => (
+                      <div key={k} style={{ fontSize: '13px', color: '#0F1923', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {r._row?.[k] || '—'}
+                      </div>
+                    ))}
+                  </div>
+                ))}
+              </>
+            ) : (
+              /* Simple 2-col table */
+              <>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', padding: '10px 20px', background: '#F8FAFB', borderBottom: '1px solid #DDE8EE' }}>
+                  {['Company', 'Website'].map(h => (
+                    <div key={h} style={{ fontSize: '11px', fontWeight: 700, color: '#9CA3AF', textTransform: 'uppercase', letterSpacing: '1px' }}>{h}</div>
+                  ))}
+                </div>
+                {allResults.map((r: any, i: number) => (
+                  <div key={i} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', padding: '11px 20px', borderBottom: i < allResults.length - 1 ? '1px solid #F3F4F6' : 'none' }}>
+                    <div style={{ fontSize: '14px', color: '#0F1923', fontWeight: 500 }}>{r.name || '—'}</div>
+                    <div style={{ fontSize: '14px', color: '#00A5A3' }}>{r.website || '—'}</div>
+                  </div>
+                ))}
+              </>
+            )}
           </div>
         </div>
       )}
