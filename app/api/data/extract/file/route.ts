@@ -73,7 +73,6 @@ export async function POST(req: NextRequest) {
       /* ── Excel ── */
       if (['xlsx', 'xls'].includes(ext)) {
         try {
-          // Dynamic import to avoid build errors if package is missing
           const XLSX = await import('xlsx').catch(() => null)
           if (!XLSX) {
             return NextResponse.json({ error: 'xlsx package not installed. Run: npm install xlsx' }, { status: 500 })
@@ -82,18 +81,48 @@ export async function POST(req: NextRequest) {
           const ws   = wb.Sheets[wb.SheetNames[0]]
           const rows = XLSX.utils.sheet_to_json<Record<string, any>>(ws, { defval: '' })
 
+          if (rows.length === 0) {
+            return NextResponse.json({ results: [], count: 0, warning: 'File appears empty' })
+          }
+
+          const headers = Object.keys(rows[0])
+
+          // ── Smart column detection ─────────────────────────────────────────
+          const NAME_PATTERNS    = /company|name|organisation|organization|firm|brand|sponsor|exhibitor|entity/i
+          const WEBSITE_PATTERNS = /website|url|domain|web|site|link|homepage/i
+
+          const nameCol    = headers.find(h => NAME_PATTERNS.test(h))
+          const websiteCol = headers.find(h => WEBSITE_PATTERNS.test(h))
+
+          // If neither column found, treat the first column as company name
+          const effectiveNameCol    = nameCol    ?? headers[0]
+          const effectiveWebsiteCol = websiteCol ?? headers.find(h => h !== effectiveNameCol) ?? null
+
           const results: ExtractResult[] = rows.map(row => {
-            // Look for common column names
-            const name    = row['Company Name'] ?? row['company_name'] ?? row['Company'] ?? row['company'] ?? row['Name'] ?? row['name'] ?? ''
-            const website = row['Website'] ?? row['website'] ?? row['Domain'] ?? row['domain'] ?? row['URL'] ?? row['url'] ?? ''
+            const nameVal    = effectiveNameCol    ? String(row[effectiveNameCol]    ?? '').trim() : ''
+            const websiteVal = effectiveWebsiteCol ? String(row[effectiveWebsiteCol] ?? '').trim() : ''
+
+            // Normalise website — add https:// if missing
+            let website = websiteVal || undefined
+            if (website && !website.startsWith('http') && website.includes('.')) {
+              website = 'https://' + website
+            }
+
             return {
-              name:    String(name).trim() || undefined,
-              website: String(website).trim() || undefined,
+              name:    nameVal || undefined,
+              website: website,
               raw:     Object.values(row).join(' | '),
             }
           }).filter(r => r.name || r.website)
 
-          return NextResponse.json({ results, count: results.length })
+          const meta = {
+            total_rows:     rows.length,
+            headers_found:  headers,
+            name_col_used:  effectiveNameCol,
+            website_col_used: effectiveWebsiteCol ?? 'none detected',
+          }
+
+          return NextResponse.json({ results, count: results.length, meta })
         } catch (e: any) {
           return NextResponse.json({ error: `Excel parse error: ${e.message}` }, { status: 500 })
         }

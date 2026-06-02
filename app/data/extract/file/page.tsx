@@ -58,6 +58,8 @@ export default function LeadExtractionPage() {
   const [drag1, setDrag1]         = useState(false)
   const [analyzing, setAnalyzing] = useState(false)
   const [fileRes, setFileRes]     = useState<any[]>([])
+  const [fileErr, setFileErr]     = useState<string | null>(null)
+  const [fileMeta, setFileMeta]   = useState<any>(null)
   const fileRef1                  = useRef<HTMLInputElement>(null)
 
   /* ── URL Extractor state ── */
@@ -84,15 +86,34 @@ export default function LeadExtractionPage() {
   const fileRef3                    = useRef<HTMLInputElement>(null)
 
   /* ── handlers ── */
-  const analyzeFile = async (f: File | null, setter: (v: any[]) => void, setLoading: (v: boolean) => void) => {
+  const analyzeFile = async (
+    f: File | null,
+    setter: (v: any[]) => void,
+    setLoading: (v: boolean) => void,
+    setErr?: (v: string | null) => void,
+    setMeta?: (v: any) => void,
+  ) => {
     if (!f) return
     setLoading(true)
+    setErr?.(null)
+    setMeta?.(null)
     try {
       const form = new FormData()
       form.append('file', f)
       const res  = await fetch('/api/data/extract/file', { method: 'POST', body: form })
       const data = await res.json()
-      setter(data.results ?? [])
+      if (data.error) {
+        setErr?.(data.error)
+        setter([])
+      } else {
+        setter(data.results ?? [])
+        if (data.meta) setMeta?.(data.meta)
+        if ((data.results ?? []).length === 0) {
+          setErr?.(`No records extracted. ${data.warning ?? 'Check that the file has a Company Name or Website column.'}`)
+        }
+      }
+    } catch (e: any) {
+      setErr?.(e.message ?? 'Request failed')
     } finally { setLoading(false) }
   }
 
@@ -182,9 +203,22 @@ export default function LeadExtractionPage() {
             )}
           </div>
 
-          <button onClick={() => analyzeFile(file1, setFileRes, setAnalyzing)} disabled={!file1 || analyzing} style={btn(!file1 || analyzing, ACCENTS.teal.color)}>
+          <button onClick={() => analyzeFile(file1, setFileRes, setAnalyzing, setFileErr, setFileMeta)} disabled={!file1 || analyzing} style={btn(!file1 || analyzing, ACCENTS.teal.color)}>
             {analyzing ? 'Analyzing…' : 'Analyze File →'}
           </button>
+          {fileErr && (
+            <div style={{ padding: '10px 12px', background: 'rgba(220,38,38,0.06)', border: '1px solid rgba(220,38,38,0.2)', borderRadius: '8px', fontSize: '13px', color: '#DC2626' }}>
+              {fileErr}
+            </div>
+          )}
+          {fileMeta && (
+            <div style={{ padding: '10px 12px', background: 'rgba(0,165,163,0.06)', border: '1px solid rgba(0,165,163,0.2)', borderRadius: '8px', fontSize: '12px', color: '#0F1923' }}>
+              <div style={{ fontWeight: 700, marginBottom: '4px', color: '#00A5A3' }}>Column mapping used</div>
+              <div>Company col: <strong>{fileMeta.name_col_used}</strong></div>
+              <div>Website col: <strong>{fileMeta.website_col_used}</strong></div>
+              <div style={{ marginTop: '4px', color: '#6B7280' }}>All headers: {fileMeta.headers_found?.join(', ')}</div>
+            </div>
+          )}
           {fileRes.length > 0 && <div style={{ fontSize: '13px', color: '#059669', fontWeight: 600 }}>{fileRes.length} records extracted</div>}
         </div>
 
@@ -264,7 +298,7 @@ export default function LeadExtractionPage() {
 
           <div style={{ fontSize: '13px', color: '#9CA3AF' }}>Supports company lists with optional Country column for better accuracy</div>
 
-          <button onClick={() => analyzeFile(file2, setFindRes, setFinding)} disabled={!file2 || finding} style={btn(!file2 || finding, ACCENTS.amber.color)}>
+          <button onClick={() => analyzeFile(file2, setFindRes, setFinding, undefined, undefined)} disabled={!file2 || finding} style={btn(!file2 || finding, ACCENTS.amber.color)}>
             {finding ? 'Finding…' : 'Analyze File →'}
           </button>
           {findRes.length > 0 && <div style={{ fontSize: '13px', color: '#059669', fontWeight: 600 }}>{findRes.length} websites found</div>}
