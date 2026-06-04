@@ -100,7 +100,8 @@ export async function POST(req: NextRequest) {
     }
 
     // ── 1. Generate the event.ts config ──────────────────────────────────────
-    const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000'
+    const appUrl = process.env.NEXT_PUBLIC_APP_URL
+      ?? (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'http://localhost:3003')
     const genRes = await fetch(`${appUrl}/api/templates/generate`, {
       method:  'POST',
       headers: { 'Content-Type': 'application/json' },
