@@ -66,12 +66,14 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Event not found' }, { status: 404 })
     }
 
-    const [{ data: brand }, { data: webRow }, { data: speakers }, { data: sponsors }] = await Promise.all([
-      supabaseAdmin.from('event_brand')
-        .select('primary_color, accent_color, logo_url, logo_white_url, logo_horizontal_url, hero_image_url')
-        .eq('event_id', event_id).maybeSingle(),
+    const [{ data: webRow }, { data: brandLegacy }, { data: speakers }, { data: sponsors }] = await Promise.all([
+      // event_websites has ALL brand fields set by the Brand tab (theme_primary, logos, fonts, hero)
       supabaseAdmin.from('event_websites')
-        .select('subdomain, custom_domain, hero_video_url')
+        .select('subdomain, custom_domain, hero_video_url, theme_primary, theme_accent, theme_teal, logo_primary_url, logo_white_url, logo_horizontal_url, hero_bg_url, brand_font_heading, brand_font_body')
+        .eq('event_id', event_id).maybeSingle(),
+      // event_brand is from the AI brand generator — use as fallback if website brand not set
+      supabaseAdmin.from('event_brand')
+        .select('primary_color, accent_color, logo_url, logo_white_url, hero_image_url')
         .eq('event_id', event_id).maybeSingle(),
       supabaseAdmin.from('event_speakers')
         .select('name, title, company, photo_url, tier')
@@ -95,9 +97,10 @@ export async function POST(req: NextRequest) {
       : webRow?.subdomain ? `https://${webRow.subdomain}.tresconglobal.com`
       : 'https://tresconglobal.com'
 
-    const bgColor     = brand?.primary_color || templateColors.bg
-    const accentColor = brand?.accent_color  || templateColors.accent
-    const hlColor     = templateColors.highlight
+    // Brand tab saves to event_websites; AI brand generator saves to event_brand — prefer website settings
+    const bgColor     = webRow?.theme_primary  || brandLegacy?.primary_color  || templateColors.bg
+    const accentColor = webRow?.theme_accent   || brandLegacy?.accent_color   || templateColors.accent
+    const hlColor     = webRow?.theme_teal     || templateColors.highlight
 
     type Speaker = { name: string; title?: string; company?: string; photo_url?: string; tier?: string }
     type Sponsor = { name: string; logo_url?: string; website?: string; tier?: string }
@@ -132,11 +135,13 @@ export const EVENT = {
   site_url:          ${JSON.stringify(eventSiteUrl)},
   register_url:      "",
   colors: { bg_primary: ${JSON.stringify(bgColor)}, accent: ${JSON.stringify(accentColor)}, highlight: ${JSON.stringify(hlColor)} },
+  fonts: { heading: ${JSON.stringify(webRow?.brand_font_heading || '')}, body: ${JSON.stringify(webRow?.brand_font_body || '')} },
   assets: {
-    logo:        ${JSON.stringify(brand?.logo_url || '/logo.svg')},
-    logo_white:  ${JSON.stringify(brand?.logo_white_url || '/logo-white.svg')},
-    hero_video:  ${JSON.stringify(webRow?.hero_video_url || '/hero-bg.webm')},
-    hero_poster: ${JSON.stringify(brand?.hero_image_url || '/hero-poster.jpg')},
+    logo:        ${JSON.stringify(webRow?.logo_primary_url  || brandLegacy?.logo_url       || '/logo.svg')},
+    logo_white:  ${JSON.stringify(webRow?.logo_white_url    || brandLegacy?.logo_white_url  || '/logo-white.svg')},
+    logo_horizontal: ${JSON.stringify(webRow?.logo_horizontal_url || '/logo-horizontal.svg')},
+    hero_bg:     ${JSON.stringify(webRow?.hero_bg_url       || brandLegacy?.hero_image_url  || '')},
+    hero_video:  ${JSON.stringify(webRow?.hero_video_url    || '/hero-bg.webm')},
     og_image:    "/og-image.jpg",
   },
   speakers_seed: [

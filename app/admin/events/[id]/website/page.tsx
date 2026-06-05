@@ -501,7 +501,7 @@ export default function EventWebsiteAdmin({ params }: { params: Promise<{ id: st
     const payload = { ...settings, event_id: eventId }
     const res  = await fetch('/api/events/website', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) })
     const data = await res.json()
-    if (res.ok) { setSettings(data); showMsg('Settings saved.') }
+    if (res.ok) { setSettings(data); showMsg('Settings saved.'); syncContentToSite() }
     else showMsg(data.error ?? 'Save failed.', false)
     setSavingSettings(false)
   }
