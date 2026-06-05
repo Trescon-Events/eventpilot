@@ -286,6 +286,7 @@ export default function EventWebsiteAdmin({ params }: { params: Promise<{ id: st
   const [templates,        setTemplates]        = useState<TemplateInfo[]>([])
   const [selectedTemplate, setSelectedTemplate] = useState<string | null>(null)
   const [deploying,        setDeploying]        = useState(false)
+  const [syncingDeploy,    setSyncingDeploy]    = useState(false)
   const [deployResult,     setDeployResult]     = useState<{ repo_url: string; gh_actions_url: string; worker_name: string; site_url: string } | null>(null)
   const [existingSite,     setExistingSite]     = useState<{ repo_url: string; gh_actions_url?: string; site_url?: string; status: string; template_id: string; worker_name?: string } | null>(null)
   const [eventName, setEventName] = useState('')
@@ -305,6 +306,11 @@ export default function EventWebsiteAdmin({ params }: { params: Promise<{ id: st
   const [editSpeaker,  setEditSpeaker]  = useState<Partial<Speaker> | null>(null)
   const [savingSp,     setSavingSp]     = useState(false)
   const [syncing,      setSyncing]      = useState(false)
+
+  // Content → auto-sync to deployed site
+  const [contentSyncing,   setContentSyncing]   = useState(false)
+  const [contentSyncedAt,  setContentSyncedAt]  = useState<string | null>(null)
+  const [contentSyncError, setContentSyncError] = useState<string | null>(null)
 
   // Agenda
   const [agenda,       setAgenda]       = useState<AgendaItem[]>([])
@@ -473,6 +479,22 @@ export default function EventWebsiteAdmin({ params }: { params: Promise<{ id: st
 
   function showMsg(text: string, ok = true) { setMsg(text); setMsgOk(ok); setTimeout(() => setMsg(''), 5000) }
 
+  // ── Auto-sync event.ts to deployed GitHub repo ───────────────────────────────
+  async function syncContentToSite() {
+    if (!existingSite) return
+    setContentSyncing(true)
+    setContentSyncError(null)
+    try {
+      const res  = await fetch('/api/sites/sync-content', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ event_id: eventId }) })
+      const data = await res.json()
+      if (res.ok) { setContentSyncedAt(new Date().toISOString()) }
+      else { setContentSyncError(data.error ?? 'Sync failed') }
+    } catch (e) {
+      setContentSyncError(e instanceof Error ? e.message : 'Sync failed')
+    }
+    setContentSyncing(false)
+  }
+
   // ── Save settings ────────────────────────────────────────────────────────────
   async function saveSettings() {
     setSavingSettings(true)
@@ -502,7 +524,7 @@ export default function EventWebsiteAdmin({ params }: { params: Promise<{ id: st
     const method = isNew ? 'POST' : 'PATCH'
     const res  = await fetch(url, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(isNew ? payload : editSpeaker) })
     const data = await res.json()
-    if (res.ok) { setSpModal(false); setEditSpeaker(null); loadSpeakers(); showMsg(isNew ? 'Speaker added.' : 'Speaker updated.') }
+    if (res.ok) { setSpModal(false); setEditSpeaker(null); loadSpeakers(); showMsg(isNew ? 'Speaker added.' : 'Speaker updated.'); syncContentToSite() }
     else showMsg(data.error ?? 'Failed.', false)
     setSavingSp(false)
   }
@@ -510,7 +532,7 @@ export default function EventWebsiteAdmin({ params }: { params: Promise<{ id: st
   async function deleteSpeaker(id: string) {
     if (!confirm('Remove this speaker?')) return
     await fetch(`/api/events/speakers?id=${id}`, { method: 'DELETE' })
-    loadSpeakers()
+    loadSpeakers(); syncContentToSite()
   }
 
   async function bulkKonfhubSync() {
@@ -537,7 +559,7 @@ export default function EventWebsiteAdmin({ params }: { params: Promise<{ id: st
     const method = isNew ? 'POST' : 'PATCH'
     const res  = await fetch(url, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(isNew ? payload : editAgenda) })
     const data = await res.json()
-    if (res.ok) { setAgModal(false); setEditAgenda(null); loadAgenda(); showMsg(isNew ? 'Session added.' : 'Session updated.') }
+    if (res.ok) { setAgModal(false); setEditAgenda(null); loadAgenda(); showMsg(isNew ? 'Session added.' : 'Session updated.'); syncContentToSite() }
     else showMsg(data.error ?? 'Failed.', false)
     setSavingAg(false)
   }
@@ -545,7 +567,7 @@ export default function EventWebsiteAdmin({ params }: { params: Promise<{ id: st
   async function deleteAgenda(id: string) {
     if (!confirm('Remove this session?')) return
     await fetch(`/api/events/agenda?id=${id}`, { method: 'DELETE' })
-    loadAgenda()
+    loadAgenda(); syncContentToSite()
   }
 
   // ── Sponsors CRUD ────────────────────────────────────────────────────────────
@@ -558,7 +580,7 @@ export default function EventWebsiteAdmin({ params }: { params: Promise<{ id: st
     const method = isNew ? 'POST' : 'PATCH'
     const res  = await fetch(url, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(isNew ? payload : editSponsor) })
     const data = await res.json()
-    if (res.ok) { setSpnModal(false); setEditSponsor(null); loadSponsors(); showMsg(isNew ? 'Sponsor added.' : 'Sponsor updated.') }
+    if (res.ok) { setSpnModal(false); setEditSponsor(null); loadSponsors(); showMsg(isNew ? 'Sponsor added.' : 'Sponsor updated.'); syncContentToSite() }
     else showMsg(data.error ?? 'Failed.', false)
     setSavingSpn(false)
   }
@@ -566,7 +588,7 @@ export default function EventWebsiteAdmin({ params }: { params: Promise<{ id: st
   async function deleteSponsor(id: string) {
     if (!confirm('Remove this sponsor?')) return
     await fetch(`/api/events/sponsors?id=${id}`, { method: 'DELETE' })
-    loadSponsors()
+    loadSponsors(); syncContentToSite()
   }
 
   // ── Team CRUD ────────────────────────────────────────────────────────────────
@@ -781,7 +803,7 @@ export default function EventWebsiteAdmin({ params }: { params: Promise<{ id: st
           {([
             { id: 'template', step: 0, label: 'Template', hint: 'Choose a site template' },
             { id: 'brand',    step: 1, label: 'Brand',    hint: 'Logos, colours, fonts' },
-            { id: 'build',    step: 2, label: 'Build',    hint: 'Pages & sections' },
+            { id: 'build',    step: 2, label: 'Build',    hint: 'Deployment status' },
             { id: 'content',  step: 3, label: 'Content',  hint: 'Speakers, agenda, text' },
             { id: 'publish',  step: 4, label: 'Publish',  hint: 'Preview & go live' },
           ] as { id: Tab; step: number; label: string; hint: string }[]).map((s, i, arr) => {
@@ -1286,789 +1308,168 @@ export default function EventWebsiteAdmin({ params }: { params: Promise<{ id: st
           </div>
         )}
 
-        {/* ── LIVE GUARD ────────────────────────────────────────────────── */}
-        {tab === 'build' && showLiveGuard && !settings.draft_structure && (
-          <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: '16px', padding: '32px', display: 'flex', flexDirection: 'column', gap: '24px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-              <div style={{ width: '36px', height: '36px', borderRadius: '50%', background: 'rgba(192,244,60,0.15)', border: '1px solid rgba(192,244,60,0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                <svg width="16" height="16" fill="none" stroke={C.teal} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
-              </div>
-              <div>
-                <div style={{ fontSize: '15px', fontWeight: 800, color: C.text }}>This website is currently LIVE</div>
-                <div style={{ fontSize: '12px', color: C.muted, marginTop: '2px' }}>
-                  {settings.custom_domain ?? (settings.slug ? `/events/${settings.slug}` : '')}
-                  {settings.last_published_at && ` · Last published ${new Date(settings.last_published_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}`}
-                </div>
-              </div>
-            </div>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px' }}>
-              <button
-                onClick={() => {
-                  const base = settings.page_structure_full
-                  setPs(base && Object.keys(base).length > 0 ? base as PageStructure : defaultStructure(settings.theme_accent ?? undefined, settings.theme_primary ?? undefined))
-                  setBuilderMode('editing_live')
-                  setShowLiveGuard(false)
-                }}
-                style={{ padding: '20px', borderRadius: '12px', border: `2px solid ${C.border}`, background: '#F8FAFF', cursor: 'pointer', fontFamily: 'inherit', textAlign: 'left', display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                <div style={{ fontSize: '13px', fontWeight: 800, color: C.text }}>Edit current site</div>
-                <div style={{ fontSize: '12px', color: C.muted, lineHeight: 1.5 }}>Make targeted changes to the live design. A draft copy is created — live stays untouched until you publish.</div>
-              </button>
-              <button
-                onClick={() => {
-                  setPs(defaultStructure(settings.theme_accent ?? undefined, settings.theme_primary ?? undefined))
-                  setBuilderMode('fresh')
-                  setShowLiveGuard(false)
-                }}
-                style={{ padding: '20px', borderRadius: '12px', border: `2px solid ${C.border}`, background: '#F8FAFF', cursor: 'pointer', fontFamily: 'inherit', textAlign: 'left', display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                <div style={{ fontSize: '13px', fontWeight: 800, color: C.text }}>Start fresh redesign</div>
-                <div style={{ fontSize: '12px', color: C.muted, lineHeight: 1.5 }}>Build a completely new design from scratch. Live site continues to run until you publish the new version.</div>
-              </button>
-            </div>
-          </div>
-        )}
+        {/* ── BUILD TAB — Deployment dashboard ─────────────────────────── */}
+        {tab === 'build' && (() => {
+          const site = deployResult
+            ? { repo_url: deployResult.repo_url, gh_actions_url: deployResult.gh_actions_url, site_url: deployResult.site_url, status: 'deploying', template_id: selectedTemplate ?? '', worker_name: deployResult.worker_name }
+            : existingSite
+          const tpl = templates.find(t => t.id === (site?.template_id ?? selectedTemplate))
 
-        {/* ── BUILDER ──────────────────────────────────────────────────── */}
-        {tab === 'build' && ps && !showLiveGuard && (() => {
-          const selPage = ps.pages.find(p => p.id === selPageId) ?? ps.pages[0]
-
-          // ── helpers ────────────────────────────────────────────────────
-          function updNav(fn: (nav: PageStructure['nav']) => PageStructure['nav']) {
-            setPs(p => p ? { ...p, nav: fn([...p.nav]) } : p)
-          }
-          function updDesign(pageId: string, secId: string, patch: Partial<SectionDesign>) {
-            updSections(pageId, secs => secs.map(s => s.id === secId ? { ...s, design: { ...s.design, ...patch } } : s))
-          }
-
-          const uid = () => Math.random().toString(36).slice(2, 9)
-
-          function navMove(i: number, d: -1|1) {
-            updNav(nav => { const n=[...nav]; const j=i+d; if(j<0||j>=n.length) return n; [n[i],n[j]]=[n[j],n[i]]; return n })
-          }
-          function navRemove(i: number) { updNav(nav => nav.filter((_,idx) => idx !== i)) }
-          function navAdd() { updNav(nav => [...nav, { id: uid(), label: 'Link', href: '', type: 'link' as const }]) }
-          function navSet(i: number, patch: Partial<PageStructure['nav'][0]>) {
-            updNav(nav => nav.map((item, idx) => idx === i ? { ...item, ...patch } : item))
-          }
-
-          function updFooter(patch: Partial<FooterConfig>) {
-            setPs(p => p ? { ...p, footer: { ...p.footer, ...patch } } : p)
-          }
-          function updFooterCol(colId: string, patch: Partial<FooterColumn>) {
-            setPs(p => p ? { ...p, footer: { ...p.footer, columns: p.footer.columns.map(c => c.id === colId ? { ...c, ...patch } : c) } } : p)
-          }
-          function updFooterLink(colId: string, linkId: string, patch: Partial<FooterLink>) {
-            setPs(p => p ? { ...p, footer: { ...p.footer, columns: p.footer.columns.map(c => c.id === colId ? { ...c, links: c.links.map(l => l.id === linkId ? { ...l, ...patch } : l) } : c) } } : p)
-          }
-          function addFooterCol() {
-            const id = uid()
-            setPs(p => p ? { ...p, footer: { ...p.footer, columns: [...p.footer.columns, { id, heading: 'Column', links: [] }] } } : p)
-          }
-          function removeFooterCol(colId: string) {
-            setPs(p => p ? { ...p, footer: { ...p.footer, columns: p.footer.columns.filter(c => c.id !== colId) } } : p)
-          }
-          function addFooterLink(colId: string) {
-            const id = uid()
-            setPs(p => p ? { ...p, footer: { ...p.footer, columns: p.footer.columns.map(c => c.id === colId ? { ...c, links: [...c.links, { id, label: 'Link', href: '' }] } : c) } } : p)
-          }
-          function removeFooterLink(colId: string, linkId: string) {
-            setPs(p => p ? { ...p, footer: { ...p.footer, columns: p.footer.columns.map(c => c.id === colId ? { ...c, links: c.links.filter(l => l.id !== linkId) } : c) } } : p)
-          }
-
-          function secMove(pageId: string, i: number, d: -1|1) {
-            updSections(pageId, secs => { const s=[...secs]; const j=i+d; if(j<0||j>=s.length) return s; [s[i],s[j]]=[s[j],s[i]]; return s })
-          }
-          function secRemove(pageId: string, secId: string) {
-            updSections(pageId, secs => secs.filter(s => s.id !== secId))
-          }
-
-          const CONTENT_TYPES = ['text_block','testimonials','faq','gallery','video_embed','countdown','cta_banner']
-
-          function secAdd(pageId: string, type: Section['type']) {
-            const def: SectionDesign = { bg_type: 'colour', bg_value: settings.theme_primary ?? '#0F1923', text_light: true, padding: 'normal', full_width: true }
-            const isContent = CONTENT_TYPES.includes(type)
-            updSections(pageId, secs => [...secs, { id: uid(), type, enabled: true, dashboard_editable: isContent, design: def }])
-            setAddSecOpen(false)
-          }
-          function pageToggleNav(pageId: string) {
-            updPages(pgs => pgs.map(pg => pg.id === pageId ? { ...pg, in_nav: !pg.in_nav } : pg))
-          }
-
-          // ── design value input ─────────────────────────────────────────
-          const bgInput = (sec: Section) => {
-            const d = sec.design
-            if (d.bg_type === 'colour' || d.bg_type === 'gradient') return (
-              <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
-                <input type="color" value={d.bg_value || '#000000'} onChange={e => updDesign(selPage.id, sec.id, { bg_value: e.target.value })}
-                  style={{ width: '32px', height: '32px', border: 'none', padding: 0, cursor: 'pointer', background: 'none', flexShrink: 0 }} />
-                <input value={d.bg_value} onChange={e => updDesign(selPage.id, sec.id, { bg_value: e.target.value })}
-                  style={{ width: '100px', padding: '5px 8px', borderRadius: '6px', border: `1px solid ${C.border}`, fontSize: '12px', fontFamily: 'monospace', color: C.text }} />
-              </div>
-            )
-            if (d.bg_type === 'image') return (
-              <input value={d.bg_value} onChange={e => updDesign(selPage.id, sec.id, { bg_value: e.target.value })}
-                placeholder="https://... image URL" style={{ flex: 1, padding: '5px 10px', borderRadius: '6px', border: `1px solid ${C.border}`, fontSize: '12px', fontFamily: 'inherit', color: C.text }} />
-            )
-            if (d.bg_type === 'pattern') return (
-              <div style={{ display: 'flex', gap: '4px' }}>
-                {['1','2','3','4','5'].map(n => {
-                  const url = (settings as Record<string,unknown>)[`pattern_${n}_url`] as string | null
-                  return (
-                    <button key={n} onClick={() => updDesign(selPage.id, sec.id, { bg_value: n })}
-                      title={`Pattern ${n}`}
-                      style={{ width: '28px', height: '28px', borderRadius: '6px', border: `2px solid ${d.bg_value === n ? C.teal : C.border}`, backgroundImage: url ? `url(${url})` : 'none', backgroundSize: 'cover', backgroundColor: '#F8FAFF', cursor: 'pointer', fontSize: '10px', color: C.muted }}>
-                      {!url && n}
-                    </button>
-                  )
-                })}
-              </div>
-            )
-            return null
-          }
-
-          // ── section row rendering ──────────────────────────────────────
-          const secRow = (sec: Section, sIdx: number) => {
-            const meta = SECTION_TYPES.find(st => st.type === sec.type)
-            const layouts = SECTION_LAYOUTS[sec.type] ?? []
-            const d = sec.design
-            const isOpen = openDesignId === sec.id
-            const isDragOver = dndOverIdx === sIdx && dndSrcIdx.current !== null && dndSrcIdx.current !== sIdx
+          if (!site) {
             return (
-              <div key={sec.id}
-                draggable
-                onDragStart={() => { dndSrcIdx.current = sIdx }}
-                onDragOver={e => { e.preventDefault(); setDndOverIdx(sIdx) }}
-                onDragLeave={() => setDndOverIdx(null)}
-                onDrop={e => {
-                  e.preventDefault()
-                  const from = dndSrcIdx.current
-                  if (from !== null && from !== sIdx) {
-                    updPages(prev => prev.map(pg => {
-                      if (pg.id !== selPage.id) return pg
-                      const secs = [...pg.sections]
-                      const [moved] = secs.splice(from, 1)
-                      secs.splice(sIdx, 0, moved)
-                      return { ...pg, sections: secs }
-                    }))
-                  }
-                  dndSrcIdx.current = null; setDndOverIdx(null)
-                }}
-                onDragEnd={() => { dndSrcIdx.current = null; setDndOverIdx(null) }}
-                style={{ borderRadius: '12px', border: `1px solid ${isDragOver ? C.teal : sec.enabled ? C.teal+'44' : C.border}`, marginBottom: '8px', overflow: 'hidden', opacity: sec.enabled ? 1 : 0.55, transition: 'border-color 0.15s', boxShadow: isDragOver ? `0 0 0 2px ${C.teal}44` : 'none' }}>
-                {/* Row */}
-                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '10px 14px', background: C.surface }}>
-                  {/* drag handle */}
-                  <div style={{ cursor: 'grab', flexShrink: 0, color: C.muted, fontSize: '16px', lineHeight: 1, userSelect: 'none', padding: '0 2px' }} title="Drag to reorder">
-                    &#9776;
-                  </div>
-                  {/* enable toggle */}
-                  <button onClick={() => updSection(selPage.id, sec.id, { enabled: !sec.enabled })}
-                    title={sec.enabled ? 'Visible on site' : 'Hidden on site'}
-                    style={{ width: '36px', height: '20px', borderRadius: '10px', border: 'none', background: sec.enabled ? C.teal : '#CBD5E1', cursor: 'pointer', position: 'relative', flexShrink: 0, transition: 'background 0.15s' }}>
-                    <span style={{ position: 'absolute', top: '3px', left: sec.enabled?'19px':'3px', width: '14px', height: '14px', borderRadius: '50%', background: '#fff', transition: 'left 0.15s' }} />
-                  </button>
-                  {/* dashboard toggle */}
-                  <button onClick={() => updSection(selPage.id, sec.id, { dashboard_editable: !sec.dashboard_editable })}
-                    title={sec.dashboard_editable ? 'Editable in Content tab' : 'Not on dashboard — click to enable'}
-                    style={{ display: 'flex', alignItems: 'center', gap: '4px', padding: '3px 8px', borderRadius: '6px', border: `1px solid ${sec.dashboard_editable ? C.purple+'66' : C.border}`, background: sec.dashboard_editable ? C.purple+'14' : 'transparent', color: sec.dashboard_editable ? C.purple : C.muted, fontSize: '10px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', flexShrink: 0, transition: 'all 0.15s' }}>
-                    <svg width="9" height="9" viewBox="0 0 24 24" fill="currentColor"><rect x="3" y="3" width="8" height="8" rx="1"/><rect x="13" y="3" width="8" height="8" rx="1"/><rect x="3" y="13" width="8" height="8" rx="1"/><rect x="13" y="13" width="8" height="8" rx="1"/></svg>
-                    {sec.dashboard_editable ? 'Dashboard' : 'Dashboard'}
-                  </button>
-                  {/* type label */}
-                  <div style={{ flex: 1 }}>
-                    <div style={{ fontSize: '13px', fontWeight: 700, color: C.text }}>{meta?.label ?? sec.type}</div>
-                    {/* layouts */}
-                    {layouts.length > 0 && (
-                      <div style={{ display: 'flex', gap: '4px', marginTop: '4px' }}>
-                        {layouts.map(l => (
-                          <button key={l.value} onClick={() => updSection(selPage.id, sec.id, { layout: l.value })}
-                            style={{ padding: '2px 9px', borderRadius: '5px', border: `1px solid ${sec.layout===l.value?C.teal:C.border}`, background: sec.layout===l.value?C.teal+'18':'transparent', color: sec.layout===l.value?C.teal:C.muted, fontSize: '10px', fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>
-                            {l.label}
-                          </button>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                  {/* design toggle */}
-                  <button onClick={() => setOpenDesignId(isOpen ? null : sec.id)}
-                    style={{ padding: '5px 12px', borderRadius: '7px', border: `1px solid ${isOpen?C.teal:C.border}`, background: isOpen?C.teal+'18':'transparent', color: isOpen?C.teal:C.muted, fontSize: '11px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', flexShrink: 0 }}>
-                    Design {isOpen?'▲':'▼'}
-                  </button>
-                  {/* remove */}
-                  <button onClick={() => { if(confirm('Remove this section?')) secRemove(selPage.id, sec.id) }}
-                    style={{ padding: '4px 8px', borderRadius: '6px', border: `1px solid rgba(255,107,107,0.25)`, background: 'rgba(255,107,107,0.06)', color: C.red, fontSize: '12px', cursor: 'pointer', fontFamily: 'inherit', flexShrink: 0 }}>×</button>
+              <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: '16px', padding: '40px 32px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '16px', textAlign: 'center' }}>
+                <div style={{ width: '52px', height: '52px', borderRadius: '14px', background: `${C.teal}14`, border: `1px solid ${C.teal}33`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <svg width="24" height="24" fill="none" stroke={C.teal} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg>
                 </div>
-
-                {/* Design panel */}
-                {isOpen && (
-                  <div style={{ borderTop: `1px solid ${C.border}`, background: '#F8FAFF' }}>
-                    {/* ── Visual design controls ───────────────────────── */}
-                    <div style={{ padding: '14px 16px', display: 'flex', flexWrap: 'wrap', gap: '18px', alignItems: 'flex-start', borderBottom: `1px solid ${C.border}` }}>
-                      {/* bg type */}
-                      <div>
-                        <div style={{ fontSize: '10px', fontWeight: 800, color: C.muted, textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '6px' }}>Background</div>
-                        <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
-                          {(['colour','gradient','image','pattern','transparent'] as SectionDesign['bg_type'][]).map(bt => (
-                            <button key={bt} onClick={() => updDesign(selPage.id, sec.id, { bg_type: bt })}
-                              style={{ padding: '3px 9px', borderRadius: '5px', border: `1px solid ${d.bg_type===bt?C.teal:C.border}`, background: d.bg_type===bt?C.teal+'18':'transparent', color: d.bg_type===bt?C.teal:C.muted, fontSize: '10px', fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>
-                              {bt}
-                            </button>
-                          ))}
-                        </div>
-                      </div>
-                      {d.bg_type !== 'transparent' && (
-                        <div>
-                          <div style={{ fontSize: '10px', fontWeight: 800, color: C.muted, textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '6px' }}>Value</div>
-                          {bgInput(sec)}
-                        </div>
-                      )}
-                      <div>
-                        <div style={{ fontSize: '10px', fontWeight: 800, color: C.muted, textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '6px' }}>Text</div>
-                        <div style={{ display: 'flex', gap: '4px' }}>
-                          {([true, false] as boolean[]).map(lt => (
-                            <button key={String(lt)} onClick={() => updDesign(selPage.id, sec.id, { text_light: lt })}
-                              style={{ padding: '3px 10px', borderRadius: '5px', border: `1px solid ${d.text_light===lt?C.teal:C.border}`, background: d.text_light===lt?C.teal+'18':'transparent', color: d.text_light===lt?C.teal:C.muted, fontSize: '10px', fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>
-                              {lt ? 'Light' : 'Dark'}
-                            </button>
-                          ))}
-                        </div>
-                      </div>
-                      <div>
-                        <div style={{ fontSize: '10px', fontWeight: 800, color: C.muted, textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '6px' }}>Padding</div>
-                        <div style={{ display: 'flex', gap: '4px' }}>
-                          {(['compact','normal','spacious'] as SectionDesign['padding'][]).map(p => (
-                            <button key={p} onClick={() => updDesign(selPage.id, sec.id, { padding: p })}
-                              style={{ padding: '3px 9px', borderRadius: '5px', border: `1px solid ${d.padding===p?C.teal:C.border}`, background: d.padding===p?C.teal+'18':'transparent', color: d.padding===p?C.teal:C.muted, fontSize: '10px', fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>
-                              {p}
-                            </button>
-                          ))}
-                        </div>
-                      </div>
-                      <div>
-                        <div style={{ fontSize: '10px', fontWeight: 800, color: C.muted, textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '6px' }}>Width</div>
-                        <div style={{ display: 'flex', gap: '4px' }}>
-                          {([true, false] as boolean[]).map(fw => (
-                            <button key={String(fw)} onClick={() => updDesign(selPage.id, sec.id, { full_width: fw })}
-                              style={{ padding: '3px 10px', borderRadius: '5px', border: `1px solid ${d.full_width===fw?C.teal:C.border}`, background: d.full_width===fw?C.teal+'18':'transparent', color: d.full_width===fw?C.teal:C.muted, fontSize: '10px', fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>
-                              {fw ? 'Full' : 'Contained'}
-                            </button>
-                          ))}
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* ── Section-specific controls ─────────────────────── */}
-                    <div style={{ padding: '14px 16px', display: 'flex', flexDirection: 'column', gap: '14px' }}>
-
-                      {/* Hero / Page Hero controls */}
-                      {(sec.type === 'hero' || sec.type === 'page_hero') && (
-                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
-                          <div>
-                            <div style={{ fontSize: '10px', fontWeight: 800, color: C.muted, textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '6px' }}>Logo</div>
-                            <div style={{ display: 'flex', gap: '4px' }}>
-                              {(['none','white','primary','horizontal'] as const).map(slot => (
-                                <button key={slot} onClick={() => updSection(selPage.id, sec.id, { logo_slot: slot })}
-                                  style={{ padding: '3px 8px', borderRadius: '5px', border: `1px solid ${sec.logo_slot===slot?C.teal:C.border}`, background: sec.logo_slot===slot?C.teal+'18':'transparent', color: sec.logo_slot===slot?C.teal:C.muted, fontSize: '10px', fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>
-                                  {slot}
-                                </button>
-                              ))}
-                            </div>
-                          </div>
-                          <div>
-                            <div style={{ fontSize: '10px', fontWeight: 800, color: C.muted, textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '6px' }}>Logo Size</div>
-                            <div style={{ display: 'flex', gap: '4px' }}>
-                              {(['sm','md','lg'] as const).map(sz => (
-                                <button key={sz} onClick={() => updSection(selPage.id, sec.id, { logo_size: sz })}
-                                  style={{ padding: '3px 12px', borderRadius: '5px', border: `1px solid ${sec.logo_size===sz?C.teal:C.border}`, background: sec.logo_size===sz?C.teal+'18':'transparent', color: sec.logo_size===sz?C.teal:C.muted, fontSize: '10px', fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>
-                                  {sz.toUpperCase()}
-                                </button>
-                              ))}
-                            </div>
-                          </div>
-                          <div>
-                            <div style={{ fontSize: '10px', fontWeight: 800, color: C.muted, textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '6px' }}>Text Align</div>
-                            <div style={{ display: 'flex', gap: '4px' }}>
-                              {(['center','left'] as const).map(ta => (
-                                <button key={ta} onClick={() => updSection(selPage.id, sec.id, { text_align: ta })}
-                                  style={{ padding: '3px 12px', borderRadius: '5px', border: `1px solid ${sec.text_align===ta?C.teal:C.border}`, background: sec.text_align===ta?C.teal+'18':'transparent', color: sec.text_align===ta?C.teal:C.muted, fontSize: '10px', fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>
-                                  {ta}
-                                </button>
-                              ))}
-                            </div>
-                          </div>
-                          <div>
-                            <div style={{ fontSize: '10px', fontWeight: 800, color: C.muted, textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '6px' }}>
-                              Overlay {sec.overlay_opacity ?? 55}%
-                            </div>
-                            <input type="range" min={0} max={100} value={sec.overlay_opacity ?? 55}
-                              onChange={e => updSection(selPage.id, sec.id, { overlay_opacity: Number(e.target.value) })}
-                              style={{ width: '100%', accentColor: C.teal }} />
-                          </div>
-                          <div style={{ gridColumn: '1/-1' }}>
-                            <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
-                              <input type="checkbox" checked={sec.show_venue_badge !== false} onChange={e => updSection(selPage.id, sec.id, { show_venue_badge: e.target.checked })} style={{ accentColor: C.teal }} />
-                              <span style={{ fontSize: '11px', color: C.muted }}>Show venue date badge (from Settings)</span>
-                            </label>
-                          </div>
-                          {sec.type === 'hero' && (
-                            <>
-                              <div style={{ gridColumn: '1/-1' }}>
-                                <div style={{ fontSize: '10px', fontWeight: 800, color: C.muted, textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '6px' }}>Primary CTA</div>
-                                <div style={{ display: 'flex', gap: '6px' }}>
-                                  <input value={sec.custom_title ?? ''} onChange={e => updSection(selPage.id, sec.id, { custom_title: e.target.value })}
-                                    placeholder="Label (defaults to Settings)"
-                                    style={{ width: '140px', padding: '5px 8px', borderRadius: '6px', border: `1px solid ${C.border}`, fontSize: '11px', fontFamily: 'inherit', color: C.text }} />
-                                  <input value={sec.custom_body ?? ''} onChange={e => updSection(selPage.id, sec.id, { custom_body: e.target.value })}
-                                    placeholder="URL (defaults to Settings)"
-                                    style={{ flex: 1, padding: '5px 8px', borderRadius: '6px', border: `1px solid ${C.border}`, fontSize: '11px', fontFamily: 'inherit', color: C.text }} />
-                                </div>
-                              </div>
-                              <div style={{ gridColumn: '1/-1' }}>
-                                <div style={{ fontSize: '10px', fontWeight: 800, color: C.muted, textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '6px' }}>Secondary CTA</div>
-                                <div style={{ display: 'flex', gap: '6px' }}>
-                                  <input value={sec.cta2_label ?? ''} onChange={e => updSection(selPage.id, sec.id, { cta2_label: e.target.value })}
-                                    placeholder="Label e.g. View Agenda"
-                                    style={{ width: '140px', padding: '5px 8px', borderRadius: '6px', border: `1px solid ${C.border}`, fontSize: '11px', fontFamily: 'inherit', color: C.text }} />
-                                  <input value={sec.cta2_href ?? ''} onChange={e => updSection(selPage.id, sec.id, { cta2_href: e.target.value })}
-                                    placeholder="page-slug or URL"
-                                    style={{ flex: 1, padding: '5px 8px', borderRadius: '6px', border: `1px solid ${C.border}`, fontSize: '11px', fontFamily: 'inherit', color: C.text }} />
-                                </div>
-                              </div>
-                            </>
-                          )}
-                        </div>
-                      )}
-
-                      {/* Register CTA */}
-                      {sec.type === 'register' && (
-                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
-                          <div style={{ gridColumn: '1/-1', fontSize: '10px', fontWeight: 800, color: C.muted, textTransform: 'uppercase', letterSpacing: '0.5px' }}>CTA Buttons</div>
-                          <input value={sec.custom_title ?? ''} onChange={e => updSection(selPage.id, sec.id, { custom_title: e.target.value })}
-                            placeholder="Primary label" style={{ padding: '5px 8px', borderRadius: '6px', border: `1px solid ${C.border}`, fontSize: '11px', fontFamily: 'inherit', color: C.text }} />
-                          <input value={sec.custom_body ?? ''} onChange={e => updSection(selPage.id, sec.id, { custom_body: e.target.value })}
-                            placeholder="Primary URL" style={{ padding: '5px 8px', borderRadius: '6px', border: `1px solid ${C.border}`, fontSize: '11px', fontFamily: 'inherit', color: C.text }} />
-                          <input value={sec.cta2_label ?? ''} onChange={e => updSection(selPage.id, sec.id, { cta2_label: e.target.value })}
-                            placeholder="Secondary label" style={{ padding: '5px 8px', borderRadius: '6px', border: `1px solid ${C.border}`, fontSize: '11px', fontFamily: 'inherit', color: C.text }} />
-                          <input value={sec.cta2_href ?? ''} onChange={e => updSection(selPage.id, sec.id, { cta2_href: e.target.value })}
-                            placeholder="Secondary URL / slug" style={{ padding: '5px 8px', borderRadius: '6px', border: `1px solid ${C.border}`, fontSize: '11px', fontFamily: 'inherit', color: C.text }} />
-                        </div>
-                      )}
-
-                      {/* Text block — layout controls only (content edited in Content > Sections) */}
-                      {sec.type === 'text_block' && (
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                          <div>
-                            <div style={{ fontSize: '10px', fontWeight: 800, color: C.muted, textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '5px' }}>Heading Size</div>
-                            <div style={{ display: 'flex', gap: '4px' }}>
-                              {(['h2','h3','h4'] as const).map(hl => (
-                                <button key={hl} onClick={() => updSection(selPage.id, sec.id, { heading_level: hl })}
-                                  style={{ padding: '5px 14px', borderRadius: '6px', border: `1px solid ${(sec.heading_level??'h2')===hl?C.teal:C.border}`, background: (sec.heading_level??'h2')===hl?C.teal+'18':'transparent', color: (sec.heading_level??'h2')===hl?C.teal:C.muted, fontSize: '12px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', textTransform: 'uppercase' }}>
-                                  {hl}
-                                </button>
-                              ))}
-                            </div>
-                          </div>
-                          <div>
-                            <div style={{ fontSize: '10px', fontWeight: 800, color: C.muted, textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '5px' }}>Body Font Size</div>
-                            <div style={{ display: 'flex', gap: '4px' }}>
-                              {[{ v: 'sm', label: 'Small (15px)' }, { v: 'md', label: 'Normal (17px)' }, { v: 'lg', label: 'Large (20px)' }].map(({ v, label }) => (
-                                <button key={v} onClick={() => updSection(selPage.id, sec.id, { body_size: v as 'sm'|'md'|'lg' })}
-                                  style={{ padding: '5px 10px', borderRadius: '6px', border: `1px solid ${(sec.body_size??'md')===v?C.teal:C.border}`, background: (sec.body_size??'md')===v?C.teal+'18':'transparent', color: (sec.body_size??'md')===v?C.teal:C.muted, fontSize: '11px', fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>
-                                  {label}
-                                </button>
-                              ))}
-                            </div>
-                          </div>
-                        </div>
-                      )}
-
-                      {/* Testimonials — layout controls only */}
-                      {sec.type === 'testimonials' && (() => {
-                        const layout = sec.layout ?? 'carousel'
-                        const countOpts = layout === 'carousel'
-                          ? [{ v: 1, label: '1' }, { v: 2, label: '2' }, { v: 3, label: '3' }]
-                          : layout === 'grid'
-                          ? [{ v: 3, label: '3' }, { v: 4, label: '4' }, { v: 6, label: '6' }]
-                          : []
-                        return countOpts.length > 0 ? (
-                          <div>
-                            <div style={{ fontSize: '10px', fontWeight: 800, color: C.muted, textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '5px' }}>
-                              {layout === 'carousel' ? 'Visible at a time' : 'Columns'}
-                            </div>
-                            <div style={{ display: 'flex', gap: '4px' }}>
-                              {countOpts.map(({ v, label }) => (
-                                <button key={v} onClick={() => updSection(selPage.id, sec.id, { visible_count: v })}
-                                  style={{ padding: '5px 14px', borderRadius: '6px', border: `1px solid ${(sec.visible_count??(layout==='carousel'?1:3))===v?C.teal:C.border}`, background: (sec.visible_count??(layout==='carousel'?1:3))===v?C.teal+'18':'transparent', color: (sec.visible_count??(layout==='carousel'?1:3))===v?C.teal:C.muted, fontSize: '12px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
-                                  {label}
-                                </button>
-                              ))}
-                            </div>
-                          </div>
-                        ) : null
-                      })()}
-
-                      {/* Inline-content indicator */}
-                      {CONTENT_TYPES.includes(sec.type) && (
-                        <div style={{ padding: '8px 12px', borderRadius: '8px', background: sec.dashboard_editable ? C.purple+'0D' : 'rgba(245,158,11,0.06)', border: `1px solid ${sec.dashboard_editable ? C.purple+'33' : 'rgba(245,158,11,0.2)'}`, fontSize: '11px', color: sec.dashboard_editable ? C.purple : C.amber, fontWeight: 600, lineHeight: 1.4 }}>
-                          {sec.dashboard_editable
-                            ? 'Content editable in Step 3 > Sections'
-                            : 'Enable "Dashboard" toggle above to edit content in Step 3'}
-                        </div>
-                      )}
-                      {/* Dynamic indicator */}
-                      {['speakers','agenda','partners','schedule','logo_ticker'].includes(sec.type) && (
-                        <div style={{ padding: '6px 10px', borderRadius: '6px', background: `${C.teal}08`, border: `1px solid ${C.teal}20`, fontSize: '10px', color: C.teal, fontWeight: 700 }}>
-                          Dynamic — pulls live data from {sec.type === 'speakers' ? 'Speakers' : sec.type === 'agenda' || sec.type === 'schedule' ? 'Agenda' : 'Sponsors'} tab
-                        </div>
-                      )}
-                      {['hero','about','stats','venue','page_hero','media'].includes(sec.type) && (
-                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '10px', padding: '8px 12px', borderRadius: '8px', background: 'rgba(245,158,11,0.06)', border: '1px solid rgba(245,158,11,0.2)' }}>
-                          <span style={{ fontSize: '10px', color: C.amber, fontWeight: 700 }}>
-                            Static — content lives in Content tab &gt; Event Details
-                          </span>
-                          <button onClick={() => { setTab('content'); setContentTab('details') }}
-                            style={{ padding: '3px 10px', borderRadius: '5px', border: `1px solid ${C.amber}44`, background: `${C.amber}14`, color: C.amber, fontSize: '10px', fontWeight: 800, cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap', flexShrink: 0 }}>
-                            Edit Content
-                          </button>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                )}
-              </div>
-            )
-          }
-
-          // ── builder mode banner ──────────────────────────────────────
-          const modeBanner = settings.status === 'live' ? (
-            <div style={{ marginBottom: '16px', padding: '10px 16px', borderRadius: '10px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px',
-              background: builderMode === 'fresh' ? 'rgba(167,139,250,0.08)' : 'rgba(245,158,11,0.08)',
-              border: `1px solid ${builderMode === 'fresh' ? 'rgba(167,139,250,0.25)' : 'rgba(245,158,11,0.25)'}` }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: builderMode === 'fresh' ? C.purple : C.amber, flexShrink: 0 }} />
-                <span style={{ fontSize: '12px', fontWeight: 600, color: builderMode === 'fresh' ? C.purple : C.amber }}>
-                  {builderMode === 'fresh'
-                    ? 'Fresh redesign in progress — live site continues to run until you publish'
-                    : 'Editing a draft copy — live site is unaffected until you publish'}
-                </span>
-              </div>
-              <button onClick={() => { setShowLiveGuard(true); setPs(null) }}
-                style={{ padding: '4px 12px', borderRadius: '6px', border: `1px solid ${C.border}`, background: C.surface, color: C.muted, fontSize: '11px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap', flexShrink: 0 }}>
-                Discard draft
-              </button>
-            </div>
-          ) : settings.draft_structure ? (
-            <div style={{ marginBottom: '16px', padding: '10px 16px', borderRadius: '10px', display: 'flex', alignItems: 'center', gap: '10px', background: 'rgba(0,105,92,0.06)', border: `1px solid rgba(0,105,92,0.18)` }}>
-              <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: C.teal, flexShrink: 0 }} />
-              <span style={{ fontSize: '12px', fontWeight: 600, color: C.teal }}>Draft in progress — save when ready, then publish in Step 4</span>
-            </div>
-          ) : null
-
-          return (
-            <div>
-              {modeBanner}
-            <div style={{ display: 'flex', gap: '20px', alignItems: 'flex-start' }}>
-
-              {/* ── Left panel ──────────────────────────────────────────── */}
-              <div style={{ width: '256px', flexShrink: 0, display: 'flex', flexDirection: 'column', gap: '16px' }}>
-
-                {/* Nav editor */}
-                <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: '14px', padding: '16px' }}>
-                  <div style={{ fontSize: '11px', fontWeight: 800, color: C.muted, textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '12px' }}>Navigation</div>
-                  {ps.nav.map((item, idx) => (
-                    <div key={item.id} style={{ display: 'flex', gap: '6px', alignItems: 'center', marginBottom: '8px' }}>
-                      {/* reorder */}
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
-                        <button onClick={() => navMove(idx, -1)} disabled={idx===0} style={{ background:'none', border:`1px solid ${C.border}`, borderRadius:'3px', cursor:idx===0?'default':'pointer', padding:'1px 4px', fontSize:'7px', color:C.muted, opacity:idx===0?0.3:1 }}>▲</button>
-                        <button onClick={() => navMove(idx, 1)} disabled={idx===ps.nav.length-1} style={{ background:'none', border:`1px solid ${C.border}`, borderRadius:'3px', cursor:idx===ps.nav.length-1?'default':'pointer', padding:'1px 4px', fontSize:'7px', color:C.muted, opacity:idx===ps.nav.length-1?0.3:1 }}>▼</button>
-                      </div>
-                      {/* label */}
-                      <input value={item.label} onChange={e => navSet(idx, { label: e.target.value })}
-                        style={{ flex: 1, padding: '5px 8px', borderRadius: '6px', border: `1px solid ${C.border}`, fontSize: '12px', fontFamily: 'inherit', color: C.text, minWidth: 0 }} />
-                      {/* cta toggle */}
-                      <button onClick={() => navSet(idx, { type: item.type === 'cta' ? 'link' : 'cta' })}
-                        title="Toggle CTA style"
-                        style={{ padding: '4px 7px', borderRadius: '5px', border: `1px solid ${item.type==='cta'?C.amber:C.border}`, background: item.type==='cta'?'rgba(245,158,11,0.12)':'transparent', color: item.type==='cta'?C.amber:C.muted, fontSize: '10px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', flexShrink: 0 }}>
-                        CTA
-                      </button>
-                      {/* remove */}
-                      <button onClick={() => navRemove(idx)}
-                        style={{ padding: '4px 7px', borderRadius: '5px', border: `1px solid rgba(255,107,107,0.25)`, background: 'rgba(255,107,107,0.06)', color: C.red, fontSize: '12px', cursor: 'pointer', fontFamily: 'inherit', flexShrink: 0 }}>×</button>
-                    </div>
-                  ))}
-                  {/* href editor — small below each */}
-                  <div style={{ marginBottom: '10px' }}>
-                    {ps.nav.map((item, idx) => (
-                      <div key={item.id+'h'} style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '4px' }}>
-                        <div style={{ fontSize: '10px', color: C.muted, width: '60px', textAlign: 'right', flexShrink: 0 }}>{item.label.slice(0,10)}</div>
-                        <input value={item.href} onChange={e => navSet(idx, { href: e.target.value })}
-                          placeholder="page-slug or #anchor"
-                          style={{ flex: 1, padding: '3px 7px', borderRadius: '5px', border: `1px solid ${C.border}`, fontSize: '11px', fontFamily: 'inherit', color: C.text }} />
-                      </div>
-                    ))}
-                  </div>
-                  <button onClick={navAdd}
-                    style={{ width: '100%', padding: '7px', borderRadius: '7px', border: `1px dashed ${C.border}`, background: 'transparent', color: C.muted, fontSize: '12px', fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>
-                    + Add Link
-                  </button>
+                <div style={{ fontSize: '15px', fontWeight: 800, color: C.text }}>No site deployed yet</div>
+                <div style={{ fontSize: '13px', color: C.muted, maxWidth: '380px', lineHeight: 1.6 }}>
+                  Go to the Template tab, pick a design, and click &ldquo;Create &amp; Deploy Site&rdquo;. Your event site will be live in 5–8 minutes.
                 </div>
-
-                {/* Page list */}
-                <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: '14px', padding: '16px' }}>
-                  <div style={{ fontSize: '11px', fontWeight: 800, color: C.muted, textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '12px' }}>Pages</div>
-                  {ps.pages.map((page, pIdx) => (
-                    <div key={page.id} style={{ marginBottom: '6px' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                        <button onClick={() => { setSelPageId(page.id); setOpenDesignId(null) }}
-                          style={{ flex: 1, display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 12px', borderRadius: '8px', border: `1px solid ${selPageId===page.id?C.teal:C.border}`, background: selPageId===page.id?C.teal+'12':'transparent', cursor: 'pointer', fontFamily: 'inherit', textAlign: 'left' }}>
-                          <span style={{ fontSize: '7px', color: selPageId===page.id?C.teal:C.border }}>●</span>
-                          <span style={{ fontSize: '13px', fontWeight: selPageId===page.id?700:500, color: selPageId===page.id?C.teal:C.text }}>{page.label}</span>
-                          <span style={{ fontSize: '10px', color: C.muted, marginLeft: 'auto' }}>{page.sections.length}</span>
-                        </button>
-                        <button onClick={() => pageToggleNav(page.id)} title="Show in nav"
-                          style={{ padding: '5px 8px', borderRadius: '6px', border: `1px solid ${page.in_nav?C.teal:C.border}`, background: page.in_nav?C.teal+'18':'transparent', color: page.in_nav?C.teal:C.muted, fontSize: '9px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', flexShrink: 0 }}>
-                          NAV
-                        </button>
-                        {/* remove page (not home) */}
-                        {page.id !== 'home' && (
-                          <button onClick={() => { if(confirm(`Remove page "${page.label}"?`)) updPages(pgs => pgs.filter(pg => pg.id !== page.id)) }}
-                            style={{ padding: '4px 7px', borderRadius: '5px', border: `1px solid rgba(255,107,107,0.25)`, background: 'rgba(255,107,107,0.06)', color: C.red, fontSize: '12px', cursor: 'pointer', fontFamily: 'inherit', flexShrink: 0 }}>×</button>
-                        )}
-                      </div>
-                      {/* inline label + slug edit when selected */}
-                      {selPageId === page.id && (
-                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px', marginTop: '6px', paddingLeft: '4px' }}>
-                          <input value={page.label} onChange={e => updPages(pgs => pgs.map((pg,i) => i===pIdx ? { ...pg, label: e.target.value } : pg))}
-                            placeholder="Page label"
-                            style={{ padding: '4px 8px', borderRadius: '5px', border: `1px solid ${C.border}`, fontSize: '11px', fontFamily: 'inherit', color: C.text }} />
-                          <input value={page.slug} onChange={e => updPages(pgs => pgs.map((pg,i) => i===pIdx ? { ...pg, slug: e.target.value.toLowerCase().replace(/\s+/g,'-').replace(/[^a-z0-9-]/g,'') } : pg))}
-                            placeholder="url-slug"
-                            style={{ padding: '4px 8px', borderRadius: '5px', border: `1px solid ${C.border}`, fontSize: '11px', fontFamily: 'inherit', color: C.text }} />
-                        </div>
-                      )}
-                    </div>
-                  ))}
-                  {/* Add page */}
-                  <button onClick={() => {
-                    const label = prompt('Page name (e.g. Attend, Ecosystem, Collaborate):')
-                    if (!label) return
-                    const slug = label.toLowerCase().replace(/\s+/g,'-').replace(/[^a-z0-9-]/g,'')
-                    const id   = uid()
-                    updPages(pgs => [...pgs, { id, slug, label, in_nav: true, sections: [
-                      { id: uid(), type: 'page_hero', enabled: true, design: { bg_type: 'colour', bg_value: settings.theme_primary ?? '#08121D', text_light: true, padding: 'normal', full_width: true } },
-                    ]}])
-                    setSelPageId(id)
-                  }}
-                    style={{ width: '100%', marginTop: '8px', padding: '7px', borderRadius: '7px', border: `1px dashed ${C.border}`, background: 'transparent', color: C.muted, fontSize: '12px', fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>
-                    + Add Page
-                  </button>
-                </div>
-
-                {/* Footer editor */}
-                {ps.footer && (() => {
-                  const ft = ps.footer
-                  const [footerOpen, setFooterOpen] = [openDesignId === '__footer__', (v: boolean) => setOpenDesignId(v ? '__footer__' : null)]
-                  return (
-                    <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: '14px', overflow: 'hidden' }}>
-                      {/* Header */}
-                      <button onClick={() => setFooterOpen(!footerOpen)} style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 16px', background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'inherit' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={C.muted} strokeWidth="2" strokeLinecap="round"><rect x="2" y="17" width="20" height="5" rx="1"/><line x1="2" y1="12" x2="22" y2="12"/><line x1="6" y1="7" x2="18" y2="7"/></svg>
-                          <span style={{ fontSize: '11px', fontWeight: 800, color: C.muted, textTransform: 'uppercase', letterSpacing: '1px' }}>Footer</span>
-                        </div>
-                        <span style={{ fontSize: '10px', color: C.muted }}>{footerOpen ? '▲' : '▼'}</span>
-                      </button>
-
-                      {footerOpen && (
-                        <div style={{ borderTop: `1px solid ${C.border}`, padding: '14px 16px', display: 'flex', flexDirection: 'column', gap: '14px' }}>
-
-                          {/* Background + Text */}
-                          <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-                            <input type="color" value={ft.bg_color || '#0F1923'} onChange={e => updFooter({ bg_color: e.target.value })}
-                              style={{ width: '32px', height: '32px', border: 'none', padding: 0, cursor: 'pointer', background: 'none', flexShrink: 0 }} />
-                            <input value={ft.bg_color} onChange={e => updFooter({ bg_color: e.target.value })}
-                              style={{ width: '82px', padding: '5px 8px', borderRadius: '6px', border: `1px solid ${C.border}`, fontSize: '11px', fontFamily: 'monospace', color: C.text }} />
-                            {([true, false] as boolean[]).map(lt => (
-                              <button key={String(lt)} onClick={() => updFooter({ text_light: lt })}
-                                style={{ flex: 1, padding: '5px 4px', borderRadius: '5px', border: `1px solid ${ft.text_light===lt?C.teal:C.border}`, background: ft.text_light===lt?C.teal+'18':'transparent', color: ft.text_light===lt?C.teal:C.muted, fontSize: '10px', fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>
-                                {lt ? 'Light text' : 'Dark text'}
-                              </button>
-                            ))}
-                          </div>
-
-                          {/* Logo */}
-                          <div>
-                            <div style={{ fontSize: '10px', fontWeight: 800, color: C.muted, textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '6px' }}>Logo</div>
-                            <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
-                              {(['none','white','primary','horizontal'] as const).map(slot => (
-                                <button key={slot} onClick={() => updFooter({ logo_slot: slot })}
-                                  style={{ padding: '3px 9px', borderRadius: '5px', border: `1px solid ${ft.logo_slot===slot?C.teal:C.border}`, background: ft.logo_slot===slot?C.teal+'18':'transparent', color: ft.logo_slot===slot?C.teal:C.muted, fontSize: '10px', fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>
-                                  {slot}
-                                </button>
-                              ))}
-                            </div>
-                          </div>
-
-                          {/* Tagline */}
-                          <div>
-                            <div style={{ fontSize: '10px', fontWeight: 800, color: C.muted, textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '5px' }}>Tagline</div>
-                            <input value={ft.tagline ?? ''} onChange={e => updFooter({ tagline: e.target.value })}
-                              placeholder="Short event description…"
-                              style={{ width: '100%', padding: '6px 9px', borderRadius: '6px', border: `1px solid ${C.border}`, fontSize: '12px', fontFamily: 'inherit', color: C.text, boxSizing: 'border-box' }} />
-                          </div>
-
-                          {/* Copyright */}
-                          <div>
-                            <div style={{ fontSize: '10px', fontWeight: 800, color: C.muted, textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '5px' }}>Copyright</div>
-                            <input value={ft.copyright ?? ''} onChange={e => updFooter({ copyright: e.target.value })}
-                              placeholder="© 2026 Event Name. All rights reserved."
-                              style={{ width: '100%', padding: '6px 9px', borderRadius: '6px', border: `1px solid ${C.border}`, fontSize: '12px', fontFamily: 'inherit', color: C.text, boxSizing: 'border-box' }} />
-                          </div>
-
-                          {/* Social links */}
-                          <div>
-                            <div style={{ fontSize: '10px', fontWeight: 800, color: C.muted, textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '8px' }}>Social Links</div>
-                            {(['linkedin','twitter','instagram','youtube','facebook'] as const).map(platform => {
-                              const social = ft.socials.find(s => s.platform === platform)
-                              const icons: Record<string, string> = { linkedin: 'in', twitter: 'X', instagram: 'ig', youtube: 'yt', facebook: 'fb' }
-                              return (
-                                <div key={platform} style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '6px' }}>
-                                  <span style={{ width: '22px', height: '22px', borderRadius: '4px', background: C.bg, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '9px', fontWeight: 900, color: C.muted, flexShrink: 0 }}>{icons[platform]}</span>
-                                  <input value={social?.url ?? ''} onChange={e => {
-                                    const url = e.target.value
-                                    setPs(p => {
-                                      if (!p) return p
-                                      const existing = p.footer.socials.find(s => s.platform === platform)
-                                      const socials = existing
-                                        ? p.footer.socials.map(s => s.platform === platform ? { ...s, url } : s)
-                                        : [...p.footer.socials, { platform, url }]
-                                      return { ...p, footer: { ...p.footer, socials } }
-                                    })
-                                  }}
-                                    placeholder={`https://${platform}.com/...`}
-                                    style={{ flex: 1, padding: '5px 8px', borderRadius: '6px', border: `1px solid ${C.border}`, fontSize: '11px', fontFamily: 'inherit', color: C.text }} />
-                                </div>
-                              )
-                            })}
-                          </div>
-
-                          {/* Footer columns */}
-                          <div>
-                            <div style={{ fontSize: '10px', fontWeight: 800, color: C.muted, textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '8px' }}>Link Columns</div>
-                            {ft.columns.map(col => (
-                              <div key={col.id} style={{ marginBottom: '12px', padding: '10px 12px', borderRadius: '8px', border: `1px solid ${C.border}`, background: C.bg }}>
-                                <div style={{ display: 'flex', gap: '6px', marginBottom: '8px', alignItems: 'center' }}>
-                                  <input value={col.heading} onChange={e => updFooterCol(col.id, { heading: e.target.value })}
-                                    placeholder="Column heading"
-                                    style={{ flex: 1, padding: '4px 8px', borderRadius: '5px', border: `1px solid ${C.border}`, fontSize: '12px', fontWeight: 700, fontFamily: 'inherit', color: C.text, background: C.surface }} />
-                                  <button onClick={() => removeFooterCol(col.id)}
-                                    style={{ padding: '3px 7px', borderRadius: '5px', border: `1px solid rgba(255,107,107,0.25)`, background: 'rgba(255,107,107,0.06)', color: C.red, fontSize: '12px', cursor: 'pointer', fontFamily: 'inherit' }}>×</button>
-                                </div>
-                                {col.links.map(lnk => (
-                                  <div key={lnk.id} style={{ display: 'flex', gap: '4px', marginBottom: '5px' }}>
-                                    <input value={lnk.label} onChange={e => updFooterLink(col.id, lnk.id, { label: e.target.value })}
-                                      placeholder="Label" style={{ width: '80px', padding: '4px 7px', borderRadius: '5px', border: `1px solid ${C.border}`, fontSize: '11px', fontFamily: 'inherit', color: C.text, background: C.surface }} />
-                                    <input value={lnk.href} onChange={e => updFooterLink(col.id, lnk.id, { href: e.target.value })}
-                                      placeholder="page-slug or URL" style={{ flex: 1, padding: '4px 7px', borderRadius: '5px', border: `1px solid ${C.border}`, fontSize: '11px', fontFamily: 'inherit', color: C.text, background: C.surface }} />
-                                    <button onClick={() => removeFooterLink(col.id, lnk.id)}
-                                      style={{ padding: '3px 6px', borderRadius: '4px', border: `1px solid rgba(255,107,107,0.2)`, background: 'transparent', color: C.red, fontSize: '11px', cursor: 'pointer', fontFamily: 'inherit' }}>×</button>
-                                  </div>
-                                ))}
-                                <button onClick={() => addFooterLink(col.id)}
-                                  style={{ width: '100%', marginTop: '4px', padding: '4px', borderRadius: '5px', border: `1px dashed ${C.border}`, background: 'transparent', color: C.muted, fontSize: '11px', cursor: 'pointer', fontFamily: 'inherit' }}>
-                                  + Add Link
-                                </button>
-                              </div>
-                            ))}
-                            <button onClick={addFooterCol}
-                              style={{ width: '100%', padding: '6px', borderRadius: '7px', border: `1px dashed ${C.border}`, background: 'transparent', color: C.muted, fontSize: '11px', fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>
-                              + Add Column
-                            </button>
-                          </div>
-
-                        </div>
-                      )}
-                    </div>
-                  )
-                })()}
-
-                {/* Save button */}
-                <button onClick={saveBuilder} disabled={savingBuilder}
-                  style={{ padding: '11px', borderRadius: '10px', border: 'none', background: C.green, color: C.text, fontSize: '13px', fontWeight: 800, cursor: 'pointer', fontFamily: 'inherit', opacity: savingBuilder?0.6:1, width: '100%' }}>
-                  {savingBuilder ? 'Saving…' : 'Save Structure'}
+                <button onClick={() => setTab('template')}
+                  style={{ marginTop: '8px', padding: '10px 24px', background: C.teal, color: '#fff', border: 'none', borderRadius: '8px', fontSize: '13px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
+                  Go to Template
                 </button>
               </div>
+            )
+          }
 
-              {/* ── Right panel ─────────────────────────────────────────── */}
-              <div style={{ flex: 1 }}>
-                <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: '14px', padding: '20px' }}>
-                  {/* Page header */}
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '20px' }}>
-                    <div>
-                      <div style={{ fontSize: '15px', fontWeight: 800, color: C.text }}>{selPage?.label}</div>
-                      <div style={{ fontSize: '12px', color: C.muted, marginTop: '2px' }}>
-                        {selPage?.slug ? `/events/${settings.slug}/${selPage.slug}` : `/events/${settings.slug ?? '…'}`}
-                        {' · '}{selPage?.sections.length} section{selPage?.sections.length !== 1 ? 's' : ''}
-                      </div>
-                    </div>
-                    <div style={{ position: 'relative' }}>
-                      <button onClick={() => setAddSecOpen(o => !o)}
-                        style={{ padding: '8px 18px', borderRadius: '8px', border: 'none', background: C.text, color: C.green, fontSize: '12px', fontWeight: 800, cursor: 'pointer', fontFamily: 'inherit' }}>
-                        + Add Section
-                      </button>
-                      {addSecOpen && (
-                        <div style={{ position: 'absolute', right: 0, top: 'calc(100% + 6px)', background: C.surface, border: `1px solid ${C.border}`, borderRadius: '12px', boxShadow: '0 8px 32px rgba(0,0,0,0.14)', zIndex: 50, width: '260px', padding: '8px', maxHeight: '480px', overflowY: 'auto' }}>
-                          {([
-                            { label: 'Core Sections', tag: 'static', color: C.teal },
-                            { label: 'Dynamic Data', tag: 'dynamic', color: C.purple },
-                            { label: 'Media & Embeds', tag: 'inline', color: C.amber },
-                            { label: 'Auto', tag: 'auto', color: C.muted },
-                          ] as { label: string; tag: string; color: string }[]).map(group => {
-                            const items = SECTION_TYPES.filter(st => st.tag === group.tag)
-                            if (!items.length) return null
-                            return (
-                              <div key={group.tag}>
-                                <div style={{ fontSize: '9px', fontWeight: 900, color: group.color, textTransform: 'uppercase', letterSpacing: '1.2px', padding: '8px 12px 4px', opacity: 0.8 }}>{group.label}</div>
-                                {items.map(st => (
-                                  <button key={st.type} onClick={() => secAdd(selPage.id, st.type)}
-                                    style={{ display: 'flex', alignItems: 'center', gap: '10px', width: '100%', padding: '7px 12px', borderRadius: '7px', border: 'none', background: 'transparent', cursor: 'pointer', fontFamily: 'inherit', textAlign: 'left' }}
-                                    onMouseEnter={e => (e.currentTarget.style.background = '#F0F4F8')}
-                                    onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}>
-                                    <span style={{ fontSize: '13px', color: group.color, width: '22px', flexShrink: 0 }}>{st.icon}</span>
-                                    <div>
-                                      <div style={{ fontSize: '12px', color: C.text, fontWeight: 600 }}>{st.label}</div>
-                                      <div style={{ fontSize: '10px', color: C.muted, marginTop: '1px' }}>
-                                        {st.tag === 'static'  && 'Content set in Content tab'}
-                                        {st.tag === 'dynamic' && 'Pulls live data from database'}
-                                        {st.tag === 'inline'  && 'Editable directly here'}
-                                        {st.tag === 'auto'    && 'Counts down to event date'}
-                                      </div>
-                                    </div>
-                                  </button>
-                                ))}
-                              </div>
-                            )
-                          })}
-                        </div>
-                      )}
-                    </div>
+          const isLive = site.status === 'live' || (site.status !== 'deploying')
+
+          return (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+
+              {/* Status header */}
+              <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: '16px', padding: '24px 28px', display: 'flex', alignItems: 'center', gap: '16px', flexWrap: 'wrap' }}>
+                <div style={{ width: '44px', height: '44px', borderRadius: '12px', background: isLive ? 'rgba(0,105,92,0.1)' : 'rgba(245,158,11,0.1)', border: `1px solid ${isLive ? C.teal+'44' : C.amber+'44'}`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                  {isLive
+                    ? <svg width="20" height="20" fill="none" stroke={C.teal} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>
+                    : <svg width="20" height="20" fill="none" stroke={C.amber} strokeWidth="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                  }
+                </div>
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontSize: '15px', fontWeight: 800, color: C.text }}>
+                    {isLive ? 'Site deployed' : 'Build in progress…'}
                   </div>
+                  <div style={{ fontSize: '12px', color: C.muted, marginTop: '3px' }}>
+                    {tpl?.label ?? site.template_id}
+                    {site.worker_name && ` · ${site.worker_name}.workers.dev`}
+                  </div>
+                </div>
+                {site.site_url && (
+                  <a href={site.site_url} target="_blank" rel="noreferrer"
+                    style={{ padding: '10px 20px', background: C.teal, color: '#fff', borderRadius: '9px', fontSize: '13px', fontWeight: 700, textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0 }}>
+                    <svg width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+                    Visit Live Site
+                  </a>
+                )}
+              </div>
 
-                  {/* Sections */}
-                  {selPage?.sections.length === 0 && (
-                    <div style={{ padding: '40px', textAlign: 'center', color: C.muted, fontSize: '13px', border: `2px dashed ${C.border}`, borderRadius: '12px' }}>
-                      No sections yet — click &ldquo;+ Add Section&rdquo; to start building this page.
+              {/* Action cards */}
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: '14px' }}>
+
+                {/* GitHub repo */}
+                <a href={site.repo_url} target="_blank" rel="noreferrer"
+                  style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: '12px', padding: '20px', textDecoration: 'none', display: 'flex', flexDirection: 'column', gap: '10px', transition: 'border-color 0.15s' }}>
+                  <div style={{ width: '36px', height: '36px', borderRadius: '9px', background: '#0F1923', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="#fff"><path d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.531 1.032 1.531 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z"/></svg>
+                  </div>
+                  <div>
+                    <div style={{ fontSize: '13px', fontWeight: 700, color: C.text }}>GitHub Repo</div>
+                    <div style={{ fontSize: '11px', color: C.muted, marginTop: '3px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{site.repo_url.replace('https://github.com/', '')}</div>
+                  </div>
+                  <div style={{ fontSize: '11px', color: C.teal, fontWeight: 600 }}>Open to customise code &rsaquo;</div>
+                </a>
+
+                {/* Build logs */}
+                {site.gh_actions_url && (
+                  <a href={site.gh_actions_url} target="_blank" rel="noreferrer"
+                    style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: '12px', padding: '20px', textDecoration: 'none', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                    <div style={{ width: '36px', height: '36px', borderRadius: '9px', background: '#161b22', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                      <svg width="18" height="18" fill="none" stroke="#f0883e" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
                     </div>
-                  )}
-                  {selPage?.sections.map((sec, sIdx) => secRow(sec, sIdx))}
+                    <div>
+                      <div style={{ fontSize: '13px', fontWeight: 700, color: C.text }}>Build Logs</div>
+                      <div style={{ fontSize: '11px', color: C.muted, marginTop: '3px' }}>GitHub Actions</div>
+                    </div>
+                    <div style={{ fontSize: '11px', color: C.teal, fontWeight: 600 }}>View build status &rsaquo;</div>
+                  </a>
+                )}
+
+                {/* Sync data */}
+                <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: '12px', padding: '20px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                  <div style={{ width: '36px', height: '36px', borderRadius: '9px', background: `${C.teal}18`, border: `1px solid ${C.teal}33`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <svg width="18" height="18" fill="none" stroke={C.teal} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
+                  </div>
+                  <div>
+                    <div style={{ fontSize: '13px', fontWeight: 700, color: C.text }}>Sync Event Data</div>
+                    <div style={{ fontSize: '11px', color: C.muted, marginTop: '3px', lineHeight: 1.5 }}>Pushes fresh brand, speakers &amp; sponsors to the repo — triggers a redeploy.</div>
+                  </div>
+                  <button
+                    disabled={syncingDeploy}
+                    onClick={async () => {
+                      setSyncingDeploy(true)
+                      try {
+                        const res = await fetch('/api/sites/deploy', {
+                          method: 'POST',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({ event_id: eventId, template_id: site.template_id }),
+                        })
+                        const data = await res.json() as { ok?: boolean; error?: string; repo_url?: string; gh_actions_url?: string; worker_name?: string; site_url?: string }
+                        if (!res.ok || data.error) { setMsg(data.error ?? 'Sync failed'); setMsgOk(false) }
+                        else { setMsg('Event data synced — redeploy triggered'); setMsgOk(true) }
+                      } catch (e) { setMsg(String(e)); setMsgOk(false) }
+                      setSyncingDeploy(false)
+                    }}
+                    style={{ padding: '8px 16px', background: syncingDeploy ? C.muted : C.teal, color: '#fff', border: 'none', borderRadius: '7px', fontSize: '12px', fontWeight: 700, cursor: syncingDeploy ? 'not-allowed' : 'pointer', fontFamily: 'inherit', width: 'fit-content' }}>
+                    {syncingDeploy ? 'Syncing…' : 'Sync Now'}
+                  </button>
+                </div>
+
+              </div>
+
+              {/* Redeploy with different template */}
+              <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: '12px', padding: '18px 20px', display: 'flex', alignItems: 'center', gap: '12px' }}>
+                <svg width="16" height="16" fill="none" stroke={C.muted} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+                <div style={{ flex: 1, fontSize: '12px', color: C.muted, lineHeight: 1.5 }}>
+                  Want to switch template or make code changes? Open the GitHub repo in Claude Code for full customisation.
+                  To redeploy with a different template, go back to the <button onClick={() => setTab('template')} style={{ background: 'none', border: 'none', color: C.teal, fontWeight: 700, cursor: 'pointer', fontSize: '12px', padding: 0, fontFamily: 'inherit' }}>Template tab</button>.
                 </div>
               </div>
-            </div>
+
             </div>
           )
         })()}
 
 
         {/* ── SETTINGS ─────────────────────────────────────────────────── */}
+        {tab === 'content' && existingSite && (
+          /* ── Site sync status banner ──────────────────────────────────── */
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', background: contentSyncError ? 'rgba(255,107,107,0.08)' : contentSyncing ? 'rgba(0,105,92,0.06)' : 'rgba(192,244,60,0.07)', border: `1px solid ${contentSyncError ? C.red+'44' : contentSyncing ? C.teal+'44' : C.green+'44'}`, borderRadius: '10px', padding: '10px 16px', marginBottom: '14px' }}>
+            {contentSyncing ? (
+              <>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={C.teal} strokeWidth="2.5" strokeLinecap="round"><path d="M21 12a9 9 0 11-6.219-8.56"/></svg>
+                <span style={{ fontSize: '12px', fontWeight: 600, color: C.teal }}>Syncing content to live site…</span>
+              </>
+            ) : contentSyncError ? (
+              <>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={C.red} strokeWidth="2.5" strokeLinecap="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+                <span style={{ fontSize: '12px', fontWeight: 600, color: C.red, flex: 1 }}>Sync failed: {contentSyncError}</span>
+                <button onClick={syncContentToSite} style={{ fontSize: '11px', fontWeight: 700, color: C.red, background: 'none', border: `1px solid ${C.red}44`, borderRadius: '6px', padding: '3px 10px', cursor: 'pointer', fontFamily: 'inherit' }}>Retry</button>
+              </>
+            ) : (
+              <>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={C.teal} strokeWidth="2.5" strokeLinecap="round"><polyline points="20 6 9 17 4 12"/></svg>
+                <span style={{ fontSize: '12px', fontWeight: 600, color: C.teal, flex: 1 }}>
+                  {contentSyncedAt
+                    ? `Site synced at ${new Date(contentSyncedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} — GitHub Actions is rebuilding`
+                    : 'Changes auto-sync to live site when saved'}
+                </span>
+                <a href={existingSite.gh_actions_url} target="_blank" rel="noreferrer" style={{ fontSize: '11px', fontWeight: 700, color: C.teal, textDecoration: 'none', border: `1px solid ${C.teal}44`, borderRadius: '6px', padding: '3px 10px' }}>Actions</a>
+              </>
+            )}
+          </div>
+        )}
+
         {tab === 'content' && (
           /* ── Content sub-tab bar ──────────────────────────────────────── */
           <div style={{ display: 'flex', gap: '4px', background: C.surface, border: `1px solid ${C.border}`, borderRadius: '10px', padding: '5px', marginBottom: '20px', flexWrap: 'wrap' }}>
