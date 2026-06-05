@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/app/lib/supabase'
+import _sodium from 'libsodium-wrappers'
+import { unzipSync, strFromU8 } from 'fflate'
 
 /* ─────────────────────────────────────────────────────────────────────────────
    POST /api/sites/deploy
@@ -23,38 +25,18 @@ import { supabaseAdmin } from '@/app/lib/supabase'
      CLOUDFLARE_ACCOUNT_ID — Cloudflare account ID
 ───────────────────────────────────────────────────────────────────────────── */
 
-const GH_TOKEN        = process.env.GITHUB_TOKEN
-const GH_ORG          = 'Trescon-Events'
-const TEMPLATES_REPO  = 'taos-templates'
-
-// GitHub Actions workflow embedded in every generated site repo
-const DEPLOY_WORKFLOW = `name: Deploy to Cloudflare Workers
-on:
-  push:
-    branches: [main]
-
-jobs:
-  deploy:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-          cache: 'npm'
-      - run: npm ci
-      - run: npx opennextjs-cloudflare build
-      - name: Deploy to Cloudflare Workers
-        run: npx wrangler deploy
-        env:
-          CLOUDFLARE_API_TOKEN: \${{ secrets.CLOUDFLARE_API_TOKEN }}
-          CLOUDFLARE_ACCOUNT_ID: \${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-`
+const GH_TOKEN           = process.env.GITHUB_TOKEN
+const GH_ORG             = 'Trescon-Events'
+const TEMPLATES_REPO     = 'taos-templates'
+const GH_SITES_OWNER     = 'Trescon-Events'   // repos created under org
+const CF_API_TOKEN       = process.env.CF_API_TOKEN ?? ''
+const CF_ACCOUNT_ID      = process.env.CF_ACCOUNT_ID ?? ''
 
 // ── GitHub API helper ────────────────────────────────────────────────────────
 async function gh(path: string, init?: RequestInit) {
   return fetch(`https://api.github.com${path}`, {
     ...init,
+    cache: 'no-store',
     headers: {
       Authorization:          `Bearer ${GH_TOKEN}`,
       Accept:                 'application/vnd.github+json',
@@ -67,12 +49,17 @@ async function gh(path: string, init?: RequestInit) {
 
 async function ghJson<T = unknown>(path: string, init?: RequestInit): Promise<T> {
   const res = await gh(path, init)
-  return res.json() as Promise<T>
+  const data = await res.json()
+  if (!res.ok) {
+    throw new Error(`GitHub API ${init?.method ?? 'GET'} ${path} → ${res.status}: ${JSON.stringify(data)}`)
+  }
+  return data as T
 }
 
 // ── GET — fetch existing deployment for an event ─────────────────────────────
 export async function GET(req: NextRequest) {
   const event_id = req.nextUrl.searchParams.get('event_id')
+
   if (!event_id) return NextResponse.json({ site: null })
 
   const { data: site } = await supabaseAdmin
@@ -111,10 +98,10 @@ export async function POST(req: NextRequest) {
     // Fetch event data
     const { data: event, error: eventErr } = await supabaseAdmin
       .from('events')
-      .select('id, name, tagline, description, start_date, end_date, city, country, venue_name, venue_address, website, contact_email, konfhub_event_id')
+      .select('id, name, description, event_date, end_date, city, venue')
       .eq('id', event_id).single()
     if (eventErr || !event) {
-      return NextResponse.json({ error: 'Event not found' }, { status: 404 })
+      return NextResponse.json({ error: `Event not found: ${eventErr?.message ?? 'no data'}` }, { status: 404 })
     }
 
     const { data: brand }   = await supabaseAdmin.from('event_brand').select('primary_color, accent_color, logo_url, logo_white_url, logo_horizontal_url, hero_image_url').eq('event_id', event_id).maybeSingle()
@@ -123,10 +110,10 @@ export async function POST(req: NextRequest) {
     const { data: sponsors } = await supabaseAdmin.from('event_sponsors').select('name, logo_url, website, tier').eq('event_id', event_id).order('tier', { ascending: true }).limit(8)
 
     const fmtDate = (iso: string | null) => iso ? new Date(iso).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' }).toUpperCase() : ''
-    const dateStart   = event.start_date ? new Date(event.start_date) : null
+    const dateStart   = event.event_date ? new Date(event.event_date) : null
     const dateEnd     = event.end_date   ? new Date(event.end_date)   : null
-    const dateDisplay = dateStart && dateEnd ? `${dateStart.getDate()}–${fmtDate(event.end_date)}` : dateStart ? fmtDate(event.start_date) : 'DATE TBA'
-    const eventSiteUrl = webRow?.custom_domain ? `https://${webRow.custom_domain}` : webRow?.subdomain ? `https://${webRow.subdomain}.tresconglobal.com` : event.website || 'https://example.com'
+    const dateDisplay = dateStart && dateEnd ? `${dateStart.getDate()}–${fmtDate(event.end_date)}` : dateStart ? fmtDate(event.event_date) : 'DATE TBA'
+    const eventSiteUrl = webRow?.custom_domain ? `https://${webRow.custom_domain}` : webRow?.subdomain ? `https://${webRow.subdomain}.tresconglobal.com` : 'https://tresconglobal.com'
     const bgColor     = brand?.primary_color || templateColorScheme.bg
     const accentColor = brand?.accent_color  || templateColorScheme.accent
     const hlColor     = templateColorScheme.highlight
@@ -143,19 +130,19 @@ export async function POST(req: NextRequest) {
 
 export const EVENT = {
   name:        ${JSON.stringify(event.name)},
-  tagline:     ${JSON.stringify(event.tagline || '')},
+  tagline:     "",
   description: ${JSON.stringify(event.description || '')},
   organiser:   "Trescon Global",
   date_display:   ${JSON.stringify(dateDisplay)},
-  date_iso_start: ${JSON.stringify(event.start_date || '')},
+  date_iso_start: ${JSON.stringify(event.event_date || '')},
   date_iso_end:   ${JSON.stringify(event.end_date || '')},
-  venue_name:    ${JSON.stringify(event.venue_name || 'TBA')},
+  venue_name:    ${JSON.stringify(event.venue || 'TBA')},
   venue_city:    ${JSON.stringify(event.city || '')},
-  venue_country: ${JSON.stringify(event.country || '')},
-  venue_display: ${JSON.stringify([event.venue_name, event.city, event.country].filter(Boolean).join(' · ').toUpperCase())},
-  venue_address: ${JSON.stringify(event.venue_address || '')},
+  venue_country: "",
+  venue_display: ${JSON.stringify([event.venue, event.city].filter(Boolean).join(' · ').toUpperCase())},
+  venue_address: "",
   site_url:          ${JSON.stringify(eventSiteUrl)},
-  register_url:      ${event.konfhub_event_id ? JSON.stringify(`https://konfhub.com/checkout/${event.konfhub_event_id}`) : '""'},
+  register_url:      "",
   colors: { bg_primary: ${JSON.stringify(bgColor)}, accent: ${JSON.stringify(accentColor)}, highlight: ${JSON.stringify(hlColor)} },
   assets: {
     logo:        ${JSON.stringify(brand?.logo_url || '/logo.svg')},
@@ -171,11 +158,11 @@ ${speakersBlock}
 ${sponsorsBlock}
   ],
   footer: {
-    email: ${JSON.stringify(event.contact_email || '')},
+    email: "",
     copyright: \`© \${new Date().getFullYear()} Trescon Global. All rights reserved.\`,
   },
   seo: {
-    title_default:  ${JSON.stringify(`${event.name} | ${event.tagline || ''}`)},
+    title_default:  ${JSON.stringify(event.name)},
     description:    ${JSON.stringify(event.description || '')},
   },
   _taos: { event_id: ${JSON.stringify(event.id)}, template_id: ${JSON.stringify(template_id)}, generated: ${JSON.stringify(new Date().toISOString())} },
@@ -188,24 +175,68 @@ export type EventConfig = typeof EVENT
     const workerName = `taos-${eventSlug}`
     const siteUrl    = `https://${workerName}.workers.dev`
 
-    // ── 2. Read template file tree from monorepo ──────────────────────────────
-    type GHTreeItem = { type: string; path: string; sha: string; mode: string }
-    const treeData = await ghJson<{ tree?: GHTreeItem[] }>(
-      `/repos/${GH_ORG}/${TEMPLATES_REPO}/git/trees/main?recursive=1`,
-    )
-    const prefix      = `${template_id}/`
-    const sourceFiles = (treeData.tree ?? []).filter(
-      f => f.type === 'blob' && f.path.startsWith(prefix),
-    )
-
-    if (sourceFiles.length === 0) {
+    // ── 2. Download entire template repo as zipball (1 API call) ─────────────
+    const zipRes = await gh(`/repos/${GH_ORG}/${TEMPLATES_REPO}/zipball/main`)
+    if (!zipRes.ok) {
+      const errText = await zipRes.text()
       return NextResponse.json(
-        { error: `Template "${template_id}" not found in taos-templates repo. Check the folder name.` },
+        { error: `Failed to download template zipball: ${zipRes.status} ${errText.slice(0, 200)}` },
+        { status: 500 },
+      )
+    }
+    const zipBuffer = Buffer.from(await zipRes.arrayBuffer())
+    const unzipped  = unzipSync(new Uint8Array(zipBuffer))
+
+    // Zipball root is "Owner-Repo-SHA/" — find the template subfolder
+    const templatePrefix = `/${template_id}/`
+    // GitHub inline-content trees only support text. Binary files need separate blob upload.
+    const TEXT_EXTS = new Set(['.ts','.tsx','.js','.jsx','.mjs','.cjs','.json','.jsonc','.toml','.yaml','.yml','.md','.html','.htm','.css','.scss','.svg','.txt','.env','.gitignore','.gitattributes','.prettierrc','.eslintrc','.nvmrc','.npmrc','.editorconfig'])
+    const treeEntries: { path: string; mode: string; type: string; content: string }[] = []
+    const workflowFiles: { path: string; content: string }[] = []
+    let filesFound = 0
+
+    for (const [zipPath, fileData] of Object.entries(unzipped)) {
+      const idx = zipPath.indexOf(templatePrefix)
+      if (idx === -1) continue
+      const relPath = zipPath.slice(idx + templatePrefix.length)
+      if (!relPath || relPath.endsWith('/')) continue  // skip directories
+      filesFound++
+
+      // event.ts is injected separately below
+      if (relPath === 'src/config/event.ts') continue
+
+      // Skip binary files that can't be represented as UTF-8 strings in JSON
+      const ext = relPath.includes('.') ? '.' + relPath.split('.').pop()! : ''
+      if (!TEXT_EXTS.has(ext)) continue
+
+      let content = strFromU8(fileData)
+
+      // Patch wrangler worker name to match this event's slug
+      if (relPath === 'wrangler.jsonc' || relPath === 'wrangler.toml') {
+        content = content.replace(/"name"\s*:\s*"[^"]+"/, `"name": "${workerName}"`)
+      }
+
+      // .github/workflows/ files can't go in the git tree (requires `workflow` token scope).
+      // Collect them separately and push via the Contents API after the main commit.
+      if (relPath.startsWith('.github/workflows/')) {
+        workflowFiles.push({ path: relPath, content })
+        continue
+      }
+
+      treeEntries.push({ path: relPath, mode: '100644', type: 'blob', content })
+    }
+
+    if (filesFound === 0) {
+      return NextResponse.json(
+        { error: `Template "${template_id}" not found in zipball. Check the folder name in taos-templates.` },
         { status: 404 },
       )
     }
 
-    // ── 3. Create the GitHub repo ─────────────────────────────────────────────
+    // Add generated event config (inline content — GitHub auto-creates the blob)
+    treeEntries.push({ path: 'src/config/event.ts', mode: '100644', type: 'blob', content: config_ts })
+
+    // ── 3. Create the GitHub repo under Trescon-Events org ───────────────────
     const createRes = await gh(`/orgs/${GH_ORG}/repos`, {
       method: 'POST',
       body:   JSON.stringify({
@@ -227,71 +258,21 @@ export type EventConfig = typeof EVENT
           { status: 500 },
         )
       }
-      // Repo exists — we'll overwrite the files below (force push)
     }
 
-    // ── 4. Download source files & create blobs in new repo ──────────────────
-    //   Files we handle manually:
-    const MANUAL_PATHS = new Set(['src/config/event.ts'])
-
-    async function downloadBlob(sha: string): Promise<string> {
-      const data = await ghJson<{ content?: string }>(
-        `/repos/${GH_ORG}/${TEMPLATES_REPO}/git/blobs/${sha}`,
-      )
-      // GitHub wraps base64 content with newlines — strip them
-      return (data.content ?? '').replace(/\n/g, '')
+    // ── 4. Create Git tree — GitHub auto-creates blobs from inline content ───
+    if (treeEntries.length === 0) {
+      return NextResponse.json({ error: 'No files to commit — treeEntries is empty' }, { status: 500 })
     }
 
-    async function uploadBlob(b64: string): Promise<string> {
-      const data = await ghJson<{ sha: string }>(
-        `/repos/${GH_ORG}/${repoName}/git/blobs`,
-        { method: 'POST', body: JSON.stringify({ content: b64, encoding: 'base64' }) },
-      )
-      return data.sha
-    }
-
-    const treeEntries: { path: string; mode: string; type: string; sha: string }[] = []
-
-    // Process files in parallel batches of 8
-    const toProcess = sourceFiles.filter(f => !MANUAL_PATHS.has(f.path.replace(prefix, '')))
-    const BATCH = 8
-
-    for (let i = 0; i < toProcess.length; i += BATCH) {
-      await Promise.all(
-        toProcess.slice(i, i + BATCH).map(async file => {
-          const relPath = file.path.replace(prefix, '')
-          let b64 = await downloadBlob(file.sha)
-
-          // Rewrite wrangler.jsonc worker name to match the event slug
-          if (relPath === 'wrangler.jsonc' || relPath === 'wrangler.toml') {
-            const text    = Buffer.from(b64, 'base64').toString('utf8')
-            const updated = text.replace(/"name"\s*:\s*"[^"]+"/, `"name": "${workerName}"`)
-            b64 = Buffer.from(updated).toString('base64')
-          }
-
-          const sha = await uploadBlob(b64)
-          treeEntries.push({ path: relPath, mode: file.mode || '100644', type: 'blob', sha })
-        }),
-      )
-    }
-
-    // Add the generated event.ts
-    const eventTsSha = await uploadBlob(Buffer.from(config_ts).toString('base64'))
-    treeEntries.push({ path: 'src/config/event.ts', mode: '100644', type: 'blob', sha: eventTsSha })
-
-    // Add the GitHub Actions deploy workflow
-    const wfSha = await uploadBlob(Buffer.from(DEPLOY_WORKFLOW).toString('base64'))
-    treeEntries.push({ path: '.github/workflows/deploy.yml', mode: '100644', type: 'blob', sha: wfSha })
-
-    // ── 5. Create Git tree ────────────────────────────────────────────────────
     const gitTree = await ghJson<{ sha: string }>(
-      `/repos/${GH_ORG}/${repoName}/git/trees`,
+      `/repos/${GH_SITES_OWNER}/${repoName}/git/trees`,
       { method: 'POST', body: JSON.stringify({ tree: treeEntries }) },
     )
 
-    // ── 6. Create commit ──────────────────────────────────────────────────────
+    // ── 5. Create commit ──────────────────────────────────────────────────────
     const commit = await ghJson<{ sha: string }>(
-      `/repos/${GH_ORG}/${repoName}/git/commits`,
+      `/repos/${GH_SITES_OWNER}/${repoName}/git/commits`,
       {
         method: 'POST',
         body:   JSON.stringify({
@@ -302,21 +283,62 @@ export type EventConfig = typeof EVENT
       },
     )
 
-    // ── 7. Set main branch ────────────────────────────────────────────────────
-    const refRes = await gh(`/repos/${GH_ORG}/${repoName}/git/refs`, {
+    // ── 6. Set main branch ────────────────────────────────────────────────────
+    const refRes = await gh(`/repos/${GH_SITES_OWNER}/${repoName}/git/refs`, {
       method: 'POST',
       body:   JSON.stringify({ ref: 'refs/heads/main', sha: commit.sha }),
     })
     if (!refRes.ok) {
-      // Branch already exists — force update
-      await gh(`/repos/${GH_ORG}/${repoName}/git/refs/heads/main`, {
+      // Branch already exists (repo was re-deployed) — force update
+      await gh(`/repos/${GH_SITES_OWNER}/${repoName}/git/refs/heads/main`, {
         method: 'PATCH',
         body:   JSON.stringify({ sha: commit.sha, force: true }),
       })
     }
 
-    // ── 8. Save deployment record to DB ──────────────────────────────────────
-    const repoUrl = `https://github.com/${GH_ORG}/${repoName}`
+    // ── 7. Push workflow files via Contents API (git tree rejects .github/workflows/) ──
+    for (const wf of workflowFiles) {
+      // Get existing SHA if file already exists (required for update)
+      const existingRes = await gh(`/repos/${GH_SITES_OWNER}/${repoName}/contents/${wf.path}?ref=main`)
+      const existing = existingRes.ok ? await existingRes.json() as { sha?: string } : null
+      await ghJson(`/repos/${GH_SITES_OWNER}/${repoName}/contents/${wf.path}`, {
+        method: 'PUT',
+        body: JSON.stringify({
+          message: `Add ${wf.path}`,
+          content: Buffer.from(wf.content).toString('base64'),
+          branch: 'main',
+          ...(existing?.sha ? { sha: existing.sha } : {}),
+        }),
+      })
+    }
+
+    // ── 9. Inject Cloudflare secrets into the new repo ───────────────────────
+    try {
+      await _sodium.ready
+      const pkData = await ghJson<{ key_id: string; key: string }>(
+        `/repos/${GH_SITES_OWNER}/${repoName}/actions/secrets/public-key`,
+      )
+      const keyBytes = _sodium.from_base64(pkData.key, _sodium.base64_variants.ORIGINAL)
+      const encryptSecret = (value: string) => {
+        const msgBytes = _sodium.from_string(value)
+        const encrypted = _sodium.crypto_box_seal(msgBytes, keyBytes)
+        return _sodium.to_base64(encrypted, _sodium.base64_variants.ORIGINAL)
+      }
+      const putSecret = (name: string, value: string) =>
+        gh(`/repos/${GH_SITES_OWNER}/${repoName}/actions/secrets/${name}`, {
+          method: 'PUT',
+          body: JSON.stringify({ encrypted_value: encryptSecret(value), key_id: pkData.key_id }),
+        })
+      await Promise.all([
+        putSecret('CLOUDFLARE_API_TOKEN', CF_API_TOKEN),
+        putSecret('CLOUDFLARE_ACCOUNT_ID', CF_ACCOUNT_ID),
+      ])
+    } catch {
+      // Non-fatal — build will fail but repo is created
+    }
+
+    // ── 10. Save deployment record to DB ─────────────────────────────────────
+    const repoUrl = `https://github.com/${GH_SITES_OWNER}/${repoName}`
     await supabaseAdmin.from('event_sites').upsert(
       {
         event_id,
