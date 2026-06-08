@@ -18,11 +18,13 @@ import { NextRequest, NextResponse } from 'next/server'
   Returns:
   { fetched, inserted, duplicates, skipped, next_offset, done }
 
-  SOURCE  (old Lovable hgrkmzlynjztzjudsfgd): SMARTDATA_URL + LOVABLE_SD_ANON_KEY
-  TARGET  (new dedicated lnhtmppybqeicedgtanf): SMARTDATA_MIGRATE_URL + SMARTDATA_MIGRATE_SERVICE_ROLE_KEY
+  SOURCE  (old Lovable hgrkmzlynjztzjudsfgd): LOVABLE_SD_URL + LOVABLE_SD_ANON_KEY
+           NOTE: old Lovable uses table names WITHOUT sd_ prefix: contact_records, company_records
+           RLS blocks anon reads — migration requires the Lovable service_role key (currently unavailable)
+  TARGET  (new dedicated lnhtmppybqeicedgtanf): SMARTDATA_URL + SMARTDATA_SERVICE_ROLE_KEY
 */
 
-const LOVABLE_SD_URL  = process.env.SMARTDATA_URL ?? 'https://hgrkmzlynjztzjudsfgd.supabase.co'
+const LOVABLE_SD_URL  = process.env.LOVABLE_SD_URL ?? 'https://hgrkmzlynjztzjudsfgd.supabase.co'
 const LOVABLE_SD_ANON = process.env.LOVABLE_SD_ANON_KEY ?? ''
 
 function lovableSmartdataClient() {
@@ -31,15 +33,16 @@ function lovableSmartdataClient() {
 }
 
 function migrateTargetClient() {
-  const url = process.env.SMARTDATA_MIGRATE_URL
-  const key = process.env.SMARTDATA_MIGRATE_SERVICE_ROLE_KEY || process.env.SMARTDATA_MIGRATE_ANON_KEY
-  if (!url || !key) throw new Error('SMARTDATA_MIGRATE_URL / SMARTDATA_MIGRATE_SERVICE_ROLE_KEY not set in .env.local')
+  const url = process.env.SMARTDATA_URL
+  const key = process.env.SMARTDATA_SERVICE_ROLE_KEY
+  if (!url || !key) throw new Error('SMARTDATA_URL / SMARTDATA_SERVICE_ROLE_KEY not set in .env.local')
   return createClient(url, key)
 }
 
 async function migrateCompanies(sd: ReturnType<typeof createClient<any>>, target: ReturnType<typeof createClient<any>>, batchSize: number, offset: number, dryRun: boolean) {
+  // Old Lovable table name is company_records (no sd_ prefix)
   const { data, error, count } = await sd
-    .from('sd_company_records')
+    .from('company_records')
     .select('*', { count: 'exact' })
     .range(offset, offset + batchSize - 1)
     .order('created_at', { ascending: true })
@@ -70,8 +73,9 @@ async function migrateCompanies(sd: ReturnType<typeof createClient<any>>, target
 }
 
 async function migrateContacts(sd: ReturnType<typeof createClient<any>>, target: ReturnType<typeof createClient<any>>, batchSize: number, offset: number, dryRun: boolean) {
+  // Old Lovable table name is contact_records (no sd_ prefix)
   const { data, error, count } = await sd
-    .from('sd_contact_records')
+    .from('contact_records')
     .select('*', { count: 'exact' })
     .range(offset, offset + batchSize - 1)
     .order('created_at', { ascending: true })
@@ -167,8 +171,8 @@ export async function GET() {
     const sd = lovableSmartdataClient()
 
     const [contactCount, companyCount] = await Promise.all([
-      sd.from('sd_contact_records').select('*', { count: 'exact', head: true }),
-      sd.from('sd_company_records').select('*', { count: 'exact', head: true }),
+      sd.from('contact_records').select('*', { count: 'exact', head: true }),
+      sd.from('company_records').select('*', { count: 'exact', head: true }),
     ])
 
     return NextResponse.json({
