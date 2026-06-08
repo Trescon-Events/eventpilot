@@ -1,11 +1,10 @@
-import { smartdataAdmin } from '@/app/lib/supabase'
 import { createClient } from '@supabase/supabase-js'
 import { NextRequest, NextResponse } from 'next/server'
 
 /*
   POST /api/data/migrate
-  Pulls contacts + companies from old Lovable SmartData and imports into the
-  new dedicated SmartData Supabase project.
+  Pulls contacts + companies from old Lovable SmartData (SOURCE) and imports
+  into the new dedicated SmartData Supabase project (TARGET).
 
   Body:
   {
@@ -19,19 +18,26 @@ import { NextRequest, NextResponse } from 'next/server'
   Returns:
   { fetched, inserted, duplicates, skipped, next_offset, done }
 
-  Env vars needed for migration source (old Lovable SmartData hgrkmzlynjztzjudsfgd):
-    LOVABLE_SD_ANON_KEY  — anon key from the old Lovable project
+  SOURCE  (old Lovable hgrkmzlynjztzjudsfgd): SMARTDATA_URL + LOVABLE_SD_ANON_KEY
+  TARGET  (new dedicated lnhtmppybqeicedgtanf): SMARTDATA_MIGRATE_URL + SMARTDATA_MIGRATE_SERVICE_ROLE_KEY
 */
 
-const LOVABLE_SD_URL  = 'https://hgrkmzlynjztzjudsfgd.supabase.co'
+const LOVABLE_SD_URL  = process.env.SMARTDATA_URL ?? 'https://hgrkmzlynjztzjudsfgd.supabase.co'
 const LOVABLE_SD_ANON = process.env.LOVABLE_SD_ANON_KEY ?? ''
 
 function lovableSmartdataClient() {
-  if (!LOVABLE_SD_ANON) throw new Error('LOVABLE_SD_ANON_KEY not set in .env.local — get it from the old Lovable SmartData project')
+  if (!LOVABLE_SD_ANON) throw new Error('LOVABLE_SD_ANON_KEY not set in .env.local')
   return createClient(LOVABLE_SD_URL, LOVABLE_SD_ANON)
 }
 
-async function migrateCompanies(sd: ReturnType<typeof createClient<any>>, batchSize: number, offset: number, dryRun: boolean) {
+function migrateTargetClient() {
+  const url = process.env.SMARTDATA_MIGRATE_URL
+  const key = process.env.SMARTDATA_MIGRATE_SERVICE_ROLE_KEY || process.env.SMARTDATA_MIGRATE_ANON_KEY
+  if (!url || !key) throw new Error('SMARTDATA_MIGRATE_URL / SMARTDATA_MIGRATE_SERVICE_ROLE_KEY not set in .env.local')
+  return createClient(url, key)
+}
+
+async function migrateCompanies(sd: ReturnType<typeof createClient<any>>, target: ReturnType<typeof createClient<any>>, batchSize: number, offset: number, dryRun: boolean) {
   const { data, error, count } = await sd
     .from('sd_company_records')
     .select('*', { count: 'exact' })
@@ -54,16 +60,16 @@ async function migrateCompanies(sd: ReturnType<typeof createClient<any>>, batchS
     updated_at:       c.updated_at ?? c.created_at,
   }))
 
-  const { error: insertError } = await smartdataAdmin
+  const { error: insertError } = await target
     .from('sd_company_records')
     .upsert(rows, { onConflict: 'domain', ignoreDuplicates: true })
 
-  if (insertError) throw new Error(`TAOS insert error: ${insertError.message}`)
+  if (insertError) throw new Error(`Target insert error: ${insertError.message}`)
 
   return { fetched: data.length, inserted: data.length, duplicates: 0, skipped: 0, total: count ?? 0 }
 }
 
-async function migrateContacts(sd: ReturnType<typeof createClient<any>>, batchSize: number, offset: number, dryRun: boolean) {
+async function migrateContacts(sd: ReturnType<typeof createClient<any>>, target: ReturnType<typeof createClient<any>>, batchSize: number, offset: number, dryRun: boolean) {
   const { data, error, count } = await sd
     .from('sd_contact_records')
     .select('*', { count: 'exact' })
@@ -92,18 +98,18 @@ async function migrateContacts(sd: ReturnType<typeof createClient<any>>, batchSi
   let inserted = 0
 
   if (withLinkedin.length > 0) {
-    const { error: e1 } = await smartdataAdmin
+    const { error: e1 } = await target
       .from('sd_contact_records')
       .upsert(withLinkedin, { onConflict: 'linkedin_url', ignoreDuplicates: true })
-    if (e1) throw new Error(`TAOS upsert error: ${e1.message}`)
+    if (e1) throw new Error(`Target upsert error: ${e1.message}`)
     inserted += withLinkedin.length
   }
 
   if (withoutLinkedin.length > 0) {
-    const { error: e2 } = await smartdataAdmin
+    const { error: e2 } = await target
       .from('sd_contact_records')
       .insert(withoutLinkedin)
-    if (e2) throw new Error(`TAOS insert error: ${e2.message}`)
+    if (e2) throw new Error(`Target insert error: ${e2.message}`)
     inserted += withoutLinkedin.length
   }
 
@@ -126,15 +132,16 @@ export async function POST(req: NextRequest) {
     }
 
     const sd = lovableSmartdataClient()
+    const target = migrateTargetClient()
     const batchSize = Math.min(1000, Math.max(1, Number(batch_size)))
     const results: Record<string, any> = {}
 
     if (entity === 'companies' || entity === 'both') {
-      results.companies = await migrateCompanies(sd, batchSize, Number(offset), Boolean(dry_run))
+      results.companies = await migrateCompanies(sd, target, batchSize, Number(offset), Boolean(dry_run))
     }
 
     if (entity === 'contacts' || entity === 'both') {
-      results.contacts = await migrateContacts(sd, batchSize, Number(offset), Boolean(dry_run))
+      results.contacts = await migrateContacts(sd, target, batchSize, Number(offset), Boolean(dry_run))
     }
 
     // Calculate next_offset and done flag

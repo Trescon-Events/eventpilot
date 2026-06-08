@@ -28,13 +28,13 @@ export const supabaseAdmin = new Proxy({} as SupabaseClient, {
   },
 })
 
-// Dedicated SmartData Supabase project (lnhtmppybqeicedgtanf)
+// SmartData Supabase client — uses service_role key if available, falls back to anon key
 export const smartdataAdmin = new Proxy({} as SupabaseClient, {
   get(_target, prop) {
     if (!_smartdataAdmin) {
       _smartdataAdmin = createClient(
         process.env.SMARTDATA_URL!,
-        process.env.SMARTDATA_SERVICE_ROLE_KEY!
+        process.env.SMARTDATA_SERVICE_ROLE_KEY || process.env.SMARTDATA_ANON_KEY!
       )
     }
     return (_smartdataAdmin as unknown as Record<string | symbol, unknown>)[prop]
