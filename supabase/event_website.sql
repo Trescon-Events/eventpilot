@@ -170,3 +170,22 @@ create table if not exists event_team_members (
   created_at   timestamptz default now()
 );
 create index if not exists idx_event_team_event_id on event_team_members(event_id);
+
+-- ── Migration: Full page builder structure ────────────────────────────────────
+alter table event_websites add column if not exists page_structure_full jsonb default '{}';
+
+-- Custom domain support
+alter table event_websites
+  add column if not exists custom_domain text,
+  add column if not exists cf_zone_id    text;
+
+create index if not exists event_websites_custom_domain_idx on event_websites(custom_domain) where custom_domain is not null;
+
+-- ── Migration: Draft / publish versioning system ──────────────────────────────
+-- draft_structure    → builder always writes here (never touches page_structure_full directly)
+-- published_snapshot → previous live version, kept for one-click rollback
+-- last_published_at  → timestamp of last publish action
+alter table event_websites
+  add column if not exists draft_structure      jsonb,
+  add column if not exists published_snapshot   jsonb,
+  add column if not exists last_published_at    timestamptz;

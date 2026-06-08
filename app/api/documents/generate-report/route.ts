@@ -141,8 +141,8 @@ Length: Comprehensive but concise — aim for a thorough report that covers all 
       layer:          'knowledge_base',
       department:     'all',
       min_level:      'all',
-      tresci_use:     false,
-      ai_reasoning:   'Generated from event checklist and team inputs via Trescademy.',
+      pilot_use:     false,
+      ai_reasoning:   'Generated from event checklist and team inputs via EventPilot.',
       confidence:     90,
       status:         'draft',
       is_active:      true,
@@ -162,12 +162,12 @@ export async function PATCH(req: NextRequest) {
   const id = req.nextUrl.searchParams.get('id')
   if (!id) return NextResponse.json({ error: 'id required' }, { status: 400 })
 
-  // Conclude: flip to live and enable Tresci search
+  // Conclude: flip to live and enable Pilot search
   const { data, error } = await supabaseAdmin
     .from('documents')
     .update({
       status:     'live',
-      tresci_use: true,
+      pilot_use: true,
       title:      undefined, // preserve existing title
     })
     .eq('id', id)

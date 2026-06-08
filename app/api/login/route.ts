@@ -2,7 +2,7 @@ import { supabaseAdmin } from '@/app/lib/supabase'
 import { NextRequest, NextResponse } from 'next/server'
 import bcrypt from 'bcryptjs'
 
-/* POST /api/login — unified login for all Trescademy users
+/* POST /api/login — unified login for all EventPilot users
    Security layers applied in order:
    1. Brute force — 5 failed attempts in 15 min → 15-min lockout
    2. IP allowlist — if OFFICE_IPS env var is set, non-admin staff must be on office network

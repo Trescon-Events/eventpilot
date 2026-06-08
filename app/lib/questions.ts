@@ -328,13 +328,13 @@ export const CORE_QUESTIONS: Question[] = [
   {
     id: 'tool_proficiency',
     question: 'How well do you actually know these tools?',
-    subtext: 'Rate yourself on your top 4 tools. Be honest — this shapes the courses Trescademy recommends specifically for you.',
+    subtext: 'Rate yourself on your top 4 tools. Be honest — this shapes the courses EventPilot recommends specifically for you.',
     type: 'proficiency',
   },
   {
     id: 'tools_unlisted',
     question: 'Using a tool we didn\'t mention above?',
-    subtext: 'Tell us the name and what you use it for. This helps Trescademy build a complete picture of how you work.',
+    subtext: 'Tell us the name and what you use it for. This helps EventPilot build a complete picture of how you work.',
     type: 'text',
     placeholder: 'e.g. Notion for project tracking, ClickUp for team tasks, Monday.com for...',
   },
@@ -378,7 +378,7 @@ export const CORE_QUESTIONS: Question[] = [
   {
     id: 'ai_readiness',
     question: 'Where are you with AI tools right now — honestly?',
-    subtext: 'Your answer here determines your starting track on Trescademy. Levels 4–5 mean you will be expected to lead an AI pilot in your department — not just attend training.',
+    subtext: 'Your answer here determines your starting track on EventPilot. Levels 4–5 mean you will be expected to lead an AI pilot in your department — not just attend training.',
     type: 'scale',
     options: [
       "Haven't used AI tools in my work at all",

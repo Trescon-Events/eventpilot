@@ -76,7 +76,7 @@ export default function InsightsPage() {
           <div style={{ width: '56px', height: '56px', background: '#C0F43C20', border: '2px solid #C0F43C', borderRadius: '16px', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 24px' }}>
             <svg width="24" height="24" fill="none" stroke="#007A6E" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
           </div>
-          <h1 style={{ fontSize: '36px', fontWeight: 800, color: '#0F1923', marginBottom: '8px' }}>Trescademy Intelligence</h1>
+          <h1 style={{ fontSize: '36px', fontWeight: 800, color: '#0F1923', marginBottom: '8px' }}>EventPilot Intelligence</h1>
           <p style={{ fontSize: '13px', color: '#2D3E50', marginBottom: '32px' }}>Management-ready insights from all staff submissions</p>
           <form onSubmit={handleAuth}>
             <input type="password" value={code} onChange={e => { setCode(e.target.value); setCodeError('') }}
@@ -110,7 +110,7 @@ export default function InsightsPage() {
         {/* Page header */}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '28px', gap: '24px', flexWrap: 'wrap' }}>
           <div>
-            <h1 style={{ fontSize: '36px', fontWeight: 800, color: '#0F1923', marginBottom: '6px' }}>Trescademy Intelligence Report</h1>
+            <h1 style={{ fontSize: '36px', fontWeight: 800, color: '#0F1923', marginBottom: '6px' }}>EventPilot Intelligence Report</h1>
             <p style={{ fontSize: '13px', color: '#2D3E50', lineHeight: 1.65 }}>
               {loading
                 ? 'Loading reports...'

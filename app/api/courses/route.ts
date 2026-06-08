@@ -67,7 +67,7 @@ export async function PATCH(req: NextRequest) {
       staff_id:  data.suggested_by_id,
       type:      'course_published',
       title:     'Your course suggestion is live',
-      body:      `"${data.title}" has been reviewed, approved, and published to the Trescademy library. Every staff member who needs it will see it recommended on their dashboard.`,
+      body:      `"${data.title}" has been reviewed, approved, and published to the EventPilot library. Every staff member who needs it will see it recommended on their dashboard.`,
       course_id: data.id,
     })
   }

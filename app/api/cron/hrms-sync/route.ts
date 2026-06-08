@@ -63,7 +63,7 @@ export async function GET(req: NextRequest) {
     hrms.from('leave_balances').select('id, staff_id, leave_type, year_cycle, total_entitled, used, carried_forward, remaining'),
   ])
 
-  // ── Fetch existing Trescademy data ──
+  // ── Fetch existing EventPilot data ──
   const { data: existingStaff } = await supabaseAdmin.from('staff_members').select('email, profile_complete')
   const existingMap = Object.fromEntries((existingStaff ?? []).map(s => [s.email.toLowerCase(), s.profile_complete]))
 

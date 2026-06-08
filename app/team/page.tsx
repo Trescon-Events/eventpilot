@@ -368,7 +368,7 @@ function TeamContent() {
 
               {/* Platform impact note */}
               <div style={{ marginTop: '16px', fontSize: '13px', color: '#0F1923', lineHeight: 1.65, borderTop: '1px solid #DDE8EE', paddingTop: '14px' }}>
-                Your team&apos;s engagement data directly shapes what Trescademy builds next. Courses requested here go into the live library — and are immediately recommended to staff who need them most.
+                Your team&apos;s engagement data directly shapes what EventPilot builds next. Courses requested here go into the live library — and are immediately recommended to staff who need them most.
               </div>
             </div>
           )}

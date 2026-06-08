@@ -91,7 +91,7 @@ export async function POST(req: NextRequest) {
     `${c.is_mandatory ? ' | MANDATORY' : ''}`
   ).join('\n')
 
-  const prompt = `You are a learning advisor for Trescademy, an AI readiness training platform inside Trescon.
+  const prompt = `You are a learning advisor for EventPilot, an AI readiness training platform inside Trescon.
 
 STAFF PROFILE:
 - Name: ${staff.name}

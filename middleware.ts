@@ -17,6 +17,10 @@ const PUBLIC_PREFIXES = [
   '/join',
   '/api/login',
   '/api/join',
+  '/api/public',
+  '/api/domain-lookup',
+  '/events',          // public event websites
+  '/welcome',
   '/_next',
   '/favicon',
 ]
@@ -34,8 +38,42 @@ function parseSession(req: NextRequest): { sid: string; jl: string; adm: boolean
   }
 }
 
-export function middleware(req: NextRequest) {
+// ── Custom domain → event slug rewriting ─────────────────────────────────
+const PLATFORM_HOSTS = [
+  'taos-discovery.vercel.app',
+  'localhost',
+  '127.0.0.1',
+]
+
+async function resolveCustomDomain(host: string, req: NextRequest): Promise<NextResponse | null> {
+  // Strip port
+  const cleanHost = host.split(':')[0]
+  // Only intercept if not a platform host
+  if (PLATFORM_HOSTS.some(h => cleanHost === h || cleanHost.endsWith(`.${h}`))) return null
+  // Lookup slug for this domain
+  try {
+    const lookupUrl = new URL(`/api/domain-lookup?host=${encodeURIComponent(cleanHost)}`, req.nextUrl.origin)
+    const res = await fetch(lookupUrl.toString(), { next: { revalidate: 60 } })
+    if (!res.ok) return null
+    const { slug } = await res.json()
+    if (!slug) return null
+    // Rewrite: custom domain root → /events/{slug}, and subpaths too
+    const url = req.nextUrl.clone()
+    const subPath = url.pathname === '/' ? '' : url.pathname
+    url.pathname = `/events/${slug}${subPath}`
+    return NextResponse.rewrite(url)
+  } catch {
+    return null
+  }
+}
+
+export async function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl
+
+  // ── Custom domain rewriting (must run before auth) ──
+  const host = req.headers.get('host') ?? ''
+  const domainRewrite = await resolveCustomDomain(host, req)
+  if (domainRewrite) return domainRewrite
 
   // Allow static assets and public file extensions
   if (PUBLIC_FILE_EXTENSIONS.test(pathname)) return NextResponse.next()

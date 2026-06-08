@@ -27,7 +27,7 @@ export async function GET() {
   const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!)
   const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' })
 
-  const prompt = `You are analysing platform feedback submitted by staff at Trescon Global about Trescademy — their internal AI learning platform.
+  const prompt = `You are analysing platform feedback submitted by staff at Trescon Global about EventPilot — their internal AI learning platform.
 
 Here is all the feedback received (${feedback.length} submissions):
 

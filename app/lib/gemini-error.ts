@@ -14,6 +14,6 @@ export function isQuotaError(err: unknown): boolean {
 }
 
 export const QUOTA_ERROR_MESSAGE =
-  'Tresci is Trescademy\'s internal AI — built to handle all employee queries, event briefs, AI training, course guidance, and more. ' +
+  'Pilot is EventPilot\'s internal AI — built to handle all employee queries, event briefs, AI training, course guidance, and more. ' +
   'We are currently in the testing phase and using a free AI tier — the daily request limit has been reached. ' +
-  'Tresci will be fully active in the live version. Please try again later.'
+  'Pilot will be fully active in the live version. Please try again later.'

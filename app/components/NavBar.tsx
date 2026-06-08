@@ -107,8 +107,8 @@ export default function NavBar({
 
 /* ── Shared module definitions ─────────────────────────────────────────── */
 
-export const MOD_TRESCADEMY = {
-  name: 'Trescademy',
+export const MOD_EVENTPILOT = {
+  name: 'EventPilot',
   color: '#00897B',
   icon: (
     <svg width="11" height="11" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24">
@@ -128,7 +128,7 @@ export const MOD_INTELLIGENCE = {
 }
 
 export const MOD_TRESCI = {
-  name: 'Tresci AI',
+  name: 'Pilot AI',
   color: '#00A5A3',
   icon: (
     <svg width="11" height="11" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24">
@@ -168,7 +168,7 @@ export function SignOutBtn() {
       className="tbtn tbtn-red"
       onClick={() => {
         if (typeof window === 'undefined') return
-        localStorage.removeItem('trescademy_staff_id')
+        localStorage.removeItem('eventpilot_staff_id')
         localStorage.removeItem('tai_staff_id')
         sessionStorage.removeItem('tai_admin_authed')
         sessionStorage.removeItem('tai_admin_staff_id')

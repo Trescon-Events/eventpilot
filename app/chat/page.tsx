@@ -18,7 +18,7 @@ const SUGGESTED = [
 
 const SESSION_LIMIT  = 10
 const COOLDOWN_MS    = 3 * 60 * 60 * 1000  // 3 hours
-const BLOCK_KEY      = 'tresci_blocked_until'
+const BLOCK_KEY      = 'pilot_blocked_until'
 
 function formatCountdown(ms: number): string {
   if (ms <= 0) return '0m 0s'
@@ -120,7 +120,7 @@ export default function ChatPage() {
 
   /* ── Load staff id + check existing cooldown block ── */
   useEffect(() => {
-    const id = localStorage.getItem('trescademy_staff_id') ?? localStorage.getItem('tai_staff_id')
+    const id = localStorage.getItem('eventpilot_staff_id') ?? localStorage.getItem('tai_staff_id')
     if (id) setStaffId(id)
 
     const stored = localStorage.getItem(BLOCK_KEY)
@@ -268,10 +268,10 @@ export default function ChatPage() {
               <div style={{ width: '52px', height: '52px', background: 'linear-gradient(135deg, #00897B 0%, #00695C 100%)', border: '1px solid #00695C', borderRadius: '16px', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
                 <svg width="24" height="24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
               </div>
-              <h1 style={{ fontSize: '36px', fontWeight: 900, color: '#0F1923', margin: 0, letterSpacing: '-0.3px' }}>Talk to Tresci</h1>
+              <h1 style={{ fontSize: '36px', fontWeight: 900, color: '#0F1923', margin: 0, letterSpacing: '-0.3px' }}>Talk to Pilot</h1>
             </div>
             <p style={{ fontSize: '13px', color: '#2D3E50', margin: '0 0 36px', maxWidth: '380px', lineHeight: 1.65 }}>
-              Your AI learning assistant. Ask me anything about your courses, your TAIRS score, or how to use Trescademy.
+              Your AI learning assistant. Ask me anything about your courses, your TAIRS score, or how to use EventPilot.
             </p>
 
             {/* Suggested questions */}
@@ -291,7 +291,7 @@ export default function ChatPage() {
 
             {/* Scope note */}
             <div style={{ marginTop: '28px', padding: '12px 20px', background: '#FFFFFF', border: '1px solid #DDE8EE', borderRadius: '10px', fontSize: '13px', color: '#2D3E50', lineHeight: 1.65, maxWidth: '500px', textAlign: 'center', boxShadow: '0 1px 4px rgba(0,165,163,0.06), 0 1px 2px rgba(0,0,0,0.04)' }}>
-              Tresci is here to support your learning — ask about your courses, TAIRS score, or how to get the most from the platform.
+              Pilot is here to support your learning — ask about your courses, TAIRS score, or how to get the most from the platform.
               For HR, IT, or personal matters, please speak to your manager or the relevant team.
               <span style={{ display: 'block', marginTop: '8px', borderTop: '1px solid #D8EAEB', paddingTop: '8px' }}>
                 <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', background: 'rgba(192,244,60,0.08)', border: '1px solid rgba(192,244,60,0.2)', borderRadius: '8px', padding: '5px 12px', color: '#3D6B00', fontWeight: 700 }}>
@@ -336,7 +336,7 @@ export default function ChatPage() {
               Session limit reached
             </h2>
             <p style={{ fontSize: '13px', color: '#2D3E50', margin: '0 0 28px', maxWidth: '340px', lineHeight: 1.65 }}>
-              You have used your {SESSION_LIMIT} questions for this session. Tresci will be available again in:
+              You have used your {SESSION_LIMIT} questions for this session. Pilot will be available again in:
             </p>
             <div style={{ background: 'rgba(139,26,26,0.08)', border: '1px solid rgba(139,26,26,0.2)', borderRadius: '16px', padding: '20px 40px', marginBottom: '32px' }}>
               <div style={{ fontSize: '36px', fontWeight: 900, color: '#8B1A1A', letterSpacing: '-1px', fontVariantNumeric: 'tabular-nums' }}>
@@ -347,7 +347,7 @@ export default function ChatPage() {
               </div>
             </div>
             <p style={{ fontSize: '13px', color: '#0F1923', maxWidth: '320px', lineHeight: 1.65, margin: 0 }}>
-              This keeps Tresci focused and available for everyone. Your learning courses and dashboard remain fully accessible in the meantime.
+              This keeps Pilot focused and available for everyone. Your learning courses and dashboard remain fully accessible in the meantime.
             </p>
             <Link
               href={staffId ? `/dashboard?id=${staffId}` : '/login'}
@@ -373,7 +373,7 @@ export default function ChatPage() {
                 value={input}
                 onChange={e => setInput(e.target.value)}
                 onKeyDown={handleKey}
-                placeholder="Talk to Tresci anything about your learning journey…"
+                placeholder="Talk to Pilot anything about your learning journey…"
                 rows={1}
                 disabled={loading}
                 style={{ flex: 1, background: 'none', border: 'none', outline: 'none', color: '#0F1923', fontSize: '13px', fontFamily: 'inherit', resize: 'none', lineHeight: 1.65, maxHeight: '120px', overflowY: 'auto', padding: 0 }}

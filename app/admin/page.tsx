@@ -162,9 +162,9 @@ function QuestionnaireView({ qDept, setQDept }: { qDept: string; setQDept: (d: s
 
 const PLAYBOOK_TIERS = [
   { tier: 'AI-Forward',  range: '75–100', color: '#166534', action: 'Assign as AI Pilot Leads. They run the first automation sprint for their department.', owner: 'AI Lead + Dept Head', by: 'This sprint' },
-  { tier: 'AI-Ready',    range: '55–74',  color: '#0E7490', action: 'Pair with an AI-Forward colleague. Start a 30-day tool adoption plan with one specific workflow to automate.', owner: 'Trescademy Training', by: '30 days' },
-  { tier: 'AI-Aware',    range: '35–54',  color: '#92400E', action: 'Foundation workshop (half day). Pick one tool for their role and commit to using it daily for 2 weeks.', owner: 'Trescademy Training + HR', by: '60 days' },
-  { tier: 'AI-Curious',  range: '15–34',  color: '#C2410C', action: "Awareness session first — why AI matters for their specific role. Then intro to ChatGPT basics.", owner: 'HR + Trescademy', by: '90 days' },
+  { tier: 'AI-Ready',    range: '55–74',  color: '#0E7490', action: 'Pair with an AI-Forward colleague. Start a 30-day tool adoption plan with one specific workflow to automate.', owner: 'EventPilot Training', by: '30 days' },
+  { tier: 'AI-Aware',    range: '35–54',  color: '#92400E', action: 'Foundation workshop (half day). Pick one tool for their role and commit to using it daily for 2 weeks.', owner: 'EventPilot Training + HR', by: '60 days' },
+  { tier: 'AI-Curious',  range: '15–34',  color: '#C2410C', action: "Awareness session first — why AI matters for their specific role. Then intro to ChatGPT basics.", owner: 'HR + EventPilot', by: '90 days' },
   { tier: 'AI-Unaware',  range: '0–14',   color: '#991B1B', action: 'Digital literacy assessment first. Build a personalised catch-up plan before any AI training.', owner: 'HR', by: '120 days' },
 ]
 
@@ -176,7 +176,7 @@ export default function AdminPage() {
   const [codeError, setCodeError] = useState('')
   const [members, setMembers] = useState<Member[]>([])
   const [tasks, setTasks]     = useState<TaskProfile[]>([])
-  const [tab, setTab]         = useState<'overview' | 'people' | 'intelligence' | 'action' | 'learning' | 'suggest' | 'events' | 'knowledge' | 'review' | 'toolkit' | 'security'>('overview')
+  const [tab, setTab]         = useState<'overview' | 'people' | 'intelligence' | 'learning' | 'suggest' | 'events' | 'knowledge' | 'review' | 'toolkit' | 'security'>('overview')
 
   // Security tab state
   type AuditRow = { id: string; email: string; ip: string | null; success: boolean; reason: string | null; attempted_at: string }
@@ -376,7 +376,7 @@ export default function AdminPage() {
     if (typeof window === 'undefined') return false
     if (new URLSearchParams(window.location.search).get('welcome') === '1') return true
     const uid = sessionStorage.getItem('tai_admin_staff_id') ?? 'admin'
-    return !localStorage.getItem(`tresci_admin_welcomed_${uid}`)
+    return !localStorage.getItem(`pilot_admin_welcomed_${uid}`)
   })
   const [tourStep,    setTourStep]    = useState<number | null>(null)
   const [tourRect,    setTourRect]    = useState<DOMRect | null>(null)
@@ -386,7 +386,7 @@ export default function AdminPage() {
   const [suggSent,      setSuggSent]      = useState(false)
   const [gettingStarted, setGettingStarted] = useState(() => {
     if (typeof window === 'undefined') return { staff: false, brief: false, course: false }
-    const stored = localStorage.getItem('tresci_admin_progress')
+    const stored = localStorage.getItem('pilot_admin_progress')
     return stored ? JSON.parse(stored) : { staff: false, brief: false, course: false }
   })
   const [expandedTask, setExpandedTask] = useState<string | null>(null)
@@ -470,7 +470,7 @@ export default function AdminPage() {
     word_count: number; event_id: string | null; created_at: string
     events?: { name: string } | null
     layer: string; department: string; min_level: string
-    tresci_use: boolean; confidence: number; flagged: boolean; status: string
+    pilot_use: boolean; confidence: number; flagged: boolean; status: string
   }
   const [docs,          setDocs]          = useState<DocRow[]>([])
   const [docsLoading,   setDocsLoading]   = useState(false)
@@ -481,7 +481,7 @@ export default function AdminPage() {
   const [otherTypeLabel,setOtherTypeLabel]= useState('')
   const [saveAsNewType, setSaveAsNewType] = useState(false)
   const [customDocTypes,setCustomDocTypes]= useState<{ key: string; label: string }[]>([])
-  const [docAnalysis,  setDocAnalysis]   = useState<{ layer: string; department: string; min_level: string; tresci_use: boolean; ai_reasoning: string; confidence: number; flagged: boolean } | null>(null)
+  const [docAnalysis,  setDocAnalysis]   = useState<{ layer: string; department: string; min_level: string; pilot_use: boolean; ai_reasoning: string; confidence: number; flagged: boolean } | null>(null)
   const [showCreateEvent, setShowCreateEvent] = useState(false)
   const [showUploadForm,  setShowUploadForm]  = useState(false)
   const [docFilter,       setDocFilter]       = useState<'all'|'knowledge_base'|'general'|'specific'|'flagged'>('all')
@@ -613,8 +613,8 @@ export default function AdminPage() {
         try { data = await res.json() } catch { /* non-JSON e.g. 504 */ }
         if (!res.ok) {
           const msg = (data.error as string) ??
-            (res.status === 504 ? 'Tresci took too long. Try again in a moment.' :
-             res.status === 503 ? 'Tresci is under high load. Please wait and try again.' :
+            (res.status === 504 ? 'Pilot took too long. Try again in a moment.' :
+             res.status === 503 ? 'Pilot is under high load. Please wait and try again.' :
              'Something went wrong. Please try again.')
           setDocMsg(msg); setDocUploading(false); return
         }
@@ -742,10 +742,10 @@ export default function AdminPage() {
   const TOUR_STEPS = [
     { id: 'tour-tabs',             title: 'Your main sections',         desc: 'Navigate between Overview, All Staff, Intelligence, Learning Lab, Events, Knowledge Base, and more using these tabs.' },
     { id: 'tour-stats',            title: 'Org readiness at a glance',  desc: 'Total staff in the system, how many have completed their profile, and your organisation\'s live TAIRS score — all updating in real time.' },
-    { id: 'tour-started',          title: 'Your first 3 actions',       desc: 'Complete these three steps to get Trescademy fully running. Each one unlocks more of the platform for your team.' },
+    { id: 'tour-started',          title: 'Your first 3 actions',       desc: 'Complete these three steps to get EventPilot fully running. Each one unlocks more of the platform for your team.' },
     { id: 'tour-intelligence-tab', title: 'Intelligence tab',           desc: 'AI-generated analysis of your org\'s readiness. Department breakdowns, tier distributions, and what to do about gaps — with no manual input.' },
     { id: 'tour-studio-tab',       title: 'Learning Lab',             desc: 'Describe a skill gap, pick a department, and Gemini generates a full course with reading content, tasks, and a quiz. Ready to publish in under a minute.' },
-    { id: 'tour-tresci-btn',       title: 'Tresci — your AI assistant', desc: 'Ask Tresci anything: team progress, how to use a feature, what a TAIRS score means, or what to do next. It knows your org data.' },
+    { id: 'tour-pilot-btn',       title: 'Pilot — your AI assistant', desc: 'Ask Pilot anything: team progress, how to use a feature, what a TAIRS score means, or what to do next. It knows your org data.' },
   ]
 
   useEffect(() => {
@@ -1085,16 +1085,16 @@ export default function AdminPage() {
 
   function dismissWelcome() {
     const uid = sessionStorage.getItem('tai_admin_staff_id') ?? 'admin'
-    localStorage.setItem(`tresci_admin_welcomed_${uid}`, '1')
+    localStorage.setItem(`pilot_admin_welcomed_${uid}`, '1')
     setShowWelcome(false)
-    if (!localStorage.getItem(`tresci_tour_done_${uid}`)) {
+    if (!localStorage.getItem(`pilot_tour_done_${uid}`)) {
       setTimeout(() => setTourStep(0), 400)
     }
   }
 
   function endTour() {
     const uid = sessionStorage.getItem('tai_admin_staff_id') ?? 'admin'
-    localStorage.setItem(`tresci_tour_done_${uid}`, '1')
+    localStorage.setItem(`pilot_tour_done_${uid}`, '1')
     setTourStep(null)
     setTourRect(null)
   }
@@ -1103,7 +1103,7 @@ export default function AdminPage() {
     setGettingStarted((prev: { staff: boolean; brief: boolean; course: boolean }) => {
       if (prev[key]) return prev
       const next = { ...prev, [key]: true }
-      localStorage.setItem('tresci_admin_progress', JSON.stringify(next))
+      localStorage.setItem('pilot_admin_progress', JSON.stringify(next))
       return next
     })
   }
@@ -1117,7 +1117,7 @@ export default function AdminPage() {
             <svg width="24" height="24" fill="none" stroke="#00A5A3" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
           </div>
           <h1 style={{ fontSize: '36px', fontWeight: 800, color: '#0F1923', marginBottom: '8px' }}>Admin Access</h1>
-          <p style={{ fontSize: '13px', color: '#5B7080', marginBottom: '32px' }}>Trescademy — Leadership Dashboard</p>
+          <p style={{ fontSize: '13px', color: '#5B7080', marginBottom: '32px' }}>EventPilot — Leadership Dashboard</p>
           <form onSubmit={handleAuth}>
             <input type="email" value={adminEmail} onChange={e => { setAdminEmail(e.target.value); setCodeError('') }}
               placeholder="Your work email" autoFocus
@@ -1157,12 +1157,12 @@ export default function AdminPage() {
                 </div>
                 <div>
                   <div style={{ fontSize: '13px', fontWeight: 800, letterSpacing: '2px', textTransform: 'uppercase', color: '#00897B', marginBottom: '3px' }}>First time here?</div>
-                  <div style={{ fontSize: '36px', fontWeight: 900, color: '#0F1923', letterSpacing: '-0.4px', lineHeight: 1.1 }}>Welcome to Trescademy</div>
+                  <div style={{ fontSize: '36px', fontWeight: 900, color: '#0F1923', letterSpacing: '-0.4px', lineHeight: 1.1 }}>Welcome to EventPilot</div>
                 </div>
               </div>
 
               <p style={{ fontSize: '13px', color: '#5B7080', lineHeight: 1.75, margin: '0 0 28px' }}>
-                Trescademy is Trescon&apos;s internal AI readiness platform — measuring where every employee stands today and moving them forward through structured, role-specific learning.
+                EventPilot is Trescon&apos;s internal AI readiness platform — measuring where every employee stands today and moving them forward through structured, role-specific learning.
               </p>
 
               {/* Feature tiles — 3 column grid */}
@@ -1189,7 +1189,7 @@ export default function AdminPage() {
                     bg: 'rgba(164,120,255,0.09)',
                     border: 'rgba(164,120,255,0.25)',
                     icon: <svg width="18" height="18" fill="none" stroke="#A478FF" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>,
-                    title: 'Tresci AI',
+                    title: 'Pilot AI',
                     desc: 'Ask anything — platform, progress, or strategy',
                   },
                 ].map((item, i) => (
@@ -1257,7 +1257,7 @@ export default function AdminPage() {
             <svg width="13" height="13" fill="none" stroke="#00A5A3" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>
             Platform Docs
           </Link>
-          <Link id="tour-tresci-btn" href="/insights" style={{ background: '#FFFFFF', border: '1px solid #DDE8EE', color: '#374151', fontSize: '13px', fontWeight: 700, padding: '8px 16px', borderRadius: '10px', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '6px' }}>
+          <Link id="tour-pilot-btn" href="/insights" style={{ background: '#FFFFFF', border: '1px solid #DDE8EE', color: '#374151', fontSize: '13px', fontWeight: 700, padding: '8px 16px', borderRadius: '10px', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '6px' }}>
             <svg width="13" height="13" fill="none" stroke="#00A5A3" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
             AI Insights
           </Link>
@@ -1269,7 +1269,7 @@ export default function AdminPage() {
           </button>
           <button
             onClick={() => {
-              localStorage.removeItem('trescademy_staff_id')
+              localStorage.removeItem('eventpilot_staff_id')
               localStorage.removeItem('tai_staff_id')
               sessionStorage.removeItem('tai_admin_authed')
               sessionStorage.removeItem('tai_admin_staff_id')
@@ -1319,7 +1319,6 @@ export default function AdminPage() {
             people:       '#0E7490',
             intelligence: '#A478FF',
             learning:     '#00897B',
-            action:       '#166534',
             suggest:      '#A478FF',
             events:       '#00897B',
             knowledge:    '#166534',
@@ -1333,7 +1332,6 @@ export default function AdminPage() {
                 ['people',       'People'],
                 ['intelligence', 'Intelligence'],
                 ['learning',     'Staff Learning'],
-                ['action',       'Playbook' ],
                 ['suggest',      'Learning Lab'],
                 ['events',       'Events'],
                 ['knowledge',    'Knowledge Base'],
@@ -1346,7 +1344,7 @@ export default function AdminPage() {
                 return (
                   <button key={t}
                     id={t === 'intelligence' ? 'tour-intelligence-tab' : t === 'suggest' ? 'tour-studio-tab' : undefined}
-                    onClick={() => { if (t === 'toolkit') { window.location.href = '/admin/toolkit'; return; } if (t === 'action') { window.location.href = '/docs?slug=__playbook'; return; } setTab(t as typeof tab); if (t === 'learning') fetchLearning(); if (t === 'people') { fetchStaffList(); markProgress('staff') } if (t === 'events') { fetchEvents(); fetchEventSummaries(); } if (t === 'knowledge') { fetchDocs(); fetchCustomDocTypes(); } if (t === 'review') fetchDrafts(); if (t === 'suggest') markProgress('course'); if (t === 'security') fetchSecurity() }}
+                    onClick={() => { if (t === 'toolkit') { window.location.href = '/admin/toolkit'; return; } setTab(t as typeof tab); if (t === 'learning') fetchLearning(); if (t === 'people') { fetchStaffList(); markProgress('staff') } if (t === 'events') { fetchEvents(); fetchEventSummaries(); } if (t === 'knowledge') { fetchDocs(); fetchCustomDocTypes(); } if (t === 'review') fetchDrafts(); if (t === 'suggest') markProgress('course'); if (t === 'security') fetchSecurity() }}
                     style={{
                       padding:         active ? '9px 22px' : '9px 20px',
                       borderRadius:    '10px',
@@ -3505,8 +3503,8 @@ export default function AdminPage() {
                     ))}
                   </div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '5px', marginBottom: '6px' }}>
-                    <div style={{ width: '5px', height: '5px', borderRadius: '50%', background: docAnalysis.tresci_use ? '#3D6B00' : '#DDE8EE', flexShrink: 0 }} />
-                    <span style={{ fontSize: '13px', color: docAnalysis.tresci_use ? '#3D6B00' : '#0F1923', fontWeight: 600 }}>{docAnalysis.tresci_use ? 'Tresci will use this document' : 'Not indexed by Tresci'}</span>
+                    <div style={{ width: '5px', height: '5px', borderRadius: '50%', background: docAnalysis.pilot_use ? '#3D6B00' : '#DDE8EE', flexShrink: 0 }} />
+                    <span style={{ fontSize: '13px', color: docAnalysis.pilot_use ? '#3D6B00' : '#0F1923', fontWeight: 600 }}>{docAnalysis.pilot_use ? 'Pilot will use this document' : 'Not indexed by Pilot'}</span>
                   </div>
                   <p style={{ fontSize: '13px', color: '#5B7080', lineHeight: 1.6, margin: 0 }}>{docAnalysis.ai_reasoning}</p>
                 </div>
@@ -3539,7 +3537,7 @@ export default function AdminPage() {
                       { n:'1', label:'Upload a document', sub:'PDF or text — policy, brief, report, anything' },
                       { n:'2', label:'AI classifies it', sub:'Decides who sees it, what it is for, confidence score' },
                       { n:'3', label:'Goes live or flagged', sub:'High confidence = auto-live. Low = you review first' },
-                      { n:'4', label:'Tresci answers from it', sub:'Staff ask questions — Tresci reads docs to reply' },
+                      { n:'4', label:'Pilot answers from it', sub:'Staff ask questions — Pilot reads docs to reply' },
                     ].map((s, i) => (
                       <div key={s.n} style={{ padding: '18px 16px', borderRight: i < 3 ? '1px solid #DDE8EE' : 'none' }}>
                         <div style={{ width: '24px', height: '24px', borderRadius: '50%', background: '#00897B', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '10px' }}>
@@ -3570,7 +3568,7 @@ export default function AdminPage() {
                         { n:'1', label:'Upload a document', sub:'PDF or text — policy, brief, report' },
                         { n:'2', label:'AI classifies it', sub:'Layer, department, audience, confidence' },
                         { n:'3', label:'Goes live or flagged', sub:'High confidence = auto-live, low = review' },
-                        { n:'4', label:'Tresci answers from it', sub:'Staff questions answered from your docs' },
+                        { n:'4', label:'Pilot answers from it', sub:'Staff questions answered from your docs' },
                       ].map((s, i) => (
                         <div key={s.n} style={{ padding: '12px 14px', borderRight: i < 3 ? '1px solid #DDE8EE' : 'none' }}>
                           <div style={{ width: '20px', height: '20px', borderRadius: '50%', background: '#00897B', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '7px' }}>
@@ -3640,12 +3638,12 @@ export default function AdminPage() {
                                 </div>
                               )}
 
-                              {/* Tresci indicator + confidence */}
+                              {/* Pilot indicator + confidence */}
                               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                                 <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
-                                  <div style={{ width: '6px', height: '6px', borderRadius: '50%', background: doc.tresci_use ? '#C0F43C' : '#DDE8EE', flexShrink: 0 }} />
-                                  <span style={{ fontSize: '13px', fontWeight: 600, color: doc.tresci_use ? '#3D6B00' : '#5B7080' }}>
-                                    {doc.tresci_use ? 'Used by Tresci' : 'Not indexed'}
+                                  <div style={{ width: '6px', height: '6px', borderRadius: '50%', background: doc.pilot_use ? '#C0F43C' : '#DDE8EE', flexShrink: 0 }} />
+                                  <span style={{ fontSize: '13px', fontWeight: 600, color: doc.pilot_use ? '#3D6B00' : '#5B7080' }}>
+                                    {doc.pilot_use ? 'Used by Pilot' : 'Not indexed'}
                                   </span>
                                 </div>
                                 <span style={{ fontSize: '13px', fontWeight: 700, color: doc.confidence >= 75 ? '#0F1923' : '#8B1A1A' }}>
@@ -3877,7 +3875,7 @@ export default function AdminPage() {
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                 <div>
                   <div style={{ fontSize: '11px', fontWeight: 800, letterSpacing: '2px', textTransform: 'uppercase', color: '#A478FF', marginBottom: '4px' }}>Platform Roadmap</div>
-                  <div style={{ fontSize: '18px', fontWeight: 900, color: '#0F1923', letterSpacing: '-0.3px' }}>What&apos;s next for Trescademy</div>
+                  <div style={{ fontSize: '18px', fontWeight: 900, color: '#0F1923', letterSpacing: '-0.3px' }}>What&apos;s next for EventPilot</div>
                 </div>
                 <button onClick={() => setShowRoadmap(false)} style={{ width: '36px', height: '36px', borderRadius: '10px', border: '1px solid #DDE8EE', background: '#FFFFFF', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                   <svg width="14" height="14" fill="none" stroke="#5B7080" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
@@ -3895,6 +3893,22 @@ export default function AdminPage() {
                 </div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
                   {[
+                    { date: '27–29 May 2026', items: [
+                      'Platform Menu rebuilt — role-aware filtering, each user sees only what they can access, Coming Soon items removed entirely',
+                      'Smart Data sidebar: back link now resolves correctly per role (admin → Toolkit, staff → Dashboard), no flicker',
+                      'Smart Data breadcrumb pipeline buttons removed — cleaner Lead Extraction page',
+                      'My HR portal launched — all staff can submit leave, view attendance, see event tasks without admin access',
+                      'Dashboard: "Your Platform Access" tiles section shows each user only the tools they can open',
+                      'Course Library: auto-filters to staff department on load, "Assigned to You" pinned section added',
+                      'TresAgent: now opens in new tab — platform stays open',
+                      'Market Intel back link fixed — always routes to Toolkit',
+                      'Brand Studio & Website Builder: explicit ← Toolkit back links added',
+                      'Playbook tab removed from admin nav — lives solely under Platform Docs → Operations Reference',
+                      'Admin nav: Playbook redirect tab removed, cleaned up tab type definitions',
+                      'Content Hub redesigned — 4 campaign templates, guided 3-step create flow, How it Works strip for first-time users',
+                      'Content Hub event filter changed from 50+ pills to a single compact dropdown',
+                      'Content Hub campaign detail page font sizes fixed — was 17–20px throughout, now consistent 13px',
+                    ]},
                     { date: '20 May 2026', items: [
                       'Docs text visibility fixed across Scoring Guide and Discovery Questionnaire',
                       'HR portal redesigned — Recruitment, Attendance, and Leave with action-first layout',
@@ -3939,7 +3953,7 @@ export default function AdminPage() {
                     { date: '24 Apr 2026', items: [
                       'Initial platform launch: TAIRS scoring, AI readiness questionnaire',
                       'Admin dashboard with org-wide intelligence and tier breakdowns',
-                      'Tresci — internal AI assistant scoped to Trescademy',
+                      'Pilot — internal AI assistant scoped to EventPilot',
                       'Course generation and staff onboarding flow',
                     ]},
                   ].map((day, di) => (
@@ -3970,15 +3984,22 @@ export default function AdminPage() {
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                   {[
                     'TAIRS scoring — live AI readiness score for every staff member',
-                    'Personal dashboard with role-specific course recommendations',
+                    'Personal dashboard with role-specific course recommendations and platform access tiles',
+                    'Course Library — auto-filtered to staff department, assigned courses pinned at top',
                     'AI-generated courses via Learning Lab — ready to publish in minutes',
-                    'Tresci — internal AI assistant scoped to Trescademy and your org',
+                    'Pilot — internal AI assistant scoped to EventPilot and your org',
                     'Admin dashboard with org-wide intelligence and tier breakdowns',
                     'Full HRMS — attendance, leave, recruitment, contracts, payroll',
+                    'My HR portal — self-service leave, attendance and event tasks for all staff',
                     'Events Hub with RACI governance, P&L, and execution flow',
                     'Knowledge Base for company documents',
+                    'Smart Data — lead extraction, LinkedIn enrichment, email verification, contact database',
+                    'Content Hub — AI social campaigns with guided templates, approval flow, and calendar view',
+                    'Platform Menu — role-aware, each user sees only tools they can access',
+                    'Platform Docs — TAIRS scoring guide, discovery questionnaire, AI readiness playbook',
                   ].map((item, i) => (
                     <div key={i} style={{ display: 'flex', gap: '10px', alignItems: 'flex-start', padding: '10px 14px', background: 'rgba(192,244,60,0.05)', border: '1px solid rgba(192,244,60,0.18)', borderRadius: '10px' }}>
+
                       <svg width="13" height="13" style={{ flexShrink: 0, marginTop: '2px' }} fill="none" stroke="#3D6B00" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>
                       <span style={{ fontSize: '13px', color: '#5B7080', lineHeight: 1.5 }}>{item}</span>
                     </div>
@@ -3994,12 +4015,17 @@ export default function AdminPage() {
                 </div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                   {[
+                    { title: 'Department course seeding', desc: 'Seed the right AI-generated courses per department so each team has a ready library on day one.' },
+                    { title: 'Course assignment from admin', desc: 'Assign specific courses to individual staff members or entire teams directly from the admin panel.' },
                     { title: 'Staff onboarding via email', desc: 'Welcome email with platform intro, login link, and temp password sent automatically when staff are imported.' },
                     { title: 'Manager team view', desc: 'Managers see their team\'s TAIRS scores, who hasn\'t started, and who needs a nudge — without seeing individual data of others.' },
                     { title: 'Completion certificates', desc: 'Staff receive a certificate on passing a course. Shareable and stored against their profile.' },
                     { title: 'Weekly org pulse report', desc: 'Auto-generated Monday report to leadership: who moved tiers, what changed, what needs action.' },
+                    { title: 'Staff profile editor in admin', desc: 'Edit department, role, manager, and job level for any staff member directly from the admin panel.' },
+                    { title: 'Content Hub social publishing', desc: 'Connect Meta tokens to push approved posts live to LinkedIn, Instagram and Facebook directly from the platform.' },
                   ].map((item, i) => (
                     <div key={i} style={{ padding: '12px 14px', background: 'rgba(139,26,26,0.05)', border: '1px solid rgba(139,26,26,0.15)', borderRadius: '10px' }}>
+
                       <div style={{ fontSize: '13px', fontWeight: 700, color: '#8B1A1A', marginBottom: '4px' }}>{item.title}</div>
                       <div style={{ fontSize: '13px', color: '#5B7080', lineHeight: 1.6 }}>{item.desc}</div>
                     </div>
@@ -4018,7 +4044,7 @@ export default function AdminPage() {
                     { title: 'Events Hub AI-first', desc: 'Upload an event brief — AI extracts structure, assigns staff, surfaces readiness gaps. No manual data entry.' },
                     { title: 'Department deep-dives', desc: 'Per-department AI report: current tier split, top skill gaps, projected score in 30 days, recommended courses.' },
                     { title: 'Course effectiveness scoring', desc: 'AI tracks whether TAIRS scores actually improve after each course. Courses that don\'t move the needle get flagged.' },
-                    { title: 'TAOS integration', desc: 'Trescademy\'s org intelligence feeds the broader Trescon AI Operating System — capability data becomes a business asset.' },
+                    { title: 'TAOS integration', desc: 'EventPilot\'s org intelligence feeds the broader Trescon AI Operating System — capability data becomes a business asset.' },
                   ].map((item, i) => (
                     <div key={i} style={{ padding: '12px 14px', background: 'rgba(164,120,255,0.05)', border: '1px solid rgba(164,120,255,0.12)', borderRadius: '10px' }}>
                       <div style={{ fontSize: '13px', fontWeight: 700, color: '#A478FF', marginBottom: '4px' }}>{item.title}</div>

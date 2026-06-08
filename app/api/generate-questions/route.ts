@@ -27,7 +27,7 @@ export async function POST(req: NextRequest) {
 
   const taskList = task_steps.map(t => `${t.step}. ${t.instruction}`).join('\n')
 
-  const prompt = `You are generating a personalised knowledge test for a staff member on a corporate AI learning platform called Trescademy.
+  const prompt = `You are generating a personalised knowledge test for a staff member on a corporate AI learning platform called EventPilot.
 
 Course: ${course_title}
 Overview: ${course_overview}

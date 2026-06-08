@@ -54,7 +54,7 @@ function buildSections(
         icon: <svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>,
       },
       {
-        title:       'Talk to Tresci',
+        title:       'Talk to Pilot',
         description: 'AI assistant for learning questions and course guidance',
         href:        '/chat',
         color:       '#A478FF',
@@ -300,7 +300,7 @@ export default function PlatformMenu({ staffId }: PlatformMenuProps) {
             {/* Header */}
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '20px 24px', borderBottom: '1px solid #DDE8EE' }}>
               <div>
-                <div style={{ fontSize: '13px', fontWeight: 800, color: '#0F1923' }}>Trescademy Platform</div>
+                <div style={{ fontSize: '13px', fontWeight: 800, color: '#0F1923' }}>EventPilot Platform</div>
                 <div style={{ fontSize: '13px', color: '#5B7080', marginTop: '2px' }}>Your workspace — everything you have access to</div>
               </div>
               <button

@@ -30,12 +30,12 @@ async function analyseWithGemini(
   uploader: { name: string; department: string | null; role: string | null; job_level: string | null }
 ): Promise<{
   layer: string; department: string; min_level: string;
-  tresci_use: boolean; ai_reasoning: string; confidence: number; suggested_type: string
+  pilot_use: boolean; ai_reasoning: string; confidence: number; suggested_type: string
 }> {
   const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!)
   const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' })
 
-  const prompt = `You are the document intelligence system for Trescademy, Trescon Global's internal platform.
+  const prompt = `You are the document intelligence system for EventPilot, Trescon Global's internal platform.
 
 SUBMITTER PROFILE:
 Name: ${uploader.name}
@@ -53,7 +53,7 @@ Analyse and return ONLY valid JSON:
   "layer": "knowledge_base|general|specific",
   "department": "all|marketing|finance|sales|operations|events|hr|it",
   "min_level": "all|team_lead|management",
-  "tresci_use": true|false,
+  "pilot_use": true|false,
   "ai_reasoning": "2-3 sentence explanation",
   "confidence": 0-100,
   "suggested_type": "snake_case_type"
@@ -69,7 +69,7 @@ Analyse and return ONLY valid JSON:
       layer:          sanitise(parsed.layer,      LAYERS,      'general'),
       department:     sanitise(parsed.department, DEPARTMENTS, 'all'),
       min_level:      sanitise(parsed.min_level,  LEVELS,      'all'),
-      tresci_use:     Boolean(parsed.tresci_use),
+      pilot_use:     Boolean(parsed.pilot_use),
       ai_reasoning:   String(parsed.ai_reasoning ?? '').slice(0, 1000),
       confidence:     Math.min(100, Math.max(0, Number(parsed.confidence ?? 60))),
       suggested_type: String(parsed.suggested_type ?? 'other').slice(0, 60),
@@ -77,7 +77,7 @@ Analyse and return ONLY valid JSON:
   } catch {
     return {
       layer: 'general', department: 'all', min_level: 'all',
-      tresci_use: false, ai_reasoning: 'AI analysis incomplete — manager will review.',
+      pilot_use: false, ai_reasoning: 'AI analysis incomplete — manager will review.',
       confidence: 40, suggested_type: 'other',
     }
   }
@@ -154,7 +154,7 @@ export async function POST(req: NextRequest) {
         layer:          analysis.layer,
         department:     analysis.department,
         min_level:      analysis.min_level,
-        tresci_use:     analysis.tresci_use,
+        pilot_use:     analysis.pilot_use,
         ai_reasoning:   analysis.ai_reasoning,
         confidence:     analysis.confidence,
         flagged:        false,
@@ -182,7 +182,7 @@ export async function POST(req: NextRequest) {
 
     if (msg.includes('503') || msg.toLowerCase().includes('overloaded') || msg.toLowerCase().includes('service unavailable')) {
       return NextResponse.json({
-        error: 'Tresci is under high load right now. Please wait a moment and try again — your document has not been saved.',
+        error: 'Pilot is under high load right now. Please wait a moment and try again — your document has not been saved.',
       }, { status: 503 })
     }
 

@@ -309,7 +309,7 @@ function CourseContent() {
               This test is built entirely around <strong style={{ color: '#0F1923' }}>your specific submission</strong>. Every question is unique to what you did — not a generic quiz anyone else will see.
             </div>
             <div style={{ fontSize: '13px', color: '#2D3E50', lineHeight: 1.72, marginBottom: '10px' }}>
-              Trescademy uses AI to review the authenticity of your responses — not to penalise you, but to ensure your TAIRS score genuinely reflects your ability and helps us support you better.
+              EventPilot uses AI to review the authenticity of your responses — not to penalise you, but to ensure your TAIRS score genuinely reflects your ability and helps us support you better.
             </div>
             <div style={{ fontSize: '13px', color: '#2D3E50', lineHeight: 1.72, marginBottom: '24px' }}>
               AI is your <strong style={{ color: '#0F1923' }}>learning tool</strong> here, not your shortcut. The people who grow fastest are the ones who engage honestly.
@@ -687,7 +687,7 @@ function CourseContent() {
                     <div style={{ fontSize: '13px', color: '#2D3E50', lineHeight: 1.65 }}>
                       {(result.offense_number ?? 1) === 1 && 'We noticed your test responses may not fully reflect the work in your submission. No action has been taken — this is just between you and us. A retake done honestly will improve your TAIRS score and replace this result.'}
                       {(result.offense_number ?? 1) === 2 && 'This is the second time we have noticed this pattern. Your TAIRS confidence rating has been adjusted. Completing this course honestly will restore it — and your manager has not been informed.'}
-                      {(result.offense_number ?? 1) >= 3 && 'This pattern has been noted across multiple attempts. Your learning progress has been flagged for a support conversation. Trescademy is here to help — please reach out to your manager or HR if you need support with the material.'}
+                      {(result.offense_number ?? 1) >= 3 && 'This pattern has been noted across multiple attempts. Your learning progress has been flagged for a support conversation. EventPilot is here to help — please reach out to your manager or HR if you need support with the material.'}
                     </div>
                   </div>
                 </div>

@@ -24,7 +24,7 @@ export async function GET(req: NextRequest) {
   // Get pending documents from those staff
   const { data: docs, error } = await supabaseAdmin
     .from('documents')
-    .select('id, title, type, word_count, layer, department, min_level, tresci_use, ai_reasoning, confidence, status, submitted_by, review_note, created_at')
+    .select('id, title, type, word_count, layer, department, min_level, pilot_use, ai_reasoning, confidence, status, submitted_by, review_note, created_at')
     .in('submitted_by', reportIds)
     .in('status', ['pending_manager', 'pending_depthead'])
     .order('created_at', { ascending: false })

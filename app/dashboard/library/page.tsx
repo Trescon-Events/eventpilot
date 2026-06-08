@@ -3,7 +3,7 @@
 import { useState, useEffect, Suspense } from 'react'
 import { useSearchParams } from 'next/navigation'
 import Link from 'next/link'
-import NavBar, { MOD_TRESCADEMY } from '@/app/components/NavBar'
+import NavBar, { MOD_EVENTPILOT } from '@/app/components/NavBar'
 
 interface Course {
   id:                 string
@@ -28,6 +28,14 @@ interface Completion {
   attempt_count: number
 }
 
+interface Assignment {
+  id:         string
+  course_id:  string
+  status:     string
+  due_date:   string | null
+  course:     { id: string; title: string; is_mandatory: boolean; duration_hours: number | null }
+}
+
 const TIER_CONFIG = {
   foundation: { color: '#0E7490', bg: '#0E749015', border: '#0E749040', label: 'Foundation' },
   adoption:   { color: '#7C3AED', bg: '#7C3AED15', border: '#7C3AED40', label: 'Adoption'   },
@@ -40,11 +48,13 @@ function LibraryContent() {
   const params  = useSearchParams()
   const staffId = params.get('id') ?? ''
 
-  const [courses,     setCourses]     = useState<Course[]>([])
-  const [completions, setCompletions] = useState<Completion[]>([])
-  const [loading,     setLoading]     = useState(true)
-  const [tierFilter,  setTierFilter]  = useState<string>('all')
-  const [deptFilter,  setDeptFilter]  = useState<string>('All Departments')
+  const [courses,      setCourses]      = useState<Course[]>([])
+  const [completions,  setCompletions]  = useState<Completion[]>([])
+  const [assignments,  setAssignments]  = useState<Assignment[]>([])
+  const [loading,      setLoading]      = useState(true)
+  const [tierFilter,   setTierFilter]   = useState<string>('all')
+  const [deptFilter,   setDeptFilter]   = useState<string>('All Departments')
+  const [myDept,       setMyDept]       = useState<string>('All Departments')
   const [sourceFilter, setSourceFilter] = useState<string>('all')
 
   useEffect(() => {
@@ -53,16 +63,33 @@ function LibraryContent() {
   }, [])
 
   async function load() {
-    const [cRes, compRes] = await Promise.all([
+    const [cRes, compRes, sessionRes, assignRes] = await Promise.all([
       fetch('/api/courses'),
       staffId ? fetch(`/api/staff-completions?staff_id=${staffId}`) : Promise.resolve(null),
+      fetch('/api/auth/session'),
+      staffId ? fetch(`/api/hr/course-assignments?staff_id=${staffId}`) : Promise.resolve(null),
     ])
     const cData = await cRes.json()
     setCourses(Array.isArray(cData) ? cData : [])
+
     if (compRes?.ok) {
       const compData = await compRes.json()
       setCompletions(Array.isArray(compData) ? compData : [])
     }
+
+    if (sessionRes.ok) {
+      const sess = await sessionRes.json()
+      if (sess?.dept) {
+        setMyDept(sess.dept)
+        setDeptFilter(sess.dept)
+      }
+    }
+
+    if (assignRes?.ok) {
+      const aData = await assignRes.json()
+      setAssignments(Array.isArray(aData) ? aData : [])
+    }
+
     setLoading(false)
   }
 
@@ -83,11 +110,15 @@ function LibraryContent() {
   const advancedCount        = courses.filter(c => c.tier_level === 'advanced').length
   const mandatoryUncompleted = courses.filter(c => c.is_mandatory && !completionMap.get(c.id)?.passed)
 
+  // Pending assignments (not yet completed)
+  const pendingAssignments = assignments.filter(a => a.status !== 'completed' && a.course)
+  const assignedCourseIds  = new Set(pendingAssignments.map(a => a.course_id))
+
   return (
     <div style={S.page}>
       {/* Nav */}
       <NavBar
-        module={MOD_TRESCADEMY}
+        module={MOD_EVENTPILOT}
         subtitle="Course Library"
         homeHref={staffId ? `/dashboard?id=${staffId}` : '/dashboard'}
         rightSlot={staffId ? (
@@ -102,11 +133,35 @@ function LibraryContent() {
 
         {/* Header */}
         <div style={{ marginBottom: '32px' }}>
-          <div style={{ fontSize: '13px', fontWeight: 800, letterSpacing: '2.5px', color: '#00695C', textTransform: 'uppercase', marginBottom: '8px' }}>Trescademy Learning Library</div>
-          <h1 style={{ fontSize: '36px', fontWeight: 900, margin: '0 0 6px', letterSpacing: '-0.4px', color: '#0F1923' }}>All Courses</h1>
-          <p style={{ fontSize: '13px', color: '#2D3E50', margin: 0 }}>
-            {courses.length} courses · {completedCount} completed by you
-          </p>
+          <div style={{ fontSize: '13px', fontWeight: 800, letterSpacing: '2.5px', color: '#00695C', textTransform: 'uppercase', marginBottom: '8px' }}>EventPilot Learning Library</div>
+          <h1 style={{ fontSize: '36px', fontWeight: 900, margin: '0 0 8px', letterSpacing: '-0.4px', color: '#0F1923' }}>Course Library</h1>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
+            <p style={{ fontSize: '13px', color: '#2D3E50', margin: 0 }}>
+              {courses.length} total · {completedCount} completed by you
+            </p>
+            {myDept !== 'All Departments' && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <span style={{ fontSize: '12px', fontWeight: 700, color: '#00897B', background: 'rgba(0,165,163,0.1)', border: '1px solid rgba(0,165,163,0.25)', padding: '3px 10px', borderRadius: '16px' }}>
+                  {myDept}
+                </span>
+                {deptFilter === myDept ? (
+                  <button
+                    onClick={() => setDeptFilter('All Departments')}
+                    style={{ fontSize: '12px', color: '#9CA3AF', background: 'none', border: 'none', cursor: 'pointer', padding: '2px 6px', fontFamily: 'inherit' }}
+                  >
+                    Show all depts
+                  </button>
+                ) : (
+                  <button
+                    onClick={() => setDeptFilter(myDept)}
+                    style={{ fontSize: '12px', color: '#00897B', background: 'none', border: 'none', cursor: 'pointer', padding: '2px 6px', fontFamily: 'inherit', fontWeight: 700 }}
+                  >
+                    Back to {myDept}
+                  </button>
+                )}
+              </div>
+            )}
+          </div>
         </div>
 
         {/* Tier summary strip */}
@@ -136,8 +191,48 @@ function LibraryContent() {
           })}
         </div>
 
+        {/* Assigned to You — pinned section */}
+        {pendingAssignments.length > 0 && tierFilter === 'all' && sourceFilter === 'all' && (
+          <div style={{ marginBottom: '32px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '14px' }}>
+              <div style={{ width: '7px', height: '7px', borderRadius: '50%', background: '#7C3AED', flexShrink: 0 }} />
+              <span style={{ fontSize: '13px', fontWeight: 800, color: '#7C3AED', textTransform: 'uppercase', letterSpacing: '2px' }}>
+                Assigned to You — {pendingAssignments.length} pending
+              </span>
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '12px' }}>
+              {pendingAssignments.map(a => {
+                const course = courses.find(c => c.id === a.course_id)
+                if (!course) return null
+                const cfg = TIER_CONFIG[course.tier_level]
+                const overdue = a.due_date && new Date(a.due_date) < new Date()
+                return (
+                  <Link
+                    key={a.id}
+                    href={`/dashboard/course/${course.id}${staffId ? `?staff_id=${staffId}` : ''}`}
+                    style={{ display: 'flex', flexDirection: 'column', background: 'rgba(124,58,237,0.05)', border: '1px solid rgba(124,58,237,0.25)', borderRadius: '16px', padding: '20px', textDecoration: 'none' }}
+                  >
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '10px' }}>
+                      <span style={{ fontSize: '12px', fontWeight: 800, color: '#7C3AED', background: 'rgba(124,58,237,0.12)', border: '1px solid rgba(124,58,237,0.25)', padding: '3px 9px', borderRadius: '16px' }}>Assigned</span>
+                      <span style={{ fontSize: '12px', fontWeight: 800, color: cfg.color, background: cfg.bg, padding: '3px 9px', borderRadius: '16px', textTransform: 'uppercase', letterSpacing: '1px' }}>{cfg.label}</span>
+                    </div>
+                    <div style={{ fontSize: '13px', fontWeight: 800, color: '#0F1923', marginBottom: '6px', lineHeight: 1.3, flex: 1 }}>{course.title}</div>
+                    <div style={{ fontSize: '13px', color: '#2D3E50', marginBottom: '14px', lineHeight: 1.65 }}>{course.subtitle}</div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: '1px solid rgba(124,58,237,0.15)', paddingTop: '10px' }}>
+                      <span style={{ fontSize: '12px', color: overdue ? '#8B1A1A' : '#6B7280', fontWeight: 600 }}>
+                        {a.due_date ? (overdue ? `Overdue — ${a.due_date}` : `Due ${a.due_date}`) : 'No deadline'}
+                      </span>
+                      <span style={{ fontSize: '13px', fontWeight: 800, color: '#7C3AED' }}>Start</span>
+                    </div>
+                  </Link>
+                )
+              })}
+            </div>
+          </div>
+        )}
+
         {/* Mandatory — pinned section */}
-        {mandatoryUncompleted.length > 0 && tierFilter === 'all' && sourceFilter === 'all' && deptFilter === 'All Departments' && (
+        {mandatoryUncompleted.length > 0 && tierFilter === 'all' && sourceFilter === 'all' && (
           <div style={{ marginBottom: '32px' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '14px' }}>
               <div style={{ width: '7px', height: '7px', borderRadius: '50%', background: '#8B1A1A', flexShrink: 0 }} />
@@ -183,7 +278,7 @@ function LibraryContent() {
           <div style={{ display: 'flex', gap: '6px' }}>
             {[
               { val: 'all',    label: 'All Sources' },
-              { val: 'manual', label: 'Trescademy Curated' },
+              { val: 'manual', label: 'EventPilot Curated' },
               { val: 'gemini', label: 'AI Generated' },
             ].map(({ val, label }) => (
               <button key={val} onClick={() => setSourceFilter(val)} style={{ padding: '7px 14px', borderRadius: '16px', border: `1px solid ${sourceFilter === val ? '#00897B' : '#DDE8EE'}`, background: sourceFilter === val ? '#00A5A315' : '#FFFFFF', color: sourceFilter === val ? '#00897B' : '#2D3E50', fontSize: '13px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>

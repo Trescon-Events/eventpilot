@@ -62,7 +62,7 @@ async function analyseWithGemini(
   const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!)
   const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' })
 
-  const prompt = `You are the document intelligence system for Trescademy, Trescon Global's internal platform.
+  const prompt = `You are the document intelligence system for EventPilot, Trescon Global's internal platform.
 
 A document has been uploaded. Analyse it and return a JSON object with your decisions.
 
@@ -81,12 +81,12 @@ ${extractedText.slice(0, 3000)}
 layer: "knowledge_base" | "general" | "specific"
 department: "all" | "marketing" | "finance" | "sales" | "operations" | "events" | "hr" | "it"
 min_level: "all" | "team_lead" | "management"
-tresci_use: true if Tresci should search this document
+pilot_use: true if Pilot should search this document
 confidence: 0-100
 suggested_type: snake_case
 
 Return ONLY valid JSON, no markdown:
-{"layer":"...","department":"...","min_level":"...","tresci_use":true,"ai_reasoning":"...","confidence":85,"suggested_type":"..."}`
+{"layer":"...","department":"...","min_level":"...","pilot_use":true,"ai_reasoning":"...","confidence":85,"suggested_type":"..."}`
 
   try {
     const result = await model.generateContent(prompt)
@@ -97,13 +97,13 @@ Return ONLY valid JSON, no markdown:
       layer:          sanitise(parsed.layer,       LAYERS,       'general'),
       department:     sanitise(parsed.department,  DEPARTMENTS,  'all'),
       min_level:      sanitise(parsed.min_level,   LEVELS,       'all'),
-      tresci_use:     Boolean(parsed.tresci_use),
+      pilot_use:     Boolean(parsed.pilot_use),
       ai_reasoning:   String(parsed.ai_reasoning ?? '').slice(0, 1000),
       confidence:     Math.min(100, Math.max(0, Number(parsed.confidence ?? 70))),
       suggested_type: String(parsed.suggested_type ?? 'other').slice(0, 60),
     }
   } catch {
-    return { layer: 'general', department: 'all', min_level: 'all', tresci_use: false, ai_reasoning: 'AI analysis failed.', confidence: 40, suggested_type: customType ?? 'other' }
+    return { layer: 'general', department: 'all', min_level: 'all', pilot_use: false, ai_reasoning: 'AI analysis failed.', confidence: 40, suggested_type: customType ?? 'other' }
   }
 }
 
@@ -159,12 +159,12 @@ export async function POST(req: NextRequest) {
         layer: analysis.layer,
         department: analysis.department,
         min_level: analysis.min_level,
-        tresci_use: analysis.tresci_use,
+        pilot_use: analysis.pilot_use,
         ai_reasoning: analysis.ai_reasoning,
         confidence: analysis.confidence,
         flagged,
       })
-      .select('id, title, word_count, layer, department, min_level, tresci_use, ai_reasoning, confidence, flagged')
+      .select('id, title, word_count, layer, department, min_level, pilot_use, ai_reasoning, confidence, flagged')
       .single()
 
     if (error) throw error

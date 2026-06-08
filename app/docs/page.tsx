@@ -36,7 +36,7 @@ const SECTION_ORDER = [
 
 const SECTION_DESC: Record<string, string> = {
   'Platform Reference':    'Scoring methodology and the staff discovery questionnaire',
-  'Platform Overview':     'What Trescademy is, how it works, and what the numbers mean',
+  'Platform Overview':     'What EventPilot is, how it works, and what the numbers mean',
   'How the Platform Works': 'The logic behind recommendations, hierarchy, and learning tracks',
   'User Guide':            'Step-by-step guides for staff, managers, and admins',
   'Operations Reference':  'Event execution workflows, RACI governance, and access control',
@@ -277,7 +277,7 @@ export default function DocsPage() {
           {/* Title + subtitle */}
           <h1 style={{ fontSize: '36px', fontWeight: 900, color: '#0F1923', margin: '0 0 10px', letterSpacing: '-0.5px', lineHeight: 1.2 }}>
             {activeSlug === '__scoring'       ? 'How AI Readiness Is Measured'
-           : activeSlug === '__questionnaire' ? 'Trescademy Discovery Questionnaire'
+           : activeSlug === '__questionnaire' ? 'EventPilot Discovery Questionnaire'
            : activeSlug === '__playbook'      ? 'AI Readiness Playbook'
            : activeDoc?.title ?? ''}
           </h1>

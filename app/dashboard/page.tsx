@@ -5,7 +5,7 @@ import { useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { computeTAIRS, getTier, getTrack, TIER_COLORS } from '@/app/lib/tairs'
 import PlatformMenu from '@/app/components/PlatformMenu'
-import NavBar, { SignOutBtn, MOD_TRESCADEMY } from '@/app/components/NavBar'
+import NavBar, { SignOutBtn, MOD_EVENTPILOT } from '@/app/components/NavBar'
 
 /* ─── Types ──────────────────────────────────────────────────── */
 interface StaffMember {
@@ -102,7 +102,7 @@ function NoIdScreen() {
         <div style={{ width: '48px', height: '48px', background: '#00897B', borderRadius: '14px', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 20px' }}>
           <svg width="22" height="22" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>
         </div>
-        <div style={{ fontSize: '13px', fontWeight: 800, letterSpacing: '2px', textTransform: 'uppercase', color: '#00695C', marginBottom: '8px' }}>Trescademy</div>
+        <div style={{ fontSize: '13px', fontWeight: 800, letterSpacing: '2px', textTransform: 'uppercase', color: '#00695C', marginBottom: '8px' }}>EventPilot</div>
         <h1 style={{ fontSize: '36px', fontWeight: 800, color: '#0F1923', margin: '0 0 10px' }}>My Learning Dashboard</h1>
         <p style={{ fontSize: '13px', color: '#2D3E50', lineHeight: 1.65, margin: '0 0 28px' }}>Enter your work email to access your dashboard.</p>
         <form onSubmit={handleEmail} style={{ display: 'flex', gap: '8px' }}>
@@ -184,7 +184,7 @@ function DashboardContent() {
 
   useEffect(() => {
     if (!staffId) { setError('No staff ID provided. Please access this page via your dashboard link.'); setLoading(false); return }
-    const stored = localStorage.getItem(`tresci_dismissed_${staffId}`)
+    const stored = localStorage.getItem(`pilot_dismissed_${staffId}`)
     if (stored) setDismissedIds(new Set(JSON.parse(stored)))
     load()
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -194,7 +194,7 @@ function DashboardContent() {
     setDismissedIds(prev => {
       const next = new Set(prev)
       next.add(courseId)
-      localStorage.setItem(`tresci_dismissed_${staffId}`, JSON.stringify([...next]))
+      localStorage.setItem(`pilot_dismissed_${staffId}`, JSON.stringify([...next]))
       return next
     })
   }
@@ -257,7 +257,7 @@ function DashboardContent() {
     if (!staffId || staffId === 'super-admin') return
 
     // Check localStorage cache — skip Gemini call if fresh (< 30 min old)
-    const CACHE_KEY = `tresci_recs_${staffId}`
+    const CACHE_KEY = `pilot_recs_${staffId}`
     const CACHE_TTL = 30 * 60 * 1000 // 30 minutes
     try {
       const cached = localStorage.getItem(CACHE_KEY)
@@ -359,7 +359,7 @@ function DashboardContent() {
     <div style={S.page}>
       {/* ── Nav ── */}
       <NavBar
-        module={MOD_TRESCADEMY}
+        module={MOD_EVENTPILOT}
         subtitle={isAdmin ? 'Personal View' : 'My Dashboard'}
         homeHref={staffId ? `/dashboard?id=${staffId}` : '/dashboard'}
         rightSlot={<>
@@ -436,7 +436,7 @@ function DashboardContent() {
             <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
               <div style={{ width: '10px', height: '10px', borderRadius: '50%', background: 'rgba(255,255,255,0.8)' }} />
               <span style={{ fontSize: '11px', fontWeight: 800, letterSpacing: '2.5px', textTransform: 'uppercase', color: 'rgba(255,255,255,0.9)' }}>
-                {completedCount === 0 ? 'Welcome to Trescademy' : 'Welcome back'} · {tier}
+                {completedCount === 0 ? 'Welcome to EventPilot' : 'Welcome back'} · {tier}
               </span>
             </div>
             <span style={{ fontSize: '11px', fontWeight: 700, color: 'rgba(255,255,255,0.6)', letterSpacing: '0.5px' }}>
@@ -482,7 +482,7 @@ function DashboardContent() {
             { label: 'My Learning',    sub: 'Courses & TAIRS score',   color: '#00897B', href: `/dashboard?id=${staffId}`,              icon: <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" viewBox="0 0 24 24"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>, show: true },
             { label: 'Course Library', sub: 'Browse all courses',       color: '#6366F1', href: `/dashboard/library?id=${staffId}`,       icon: <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M9 3v18M3 9h6M3 15h6"/></svg>, show: true },
             { label: 'Smart Data',     sub: 'Lead extraction & CRM',    color: '#00A5A3', href: '/data/extract/file',                     icon: <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" viewBox="0 0 24 24"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/></svg>, show: true },
-            { label: 'Talk to Tresci', sub: 'AI learning assistant',    color: '#7C3AED', href: '/chat',                                  icon: <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>, show: true },
+            { label: 'Talk to Pilot', sub: 'AI learning assistant',    color: '#7C3AED', href: '/chat',                                  icon: <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>, show: true },
             { label: 'My Events',      sub: 'Event roles, tasks & allocation', color: '#D97706', href: `/dashboard?id=${staffId}#events`, icon: <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>, show: true },
             { label: 'My HR',          sub: 'Leave, events & attendance', color: '#EC4899', href: '/my-hr',                               icon: <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>, show: true },
             { label: 'HR Admin',       sub: 'Leave approvals & org ops',  color: '#BE185D', href: '/hr',                                  icon: <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>, show: !!(isAdmin || staff.department === 'HR') },
@@ -917,11 +917,11 @@ function DashboardContent() {
                 </div>
                 <button
                   onClick={() => {
-                    const chat = document.querySelector('[data-tresci-trigger]') as HTMLElement
+                    const chat = document.querySelector('[data-pilot-trigger]') as HTMLElement
                     if (chat) chat.click()
                   }}
                   style={{ padding: '8px 16px', borderRadius: '16px', border: '1px solid rgba(0,165,163,0.4)', background: 'rgba(0,165,163,0.1)', color: '#00695C', fontSize: '13px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap' }}>
-                  Talk to Tresci about this event
+                  Talk to Pilot about this event
                 </button>
               </div>
             ))}
@@ -1038,7 +1038,7 @@ function DashboardContent() {
                   <div style={{ fontSize: '13px', fontWeight: 700, color: '#0F1923', marginBottom: '4px', lineHeight: 1.4 }}>{doc.title}</div>
                   <div style={{ fontSize: '13px', color: '#0F1923', marginBottom: '12px' }}>{doc.word_count?.toLocaleString()} words</div>
                   <Link href="/chat" style={{ fontSize: '13px', fontWeight: 700, color: tc, textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                    Talk to Tresci about this
+                    Talk to Pilot about this
                     <svg width="11" height="11" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg>
                   </Link>
                 </div>
@@ -1048,13 +1048,13 @@ function DashboardContent() {
         </div>
       )}
 
-      {/* ── Floating Talk to Tresci button ── */}
+      {/* ── Floating Talk to Pilot button ── */}
       <Link
         href={`/chat`}
         style={{ position: 'fixed', bottom: '28px', right: '28px', display: 'flex', alignItems: 'center', gap: '10px', padding: '12px 20px', background: '#00897B', borderRadius: '50px', textDecoration: 'none', zIndex: 100 }}
       >
         <svg width="16" height="16" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
-        <span style={{ fontSize: '13px', fontWeight: 800, color: 'white', letterSpacing: '0.1px' }}>Talk to Tresci</span>
+        <span style={{ fontSize: '13px', fontWeight: 800, color: 'white', letterSpacing: '0.1px' }}>Talk to Pilot</span>
         <div style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#C0F43C', animation: 'pulse 2s infinite' }} />
       </Link>
 
@@ -1197,7 +1197,7 @@ function DashboardContent() {
           <div style={{ fontSize: '13px', fontWeight: 800, letterSpacing: '2px', textTransform: 'uppercase', color: '#A478FF', marginBottom: '8px' }}>Shape This Platform</div>
           <h3 style={{ fontSize: '36px', fontWeight: 900, color: '#0F1923', margin: '0 0 6px' }}>What should we build next?</h3>
           <p style={{ fontSize: '13px', color: '#0F1923', margin: '0 0 18px', lineHeight: 1.65 }}>
-            Trescademy is being built for you. If there is a feature, a course, a report, or anything else you would like to see — tell us here. Every suggestion is reviewed by the team.
+            EventPilot is being built for you. If there is a feature, a course, a report, or anything else you would like to see — tell us here. Every suggestion is reviewed by the team.
           </p>
           {feedbackSent ? (
             <div style={{ padding: '16px', background: 'rgba(192,244,60,0.08)', border: '1px solid rgba(192,244,60,0.2)', borderRadius: '12px', fontSize: '13px', color: '#3D6B00', fontWeight: 700 }}>
@@ -1282,7 +1282,7 @@ function getImprovementTips(tier: string): string[] {
       'Lead a cross-department AI pilot',
       'Mentor 2 colleagues on their learning path',
       'Build a repeatable AI workflow others can use',
-      'Contribute a custom course to the Trescademy library',
+      'Contribute a custom course to the EventPilot library',
     ],
   }
   return tips[tier] ?? tips['AI-Curious']

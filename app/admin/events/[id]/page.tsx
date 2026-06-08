@@ -471,7 +471,7 @@ export default function EventWorkspacePage({ params }: { params: Promise<{ id: s
     const data = await res.json()
     if (res.ok) {
       setReport(data)
-      setMsg('Report concluded. It is now live in the knowledge base — Tresci can answer questions from it.')
+      setMsg('Report concluded. It is now live in the knowledge base — Pilot can answer questions from it.')
     } else {
       setMsg(data.error ?? 'Failed to conclude report.')
     }
@@ -1643,7 +1643,7 @@ export default function EventWorkspacePage({ params }: { params: Promise<{ id: s
             </div>
             <h3 style={{ fontSize: '36px', fontWeight: 800, color: '#0F1923', margin: '0 0 8px' }}>No checklist yet</h3>
             <p style={{ fontSize: '13px', color: '#2D3E50', margin: '0 0 28px' }}>
-              Click "Generate Checklist with AI" — Tresci will build a complete<br />department-by-department checklist for this event instantly.
+              Click "Generate Checklist with AI" — Pilot will build a complete<br />department-by-department checklist for this event instantly.
             </p>
           </div>
         )}
@@ -1875,7 +1875,7 @@ export default function EventWorkspacePage({ params }: { params: Promise<{ id: s
                 {report.status === 'live' && (
                   <div style={{ padding: '14px 24px', borderTop: '1px solid #D8EAEB', background: 'rgba(192,244,60,0.04)' }}>
                     <span style={{ fontSize: '13px', color: '#3D6B00', fontWeight: 600 }}>
-                      Live in knowledge base — Tresci can now answer questions from this report.
+                      Live in knowledge base — Pilot can now answer questions from this report.
                     </span>
                   </div>
                 )}

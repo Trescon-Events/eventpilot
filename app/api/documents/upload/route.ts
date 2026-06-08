@@ -93,12 +93,12 @@ async function analyseWithGemini(
   customType?: string
 ): Promise<{
   layer: string; department: string; min_level: string;
-  tresci_use: boolean; ai_reasoning: string; confidence: number; suggested_type: string
+  pilot_use: boolean; ai_reasoning: string; confidence: number; suggested_type: string
 }> {
   const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!)
   const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' })
 
-  const prompt = `You are the document intelligence system for Trescademy, Trescon Global's internal platform.
+  const prompt = `You are the document intelligence system for EventPilot, Trescon Global's internal platform.
 
 A document has been uploaded. Analyse it and return a JSON object with your decisions.
 
@@ -117,7 +117,7 @@ ${extractedText.slice(0, 3000)}
 DECISION RULES:
 
 layer options:
-- "knowledge_base": Foundational company knowledge. Policies, past event summaries, production briefs, SOPs, brand guidelines, onboarding material. Tresci ALWAYS searches these for everyone.
+- "knowledge_base": Foundational company knowledge. Policies, past event summaries, production briefs, SOPs, brand guidelines, onboarding material. Pilot ALWAYS searches these for everyone.
 - "general": Relevant to all staff but not core knowledge base. Announcements, culture docs.
 - "specific": Active working documents. Campaign plans, budget reviews, event briefs, sales playbooks. Access controlled by department and level.
 
@@ -130,7 +130,7 @@ min_level options (minimum job level to access):
 - "team_lead": Team leads and above
 - "management": Office heads and above only
 
-tresci_use: true if Tresci should search this document when answering staff questions, false otherwise.
+pilot_use: true if Pilot should search this document when answering staff questions, false otherwise.
 - Always true for knowledge_base
 - True for general if it contains useful reference information
 - For specific: true only if it helps staff in the relevant department understand their work
@@ -148,7 +148,7 @@ Return ONLY valid JSON, no markdown:
   "layer": "knowledge_base|general|specific",
   "department": "all|marketing|finance|sales|operations|events|hr|it",
   "min_level": "all|team_lead|management",
-  "tresci_use": true|false,
+  "pilot_use": true|false,
   "ai_reasoning": "2-3 sentence explanation of your decisions",
   "confidence": 0-100,
   "suggested_type": "snake_case_type_name"
@@ -164,7 +164,7 @@ Return ONLY valid JSON, no markdown:
       layer:          sanitise(parsed.layer,       LAYERS,       'general'),
       department:     sanitise(parsed.department,  DEPARTMENTS,  'all'),
       min_level:      sanitise(parsed.min_level,   LEVELS,       'all'),
-      tresci_use:     Boolean(parsed.tresci_use),
+      pilot_use:     Boolean(parsed.pilot_use),
       ai_reasoning:   String(parsed.ai_reasoning ?? '').slice(0, 1000),
       confidence:     Math.min(100, Math.max(0, Number(parsed.confidence ?? 70))),
       suggested_type: String(parsed.suggested_type ?? 'other').slice(0, 60),
@@ -172,7 +172,7 @@ Return ONLY valid JSON, no markdown:
   } catch {
     return {
       layer: 'general', department: 'all', min_level: 'all',
-      tresci_use: false, ai_reasoning: 'AI analysis failed — defaulted to general visibility.',
+      pilot_use: false, ai_reasoning: 'AI analysis failed — defaulted to general visibility.',
       confidence: 40, suggested_type: customType ?? 'other',
     }
   }
@@ -242,12 +242,12 @@ export async function POST(req: NextRequest) {
         layer:          analysis.layer,
         department:     analysis.department,
         min_level:      analysis.min_level,
-        tresci_use:     analysis.tresci_use,
+        pilot_use:     analysis.pilot_use,
         ai_reasoning:   analysis.ai_reasoning,
         confidence:     analysis.confidence,
         flagged,
       })
-      .select('id, title, word_count, layer, department, min_level, tresci_use, ai_reasoning, confidence, flagged')
+      .select('id, title, word_count, layer, department, min_level, pilot_use, ai_reasoning, confidence, flagged')
       .single()
 
     if (error) throw error
@@ -259,7 +259,7 @@ export async function POST(req: NextRequest) {
         layer:          analysis.layer,
         department:     analysis.department,
         min_level:      analysis.min_level,
-        tresci_use:     analysis.tresci_use,
+        pilot_use:     analysis.pilot_use,
         ai_reasoning:   analysis.ai_reasoning,
         confidence:     analysis.confidence,
         flagged,
@@ -272,7 +272,7 @@ export async function POST(req: NextRequest) {
 
     if (msg.includes('503') || msg.toLowerCase().includes('overloaded') || msg.toLowerCase().includes('service unavailable')) {
       return NextResponse.json({
-        error: 'Tresci is under high load right now. Please wait a moment and try again — your document has not been saved.',
+        error: 'Pilot is under high load right now. Please wait a moment and try again — your document has not been saved.',
       }, { status: 503 })
     }
 

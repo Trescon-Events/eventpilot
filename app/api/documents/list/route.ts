@@ -6,7 +6,7 @@ import { supabaseAdmin } from '@/app/lib/supabase'
 
   Params:
     admin=1               → all live documents (admin pipeline view)
-    staff_id=uuid         → documents this staff member can access (Tresci / staff view)
+    staff_id=uuid         → documents this staff member can access (Pilot / staff view)
     pipeline=1            → all documents including pending/flagged (admin pipeline)
 
   Access rules for staff:
@@ -34,7 +34,7 @@ export async function GET(req: NextRequest) {
         .from('documents')
         .select(`
           id, title, type, visibility, word_count, layer, department, min_level,
-          tresci_use, ai_reasoning, confidence, status, flagged,
+          pilot_use, ai_reasoning, confidence, status, flagged,
           submitted_by, reviewed_by, review_note, created_at,
           events(name)
         `)
@@ -50,7 +50,7 @@ export async function GET(req: NextRequest) {
         .from('documents')
         .select(`
           id, title, type, visibility, word_count, layer, department, min_level,
-          tresci_use, ai_reasoning, confidence, status, flagged, created_at,
+          pilot_use, ai_reasoning, confidence, status, flagged, created_at,
           events(name)
         `)
         .eq('is_active', true)
@@ -60,7 +60,7 @@ export async function GET(req: NextRequest) {
       return NextResponse.json(data ?? [])
     }
 
-    // ── Staff / Tresci view — access-filtered ──
+    // ── Staff / Pilot view — access-filtered ──
     if (!staffId) return NextResponse.json({ error: 'staff_id required' }, { status: 400 })
 
     // Get staff profile for access check
@@ -76,7 +76,7 @@ export async function GET(req: NextRequest) {
     // Fetch all live documents
     const { data: docs, error } = await supabaseAdmin
       .from('documents')
-      .select('id, title, type, word_count, layer, department, min_level, tresci_use, ai_reasoning, created_at')
+      .select('id, title, type, word_count, layer, department, min_level, pilot_use, ai_reasoning, created_at')
       .eq('is_active', true)
       .eq('status', 'live')
       .order('created_at', { ascending: false })

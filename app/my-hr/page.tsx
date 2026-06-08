@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
-import NavBar, { SignOutBtn, MOD_TRESCADEMY } from '@/app/components/NavBar'
+import NavBar, { SignOutBtn, MOD_EVENTPILOT } from '@/app/components/NavBar'
 import PlatformMenu from '@/app/components/PlatformMenu'
 
 /* ── Design tokens ─────────────────────────────────────────── */
@@ -218,7 +218,7 @@ export default function MyHRPage() {
     <div style={{ minHeight: '100vh', background: BG, fontFamily: 'system-ui, -apple-system, sans-serif' }}>
 
       <NavBar
-        module={MOD_TRESCADEMY}
+        module={MOD_EVENTPILOT}
         subtitle="My HR"
         homeHref={session?.sid ? `/dashboard?id=${session.sid}` : '/dashboard'}
         rightSlot={<>
