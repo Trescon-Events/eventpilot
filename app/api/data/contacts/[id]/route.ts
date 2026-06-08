@@ -1,4 +1,4 @@
-import { supabaseAdmin } from '@/app/lib/supabase'
+import { smartdataAdmin } from '@/app/lib/supabase'
 import { NextRequest, NextResponse } from 'next/server'
 
 /* GET  /api/data/contacts/[id]  — full contact detail with audit log + pipeline
@@ -10,7 +10,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
   const { id } = await params
 
   const [contactRes, auditRes, pipelineRes] = await Promise.all([
-    supabaseAdmin
+    smartdataAdmin
       .from('sd_contact_records')
       .select(`
         *,
@@ -18,13 +18,13 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
       `)
       .eq('id', id)
       .single(),
-    supabaseAdmin
+    smartdataAdmin
       .from('sd_enrichment_audit')
       .select('*')
       .eq('contact_id', id)
       .order('created_at', { ascending: false })
       .limit(50),
-    supabaseAdmin
+    smartdataAdmin
       .from('sd_contact_pipeline')
       .select('*')
       .eq('contact_id', id)
@@ -51,7 +51,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   }
 
   // Get current values for audit log
-  const { data: current } = await supabaseAdmin
+  const { data: current } = await smartdataAdmin
     .from('sd_contact_records')
     .select('property_values')
     .eq('id', id)
@@ -62,7 +62,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   // Merge new values into existing
   const merged = { ...oldValues, ...property_values }
 
-  const { data, error } = await supabaseAdmin
+  const { data, error } = await smartdataAdmin
     .from('sd_contact_records')
     .update({
       property_values: merged,
@@ -89,7 +89,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     }))
 
   if (auditEntries.length > 0) {
-    await supabaseAdmin.from('sd_enrichment_audit').insert(auditEntries)
+    await smartdataAdmin.from('sd_enrichment_audit').insert(auditEntries)
   }
 
   return NextResponse.json(data)
@@ -98,7 +98,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
 export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
 
-  const { error } = await supabaseAdmin
+  const { error } = await smartdataAdmin
     .from('sd_contact_records')
     .delete()
     .eq('id', id)

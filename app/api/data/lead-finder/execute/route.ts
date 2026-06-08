@@ -1,4 +1,4 @@
-import { supabaseAdmin } from '@/app/lib/supabase'
+import { smartdataAdmin } from '@/app/lib/supabase'
 import { NextRequest, NextResponse } from 'next/server'
 
 /* POST /api/data/lead-finder/execute
@@ -33,7 +33,7 @@ export async function POST(req: NextRequest) {
   if (!search_id) return NextResponse.json({ error: 'search_id required' }, { status: 400 })
 
   // Get the search record
-  const { data: search, error: searchErr } = await supabaseAdmin
+  const { data: search, error: searchErr } = await smartdataAdmin
     .from('sd_icp_searches')
     .select('*')
     .eq('id', search_id)
@@ -73,7 +73,7 @@ export async function POST(req: NextRequest) {
 
   if (!apolloRes.ok) {
     const errText = await apolloRes.text()
-    await supabaseAdmin.from('sd_icp_searches').update({ status: 'failed' }).eq('id', search_id)
+    await smartdataAdmin.from('sd_icp_searches').update({ status: 'failed' }).eq('id', search_id)
     return NextResponse.json({ error: `Apollo error: ${errText}` }, { status: 500 })
   }
 
@@ -107,13 +107,13 @@ export async function POST(req: NextRequest) {
   let dupes    = 0
   for (const c of contacts) {
     if (c.linkedin_url) {
-      const { error: upsertErr } = await supabaseAdmin
+      const { error: upsertErr } = await smartdataAdmin
         .from('sd_contact_records')
         .upsert(c, { onConflict: 'linkedin_url', ignoreDuplicates: false })
       if (upsertErr) dupes++
       else inserted++
     } else {
-      const { error: insertErr } = await supabaseAdmin
+      const { error: insertErr } = await smartdataAdmin
         .from('sd_contact_records')
         .insert(c)
       if (!insertErr) inserted++
@@ -121,7 +121,7 @@ export async function POST(req: NextRequest) {
   }
 
   // Update search status
-  await supabaseAdmin
+  await smartdataAdmin
     .from('sd_icp_searches')
     .update({
       status:        page === 1 ? 'sample_ready' : 'exported',

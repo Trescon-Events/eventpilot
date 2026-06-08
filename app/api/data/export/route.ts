@@ -1,4 +1,4 @@
-import { supabaseAdmin } from '@/app/lib/supabase'
+import { smartdataAdmin } from '@/app/lib/supabase'
 import { NextRequest, NextResponse } from 'next/server'
 
 /* POST /api/data/export
@@ -57,7 +57,7 @@ export async function POST(req: NextRequest) {
   let rows: Record<string, string>[] = []
 
   if (type === 'contacts') {
-    let query = supabaseAdmin
+    let query = smartdataAdmin
       .from('sd_contact_records')
       .select('id, linkedin_url, property_values, source_tool, last_enriched_at, created_at')
       .order('created_at', { ascending: false })
@@ -86,7 +86,7 @@ export async function POST(req: NextRequest) {
         return row
       })
   } else {
-    let query = supabaseAdmin
+    let query = smartdataAdmin
       .from('sd_company_records')
       .select('id, domain, name, website, property_values, source_tool, created_at')
       .order('created_at', { ascending: false })

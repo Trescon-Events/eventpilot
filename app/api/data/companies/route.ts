@@ -1,4 +1,4 @@
-import { supabaseAdmin } from '@/app/lib/supabase'
+import { smartdataAdmin } from '@/app/lib/supabase'
 import { NextRequest, NextResponse } from 'next/server'
 
 /* GET /api/data/companies
@@ -18,7 +18,7 @@ export async function GET(req: NextRequest) {
   const from = (page - 1) * limit
   const to   = from + limit - 1
 
-  let query = supabaseAdmin
+  let query = smartdataAdmin
     .from('sd_company_records')
     .select('id, name, domain, website, property_values, last_enriched_at, source_tool, created_at', { count: 'exact' })
     .order('created_at', { ascending: false })
@@ -51,7 +51,7 @@ export async function POST(req: NextRequest) {
 
   if (!name) return NextResponse.json({ error: 'name required' }, { status: 400 })
 
-  const { data, error } = await supabaseAdmin
+  const { data, error } = await smartdataAdmin
     .from('sd_company_records')
     .insert({
       name,

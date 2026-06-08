@@ -1,4 +1,4 @@
-import { supabaseAdmin } from '@/app/lib/supabase'
+import { smartdataAdmin } from '@/app/lib/supabase'
 import { NextRequest, NextResponse } from 'next/server'
 
 /* GET    /api/data/companies/[id]  — company detail + linked contacts
@@ -10,12 +10,12 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
   const { id } = await params
 
   const [companyRes, contactsRes] = await Promise.all([
-    supabaseAdmin
+    smartdataAdmin
       .from('sd_company_records')
       .select('*')
       .eq('id', id)
       .single(),
-    supabaseAdmin
+    smartdataAdmin
       .from('sd_contact_records')
       .select('id, linkedin_url, property_values, source_tool, last_enriched_at, created_at')
       .eq('company_record_id', id)
@@ -38,7 +38,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   const { property_values, name, domain, website } = await req.json().catch(() => ({}))
 
   // Get current values for merge
-  const { data: current } = await supabaseAdmin
+  const { data: current } = await smartdataAdmin
     .from('sd_company_records')
     .select('property_values')
     .eq('id', id)
@@ -55,7 +55,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   if (domain) update.domain = domain
   if (website) update.website = website
 
-  const { data, error } = await supabaseAdmin
+  const { data, error } = await smartdataAdmin
     .from('sd_company_records')
     .update(update)
     .eq('id', id)
@@ -69,7 +69,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
 export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
 
-  const { error } = await supabaseAdmin
+  const { error } = await smartdataAdmin
     .from('sd_company_records')
     .delete()
     .eq('id', id)

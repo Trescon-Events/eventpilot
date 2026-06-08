@@ -1,4 +1,4 @@
-import { supabaseAdmin } from '@/app/lib/supabase'
+import { smartdataAdmin } from '@/app/lib/supabase'
 import { NextResponse } from 'next/server'
 
 /* GET /api/data/analytics — dashboard stats */
@@ -20,42 +20,42 @@ export async function GET() {
     contactsThisMonthRes,
   ] = await Promise.all([
     // Total contacts
-    supabaseAdmin.from('sd_contact_records').select('*', { count: 'exact', head: true }),
+    smartdataAdmin.from('sd_contact_records').select('*', { count: 'exact', head: true }),
 
     // Total companies
-    supabaseAdmin.from('sd_company_records').select('*', { count: 'exact', head: true }),
+    smartdataAdmin.from('sd_company_records').select('*', { count: 'exact', head: true }),
 
     // Total extractions
-    supabaseAdmin.from('sd_extractions').select('*', { count: 'exact', head: true }),
+    smartdataAdmin.from('sd_extractions').select('*', { count: 'exact', head: true }),
 
     // Recent 10 extraction jobs
-    supabaseAdmin
+    smartdataAdmin
       .from('sd_extractions')
       .select('id, source_name, source_type, status, contacts_count, credits_used, user_email, created_at, completed_at')
       .order('created_at', { ascending: false })
       .limit(10),
 
     // Today's extractions
-    supabaseAdmin
+    smartdataAdmin
       .from('sd_extractions')
       .select('contacts_count, credits_used')
       .gte('created_at', todayStart.toISOString()),
 
     // Top contributors (last 30 days)
-    supabaseAdmin
+    smartdataAdmin
       .from('sd_extractions')
       .select('user_email, contacts_count')
       .gte('created_at', thirtyDaysAgo)
       .eq('status', 'complete'),
 
     // Breakdown by tool (last 30 days)
-    supabaseAdmin
+    smartdataAdmin
       .from('sd_extractions')
       .select('source_type, contacts_count')
       .gte('created_at', thirtyDaysAgo),
 
     // Contacts added this month
-    supabaseAdmin
+    smartdataAdmin
       .from('sd_contact_records')
       .select('*', { count: 'exact', head: true })
       .gte('created_at', thirtyDaysAgo),

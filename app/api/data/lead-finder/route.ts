@@ -1,4 +1,4 @@
-import { supabaseAdmin } from '@/app/lib/supabase'
+import { smartdataAdmin } from '@/app/lib/supabase'
 import { NextRequest, NextResponse } from 'next/server'
 import { GoogleGenerativeAI } from '@google/generative-ai'
 
@@ -68,7 +68,7 @@ export async function POST(req: NextRequest) {
 
   // Load existing search or create new
   if (searchId) {
-    const { data: existing } = await supabaseAdmin
+    const { data: existing } = await smartdataAdmin
       .from('sd_icp_searches')
       .select('*')
       .eq('id', searchId)
@@ -124,7 +124,7 @@ export async function POST(req: NextRequest) {
 
   // Upsert the search record
   if (searchId) {
-    await supabaseAdmin
+    await smartdataAdmin
       .from('sd_icp_searches')
       .update({
         conversation_transcript: transcript,
@@ -134,7 +134,7 @@ export async function POST(req: NextRequest) {
       })
       .eq('id', searchId)
   } else {
-    const { data: newSearch } = await supabaseAdmin
+    const { data: newSearch } = await smartdataAdmin
       .from('sd_icp_searches')
       .insert({
         user_id: user_id ?? null,
@@ -163,7 +163,7 @@ export async function POST(req: NextRequest) {
 export async function GET(req: NextRequest) {
   const userId = req.nextUrl.searchParams.get('user_id')
 
-  let query = supabaseAdmin
+  let query = smartdataAdmin
     .from('sd_icp_searches')
     .select('id, name, status, results_count, created_at, updated_at, final_icp_json')
     .order('created_at', { ascending: false })

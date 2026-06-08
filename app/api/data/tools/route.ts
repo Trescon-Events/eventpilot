@@ -1,4 +1,4 @@
-import { supabaseAdmin } from '@/app/lib/supabase'
+import { smartdataAdmin } from '@/app/lib/supabase'
 import { NextRequest, NextResponse } from 'next/server'
 
 /* GET  /api/data/tools — list all tools with status + credit info
@@ -8,8 +8,8 @@ import { NextRequest, NextResponse } from 'next/server'
 
 export async function GET() {
   const [toolsRes, limitsRes] = await Promise.all([
-    supabaseAdmin.from('sd_tool_status').select('*').order('display_name'),
-    supabaseAdmin.from('sd_lookup_limits').select('*'),
+    smartdataAdmin.from('sd_tool_status').select('*').order('display_name'),
+    smartdataAdmin.from('sd_lookup_limits').select('*'),
   ])
 
   // Check which API keys are configured
@@ -38,7 +38,7 @@ export async function PATCH(req: NextRequest) {
 
   if (!tool_key) return NextResponse.json({ error: 'tool_key required' }, { status: 400 })
 
-  const { error } = await supabaseAdmin
+  const { error } = await smartdataAdmin
     .from('sd_tool_status')
     .update({
       is_active,

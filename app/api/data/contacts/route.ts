@@ -1,4 +1,4 @@
-import { supabaseAdmin } from '@/app/lib/supabase'
+import { smartdataAdmin } from '@/app/lib/supabase'
 import { NextRequest, NextResponse } from 'next/server'
 
 /* GET /api/data/contacts
@@ -33,7 +33,7 @@ export async function GET(req: NextRequest) {
   const from = (page - 1) * limit
   const to   = from + limit - 1
 
-  let query = supabaseAdmin
+  let query = smartdataAdmin
     .from('sd_contact_records')
     .select(`
       id,
@@ -113,7 +113,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'property_values required' }, { status: 400 })
   }
 
-  const { data, error } = await supabaseAdmin
+  const { data, error } = await smartdataAdmin
     .from('sd_contact_records')
     .insert({
       property_values,

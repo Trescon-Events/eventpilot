@@ -1,4 +1,4 @@
-import { supabaseAdmin } from '@/app/lib/supabase'
+import { smartdataAdmin } from '@/app/lib/supabase'
 import { NextRequest, NextResponse } from 'next/server'
 
 /* GET  /api/data/pipeline?contact_id=  or  ?event_id=  or  ?assigned_to=
@@ -13,12 +13,11 @@ export async function GET(req: NextRequest) {
   const assignedTo = searchParams.get('assigned_to')
   const stage      = searchParams.get('stage')
 
-  let query = supabaseAdmin
+  let query = smartdataAdmin
     .from('sd_contact_pipeline')
     .select(`
       *,
-      sd_contact_records(id, property_values, linkedin_url),
-      staff_members!assigned_to(id, name, role)
+      sd_contact_records(id, property_values, linkedin_url)
     `)
     .order('updated_at', { ascending: false })
     .limit(100)
@@ -39,7 +38,7 @@ export async function POST(req: NextRequest) {
 
   if (!contact_id) return NextResponse.json({ error: 'contact_id required' }, { status: 400 })
 
-  const { data, error } = await supabaseAdmin
+  const { data, error } = await smartdataAdmin
     .from('sd_contact_pipeline')
     .upsert({
       contact_id,
@@ -71,7 +70,7 @@ export async function PATCH(req: NextRequest) {
   if (notes !== undefined)            update.notes           = notes
   if (next_action_date !== undefined) update.next_action_date = next_action_date
 
-  const { data, error } = await supabaseAdmin
+  const { data, error } = await smartdataAdmin
     .from('sd_contact_pipeline')
     .update(update)
     .eq('id', id)

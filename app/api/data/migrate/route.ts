@@ -1,10 +1,11 @@
-import { supabaseAdmin } from '@/app/lib/supabase'
+import { smartdataAdmin } from '@/app/lib/supabase'
 import { createClient } from '@supabase/supabase-js'
 import { NextRequest, NextResponse } from 'next/server'
 
 /*
   POST /api/data/migrate
-  Pulls contacts + companies from SmartData Supabase and imports them into TAOS.
+  Pulls contacts + companies from old Lovable SmartData and imports into the
+  new dedicated SmartData Supabase project.
 
   Body:
   {
@@ -17,17 +18,17 @@ import { NextRequest, NextResponse } from 'next/server'
 
   Returns:
   { fetched, inserted, duplicates, skipped, next_offset, done }
+
+  Env vars needed for migration source (old Lovable SmartData hgrkmzlynjztzjudsfgd):
+    LOVABLE_SD_ANON_KEY  — anon key from the old Lovable project
 */
 
-const SD_URL     = 'https://hgrkmzlynjztzjudsfgd.supabase.co'
-// anon key extracted from SmartData JS bundle in prior session
-const SD_ANON    = process.env.SMARTDATA_ANON_KEY ?? ''
-const SD_SERVICE = process.env.SMARTDATA_SERVICE_ROLE_KEY ?? ''
+const LOVABLE_SD_URL  = 'https://hgrkmzlynjztzjudsfgd.supabase.co'
+const LOVABLE_SD_ANON = process.env.LOVABLE_SD_ANON_KEY ?? ''
 
-function smartdataClient() {
-  const key = SD_SERVICE || SD_ANON
-  if (!key) throw new Error('SMARTDATA_ANON_KEY or SMARTDATA_SERVICE_ROLE_KEY not set in .env.local')
-  return createClient(SD_URL, key)
+function lovableSmartdataClient() {
+  if (!LOVABLE_SD_ANON) throw new Error('LOVABLE_SD_ANON_KEY not set in .env.local — get it from the old Lovable SmartData project')
+  return createClient(LOVABLE_SD_URL, LOVABLE_SD_ANON)
 }
 
 async function migrateCompanies(sd: ReturnType<typeof createClient<any>>, batchSize: number, offset: number, dryRun: boolean) {
@@ -53,7 +54,7 @@ async function migrateCompanies(sd: ReturnType<typeof createClient<any>>, batchS
     updated_at:       c.updated_at ?? c.created_at,
   }))
 
-  const { error: insertError } = await supabaseAdmin
+  const { error: insertError } = await smartdataAdmin
     .from('sd_company_records')
     .upsert(rows, { onConflict: 'domain', ignoreDuplicates: true })
 
@@ -91,7 +92,7 @@ async function migrateContacts(sd: ReturnType<typeof createClient<any>>, batchSi
   let inserted = 0
 
   if (withLinkedin.length > 0) {
-    const { error: e1 } = await supabaseAdmin
+    const { error: e1 } = await smartdataAdmin
       .from('sd_contact_records')
       .upsert(withLinkedin, { onConflict: 'linkedin_url', ignoreDuplicates: true })
     if (e1) throw new Error(`TAOS upsert error: ${e1.message}`)
@@ -99,7 +100,7 @@ async function migrateContacts(sd: ReturnType<typeof createClient<any>>, batchSi
   }
 
   if (withoutLinkedin.length > 0) {
-    const { error: e2 } = await supabaseAdmin
+    const { error: e2 } = await smartdataAdmin
       .from('sd_contact_records')
       .insert(withoutLinkedin)
     if (e2) throw new Error(`TAOS insert error: ${e2.message}`)
@@ -124,7 +125,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Only source=smartdata supported' }, { status: 400 })
     }
 
-    const sd = smartdataClient()
+    const sd = lovableSmartdataClient()
     const batchSize = Math.min(1000, Math.max(1, Number(batch_size)))
     const results: Record<string, any> = {}
 
@@ -156,7 +157,7 @@ export async function POST(req: NextRequest) {
 /* GET /api/data/migrate — count records in SmartData (preview before migration) */
 export async function GET() {
   try {
-    const sd = smartdataClient()
+    const sd = lovableSmartdataClient()
 
     const [contactCount, companyCount] = await Promise.all([
       sd.from('sd_contact_records').select('*', { count: 'exact', head: true }),
