@@ -25,6 +25,39 @@ const STATUS_MAP: Record<string, string> = {
   cancelled: 'cancelled',
 }
 
+// Derive job_level from HRMS designation — preserves existing elevated levels on re-sync
+function deriveJobLevel(designation: string | null, existingLevel?: string): string {
+  // Never downgrade someone who was already set above 'staff' manually
+  if (existingLevel && existingLevel !== 'staff') return existingLevel
+
+  const d = (designation ?? '').toLowerCase()
+
+  if (
+    d.includes('managing director') || d.includes(' md') || d === 'md' ||
+    d.includes('chief executive') || d.includes('ceo') ||
+    d.includes('founder') || d.includes('president') ||
+    d.includes('country head') || d.includes('office head') ||
+    d.includes('director') && (d.includes('senior') || d.includes('group') || d.includes('executive'))
+  ) return 'office_head'
+
+  if (
+    d.includes('director') ||
+    d.includes('vp ') || d.includes('vice president') ||
+    d.includes('head of') || d.includes('department head') ||
+    d.includes('general manager') || d.includes('gm') ||
+    d.includes('senior manager') || d.includes('sr. manager')
+  ) return 'dept_head'
+
+  if (
+    d.includes('manager') ||
+    d.includes('team lead') || d.includes('team leader') ||
+    d.includes('lead ') || d.includes(' lead') ||
+    d.includes('supervisor')
+  ) return 'team_lead'
+
+  return 'staff'
+}
+
 export async function POST(req: NextRequest) {
   const body = await req.json()
   if (body.admin_code !== ADMIN_CODE) {
@@ -76,20 +109,22 @@ export async function POST(req: NextRequest) {
   }
 
   // ── Fetch existing Event Pilot data ──
-  const { data: existingStaff } = await supabaseAdmin.from('staff_members').select('email, profile_complete')
-  const existingMap = Object.fromEntries((existingStaff ?? []).map(s => [s.email.toLowerCase(), s.profile_complete]))
+  const { data: existingStaff } = await supabaseAdmin.from('staff_members').select('email, profile_complete, job_level')
+  const existingMap = Object.fromEntries((existingStaff ?? []).map(s => [s.email.toLowerCase(), { profile_complete: s.profile_complete, job_level: s.job_level }]))
 
   // ── Sync staff — full profile ──
   const staffRows = profiles.map((p: any) => {
     const email = p.email?.trim().toLowerCase()
+    const existingLevel = existingMap[email]?.job_level
     return {
       name:                     p.full_name?.trim() ?? email,
       email,
       department:               p.department ?? null,
       role:                     p.designation ?? null,
       office_id:                LOCATION_MAP[(p.location ?? '').toLowerCase()] ?? 'dubai',
-      job_level:                'staff',
-      profile_complete:         existingMap[email] ?? false,
+      job_level:                deriveJobLevel(p.designation, existingLevel),
+      access_enabled:           true,
+      profile_complete:         existingMap[email]?.profile_complete ?? false,
       joined_at:                p.hire_date ?? null,
       phone:                    p.phone ?? null,
       address:                  p.address ?? null,
