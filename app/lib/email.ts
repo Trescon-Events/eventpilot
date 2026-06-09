@@ -1,5 +1,5 @@
 /**
- * EventPilot — Resend email utility
+ * Event Pilot — Resend email utility
  * All transactional emails go through this module.
  * Replaces nodemailer/Gmail entirely.
  */
@@ -8,7 +8,7 @@ import { Resend } from 'resend'
 
 const resend = new Resend(process.env.RESEND_API_KEY)
 
-const FROM  = 'EventPilot <noreply@eventpilot.com>'
+const FROM  = 'Event Pilot <noreply@eventpilot.com>'
 const BRAND = '#00A5A3'
 const DARK  = '#080A0B'
 const LIME  = '#C0F43C'
@@ -20,7 +20,7 @@ function emailHeader(subtitle?: string) {
   return `
     <div style="background:linear-gradient(155deg,#0F1923 0%,#00A5A3 100%);padding:36px 40px 32px;text-align:center;">
       <div style="display:inline-block;background:rgba(255,255,255,0.12);border-radius:12px;padding:10px 18px;margin-bottom:18px;">
-        <span style="font-size:18px;font-weight:900;color:#ffffff;letter-spacing:0.5px;">EventPilot</span>
+        <span style="font-size:18px;font-weight:900;color:#ffffff;letter-spacing:0.5px;">Event Pilot</span>
       </div>
       ${subtitle ? `<p style="font-size:13px;color:rgba(255,255,255,0.55);margin:0;font-weight:600;letter-spacing:1px;text-transform:uppercase;">${subtitle}</p>` : ''}
     </div>
@@ -31,8 +31,8 @@ function emailFooter() {
   return `
     <hr style="border:none;border-top:1px solid #E8EEF4;margin:28px 0 16px;" />
     <p style="color:#94A3B8;font-size:12px;margin:0;line-height:1.6;">
-      Trescon Global · EventPilot Platform<br />
-      You are receiving this because you are a registered user of EventPilot.
+      Trescon Global · Event Pilot Platform<br />
+      You are receiving this because you are a registered user of Event Pilot.
     </p>
   `
 }
@@ -67,7 +67,7 @@ export async function sendPasswordReset({
     <div style="padding:32px 40px;">
       <h2 style="font-size:22px;font-weight:800;color:${DARK};margin:0 0 10px;">Reset your password</h2>
       <p style="color:${MUTED};font-size:15px;line-height:1.7;margin:0 0 24px;">
-        Hi ${firstName}, we received a request to reset your EventPilot password.
+        Hi ${firstName}, we received a request to reset your Event Pilot password.
         Click the button below to set a new one.
       </p>
       <div style="text-align:center;margin:28px 0;">
@@ -87,7 +87,7 @@ export async function sendPasswordReset({
   return resend.emails.send({
     from:    FROM,
     to,
-    subject: 'Reset your EventPilot password',
+    subject: 'Reset your Event Pilot password',
     html,
   })
 }
@@ -122,10 +122,10 @@ export async function sendWelcome({
     ${emailHeader('You\'re in')}
     <div style="padding:32px 40px;">
       <h2 style="font-size:24px;font-weight:900;color:${DARK};margin:0 0 10px;letter-spacing:-0.3px;">
-        Welcome to EventPilot, ${firstName}.
+        Welcome to Event Pilot, ${firstName}.
       </h2>
       <p style="color:${MUTED};font-size:15px;line-height:1.7;margin:0 0 24px;">
-        You've joined the EventPilot platform — Trescon's AI-powered event intelligence and learning system.
+        You've joined the Event Pilot platform — Trescon's AI-powered event intelligence and learning system.
         Your profile is now on record.
       </p>
 
@@ -153,7 +153,7 @@ export async function sendWelcome({
   return resend.emails.send({
     from:    FROM,
     to,
-    subject: `${firstName}, you've joined EventPilot`,
+    subject: `${firstName}, you've joined Event Pilot`,
     html,
   })
 }
@@ -176,9 +176,9 @@ export async function sendCredentials({
   const html = emailWrap(`
     ${emailHeader('Your Access')}
     <div style="padding:32px 40px;">
-      <h2 style="font-size:22px;font-weight:800;color:${DARK};margin:0 0 10px;">You've been added to EventPilot</h2>
+      <h2 style="font-size:22px;font-weight:800;color:${DARK};margin:0 0 10px;">You've been added to Event Pilot</h2>
       <p style="color:${MUTED};font-size:15px;line-height:1.7;margin:0 0 24px;">
-        Hi ${firstName}, your EventPilot account has been created by your team administrator.
+        Hi ${firstName}, your Event Pilot account has been created by your team administrator.
         Use the credentials below to log in.
       </p>
 
@@ -201,7 +201,7 @@ export async function sendCredentials({
       <div style="text-align:center;margin:28px 0;">
         <a href="${loginUrl}"
           style="display:inline-block;background:${BRAND};color:#ffffff;font-size:14px;font-weight:800;padding:14px 32px;border-radius:10px;text-decoration:none;">
-          Sign In to EventPilot
+          Sign In to Event Pilot
         </a>
       </div>
 
@@ -212,7 +212,7 @@ export async function sendCredentials({
   return resend.emails.send({
     from:    FROM,
     to,
-    subject: `${firstName}, your EventPilot account is ready`,
+    subject: `${firstName}, your Event Pilot account is ready`,
     html,
   })
 }

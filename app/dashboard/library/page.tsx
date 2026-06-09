@@ -133,7 +133,7 @@ function LibraryContent() {
 
         {/* Header */}
         <div style={{ marginBottom: '32px' }}>
-          <div style={{ fontSize: '13px', fontWeight: 800, letterSpacing: '2.5px', color: '#00695C', textTransform: 'uppercase', marginBottom: '8px' }}>EventPilot Learning Library</div>
+          <div style={{ fontSize: '13px', fontWeight: 800, letterSpacing: '2.5px', color: '#00695C', textTransform: 'uppercase', marginBottom: '8px' }}>Event Pilot Learning Library</div>
           <h1 style={{ fontSize: '36px', fontWeight: 900, margin: '0 0 8px', letterSpacing: '-0.4px', color: '#0F1923' }}>Course Library</h1>
           <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
             <p style={{ fontSize: '13px', color: '#2D3E50', margin: 0 }}>
@@ -278,7 +278,7 @@ function LibraryContent() {
           <div style={{ display: 'flex', gap: '6px' }}>
             {[
               { val: 'all',    label: 'All Sources' },
-              { val: 'manual', label: 'EventPilot Curated' },
+              { val: 'manual', label: 'Event Pilot Curated' },
               { val: 'gemini', label: 'AI Generated' },
             ].map(({ val, label }) => (
               <button key={val} onClick={() => setSourceFilter(val)} style={{ padding: '7px 14px', borderRadius: '16px', border: `1px solid ${sourceFilter === val ? '#00897B' : '#DDE8EE'}`, background: sourceFilter === val ? '#00A5A315' : '#FFFFFF', color: sourceFilter === val ? '#00897B' : '#2D3E50', fontSize: '13px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>

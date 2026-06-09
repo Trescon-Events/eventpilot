@@ -12,8 +12,8 @@ export default function PlaybookContent() {
       tier: 'AI-Ready',    range: '55–74',  color: '#0E7490',
       means: 'Uses AI regularly. Comfortable with tools but not yet building systematic workflows.',
       action: 'Pair with an AI-Forward colleague. Start a 30-day tool adoption plan with one specific workflow to automate.',
-      next: 'Enroll in EventPilot Intermediate track. Weekly 45-min session + one workflow deliverable per week.',
-      owner: 'EventPilot Training',
+      next: 'Enroll in Event Pilot Intermediate track. Weekly 45-min session + one workflow deliverable per week.',
+      owner: 'Event Pilot Training',
       by: '30 days',
     },
     {
@@ -21,7 +21,7 @@ export default function PlaybookContent() {
       means: 'Knows what AI is and has tried it, but not using it consistently in their daily work.',
       action: 'Foundation workshop (half day). Pick one tool for their role and commit to using it daily for 2 weeks.',
       next: '2-week AI daily habit challenge. Each person picks one task to do with AI every day and logs it.',
-      owner: 'EventPilot Training + HR',
+      owner: 'Event Pilot Training + HR',
       by: '60 days',
     },
     {
@@ -29,7 +29,7 @@ export default function PlaybookContent() {
       means: "Heard about AI but hasn't used it in a work context. Low digital tool sophistication.",
       action: 'Awareness session first — why AI matters for their specific role. Then intro to ChatGPT basics.',
       next: 'Department-specific AI demo: show them 3 things AI can do for their exact job today. No theory.',
-      owner: 'HR + EventPilot',
+      owner: 'HR + Event Pilot',
       by: '90 days',
     },
     {

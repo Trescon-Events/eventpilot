@@ -151,7 +151,7 @@ export default function QuestionnaireContent() {
       </div>
 
       <div style={{ marginTop: '32px', padding: '18px 20px', background: 'rgba(0,137,123,0.06)', border: '1px solid rgba(0,137,123,0.2)', borderRadius: '12px', fontSize: '13px', color: M, lineHeight: 1.6 }}>
-        <strong style={{ color: '#00897B' }}>Read-only preview.</strong> Staff go through this questionnaire once they join via the EventPilot portal. Answers are stored and visible in the Interview Answers tab of the admin dashboard.
+        <strong style={{ color: '#00897B' }}>Read-only preview.</strong> Staff go through this questionnaire once they join via the Event Pilot portal. Answers are stored and visible in the Interview Answers tab of the admin dashboard.
       </div>
     </div>
   )

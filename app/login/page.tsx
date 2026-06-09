@@ -108,7 +108,7 @@ export default function LoginPage() {
           </div>
           <div style={{ width: '1px', height: '32px', background: 'rgba(255,255,255,0.25)' }} />
           <div>
-            <div style={{ fontSize: '14px', fontWeight: 900, color: '#FFFFFF', letterSpacing: '0.5px' }}>EventPilot</div>
+            <div style={{ fontSize: '14px', fontWeight: 900, color: '#FFFFFF', letterSpacing: '0.5px' }}>Event Pilot</div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '3px' }}>
               <div style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#C0F43C', animation: 'pulse 2s infinite' }} />
               <span style={{ fontSize: '11px', fontWeight: 800, letterSpacing: '2px', textTransform: 'uppercase', color: 'rgba(255,255,255,0.85)' }}>Live Platform</span>
@@ -125,7 +125,7 @@ export default function LoginPage() {
             of your team.
           </h1>
           <p style={{ fontSize: '15px', color: 'rgba(255,255,255,0.75)', lineHeight: 1.7, margin: 0, maxWidth: '400px' }}>
-            EventPilot maps your team&apos;s AI readiness, delivers personalised learning paths, and tracks progress in real time.
+            Event Pilot maps your team&apos;s AI readiness, delivers personalised learning paths, and tracks progress in real time.
           </p>
         </div>
 
@@ -172,7 +172,7 @@ export default function LoginPage() {
               <svg width="22" height="22" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
             </div>
             <div style={{ fontSize: '12px', fontWeight: 800, letterSpacing: '2.5px', textTransform: 'uppercase', color: '#00695C', marginBottom: '10px' }}>Welcome Back</div>
-            <h2 style={{ fontSize: '32px', fontWeight: 900, color: '#0F1923', margin: 0, letterSpacing: '-0.5px', lineHeight: 1.1 }}>Sign in to<br />EventPilot</h2>
+            <h2 style={{ fontSize: '32px', fontWeight: 900, color: '#0F1923', margin: 0, letterSpacing: '-0.5px', lineHeight: 1.1 }}>Sign in to<br />Event Pilot</h2>
           </div>
 
           {/* Forgot password panel */}
@@ -293,7 +293,7 @@ export default function LoginPage() {
           {/* Bottom wordmark */}
           <div style={{ marginTop: '36px', textAlign: 'center', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
             <div style={{ width: '5px', height: '5px', borderRadius: '50%', background: '#00897B', animation: 'pulse 2s infinite' }} />
-            <span style={{ fontSize: '12px', fontWeight: 700, color: '#5B7080', letterSpacing: '1.5px', textTransform: 'uppercase' }}>EventPilot · Trescon Global</span>
+            <span style={{ fontSize: '12px', fontWeight: 700, color: '#5B7080', letterSpacing: '1.5px', textTransform: 'uppercase' }}>Event Pilot · Trescon Global</span>
           </div>
         </div>
       </div>

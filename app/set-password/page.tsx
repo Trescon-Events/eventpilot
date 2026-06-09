@@ -58,7 +58,7 @@ function SetPasswordForm() {
 
         {/* Logo */}
         <div style={{ textAlign: 'center', marginBottom: '32px' }}>
-          <div style={{ fontSize: '22px', fontWeight: 900, color: '#00A5A3', letterSpacing: '-0.5px' }}>EventPilot</div>
+          <div style={{ fontSize: '22px', fontWeight: 900, color: '#00A5A3', letterSpacing: '-0.5px' }}>Event Pilot</div>
           <div style={{ fontSize: '12px', color: '#5B7080', marginTop: '4px' }}>by Trescon Global</div>
         </div>
 

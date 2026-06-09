@@ -300,7 +300,7 @@ export default function PlatformMenu({ staffId }: PlatformMenuProps) {
             {/* Header */}
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '20px 24px', borderBottom: '1px solid #DDE8EE' }}>
               <div>
-                <div style={{ fontSize: '13px', fontWeight: 800, color: '#0F1923' }}>EventPilot Platform</div>
+                <div style={{ fontSize: '13px', fontWeight: 800, color: '#0F1923' }}>Event Pilot Platform</div>
                 <div style={{ fontSize: '13px', color: '#5B7080', marginTop: '2px' }}>Your workspace — everything you have access to</div>
               </div>
               <button

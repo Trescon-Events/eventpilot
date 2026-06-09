@@ -102,7 +102,7 @@ function NoIdScreen() {
         <div style={{ width: '48px', height: '48px', background: '#00897B', borderRadius: '14px', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 20px' }}>
           <svg width="22" height="22" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>
         </div>
-        <div style={{ fontSize: '13px', fontWeight: 800, letterSpacing: '2px', textTransform: 'uppercase', color: '#00695C', marginBottom: '8px' }}>EventPilot</div>
+        <div style={{ fontSize: '13px', fontWeight: 800, letterSpacing: '2px', textTransform: 'uppercase', color: '#00695C', marginBottom: '8px' }}>Event Pilot</div>
         <h1 style={{ fontSize: '36px', fontWeight: 800, color: '#0F1923', margin: '0 0 10px' }}>My Learning Dashboard</h1>
         <p style={{ fontSize: '13px', color: '#2D3E50', lineHeight: 1.65, margin: '0 0 28px' }}>Enter your work email to access your dashboard.</p>
         <form onSubmit={handleEmail} style={{ display: 'flex', gap: '8px' }}>
@@ -436,7 +436,7 @@ function DashboardContent() {
             <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
               <div style={{ width: '10px', height: '10px', borderRadius: '50%', background: 'rgba(255,255,255,0.8)' }} />
               <span style={{ fontSize: '11px', fontWeight: 800, letterSpacing: '2.5px', textTransform: 'uppercase', color: 'rgba(255,255,255,0.9)' }}>
-                {completedCount === 0 ? 'Welcome to EventPilot' : 'Welcome back'} · {tier}
+                {completedCount === 0 ? 'Welcome to Event Pilot' : 'Welcome back'} · {tier}
               </span>
             </div>
             <span style={{ fontSize: '11px', fontWeight: 700, color: 'rgba(255,255,255,0.6)', letterSpacing: '0.5px' }}>
@@ -1197,7 +1197,7 @@ function DashboardContent() {
           <div style={{ fontSize: '13px', fontWeight: 800, letterSpacing: '2px', textTransform: 'uppercase', color: '#A478FF', marginBottom: '8px' }}>Shape This Platform</div>
           <h3 style={{ fontSize: '36px', fontWeight: 900, color: '#0F1923', margin: '0 0 6px' }}>What should we build next?</h3>
           <p style={{ fontSize: '13px', color: '#0F1923', margin: '0 0 18px', lineHeight: 1.65 }}>
-            EventPilot is being built for you. If there is a feature, a course, a report, or anything else you would like to see — tell us here. Every suggestion is reviewed by the team.
+            Event Pilot is being built for you. If there is a feature, a course, a report, or anything else you would like to see — tell us here. Every suggestion is reviewed by the team.
           </p>
           {feedbackSent ? (
             <div style={{ padding: '16px', background: 'rgba(192,244,60,0.08)', border: '1px solid rgba(192,244,60,0.2)', borderRadius: '12px', fontSize: '13px', color: '#3D6B00', fontWeight: 700 }}>
@@ -1282,7 +1282,7 @@ function getImprovementTips(tier: string): string[] {
       'Lead a cross-department AI pilot',
       'Mentor 2 colleagues on their learning path',
       'Build a repeatable AI workflow others can use',
-      'Contribute a custom course to the EventPilot library',
+      'Contribute a custom course to the Event Pilot library',
     ],
   }
   return tips[tier] ?? tips['AI-Curious']

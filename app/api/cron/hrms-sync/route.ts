@@ -14,9 +14,9 @@ const LOCATION_MAP: Record<string, string> = {
 }
 
 const STATUS_MAP: Record<string, string> = {
-  planning:  'upcoming',
+  planning:  'planning',
   active:    'active',
-  on_hold:   'upcoming',
+  on_hold:   'planning',
   completed: 'completed',
   cancelled: 'cancelled',
 }
@@ -63,7 +63,7 @@ export async function GET(req: NextRequest) {
     hrms.from('leave_balances').select('id, staff_id, leave_type, year_cycle, total_entitled, used, carried_forward, remaining'),
   ])
 
-  // ── Fetch existing EventPilot data ──
+  // ── Fetch existing Event Pilot data ──
   const { data: existingStaff } = await supabaseAdmin.from('staff_members').select('email, profile_complete')
   const existingMap = Object.fromEntries((existingStaff ?? []).map(s => [s.email.toLowerCase(), s.profile_complete]))
 
@@ -128,7 +128,7 @@ export async function GET(req: NextRequest) {
     name:            p.name,
     client_name:     p.client_name ?? null,
     description:     p.description ?? p.notes ?? null,
-    status:          STATUS_MAP[p.status] ?? 'upcoming',
+    status:          STATUS_MAP[p.status] ?? 'planning',
     event_date:      p.start_date ?? null,
     type:            p.project_type ?? null,
   }))
@@ -147,19 +147,34 @@ export async function GET(req: NextRequest) {
   const resolveStaff = (id: string) => { const e = hrmsEmailMap[id]; return e ? taosStaffMap[e] : null }
   const resolveEvent = (id: string) => taosEventMap[id] ?? null
 
-  // ── Sync allocations ──
-  const allocRows = (allocations ?? [])
+  // ── Sync allocations — deduplicate on event_id+staff_id ──
+  const allocRowsRaw = (allocations ?? [])
     .map((a: any) => ({ hrms_allocation_id: a.id, staff_id: resolveStaff(a.staff_id), event_id: resolveEvent(a.project_id) }))
     .filter((a: any) => a.staff_id && a.event_id)
+  const allocSeen = new Set<string>()
+  const allocRows = allocRowsRaw.filter((a: any) => {
+    const key = `${a.event_id}:${a.staff_id}`
+    if (allocSeen.has(key)) return false
+    allocSeen.add(key); return true
+  })
 
-  await supabaseAdmin.from('event_staff').upsert(allocRows, { onConflict: 'hrms_allocation_id', ignoreDuplicates: false })
+  await supabaseAdmin.from('event_staff').upsert(allocRows, { onConflict: 'event_id,staff_id', ignoreDuplicates: false })
 
-  // ── Sync timesheets ──
+  // ── Sync timesheets → staff_timesheets ──
   const tsRows = (timesheets ?? [])
-    .map((t: any) => ({ hrms_entry_id: t.id, staff_id: resolveStaff(t.staff_id), event_id: resolveEvent(t.project_id), entry_date: t.entry_date, hours: t.hours, task_description: t.task_description ?? null, status: t.status ?? null }))
+    .map((t: any) => ({
+      hrms_entry_id: t.id,
+      staff_id:      resolveStaff(t.staff_id),
+      event_id:      resolveEvent(t.project_id),
+      date:          t.entry_date,
+      hours:         t.hours,
+      description:   t.task_description ?? 'HRMS synced entry',
+      task_type:     'project_work',
+      approved:      t.status === 'approved',
+    }))
     .filter((t: any) => t.staff_id && t.event_id)
 
-  await supabaseAdmin.from('event_timesheet').upsert(tsRows, { onConflict: 'hrms_entry_id', ignoreDuplicates: false })
+  await supabaseAdmin.from('staff_timesheets').upsert(tsRows, { onConflict: 'hrms_entry_id', ignoreDuplicates: false })
 
   // ── Sync leave balances ───────────────────────────────────────────────────
   // Map HRMS leave_type strings → TAOS leave_type_ids via code lookup

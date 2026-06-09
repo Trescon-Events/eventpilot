@@ -142,7 +142,7 @@ Length: Comprehensive but concise — aim for a thorough report that covers all 
       department:     'all',
       min_level:      'all',
       pilot_use:     false,
-      ai_reasoning:   'Generated from event checklist and team inputs via EventPilot.',
+      ai_reasoning:   'Generated from event checklist and team inputs via Event Pilot.',
       confidence:     90,
       status:         'draft',
       is_active:      true,

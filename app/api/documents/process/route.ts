@@ -62,7 +62,7 @@ async function analyseWithGemini(
   const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!)
   const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' })
 
-  const prompt = `You are the document intelligence system for EventPilot, Trescon Global's internal platform.
+  const prompt = `You are the document intelligence system for Event Pilot, Trescon Global's internal platform.
 
 A document has been uploaded. Analyse it and return a JSON object with your decisions.
 

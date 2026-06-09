@@ -14,12 +14,12 @@ const DOCS = [
   {
     slug: 'what-is-eventpilot',
     category: 'Platform Overview',
-    title: 'What is EventPilot?',
-    content: `EventPilot is Trescon Global's internal AI learning and readiness platform. It serves all staff across the four Trescon offices — Dubai, Bangalore, Mangalore, and Manipal.
+    title: 'What is Event Pilot?',
+    content: `Event Pilot is Trescon Global's internal AI learning and readiness platform. It serves all staff across the four Trescon offices — Dubai, Bangalore, Mangalore, and Manipal.
 
 The platform has one primary purpose: measure where every employee stands in their AI readiness today, then guide them — course by course — toward becoming confident AI practitioners in their specific role.
 
-EventPilot is not a generic e-learning platform. Every course, every recommendation, and every score is calibrated to the work Trescon employees actually do: running events, selling sponsorships, managing campaigns, handling finance, leading teams, and building deals across 80+ countries.
+Event Pilot is not a generic e-learning platform. Every course, every recommendation, and every score is calibrated to the work Trescon employees actually do: running events, selling sponsorships, managing campaigns, handling finance, leading teams, and building deals across 80+ countries.
 
 The platform runs on a continuous weekly loop:
 1. Staff complete an AI Readiness Questionnaire (the task survey)
@@ -83,7 +83,7 @@ Your score updates every time you retake the questionnaire. The way to move your
     slug: 'learning-tracks-and-courses',
     category: 'Platform Overview',
     title: 'Learning Tracks, Courses, and How They Are Structured',
-    content: `EventPilot organises all courses into three tracks that align with your TAIRS score tier.
+    content: `Event Pilot organises all courses into three tracks that align with your TAIRS score tier.
 
 THE THREE TRACKS
 
@@ -132,7 +132,7 @@ You can retake any assessment. Each attempt is recorded.`,
     slug: 'recommendation-engine',
     category: 'How the Platform Works',
     title: 'How the Recommendation Engine Works',
-    content: `Every individual on EventPilot sees a personalised course list. The recommendation engine scores every available (uncompleted) course for each person using five signals, then ranks and labels them.
+    content: `Every individual on Event Pilot sees a personalised course list. The recommendation engine scores every available (uncompleted) course for each person using five signals, then ranks and labels them.
 
 THE FIVE SCORING SIGNALS
 
@@ -180,7 +180,7 @@ As staff complete courses, their completed courses are removed from the pool and
   {
     slug: 'how-to-use-as-staff',
     category: 'User Guide',
-    title: 'How to Use EventPilot as a Staff Member',
+    title: 'How to Use Event Pilot as a Staff Member',
     content: `This guide is for all Trescon staff using their personal dashboard.
 
 STEP 1: LOG IN
@@ -223,7 +223,7 @@ If you cannot log in, contact your manager or the HR team. If a course is unclea
   {
     slug: 'how-to-use-as-manager',
     category: 'User Guide',
-    title: 'How to Use EventPilot as a Manager or Team Lead',
+    title: 'How to Use Event Pilot as a Manager or Team Lead',
     content: `If you have people reporting to you, you have access to two dashboards: your Personal Dashboard and your Team Dashboard. Both are accessible from the navigation bar.
 
 YOUR PERSONAL DASHBOARD
@@ -264,7 +264,7 @@ The scope is determined automatically from the reporting hierarchy — it update
   {
     slug: 'how-to-use-as-admin',
     category: 'User Guide',
-    title: 'How to Use EventPilot as an Administrator',
+    title: 'How to Use Event Pilot as an Administrator',
     content: `Administrators have access to all three views: Personal Dashboard, Team Dashboard, and Admin Dashboard. The Admin Dashboard is the control centre for the entire platform.
 
 ACCESSING THE ADMIN DASHBOARD
@@ -297,7 +297,7 @@ The Super Admin account (set via SUPER_ADMIN_EMAIL in environment variables) has
     slug: 'hierarchy-and-reporting-structure',
     category: 'How the Platform Works',
     title: 'How the Reporting Hierarchy Works',
-    content: `EventPilot uses a self-referencing hierarchy — every staff member can have a manager, and every manager's scope on the Team Dashboard is automatically derived from the chain of reporting relationships.
+    content: `Event Pilot uses a self-referencing hierarchy — every staff member can have a manager, and every manager's scope on the Team Dashboard is automatically derived from the chain of reporting relationships.
 
 THE DATA MODEL
 
@@ -349,7 +349,7 @@ The recommendation engine also uses job_level to boost management-relevant cours
     slug: 'technical-architecture',
     category: 'Technical Reference',
     title: 'Platform Architecture and Technology Stack',
-    content: `EventPilot is built as a Next.js web application connected to a Supabase (PostgreSQL) database. This document describes what the platform is built on and how the data is organised — intended for technical staff and administrators.
+    content: `Event Pilot is built as a Next.js web application connected to a Supabase (PostgreSQL) database. This document describes what the platform is built on and how the data is organised — intended for technical staff and administrators.
 
 TECHNOLOGY STACK
 
@@ -423,7 +423,7 @@ I AM A MANAGER — WHY DON'T I SEE MY TEAM?
 The Team Dashboard link appears only if your manager_id is set as the manager for at least one other staff member. This is configured during the HR staff import. If you believe you should have team access, contact your HR administrator to ensure your reporting structure is correctly imported.
 
 HOW OFTEN SHOULD I USE THE PLATFORM?
-EventPilot is designed for continuous learning, not one-time completion. Aim for one course per week. This means your full foundation track (if starting from AI-Unaware) is complete within 6 weeks. Adoption track takes another 6 weeks. You should be at AI-Ready or above within 90 days of starting.
+Event Pilot is designed for continuous learning, not one-time completion. Aim for one course per week. This means your full foundation track (if starting from AI-Unaware) is complete within 6 weeks. Adoption track takes another 6 weeks. You should be at AI-Ready or above within 90 days of starting.
 
 WHAT TOOLS DO I NEED?
 Most foundation courses use ChatGPT (free account) or Claude (free account). Some courses use Canva AI (free tier), Adobe Firefly (free tier), or specialist tools like Midjourney or Otter.ai. You do not need to pay for tools to complete foundation or adoption courses.
@@ -435,7 +435,7 @@ WHAT HAPPENS AFTER I COMPLETE ALL MY RECOMMENDED COURSES?
 You will see a "Track Complete" message and be invited to explore the Course Library. If your TAIRS score has moved up during your learning, you may now qualify for a higher track — retake the questionnaire to check. More courses will be added to the platform continuously.
 
 HOW ARE COURSES CREATED?
-Courses are authored by the EventPilot team. Course content is generated using AI tools (Google Gemini) and then reviewed and edited by subject matter experts before publication. All courses are reviewed for factual accuracy, practical applicability, and alignment with Trescon's specific context.`,
+Courses are authored by the Event Pilot team. Course content is generated using AI tools (Google Gemini) and then reviewed and edited by subject matter experts before publication. All courses are reviewed for factual accuracy, practical applicability, and alignment with Trescon's specific context.`,
     order_index: 10,
   },
 ]

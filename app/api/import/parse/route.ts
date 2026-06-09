@@ -46,7 +46,7 @@ export async function POST(req: NextRequest) {
 
   const knownFieldDefs = KNOWN_FIELDS.map(f => `- ${f.field} (${f.type}): ${f.note}`).join('\n')
 
-  const prompt = `You are a data import assistant for EventPilot, a staff learning platform.
+  const prompt = `You are a data import assistant for Event Pilot, a staff learning platform.
 
 CURRENT DATABASE SCHEMA — staff_members table has these fields:
 ${knownFieldDefs}

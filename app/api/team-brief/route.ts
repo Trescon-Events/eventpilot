@@ -141,7 +141,7 @@ Write a Team Health Brief with exactly this structure — no extra headings, no 
 
 3. THIS WEEK'S ACTIONS (exactly 3 bullet points): Specific, concrete steps the manager can take in the next 7 days. Not generic — use the actual data above.
 
-4. PLATFORM IMPACT (one sentence): How this team's engagement directly shapes what gets built on EventPilot next.
+4. PLATFORM IMPACT (one sentence): How this team's engagement directly shapes what gets built on Event Pilot next.
 
 Be direct, professional, and encouraging — not corporate. Use the actual numbers.`
 

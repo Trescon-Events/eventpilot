@@ -75,7 +75,7 @@ function buildTaskEntries(answers: Answers, department: string, staffId: string)
       tools_unlisted:    answers['tools_unlisted'] ? str(answers['tools_unlisted']) : '',
       ai_proof:          answers['ai_proof'] ? str(answers['ai_proof']) : null,
       frequency:         'Daily',
-      skill_needed:      'Identified via EventPilot Discovery Interview',
+      skill_needed:      'Identified via Event Pilot Discovery Interview',
       ai_readiness:      readiness,
     },
   ].filter(e => e.task_description || (e as { tools_used?: string[] }).tools_used?.length)
@@ -376,7 +376,7 @@ function ProfileContent() {
           Your AI readiness score<br />is set, <span style={{ color: '#3D6B00' }}>{firstName}.</span>
         </h1>
         <p style={{ fontSize: '13px', color: '#2D3E50', lineHeight: 1.65, maxWidth: '440px', margin: '0 auto 40px' }}>
-          Based on your answers, EventPilot has calculated your starting TAIRS score and placed you on the right learning track. Your courses are ready.
+          Based on your answers, Event Pilot has calculated your starting TAIRS score and placed you on the right learning track. Your courses are ready.
         </p>
         <div style={{ background: '#FFFFFF', border: '1px solid #B8CDD8', borderRadius: '16px', padding: '24px 28px', marginBottom: '36px', textAlign: 'left', maxWidth: '420px' }}>
           <div style={{ ...S.label, marginBottom: '14px' }}>What happens next</div>
@@ -430,7 +430,7 @@ function ProfileContent() {
             <div style={{ width: '26px', height: '26px', background: '#00897B', borderRadius: '7px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
               <svg width="12" height="12" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
             </div>
-            <span style={{ fontSize: '13px', fontWeight: 800, color: '#0F1923' }}>EventPilot</span>
+            <span style={{ fontSize: '13px', fontWeight: 800, color: '#0F1923' }}>Event Pilot</span>
           </div>
           <span style={{ fontSize: '13px', color: '#0F1923', fontWeight: 600 }}>AI Readiness Platform · Trescon Global</span>
         </nav>
@@ -448,7 +448,7 @@ function ProfileContent() {
               <span style={{ color: '#3D6B00' }}>journey starts here.</span>
             </h1>
             <p style={{ fontSize: '13px', color: '#2D3E50', lineHeight: 1.65, margin: '0 0 32px', maxWidth: '340px' }}>
-              EventPilot is Trescon Global&apos;s internal AI learning platform — built for all 300+ staff across Dubai, Bangalore, Mangalore, and Manipal. It shows you where you stand with AI and builds a learning path around your actual daily work.
+              Event Pilot is Trescon Global&apos;s internal AI learning platform — built for all 300+ staff across Dubai, Bangalore, Mangalore, and Manipal. It shows you where you stand with AI and builds a learning path around your actual daily work.
             </p>
             <button
               onClick={() => { setShowWelcome(false); setStep(0) }}
@@ -493,11 +493,11 @@ function ProfileContent() {
             <div style={{ width: '28px', height: '28px', background: '#00897B', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
               <svg width="14" height="14" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
             </div>
-            <span style={{ fontSize: '13px', fontWeight: 800, color: '#0F1923' }}>EventPilot</span>
+            <span style={{ fontSize: '13px', fontWeight: 800, color: '#0F1923' }}>Event Pilot</span>
           </Link>
         </nav>
         <div style={{ maxWidth: '500px', margin: '80px auto', padding: '0 24px' }}>
-          <div style={S.label}>EventPilot — AI Readiness Assessment</div>
+          <div style={S.label}>Event Pilot — AI Readiness Assessment</div>
           <h1 style={{ fontSize: '36px', fontWeight: 800, color: '#0F1923', margin: '12px 0 8px', lineHeight: 1.2 }}>Enter your work email</h1>
           <p style={{ fontSize: '13px', color: '#2D3E50', lineHeight: 1.65, marginBottom: '32px' }}>
             We&apos;ll match it to your Trescon profile and take you straight into your interview. No password needed.
@@ -540,7 +540,7 @@ function ProfileContent() {
             <div style={{ width: '26px', height: '26px', background: '#00897B', borderRadius: '7px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
               <svg width="12" height="12" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
             </div>
-            <span style={{ fontSize: '13px', fontWeight: 800, color: '#0F1923' }}>EventPilot</span>
+            <span style={{ fontSize: '13px', fontWeight: 800, color: '#0F1923' }}>Event Pilot</span>
           </div>
         </nav>
         <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '40px 20px' }}>
@@ -577,7 +577,7 @@ function ProfileContent() {
             <div style={{ width: '26px', height: '26px', background: '#00897B', borderRadius: '7px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
               <svg width="12" height="12" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
             </div>
-            <span style={{ fontSize: '13px', fontWeight: 800, color: '#0F1923' }}>EventPilot</span>
+            <span style={{ fontSize: '13px', fontWeight: 800, color: '#0F1923' }}>Event Pilot</span>
           </div>
           <span style={{ color: '#2D3E50', margin: '0 4px' }}>|</span>
           <span style={{ fontSize: '13px', color: '#00695C', fontWeight: 700 }}>Step 1 — AI Readiness Assessment</span>
@@ -627,12 +627,12 @@ function ProfileContent() {
           <div key={q.id} style={{ animation: 'fadeSlide 0.35s ease' }}>
 
 
-            {/* EventPilot asking indicator */}
+            {/* Event Pilot asking indicator */}
             <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '20px' }}>
               <div style={{ width: '32px', height: '32px', background: 'linear-gradient(135deg, #00A5A3, #005F7A)', borderRadius: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
                 <svg width="14" height="14" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
               </div>
-              <span style={{ fontSize: '13px', fontWeight: 700, letterSpacing: '2px', color: '#00695C', textTransform: 'uppercase' }}>EventPilot</span>
+              <span style={{ fontSize: '13px', fontWeight: 700, letterSpacing: '2px', color: '#00695C', textTransform: 'uppercase' }}>Event Pilot</span>
             </div>
 
             {/* Question text */}

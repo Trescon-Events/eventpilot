@@ -2,6 +2,12 @@
 
 import { useState, useEffect, use, useCallback } from 'react'
 import Link from 'next/link'
+import { createClient } from '@supabase/supabase-js'
+
+const supabaseBrowser = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+)
 
 type Guidelines = {
   id: string
@@ -180,6 +186,10 @@ export default function BrandStudioPage({ params }: { params: Promise<{ id: stri
   const [styleKeywords,   setStyleKeywords]   = useState<string[]>([])
   const [logoNotes,       setLogoNotes]       = useState('')
 
+  // PDF import state
+  const [pdfUploading, setPdfUploading]     = useState(false)
+  const [pdfFileName,  setPdfFileName]      = useState<string | null>(null)
+
   // Asset generator state
   const [selectedAsset, setSelectedAsset]   = useState<typeof ASSET_TYPES[number]>(ASSET_TYPES[0])
   const [prompt,         setPrompt]         = useState('')
@@ -310,6 +320,66 @@ export default function BrandStudioPage({ params }: { params: Promise<{ id: stri
     setGeneratingImg(false)
   }
 
+  async function importFromPDF(file: File) {
+    setPdfUploading(true)
+    setPdfFileName(file.name)
+    setMsg(null)
+
+    try {
+      // Step 1: Upload PDF directly to Supabase Storage from browser
+      // (avoids Vercel's 4.5MB request body limit)
+      const path = `${eventId}/${Date.now()}-${file.name.replace(/[^a-zA-Z0-9._-]/g, '_')}`
+      const { error: uploadError } = await supabaseBrowser.storage
+        .from('brand-pdfs')
+        .upload(path, file, { contentType: 'application/pdf', upsert: true })
+
+      if (uploadError) {
+        setMsg({ text: `Upload failed: ${uploadError.message}`, ok: false })
+        setPdfUploading(false)
+        return
+      }
+
+      // Step 2: Get the public URL
+      const { data: { publicUrl } } = supabaseBrowser.storage
+        .from('brand-pdfs')
+        .getPublicUrl(path)
+
+      // Step 3: Call extract-pdf with the storage URL
+      const res  = await fetch('/api/events/brand/extract-pdf', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ pdf_url: publicUrl }),
+      })
+      const data = await res.json()
+
+      if (!res.ok) {
+        setMsg({ text: data.error ?? 'PDF extraction failed.', ok: false })
+        setPdfUploading(false)
+        return
+      }
+
+      const { colors, heading_font, body_font, brand_name } = data
+
+      if (colors?.[0]) setPrimaryColor(colors[0])
+      if (colors?.[1]) setSecondaryColor(colors[1])
+      if (colors?.[2]) setAccentColor(colors[2])
+      if (heading_font) setHeadingFont(heading_font)
+      if (body_font)    setBodyFont(body_font)
+
+      const extracted = [
+        colors?.length ? `${colors.length} colour${colors.length > 1 ? 's' : ''} extracted` : null,
+        heading_font ? `heading: ${heading_font}` : null,
+        body_font    ? `body: ${body_font}`        : null,
+      ].filter(Boolean).join(' · ')
+
+      setMsg({ text: `Brand book imported${brand_name ? ` for ${brand_name}` : ''} — ${extracted}. Review and save.`, ok: true })
+    } catch (e) {
+      setMsg({ text: `Error: ${e instanceof Error ? e.message : 'Unknown error'}`, ok: false })
+    }
+
+    setPdfUploading(false)
+  }
+
   const filteredAssets = galleryFilter === 'All'
     ? assets
     : assets.filter(a => a.asset_type === galleryFilter)
@@ -393,6 +463,77 @@ export default function BrandStudioPage({ params }: { params: Promise<{ id: stri
         {/* ─────────────── BRAND IDENTITY TAB ─────────────── */}
         {tab === 'brand' && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+
+            {/* ── Brand Book PDF Upload ── */}
+            <div style={{ background: '#FFFFFF', border: '1px solid #C8DFE0', borderRadius: '16px', padding: '24px' }}>
+              <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: '16px' }}>
+                <div>
+                  <div style={{ fontSize: '13px', fontWeight: 800, color: '#5B7080', textTransform: 'uppercase', letterSpacing: '1.5px', marginBottom: '4px' }}>Import Brand Book</div>
+                  <div style={{ fontSize: '14px', color: '#2D3E50', lineHeight: 1.5 }}>Upload a PDF brand guidelines document — colours and fonts will be extracted automatically via AI.</div>
+                </div>
+                {pdfFileName && !pdfUploading && (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '6px 12px', borderRadius: '8px', background: 'rgba(192,244,60,0.08)', border: '1px solid rgba(192,244,60,0.3)', whiteSpace: 'nowrap' }}>
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#3D6B00" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+                    <span style={{ fontSize: '12px', fontWeight: 700, color: '#3D6B00', maxWidth: '180px', overflow: 'hidden', textOverflow: 'ellipsis' }}>{pdfFileName}</span>
+                  </div>
+                )}
+              </div>
+              <label
+                style={{
+                  display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+                  gap: '12px', padding: '28px 24px',
+                  border: `2px dashed ${pdfUploading ? '#00A5A3' : '#C8DFE0'}`,
+                  borderRadius: '12px',
+                  background: pdfUploading ? 'rgba(0,165,163,0.04)' : 'rgba(248,251,252,0.8)',
+                  cursor: pdfUploading ? 'not-allowed' : 'pointer',
+                  transition: 'all 0.2s',
+                }}
+                onDragOver={e => { e.preventDefault(); e.currentTarget.style.borderColor = '#00A5A3'; e.currentTarget.style.background = 'rgba(0,165,163,0.04)' }}
+                onDragLeave={e => { e.currentTarget.style.borderColor = '#C8DFE0'; e.currentTarget.style.background = 'rgba(248,251,252,0.8)' }}
+                onDrop={e => {
+                  e.preventDefault()
+                  e.currentTarget.style.borderColor = '#C8DFE0'
+                  e.currentTarget.style.background = 'rgba(248,251,252,0.8)'
+                  if (pdfUploading) return
+                  const file = e.dataTransfer.files?.[0]
+                  if (file?.type === 'application/pdf') importFromPDF(file)
+                  else setMsg({ text: 'Only PDF files are supported.', ok: false })
+                }}
+              >
+                <input
+                  type="file"
+                  accept="application/pdf"
+                  style={{ display: 'none' }}
+                  disabled={pdfUploading}
+                  onChange={e => {
+                    const file = e.target.files?.[0]
+                    if (file) importFromPDF(file)
+                    e.target.value = ''
+                  }}
+                />
+                {pdfUploading ? (
+                  <>
+                    <div style={{ width: '32px', height: '32px', borderRadius: '50%', border: '3px solid rgba(0,165,163,0.2)', borderTopColor: '#00A5A3', animation: 'spin 0.8s linear infinite' }} />
+                    <span style={{ fontSize: '14px', fontWeight: 700, color: '#00A5A3' }}>Analysing brand book with AI…</span>
+                    <span style={{ fontSize: '13px', color: '#5B7080' }}>This may take up to 30 seconds for large PDFs</span>
+                  </>
+                ) : (
+                  <>
+                    <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#A0B4C0" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                      <polyline points="14 2 14 8 20 8"/>
+                      <line x1="12" y1="18" x2="12" y2="12"/>
+                      <line x1="9" y1="15" x2="15" y2="15"/>
+                    </svg>
+                    <div style={{ textAlign: 'center' }}>
+                      <div style={{ fontSize: '14px', fontWeight: 700, color: '#2D3E50', marginBottom: '4px' }}>Drop brand PDF here or click to browse</div>
+                      <div style={{ fontSize: '13px', color: '#5B7080' }}>PDF only · Max 30 MB · Gemini will extract colours and fonts</div>
+                    </div>
+                  </>
+                )}
+              </label>
+              <style>{`@keyframes spin { to { transform: rotate(360deg) } }`}</style>
+            </div>
 
             {/* Colors + Typography */}
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '24px' }}>

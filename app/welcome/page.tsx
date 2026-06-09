@@ -40,7 +40,7 @@ function WelcomeContent() {
         </h1>
 
         <p style={{ fontSize: '13px', color: '#2D3E50', lineHeight: 1.65, marginBottom: '12px' }}>
-          Welcome to EventPilot. You are now part of something being built for everyone at Trescon.
+          Welcome to Event Pilot. You are now part of something being built for everyone at Trescon.
         </p>
         <p style={{ fontSize: '13px', color: '#2D3E50', lineHeight: 1.65, marginBottom: '40px' }}>
           Your profile is live. Head to your dashboard to see your learning path and start your first course.
@@ -50,8 +50,8 @@ function WelcomeContent() {
         <div style={{ background: '#FFFFFF', border: '1px solid #9EC8C8', borderRadius: '16px', padding: '28px', marginBottom: '28px', textAlign: 'left' }}>
           <div style={{ fontSize: '13px', fontWeight: 700, letterSpacing: '2px', textTransform: 'uppercase', color: color, marginBottom: '12px' }}>What happens next</div>
           {[
-            'Your details are now on record in EventPilot',
-            'Your profile is added to EventPilot',
+            'Your details are now on record in Event Pilot',
+            'Your profile is added to Event Pilot',
             'Next: tell us what your work looks like daily',
             'Your input shapes what gets built first',
           ].map((step, i) => (

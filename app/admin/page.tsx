@@ -162,9 +162,9 @@ function QuestionnaireView({ qDept, setQDept }: { qDept: string; setQDept: (d: s
 
 const PLAYBOOK_TIERS = [
   { tier: 'AI-Forward',  range: '75–100', color: '#166534', action: 'Assign as AI Pilot Leads. They run the first automation sprint for their department.', owner: 'AI Lead + Dept Head', by: 'This sprint' },
-  { tier: 'AI-Ready',    range: '55–74',  color: '#0E7490', action: 'Pair with an AI-Forward colleague. Start a 30-day tool adoption plan with one specific workflow to automate.', owner: 'EventPilot Training', by: '30 days' },
-  { tier: 'AI-Aware',    range: '35–54',  color: '#92400E', action: 'Foundation workshop (half day). Pick one tool for their role and commit to using it daily for 2 weeks.', owner: 'EventPilot Training + HR', by: '60 days' },
-  { tier: 'AI-Curious',  range: '15–34',  color: '#C2410C', action: "Awareness session first — why AI matters for their specific role. Then intro to ChatGPT basics.", owner: 'HR + EventPilot', by: '90 days' },
+  { tier: 'AI-Ready',    range: '55–74',  color: '#0E7490', action: 'Pair with an AI-Forward colleague. Start a 30-day tool adoption plan with one specific workflow to automate.', owner: 'Event Pilot Training', by: '30 days' },
+  { tier: 'AI-Aware',    range: '35–54',  color: '#92400E', action: 'Foundation workshop (half day). Pick one tool for their role and commit to using it daily for 2 weeks.', owner: 'Event Pilot Training + HR', by: '60 days' },
+  { tier: 'AI-Curious',  range: '15–34',  color: '#C2410C', action: "Awareness session first — why AI matters for their specific role. Then intro to ChatGPT basics.", owner: 'HR + Event Pilot', by: '90 days' },
   { tier: 'AI-Unaware',  range: '0–14',   color: '#991B1B', action: 'Digital literacy assessment first. Build a personalised catch-up plan before any AI training.', owner: 'HR', by: '120 days' },
 ]
 
@@ -742,7 +742,7 @@ export default function AdminPage() {
   const TOUR_STEPS = [
     { id: 'tour-tabs',             title: 'Your main sections',         desc: 'Navigate between Overview, All Staff, Intelligence, Learning Lab, Events, Knowledge Base, and more using these tabs.' },
     { id: 'tour-stats',            title: 'Org readiness at a glance',  desc: 'Total staff in the system, how many have completed their profile, and your organisation\'s live TAIRS score — all updating in real time.' },
-    { id: 'tour-started',          title: 'Your first 3 actions',       desc: 'Complete these three steps to get EventPilot fully running. Each one unlocks more of the platform for your team.' },
+    { id: 'tour-started',          title: 'Your first 3 actions',       desc: 'Complete these three steps to get Event Pilot fully running. Each one unlocks more of the platform for your team.' },
     { id: 'tour-intelligence-tab', title: 'Intelligence tab',           desc: 'AI-generated analysis of your org\'s readiness. Department breakdowns, tier distributions, and what to do about gaps — with no manual input.' },
     { id: 'tour-studio-tab',       title: 'Learning Lab',             desc: 'Describe a skill gap, pick a department, and Gemini generates a full course with reading content, tasks, and a quiz. Ready to publish in under a minute.' },
     { id: 'tour-pilot-btn',       title: 'Pilot — your AI assistant', desc: 'Ask Pilot anything: team progress, how to use a feature, what a TAIRS score means, or what to do next. It knows your org data.' },
@@ -1117,7 +1117,7 @@ export default function AdminPage() {
             <svg width="24" height="24" fill="none" stroke="#00A5A3" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
           </div>
           <h1 style={{ fontSize: '36px', fontWeight: 800, color: '#0F1923', marginBottom: '8px' }}>Admin Access</h1>
-          <p style={{ fontSize: '13px', color: '#5B7080', marginBottom: '32px' }}>EventPilot — Leadership Dashboard</p>
+          <p style={{ fontSize: '13px', color: '#5B7080', marginBottom: '32px' }}>Event Pilot — Leadership Dashboard</p>
           <form onSubmit={handleAuth}>
             <input type="email" value={adminEmail} onChange={e => { setAdminEmail(e.target.value); setCodeError('') }}
               placeholder="Your work email" autoFocus
@@ -1157,12 +1157,12 @@ export default function AdminPage() {
                 </div>
                 <div>
                   <div style={{ fontSize: '13px', fontWeight: 800, letterSpacing: '2px', textTransform: 'uppercase', color: '#00897B', marginBottom: '3px' }}>First time here?</div>
-                  <div style={{ fontSize: '36px', fontWeight: 900, color: '#0F1923', letterSpacing: '-0.4px', lineHeight: 1.1 }}>Welcome to EventPilot</div>
+                  <div style={{ fontSize: '36px', fontWeight: 900, color: '#0F1923', letterSpacing: '-0.4px', lineHeight: 1.1 }}>Welcome to Event Pilot</div>
                 </div>
               </div>
 
               <p style={{ fontSize: '13px', color: '#5B7080', lineHeight: 1.75, margin: '0 0 28px' }}>
-                EventPilot is Trescon&apos;s internal AI readiness platform — measuring where every employee stands today and moving them forward through structured, role-specific learning.
+                Event Pilot is Trescon&apos;s internal AI readiness platform — measuring where every employee stands today and moving them forward through structured, role-specific learning.
               </p>
 
               {/* Feature tiles — 3 column grid */}
@@ -3875,7 +3875,7 @@ export default function AdminPage() {
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                 <div>
                   <div style={{ fontSize: '11px', fontWeight: 800, letterSpacing: '2px', textTransform: 'uppercase', color: '#A478FF', marginBottom: '4px' }}>Platform Roadmap</div>
-                  <div style={{ fontSize: '18px', fontWeight: 900, color: '#0F1923', letterSpacing: '-0.3px' }}>What&apos;s next for EventPilot</div>
+                  <div style={{ fontSize: '18px', fontWeight: 900, color: '#0F1923', letterSpacing: '-0.3px' }}>What&apos;s next for Event Pilot</div>
                 </div>
                 <button onClick={() => setShowRoadmap(false)} style={{ width: '36px', height: '36px', borderRadius: '10px', border: '1px solid #DDE8EE', background: '#FFFFFF', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                   <svg width="14" height="14" fill="none" stroke="#5B7080" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
@@ -3953,7 +3953,7 @@ export default function AdminPage() {
                     { date: '24 Apr 2026', items: [
                       'Initial platform launch: TAIRS scoring, AI readiness questionnaire',
                       'Admin dashboard with org-wide intelligence and tier breakdowns',
-                      'Pilot — internal AI assistant scoped to EventPilot',
+                      'Pilot — internal AI assistant scoped to Event Pilot',
                       'Course generation and staff onboarding flow',
                     ]},
                   ].map((day, di) => (
@@ -3987,7 +3987,7 @@ export default function AdminPage() {
                     'Personal dashboard with role-specific course recommendations and platform access tiles',
                     'Course Library — auto-filtered to staff department, assigned courses pinned at top',
                     'AI-generated courses via Learning Lab — ready to publish in minutes',
-                    'Pilot — internal AI assistant scoped to EventPilot and your org',
+                    'Pilot — internal AI assistant scoped to Event Pilot and your org',
                     'Admin dashboard with org-wide intelligence and tier breakdowns',
                     'Full HRMS — attendance, leave, recruitment, contracts, payroll',
                     'My HR portal — self-service leave, attendance and event tasks for all staff',
@@ -4044,7 +4044,7 @@ export default function AdminPage() {
                     { title: 'Events Hub AI-first', desc: 'Upload an event brief — AI extracts structure, assigns staff, surfaces readiness gaps. No manual data entry.' },
                     { title: 'Department deep-dives', desc: 'Per-department AI report: current tier split, top skill gaps, projected score in 30 days, recommended courses.' },
                     { title: 'Course effectiveness scoring', desc: 'AI tracks whether TAIRS scores actually improve after each course. Courses that don\'t move the needle get flagged.' },
-                    { title: 'TAOS integration', desc: 'EventPilot\'s org intelligence feeds the broader Trescon AI Operating System — capability data becomes a business asset.' },
+                    { title: 'TAOS integration', desc: 'Event Pilot\'s org intelligence feeds the broader Trescon AI Operating System — capability data becomes a business asset.' },
                   ].map((item, i) => (
                     <div key={i} style={{ padding: '12px 14px', background: 'rgba(164,120,255,0.05)', border: '1px solid rgba(164,120,255,0.12)', borderRadius: '10px' }}>
                       <div style={{ fontSize: '13px', fontWeight: 700, color: '#A478FF', marginBottom: '4px' }}>{item.title}</div>

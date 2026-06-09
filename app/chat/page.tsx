@@ -271,7 +271,7 @@ export default function ChatPage() {
               <h1 style={{ fontSize: '36px', fontWeight: 900, color: '#0F1923', margin: 0, letterSpacing: '-0.3px' }}>Talk to Pilot</h1>
             </div>
             <p style={{ fontSize: '13px', color: '#2D3E50', margin: '0 0 36px', maxWidth: '380px', lineHeight: 1.65 }}>
-              Your AI learning assistant. Ask me anything about your courses, your TAIRS score, or how to use EventPilot.
+              Your AI learning assistant. Ask me anything about your courses, your TAIRS score, or how to use Event Pilot.
             </p>
 
             {/* Suggested questions */}

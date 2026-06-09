@@ -87,7 +87,9 @@ export async function middleware(req: NextRequest) {
   if (
     pathname.startsWith('/api/auth/session') ||
     pathname.startsWith('/api/auth/logout') ||
-    pathname.startsWith('/api/platform-docs')
+    pathname.startsWith('/api/platform-docs') ||
+    pathname.startsWith('/api/hrms-sync') ||
+    pathname.startsWith('/api/cron/')
   ) {
     return NextResponse.next()
   }

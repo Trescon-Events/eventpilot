@@ -18,7 +18,7 @@ export default function ScoringGuideContent() {
               Most AI readiness frameworks measure awareness and intention. TAIRS measures <strong style={{ color: T }}>actual behaviour</strong>: which tools people use, how fluent they are, and whether they showed up to be assessed.
             </p>
             <p style={{ fontSize: '13px', color: M, lineHeight: 1.7 }}>
-              It is not a test. Staff cannot study for it. The score reflects where people genuinely are — which is exactly what EventPilot needs to know to design the right training plan for each department.
+              It is not a test. Staff cannot study for it. The score reflects where people genuinely are — which is exactly what Event Pilot needs to know to design the right training plan for each department.
             </p>
           </div>
           <div>

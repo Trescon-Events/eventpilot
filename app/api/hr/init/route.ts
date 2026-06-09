@@ -94,7 +94,7 @@ export async function POST(req: NextRequest) {
         job_level:  s.job_level,
         source:     'hrms_migration',
       },
-      notes: 'Initial record created during HRMS migration to EventPilot.',
+      notes: 'Initial record created during HRMS migration to Event Pilot.',
     }))
 
   let historyCreated = 0
