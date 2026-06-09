@@ -640,9 +640,15 @@ export default function HRDashboard() {
                 <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: '16px', padding: '22px' }}>
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '14px' }}>
                     <SectionLabel>Active Onboardings</SectionLabel>
-                    {data.onboarding.records.length > 3 && (
-                      <Link href="/hr/onboarding" style={{ fontSize: '12px', fontWeight: 700, color: C.teal, textDecoration: 'none', marginTop: '-14px' }}>View All</Link>
-                    )}
+                    <div style={{ display: 'flex', gap: '8px', alignItems: 'center', marginTop: '-14px' }}>
+                      {data.onboarding.records.length > 3 && (
+                        <Link href="/hr/onboarding" style={{ fontSize: '12px', fontWeight: 700, color: C.teal, textDecoration: 'none' }}>View All</Link>
+                      )}
+                      <Link href="/hr/staff/new" style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', padding: '4px 10px', borderRadius: '6px', background: C.teal, color: '#fff', textDecoration: 'none', fontSize: '11px', fontWeight: 700 }}>
+                        <svg width="10" height="10" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                        Add Staff
+                      </Link>
+                    </div>
                   </div>
                   {data.onboarding.records.length === 0 ? (
                     <EmptyState message="No active onboardings" />

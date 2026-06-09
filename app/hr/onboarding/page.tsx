@@ -103,6 +103,15 @@ export default function OnboardingTrackerPage() {
           <Link href="/hr" style={{ fontSize: '13px', color: C.muted, textDecoration: 'none', fontWeight: 600 }}>← HR Portal</Link>
           <div style={{ width: '1px', height: '20px', background: C.border }} />
           <div style={{ fontSize: '15px', fontWeight: 800, color: C.text }}>Onboarding Tracker</div>
+          <div style={{ flex: 1 }} />
+          <Link href="/hr/staff/new" style={{
+            display: 'inline-flex', alignItems: 'center', gap: '6px',
+            padding: '8px 16px', borderRadius: '8px', background: C.green, color: '#fff',
+            textDecoration: 'none', fontSize: '13px', fontWeight: 700,
+          }}>
+            <svg width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            Add New Staff
+          </Link>
         </div>
       </div>
 
