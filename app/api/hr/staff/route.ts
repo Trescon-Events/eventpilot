@@ -153,13 +153,12 @@ export async function POST(req: NextRequest) {
     }
 
     // Build tasks — from template if found, else use defaults
-    let tasks: Array<{ title: string; owner: string; sort_order: number }> = DEFAULT_ONBOARDING_TASKS
+    let tasks: Array<{ title: string; owner: string }> = DEFAULT_ONBOARDING_TASKS
     if (templateId) {
       const { data: tmplTasks } = await supabaseAdmin
         .from('onboarding_template_tasks')
-        .select('title, owner, sort_order')
+        .select('title, owner')
         .eq('template_id', templateId)
-        .order('sort_order')
       if (tmplTasks?.length) tasks = tmplTasks
     }
 
