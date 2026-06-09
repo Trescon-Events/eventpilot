@@ -10,14 +10,14 @@ function makeTempPassword(name: string): string {
 }
 
 const DEFAULT_ONBOARDING_TASKS = [
-  { title: 'Welcome call with manager',                  owner: 'manager', sort_order: 1 },
-  { title: 'ID and documents submitted to HR',           owner: 'staff',   sort_order: 2 },
-  { title: 'Company email and system access set up',     owner: 'it',      sort_order: 3 },
-  { title: 'Platform orientation completed',             owner: 'staff',   sort_order: 4 },
-  { title: 'First week check-in with HR',                owner: 'hr',      sort_order: 5 },
-  { title: 'Role briefing with department head',         owner: 'manager', sort_order: 6 },
-  { title: 'Foundation course started on TAI Academy',   owner: 'staff',   sort_order: 7 },
-  { title: '30-day review scheduled',                    owner: 'hr',      sort_order: 8 },
+  { title: 'Welcome call with manager',                  owner: 'manager' },
+  { title: 'ID and documents submitted to HR',           owner: 'staff'   },
+  { title: 'Company email and system access set up',     owner: 'it'      },
+  { title: 'Platform orientation completed',             owner: 'staff'   },
+  { title: 'First week check-in with HR',                owner: 'hr'      },
+  { title: 'Role briefing with department head',         owner: 'manager' },
+  { title: 'Foundation course started on TAI Academy',   owner: 'staff'   },
+  { title: '30-day review scheduled',                    owner: 'hr'      },
 ]
 
 /*
@@ -181,7 +181,7 @@ export async function POST(req: NextRequest) {
       onboarding_id = ob.id
       await supabaseAdmin
         .from('staff_onboarding_tasks')
-        .insert(tasks.map(t => ({ ...t, onboarding_id: ob.id, status: 'pending' })))
+        .insert(tasks.map(t => ({ title: t.title, owner: t.owner, onboarding_id: ob.id })))
     }
   }
 
