@@ -244,7 +244,7 @@ export default function BrandStudioPage({ params }: { params: Promise<{ id: stri
   const [styleKeywords,    setStyleKeywords]    = useState<string[]>([])
 
   // Asset generator
-  const [selectedAsset,  setSelectedAsset]  = useState(ASSET_TYPES[0])
+  const [selectedAsset,  setSelectedAsset]  = useState<typeof ASSET_TYPES[number]>(ASSET_TYPES[0])
   const [prompt,         setPrompt]         = useState('')
   const [generatingImg,  setGeneratingImg]  = useState(false)
   const [generatedImg,   setGeneratedImg]   = useState<string | null>(null)
