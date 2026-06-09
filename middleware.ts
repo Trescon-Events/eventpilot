@@ -89,6 +89,10 @@ export async function middleware(req: NextRequest) {
     pathname.startsWith('/api/auth/logout') ||
     pathname.startsWith('/api/platform-docs') ||
     pathname.startsWith('/api/hrms-sync') ||
+    pathname.startsWith('/api/hr/attendance/sync') ||
+    pathname.startsWith('/api/admin/set-password') ||
+    pathname.startsWith('/api/admin/set-job-level') ||
+    pathname.startsWith('/api/admin/tool-permissions') ||
     pathname.startsWith('/api/cron/')
   ) {
     return NextResponse.next()

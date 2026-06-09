@@ -80,10 +80,11 @@ export async function GET() {
       .lte('contract_end_date', in30Str)
       .order('contract_end_date'),
 
-    // Recent employment history (last 20 events)
+    // Recent employment history — exclude HRMS migration seed entries
     supabaseAdmin
       .from('staff_employment_history')
       .select('id, staff_id, change_type, new_value, notes, created_at, staff:staff_id(name, department)')
+      .not('notes', 'ilike', '%HRMS migration%')
       .order('created_at', { ascending: false })
       .limit(50),
 

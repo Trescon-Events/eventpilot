@@ -25,7 +25,8 @@ export async function GET(req: NextRequest) {
 
   const { data, error } = await supabaseAdmin
     .from('staff_members')
-    .select('id, name, email, department, role, office_id, job_level, manager_id, access_enabled, toolkit_access, profile_complete, joined_at')
+    .select('id, name, email, department, role, office_id, job_level, manager_id, access_enabled, toolkit_access, tool_grants, profile_complete, joined_at, attendance_exempted, timesheet_exempted')
+    .eq('access_enabled', true)
     .order('name', { ascending: true })
 
   if (error) {

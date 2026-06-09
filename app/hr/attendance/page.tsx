@@ -24,6 +24,7 @@ type StaffMember = {
   department: string | null
   office_id: string | null
   role: string | null
+  attendance_exempted: boolean | null
 }
 
 type AttRecord = {
@@ -98,6 +99,19 @@ const OFFICE_COLOR: Record<string, string> = {
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 function todayStr() { return new Date().toISOString().slice(0, 10) }
+
+function lastWorkingDay() {
+  const d = new Date()
+  const dow = d.getDay()
+  if (dow === 0) d.setDate(d.getDate() - 2)  // Sunday → Friday
+  if (dow === 6) d.setDate(d.getDate() - 1)  // Saturday → Friday
+  return d.toISOString().slice(0, 10)
+}
+
+function isWeekendDate(iso: string) {
+  const dow = new Date(iso + 'T00:00:00').getDay()
+  return dow === 0 || dow === 6
+}
 
 function daysAgo(n: number) {
   const d = new Date(); d.setDate(d.getDate() - n)
@@ -362,7 +376,7 @@ export default function AttendancePage() {
 
   // ── Mode & dates
   const [mode,         setMode]         = useState<'day' | 'range'>('day')
-  const [selectedDate, setSelectedDate] = useState(today)
+  const [selectedDate, setSelectedDate] = useState(lastWorkingDay)
   const [rangeFrom,    setRangeFrom]    = useState(daysAgo(30))
   const [rangeTo,      setRangeTo]      = useState(today)
 
@@ -386,6 +400,10 @@ export default function AttendancePage() {
   const [selectedKeys, setSelectedKeys] = useState<Set<string>>(new Set())
   const [bulkStatus,   setBulkStatus]   = useState('present')
   const [bulkBusy,     setBulkBusy]     = useState(false)
+
+  // ── Pagination
+  const [perPage,      setPerPage]      = useState(25)
+  const [currentPage,  setCurrentPage]  = useState(1)
 
   // ── Modals
   const [editRow,  setEditRow]  = useState<MergedRow | null>(null)
@@ -465,7 +483,7 @@ export default function AttendancePage() {
     const byStaff: Record<string, AttRecord> = {}
     for (const r of dayRecords) byStaff[r.staff_id] = r
 
-    return staffList.map(s => {
+    return staffList.filter(s => !s.attendance_exempted).map(s => {
       const r = byStaff[s.id]
       if (r) {
         return {
@@ -535,6 +553,9 @@ export default function AttendancePage() {
     return byOffice
   }, [baseRows])
 
+  // Reset to page 1 on any filter change
+  useEffect(() => { setCurrentPage(1) }, [search, deptFilter, officeFilter, statusFilter, selectedDate, mode])
+
   // ── Filtered rows ─────────────────────────────────────────────────────────
   const filtered = useMemo(() => {
     const rows = baseRows.filter(r => {
@@ -569,9 +590,17 @@ export default function AttendancePage() {
     : 0
   const last7 = trendData.slice(-7) // last 7 working days with data
 
+  // ── Pagination slice ──────────────────────────────────────────────────────
+  const totalPages  = Math.ceil(filtered.length / perPage)
+  const pagedRows   = filtered.slice((currentPage - 1) * perPage, currentPage * perPage)
+
   // ── Derived booleans ──────────────────────────────────────────────────────
-  const isToday = mode === 'day' && selectedDate === today
-  const hasFilters = !!(search || deptFilter || officeFilter.size > 0 || statusFilter)
+  const isToday      = mode === 'day' && selectedDate === today
+  const hasFilters   = !!(search || deptFilter || officeFilter.size > 0 || statusFilter)
+  // No data for this day = day mode, not a weekend, not loading, and HRMS has no records
+  const noDataForDay = mode === 'day' && !loading && dayRecords.length === 0 && !isWeekendDate(selectedDate)
+  // Last date that has data (from trend)
+  const lastDataDate = trendData.length > 0 ? trendData[trendData.length - 1].date : null
 
   // ── Handlers ──────────────────────────────────────────────────────────────
   function stepDay(delta: number) {
@@ -703,20 +732,23 @@ export default function AttendancePage() {
           )}
 
           <button onClick={() => syncHRMS(30)} disabled={syncing}
-            style={{ padding: '7px 14px', borderRadius: '8px', border: `1px solid ${C.green}`, fontSize: '12px', fontWeight: 700, color: C.green, background: C.surface, cursor: 'pointer', fontFamily: 'inherit', opacity: syncing ? 0.6 : 1, flexShrink: 0 }}>
-            {syncing ? '…' : '↓ Sync 30d'}
+            style={{ padding: '7px 14px', borderRadius: '8px', border: `1px solid ${C.green}`, fontSize: '12px', fontWeight: 700, color: C.green, background: C.surface, cursor: 'pointer', fontFamily: 'inherit', opacity: syncing ? 0.6 : 1, flexShrink: 0, display: 'flex', alignItems: 'center', gap: '5px' }}>
+            <svg width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polyline points="8 17 12 21 16 17"/><line x1="12" y1="3" x2="12" y2="21"/></svg>
+            {syncing ? 'Syncing…' : 'Sync 30d'}
           </button>
           <button onClick={() => syncHRMS(365)} disabled={syncing}
             style={{ padding: '7px 12px', borderRadius: '8px', border: `1px solid ${C.border}`, fontSize: '12px', fontWeight: 700, color: C.muted, background: C.surface, cursor: 'pointer', fontFamily: 'inherit', flexShrink: 0 }}>
             Sync All
           </button>
           <button onClick={exportCSV}
-            style={{ padding: '7px 12px', borderRadius: '8px', border: `1px solid ${C.border}`, fontSize: '12px', fontWeight: 700, color: C.text, background: C.surface, cursor: 'pointer', fontFamily: 'inherit', flexShrink: 0 }}>
-            ↓ CSV
+            style={{ padding: '7px 12px', borderRadius: '8px', border: `1px solid ${C.border}`, fontSize: '12px', fontWeight: 700, color: C.text, background: C.surface, cursor: 'pointer', fontFamily: 'inherit', flexShrink: 0, display: 'flex', alignItems: 'center', gap: '5px' }}>
+            <svg width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polyline points="8 17 12 21 16 17"/><line x1="12" y1="3" x2="12" y2="21"/></svg>
+            CSV
           </button>
           <button onClick={() => setShowLog(true)}
-            style={{ padding: '7px 14px', borderRadius: '8px', background: C.text, color: '#fff', fontSize: '12px', fontWeight: 700, border: 'none', cursor: 'pointer', fontFamily: 'inherit', flexShrink: 0 }}>
-            + Log
+            style={{ padding: '7px 14px', borderRadius: '8px', background: C.text, color: '#fff', fontSize: '12px', fontWeight: 700, border: 'none', cursor: 'pointer', fontFamily: 'inherit', flexShrink: 0, display: 'flex', alignItems: 'center', gap: '5px' }}>
+            <svg width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            Log Record
           </button>
         </div>
       </div>
@@ -730,30 +762,19 @@ export default function AttendancePage() {
           </div>
         )}
 
-        {/* ── Summary hero card (today / day mode) ── */}
-        {mode === 'day' && !loading && (
-          <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: '16px', padding: '20px 24px', marginBottom: '16px' }}>
-            <div style={{ fontSize: '11px', fontWeight: 700, color: C.muted, textTransform: 'uppercase', letterSpacing: '0.8px', marginBottom: '14px' }}>
-              {isToday ? "Today's Attendance" : fmtDateLong(selectedDate)}
-            </div>
-            <div style={{ display: 'flex', gap: '32px', flexWrap: 'wrap' }}>
-              {[
-                { label: 'Present',   value: stats.present,   color: C.green  },
-                { label: 'Absent',    value: stats.absent,    color: C.red    },
-                { label: 'Late',      value: stats.late,      color: C.amber  },
-                { label: 'No Record', value: stats.no_record, color: C.red    },
-              ].map(({ label, value, color }) => (
-                <div key={label} style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
-                  <div style={{ fontSize: '36px', fontWeight: 900, color: value > 0 ? color : C.border, lineHeight: 1 }}>{value}</div>
-                  <div style={{ fontSize: '11px', fontWeight: 700, color: C.muted, textTransform: 'uppercase', letterSpacing: '0.6px' }}>{label}</div>
-                </div>
-              ))}
-            </div>
+        {/* ── Weekend banner ── */}
+        {mode === 'day' && isWeekendDate(selectedDate) && (
+          <div style={{ background: C.amber + '10', border: `1px solid ${C.amber}40`, borderRadius: '12px', padding: '12px 18px', marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <svg width="16" height="16" fill="none" stroke={C.amber} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+            <span style={{ fontSize: '13px', fontWeight: 700, color: C.amber }}>Weekend — attendance not expected on {fmtDateLong(selectedDate)}</span>
+            <button onClick={() => setSelectedDate(lastWorkingDay())} style={{ marginLeft: 'auto', padding: '5px 12px', borderRadius: '7px', border: `1px solid ${C.amber}60`, background: C.surface, fontSize: '12px', fontWeight: 700, color: C.amber, cursor: 'pointer', fontFamily: 'inherit' }}>
+              Go to last working day
+            </button>
           </div>
         )}
 
-        {/* ── Office strip ── */}
-        {offices.length > 0 && (
+        {/* ── Office strip — only when day has actual data ── */}
+        {offices.length > 0 && !noDataForDay && (
           <div style={{ display: 'flex', gap: '8px', marginBottom: '16px', flexWrap: 'wrap' }}>
             {offices.map(o => {
               const s  = officeStats[o] ?? { total: 0, present: 0 }
@@ -823,8 +844,9 @@ export default function AttendancePage() {
             style={{ padding: '7px 10px', borderRadius: '8px', border: `1px solid ${mode === 'range' ? C.blue : C.border}`, fontSize: '13px', color: C.text, fontFamily: 'inherit', outline: 'none', background: C.surface }} />
           {mode === 'range' && (
             <button onClick={goToday}
-              style={{ padding: '7px 12px', borderRadius: '8px', border: `1px solid ${C.border}`, fontSize: '12px', color: C.muted, background: C.surface, cursor: 'pointer', fontFamily: 'inherit', fontWeight: 700 }}>
-              ✕ Live view
+              style={{ padding: '7px 12px', borderRadius: '8px', border: `1px solid ${C.border}`, fontSize: '12px', color: C.muted, background: C.surface, cursor: 'pointer', fontFamily: 'inherit', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '5px' }}>
+              <svg width="11" height="11" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+              Live view
             </button>
           )}
 
@@ -833,6 +855,66 @@ export default function AttendancePage() {
             {mode === 'day' ? fmtDateLong(selectedDate) : `${rangeFrom} → ${rangeTo}`}
           </span>
         </div>
+
+        {/* ── Trend strip — always visible when data exists ── */}
+        {trendReady && trendData.length > 0 && (
+          <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: '12px', padding: '16px 20px', marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '24px', flexWrap: 'wrap' }}>
+            <div style={{ flexShrink: 0 }}>
+              <div style={{ fontSize: '10px', fontWeight: 700, color: C.muted, textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '2px' }}>Avg attendance rate</div>
+              <div style={{ fontSize: '32px', fontWeight: 900, color: avgRate >= 80 ? C.green : avgRate >= 60 ? C.amber : C.red, lineHeight: 1 }}>{avgRate}%</div>
+              <div style={{ fontSize: '11px', color: C.muted, marginTop: '2px' }}>Based on {trendData.length} days with data{lastDataDate ? ` · up to ${fmtDate(lastDataDate)}` : ''}</div>
+            </div>
+
+            <Sparkline values={sparkValues} width={280} height={48} />
+
+            <div style={{ flex: 1 }} />
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '3px', minWidth: '160px' }}>
+              <div style={{ fontSize: '10px', fontWeight: 700, color: C.muted, textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '4px' }}>Last 7 days with data</div>
+              {last7.map(p => (
+                <div key={p.date} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '12px' }}>
+                  <button onClick={() => { setSelectedDate(p.date); setMode('day') }}
+                    style={{ fontSize: '11px', color: C.blue, background: 'none', border: 'none', cursor: 'pointer', padding: 0, fontFamily: 'inherit', textDecoration: 'underline' }}>
+                    {fmtDate(p.date)}
+                  </button>
+                  <span style={{ fontSize: '11px', fontWeight: 800, color: p.rate >= 80 ? C.green : p.rate >= 60 ? C.amber : C.red }}>{p.rate}%</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* ── No data state ── */}
+        {noDataForDay ? (
+          <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: '16px', padding: '60px 40px', textAlign: 'center' }}>
+            <svg width="40" height="40" fill="none" stroke={C.border} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24" style={{ marginBottom: '16px' }}>
+              <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/>
+            </svg>
+            <div style={{ fontSize: '16px', fontWeight: 800, color: C.text, marginBottom: '6px' }}>No attendance data for {fmtDateLong(selectedDate)}</div>
+            <div style={{ fontSize: '13px', color: C.muted, marginBottom: '24px', maxWidth: '400px', margin: '0 auto 24px' }}>
+              {lastDataDate
+                ? `Attendance was last recorded on ${fmtDate(lastDataDate)}. Either sync from HRMS or log records manually.`
+                : 'No attendance has been recorded yet. Sync from HRMS or log records manually.'}
+            </div>
+            <div style={{ display: 'flex', gap: '10px', justifyContent: 'center', flexWrap: 'wrap' }}>
+              {lastDataDate && (
+                <button onClick={() => { setSelectedDate(lastDataDate); setMode('day') }}
+                  style={{ padding: '9px 18px', borderRadius: '9px', border: `1px solid ${C.green}`, fontSize: '13px', fontWeight: 700, color: C.green, background: C.surface, cursor: 'pointer', fontFamily: 'inherit' }}>
+                  View {fmtDate(lastDataDate)}
+                </button>
+              )}
+              <button onClick={() => syncHRMS(30)}
+                style={{ padding: '9px 18px', borderRadius: '9px', border: `1px solid ${C.border}`, fontSize: '13px', fontWeight: 700, color: C.muted, background: C.surface, cursor: 'pointer', fontFamily: 'inherit' }}>
+                Sync from HRMS
+              </button>
+              <button onClick={() => setShowLog(true)}
+                style={{ padding: '9px 18px', borderRadius: '9px', background: C.text, color: '#fff', fontSize: '13px', fontWeight: 700, border: 'none', cursor: 'pointer', fontFamily: 'inherit' }}>
+                Log manually
+              </button>
+            </div>
+          </div>
+        ) : (
+        <>
 
         {/* ── Stat tiles ── */}
         <div style={{ display: 'grid', gridTemplateColumns: `repeat(${mode === 'day' ? 7 : 6}, 1fr)`, gap: '8px', marginBottom: '16px' }}>
@@ -847,35 +929,12 @@ export default function AttendancePage() {
           )}
         </div>
 
-        {/* ── Trend strip ── */}
-        {trendReady && trendData.length > 0 && (
-          <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: '12px', padding: '16px 20px', marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '24px', flexWrap: 'wrap' }}>
-            <div style={{ flexShrink: 0 }}>
-              <div style={{ fontSize: '10px', fontWeight: 700, color: C.muted, textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '2px' }}>30-day avg (working days)</div>
-              <div style={{ fontSize: '32px', fontWeight: 900, color: avgRate >= 80 ? C.green : avgRate >= 60 ? C.amber : C.red, lineHeight: 1 }}>{avgRate}%</div>
-              <div style={{ fontSize: '11px', color: C.muted, marginTop: '2px' }}>{staffList.length} staff tracked</div>
-            </div>
-
-            <Sparkline values={sparkValues} width={280} height={48} />
-
-            <div style={{ flex: 1 }} />
-
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '3px', minWidth: '160px' }}>
-              <div style={{ fontSize: '10px', fontWeight: 700, color: C.muted, textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '4px' }}>Last 7 working days</div>
-              {last7.map(p => (
-                <div key={p.date} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '12px' }}>
-                  <span style={{ fontSize: '11px', color: C.muted }}>{fmtDate(p.date)}</span>
-                  <span style={{ fontSize: '11px', fontWeight: 800, color: p.rate >= 80 ? C.green : p.rate >= 60 ? C.amber : C.red }}>{p.rate}%</span>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
         {/* ── Filters row ── */}
         <div style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap', marginBottom: '12px' }}>
           <div style={{ position: 'relative', flex: 1, minWidth: '180px', maxWidth: '260px' }}>
-            <span style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)', color: C.muted, fontSize: '14px', pointerEvents: 'none' }}>⌕</span>
+            <span style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)', color: C.muted, pointerEvents: 'none', display: 'flex' }}>
+              <svg width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+            </span>
             <input
               placeholder="Search staff or dept…"
               value={search}
@@ -933,7 +992,8 @@ export default function AttendancePage() {
             No records match the current filters
           </div>
         ) : (
-          <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: '16px', overflow: 'hidden' }}>
+          <>
+          <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: '16px 16px 0 0', overflow: 'hidden' }}>
             <table style={{ width: '100%', borderCollapse: 'collapse' }}>
               <thead>
                 <tr style={{ borderBottom: `1px solid ${C.border}`, background: C.bg }}>
@@ -950,7 +1010,7 @@ export default function AttendancePage() {
                 </tr>
               </thead>
               <tbody>
-                {filtered.map((r, i) => {
+                {pagedRows.map((r, i) => {
                   const noRec    = !r.hasRecord
                   const isLate   = r.late_arrival
                   const isSelect = selectedKeys.has(r.key)
@@ -960,7 +1020,7 @@ export default function AttendancePage() {
                   const leftBorder = r.hasRecord ? `3px solid ${sc}` : `3px solid transparent`
 
                   return (
-                    <tr key={r.key} style={{ borderBottom: i < filtered.length - 1 ? `1px solid ${C.border}` : 'none', background: rowBg, borderLeft: leftBorder }}>
+                    <tr key={r.key} style={{ borderBottom: i < pagedRows.length - 1 ? `1px solid ${C.border}` : 'none', background: rowBg, borderLeft: leftBorder }}>
 
                       {/* Checkbox */}
                       <td style={{ padding: '10px 14px' }}>
@@ -1014,7 +1074,11 @@ export default function AttendancePage() {
                       {/* Clock in */}
                       <td style={{ padding: '10px 12px', fontSize: '13px', fontFamily: 'monospace', color: C.text }}>
                         {fmtTime(r.clock_in)}
-                        {isLate && r.clock_in && <span style={{ marginLeft: '4px', fontSize: '10px', color: C.amber }}>⚠</span>}
+                        {isLate && r.clock_in && (
+                          <svg style={{ marginLeft: '4px', verticalAlign: 'middle' }} width="11" height="11" viewBox="0 0 24 24" fill="none" stroke={C.amber} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                            <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>
+                          </svg>
+                        )}
                       </td>
 
                       {/* Clock out */}
@@ -1050,7 +1114,39 @@ export default function AttendancePage() {
               </tbody>
             </table>
           </div>
+
+          {/* ── Pagination controls ── */}
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 20px', background: C.surface, borderRadius: '0 0 16px 16px', border: `1px solid ${C.border}`, borderTop: `1px solid ${C.border}` }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <span style={{ fontSize: '12px', color: C.muted }}>Rows per page:</span>
+              <select value={perPage} onChange={e => { setPerPage(Number(e.target.value)); setCurrentPage(1) }}
+                style={{ padding: '3px 8px', borderRadius: '7px', border: `1px solid ${C.border}`, fontSize: '12px', color: C.text, background: C.surface, fontFamily: 'inherit', cursor: 'pointer', outline: 'none' }}>
+                <option value={25}>25</option>
+                <option value={50}>50</option>
+                <option value={100}>100</option>
+              </select>
+            </div>
+            <span style={{ fontSize: '12px', color: C.muted, fontWeight: 600 }}>
+              {filtered.length === 0 ? '0 records' : `${(currentPage - 1) * perPage + 1}–${Math.min(currentPage * perPage, filtered.length)} of ${filtered.length}`}
+            </span>
+            <div style={{ display: 'flex', gap: '4px' }}>
+              <button onClick={() => setCurrentPage(p => Math.max(1, p - 1))} disabled={currentPage === 1}
+                style={{ width: '30px', height: '30px', display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: '7px', border: `1px solid ${C.border}`, background: currentPage === 1 ? C.bg : C.surface, color: currentPage === 1 ? C.border : C.text, cursor: currentPage === 1 ? 'not-allowed' : 'pointer' }}>
+                <svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg>
+              </button>
+              <button onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))} disabled={currentPage === totalPages}
+                style={{ width: '30px', height: '30px', display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: '7px', border: `1px solid ${C.border}`, background: currentPage === totalPages ? C.bg : C.surface, color: currentPage === totalPages ? C.border : C.text, cursor: currentPage === totalPages ? 'not-allowed' : 'pointer' }}>
+                <svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg>
+              </button>
+            </div>
+          </div>
+
+          </>
         )}
+
+        </>
+        )}
+
       </div>
 
       {/* ── Edit modal ── */}

@@ -23,8 +23,16 @@ function normalizeName(n: string) {
   return n.toLowerCase().replace(/\s+/g, ' ').trim()
 }
 
+const ADMIN_CODE = process.env.NEXT_PUBLIC_ADMIN_CODE ?? 'taos2026'
+
 export async function POST(req: NextRequest) {
   const body = await req.json().catch(() => ({}))
+
+  // admin_code required when called outside browser session (CLI/cron)
+  // Middleware bypasses auth check for this path, so we gate here
+  if (body.admin_code && body.admin_code !== ADMIN_CODE) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  }
 
   let fromDate: string
   if (body.from_date) {

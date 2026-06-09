@@ -6,6 +6,17 @@ import { supabase } from '@/app/lib/supabase'
 import { buildQuestions, ALL_DEPARTMENTS } from '@/app/lib/questions'
 import type { Question } from '@/app/lib/questions'
 
+const PLATFORM_TOOLS = [
+  { key: 'smart_data',      label: 'Smart Data',           desc: 'Apollo-style contact database, enrichment & bulk outreach',    color: '#0E7490',  icon: <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/></svg> },
+  { key: 'hr_portal',       label: 'HR Portal',            desc: 'Full HR management — leave, contracts, payroll, onboarding',   color: '#7C3AED',  icon: <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg> },
+  { key: 'events',          label: 'Events',               desc: 'Event creation, team RACI, budgets & delegate management',     color: '#166534',  icon: <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg> },
+  { key: 'intelligence',    label: 'Intelligence Reports', desc: 'Market intelligence, AI research & account insights',          color: '#92400E',  icon: <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg> },
+  { key: 'finance',         label: 'Finance',              desc: 'P&L dashboards, payroll grades & expense management',         color: '#1565C0',  icon: <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg> },
+  { key: 'brand_studio',    label: 'Brand Studio',         desc: 'AI image generation, brand templates & creative assets',      color: '#DC2626',  icon: <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><circle cx="13.5" cy="6.5" r=".5"/><circle cx="17.5" cy="10.5" r=".5"/><circle cx="8.5" cy="7.5" r=".5"/><circle cx="6.5" cy="12.5" r=".5"/><path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10c.926 0 1.648-.746 1.648-1.688 0-.437-.18-.835-.477-1.125-.29-.289-.438-.652-.438-1.125a1.64 1.64 0 0 1 1.668-1.668h1.996c3.051 0 5.555-2.503 5.555-5.554C21.965 6.012 17.461 2 12 2z"/></svg> },
+  { key: 'website_builder', label: 'Website Builder',      desc: 'Event websites, landing pages & custom domain hosting',       color: '#D97706',  icon: <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg> },
+  { key: 'content',         label: 'Content Engine',       desc: 'Social media planning, AI content generation & approval flow', color: '#059669', icon: <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg> },
+]
+
 const OFFICES = [
   { id: 'dubai',     label: 'Dubai',     total: 0, color: '#00897B' },
   { id: 'bangalore', label: 'Bangalore', total: 0, color: '#A478FF' },
@@ -196,7 +207,18 @@ export default function AdminPage() {
   }
 
   // Staff Management tab state
-  const [staffList,       setStaffList]       = useState<{id:string;name:string;email:string;department:string|null;role:string|null;office_id:string|null;job_level:string;manager_id:string|null;toolkit_access?:boolean;access_enabled?:boolean}[]>([])
+  const [staffList,       setStaffList]       = useState<{id:string;name:string;email:string;department:string|null;role:string|null;office_id:string|null;job_level:string;manager_id:string|null;toolkit_access?:boolean;tool_grants?:Record<string,boolean>;access_enabled?:boolean}[]>([])
+  // Tool permissions drawer
+  const [permOpen,    setPermOpen]    = useState(false)
+  const [permStaff,   setPermStaff]   = useState<{id:string;name:string;email:string;job_level:string;department:string|null;office_id:string|null;toolkit_access?:boolean;tool_grants?:Record<string,boolean>}|null>(null)
+  const [permGrants,  setPermGrants]  = useState<Record<string,boolean>>({})
+  const [permSaving,  setPermSaving]  = useState<string|null>(null)
+  const [permTab,     setPermTab]     = useState<'person'|'bulk'>('person')
+  const [bulkTool,    setBulkTool]    = useState('smart_data')
+  const [bulkSel,     setBulkSel]     = useState<Set<string>>(new Set())
+  const [bulkSearch,  setBulkSearch]  = useState('')
+  const [bulkSaving,  setBulkSaving]  = useState(false)
+  const [bulkDone,    setBulkDone]    = useState<string|null>(null)
   const [staffLoading,    setStaffLoading]    = useState(false)
   const [csvText,         setCsvText]         = useState('')
   const [csvParsed,       setCsvParsed]       = useState<Record<string,string>[]>([])
@@ -1253,6 +1275,10 @@ export default function AdminPage() {
             <svg width="13" height="13" fill="none" stroke="#00A5A3" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
             HR Portal
           </Link>
+          <Link href="/admin/org-chart" style={{ background: '#FFFFFF', border: '1px solid #DDE8EE', color: '#374151', fontSize: '13px', fontWeight: 700, padding: '8px 16px', borderRadius: '10px', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <svg width="13" height="13" fill="none" stroke="#00A5A3" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><rect x="8" y="2" width="8" height="4" rx="1"/><rect x="1" y="14" width="6" height="4" rx="1"/><rect x="9" y="14" width="6" height="4" rx="1"/><rect x="17" y="14" width="6" height="4" rx="1"/><line x1="4" y1="14" x2="4" y2="11"/><line x1="12" y1="14" x2="12" y2="6"/><line x1="20" y1="14" x2="20" y2="11"/><line x1="4" y1="11" x2="20" y2="11"/></svg>
+            Org Chart
+          </Link>
           <Link href="/docs" style={{ background: '#FFFFFF', border: '1px solid #DDE8EE', color: '#374151', fontSize: '13px', fontWeight: 700, padding: '8px 16px', borderRadius: '10px', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '6px' }}>
             <svg width="13" height="13" fill="none" stroke="#00A5A3" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>
             Platform Docs
@@ -2282,11 +2308,20 @@ export default function AdminPage() {
                           }} style={{ padding: '4px 10px', borderRadius: '6px', border: `1px solid ${p.access_enabled ? '#DDE8EE' : 'rgba(22,101,52,0.3)'}`, background: p.access_enabled ? '#FFFFFF' : 'rgba(22,101,52,0.07)', color: p.access_enabled ? '#5B7080' : '#166534', fontSize: '11px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap' }}>
                             {p.access_enabled ? 'Disable' : 'Enable'}
                           </button>
-                          <button onClick={async () => {
-                            await fetch('/api/toolkit-access', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: p.id, toolkit_access: !p.toolkit_access }) })
-                            fetchStaffList()
-                          }} style={{ padding: '4px 10px', borderRadius: '6px', border: `1px solid ${p.toolkit_access ? 'rgba(192,244,60,0.4)' : '#DDE8EE'}`, background: p.toolkit_access ? 'rgba(192,244,60,0.1)' : '#FFFFFF', color: p.toolkit_access ? '#3D6B00' : '#5B7080', fontSize: '11px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap' }} title={p.toolkit_access ? 'Remove Toolkit access' : 'Grant Toolkit access'}>
-                            {p.toolkit_access ? 'Toolkit ✓' : 'Toolkit'}
+                          <button onClick={() => {
+                            const grants: Record<string,boolean> = { ...(p.tool_grants ?? {}), smart_data: p.toolkit_access ?? false }
+                            setPermStaff(p)
+                            setPermGrants(grants)
+                            setPermTab('person')
+                            setBulkSel(new Set())
+                            setBulkDone(null)
+                            setPermOpen(true)
+                          }} title="Manage tool permissions" style={{ display: 'flex', alignItems: 'center', gap: '3px', padding: '5px 8px', borderRadius: '6px', border: '1px solid #DDE8EE', background: '#FFFFFF', cursor: 'pointer' }}>
+                            {PLATFORM_TOOLS.map(tool => {
+                              const g: Record<string,boolean> = { ...(p.tool_grants ?? {}), smart_data: p.toolkit_access ?? false }
+                              const granted = p.job_level === 'super_admin' || (g[tool.key] ?? false)
+                              return <div key={tool.key} style={{ width: '7px', height: '7px', borderRadius: '50%', background: granted ? tool.color : '#E2E8F0', flexShrink: 0 }} />
+                            })}
                           </button>
                           <Link href={`/dashboard?id=${p.id}`} style={{ display: 'inline-flex', alignItems: 'center', gap: '3px', padding: '4px 10px', borderRadius: '6px', border: '1px solid #DDE8EE', background: '#FFFFFF', color: '#00897B', fontSize: '11px', fontWeight: 700, textDecoration: 'none', whiteSpace: 'nowrap' }}>
                             <svg width="10" height="10" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg>
@@ -4202,6 +4237,275 @@ export default function AdminPage() {
                   {tourStep < TOUR_STEPS.length - 1 ? 'Next →' : 'Done'}
                 </button>
               </div>
+            </div>
+          </>
+        )
+      })()}
+
+      {/* ── Tool Permissions Drawer ── */}
+      {permOpen && permStaff && (() => {
+        const off          = OFFICES.find(o => o.id === permStaff.office_id)
+        const isSuperAdmin = permStaff.job_level === 'super_admin'
+        const LEVEL_COLOR_D: Record<string,string> = { super_admin:'#7C3AED', office_head:'#DC2626', dept_head:'#D97706', team_lead:'#1565C0', staff:'#5B7080' }
+        const LEVEL_LABEL_D: Record<string,string> = { super_admin:'Super Admin', office_head:'Office Head', dept_head:'Dept Head', team_lead:'Team Lead', staff:'Staff' }
+        const bulkToolDef  = PLATFORM_TOOLS.find(t => t.key === bulkTool) ?? PLATFORM_TOOLS[0]
+        const bulkFiltered = staffList.filter(s => {
+          if (!bulkSearch) return true
+          const q = bulkSearch.toLowerCase()
+          return s.name.toLowerCase().includes(q) || s.email.toLowerCase().includes(q) || (s.department ?? '').toLowerCase().includes(q)
+        })
+        const handleBulkGrant = async () => {
+          if (bulkSel.size === 0) return
+          setBulkSaving(true)
+          setBulkDone(null)
+          let granted = 0, errors = 0
+          await Promise.all([...bulkSel].map(async id => {
+            try {
+              const res = await fetch('/api/admin/tool-permissions', {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ id, tool_key: bulkTool, value: true }),
+              })
+              if (res.ok) {
+                granted++
+                setStaffList(prev => prev.map(s => s.id === id
+                  ? { ...s, tool_grants: { ...(s.tool_grants ?? {}), [bulkTool]: true }, ...(bulkTool === 'smart_data' ? { toolkit_access: true } : {}) }
+                  : s
+                ))
+              } else { errors++ }
+            } catch { errors++ }
+          }))
+          setBulkSaving(false)
+          setBulkDone(`Granted ${bulkToolDef.label} access to ${granted} staff${errors > 0 ? ` · ${errors} failed` : ''}`)
+          setBulkSel(new Set())
+        }
+        return (
+          <>
+            {/* Backdrop */}
+            <div onClick={() => setPermOpen(false)} style={{ position: 'fixed', inset: 0, background: 'rgba(15,25,35,0.55)', zIndex: 1200, backdropFilter: 'blur(2px)' }} />
+            {/* Drawer */}
+            <div style={{ position: 'fixed', right: 0, top: 0, bottom: 0, width: '520px', background: '#FFFFFF', boxShadow: '-8px 0 40px rgba(0,0,0,0.18)', zIndex: 1201, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+
+              {/* Header */}
+              <div style={{ padding: '24px 24px 0', borderBottom: '1px solid #DDE8EE', flexShrink: 0 }}>
+                <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: '16px' }}>
+                  <div>
+                    <div style={{ fontSize: '11px', fontWeight: 700, letterSpacing: '2px', textTransform: 'uppercase', color: '#00897B', marginBottom: '4px' }}>Platform Access</div>
+                    <div style={{ fontSize: '18px', fontWeight: 800, color: '#0F1923' }}>Tool Permissions</div>
+                  </div>
+                  <button onClick={() => setPermOpen(false)} style={{ background: 'none', border: '1px solid #DDE8EE', borderRadius: '8px', padding: '6px 10px', cursor: 'pointer', color: '#5B7080', display: 'flex', alignItems: 'center' }}>
+                    <svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                  </button>
+                </div>
+
+                {/* Person card */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: '12px', background: '#F6F8FB', borderRadius: '12px', padding: '12px 14px', marginBottom: '16px' }}>
+                  <div style={{ width: '40px', height: '40px', borderRadius: '10px', background: `${off?.color ?? '#00897B'}18`, border: `1.5px solid ${off?.color ?? '#00897B'}30`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                    <span style={{ fontSize: '15px', fontWeight: 800, color: off?.color ?? '#00897B' }}>{permStaff.name.charAt(0)}</span>
+                  </div>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: '14px', fontWeight: 800, color: '#0F1923', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{permStaff.name}</div>
+                    <div style={{ fontSize: '11px', color: '#5B7080', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{permStaff.email}</div>
+                  </div>
+                  <span style={{ fontSize: '10px', fontWeight: 700, padding: '3px 8px', borderRadius: '6px', background: `${LEVEL_COLOR_D[permStaff.job_level] ?? '#5B7080'}15`, color: LEVEL_COLOR_D[permStaff.job_level] ?? '#5B7080', flexShrink: 0 }}>
+                    {LEVEL_LABEL_D[permStaff.job_level] ?? permStaff.job_level}
+                  </span>
+                </div>
+
+                {/* Tabs */}
+                <div style={{ display: 'flex', gap: '4px' }}>
+                  {(['person', 'bulk'] as const).map(t => (
+                    <button key={t} onClick={() => setPermTab(t)} style={{ padding: '10px 20px', background: 'none', border: 'none', borderBottom: permTab === t ? '2px solid #00897B' : '2px solid transparent', color: permTab === t ? '#00897B' : '#5B7080', fontSize: '13px', fontWeight: permTab === t ? 800 : 600, cursor: 'pointer', fontFamily: 'inherit' }}>
+                      {t === 'person' ? 'This Person' : 'Bulk Grant'}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Body */}
+              <div style={{ flex: 1, overflowY: 'auto', padding: '20px 24px' }}>
+
+                {/* ── This Person tab ── */}
+                {permTab === 'person' && (
+                  <>
+                    {isSuperAdmin && (
+                      <div style={{ marginBottom: '16px', background: 'rgba(124,58,237,0.06)', border: '1px solid rgba(124,58,237,0.2)', borderRadius: '10px', padding: '10px 14px', fontSize: '12px', color: '#7C3AED', fontWeight: 600, display: 'flex', gap: '8px', alignItems: 'flex-start' }}>
+                        <svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24" style={{ flexShrink: 0, marginTop: '1px' }}><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+                        Super Admins have unrestricted access to all platform tools.
+                      </div>
+                    )}
+                    {/* 2-column tool card grid */}
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                      {PLATFORM_TOOLS.map(tool => {
+                        const granted = isSuperAdmin || (permGrants[tool.key] ?? false)
+                        const saving  = permSaving === tool.key
+                        return (
+                          <div key={tool.key}
+                            onClick={() => {
+                              if (isSuperAdmin || saving) return
+                              const newVal = !permGrants[tool.key]
+                              setPermGrants(prev => ({ ...prev, [tool.key]: newVal }))
+                              setPermSaving(tool.key)
+                              fetch('/api/admin/tool-permissions', {
+                                method: 'PATCH',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ id: permStaff.id, tool_key: tool.key, value: newVal }),
+                              }).then(res => {
+                                if (res.ok) {
+                                  setStaffList(prev => prev.map(s => s.id === permStaff.id
+                                    ? { ...s, tool_grants: { ...(s.tool_grants ?? {}), [tool.key]: newVal }, ...(tool.key === 'smart_data' ? { toolkit_access: newVal } : {}) }
+                                    : s
+                                  ))
+                                } else {
+                                  setPermGrants(prev => ({ ...prev, [tool.key]: !newVal }))
+                                }
+                              }).finally(() => setPermSaving(null))
+                            }}
+                            style={{ background: granted ? `${tool.color}07` : '#FAFBFC', border: granted ? `1.5px solid ${tool.color}35` : '1.5px solid #E8EEF4', borderRadius: '12px', padding: '14px', cursor: isSuperAdmin ? 'default' : 'pointer', display: 'flex', flexDirection: 'column', gap: '8px', opacity: saving ? 0.65 : 1, transition: 'all 0.15s' }}
+                          >
+                            {/* Icon + toggle row */}
+                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                              <div style={{ width: '32px', height: '32px', borderRadius: '8px', background: granted ? `${tool.color}18` : '#EAEEF2', display: 'flex', alignItems: 'center', justifyContent: 'center', color: granted ? tool.color : '#B8CDD8', transition: 'all 0.15s' }}>
+                                {tool.icon}
+                              </div>
+                              {/* Toggle */}
+                              <div style={{ width: '34px', height: '19px', borderRadius: '10px', background: saving ? '#DDE8EE' : (granted ? tool.color : '#DDE8EE'), position: 'relative', flexShrink: 0, transition: 'background 0.2s' }}>
+                                <div style={{ position: 'absolute', top: '2px', left: granted ? '17px' : '2px', width: '15px', height: '15px', borderRadius: '50%', background: saving ? '#B8CDD8' : '#FFFFFF', boxShadow: '0 1px 3px rgba(0,0,0,0.18)', transition: 'left 0.15s' }} />
+                              </div>
+                            </div>
+                            {/* Name */}
+                            <div style={{ fontSize: '12px', fontWeight: 800, color: granted ? '#0F1923' : '#8899A8', lineHeight: 1.2 }}>{tool.label}</div>
+                            {/* Desc */}
+                            <div style={{ fontSize: '11px', color: '#A0B0BB', lineHeight: 1.45 }}>{tool.desc}</div>
+                          </div>
+                        )
+                      })}
+                    </div>
+                    <div style={{ marginTop: '14px', fontSize: '12px', color: '#B8CDD8', fontWeight: 600, textAlign: 'center' }}>
+                      {isSuperAdmin ? 'All tools — unrestricted' : `${Object.values(permGrants).filter(Boolean).length} of ${PLATFORM_TOOLS.length} tools granted`}
+                    </div>
+                  </>
+                )}
+
+                {/* ── Bulk Grant tab ── */}
+                {permTab === 'bulk' && (
+                  <div>
+                    <div style={{ fontSize: '13px', color: '#5B7080', marginBottom: '18px', lineHeight: 1.6 }}>
+                      Pick a tool, select staff members, then grant access to all at once.
+                    </div>
+
+                    {/* Tool picker */}
+                    <div style={{ marginBottom: '18px' }}>
+                      <div style={{ fontSize: '11px', fontWeight: 700, letterSpacing: '1.5px', textTransform: 'uppercase', color: '#B8CDD8', marginBottom: '8px' }}>Tool to Grant</div>
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+                        {PLATFORM_TOOLS.map(tool => (
+                          <button key={tool.key} onClick={() => { setBulkTool(tool.key); setBulkSel(new Set()); setBulkDone(null) }}
+                            style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '7px 12px', borderRadius: '8px', border: bulkTool === tool.key ? `1.5px solid ${tool.color}` : '1.5px solid #DDE8EE', background: bulkTool === tool.key ? `${tool.color}10` : '#FFFFFF', color: bulkTool === tool.key ? tool.color : '#5B7080', fontSize: '12px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap' }}>
+                            <div style={{ width: '6px', height: '6px', borderRadius: '50%', background: bulkTool === tool.key ? tool.color : '#B8CDD8', flexShrink: 0 }} />
+                            {tool.label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Staff list header */}
+                    <div style={{ fontSize: '11px', fontWeight: 700, letterSpacing: '1.5px', textTransform: 'uppercase', color: '#B8CDD8', marginBottom: '8px' }}>Select Staff</div>
+                    <div style={{ position: 'relative', marginBottom: '6px' }}>
+                      <svg width="12" height="12" fill="none" stroke="#5B7080" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24" style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none' }}><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+                      <input value={bulkSearch} onChange={e => setBulkSearch(e.target.value)} placeholder="Search name, email, department…"
+                        style={{ width: '100%', boxSizing: 'border-box', paddingLeft: '30px', paddingRight: '12px', paddingTop: '8px', paddingBottom: '8px', borderRadius: '8px', border: '1px solid #DDE8EE', background: '#FFFFFF', color: '#0F1923', fontSize: '13px', fontFamily: 'inherit', outline: 'none' }} />
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                      <button onClick={() => {
+                        const noAccess = bulkFiltered.filter(s => !(s.tool_grants?.[bulkTool] ?? (bulkTool === 'smart_data' && (s.toolkit_access ?? false))))
+                        setBulkSel(new Set(noAccess.map(s => s.id)))
+                      }} style={{ background: 'none', border: 'none', color: '#00897B', fontSize: '11px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', padding: 0 }}>
+                        Select without access
+                      </button>
+                      {bulkSel.size > 0 && (
+                        <button onClick={() => setBulkSel(new Set())} style={{ background: 'none', border: 'none', color: '#5B7080', fontSize: '11px', fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', padding: 0 }}>
+                          Clear ({bulkSel.size} selected)
+                        </button>
+                      )}
+                    </div>
+
+                    {/* Staff rows */}
+                    <div style={{ background: '#FAFBFC', border: '1px solid #E8EEF4', borderRadius: '10px', overflow: 'hidden', maxHeight: '260px', overflowY: 'auto' }}>
+                      {bulkFiltered.length === 0 ? (
+                        <div style={{ padding: '24px', textAlign: 'center', color: '#5B7080', fontSize: '13px' }}>No staff match your search.</div>
+                      ) : bulkFiltered.map((s, idx) => {
+                        const hasAccess = s.tool_grants?.[bulkTool] ?? (bulkTool === 'smart_data' && (s.toolkit_access ?? false))
+                        const isSel     = bulkSel.has(s.id)
+                        const offS      = OFFICES.find(o => o.id === s.office_id)
+                        return (
+                          <div key={s.id}
+                            onClick={() => setBulkSel(prev => { const n = new Set(prev); if (n.has(s.id)) n.delete(s.id); else n.add(s.id); return n })}
+                            style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '10px 12px', borderBottom: idx < bulkFiltered.length - 1 ? '1px solid #E8EEF4' : 'none', cursor: 'pointer', background: isSel ? 'rgba(0,137,123,0.05)' : 'transparent' }}
+                          >
+                            {/* Checkbox */}
+                            <div style={{ width: '16px', height: '16px', borderRadius: '4px', border: `2px solid ${isSel ? '#00897B' : '#C8D8E0'}`, background: isSel ? '#00897B' : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, transition: 'all 0.12s' }}>
+                              {isSel && <svg width="9" height="9" fill="none" stroke="#FFFFFF" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>}
+                            </div>
+                            {/* Avatar */}
+                            <div style={{ width: '28px', height: '28px', borderRadius: '7px', background: `${offS?.color ?? '#00897B'}18`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                              <span style={{ fontSize: '11px', fontWeight: 800, color: offS?.color ?? '#00897B' }}>{s.name.charAt(0)}</span>
+                            </div>
+                            {/* Name + dept */}
+                            <div style={{ flex: 1, minWidth: 0 }}>
+                              <div style={{ fontSize: '12px', fontWeight: 700, color: '#0F1923', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.name}</div>
+                              <div style={{ fontSize: '10px', color: '#5B7080', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.department ?? '—'}</div>
+                            </div>
+                            {/* Access status */}
+                            {hasAccess ? (
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '4px', flexShrink: 0 }}>
+                                <div style={{ width: '6px', height: '6px', borderRadius: '50%', background: bulkToolDef.color }} />
+                                <span style={{ fontSize: '10px', fontWeight: 700, color: bulkToolDef.color }}>Access</span>
+                              </div>
+                            ) : (
+                              <span style={{ fontSize: '10px', fontWeight: 600, color: '#C8D8E0', flexShrink: 0 }}>No access</span>
+                            )}
+                          </div>
+                        )
+                      })}
+                    </div>
+
+                    {/* Success banner */}
+                    {bulkDone && (
+                      <div style={{ marginTop: '10px', background: 'rgba(22,101,52,0.08)', border: '1px solid rgba(22,101,52,0.2)', borderRadius: '8px', padding: '10px 12px', fontSize: '12px', color: '#166534', fontWeight: 600 }}>
+                        {bulkDone}
+                      </div>
+                    )}
+
+                    {/* Grant button */}
+                    <button
+                      disabled={bulkSel.size === 0 || bulkSaving}
+                      onClick={handleBulkGrant}
+                      style={{ marginTop: '12px', width: '100%', padding: '12px', borderRadius: '10px', border: 'none', background: bulkSel.size === 0 || bulkSaving ? '#DDE8EE' : bulkToolDef.color, color: bulkSel.size === 0 || bulkSaving ? '#B8CDD8' : '#FFFFFF', fontSize: '14px', fontWeight: 800, cursor: bulkSel.size === 0 || bulkSaving ? 'not-allowed' : 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}
+                    >
+                      {bulkSaving ? (
+                        <>
+                          <div style={{ width: '14px', height: '14px', border: '2px solid rgba(255,255,255,0.3)', borderTopColor: '#FFFFFF', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />
+                          Granting…
+                        </>
+                      ) : bulkSel.size > 0 ? (
+                        `Grant ${bulkToolDef.label} to ${bulkSel.size} ${bulkSel.size === 1 ? 'person' : 'people'}`
+                      ) : (
+                        'Select staff to grant'
+                      )}
+                    </button>
+                  </div>
+                )}
+              </div>
+
+              {/* Footer — This Person tab only */}
+              {permTab === 'person' && (
+                <div style={{ padding: '16px 24px', borderTop: '1px solid #DDE8EE', flexShrink: 0 }}>
+                  <button onClick={() => setPermOpen(false)} style={{ width: '100%', padding: '12px', borderRadius: '10px', border: 'none', background: '#00897B', color: '#FFFFFF', fontSize: '14px', fontWeight: 800, cursor: 'pointer', fontFamily: 'inherit' }}>
+                    Done
+                  </button>
+                </div>
+              )}
+
             </div>
           </>
         )
