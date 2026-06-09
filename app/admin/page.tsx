@@ -3893,6 +3893,19 @@ export default function AdminPage() {
                 </div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
                   {[
+                    { date: '9 Jun 2026', items: [
+                      'Brand Studio v2 — full 9-section brand guidelines builder (Identity, Logo, Colors, Typography, Patterns, Imagery, Icons, Grid & Layout, Voice)',
+                      'PDF import: upload any brand guidelines PDF → Gemini AI extracts all sections automatically and saves to DB',
+                      'Manual brand builder: build every brand element one section at a time without a PDF',
+                      'Color palette editor: rich per-color cards with hex swatch, CMYK, role, usage notes, print caution',
+                      'Type scale table: every heading level with size, weight, line-height, and usage context',
+                      'Imagery section: photography direction (subjects, dos, don\'ts), overlay types, imagery treatments',
+                      'Grid & Layout: base grid, columns, breakpoints, and full spacing token set',
+                      'Brand completion indicator: progress bar across 9 sections, build mode badge (PDF Extracted / Manual)',
+                      'Website builder brand gate: blocks website build until Brand Studio is complete, auto-syncs palette and fonts',
+                      'Event detail page: sequential flow card — Brand Studio must be done before Website Builder',
+                      'Signed upload URL route: brand PDFs upload directly to Supabase Storage, bypasses Vercel 4.5 MB body limit',
+                    ]},
                     { date: '27–29 May 2026', items: [
                       'Platform Menu rebuilt — role-aware filtering, each user sees only what they can access, Coming Soon items removed entirely',
                       'Smart Data sidebar: back link now resolves correctly per role (admin → Toolkit, staff → Dashboard), no flicker',
@@ -3992,6 +4005,8 @@ export default function AdminPage() {
                     'Full HRMS — attendance, leave, recruitment, contracts, payroll',
                     'My HR portal — self-service leave, attendance and event tasks for all staff',
                     'Events Hub with RACI governance, P&L, and execution flow',
+                    'Brand Studio — full 9-section brand book builder with PDF import and AI extraction',
+                    'Website Builder — event microsites with brand sync gate ensuring guidelines are set first',
                     'Knowledge Base for company documents',
                     'Smart Data — lead extraction, LinkedIn enrichment, email verification, contact database',
                     'Content Hub — AI social campaigns with guided templates, approval flow, and calendar view',
@@ -4015,14 +4030,16 @@ export default function AdminPage() {
                 </div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                   {[
+                    { title: 'Brand asset generator', desc: 'Auto-generate on-brand graphics — social cards, email headers, event banners — directly from Brand Studio using the extracted palette, fonts, and imagery guidelines.' },
+                    { title: 'Brand PDF export', desc: 'Generate a polished brand guidelines PDF from the completed Brand Studio, ready to share with vendors and partners.' },
+                    { title: 'Website builder template library', desc: 'Pick from curated event microsite templates. Brand Studio palette and fonts auto-apply on selection.' },
+                    { title: 'Content Hub social publishing', desc: 'Connect Meta tokens to push approved posts live to LinkedIn, Instagram and Facebook directly from the platform.' },
                     { title: 'Department course seeding', desc: 'Seed the right AI-generated courses per department so each team has a ready library on day one.' },
                     { title: 'Course assignment from admin', desc: 'Assign specific courses to individual staff members or entire teams directly from the admin panel.' },
                     { title: 'Staff onboarding via email', desc: 'Welcome email with platform intro, login link, and temp password sent automatically when staff are imported.' },
                     { title: 'Manager team view', desc: 'Managers see their team\'s TAIRS scores, who hasn\'t started, and who needs a nudge — without seeing individual data of others.' },
                     { title: 'Completion certificates', desc: 'Staff receive a certificate on passing a course. Shareable and stored against their profile.' },
                     { title: 'Weekly org pulse report', desc: 'Auto-generated Monday report to leadership: who moved tiers, what changed, what needs action.' },
-                    { title: 'Staff profile editor in admin', desc: 'Edit department, role, manager, and job level for any staff member directly from the admin panel.' },
-                    { title: 'Content Hub social publishing', desc: 'Connect Meta tokens to push approved posts live to LinkedIn, Instagram and Facebook directly from the platform.' },
                   ].map((item, i) => (
                     <div key={i} style={{ padding: '12px 14px', background: 'rgba(139,26,26,0.05)', border: '1px solid rgba(139,26,26,0.15)', borderRadius: '10px' }}>
 
