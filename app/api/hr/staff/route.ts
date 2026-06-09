@@ -1,6 +1,7 @@
 import { supabaseAdmin } from '@/app/lib/supabase'
 import { NextRequest, NextResponse } from 'next/server'
 import bcrypt from 'bcryptjs'
+import { sendCredentials } from '@/app/lib/email'
 
 /* ── Temp password: FirstName@XXXX ────────────────────────────────────────── */
 function makeTempPassword(name: string): string {
@@ -181,6 +182,17 @@ export async function POST(req: NextRequest) {
       await supabaseAdmin
         .from('staff_onboarding_tasks')
         .insert(tasks.map(t => ({ title: t.title, owner: t.owner, onboarding_id: ob.id })))
+    }
+  }
+
+  /* ── Send credentials email ── */
+  if (access_enabled) {
+    const loginUrl = `${process.env.NEXT_PUBLIC_SITE_URL ?? 'https://taos-discovery.vercel.app'}/login`
+    try {
+      await sendCredentials({ to: newStaff.email, name: newStaff.name, tempPassword, loginUrl })
+    } catch (e) {
+      console.error('sendCredentials error:', e)
+      // Non-fatal — credentials shown on screen regardless
     }
   }
 
