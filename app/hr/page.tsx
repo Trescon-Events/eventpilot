@@ -1,9 +1,75 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import Link from 'next/link'
 
 /* ── Types ──────────────────────────────────────────────────────────── */
+type OnboardingRecord = {
+  id: string
+  staff_id: string
+  started_at: string
+  target_end: string | null
+  status: string
+  staff: { id: string; name: string; department: string } | null
+  task_count: number
+  tasks_done: number
+}
+
+type OffboardingRecord = {
+  id: string
+  staff_id: string
+  last_working_day: string
+  reason: string
+  staff: { id: string; name: string; department: string } | null
+  task_count: number
+  tasks_done: number
+}
+
+type LeaveRequest = {
+  id: string
+  staff_id: string
+  start_date: string
+  end_date: string
+  total_days: number
+  created_at: string
+  staff: { name: string; department: string } | null
+  leave_type: { name: string } | null
+}
+
+type AlertRecord = {
+  id: string
+  type: string
+  title: string
+  due_date: string | null
+  status: string
+  staff: { name: string; department: string } | null
+}
+
+type TrainingRecord = {
+  id: string
+  staff_id: string
+  due_date: string
+  staff: { name: string; department: string } | null
+  course: { title: string } | null
+}
+
+type ContractRecord = {
+  id: string
+  staff_id: string
+  contract_end_date: string
+  contract_type: string
+  staff: { name: string; department: string } | null
+}
+
+type HistoryRecord = {
+  id: string
+  change_type: string
+  new_value: Record<string, unknown>
+  notes: string | null
+  created_at: string
+  staff: { name: string; department: string } | null
+}
+
 type DashData = {
   as_of: string
   headcount: {
@@ -13,105 +79,184 @@ type DashData = {
   }
   onboarding: {
     active_count: number
-    records: Array<{
-      id: string; staff_id: string; started_at: string; target_end: string | null; status: string
-      staff: { id: string; name: string; department: string } | null
-      task_count: number; tasks_done: number
-    }>
+    records: OnboardingRecord[]
   }
   offboarding: {
     active_count: number
-    records: Array<{
-      id: string; staff_id: string; last_working_day: string; reason: string
-      staff: { id: string; name: string; department: string } | null
-      task_count: number; tasks_done: number
-    }>
+    records: OffboardingRecord[]
   }
   leave: {
     pending_count: number
-    pending_requests: Array<{
-      id: string; staff_id: string; start_date: string; end_date: string; total_days: number; created_at: string
-      staff: { name: string; department: string } | null
-      leave_type: { name: string } | null
-    }>
+    pending_requests: LeaveRequest[]
   }
   alerts: {
     open_count: number
-    records: Array<{
-      id: string; type: string; title: string; due_date: string | null; status: string
-      staff: { name: string; department: string } | null
-    }>
+    records: AlertRecord[]
   }
   training: {
     overdue_count: number
-    overdue: Array<{
-      id: string; staff_id: string; due_date: string
-      staff: { name: string; department: string } | null
-      course: { title: string } | null
-    }>
+    overdue: TrainingRecord[]
   }
   contracts: {
     expiring_soon_count: number
-    expiring: Array<{
-      id: string; staff_id: string; contract_end_date: string; contract_type: string
-      staff: { name: string; department: string } | null
-    }>
+    expiring: ContractRecord[]
   }
-  recent_history: Array<{
-    id: string; change_type: string; new_value: Record<string, unknown>; notes: string | null; created_at: string
-    staff: { name: string; department: string } | null
-  }>
+  recent_history: HistoryRecord[]
 }
+
+type InitResult = {
+  total_staff: number
+  contracts_created: number
+  balances_created: number
+  history_created: number
+}
+
+type HistoryFilter = 'all' | 'hire' | 'promotion' | 'departure'
 
 /* ── Palette ─────────────────────────────────────────────────────────── */
 const C = {
-  bg:      '#F6F8FB',
-  surface: '#FFFFFF',
-  border:  '#DDE8EE',
-  text:    '#0F1923',
-  muted:   '#5B7080',
-  green:   '#00897B',
-  lime:    '#C0F43C',
-  red:     '#8B1A1A',
-  purple:  '#6C54B5',
-  amber:   '#D97706',
+  bg:       '#F6F8FB',
+  surface:  '#FFFFFF',
+  border:   '#DDE8EE',
+  text:     '#0F1923',
+  muted:    '#5B7080',
+  teal:     '#00897B',
+  tealAcc:  '#00A5A3',
+  lime:     '#C0F43C',
+  red:      '#8B1A1A',
+  purple:   '#6C54B5',
+  amber:    '#D97706',
+  blue:     '#1565C0',
 }
 
-const pill = (color: string, text: string) => (
-  <span style={{ display: 'inline-block', padding: '2px 9px', borderRadius: '12px', fontSize: '11px', fontWeight: 700, background: color + '20', color, letterSpacing: '0.4px' }}>
-    {text}
-  </span>
-)
+/* ── Helpers ─────────────────────────────────────────────────────────── */
+function Pill({ color, text }: { color: string; text: string }) {
+  return (
+    <span style={{
+      display: 'inline-block',
+      padding: '2px 9px',
+      borderRadius: '12px',
+      fontSize: '12px',
+      fontWeight: 700,
+      background: color + '20',
+      color,
+      letterSpacing: '0.3px',
+      whiteSpace: 'nowrap',
+    }}>
+      {text}
+    </span>
+  )
+}
 
-const statCard = (label: string, value: number | string, sub: string, accent: string) => (
-  <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: '16px', padding: '20px 24px', flex: 1, minWidth: '160px' }}>
-    <div style={{ fontSize: '11px', fontWeight: 700, letterSpacing: '1.5px', textTransform: 'uppercase', color: C.muted, marginBottom: '8px' }}>{label}</div>
-    <div style={{ fontSize: '32px', fontWeight: 800, color: accent, lineHeight: 1 }}>{value}</div>
-    <div style={{ fontSize: '12px', color: C.muted, marginTop: '6px' }}>{sub}</div>
-  </div>
-)
+function SectionLabel({ children }: { children: React.ReactNode }) {
+  return (
+    <div style={{
+      fontSize: '11px',
+      fontWeight: 700,
+      letterSpacing: '1.2px',
+      textTransform: 'uppercase',
+      color: C.muted,
+      marginBottom: '14px',
+    }}>
+      {children}
+    </div>
+  )
+}
 
-/* ── Alert type color ─────────────────────────────────────────────────── */
-function alertColor(type: string) {
-  if (type.includes('expir') || type.includes('contract')) return C.amber
-  if (type.includes('overdue'))                             return C.red
-  if (type.includes('anniversary') || type.includes('birthday')) return C.purple
-  return C.green
+function EmptyState({ message }: { message: string }) {
+  return (
+    <div style={{
+      display: 'flex',
+      flexDirection: 'column',
+      alignItems: 'center',
+      gap: '10px',
+      padding: '32px 20px',
+      color: C.muted,
+    }}>
+      <svg width="28" height="28" viewBox="0 0 24 24" fill="none">
+        <circle cx="12" cy="12" r="10" stroke={C.teal} strokeWidth="1.5" />
+        <path d="M8 12l3 3 5-5" stroke={C.teal} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+      </svg>
+      <span style={{ fontSize: '15px', color: C.muted }}>{message}</span>
+    </div>
+  )
+}
+
+function Shimmer() {
+  return (
+    <div style={{
+      background: 'linear-gradient(90deg, #e8edf2 25%, #f0f4f7 50%, #e8edf2 75%)',
+      backgroundSize: '400% 100%',
+      borderRadius: '12px',
+      animation: 'shimmer 1.4s ease-in-out infinite',
+    }} />
+  )
+}
+
+function alertColor(type: string): string {
+  const t = type.toLowerCase()
+  if (t.includes('expir') || t.includes('contract')) return C.amber
+  if (t.includes('overdue'))                          return C.red
+  if (t.includes('anniversary') || t.includes('birthday')) return C.purple
+  return C.tealAcc
+}
+
+function daysAgo(dateStr: string): string {
+  const diff = Math.floor((Date.now() - new Date(dateStr).getTime()) / 86400000)
+  if (diff === 0) return 'today'
+  if (diff === 1) return '1 day ago'
+  return `${diff} days ago`
+}
+
+function daysUntil(dateStr: string): number {
+  return Math.ceil((new Date(dateStr).getTime() - Date.now()) / 86400000)
+}
+
+function daysOverdue(dateStr: string): number {
+  return Math.floor((Date.now() - new Date(dateStr).getTime()) / 86400000)
+}
+
+function fmtDate(dateStr: string): string {
+  try {
+    return new Date(dateStr).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
+  } catch {
+    return dateStr
+  }
 }
 
 /* ── Main Page ────────────────────────────────────────────────────────── */
 export default function HRDashboard() {
-  const [data, setData]   = useState<DashData | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [tab, setTab]     = useState<'overview' | 'leave' | 'alerts' | 'training' | 'history'>('overview')
-  const [initState, setInitState] = useState<'idle' | 'running' | 'done' | 'error'>('idle')
-  const [initResult, setInitResult] = useState<{ total_staff: number; contracts_created: number; balances_created: number; history_created: number } | null>(null)
-  const [initBannerDismissed, setInitBannerDismissed] = useState<boolean>(false)
+  const [data, setData]                     = useState<DashData | null>(null)
+  const [loading, setLoading]               = useState(true)
+  const [syncing, setSyncing]               = useState(false)
+  const [historyFilter, setHistoryFilter]   = useState<HistoryFilter>('all')
+  const [initState, setInitState]           = useState<'idle' | 'running' | 'done' | 'error'>('idle')
+  const [initResult, setInitResult]         = useState<InitResult | null>(null)
+  const [initBannerDismissed, setInitBannerDismissed] = useState(false)
+
+  const leaveSectionRef    = useRef<HTMLDivElement>(null)
+  const alertsSectionRef   = useRef<HTMLDivElement>(null)
+  const trainingSectionRef = useRef<HTMLDivElement>(null)
+  const contractsSectionRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
       setInitBannerDismissed(localStorage.getItem('hrms_init_done') === 'true')
     }
+  }, [])
+
+  const refreshDashboard = useCallback(() => {
+    fetch('/api/hr/dashboard')
+      .then(r => r.json())
+      .then(d => setData(d))
+      .catch(() => {})
+  }, [])
+
+  useEffect(() => {
+    fetch('/api/hr/dashboard')
+      .then(r => r.json())
+      .then(d => { setData(d); setLoading(false) })
+      .catch(() => setLoading(false))
   }, [])
 
   function dismissInitBanner() {
@@ -122,237 +267,400 @@ export default function HRDashboard() {
   async function runInit() {
     setInitState('running')
     try {
-      const res  = await fetch('/api/hr/init', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({}) })
-      const data = await res.json()
-      setInitResult(data)
+      const res = await fetch('/api/hr/init', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({}),
+      })
+      const result = await res.json()
+      setInitResult(result)
       setInitState('done')
       localStorage.setItem('hrms_init_done', 'true')
       setInitBannerDismissed(true)
-      // Reload dashboard data after init
       setLoading(true)
-      fetch('/api/hr/dashboard').then(r => r.json()).then(d => { setData(d); setLoading(false) })
+      fetch('/api/hr/dashboard')
+        .then(r => r.json())
+        .then(d => { setData(d); setLoading(false) })
     } catch {
       setInitState('error')
     }
   }
 
-  const refreshDashboard = useCallback(() => {
-    fetch('/api/hr/dashboard').then(r => r.json()).then(d => setData(d)).catch(() => {})
-  }, [])
+  async function runAlertChecks() {
+    await fetch('/api/hr/alerts?run_checks=true', { method: 'POST' })
+    refreshDashboard()
+  }
 
-  useEffect(() => {
-    fetch('/api/hr/dashboard')
-      .then(r => r.json())
-      .then(d => { setData(d); setLoading(false) })
-      .catch(() => setLoading(false))
-  }, [])
+  async function syncHRMS() {
+    setSyncing(true)
+    await fetch('/api/hrms-sync', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ admin_code: 'taos2026' }),
+    })
+    setSyncing(false)
+    refreshDashboard()
+  }
 
-  const tabs: { id: typeof tab; label: string; badge?: number }[] = [
-    { id: 'overview', label: 'Overview' },
-    { id: 'leave',    label: 'Leave Approvals', badge: data?.leave.pending_count },
-    { id: 'alerts',   label: 'Alerts',          badge: data?.alerts.open_count },
-    { id: 'training', label: 'Overdue Training', badge: data?.training.overdue_count },
-    { id: 'history',  label: 'Recent Activity' },
-  ]
+  const filteredHistory = data?.recent_history.filter(h => {
+    if (historyFilter === 'all') return true
+    const ct = h.change_type.toLowerCase()
+    if (historyFilter === 'hire')      return ct.includes('hire') || ct.includes('join') || ct.includes('onboard')
+    if (historyFilter === 'promotion') return ct.includes('promot') || ct.includes('transfer') || ct.includes('title')
+    if (historyFilter === 'departure') return ct.includes('terminat') || ct.includes('resign') || ct.includes('offboard') || ct.includes('exit')
+    return true
+  }).slice(0, 20) ?? []
 
+  /* ── Render ── */
   return (
-    <div style={{ minHeight: '100vh', background: C.bg, fontFamily: 'system-ui, sans-serif' }}>
-      {/* Header */}
-      <div style={{ background: C.surface, borderBottom: `1px solid ${C.border}`, padding: '0 32px' }}>
-        <div style={{ maxWidth: '1200px', margin: '0 auto', display: 'flex', alignItems: 'center', justifyContent: 'space-between', height: '60px' }}>
+    <div style={{ minHeight: '100vh', background: C.bg, fontFamily: 'system-ui, -apple-system, sans-serif', color: C.text }}>
+      <style>{`
+        @keyframes shimmer {
+          0%   { background-position: 200% 0; }
+          100% { background-position: -200% 0; }
+        }
+        @keyframes fadeOut {
+          from { opacity: 1; transform: translateY(0); }
+          to   { opacity: 0; transform: translateY(-8px); max-height: 0; padding: 0; margin: 0; }
+        }
+        * { box-sizing: border-box; }
+      `}</style>
+
+      {/* ── Header ── */}
+      <div style={{ background: C.surface, borderBottom: `1px solid ${C.border}`, padding: '0 32px', position: 'sticky', top: 0, zIndex: 100 }}>
+        <div style={{ maxWidth: '1320px', margin: '0 auto', display: 'flex', alignItems: 'center', justifyContent: 'space-between', height: '60px' }}>
+          {/* Left */}
           <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-            <Link href="/admin" style={{ fontSize: '13px', color: C.muted, textDecoration: 'none', fontWeight: 600 }}>← Dashboard</Link>
+            <Link href="/admin" style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px', color: C.muted, textDecoration: 'none', fontWeight: 600 }}>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
+                <path d="M15 18l-6-6 6-6" stroke={C.muted} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+              Dashboard
+            </Link>
             <div style={{ width: '1px', height: '20px', background: C.border }} />
-            <div style={{ fontSize: '15px', fontWeight: 800, color: C.text }}>HR Portal</div>
+            <div>
+              <span style={{ fontSize: '15px', fontWeight: 800, color: C.text }}>HR Portal</span>
+              <span style={{ fontSize: '13px', color: C.muted, marginLeft: '8px' }}>Trescon</span>
+            </div>
           </div>
-          <div style={{ display: 'flex', gap: '8px' }}>
-            <Link href="/hr/recruitment" style={{ padding: '8px 16px', borderRadius: '10px', background: C.purple + '15', border: `1px solid ${C.purple}30`, fontSize: '13px', fontWeight: 700, color: C.purple, textDecoration: 'none' }}>
-              Recruitment
-            </Link>
-            {data?.onboarding.active_count ? (
-              <Link href="/hr/onboarding" style={{ padding: '8px 16px', borderRadius: '10px', background: C.amber + '15', border: `1px solid ${C.amber}30`, fontSize: '13px', fontWeight: 700, color: C.amber, textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                Onboarding
-                <span style={{ background: C.amber, color: '#fff', borderRadius: '8px', fontSize: '11px', fontWeight: 800, padding: '1px 6px' }}>{data.onboarding.active_count}</span>
-              </Link>
-            ) : null}
-            <Link href="/hr/attendance" style={{ padding: '8px 16px', borderRadius: '10px', border: `1px solid ${C.border}`, fontSize: '13px', fontWeight: 700, color: C.text, textDecoration: 'none', background: C.surface }}>
-              Attendance
-            </Link>
-            <Link href="/hr/leave" style={{ padding: '8px 16px', borderRadius: '10px', border: `1px solid ${C.border}`, fontSize: '13px', fontWeight: 700, color: C.text, textDecoration: 'none', background: C.surface }}>
-              Leave Manager
-            </Link>
+
+          {/* Right */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
             <button
-              onClick={() => fetch('/api/hr/alerts?run_checks=true', { method: 'POST' }).then(refreshDashboard)}
-              style={{ padding: '8px 16px', borderRadius: '10px', background: C.surface, color: C.green, fontSize: '13px', fontWeight: 700, border: `1px solid ${C.green}40`, cursor: 'pointer', fontFamily: 'inherit' }}>
+              onClick={runAlertChecks}
+              style={{ padding: '8px 14px', borderRadius: '8px', background: C.surface, color: C.teal, fontSize: '13px', fontWeight: 700, border: `1px solid ${C.teal}40`, cursor: 'pointer', fontFamily: 'inherit' }}>
               Run Alert Checks
             </button>
+            <button
+              onClick={syncHRMS}
+              disabled={syncing}
+              style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '8px 14px', borderRadius: '8px', background: syncing ? C.bg : C.teal, color: syncing ? C.muted : '#fff', fontSize: '13px', fontWeight: 700, border: `1px solid ${syncing ? C.border : C.teal}`, cursor: syncing ? 'not-allowed' : 'pointer', fontFamily: 'inherit', transition: 'all 0.15s' }}>
+              {syncing ? (
+                <>
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" style={{ animation: 'spin 0.8s linear infinite' }}>
+                    <circle cx="12" cy="12" r="9" stroke={C.muted} strokeWidth="2.5" strokeDasharray="28 56" />
+                  </svg>
+                  Syncing...
+                </>
+              ) : (
+                <>
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
+                    <path d="M4 12a8 8 0 0 1 14.93-4H15m-11 4a8 8 0 0 0 14.93 4H20" stroke="#fff" strokeWidth="2" strokeLinecap="round" />
+                  </svg>
+                  Sync HRMS
+                </>
+              )}
+            </button>
+            <div style={{ width: '1px', height: '20px', background: C.border }} />
+            <Link href="/hr/attendance" style={{ padding: '8px 12px', borderRadius: '8px', fontSize: '13px', fontWeight: 600, color: C.muted, textDecoration: 'none' }}>Attendance</Link>
+            <Link href="/hr/recruitment" style={{ padding: '8px 12px', borderRadius: '8px', fontSize: '13px', fontWeight: 600, color: C.muted, textDecoration: 'none' }}>Recruitment</Link>
+            <Link href="/hr/staff" style={{ padding: '8px 12px', borderRadius: '8px', fontSize: '13px', fontWeight: 600, color: C.muted, textDecoration: 'none' }}>Staff Directory</Link>
           </div>
         </div>
       </div>
 
-      <div style={{ maxWidth: '1200px', margin: '0 auto', padding: '32px' }}>
+      <div style={{ maxWidth: '1320px', margin: '0 auto', padding: '28px 32px' }}>
+
+        {/* ── Loading skeleton ── */}
         {loading && (
-          <div style={{ textAlign: 'center', padding: '80px', color: C.muted, fontSize: '15px' }}>Loading HR data...</div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+            <div style={{ display: 'flex', gap: '12px' }}>
+              {[...Array(6)].map((_, i) => (
+                <div key={i} style={{ flex: 1 }}>
+                  <Shimmer />
+                  <div style={{ height: '88px', background: 'linear-gradient(90deg, #e8edf2 25%, #f0f4f7 50%, #e8edf2 75%)', backgroundSize: '400% 100%', borderRadius: '12px', animation: 'shimmer 1.4s ease-in-out infinite' }} />
+                </div>
+              ))}
+            </div>
+            <div style={{ height: '320px', background: 'linear-gradient(90deg, #e8edf2 25%, #f0f4f7 50%, #e8edf2 75%)', backgroundSize: '400% 100%', borderRadius: '16px', animation: 'shimmer 1.4s ease-in-out infinite' }} />
+            <div style={{ height: '220px', background: 'linear-gradient(90deg, #e8edf2 25%, #f0f4f7 50%, #e8edf2 75%)', backgroundSize: '400% 100%', borderRadius: '16px', animation: 'shimmer 1.4s ease-in-out infinite' }} />
+          </div>
         )}
 
         {!loading && !data && (
-          <div style={{ textAlign: 'center', padding: '80px', color: C.red, fontSize: '15px' }}>Failed to load dashboard data.</div>
+          <div style={{ textAlign: 'center', padding: '80px', color: C.red, fontSize: '15px', fontWeight: 600 }}>
+            Failed to load dashboard data. Please refresh.
+          </div>
         )}
 
-        {/* ── HRMS Initialisation Banner — only shown until dismissed or init run ── */}
-        {!initBannerDismissed && initState === 'idle' && data && data.headcount.total > 0 && data.onboarding.active_count === 0 && data.contracts.expiring_soon_count === 0 && (
-          <div style={{ background: C.amber + '15', border: `1px solid ${C.amber}40`, borderRadius: '14px', padding: '16px 20px', marginBottom: '24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '16px' }}>
+        {/* ── HRMS Init Banner ── */}
+        {!loading && data && !initBannerDismissed && initState === 'idle' &&
+          data.headcount.total > 0 && data.onboarding.active_count === 0 && data.contracts.expiring_soon_count === 0 && (
+          <div style={{ background: C.amber + '14', border: `1px solid ${C.amber}40`, borderRadius: '12px', padding: '16px 20px', marginBottom: '20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '16px' }}>
             <div>
               <div style={{ fontSize: '13px', fontWeight: 800, color: C.amber, marginBottom: '2px' }}>First-time setup</div>
               <div style={{ fontSize: '13px', color: C.muted }}>Create starter contracts, leave balances, and employment history for all active staff. Safe to run — skips anyone already set up.</div>
             </div>
             <div style={{ display: 'flex', gap: '8px', flexShrink: 0 }}>
-              <button onClick={dismissInitBanner} style={{ padding: '10px 14px', borderRadius: '10px', background: 'transparent', color: C.muted, fontSize: '13px', fontWeight: 600, border: `1px solid ${C.border}`, cursor: 'pointer', fontFamily: 'inherit' }}>
-                Dismiss
-              </button>
-              <button onClick={runInit}
-                style={{ padding: '10px 20px', borderRadius: '10px', background: C.amber, color: '#fff', fontSize: '13px', fontWeight: 700, border: 'none', cursor: 'pointer', whiteSpace: 'nowrap', fontFamily: 'inherit' }}>
-                Initialise HRMS
-              </button>
+              <button onClick={dismissInitBanner} style={{ padding: '9px 14px', borderRadius: '8px', background: 'transparent', color: C.muted, fontSize: '13px', fontWeight: 600, border: `1px solid ${C.border}`, cursor: 'pointer', fontFamily: 'inherit' }}>Dismiss</button>
+              <button onClick={runInit} style={{ padding: '9px 20px', borderRadius: '8px', background: C.amber, color: '#fff', fontSize: '13px', fontWeight: 700, border: 'none', cursor: 'pointer', fontFamily: 'inherit' }}>Initialise HRMS</button>
             </div>
           </div>
         )}
 
         {initState === 'running' && (
-          <div style={{ background: C.green + '10', border: `1px solid ${C.green}30`, borderRadius: '14px', padding: '16px 20px', marginBottom: '24px', fontSize: '13px', color: C.green, fontWeight: 700 }}>
+          <div style={{ background: C.teal + '12', border: `1px solid ${C.teal}30`, borderRadius: '12px', padding: '14px 20px', marginBottom: '20px', fontSize: '13px', color: C.teal, fontWeight: 700 }}>
             Setting up HRMS records for all staff...
           </div>
         )}
-
         {initState === 'done' && initResult && (
-          <div style={{ background: C.green + '10', border: `1px solid ${C.green}30`, borderRadius: '14px', padding: '16px 20px', marginBottom: '24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <div style={{ background: C.teal + '12', border: `1px solid ${C.teal}30`, borderRadius: '12px', padding: '14px 20px', marginBottom: '20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
             <div>
-              <div style={{ fontSize: '13px', fontWeight: 800, color: C.green, marginBottom: '4px' }}>HRMS initialised successfully</div>
+              <div style={{ fontSize: '13px', fontWeight: 800, color: C.teal, marginBottom: '2px' }}>HRMS initialised successfully</div>
               <div style={{ fontSize: '13px', color: C.muted }}>
-                {initResult.total_staff} staff · {initResult.contracts_created} contracts created · {initResult.balances_created} leave balance rows · {initResult.history_created} hire records
+                {initResult.total_staff} staff · {initResult.contracts_created} contracts · {initResult.balances_created} leave balance rows · {initResult.history_created} hire records
               </div>
             </div>
             <button onClick={() => setInitState('idle')} style={{ fontSize: '12px', color: C.muted, background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'inherit' }}>dismiss</button>
           </div>
         )}
-
         {initState === 'error' && (
-          <div style={{ background: C.red + '10', border: `1px solid ${C.red}30`, borderRadius: '14px', padding: '16px 20px', marginBottom: '24px', fontSize: '13px', color: C.red, fontWeight: 700 }}>
+          <div style={{ background: C.red + '12', border: `1px solid ${C.red}30`, borderRadius: '12px', padding: '14px 20px', marginBottom: '20px', fontSize: '13px', color: C.red, fontWeight: 700 }}>
             Initialisation failed — check the console and try again.
           </div>
         )}
 
-        {data && (
+        {!loading && data && (
           <>
-            {/* Stat strip — action items first, then headcount context */}
-            <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', marginBottom: '28px' }}>
-              {statCard('Total Staff',       data.headcount.total,              'active employees',    C.green)}
-              {statCard('Leave Pending',     data.leave.pending_count,          'awaiting approval',   C.amber)}
-              {statCard('Open Alerts',       data.alerts.open_count,            'need attention',      C.red)}
-              {statCard('On Leave Today',    data.headcount.on_leave_today,     'approved today',      C.purple)}
-              {statCard('Being Onboarded',   data.onboarding.active_count,      'in progress',         C.amber)}
-              {statCard('Offboarding',       data.offboarding.active_count,     'in progress',         C.red)}
+            {/* ── Stats Strip ── */}
+            <div style={{ display: 'flex', gap: '12px', marginBottom: '28px', flexWrap: 'wrap' }}>
+              <StatTile
+                label="Total Staff"
+                value={data.headcount.total}
+                sub="active employees"
+                accent={C.teal}
+              />
+              <StatTile
+                label="On Leave Today"
+                value={data.headcount.on_leave_today}
+                sub="approved absences"
+                accent={C.purple}
+              />
+              <StatTile
+                label="Leave Pending"
+                value={data.leave.pending_count}
+                sub="awaiting your approval"
+                accent={C.amber}
+                onClick={() => leaveSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
+              />
+              <StatTile
+                label="Open Alerts"
+                value={data.alerts.open_count}
+                sub="need attention"
+                accent={C.red}
+                onClick={() => alertsSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
+              />
+              <StatTile
+                label="Onboarding"
+                value={data.onboarding.active_count}
+                sub="in progress"
+                accent={C.blue}
+              />
+              <StatTile
+                label="Contracts Expiring"
+                value={data.contracts.expiring_soon_count}
+                sub="within 30 days"
+                accent={C.amber}
+                onClick={() => contractsSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
+              />
             </div>
 
-            {/* Tabs */}
-            <div style={{ display: 'flex', gap: '4px', marginBottom: '24px', borderBottom: `1px solid ${C.border}`, paddingBottom: '0' }}>
-              {tabs.map(t => (
-                <button key={t.id} onClick={() => setTab(t.id)}
-                  style={{ padding: '10px 18px', background: 'transparent', border: 'none', borderBottom: tab === t.id ? `2px solid ${C.green}` : '2px solid transparent', color: tab === t.id ? C.green : C.muted, fontSize: '13px', fontWeight: 700, cursor: 'pointer', marginBottom: '-1px', display: 'flex', alignItems: 'center', gap: '6px', fontFamily: 'inherit' }}>
-                  {t.label}
-                  {(t.badge ?? 0) > 0 && (
-                    <span style={{ background: C.red, color: '#fff', borderRadius: '10px', fontSize: '11px', fontWeight: 800, padding: '1px 6px' }}>{t.badge}</span>
-                  )}
-                </button>
-              ))}
-            </div>
+            {/* ── Two-column main ── */}
+            <div style={{ display: 'grid', gridTemplateColumns: '65% 1fr', gap: '24px', alignItems: 'start' }}>
 
-            {/* ── Overview ── */}
-            {tab === 'overview' && (
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
-                {/* Headcount by dept */}
-                <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: '16px', padding: '24px' }}>
-                  <div style={{ fontSize: '13px', fontWeight: 700, color: C.muted, letterSpacing: '1px', textTransform: 'uppercase', marginBottom: '16px' }}>Headcount by Department</div>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                    {Object.entries(data.headcount.by_department)
-                      .sort((a, b) => b[1] - a[1])
-                      .map(([dept, count]) => (
-                        <div key={dept} style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                          <div style={{ flex: 1, fontSize: '13px', color: C.text, fontWeight: 600 }}>{dept}</div>
-                          <div style={{ width: `${Math.round((count / data.headcount.total) * 140)}px`, height: '6px', background: C.green + '40', borderRadius: '3px', position: 'relative', overflow: 'hidden' }}>
-                            <div style={{ position: 'absolute', inset: 0, width: '100%', background: C.green, borderRadius: '3px' }} />
-                          </div>
-                          <div style={{ fontSize: '13px', fontWeight: 800, color: C.text, width: '24px', textAlign: 'right' }}>{count}</div>
-                        </div>
-                      ))}
+              {/* ── LEFT COLUMN: Action Required ── */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0' }}>
+
+                {/* Section A: Leave Requests */}
+                <div ref={leaveSectionRef} style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: '16px', padding: '24px', marginBottom: '20px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '18px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+                        <rect x="3" y="4" width="18" height="18" rx="3" stroke={C.teal} strokeWidth="1.8" />
+                        <path d="M16 2v4M8 2v4M3 10h18" stroke={C.teal} strokeWidth="1.8" strokeLinecap="round" />
+                      </svg>
+                      <span style={{ fontSize: '15px', fontWeight: 800, color: C.text }}>Leave Requests</span>
+                      {data.leave.pending_count > 0 && (
+                        <span style={{ background: C.amber, color: '#fff', borderRadius: '10px', fontSize: '12px', fontWeight: 800, padding: '2px 8px' }}>
+                          {data.leave.pending_count}
+                        </span>
+                      )}
+                    </div>
+                    {data.leave.pending_requests.length > 5 && (
+                      <Link href="/hr/leave" style={{ fontSize: '13px', fontWeight: 700, color: C.teal, textDecoration: 'none' }}>
+                        View all {data.leave.pending_count} requests →
+                      </Link>
+                    )}
                   </div>
+
+                  {data.leave.pending_requests.length === 0 ? (
+                    <EmptyState message="All clear — no pending leave requests" />
+                  ) : (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                      {data.leave.pending_requests.slice(0, 5).map(req => (
+                        <LeaveApprovalCard key={req.id} req={req} onAction={refreshDashboard} />
+                      ))}
+                    </div>
+                  )}
                 </div>
 
-                {/* Recruitment pipeline shortcut */}
-                <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: '16px', padding: '24px' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-                    <div style={{ fontSize: '13px', fontWeight: 700, color: C.muted, letterSpacing: '1px', textTransform: 'uppercase' }}>Recruitment</div>
-                    <Link href="/hr/recruitment" style={{ fontSize: '12px', fontWeight: 700, color: C.purple, textDecoration: 'none' }}>Open Pipeline →</Link>
-                  </div>
-                  {data.onboarding.records.length === 0 ? (
-                    <div>
-                      <div style={{ color: C.muted, fontSize: '13px', marginBottom: '16px' }}>No active onboardings.</div>
-                      <Link href="/hr/recruitment" style={{ display: 'block', padding: '14px 18px', borderRadius: '12px', background: C.purple + '10', border: `1px solid ${C.purple}25`, textDecoration: 'none', textAlign: 'center' }}>
-                        <div style={{ fontSize: '14px', fontWeight: 800, color: C.purple }}>Open Recruitment Pipeline</div>
-                        <div style={{ fontSize: '12px', color: C.muted, marginTop: '4px' }}>Manage positions, screen candidates with AI, schedule interviews</div>
-                      </Link>
+                {/* Section B: HR Alerts */}
+                <div ref={alertsSectionRef} style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: '16px', padding: '24px', marginBottom: '20px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '18px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+                        <path d="M12 2a7 7 0 0 1 7 7c0 4-2.5 6.5-3 8H8c-.5-1.5-3-4-3-8a7 7 0 0 1 7-7z" stroke={C.red} strokeWidth="1.8" />
+                        <path d="M9 21h6" stroke={C.red} strokeWidth="1.8" strokeLinecap="round" />
+                      </svg>
+                      <span style={{ fontSize: '15px', fontWeight: 800, color: C.text }}>HR Alerts</span>
+                      {data.alerts.open_count > 0 && (
+                        <span style={{ background: C.red, color: '#fff', borderRadius: '10px', fontSize: '12px', fontWeight: 800, padding: '2px 8px' }}>
+                          {data.alerts.open_count}
+                        </span>
+                      )}
                     </div>
+                  </div>
+
+                  {data.alerts.records.length === 0 ? (
+                    <EmptyState message="No open alerts" />
                   ) : (
-                    <div>
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginBottom: '16px' }}>
-                        {data.onboarding.records.map(ob => {
-                          const pct = ob.task_count > 0 ? Math.round((ob.tasks_done / ob.task_count) * 100) : 0
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                      {[...data.alerts.records]
+                        .sort((a, b) => (a.status === 'open' ? -1 : 1) - (b.status === 'open' ? -1 : 1))
+                        .slice(0, 8)
+                        .map(alert => (
+                          <AlertCard key={alert.id} alert={alert} onResolve={refreshDashboard} />
+                        ))}
+                      {data.alerts.records.length > 8 && (
+                        <div style={{ textAlign: 'right', paddingTop: '4px' }}>
+                          <Link href="/hr/alerts" style={{ fontSize: '13px', fontWeight: 700, color: C.teal, textDecoration: 'none' }}>
+                            View all {data.alerts.records.length} alerts →
+                          </Link>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+
+                {/* Section C: Overdue Training */}
+                <div ref={trainingSectionRef} style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: '16px', overflow: 'hidden', marginBottom: '0' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '20px 24px', borderBottom: data.training.overdue.length > 0 ? `1px solid ${C.border}` : 'none' }}>
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+                      <path d="M12 2L2 7l10 5 10-5-10-5z" stroke={C.red} strokeWidth="1.8" strokeLinejoin="round" />
+                      <path d="M2 17l10 5 10-5M2 12l10 5 10-5" stroke={C.red} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+                    </svg>
+                    <span style={{ fontSize: '15px', fontWeight: 800, color: C.text }}>Overdue Training</span>
+                    {data.training.overdue_count > 0 && (
+                      <span style={{ background: C.red, color: '#fff', borderRadius: '10px', fontSize: '12px', fontWeight: 800, padding: '2px 8px' }}>
+                        {data.training.overdue_count}
+                      </span>
+                    )}
+                  </div>
+
+                  {data.training.overdue.length === 0 ? (
+                    <EmptyState message="No overdue training assignments" />
+                  ) : (
+                    <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                      <thead>
+                        <tr style={{ borderBottom: `1px solid ${C.border}`, background: C.bg }}>
+                          {['Staff', 'Department', 'Course', 'Due Date', 'Days Overdue'].map(h => (
+                            <th key={h} style={{ padding: '10px 16px', fontSize: '11px', fontWeight: 700, color: C.muted, letterSpacing: '0.8px', textTransform: 'uppercase', textAlign: 'left' }}>{h}</th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {data.training.overdue.slice(0, 10).map((a, i) => {
+                          const days = daysOverdue(a.due_date)
                           return (
-                            <Link key={ob.id} href={`/hr/staff/${ob.staff_id}`} style={{ textDecoration: 'none' }}>
-                              <div style={{ border: `1px solid ${C.border}`, borderRadius: '12px', padding: '14px 16px', display: 'flex', flexDirection: 'column', gap: '6px', background: C.bg }}>
-                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                  <div style={{ fontSize: '13px', fontWeight: 700, color: C.text }}>{ob.staff?.name ?? ob.staff_id}</div>
-                                  <div style={{ fontSize: '12px', color: C.muted }}>{pct}%</div>
-                                </div>
-                                <div style={{ fontSize: '12px', color: C.muted }}>{ob.staff?.department} · started {ob.started_at}</div>
-                                <div style={{ height: '4px', background: C.border, borderRadius: '2px', overflow: 'hidden' }}>
-                                  <div style={{ height: '100%', width: `${pct}%`, background: pct === 100 ? C.green : C.amber, borderRadius: '2px' }} />
-                                </div>
-                                <div style={{ fontSize: '11px', color: C.muted }}>{ob.tasks_done}/{ob.task_count} tasks complete</div>
-                              </div>
-                            </Link>
+                            <tr key={a.id} style={{ borderBottom: i < data.training.overdue.length - 1 ? `1px solid ${C.border}` : 'none', background: i % 2 === 0 ? C.surface : C.bg }}>
+                              <td style={{ padding: '12px 16px', fontSize: '15px', fontWeight: 700, color: C.text }}>{a.staff?.name ?? '—'}</td>
+                              <td style={{ padding: '12px 16px', fontSize: '15px', color: C.muted }}>{a.staff?.department ?? '—'}</td>
+                              <td style={{ padding: '12px 16px', fontSize: '15px', color: C.text }}>{a.course?.title ?? '—'}</td>
+                              <td style={{ padding: '12px 16px', fontSize: '15px', color: C.amber, fontWeight: 600 }}>{fmtDate(a.due_date)}</td>
+                              <td style={{ padding: '12px 16px' }}><Pill color={C.red} text={`${days}d overdue`} /></td>
+                            </tr>
                           )
                         })}
-                      </div>
-                      <Link href="/hr/recruitment" style={{ display: 'block', padding: '10px', borderRadius: '10px', background: C.purple + '10', textDecoration: 'none', textAlign: 'center', fontSize: '12px', fontWeight: 700, color: C.purple }}>
-                        View Recruitment Pipeline →
-                      </Link>
-                    </div>
+                      </tbody>
+                    </table>
                   )}
                 </div>
+              </div>
 
-                {/* Active offboardings */}
-                <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: '16px', padding: '24px' }}>
-                  <div style={{ fontSize: '13px', fontWeight: 700, color: C.muted, letterSpacing: '1px', textTransform: 'uppercase', marginBottom: '16px' }}>Active Offboardings</div>
-                  {data.offboarding.records.length === 0 ? (
-                    <div style={{ color: C.muted, fontSize: '13px' }}>No active offboardings.</div>
+              {/* ── RIGHT COLUMN: Status Overview ── */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+
+                {/* Panel A: Department Headcount */}
+                <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: '16px', padding: '22px' }}>
+                  <SectionLabel>Department Headcount</SectionLabel>
+                  {Object.keys(data.headcount.by_department).length === 0 ? (
+                    <div style={{ fontSize: '15px', color: C.muted }}>No department data.</div>
+                  ) : (() => {
+                    const entries = Object.entries(data.headcount.by_department).sort((a, b) => b[1] - a[1])
+                    const max = entries[0]?.[1] ?? 1
+                    return (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '9px' }}>
+                        {entries.map(([dept, count]) => (
+                          <div key={dept}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
+                              <span style={{ fontSize: '13px', fontWeight: 600, color: C.text }}>{dept}</span>
+                              <span style={{ fontSize: '13px', fontWeight: 800, color: C.text }}>{count}</span>
+                            </div>
+                            <div style={{ height: '5px', background: C.border, borderRadius: '3px', overflow: 'hidden' }}>
+                              <div style={{ height: '100%', width: `${Math.round((count / max) * 100)}%`, background: C.teal, borderRadius: '3px' }} />
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )
+                  })()}
+                </div>
+
+                {/* Panel B: Active Onboardings */}
+                <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: '16px', padding: '22px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '14px' }}>
+                    <SectionLabel>Active Onboardings</SectionLabel>
+                    {data.onboarding.records.length > 3 && (
+                      <Link href="/hr/onboarding" style={{ fontSize: '12px', fontWeight: 700, color: C.teal, textDecoration: 'none', marginTop: '-14px' }}>View All</Link>
+                    )}
+                  </div>
+                  {data.onboarding.records.length === 0 ? (
+                    <EmptyState message="No active onboardings" />
                   ) : (
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                      {data.offboarding.records.map(ob => {
+                      {data.onboarding.records.slice(0, 3).map(ob => {
                         const pct = ob.task_count > 0 ? Math.round((ob.tasks_done / ob.task_count) * 100) : 0
                         return (
-                          <Link key={ob.id} href={`/hr/staff/${ob.staff_id}`} style={{ textDecoration: 'none' }}>
-                            <div style={{ border: `1px solid ${C.border}`, borderRadius: '12px', padding: '14px 16px', display: 'flex', flexDirection: 'column', gap: '6px', background: C.bg }}>
-                              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                <div style={{ fontSize: '13px', fontWeight: 700, color: C.text }}>{ob.staff?.name ?? ob.staff_id}</div>
-                                {pill(ob.reason === 'termination' ? C.red : C.amber, ob.reason)}
-                              </div>
-                              <div style={{ fontSize: '12px', color: C.muted }}>{ob.staff?.department} · last day {ob.last_working_day}</div>
-                              <div style={{ height: '4px', background: C.border, borderRadius: '2px', overflow: 'hidden' }}>
-                                <div style={{ height: '100%', width: `${pct}%`, background: C.red, borderRadius: '2px' }} />
-                              </div>
-                              <div style={{ fontSize: '11px', color: C.muted }}>{ob.tasks_done}/{ob.task_count} tasks complete</div>
+                          <Link key={ob.id} href={`/hr/staff/${ob.staff_id}`} style={{ textDecoration: 'none', display: 'block', borderRadius: '10px', padding: '12px', border: `1px solid ${C.border}`, background: C.bg }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
+                              <span style={{ fontSize: '15px', fontWeight: 700, color: C.text }}>{ob.staff?.name ?? ob.staff_id}</span>
+                              <span style={{ fontSize: '13px', color: C.muted, fontWeight: 600 }}>{pct}%</span>
                             </div>
+                            <div style={{ fontSize: '12px', color: C.muted, marginBottom: '6px' }}>{ob.staff?.department}</div>
+                            <div style={{ height: '5px', background: C.border, borderRadius: '3px', overflow: 'hidden', marginBottom: '4px' }}>
+                              <div style={{ height: '100%', width: `${pct}%`, background: pct === 100 ? C.teal : C.amber, borderRadius: '3px' }} />
+                            </div>
+                            <div style={{ fontSize: '12px', color: C.muted }}>{ob.tasks_done}/{ob.task_count} tasks</div>
                           </Link>
                         )
                       })}
@@ -360,106 +668,183 @@ export default function HRDashboard() {
                   )}
                 </div>
 
-                {/* Expiring contracts */}
-                <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: '16px', padding: '24px' }}>
-                  <div style={{ fontSize: '13px', fontWeight: 700, color: C.muted, letterSpacing: '1px', textTransform: 'uppercase', marginBottom: '16px' }}>Contracts Expiring (30 days)</div>
+                {/* Panel C: Active Offboardings */}
+                <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: '16px', padding: '22px' }}>
+                  <SectionLabel>Active Offboardings</SectionLabel>
+                  {data.offboarding.records.length === 0 ? (
+                    <EmptyState message="No active offboardings" />
+                  ) : (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                      {data.offboarding.records.map(ob => {
+                        const pct = ob.task_count > 0 ? Math.round((ob.tasks_done / ob.task_count) * 100) : 0
+                        const reasonColor = ob.reason?.toLowerCase().includes('terminat') ? C.red : C.amber
+                        return (
+                          <Link key={ob.id} href={`/hr/staff/${ob.staff_id}`} style={{ textDecoration: 'none', display: 'block', borderRadius: '10px', padding: '12px', border: `1px solid ${C.border}`, background: C.bg }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
+                              <span style={{ fontSize: '15px', fontWeight: 700, color: C.text }}>{ob.staff?.name ?? ob.staff_id}</span>
+                              <Pill color={reasonColor} text={ob.reason ?? 'exit'} />
+                            </div>
+                            <div style={{ fontSize: '12px', color: C.muted, marginBottom: '6px' }}>
+                              {ob.staff?.department} · Last day: {fmtDate(ob.last_working_day)}
+                            </div>
+                            <div style={{ height: '5px', background: C.border, borderRadius: '3px', overflow: 'hidden', marginBottom: '4px' }}>
+                              <div style={{ height: '100%', width: `${pct}%`, background: C.red, borderRadius: '3px' }} />
+                            </div>
+                            <div style={{ fontSize: '12px', color: C.muted }}>{ob.tasks_done}/{ob.task_count} tasks</div>
+                          </Link>
+                        )
+                      })}
+                    </div>
+                  )}
+                </div>
+
+                {/* Panel D: Contracts Expiring */}
+                <div ref={contractsSectionRef} style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: '16px', padding: '22px' }}>
+                  <SectionLabel>Contracts Expiring (30 days)</SectionLabel>
                   {data.contracts.expiring.length === 0 ? (
-                    <div style={{ color: C.muted, fontSize: '13px' }}>No contracts expiring soon.</div>
+                    <EmptyState message="No contracts expiring soon" />
                   ) : (
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                      {data.contracts.expiring.map(c => (
-                        <Link key={c.id} href={`/hr/staff/${c.staff_id}`} style={{ textDecoration: 'none' }}>
-                          <div style={{ border: `1px solid ${C.border}`, borderRadius: '10px', padding: '12px 14px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: C.bg }}>
-                            <div>
-                              <div style={{ fontSize: '13px', fontWeight: 700, color: C.text }}>{c.staff?.name}</div>
-                              <div style={{ fontSize: '12px', color: C.muted }}>{c.staff?.department} · {c.contract_type}</div>
+                      {data.contracts.expiring.map(c => {
+                        const days = daysUntil(c.contract_end_date)
+                        const dateColor = days <= 7 ? C.red : days <= 14 ? C.amber : C.muted
+                        return (
+                          <Link key={c.id} href={`/hr/staff/${c.staff_id}`} style={{ textDecoration: 'none', display: 'block', borderRadius: '10px', padding: '12px', border: `1px solid ${C.border}`, background: C.bg }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                              <div>
+                                <div style={{ fontSize: '15px', fontWeight: 700, color: C.text, marginBottom: '2px' }}>{c.staff?.name ?? '—'}</div>
+                                <div style={{ fontSize: '12px', color: C.muted }}>{c.staff?.department}</div>
+                                <div style={{ fontSize: '12px', color: C.muted, marginTop: '2px' }}>{c.contract_type}</div>
+                              </div>
+                              <div style={{ textAlign: 'right' }}>
+                                <div style={{ fontSize: '13px', fontWeight: 800, color: dateColor }}>{fmtDate(c.contract_end_date)}</div>
+                                <div style={{ fontSize: '12px', color: dateColor, marginTop: '2px' }}>{days}d left</div>
+                              </div>
                             </div>
-                            <div style={{ fontSize: '13px', fontWeight: 800, color: C.amber }}>{c.contract_end_date}</div>
-                          </div>
-                        </Link>
-                      ))}
+                          </Link>
+                        )
+                      })}
                     </div>
                   )}
                 </div>
               </div>
-            )}
+            </div>
 
-            {/* ── Leave Approvals ── */}
-            {tab === 'leave' && (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                {data.leave.pending_requests.length === 0 ? (
-                  <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: '16px', padding: '40px', textAlign: 'center', color: C.muted }}>No pending leave requests.</div>
-                ) : data.leave.pending_requests.map(req => (
-                  <LeaveApprovalCard key={req.id} req={req} onAction={refreshDashboard} />
-                ))}
+            {/* ── Recent Activity (full width) ── */}
+            <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: '16px', padding: '24px', marginTop: '24px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '18px', flexWrap: 'wrap', gap: '12px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+                    <circle cx="12" cy="12" r="9" stroke={C.teal} strokeWidth="1.8" />
+                    <path d="M12 7v5l3 3" stroke={C.teal} strokeWidth="1.8" strokeLinecap="round" />
+                  </svg>
+                  <span style={{ fontSize: '15px', fontWeight: 800, color: C.text }}>Recent Activity</span>
+                </div>
+
+                {/* Filter tabs */}
+                <div style={{ display: 'flex', gap: '4px' }}>
+                  {(['all', 'hire', 'promotion', 'departure'] as HistoryFilter[]).map(f => (
+                    <button
+                      key={f}
+                      onClick={() => setHistoryFilter(f)}
+                      style={{
+                        padding: '6px 14px',
+                        borderRadius: '8px',
+                        fontSize: '13px',
+                        fontWeight: 700,
+                        border: `1px solid ${historyFilter === f ? C.teal : C.border}`,
+                        background: historyFilter === f ? C.teal + '15' : 'transparent',
+                        color: historyFilter === f ? C.teal : C.muted,
+                        cursor: 'pointer',
+                        fontFamily: 'inherit',
+                        textTransform: 'capitalize',
+                      }}>
+                      {f === 'all' ? 'All' : f === 'hire' ? 'Hires' : f === 'promotion' ? 'Promotions' : 'Departures'}
+                    </button>
+                  ))}
+                </div>
               </div>
-            )}
 
-            {/* ── Alerts ── */}
-            {tab === 'alerts' && (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                {data.alerts.records.length === 0 ? (
-                  <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: '16px', padding: '40px', textAlign: 'center', color: C.muted }}>No open alerts.</div>
-                ) : data.alerts.records.map(alert => (
-                  <AlertCard key={alert.id} alert={alert} onResolve={refreshDashboard} />
-                ))}
-              </div>
-            )}
-
-            {/* ── Overdue Training ── */}
-            {tab === 'training' && (
-              <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: '16px', overflow: 'hidden' }}>
-                {data.training.overdue.length === 0 ? (
-                  <div style={{ padding: '40px', textAlign: 'center', color: C.muted }}>No overdue training assignments.</div>
-                ) : (
-                  <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-                    <thead>
-                      <tr style={{ borderBottom: `1px solid ${C.border}` }}>
-                        {['Staff Member', 'Department', 'Course', 'Due Date', 'Overdue By'].map(h => (
-                          <th key={h} style={{ padding: '12px 16px', fontSize: '11px', fontWeight: 700, color: C.muted, letterSpacing: '1px', textTransform: 'uppercase', textAlign: 'left' }}>{h}</th>
-                        ))}
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {data.training.overdue.map((a, i) => {
-                        const days = Math.floor((Date.now() - new Date(a.due_date).getTime()) / 86400000)
-                        return (
-                          <tr key={a.id} style={{ borderBottom: i < data.training.overdue.length - 1 ? `1px solid ${C.border}` : 'none', background: i % 2 === 0 ? C.surface : C.bg }}>
-                            <td style={{ padding: '12px 16px', fontSize: '13px', fontWeight: 700, color: C.text }}>{a.staff?.name}</td>
-                            <td style={{ padding: '12px 16px', fontSize: '13px', color: C.muted }}>{a.staff?.department}</td>
-                            <td style={{ padding: '12px 16px', fontSize: '13px', color: C.text }}>{a.course?.title}</td>
-                            <td style={{ padding: '12px 16px', fontSize: '13px', color: C.amber, fontWeight: 700 }}>{a.due_date}</td>
-                            <td style={{ padding: '12px 16px' }}>{pill(C.red, `${days}d overdue`)}</td>
-                          </tr>
-                        )
-                      })}
-                    </tbody>
-                  </table>
-                )}
-              </div>
-            )}
-
-            {/* ── Recent Activity ── */}
-            {tab === 'history' && (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                {data.recent_history.map((h, i) => (
-                  <div key={h.id} style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: '12px', padding: '14px 20px', display: 'flex', alignItems: 'center', gap: '16px' }}>
-                    <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: C.green, flexShrink: 0 }} />
-                    <div style={{ flex: 1 }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                        <span style={{ fontSize: '13px', fontWeight: 700, color: C.text }}>{h.staff?.name ?? 'Unknown'}</span>
-                        {pill(C.green, h.change_type.replace(/_/g, ' '))}
+              {filteredHistory.length === 0 ? (
+                <EmptyState message="No activity matching this filter" />
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0' }}>
+                  {filteredHistory.map((h, i) => {
+                    const ct = h.change_type.toLowerCase()
+                    const chipColor = ct.includes('hire') || ct.includes('join') ? C.teal
+                      : ct.includes('promot') || ct.includes('transfer') ? C.blue
+                      : ct.includes('terminat') || ct.includes('resign') ? C.red
+                      : C.purple
+                    return (
+                      <div key={h.id} style={{ display: 'flex', alignItems: 'flex-start', gap: '16px', padding: '14px 0', borderBottom: i < filteredHistory.length - 1 ? `1px solid ${C.border}` : 'none' }}>
+                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', paddingTop: '4px' }}>
+                          <div style={{ width: '9px', height: '9px', borderRadius: '50%', background: C.teal, flexShrink: 0 }} />
+                          {i < filteredHistory.length - 1 && (
+                            <div style={{ width: '1px', flex: 1, background: C.border, marginTop: '4px', minHeight: '20px' }} />
+                          )}
+                        </div>
+                        <div style={{ flex: 1 }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                            <span style={{ fontSize: '15px', fontWeight: 700, color: C.text }}>{h.staff?.name ?? 'Unknown'}</span>
+                            <Pill color={chipColor} text={h.change_type.replace(/_/g, ' ')} />
+                            {h.staff?.department && (
+                              <span style={{ fontSize: '13px', color: C.muted }}>{h.staff.department}</span>
+                            )}
+                          </div>
+                          {h.notes && (
+                            <div style={{ fontSize: '15px', color: C.muted, marginTop: '3px' }}>{h.notes}</div>
+                          )}
+                        </div>
+                        <div style={{ fontSize: '13px', color: C.muted, whiteSpace: 'nowrap', paddingTop: '2px' }}>
+                          {fmtDate(h.created_at)}
+                        </div>
                       </div>
-                      {h.notes && <div style={{ fontSize: '12px', color: C.muted, marginTop: '2px' }}>{h.notes}</div>}
-                    </div>
-                    <div style={{ fontSize: '12px', color: C.muted, whiteSpace: 'nowrap' }}>{new Date(h.created_at).toLocaleDateString()}</div>
-                  </div>
-                ))}
-              </div>
-            )}
+                    )
+                  })}
+                </div>
+              )}
+            </div>
           </>
         )}
       </div>
+    </div>
+  )
+}
+
+/* ── Stat Tile ───────────────────────────────────────────────────────── */
+function StatTile({
+  label,
+  value,
+  sub,
+  accent,
+  onClick,
+}: {
+  label: string
+  value: number
+  sub: string
+  accent: string
+  onClick?: () => void
+}) {
+  return (
+    <div
+      onClick={onClick}
+      style={{
+        background: '#FFFFFF',
+        border: `1px solid #DDE8EE`,
+        borderLeft: `3px solid ${accent}`,
+        borderRadius: '12px',
+        padding: '18px 20px',
+        flex: 1,
+        minWidth: '140px',
+        cursor: onClick ? 'pointer' : 'default',
+        transition: 'box-shadow 0.12s',
+      }}
+      onMouseEnter={e => { if (onClick) (e.currentTarget as HTMLDivElement).style.boxShadow = `0 2px 12px ${accent}22` }}
+      onMouseLeave={e => { (e.currentTarget as HTMLDivElement).style.boxShadow = 'none' }}
+    >
+      <div style={{ fontSize: '11px', fontWeight: 700, letterSpacing: '1px', textTransform: 'uppercase', color: '#5B7080', marginBottom: '8px' }}>{label}</div>
+      <div style={{ fontSize: '30px', fontWeight: 900, color: accent, lineHeight: 1 }}>{value}</div>
+      <div style={{ fontSize: '12px', color: '#5B7080', marginTop: '5px' }}>{sub}</div>
     </div>
   )
 }
@@ -469,54 +854,80 @@ function LeaveApprovalCard({
   req,
   onAction,
 }: {
-  req: DashData['leave']['pending_requests'][number]
+  req: LeaveRequest
   onAction: () => void
 }) {
-  const [note, setNote]   = useState('')
-  const [busy, setBusy]   = useState(false)
+  const [note, setNote]     = useState('')
+  const [busy, setBusy]     = useState(false)
+  const [done, setDone]     = useState(false)
+  const [decided, setDecided] = useState<'approved' | 'rejected' | null>(null)
 
   async function decide(status: 'approved' | 'rejected') {
     setBusy(true)
     await fetch('/api/hr/leave-requests', {
-      method:  'PATCH',
+      method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body:    JSON.stringify({ id: req.id, status, review_note: note || null }),
+      body: JSON.stringify({ id: req.id, status, review_note: note || null }),
     })
+    setDecided(status)
+    setDone(true)
     setBusy(false)
-    onAction()
+    setTimeout(() => onAction(), 600)
+  }
+
+  if (done) {
+    return (
+      <div style={{ border: `1px solid ${C.border}`, borderRadius: '12px', padding: '14px 20px', display: 'flex', alignItems: 'center', gap: '10px', opacity: 0.5 }}>
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
+          <circle cx="12" cy="12" r="9" fill={decided === 'approved' ? C.teal : C.red} />
+          <path d={decided === 'approved' ? 'M8 12l3 3 5-5' : 'M8 8l8 8M16 8l-8 8'} stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
+        <span style={{ fontSize: '13px', color: C.muted, fontWeight: 600 }}>
+          {decided === 'approved' ? 'Approved' : 'Rejected'} — {req.staff?.name}
+        </span>
+      </div>
+    )
   }
 
   return (
-    <div style={{ background: '#FFFFFF', border: `1px solid ${C.border}`, borderRadius: '16px', padding: '20px 24px' }}>
+    <div style={{ border: `1px solid ${C.border}`, borderRadius: '12px', padding: '18px 20px', background: '#FFFFFF' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '16px' }}>
         <div style={{ flex: 1 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '4px' }}>
-            <span style={{ fontSize: '15px', fontWeight: 800, color: C.text }}>{req.staff?.name}</span>
-            {pill(C.purple, req.leave_type?.name ?? 'Leave')}
+          {/* Top row */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '5px', flexWrap: 'wrap' }}>
+            <span style={{ fontSize: '15px', fontWeight: 800, color: C.text }}>{req.staff?.name ?? req.staff_id}</span>
+            {req.staff?.department && <Pill color={C.blue} text={req.staff.department} />}
+            {req.leave_type?.name && <Pill color={C.purple} text={req.leave_type.name} />}
           </div>
-          <div style={{ fontSize: '13px', color: C.muted }}>
-            {req.staff?.department} · {req.start_date} to {req.end_date} · <strong style={{ color: C.text }}>{req.total_days} day{req.total_days !== 1 ? 's' : ''}</strong>
+          {/* Date range */}
+          <div style={{ fontSize: '15px', color: C.muted, marginBottom: '3px' }}>
+            {fmtDate(req.start_date)} — {fmtDate(req.end_date)}
+            <strong style={{ color: C.text, marginLeft: '8px' }}>{req.total_days} day{req.total_days !== 1 ? 's' : ''}</strong>
           </div>
-          <div style={{ marginTop: '12px' }}>
-            <input
-              value={note}
-              onChange={e => setNote(e.target.value)}
-              placeholder="Add a review note (optional)"
-              style={{ width: '100%', padding: '9px 12px', borderRadius: '8px', border: `1px solid ${C.border}`, fontSize: '13px', color: C.text, fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box' }}
-            />
+          <div style={{ fontSize: '13px', color: C.muted, marginBottom: '12px' }}>
+            Requested {daysAgo(req.created_at)}
           </div>
+          {/* Note input */}
+          <input
+            value={note}
+            onChange={e => setNote(e.target.value)}
+            placeholder="Add a note..."
+            style={{ width: '100%', padding: '9px 12px', borderRadius: '8px', border: `1px solid ${C.border}`, fontSize: '15px', color: C.text, fontFamily: 'inherit', outline: 'none', background: C.bg }}
+          />
         </div>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', flexShrink: 0 }}>
+
+        {/* Action buttons */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', flexShrink: 0, minWidth: '96px' }}>
           <button
             disabled={busy}
             onClick={() => decide('approved')}
-            style={{ padding: '9px 20px', borderRadius: '10px', background: C.green, color: '#fff', fontSize: '13px', fontWeight: 700, border: 'none', cursor: 'pointer', opacity: busy ? 0.5 : 1 }}>
+            style={{ padding: '9px 18px', borderRadius: '8px', background: C.teal, color: '#fff', fontSize: '13px', fontWeight: 700, border: 'none', cursor: 'pointer', opacity: busy ? 0.5 : 1, fontFamily: 'inherit' }}>
             Approve
           </button>
           <button
             disabled={busy}
             onClick={() => decide('rejected')}
-            style={{ padding: '9px 20px', borderRadius: '10px', background: C.bg, color: C.red, fontSize: '13px', fontWeight: 700, border: `1px solid ${C.border}`, cursor: 'pointer', opacity: busy ? 0.5 : 1 }}>
+            style={{ padding: '9px 18px', borderRadius: '8px', background: '#fff', color: C.red, fontSize: '13px', fontWeight: 700, border: `1px solid ${C.red}50`, cursor: 'pointer', opacity: busy ? 0.5 : 1, fontFamily: 'inherit' }}>
             Reject
           </button>
         </div>
@@ -530,54 +941,68 @@ function AlertCard({
   alert,
   onResolve,
 }: {
-  alert: DashData['alerts']['records'][number]
+  alert: AlertRecord
   onResolve: () => void
 }) {
-  const [busy, setBusy] = useState(false)
+  const [busy, setBusy]   = useState(false)
+  const [hidden, setHidden] = useState(false)
   const color = alertColor(alert.type)
 
-  async function resolve() {
+  async function act(status: 'acknowledged' | 'resolved') {
     setBusy(true)
     await fetch('/api/hr/alerts', {
-      method:  'PATCH',
+      method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body:    JSON.stringify({ id: alert.id, status: 'resolved' }),
+      body: JSON.stringify({ id: alert.id, status }),
     })
     setBusy(false)
-    onResolve()
+    setHidden(true)
+    setTimeout(() => onResolve(), 400)
   }
 
+  if (hidden) return null
+
   return (
-    <div style={{ background: '#FFFFFF', border: `1px solid ${C.border}`, borderLeft: `3px solid ${color}`, borderRadius: '12px', padding: '14px 20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '16px' }}>
-      <div style={{ flex: 1 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '2px' }}>
-          {pill(color, alert.type.replace(/_/g, ' '))}
-          <span style={{ fontSize: '13px', fontWeight: 700, color: C.text }}>{alert.title}</span>
+    <div style={{
+      background: '#FFFFFF',
+      border: `1px solid ${C.border}`,
+      borderLeft: `3px solid ${color}`,
+      borderRadius: '10px',
+      padding: '12px 16px',
+      display: 'flex',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      gap: '16px',
+      opacity: busy ? 0.5 : 1,
+      transition: 'opacity 0.15s',
+    }}>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '3px', flexWrap: 'wrap' }}>
+          <Pill color={color} text={alert.type.replace(/_/g, ' ')} />
+          <span style={{ fontSize: '15px', fontWeight: 700, color: C.text }}>{alert.title}</span>
         </div>
-        <div style={{ fontSize: '12px', color: C.muted }}>
-          {alert.staff?.name} · {alert.staff?.department}
-          {alert.due_date && ` · due ${alert.due_date}`}
+        <div style={{ fontSize: '13px', color: C.muted }}>
+          {alert.staff?.name && <span>{alert.staff.name}</span>}
+          {alert.staff?.department && <span> · {alert.staff.department}</span>}
+          {alert.due_date && <span> · due {fmtDate(alert.due_date)}</span>}
+          {alert.status === 'acknowledged' && (
+            <span style={{ marginLeft: '8px' }}><Pill color={C.muted} text="acknowledged" /></span>
+          )}
         </div>
       </div>
-      <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexShrink: 0 }}>
+      <div style={{ display: 'flex', gap: '6px', flexShrink: 0 }}>
         {alert.status === 'open' && (
           <button
-            onClick={async () => {
-              await fetch('/api/hr/alerts', {
-                method:  'PATCH',
-                headers: { 'Content-Type': 'application/json' },
-                body:    JSON.stringify({ id: alert.id, status: 'acknowledged' }),
-              })
-              onResolve()
-            }}
-            style={{ padding: '6px 14px', borderRadius: '8px', border: `1px solid ${C.border}`, background: C.bg, fontSize: '12px', fontWeight: 700, color: C.muted, cursor: 'pointer', fontFamily: 'inherit' }}>
+            disabled={busy}
+            onClick={() => act('acknowledged')}
+            style={{ padding: '6px 12px', borderRadius: '7px', border: `1px solid ${C.border}`, background: C.bg, fontSize: '12px', fontWeight: 700, color: C.muted, cursor: 'pointer', fontFamily: 'inherit' }}>
             Acknowledge
           </button>
         )}
         <button
           disabled={busy}
-          onClick={resolve}
-          style={{ padding: '6px 14px', borderRadius: '8px', border: `1px solid ${color}`, background: color + '15', fontSize: '12px', fontWeight: 700, color, cursor: 'pointer', fontFamily: 'inherit', opacity: busy ? 0.5 : 1 }}>
+          onClick={() => act('resolved')}
+          style={{ padding: '6px 12px', borderRadius: '7px', border: `1px solid ${color}50`, background: color + '14', fontSize: '12px', fontWeight: 700, color, cursor: 'pointer', fontFamily: 'inherit' }}>
           Resolve
         </button>
       </div>
