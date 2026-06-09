@@ -730,47 +730,53 @@ export default function EventWorkspacePage({ params }: { params: Promise<{ id: s
           </Link>
         </div>
 
-        {/* Event Website shortcut */}
-        <div style={{ marginBottom: '16px', background: 'rgba(0,105,92,0.04)', border: '1px solid rgba(0,105,92,0.18)', borderRadius: '16px', padding: '20px 24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '16px', flexWrap: 'wrap' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-            <div style={{ width: '44px', height: '44px', background: 'rgba(0,105,92,0.1)', border: '1px solid rgba(0,105,92,0.2)', borderRadius: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, fontSize: '20px' }}>
-              🌐
-            </div>
-            <div>
-              <div style={{ fontSize: '13px', fontWeight: 800, color: '#0F1923', marginBottom: '3px' }}>Event Website</div>
-              <div style={{ fontSize: '13px', color: '#2D3E50' }}>Build and publish a public-facing marketing website for this event</div>
-            </div>
-          </div>
-          <Link
-            href={`/admin/events/${eventId}/website`}
-            style={{ padding: '10px 20px', borderRadius: '10px', background: 'rgba(0,105,92,0.12)', border: '1px solid rgba(0,105,92,0.25)', color: '#00695C', fontSize: '13px', fontWeight: 700, textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '8px', whiteSpace: 'nowrap' }}
-          >
-            <svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
-            Build Website
-          </Link>
-        </div>
+        {/* Website Production Flow */}
+        <div style={{ marginBottom: '16px', background: '#FFFFFF', border: '1px solid #D8EAEB', borderRadius: '16px', padding: '20px 24px' }}>
+          <div style={{ fontSize: '11px', fontWeight: 800, color: '#00A5A3', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '16px' }}>Website Production Flow</div>
+          <div style={{ display: 'flex', alignItems: 'stretch', gap: '0' }}>
 
-        {/* Brand Studio shortcut */}
-        <div style={{ marginBottom: '16px', background: 'rgba(167,139,250,0.04)', border: '1px solid rgba(167,139,250,0.2)', borderRadius: '16px', padding: '20px 24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '16px', flexWrap: 'wrap' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-            <div style={{ width: '44px', height: '44px', background: 'rgba(167,139,250,0.12)', border: '1px solid rgba(167,139,250,0.25)', borderRadius: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, color: '#A78BFA' }}>
-              <svg width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24">
-                <circle cx="13.5" cy="6.5" r="2.5"/><circle cx="17.5" cy="10.5" r="2.5"/><circle cx="8.5" cy="7.5" r="2.5"/><circle cx="6.5" cy="12.5" r="2.5"/>
-                <path d="M12 22C6.477 22 2 17.523 2 12S6.477 2 12 2s10 4.477 10 10c0 .833-.106 1.641-.305 2.413A4 4 0 0 1 12 22z"/>
-              </svg>
+            {/* Step 1 — Brand Studio */}
+            <div style={{ flex: 1, background: 'rgba(167,139,250,0.04)', border: '1px solid rgba(167,139,250,0.22)', borderRadius: '12px', padding: '18px 20px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '8px' }}>
+                <div style={{ width: '22px', height: '22px', borderRadius: '50%', background: '#A78BFA', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '11px', fontWeight: 900, color: '#fff', flexShrink: 0 }}>1</div>
+                <div style={{ fontSize: '13px', fontWeight: 800, color: '#0F1923' }}>Brand Studio</div>
+              </div>
+              <div style={{ fontSize: '12px', color: '#5B7080', lineHeight: 1.55, marginBottom: '14px' }}>
+                Upload the brand guidelines PDF. AI extracts colours and fonts — save before building the website.
+              </div>
+              <Link
+                href={`/admin/events/${eventId}/brand`}
+                style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', padding: '8px 16px', borderRadius: '8px', background: 'rgba(167,139,250,0.12)', border: '1px solid rgba(167,139,250,0.3)', color: '#7C3AED', fontSize: '12px', fontWeight: 700, textDecoration: 'none' }}
+              >
+                <svg width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+                Open Brand Studio
+              </Link>
             </div>
-            <div>
-              <div style={{ fontSize: '13px', fontWeight: 800, color: '#0F1923', marginBottom: '3px' }}>Brand Studio</div>
-              <div style={{ fontSize: '13px', color: '#2D3E50' }}>AI brand identity and Imagen 3 visual asset generation for this event</div>
+
+            {/* Arrow */}
+            <div style={{ display: 'flex', alignItems: 'center', padding: '0 12px', flexShrink: 0 }}>
+              <svg width="20" height="20" fill="none" stroke="#C8DFE0" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
             </div>
+
+            {/* Step 2 — Build Website */}
+            <div style={{ flex: 1, background: 'rgba(0,105,92,0.04)', border: '1px solid rgba(0,105,92,0.18)', borderRadius: '12px', padding: '18px 20px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '8px' }}>
+                <div style={{ width: '22px', height: '22px', borderRadius: '50%', background: '#00695C', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '11px', fontWeight: 900, color: '#fff', flexShrink: 0 }}>2</div>
+                <div style={{ fontSize: '13px', fontWeight: 800, color: '#0F1923' }}>Build Website</div>
+              </div>
+              <div style={{ fontSize: '12px', color: '#5B7080', lineHeight: 1.55, marginBottom: '14px' }}>
+                Pick a template, sync brand guidelines, build page structure, and publish to a live URL.
+              </div>
+              <Link
+                href={`/admin/events/${eventId}/website`}
+                style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', padding: '8px 16px', borderRadius: '8px', background: 'rgba(0,105,92,0.12)', border: '1px solid rgba(0,105,92,0.25)', color: '#00695C', fontSize: '12px', fontWeight: 700, textDecoration: 'none' }}
+              >
+                <svg width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+                Build Website
+              </Link>
+            </div>
+
           </div>
-          <Link
-            href={`/admin/events/${eventId}/brand`}
-            style={{ padding: '10px 20px', borderRadius: '10px', background: 'rgba(167,139,250,0.12)', border: '1px solid rgba(167,139,250,0.3)', color: '#A78BFA', fontSize: '13px', fontWeight: 700, textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '8px', whiteSpace: 'nowrap' }}
-          >
-            <svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
-            Open Brand Studio
-          </Link>
         </div>
 
         {/* ── P&L Section ───────────────────────────────────────────────── */}

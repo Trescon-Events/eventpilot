@@ -2,12 +2,6 @@
 
 import { useState, useEffect, use, useCallback } from 'react'
 import Link from 'next/link'
-import { createClient } from '@supabase/supabase-js'
-
-const supabaseBrowser = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-)
 
 type Guidelines = {
   id: string
@@ -326,23 +320,27 @@ export default function BrandStudioPage({ params }: { params: Promise<{ id: stri
     setMsg(null)
 
     try {
-      // Step 1: Upload PDF directly to Supabase Storage from browser
-      // (avoids Vercel's 4.5MB request body limit)
-      const path = `${eventId}/${Date.now()}-${file.name.replace(/[^a-zA-Z0-9._-]/g, '_')}`
-      const { error: uploadError } = await supabaseBrowser.storage
-        .from('brand-pdfs')
-        .upload(path, file, { contentType: 'application/pdf', upsert: true })
-
-      if (uploadError) {
-        setMsg({ text: `Upload failed: ${uploadError.message}`, ok: false })
+      // Step 1: Get a signed upload URL from the server (uses service role — avoids RLS + Vercel 4.5MB limit)
+      const urlRes = await fetch(`/api/events/brand/upload-url?event_id=${eventId}&filename=${encodeURIComponent(file.name)}`)
+      if (!urlRes.ok) {
+        const e = await urlRes.json()
+        setMsg({ text: `Upload setup failed: ${e.error}`, ok: false })
         setPdfUploading(false)
         return
       }
+      const { signedUrl, publicUrl } = await urlRes.json()
 
-      // Step 2: Get the public URL
-      const { data: { publicUrl } } = supabaseBrowser.storage
-        .from('brand-pdfs')
-        .getPublicUrl(path)
+      // Step 2: Upload directly to Supabase Storage via the signed URL
+      const uploadRes = await fetch(signedUrl, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/pdf' },
+        body: file,
+      })
+      if (!uploadRes.ok) {
+        setMsg({ text: `Upload failed (storage): ${uploadRes.statusText}`, ok: false })
+        setPdfUploading(false)
+        return
+      }
 
       // Step 3: Call extract-pdf with the storage URL
       const res  = await fetch('/api/events/brand/extract-pdf', {
@@ -432,9 +430,26 @@ export default function BrandStudioPage({ params }: { params: Promise<{ id: stri
 
         {/* Message */}
         {msg && (
-          <div style={{ marginBottom: '20px', padding: '12px 18px', borderRadius: '10px', background: msg.ok ? 'rgba(192,244,60,0.08)' : 'rgba(255,107,107,0.08)', border: `1px solid ${msg.ok ? 'rgba(192,244,60,0.3)' : 'rgba(255,107,107,0.3)'}`, color: msg.ok ? '#3D6B00' : '#DC2626', fontSize: '14px', fontWeight: 600, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div style={{ marginBottom: '12px', padding: '12px 18px', borderRadius: '10px', background: msg.ok ? 'rgba(192,244,60,0.08)' : 'rgba(255,107,107,0.08)', border: `1px solid ${msg.ok ? 'rgba(192,244,60,0.3)' : 'rgba(255,107,107,0.3)'}`, color: msg.ok ? '#3D6B00' : '#DC2626', fontSize: '14px', fontWeight: 600, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             {msg.text}
             <button onClick={() => setMsg(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'inherit', fontSize: '18px', lineHeight: 1, padding: '0 4px' }}>×</button>
+          </div>
+        )}
+
+        {/* Next step CTA — shown after a successful save */}
+        {msg?.ok && msg.text.includes('saved') && (
+          <div style={{ marginBottom: '20px', padding: '14px 20px', borderRadius: '12px', background: 'rgba(0,105,92,0.05)', border: '1px solid rgba(0,105,92,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '16px', flexWrap: 'wrap' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <svg width="16" height="16" fill="none" stroke="#00695C" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>
+              <span style={{ fontSize: '13px', fontWeight: 700, color: '#00695C' }}>Brand guidelines saved. Next: build the event website using these guidelines.</span>
+            </div>
+            <Link
+              href={`/admin/events/${eventId}/website`}
+              style={{ display: 'inline-flex', alignItems: 'center', gap: '7px', padding: '9px 18px', borderRadius: '9px', background: '#00695C', color: '#fff', fontSize: '13px', fontWeight: 800, textDecoration: 'none', whiteSpace: 'nowrap' }}
+            >
+              <svg width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+              Build Website
+            </Link>
           </div>
         )}
 

@@ -348,6 +348,13 @@ export default function EventWebsiteAdmin({ params }: { params: Promise<{ id: st
   const [publishing,      setPublishing]      = useState(false)
   const [rollbacking,     setRollbacking]     = useState(false)
 
+  // Brand Studio guidelines (for sync)
+  const [brandGuidelines, setBrandGuidelines] = useState<{
+    primary_color: string; secondary_color: string; accent_color: string
+    heading_font: string; body_font: string
+  } | null>(null)
+  const [syncingBrand, setSyncingBrand] = useState(false)
+
   // Publish tab
   const [previewDevice,   setPreviewDevice]   = useState<'desktop'|'tablet'|'mobile'>('desktop')
   const [cfToken,         setCfToken]         = useState('')
@@ -399,12 +406,15 @@ export default function EventWebsiteAdmin({ params }: { params: Promise<{ id: st
 
   useEffect(() => {
     async function loadBase() {
-      const [evRes, webRes] = await Promise.all([
+      const [evRes, webRes, brandRes] = await Promise.all([
         fetch(`/api/events?id=${eventId}`),
         fetch(`/api/events/website?event_id=${eventId}`),
+        fetch(`/api/events/brand?event_id=${eventId}`),
       ])
-      const ev  = await evRes.json().catch(() => null)
-      const web = await webRes.json().catch(() => null)
+      const ev     = await evRes.json().catch(() => null)
+      const web    = await webRes.json().catch(() => null)
+      const brandD = await brandRes.json().catch(() => null)
+      if (brandD?.guidelines) setBrandGuidelines(brandD.guidelines)
       const evData = Array.isArray(ev) ? ev[0] : ev
       if (evData) setEventName(evData.name)
       if (web) setSettings(web)
@@ -1036,6 +1046,92 @@ export default function EventWebsiteAdmin({ params }: { params: Promise<{ id: st
         {/* ── BRAND ────────────────────────────────────────────────────── */}
         {tab === 'brand' && (
           <div style={{ display: 'grid', gap: '20px' }}>
+
+            {/* ── Brand Studio Sync Gate ── */}
+            {!brandGuidelines ? (
+              <div style={{ background: '#FFF8F0', border: '1.5px solid #F59E0B', borderRadius: '16px', padding: '20px 24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '16px', flexWrap: 'wrap' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+                  <div style={{ width: '40px', height: '40px', borderRadius: '10px', background: 'rgba(245,158,11,0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                    <svg width="20" height="20" fill="none" stroke="#F59E0B" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+                  </div>
+                  <div>
+                    <div style={{ fontSize: '13px', fontWeight: 800, color: '#92400E', marginBottom: '3px' }}>Brand guidelines not set up yet</div>
+                    <div style={{ fontSize: '12px', color: '#B45309', lineHeight: 1.5 }}>Upload your brand PDF and extract colours + fonts in Brand Studio first, then sync them here.</div>
+                  </div>
+                </div>
+                <a
+                  href={`/admin/events/${eventId}/brand`}
+                  style={{ display: 'inline-flex', alignItems: 'center', gap: '7px', padding: '10px 18px', borderRadius: '10px', background: '#F59E0B', color: '#FFFFFF', fontSize: '13px', fontWeight: 800, textDecoration: 'none', whiteSpace: 'nowrap', flexShrink: 0 }}>
+                  <svg width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+                  Set Up Brand Studio
+                </a>
+              </div>
+            ) : (
+              <div style={{ background: 'rgba(0,105,92,0.04)', border: '1.5px solid rgba(0,105,92,0.2)', borderRadius: '16px', padding: '20px 24px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '16px', flexWrap: 'wrap', marginBottom: '16px' }}>
+                  <div>
+                    <div style={{ fontSize: '13px', fontWeight: 800, color: '#00695C', marginBottom: '3px' }}>Brand Studio — Guidelines Ready</div>
+                    <div style={{ fontSize: '12px', color: C.muted }}>Click sync to apply the saved brand colours and fonts to this website.</div>
+                  </div>
+                  <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+                    <a href={`/admin/events/${eventId}/brand`}
+                      style={{ fontSize: '12px', color: C.muted, textDecoration: 'none', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '4px' }}>
+                      <svg width="11" height="11" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                      Edit Brand
+                    </a>
+                    <button
+                      disabled={syncingBrand}
+                      onClick={async () => {
+                        setSyncingBrand(true)
+                        const res = await fetch(`/api/events/brand?event_id=${eventId}`)
+                        const d   = await res.json()
+                        if (d?.guidelines) {
+                          const g = d.guidelines
+                          setBrandGuidelines(g)
+                          setSettings(s => ({
+                            ...s,
+                            brand_color_1:    g.primary_color   ?? s.brand_color_1,
+                            brand_color_2:    g.secondary_color ?? s.brand_color_2,
+                            brand_color_3:    g.accent_color    ?? s.brand_color_3,
+                            brand_font_heading: g.heading_font  ?? s.brand_font_heading,
+                            brand_font_body:    g.body_font     ?? s.brand_font_body,
+                          }))
+                          showMsg('Brand guidelines synced — colours and fonts updated. Save to apply.')
+                        }
+                        setSyncingBrand(false)
+                      }}
+                      style={{ display: 'inline-flex', alignItems: 'center', gap: '7px', padding: '10px 18px', borderRadius: '10px', border: 'none', background: syncingBrand ? C.border : C.teal, color: '#fff', fontSize: '13px', fontWeight: 800, cursor: syncingBrand ? 'wait' : 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap' }}>
+                      <svg width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-4.5"/></svg>
+                      {syncingBrand ? 'Syncing…' : 'Sync to Website'}
+                    </button>
+                  </div>
+                </div>
+                {/* Colour preview */}
+                <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
+                  {[
+                    { label: 'Primary',   color: brandGuidelines.primary_color },
+                    { label: 'Secondary', color: brandGuidelines.secondary_color },
+                    { label: 'Accent',    color: brandGuidelines.accent_color },
+                  ].map(({ label, color }) => (
+                    <div key={label} style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '5px 10px', borderRadius: '8px', background: '#FFFFFF', border: `1px solid ${C.border}` }}>
+                      <div style={{ width: '14px', height: '14px', borderRadius: '4px', background: color, flexShrink: 0 }} />
+                      <span style={{ fontSize: '11px', fontWeight: 700, color: C.muted }}>{label}</span>
+                      <span style={{ fontSize: '11px', fontFamily: 'monospace', color: C.text }}>{color}</span>
+                    </div>
+                  ))}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '5px 10px', borderRadius: '8px', background: '#FFFFFF', border: `1px solid ${C.border}` }}>
+                    <svg width="12" height="12" fill="none" stroke={C.muted} strokeWidth="2" strokeLinecap="round" viewBox="0 0 24 24"><polyline points="4 7 4 4 20 4 20 7"/><line x1="9" y1="20" x2="15" y2="20"/><line x1="12" y1="4" x2="12" y2="20"/></svg>
+                    <span style={{ fontSize: '11px', fontWeight: 700, color: C.muted }}>Heading</span>
+                    <span style={{ fontSize: '11px', color: C.text }}>{brandGuidelines.heading_font}</span>
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '5px 10px', borderRadius: '8px', background: '#FFFFFF', border: `1px solid ${C.border}` }}>
+                    <svg width="12" height="12" fill="none" stroke={C.muted} strokeWidth="2" strokeLinecap="round" viewBox="0 0 24 24"><line x1="17" y1="10" x2="3" y2="10"/><line x1="21" y1="6" x2="3" y2="6"/><line x1="21" y1="14" x2="3" y2="14"/><line x1="17" y1="18" x2="3" y2="18"/></svg>
+                    <span style={{ fontSize: '11px', fontWeight: 700, color: C.muted }}>Body</span>
+                    <span style={{ fontSize: '11px', color: C.text }}>{brandGuidelines.body_font}</span>
+                  </div>
+                </div>
+              </div>
+            )}
 
             {/* Step 1 — Brand Document */}
             <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: '16px', padding: '24px' }}>
