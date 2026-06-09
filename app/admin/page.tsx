@@ -3910,7 +3910,7 @@ export default function AdminPage() {
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                 <div>
                   <div style={{ fontSize: '11px', fontWeight: 800, letterSpacing: '2px', textTransform: 'uppercase', color: '#A478FF', marginBottom: '4px' }}>Platform Roadmap</div>
-                  <div style={{ fontSize: '18px', fontWeight: 900, color: '#0F1923', letterSpacing: '-0.3px' }}>What&apos;s next for TAOS Platform</div>
+                  <div style={{ fontSize: '18px', fontWeight: 900, color: '#0F1923', letterSpacing: '-0.3px' }}>What&apos;s next for Event Pilot</div>
                 </div>
                 <button onClick={() => setShowRoadmap(false)} style={{ width: '36px', height: '36px', borderRadius: '10px', border: '1px solid #DDE8EE', background: '#FFFFFF', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                   <svg width="14" height="14" fill="none" stroke="#5B7080" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
@@ -4079,7 +4079,7 @@ export default function AdminPage() {
                     'Personal dashboard with role-specific course recommendations and platform access tiles',
                     'Course Library — auto-filtered to staff department, assigned courses pinned at top',
                     'AI-generated courses via Learning Lab — ready to publish in minutes',
-                    'Pilot — internal AI assistant scoped to TAOS and your org',
+                    'Pilot — internal AI assistant scoped to Event Pilot and your org',
                     'Admin dashboard with org-wide intelligence and tier breakdowns',
                     'Full HRMS — attendance, leave, recruitment pipeline, contracts, payroll grades, onboarding, offboarding',
                     'My HR portal — self-service leave, attendance, and event tasks for all staff',
