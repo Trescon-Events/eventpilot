@@ -3910,7 +3910,7 @@ export default function AdminPage() {
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                 <div>
                   <div style={{ fontSize: '11px', fontWeight: 800, letterSpacing: '2px', textTransform: 'uppercase', color: '#A478FF', marginBottom: '4px' }}>Platform Roadmap</div>
-                  <div style={{ fontSize: '18px', fontWeight: 900, color: '#0F1923', letterSpacing: '-0.3px' }}>What&apos;s next for Event Pilot</div>
+                  <div style={{ fontSize: '18px', fontWeight: 900, color: '#0F1923', letterSpacing: '-0.3px' }}>What&apos;s next for TAOS Platform</div>
                 </div>
                 <button onClick={() => setShowRoadmap(false)} style={{ width: '36px', height: '36px', borderRadius: '10px', border: '1px solid #DDE8EE', background: '#FFFFFF', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                   <svg width="14" height="14" fill="none" stroke="#5B7080" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
@@ -3928,6 +3928,21 @@ export default function AdminPage() {
                 </div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
                   {[
+                    { date: '10 Jun 2026', items: [
+                      'Org Chart redesigned — replaced impractical horizontal card tree with two practical views: Directory (grouped table by department, sortable, filterable) and Hierarchy (vertical indented list — no horizontal overflow at any org size)',
+                      'Org Chart — Directory table: name, role, level, office, manager, direct reports count, 8 tool-access dots per row, all visible at a glance without any clicks',
+                      'Org Chart — click any row: right-side detail panel slides in showing full reporting chain (breadcrumb from top to person), direct reports list, and 8 tool access toggles. Saves live via /api/admin/tool-permissions',
+                      'Nav wrapping bug fixed — all nav items now fit on one line at any screen width (gap, padding, font-size tightened; flexWrap nowrap)',
+                      'Staff Directory page — new page at /hr/staff replacing the broken 404. Full searchable/filterable table of all staff with level, office, manager, joined date, active/inactive status. "Add New Staff" button prominent in header',
+                      'Staff Onboarding Wizard — 5-step guided form at /hr/staff/new for HR to create new joinee profiles: Step 1 Personal Info, Step 2 Work Details, Step 3 Reporting Structure (manager + assign direct reports), Step 4 Platform Access & Tools, Step 5 Review & Create',
+                      'New staff API (/api/hr/staff) — creates full staff record with all fields, bcrypt-hashed temp password, tool_grants, auto-starts onboarding checklist matched by dept + job level, sends credentials email, creates in-app welcome notification',
+                      'Onboarding wizard: manager search dropdown (live staff search), direct-report reassignment multi-select for managers/leads, 8 tool toggles with colours per tool, onboarding checklist auto-start toggle',
+                      'Success screen after creation: shows temp password and login credentials card with "View Profile" and "Add Another" actions',
+                      'Add Staff button wired into HR portal home (Onboarding panel) and Onboarding Tracker header',
+                      'Password reset system confirmed complete — forgot password (email via Resend), reset via token link (1hr expiry), forced change on first login (must_change_password flag), self-service change from profile, admin force-reset via API',
+                      'Email branding fixed — all transactional emails rebranded from "Event Pilot" to "Trescon · TAI Academy". FROM address updated to noreply@tresconglobal.com via RESEND_FROM_EMAIL env var',
+                      'Credentials email now sent automatically on new staff creation (when login enabled) — new joiner gets email with their temp password and login link',
+                    ]},
                     { date: '9 Jun 2026', items: [
                       'Org Chart — full interactive reporting hierarchy at /admin/org-chart. Tree view built from manager_id links, color-coded by level, search with ancestor expansion, office filter, expand/collapse all',
                       'Tool Permissions system — 8 platform modules (Smart Data, HR Portal, Events, Intelligence Reports, Finance, Brand Studio, Website Builder, Content Engine) can now be granted per staff member. SQL: tool_grants JSONB column on staff_members',
@@ -4054,28 +4069,28 @@ export default function AdminPage() {
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                   {[
                     'TAIRS scoring — live AI readiness score for every staff member',
-                    'Org Chart — full interactive reporting hierarchy, search, office filter, level color coding',
+                    'Org Chart — Directory (dept-grouped table with tool dots) + Hierarchy (indented list). Click any person: full reporting chain + tool access toggles in a side panel',
                     'Tool Permissions — 8 platform modules grantable per staff member with inline dot badges, drawer UI, and Bulk Grant',
                     'Role-personalized dashboards — every staff member sees their own workspace with dept-specific quick links and live stats',
+                    'Staff Directory — /hr/staff: full searchable/filterable staff list with level, office, manager, joined date, status',
+                    'Staff Onboarding Wizard — 5-step HR form at /hr/staff/new: personal info, work details, reporting structure, platform access, review & create',
+                    'Password management — forgot password email, token-based reset (1hr expiry), forced first-login change, self-service change from profile, admin force-reset',
+                    'Transactional emails via Resend — password reset, welcome, credentials on new staff creation. FROM: noreply@tresconglobal.com',
                     'Personal dashboard with role-specific course recommendations and platform access tiles',
                     'Course Library — auto-filtered to staff department, assigned courses pinned at top',
                     'AI-generated courses via Learning Lab — ready to publish in minutes',
-                    'Pilot — internal AI assistant scoped to Event Pilot and your org',
+                    'Pilot — internal AI assistant scoped to TAOS and your org',
                     'Admin dashboard with org-wide intelligence and tier breakdowns',
-                    'Full HRMS — attendance, leave, recruitment, contracts, payroll',
-                    'My HR portal — self-service leave, attendance and event tasks for all staff',
+                    'Full HRMS — attendance, leave, recruitment pipeline, contracts, payroll grades, onboarding, offboarding',
+                    'My HR portal — self-service leave, attendance, and event tasks for all staff',
                     'Events Hub — RACI governance, P&L, execution flow, checklist, deals, and team management',
                     'Brand Studio — full 9-section brand book builder with PDF import, AI extraction, and manual builder',
                     'Website Builder — event microsites with brand sync gate and one-click palette/font sync from Brand Studio',
                     'Knowledge Base — company documents with Gemini-powered text and scanned PDF processing',
                     'Smart Data — lead extraction, LinkedIn enrichment, email verification, contact database',
                     'Content Hub — AI social campaigns with guided templates, approval flow, and calendar view',
-                    'Full HRMS — attendance, leave, recruitment pipeline, contracts, payroll grades, onboarding, offboarding',
-                    'My HR portal — self-service leave, attendance, and event tasks for all staff',
                     'Platform Menu — role-aware, each user sees only the tools they can access',
                     'Platform Docs — TAIRS scoring guide, discovery questionnaire, AI readiness playbook',
-                    'Pilot — internal AI assistant scoped to Event Pilot and your organisation',
-                    'Admin dashboard — org-wide TAIRS intelligence, tier breakdowns, and team overview',
                   ].map((item, i) => (
                     <div key={i} style={{ display: 'flex', gap: '10px', alignItems: 'flex-start', padding: '10px 14px', background: 'rgba(192,244,60,0.05)', border: '1px solid rgba(192,244,60,0.18)', borderRadius: '10px' }}>
 
@@ -4100,7 +4115,7 @@ export default function AdminPage() {
                     { title: 'Content Hub social publishing', desc: 'Connect Meta tokens to push approved posts live to LinkedIn, Instagram and Facebook directly from the platform.' },
                     { title: 'Department course seeding', desc: 'Seed the right AI-generated courses per department so each team has a ready library on day one.' },
                     { title: 'Course assignment from admin', desc: 'Assign specific courses to individual staff members or entire teams directly from the admin panel.' },
-                    { title: 'Staff onboarding via email', desc: 'Welcome email with platform intro, login link, and temp password sent automatically when staff are imported.' },
+                    { title: 'HR-led staff onboarding wizard ✓', desc: 'SHIPPED 10 Jun — 5-step form at /hr/staff/new. HR creates full profile, sets reporting structure, assigns tool access, auto-starts onboarding checklist. Credentials email sent automatically.' },
                     { title: 'Manager team view', desc: 'Managers see their team\'s TAIRS scores, who hasn\'t started, and who needs a nudge — without seeing individual data of others.' },
                     { title: 'Completion certificates', desc: 'Staff receive a certificate on passing a course. Shareable and stored against their profile.' },
                     { title: 'Weekly org pulse report', desc: 'Auto-generated Monday report to leadership: who moved tiers, what changed, what needs action.' },
