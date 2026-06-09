@@ -109,7 +109,7 @@ export async function GET(req: NextRequest) {
   const [staffRes, tasksRes, completionsRes, allCourses, reportCountRes, notificationsRes] = await Promise.all([
     supabaseAdmin
       .from('staff_members')
-      .select('id, name, email, department, role, office_id, profile_complete, joined_at, manager_id, job_level, team')
+      .select('id, name, email, department, role, office_id, profile_complete, joined_at, manager_id, job_level, team, toolkit_access, tool_grants')
       .eq('id', id)
       .single(),
     supabaseAdmin

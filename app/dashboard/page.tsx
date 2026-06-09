@@ -18,6 +18,8 @@ interface StaffMember {
   manager_id: string | null
   job_level: string
   team: string | null
+  toolkit_access?: boolean
+  tool_grants?: Record<string, boolean>
 }
 
 interface TaskProfile {
@@ -476,33 +478,191 @@ function DashboardContent() {
           </div>
         </div>
 
+        {/* ── My Workspace (role-personalised) ── */}
+        {(() => {
+          const grants        = staff.tool_grants ?? {}
+          const hasTool       = (k: string) => isAdmin || grants[k] === true || (k === 'smart_data' && staff.toolkit_access)
+          const dept          = staff.department ?? ''
+          const level         = staff.job_level
+          const isMgmt        = ['super_admin', 'office_head'].includes(level)
+          const isTeamMgr     = ['dept_head', 'team_lead'].includes(level)
+          const openTasks     = myChecklist.filter(i => i.status === 'open' || i.status === 'pending').length
+          const upcomingEvts  = events.filter(e => e.status === 'upcoming' || e.status === 'live').length
+          const mandatoryLeft = courses.filter(c => c.is_mandatory && !completedIds.has(c.id)).length
+
+          type WSTile = { label: string; href: string; color: string }
+          type WSStat = { value: string | number; label: string; color: string }
+
+          let wsTitle    = 'My Workspace'
+          let wsSub      = 'Your daily quick access'
+          let wsColor    = '#00897B'
+          let wsTiles: WSTile[]  = []
+          let wsStats: WSStat[]  = []
+
+          if (isMgmt) {
+            wsTitle  = 'Leadership Workspace'
+            wsSub    = 'Platform operations · full org access'
+            wsColor  = '#0F1923'
+            wsTiles  = [
+              { label: 'Admin Panel',  href: '/admin',                                              color: '#0F1923' },
+              { label: 'HR Portal',    href: '/hr',                                                 color: '#BE185D' },
+              { label: 'Org Chart',    href: '/admin/org-chart',                                    color: '#7C3AED' },
+              { label: 'Toolkit',      href: '/admin/toolkit',                                      color: '#00695C' },
+            ]
+            wsStats = [
+              { value: upcomingEvts,  label: 'active events',        color: '#D97706' },
+              { value: openTasks,     label: 'open tasks',           color: '#8B1A1A' },
+              { value: mandatoryLeft, label: 'mandatory remaining',  color: '#0E7490' },
+            ]
+          } else if (isTeamMgr) {
+            wsTitle  = 'Team Workspace'
+            wsSub    = 'Your team & event management'
+            wsColor  = '#7C3AED'
+            wsTiles  = [
+              { label: 'Team Dashboard', href: `/team?manager_id=${staffId}&staff_id=${staffId}`, color: '#8B5CF6' },
+              { label: 'My Events',      href: `/dashboard?id=${staffId}#events`,                 color: '#D97706' },
+              ...(hasTool('hr_portal') || dept === 'HR' ? [{ label: 'HR Portal', href: '/hr', color: '#BE185D' }] : []),
+            ]
+            wsStats = [
+              { value: upcomingEvts,  label: 'events assigned',     color: '#D97706' },
+              { value: openTasks,     label: 'open checklist tasks', color: '#8B1A1A' },
+              { value: mandatoryLeft, label: 'mandatory pending',    color: '#0E7490' },
+            ]
+          } else if (dept.toLowerCase().includes('sales') || dept === 'Sales & Sponsorship') {
+            wsTitle  = 'Sales Workspace'
+            wsSub    = 'Lead intelligence & event sponsorship'
+            wsColor  = '#0E7490'
+            wsTiles  = [
+              ...(hasTool('smart_data') ? [{ label: 'Smart Data', href: '/data/extract/file', color: '#00A5A3' }] : []),
+              { label: 'My Events',  href: `/dashboard?id=${staffId}#events`, color: '#D97706' },
+              { label: 'My HR',      href: '/my-hr',                          color: '#EC4899' },
+            ]
+            wsStats = [
+              { value: upcomingEvts, label: 'events assigned',     color: '#D97706' },
+              { value: openTasks,    label: 'open tasks',           color: '#8B1A1A' },
+              { value: completedCount, label: 'courses done',       color: '#00897B' },
+            ]
+          } else if (dept === 'HR & Recruitment' || dept === 'HR') {
+            wsTitle  = 'HR Workspace'
+            wsSub    = 'People ops & self-service HR'
+            wsColor  = '#BE185D'
+            wsTiles  = [
+              { label: 'HR Portal',   href: '/hr',    color: '#BE185D' },
+              { label: 'My HR',       href: '/my-hr', color: '#EC4899' },
+              { label: 'Attendance',  href: '/hr/attendance', color: '#7C3AED' },
+            ]
+            wsStats = [
+              { value: upcomingEvts,  label: 'events assigned',    color: '#D97706' },
+              { value: openTasks,     label: 'open tasks',          color: '#8B1A1A' },
+              { value: mandatoryLeft, label: 'mandatory pending',   color: '#0E7490' },
+            ]
+          } else if (dept === 'Finance') {
+            wsTitle  = 'Finance Workspace'
+            wsSub    = 'P&L, payroll & expense management'
+            wsColor  = '#1565C0'
+            wsTiles  = [
+              ...(hasTool('finance') ? [{ label: 'Finance', href: '/admin/toolkit', color: '#1565C0' }] : []),
+              { label: 'My Events',  href: `/dashboard?id=${staffId}#events`, color: '#D97706' },
+              { label: 'My HR',      href: '/my-hr',                          color: '#EC4899' },
+            ]
+            wsStats = [
+              { value: upcomingEvts,  label: 'events assigned',    color: '#D97706' },
+              { value: openTasks,     label: 'open tasks',          color: '#8B1A1A' },
+              { value: mandatoryLeft, label: 'mandatory pending',   color: '#0E7490' },
+            ]
+          } else if (dept === 'Marketing' || dept === 'Content & Design') {
+            wsTitle  = 'Creative Workspace'
+            wsSub    = 'Content, brand & campaigns'
+            wsColor  = '#DC2626'
+            wsTiles  = [
+              ...(hasTool('content') ? [{ label: 'Content Hub',    href: '/content',         color: '#0EA5E9' }] : []),
+              ...(hasTool('brand_studio') ? [{ label: 'Brand Studio', href: '/admin/toolkit', color: '#DC2626' }] : []),
+              { label: 'My Events',  href: `/dashboard?id=${staffId}#events`, color: '#D97706' },
+              { label: 'My HR',      href: '/my-hr',                          color: '#EC4899' },
+            ]
+            wsStats = [
+              { value: upcomingEvts,  label: 'events assigned',    color: '#D97706' },
+              { value: openTasks,     label: 'open tasks',          color: '#8B1A1A' },
+              { value: mandatoryLeft, label: 'mandatory pending',   color: '#0E7490' },
+            ]
+          } else {
+            // Default: Events, Operations, Government Relations, IT, Other
+            wsTitle  = dept ? `${dept} Workspace` : 'My Workspace'
+            wsSub    = 'Your events, tasks & learning'
+            wsColor  = '#00897B'
+            wsTiles  = [
+              { label: 'My Events',  href: `/dashboard?id=${staffId}#events`, color: '#D97706' },
+              { label: 'My HR',      href: '/my-hr',                          color: '#EC4899' },
+              ...(hasTool('smart_data') ? [{ label: 'Smart Data', href: '/data/extract/file', color: '#00A5A3' }] : []),
+            ]
+            wsStats = [
+              { value: upcomingEvts,  label: 'events assigned',    color: '#D97706' },
+              { value: openTasks,     label: 'open tasks',          color: '#8B1A1A' },
+              { value: mandatoryLeft, label: 'mandatory pending',   color: '#0E7490' },
+            ]
+          }
+
+          return (
+            <div style={{ background: `linear-gradient(135deg, ${wsColor}0D 0%, #FFFFFF 60%)`, border: `1.5px solid ${wsColor}20`, borderRadius: '16px', padding: '20px 24px', marginBottom: '20px' }}>
+              <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: '16px', gap: '12px', flexWrap: 'wrap' }}>
+                <div>
+                  <div style={{ fontSize: '11px', fontWeight: 800, letterSpacing: '2px', textTransform: 'uppercase', color: wsColor, marginBottom: '3px' }}>{wsTitle}</div>
+                  <div style={{ fontSize: '13px', color: '#5B7080', fontWeight: 500 }}>{wsSub}</div>
+                </div>
+                {/* Live stats */}
+                <div style={{ display: 'flex', gap: '16px', flexWrap: 'wrap' }}>
+                  {wsStats.map(s => (
+                    <div key={s.label} style={{ textAlign: 'right' }}>
+                      <div style={{ fontSize: '22px', fontWeight: 900, color: s.color, lineHeight: 1 }}>{s.value}</div>
+                      <div style={{ fontSize: '10px', color: '#9CA3AF', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px', marginTop: '2px' }}>{s.label}</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+              {/* Quick links */}
+              {wsTiles.length > 0 && (
+                <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                  {wsTiles.map(t => (
+                    <Link key={t.label} href={t.href} style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '8px 14px', borderRadius: '10px', background: '#FFFFFF', border: `1.5px solid ${t.color}30`, textDecoration: 'none', flexShrink: 0, transition: 'border-color 0.15s' }}
+                      onMouseEnter={e => { e.currentTarget.style.borderColor = t.color }}
+                      onMouseLeave={e => { e.currentTarget.style.borderColor = `${t.color}30` }}
+                    >
+                      <div style={{ width: '6px', height: '6px', borderRadius: '50%', background: t.color, flexShrink: 0 }} />
+                      <span style={{ fontSize: '13px', fontWeight: 700, color: '#0F1923' }}>{t.label}</span>
+                    </Link>
+                  ))}
+                </div>
+              )}
+            </div>
+          )
+        })()}
+
         {/* ── Your Platform Access ── */}
         {(() => {
+          const grants  = staff.tool_grants ?? {}
+          const hasTool = (k: string) => isAdmin || grants[k] === true || (k === 'smart_data' && staff.toolkit_access)
           const tiles = [
-            { label: 'My Learning',    sub: 'Courses & TAIRS score',   color: '#00897B', href: `/dashboard?id=${staffId}`,              icon: <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" viewBox="0 0 24 24"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>, show: true },
-            { label: 'Course Library', sub: 'Browse all courses',       color: '#6366F1', href: `/dashboard/library?id=${staffId}`,       icon: <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M9 3v18M3 9h6M3 15h6"/></svg>, show: true },
-            { label: 'Smart Data',     sub: 'Lead extraction & CRM',    color: '#00A5A3', href: '/data/extract/file',                     icon: <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" viewBox="0 0 24 24"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/></svg>, show: true },
-            { label: 'Talk to Pilot', sub: 'AI learning assistant',    color: '#7C3AED', href: '/chat',                                  icon: <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>, show: true },
-            { label: 'My Events',      sub: 'Event roles, tasks & allocation', color: '#D97706', href: `/dashboard?id=${staffId}#events`, icon: <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>, show: true },
-            { label: 'My HR',          sub: 'Leave, events & attendance', color: '#EC4899', href: '/my-hr',                               icon: <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>, show: true },
-            { label: 'HR Admin',       sub: 'Leave approvals & org ops',  color: '#BE185D', href: '/hr',                                  icon: <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>, show: !!(isAdmin || staff.department === 'HR') },
-            { label: 'Team Dashboard', sub: 'Your team TAIRS & progress', color: '#8B5CF6', href: `/team?manager_id=${staffId}&staff_id=${staffId}`, icon: <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>, show: !!(staff.has_reports || isAdmin) },
-            { label: 'Content Hub',    sub: 'Campaigns & social posts',  color: '#0EA5E9', href: '/content',                              icon: <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" viewBox="0 0 24 24"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>, show: !!(staff.department === 'Marketing' || isAdmin) },
-            { label: 'Admin Panel',    sub: 'Staff, HR & platform ops',  color: '#0F1923', href: '/admin',                                icon: <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>, show: !!isAdmin },
-            { label: 'Toolkit',        sub: 'Smart Data, events & more', color: '#00695C', href: '/admin/toolkit',                        icon: <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" viewBox="0 0 24 24"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg>, show: !!isAdmin },
+            { label: 'My Learning',           sub: 'Courses & TAIRS score',          color: '#00897B', href: `/dashboard?id=${staffId}`,                              icon: <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" viewBox="0 0 24 24"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>, show: true },
+            { label: 'Course Library',        sub: 'Browse all courses',              color: '#6366F1', href: `/dashboard/library?id=${staffId}`,                       icon: <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M9 3v18M3 9h6M3 15h6"/></svg>, show: true },
+            { label: 'Talk to Pilot',         sub: 'AI learning assistant',           color: '#7C3AED', href: '/chat',                                                  icon: <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>, show: true },
+            { label: 'My Events',             sub: 'Event roles & tasks',             color: '#D97706', href: `/dashboard?id=${staffId}#events`,                        icon: <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>, show: true },
+            { label: 'My HR',                 sub: 'Leave, pay & attendance',         color: '#EC4899', href: '/my-hr',                                                 icon: <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>, show: true },
+            { label: 'Smart Data',            sub: 'Lead extraction & CRM',           color: '#00A5A3', href: '/data/extract/file',                                     icon: <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" viewBox="0 0 24 24"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/></svg>, show: hasTool('smart_data') },
+            { label: 'HR Portal',             sub: 'Leave approvals & org ops',       color: '#BE185D', href: '/hr',                                                    icon: <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>, show: hasTool('hr_portal') || staff.department === 'HR & Recruitment' || staff.department === 'HR' },
+            { label: 'Team Dashboard',        sub: 'Team TAIRS & progress',           color: '#8B5CF6', href: `/team?manager_id=${staffId}&staff_id=${staffId}`,        icon: <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>, show: !!(staff.has_reports || isAdmin) },
+            { label: 'Intelligence',          sub: 'Market intel & AI research',      color: '#92400E', href: '/insights',                                              icon: <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" viewBox="0 0 24 24"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>, show: hasTool('intelligence') },
+            { label: 'Finance',               sub: 'P&L, payroll & expenses',         color: '#1565C0', href: '/admin/toolkit',                                         icon: <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" viewBox="0 0 24 24"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>, show: hasTool('finance') || staff.department === 'Finance' },
+            { label: 'Brand Studio',          sub: 'AI image & creative assets',      color: '#DC2626', href: '/admin/toolkit',                                         icon: <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" viewBox="0 0 24 24"><circle cx="13.5" cy="6.5" r=".5"/><circle cx="17.5" cy="10.5" r=".5"/><circle cx="8.5" cy="7.5" r=".5"/><circle cx="6.5" cy="12.5" r=".5"/><path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10c.926 0 1.648-.746 1.648-1.688 0-.437-.18-.835-.477-1.125-.29-.289-.438-.652-.438-1.125a1.64 1.64 0 0 1 1.668-1.668h1.996c3.051 0 5.555-2.503 5.555-5.554C21.965 6.012 17.461 2 12 2z"/></svg>, show: hasTool('brand_studio') },
+            { label: 'Website Builder',       sub: 'Event sites & landing pages',     color: '#D97706', href: '/admin/toolkit',                                         icon: <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>, show: hasTool('website_builder') },
+            { label: 'Content Hub',           sub: 'Campaigns & social posts',        color: '#0EA5E9', href: '/content',                                               icon: <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" viewBox="0 0 24 24"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>, show: hasTool('content') || staff.department === 'Marketing' || staff.department === 'Content & Design' },
+            { label: 'Admin Panel',           sub: 'Staff, permissions & ops',        color: '#0F1923', href: '/admin',                                                 icon: <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>, show: !!isAdmin },
           ].filter(t => t.show)
           return (
             <div style={{ marginBottom: '24px' }}>
               <div style={{ fontSize: '11px', fontWeight: 800, letterSpacing: '2px', textTransform: 'uppercase', color: '#9CA3AF', marginBottom: '12px' }}>Your Platform Access</div>
               <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
                 {tiles.map(t => (
-                  <Link key={t.label} href={t.href} style={{
-                    display: 'flex', alignItems: 'center', gap: '10px',
-                    padding: '10px 14px', borderRadius: '12px',
-                    background: '#FFFFFF', border: `1.5px solid ${t.color}25`,
-                    textDecoration: 'none', transition: 'border-color 0.15s, box-shadow 0.15s',
-                    flexShrink: 0,
-                  }}
+                  <Link key={t.label} href={t.href} style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '10px 14px', borderRadius: '12px', background: '#FFFFFF', border: `1.5px solid ${t.color}25`, textDecoration: 'none', transition: 'border-color 0.15s, box-shadow 0.15s', flexShrink: 0 }}
                     onMouseEnter={e => { e.currentTarget.style.borderColor = t.color; e.currentTarget.style.boxShadow = `0 2px 10px ${t.color}20` }}
                     onMouseLeave={e => { e.currentTarget.style.borderColor = `${t.color}25`; e.currentTarget.style.boxShadow = 'none' }}
                   >
