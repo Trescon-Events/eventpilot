@@ -3929,6 +3929,16 @@ export default function AdminPage() {
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
                   {[
                     { date: '9 Jun 2026', items: [
+                      'Org Chart — full interactive reporting hierarchy at /admin/org-chart. Tree view built from manager_id links, color-coded by level, search with ancestor expansion, office filter, expand/collapse all',
+                      'Tool Permissions system — 8 platform modules (Smart Data, HR Portal, Events, Intelligence Reports, Finance, Brand Studio, Website Builder, Content Engine) can now be granted per staff member. SQL: tool_grants JSONB column on staff_members',
+                      'Permissions drawer — opens from People tab. 2-column card grid with auto-save toggles. Super Admin lock notice. Footer grant counter',
+                      'Bulk Grant — second tab in the permissions drawer: pick any tool, select staff with checkboxes, grant access to all selected in one click. "Select without access" shortcut auto-ticks everyone who needs it',
+                      'Inline dot badges — People table now shows 8 colored dots per staff row (one per tool), colored = granted, grey = not granted. Instant access profile at a glance without opening the drawer',
+                      'Role-personalized dashboard — "My Workspace" section on every staff dashboard adapts by job level and department. Leadership sees admin/HR/org links + live org stats. Sales sees Smart Data. HR sees HR portal. Finance/Marketing/Creative see their tools. All gated by tool_grants',
+                      'Platform Access tiles now fully wired to tool_grants — staff only see tools they have been explicitly granted. Added new tiles: Intelligence Reports, Finance, Brand Studio, Website Builder',
+                      'Attendance page — defaults to last working day (skips weekends). Weekend banner with "Go to last working day" button. No-data empty state when HRMS has no records for a date',
+                      'HR portal Recent Activity — filtered out HRMS migration seed entries so feed shows real activity only',
+                      'Admin APIs — /api/admin/set-password and /api/admin/set-job-level for direct staff credential and level management via admin_code',
                       'Brand Studio v2 — full 9-section brand guidelines builder (Identity, Logo, Colors, Typography, Patterns, Imagery, Icons, Grid & Layout, Voice)',
                       'PDF import: upload any brand guidelines PDF → Gemini AI reads the entire document and extracts all sections automatically',
                       'AI extraction covers: brand name, positioning, vision, mission, archetypes, color palette with hex/CMYK/roles, full type scale, logo rules, imagery philosophy, photography direction, icon system, grid tokens, spacing tokens, voice and tone',
@@ -4044,6 +4054,9 @@ export default function AdminPage() {
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                   {[
                     'TAIRS scoring — live AI readiness score for every staff member',
+                    'Org Chart — full interactive reporting hierarchy, search, office filter, level color coding',
+                    'Tool Permissions — 8 platform modules grantable per staff member with inline dot badges, drawer UI, and Bulk Grant',
+                    'Role-personalized dashboards — every staff member sees their own workspace with dept-specific quick links and live stats',
                     'Personal dashboard with role-specific course recommendations and platform access tiles',
                     'Course Library — auto-filtered to staff department, assigned courses pinned at top',
                     'AI-generated courses via Learning Lab — ready to publish in minutes',
