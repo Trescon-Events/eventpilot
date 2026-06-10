@@ -94,7 +94,10 @@ export async function middleware(req: NextRequest) {
     pathname.startsWith('/api/admin/set-password') ||
     pathname.startsWith('/api/admin/set-job-level') ||
     pathname.startsWith('/api/admin/tool-permissions') ||
-    pathname.startsWith('/api/cron/')
+    pathname.startsWith('/api/cron/') ||
+    pathname.startsWith('/api/seed-platform-docs') ||
+    pathname.startsWith('/api/seed-courses') ||
+    pathname.startsWith('/api/seed-demo')
   ) {
     return NextResponse.next()
   }
