@@ -3989,6 +3989,13 @@ export default function AdminPage() {
                 </div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
                   {[
+                    { date: '11 Jun 2026', items: [
+                      'Weekly auto course generation — every Sunday the platform now automatically builds 3 new draft courses: 2 from the top skill gaps identified in the weekly insights report, 1 from the latest AI tool or release Gemini identifies as most relevant for B2B events staff that week',
+                      'All auto-generated courses saved as drafts with source "Pilot AI" — super admin gets one consolidated notification and reviews them in the Review Queue before they go live',
+                      'Engagement & participation report — Learning tab now shows: Participation by Department (% of staff in each dept who have attempted at least one course, with colour-coded progress bars) and Never Started panel (list of every active staff member with zero course activity, showing name, role, dept, office)',
+                      'Platform docs expanded from 10 to 20 articles — now covers all 6 modules: Events, HR, Content, Data, Pilot, Security, and Notifications. Merged Madhu\'s AIRS renaming',
+                      'Seed routes added to middleware public exemptions — /api/seed-platform-docs, /api/seed-courses, /api/seed-demo no longer require auth',
+                    ]},
                     { date: '10 Jun 2026', items: [
                       'Org Chart redesigned — replaced impractical horizontal card tree with two practical views: Directory (grouped table by department, sortable, filterable) and Hierarchy (vertical indented list — no horizontal overflow at any org size)',
                       'Org Chart — Directory table: name, role, level, office, manager, direct reports count, 8 tool-access dots per row, all visible at a glance without any clicks',
@@ -4139,6 +4146,8 @@ export default function AdminPage() {
                     'Transactional emails via Resend — password reset, welcome, credentials on new staff creation. FROM: noreply@tresconglobal.com',
                     'Personal dashboard with role-specific course recommendations and platform access tiles',
                     'Course Library — auto-filtered to staff department, assigned courses pinned at top',
+                    'Weekly auto course generation — every Sunday Pilot AI builds 3 draft courses from org skill gaps + latest AI news. Super admin reviews and publishes from Review Queue',
+                    'Engagement report — Learning tab shows participation rate per department and full Never Started list (staff with zero course activity)',
                     'AI-generated courses via Learning Lab — ready to publish in minutes',
                     'Pilot — internal AI assistant scoped to Event Pilot and your org',
                     'Admin dashboard with org-wide intelligence and tier breakdowns',
@@ -4179,6 +4188,8 @@ export default function AdminPage() {
                     { title: 'HR-led staff onboarding wizard ✓', desc: 'SHIPPED 10 Jun — 5-step form at /hr/staff/new. HR creates full profile, sets reporting structure, assigns tool access, auto-starts onboarding checklist. Credentials email sent automatically.' },
                     { title: 'Manager team view', desc: 'Managers see their team\'s AI Readiness Scores, who hasn\'t started, and who needs a nudge — without seeing individual data of others.' },
                     { title: 'Completion certificates', desc: 'Staff receive a certificate on passing a course. Shareable and stored against their profile.' },
+                    { title: 'Weekly auto course generation ✓', desc: 'SHIPPED 11 Jun — every Sunday the cron generates 3 draft courses: 2 from top skill gaps in the insights report + 1 from latest AI news. All queued for admin review.' },
+                    { title: 'Engagement & participation report ✓', desc: 'SHIPPED 11 Jun — Learning tab now shows participation rate per department and a Never Started list of all staff with zero course activity.' },
                     { title: 'Weekly org pulse report', desc: 'Auto-generated Monday report to leadership: who moved tiers, what changed, what needs action.' },
                   ].map((item, i) => (
                     <div key={i} style={{ padding: '12px 14px', background: 'rgba(139,26,26,0.05)', border: '1px solid rgba(139,26,26,0.15)', borderRadius: '10px' }}>
