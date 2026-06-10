@@ -187,7 +187,7 @@ function buildSections(
         },
         {
           title:       'Site Builder',
-          description: 'Pick an event and a template — TAOS creates the GitHub repo and deploys the site automatically.',
+          description: 'Pick an event and a template — Event Pilot creates the GitHub repo and deploys the site automatically.',
           href:        '/admin/sites',
           color:       '#0369A1',
           bg:          'rgba(3,105,161,0.08)',

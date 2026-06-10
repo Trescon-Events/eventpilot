@@ -4140,7 +4140,7 @@ export default function AdminPage() {
                     { title: 'Events Hub AI-first', desc: 'Upload an event brief — AI extracts structure, assigns staff, surfaces readiness gaps. No manual data entry.' },
                     { title: 'Department deep-dives', desc: 'Per-department AI report: current tier split, top skill gaps, projected score in 30 days, recommended courses.' },
                     { title: 'Course effectiveness scoring', desc: 'AI tracks whether AI Readiness Scores actually improve after each course. Courses that don\'t move the needle get flagged.' },
-                    { title: 'TAOS integration', desc: 'Event Pilot\'s org intelligence feeds the broader Trescon AI Operating System — capability data becomes a business asset.' },
+                    { title: 'Platform integrations', desc: 'Event Pilot org intelligence feeds into broader Trescon workflows — capability data becomes a business asset.' },
                   ].map((item, i) => (
                     <div key={i} style={{ padding: '12px 14px', background: 'rgba(164,120,255,0.05)', border: '1px solid rgba(164,120,255,0.12)', borderRadius: '10px' }}>
                       <div style={{ fontSize: '13px', fontWeight: 700, color: '#A478FF', marginBottom: '4px' }}>{item.title}</div>

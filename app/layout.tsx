@@ -5,8 +5,8 @@ import "./globals.css";
 const manrope = Manrope({ subsets: ["latin"], variable: "--font-manrope", display: "swap" });
 
 export const metadata: Metadata = {
-  title: "Event Pilot — Trescon AI Learning Platform",
-  description: "The internal AI learning platform for Trescon Global. Build skills, track readiness, and grow with your team.",
+  title: "Event Pilot",
+  description: "Event Pilot — the AI-powered event management platform for Trescon Global.",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

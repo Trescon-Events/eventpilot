@@ -413,7 +413,7 @@ function ProfileContent() {
       {
         num: '02', color: '#A78BFA',
         title: 'Get your AI Readiness Score',
-        body: 'Trescon AI Index Readiness Score — places you from AI-Unaware to AI-Forward so you know exactly where to grow.',
+        body: 'AI Readiness Score — places you from AI-Unaware to AI-Forward so you know exactly where to grow.',
       },
       {
         num: '03', color: '#3D6B00',

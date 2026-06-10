@@ -110,7 +110,7 @@ export default function SiteBuilderPage() {
         {/* Header */}
         <div>
           <div style={{ fontSize: '22px', fontWeight: 900, color: C.text, marginBottom: '6px' }}>Create an Event Site</div>
-          <div style={{ fontSize: '14px', color: C.muted }}>Pick an event and a template. TAOS creates the GitHub repo, injects your data, and deploys automatically.</div>
+          <div style={{ fontSize: '14px', color: C.muted }}>Pick an event and a template. Event Pilot creates the GitHub repo, injects your data, and deploys automatically.</div>
         </div>
 
         {/* Step 1 — Pick Event */}

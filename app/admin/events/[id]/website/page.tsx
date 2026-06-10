@@ -879,7 +879,7 @@ export default function EventWebsiteAdmin({ params }: { params: Promise<{ id: st
                 {existingSite ? 'Redeploy with a different template' : 'Choose a Site Template'}
               </div>
               <div style={{ fontSize: '13px', color: C.muted, lineHeight: 1.6 }}>
-                Pick a template. TAOS will create a private GitHub repo under Trescon-Events, inject your event data (brand, logos, speakers, sponsors) and push everything. GitHub Actions then builds and deploys to Cloudflare Workers automatically — no terminal needed.
+                Pick a template. Event Pilot will create a private GitHub repo under Trescon-Events, inject your event data (brand, logos, speakers, sponsors) and push everything. GitHub Actions then builds and deploys to Cloudflare Workers automatically — no terminal needed.
               </div>
             </div>
 
@@ -928,7 +928,7 @@ export default function EventWebsiteAdmin({ params }: { params: Promise<{ id: st
                   {templates.find(t => t.id === selectedTemplate)?.label}
                 </div>
                 <div style={{ fontSize: '12px', color: C.muted, marginBottom: '20px', lineHeight: 1.6 }}>
-                  TAOS will create a GitHub repo, inject your event data, and trigger an automatic Cloudflare Workers deployment. The site will be live in 5–8 minutes.
+                  Event Pilot will create a GitHub repo, inject your event data, and trigger an automatic Cloudflare Workers deployment. The site will be live in 5–8 minutes.
                 </div>
 
                 {/* Progress steps while deploying */}

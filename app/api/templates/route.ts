@@ -3,7 +3,7 @@ import { supabaseAdmin } from '@/app/lib/supabase'
 
 // ── Template Registry ─────────────────────────────────────────────────────────
 // Templates are stored in the site_templates Supabase table.
-// Super admins add new templates via TAOS without code changes.
+// Super admins add new templates via Event Pilot without code changes.
 // Hardcoded FALLBACK_TEMPLATES used if DB is unavailable.
 // ─────────────────────────────────────────────────────────────────────────────
 

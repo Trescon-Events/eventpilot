@@ -177,7 +177,7 @@ export async function GET(req: NextRequest) {
   await supabaseAdmin.from('staff_timesheets').upsert(tsRows, { onConflict: 'hrms_entry_id', ignoreDuplicates: false })
 
   // ── Sync leave balances ───────────────────────────────────────────────────
-  // Map HRMS leave_type strings → TAOS leave_type_ids via code lookup
+  // Map HRMS leave_type strings → Event Pilot leave_type_ids via code lookup
   let leaveBalancesSynced = 0
   try {
     const { data: leaveTypes } = await supabaseAdmin
