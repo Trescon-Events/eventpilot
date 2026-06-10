@@ -22,11 +22,13 @@ const TTL_MS = 5 * 60 * 1000 // 5 minutes
 export async function getCachedCourses(): Promise<CachedCourse[]> {
   if (_cache && Date.now() - _cache.ts < TTL_MS) return _cache.data
 
-  const { data } = await supabaseAdmin
+  const { data, error } = await supabaseAdmin
     .from('courses')
     .select('id, title, subtitle, tool_name, tier_level, dept_tags, is_mandatory, estimated_minutes, overview, source, created_at, suggested_by_name, suggested_by_role')
     .eq('status', 'published')
     .order('created_at', { ascending: false })
+
+  if (error) console.error('[courseCache] query failed:', error.message, error.details)
 
   _cache = { data: data ?? [], ts: Date.now() }
   return _cache.data
