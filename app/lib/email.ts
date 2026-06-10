@@ -8,7 +8,7 @@ import { Resend } from 'resend'
 
 const resend = new Resend(process.env.RESEND_API_KEY)
 
-const FROM  = process.env.RESEND_FROM_EMAIL ?? 'Event Pilot <noreply@tresconglobal.com>'
+const FROM  = process.env.RESEND_FROM_EMAIL ?? 'Event Pilot <noreply@eventpilot.tresconglobal.com>'
 const BRAND = '#00A5A3'
 const DARK  = '#080A0B'
 const LIME  = '#C0F43C'
