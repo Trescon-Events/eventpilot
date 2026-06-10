@@ -3989,14 +3989,20 @@ export default function AdminPage() {
                 </div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
                   {[
-                    { date: '11 Jun 2026', items: [
+                    { date: '11 Jun 2026 — Durga', items: [
                       'Weekly auto course generation — every Sunday the platform now automatically builds 3 new draft courses: 2 from the top skill gaps identified in the weekly insights report, 1 from the latest AI tool or release Gemini identifies as most relevant for B2B events staff that week',
                       'All auto-generated courses saved as drafts with source "Pilot AI" — super admin gets one consolidated notification and reviews them in the Review Queue before they go live',
                       'Engagement & participation report — Learning tab now shows: Participation by Department (% of staff in each dept who have attempted at least one course, with colour-coded progress bars) and Never Started panel (list of every active staff member with zero course activity, showing name, role, dept, office)',
-                      'Platform docs expanded from 10 to 20 articles — now covers all 6 modules: Events, HR, Content, Data, Pilot, Security, and Notifications. Merged Madhu\'s AIRS renaming',
+                      'Platform docs expanded from 10 to 20 articles — now covers all 6 modules: Events, HR, Content, Data, Pilot, Security, and Notifications',
                       'Seed routes added to middleware public exemptions — /api/seed-platform-docs, /api/seed-courses, /api/seed-demo no longer require auth',
                     ]},
-                    { date: '10 Jun 2026', items: [
+                    { date: '10 Jun 2026 — Madhu', items: [
+                      'Full platform rebrand cleanup — removed all remaining TAOS, AI Learning Platform, AI Index, Trescademy, TAI, and TAIRS remnants from UI, nav, and page copy. Platform is now consistently "Event Pilot" throughout',
+                      'AIRS renaming complete — TAIRS renamed to AIRS (AI Readiness Score) across all UI, scoring, and copy',
+                      'Email FROM address updated to noreply@eventpilot.tresconglobal.com for all transactional emails',
+                      'Middleware PLATFORM_HOSTS updated to reflect the live Vercel project URL for the eventpilot deployment',
+                    ]},
+                    { date: '10 Jun 2026 — Durga', items: [
                       'Org Chart redesigned — replaced impractical horizontal card tree with two practical views: Directory (grouped table by department, sortable, filterable) and Hierarchy (vertical indented list — no horizontal overflow at any org size)',
                       'Org Chart — Directory table: name, role, level, office, manager, direct reports count, 8 tool-access dots per row, all visible at a glance without any clicks',
                       'Org Chart — click any row: right-side detail panel slides in showing full reporting chain (breadcrumb from top to person), direct reports list, and 8 tool access toggles. Saves live via /api/admin/tool-permissions',
@@ -4011,7 +4017,7 @@ export default function AdminPage() {
                       'Email branding fixed — all transactional emails rebranded to Event Pilot. FROM address updated to noreply@tresconglobal.com via RESEND_FROM_EMAIL env var. FROM address updated to noreply@tresconglobal.com via RESEND_FROM_EMAIL env var',
                       'Credentials email now sent automatically on new staff creation (when login enabled) — new joiner gets email with their temp password and login link',
                     ]},
-                    { date: '9 Jun 2026', items: [
+                    { date: '9 Jun 2026 — Durga', items: [
                       'Org Chart — full interactive reporting hierarchy at /admin/org-chart. Tree view built from manager_id links, color-coded by level, search with ancestor expansion, office filter, expand/collapse all',
                       'Tool Permissions system — 8 platform modules (Smart Data, HR Portal, Events, Intelligence Reports, Finance, Brand Studio, Website Builder, Content Engine) can now be granted per staff member. SQL: tool_grants JSONB column on staff_members',
                       'Permissions drawer — opens from People tab. 2-column card grid with auto-save toggles. Super Admin lock notice. Footer grant counter',
@@ -4036,7 +4042,11 @@ export default function AdminPage() {
                       'Signed upload URL route: brand PDFs upload directly to Supabase Storage, bypasses Vercel 4.5 MB body limit and RLS',
                       'Platform Roadmap updated: Build Log, Live Now, and Phase 2 all reflect current state',
                     ]},
-                    { date: '30 May – 8 Jun 2026', items: [
+                    { date: '8 Jun 2026 — Madhu', items: [
+                      'SmartData DB routing fixed — wired all Smart Data routes to the dedicated Supabase project (lnhtmppybqeicedgtanf) with correct SMARTDATA_* env vars',
+                      'SmartData migrate route fixed — active DB switched to the new dedicated project with real contact data',
+                    ]},
+                    { date: '30 May – 8 Jun 2026 — Durga', items: [
                       'Platform renamed from Trescademy to Event Pilot across all UI, nav, emails, and page titles',
                       'AI assistant renamed from Tresci to Pilot',
                       'HRMS sync refixed — staff, projects, allocations, and timesheets all reconnected to Trescon Resource Planner',
@@ -4046,7 +4056,7 @@ export default function AdminPage() {
                       'Supabase Storage: brand-pdfs bucket created with correct INSERT/SELECT RLS policies for signed uploads',
                       'Gemini API key rotated: new EventPilot project key in Google AI Studio, $25 credit topped up',
                     ]},
-                    { date: '27–29 May 2026', items: [
+                    { date: '27–29 May 2026 — Durga', items: [
                       'Platform Menu rebuilt — role-aware filtering, each user sees only what they can access, Coming Soon items removed entirely',
                       'Smart Data sidebar: back link now resolves correctly per role (admin → Toolkit, staff → Dashboard), no flicker',
                       'Smart Data breadcrumb pipeline buttons removed — cleaner Lead Extraction page',
@@ -4062,69 +4072,74 @@ export default function AdminPage() {
                       'Content Hub event filter changed from 50+ pills to a single compact dropdown',
                       'Content Hub campaign detail page font sizes fixed — was 17–20px throughout, now consistent 13px',
                     ]},
-                    { date: '20 May 2026', items: [
+                    { date: '20 May 2026 — Durga', items: [
                       'Docs text visibility fixed across Scoring Guide and Discovery Questionnaire',
                       'HR portal redesigned — Recruitment, Attendance, and Leave with action-first layout',
                       'Cookie-based auth middleware — server-side route protection for all pages',
                       'Attendance trend: weekends and un-synced days correctly excluded from chart',
                       'Platform docs: duplicate sidebar entry removed',
                     ]},
-                    { date: '19 May 2026', items: [
+                    { date: '19 May 2026 — Durga', items: [
                       'Events workspace: edit mode, Team tab, HR overhead tracking',
                       'Recruitment pipeline: full end-to-end hiring flow (requisition → screen → offer → hire)',
                       'Staff profile: events tab, leave request form, HRMS fields',
                     ]},
-                    { date: '18 May 2026', items: [
+                    { date: '18 May 2026 — Durga', items: [
                       'Full HRMS launched — attendance, leave, contracts, payroll grades, onboarding',
                       'Event P&L system with revenue and cost tracking per event',
                       'Document processing upgraded: Gemini reads text and scanned PDFs natively',
                       'HRMS one-time init flow with admin dashboard bootstrap banner',
                     ]},
-                    { date: '11 May 2026', items: [
+                    { date: '11 May 2026 — Durga', items: [
                       'HRMS sync with Trescon Resource Planner (staff, projects, allocations, timesheets)',
                       'Admin login: accepts all senior staff, not just super admin',
                     ]},
-                    { date: '10 May 2026', items: [
+                    { date: '10 May 2026 — Durga', items: [
                       'Platform-wide Trescon-brand light theme applied',
                       'Standardised font sizes, card design, and text visibility across all pages',
                       'AIRS tier colours corrected; nav buttons cleaned up',
                     ]},
-                    { date: '9 May 2026', items: [
+                    { date: '9 May 2026 — Durga', items: [
                       'Content engine launched: AI-generated posts, campaign management, approval flow',
                       'Events workspace with checklist, budget, and deal tracking',
                     ]},
-                    { date: '27 Apr 2026', items: [
+                    { date: '27 Apr 2026 — Durga', items: [
                       'Guided tour for new admins',
                       'What\'s Next roadmap panel',
                       'Welcome modal redesign with per-user localStorage state',
                       'Dynamic AIRS scoring with live tier display',
                     ]},
-                    { date: '25 Apr 2026', items: [
+                    { date: '25 Apr 2026 — Durga', items: [
                       'Staff and admin login by email (no more staff ID entry)',
                       'My Learning links from admin directly to staff dashboard',
                     ]},
-                    { date: '24 Apr 2026', items: [
+                    { date: '24 Apr 2026 — Durga', items: [
                       'Initial platform launch: AIRS scoring, AI readiness questionnaire',
                       'Admin dashboard with org-wide intelligence and tier breakdowns',
                       'Pilot — internal AI assistant scoped to Event Pilot',
                       'Course generation and staff onboarding flow',
                     ]},
-                  ].map((day, di) => (
+                  ].map((day, di) => {
+                    const isMadhu = day.date.includes('Madhu')
+                    const badgeColor   = isMadhu ? '#00695C' : '#1565C0'
+                    const badgeBg      = isMadhu ? 'rgba(0,105,92,0.08)' : 'rgba(21,101,192,0.08)'
+                    const badgeBorder  = isMadhu ? 'rgba(0,105,92,0.2)' : 'rgba(21,101,192,0.2)'
+                    return (
                     <div key={di}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '10px 0 6px' }}>
-                        <div style={{ fontSize: '11px', fontWeight: 800, color: '#1565C0', background: 'rgba(21,101,192,0.08)', border: '1px solid rgba(21,101,192,0.2)', borderRadius: '6px', padding: '2px 8px', whiteSpace: 'nowrap' }}>{day.date}</div>
+                        <div style={{ fontSize: '11px', fontWeight: 800, color: badgeColor, background: badgeBg, border: `1px solid ${badgeBorder}`, borderRadius: '6px', padding: '2px 8px', whiteSpace: 'nowrap' }}>{day.date}</div>
                         <div style={{ flex: 1, height: '1px', background: '#DDE8EE' }} />
                       </div>
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', paddingLeft: '4px' }}>
                         {day.items.map((item, ii) => (
                           <div key={ii} style={{ display: 'flex', gap: '8px', alignItems: 'flex-start' }}>
-                            <div style={{ width: '5px', height: '5px', borderRadius: '50%', background: '#DDE8EE', marginTop: '6px', flexShrink: 0 }} />
+                            <div style={{ width: '5px', height: '5px', borderRadius: '50%', background: isMadhu ? 'rgba(0,105,92,0.3)' : '#DDE8EE', marginTop: '6px', flexShrink: 0 }} />
                             <span style={{ fontSize: '13px', color: '#5B7080', lineHeight: 1.5 }}>{item}</span>
                           </div>
                         ))}
                       </div>
                     </div>
-                  ))}
+                  )})}
                 </div>
               </div>
 
