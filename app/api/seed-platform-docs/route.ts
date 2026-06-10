@@ -1,7 +1,7 @@
 import { supabaseAdmin } from '@/app/lib/supabase'
 import { NextRequest, NextResponse } from 'next/server'
 
-const ADMIN_CODE = process.env.NEXT_PUBLIC_ADMIN_CODE ?? 'taos2026'
+const ADMIN_CODE = process.env.NEXT_PUBLIC_ADMIN_CODE ?? 'eventpilot2026'
 
 /*
   POST /api/seed-platform-docs
@@ -23,7 +23,7 @@ Event Pilot is not a generic e-learning platform. Every course, every recommenda
 
 The platform runs on a continuous weekly loop:
 1. Staff complete an AI Readiness Questionnaire (the task survey)
-2. The system calculates their TAIRS score (AI Readiness Score out of 100)
+2. The system calculates their AI Readiness Score (AI Readiness Score out of 100)
 3. The recommendation engine assigns a personalised learning path
 4. Staff take courses and complete assessments
 5. Scores update. The loop continues.
@@ -32,12 +32,12 @@ Managers see their team's progress. Admins see the full organisation. Everyone h
     order_index: 1,
   },
 
-  /* ── 2. TAIRS SCORE ────────────────────────────────────────────── */
+  /* ── 2. AIRS SCORE ────────────────────────────────────────────── */
   {
     slug: 'tairs-score-explained',
     category: 'Platform Overview',
-    title: 'How Your TAIRS Score Works',
-    content: `TAIRS stands for Trescon AI Readiness Score. It is a number from 0 to 100 that represents how embedded AI is in your current daily work.
+    title: 'How Your AI Readiness Score Works',
+    content: `AIRS stands for AI Readiness Score. It is a number from 0 to 100 that represents how embedded AI is in your current daily work.
 
 HOW IT IS CALCULATED
 
@@ -48,14 +48,14 @@ When you complete the AI Readiness Questionnaire, you describe your daily work t
 - 4 = Regularly uses AI for this task
 - 5 = AI is fully integrated into this task
 
-Your TAIRS score is the average of all your task readings, converted to a 0–100 scale using the formula:
+Your AI Readiness Score is the average of all your task readings, converted to a 0–100 scale using the formula:
   score = round(((avg - 1) / 4) × 65 + 10)
 
 A score of 0 means no AI usage across all tasks. A score of 100 would mean every task is fully AI-integrated.
 
 THE FIVE TIERS
 
-Your TAIRS score places you into one of five tiers, each with a learning track:
+Your AI Readiness Score places you into one of five tiers, each with a learning track:
 
 AI-Forward (75–100) → Advanced Track
 You are a model AI practitioner. Your focus is on automating workflows, building AI systems for your team, and leading AI adoption in your department.
@@ -83,7 +83,7 @@ Your score updates every time you retake the questionnaire. The way to move your
     slug: 'learning-tracks-and-courses',
     category: 'Platform Overview',
     title: 'Learning Tracks, Courses, and How They Are Structured',
-    content: `Event Pilot organises all courses into three tracks that align with your TAIRS score tier.
+    content: `Event Pilot organises all courses into three tracks that align with your AI Readiness Score tier.
 
 THE THREE TRACKS
 
@@ -98,7 +98,7 @@ Covers AI leadership, automation building, team AI strategy, and end-to-end crea
 
 MANDATORY VS OPTIONAL
 
-Some courses are marked Mandatory. These are required for all staff regardless of role, department, or TAIRS score. Mandatory courses establish the common knowledge baseline across all 300 Trescon employees.
+Some courses are marked Mandatory. These are required for all staff regardless of role, department, or AI Readiness Score. Mandatory courses establish the common knowledge baseline across all 300 Trescon employees.
 
 Optional courses are recommended based on your department, job level, and learning track.
 
@@ -140,7 +140,7 @@ Signal 1: Mandatory and Not Done (+50 points)
 If a course is mandatory and you have not passed it yet, it receives the highest priority score. Compliance always comes first. Mandatory courses appear at the top of your recommended list regardless of track, department, or job level.
 
 Signal 2: Track Alignment (+30 points)
-If a course belongs to your current learning track (based on your TAIRS score), it is a strong match. Foundation track users see foundation courses boosted. Adoption and advanced track users see their track boosted accordingly.
+If a course belongs to your current learning track (based on your AI Readiness Score), it is a strong match. Foundation track users see foundation courses boosted. Adoption and advanced track users see their track boosted accordingly.
 
 Signal 3: Department Match (+25 points)
 If a course is tagged for your department (e.g., Marketing, Finance, Content & Design), it receives a relevance boost. A Marketing executive sees AI Copywriting and Social Media courses pushed higher than someone in Finance would. This signal activates for courses that explicitly include your department in their tags.
@@ -170,7 +170,7 @@ Each recommendation is labelled with the primary reason it was surfaced:
 
 WHY THIS APPROACH
 
-The alternative — showing everyone the same list filtered only by tier — produces generic outputs. A Finance Manager with a high TAIRS score and a Marketing Executive with a low score should see completely different courses, even if they are in the same tier. Role, department, and job level are equally important as raw score.
+The alternative — showing everyone the same list filtered only by tier — produces generic outputs. A Finance Manager with a high AI Readiness Score and a Marketing Executive with a low score should see completely different courses, even if they are in the same tier. Role, department, and job level are equally important as raw score.
 
 As staff complete courses, their completed courses are removed from the pool and the remaining courses re-rank. The list is always fresh and always moving forward.`,
     order_index: 4,
@@ -186,7 +186,7 @@ As staff complete courses, their completed courses are removed from the pool and
 STEP 1: LOG IN
 Go to www.eventpilot.com (or localhost:3003 during development). Use your Trescon work email and the password provided by HR. You will land on your personal dashboard.
 
-STEP 2: CHECK YOUR TAIRS SCORE
+STEP 2: CHECK YOUR AIRS SCORE
 Your dashboard shows your current AI Readiness Score, your tier (AI-Unaware through AI-Forward), and your current learning track. If your score is 0, it means you have not yet completed the AI Readiness Questionnaire — do this first.
 
 STEP 3: COMPLETE THE QUESTIONNAIRE
@@ -199,11 +199,11 @@ STEP 5: COMPLETE THE COURSE
 Each course has: something to read, tasks to do with real AI tools, and a 5-question assessment. You need 60% or above to pass. You can retake the assessment as many times as needed. Each attempt is tracked.
 
 STEP 6: REPEAT
-After completing a course, your "Next Up" updates to the next highest-priority recommendation. Work through your list. Your TAIRS score will rise as your actual AI usage increases — take the questionnaire again after 4–6 weeks of applying what you have learned.
+After completing a course, your "Next Up" updates to the next highest-priority recommendation. Work through your list. Your AI Readiness Score will rise as your actual AI usage increases — take the questionnaire again after 4–6 weeks of applying what you have learned.
 
 UNDERSTANDING YOUR DASHBOARD
 
-- TAIRS Score: Your current AI readiness out of 100
+- AI Readiness Score: Your current AI readiness out of 100
 - Tier: Your readiness label (AI-Unaware → AI-Forward)
 - Learning Track: Foundation, Adoption, or Advanced
 - Courses Completed: How many courses you have passed
@@ -227,11 +227,11 @@ If you cannot log in, contact your manager or the HR team. If a course is unclea
     content: `If you have people reporting to you, you have access to two dashboards: your Personal Dashboard and your Team Dashboard. Both are accessible from the navigation bar.
 
 YOUR PERSONAL DASHBOARD
-This is identical to every other staff member's dashboard. It shows your own TAIRS score, your own recommendations, and your own course completions. You are expected to lead by example — managers should be among the first to complete their own learning path.
+This is identical to every other staff member's dashboard. It shows your own AI Readiness Score, your own recommendations, and your own course completions. You are expected to lead by example — managers should be among the first to complete their own learning path.
 
 YOUR TEAM DASHBOARD
 The Team Dashboard shows you every person who reports to you — directly and indirectly through the hierarchy. For each team member you can see:
-- Their TAIRS score (AI Readiness Score)
+- Their AI Readiness Score (AI Readiness Score)
 - Their tier (AI-Unaware → AI-Forward)
 - Their learning track (Foundation / Adoption / Advanced)
 - Courses completed
@@ -314,7 +314,7 @@ When a manager opens their Team Dashboard, the system:
 1. Fetches all staff records from the database
 2. Recursively finds everyone whose manager_id chain leads back to this manager
 3. Includes direct reports AND indirect reports (reports of reports, etc.)
-4. Returns the full set with their TAIRS scores and completion data
+4. Returns the full set with their AI Readiness Scores and completion data
 
 This means a Department Head automatically sees their full department — including team leads and their reports — without any manual configuration. Adding a new staff member under any manager in the chain automatically includes them in all parent views.
 
@@ -372,7 +372,7 @@ courses
 Stores all platform courses. Each course has a tier level (foundation, adoption, or advanced), department tags, a mandatory flag, read content, task steps, and an assessment question bank.
 
 staff_task_profiles
-Stores each staff member's AI Readiness Questionnaire responses. Each response records a task description and an AI readiness rating from 1 (no AI use) to 5 (fully AI-integrated). These ratings are averaged to compute the TAIRS score.
+Stores each staff member's AI Readiness Questionnaire responses. Each response records a task description and an AI readiness rating from 1 (no AI use) to 5 (fully AI-integrated). These ratings are averaged to compute the AI Readiness Score.
 
 course_completions
 Records every passed course assessment. Stores the staff member, course, score, and completion date. This is what the recommendation engine uses to filter out already-completed courses.
@@ -386,7 +386,7 @@ This knowledge base. Stores all platform documentation articles by category, use
 HOW DATA FLOWS
 
 1. Staff member logs in → system reads their profile and task profiles from the database
-2. TAIRS score is computed from task profile ratings (server-side calculation)
+2. AI Readiness Score is computed from task profile ratings (server-side calculation)
 3. Recommendation engine scores all uncompleted courses against the staff member's score, department, and job level
 4. Dashboard renders the personalised ranked course list
 5. Staff completes a course → assessment result written to course_completions
@@ -394,7 +394,7 @@ HOW DATA FLOWS
 
 DATA PRIVACY
 
-Individual TAIRS scores and task profiles are visible to the staff member and their direct manager. Department and office aggregate data is visible to department heads and office heads. All data is stored in Supabase with server-side access controls. No individual performance data is exposed publicly.
+Individual AI Readiness Scores and task profiles are visible to the staff member and their direct manager. Department and office aggregate data is visible to department heads and office heads. All data is stored in Supabase with server-side access controls. No individual performance data is exposed publicly.
 
 INTEGRATION POINTS
 
@@ -407,7 +407,7 @@ The platform connects to three external services: Supabase (database), Google Ge
     slug: 'faq',
     category: 'User Guide',
     title: 'Frequently Asked Questions',
-    content: `WHY IS MY TAIRS SCORE 0?
+    content: `WHY IS MY AIRS SCORE 0?
 You have not yet completed the AI Readiness Questionnaire. Go to your dashboard and look for the "Take Assessment" button. The questionnaire takes 10–15 minutes and asks about your daily work tasks. Your score will update immediately after submission.
 
 CAN I RETAKE THE QUESTIONNAIRE?
@@ -417,7 +417,7 @@ CAN I RETAKE A COURSE ASSESSMENT?
 Yes. You can attempt any assessment as many times as you need. All attempts are recorded. To pass, you need 60% or above (3 out of 5 questions correct). Once you pass, the course is marked as complete.
 
 WHY AM I SEEING CERTAIN COURSES AND NOT OTHERS?
-Your course list is personalised. The recommendation engine considers your TAIRS score (which determines your track), your department (which boosts relevant courses), whether any mandatory courses are outstanding, and your job level. You can browse all available courses in the Course Library.
+Your course list is personalised. The recommendation engine considers your AI Readiness Score (which determines your track), your department (which boosts relevant courses), whether any mandatory courses are outstanding, and your job level. You can browse all available courses in the Course Library.
 
 I AM A MANAGER — WHY DON'T I SEE MY TEAM?
 The Team Dashboard link appears only if your manager_id is set as the manager for at least one other staff member. This is configured during the HR staff import. If you believe you should have team access, contact your HR administrator to ensure your reporting structure is correctly imported.
@@ -432,7 +432,7 @@ IS MY DATA PRIVATE?
 Your individual task profiles and assessment scores are visible to you and your direct manager. Aggregate department and office data is visible to department heads and above. Super Admins can see all individual data.
 
 WHAT HAPPENS AFTER I COMPLETE ALL MY RECOMMENDED COURSES?
-You will see a "Track Complete" message and be invited to explore the Course Library. If your TAIRS score has moved up during your learning, you may now qualify for a higher track — retake the questionnaire to check. More courses will be added to the platform continuously.
+You will see a "Track Complete" message and be invited to explore the Course Library. If your AI Readiness Score has moved up during your learning, you may now qualify for a higher track — retake the questionnaire to check. More courses will be added to the platform continuously.
 
 HOW ARE COURSES CREATED?
 Courses are authored by the Event Pilot team. Course content is generated using AI tools (Google Gemini) and then reviewed and edited by subject matter experts before publication. All courses are reviewed for factual accuracy, practical applicability, and alignment with Trescon's specific context.`,

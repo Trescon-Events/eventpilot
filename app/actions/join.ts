@@ -4,7 +4,7 @@ import { supabaseAdmin } from '@/app/lib/supabase'
 import { sendWelcome } from '@/app/lib/email'
 import { OFFICE_MAP } from '@/app/lib/constants'
 
-export async function joinTAI(formData: FormData) {
+export async function joinEventPilot(formData: FormData) {
   const name       = formData.get('name') as string
   const email      = formData.get('email') as string
   const office_id  = formData.get('office_id') as string

@@ -1,7 +1,7 @@
 import { supabaseAdmin } from '@/app/lib/supabase'
 import { NextRequest, NextResponse } from 'next/server'
 
-const ADMIN_CODE = process.env.NEXT_PUBLIC_ADMIN_CODE ?? 'taos2026'
+const ADMIN_CODE = process.env.NEXT_PUBLIC_ADMIN_CODE ?? 'eventpilot2026'
 
 /* POST /api/staff-import
    Bulk upsert staff members from HR database export.

@@ -36,7 +36,7 @@ export async function POST(req: NextRequest) {
     .update({ reset_token: token, reset_token_expires: expires })
     .eq('id', staff.id)
 
-  const baseUrl   = process.env.NEXT_PUBLIC_SITE_URL ?? 'https://taos-discovery.vercel.app'
+  const baseUrl   = process.env.NEXT_PUBLIC_SITE_URL ?? 'https://eventpilot-trescons-projects.vercel.app'
   const resetLink = `${baseUrl}/reset-password?token=${token}`
   const firstName = staff.name?.split(' ')[0] ?? 'there'
 

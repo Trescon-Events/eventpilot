@@ -1,4 +1,4 @@
--- TAI Academy v2 Migration
+-- Event Pilot Training v2 Migration
 -- Run in Supabase SQL Editor → Database → SQL Editor → New query
 
 -- question_bank: full pool of 10 questions per course (5 served randomly per attempt)

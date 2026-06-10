@@ -1,23 +1,23 @@
-# Trescademy — Complete Platform Document
+# Event Pilot — Complete Platform Document
 **Version 1.0 — April 2026**
 **Trescon Global — Internal AI Readiness Platform**
 
 ---
 
-## 1. What Is Trescademy
+## 1. What Is Event Pilot
 
-Trescademy is Trescon Global's internal AI learning and readiness platform. It serves all 300 staff across four offices — Dubai, Bangalore, Mangalore, and Manipal.
+Event Pilot is Trescon Global's internal AI learning and readiness platform. It serves all 300 staff across four offices — Dubai, Bangalore, Mangalore, and Manipal.
 
 The platform has one primary purpose: measure where every employee stands in their AI readiness today, then guide them — course by course — toward becoming confident AI practitioners in their specific role.
 
-Trescademy is not a generic e-learning platform. Every course, every recommendation, and every score is calibrated to the work Trescon employees actually do: running events, selling sponsorships, managing campaigns, handling finance, leading teams, and building deals across 80+ countries.
+Event Pilot is not a generic e-learning platform. Every course, every recommendation, and every score is calibrated to the work Trescon employees actually do: running events, selling sponsorships, managing campaigns, handling finance, leading teams, and building deals across 80+ countries.
 
 ### The Weekly Loop
 
 The platform runs on a continuous loop:
 
 1. Staff complete the AI Readiness Questionnaire (task survey)
-2. The system calculates their TAIRS score (AI Readiness Score, 0–100)
+2. The system calculates their AIRS score (AI Readiness Score, 0–100)
 3. The recommendation engine assigns a personalised learning path
 4. Staff take courses and complete assessments
 5. Scores update. The loop continues.
@@ -205,7 +205,7 @@ Staff assignments to events.
 | assigned_at | timestamp | Assignment timestamp |
 
 ### `platform_docs`
-Trescademy's internal knowledge base articles (used by Tresci AI).
+Event Pilot's internal knowledge base articles (used by Pilot AI).
 
 | Field | Type | Description |
 |---|---|---|
@@ -218,7 +218,7 @@ Trescademy's internal knowledge base articles (used by Tresci AI).
 | updated_at | timestamp | Last update |
 
 ### `chat_usage`
-Daily usage tracking for the Tresci AI chat.
+Daily usage tracking for the Pilot AI chat.
 
 | Field | Type | Description |
 |---|---|---|
@@ -247,9 +247,9 @@ Weekly AI-generated org intelligence snapshots.
 
 ---
 
-## 4. TAIRS Scoring System
+## 4. AIRS Scoring System
 
-TAIRS = Trescon AI Readiness Score. A number from 0 to 100 representing how embedded AI is in a staff member's daily work.
+AIRS = AI Readiness Score. A number from 0 to 100 representing how embedded AI is in a staff member's daily work.
 
 ### Calculation
 
@@ -313,7 +313,7 @@ Every staff member sees a personalised course list. The engine scores every unco
 
 ### Gemini Enhancement
 
-After rule-based scoring pre-filters the top candidates, the staff profile (name, role, department, TAIRS score, task profile, completed courses) is sent to Gemini 2.0 Flash. Gemini returns:
+After rule-based scoring pre-filters the top candidates, the staff profile (name, role, department, AIRS score, task profile, completed courses) is sent to Gemini 2.0 Flash. Gemini returns:
 - Top 5 ranked courses
 - One personalised sentence reason per course
 - Label: `mandatory`, `dept`, `track`, `gap`, `role`, or `ai`
@@ -424,10 +424,10 @@ Department Picker (if dept not set)
   ↓
 AI Readiness Questionnaire (12–18 questions, dept-tailored)
   ↓
-TAIRS Score Calculated → Tier Assigned → Track Set
+AIRS Score Calculated → Tier Assigned → Track Set
   ↓
 Personal Dashboard
-  - TAIRS Score + Tier Badge
+  - AIRS Score + Tier Badge
   - Next Up (AI-recommended course)
   - Recommended For You (5 courses with reasons)
   - Courses Completed counter
@@ -451,7 +451,7 @@ All of the above, plus:
 ```
 Team Dashboard
   - All direct + indirect reports
-  - Each person's TAIRS score, tier, track, completions
+  - Each person's AIRS score, tier, track, completions
   - Filter by department, office, tier
   - Team Health Brief (Gemini-generated, on demand)
     → Overview paragraph
@@ -468,7 +468,7 @@ All of the above, plus Admin Dashboard with 10 tabs:
 | Tab | Purpose |
 |---|---|
 | Overview | Org-wide stats, office breakdown, participation |
-| All Staff | Every staff member, TAIRS scores, tier distribution |
+| All Staff | Every staff member, AIRS scores, tier distribution |
 | Intelligence | AI-generated org insights, weekly snapshots |
 | Staff Learning | Course completion table, by department, top learners |
 | Playbook | AI readiness questionnaire preview by department |
@@ -551,21 +551,21 @@ Without approval, any admin could publish poorly constructed or incorrect conten
 
 ---
 
-## 11. Tresci AI Assistant
+## 11. Pilot AI Assistant
 
-Tresci is the internal AI learning assistant accessible at `/chat`.
+Pilot is the internal AI learning assistant accessible at `/chat`.
 
 ### Capabilities
 
-- Answers questions about TAIRS scores, tiers, tracks
+- Answers questions about AIRS scores, tiers, tracks
 - Explains course recommendations and how they were chosen
 - Navigates staff through the platform
 - Answers questions about company policies and event briefs (from uploaded documents)
 - Personalised to the staff member asking (knows their name, score, department, completed courses)
 
-### What Tresci Will Not Do
+### What Pilot Will Not Do
 
-- Answer questions outside Trescademy and AI skill-building at work
+- Answer questions outside Event Pilot and AI skill-building at work
 - Discuss politics, entertainment, sport, news, food, weather
 - Reveal passwords, API keys, or credentials
 - Make up course titles, scores, or features not in the knowledge base
@@ -584,7 +584,7 @@ Tresci is the internal AI learning assistant accessible at `/chat`.
 3. If clear misuse detected → blocked before hitting Gemini
 4. Checks daily usage count → rejects if over 20
 5. Fetches platform docs from cache (rebuilt every 10 minutes from `platform_docs` table)
-6. Fetches staff profile: name, department, role, TAIRS score, tier, completed courses
+6. Fetches staff profile: name, department, role, AIRS score, tier, completed courses
 7. Fetches documents this staff member can access (all-visibility + event-assigned)
 8. Builds system prompt: identity + rules + scope + knowledge base + staff context + documents
 9. Sends to Gemini 2.0 Flash with last 8 messages as conversation history
@@ -618,9 +618,9 @@ Off-topic patterns (sport, recipes, movies, stocks, weather, news) → internal 
 - **All** — visible to every staff member on their dashboard
 - **Event Only** — visible only to staff assigned to the linked event
 
-### Tresci Integration
+### Pilot Integration
 
-When staff ask Tresci a question, the server fetches up to 5 documents they have access to. Each document contributes up to 2,000 characters of extracted text injected into Tresci's system prompt. This means staff can ask Tresci about company policies, event briefs, or onboarding documents and get accurate answers from the actual uploaded content.
+When staff ask Pilot a question, the server fetches up to 5 documents they have access to. Each document contributes up to 2,000 characters of extracted text injected into Pilot's system prompt. This means staff can ask Pilot about company policies, event briefs, or onboarding documents and get accurate answers from the actual uploaded content.
 
 ---
 
@@ -635,7 +635,7 @@ Events are created by admins and represent Trescon's live events — conferences
 Staff members are assigned to events via the Events tab in admin. Once assigned:
 - The event appears in their personal dashboard under "My Events"
 - They can access event-scoped documents (visibility = `event_only`)
-- Tresci can answer questions about the event brief
+- Pilot can answer questions about the event brief
 
 ---
 
@@ -698,7 +698,7 @@ Best match above 50 is used. Unresolved managers are reported back to admin afte
 ### AI
 | Method | Endpoint | Purpose |
 |---|---|---|
-| POST | /api/ask | Tresci AI chat |
+| POST | /api/ask | Pilot AI chat |
 | POST | /api/recommendations | Gemini-powered course recommendations |
 | POST | /api/generate-course | Generate full course from description |
 | POST | /api/generate-questions | Generate personalised questions from submission |
@@ -780,11 +780,11 @@ Gemini 2.0 Flash is used across six features:
 
 | Feature | When Called | Input | Output |
 |---|---|---|---|
-| Tresci Chat | Every staff message | System prompt + docs + staff profile + conversation history | Answer text |
+| Pilot Chat | Every staff message | System prompt + docs + staff profile + conversation history | Answer text |
 | Course Recommendations | Dashboard load (async) | Staff profile + eligible courses | Ranked list with reasons |
 | Course Generation | Content Studio submit | Gap description + department + tier | Full course JSON |
 | Question Generation | Before each assessment | Course title + tasks + submission text | 5 personalised questions |
-| Team Health Brief | Manager requests | Team TAIRS data + completion stats | 4-part written brief |
+| Team Health Brief | Manager requests | Team AIRS data + completion stats | 4-part written brief |
 | Staff Import Parse | CSV upload | Column headers + sample rows | Field mapping JSON |
 
 ### Free Tier Limits (gemini-2.0-flash)

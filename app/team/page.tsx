@@ -244,7 +244,7 @@ function TeamContent() {
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '12px', marginBottom: '28px' }}>
           {[
             { label: 'Team Size',          value: members.length,   sub: 'total reports',        accent: '#00897B' },
-            { label: 'Avg TAIRS Score',    value: avgScore,          sub: 'team average',          accent: '#6B21A8' },
+            { label: 'Avg AI Readiness Score',    value: avgScore,          sub: 'team average',          accent: '#6B21A8' },
             { label: 'Courses Completed',  value: totalDone,         sub: 'across team',           accent: '#7DC520' },
             { label: 'Active Learners',    value: activeCount,       sub: 'completed a course',    accent: '#D97706' },
           ].map(({ label, value, sub, accent }) => (
@@ -276,7 +276,7 @@ function TeamContent() {
               <div style={{ fontSize: '13px', fontWeight: 800, letterSpacing: '2px', textTransform: 'uppercase', color: '#00695C', marginBottom: '4px' }}>AI-Powered</div>
               <div style={{ fontSize: '13px', fontWeight: 800, color: '#0F1923' }}>Team Health Brief</div>
               <div style={{ fontSize: '13px', color: '#2D3E50', marginTop: '2px' }}>
-                Built from your team&apos;s real activity data — TAIRS scores, course progress, and profile completion.
+                Built from your team&apos;s real activity data — AI Readiness Scores, course progress, and profile completion.
               </div>
             </div>
             <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
@@ -313,7 +313,7 @@ function TeamContent() {
               {briefStats && (
                 <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', marginBottom: '20px' }}>
                   {[
-                    { label: 'Avg TAIRS', value: briefStats.avgScore, color: '#00695C' },
+                    { label: 'Avg AIRS', value: briefStats.avgScore, color: '#00695C' },
                     { label: 'Team Size', value: briefStats.teamSize, color: '#2D3E50' },
                     { label: 'No Courses Yet', value: briefStats.zeroCourses, color: '#8B1A1A' },
                     { label: 'Profile Pending', value: briefStats.noProfile, color: '#A478FF' },
@@ -423,7 +423,7 @@ function TeamContent() {
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 120px 100px 100px 100px 80px', gap: '12px', padding: '8px 20px', fontSize: '13px', fontWeight: 700, color: '#0F1923', textTransform: 'uppercase', letterSpacing: '1px' }}>
               <span>Name / Role</span>
               <span>Department</span>
-              <span>TAIRS</span>
+              <span>AIRS</span>
               <span>Track</span>
               <span>Courses Done</span>
               <span>Last Active</span>

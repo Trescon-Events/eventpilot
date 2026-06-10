@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/app/lib/supabase'
 
-const ADMIN_CODE = process.env.NEXT_PUBLIC_ADMIN_CODE ?? 'taos2026'
+const ADMIN_CODE = process.env.NEXT_PUBLIC_ADMIN_CODE ?? 'eventpilot2026'
 const DEMO_TAG   = '@demo.tai'  // all demo emails end with this — used for safe deletion
 
 /* ─────────────────────────────────────────────────────────────────
@@ -223,11 +223,11 @@ function buildProfiles(staffId: string, name: string) {
     {
       staff_id:          staffId,
       task_name:         'AI Opportunity & Automation Wish',
-      task_description:  `If TAI could do one thing:\n${d.ai_wish}${hasProof ? `\n\nAI workflow they already use (advanced track):\n${d.ai_proof}` : ''}`,
+      task_description:  `If AI could do one thing:\n${d.ai_wish}${hasProof ? `\n\nAI workflow they already use (advanced track):\n${d.ai_proof}` : ''}`,
       ai_proof:          d.ai_proof ?? null,
       tools_unlisted:    null,
       frequency:         'Daily',
-      skill_needed:      'Identified via TAI Intelligence Interview',
+      skill_needed:      'Identified via Event Pilot Onboarding Interview',
       ai_readiness:      d.readiness,
     },
   ]

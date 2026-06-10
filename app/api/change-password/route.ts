@@ -28,7 +28,7 @@ export async function POST(req: NextRequest) {
   }
 
   // Verify current password
-  const staffDefaultPass = process.env.STAFF_DEFAULT_PASSWORD ?? 'trescon@2026'
+  const staffDefaultPass = process.env.STAFF_DEFAULT_PASSWORD ?? 'eventpilot@2026'
   let valid = false
   if (staff.password_hash) {
     valid = await bcrypt.compare(current_password, staff.password_hash)

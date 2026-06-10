@@ -2,7 +2,7 @@ import { supabaseAdmin } from '@/app/lib/supabase'
 import { NextRequest, NextResponse } from 'next/server'
 import { GoogleGenerativeAI } from '@google/generative-ai'
 import { getCachedCourses } from '@/app/lib/courseCache'
-import { computeTAIRS, getTier, getTrack } from '@/app/lib/tairs'
+import { computeAIRS, getTier, getTrack } from '@/app/lib/airs'
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY ?? '')
 
@@ -45,7 +45,7 @@ export async function POST(req: NextRequest) {
   const completions  = completionsRes.data ?? []
   const completedIds = new Set(completions.filter(c => c.passed).map(c => c.course_id))
 
-  const score = computeTAIRS(tasks, completions as unknown as { passed: boolean; courses?: { tier_level: string } | null }[])
+  const score = computeAIRS(tasks, completions as unknown as { passed: boolean; courses?: { tier_level: string } | null }[])
   const tier  = getTier(score)
   const track = getTrack(score)
 
@@ -98,7 +98,7 @@ STAFF PROFILE:
 - Role: ${staff.role ?? 'Not specified'}
 - Department: ${staff.department ?? 'Not specified'}
 - Job Level: ${staff.job_level}
-- TAIRS Score: ${score}/100 — Tier: ${tier} — Learning Track: ${track}
+- AI Readiness Score: ${score}/100 — Tier: ${tier} — Learning Track: ${track}
 
 THEIR DAILY WORK (from submitted task profile):
 ${taskSummary}

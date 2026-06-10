@@ -466,7 +466,7 @@ CREATE TABLE IF NOT EXISTS candidate_emails (
 CREATE INDEX IF NOT EXISTS email_app_idx ON candidate_emails(application_id);
 -- ============================================================
 -- TAOS SmartData Module — Data Intelligence Layer
--- Run in Supabase SQL Editor (taos-discovery Supabase)
+-- Run in Supabase SQL Editor (Event Pilot Supabase)
 -- ============================================================
 
 -- Companies (create first — contacts reference it)
@@ -735,7 +735,7 @@ RETURNS void AS $$
   ON CONFLICT (user_id, lookup_date)
   DO UPDATE SET used_count = sd_lookup_usage.used_count + 1, updated_at = now();
 $$ LANGUAGE sql;
--- TAI Training Centre — Database Schema
+-- Event Pilot Training Centre — Database Schema
 -- Run this entire block in your Supabase SQL editor (Database → SQL Editor → New query)
 
 CREATE TABLE IF NOT EXISTS courses (
@@ -787,7 +787,7 @@ CREATE POLICY "courses_public_read"   ON courses            FOR SELECT USING (st
 CREATE POLICY "courses_admin_write"   ON courses            FOR ALL    USING (true);
 CREATE POLICY "completions_all"       ON course_completions FOR ALL    USING (true);
 CREATE POLICY "attempts_all"          ON course_attempts    FOR ALL    USING (true);
--- TAI Academy v2 Migration
+-- Event Pilot Training v2 Migration
 -- Run in Supabase SQL Editor → Database → SQL Editor → New query
 
 -- question_bank: full pool of 10 questions per course (5 served randomly per attempt)

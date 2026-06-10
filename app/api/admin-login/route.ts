@@ -12,7 +12,7 @@ export async function POST(req: NextRequest) {
 
   const superAdminEmail    = process.env.SUPER_ADMIN_EMAIL
   const superAdminPassword = process.env.SUPER_ADMIN_PASSWORD
-  const staffPassword      = process.env.STAFF_DEFAULT_PASSWORD ?? 'trescon@2026'
+  const staffPassword      = process.env.STAFF_DEFAULT_PASSWORD ?? 'eventpilot@2026'
 
   const emailNorm = email.toLowerCase().trim()
 

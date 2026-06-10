@@ -90,7 +90,7 @@ const TOOLS = [
   {
     id:          'course-builder',
     label:       'Course Builder',
-    description: 'Create and publish courses for TAI Academy. Build structured modules, add randomised question banks, assign courses by role, and track completion across your entire team.',
+    description: 'Create and publish courses for Event Pilot. Build structured modules, add randomised question banks, assign courses by role, and track completion across your entire team.',
     features:    [
       { icon: '≡', label: 'Module & lesson builder', detail: 'Structured learning paths with video, text and assessments' },
       { icon: '?', label: 'Randomised question banks', detail: 'Questions shuffle per attempt to prevent copying' },

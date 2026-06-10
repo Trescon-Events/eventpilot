@@ -1,6 +1,6 @@
 -- ============================================================
 -- TAOS SmartData Module — Data Intelligence Layer
--- Run in Supabase SQL Editor (taos-discovery Supabase)
+-- Run in Supabase SQL Editor (Event Pilot Supabase)
 -- ============================================================
 
 -- Companies (create first — contacts reference it)

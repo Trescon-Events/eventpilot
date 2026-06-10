@@ -1,7 +1,7 @@
 import { GoogleGenerativeAI } from '@google/generative-ai'
 import { supabaseAdmin } from '@/app/lib/supabase'
 import { NextRequest, NextResponse } from 'next/server'
-import { computeTAIRS, getTier } from '@/app/lib/tairs'
+import { computeAIRS, getTier } from '@/app/lib/airs'
 
 /* ── Platform docs cache — rebuilt every 10 minutes, shared across all chat requests ── */
 let _docsCache: { text: string; ts: number } | null = null
@@ -43,7 +43,7 @@ You help all 300 Trescon employees across Dubai, Bangalore, Mangalore, and Manip
 ════════════════════════════════
 WHAT YOU CAN HELP WITH
 ════════════════════════════════
-- How the TAIRS (AI Readiness Score) works and how to improve it
+- How the AIRS (AI Readiness Score) works and how to improve it
 - Which courses to take, why they were recommended, and how to complete them
 - How the recommendation engine works and what drives it
 - How to use the platform as a staff member, manager, or admin
@@ -157,7 +157,7 @@ export async function POST(req: NextRequest) {
   /* ── Hard block: clear misuse ── */
   if (isMisuse(question)) {
     return NextResponse.json({
-      answer: "I'm not able to help with that. I'm here to support your Event Pilot learning journey — ask me anything about your courses, your TAIRS score, or how to use the platform.",
+      answer: "I'm not able to help with that. I'm here to support your Event Pilot learning journey — ask me anything about your courses, your AI Readiness Score, or how to use the platform.",
       flagged: true,
     })
   }
@@ -235,7 +235,7 @@ export async function POST(req: NextRequest) {
 
     if (staffRes.data) {
       const staff = staffRes.data
-      const score = computeTAIRS(tasksRes.data ?? [], completionsRes.data as unknown as { passed: boolean; courses?: { tier_level: string } | null }[] ?? [])
+      const score = computeAIRS(tasksRes.data ?? [], completionsRes.data as unknown as { passed: boolean; courses?: { tier_level: string } | null }[] ?? [])
       const tier  = getTier(score)
       type CompletionRow = { course_id: string; courses: { title: string }[] | { title: string } | null }
       const completedTitles = (completionsRes.data as CompletionRow[] ?? [])
@@ -244,7 +244,7 @@ export async function POST(req: NextRequest) {
       const completedLine = completedTitles.length > 0
         ? `Completed Courses (${completedTitles.length}): ${completedTitles.join(', ')}`
         : 'Completed Courses: None yet — this is their first time on the platform.'
-      staffContext = `\n\nCONTEXT ABOUT THE PERSON ASKING:\nName: ${staff.name}\nDepartment: ${staff.department ?? 'Not set'}\nRole: ${staff.role ?? 'Not set'}\nJob Level: ${staff.job_level ?? 'staff'}\nTAIRS Score: ${score} (${tier})\n${completedLine}\n\nUse this context to personalise your answer. Reference their name, score, department, and completed courses where it adds value. If they haven't started yet, be encouraging and direct them to their first course.`
+      staffContext = `\n\nCONTEXT ABOUT THE PERSON ASKING:\nName: ${staff.name}\nDepartment: ${staff.department ?? 'Not set'}\nRole: ${staff.role ?? 'Not set'}\nJob Level: ${staff.job_level ?? 'staff'}\nAI Readiness Score: ${score} (${tier})\n${completedLine}\n\nUse this context to personalise your answer. Reference their name, score, department, and completed courses where it adds value. If they haven't started yet, be encouraging and direct them to their first course.`
     }
   }
 

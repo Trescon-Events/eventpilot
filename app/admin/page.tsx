@@ -254,7 +254,7 @@ export default function AdminPage() {
       const res  = await fetch('/api/hrms-sync', {
         method:  'POST',
         headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify({ admin_code: process.env.NEXT_PUBLIC_ADMIN_CODE ?? 'taos2026' }),
+        body:    JSON.stringify({ admin_code: process.env.NEXT_PUBLIC_ADMIN_CODE ?? 'eventpilot2026' }),
       })
       const data = await res.json()
       if (!res.ok || data.error) { setHrmsSyncState('error'); return }
@@ -306,7 +306,7 @@ export default function AdminPage() {
     const res  = await fetch('/api/staff-import', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ admin_code: 'taos2026', staff: csvParsed }),
+      body: JSON.stringify({ admin_code: 'eventpilot2026', staff: csvParsed }),
     })
     const data = await res.json()
     setImportResult(data)
@@ -362,7 +362,7 @@ export default function AdminPage() {
     const res  = await fetch('/api/staff-import', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ admin_code: 'taos2026', staff: [addForm] }),
+      body: JSON.stringify({ admin_code: 'eventpilot2026', staff: [addForm] }),
     })
     const data = await res.json()
     if (data.error) { setAddError(data.error); setAddState('error'); return }
@@ -459,7 +459,7 @@ export default function AdminPage() {
     const res = await fetch('/api/courses', {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ admin_code: process.env.NEXT_PUBLIC_ADMIN_CODE ?? 'taos2026', course_id: courseId }),
+      body: JSON.stringify({ admin_code: process.env.NEXT_PUBLIC_ADMIN_CODE ?? 'eventpilot2026', course_id: courseId }),
     })
     if (res.ok) {
       setDraftCourses(prev => prev.filter(c => c.id !== courseId))
@@ -475,7 +475,7 @@ export default function AdminPage() {
     const res = await fetch('/api/courses', {
       method: 'DELETE',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ admin_code: process.env.NEXT_PUBLIC_ADMIN_CODE ?? 'taos2026', course_id: courseId }),
+      body: JSON.stringify({ admin_code: process.env.NEXT_PUBLIC_ADMIN_CODE ?? 'eventpilot2026', course_id: courseId }),
     })
     if (res.ok) {
       setDraftCourses(prev => prev.filter(c => c.id !== courseId))
@@ -665,7 +665,7 @@ export default function AdminPage() {
 
   async function seedDemo() {
     setSeedLoading(true); setSeedMsg('')
-    const res = await fetch('/api/seed-demo', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ admin_code: process.env.NEXT_PUBLIC_ADMIN_CODE ?? 'taos2026' }) })
+    const res = await fetch('/api/seed-demo', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ admin_code: process.env.NEXT_PUBLIC_ADMIN_CODE ?? 'eventpilot2026' }) })
     const data = await res.json()
     setSeedMsg(data.message ?? data.error ?? 'Done')
     setSeedLoading(false)
@@ -674,7 +674,7 @@ export default function AdminPage() {
 
   async function clearDemo() {
     setSeedLoading(true); setSeedMsg('')
-    const res = await fetch('/api/seed-demo', { method: 'DELETE', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ admin_code: process.env.NEXT_PUBLIC_ADMIN_CODE ?? 'taos2026' }) })
+    const res = await fetch('/api/seed-demo', { method: 'DELETE', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ admin_code: process.env.NEXT_PUBLIC_ADMIN_CODE ?? 'eventpilot2026' }) })
     const data = await res.json()
     setSeedMsg(data.message ?? data.error ?? 'Cleared')
     setSeedLoading(false)
@@ -717,7 +717,7 @@ export default function AdminPage() {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        admin_code: process.env.NEXT_PUBLIC_ADMIN_CODE ?? 'taos2026',
+        admin_code: process.env.NEXT_PUBLIC_ADMIN_CODE ?? 'eventpilot2026',
         suggestion: suggestion.trim(),
         department: suggestDept,
         tier_level: suggestTier,
@@ -744,7 +744,7 @@ export default function AdminPage() {
     const pubRes = await fetch('/api/courses', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ admin_code: process.env.NEXT_PUBLIC_ADMIN_CODE ?? 'taos2026', course: courseWithCredit }),
+      body: JSON.stringify({ admin_code: process.env.NEXT_PUBLIC_ADMIN_CODE ?? 'eventpilot2026', course: courseWithCredit }),
     })
     if (pubRes.ok) {
       setPublishMsg(`Course submitted for review. You will be notified on your dashboard once it is approved and live.`)
@@ -763,11 +763,11 @@ export default function AdminPage() {
 
   const TOUR_STEPS = [
     { id: 'tour-tabs',             title: 'Your main sections',         desc: 'Navigate between Overview, All Staff, Intelligence, Learning Lab, Events, Knowledge Base, and more using these tabs.' },
-    { id: 'tour-stats',            title: 'Org readiness at a glance',  desc: 'Total staff in the system, how many have completed their profile, and your organisation\'s live TAIRS score — all updating in real time.' },
+    { id: 'tour-stats',            title: 'Org readiness at a glance',  desc: 'Total staff in the system, how many have completed their profile, and your organisation\'s live AI Readiness Score — all updating in real time.' },
     { id: 'tour-started',          title: 'Your first 3 actions',       desc: 'Complete these three steps to get Event Pilot fully running. Each one unlocks more of the platform for your team.' },
     { id: 'tour-intelligence-tab', title: 'Intelligence tab',           desc: 'AI-generated analysis of your org\'s readiness. Department breakdowns, tier distributions, and what to do about gaps — with no manual input.' },
     { id: 'tour-studio-tab',       title: 'Learning Lab',             desc: 'Describe a skill gap, pick a department, and Gemini generates a full course with reading content, tasks, and a quiz. Ready to publish in under a minute.' },
-    { id: 'tour-pilot-btn',       title: 'Pilot — your AI assistant', desc: 'Ask Pilot anything: team progress, how to use a feature, what a TAIRS score means, or what to do next. It knows your org data.' },
+    { id: 'tour-pilot-btn',       title: 'Pilot — your AI assistant', desc: 'Ask Pilot anything: team progress, how to use a feature, what a AI Readiness Score means, or what to do next. It knows your org data.' },
   ]
 
   useEffect(() => {
@@ -887,7 +887,7 @@ export default function AdminPage() {
   const topTools = Object.entries(toolCount).sort((a, b) => b[1] - a[1]).slice(0, 10)
 
   /* ═══════════════════════════════════════════════════════════════════
-     TAIRS — TAI Organizational AI Readiness Score  (0–100)
+     AIRS — AI Readiness Score  (0–100)
 
      Built for Trescon's specific context: events + media + B2B sales
      company with 4 offices. Scoring reflects realistic AI adoption
@@ -935,8 +935,8 @@ export default function AdminPage() {
     'Other':                { priority: 'Medium',   color: '#8B1A1A', why: 'Assess after more data' },
   }
 
-  // TAIRS calculation per entity (dept/office/person)
-  function calcTAIRS(params: {
+  // AIRS calculation per entity (dept/office/person)
+  function calcAIRS(params: {
     readinessScores: number[]   // self-reported 1–5
     allTools: string[]          // all tool mentions (with duplicates)
     interviewed: number         // members who completed interview
@@ -971,7 +971,7 @@ export default function AdminPage() {
     }
   }
 
-  // TAIRS tier label + color
+  // AIRS tier label + color
   function tairsTier(score: number) {
     if (score >= 75) return { label: 'AI-Forward',  color: '#166534', desc: 'Deploy automations now' }
     if (score >= 55) return { label: 'AI-Ready',    color: '#0E7490', desc: 'Train + deploy in parallel' }
@@ -980,7 +980,7 @@ export default function AdminPage() {
     return               { label: 'AI-Unaware',   color: '#991B1B', desc: 'Start from literacy basics' }
   }
 
-  // ── Per-department TAIRS ──
+  // ── Per-department AIRS ──
   type DeptTairs = {
     dept: string; score: number; fluency: number; maturity: number; engagement: number
     interviewed: number; joined: number; impact: typeof DEPT_IMPACT[string]
@@ -992,23 +992,23 @@ export default function AdminPage() {
     const readScores = dTasks.filter(t => t.ai_readiness).map(t => t.ai_readiness!)
     const allTools   = dTasks.flatMap(t => t.tools_used ?? [])
     const interviewed = dMembers.filter(m => m.profile_complete).length
-    const r = calcTAIRS({ readinessScores: readScores, allTools, interviewed, totalJoinedForGroup: dMembers.length })
+    const r = calcAIRS({ readinessScores: readScores, allTools, interviewed, totalJoinedForGroup: dMembers.length })
     deptTairsMap.push({ dept, ...r, interviewed, joined: dMembers.length, impact: DEPT_IMPACT[dept] ?? DEPT_IMPACT['Other'] })
   }
   const sortedDeptTairs = [...deptTairsMap].sort((a, b) => b.score - a.score)
 
-  // ── Per-office TAIRS ──
+  // ── Per-office AIRS ──
   const officeTairs = OFFICES.map(o => {
     const oMembers   = members.filter(m => m.office_id === o.id)
     const oTasks     = tasks.filter(t => memberIndex[t.staff_id]?.office_id === o.id)
     const readScores = oTasks.filter(t => t.ai_readiness).map(t => t.ai_readiness!)
     const allTools   = oTasks.flatMap(t => t.tools_used ?? [])
     const interviewed = oMembers.filter(m => m.profile_complete).length
-    const r = calcTAIRS({ readinessScores: readScores, allTools, interviewed, totalJoinedForGroup: oMembers.length })
+    const r = calcAIRS({ readinessScores: readScores, allTools, interviewed, totalJoinedForGroup: oMembers.length })
     return { ...o, ...r, interviewed, joined: oMembers.length }
   }).filter(o => o.joined > 0).sort((a, b) => b.score - a.score)
 
-  // ── Org-level TAIRS (weighted by dept size) ──
+  // ── Org-level AIRS (weighted by dept size) ──
   let orgScore = 0
   if (deptTairsMap.length > 0) {
     const totalW = deptTairsMap.reduce((s, d) => s + d.joined, 0) || 1
@@ -1016,13 +1016,13 @@ export default function AdminPage() {
   }
   const orgTier = tairsTier(orgScore)
 
-  // ── Top individual TAIRS ──
+  // ── Top individual AIRS ──
   const memberTairs = Object.fromEntries(
     members.map(m => {
       const mTasks     = tasks.filter(t => t.staff_id === m.id)
       const readScores = mTasks.filter(t => t.ai_readiness).map(t => t.ai_readiness!)
       const allTools   = mTasks.flatMap(t => t.tools_used ?? [])
-      const r = calcTAIRS({ readinessScores: readScores, allTools, interviewed: m.profile_complete ? 1 : 0, totalJoinedForGroup: 1 })
+      const r = calcAIRS({ readinessScores: readScores, allTools, interviewed: m.profile_complete ? 1 : 0, totalJoinedForGroup: 1 })
       return [m.id, r]
     })
   )
@@ -1195,7 +1195,7 @@ export default function AdminPage() {
                     bg: 'rgba(0,165,163,0.1)',
                     border: 'rgba(0,165,163,0.25)',
                     icon: <svg width="18" height="18" fill="none" stroke="#00A5A3" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>,
-                    title: 'TAIRS Score',
+                    title: 'AI Readiness Score',
                     desc: 'Live AI readiness score (0–100) per staff member',
                   },
                   {
@@ -1483,7 +1483,7 @@ export default function AdminPage() {
 
 
 
-        {/* ══ TAIRS — Org Score ══ */}
+        {/* ══ AIRS — Org Score ══ */}
         {members.length > 0 && (
           <div style={{ marginBottom: '28px' }}>
 
@@ -1684,7 +1684,7 @@ export default function AdminPage() {
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                           <span style={{ fontSize: '13px', color: '#5B7080' }}>{members.filter(m => m.office_id === o.id && m.profile_complete).length} profiles complete</span>
                           {tier && oData && (
-                            <span style={{ fontSize: '13px', fontWeight: 800, color: tier.color }}>TAIRS {oData.score}</span>
+                            <span style={{ fontSize: '13px', fontWeight: 800, color: tier.color }}>AIRS {oData.score}</span>
                           )}
                         </div>
                       </div>
@@ -2423,7 +2423,7 @@ export default function AdminPage() {
                           )}
                         </div>
 
-                        {/* Col 3: TAIRS individual score */}
+                        {/* Col 3: AIRS individual score */}
                         <div style={{ paddingRight: '12px' }}>
                           {score > 0 ? (
                             <div>
@@ -2547,7 +2547,7 @@ export default function AdminPage() {
                     <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                       <thead>
                         <tr style={{ background: '#FFFFFF' }}>
-                          {['Department', 'TAIRS', 'Tier', 'People', 'Coverage', 'AI Priority', 'TAI Action', 'Owner', 'By'].map(h => (
+                          {['Department', 'AIRS', 'Tier', 'People', 'Coverage', 'AI Priority', 'AI Action', 'Owner', 'By'].map(h => (
                             <th key={h} style={{ padding: '9px 14px', textAlign: 'left', fontSize: '9px', fontWeight: 700, letterSpacing: '1px', textTransform: 'uppercase', color: '#5B7080', borderBottom: '1px solid #DDE8EE', whiteSpace: 'nowrap' }}>{h}</th>
                           ))}
                         </tr>
@@ -3940,7 +3940,7 @@ export default function AdminPage() {
                       'Success screen after creation: shows temp password and login credentials card with "View Profile" and "Add Another" actions',
                       'Add Staff button wired into HR portal home (Onboarding panel) and Onboarding Tracker header',
                       'Password reset system confirmed complete — forgot password (email via Resend), reset via token link (1hr expiry), forced change on first login (must_change_password flag), self-service change from profile, admin force-reset via API',
-                      'Email branding fixed — all transactional emails rebranded from "Event Pilot" to "Trescon · TAI Academy". FROM address updated to noreply@tresconglobal.com via RESEND_FROM_EMAIL env var',
+                      'Email branding fixed — all transactional emails rebranded to Event Pilot. FROM address updated to noreply@tresconglobal.com via RESEND_FROM_EMAIL env var. FROM address updated to noreply@tresconglobal.com via RESEND_FROM_EMAIL env var',
                       'Credentials email now sent automatically on new staff creation (when login enabled) — new joiner gets email with their temp password and login link',
                     ]},
                     { date: '9 Jun 2026', items: [
@@ -4019,7 +4019,7 @@ export default function AdminPage() {
                     { date: '10 May 2026', items: [
                       'Platform-wide Trescon-brand light theme applied',
                       'Standardised font sizes, card design, and text visibility across all pages',
-                      'TAIRS tier colours corrected; nav buttons cleaned up',
+                      'AIRS tier colours corrected; nav buttons cleaned up',
                     ]},
                     { date: '9 May 2026', items: [
                       'Content engine launched: AI-generated posts, campaign management, approval flow',
@@ -4029,14 +4029,14 @@ export default function AdminPage() {
                       'Guided tour for new admins',
                       'What\'s Next roadmap panel',
                       'Welcome modal redesign with per-user localStorage state',
-                      'Dynamic TAIRS scoring with live tier display',
+                      'Dynamic AIRS scoring with live tier display',
                     ]},
                     { date: '25 Apr 2026', items: [
                       'Staff and admin login by email (no more staff ID entry)',
                       'My Learning links from admin directly to staff dashboard',
                     ]},
                     { date: '24 Apr 2026', items: [
-                      'Initial platform launch: TAIRS scoring, AI readiness questionnaire',
+                      'Initial platform launch: AIRS scoring, AI readiness questionnaire',
                       'Admin dashboard with org-wide intelligence and tier breakdowns',
                       'Pilot — internal AI assistant scoped to Event Pilot',
                       'Course generation and staff onboarding flow',
@@ -4068,7 +4068,7 @@ export default function AdminPage() {
                 </div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                   {[
-                    'TAIRS scoring — live AI readiness score for every staff member',
+                    'AIRS scoring — live AI readiness score for every staff member',
                     'Org Chart — Directory (dept-grouped table with tool dots) + Hierarchy (indented list). Click any person: full reporting chain + tool access toggles in a side panel',
                     'Tool Permissions — 8 platform modules grantable per staff member with inline dot badges, drawer UI, and Bulk Grant',
                     'Role-personalized dashboards — every staff member sees their own workspace with dept-specific quick links and live stats',
@@ -4090,7 +4090,7 @@ export default function AdminPage() {
                     'Smart Data — lead extraction, LinkedIn enrichment, email verification, contact database',
                     'Content Hub — AI social campaigns with guided templates, approval flow, and calendar view',
                     'Platform Menu — role-aware, each user sees only the tools they can access',
-                    'Platform Docs — TAIRS scoring guide, discovery questionnaire, AI readiness playbook',
+                    'Platform Docs — AIRS scoring guide, discovery questionnaire, AI readiness playbook',
                   ].map((item, i) => (
                     <div key={i} style={{ display: 'flex', gap: '10px', alignItems: 'flex-start', padding: '10px 14px', background: 'rgba(192,244,60,0.05)', border: '1px solid rgba(192,244,60,0.18)', borderRadius: '10px' }}>
 
@@ -4116,7 +4116,7 @@ export default function AdminPage() {
                     { title: 'Department course seeding', desc: 'Seed the right AI-generated courses per department so each team has a ready library on day one.' },
                     { title: 'Course assignment from admin', desc: 'Assign specific courses to individual staff members or entire teams directly from the admin panel.' },
                     { title: 'HR-led staff onboarding wizard ✓', desc: 'SHIPPED 10 Jun — 5-step form at /hr/staff/new. HR creates full profile, sets reporting structure, assigns tool access, auto-starts onboarding checklist. Credentials email sent automatically.' },
-                    { title: 'Manager team view', desc: 'Managers see their team\'s TAIRS scores, who hasn\'t started, and who needs a nudge — without seeing individual data of others.' },
+                    { title: 'Manager team view', desc: 'Managers see their team\'s AI Readiness Scores, who hasn\'t started, and who needs a nudge — without seeing individual data of others.' },
                     { title: 'Completion certificates', desc: 'Staff receive a certificate on passing a course. Shareable and stored against their profile.' },
                     { title: 'Weekly org pulse report', desc: 'Auto-generated Monday report to leadership: who moved tiers, what changed, what needs action.' },
                   ].map((item, i) => (
@@ -4139,7 +4139,7 @@ export default function AdminPage() {
                   {[
                     { title: 'Events Hub AI-first', desc: 'Upload an event brief — AI extracts structure, assigns staff, surfaces readiness gaps. No manual data entry.' },
                     { title: 'Department deep-dives', desc: 'Per-department AI report: current tier split, top skill gaps, projected score in 30 days, recommended courses.' },
-                    { title: 'Course effectiveness scoring', desc: 'AI tracks whether TAIRS scores actually improve after each course. Courses that don\'t move the needle get flagged.' },
+                    { title: 'Course effectiveness scoring', desc: 'AI tracks whether AI Readiness Scores actually improve after each course. Courses that don\'t move the needle get flagged.' },
                     { title: 'TAOS integration', desc: 'Event Pilot\'s org intelligence feeds the broader Trescon AI Operating System — capability data becomes a business asset.' },
                   ].map((item, i) => (
                     <div key={i} style={{ padding: '12px 14px', background: 'rgba(164,120,255,0.05)', border: '1px solid rgba(164,120,255,0.12)', borderRadius: '10px' }}>

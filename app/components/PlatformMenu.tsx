@@ -37,7 +37,7 @@ function buildSections(
     items: [
       {
         title:       'My Dashboard',
-        description: 'Your TAIRS score, learning track, and recommended courses',
+        description: 'Your AI Readiness Score, learning track, and recommended courses',
         href:        id ? `/dashboard?id=${id}` : '/dashboard',
         color:       '#00897B',
         bg:          'rgba(0,165,163,0.08)',
@@ -80,7 +80,7 @@ function buildSections(
   if (hasReports || isAdmin) {
     teamItems.push({
       title:       'Team Dashboard',
-      description: 'TAIRS overview, completion rates, and progress for your direct team',
+      description: 'AIRS overview, completion rates, and progress for your direct team',
       href:        id ? `/team?manager_id=${id}&staff_id=${id}` : '/team',
       color:       '#7C3AED',
       bg:          'rgba(124,58,237,0.08)',
