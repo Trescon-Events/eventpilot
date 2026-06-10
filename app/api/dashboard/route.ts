@@ -114,8 +114,9 @@ export async function GET(req: NextRequest) {
       .single(),
     supabaseAdmin
       .from('staff_task_profiles')
-      .select('ai_readiness, tools_used, tool_proficiency')
-      .eq('staff_id', id),
+      .select('responses, submitted_at')
+      .eq('staff_id', id)
+      .maybeSingle(),
     supabaseAdmin
       .from('course_completions')
       .select('course_id, passed, test_score, attempt_count, courses(tier_level)')
@@ -139,7 +140,7 @@ export async function GET(req: NextRequest) {
   }
 
   const staff      = { ...staffRes.data, has_reports: (reportCountRes.count ?? 0) > 0 }
-  const tasks      = tasksRes.data ?? []
+  const tasks      = Array.isArray(tasksRes.data?.responses) ? tasksRes.data.responses : []
   const completions = completionsRes.data ?? []
 
   const score      = computeTAIRS(tasks, completions as unknown as { passed: boolean; courses?: { tier_level: string } | null }[])
