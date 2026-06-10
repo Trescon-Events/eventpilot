@@ -4219,10 +4219,15 @@ export default function AdminPage() {
                       'Seed routes added to middleware public exemptions — /api/seed-platform-docs, /api/seed-courses, /api/seed-demo no longer require auth',
                     ]},
                     { date: '10 Jun 2026 — Madhu', items: [
-                      'Full platform rebrand cleanup — removed all remaining TAOS, AI Learning Platform, AI Index, Trescademy, TAI, and TAIRS remnants from UI, nav, and page copy. Platform is now consistently "Event Pilot" throughout',
-                      'AIRS renaming complete — TAIRS renamed to AIRS (AI Readiness Score) across all UI, scoring, and copy',
-                      'Email FROM address updated to noreply@eventpilot.tresconglobal.com for all transactional emails',
-                      'Middleware PLATFORM_HOSTS updated to reflect the live Vercel project URL for the eventpilot deployment',
+                      'Full platform rebrand sweep — all Trescademy, TAI Academy, TAOS, taos-discovery, TAIRS references removed from code, UI, comments, SQL, and docs. Platform is consistently "Event Pilot" throughout',
+                      'AIRS renaming complete — TAIRS → AIRS (AI Readiness Score), tairs.ts → airs.ts, computeTAIRS → computeAIRS',
+                      'Platform doc renamed: TRESCADEMY_PLATFORM_DOCUMENT.md → EVENTPILOT_PLATFORM_DOCUMENT.md. GitHub repo taos-templates → ep-templates',
+                      'Vercel project renamed: taos-discovery → eventpilot. New .vercel.app alias: eventpilot-trescons-projects.vercel.app',
+                      'Cron confirmed Vercel-native via vercel.json — no cron-job.org account needed',
+                      'Secrets rotated — admin code: eventpilot2026, staff default password: eventpilot@2026, cron secret: eventpilot-cron-2026. All updated in .env.local and Vercel env vars',
+                      'tresconglobal.com verified in Resend, DNS records added, RESEND_FROM_EMAIL set. Sending from noreply@eventpilot.tresconglobal.com (dedicated subdomain — root left for HubSpot/Outlook)',
+                      'HRMS sync confirmed end-to-end: 124 staff, 51 projects, 349 allocations, 964 timesheets',
+                      'Middleware PLATFORM_HOSTS updated to reflect live Vercel project URL',
                     ]},
                     { date: '10 Jun 2026 — Durga', items: [
                       'Org Chart redesigned — replaced impractical horizontal card tree with two practical views: Directory (grouped table by department, sortable, filterable) and Hierarchy (vertical indented list — no horizontal overflow at any org size)',
@@ -4236,7 +4241,7 @@ export default function AdminPage() {
                       'Success screen after creation: shows temp password and login credentials card with "View Profile" and "Add Another" actions',
                       'Add Staff button wired into HR portal home (Onboarding panel) and Onboarding Tracker header',
                       'Password reset system confirmed complete — forgot password (email via Resend), reset via token link (1hr expiry), forced change on first login (must_change_password flag), self-service change from profile, admin force-reset via API',
-                      'Email branding fixed — all transactional emails rebranded to Event Pilot. FROM address updated to noreply@tresconglobal.com via RESEND_FROM_EMAIL env var. FROM address updated to noreply@tresconglobal.com via RESEND_FROM_EMAIL env var',
+                      'Email branding fixed — all transactional emails rebranded to Event Pilot. FROM address: noreply@eventpilot.tresconglobal.com via RESEND_FROM_EMAIL env var',
                       'Credentials email now sent automatically on new staff creation (when login enabled) — new joiner gets email with their temp password and login link',
                     ]},
                     { date: '9 Jun 2026 — Durga', items: [
