@@ -4201,6 +4201,16 @@ export default function AdminPage() {
                 </div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
                   {[
+                    { date: '11 Jun 2026 (Round 2 & 3) — Durga', items: [
+                      'Dept course seeding — /api/generate-dept-courses: admin picks a department, tier, and count (1–3). Gemini builds full draft courses (reading content, 4 task steps, 10-question bank) in one click. Saved as drafts, super admin notified in-app. UI lives in Learning Lab → Seed Dept Courses',
+                      'Weekly org pulse email — sendOrgPulseReport wired into the Sunday cron. Every week super admins receive completions this week, all-time total, participation rate, top department, top skill gap, and auto-generated course count with a direct link to the admin dashboard',
+                      'Brand PDF export — /api/events/brand/export-pdf generates a fully self-contained HTML brand book: cover page, identity, logo variants, color palette with swatches, typography specimens, patterns, voice & tone, key messages, and generated assets gallery. Export PDF button added to Brand Studio nav bar. Opens in new tab, print dialog auto-triggers',
+                    ]},
+                    { date: '11 Jun 2026 (Round 1) — Durga', items: [
+                      'Course assignment — admin can assign any published course to an individual staff member, a full department, or all staff at once with an optional due date. Staff receive an instant in-app notification. Panel lives in the Learning tab',
+                      'Completion certificates — auto-issued the moment a staff member passes a course for the first time. Upserted to training_certificates table, stored on their profile',
+                      'Brand asset generator — Imagen 3 generates event banners, social posts, LinkedIn banners, speaker cards, and sponsor cards from the active brand guidelines. Full gallery with aspect ratio selector in Brand Studio → Asset Generator tab',
+                    ]},
                     { date: '11 Jun 2026 — Durga', items: [
                       'Weekly auto course generation — every Sunday the platform now automatically builds 3 new draft courses: 2 from the top skill gaps identified in the weekly insights report, 1 from the latest AI tool or release Gemini identifies as most relevant for B2B events staff that week',
                       'All auto-generated courses saved as drafts with source "Pilot AI" — super admin gets one consolidated notification and reviews them in the Review Queue before they go live',
@@ -4390,6 +4400,9 @@ export default function AdminPage() {
                     'Course assignment — admin assigns any course to an individual, department, or all staff with optional due date. Staff notified instantly in-app',
                     'Completion certificates — auto-issued when a staff member passes a course for the first time. Stored on their profile',
                     'Brand asset generator — Imagen 3 AI generates event banners, social posts, LinkedIn banners, speaker cards, and sponsor cards from brand guidelines in Brand Studio',
+                    'Department course seeding — admin generates 1–3 dept-specific AI courses in one click from Learning Lab. Pilot AI builds full courses with reading content, tasks, and 10-question bank. Saved as drafts for review before publishing',
+                    'Weekly org pulse email — super admins receive a formatted report every Sunday: completions, participation rate, top dept, top skill gap, auto-generated course count',
+                    'Brand PDF export — Brand Studio generates a polished self-contained HTML brand book (cover, colors, typography, logo, voice, assets). Export PDF button in Brand Studio nav, print dialog auto-triggers',
                     'Platform Menu — role-aware, each user sees only the tools they can access',
                     'Platform Docs — AIRS scoring guide, discovery questionnaire, AI readiness playbook',
                   ].map((item, i) => (
@@ -4402,26 +4415,49 @@ export default function AdminPage() {
                 </div>
               </div>
 
-              {/* ── Phase 2 ── */}
+              {/* ── Phase 2 — complete ── */}
               <div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '16px' }}>
-                  <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#8B1A1A' }} />
-                  <div style={{ fontSize: '11px', fontWeight: 800, letterSpacing: '1.8px', textTransform: 'uppercase', color: '#8B1A1A' }}>Phase 2 — Rolling out next</div>
+                  <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#3D6B00' }} />
+                  <div style={{ fontSize: '11px', fontWeight: 800, letterSpacing: '1.8px', textTransform: 'uppercase', color: '#3D6B00' }}>Phase 2 — Complete</div>
                 </div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                   {[
-                    { title: 'Course assignment from admin ✓', desc: 'SHIPPED 11 Jun — admin can assign any course to an individual, a department, or all staff with an optional due date. Staff receive an in-app notification. Panel lives in the Learning tab.' },
-                    { title: 'Completion certificates ✓', desc: 'SHIPPED 11 Jun — certificate auto-issued the moment a staff member passes a course for the first time. Stored against their profile in the Certificates section.' },
-                    { title: 'Brand asset generator ✓', desc: 'SHIPPED — Imagen 3 AI generates event banners, social posts, LinkedIn banners, speaker cards, and sponsor cards from brand guidelines. Access via Brand Studio → Asset Generator tab for any event.' },
-                    { title: 'Department course seeding ✓', desc: 'SHIPPED 11 Jun — admin can generate 1–3 department-specific draft courses in one click from Learning Lab → Seed Dept Courses. Pilot AI builds full courses including reading content, tasks, and question bank.' },
-                    { title: 'Weekly org pulse report ✓', desc: 'SHIPPED 11 Jun — every Sunday at 8 PM IST, super admins receive a formatted email with completions this week, participation rate, top department, top skill gap, and auto-generated course count.' },
-                    { title: 'Website builder template library ✓', desc: 'SHIPPED — 5 curated event microsite templates live (Finance 2045, Vault 2047, World CX Summit, World AI Show, Big CIO Show). Brand palette auto-applies on selection.' },
-                    { title: 'Brand PDF export', desc: 'Generate a polished brand guidelines PDF from the completed Brand Studio, ready to share with vendors and partners.' },
-                    { title: 'Content Hub social publishing', desc: 'Connect Meta tokens to push approved posts live to LinkedIn, Instagram and Facebook directly from the platform.' },
+                    { title: 'Course assignment ✓', desc: 'Admin assigns any course to an individual, department, or all staff with optional due date. In-app notification sent instantly. Panel in Learning tab.' },
+                    { title: 'Completion certificates ✓', desc: 'Auto-issued on first pass. Stored in training_certificates, visible on staff profile.' },
+                    { title: 'Brand asset generator ✓', desc: 'Imagen 3 generates event banners, social posts, LinkedIn banners, speaker cards, sponsor cards from brand guidelines. Brand Studio → Asset Generator.' },
+                    { title: 'Department course seeding ✓', desc: 'Admin generates 1–3 dept-specific AI courses in one click. Full courses with reading content, task steps, and 10-question bank. Saved as drafts for review.' },
+                    { title: 'Weekly org pulse report ✓', desc: 'Every Sunday at 8 PM IST, super admins receive completions, participation rate, top dept, top skill gap, and auto-generated course count by email.' },
+                    { title: 'Website builder template library ✓', desc: '5 curated event microsite templates live (Finance 2045, Vault 2047, World CX Summit, World AI Show, Big CIO Show). Brand palette auto-applies on selection.' },
+                    { title: 'Brand PDF export ✓', desc: 'Brand Studio generates a self-contained HTML brand book: cover, identity, logo variants, color palette, typography, patterns, voice & tone, asset gallery. Export PDF button in Brand Studio nav.' },
                   ].map((item, i) => (
-                    <div key={i} style={{ padding: '12px 14px', background: 'rgba(139,26,26,0.05)', border: '1px solid rgba(139,26,26,0.15)', borderRadius: '10px' }}>
+                    <div key={i} style={{ padding: '12px 14px', background: 'rgba(61,107,0,0.04)', border: '1px solid rgba(61,107,0,0.15)', borderRadius: '10px', display: 'flex', gap: '10px', alignItems: 'flex-start' }}>
+                      <svg width="13" height="13" style={{ flexShrink: 0, marginTop: '2px' }} fill="none" stroke="#3D6B00" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>
+                      <div>
+                        <div style={{ fontSize: '13px', fontWeight: 700, color: '#3D6B00', marginBottom: '3px' }}>{item.title}</div>
+                        <div style={{ fontSize: '13px', color: '#5B7080', lineHeight: 1.6 }}>{item.desc}</div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
 
-                      <div style={{ fontSize: '13px', fontWeight: 700, color: '#8B1A1A', marginBottom: '4px' }}>{item.title}</div>
+              {/* ── Blocked / Waiting ── */}
+              <div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '16px' }}>
+                  <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#D97706' }} />
+                  <div style={{ fontSize: '11px', fontWeight: 800, letterSpacing: '1.8px', textTransform: 'uppercase', color: '#D97706' }}>Blocked — waiting on external input</div>
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                  {[
+                    { title: 'Content Hub social publishing', blocker: 'Waiting on Meta API tokens from Madhu', desc: 'Approval queue and campaign workflow are fully built. Once Meta tokens are provided, LinkedIn, Instagram, and Facebook publishing can be wired up in one session.' },
+                    { title: 'Security layer — IP whitelist', blocker: 'Waiting on Bangalore + Dubai office IPs from Durga', desc: 'Brute force protection, audit log, signed sessions, session timeout, and force password change are all planned. IP whitelist step is the only one that needs the office IPs.' },
+                  ].map((item, i) => (
+                    <div key={i} style={{ padding: '12px 14px', background: 'rgba(217,119,6,0.05)', border: '1px solid rgba(217,119,6,0.2)', borderRadius: '10px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '5px' }}>
+                        <div style={{ fontSize: '13px', fontWeight: 700, color: '#92400E' }}>{item.title}</div>
+                        <div style={{ fontSize: '11px', fontWeight: 700, color: '#D97706', background: 'rgba(217,119,6,0.1)', border: '1px solid rgba(217,119,6,0.25)', borderRadius: '20px', padding: '2px 8px', whiteSpace: 'nowrap' }}>{item.blocker}</div>
+                      </div>
                       <div style={{ fontSize: '13px', color: '#5B7080', lineHeight: 1.6 }}>{item.desc}</div>
                     </div>
                   ))}
@@ -4436,10 +4472,11 @@ export default function AdminPage() {
                 </div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                   {[
-                    { title: 'Events Hub AI-first', desc: 'Upload an event brief — AI extracts structure, assigns staff, surfaces readiness gaps. No manual data entry.' },
-                    { title: 'Department deep-dives', desc: 'Per-department AI report: current tier split, top skill gaps, projected score in 30 days, recommended courses.' },
-                    { title: 'Course effectiveness scoring', desc: 'AI tracks whether AI Readiness Scores actually improve after each course. Courses that don\'t move the needle get flagged.' },
-                    { title: 'Platform integrations', desc: 'Event Pilot org intelligence feeds into broader Trescon workflows — capability data becomes a business asset.' },
+                    { title: 'Department deep-dives', desc: 'Per-department AI report: current tier split, top skill gaps, projected AIRS in 30 days, recommended courses to close each gap.' },
+                    { title: 'Course effectiveness scoring', desc: 'AI tracks whether AIRS actually improves after each course. Courses that don\'t move the needle get flagged for revision or removal.' },
+                    { title: 'Events Hub AI-first', desc: 'Upload an event brief — AI extracts structure, assigns staff by RACI, surfaces readiness gaps on the team before the event starts.' },
+                    { title: 'Security hardening', desc: 'Brute force rate limiting, full audit log (who did what + when), signed sessions, idle session timeout, force password change on first login.' },
+                    { title: 'Platform integrations', desc: 'Event Pilot org intelligence feeds into TAOS — capability data becomes a live business asset across the full Trescon platform.' },
                   ].map((item, i) => (
                     <div key={i} style={{ padding: '12px 14px', background: 'rgba(164,120,255,0.05)', border: '1px solid rgba(164,120,255,0.12)', borderRadius: '10px' }}>
                       <div style={{ fontSize: '13px', fontWeight: 700, color: '#A478FF', marginBottom: '4px' }}>{item.title}</div>
