@@ -383,6 +383,12 @@ export default function AdminPage() {
   const [creditName, setCreditName]   = useState('')
   const [creditRole, setCreditRole]   = useState('')
   const [creditId,   setCreditId]     = useState('')
+  // Dept course seeding
+  const [deptSeedDept,   setDeptSeedDept]   = useState('Events')
+  const [deptSeedTier,   setDeptSeedTier]   = useState<'foundation' | 'adoption' | 'advanced'>('foundation')
+  const [deptSeedCount,  setDeptSeedCount]  = useState(2)
+  const [deptSeedState,  setDeptSeedState]  = useState<'idle' | 'generating' | 'done' | 'error'>('idle')
+  const [deptSeedResult, setDeptSeedResult] = useState<{ courses: { id: string; title: string; tier_level: string }[]; errors?: string[] } | null>(null)
   const [learningData, setLearningData] = useState<{ completions: LearningCompletion[]; courses: LearningCourse[]; staff: LearningStaff[]; attempts: LearningAttempt[]; never_started: NeverStarted[]; participation_by_dept: DeptParticipation[] } | null>(null)
   const [learningLoading, setLearningLoading] = useState(false)
   // Course assignment
@@ -3135,6 +3141,99 @@ export default function AdminPage() {
                 </div>
               </div>
             )}
+
+            {/* ── Dept Course Seeding ── */}
+            <div style={{ marginTop: '40px', paddingTop: '32px', borderTop: '1px solid #E8EEF4' }}>
+              <div style={{ marginBottom: '20px' }}>
+                <div style={{ fontSize: '13px', fontWeight: 800, letterSpacing: '2px', textTransform: 'uppercase', color: '#00A5A3', marginBottom: '6px' }}>Dept Seeding</div>
+                <h3 style={{ fontSize: '22px', fontWeight: 900, color: '#0F1923', margin: '0 0 6px' }}>Seed Department Courses</h3>
+                <p style={{ fontSize: '15px', color: '#5B7080', margin: 0, lineHeight: 1.6 }}>Generate multiple draft courses for a specific department in one go. Pilot AI builds them from Trescon context — saved as drafts for your review before publishing.</p>
+              </div>
+
+              <div style={{ background: 'rgba(0,165,163,0.05)', border: '1px solid rgba(0,165,163,0.18)', borderRadius: '16px', padding: '24px' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 120px', gap: '14px', marginBottom: '20px' }}>
+                  <div>
+                    <label style={{ display: 'block', fontSize: '13px', fontWeight: 800, letterSpacing: '1.5px', textTransform: 'uppercase', color: '#5B7080', marginBottom: '8px' }}>Department</label>
+                    <select value={deptSeedDept} onChange={e => setDeptSeedDept(e.target.value)} disabled={deptSeedState === 'generating'}
+                      style={{ width: '100%', padding: '12px 14px', borderRadius: '10px', border: '1px solid #DDE8EE', background: '#FFFFFF', color: '#0F1923', fontSize: '13px', fontFamily: 'inherit', outline: 'none', cursor: 'pointer' }}>
+                      {['Events', 'Sales & Sponsorship', 'Marketing', 'Finance', 'Operations', 'HR', 'Content & Design', 'Data & Intelligence', 'Leadership'].map(d => (
+                        <option key={d} value={d}>{d}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label style={{ display: 'block', fontSize: '13px', fontWeight: 800, letterSpacing: '1.5px', textTransform: 'uppercase', color: '#5B7080', marginBottom: '8px' }}>Tier Level</label>
+                    <select value={deptSeedTier} onChange={e => setDeptSeedTier(e.target.value as 'foundation' | 'adoption' | 'advanced')} disabled={deptSeedState === 'generating'}
+                      style={{ width: '100%', padding: '12px 14px', borderRadius: '10px', border: '1px solid #DDE8EE', background: '#FFFFFF', color: '#0F1923', fontSize: '13px', fontFamily: 'inherit', outline: 'none', cursor: 'pointer' }}>
+                      <option value="foundation">Foundation</option>
+                      <option value="adoption">Adoption</option>
+                      <option value="advanced">Advanced</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label style={{ display: 'block', fontSize: '13px', fontWeight: 800, letterSpacing: '1.5px', textTransform: 'uppercase', color: '#5B7080', marginBottom: '8px' }}>Count</label>
+                    <select value={deptSeedCount} onChange={e => setDeptSeedCount(Number(e.target.value))} disabled={deptSeedState === 'generating'}
+                      style={{ width: '100%', padding: '12px 14px', borderRadius: '10px', border: '1px solid #DDE8EE', background: '#FFFFFF', color: '#0F1923', fontSize: '13px', fontFamily: 'inherit', outline: 'none', cursor: 'pointer' }}>
+                      <option value={1}>1</option>
+                      <option value={2}>2</option>
+                      <option value={3}>3</option>
+                    </select>
+                  </div>
+                </div>
+
+                <button
+                  disabled={deptSeedState === 'generating'}
+                  onClick={async () => {
+                    setDeptSeedState('generating')
+                    setDeptSeedResult(null)
+                    try {
+                      const res = await fetch('/api/generate-dept-courses', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ department: deptSeedDept, tier_level: deptSeedTier, count: deptSeedCount }),
+                      })
+                      const data = await res.json()
+                      if (!res.ok) throw new Error(data.error ?? 'Generation failed')
+                      setDeptSeedResult({ courses: data.courses, errors: data.errors })
+                      setDeptSeedState('done')
+                    } catch (err) {
+                      setDeptSeedResult({ courses: [], errors: [String(err)] })
+                      setDeptSeedState('error')
+                    }
+                  }}
+                  style={{ padding: '13px 28px', borderRadius: '12px', border: 'none', background: deptSeedState === 'generating' ? '#DDE8EE' : '#00A5A3', color: deptSeedState === 'generating' ? '#5B7080' : '#ffffff', fontSize: '13px', fontWeight: 800, cursor: deptSeedState === 'generating' ? 'not-allowed' : 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+                  {deptSeedState === 'generating' ? `Generating ${deptSeedCount} course${deptSeedCount > 1 ? 's' : ''}...` : `Generate ${deptSeedCount} Draft Course${deptSeedCount > 1 ? 's' : ''}`}
+                </button>
+              </div>
+
+              {(deptSeedState === 'done' || deptSeedState === 'error') && deptSeedResult && (
+                <div style={{ marginTop: '16px' }}>
+                  {deptSeedResult.courses.length > 0 && (
+                    <div style={{ background: 'rgba(192,244,60,0.08)', border: '1px solid rgba(192,244,60,0.3)', borderRadius: '12px', padding: '16px 18px', marginBottom: '12px' }}>
+                      <div style={{ fontSize: '13px', fontWeight: 800, color: '#3D6B00', marginBottom: '10px' }}>{deptSeedResult.courses.length} draft course{deptSeedResult.courses.length > 1 ? 's' : ''} saved — ready for review in the Review Queue</div>
+                      {deptSeedResult.courses.map(c => (
+                        <div key={c.id} style={{ fontSize: '13px', color: '#5B7080', padding: '6px 0', borderTop: '1px solid rgba(192,244,60,0.2)', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                          <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#00A5A3', flexShrink: 0, display: 'inline-block' }} />
+                          <span style={{ color: '#0F1923', fontWeight: 700 }}>{c.title}</span>
+                          <span style={{ color: '#B8CDD8' }}>·</span>
+                          <span style={{ textTransform: 'capitalize' }}>{c.tier_level}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  {deptSeedResult.errors && deptSeedResult.errors.length > 0 && (
+                    <div style={{ background: 'rgba(255,107,107,0.08)', border: '1px solid rgba(255,107,107,0.3)', borderRadius: '12px', padding: '14px 16px', fontSize: '13px', color: '#B91C1C' }}>
+                      {deptSeedResult.errors.map((e, i) => <div key={i}>{e}</div>)}
+                    </div>
+                  )}
+                  <button onClick={() => { setDeptSeedState('idle'); setDeptSeedResult(null) }}
+                    style={{ marginTop: '10px', padding: '8px 16px', borderRadius: '8px', border: '1px solid #DDE8EE', background: '#FFFFFF', color: '#5B7080', fontSize: '13px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
+                    Generate More
+                  </button>
+                </div>
+              )}
+            </div>
           </div>
         )}
 
@@ -4313,12 +4412,12 @@ export default function AdminPage() {
                   {[
                     { title: 'Course assignment from admin ✓', desc: 'SHIPPED 11 Jun — admin can assign any course to an individual, a department, or all staff with an optional due date. Staff receive an in-app notification. Panel lives in the Learning tab.' },
                     { title: 'Completion certificates ✓', desc: 'SHIPPED 11 Jun — certificate auto-issued the moment a staff member passes a course for the first time. Stored against their profile in the Certificates section.' },
-                    { title: 'Brand asset generator ✓', desc: 'SHIPPED (already built) — Imagen 3 AI generates event banners, social posts, LinkedIn banners, speaker cards, and sponsor cards from brand guidelines. Access via Brand Studio → Asset Generator tab for any event.' },
+                    { title: 'Brand asset generator ✓', desc: 'SHIPPED — Imagen 3 AI generates event banners, social posts, LinkedIn banners, speaker cards, and sponsor cards from brand guidelines. Access via Brand Studio → Asset Generator tab for any event.' },
+                    { title: 'Department course seeding ✓', desc: 'SHIPPED 11 Jun — admin can generate 1–3 department-specific draft courses in one click from Learning Lab → Seed Dept Courses. Pilot AI builds full courses including reading content, tasks, and question bank.' },
+                    { title: 'Weekly org pulse report ✓', desc: 'SHIPPED 11 Jun — every Sunday at 8 PM IST, super admins receive a formatted email with completions this week, participation rate, top department, top skill gap, and auto-generated course count.' },
+                    { title: 'Website builder template library ✓', desc: 'SHIPPED — 5 curated event microsite templates live (Finance 2045, Vault 2047, World CX Summit, World AI Show, Big CIO Show). Brand palette auto-applies on selection.' },
                     { title: 'Brand PDF export', desc: 'Generate a polished brand guidelines PDF from the completed Brand Studio, ready to share with vendors and partners.' },
-                    { title: 'Website builder template library', desc: 'Pick from curated event microsite templates. Brand Studio palette and fonts auto-apply on selection.' },
                     { title: 'Content Hub social publishing', desc: 'Connect Meta tokens to push approved posts live to LinkedIn, Instagram and Facebook directly from the platform.' },
-                    { title: 'Department course seeding', desc: 'Seed the right AI-generated courses per department so each team has a ready library on day one.' },
-                    { title: 'Weekly org pulse report', desc: 'Auto-generated Monday report to leadership: who moved tiers, what changed, what needs action.' },
                   ].map((item, i) => (
                     <div key={i} style={{ padding: '12px 14px', background: 'rgba(139,26,26,0.05)', border: '1px solid rgba(139,26,26,0.15)', borderRadius: '10px' }}>
 

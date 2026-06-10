@@ -216,3 +216,87 @@ export async function sendCredentials({
     html,
   })
 }
+
+// ── Email: Weekly Org Pulse Report ────────────────────────────────────────────
+
+export async function sendOrgPulseReport({
+  to,
+  weekEnding,
+  totalCompletions,
+  completionsThisWeek,
+  activeStaff,
+  totalStaff,
+  topSkillGap,
+  topDept,
+  topDeptCompletions,
+  newCoursesGenerated,
+  adminUrl,
+}: {
+  to:                   string[]
+  weekEnding:           string
+  totalCompletions:     number
+  completionsThisWeek:  number
+  activeStaff:          number
+  totalStaff:           number
+  topSkillGap:          string | null
+  topDept:              string | null
+  topDeptCompletions:   number
+  newCoursesGenerated:  number
+  adminUrl:             string
+}) {
+  const participationPct = totalStaff > 0 ? Math.round((activeStaff / totalStaff) * 100) : 0
+
+  const statRow = (label: string, value: string | number, accent = BRAND) => `
+    <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid #E8EEF4;">
+      <span style="color:${MUTED};font-size:14px;">${label}</span>
+      <span style="color:${accent};font-weight:800;font-size:15px;">${value}</span>
+    </div>
+  `
+
+  const html = emailWrap(`
+    ${emailHeader('Weekly Org Pulse')}
+    <div style="padding:32px 40px;">
+      <div style="font-size:11px;font-weight:800;letter-spacing:2px;text-transform:uppercase;color:${BRAND};margin-bottom:6px;">Week ending ${weekEnding}</div>
+      <h2 style="font-size:22px;font-weight:900;color:${DARK};margin:0 0 6px;">Your weekly platform pulse</h2>
+      <p style="color:${MUTED};font-size:14px;line-height:1.6;margin:0 0 24px;">Here's what happened across Event Pilot this week. Review and take action before the next build cycle.</p>
+
+      <div style="background:#F8FFFE;border:1px solid #C6ECE8;border-radius:12px;padding:18px 20px;margin-bottom:24px;">
+        <div style="font-size:10px;font-weight:800;letter-spacing:2.5px;text-transform:uppercase;color:${BRAND};margin-bottom:12px;">Learning Activity</div>
+        ${statRow('Completions this week', completionsThisWeek, '#3D6B00')}
+        ${statRow('Total completions all time', totalCompletions)}
+        ${statRow('Staff participation rate', `${participationPct}% (${activeStaff} of ${totalStaff})`)}
+        ${topDept ? statRow('Most active department', `${topDept} — ${topDeptCompletions} completions`, '#8B1A1A') : ''}
+      </div>
+
+      ${topSkillGap ? `
+      <div style="background:#FFF8F0;border:1px solid #FCD34D40;border-radius:12px;padding:18px 20px;margin-bottom:24px;">
+        <div style="font-size:10px;font-weight:800;letter-spacing:2.5px;text-transform:uppercase;color:#D97706;margin-bottom:8px;">Top Skill Gap This Week</div>
+        <div style="font-size:15px;font-weight:700;color:${DARK};">${topSkillGap}</div>
+        <div style="font-size:13px;color:${MUTED};margin-top:4px;">Consider assigning relevant courses or generating new content in Learning Lab.</div>
+      </div>` : ''}
+
+      ${newCoursesGenerated > 0 ? `
+      <div style="background:rgba(192,244,60,0.06);border:1px solid rgba(192,244,60,0.3);border-radius:12px;padding:18px 20px;margin-bottom:24px;">
+        <div style="font-size:10px;font-weight:800;letter-spacing:2.5px;text-transform:uppercase;color:#3D6B00;margin-bottom:8px;">Auto-Generated This Week</div>
+        <div style="font-size:15px;font-weight:700;color:${DARK};">${newCoursesGenerated} new draft course${newCoursesGenerated > 1 ? 's' : ''} ready for review</div>
+        <div style="font-size:13px;color:${MUTED};margin-top:4px;">Pilot AI built these from this week's skill gap analysis. Review and publish from the Admin panel.</div>
+      </div>` : ''}
+
+      <div style="text-align:center;margin:28px 0;">
+        <a href="${adminUrl}?tab=learning"
+          style="display:inline-block;background:${BRAND};color:#ffffff;font-size:14px;font-weight:800;padding:14px 32px;border-radius:10px;text-decoration:none;">
+          Open Admin Dashboard
+        </a>
+      </div>
+
+      ${emailFooter()}
+    </div>
+  `)
+
+  return resend.emails.send({
+    from:    FROM,
+    to,
+    subject: `Event Pilot weekly pulse — week ending ${weekEnding}`,
+    html,
+  })
+}
