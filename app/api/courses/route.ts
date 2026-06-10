@@ -92,6 +92,35 @@ export async function DELETE(req: NextRequest) {
   return NextResponse.json({ success: true })
 }
 
+/* PUT — update any course fields (admin editor) */
+export async function PUT(req: NextRequest) {
+  const body = await req.json().catch(() => null)
+  if (!body?.admin_code || body.admin_code !== ADMIN_CODE) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  const { course_id, ...fields } = body
+  if (!course_id) return NextResponse.json({ error: 'course_id required' }, { status: 400 })
+
+  const ALLOWED = [
+    'title','subtitle','tool_name','tier_level','dept_tags','is_mandatory',
+    'estimated_minutes','overview','read_content','task_steps','question_bank',
+    'suggested_by_name','suggested_by_role',
+  ]
+  const payload: Record<string, unknown> = {}
+  for (const key of ALLOWED) {
+    if (fields[key] !== undefined) payload[key] = fields[key]
+  }
+
+  const { data, error } = await supabaseAdmin
+    .from('courses')
+    .update(payload)
+    .eq('id', course_id)
+    .select('id, title, status')
+    .single()
+
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  invalidateCourseCache()
+  return NextResponse.json({ success: true, course: data })
+}
+
 /* GET — list courses (published only for staff; drafts for admin review queue) */
 export async function GET(req: NextRequest) {
   const tier   = req.nextUrl.searchParams.get('tier')
