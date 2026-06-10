@@ -4200,11 +4200,8 @@ export default function AdminPage() {
                     { title: 'Content Hub social publishing', desc: 'Connect Meta tokens to push approved posts live to LinkedIn, Instagram and Facebook directly from the platform.' },
                     { title: 'Department course seeding', desc: 'Seed the right AI-generated courses per department so each team has a ready library on day one.' },
                     { title: 'Course assignment from admin', desc: 'Assign specific courses to individual staff members or entire teams directly from the admin panel.' },
-                    { title: 'HR-led staff onboarding wizard ✓', desc: 'SHIPPED 10 Jun — 5-step form at /hr/staff/new. HR creates full profile, sets reporting structure, assigns tool access, auto-starts onboarding checklist. Credentials email sent automatically.' },
                     { title: 'Manager team view', desc: 'Managers see their team\'s AI Readiness Scores, who hasn\'t started, and who needs a nudge — without seeing individual data of others.' },
                     { title: 'Completion certificates', desc: 'Staff receive a certificate on passing a course. Shareable and stored against their profile.' },
-                    { title: 'Weekly auto course generation ✓', desc: 'SHIPPED 11 Jun — every Sunday the cron generates 3 draft courses: 2 from top skill gaps in the insights report + 1 from latest AI news. All queued for admin review.' },
-                    { title: 'Engagement & participation report ✓', desc: 'SHIPPED 11 Jun — Learning tab now shows participation rate per department and a Never Started list of all staff with zero course activity.' },
                     { title: 'Weekly org pulse report', desc: 'Auto-generated Monday report to leadership: who moved tiers, what changed, what needs action.' },
                   ].map((item, i) => (
                     <div key={i} style={{ padding: '12px 14px', background: 'rgba(139,26,26,0.05)', border: '1px solid rgba(139,26,26,0.15)', borderRadius: '10px' }}>
