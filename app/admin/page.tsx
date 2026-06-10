@@ -50,6 +50,8 @@ type LearningCompletion = { id: string; staff_id: string; course_id: string; tes
 type LearningCourse     = { id: string; title: string; tier_level: string; is_mandatory: boolean; estimated_minutes: number }
 type LearningStaff      = { id: string; name: string; department: string | null; office_id: string; role: string | null }
 type LearningAttempt    = { id: string; staff_id: string; course_id: string; score: number | null; passed: boolean | null; attempted_at: string }
+type NeverStarted       = { id: string; name: string; department: string | null; office_id: string; role: string | null }
+type DeptParticipation  = { dept: string; total: number; active: number }
 
 /* ── QuestionnaireView — read-only preview of the full questionnaire flow ── */
 function QuestionnaireView({ qDept, setQDept }: { qDept: string; setQDept: (d: string) => void }) {
@@ -381,7 +383,7 @@ export default function AdminPage() {
   const [creditName, setCreditName]   = useState('')
   const [creditRole, setCreditRole]   = useState('')
   const [creditId,   setCreditId]     = useState('')
-  const [learningData, setLearningData] = useState<{ completions: LearningCompletion[]; courses: LearningCourse[]; staff: LearningStaff[]; attempts: LearningAttempt[] } | null>(null)
+  const [learningData, setLearningData] = useState<{ completions: LearningCompletion[]; courses: LearningCourse[]; staff: LearningStaff[]; attempts: LearningAttempt[]; never_started: NeverStarted[]; participation_by_dept: DeptParticipation[] } | null>(null)
   const [learningLoading, setLearningLoading] = useState(false)
   const [showDevTools, setShowDevTools] = useState(false)
   const [seedLoading, setSeedLoading]   = useState(false)
@@ -2613,7 +2615,7 @@ export default function AdminPage() {
             </div>
           )
 
-          const { completions, courses, staff: ldStaff, attempts } = learningData
+          const { completions, courses, staff: ldStaff, attempts, never_started, participation_by_dept } = learningData
           const staffMap   = Object.fromEntries(ldStaff.map(s => [s.id, s]))
           const courseMap  = Object.fromEntries(courses.map(c => [c.id, c]))
           const passedComp = completions.filter(c => c.passed)
@@ -2755,7 +2757,7 @@ export default function AdminPage() {
               </div>
 
               {/* Pass rate strip */}
-              <div style={{ background: '#FFFFFF', border: '1px solid #DDE8EE', borderRadius: '14px', padding: '16px 22px', display: 'flex', gap: '32px', alignItems: 'center', flexWrap: 'wrap' }}>
+              <div style={{ background: '#FFFFFF', border: '1px solid #DDE8EE', borderRadius: '14px', padding: '16px 22px', display: 'flex', gap: '32px', alignItems: 'center', flexWrap: 'wrap', marginBottom: '20px' }}>
                 <div>
                   <div style={{ fontSize: '13px', fontWeight: 700, letterSpacing: '1.5px', textTransform: 'uppercase', color: '#5B7080', marginBottom: '4px' }}>Overall Pass Rate</div>
                   <div style={{ fontSize: '36px', fontWeight: 900, color: passRate >= 70 ? '#3D6B00' : passRate >= 50 ? '#8B1A1A' : '#FF6B6B' }}>{passRate}%</div>
@@ -2768,6 +2770,65 @@ export default function AdminPage() {
                 </div>
                 <div style={{ fontSize: '13px', color: '#5B7080', lineHeight: 1.6 }}>
                   Target: 70%+ pass rate across all courses.<br/>Below 70% on any course = content or prompt difficulty issue.
+                </div>
+              </div>
+
+              {/* ── Participation section ── */}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '20px' }}>
+
+                {/* Department participation rates */}
+                <div style={{ background: '#FFFFFF', border: '1px solid #DDE8EE', borderRadius: '16px', overflow: 'hidden' }}>
+                  <div style={{ padding: '16px 20px', borderBottom: '1px solid #DDE8EE' }}>
+                    <div style={{ fontSize: '13px', fontWeight: 700, letterSpacing: '1.5px', textTransform: 'uppercase', color: '#5B7080' }}>Participation by Department</div>
+                    <div style={{ fontSize: '13px', color: '#0F1923', marginTop: '2px' }}>% of staff who have attempted at least one course</div>
+                  </div>
+                  {(participation_by_dept ?? []).length === 0 ? (
+                    <div style={{ padding: '28px', textAlign: 'center', color: '#5B7080', fontSize: '13px' }}>No data yet</div>
+                  ) : (
+                    (participation_by_dept ?? []).map((d, i) => {
+                      const rate = d.total > 0 ? Math.round((d.active / d.total) * 100) : 0
+                      return (
+                        <div key={d.dept} style={{ padding: '12px 20px', borderBottom: i < (participation_by_dept ?? []).length - 1 ? '1px solid #E8EEF4' : 'none' }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                            <div style={{ fontSize: '13px', fontWeight: 600, color: '#0F1923' }}>{d.dept}</div>
+                            <div style={{ fontSize: '13px', fontWeight: 700, color: rate >= 70 ? '#3D6B00' : rate >= 40 ? '#D97706' : '#DC2626' }}>{rate}% <span style={{ fontWeight: 400, color: '#5B7080' }}>({d.active}/{d.total})</span></div>
+                          </div>
+                          <div style={{ height: '5px', background: '#E8EEF4', borderRadius: '3px', overflow: 'hidden' }}>
+                            <div style={{ height: '100%', width: `${rate}%`, background: rate >= 70 ? '#7DC520' : rate >= 40 ? '#F59E0B' : '#EF4444', borderRadius: '3px', transition: 'width 0.5s' }} />
+                          </div>
+                        </div>
+                      )
+                    })
+                  )}
+                </div>
+
+                {/* Never-started summary */}
+                <div style={{ background: '#FFFFFF', border: '1px solid #DDE8EE', borderRadius: '16px', overflow: 'hidden' }}>
+                  <div style={{ padding: '16px 20px', borderBottom: '1px solid #DDE8EE', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <div>
+                      <div style={{ fontSize: '13px', fontWeight: 700, letterSpacing: '1.5px', textTransform: 'uppercase', color: '#5B7080' }}>Never Started</div>
+                      <div style={{ fontSize: '13px', color: '#0F1923', marginTop: '2px' }}>Staff who have not attempted any course</div>
+                    </div>
+                    <div style={{ fontSize: '28px', fontWeight: 900, color: (never_started ?? []).length > 0 ? '#DC2626' : '#3D6B00' }}>{(never_started ?? []).length}</div>
+                  </div>
+                  {(never_started ?? []).length === 0 ? (
+                    <div style={{ padding: '28px', textAlign: 'center', color: '#3D6B00', fontSize: '13px', fontWeight: 600 }}>All active staff have started at least one course.</div>
+                  ) : (
+                    <div style={{ maxHeight: '300px', overflowY: 'auto' }}>
+                      {(never_started ?? []).slice(0, 25).map((s, i) => (
+                        <div key={s.id} style={{ display: 'grid', gridTemplateColumns: '1fr auto', alignItems: 'center', gap: '12px', padding: '10px 20px', borderBottom: i < Math.min((never_started ?? []).length, 25) - 1 ? '1px solid #E8EEF4' : 'none' }}>
+                          <div>
+                            <div style={{ fontSize: '13px', fontWeight: 600, color: '#0F1923' }}>{s.name}</div>
+                            <div style={{ fontSize: '12px', color: '#5B7080' }}>{s.role ?? '—'} · {s.department ?? '—'}</div>
+                          </div>
+                          <div style={{ fontSize: '12px', fontWeight: 600, color: '#8B6914', background: '#FEF3C7', padding: '3px 8px', borderRadius: '5px', whiteSpace: 'nowrap' }}>{s.office_id}</div>
+                        </div>
+                      ))}
+                      {(never_started ?? []).length > 25 && (
+                        <div style={{ padding: '10px 20px', fontSize: '12px', color: '#5B7080', textAlign: 'center' }}>+{(never_started ?? []).length - 25} more staff not shown</div>
+                      )}
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
