@@ -4174,6 +4174,7 @@ export default function AdminPage() {
                     'Knowledge Base — company documents with Gemini-powered text and scanned PDF processing',
                     'Smart Data — lead extraction, LinkedIn enrichment, email verification, contact database',
                     'Content Hub — AI social campaigns with guided templates, approval flow, and calendar view',
+                    'Team Dashboard — managers see their full team hierarchy, AIRS score per member, tier distribution, who hasn\'t started, and an AI-generated Team Health Brief',
                     'Platform Menu — role-aware, each user sees only the tools they can access',
                     'Platform Docs — AIRS scoring guide, discovery questionnaire, AI readiness playbook',
                   ].map((item, i) => (
@@ -4200,7 +4201,6 @@ export default function AdminPage() {
                     { title: 'Content Hub social publishing', desc: 'Connect Meta tokens to push approved posts live to LinkedIn, Instagram and Facebook directly from the platform.' },
                     { title: 'Department course seeding', desc: 'Seed the right AI-generated courses per department so each team has a ready library on day one.' },
                     { title: 'Course assignment from admin', desc: 'Assign specific courses to individual staff members or entire teams directly from the admin panel.' },
-                    { title: 'Manager team view', desc: 'Managers see their team\'s AI Readiness Scores, who hasn\'t started, and who needs a nudge — without seeing individual data of others.' },
                     { title: 'Completion certificates', desc: 'Staff receive a certificate on passing a course. Shareable and stored against their profile.' },
                     { title: 'Weekly org pulse report', desc: 'Auto-generated Monday report to leadership: who moved tiers, what changed, what needs action.' },
                   ].map((item, i) => (
