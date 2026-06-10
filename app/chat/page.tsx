@@ -8,7 +8,7 @@ import NavBar, { MOD_TRESCI } from '@/app/components/NavBar'
 type Message = { role: 'user' | 'assistant'; text: string; flagged?: boolean }
 
 const SUGGESTED = [
-  'How is my TAIRS score calculated?',
+  'How is my AI Readiness Score calculated?',
   'Which courses should I start with?',
   'What is the difference between Foundation and Adoption track?',
   'How does the recommendation engine decide what to show me?',
@@ -271,7 +271,7 @@ export default function ChatPage() {
               <h1 style={{ fontSize: '36px', fontWeight: 900, color: '#0F1923', margin: 0, letterSpacing: '-0.3px' }}>Talk to Pilot</h1>
             </div>
             <p style={{ fontSize: '13px', color: '#2D3E50', margin: '0 0 36px', maxWidth: '380px', lineHeight: 1.65 }}>
-              Your AI learning assistant. Ask me anything about your courses, your TAIRS score, or how to use Event Pilot.
+              Your AI learning assistant. Ask me anything about your courses, your AI Readiness Score, or how to use Event Pilot.
             </p>
 
             {/* Suggested questions */}
@@ -291,7 +291,7 @@ export default function ChatPage() {
 
             {/* Scope note */}
             <div style={{ marginTop: '28px', padding: '12px 20px', background: '#FFFFFF', border: '1px solid #DDE8EE', borderRadius: '10px', fontSize: '13px', color: '#2D3E50', lineHeight: 1.65, maxWidth: '500px', textAlign: 'center', boxShadow: '0 1px 4px rgba(0,165,163,0.06), 0 1px 2px rgba(0,0,0,0.04)' }}>
-              Pilot is here to support your learning — ask about your courses, TAIRS score, or how to get the most from the platform.
+              Pilot is here to support your learning — ask about your courses, AI Readiness Score, or how to get the most from the platform.
               For HR, IT, or personal matters, please speak to your manager or the relevant team.
               <span style={{ display: 'block', marginTop: '8px', borderTop: '1px solid #D8EAEB', paddingTop: '8px' }}>
                 <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', background: 'rgba(192,244,60,0.08)', border: '1px solid rgba(192,244,60,0.2)', borderRadius: '8px', padding: '5px 12px', color: '#3D6B00', fontWeight: 700 }}>

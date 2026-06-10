@@ -307,7 +307,7 @@ export default function LeadFinderPage() {
                     <div style={{ fontSize: '13px', fontWeight: 700, color: '#34D399', marginBottom: '8px' }}>Search Complete</div>
                     <div style={{ display: 'flex', gap: '20px' }}>
                       <div><div style={{ fontSize: '20px', fontWeight: 800, color: '#0F1923' }}>{execResult.total_in_apollo?.toLocaleString()}</div><div style={{ fontSize: '12px', color: '#6B7280' }}>Total in Apollo</div></div>
-                      <div><div style={{ fontSize: '20px', fontWeight: 800, color: '#0F1923' }}>{execResult.inserted}</div><div style={{ fontSize: '12px', color: '#6B7280' }}>Added to TAOS</div></div>
+                      <div><div style={{ fontSize: '20px', fontWeight: 800, color: '#0F1923' }}>{execResult.inserted}</div><div style={{ fontSize: '12px', color: '#6B7280' }}>Added to Event Pilot</div></div>
                       <div><div style={{ fontSize: '20px', fontWeight: 800, color: '#0F1923' }}>{execResult.duplicates}</div><div style={{ fontSize: '12px', color: '#6B7280' }}>Duplicates</div></div>
                     </div>
                     <Link href="/data/contacts" style={{ display: 'inline-block', marginTop: '12px', padding: '8px 16px', borderRadius: '8px', background: '#00A5A3', color: '#FFFFFF', fontSize: '13px', fontWeight: 700, textDecoration: 'none' }}>

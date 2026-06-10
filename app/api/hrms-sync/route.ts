@@ -8,7 +8,7 @@ import { createClient } from '@supabase/supabase-js'
    Auth: admin_code in request body.
 */
 
-const ADMIN_CODE = process.env.NEXT_PUBLIC_ADMIN_CODE ?? 'taos2026'
+const ADMIN_CODE = process.env.NEXT_PUBLIC_ADMIN_CODE ?? 'eventpilot2026'
 
 const LOCATION_MAP: Record<string, string> = {
   bengaluru: 'bangalore',

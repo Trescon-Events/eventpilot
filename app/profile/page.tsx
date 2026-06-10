@@ -376,12 +376,12 @@ function ProfileContent() {
           Your AI readiness score<br />is set, <span style={{ color: '#3D6B00' }}>{firstName}.</span>
         </h1>
         <p style={{ fontSize: '13px', color: '#2D3E50', lineHeight: 1.65, maxWidth: '440px', margin: '0 auto 40px' }}>
-          Based on your answers, Event Pilot has calculated your starting TAIRS score and placed you on the right learning track. Your courses are ready.
+          Based on your answers, Event Pilot has calculated your starting AI Readiness Score and placed you on the right learning track. Your courses are ready.
         </p>
         <div style={{ background: '#FFFFFF', border: '1px solid #B8CDD8', borderRadius: '16px', padding: '24px 28px', marginBottom: '36px', textAlign: 'left', maxWidth: '420px' }}>
           <div style={{ ...S.label, marginBottom: '14px' }}>What happens next</div>
           {[
-            'Your TAIRS score is live on your dashboard',
+            'Your AI Readiness Score is live on your dashboard',
             'AI has selected your first recommended courses',
             'Each course you complete moves your score forward',
             'Your manager can see your progress in real time',
@@ -395,7 +395,7 @@ function ProfileContent() {
           ))}
         </div>
         <Link href={destination} style={{ background: '#C0F43C', color: '#0F1923', fontSize: '13px', fontWeight: 800, padding: '14px 32px', borderRadius: '50px', textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: '8px' }}>
-          See My TAIRS Score
+          See My AI Readiness Score
           <svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg>
         </Link>
       </div>
@@ -412,8 +412,8 @@ function ProfileContent() {
       },
       {
         num: '02', color: '#A78BFA',
-        title: 'Get your TAIRS score',
-        body: 'Trescon AI Index Readiness Score — places you from AI-Unaware to AI-Forward so you know exactly where to grow.',
+        title: 'Get your AI Readiness Score',
+        body: 'AI Readiness Score — places you from AI-Unaware to AI-Forward so you know exactly where to grow.',
       },
       {
         num: '03', color: '#3D6B00',

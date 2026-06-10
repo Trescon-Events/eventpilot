@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/app/lib/supabase'
 
-const ADMIN_CODE   = process.env.NEXT_PUBLIC_ADMIN_CODE ?? 'taos2026'
+const ADMIN_CODE   = process.env.NEXT_PUBLIC_ADMIN_CODE ?? 'eventpilot2026'
 const VALID_LEVELS = ['staff', 'team_lead', 'dept_head', 'office_head', 'super_admin']
 
 /* POST /api/admin/set-job-level

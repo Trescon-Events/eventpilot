@@ -1,4 +1,4 @@
-/* Shared TAIRS computation — single source of truth used by API routes and client pages */
+/* Shared AIRS computation — single source of truth used by API routes and client pages */
 
 /*
   Score = base (from questionnaire ai_readiness) + course completion bonus
@@ -7,7 +7,7 @@
   Bonus capped at 25 pts so courses can never fully substitute the questionnaire
   Total capped at 100
 */
-export function computeTAIRS(
+export function computeAIRS(
   tasks:       { ai_readiness: number }[],
   completions?: { passed: boolean; courses?: { tier_level: string } | null }[],
 ): number {

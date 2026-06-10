@@ -1,12 +1,12 @@
 /**
- * Seed test admin accounts for Trescademy Phase 1 review group.
+ * Seed test admin accounts for Event Pilot Phase 1 review group.
  * Run: npx tsx scripts/seed-test-admins.ts
  *
  * These users get:
  *   - job_level = 'office_head'  → is_admin: true in login response
  *   - access_enabled = true      → can log in immediately
  *   - profile_complete = true    → skip questionnaire, land on admin dashboard
- *   - Password: trescon@2026     (STAFF_DEFAULT_PASSWORD env var)
+ *   - Password: eventpilot@2026     (STAFF_DEFAULT_PASSWORD env var)
  */
 
 import { createClient } from '@supabase/supabase-js'
@@ -62,7 +62,7 @@ async function main() {
     }
   }
 
-  console.log('\nDone. Login with: trescon@2026')
+  console.log('\nDone. Login with: eventpilot@2026')
 }
 
 main()

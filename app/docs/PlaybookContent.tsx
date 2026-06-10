@@ -48,7 +48,7 @@ export default function PlaybookContent() {
         <div style={{ fontSize: '11px', fontWeight: 800, letterSpacing: '2px', textTransform: 'uppercase', color: '#7C3AED', marginBottom: '8px' }}>Operations Reference</div>
         <h1 style={{ fontSize: '28px', fontWeight: 900, color: '#0F1923', margin: '0 0 10px', letterSpacing: '-0.5px' }}>AI Readiness Playbook</h1>
         <p style={{ fontSize: '15px', color: '#5B7080', lineHeight: 1.65, margin: 0 }}>
-          What each TAIRS tier means and exactly what to do next for each group of people. Use this alongside the live Department Action Matrix in the Intelligence tab.
+          What each AIRS tier means and exactly what to do next for each group of people. Use this alongside the live Department Action Matrix in the Intelligence tab.
         </p>
       </div>
 

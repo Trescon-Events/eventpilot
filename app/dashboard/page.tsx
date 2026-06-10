@@ -3,7 +3,7 @@
 import { useState, useEffect, useMemo, Suspense } from 'react'
 import { useSearchParams } from 'next/navigation'
 import Link from 'next/link'
-import { computeTAIRS, getTier, getTrack, TIER_COLORS } from '@/app/lib/tairs'
+import { computeAIRS, getTier, getTrack, TIER_COLORS } from '@/app/lib/airs'
 import PlatformMenu from '@/app/components/PlatformMenu'
 import NavBar, { SignOutBtn, MOD_EVENTPILOT } from '@/app/components/NavBar'
 
@@ -227,7 +227,7 @@ function DashboardContent() {
       setIsDemo(status.is_demo ?? false)
 
       // Gate: no task profiles = questionnaire not completed → redirect
-      // Always return to personal dashboard after questionnaire so they see their TAIRS score first
+      // Always return to personal dashboard after questionnaire so they see their AI Readiness Score first
       const tasks: TaskProfile[] = data.tasks ?? []
       const isAdminSession = sessionStorage.getItem('tai_admin_authed') === '1'
       if (tasks.length === 0 && staffId && staffId !== 'super-admin' && !isAdminSession) {
@@ -333,7 +333,7 @@ function DashboardContent() {
     })
   }
 
-  const score      = computeTAIRS(tasks, completions)
+  const score      = computeAIRS(tasks, completions)
   const tier       = getTier(score)
   const track      = getTrack(score)
   const tierConfig = TIER_COLORS[tier]
@@ -459,7 +459,7 @@ function DashboardContent() {
                   <span style={{ fontSize: '40px', fontWeight: 900, color: '#FFFFFF', lineHeight: 1 }}>{score}</span>
                   <div>
                     <div style={{ fontSize: '13px', fontWeight: 800, color: 'rgba(255,255,255,0.9)', marginBottom: '2px' }}>{tier}</div>
-                    <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.65)', fontWeight: 600 }}>TAIRS · 0–100</div>
+                    <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.65)', fontWeight: 600 }}>AIRS · 0–100</div>
                   </div>
                 </div>
                 <div style={{ background: '#FFFFFF', border: `1.5px solid ${trackConfig.border}`, borderRadius: '12px', padding: '12px 20px' }}>
@@ -472,7 +472,7 @@ function DashboardContent() {
             <div style={{ textAlign: 'center', flexShrink: 0 }}>
               <ScoreRing score={score} color={tierConfig.color} />
               <div style={{ fontSize: '12px', color: '#5B7080', marginTop: '6px', lineHeight: 1.4, fontWeight: 600 }}>
-                TAIRS score<br />out of 100
+                AI Readiness Score<br />out of 100
               </div>
             </div>
           </div>
@@ -642,14 +642,14 @@ function DashboardContent() {
           const grants  = staff.tool_grants ?? {}
           const hasTool = (k: string) => isAdmin || grants[k] === true || (k === 'smart_data' && staff.toolkit_access)
           const tiles = [
-            { label: 'My Learning',           sub: 'Courses & TAIRS score',          color: '#00897B', href: `/dashboard?id=${staffId}`,                              icon: <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" viewBox="0 0 24 24"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>, show: true },
+            { label: 'My Learning',           sub: 'Courses & AI Readiness Score',          color: '#00897B', href: `/dashboard?id=${staffId}`,                              icon: <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" viewBox="0 0 24 24"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>, show: true },
             { label: 'Course Library',        sub: 'Browse all courses',              color: '#6366F1', href: `/dashboard/library?id=${staffId}`,                       icon: <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M9 3v18M3 9h6M3 15h6"/></svg>, show: true },
             { label: 'Talk to Pilot',         sub: 'AI learning assistant',           color: '#7C3AED', href: '/chat',                                                  icon: <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>, show: true },
             { label: 'My Events',             sub: 'Event roles & tasks',             color: '#D97706', href: `/dashboard?id=${staffId}#events`,                        icon: <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>, show: true },
             { label: 'My HR',                 sub: 'Leave, pay & attendance',         color: '#EC4899', href: '/my-hr',                                                 icon: <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>, show: true },
             { label: 'Smart Data',            sub: 'Lead extraction & CRM',           color: '#00A5A3', href: '/data/extract/file',                                     icon: <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" viewBox="0 0 24 24"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/></svg>, show: hasTool('smart_data') },
             { label: 'HR Portal',             sub: 'Leave approvals & org ops',       color: '#BE185D', href: '/hr',                                                    icon: <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>, show: hasTool('hr_portal') || staff.department === 'HR & Recruitment' || staff.department === 'HR' },
-            { label: 'Team Dashboard',        sub: 'Team TAIRS & progress',           color: '#8B5CF6', href: `/team?manager_id=${staffId}&staff_id=${staffId}`,        icon: <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>, show: !!(staff.has_reports || isAdmin) },
+            { label: 'Team Dashboard',        sub: 'Team AIRS & progress',           color: '#8B5CF6', href: `/team?manager_id=${staffId}&staff_id=${staffId}`,        icon: <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>, show: !!(staff.has_reports || isAdmin) },
             { label: 'Intelligence',          sub: 'Market intel & AI research',      color: '#92400E', href: '/insights',                                              icon: <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" viewBox="0 0 24 24"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>, show: hasTool('intelligence') },
             { label: 'Finance',               sub: 'P&L, payroll & expenses',         color: '#1565C0', href: '/admin/toolkit',                                         icon: <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" viewBox="0 0 24 24"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>, show: hasTool('finance') || staff.department === 'Finance' },
             { label: 'Brand Studio',          sub: 'AI image & creative assets',      color: '#DC2626', href: '/admin/toolkit',                                         icon: <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" viewBox="0 0 24 24"><circle cx="13.5" cy="6.5" r=".5"/><circle cx="17.5" cy="10.5" r=".5"/><circle cx="8.5" cy="7.5" r=".5"/><circle cx="6.5" cy="12.5" r=".5"/><path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10c.926 0 1.648-.746 1.648-1.688 0-.437-.18-.835-.477-1.125-.29-.289-.438-.652-.438-1.125a1.64 1.64 0 0 1 1.668-1.668h1.996c3.051 0 5.555-2.503 5.555-5.554C21.965 6.012 17.461 2 12 2z"/></svg>, show: hasTool('brand_studio') },
@@ -680,7 +680,7 @@ function DashboardContent() {
           )
         })()}
 
-        {/* TAIRS explanation strip */}
+        {/* AIRS explanation strip */}
         <div style={{ display: 'flex', gap: '6px', marginTop: '16px', marginBottom: '24px' }}>
           {[
             { label: 'AI-Unaware', range: '0–14',   color: '#991B1B', bg: '#FEF2F2', border: '#FCA5A5' },
@@ -712,7 +712,7 @@ function DashboardContent() {
                 {[
                   { step: '01', label: 'Start a course', sub: 'Pick any course and begin', color: '#00695C', bg: '#00695C' },
                   { step: '02', label: 'Pass the assessment', sub: '60% or higher to complete', color: '#A478FF', bg: '#A478FF' },
-                  { step: '03', label: 'Watch your score climb', sub: 'TAIRS updates as you learn', color: '#3D6B00', bg: '#3D6B00' },
+                  { step: '03', label: 'Watch your score climb', sub: 'AIRS updates as you learn', color: '#3D6B00', bg: '#3D6B00' },
                 ].map(item => (
                   <div key={item.step} style={{ background: item.bg, borderRadius: '14px', padding: '18px 16px' }}>
                     <div style={{ fontSize: '11px', fontWeight: 900, color: 'rgba(255,255,255,0.7)', letterSpacing: '2px', marginBottom: '8px' }}>STEP {item.step}</div>

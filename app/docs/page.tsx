@@ -19,7 +19,7 @@ type Doc = {
 
 // Built-in docs rendered as components (not Supabase text)
 const BUILT_IN: { slug: string; title: string; category: string }[] = [
-  { slug: '__scoring',       title: 'TAIRS Scoring Guide',     category: 'Platform Reference' },
+  { slug: '__scoring',       title: 'AI Readiness Score Guide',     category: 'Platform Reference' },
   { slug: '__questionnaire', title: 'Discovery Questionnaire', category: 'Platform Reference' },
   { slug: '__playbook',      title: 'AI Readiness Playbook',   category: 'Operations Reference' },
 ]
@@ -285,9 +285,9 @@ export default function DocsPage() {
           {/* Page subtitle — context for every doc */}
           {(() => {
             const subtitles: Record<string, string> = {
-              '__scoring':       'Reference only — explains how TAIRS scores are calculated. Nothing here changes your score.',
+              '__scoring':       'Reference only — explains how AI Readiness Scores are calculated. Nothing here changes your score.',
               '__questionnaire': 'A read-only preview of what your staff will see when they join. Select a department to explore the questions. No answers are collected here.',
-              '__playbook':      'What each TAIRS tier means and exactly what to do next. Use alongside the live Department Action Matrix in the Admin Intelligence tab.',
+              '__playbook':      'What each AIRS tier means and exactly what to do next. Use alongside the live Department Action Matrix in the Admin Intelligence tab.',
             }
             const subtitle = subtitles[activeSlug] ?? (activeDoc ? `Part of ${activeDoc.category} — for reference.` : '')
             return subtitle ? (

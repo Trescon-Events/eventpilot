@@ -23,7 +23,7 @@ function normalizeName(n: string) {
   return n.toLowerCase().replace(/\s+/g, ' ').trim()
 }
 
-const ADMIN_CODE = process.env.NEXT_PUBLIC_ADMIN_CODE ?? 'taos2026'
+const ADMIN_CODE = process.env.NEXT_PUBLIC_ADMIN_CODE ?? 'eventpilot2026'
 
 export async function POST(req: NextRequest) {
   const body = await req.json().catch(() => ({}))

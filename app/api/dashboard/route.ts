@@ -1,7 +1,7 @@
 import { supabaseAdmin } from '@/app/lib/supabase'
 import { NextRequest, NextResponse } from 'next/server'
 import { getCachedCourses, CachedCourse } from '@/app/lib/courseCache'
-import { computeTAIRS, getTrack } from '@/app/lib/tairs'
+import { computeAIRS, getTrack } from '@/app/lib/airs'
 
 /* ── Recommendation engine (pure JS — no external calls) ─────────────── */
 const MGMT_LEVELS    = ['team_lead', 'dept_head', 'office_head', 'super_admin']
@@ -143,7 +143,7 @@ export async function GET(req: NextRequest) {
   const tasks      = Array.isArray(tasksRes.data?.responses) ? tasksRes.data.responses : []
   const completions = completionsRes.data ?? []
 
-  const score      = computeTAIRS(tasks, completions as unknown as { passed: boolean; courses?: { tier_level: string } | null }[])
+  const score      = computeAIRS(tasks, completions as unknown as { passed: boolean; courses?: { tier_level: string } | null }[])
   const track      = getTrack(score)
   const completedIds = new Set(completions.filter(c => c.passed).map(c => c.course_id))
 

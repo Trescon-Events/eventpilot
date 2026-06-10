@@ -1,4 +1,4 @@
--- TAI Training Centre — Database Schema
+-- Event Pilot Training Centre — Database Schema
 -- Run this entire block in your Supabase SQL editor (Database → SQL Editor → New query)
 
 CREATE TABLE IF NOT EXISTS courses (

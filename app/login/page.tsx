@@ -118,7 +118,7 @@ export default function LoginPage() {
 
         {/* Middle: Hero */}
         <div style={{ position: 'relative', zIndex: 1 }}>
-          <div style={{ fontSize: '11px', fontWeight: 800, letterSpacing: '3px', textTransform: 'uppercase', color: '#C0F43C', marginBottom: '20px' }}>AI Learning Platform</div>
+          <div style={{ fontSize: '11px', fontWeight: 800, letterSpacing: '3px', textTransform: 'uppercase', color: '#C0F43C', marginBottom: '20px' }}>Event Management Platform</div>
           <h1 style={{ fontSize: '54px', fontWeight: 900, color: '#FFFFFF', lineHeight: 1.06, letterSpacing: '-2.5px', margin: '0 0 24px' }}>
             Build the skills<br />
             <span style={{ color: '#C0F43C' }}>AI demands</span><br />

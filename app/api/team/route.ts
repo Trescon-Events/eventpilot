@@ -1,9 +1,9 @@
 import { supabaseAdmin } from '@/app/lib/supabase'
 import { NextRequest, NextResponse } from 'next/server'
-import { computeTAIRS, getTier, getTrack } from '@/app/lib/tairs'
+import { computeAIRS, getTier, getTrack } from '@/app/lib/airs'
 
 /* GET /api/team?manager_id=UUID
-   Returns all staff under a manager at any depth, with TAIRS + completion data.
+   Returns all staff under a manager at any depth, with AIRS + completion data.
    Uses in-memory hierarchy traversal — works cleanly up to ~1000 staff. */
 
 type StaffRow = {
@@ -77,13 +77,13 @@ export async function GET(req: NextRequest) {
 
   const teamIds = teamMembers.map(m => m.id)
 
-  // Fetch TAIRS data (task profiles) for all team members in one query
+  // Fetch AIRS data (task profiles) for all team members in one query
   const { data: taskProfiles } = await supabaseAdmin
     .from('staff_task_profiles')
     .select('staff_id, ai_readiness')
     .in('staff_id', teamIds)
 
-  // Fetch completions for all team members in one query (with tier_level for accurate TAIRS)
+  // Fetch completions for all team members in one query (with tier_level for accurate AIRS)
   const { data: completions } = await supabaseAdmin
     .from('course_completions')
     .select('staff_id, course_id, passed, completed_at, courses(tier_level)')
@@ -114,7 +114,7 @@ export async function GET(req: NextRequest) {
   }
 
   const members = teamMembers.map(m => {
-    const score = computeTAIRS(
+    const score = computeAIRS(
       (taskMap[m.id] ?? []).map(r => ({ ai_readiness: r })),
       completionsByStaff[m.id] ?? [],
     )

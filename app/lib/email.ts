@@ -8,7 +8,7 @@ import { Resend } from 'resend'
 
 const resend = new Resend(process.env.RESEND_API_KEY)
 
-const FROM  = process.env.RESEND_FROM_EMAIL ?? 'Trescon · TAI Academy <noreply@tresconglobal.com>'
+const FROM  = process.env.RESEND_FROM_EMAIL ?? 'Event Pilot <noreply@eventpilot.tresconglobal.com>'
 const BRAND = '#00A5A3'
 const DARK  = '#080A0B'
 const LIME  = '#C0F43C'
@@ -20,7 +20,7 @@ function emailHeader(subtitle?: string) {
   return `
     <div style="background:linear-gradient(155deg,#0F1923 0%,#00A5A3 100%);padding:36px 40px 32px;text-align:center;">
       <div style="display:inline-block;background:rgba(255,255,255,0.12);border-radius:12px;padding:10px 18px;margin-bottom:18px;">
-        <span style="font-size:18px;font-weight:900;color:#ffffff;letter-spacing:0.5px;">Trescon · TAI Academy</span>
+        <span style="font-size:18px;font-weight:900;color:#ffffff;letter-spacing:0.5px;">Event Pilot</span>
       </div>
       ${subtitle ? `<p style="font-size:13px;color:rgba(255,255,255,0.55);margin:0;font-weight:600;letter-spacing:1px;text-transform:uppercase;">${subtitle}</p>` : ''}
     </div>
@@ -31,8 +31,8 @@ function emailFooter() {
   return `
     <hr style="border:none;border-top:1px solid #E8EEF4;margin:28px 0 16px;" />
     <p style="color:#94A3B8;font-size:12px;margin:0;line-height:1.6;">
-      Trescon Global · TAI Academy<br />
-      You are receiving this because you are a registered member of the Trescon platform.
+      Trescon Global · Event Pilot<br />
+      You are receiving this because you are a registered member of Event Pilot.
     </p>
   `
 }
@@ -67,7 +67,7 @@ export async function sendPasswordReset({
     <div style="padding:32px 40px;">
       <h2 style="font-size:22px;font-weight:800;color:${DARK};margin:0 0 10px;">Reset your password</h2>
       <p style="color:${MUTED};font-size:15px;line-height:1.7;margin:0 0 24px;">
-        Hi ${firstName}, we received a request to reset your Trescon platform password.
+        Hi ${firstName}, we received a request to reset your Event Pilot password.
         Click the button below to set a new one.
       </p>
       <div style="text-align:center;margin:28px 0;">
@@ -87,7 +87,7 @@ export async function sendPasswordReset({
   return resend.emails.send({
     from:    FROM,
     to,
-    subject: 'Reset your Trescon platform password',
+    subject: 'Reset your Event Pilot password',
     html,
   })
 }
@@ -122,10 +122,10 @@ export async function sendWelcome({
     ${emailHeader('You\'re in')}
     <div style="padding:32px 40px;">
       <h2 style="font-size:24px;font-weight:900;color:${DARK};margin:0 0 10px;letter-spacing:-0.3px;">
-        Welcome to TAI Academy, ${firstName}.
+        Welcome to Event Pilot, ${firstName}.
       </h2>
       <p style="color:${MUTED};font-size:15px;line-height:1.7;margin:0 0 24px;">
-        You've joined the Trescon platform — TAI Academy and the AI Operating System are now at your fingertips.
+        You've joined Event Pilot — your AI-powered event management platform is now at your fingertips.
         Your profile is now on record.
       </p>
 
@@ -153,7 +153,7 @@ export async function sendWelcome({
   return resend.emails.send({
     from:    FROM,
     to,
-    subject: `${firstName}, welcome to TAI Academy`,
+    subject: `${firstName}, welcome to Event Pilot`,
     html,
   })
 }
@@ -176,7 +176,7 @@ export async function sendCredentials({
   const html = emailWrap(`
     ${emailHeader('Your Access')}
     <div style="padding:32px 40px;">
-      <h2 style="font-size:22px;font-weight:800;color:${DARK};margin:0 0 10px;">Your Trescon platform account is ready</h2>
+      <h2 style="font-size:22px;font-weight:800;color:${DARK};margin:0 0 10px;">Your Event Pilot account is ready</h2>
       <p style="color:${MUTED};font-size:15px;line-height:1.7;margin:0 0 24px;">
         Hi ${firstName}, your account has been created by your team administrator.
         Use the credentials below to log in.

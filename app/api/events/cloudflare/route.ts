@@ -6,13 +6,13 @@ import { supabaseAdmin } from '@/app/lib/supabase'
   Body: { website_id, cf_token, cf_zone_id, domain }
 
   1. Calls Cloudflare API to create a CNAME DNS record:
-       domain → CNAME → taos-discovery.vercel.app (proxied)
+       domain → CNAME → eventpilot-trescons-projects.vercel.app (proxied)
   2. Saves custom_domain + cf_zone_id to event_websites record.
 
   The CF API token is never stored — used only for this one-time call.
 */
 
-const VERCEL_HOST = 'taos-discovery.vercel.app'
+const VERCEL_HOST = 'eventpilot-trescons-projects.vercel.app'
 
 export async function POST(req: NextRequest) {
   const body = await req.json().catch(() => null)

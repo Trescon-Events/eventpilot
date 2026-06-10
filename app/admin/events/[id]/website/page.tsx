@@ -879,7 +879,7 @@ export default function EventWebsiteAdmin({ params }: { params: Promise<{ id: st
                 {existingSite ? 'Redeploy with a different template' : 'Choose a Site Template'}
               </div>
               <div style={{ fontSize: '13px', color: C.muted, lineHeight: 1.6 }}>
-                Pick a template. TAOS will create a private GitHub repo under Trescon-Events, inject your event data (brand, logos, speakers, sponsors) and push everything. GitHub Actions then builds and deploys to Cloudflare Workers automatically — no terminal needed.
+                Pick a template. Event Pilot will create a private GitHub repo under Trescon-Events, inject your event data (brand, logos, speakers, sponsors) and push everything. GitHub Actions then builds and deploys to Cloudflare Workers automatically — no terminal needed.
               </div>
             </div>
 
@@ -928,7 +928,7 @@ export default function EventWebsiteAdmin({ params }: { params: Promise<{ id: st
                   {templates.find(t => t.id === selectedTemplate)?.label}
                 </div>
                 <div style={{ fontSize: '12px', color: C.muted, marginBottom: '20px', lineHeight: 1.6 }}>
-                  TAOS will create a GitHub repo, inject your event data, and trigger an automatic Cloudflare Workers deployment. The site will be live in 5–8 minutes.
+                  Event Pilot will create a GitHub repo, inject your event data, and trigger an automatic Cloudflare Workers deployment. The site will be live in 5–8 minutes.
                 </div>
 
                 {/* Progress steps while deploying */}
@@ -2271,7 +2271,7 @@ export default function EventWebsiteAdmin({ params }: { params: Promise<{ id: st
                 )}
                 {cfStatus === 'ok' && (
                   <div style={{ padding: '10px 14px', borderRadius: '8px', background: 'rgba(192,244,60,0.06)', border: '1px solid rgba(192,244,60,0.2)', fontSize: '12px', color: C.teal }}>
-                    {cfMsg || `CNAME record active: ${cfDomain} → taos-discovery.vercel.app`}
+                    {cfMsg || `CNAME record active: ${cfDomain} → eventpilot-trescons-projects.vercel.app`}
                   </div>
                 )}
 
@@ -2299,7 +2299,7 @@ export default function EventWebsiteAdmin({ params }: { params: Promise<{ id: st
                 <div style={{ fontSize: '11px', color: C.muted, lineHeight: 1.5, borderTop: `1px solid ${C.border}`, paddingTop: '12px' }}>
                   What happens when you click Connect:
                   <ol style={{ margin: '6px 0 0 16px', padding: 0 }}>
-                    <li>A CNAME DNS record is created in your Cloudflare account: <code style={{ background: C.bg, padding: '1px 5px', borderRadius: '3px' }}>{cfDomain || 'yourdomain.com'} → taos-discovery.vercel.app</code></li>
+                    <li>A CNAME DNS record is created in your Cloudflare account: <code style={{ background: C.bg, padding: '1px 5px', borderRadius: '3px' }}>{cfDomain || 'yourdomain.com'} → eventpilot-trescons-projects.vercel.app</code></li>
                     <li>Cloudflare proxies and secures the domain (SSL included)</li>
                     <li>Your event website is accessible at <code style={{ background: C.bg, padding: '1px 5px', borderRadius: '3px' }}>https://{cfDomain || 'yourdomain.com'}</code></li>
                   </ol>

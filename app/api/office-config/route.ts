@@ -17,7 +17,7 @@ export async function POST(req: NextRequest) {
   const body = await req.json()
   const { admin_code, updates } = body
 
-  if (admin_code !== (process.env.NEXT_PUBLIC_ADMIN_CODE ?? 'taos2026')) {
+  if (admin_code !== (process.env.NEXT_PUBLIC_ADMIN_CODE ?? 'eventpilot2026')) {
     return NextResponse.json({ error: 'Unauthorised' }, { status: 401 })
   }
 

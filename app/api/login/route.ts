@@ -36,7 +36,7 @@ export async function POST(req: NextRequest) {
   const cleanEmail       = email.trim().toLowerCase()
   const superAdminEmail  = process.env.SUPER_ADMIN_EMAIL?.toLowerCase()
   const superAdminPass   = process.env.SUPER_ADMIN_PASSWORD
-  const staffDefaultPass = process.env.STAFF_DEFAULT_PASSWORD ?? 'trescon@2026'
+  const staffDefaultPass = process.env.STAFF_DEFAULT_PASSWORD ?? 'eventpilot@2026'
 
   // ── Layer 1: Brute force check (all users except super admin) ──────────
   if (cleanEmail !== superAdminEmail) {

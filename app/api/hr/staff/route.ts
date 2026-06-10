@@ -17,7 +17,7 @@ const DEFAULT_ONBOARDING_TASKS = [
   { title: 'Platform orientation completed',             owner: 'staff'   },
   { title: 'First week check-in with HR',                owner: 'hr'      },
   { title: 'Role briefing with department head',         owner: 'manager' },
-  { title: 'Foundation course started on TAI Academy',   owner: 'staff'   },
+  { title: 'Foundation course started on Event Pilot',   owner: 'staff'   },
   { title: '30-day review scheduled',                    owner: 'hr'      },
 ]
 
@@ -35,7 +35,7 @@ const DEFAULT_ONBOARDING_TASKS = [
 export async function POST(req: NextRequest) {
   /* ── Auth ── */
   const adminCode = req.headers.get('x-admin-code')
-  const expectedCode = process.env.NEXT_PUBLIC_ADMIN_CODE ?? 'taos2026'
+  const expectedCode = process.env.NEXT_PUBLIC_ADMIN_CODE ?? 'eventpilot2026'
 
   // Allow session-based auth (admin or HR dept)
   const raw = req.cookies.get('tcs_session')?.value
@@ -187,7 +187,7 @@ export async function POST(req: NextRequest) {
 
   /* ── Send credentials email ── */
   if (access_enabled) {
-    const loginUrl = `${process.env.NEXT_PUBLIC_SITE_URL ?? 'https://taos-discovery.vercel.app'}/login`
+    const loginUrl = `${process.env.NEXT_PUBLIC_SITE_URL ?? 'https://eventpilot-trescons-projects.vercel.app'}/login`
     try {
       await sendCredentials({ to: newStaff.email, name: newStaff.name, tempPassword, loginUrl })
     } catch (e) {

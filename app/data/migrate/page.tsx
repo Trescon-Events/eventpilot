@@ -75,13 +75,13 @@ export default function MigratePage() {
           <polyline points="21 16 21 21 16 21"/><line x1="15" y1="15" x2="21" y2="21"/>
         </svg>
         <span style={{ fontSize: '15px', fontWeight: 700, color: '#0F1923' }}>Data Migration</span>
-        <span style={{ fontSize: '13px', color: '#9CA3AF' }}>SmartData → TAOS import</span>
+        <span style={{ fontSize: '13px', color: '#9CA3AF' }}>SmartData → Event Pilot import</span>
       </div>
 
       <div style={{ padding: '32px 24px', maxWidth: '760px' }}>
         <div style={{ marginBottom: '28px' }}>
-          <div style={{ fontSize: '20px', fontWeight: 800, color: '#0F1923', marginBottom: '6px' }}>SmartData → TAOS Migration</div>
-          <div style={{ fontSize: '15px', color: '#6B7280' }}>Import all contacts and companies from SmartData into TAOS in one click. Duplicate records are deduped on LinkedIn URL and domain.</div>
+          <div style={{ fontSize: '20px', fontWeight: 800, color: '#0F1923', marginBottom: '6px' }}>SmartData → Event Pilot Migration</div>
+          <div style={{ fontSize: '15px', color: '#6B7280' }}>Import all contacts and companies from SmartData into Event Pilot in one click. Duplicate records are deduped on LinkedIn URL and domain.</div>
         </div>
 
         {/* Step 1 */}

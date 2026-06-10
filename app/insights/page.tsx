@@ -32,7 +32,7 @@ export default function InsightsPage() {
 
   function handleAuth(e: React.FormEvent) {
     e.preventDefault()
-    if (code.trim() === (process.env.NEXT_PUBLIC_ADMIN_CODE ?? 'taos2026')) {
+    if (code.trim() === (process.env.NEXT_PUBLIC_ADMIN_CODE ?? 'eventpilot2026')) {
       setAuthed(true)
     } else { setCodeError('Incorrect access code.') }
   }

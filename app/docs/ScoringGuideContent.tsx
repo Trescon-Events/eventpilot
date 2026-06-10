@@ -9,20 +9,20 @@ const BD = '#DDE8EE'
 export default function ScoringGuideContent() {
   return (
     <div>
-      {/* What TAIRS measures */}
+      {/* What AIRS measures */}
       <div style={{ background: 'rgba(0,137,123,0.06)', border: '1px solid rgba(0,137,123,0.2)', borderRadius: '16px', padding: '28px 32px', marginBottom: '28px' }}>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '32px' }}>
           <div>
-            <div style={{ fontSize: '13px', fontWeight: 700, letterSpacing: '2px', textTransform: 'uppercase', color: '#00897B', marginBottom: '12px' }}>What TAIRS measures</div>
+            <div style={{ fontSize: '13px', fontWeight: 700, letterSpacing: '2px', textTransform: 'uppercase', color: '#00897B', marginBottom: '12px' }}>What AIRS measures</div>
             <p style={{ fontSize: '13px', color: M, lineHeight: 1.7, marginBottom: '14px' }}>
-              Most AI readiness frameworks measure awareness and intention. TAIRS measures <strong style={{ color: T }}>actual behaviour</strong>: which tools people use, how fluent they are, and whether they showed up to be assessed.
+              Most AI readiness frameworks measure awareness and intention. AIRS measures <strong style={{ color: T }}>actual behaviour</strong>: which tools people use, how fluent they are, and whether they showed up to be assessed.
             </p>
             <p style={{ fontSize: '13px', color: M, lineHeight: 1.7 }}>
               It is not a test. Staff cannot study for it. The score reflects where people genuinely are — which is exactly what Event Pilot needs to know to design the right training plan for each department.
             </p>
           </div>
           <div>
-            <div style={{ fontSize: '13px', fontWeight: 700, letterSpacing: '2px', textTransform: 'uppercase', color: '#00897B', marginBottom: '12px' }}>What TAIRS does NOT measure</div>
+            <div style={{ fontSize: '13px', fontWeight: 700, letterSpacing: '2px', textTransform: 'uppercase', color: '#00897B', marginBottom: '12px' }}>What AIRS does NOT measure</div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
               {[
                 'Whether someone is a good employee',
@@ -105,7 +105,7 @@ export default function ScoringGuideContent() {
             <span style={{ fontSize: '15px', color: S, fontWeight: 300 }}>+</span>
             <span style={{ fontSize: '13px', fontWeight: 800, color: '#8B1A1A', background: 'rgba(139,26,26,0.08)', padding: '4px 12px', borderRadius: '7px' }}>Engagement (max 25)</span>
             <span style={{ fontSize: '15px', color: S, fontWeight: 300 }}>=</span>
-            <span style={{ fontSize: '13px', fontWeight: 900, color: T, background: '#E8EEF4', padding: '4px 14px', borderRadius: '7px', border: `1px solid ${BD}` }}>TAIRS (0–100)</span>
+            <span style={{ fontSize: '13px', fontWeight: 900, color: T, background: '#E8EEF4', padding: '4px 14px', borderRadius: '7px', border: `1px solid ${BD}` }}>AIRS (0–100)</span>
           </div>
         </div>
       </div>
@@ -158,7 +158,7 @@ export default function ScoringGuideContent() {
       <div style={{ background: BG, border: `1px solid ${BD}`, borderRadius: '14px', padding: '18px 24px', display: 'flex', alignItems: 'flex-start', gap: '14px' }}>
         <svg width="16" height="16" fill="none" stroke={S} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24" style={{ flexShrink: 0, marginTop: '1px' }}><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
         <div style={{ fontSize: '13px', color: M, lineHeight: 1.6 }}>
-          <strong style={{ color: T }}>Methodology note:</strong> TAIRS is calibrated specifically for Trescon&apos;s operating context — B2B events and media in the Middle East and South Asia markets. The weights and benchmarks should be reviewed after 12 months of real data.
+          <strong style={{ color: T }}>Methodology note:</strong> AIRS is calibrated specifically for Trescon&apos;s operating context — B2B events and media in the Middle East and South Asia markets. The weights and benchmarks should be reviewed after 12 months of real data.
         </div>
       </div>
     </div>

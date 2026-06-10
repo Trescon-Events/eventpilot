@@ -64,7 +64,7 @@ CREATE TABLE IF NOT EXISTS staff_members (
   data_source               TEXT,
   last_synced_at            TIMESTAMPTZ,
 
-  -- AI Readiness (TAIRS)
+  -- AI Readiness (AIRS)
   ai_readiness_score        NUMERIC(5,2),
   tairs_completed           BOOLEAN NOT NULL DEFAULT FALSE,
 
@@ -169,7 +169,7 @@ CREATE TABLE IF NOT EXISTS notifications (
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
--- ── Staff task profiles (TAIRS questionnaire) ─────────────────────────────────
+-- ── Staff task profiles (AIRS questionnaire) ─────────────────────────────────
 CREATE TABLE IF NOT EXISTS staff_task_profiles (
   id           UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   staff_id     UUID NOT NULL REFERENCES staff_members(id) ON DELETE CASCADE UNIQUE,

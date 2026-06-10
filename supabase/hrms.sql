@@ -1,5 +1,5 @@
 -- ═════════════════════════════════════════════════════════════════════════════
--- TRESCADEMY HRMS — FULL SCHEMA
+-- EVENT PILOT HRMS — FULL SCHEMA
 -- Extends staff_members (confirmed live DB columns).
 -- Does NOT recreate: staff_members, events, offices,
 --   finance_cost_config, hr_cost_config, hr_work_logs, finance_work_logs,

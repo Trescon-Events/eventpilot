@@ -2,7 +2,7 @@ import { supabaseAdmin } from '@/app/lib/supabase'
 import { NextRequest, NextResponse } from 'next/server'
 import { getCachedCourses, invalidateCourseCache } from '@/app/lib/courseCache'
 
-const ADMIN_CODE = process.env.NEXT_PUBLIC_ADMIN_CODE ?? 'taos2026'
+const ADMIN_CODE = process.env.NEXT_PUBLIC_ADMIN_CODE ?? 'eventpilot2026'
 
 /* POST — save generated course as draft, notify super admin */
 export async function POST(req: NextRequest) {

@@ -1,7 +1,7 @@
 import { supabaseAdmin } from '@/app/lib/supabase'
 import { NextRequest, NextResponse } from 'next/server'
 import { GoogleGenerativeAI } from '@google/generative-ai'
-import { computeTAIRS, getTier } from '@/app/lib/tairs'
+import { computeAIRS, getTier } from '@/app/lib/airs'
 
 type StaffRow = {
   id:               string
@@ -89,7 +89,7 @@ export async function POST(req: NextRequest) {
   /* ── Score each member ── */
   const scored = teamMembers.map(m => {
     const tasks = (taskMap[m.id] ?? []).map(r => ({ ai_readiness: r }))
-    const score = computeTAIRS(tasks, completionsByStaff[m.id] ?? [])
+    const score = computeAIRS(tasks, completionsByStaff[m.id] ?? [])
     return { ...m, score, tier: getTier(score), completedCourses: completionCount[m.id] ?? 0 }
   })
 
@@ -124,7 +124,7 @@ export async function POST(req: NextRequest) {
   const prompt = `You are writing a concise Team AI Readiness Brief for ${managerName} (${managerRole}).
 
 TEAM DATA — ${scored.length} people:
-- Average TAIRS Score: ${avgScore}/100 (industry baseline 25–40, Trescon target 60+)
+- Average AI Readiness Score: ${avgScore}/100 (industry baseline 25–40, Trescon target 60+)
 - Tier breakdown: ${Object.entries(tierDist).map(([t, n]) => `${n} ${t}`).join(', ')}
 - Total courses completed across team: ${totalCourses}
 - Members with zero completed courses: ${zeroCourses}/${scored.length}

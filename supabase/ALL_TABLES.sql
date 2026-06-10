@@ -1,5 +1,5 @@
 -- ═════════════════════════════════════════════════════════════════════════════
--- TRESCADEMY HRMS — FULL SCHEMA
+-- EVENT PILOT HRMS — FULL SCHEMA
 -- Extends staff_members (confirmed live DB columns).
 -- Does NOT recreate: staff_members, events, offices,
 --   finance_cost_config, hr_cost_config, hr_work_logs, finance_work_logs,
@@ -730,7 +730,7 @@ ALTER TABLE hr_work_logs   ENABLE ROW LEVEL SECURITY;
 
 CREATE POLICY "public read hr_cost_config" ON hr_cost_config FOR SELECT USING (true);
 CREATE POLICY "public read hr_work_logs"   ON hr_work_logs   FOR SELECT USING (true);
--- TAI Academy v2 Migration
+-- Event Pilot Training v2 Migration
 -- Run in Supabase SQL Editor → Database → SQL Editor → New query
 
 -- question_bank: full pool of 10 questions per course (5 served randomly per attempt)

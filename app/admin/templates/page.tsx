@@ -112,9 +112,9 @@ export default function TemplatesPage() {
         <div style={{ fontSize: 13, fontWeight: 800, color: C.text, marginBottom: 10 }}>One-time setup — run on each machine (yours + Madhu's)</div>
         <div style={{ display: 'grid', gap: 8 }}>
           {[
-            { step: '1', label: 'Clone the templates repo', cmd: 'git clone https://github.com/Trescon-Events/taos-templates.git ~/taos-templates' },
-            { step: '2', label: 'Update when new templates are added', cmd: 'cd ~/taos-templates && git pull' },
-            { step: '3', label: 'Generate a new event site', cmd: 'node ~/taos-templates/generate-site.mjs --template template-2-vault2047 --name my-event --event-id <id> --api-url https://taos.trescon.com' },
+            { step: '1', label: 'Clone the templates repo', cmd: 'git clone https://github.com/Trescon-Events/ep-templates.git ~/ep-templates' },
+            { step: '2', label: 'Update when new templates are added', cmd: 'cd ~/ep-templates && git pull' },
+            { step: '3', label: 'Generate a new event site', cmd: 'node ~/ep-templates/generate-site.mjs --template template-2-vault2047 --name my-event --event-id <id> --api-url https://eventpilot.tresconglobal.com' },
           ].map(item => (
             <div key={item.step} style={{ display: 'flex', gap: 12, alignItems: 'flex-start' }}>
               <div style={{ width: 22, height: 22, borderRadius: '50%', background: C.teal, color: '#fff', fontSize: 11, fontWeight: 900, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, marginTop: 1 }}>{item.step}</div>
@@ -140,8 +140,8 @@ export default function TemplatesPage() {
           When you build a new standalone event website, register it here so it appears in the Template Gallery for all events.
           <ol style={{ margin: '10px 0 0 18px', display: 'grid', gap: 4 }}>
             <li>Build the site as normal, wire all components to read from <code style={{ background: 'rgba(0,105,92,0.1)', padding: '1px 5px', borderRadius: 4 }}>src/config/event.ts</code></li>
-            <li>Copy the project folder into <code style={{ background: 'rgba(0,105,92,0.1)', padding: '1px 5px', borderRadius: 4 }}>~/taos-templates/template-6-your-event-name/</code></li>
-            <li>Push: <code style={{ background: 'rgba(0,105,92,0.1)', padding: '1px 5px', borderRadius: 4 }}>cd ~/taos-templates && git add . && git commit -m "add template-6" && git push</code></li>
+            <li>Copy the project folder into <code style={{ background: 'rgba(0,105,92,0.1)', padding: '1px 5px', borderRadius: 4 }}>~/ep-templates/template-6-your-event-name/</code></li>
+            <li>Push: <code style={{ background: 'rgba(0,105,92,0.1)', padding: '1px 5px', borderRadius: 4 }}>cd ~/ep-templates && git add . && git commit -m "add template-6" && git push</code></li>
             <li>Click <strong>+ Add Template</strong> above and fill in the details — it immediately appears in the builder for all events</li>
           </ol>
         </div>
@@ -161,10 +161,10 @@ export default function TemplatesPage() {
             <F label="Template ID *" value={form.id || ''} onChange={v => setForm(s => ({ ...s, id: v.toLowerCase().replace(/\s+/g, '-') }))} placeholder="template-6-world-bfsi-summit" mono />
             <F label="Display Label *" value={form.label || ''} onChange={v => setForm(s => ({ ...s, label: v }))} placeholder="Template 6 — World BFSI Summit" />
             <F label="Event Name *" value={form.event_name || ''} onChange={v => setForm(s => ({ ...s, event_name: v }))} placeholder="World BFSI Summit" />
-            <F label="Folder Name in taos-templates *" value={form.folder_name || ''} onChange={v => setForm(s => ({ ...s, folder_name: v }))} placeholder="template-6-world-bfsi-summit" mono />
+            <F label="Folder Name in ep-templates *" value={form.folder_name || ''} onChange={v => setForm(s => ({ ...s, folder_name: v }))} placeholder="template-6-world-bfsi-summit" mono />
           </div>
           <div style={{ marginBottom: 14 }}>
-            <F label="GitHub Repo URL *" value={form.repo_url || ''} onChange={v => setForm(s => ({ ...s, repo_url: v }))} placeholder="https://github.com/Trescon-Events/taos-templates/tree/main/template-6-..." />
+            <F label="GitHub Repo URL *" value={form.repo_url || ''} onChange={v => setForm(s => ({ ...s, repo_url: v }))} placeholder="https://github.com/Trescon-Events/ep-templates/tree/main/template-6-..." />
           </div>
           <div style={{ marginBottom: 14 }}>
             <label style={{ fontSize: '11px', fontWeight: 700, color: C.muted, display: 'block', marginBottom: 4, textTransform: 'uppercase', letterSpacing: '0.5px' }}>Description</label>

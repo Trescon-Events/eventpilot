@@ -296,7 +296,7 @@ export default function HRDashboard() {
     await fetch('/api/hrms-sync', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ admin_code: 'taos2026' }),
+      body: JSON.stringify({ admin_code: 'eventpilot2026' }),
     })
     setSyncing(false)
     refreshDashboard()
