@@ -4201,6 +4201,14 @@ export default function AdminPage() {
                 </div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
                   {[
+                    { date: '11 Jun 2026 (Course Builder) — Durga', items: [
+                      'Course Builder launched at /admin/courses — dedicated page replacing the 404 that was there before',
+                      'Review Queue tab: all draft courses (AI-generated, dept-seeded, suggested) shown as cards. Actions: Review (opens editor), Publish (one click), Delete',
+                      'All Courses tab: stats bar (total, by tier, mandatory count), search + tier/dept filters, full table of published courses. Click any row to open the editor',
+                      'Editor panel (slides in from right): 4 sub-tabs — Details (title, subtitle, tier, depts, minutes, tool, mandatory, credit), Content (overview + reading content with word count), Tasks (4 steps with instruction + tip each), Questions (10 collapsible questions, option picker, correct answer dot, explanation)',
+                      'New Course tab: manual builder — create a draft from scratch with title, subtitle, tier, depts, overview. Draft opens in Review Queue editor for full content build',
+                      'PUT /api/courses added — full course field update for the editor. GET /api/course-detail updated to support admin=1 param for fetching drafts',
+                    ]},
                     { date: '11 Jun 2026 (Round 2 & 3) — Durga', items: [
                       'Dept course seeding — /api/generate-dept-courses: admin picks a department, tier, and count (1–3). Gemini builds full draft courses (reading content, 4 task steps, 10-question bank) in one click. Saved as drafts, super admin notified in-app. UI lives in Learning Lab → Seed Dept Courses',
                       'Weekly org pulse email — sendOrgPulseReport wired into the Sunday cron. Every week super admins receive completions this week, all-time total, participation rate, top department, top skill gap, and auto-generated course count with a direct link to the admin dashboard',
@@ -4408,6 +4416,7 @@ export default function AdminPage() {
                     'Department course seeding — admin generates 1–3 dept-specific AI courses in one click from Learning Lab. Pilot AI builds full courses with reading content, tasks, and 10-question bank. Saved as drafts for review before publishing',
                     'Weekly org pulse email — super admins receive a formatted report every Sunday: completions, participation rate, top dept, top skill gap, auto-generated course count',
                     'Brand PDF export — Brand Studio generates a polished self-contained HTML brand book (cover, colors, typography, logo, voice, assets). Export PDF button in Brand Studio nav, print dialog auto-triggers',
+                    'Course Builder — /admin/courses: Review Queue for all draft courses (AI-generated, dept-seeded, suggested), All Courses table with search + tier/dept filters, editor panel with 4 sub-tabs (Details, Content, Tasks, Questions), New Course manual builder',
                     'Platform Menu — role-aware, each user sees only the tools they can access',
                     'Platform Docs — AIRS scoring guide, discovery questionnaire, AI readiness playbook',
                   ].map((item, i) => (
