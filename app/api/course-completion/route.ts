@@ -113,6 +113,16 @@ export async function POST(req: NextRequest) {
     authenticity_flag:  authenticityFlag,
   })
 
+  // Auto-issue certificate on first pass
+  if (passed && !existing?.passed) {
+    await supabaseAdmin.from('training_certificates').upsert({
+      staff_id,
+      course_id,
+      issued_at:  new Date().toISOString(),
+      expires_at: null,
+    }, { onConflict: 'staff_id,course_id' })
+  }
+
   // Return result with per-question breakdown
   const breakdown = questions_served.map((q, i) => {
     const correctIdx = q.correct_index ?? q.correct ?? 0

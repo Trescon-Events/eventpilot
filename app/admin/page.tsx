@@ -385,6 +385,14 @@ export default function AdminPage() {
   const [creditId,   setCreditId]     = useState('')
   const [learningData, setLearningData] = useState<{ completions: LearningCompletion[]; courses: LearningCourse[]; staff: LearningStaff[]; attempts: LearningAttempt[]; never_started: NeverStarted[]; participation_by_dept: DeptParticipation[] } | null>(null)
   const [learningLoading, setLearningLoading] = useState(false)
+  // Course assignment
+  const [assignCourseId,  setAssignCourseId]  = useState('')
+  const [assignTarget,    setAssignTarget]    = useState<'all' | 'dept' | 'individual'>('dept')
+  const [assignDept,      setAssignDept]      = useState('')
+  const [assignStaffId,   setAssignStaffId]   = useState('')
+  const [assignDueDate,   setAssignDueDate]   = useState('')
+  const [assigning,       setAssigning]       = useState(false)
+  const [assignMsg,       setAssignMsg]       = useState<{ text: string; ok: boolean } | null>(null)
   const [showDevTools, setShowDevTools] = useState(false)
   const [seedLoading, setSeedLoading]   = useState(false)
   const [seedMsg, setSeedMsg]           = useState('')
@@ -2832,6 +2840,124 @@ export default function AdminPage() {
                 </div>
               </div>
             </div>
+
+            {/* ── Assign a Course ── */}
+            <div style={{ marginTop: '32px', background: '#FFFFFF', border: '1px solid #DDE8EE', borderRadius: '16px', overflow: 'hidden' }}>
+              <div style={{ padding: '20px 24px', borderBottom: '1px solid #E8EEF4', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <div>
+                  <div style={{ fontSize: '11px', fontWeight: 800, letterSpacing: '1.8px', textTransform: 'uppercase', color: '#1565C0', marginBottom: '4px' }}>Course Assignment</div>
+                  <div style={{ fontSize: '15px', fontWeight: 800, color: '#0F1923' }}>Assign a course to staff</div>
+                </div>
+                <svg width="18" height="18" fill="none" stroke="#1565C0" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 013 3L7 19l-4 1 1-4 12.5-12.5z"/></svg>
+              </div>
+              <div style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '18px' }}>
+
+                {/* Course picker */}
+                <div>
+                  <label style={{ display: 'block', fontSize: '11px', fontWeight: 800, letterSpacing: '1.5px', textTransform: 'uppercase', color: '#5B7080', marginBottom: '8px' }}>Course</label>
+                  <select value={assignCourseId} onChange={e => setAssignCourseId(e.target.value)}
+                    style={{ width: '100%', padding: '10px 13px', borderRadius: '10px', border: '1px solid #DDE8EE', background: '#FAFBFC', fontSize: '13px', color: '#0F1923', fontFamily: 'inherit', outline: 'none' }}>
+                    <option value="">Select a course…</option>
+                    {courses.map(c => (
+                      <option key={c.id} value={c.id}>{c.title} ({c.tier_level})</option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Target selector */}
+                <div>
+                  <label style={{ display: 'block', fontSize: '11px', fontWeight: 800, letterSpacing: '1.5px', textTransform: 'uppercase', color: '#5B7080', marginBottom: '8px' }}>Assign to</label>
+                  <div style={{ display: 'flex', gap: '8px' }}>
+                    {(['dept', 'individual', 'all'] as const).map(t => (
+                      <button key={t} onClick={() => setAssignTarget(t)}
+                        style={{ padding: '8px 16px', borderRadius: '8px', border: `1px solid ${assignTarget === t ? '#1565C0' : '#DDE8EE'}`, background: assignTarget === t ? 'rgba(21,101,192,0.08)' : '#FAFBFC', color: assignTarget === t ? '#1565C0' : '#5B7080', fontSize: '13px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
+                        {t === 'dept' ? 'Department' : t === 'individual' ? 'Individual' : 'All Staff'}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Dept picker */}
+                {assignTarget === 'dept' && (
+                  <div>
+                    <label style={{ display: 'block', fontSize: '11px', fontWeight: 800, letterSpacing: '1.5px', textTransform: 'uppercase', color: '#5B7080', marginBottom: '8px' }}>Department</label>
+                    <select value={assignDept} onChange={e => setAssignDept(e.target.value)}
+                      style={{ width: '100%', padding: '10px 13px', borderRadius: '10px', border: '1px solid #DDE8EE', background: '#FAFBFC', fontSize: '13px', color: '#0F1923', fontFamily: 'inherit', outline: 'none' }}>
+                      <option value="">Select department…</option>
+                      {Array.from(new Set(ldStaff.map(s => s.department).filter(Boolean))).sort().map(d => (
+                        <option key={d} value={d!}>{d}</option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+
+                {/* Individual picker */}
+                {assignTarget === 'individual' && (
+                  <div>
+                    <label style={{ display: 'block', fontSize: '11px', fontWeight: 800, letterSpacing: '1.5px', textTransform: 'uppercase', color: '#5B7080', marginBottom: '8px' }}>Staff Member</label>
+                    <select value={assignStaffId} onChange={e => setAssignStaffId(e.target.value)}
+                      style={{ width: '100%', padding: '10px 13px', borderRadius: '10px', border: '1px solid #DDE8EE', background: '#FAFBFC', fontSize: '13px', color: '#0F1923', fontFamily: 'inherit', outline: 'none' }}>
+                      <option value="">Select staff member…</option>
+                      {ldStaff.sort((a, b) => a.name.localeCompare(b.name)).map(s => (
+                        <option key={s.id} value={s.id}>{s.name} — {s.department ?? '—'} ({s.role})</option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+
+                {assignTarget === 'all' && (
+                  <div style={{ padding: '12px 16px', background: 'rgba(21,101,192,0.05)', border: '1px solid rgba(21,101,192,0.15)', borderRadius: '10px', fontSize: '13px', color: '#1565C0' }}>
+                    This will assign the course to all {ldStaff.length} active staff members.
+                  </div>
+                )}
+
+                {/* Due date */}
+                <div>
+                  <label style={{ display: 'block', fontSize: '11px', fontWeight: 800, letterSpacing: '1.5px', textTransform: 'uppercase', color: '#5B7080', marginBottom: '8px' }}>Due Date (optional)</label>
+                  <input type="date" value={assignDueDate} onChange={e => setAssignDueDate(e.target.value)}
+                    style={{ padding: '10px 13px', borderRadius: '10px', border: '1px solid #DDE8EE', background: '#FAFBFC', fontSize: '13px', color: '#0F1923', fontFamily: 'inherit', outline: 'none' }} />
+                </div>
+
+                {/* Assign button */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+                  <button
+                    disabled={assigning || !assignCourseId || (assignTarget === 'dept' && !assignDept) || (assignTarget === 'individual' && !assignStaffId)}
+                    onClick={async () => {
+                      if (!assignCourseId) return
+                      setAssigning(true); setAssignMsg(null)
+                      try {
+                        let targets: string[] = []
+                        if (assignTarget === 'all') {
+                          targets = ldStaff.map(s => s.id)
+                        } else if (assignTarget === 'dept') {
+                          targets = ldStaff.filter(s => s.department === assignDept).map(s => s.id)
+                        } else {
+                          targets = assignStaffId ? [assignStaffId] : []
+                        }
+                        if (targets.length === 0) { setAssignMsg({ text: 'No staff found for selection.', ok: false }); setAssigning(false); return }
+                        const bulk = targets.map(staff_id => ({ staff_id, course_id: assignCourseId, due_date: assignDueDate || undefined, assigned_by: 'admin' }))
+                        const res = await fetch('/api/hr/course-assignments', {
+                          method: 'POST', headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({ bulk }),
+                        })
+                        const data = await res.json()
+                        if (res.ok) {
+                          setAssignMsg({ text: `Assigned to ${data.assigned} staff member${data.assigned !== 1 ? 's' : ''}. They will see it in their dashboard.`, ok: true })
+                          setAssignCourseId(''); setAssignDept(''); setAssignStaffId(''); setAssignDueDate('')
+                        } else {
+                          setAssignMsg({ text: data.error ?? 'Assignment failed.', ok: false })
+                        }
+                      } finally { setAssigning(false) }
+                    }}
+                    style={{ padding: '11px 24px', borderRadius: '10px', border: 'none', background: assigning || !assignCourseId ? '#DDE8EE' : '#1565C0', color: assigning || !assignCourseId ? '#5B7080' : '#FFFFFF', fontSize: '13px', fontWeight: 800, cursor: assigning || !assignCourseId ? 'not-allowed' : 'pointer', fontFamily: 'inherit' }}>
+                    {assigning ? 'Assigning…' : 'Assign Course'}
+                  </button>
+                  {assignMsg && (
+                    <div style={{ fontSize: '13px', color: assignMsg.ok ? '#3D6B00' : '#DC2626', fontWeight: 600 }}>{assignMsg.text}</div>
+                  )}
+                </div>
+              </div>
+            </div>
           )
         })()}
 
@@ -4175,6 +4301,9 @@ export default function AdminPage() {
                     'Smart Data — lead extraction, LinkedIn enrichment, email verification, contact database',
                     'Content Hub — AI social campaigns with guided templates, approval flow, and calendar view',
                     'Team Dashboard — managers see their full team hierarchy, AIRS score per member, tier distribution, who hasn\'t started, and an AI-generated Team Health Brief',
+                    'Course assignment — admin assigns any course to an individual, department, or all staff with optional due date. Staff notified instantly in-app',
+                    'Completion certificates — auto-issued when a staff member passes a course for the first time. Stored on their profile',
+                    'Brand asset generator — Imagen 3 AI generates event banners, social posts, LinkedIn banners, speaker cards, and sponsor cards from brand guidelines in Brand Studio',
                     'Platform Menu — role-aware, each user sees only the tools they can access',
                     'Platform Docs — AIRS scoring guide, discovery questionnaire, AI readiness playbook',
                   ].map((item, i) => (
@@ -4195,13 +4324,13 @@ export default function AdminPage() {
                 </div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                   {[
-                    { title: 'Brand asset generator', desc: 'Auto-generate on-brand graphics — social cards, email headers, event banners — directly from Brand Studio using the extracted palette, fonts, and imagery guidelines.' },
+                    { title: 'Course assignment from admin ✓', desc: 'SHIPPED 11 Jun — admin can assign any course to an individual, a department, or all staff with an optional due date. Staff receive an in-app notification. Panel lives in the Learning tab.' },
+                    { title: 'Completion certificates ✓', desc: 'SHIPPED 11 Jun — certificate auto-issued the moment a staff member passes a course for the first time. Stored against their profile in the Certificates section.' },
+                    { title: 'Brand asset generator ✓', desc: 'SHIPPED (already built) — Imagen 3 AI generates event banners, social posts, LinkedIn banners, speaker cards, and sponsor cards from brand guidelines. Access via Brand Studio → Asset Generator tab for any event.' },
                     { title: 'Brand PDF export', desc: 'Generate a polished brand guidelines PDF from the completed Brand Studio, ready to share with vendors and partners.' },
                     { title: 'Website builder template library', desc: 'Pick from curated event microsite templates. Brand Studio palette and fonts auto-apply on selection.' },
                     { title: 'Content Hub social publishing', desc: 'Connect Meta tokens to push approved posts live to LinkedIn, Instagram and Facebook directly from the platform.' },
                     { title: 'Department course seeding', desc: 'Seed the right AI-generated courses per department so each team has a ready library on day one.' },
-                    { title: 'Course assignment from admin', desc: 'Assign specific courses to individual staff members or entire teams directly from the admin panel.' },
-                    { title: 'Completion certificates', desc: 'Staff receive a certificate on passing a course. Shareable and stored against their profile.' },
                     { title: 'Weekly org pulse report', desc: 'Auto-generated Monday report to leadership: who moved tiers, what changed, what needs action.' },
                   ].map((item, i) => (
                     <div key={i} style={{ padding: '12px 14px', background: 'rgba(139,26,26,0.05)', border: '1px solid rgba(139,26,26,0.15)', borderRadius: '10px' }}>
