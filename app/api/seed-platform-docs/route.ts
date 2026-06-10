@@ -438,6 +438,396 @@ HOW ARE COURSES CREATED?
 Courses are authored by the Event Pilot team. Course content is generated using AI tools (Google Gemini) and then reviewed and edited by subject matter experts before publication. All courses are reviewed for factual accuracy, practical applicability, and alignment with Trescon's specific context.`,
     order_index: 10,
   },
+
+  /* ── 11. EVENT PLANNING MODULE ──────────────────────────────────── */
+  {
+    slug: 'event-planning-module',
+    category: 'Operations Reference',
+    title: 'Event Planning & Execution Module',
+    content: `The Events module is the central workspace for planning, managing, and executing every Trescon global event. It covers the full lifecycle from initial planning through post-event wrap-up.
+
+ACCESSING THE EVENTS MODULE
+From the navigation, go to Events. You will see all events you are assigned to. Click any event to open its command centre. Admin users can see all events across the organisation.
+
+THE EVENT COMMAND CENTRE
+
+Each event has six tabs in its command centre:
+
+Overview
+Event name, dates, venue, status (Planning → Active → Completed / Cancelled), and team assignments. Shows the overall event health at a glance.
+
+Plan
+The master planning checklist. 61 tasks across 10 workstreams — automatically seeded when a new event is created.
+
+Execution
+Live execution view. Daily task status, critical blockers, team workload, and operational readiness.
+
+Brand
+Event brand identity. Upload or generate a brand kit: color palette, typography, tone of voice, and brand guidelines. AI-generated brand identities use Google Gemini.
+
+Website
+Event landing page builder. Design and publish the public event website with agenda, speakers, sponsors, and registration. Websites are deployed to Cloudflare with custom domain support.
+
+Market Intel
+Market research and competitive intelligence for the event. Scan the market for relevant speakers, sponsors, competitor events, and delegate personas.
+
+EVENT STATUSES
+- Planning: Event is being set up, checklist is being worked through
+- Active: Event is running — execution mode
+- Completed: Event is finished
+- Cancelled: Event will not run
+
+WORKSTREAMS IN THE 61-TASK TEMPLATE
+- Production (9 tasks): Market research, agenda, speakers, programme design
+- Marketing (11 tasks): Strategy, website, email campaigns, social media, ads
+- Branding (6 tasks): Identity, assets, signage, digital collateral
+- Sales (5 tasks): Pipeline, outreach, revenue targets, sponsorship decks
+- Customer Success (5 tasks): Delegate onboarding, delivery, experience
+- Operations (8 tasks): Venue, floorplan, AV, F&B, setup, logistics
+- Partnerships (3 tasks): Partner identification, agreements, deliverables
+- Tech & Data (5 tasks): CRM, ticketing (Konfhub), dashboards, post-event data
+
+INTEGRATIONS
+- Konfhub: Ticketing and delegate registration
+- Cloudflare: Custom domain hosting for event websites
+- Google Gemini: Brand generation and market intelligence`,
+    order_index: 11,
+  },
+
+  /* ── 12. CHECKLIST & RACI ───────────────────────────────────────── */
+  {
+    slug: 'event-checklist-and-raci',
+    category: 'Operations Reference',
+    title: 'Event Checklist, RACI Matrix, and Task Governance',
+    content: `Every Trescon event runs on a standardised 61-task checklist with a RACI governance layer.
+
+THE 61-TASK MASTER CHECKLIST
+
+When a new event is created, 61 tasks are automatically created from the master template across 10 workstreams.
+
+Each task has:
+- Title and description
+- Workstream (Production, Marketing, Branding, Sales, etc.)
+- Priority: Critical / High / Medium / Low
+- Status: Not Started → In Progress → Blocked → Done
+- Assigned To: A specific team member
+- Due Date
+- Dependencies: Other tasks that must be completed first
+
+TASK STATUSES
+- Not Started: Task has not been started
+- In Progress: Task is being actively worked on
+- Blocked: Task cannot progress — add a note explaining the blocker
+- Done: Task is complete
+
+USING THE CHECKLIST
+1. Open the event and go to the Plan tab
+2. Filter by workstream to focus on your area
+3. Click a task to update its status, assignee, due date, or add notes
+4. Blocked tasks are highlighted — these need manager attention
+5. Critical priority tasks with missed due dates are flagged in the Execution tab
+
+THE RACI MATRIX
+
+RACI defines accountability for each workstream — not task-level execution, but who owns each area.
+
+- Responsible: The person doing the work
+- Accountable: The person who owns the outcome
+- Consulted: People whose input must be sought
+- Informed: People who need to be kept updated
+
+HOW TO USE RACI
+1. Open the event → Plan tab → RACI section
+2. For each workstream, assign R, A, C, I roles to team members
+3. The RACI matrix is visible to the full event team
+4. Office Heads and Admins can override any RACI assignment`,
+    order_index: 12,
+  },
+
+  /* ── 13. BRAND & WEBSITE ────────────────────────────────────────── */
+  {
+    slug: 'event-brand-and-website',
+    category: 'Operations Reference',
+    title: 'Event Brand Identity and Website Builder',
+    content: `Each event on Event Pilot has its own brand identity and a publicly accessible website. Both are managed from the event command centre.
+
+EVENT BRAND IDENTITY
+
+The Brand tab stores the complete brand kit: primary/secondary/accent colors, fonts (Google Fonts), tone of voice, brand messaging, style keywords, and logo usage guidelines.
+
+GENERATING A BRAND WITH AI
+1. Go to the event Brand tab → "Generate Brand Identity"
+2. Enter a brief: event name, industry, target audience, desired feel
+3. Google Gemini generates a complete brand proposal
+4. Review the palette, fonts, and tone — accept or regenerate individual elements
+5. Save to lock the brand for this event
+
+UPLOADING AN EXISTING BRAND
+Upload existing brand guidelines (PDF or images) in the Brand tab. The system extracts key elements automatically.
+
+EVENT WEBSITE BUILDER
+
+The Website tab lets you build and publish the public event landing page with: Hero, About, Agenda, Speakers, Sponsors, and Registration sections.
+
+PUBLISHING
+1. Go to the event Website tab
+2. Set up all sections using the visual builder
+3. Click Preview, then Publish
+4. The website goes live at the event slug URL
+
+CUSTOM DOMAIN DEPLOYMENT
+Go to Website → Custom Domain. Enter the domain and follow the Cloudflare setup steps. Once DNS is pointed, the event website is served from the custom domain with full SSL.`,
+    order_index: 13,
+  },
+
+  /* ── 14. HR MODULE ──────────────────────────────────────────────── */
+  {
+    slug: 'hr-module-overview',
+    category: 'Operations Reference',
+    title: 'HR Module — What It Covers and How It Works',
+    content: `The HR module is the people operations centre for all four Trescon offices. It syncs daily with the HRMS system.
+
+WHAT THE HR MODULE COVERS
+
+Staff Directory
+Complete list of all Trescon employees. Search by name, department, office, or job level. Click any staff member to see their full profile: personal details, role history, contracts, attendance, and documents.
+
+Attendance
+Daily attendance records. Clock-in/clock-out times, late arrivals, early departures, and absences. Syncs from HRMS every night.
+
+Leave Management
+Leave types: Annual Leave, Sick Leave, Emergency Leave, Maternity/Paternity Leave, Privilege Leave, Unpaid Leave, Compensatory Off. Staff submit requests via My HR; managers approve or reject; balances update automatically.
+
+Timesheets
+Project and event time tracking. Syncs from HRMS project allocations.
+
+Onboarding
+When a new staff member joins, an onboarding workflow is created with tasks across HR, IT, and their department.
+
+Offboarding
+Offboarding checklist: equipment return, access revocation, knowledge handover, exit interview.
+
+Contracts
+Employment contract records: type (permanent, fixed-term, probation), dates, grade, and cost centre.
+
+Payroll Grades
+Salary grade and cost centre assignments. Grades: L1 through Executive.
+
+Performance
+Annual and mid-year performance review records.
+
+THE HRMS SYNC
+
+All HR data is automatically pulled from the company HRMS system every night at midnight IST (18:30 UTC). The sync covers: staff profiles, project allocations, timesheets, and leave balances. Changes made in HRMS appear in Event Pilot the next morning.`,
+    order_index: 14,
+  },
+
+  /* ── 15. MY HR SELF-SERVICE ─────────────────────────────────────── */
+  {
+    slug: 'my-hr-self-service',
+    category: 'User Guide',
+    title: 'My HR — Employee Self-Service',
+    content: `My HR is the personal HR portal for every Trescon employee. Access it from the navigation bar.
+
+WHAT YOU CAN SEE IN MY HR
+
+- Leave Balances: Current balance for all leave types, updated from HRMS nightly
+- Leave Requests: Submit and track your leave requests
+- Attendance Records: Your personal clock-in/clock-out history
+- Timesheets: Hours logged against events and projects
+- Employment Details: Contract type, grade, cost centre, start date, and manager
+- Documents: Offer letter, contract, confirmation letter, certificates — download any document
+- Onboarding Tasks: New joiners see their onboarding checklist here
+
+SUBMITTING A LEAVE REQUEST
+1. Go to My HR → "Request Leave"
+2. Select leave type, start date, end date, and reason
+3. Submit — your manager is notified immediately
+4. You receive a notification when it is approved or rejected
+5. Approved leave is reflected in your balance the same day`,
+    order_index: 15,
+  },
+
+  /* ── 16. CONTENT & SOCIAL ───────────────────────────────────────── */
+  {
+    slug: 'content-social-media-module',
+    category: 'Operations Reference',
+    title: 'Content & Social Media Module',
+    content: `The Content module is the social media planning and production engine for all Trescon events.
+
+CAMPAIGNS
+
+Each event has one or more content campaigns covering a specific phase (e.g., "Speaker Announcement Wave", "Countdown to Event", "Post-Event Recap").
+
+POSTS
+
+Each campaign contains posts for specific dates and platforms:
+- LinkedIn (1200–1800 characters)
+- Instagram (150–220 characters)
+- Facebook (300–400 characters)
+- Twitter/X (220–240 characters)
+- YouTube (~300 characters)
+
+NARRATIVE ROLES
+
+Every post is assigned a narrative role: Awareness, Speaker Highlight, Sponsor Feature, Countdown, Live Update, Testimonial, Recap, or CTA.
+
+AI-GENERATED POSTS
+1. Open a campaign → "Generate Posts"
+2. Select platforms and narrative roles
+3. Google Gemini generates platform-appropriate content
+4. Review, edit, and approve
+
+APPROVAL WORKFLOW
+- Draft: Created, not yet reviewed
+- Approved: Ready to publish
+- Rejected: Needs rework
+
+Only approved posts can be published. Connected social accounts are managed in Events → Social Accounts (requires active API tokens from each platform).`,
+    order_index: 16,
+  },
+
+  /* ── 17. DATA INTELLIGENCE ──────────────────────────────────────── */
+  {
+    slug: 'data-intelligence-module',
+    category: 'Operations Reference',
+    title: 'Data & Market Intelligence Module',
+    content: `The Data module is the intelligence engine for Trescon's business development, delegate acquisition, and market research.
+
+THE CONTACT DATABASE
+Stores all contacts: delegates, speakers, sponsors, media partners, and industry contacts. Fields: name, title, company, email, LinkedIn URL, phone, industry, geography, and engagement history.
+
+THE COMPANY DATABASE
+Company records linked to contacts: name, industry, size, country, and associated contacts.
+
+LEAD FINDER (ICP BUILDER)
+1. Go to Data → Lead Finder
+2. Describe the type of delegate or sponsor you are looking for
+3. The AI asks clarifying questions to refine the ICP
+4. The system searches the contact database for matches
+5. Export the lead list for outreach
+
+EMAIL GUESSER
+Enter a contact's name and company domain — the system predicts the most likely email format with a confidence score.
+
+DATA ENRICHMENT
+Enrich contact records from LinkedIn and domain lookup.
+
+EXTRACTION TOOLS
+- File: Upload CSV, Excel, or text — extracts and maps data to contact records
+- URL: Paste a webpage URL — extracts contact and company information
+- Website: Full website scan for contact data
+
+DATA EXPORT
+Export any contact or company list to CSV for CRM, email campaigns, or outreach tools.`,
+    order_index: 17,
+  },
+
+  /* ── 18. PILOT AI CHAT ──────────────────────────────────────────── */
+  {
+    slug: 'pilot-ai-chat',
+    category: 'User Guide',
+    title: 'Pilot — The Event Pilot AI Assistant',
+    content: `Pilot is the internal AI assistant built into Event Pilot. Available to all staff. Access it via "Ask Pilot" in the navigation bar.
+
+WHAT PILOT CAN HELP WITH
+
+Learning and AI Readiness
+- What is my AI Readiness Score and what does it mean?
+- Which courses should I take first?
+- How do I improve my score?
+
+Platform How-To
+- How do I submit a leave request?
+- Where do I find the event checklist?
+- How do I generate an event brand kit?
+- What is the RACI matrix?
+
+AI in Your Work
+- How can AI help with email writing?
+- What AI tools work for presentations?
+- How do I use ChatGPT for data analysis?
+
+WHAT PILOT WILL NOT DO
+Pilot is scoped to Event Pilot and Trescon work. It will decline to:
+- Answer general knowledge questions unrelated to your work
+- Provide specific HR decisions (leave approvals, salary queries — go to HR directly)
+- Share other employees' personal data or scores
+- Speculate on company strategy
+
+DAILY USAGE LIMIT
+Pilot has a daily usage limit per user to manage AI API costs. The limit resets at midnight.
+
+NOTE: For specific live data (your exact score, leave balance, course progress), check your dashboard — Pilot gives guidance and context, your dashboard gives you real-time numbers.`,
+    order_index: 18,
+  },
+
+  /* ── 19. SECURITY & ACCESS ──────────────────────────────────────── */
+  {
+    slug: 'security-and-access-control',
+    category: 'Technical Reference',
+    title: 'Security and Access Control',
+    content: `Event Pilot uses a multi-layer security model to protect staff data and platform access.
+
+LOGIN SECURITY
+
+Brute Force Protection
+After 5 failed attempts within 15 minutes, the account is locked for 15 minutes. Contact your admin if you need immediate access.
+
+IP Allowlisting (Optional)
+When enabled, staff can only log in from Trescon office IP addresses. Admins (dept_head and above) are exempt and can log in from anywhere.
+
+Password System
+Default password on first login: trescon@2026. Passwords are stored as bcrypt hashes — never plain text. Admins can reset any staff member's password from the Admin Dashboard.
+
+Session Management
+Sessions expire after 8 hours. Stored as httpOnly cookies — cannot be read by browser JavaScript.
+
+ACCESS LEVELS
+- staff: Personal dashboard, My HR, course library, Pilot chat
+- team_lead: Above + Team Dashboard for direct reports
+- dept_head: Above + full department view
+- office_head: Above + full office view + Admin access
+- super_admin: Full platform access across all offices
+
+AUDIT LOG
+Every login attempt is recorded with email, IP address, timestamp, and outcome (success, wrong password, rate limited, IP blocked, account disabled). Admins can view this in the Security section.
+
+DATA PRIVACY
+Individual AI Readiness Scores and task profiles are visible to the staff member and their direct manager chain. Department aggregates are visible to department heads. All data is stored in Supabase with server-side access controls.`,
+    order_index: 19,
+  },
+
+  /* ── 20. NOTIFICATIONS ──────────────────────────────────────────── */
+  {
+    slug: 'notifications',
+    category: 'How the Platform Works',
+    title: 'Notifications and Alerts',
+    content: `Event Pilot sends in-app notifications to keep you informed about activity that affects you.
+
+WHERE TO SEE NOTIFICATIONS
+The notification bell in the navigation bar shows your unread count. Click it to see your latest 5 unread notifications. Notifications also appear on your personal dashboard.
+
+TYPES OF NOTIFICATIONS
+
+Course Published
+When a course you suggested is approved and published: "Your course suggestion is live."
+
+Course Pending Review (Admins only)
+When a staff member submits a new course suggestion: "New course pending your approval."
+
+Leave Request Update
+When your leave request is approved or rejected by your manager.
+
+HR Alerts
+Contract expiry warnings, probation end dates, document renewal reminders — sent to the relevant staff member and their manager.
+
+NOTIFICATION BEHAVIOUR
+- Notifications are marked as read when you view them
+- Up to 5 unread notifications shown in the bell dropdown
+- All notifications remain accessible after being read`,
+    order_index: 20,
+  },
 ]
 
 export async function POST(req: NextRequest) {
