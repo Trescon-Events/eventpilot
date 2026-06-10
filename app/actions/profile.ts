@@ -38,25 +38,14 @@ export async function submitProfile(formData: FormData) {
   }
 
   // Insert all tasks
-  const inserts = validTasks.map(t => ({
-    staff_id,
-    task_name:         t.task_name.trim(),
-    task_description:  t.task_description?.trim() || null,
-    tools_used:        t.tools_used ?? [],
-    time_taken_today:  t.time_taken_today?.trim() || null,
-    frequency:         t.frequency || null,
-    ai_time_estimate:  t.ai_time_estimate?.trim() || null,
-    skill_needed:      t.skill_needed?.trim() || null,
-    ai_readiness:      t.ai_readiness ?? null,
-    ai_proof:          t.ai_proof ?? null,
-    tool_proficiency:  t.tool_proficiency ?? null,
-    automation_history: t.automation_history ?? null,
-    tools_unlisted:    t.tools_unlisted ?? null,
-  }))
-
   const { error: insertError } = await supabaseAdmin
     .from('staff_task_profiles')
-    .insert(inserts)
+    .upsert({
+      staff_id,
+      responses:    validTasks,
+      submitted_at: new Date().toISOString(),
+      updated_at:   new Date().toISOString(),
+    }, { onConflict: 'staff_id' })
 
   if (insertError) {
     return { error: 'Could not save your profile. Please try again.' }
