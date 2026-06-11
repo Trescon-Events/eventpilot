@@ -118,9 +118,12 @@ export async function GET(req: NextRequest) {
     roles: accessRoles,
   })).toString('base64')
 
+  // ── Decide destination — admin → /admin, everyone else → /dashboard ────────
+  const destination = isAdmin ? '/admin' : `/dashboard?id=${staff.id}`
+
   const dest = req.nextUrl.clone()
-  dest.pathname = nextPath
-  dest.search   = ''
+  dest.pathname = destination.split('?')[0]
+  dest.search   = destination.includes('?') ? '?' + destination.split('?')[1] : ''
 
   const res = NextResponse.redirect(dest)
 

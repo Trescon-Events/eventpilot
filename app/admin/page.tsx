@@ -797,6 +797,23 @@ export default function AdminPage() {
     return () => clearTimeout(t)
   }, [tourStep]) // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Auto-auth if arriving via SSO (cookie has adm:true but sessionStorage not set yet)
+  useEffect(() => {
+    if (authed) return
+    fetch('/api/auth/session')
+      .then(r => r.json())
+      .then(session => {
+        if (session?.adm && session?.sid) {
+          sessionStorage.setItem('tai_admin_authed', '1')
+          sessionStorage.setItem('tai_admin_staff_id', session.sid)
+          localStorage.setItem('tai_staff_id', session.sid)
+          setAdminStaffId(session.sid)
+          setAuthed(true)
+        }
+      })
+      .catch(() => {})
+  }, [authed])
+
   useEffect(() => {
     if (!authed) return
     fetch('/api/platform-status').then(r => r.json()).then(d => setIsDemo(d.is_demo ?? false)).catch(() => {})

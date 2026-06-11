@@ -71,12 +71,6 @@ export default function LoginPage() {
         window.location.href = `/set-password?id=${data.id}&name=${name}&next=${encodeURIComponent(destination)}`
         return
       }
-      if (!data.has_profile && data.id !== 'super-admin' && data.job_level !== 'super_admin') {
-        const name = encodeURIComponent(data.name ?? '')
-        const dept = encodeURIComponent(data.department ?? 'Other')
-        window.location.href = `/profile?id=${data.id}&name=${name}&dept=${dept}&next=${encodeURIComponent(destination)}`
-        return
-      }
       window.location.href = destination
     } catch {
       setError('Something went wrong. Check your connection and try again.')
