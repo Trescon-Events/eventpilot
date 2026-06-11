@@ -85,7 +85,7 @@ export async function POST(req: NextRequest) {
   // ── Regular staff path ─────────────────────────────────────────────────
   const { data: staff, error } = await supabaseAdmin
     .from('staff_members')
-    .select('id, name, department, role, office_id, job_level, manager_id, password_hash, access_enabled, must_change_password')
+    .select('id, name, department, role, office_id, job_level, manager_id, password_hash, access_enabled, must_change_password, access_roles')
     .eq('email', cleanEmail)
     .single()
 
@@ -100,8 +100,10 @@ export async function POST(req: NextRequest) {
   }
 
   // ── Layer 2: IP allowlist (skip for admins — they can login from anywhere) ──
-  const jobLevel  = staff.job_level ?? 'staff'
-  const isAdmin   = jobLevel === 'super_admin' || jobLevel === 'office_head' || jobLevel === 'dept_head'
+  const jobLevel    = staff.job_level ?? 'staff'
+  const accessRoles = (staff.access_roles ?? ['standard']) as string[]
+  const isAdmin     = jobLevel === 'super_admin' || jobLevel === 'office_head' || jobLevel === 'dept_head'
+    || accessRoles.includes('admin') || accessRoles.includes('super_admin')
   const officeIps = (process.env.OFFICE_IPS ?? '')
     .split(',')
     .map(s => s.trim())
@@ -138,6 +140,7 @@ export async function POST(req: NextRequest) {
   ])
 
   const fullIsAdmin = jobLevel === 'super_admin' || jobLevel === 'office_head'
+    || accessRoles.includes('admin') || accessRoles.includes('super_admin')
   const hasProfile  = (profileCount ?? 0) > 0
 
   const responseBody = {
@@ -154,10 +157,11 @@ export async function POST(req: NextRequest) {
   }
 
   const sessionPayload = Buffer.from(JSON.stringify({
-    sid:  staff.id,
-    jl:   jobLevel,
-    adm:  fullIsAdmin,
-    dept: staff.department ?? '',
+    sid:   staff.id,
+    jl:    jobLevel,
+    adm:   fullIsAdmin,
+    dept:  staff.department ?? '',
+    roles: accessRoles,
   })).toString('base64')
 
   const res = NextResponse.json(responseBody)

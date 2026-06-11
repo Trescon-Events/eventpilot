@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import Image from 'next/image'
 
 export default function LoginPage() {
@@ -9,6 +9,13 @@ export default function LoginPage() {
   const [showPass, setShowPass] = useState(false)
   const [loading,  setLoading]  = useState(false)
   const [error,    setError]    = useState('')
+
+  // Show errors redirected back from SSO callback
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search)
+    const ssoErr = params.get('error')
+    if (ssoErr) setError(ssoErr)
+  }, [])
 
   // Forgot password flow
   const [showForgot,   setShowForgot]   = useState(false)
@@ -283,6 +290,30 @@ export default function LoginPage() {
               )}
             </button>
           </form>
+
+          {/* Divider */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginTop: '20px' }}>
+            <div style={{ flex: 1, height: '1px', background: '#DDE8EE' }} />
+            <span style={{ fontSize: '11px', fontWeight: 700, color: '#8FA5B2', letterSpacing: '1px', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>or</span>
+            <div style={{ flex: 1, height: '1px', background: '#DDE8EE' }} />
+          </div>
+
+          {/* Microsoft SSO */}
+          <a
+            href="/api/auth/microsoft"
+            style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px', padding: '13px 16px', borderRadius: '10px', border: '1.5px solid #DDE8EE', background: '#FFFFFF', color: '#0F1923', fontSize: '14px', fontWeight: 700, textDecoration: 'none', cursor: 'pointer', transition: 'border-color 0.2s, box-shadow 0.2s', boxShadow: '0 1px 3px rgba(0,0,0,0.06)', fontFamily: 'inherit' }}
+            onMouseOver={e => { (e.currentTarget as HTMLAnchorElement).style.borderColor = '#00897B'; (e.currentTarget as HTMLAnchorElement).style.boxShadow = '0 2px 8px rgba(0,137,123,0.15)' }}
+            onMouseOut={e => { (e.currentTarget as HTMLAnchorElement).style.borderColor = '#DDE8EE'; (e.currentTarget as HTMLAnchorElement).style.boxShadow = '0 1px 3px rgba(0,0,0,0.06)' }}
+          >
+            {/* Microsoft logo */}
+            <svg width="18" height="18" viewBox="0 0 21 21" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <rect x="1" y="1"   width="9" height="9" fill="#F35325"/>
+              <rect x="11" y="1"  width="9" height="9" fill="#81BC06"/>
+              <rect x="1" y="11"  width="9" height="9" fill="#05A6F0"/>
+              <rect x="11" y="11" width="9" height="9" fill="#FFBA08"/>
+            </svg>
+            Sign in with Microsoft 365
+          </a>
 
           {/* Help note */}
           <div style={{ marginTop: '32px', padding: '16px 18px', background: '#E8EEF4', border: '1px solid #DDE8EE', borderRadius: '12px', fontSize: '13px', color: '#2D3E50', lineHeight: 1.65, textAlign: 'center' }}>

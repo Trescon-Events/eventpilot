@@ -27,7 +27,7 @@ const PUBLIC_PREFIXES = [
 
 const PUBLIC_FILE_EXTENSIONS = /\.(png|jpg|jpeg|svg|webp|webm|mp4|ico|ttf|woff|woff2)$/
 
-function parseSession(req: NextRequest): { sid: string; jl: string; adm: boolean; dept: string } | null {
+function parseSession(req: NextRequest): { sid: string; jl: string; adm: boolean; dept: string; roles?: string[] } | null {
   const raw = req.cookies.get('tcs_session')?.value
   if (!raw) return null
   try {
@@ -86,8 +86,7 @@ export async function middleware(req: NextRequest) {
 
   // Allow public API routes that don't need auth
   if (
-    pathname.startsWith('/api/auth/session') ||
-    pathname.startsWith('/api/auth/logout') ||
+    pathname.startsWith('/api/auth/') ||   // covers session, logout, microsoft SSO, callback
     pathname.startsWith('/api/platform-docs') ||
     pathname.startsWith('/api/hrms-sync') ||
     pathname.startsWith('/api/hr/attendance/sync') ||
@@ -127,9 +126,9 @@ export async function middleware(req: NextRequest) {
     return NextResponse.next()
   }
 
-  // /hr/* → admin or HR department only
+  // /hr/* → admin, HR access role, or HR department
   if (pathname.startsWith('/hr')) {
-    const isHR = session.dept === 'HR' || session.adm
+    const isHR = session.adm || (session.roles ?? []).includes('hr') || session.dept === 'HR'
     if (!isHR) {
       const dest = req.nextUrl.clone()
       dest.pathname = '/dashboard'

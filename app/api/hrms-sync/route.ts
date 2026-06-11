@@ -86,6 +86,8 @@ export async function POST(req: NextRequest) {
     { data: allocations },
     { data: timesheets },
     { data: hrmsLeaveBalances },
+    { data: userRoles },
+    { data: projectRoles },
   ] = await Promise.all([
     hrms.from('profiles').select(`
       id, full_name, email, department, designation, location, reporting_manager_id, hire_date,
@@ -98,6 +100,8 @@ export async function POST(req: NextRequest) {
     hrms.from('allocations').select('id, project_id, staff_id'),
     hrms.from('timesheet_entries').select('id, staff_id, project_id, entry_date, hours, task_description, status'),
     hrms.from('leave_balances').select('id, staff_id, leave_type, year_cycle, total_entitled, used, carried_forward, remaining'),
+    hrms.from('user_roles').select('user_id, role'),
+    hrms.from('project_roles').select('project_id, person_id, role_type, assignment_type'),
   ])
 
   if (profilesErr || !profiles) {
@@ -112,10 +116,18 @@ export async function POST(req: NextRequest) {
   const { data: existingStaff } = await supabaseAdmin.from('staff_members').select('email, profile_complete, job_level')
   const existingMap = Object.fromEntries((existingStaff ?? []).map(s => [s.email.toLowerCase(), { profile_complete: s.profile_complete, job_level: s.job_level }]))
 
+  // ── Build access roles map: HRMS user_id → role[]  (user_id === profile.id) ──
+  const userRolesMap: Record<string, string[]> = {}
+  for (const ur of (userRoles ?? []) as any[]) {
+    if (!userRolesMap[ur.user_id]) userRolesMap[ur.user_id] = []
+    userRolesMap[ur.user_id].push(ur.role)
+  }
+
   // ── Sync staff — full profile ──
   const staffRows = profiles.map((p: any) => {
     const email = p.email?.trim().toLowerCase()
     const existingLevel = existingMap[email]?.job_level
+    const roles = userRolesMap[p.id] ?? ['standard']
     return {
       name:                     p.full_name?.trim() ?? email,
       email,
@@ -143,6 +155,7 @@ export async function POST(req: NextRequest) {
       timezone_override:        p.timezone_override ?? null,
       timesheet_exempted:       p.timesheet_exempted ?? false,
       attendance_exempted:      p.attendance_exempted ?? false,
+      access_roles:             roles,
       data_source:              'hrms',
       last_synced_at:           new Date().toISOString(),
     }
@@ -220,6 +233,26 @@ export async function POST(req: NextRequest) {
       .from('event_staff')
       .upsert(allocRows, { onConflict: 'event_id,staff_id', ignoreDuplicates: false })
     if (allocErr) return NextResponse.json({ error: `Allocations upsert failed: ${allocErr.message}` }, { status: 500 })
+  }
+
+  // ── Sync project roles → event_staff ──
+  const projRoleRowsRaw = (projectRoles ?? [])
+    .map((pr: any) => ({
+      staff_id:          resolveStaff(pr.person_id),
+      event_id:          resolveEvent(pr.project_id),
+      project_role_type: pr.role_type ?? null,
+      assignment_type:   pr.assignment_type ?? null,
+    }))
+    .filter((r: any) => r.staff_id && r.event_id)
+  const projRoleSeen = new Set<string>()
+  const projRoleRows = projRoleRowsRaw.filter((r: any) => {
+    const key = `${r.event_id}:${r.staff_id}`
+    if (projRoleSeen.has(key)) return false
+    projRoleSeen.add(key); return true
+  })
+  if (projRoleRows.length > 0) {
+    await supabaseAdmin.from('event_staff')
+      .upsert(projRoleRows, { onConflict: 'event_id,staff_id', ignoreDuplicates: false })
   }
 
   // ── Sync timesheets → staff_timesheets ──
@@ -341,6 +374,7 @@ export async function POST(req: NextRequest) {
     leave_balances:    leaveBalancesSynced,
     checklists_seeded: checklistsSeeded,
     ...(leaveBalancesError ? { leave_balances_error: leaveBalancesError } : {}),
-    message:           `Sync complete. ${staffRows.length} staff, ${eventRows.length} projects, ${allocRows.length} allocations, ${tsRows.length} timesheets, ${leaveBalancesSynced} leave balances.`,
+    project_roles:     projRoleRows.length,
+    message:           `Sync complete. ${staffRows.length} staff, ${eventRows.length} projects, ${allocRows.length} allocations, ${projRoleRows.length} project roles, ${tsRows.length} timesheets, ${leaveBalancesSynced} leave balances.`,
   })
 }

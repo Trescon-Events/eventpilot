@@ -21,6 +21,32 @@ const STATUS_MAP: Record<string, string> = {
   cancelled: 'cancelled',
 }
 
+function deriveJobLevel(designation: string | null, existingLevel?: string): string {
+  if (existingLevel && existingLevel !== 'staff') return existingLevel
+  const d = (designation ?? '').toLowerCase()
+  if (
+    d.includes('managing director') || d.includes(' md') || d === 'md' ||
+    d.includes('chief executive') || d.includes('ceo') ||
+    d.includes('founder') || d.includes('president') ||
+    d.includes('country head') || d.includes('office head') ||
+    d.includes('director') && (d.includes('senior') || d.includes('group') || d.includes('executive'))
+  ) return 'office_head'
+  if (
+    d.includes('director') ||
+    d.includes('vp ') || d.includes('vice president') ||
+    d.includes('head of') || d.includes('department head') ||
+    d.includes('general manager') || d.includes('gm') ||
+    d.includes('senior manager') || d.includes('sr. manager')
+  ) return 'dept_head'
+  if (
+    d.includes('manager') ||
+    d.includes('team lead') || d.includes('team leader') ||
+    d.includes('lead ') || d.includes(' lead') ||
+    d.includes('supervisor')
+  ) return 'team_lead'
+  return 'staff'
+}
+
 export async function GET(req: NextRequest) {
   const auth = req.headers.get('authorization')
   if (!process.env.CRON_SECRET || auth !== `Bearer ${process.env.CRON_SECRET}`) {
@@ -49,6 +75,8 @@ export async function GET(req: NextRequest) {
     { data: allocations },
     { data: timesheets },
     { data: hrmsLeaveBalances },
+    { data: userRoles },
+    { data: projectRoles },
   ] = await Promise.all([
     hrms.from('profiles').select(`
       id, full_name, email, department, designation, location, reporting_manager_id, hire_date,
@@ -61,23 +89,35 @@ export async function GET(req: NextRequest) {
     hrms.from('allocations').select('id, project_id, staff_id'),
     hrms.from('timesheet_entries').select('id, staff_id, project_id, entry_date, hours, task_description, status'),
     hrms.from('leave_balances').select('id, staff_id, leave_type, year_cycle, total_entitled, used, carried_forward, remaining'),
+    hrms.from('user_roles').select('user_id, role'),
+    hrms.from('project_roles').select('project_id, person_id, role_type, assignment_type'),
   ])
 
   // ── Fetch existing Event Pilot data ──
-  const { data: existingStaff } = await supabaseAdmin.from('staff_members').select('email, profile_complete')
-  const existingMap = Object.fromEntries((existingStaff ?? []).map(s => [s.email.toLowerCase(), s.profile_complete]))
+  const { data: existingStaff } = await supabaseAdmin.from('staff_members').select('email, profile_complete, job_level')
+  const existingMap = Object.fromEntries((existingStaff ?? []).map(s => [s.email.toLowerCase(), { profile_complete: s.profile_complete, job_level: s.job_level }]))
+
+  // ── Build access roles map: HRMS user_id → role[]  (user_id === profile.id) ──
+  const userRolesMap: Record<string, string[]> = {}
+  for (const ur of (userRoles ?? []) as any[]) {
+    if (!userRolesMap[ur.user_id]) userRolesMap[ur.user_id] = []
+    userRolesMap[ur.user_id].push(ur.role)
+  }
 
   // ── Sync staff — full profile ──
   const staffRows = (profiles ?? []).map((p: any) => {
     const email = p.email?.trim().toLowerCase()
+    const existingLevel = existingMap[email]?.job_level
+    const roles = userRolesMap[p.id] ?? ['standard']
     return {
       name:                     p.full_name?.trim() ?? email,
       email,
       department:               p.department ?? null,
       role:                     p.designation ?? null,
       office_id:                LOCATION_MAP[(p.location ?? '').toLowerCase()] ?? 'dubai',
-      job_level:                'staff',
-      profile_complete:         existingMap[email] ?? false,
+      job_level:                deriveJobLevel(p.designation, existingLevel),
+      profile_complete:         existingMap[email]?.profile_complete ?? false,
+      access_roles:             roles,
       joined_at:                p.hire_date ?? null,
       // Extended profile fields
       phone:                    p.phone ?? null,
@@ -159,6 +199,26 @@ export async function GET(req: NextRequest) {
   })
 
   await supabaseAdmin.from('event_staff').upsert(allocRows, { onConflict: 'event_id,staff_id', ignoreDuplicates: false })
+
+  // ── Sync project roles → event_staff ──
+  const projRoleRowsRaw = (projectRoles ?? [])
+    .map((pr: any) => ({
+      staff_id:          resolveStaff(pr.person_id),
+      event_id:          resolveEvent(pr.project_id),
+      project_role_type: pr.role_type ?? null,
+      assignment_type:   pr.assignment_type ?? null,
+    }))
+    .filter((r: any) => r.staff_id && r.event_id)
+  const projRoleSeen = new Set<string>()
+  const projRoleRows = projRoleRowsRaw.filter((r: any) => {
+    const key = `${r.event_id}:${r.staff_id}`
+    if (projRoleSeen.has(key)) return false
+    projRoleSeen.add(key); return true
+  })
+  if (projRoleRows.length > 0) {
+    await supabaseAdmin.from('event_staff')
+      .upsert(projRoleRows, { onConflict: 'event_id,staff_id', ignoreDuplicates: false })
+  }
 
   // ── Sync timesheets → staff_timesheets ──
   const tsRows = (timesheets ?? [])
@@ -275,6 +335,7 @@ export async function GET(req: NextRequest) {
     staff:                staffRows.length,
     projects:             eventRows.length,
     allocations:          allocRows.length,
+    project_roles:        projRoleRows.length,
     timesheets:           tsRows.length,
     leave_balances:       leaveBalancesSynced,
     checklists_seeded:    checklistsSeeded,
