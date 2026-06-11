@@ -6,6 +6,15 @@ import { supabase } from '@/app/lib/supabase'
 import { buildQuestions, ALL_DEPARTMENTS } from '@/app/lib/questions'
 import type { Question } from '@/app/lib/questions'
 
+const ROLE_META: Record<string, { label: string; color: string; bg: string; desc: string }> = {
+  standard:        { label: 'Standard',        color: '#5B7080', bg: '#5B708015', desc: 'Default — basic platform access' },
+  hr:              { label: 'HR',              color: '#92400E', bg: '#92400E15', desc: 'Access to HR portal and leave management' },
+  project_manager: { label: 'Project Mgr',    color: '#1565C0', bg: '#1565C015', desc: 'Can create and manage events' },
+  project_director:{ label: 'Project Dir',    color: '#6B21A8', bg: '#6B21A815', desc: 'Project oversight across events' },
+  admin:           { label: 'Admin',           color: '#166534', bg: '#16653415', desc: 'Platform admin — People, Events, Knowledge' },
+  super_admin:     { label: 'Super Admin',     color: '#00697B', bg: '#00697B15', desc: 'Full platform access, no restrictions' },
+}
+
 const PLATFORM_TOOLS = [
   { key: 'smart_data',      label: 'Smart Data',           desc: 'Apollo-style contact database, enrichment & bulk outreach',    color: '#0E7490',  icon: <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/></svg> },
   { key: 'hr_portal',       label: 'HR Portal',            desc: 'Full HR management — leave, contracts, payroll, onboarding',   color: '#7C3AED',  icon: <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg> },
@@ -209,7 +218,7 @@ export default function AdminPage() {
   }
 
   // Staff Management tab state
-  const [staffList,       setStaffList]       = useState<{id:string;name:string;email:string;department:string|null;role:string|null;office_id:string|null;job_level:string;manager_id:string|null;toolkit_access?:boolean;tool_grants?:Record<string,boolean>;access_enabled?:boolean}[]>([])
+  const [staffList,       setStaffList]       = useState<{id:string;name:string;email:string;department:string|null;role:string|null;office_id:string|null;job_level:string;manager_id:string|null;toolkit_access?:boolean;tool_grants?:Record<string,boolean>;access_enabled?:boolean;access_roles?:string[]}[]>([])
   // Tool permissions drawer
   const [permOpen,    setPermOpen]    = useState(false)
   const [permStaff,   setPermStaff]   = useState<{id:string;name:string;email:string;job_level:string;department:string|null;office_id:string|null;toolkit_access?:boolean;tool_grants?:Record<string,boolean>}|null>(null)
@@ -220,6 +229,12 @@ export default function AdminPage() {
   const [bulkSel,     setBulkSel]     = useState<Set<string>>(new Set())
   const [bulkSearch,  setBulkSearch]  = useState('')
   const [bulkSaving,  setBulkSaving]  = useState(false)
+
+  // Access roles modal
+  const [rolesOpen,   setRolesOpen]   = useState(false)
+  const [rolesStaff,  setRolesStaff]  = useState<{id:string;name:string;email:string;job_level:string;department:string|null;office_id:string|null;access_roles?:string[]}|null>(null)
+  const [rolesEdit,   setRolesEdit]   = useState<string[]>([])
+  const [rolesSaving, setRolesSaving] = useState(false)
   const [bulkDone,    setBulkDone]    = useState<string|null>(null)
   const [staffLoading,    setStaffLoading]    = useState(false)
   const [csvText,         setCsvText]         = useState('')
@@ -2317,10 +2332,16 @@ export default function AdminPage() {
                         <div>
                           <span style={{ fontSize: '11px', fontWeight: 700, color: levelColor, background: `${levelColor}15`, padding: '3px 8px', borderRadius: '6px' }}>{levelLabel}</span>
                         </div>
-                        {/* Platform Status */}
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
+                        {/* Platform Status + Access Roles */}
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
                           <span style={{ fontSize: '11px', fontWeight: 700, color: statusColor, background: statusBg, padding: '3px 8px', borderRadius: '6px', width: 'fit-content' }}>{statusLabel}</span>
                           {p.joined_at && <div style={{ fontSize: '10px', color: '#B8CDD8', fontWeight: 600 }}>Joined {new Date(p.joined_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}</div>}
+                          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '3px', marginTop: '1px' }}>
+                            {(p.access_roles ?? ['standard']).map(r => {
+                              const rc = ROLE_META[r] ?? ROLE_META.standard
+                              return <span key={r} style={{ fontSize: '9px', fontWeight: 700, padding: '2px 6px', borderRadius: '4px', background: rc.bg, color: rc.color, letterSpacing: '0.5px', textTransform: 'uppercase' }}>{rc.label}</span>
+                            })}
+                          </div>
                         </div>
                         {/* AI Score */}
                         <div>
@@ -2340,6 +2361,13 @@ export default function AdminPage() {
                             fetchStaffList()
                           }} style={{ padding: '4px 10px', borderRadius: '6px', border: `1px solid ${p.access_enabled ? '#DDE8EE' : 'rgba(22,101,52,0.3)'}`, background: p.access_enabled ? '#FFFFFF' : 'rgba(22,101,52,0.07)', color: p.access_enabled ? '#5B7080' : '#166534', fontSize: '11px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap' }}>
                             {p.access_enabled ? 'Disable' : 'Enable'}
+                          </button>
+                          <button onClick={() => {
+                            setRolesStaff(p)
+                            setRolesEdit(p.access_roles ?? ['standard'])
+                            setRolesOpen(true)
+                          }} title="Edit access roles" style={{ padding: '4px 10px', borderRadius: '6px', border: '1px solid #DDE8EE', background: '#FFFFFF', color: '#5B7080', fontSize: '11px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap' }}>
+                            Roles
                           </button>
                           <button onClick={() => {
                             const grants: Record<string,boolean> = { ...(p.tool_grants ?? {}), smart_data: p.toolkit_access ?? false }
@@ -4632,6 +4660,75 @@ export default function AdminPage() {
                   {tourStep < TOUR_STEPS.length - 1 ? 'Next →' : 'Done'}
                 </button>
               </div>
+            </div>
+          </>
+        )
+      })()}
+
+      {/* ── Access Roles Modal ── */}
+      {rolesOpen && rolesStaff && (() => {
+        const off = OFFICES.find(o => o.id === rolesStaff.office_id)
+        const ALL_ROLES = ['standard', 'hr', 'project_manager', 'project_director', 'admin', 'super_admin']
+        const toggle = (r: string) => {
+          if (r === 'standard') return // always present, can't untick directly
+          setRolesEdit(prev =>
+            prev.includes(r)
+              ? prev.filter(x => x !== r).length === 0 ? ['standard'] : prev.filter(x => x !== r)
+              : [...prev.filter(x => x !== 'standard'), r]
+          )
+        }
+        const save = async () => {
+          setRolesSaving(true)
+          const res = await fetch('/api/staff-roles', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: rolesStaff.id, roles: rolesEdit }) })
+          const data = await res.json()
+          if (res.ok) {
+            setStaffList(prev => prev.map(s => s.id === rolesStaff.id ? { ...s, access_roles: data.access_roles } : s))
+            setRolesOpen(false)
+          }
+          setRolesSaving(false)
+        }
+        return (
+          <>
+            <div onClick={() => setRolesOpen(false)} style={{ position: 'fixed', inset: 0, background: 'rgba(15,25,35,0.55)', zIndex: 1200, backdropFilter: 'blur(2px)' }} />
+            <div style={{ position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%,-50%)', zIndex: 1300, background: '#FFFFFF', borderRadius: '20px', padding: '32px', width: '420px', maxWidth: '90vw', boxShadow: '0 24px 64px rgba(0,0,0,0.18)' }}>
+              {/* Header */}
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '24px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                  <div style={{ width: '40px', height: '40px', borderRadius: '10px', background: `${off?.color ?? '#00897B'}18`, border: `1px solid ${off?.color ?? '#00897B'}30`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                    <span style={{ fontSize: '16px', fontWeight: 800, color: off?.color ?? '#00897B' }}>{rolesStaff.name.charAt(0)}</span>
+                  </div>
+                  <div>
+                    <div style={{ fontSize: '15px', fontWeight: 800, color: '#0F1923' }}>{rolesStaff.name}</div>
+                    <div style={{ fontSize: '11px', color: '#5B7080' }}>{rolesStaff.email}</div>
+                  </div>
+                </div>
+                <button onClick={() => setRolesOpen(false)} style={{ background: 'none', border: '1px solid #DDE8EE', borderRadius: '8px', padding: '6px 10px', cursor: 'pointer', color: '#5B7080', fontSize: '12px', fontWeight: 700, fontFamily: 'inherit' }}>Close</button>
+              </div>
+              <div style={{ fontSize: '11px', fontWeight: 700, color: '#5B7080', letterSpacing: '1.2px', textTransform: 'uppercase', marginBottom: '12px' }}>Platform Access Roles</div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: '24px' }}>
+                {ALL_ROLES.map(r => {
+                  const meta    = ROLE_META[r]
+                  const checked = rolesEdit.includes(r) || (r === 'standard' && rolesEdit.length === 0)
+                  const isOnly  = r === 'standard'
+                  return (
+                    <label key={r} onClick={() => !isOnly && toggle(r)} style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '12px 14px', borderRadius: '10px', border: `1.5px solid ${checked ? meta.color + '50' : '#DDE8EE'}`, background: checked ? meta.bg : '#FAFBFC', cursor: isOnly ? 'default' : 'pointer', transition: 'all 0.15s' }}>
+                      <div style={{ width: '18px', height: '18px', borderRadius: '5px', border: `2px solid ${checked ? meta.color : '#DDE8EE'}`, background: checked ? meta.color : '#FFFFFF', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, transition: 'all 0.15s' }}>
+                        {checked && <svg width="10" height="10" viewBox="0 0 12 12" fill="white"><polyline points="2,6 5,9 10,3" strokeWidth="2" stroke="white" fill="none" strokeLinecap="round" strokeLinejoin="round"/></svg>}
+                      </div>
+                      <div style={{ flex: 1 }}>
+                        <div style={{ fontSize: '13px', fontWeight: 700, color: checked ? meta.color : '#0F1923' }}>{meta.label}</div>
+                        <div style={{ fontSize: '11px', color: '#5B7080', marginTop: '1px' }}>{meta.desc}</div>
+                      </div>
+                    </label>
+                  )
+                })}
+              </div>
+              <div style={{ padding: '10px 14px', background: '#E8EEF4', borderRadius: '8px', fontSize: '11px', color: '#5B7080', marginBottom: '20px', lineHeight: 1.5 }}>
+                Changes override HRMS sync until the next full sync. HRMS roles will re-apply on next sync unless you want them locked.
+              </div>
+              <button onClick={save} disabled={rolesSaving} style={{ width: '100%', padding: '13px', borderRadius: '10px', border: 'none', background: rolesSaving ? '#B8CDD8' : 'linear-gradient(135deg, #00897B 0%, #00695C 100%)', color: rolesSaving ? '#5B7080' : 'white', fontSize: '14px', fontWeight: 800, cursor: rolesSaving ? 'not-allowed' : 'pointer', fontFamily: 'inherit' }}>
+                {rolesSaving ? 'Saving…' : 'Save Roles'}
+              </button>
             </div>
           </>
         )
