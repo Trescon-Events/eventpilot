@@ -13,16 +13,22 @@ export async function GET(req: NextRequest) {
   try { session = JSON.parse(Buffer.from(raw, 'base64').toString('utf-8')) } catch { return NextResponse.json({ access: false }) }
   if (!session?.sid) return NextResponse.json({ access: false })
 
-  // Super admins always have toolkit access
-  if (session.adm) return NextResponse.json({ access: true })
+  // Super admins get full unrestricted access
+  if (session.adm) return NextResponse.json({ access: true, grants: null })
 
   const { data } = await supabaseAdmin
     .from('staff_members')
-    .select('toolkit_access')
+    .select('toolkit_access, tool_grants')
     .eq('id', session.sid)
     .single()
 
-  return NextResponse.json({ access: data?.toolkit_access === true })
+  const grants: Record<string, boolean> = {
+    ...(data?.tool_grants ?? {}),
+    // toolkit_access legacy flag maps to smart_data
+    ...(data?.toolkit_access ? { smart_data: true } : {}),
+  }
+  const hasAny = Object.values(grants).some(Boolean)
+  return NextResponse.json({ access: hasAny, grants })
 }
 
 /* PATCH /api/toolkit-access

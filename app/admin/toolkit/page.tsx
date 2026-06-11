@@ -5,6 +5,18 @@ import Link from 'next/link'
 
 type Event = { id: string; name: string; city: string | null; event_date: string | null; status: string }
 
+// Maps each tool to its tool_grants key in staff_members.
+// null = admin-only (no grant key — only shown to admins)
+const TOOL_GRANT_KEY: Record<string, string | null> = {
+  'website-builder': 'website_builder',
+  'market-intel':    'intelligence',
+  'brand-studio':    'brand_studio',
+  'smart-data':      'smart_data',
+  'outreach':        'content',
+  'course-builder':  null,
+  'tresagent':       null,
+}
+
 const TOOLS = [
   {
     id:          'website-builder',
@@ -196,16 +208,26 @@ function EventPicker({ tool, events, onClose }: { tool: typeof TOOLS[number]; ev
 export default function ToolkitPage() {
   const [checking,  setChecking]  = useState(true)
   const [allowed,   setAllowed]   = useState(false)
+  const [grants,    setGrants]    = useState<Record<string,boolean> | null>(null)
   const [events,    setEvents]    = useState<Event[]>([])
   const [activeId,  setActiveId]  = useState(TOOLS[0].id)
   const [picking,   setPicking]   = useState(false)
 
   useEffect(() => {
-    fetch('/api/toolkit-access').then(r => r.json()).then(d => { setAllowed(d.access === true); setChecking(false) }).catch(() => setChecking(false))
+    fetch('/api/toolkit-access').then(r => r.json()).then(d => {
+      setAllowed(d.access === true)
+      setGrants('grants' in d ? d.grants : null)
+      setChecking(false)
+    }).catch(() => setChecking(false))
     fetch('/api/events').then(r => r.json()).then(d => setEvents(Array.isArray(d) ? d : [])).catch(() => {})
   }, [])
 
-  const tool = TOOLS.find(t => t.id === activeId) ?? TOOLS[0]
+  // null grants = admin (show all). Object grants = staff (show only granted tools).
+  const visibleTools = grants === null
+    ? TOOLS
+    : TOOLS.filter(t => { const key = TOOL_GRANT_KEY[t.id]; return key !== null && grants[key] === true })
+
+  const tool = visibleTools.find(t => t.id === activeId) ?? visibleTools[0] ?? TOOLS[0]
 
   if (checking) return (
     <div style={{ height: '100vh', background: '#E8EEF4', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'var(--font-manrope), Manrope, sans-serif' }}>
@@ -252,7 +274,8 @@ export default function ToolkitPage() {
             <div style={{ fontSize: '11px', fontWeight: 800, color: '#B8CDD8', letterSpacing: '2px', textTransform: 'uppercase' }}>All Tools</div>
           </div>
           {CATEGORIES.map(cat => {
-            const catTools = TOOLS.filter(t => t.category === cat.id)
+            const catTools = visibleTools.filter(t => t.category === cat.id)
+            if (catTools.length === 0) return null
             return (
               <div key={cat.id} style={{ marginBottom: '4px' }}>
                 <div style={{ fontSize: '10px', fontWeight: 800, color: '#C8D8E4', letterSpacing: '1.5px', textTransform: 'uppercase', padding: '10px 20px 4px' }}>{cat.label}</div>
