@@ -988,7 +988,7 @@ export default function AdminPage() {
   }
 
   // AIRS tier label + color
-  function tairsTier(score: number) {
+  function airsTier(score: number) {
     if (score >= 75) return { label: 'AI-Forward',  color: '#166534', desc: 'Deploy automations now' }
     if (score >= 55) return { label: 'AI-Ready',    color: '#0E7490', desc: 'Train + deploy in parallel' }
     if (score >= 35) return { label: 'AI-Aware',    color: '#92400E', desc: '90-day foundation plan' }
@@ -997,11 +997,11 @@ export default function AdminPage() {
   }
 
   // ── Per-department AIRS ──
-  type DeptTairs = {
+  type DeptAirs = {
     dept: string; score: number; fluency: number; maturity: number; engagement: number
     interviewed: number; joined: number; impact: typeof DEPT_IMPACT[string]
   }
-  const deptTairsMap: DeptTairs[] = []
+  const deptAirsMap: DeptAirs[] = []
   for (const dept of [...new Set(members.map(m => m.department ?? 'Other'))]) {
     const dMembers   = members.filter(m => (m.department ?? 'Other') === dept)
     const dTasks     = tasks.filter(t => (memberIndex[t.staff_id]?.department ?? 'Other') === dept)
@@ -1009,12 +1009,12 @@ export default function AdminPage() {
     const allTools   = dTasks.flatMap(t => t.tools_used ?? [])
     const interviewed = dMembers.filter(m => m.profile_complete).length
     const r = calcAIRS({ readinessScores: readScores, allTools, interviewed, totalJoinedForGroup: dMembers.length })
-    deptTairsMap.push({ dept, ...r, interviewed, joined: dMembers.length, impact: DEPT_IMPACT[dept] ?? DEPT_IMPACT['Other'] })
+    deptAirsMap.push({ dept, ...r, interviewed, joined: dMembers.length, impact: DEPT_IMPACT[dept] ?? DEPT_IMPACT['Other'] })
   }
-  const sortedDeptTairs = [...deptTairsMap].sort((a, b) => b.score - a.score)
+  const sortedDeptAirs = [...deptAirsMap].sort((a, b) => b.score - a.score)
 
   // ── Per-office AIRS ──
-  const officeTairs = OFFICES.map(o => {
+  const officeAirs = OFFICES.map(o => {
     const oMembers   = members.filter(m => m.office_id === o.id)
     const oTasks     = tasks.filter(t => memberIndex[t.staff_id]?.office_id === o.id)
     const readScores = oTasks.filter(t => t.ai_readiness).map(t => t.ai_readiness!)
@@ -1026,11 +1026,11 @@ export default function AdminPage() {
 
   // ── Org-level AIRS (weighted by dept size) ──
   let orgScore = 0
-  if (deptTairsMap.length > 0) {
-    const totalW = deptTairsMap.reduce((s, d) => s + d.joined, 0) || 1
-    orgScore = Math.round(deptTairsMap.reduce((s, d) => s + d.score * (d.joined / totalW), 0))
+  if (deptAirsMap.length > 0) {
+    const totalW = deptAirsMap.reduce((s, d) => s + d.joined, 0) || 1
+    orgScore = Math.round(deptAirsMap.reduce((s, d) => s + d.score * (d.joined / totalW), 0))
   }
-  const orgTier = tairsTier(orgScore)
+  const orgTier = airsTier(orgScore)
 
   // ── Top individual AIRS ──
   const memberTairs = Object.fromEntries(
@@ -1049,8 +1049,8 @@ export default function AdminPage() {
     .slice(0, 8)
 
   // Legacy compat for existing readiness dist block
-  const deptScores = sortedDeptTairs.map(d => ({ dept: d.dept, avg: d.fluency / 8, count: d.interviewed }))
-  const officeScores = officeTairs.map(o => ({ ...o, avg: o.fluency / 8 }))
+  const deptScores = sortedDeptAirs.map(d => ({ dept: d.dept, avg: d.fluency / 8, count: d.interviewed }))
+  const officeScores = officeAirs.map(o => ({ ...o, avg: o.fluency / 8 }))
 
   /* ── AI-generated response detector ──
      Flags answers that pattern-match AI writing rather than human speech.
@@ -1515,7 +1515,7 @@ export default function AdminPage() {
               const tierCounts: Record<string, number> = Object.fromEntries(TIERS.map(t => [t.label, 0]))
               members.filter(m => m.profile_complete).forEach(m => {
                 const score = memberTairs[m.id]?.score ?? 0
-                tierCounts[tairsTier(score).label] = (tierCounts[tairsTier(score).label] ?? 0) + 1
+                tierCounts[airsTier(score).label] = (tierCounts[airsTier(score).label] ?? 0) + 1
               })
               const total = profilesComplete || 1
               return (
@@ -1560,11 +1560,11 @@ export default function AdminPage() {
                   { id: 'High',     color: '#8B1A1A' },
                   { id: 'Medium',   color: '#8B1A1A' },
                 ]
-                const visibleDepts = sortedDeptTairs.filter(d => {
+                const visibleDepts = sortedDeptAirs.filter(d => {
                   if (deptTierFilter === 'all') return true
                   // tier filter
                   const tierMatch = TIER_FILTERS.slice(1).some(f => f.id === deptTierFilter)
-                  if (tierMatch) return tairsTier(d.score).label === deptTierFilter
+                  if (tierMatch) return airsTier(d.score).label === deptTierFilter
                   // priority filter
                   return d.impact.priority === deptTierFilter
                 })
@@ -1583,7 +1583,7 @@ export default function AdminPage() {
                         <div>
                           <div style={{ fontSize: '13px', fontWeight: 700, letterSpacing: '1.5px', textTransform: 'uppercase', color: '#5B7080' }}>Department Readiness</div>
                           <div style={{ fontSize: '13px', color: '#5B7080', marginTop: '2px' }}>
-                            {visibleDepts.length} of {sortedDeptTairs.length} departments
+                            {visibleDepts.length} of {sortedDeptAirs.length} departments
                             {deptTierFilter !== 'all' && <span style={{ color: '#5B7080' }}> · filtered by <strong style={{ color: '#0F1923' }}>{deptTierFilter}</strong></span>}
                           </div>
                         </div>
@@ -1592,7 +1592,7 @@ export default function AdminPage() {
                       <div style={{ display: 'flex', gap: '5px', flexWrap: 'wrap' }}>
                         {TIER_FILTERS.map(f => {
                           const active = deptTierFilter === f.id
-                          const count  = f.id === 'all' ? sortedDeptTairs.length : sortedDeptTairs.filter(d => tairsTier(d.score).label === f.id).length
+                          const count  = f.id === 'all' ? sortedDeptAirs.length : sortedDeptAirs.filter(d => airsTier(d.score).label === f.id).length
                           return (
                             <button key={f.id} onClick={() => setDeptTierFilter(f.id)}
                               style={{ padding: '4px 10px', borderRadius: '16px', border: `1px solid ${active ? f.color : '#DDE8EE'}`, background: active ? `${f.color}18` : 'transparent', color: active ? f.color : '#5B7080', fontSize: '13px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: '4px', transition: 'all 0.15s' }}>
@@ -1604,7 +1604,7 @@ export default function AdminPage() {
                         <div style={{ width: '1px', background: '#DDE8EE', margin: '0 2px' }} />
                         {PRIORITY_FILTERS.map(f => {
                           const active = deptTierFilter === f.id
-                          const count  = sortedDeptTairs.filter(d => d.impact.priority === f.id).length
+                          const count  = sortedDeptAirs.filter(d => d.impact.priority === f.id).length
                           if (count === 0) return null
                           return (
                             <button key={f.id} onClick={() => setDeptTierFilter(f.id)}
@@ -1621,7 +1621,7 @@ export default function AdminPage() {
                     ) : (
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '0' }}>
                         {visibleDepts.map((d, i) => {
-                          const tier        = tairsTier(d.score)
+                          const tier        = airsTier(d.score)
                           const impact      = d.impact
                           const completePct = d.joined > 0 ? Math.round(d.interviewed / d.joined * 100) : 0
                           const isTop       = i === 0 && deptTierFilter === 'all'
@@ -1684,9 +1684,9 @@ export default function AdminPage() {
                 {/* Office cards 2x2 grid */}
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
                   {OFFICES.map(o => {
-                    const oData  = officeTairs.find(x => x.id === o.id)
+                    const oData  = officeAirs.find(x => x.id === o.id)
                     const joined = officeMap[o.id]?.count ?? 0
-                    const tier   = oData ? tairsTier(oData.score) : null
+                    const tier   = oData ? airsTier(oData.score) : null
                     return (
                       <div key={o.id} style={{ background: '#FFFFFF', border: `1px solid ${o.color}25`, borderRadius: '16px', padding: '16px 18px' }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '7px', marginBottom: '10px' }}>
@@ -1716,7 +1716,7 @@ export default function AdminPage() {
                   ) : (
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                       {topIndividuals.slice(0, 6).map((person, i) => {
-                        const tier = tairsTier(person.toars)
+                        const tier = airsTier(person.toars)
                         const off  = getOffice(person.office_id)
                         return (
                           <div key={person.id} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '7px 10px', background: i < 3 ? `${tier.color}08` : 'transparent', borderRadius: '10px', border: i < 3 ? `1px solid ${tier.color}18` : '1px solid transparent' }}>
@@ -2132,9 +2132,9 @@ export default function AdminPage() {
             const member  = memberById[s.id]
             const tData   = memberTairs[s.id]
             const score   = tData?.score ?? null
-            const tTier   = score !== null ? tairsTier(score) : null
+            const tTier   = score !== null ? airsTier(score) : null
             const tColor  = tTier ? { color: tTier.color, bg: `${tTier.color}15` } : null
-            return { ...s, access_enabled: (s as {access_enabled?:boolean}).access_enabled ?? false, profile_complete: member?.profile_complete ?? false, joined_at: member?.joined_at ?? null, tairs_score: score, tier_label: tTier?.label ?? null, tier_color: tColor }
+            return { ...s, access_enabled: (s as {access_enabled?:boolean}).access_enabled ?? false, profile_complete: member?.profile_complete ?? false, joined_at: member?.joined_at ?? null, airs_score: score, tier_label: tTier?.label ?? null, tier_color: tColor }
           })
 
           const totalEnabled       = allPeople.filter(p => p.access_enabled).length
@@ -2307,9 +2307,9 @@ export default function AdminPage() {
                         </div>
                         {/* AI Score */}
                         <div>
-                          {p.tairs_score !== null && p.tier_color ? (
+                          {p.airs_score !== null && p.tier_color ? (
                             <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                              <span style={{ fontSize: '18px', fontWeight: 900, color: p.tier_color.color, lineHeight: 1 }}>{p.tairs_score}</span>
+                              <span style={{ fontSize: '18px', fontWeight: 900, color: p.tier_color.color, lineHeight: 1 }}>{p.airs_score}</span>
                               <span style={{ fontSize: '9px', fontWeight: 700, color: p.tier_color.color, background: p.tier_color.bg, padding: '2px 5px', borderRadius: '4px' }}>{p.tier_label}</span>
                             </div>
                           ) : (
@@ -2365,7 +2365,7 @@ export default function AdminPage() {
               const allTools      = [...new Set(personTasks.flatMap(t => t.tools_used ?? []))]
               const mainAnswer    = personTasks.find(t => t.task_description && t.task_description.trim().length > 20)
               const score         = memberTairs[m.id]?.score ?? 0
-              const tier          = tairsTier(score)
+              const tier          = airsTier(score)
               const readiness     = readinessTask?.ai_readiness ?? null
               return { member: m, personTasks, readinessTask, aiProofEntry, allTools, mainAnswer, score, tier, readiness }
             })
@@ -2556,7 +2556,7 @@ export default function AdminPage() {
                   <div style={{ fontSize: '13px', fontWeight: 700, letterSpacing: '2px', textTransform: 'uppercase', color: '#5B7080', marginBottom: '3px' }}>Department Action Matrix — Live</div>
                   <div style={{ fontSize: '13px', color: '#5B7080' }}>Each department mapped to its current tier and the recommended action to take now. Updates as more staff complete interviews.</div>
                 </div>
-                {sortedDeptTairs.length === 0 ? (
+                {sortedDeptAirs.length === 0 ? (
                   <div style={{ padding: '48px', textAlign: 'center', fontSize: '13px', color: '#5B7080' }}>No interview data yet. Seed demo data or wait for staff to complete interviews.</div>
                 ) : (
                   <div style={{ overflowX: 'auto' }}>
@@ -2569,13 +2569,13 @@ export default function AdminPage() {
                         </tr>
                       </thead>
                       <tbody>
-                        {sortedDeptTairs.map((d, i) => {
-                          const tier    = tairsTier(d.score)
+                        {sortedDeptAirs.map((d, i) => {
+                          const tier    = airsTier(d.score)
                           const play    = PLAYBOOK_TIERS.find(p => p.tier === tier.label) ?? PLAYBOOK_TIERS[4]
                           const impact  = d.impact
                           const covPct  = d.joined > 0 ? Math.round(d.interviewed / d.joined * 100) : 0
                           return (
-                            <tr key={d.dept} style={{ borderBottom: i < sortedDeptTairs.length - 1 ? '1px solid #E8EEF4' : 'none', background: i === 0 ? `${tier.color}04` : 'transparent' }}>
+                            <tr key={d.dept} style={{ borderBottom: i < sortedDeptAirs.length - 1 ? '1px solid #E8EEF4' : 'none', background: i === 0 ? `${tier.color}04` : 'transparent' }}>
                               <td style={{ padding: '13px 14px' }}>
                                 <div style={{ fontSize: '13px', fontWeight: 700, color: '#0F1923' }}>{d.dept}</div>
                               </td>

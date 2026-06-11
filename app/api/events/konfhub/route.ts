@@ -44,7 +44,7 @@ async function pushOne(
   const payload = {
     event_id: konfhubEventId,
     registration_tz: 'Asia/Dubai',
-    utm: { utm_source: 'taos-platform', utm_medium: 'bulk-sync', utm_campaign: 'speaker-registration' },
+    utm: { utm_source: 'eventpilot', utm_medium: 'bulk-sync', utm_campaign: 'speaker-registration' },
     registration_details: {
       [ticketId]: [{
         name:         speaker.name,

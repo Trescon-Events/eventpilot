@@ -68,8 +68,8 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'No team members found under this manager.' }, { status: 400 })
   }
 
-  type TairsCompletion = { passed: boolean; courses?: { tier_level: string } | null }
-  type CompletionRow   = { staff_id: string } & TairsCompletion
+  type AirsCompletion = { passed: boolean; courses?: { tier_level: string } | null }
+  type CompletionRow   = { staff_id: string } & AirsCompletion
 
   /* ── Build lookup maps ── */
   const taskMap: Record<string, number[]> = {}
@@ -78,7 +78,7 @@ export async function POST(req: NextRequest) {
     taskMap[t.staff_id].push(t.ai_readiness ?? 1)
   }
 
-  const completionsByStaff: Record<string, TairsCompletion[]> = {}
+  const completionsByStaff: Record<string, AirsCompletion[]> = {}
   const completionCount: Record<string, number> = {}
   for (const c of (completionRes.data as unknown as CompletionRow[] ?? [])) {
     if (!completionsByStaff[c.staff_id]) completionsByStaff[c.staff_id] = []

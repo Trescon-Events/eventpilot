@@ -108,9 +108,9 @@ export async function GET(req: NextRequest) {
   const managerIds = [...new Set((profiles ?? []).map((p: any) => p.reporting_manager_id).filter(Boolean))] as string[]
   if (managerIds.length > 0) {
     const { data: managers } = await hrms.from('profiles').select('id, email').in('id', managerIds)
-    const { data: allTaosStaff } = await supabaseAdmin.from('staff_members').select('id, email')
+    const { data: allStaff } = await supabaseAdmin.from('staff_members').select('id, email')
     const managerEmailMap = Object.fromEntries((managers ?? []).map((m: any) => [m.id, m.email?.toLowerCase()]))
-    const emailToId = Object.fromEntries((allTaosStaff ?? []).map(s => [s.email.toLowerCase(), s.id]))
+    const emailToId = Object.fromEntries((allStaff ?? []).map(s => [s.email.toLowerCase(), s.id]))
 
     const managerUpdates = (profiles ?? [])
       .filter((p: any) => p.reporting_manager_id && managerEmailMap[p.reporting_manager_id])

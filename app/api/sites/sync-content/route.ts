@@ -158,7 +158,7 @@ ${sponsorsBlock}
     title_default:  ${JSON.stringify(event.name)},
     description:    ${JSON.stringify(event.description || '')},
   },
-  _taos: { event_id: ${JSON.stringify(event.id)}, template_id: ${JSON.stringify(site.template_id)}, generated: ${JSON.stringify(new Date().toISOString())} },
+  _ep: { event_id: ${JSON.stringify(event.id)}, template_id: ${JSON.stringify(site.template_id)}, generated: ${JSON.stringify(new Date().toISOString())} },
 }
 export type EventConfig = typeof EVENT
 `

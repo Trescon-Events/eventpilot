@@ -194,7 +194,7 @@ ${sponsorsBlock}
   },
 
   // ── Event Pilot metadata (do not edit) ───────────────────────────────────────────
-  _taos: {
+  _ep: {
     event_id:    ${JSON.stringify(event.id)},
     template_id: ${JSON.stringify(template_id)},
     generated:   ${JSON.stringify(new Date().toISOString())},
@@ -218,10 +218,10 @@ export type EventConfig = typeof EVENT
           hero_video: website?.hero_video_url,
         },
       },
-      shell_command: `node ~/taos-templates/generate-site.mjs --template ${template_id} --name ${event.name.toLowerCase().replace(/\s+/g, '-')} --event-id ${event.id} --api-url https://taos.trescon.com`,
+      shell_command: `node ~/ep-templates/generate-site.mjs --template ${template_id} --name ${event.name.toLowerCase().replace(/\s+/g, '-')} --event-id ${event.id} --api-url https://eventpilot.tresconglobal.com`,
       instructions: [
         `1. Run the generator (one command does everything):`,
-        `   node ~/taos-templates/generate-site.mjs --template ${template_id} --name ${event.name.toLowerCase().replace(/\s+/g, '-')} --event-id ${event.id} --api-url https://taos.trescon.com`,
+        `   node ~/ep-templates/generate-site.mjs --template ${template_id} --name ${event.name.toLowerCase().replace(/\s+/g, '-')} --event-id ${event.id} --api-url https://eventpilot.tresconglobal.com`,
         `2. Preview: cd ~/my-events/${event.name.toLowerCase().replace(/\s+/g, '-')} && npm run dev`,
         `3. Edit in Claude Code — change anything in src/config/event.ts or components`,
         `4. Deploy to Cloudflare: npm run build && npx wrangler deploy`,

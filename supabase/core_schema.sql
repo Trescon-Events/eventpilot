@@ -66,7 +66,7 @@ CREATE TABLE IF NOT EXISTS staff_members (
 
   -- AI Readiness (AIRS)
   ai_readiness_score        NUMERIC(5,2),
-  tairs_completed           BOOLEAN NOT NULL DEFAULT FALSE,
+  airs_completed            BOOLEAN NOT NULL DEFAULT FALSE,
 
   created_at                TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at                TIMESTAMPTZ NOT NULL DEFAULT NOW()

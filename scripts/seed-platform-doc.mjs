@@ -41,11 +41,11 @@ The platform runs on a continuous loop:
 Managers see their team's progress. Admins see the full organisation. Everyone has a personal dashboard that belongs to them.`,
   },
   {
-    slug:        'tairs-scoring',
+    slug:        'airs-scoring',
     category:    'How the Platform Works',
-    title:       'TAIRS Scoring System',
+    title:       'AIRS Scoring System',
     order_index: 1,
-    content: `TAIRS stands for Trescon AI Readiness Score. It is a number from 0 to 100 representing how embedded AI is in a staff member's current daily work.
+    content: `AIRS stands for AI Readiness Score. It is a number from 0 to 100 representing how embedded AI is in a staff member's current daily work.
 
 HOW IT IS CALCULATED
 

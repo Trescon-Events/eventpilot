@@ -89,8 +89,8 @@ export async function GET(req: NextRequest) {
     .select('staff_id, course_id, passed, completed_at, courses(tier_level)')
     .in('staff_id', teamIds)
 
-  type TairsCompletion = { passed: boolean; courses?: { tier_level: string } | null }
-  type CompletionRow   = { staff_id: string; passed: boolean; completed_at: string } & TairsCompletion
+  type AirsCompletion = { passed: boolean; courses?: { tier_level: string } | null }
+  type CompletionRow   = { staff_id: string; passed: boolean; completed_at: string } & AirsCompletion
 
   // Group by staff_id
   const taskMap: Record<string, number[]> = {}
@@ -99,7 +99,7 @@ export async function GET(req: NextRequest) {
     taskMap[t.staff_id].push(t.ai_readiness ?? 1)
   }
 
-  const completionsByStaff: Record<string, TairsCompletion[]> = {}
+  const completionsByStaff: Record<string, AirsCompletion[]> = {}
   const completionMap: Record<string, number> = {}
   const lastActiveMap: Record<string, string> = {}
   for (const c of (completions as unknown as CompletionRow[] ?? [])) {
@@ -121,7 +121,7 @@ export async function GET(req: NextRequest) {
     const tier  = getTier(score)
     return {
       ...m,
-      tairs_score:       score,
+      airs_score:        score,
       tier,
       track:             getTrack(score),
       completed_courses: completionMap[m.id] ?? 0,

@@ -15,7 +15,7 @@ type Member = {
   job_level: string
   team: string | null
   manager_id: string | null
-  tairs_score: number
+  airs_score: number
   tier: string
   track: string
   completed_courses: number
@@ -205,7 +205,7 @@ function TeamContent() {
   })
 
   // Summary stats
-  const avgScore     = avg(members.map(m => m.tairs_score))
+  const avgScore     = avg(members.map(m => m.airs_score))
   const totalDone    = members.reduce((s, m) => s + m.completed_courses, 0)
   const activeCount  = members.filter(m => m.last_active && daysSince(m.last_active) !== null).length
   const tierCounts   = Object.fromEntries(Object.keys(TIER_COLOR).map(t => [t, members.filter(m => m.tier === t).length]))
@@ -441,7 +441,7 @@ function TeamContent() {
                   </div>
                   <div style={{ fontSize: '13px', color: '#2D3E50' }}>{m.department ?? '—'}</div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                    <span style={{ fontSize: '13px', fontWeight: 900, color: tc }}>{m.tairs_score}</span>
+                    <span style={{ fontSize: '13px', fontWeight: 900, color: tc }}>{m.airs_score}</span>
                     <span style={{ fontSize: '13px', fontWeight: 700, color: tc, background: `${tc}18`, padding: '2px 7px', borderRadius: '6px' }}>{m.tier.replace('AI-', '')}</span>
                   </div>
                   <div style={{ fontSize: '13px', fontWeight: 600, color: '#2D3E50', textTransform: 'capitalize' }}>{m.track}</div>

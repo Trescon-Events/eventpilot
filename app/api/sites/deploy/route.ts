@@ -8,7 +8,7 @@ import { unzipSync, strFromU8 } from 'fflate'
    Body: { event_id, template_id }
 
    1. Generates the event.ts config from Event Pilot data
-   2. Reads template source files from GitHub (Trescon-Events/taos-templates)
+   2. Reads template source files from GitHub (Trescon-Events/ep-templates)
    3. Creates a new private GitHub repo under Trescon-Events org
    4. Pushes all template files + injects generated event.ts
    5. Adds GitHub Actions workflow for automatic Cloudflare Workers deploy
@@ -27,7 +27,7 @@ import { unzipSync, strFromU8 } from 'fflate'
 
 const GH_TOKEN           = process.env.GITHUB_TOKEN
 const GH_ORG             = 'Trescon-Events'
-const TEMPLATES_REPO     = 'taos-templates'
+const TEMPLATES_REPO     = 'ep-templates'
 const GH_SITES_OWNER     = 'Trescon-Events'   // repos created under org
 const CF_API_TOKEN       = process.env.CF_API_TOKEN ?? ''
 const CF_ACCOUNT_ID      = process.env.CF_ACCOUNT_ID ?? ''
@@ -165,7 +165,7 @@ ${sponsorsBlock}
     title_default:  ${JSON.stringify(event.name)},
     description:    ${JSON.stringify(event.description || '')},
   },
-  _taos: { event_id: ${JSON.stringify(event.id)}, template_id: ${JSON.stringify(template_id)}, generated: ${JSON.stringify(new Date().toISOString())} },
+  _ep: { event_id: ${JSON.stringify(event.id)}, template_id: ${JSON.stringify(template_id)}, generated: ${JSON.stringify(new Date().toISOString())} },
 }
 export type EventConfig = typeof EVENT
 `
@@ -228,7 +228,7 @@ export type EventConfig = typeof EVENT
 
     if (filesFound === 0) {
       return NextResponse.json(
-        { error: `Template "${template_id}" not found in zipball. Check the folder name in taos-templates.` },
+        { error: `Template "${template_id}" not found in zipball. Check the folder name in ep-templates.` },
         { status: 404 },
       )
     }

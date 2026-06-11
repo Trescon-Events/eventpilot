@@ -34,7 +34,7 @@ Managers see their team's progress. Admins see the full organisation. Everyone h
 
   /* ── 2. AIRS SCORE ────────────────────────────────────────────── */
   {
-    slug: 'tairs-score-explained',
+    slug: 'airs-score-explained',
     category: 'Platform Overview',
     title: 'How Your AI Readiness Score Works',
     content: `AIRS stands for AI Readiness Score. It is a number from 0 to 100 that represents how embedded AI is in your current daily work.

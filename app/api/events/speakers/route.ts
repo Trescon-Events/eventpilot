@@ -129,7 +129,7 @@ async function syncSpeakerToKonfHub(
   const payload = {
     event_id: web.konfhub_event_id,
     registration_tz: 'Asia/Dubai',
-    utm: { utm_source: 'taos-platform', utm_medium: 'speaker-approval', utm_campaign: 'speaker-registration' },
+    utm: { utm_source: 'eventpilot', utm_medium: 'speaker-approval', utm_campaign: 'speaker-registration' },
     registration_details: {
       [ticketId]: [{
         name:         speaker.name,

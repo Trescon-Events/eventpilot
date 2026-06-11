@@ -133,7 +133,7 @@ function _persist() {
         attempts:      u.attempts,
       })),
     }))
-    localStorage.setItem('taos_scan_manager_v2', JSON.stringify({ jobs: lightweight, sessionCredits: _sessionCredits }))
+    localStorage.setItem('ep_scan_manager_v2', JSON.stringify({ jobs: lightweight, sessionCredits: _sessionCredits }))
   } catch { /* ignore quota errors */ }
 }
 
@@ -371,7 +371,7 @@ export function cancelJob(jobId: string): void {
 export function restoreSession(): void {
   if (typeof window === 'undefined') return
   try {
-    const raw = localStorage.getItem('taos_scan_manager_v2')
+    const raw = localStorage.getItem('ep_scan_manager_v2')
     if (!raw) return
     const data = JSON.parse(raw)
     const sc = data.sessionCredits

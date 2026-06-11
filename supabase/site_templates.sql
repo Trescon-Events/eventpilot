@@ -10,7 +10,7 @@ create table if not exists site_templates (
   description     text not null,
   preview_url     text,                        -- Screenshot URL
   repo_url        text not null,               -- GitHub URL for this template folder
-  folder_name     text not null,               -- folder inside taos-templates repo
+  folder_name     text not null,               -- folder inside ep-templates repo
   tech            text[] default '{}',
   pages           text[] default '{}',
   style_tags      text[] default '{}',
@@ -45,7 +45,7 @@ insert into site_templates (id, label, event_name, description, repo_url, folder
  'Template 1 — Finance 2045',
  'Finance 2045',
  'Glassmorphism hero with animated corner brackets, teal + gold palette, multi-page with subnav. Best for: finance, BFSI, investment, capital markets.',
- 'https://github.com/Trescon-Events/taos-templates/tree/main/template-1-finance2045',
+ 'https://github.com/Trescon-Events/ep-templates/tree/main/template-1-finance2045',
  'template-1-finance2045',
  ARRAY['Next.js', 'Cloudflare Workers', 'Konfhub API', 'Lufga font'],
  ARRAY['home', 'agenda', 'speakers', 'partners', 'attend', 'networking', 'startups', 'knowledge-hub', 'blog'],
@@ -56,7 +56,7 @@ insert into site_templates (id, label, event_name, description, repo_url, folder
  'Template 2 — Vault 2047',
  'Vault 2047',
  'Cyber/tech dark theme, Orbitron + IBM Plex Sans, copper shimmer headline, full admin panel with DB-backed content. Best for: cybersecurity, tech, enterprise.',
- 'https://github.com/Trescon-Events/taos-templates/tree/main/template-2-vault2047',
+ 'https://github.com/Trescon-Events/ep-templates/tree/main/template-2-vault2047',
  'template-2-vault2047',
  ARRAY['Next.js', 'Neon Postgres', 'Framer Motion', 'Lenis scroll', 'Admin panel'],
  ARRAY['home', 'speakers', 'agenda', 'partners', 'exhibitors', 'media', 'blog', 'register', 'admin'],
@@ -67,7 +67,7 @@ insert into site_templates (id, label, event_name, description, repo_url, folder
  'Template 3 — World CX Summit',
  'World CX Summit & Awards',
  'Clean enterprise navy + teal + gold, rolling digit stats, cursor glow, awards section. Best for: CX, enterprise tech, leadership, awards ceremonies.',
- 'https://github.com/Trescon-Events/taos-templates/tree/main/template-3-world-cx-summit',
+ 'https://github.com/Trescon-Events/ep-templates/tree/main/template-3-world-cx-summit',
  'template-3-world-cx-summit',
  ARRAY['Next.js', 'Vercel Blob', 'Plus Jakarta Sans', 'CursorGlow'],
  ARRAY['home', 'agenda', 'speakers', 'awards', 'partners', 'attend', 'blog', 'networking'],
@@ -78,7 +78,7 @@ insert into site_templates (id, label, event_name, description, repo_url, folder
  'Template 4 — World AI Show',
  'World AI Show Indonesia',
  'Warm off-white hero with animated SVG data streams, parallax scroll. Unique light theme. Best for: AI, innovation, tech events wanting a different look.',
- 'https://github.com/Trescon-Events/taos-templates/tree/main/template-4-world-ai-show',
+ 'https://github.com/Trescon-Events/ep-templates/tree/main/template-4-world-ai-show',
  'template-4-world-ai-show',
  ARRAY['Next.js', 'Space Grotesk', 'Inter', 'SVG animation', 'Parallax'],
  ARRAY['home', 'speakers', 'agenda', 'partners', 'register', 'enquire', 'knowledge-hub'],
@@ -89,7 +89,7 @@ insert into site_templates (id, label, event_name, description, repo_url, folder
  'Template 5 — Big CIO Show',
  'Big CIO Show & Awards',
  'Enterprise CIO/awards format, discussion themes grid, Konfhub ticketing, exhibitor portal. Best for: CIO/CISO events, IT leadership, awards, enterprise.',
- 'https://github.com/Trescon-Events/taos-templates/tree/main/template-5-big-cio-show',
+ 'https://github.com/Trescon-Events/ep-templates/tree/main/template-5-big-cio-show',
  'template-5-big-cio-show',
  ARRAY['Next.js', 'Plus Jakarta Sans', 'Konfhub', 'Awards module'],
  ARRAY['home', 'agenda', 'speakers', 'awards', 'partners', 'attend', 'networking', 'startups'],
