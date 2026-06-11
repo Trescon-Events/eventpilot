@@ -4246,6 +4246,17 @@ export default function AdminPage() {
                 </div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
                   {[
+                    { date: '11 Jun 2026 (SSO + Access Control) — Madhu', items: [
+                      'Microsoft 365 SSO — staff sign in with @tresconglobal.com Microsoft credentials. No separate platform password. Azure AD OAuth via manual implementation (not NextAuth), sessions created automatically, admin gate bypassed for SSO arrivals',
+                      'Access roles system — access_roles TEXT[] column on staff_members with 6 roles: Standard, HR, Project Manager, Project Director, Admin, Super Admin. Synced from HRMS user_roles on every sync. Admin can manually override any staff member in the People tab',
+                      'HRMS sync upgraded (both on-demand and cron) — now also pulls user_roles → access_roles and project_roles → event assignment types from HRMS on every sync',
+                      'User Management UI in People tab — colored role badge pills per staff row. Roles button opens modal with 6 checkboxes per person, saves instantly via PATCH /api/staff-roles',
+                      'Admin re-authentication gate removed for SSO arrivals — no secondary password prompt after Microsoft login',
+                      'Onboarding assessment no longer forced at login — staff can skip at any point with a "Don\'t ask again" option. Assessment remains accessible from inside the app',
+                      'Toolkit per-tool access grants — tool_grants JSONB now drives toolkit page visibility. Staff see only the tools they\'ve been granted. Admin-only tools (Course Builder, TresAgent) never shown to non-admins. Sidebar categories disappear entirely when empty',
+                      'Khalifa (khalifa@tresconglobal.com) — Website Builder access granted',
+                      'Prashant (prashant@tresconglobal.com) — Website Builder, Market Intelligence, and Outreach access granted',
+                    ]},
                     { date: '11 Jun 2026 (Course Builder) — Durga', items: [
                       'Course Builder launched at /admin/courses — dedicated page replacing the 404 that was there before',
                       'Review Queue tab: all draft courses (AI-generated, dept-seeded, suggested) shown as cards. Actions: Review (opens editor), Publish (one click), Delete',
@@ -4431,6 +4442,9 @@ export default function AdminPage() {
                 </div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                   {[
+                    'Microsoft 365 SSO — staff sign in with @tresconglobal.com credentials, no separate platform password needed',
+                    'Access roles — 6-level role system (Standard → Super Admin) per staff member. Synced from HRMS, overridable by admin. Controls platform access beyond tool_grants',
+                    'Toolkit per-tool grants — each staff member sees only the tools they\'ve been explicitly granted. Inaccessible tools and their sidebar categories are hidden entirely',
                     'AIRS scoring — live AI readiness score for every staff member',
                     'Org Chart — Directory (dept-grouped table with tool dots) + Hierarchy (indented list). Click any person: full reporting chain + tool access toggles in a side panel',
                     'Tool Permissions — 8 platform modules grantable per staff member with inline dot badges, drawer UI, and Bulk Grant',
@@ -4501,6 +4515,33 @@ export default function AdminPage() {
                 </div>
               </div>
 
+              {/* ── Pre-Phase 3 Checklist ── */}
+              <div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '16px' }}>
+                  <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#00897B' }} />
+                  <div style={{ fontSize: '11px', fontWeight: 800, letterSpacing: '1.8px', textTransform: 'uppercase', color: '#00897B' }}>Pre-Phase 3 — Current Sprint</div>
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                  {[
+                    { done: true,  title: 'Microsoft 365 SSO',               desc: 'Staff log in with @tresconglobal.com Microsoft credentials. No platform password needed. Session synced automatically.' },
+                    { done: true,  title: 'User Management + Access Roles',   desc: 'Backend schema, HRMS sync, and admin UI all complete. 6-role system visible and editable in People tab.' },
+                    { done: false, title: 'Khalifa — Brand Book test',        desc: 'Khalifa (branding head) has Website Builder access. Needs to test brand book section under Website Builder for AI2047.' },
+                    { done: false, title: 'Website Builder test — AI2047',    desc: 'Prashant + Khalifa to fully test the website builder for AI2047 event. Prashant has WB + Market Intel + Outreach access.' },
+                    { done: false, title: 'Social media manager — AI2047',    desc: 'Phase 3 proper. Content Hub social publishing for AI2047 — LinkedIn, Instagram, Facebook. Needs Meta API tokens from Madhu.' },
+                  ].map((item, i) => (
+                    <div key={i} style={{ padding: '12px 14px', background: item.done ? 'rgba(0,137,123,0.04)' : 'rgba(0,137,123,0.02)', border: `1px solid ${item.done ? 'rgba(0,137,123,0.2)' : '#DDE8EE'}`, borderRadius: '10px', display: 'flex', gap: '10px', alignItems: 'flex-start' }}>
+                      <div style={{ width: '18px', height: '18px', borderRadius: '50%', background: item.done ? '#00897B' : '#E8EEF4', border: item.done ? 'none' : '2px solid #B8CDD8', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, marginTop: '1px' }}>
+                        {item.done && <svg width="10" height="10" fill="none" stroke="#fff" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>}
+                      </div>
+                      <div>
+                        <div style={{ fontSize: '13px', fontWeight: 700, color: item.done ? '#00897B' : '#0F1923', marginBottom: '3px' }}>{item.title}{item.done ? ' ✓' : ''}</div>
+                        <div style={{ fontSize: '13px', color: '#5B7080', lineHeight: 1.6 }}>{item.desc}</div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
               {/* ── Blocked / Waiting ── */}
               <div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '16px' }}>
@@ -4510,7 +4551,6 @@ export default function AdminPage() {
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                   {[
                     { title: 'Content Hub social publishing', blocker: 'Waiting on Meta API tokens from Madhu', desc: 'Approval queue and campaign workflow are fully built. Once Meta tokens are provided, LinkedIn, Instagram, and Facebook publishing can be wired up in one session.' },
-                    { title: 'Security layer — IP whitelist', blocker: 'Waiting on Bangalore + Dubai office IPs from Durga', desc: 'Brute force protection, audit log, signed sessions, session timeout, and force password change are all planned. IP whitelist step is the only one that needs the office IPs.' },
                   ].map((item, i) => (
                     <div key={i} style={{ padding: '12px 14px', background: 'rgba(217,119,6,0.05)', border: '1px solid rgba(217,119,6,0.2)', borderRadius: '10px' }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '5px' }}>
