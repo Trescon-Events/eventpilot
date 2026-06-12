@@ -26,8 +26,9 @@ async function logAttempt(email: string, ip: string, success: boolean, reason: s
 }
 
 export async function POST(req: NextRequest) {
-  const { email, password } = await req.json()
+  const { email, password, rememberMe } = await req.json()
   const ip = getClientIp(req)
+  const SESSION_MAX_AGE = rememberMe ? 60 * 60 * 24 * 30 : 60 * 60 * 8
 
   if (!email?.trim() || !password?.trim()) {
     return NextResponse.json({ error: 'Email and password are required.' }, { status: 400 })
@@ -73,12 +74,12 @@ export async function POST(req: NextRequest) {
     if (!staff) {
       const syntheticSession = Buffer.from(JSON.stringify({ sid: 'super-admin', jl: 'super_admin', adm: true, dept: '' })).toString('base64')
       const r = NextResponse.json({ id: 'super-admin', name: 'Super Admin', department: null, role: 'Super Admin', office_id: null, job_level: 'super_admin', is_admin: true, has_reports: true, has_profile: true })
-      r.cookies.set('tcs_session', syntheticSession, { httpOnly: true, secure: process.env.NODE_ENV === 'production', sameSite: 'lax', maxAge: 60 * 60 * 8, path: '/' })
+      r.cookies.set('tcs_session', syntheticSession, { httpOnly: true, secure: process.env.NODE_ENV === 'production', sameSite: 'lax', maxAge: SESSION_MAX_AGE, path: '/' })
       return r
     }
     const adminSession = Buffer.from(JSON.stringify({ sid: staff.id, jl: staff.job_level ?? 'super_admin', adm: true, dept: staff.department ?? '' })).toString('base64')
     const r = NextResponse.json({ id: staff.id, name: staff.name, department: staff.department, role: staff.role, office_id: staff.office_id, job_level: staff.job_level ?? 'super_admin', is_admin: true, has_reports: true, has_profile: true })
-    r.cookies.set('tcs_session', adminSession, { httpOnly: true, secure: process.env.NODE_ENV === 'production', sameSite: 'lax', maxAge: 60 * 60 * 8, path: '/' })
+    r.cookies.set('tcs_session', adminSession, { httpOnly: true, secure: process.env.NODE_ENV === 'production', sameSite: 'lax', maxAge: SESSION_MAX_AGE, path: '/' })
     return r
   }
 
@@ -169,7 +170,7 @@ export async function POST(req: NextRequest) {
     httpOnly: true,
     secure:   process.env.NODE_ENV === 'production',
     sameSite: 'lax',
-    maxAge:   60 * 60 * 8, // 8 hours
+    maxAge:   SESSION_MAX_AGE,
     path:     '/',
   })
   return res

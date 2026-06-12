@@ -130,12 +130,12 @@ export async function GET(req: NextRequest) {
   // Clear SSO state cookie
   res.cookies.set('sso_state', '', { maxAge: 0, path: '/' })
 
-  // Set session cookie — identical lifetime to password login
+  // SSO sessions last 30 days — Microsoft handles re-auth if the user's account is suspended
   res.cookies.set('tcs_session', sessionPayload, {
     httpOnly: true,
     secure:   process.env.NODE_ENV === 'production',
     sameSite: 'lax',
-    maxAge:   60 * 60 * 8,
+    maxAge:   60 * 60 * 24 * 30,
     path:     '/',
   })
 

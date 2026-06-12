@@ -149,6 +149,9 @@ function DashboardContent() {
   const [aiRecsLoading,  setAiRecsLoading]  = useState(false)
   const [aiRecsReady,    setAiRecsReady]    = useState(false)
   const [isDemo,         setIsDemo]         = useState(false)
+  // Team courses (managers only)
+  type TeamMember = { id: string; name: string; department: string; role: string; job_level: string; courses_done: number; total_courses: number; mandatory_done: number; mandatory_total: number; last_activity: string | null }
+  const [teamCourses,    setTeamCourses]    = useState<TeamMember[]>([])
   // Knowledge base + events
   type DocItem   = { id: string; title: string; type: string; word_count: number; events?: { name: string } | null }
   type EventItem = { id: string; name: string; type: string; status: string; event_date: string | null; city: string | null; my_role: string | null }
@@ -226,18 +229,6 @@ function DashboardContent() {
       const status = statusRes.ok ? await statusRes.json() : { is_demo: false }
       setIsDemo(status.is_demo ?? false)
 
-      // Gate: no task profiles = questionnaire not completed → redirect
-      // Always return to personal dashboard after questionnaire so they see their AI Readiness Score first
-      const tasks: TaskProfile[] = data.tasks ?? []
-      const isAdminSession = sessionStorage.getItem('tai_admin_authed') === '1'
-      if (tasks.length === 0 && staffId && staffId !== 'super-admin' && !isAdminSession) {
-        const s    = data.staff
-        const name = encodeURIComponent(s?.name ?? '')
-        const dept = encodeURIComponent(s?.department ?? 'Other')
-        window.location.href = `/profile?id=${staffId}&name=${name}&dept=${dept}&next=${encodeURIComponent(`/dashboard?id=${staffId}`)}`
-        return
-      }
-
       setStaff(data.staff)
       setTasks(data.tasks ?? [])
       setCourses(Array.isArray(data.courses) ? data.courses : [])
@@ -249,6 +240,13 @@ function DashboardContent() {
       setLoading(false)
       /* Fire AI recommendations async — cached for 30 min so Gemini isn't hit on every page load */
       loadAiRecs()
+      /* Load team course progress for managers */
+      if (data.staff?.has_reports && staffId) {
+        fetch(`/api/team-courses?manager_id=${staffId}`)
+          .then(r => r.ok ? r.json() : [])
+          .then(d => setTeamCourses(Array.isArray(d) ? d : []))
+          .catch(() => {})
+      }
     } catch {
       setError('Failed to load dashboard data.')
       setLoading(false)
@@ -599,6 +597,22 @@ function DashboardContent() {
               { value: upcomingEvts,  label: 'events assigned',    color: '#D97706' },
               { value: openTasks,     label: 'open tasks',          color: '#8B1A1A' },
               { value: mandatoryLeft, label: 'mandatory pending',   color: '#0E7490' },
+            ]
+          }
+
+          // Course-only rollout: override workspace for regular staff (no admin, no reports)
+          if (!isAdmin && !isMgmt && !isTeamMgr && !staff.has_reports) {
+            wsTitle = 'My Learning'
+            wsSub   = 'Your AI readiness journey'
+            wsColor = '#00897B'
+            wsTiles = [
+              { label: 'Course Library', href: `/dashboard/library?id=${staffId}`, color: '#3D6B00' },
+              { label: 'My HR',          href: '/my-hr',                            color: '#EC4899' },
+            ]
+            wsStats = [
+              { value: completedCount,         label: 'courses done',     color: '#00897B' },
+              { value: mandatoryLeft,           label: 'mandatory left',   color: '#8B1A1A' },
+              { value: totalMandatory,          label: 'total mandatory',  color: '#0E7490' },
             ]
           }
 
@@ -1056,6 +1070,67 @@ function DashboardContent() {
         })()}
 
       </div>
+
+      {/* ── My Team's Learning (managers only) ── */}
+      {teamCourses.length > 0 && (
+        <div style={{ maxWidth: '900px', margin: '0 auto', padding: '0 24px 32px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '14px' }}>
+            <div style={{ fontSize: '13px', fontWeight: 800, letterSpacing: '2px', color: '#7C3AED', textTransform: 'uppercase' }}>My Team&apos;s Learning</div>
+            <span style={{ fontSize: '13px', color: '#5B7080' }}>
+              {teamCourses.filter(m => m.courses_done > 0).length}/{teamCourses.length} members started
+            </span>
+          </div>
+          <div style={{ background: '#FFFFFF', border: '1px solid #DDE8EE', borderRadius: '16px', overflow: 'hidden' }}>
+            {/* Header row */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 80px 120px 110px', gap: '12px', padding: '10px 20px', background: '#F8FAFC', borderBottom: '1px solid #DDE8EE' }}>
+              {['Team Member', 'Done', 'Mandatory', 'Last Active'].map(h => (
+                <div key={h} style={{ fontSize: '11px', fontWeight: 800, color: '#5B7080', letterSpacing: '1px', textTransform: 'uppercase' }}>{h}</div>
+              ))}
+            </div>
+            {teamCourses.map((member, idx) => {
+              const pct = member.total_courses > 0 ? Math.round((member.courses_done / member.total_courses) * 100) : 0
+              const mandPct = member.mandatory_total > 0 ? Math.round((member.mandatory_done / member.mandatory_total) * 100) : 0
+              const lastActive = member.last_activity
+                ? new Date(member.last_activity).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })
+                : 'Not started'
+              return (
+                <div
+                  key={member.id}
+                  style={{ display: 'grid', gridTemplateColumns: '1fr 80px 120px 110px', gap: '12px', padding: '14px 20px', borderBottom: idx < teamCourses.length - 1 ? '1px solid #F1F5F9' : 'none', alignItems: 'center' }}
+                >
+                  {/* Name + role */}
+                  <div>
+                    <div style={{ fontSize: '13px', fontWeight: 700, color: '#0F1923', marginBottom: '2px' }}>{member.name}</div>
+                    <div style={{ fontSize: '12px', color: '#5B7080' }}>{member.role} · {member.department}</div>
+                  </div>
+                  {/* Courses done */}
+                  <div>
+                    <div style={{ fontSize: '13px', fontWeight: 700, color: pct >= 50 ? '#3D6B00' : '#0F1923' }}>{member.courses_done}<span style={{ color: '#9CA3AF', fontWeight: 500 }}>/{member.total_courses}</span></div>
+                    <div style={{ height: '4px', borderRadius: '2px', background: '#E8EEF4', marginTop: '4px', overflow: 'hidden' }}>
+                      <div style={{ height: '100%', width: `${pct}%`, borderRadius: '2px', background: pct >= 50 ? '#7DC520' : '#00897B', transition: 'width 0.3s' }} />
+                    </div>
+                  </div>
+                  {/* Mandatory */}
+                  <div>
+                    <div style={{ fontSize: '13px', fontWeight: 700, color: member.mandatory_done >= member.mandatory_total && member.mandatory_total > 0 ? '#3D6B00' : '#0F1923' }}>
+                      {member.mandatory_done}<span style={{ color: '#9CA3AF', fontWeight: 500 }}>/{member.mandatory_total}</span>
+                      {member.mandatory_done < member.mandatory_total && (
+                        <span style={{ marginLeft: '6px', fontSize: '11px', fontWeight: 800, color: '#8B1A1A', background: '#8B1A1A12', padding: '1px 6px', borderRadius: '4px' }}>
+                          {member.mandatory_total - member.mandatory_done} left
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                  {/* Last active */}
+                  <div style={{ fontSize: '13px', color: member.last_activity ? '#0F1923' : '#9CA3AF', fontWeight: member.last_activity ? 500 : 400 }}>
+                    {lastActive}
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      )}
 
       {/* ── My Events section ── */}
       {events.length > 0 && (

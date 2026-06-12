@@ -83,6 +83,17 @@ export async function GET(req: NextRequest) {
   const id = req.nextUrl.searchParams.get('id')
   if (!id) return NextResponse.json({ error: 'id required' }, { status: 400 })
 
+  // Enforce ownership: staff can only load their own dashboard; admins can load any
+  const sessionRaw = req.cookies.get('tcs_session')?.value
+  if (sessionRaw && id !== 'super-admin') {
+    try {
+      const session = JSON.parse(Buffer.from(sessionRaw, 'base64').toString('utf-8'))
+      if (!session.adm && session.sid !== id) {
+        return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+      }
+    } catch { /* malformed cookie — middleware already validated session exists */ }
+  }
+
   /* Super-admin synthetic session */
   if (id === 'super-admin') {
     const [allCourses, completionsRes] = await Promise.all([

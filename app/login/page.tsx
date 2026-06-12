@@ -4,11 +4,12 @@ import { useState, useEffect } from 'react'
 import Image from 'next/image'
 
 export default function LoginPage() {
-  const [email,    setEmail]    = useState('')
-  const [password, setPassword] = useState('')
-  const [showPass, setShowPass] = useState(false)
-  const [loading,  setLoading]  = useState(false)
-  const [error,    setError]    = useState('')
+  const [email,      setEmail]      = useState('')
+  const [password,   setPassword]   = useState('')
+  const [showPass,   setShowPass]   = useState(false)
+  const [rememberMe, setRememberMe] = useState(true)
+  const [loading,    setLoading]    = useState(false)
+  const [error,      setError]      = useState('')
 
   // Show errors redirected back from SSO callback
   useEffect(() => {
@@ -52,7 +53,7 @@ export default function LoginPage() {
       const res  = await fetch('/api/login', {
         method:  'POST',
         headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify({ email: email.trim(), password: password.trim() }),
+        body:    JSON.stringify({ email: email.trim(), password: password.trim(), rememberMe }),
       })
       const data = await res.json()
       if (!res.ok) { setError(data.error ?? 'Login failed. Try again.'); setLoading(false); return }
@@ -260,6 +261,17 @@ export default function LoginPage() {
                 </button>
               </div>
             </div>
+
+            {/* Remember me */}
+            <label style={{ display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer', userSelect: 'none' }}>
+              <div
+                onClick={() => setRememberMe(v => !v)}
+                style={{ width: '18px', height: '18px', borderRadius: '5px', border: `2px solid ${rememberMe ? '#00897B' : '#B8CDD8'}`, background: rememberMe ? '#00897B' : '#FFFFFF', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, transition: 'all 0.15s', cursor: 'pointer' }}
+              >
+                {rememberMe && <svg width="10" height="10" fill="none" stroke="white" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>}
+              </div>
+              <span style={{ fontSize: '13px', color: '#2D3E50', fontWeight: 500 }}>Remember me on this device</span>
+            </label>
 
             {error && (
               <div style={{ padding: '12px 16px', background: '#FFF1F2', border: '1px solid #FCA5A5', borderLeft: '4px solid #B91C1C', borderRadius: '10px', fontSize: '13px', color: '#B91C1C', fontWeight: 700, lineHeight: 1.5 }}>
