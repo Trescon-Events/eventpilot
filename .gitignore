@@ -39,3 +39,12 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# local utility scripts (one-time ops, not part of the app)
+scripts/
+
+# supabase temp dir (local CLI state)
+supabase/.temp/
+
+# handoff drafts
+HANDOFF_TO_*.md

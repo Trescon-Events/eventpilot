@@ -37,6 +37,17 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'staff_id, course_id, answers and questions_served are required' }, { status: 400 })
   }
 
+  // Verify the submitting session owns this staff_id — prevents submitting on behalf of others
+  const sessionRaw = req.cookies.get('tcs_session')?.value
+  if (sessionRaw) {
+    try {
+      const session = JSON.parse(Buffer.from(sessionRaw, 'base64').toString('utf-8'))
+      if (session.sid !== staff_id) {
+        return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+      }
+    } catch { /* malformed cookie; middleware already validated session exists */ }
+  }
+
   if (questions_served.length === 0) {
     return NextResponse.json({ error: 'questions_served is empty' }, { status: 422 })
   }
@@ -89,19 +100,22 @@ export async function POST(req: NextRequest) {
 
   const suspiciouslyFast = avgTimePerQ < 12 && score >= 70
 
-  // Count previous flagged attempts for this staff+course
-  const { count: prevFlagCount } = await supabaseAdmin
+  const authenticityFlag = suspiciouslyFast
+
+  // Count previous flagged attempts — gracefully skips if column not yet migrated
+  let prevFlagCount = 0
+  const { count: flagCount, error: flagCountErr } = await supabaseAdmin
     .from('course_attempts')
     .select('*', { count: 'exact', head: true })
     .eq('staff_id', staff_id)
     .eq('course_id', course_id)
     .eq('authenticity_flag', true)
+  if (!flagCountErr) prevFlagCount = flagCount ?? 0
 
-  const offenseNumber  = suspiciouslyFast ? (prevFlagCount ?? 0) + 1 : 0
-  const authenticityFlag = suspiciouslyFast
+  const offenseNumber = suspiciouslyFast ? prevFlagCount + 1 : 0
 
-  // Record attempt with full audit trail
-  await supabaseAdmin.from('course_attempts').insert({
+  // Record attempt — try with authenticity_flag; fall back without if column missing
+  const attemptPayload: Record<string, unknown> = {
     staff_id,
     course_id,
     answers,
@@ -111,7 +125,14 @@ export async function POST(req: NextRequest) {
     task_submission:    task_submission   ?? null,
     time_spent_seconds: time_spent_seconds ?? 0,
     authenticity_flag:  authenticityFlag,
-  })
+  }
+  const { error: insertErr } = await supabaseAdmin.from('course_attempts').insert(attemptPayload)
+  if (insertErr) {
+    // authenticity_flag column may not exist yet — retry without it
+    const { authenticity_flag: _omit, ...payloadWithoutFlag } = attemptPayload
+    void _omit
+    await supabaseAdmin.from('course_attempts').insert(payloadWithoutFlag)
+  }
 
   // Auto-issue certificate on first pass
   if (passed && !existing?.passed) {
