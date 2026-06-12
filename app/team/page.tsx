@@ -3,7 +3,7 @@
 import { useState, useEffect, Suspense } from 'react'
 import { useSearchParams } from 'next/navigation'
 import Link from 'next/link'
-import NavBar, { SignOutBtn, MOD_PEOPLE } from '@/app/components/NavBar'
+import NavBar, { ProfileMenu, MOD_PEOPLE } from '@/app/components/NavBar'
 
 type Member = {
   id: string
@@ -157,7 +157,7 @@ function TeamContent() {
         subtitle="Team Dashboard"
         rightSlot={<>
           {staffId && <Link className="tbtn tbtn-teal" href={`/dashboard?id=${staffId}`}>My Dashboard</Link>}
-          <SignOutBtn />
+          <ProfileMenu />
         </>}
       />
 
@@ -225,7 +225,7 @@ function TeamContent() {
         rightSlot={<>
           {staffId && <Link className="tbtn tbtn-teal" href={`/dashboard?id=${staffId}`}>My Dashboard</Link>}
           {isAdmin && <Link className="tbtn tbtn-teal" href="/admin">Admin Dashboard</Link>}
-          <SignOutBtn />
+          <ProfileMenu />
         </>}
       />
 

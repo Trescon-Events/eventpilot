@@ -5,7 +5,7 @@ import { useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { computeAIRS, getTier, getTrack, TIER_COLORS } from '@/app/lib/airs'
 import PlatformMenu from '@/app/components/PlatformMenu'
-import NavBar, { SignOutBtn, MOD_EVENTPILOT } from '@/app/components/NavBar'
+import NavBar, { ProfileMenu, MOD_EVENTPILOT } from '@/app/components/NavBar'
 
 /* ─── Types ──────────────────────────────────────────────────── */
 interface StaffMember {
@@ -382,10 +382,7 @@ function DashboardContent() {
             </Link>
           )}
           <PlatformMenu staffId={staffId} />
-          <div style={{ width: '30px', height: '30px', borderRadius: '8px', background: 'rgba(0,137,123,0.15)', border: '1.5px solid rgba(0,137,123,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-            <span style={{ fontSize: '13px', fontWeight: 800, color: '#00897B' }}>{firstName.charAt(0)}</span>
-          </div>
-          <SignOutBtn />
+          <ProfileMenu name={staff.name} roles={staff.has_reports ? undefined : undefined} />
         </>}
       />
 

@@ -1,6 +1,7 @@
 'use client'
 
 import Link from 'next/link'
+import { useState, useEffect, useRef } from 'react'
 
 interface Module {
   name: string
@@ -37,17 +38,21 @@ export default function NavBar({
 
   return (
     <nav className="t-nav">
-      {/* ── Left: Trescon logo + optional module + optional page label ── */}
+      {/* ── Left: Trescon logo + EventPilot name + optional module page label ── */}
       <div className="t-nav-left">
         <Link
           href={homeHref}
-          style={{ display: 'flex', alignItems: 'center', gap: '0', textDecoration: 'none', flexShrink: 0 }}
+          style={{ display: 'flex', alignItems: 'center', gap: '10px', textDecoration: 'none', flexShrink: 0 }}
         >
           <img
             src="/trescon-logo.png"
             alt="Trescon"
-            style={{ height: '38px', width: 'auto', display: 'block' }}
+            style={{ height: '34px', width: 'auto', display: 'block' }}
           />
+          <div style={{ display: 'flex', flexDirection: 'column', lineHeight: 1 }}>
+            <span style={{ fontSize: '14px', fontWeight: 900, color: '#0F1923', letterSpacing: '-0.2px' }}>EventPilot</span>
+            <span style={{ fontSize: '10px', fontWeight: 700, color: '#00897B', letterSpacing: '1.5px', textTransform: 'uppercase', marginTop: '2px' }}>by Trescon</span>
+          </div>
         </Link>
 
         {module && (
@@ -161,19 +166,148 @@ export const MOD_PEOPLE = {
   ),
 }
 
-/* ── Convenience: Sign-out button ── */
+/* ── Role badge colours ── */
+const ROLE_COLORS: Record<string, { bg: string; color: string; label: string }> = {
+  super_admin:      { bg: '#0F192320', color: '#0F1923', label: 'Super Admin'      },
+  admin:            { bg: '#7C3AED20', color: '#7C3AED', label: 'Admin'            },
+  office_head:      { bg: '#0E749020', color: '#0E7490', label: 'Office Head'      },
+  dept_head:        { bg: '#D9770620', color: '#D97706', label: 'Dept Head'        },
+  team_lead:        { bg: '#00897B20', color: '#00897B', label: 'Team Lead'        },
+  hr:               { bg: '#EC489920', color: '#EC4899', label: 'HR'               },
+  project_manager:  { bg: '#3D6B0020', color: '#3D6B00', label: 'Project Manager' },
+  project_director: { bg: '#8B1A1A20', color: '#8B1A1A', label: 'Project Director'},
+  standard:         { bg: '#5B708020', color: '#5B7080', label: 'Staff'            },
+}
+
+async function doSignOut() {
+  if (typeof window === 'undefined') return
+  try { await fetch('/api/auth/logout', { method: 'POST' }) } catch { /* ignore */ }
+  localStorage.removeItem('eventpilot_staff_id')
+  localStorage.removeItem('tai_staff_id')
+  sessionStorage.removeItem('tai_admin_authed')
+  sessionStorage.removeItem('tai_admin_staff_id')
+  window.location.href = '/login'
+}
+
+/* ── Profile menu — fetches session, shows avatar + dropdown ── */
+export function ProfileMenu({ name, initials, roles, jobLevel }: {
+  name?:     string
+  initials?: string
+  roles?:    string[]
+  jobLevel?: string
+}) {
+  const [open,    setOpen]    = useState(false)
+  const [session, setSession] = useState<{ sid: string; jl: string; adm: boolean; dept: string; roles?: string[] } | null>(null)
+  const ref = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    fetch('/api/auth/session').then(r => r.json()).then(s => { if (s) setSession(s) }).catch(() => {})
+  }, [])
+
+  useEffect(() => {
+    function handleClick(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false)
+    }
+    document.addEventListener('mousedown', handleClick)
+    return () => document.removeEventListener('mousedown', handleClick)
+  }, [])
+
+  const displayName    = name ?? session?.sid ?? 'You'
+  const displayInitial = initials ?? (displayName.charAt(0).toUpperCase())
+  const effectiveRoles = roles ?? session?.roles ?? ['standard']
+  const effectiveLevel = jobLevel ?? session?.jl ?? 'staff'
+
+  // Determine the most significant badge to show
+  const badgeKey = session?.adm ? (effectiveLevel === 'super_admin' ? 'super_admin' : 'admin')
+    : effectiveRoles.find(r => ROLE_COLORS[r] && r !== 'standard') ?? effectiveLevel ?? 'standard'
+  const badge = ROLE_COLORS[badgeKey] ?? ROLE_COLORS.standard
+
+  return (
+    <div ref={ref} style={{ position: 'relative' }}>
+      <button
+        onClick={() => setOpen(v => !v)}
+        title="Your profile"
+        style={{
+          width: '34px', height: '34px',
+          borderRadius: '50%',
+          background: open ? '#00897B' : 'rgba(0,137,123,0.12)',
+          border: `2px solid ${open ? '#00897B' : 'rgba(0,137,123,0.35)'}`,
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          cursor: 'pointer', flexShrink: 0,
+          transition: 'all 0.15s',
+          padding: 0,
+        }}
+      >
+        <span style={{ fontSize: '13px', fontWeight: 800, color: open ? '#fff' : '#00897B' }}>
+          {displayInitial}
+        </span>
+      </button>
+
+      {open && (
+        <div style={{
+          position: 'absolute', top: 'calc(100% + 10px)', right: 0,
+          width: '230px',
+          background: '#FFFFFF',
+          border: '1px solid #DDE8EE',
+          borderRadius: '14px',
+          boxShadow: '0 8px 32px rgba(15,25,35,0.12)',
+          zIndex: 1000,
+          overflow: 'hidden',
+        }}>
+          {/* Profile header */}
+          <div style={{ padding: '16px 18px', borderBottom: '1px solid #F1F5F9' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+              <div style={{ width: '38px', height: '38px', borderRadius: '50%', background: 'rgba(0,137,123,0.1)', border: '2px solid rgba(0,137,123,0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                <span style={{ fontSize: '15px', fontWeight: 800, color: '#00897B' }}>{displayInitial}</span>
+              </div>
+              <div style={{ minWidth: 0 }}>
+                <div style={{ fontSize: '13px', fontWeight: 800, color: '#0F1923', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{displayName}</div>
+                <div style={{ marginTop: '4px' }}>
+                  <span style={{ fontSize: '11px', fontWeight: 700, padding: '2px 7px', borderRadius: '5px', background: badge.bg, color: badge.color }}>
+                    {badge.label}
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Actions */}
+          <div style={{ padding: '8px' }}>
+            <button
+              onClick={doSignOut}
+              style={{
+                width: '100%', padding: '10px 12px',
+                borderRadius: '8px', border: 'none',
+                background: 'transparent',
+                display: 'flex', alignItems: 'center', gap: '10px',
+                cursor: 'pointer', textAlign: 'left',
+                fontSize: '13px', fontWeight: 600, color: '#B91C1C',
+                fontFamily: 'inherit',
+                transition: 'background 0.12s',
+              }}
+              onMouseOver={e => (e.currentTarget.style.background = '#FFF1F2')}
+              onMouseOut={e  => (e.currentTarget.style.background = 'transparent')}
+            >
+              <svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24">
+                <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
+                <polyline points="16 17 21 12 16 7"/>
+                <line x1="21" y1="12" x2="9" y2="12"/>
+              </svg>
+              Sign out
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+/* ── Legacy Sign-out button — kept for compatibility, delegates to doSignOut ── */
 export function SignOutBtn() {
   return (
     <button
       className="tbtn tbtn-red"
-      onClick={() => {
-        if (typeof window === 'undefined') return
-        localStorage.removeItem('eventpilot_staff_id')
-        localStorage.removeItem('tai_staff_id')
-        sessionStorage.removeItem('tai_admin_authed')
-        sessionStorage.removeItem('tai_admin_staff_id')
-        window.location.href = '/login'
-      }}
+      onClick={doSignOut}
     >
       <svg width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24">
         <path d="M18.36 6.64a9 9 0 1 1-12.73 0"/>
