@@ -4246,6 +4246,16 @@ export default function AdminPage() {
                 </div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
                   {[
+                    { date: '12 Jun 2026 — Madhu', items: [
+                      'EventPilot branding applied site-wide — favicon (32×32 + 192×192 + apple-touch 180×180), OG image (1024×600 Trescon feature image for link previews), page title set to "EventPilot", and meta description added to layout',
+                      'Profile menu — standalone avatar + sign-out button across Dashboard, Team, and My HR pages replaced with a unified ProfileMenu component in the nav bar. Consistent sign-out experience everywhere',
+                      'Persistent sessions — "Remember me" checkbox on password login sets 30-day session cookie vs 8-hour default. SSO sessions always persist 30 days (Microsoft re-authenticates silently)',
+                      'Dashboard session ownership check — /api/dashboard now verifies the session sid matches the requested staff_id. Staff cannot load another person\'s dashboard data',
+                      'AIRS assessment gate removed — staff no longer redirected to the assessment on login. Assessment remains accessible from inside the app but is not a login blocker',
+                      'Course-focused dashboard for regular staff — workspace section overridden to show Course Library and My HR only. Managers retain the full workspace view',
+                      'Manager team learning view — "My Team Learning" section on manager dashboards shows direct reports\' course progress (name, dept, role, completion count, last activity). Personal details (phone, address) never exposed. Data served by new /api/team-courses, session-gated to the manager or admin only',
+                      'Course completion API hardened — POST /api/course-completion now verifies session sid matches submitted staff_id. Attempt insert falls back gracefully if authenticity_flag column is absent. supabase/missing_columns.sql added for word_count + authenticity_flag columns',
+                    ]},
                     { date: '11 Jun 2026 (SSO + Access Control) — Madhu', items: [
                       'Microsoft 365 SSO — staff sign in with @tresconglobal.com Microsoft credentials. No separate platform password. Azure AD OAuth via manual implementation (not NextAuth), sessions created automatically, admin gate bypassed for SSO arrivals',
                       'Access roles system — access_roles TEXT[] column on staff_members with 6 roles: Standard, HR, Project Manager, Project Director, Admin, Super Admin. Synced from HRMS user_roles on every sync. Admin can manually override any staff member in the People tab',
@@ -4442,6 +4452,9 @@ export default function AdminPage() {
                 </div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                   {[
+                    'Profile menu — unified nav bar component replacing standalone avatar + sign-out buttons across all pages. Favicon, OG image, and page metadata set for correct link previews',
+                    'Persistent sessions — Remember me checkbox (30-day cookie) on password login. SSO sessions always persist 30 days',
+                    'Course-focused dashboard — regular staff see Course Library + My HR only. Managers see full workspace plus a My Team Learning section with direct reports\' course progress',
                     'Microsoft 365 SSO — staff sign in with @tresconglobal.com credentials, no separate platform password needed',
                     'Access roles — 6-level role system (Standard → Super Admin) per staff member. Synced from HRMS, overridable by admin. Controls platform access beyond tool_grants',
                     'Toolkit per-tool grants — each staff member sees only the tools they\'ve been explicitly granted. Inaccessible tools and their sidebar categories are hidden entirely',
