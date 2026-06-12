@@ -18,7 +18,7 @@
 | Field       | Value                                                   |
 |-------------|---------------------------------------------------------|
 | Who         | Madhu + Claude Code (Sonnet 4.6)                        |
-| Date        | 2026-06-11                                              |
+| Date        | 2026-06-12                                              |
 | Handed off to | Durga                                                 |
 | Deployed    | Yes — https://eventpilot.tresconglobal.com (Vercel, trescons-projects/eventpilot) |
 
@@ -48,6 +48,43 @@ Everything committed before `dc48b2b` is Durga's work and was not touched. Key p
 - Team Dashboard, role-personalized dashboards, platform docs (20 articles)
 - Knowledge Base: Gemini-powered PDF processing
 - Weekly HRMS sync confirmed end-to-end: 124 staff, 51 projects, 349 allocations
+
+---
+
+## What Was Built This Session (12 Jun 2026 — Madhu)
+
+### DB Migrations (run via pg pooler on aws-1-ap-southeast-1)
+- `supabase/missing_columns.sql` — Added `documents.word_count INTEGER DEFAULT 0` and `course_attempts.authenticity_flag BOOLEAN DEFAULT false`. Both columns were missing and causing silent failures / log noise.
+
+### Course Completion API Fix (critical)
+- `app/api/course-completion/route.ts` — Was silently failing to write `course_attempts` records when `authenticity_flag` column didn't exist. Fixed with resilient insert (tries with flag, retries without on error). Also added session ownership check: session.sid must match request body `staff_id` → 403 if mismatch.
+
+### Persistent Sessions (30-day)
+- `app/api/auth/callback/route.ts` — SSO sessions extended from 8h to 30 days
+- `app/api/login/route.ts` — Accepts `rememberMe` bool; 30-day session when true, 8h when false
+- `app/login/page.tsx` — "Remember me" checkbox added (default checked)
+
+### Course-Only Staff Rollout
+- `app/dashboard/page.tsx` — Removed AIRS assessment gate (was redirecting to /profile when tasks.length === 0, blocking all new staff from courses). Added course-only workspace for regular staff (non-admin, no reports): "My Learning" workspace with Course Library + My HR tiles and course stats (done, mandatory left, total mandatory). Fixed session ownership enforcement in `/api/dashboard`.
+
+### Manager Team View
+- `app/api/team-courses/route.ts` — NEW endpoint: GET /api/team-courses?manager_id=X. Returns direct reports with course progress stats. Exposes only work-related fields (name, dept, role, job_level) — zero personal/HRMS data. Session-gated (only manager or admin).
+- `app/dashboard/page.tsx` — Added "My Team's Learning" table for managers with reports: name/dept/role, courses done/total, mandatory progress, last active date.
+
+### UI: EventPilot Branding + Profile Menu
+- `app/components/NavBar.tsx` — Full rewrite: Logo link now wraps both Trescon logo and "EventPilot / by Trescon" wordmark (both go to dashboard). New `ProfileMenu` self-fetching client component: avatar button → dropdown showing name + role badge + sign-out. `doSignOut()` calls POST /api/auth/logout to clear httpOnly cookie before clearing localStorage. Legacy `SignOutBtn` kept, delegates to `doSignOut()`.
+- `app/dashboard/page.tsx`, `app/team/page.tsx`, `app/my-hr/page.tsx` — `SignOutBtn` replaced with `ProfileMenu`.
+
+### Metadata + OG / Favicons
+- `app/layout.tsx` — Title: "EventPilot", description: "AI-Powered event management platform for Trescon." Full OG + Twitter card meta. Icons: favicon.png (32×32), favicon-192.png (192×192), apple-touch-icon.png (180×180).
+- `public/favicon.png`, `public/favicon-192.png`, `public/apple-touch-icon.png` — Trescon T icon pulled from tresconglobal.com.
+- `public/og-image.png` — 1024×600 Trescon feature image for link previews.
+
+### HRMS Sync
+- Triggered fresh sync: 122 staff, 51 projects, 351 allocations, 417 project roles synced.
+
+### Known Issues (arch notes updated)
+- Session cookie maxAge updated to 30d — sessions in `tcs_session` cookie are now 30-day by default for SSO, opt-in 30-day for password login.
 
 ---
 
@@ -114,14 +151,13 @@ Everything committed before `dc48b2b` is Durga's work and was not touched. Key p
 
 ## Known Minor Issues
 
-- `column documents.word_count does not exist` — appears in logs, needs a DB migration to add the column
-- `scripts/check-hrms-schema.ts` and `scripts/set-super-admins.ts` — untracked scripts, clean up or add to .gitignore
+- `scripts/check-hrms-schema.ts` and `scripts/set-super-admins.ts` — untracked scripts in .gitignore, safe to leave or delete locally
 
 ---
 
 ## Architecture Notes (for next builder)
 
-- **Session cookie**: `tcs_session` = base64(JSON({sid, jl, adm, dept, roles})), httpOnly, 8hr
+- **Session cookie**: `tcs_session` = base64(JSON({sid, jl, adm, dept, roles})), httpOnly, 30d (SSO always; password login when rememberMe=true; 8h otherwise)
 - **job_level values**: staff, team_lead, dept_head, office_head, super_admin
 - **access_roles values**: standard, hr, project_manager, project_director, admin, super_admin
 - **Admin check**: `adm: true` in session = has admin access to /admin routes
@@ -135,7 +171,7 @@ Everything committed before `dc48b2b` is Durga's work and was not touched. Key p
 
 ## What's Next
 
-1. Fix `documents.word_count` DB column (minor migration)
+1. Staff rollout — roll out app to all 126 staff (access to courses only). Enable `access_enabled = true` for all. Staff will see "My Learning" workspace with course library only.
 2. Test Khalifa's Website Builder access for AI2047 brand book
 3. Test Prashant + Khalifa website builder for AI2047
 4. Social media manager for AI2047 (Phase 3 proper — needs Meta API tokens from Madhu)

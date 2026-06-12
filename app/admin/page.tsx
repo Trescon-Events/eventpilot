@@ -4255,6 +4255,7 @@ export default function AdminPage() {
                       'Course-focused dashboard for regular staff — workspace section overridden to show Course Library and My HR only. Managers retain the full workspace view',
                       'Manager team learning view — "My Team Learning" section on manager dashboards shows direct reports\' course progress (name, dept, role, completion count, last activity). Personal details (phone, address) never exposed. Data served by new /api/team-courses, session-gated to the manager or admin only',
                       'Course completion API hardened — POST /api/course-completion now verifies session sid matches submitted staff_id. Attempt insert falls back gracefully if authenticity_flag column is absent. supabase/missing_columns.sql added for word_count + authenticity_flag columns',
+                      'DB migrations run — documents.word_count and course_attempts.authenticity_flag both added via pg pooler. HRMS sync refreshed: 122 staff, 51 projects, 351 allocations',
                     ]},
                     { date: '11 Jun 2026 (SSO + Access Control) — Madhu', items: [
                       'Microsoft 365 SSO — staff sign in with @tresconglobal.com Microsoft credentials. No separate platform password. Azure AD OAuth via manual implementation (not NextAuth), sessions created automatically, admin gate bypassed for SSO arrivals',
