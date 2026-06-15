@@ -434,6 +434,7 @@ export default function AdminPage() {
   const [tourStep,    setTourStep]    = useState<number | null>(null)
   const [tourRect,    setTourRect]    = useState<DOMRect | null>(null)
   const [showRoadmap,   setShowRoadmap]   = useState(false)
+  const [buildLog,      setBuildLog]      = useState<{ date: string; author: string; items: { title: string; bullets: string[] }[] }[]>([])
   const [suggText,      setSuggText]      = useState('')
   const [suggSending,   setSuggSending]   = useState(false)
   const [suggSent,      setSuggSent]      = useState(false)
@@ -1340,7 +1341,10 @@ export default function AdminPage() {
             AI Insights
           </Link>
           <button
-            onClick={() => { setShowRoadmap(true); setSuggSent(false); setSuggText('') }}
+            onClick={() => {
+              setShowRoadmap(true); setSuggSent(false); setSuggText('')
+              fetch('/api/build-log').then(r => r.json()).then(data => { if (Array.isArray(data)) setBuildLog(data) }).catch(() => {})
+            }}
             style={{ background: '#FFFFFF', border: '1px solid #DDE8EE', color: '#374151', fontSize: '12px', fontWeight: 700, padding: '7px 11px', borderRadius: '10px', cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: '5px', whiteSpace: 'nowrap' }}>
             <svg width="12" height="12" fill="none" stroke="#00A5A3" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
             What&apos;s Next
@@ -4242,224 +4246,53 @@ export default function AdminPage() {
 
             <div style={{ padding: '28px 32px', display: 'flex', flexDirection: 'column', gap: '32px' }}>
 
-              {/* ── Build Log ── */}
+              {/* ── Build Log — live from GitHub commits ── */}
               <div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '16px' }}>
                   <svg width="14" height="14" fill="none" stroke="#1565C0" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
                   <div style={{ fontSize: '11px', fontWeight: 800, letterSpacing: '1.8px', textTransform: 'uppercase', color: '#1565C0' }}>Build Log — what shipped &amp; when</div>
+                  <div style={{ fontSize: '10px', color: '#94A3B8', fontWeight: 600 }}>live · auto-updates on every commit</div>
                 </div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
-                  {[
-                    { date: '15 Jun 2026 — Durga', items: [
-                      'Review Management System — staff can report issues, bugs, and suggestions from any page via a floating "Report Issue" button (bottom-right). Modal collects: tool, type (bug/not working/suggestion/improvement), severity, title, and description. Submitted to platform_reviews table in Supabase',
-                      'Admin Reviews dashboard at /admin/reviews — filter by tool, type, status, severity. 5 stat cards (New, Acknowledged, In Progress, Resolved, Critical). Each card is collapsible with status change controls and admin notes field',
-                      'Staff Reviews link added to admin nav bar for quick access',
-                      'Both the widget modal and admin reviews page match the platform light theme (white/#F6F8FB, #DDE8EE borders, #0F1923 text, #00897B teal)',
-                    ]},
-                    { date: '15 Jun 2026 — Madhu', items: [
-                      'SSO-only login — email/password form removed from login page. Microsoft 365 is now the sole sign-in option. Cleaner UI, no divider or forgot-password link',
-                      'Access-pending gate — staff without access_enabled are redirected to /access-pending after SSO. Page shows "Platform in testing" message with pre-filled email and a Request Access button',
-                      'Request access flow — POST /api/request-access sends notification email to md@ and dc@tresconglobal.com when any staff member requests access. No staff is left stranded',
-                      'Rollout emails sent — "Your EventPilot access is ready" email dispatched to all enabled staff. Courses-only group sees Course Library; Prashant / Khalifa / Nicholas see Course Library + Website Builder',
-                      'Branding fixed — "Trescon Global" replaced with "Trescon" across all 34 occurrences in app files (API routes, emails, UI pages, seed data, lib utilities)',
-                      'All 126 staff enabled — access_enabled = true for entire company after decision to open access to everyone who received the rollout email',
-                    ]},
-                    { date: '12 Jun 2026 — Madhu', items: [
-                      'EventPilot branding applied site-wide — favicon (32×32 + 192×192 + apple-touch 180×180), OG image (1024×600 Trescon feature image for link previews), page title set to "EventPilot", and meta description added to layout',
-                      'Profile menu — standalone avatar + sign-out button across Dashboard, Team, and My HR pages replaced with a unified ProfileMenu component in the nav bar. Consistent sign-out experience everywhere',
-                      'Persistent sessions — "Remember me" checkbox on password login sets 30-day session cookie vs 8-hour default. SSO sessions always persist 30 days (Microsoft re-authenticates silently)',
-                      'Dashboard session ownership check — /api/dashboard now verifies the session sid matches the requested staff_id. Staff cannot load another person\'s dashboard data',
-                      'AIRS assessment gate removed — staff no longer redirected to the assessment on login. Assessment remains accessible from inside the app but is not a login blocker',
-                      'Course-focused dashboard for regular staff — workspace section overridden to show Course Library and My HR only. Managers retain the full workspace view',
-                      'Manager team learning view — "My Team Learning" section on manager dashboards shows direct reports\' course progress (name, dept, role, completion count, last activity). Personal details (phone, address) never exposed. Data served by new /api/team-courses, session-gated to the manager or admin only',
-                      'Course completion API hardened — POST /api/course-completion now verifies session sid matches submitted staff_id. Attempt insert falls back gracefully if authenticity_flag column is absent. supabase/missing_columns.sql added for word_count + authenticity_flag columns',
-                      'DB migrations run — documents.word_count and course_attempts.authenticity_flag both added via pg pooler. HRMS sync refreshed: 122 staff, 51 projects, 351 allocations',
-                    ]},
-                    { date: '11 Jun 2026 (SSO + Access Control) — Madhu', items: [
-                      'Microsoft 365 SSO — staff sign in with @tresconglobal.com Microsoft credentials. No separate platform password. Azure AD OAuth via manual implementation (not NextAuth), sessions created automatically, admin gate bypassed for SSO arrivals',
-                      'Access roles system — access_roles TEXT[] column on staff_members with 6 roles: Standard, HR, Project Manager, Project Director, Admin, Super Admin. Synced from HRMS user_roles on every sync. Admin can manually override any staff member in the People tab',
-                      'HRMS sync upgraded (both on-demand and cron) — now also pulls user_roles → access_roles and project_roles → event assignment types from HRMS on every sync',
-                      'User Management UI in People tab — colored role badge pills per staff row. Roles button opens modal with 6 checkboxes per person, saves instantly via PATCH /api/staff-roles',
-                      'Admin re-authentication gate removed for SSO arrivals — no secondary password prompt after Microsoft login',
-                      'Onboarding assessment no longer forced at login — staff can skip at any point with a "Don\'t ask again" option. Assessment remains accessible from inside the app',
-                      'Toolkit per-tool access grants — tool_grants JSONB now drives toolkit page visibility. Staff see only the tools they\'ve been granted. Admin-only tools (Course Builder, TresAgent) never shown to non-admins. Sidebar categories disappear entirely when empty',
-                      'Khalifa (khalifa@tresconglobal.com) — Website Builder access granted',
-                      'Prashant (prashant@tresconglobal.com) — Website Builder, Market Intelligence, and Outreach access granted',
-                    ]},
-                    { date: '11 Jun 2026 (Course Builder) — Durga', items: [
-                      'Course Builder launched at /admin/courses — dedicated page replacing the 404 that was there before',
-                      'Review Queue tab: all draft courses (AI-generated, dept-seeded, suggested) shown as cards. Actions: Review (opens editor), Publish (one click), Delete',
-                      'All Courses tab: stats bar (total, by tier, mandatory count), search + tier/dept filters, full table of published courses. Click any row to open the editor',
-                      'Editor panel (slides in from right): 4 sub-tabs — Details (title, subtitle, tier, depts, minutes, tool, mandatory, credit), Content (overview + reading content with word count), Tasks (4 steps with instruction + tip each), Questions (10 collapsible questions, option picker, correct answer dot, explanation)',
-                      'New Course tab: manual builder — create a draft from scratch with title, subtitle, tier, depts, overview. Draft opens in Review Queue editor for full content build',
-                      'PUT /api/courses added — full course field update for the editor. GET /api/course-detail updated to support admin=1 param for fetching drafts',
-                    ]},
-                    { date: '11 Jun 2026 (Round 2 & 3) — Durga', items: [
-                      'Dept course seeding — /api/generate-dept-courses: admin picks a department, tier, and count (1–3). Gemini builds full draft courses (reading content, 4 task steps, 10-question bank) in one click. Saved as drafts, super admin notified in-app. UI lives in Learning Lab → Seed Dept Courses',
-                      'Weekly org pulse email — sendOrgPulseReport wired into the Sunday cron. Every week super admins receive completions this week, all-time total, participation rate, top department, top skill gap, and auto-generated course count with a direct link to the admin dashboard',
-                      'Brand PDF export — /api/events/brand/export-pdf generates a fully self-contained HTML brand book: cover page, identity, logo variants, color palette with swatches, typography specimens, patterns, voice & tone, key messages, and generated assets gallery. Export PDF button added to Brand Studio nav bar. Opens in new tab, print dialog auto-triggers',
-                    ]},
-                    { date: '11 Jun 2026 (Round 1) — Durga', items: [
-                      'Course assignment — admin can assign any published course to an individual staff member, a full department, or all staff at once with an optional due date. Staff receive an instant in-app notification. Panel lives in the Learning tab',
-                      'Completion certificates — auto-issued the moment a staff member passes a course for the first time. Upserted to training_certificates table, stored on their profile',
-                      'Brand asset generator — Imagen 3 generates event banners, social posts, LinkedIn banners, speaker cards, and sponsor cards from the active brand guidelines. Full gallery with aspect ratio selector in Brand Studio → Asset Generator tab',
-                    ]},
-                    { date: '11 Jun 2026 — Durga', items: [
-                      'Weekly auto course generation — every Sunday the platform now automatically builds 3 new draft courses: 2 from the top skill gaps identified in the weekly insights report, 1 from the latest AI tool or release Gemini identifies as most relevant for B2B events staff that week',
-                      'All auto-generated courses saved as drafts with source "Pilot AI" — super admin gets one consolidated notification and reviews them in the Review Queue before they go live',
-                      'Engagement & participation report — Learning tab now shows: Participation by Department (% of staff in each dept who have attempted at least one course, with colour-coded progress bars) and Never Started panel (list of every active staff member with zero course activity, showing name, role, dept, office)',
-                      'Platform docs expanded from 10 to 20 articles — now covers all 6 modules: Events, HR, Content, Data, Pilot, Security, and Notifications',
-                      'Seed routes added to middleware public exemptions — /api/seed-platform-docs, /api/seed-courses, /api/seed-demo no longer require auth',
-                    ]},
-                    { date: '10 Jun 2026 — Madhu', items: [
-                      'Full platform rebrand sweep — all Trescademy, TAI Academy, TAOS, taos-discovery, TAIRS references removed from code, UI, comments, SQL, and docs. Platform is consistently "Event Pilot" throughout',
-                      'AIRS renaming complete — TAIRS → AIRS (AI Readiness Score), tairs.ts → airs.ts, computeTAIRS → computeAIRS',
-                      'Platform doc renamed: TRESCADEMY_PLATFORM_DOCUMENT.md → EVENTPILOT_PLATFORM_DOCUMENT.md. GitHub repo taos-templates → ep-templates',
-                      'Vercel project renamed: taos-discovery → eventpilot. New .vercel.app alias: eventpilot-trescons-projects.vercel.app',
-                      'Cron confirmed Vercel-native via vercel.json — no cron-job.org account needed',
-                      'Secrets rotated — admin code: eventpilot2026, staff default password: eventpilot@2026, cron secret: eventpilot-cron-2026. All updated in .env.local and Vercel env vars',
-                      'tresconglobal.com verified in Resend, DNS records added, RESEND_FROM_EMAIL set. Sending from noreply@eventpilot.tresconglobal.com (dedicated subdomain — root left for HubSpot/Outlook)',
-                      'HRMS sync confirmed end-to-end: 124 staff, 51 projects, 349 allocations, 964 timesheets',
-                      'Middleware PLATFORM_HOSTS updated to reflect live Vercel project URL',
-                    ]},
-                    { date: '10 Jun 2026 — Durga', items: [
-                      'Org Chart redesigned — replaced impractical horizontal card tree with two practical views: Directory (grouped table by department, sortable, filterable) and Hierarchy (vertical indented list — no horizontal overflow at any org size)',
-                      'Org Chart — Directory table: name, role, level, office, manager, direct reports count, 8 tool-access dots per row, all visible at a glance without any clicks',
-                      'Org Chart — click any row: right-side detail panel slides in showing full reporting chain (breadcrumb from top to person), direct reports list, and 8 tool access toggles. Saves live via /api/admin/tool-permissions',
-                      'Nav wrapping bug fixed — all nav items now fit on one line at any screen width (gap, padding, font-size tightened; flexWrap nowrap)',
-                      'Staff Directory page — new page at /hr/staff replacing the broken 404. Full searchable/filterable table of all staff with level, office, manager, joined date, active/inactive status. "Add New Staff" button prominent in header',
-                      'Staff Onboarding Wizard — 5-step guided form at /hr/staff/new for HR to create new joinee profiles: Step 1 Personal Info, Step 2 Work Details, Step 3 Reporting Structure (manager + assign direct reports), Step 4 Platform Access & Tools, Step 5 Review & Create',
-                      'New staff API (/api/hr/staff) — creates full staff record with all fields, bcrypt-hashed temp password, tool_grants, auto-starts onboarding checklist matched by dept + job level, sends credentials email, creates in-app welcome notification',
-                      'Onboarding wizard: manager search dropdown (live staff search), direct-report reassignment multi-select for managers/leads, 8 tool toggles with colours per tool, onboarding checklist auto-start toggle',
-                      'Success screen after creation: shows temp password and login credentials card with "View Profile" and "Add Another" actions',
-                      'Add Staff button wired into HR portal home (Onboarding panel) and Onboarding Tracker header',
-                      'Password reset system confirmed complete — forgot password (email via Resend), reset via token link (1hr expiry), forced change on first login (must_change_password flag), self-service change from profile, admin force-reset via API',
-                      'Email branding fixed — all transactional emails rebranded to Event Pilot. FROM address: noreply@eventpilot.tresconglobal.com via RESEND_FROM_EMAIL env var',
-                      'Credentials email now sent automatically on new staff creation (when login enabled) — new joiner gets email with their temp password and login link',
-                    ]},
-                    { date: '9 Jun 2026 — Durga', items: [
-                      'Org Chart — full interactive reporting hierarchy at /admin/org-chart. Tree view built from manager_id links, color-coded by level, search with ancestor expansion, office filter, expand/collapse all',
-                      'Tool Permissions system — 8 platform modules (Smart Data, HR Portal, Events, Intelligence Reports, Finance, Brand Studio, Website Builder, Content Engine) can now be granted per staff member. SQL: tool_grants JSONB column on staff_members',
-                      'Permissions drawer — opens from People tab. 2-column card grid with auto-save toggles. Super Admin lock notice. Footer grant counter',
-                      'Bulk Grant — second tab in the permissions drawer: pick any tool, select staff with checkboxes, grant access to all selected in one click. "Select without access" shortcut auto-ticks everyone who needs it',
-                      'Inline dot badges — People table now shows 8 colored dots per staff row (one per tool), colored = granted, grey = not granted. Instant access profile at a glance without opening the drawer',
-                      'Role-personalized dashboard — "My Workspace" section on every staff dashboard adapts by job level and department. Leadership sees admin/HR/org links + live org stats. Sales sees Smart Data. HR sees HR portal. Finance/Marketing/Creative see their tools. All gated by tool_grants',
-                      'Platform Access tiles now fully wired to tool_grants — staff only see tools they have been explicitly granted. Added new tiles: Intelligence Reports, Finance, Brand Studio, Website Builder',
-                      'Attendance page — defaults to last working day (skips weekends). Weekend banner with "Go to last working day" button. No-data empty state when HRMS has no records for a date',
-                      'HR portal Recent Activity — filtered out HRMS migration seed entries so feed shows real activity only',
-                      'Admin APIs — /api/admin/set-password and /api/admin/set-job-level for direct staff credential and level management via admin_code',
-                      'Brand Studio v2 — full 9-section brand guidelines builder (Identity, Logo, Colors, Typography, Patterns, Imagery, Icons, Grid & Layout, Voice)',
-                      'PDF import: upload any brand guidelines PDF → Gemini AI reads the entire document and extracts all sections automatically',
-                      'AI extraction covers: brand name, positioning, vision, mission, archetypes, color palette with hex/CMYK/roles, full type scale, logo rules, imagery philosophy, photography direction, icon system, grid tokens, spacing tokens, voice and tone',
-                      'Manual brand builder: fill every brand element section by section without a PDF',
-                      'Color palette editor: rich per-color cards with hex swatch, CMYK values, role, usage notes, print caution flag',
-                      'Type scale table: every heading level with size, weight, line-height, and usage context',
-                      'Imagery section: philosophy, photography direction (subjects, dos, don\'ts), overlay types, imagery treatments',
-                      'Grid & Layout: base grid, column count, breakpoints table, full spacing token set',
-                      'Brand completion indicator: progress bar across 9 sections in the top nav, build mode badge (PDF Extracted / Manual / AI Generated)',
-                      'Website builder brand gate: amber warning if Brand Studio not done, green sync card with one-click palette + font sync when complete',
-                      'Event detail page: sequential "Website Production Flow" card — Brand Studio must be completed before Website Builder is available',
-                      'Signed upload URL route: brand PDFs upload directly to Supabase Storage, bypasses Vercel 4.5 MB body limit and RLS',
-                      'Platform Roadmap updated: Build Log, Live Now, and Phase 2 all reflect current state',
-                    ]},
-                    { date: '8 Jun 2026 — Madhu', items: [
-                      'SmartData DB routing fixed — wired all Smart Data routes to the dedicated Supabase project (lnhtmppybqeicedgtanf) with correct SMARTDATA_* env vars',
-                      'SmartData migrate route fixed — active DB switched to the new dedicated project with real contact data',
-                    ]},
-                    { date: '30 May – 8 Jun 2026 — Durga', items: [
-                      'Platform renamed from Trescademy to Event Pilot across all UI, nav, emails, and page titles',
-                      'AI assistant renamed from Tresci to Pilot',
-                      'HRMS sync refixed — staff, projects, allocations, and timesheets all reconnected to Trescon Resource Planner',
-                      'Resend email integration: transactional emails (password reset, welcome, notifications) now route through Resend',
-                      'Supabase migration: platform database moved to Trescon\'s own Supabase project',
-                      'All pending SQL migrations applied: HRMS tables, attendance, recruitment, brand guidelines schema',
-                      'Supabase Storage: brand-pdfs bucket created with correct INSERT/SELECT RLS policies for signed uploads',
-                      'Gemini API key rotated: new EventPilot project key in Google AI Studio, $25 credit topped up',
-                    ]},
-                    { date: '27–29 May 2026 — Durga', items: [
-                      'Platform Menu rebuilt — role-aware filtering, each user sees only what they can access, Coming Soon items removed entirely',
-                      'Smart Data sidebar: back link now resolves correctly per role (admin → Toolkit, staff → Dashboard), no flicker',
-                      'Smart Data breadcrumb pipeline buttons removed — cleaner Lead Extraction page',
-                      'My HR portal launched — all staff can submit leave, view attendance, see event tasks without admin access',
-                      'Dashboard: "Your Platform Access" tiles section shows each user only the tools they can open',
-                      'Course Library: auto-filters to staff department on load, "Assigned to You" pinned section added',
-                      'TresAgent: now opens in new tab — platform stays open',
-                      'Market Intel back link fixed — always routes to Toolkit',
-                      'Brand Studio & Website Builder: explicit ← Toolkit back links added',
-                      'Playbook tab removed from admin nav — lives solely under Platform Docs → Operations Reference',
-                      'Admin nav: Playbook redirect tab removed, cleaned up tab type definitions',
-                      'Content Hub redesigned — 4 campaign templates, guided 3-step create flow, How it Works strip for first-time users',
-                      'Content Hub event filter changed from 50+ pills to a single compact dropdown',
-                      'Content Hub campaign detail page font sizes fixed — was 17–20px throughout, now consistent 13px',
-                    ]},
-                    { date: '20 May 2026 — Durga', items: [
-                      'Docs text visibility fixed across Scoring Guide and Discovery Questionnaire',
-                      'HR portal redesigned — Recruitment, Attendance, and Leave with action-first layout',
-                      'Cookie-based auth middleware — server-side route protection for all pages',
-                      'Attendance trend: weekends and un-synced days correctly excluded from chart',
-                      'Platform docs: duplicate sidebar entry removed',
-                    ]},
-                    { date: '19 May 2026 — Durga', items: [
-                      'Events workspace: edit mode, Team tab, HR overhead tracking',
-                      'Recruitment pipeline: full end-to-end hiring flow (requisition → screen → offer → hire)',
-                      'Staff profile: events tab, leave request form, HRMS fields',
-                    ]},
-                    { date: '18 May 2026 — Durga', items: [
-                      'Full HRMS launched — attendance, leave, contracts, payroll grades, onboarding',
-                      'Event P&L system with revenue and cost tracking per event',
-                      'Document processing upgraded: Gemini reads text and scanned PDFs natively',
-                      'HRMS one-time init flow with admin dashboard bootstrap banner',
-                    ]},
-                    { date: '11 May 2026 — Durga', items: [
-                      'HRMS sync with Trescon Resource Planner (staff, projects, allocations, timesheets)',
-                      'Admin login: accepts all senior staff, not just super admin',
-                    ]},
-                    { date: '10 May 2026 — Durga', items: [
-                      'Platform-wide Trescon-brand light theme applied',
-                      'Standardised font sizes, card design, and text visibility across all pages',
-                      'AIRS tier colours corrected; nav buttons cleaned up',
-                    ]},
-                    { date: '9 May 2026 — Durga', items: [
-                      'Content engine launched: AI-generated posts, campaign management, approval flow',
-                      'Events workspace with checklist, budget, and deal tracking',
-                    ]},
-                    { date: '27 Apr 2026 — Durga', items: [
-                      'Guided tour for new admins',
-                      'What\'s Next roadmap panel',
-                      'Welcome modal redesign with per-user localStorage state',
-                      'Dynamic AIRS scoring with live tier display',
-                    ]},
-                    { date: '25 Apr 2026 — Durga', items: [
-                      'Staff and admin login by email (no more staff ID entry)',
-                      'My Learning links from admin directly to staff dashboard',
-                    ]},
-                    { date: '24 Apr 2026 — Durga', items: [
-                      'Initial platform launch: AIRS scoring, AI readiness questionnaire',
-                      'Admin dashboard with org-wide intelligence and tier breakdowns',
-                      'Pilot — internal AI assistant scoped to Event Pilot',
-                      'Course generation and staff onboarding flow',
-                    ]},
-                  ].map((day, di) => {
-                    const isMadhu = day.date.includes('Madhu')
-                    const badgeColor   = isMadhu ? '#00695C' : '#1565C0'
-                    const badgeBg      = isMadhu ? 'rgba(0,105,92,0.08)' : 'rgba(21,101,192,0.08)'
-                    const badgeBorder  = isMadhu ? 'rgba(0,105,92,0.2)' : 'rgba(21,101,192,0.2)'
+                  {buildLog.length === 0 && (
+                    <div style={{ fontSize: '13px', color: '#94A3B8', padding: '8px 0' }}>Loading build log…</div>
+                  )}
+                  {buildLog.map((day, di) => {
+                    const isMadhu     = day.author === 'Madhu'
+                    const badgeColor  = isMadhu ? '#00695C' : '#1565C0'
+                    const badgeBg     = isMadhu ? 'rgba(0,105,92,0.08)' : 'rgba(21,101,192,0.08)'
+                    const badgeBorder = isMadhu ? 'rgba(0,105,92,0.2)'  : 'rgba(21,101,192,0.2)'
                     return (
-                    <div key={di}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '10px 0 6px' }}>
-                        <div style={{ fontSize: '11px', fontWeight: 800, color: badgeColor, background: badgeBg, border: `1px solid ${badgeBorder}`, borderRadius: '6px', padding: '2px 8px', whiteSpace: 'nowrap' }}>{day.date}</div>
-                        <div style={{ flex: 1, height: '1px', background: '#DDE8EE' }} />
-                      </div>
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', paddingLeft: '4px' }}>
-                        {day.items.map((item, ii) => (
-                          <div key={ii} style={{ display: 'flex', gap: '8px', alignItems: 'flex-start' }}>
-                            <div style={{ width: '5px', height: '5px', borderRadius: '50%', background: isMadhu ? 'rgba(0,105,92,0.3)' : '#DDE8EE', marginTop: '6px', flexShrink: 0 }} />
-                            <span style={{ fontSize: '13px', color: '#5B7080', lineHeight: 1.5 }}>{item}</span>
+                      <div key={di}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '10px 0 6px' }}>
+                          <div style={{ fontSize: '11px', fontWeight: 800, color: badgeColor, background: badgeBg, border: `1px solid ${badgeBorder}`, borderRadius: '6px', padding: '2px 8px', whiteSpace: 'nowrap' as const }}>
+                            {day.date} — {day.author}
                           </div>
-                        ))}
+                          <div style={{ flex: 1, height: '1px', background: '#DDE8EE' }} />
+                        </div>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', paddingLeft: '4px' }}>
+                          {day.items.map((item, ii) => (
+                            <div key={ii}>
+                              <div style={{ display: 'flex', gap: '8px', alignItems: 'flex-start' }}>
+                                <div style={{ width: '5px', height: '5px', borderRadius: '50%', background: isMadhu ? 'rgba(0,105,92,0.4)' : '#93C5FD', marginTop: '6px', flexShrink: 0 }} />
+                                <span style={{ fontSize: '13px', color: '#0F1923', fontWeight: 600, lineHeight: 1.4 }}>{item.title}</span>
+                              </div>
+                              {item.bullets.length > 0 && (
+                                <div style={{ paddingLeft: '13px', marginTop: '3px', display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                                  {item.bullets.map((b, bi) => (
+                                    <div key={bi} style={{ display: 'flex', gap: '8px', alignItems: 'flex-start' }}>
+                                      <div style={{ width: '3px', height: '3px', borderRadius: '50%', background: '#CBD5E1', marginTop: '7px', flexShrink: 0 }} />
+                                      <span style={{ fontSize: '12px', color: '#5B7080', lineHeight: 1.5 }}>{b}</span>
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+                          ))}
+                        </div>
                       </div>
-                    </div>
-                  )})}
+                    )
+                  })}
                 </div>
               </div>
 
