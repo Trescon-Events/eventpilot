@@ -200,11 +200,39 @@ export default function AdminPage() {
   const [tasks, setTasks]     = useState<TaskProfile[]>([])
   const [tab, setTab]         = useState<'overview' | 'people' | 'intelligence' | 'learning' | 'suggest' | 'events' | 'knowledge' | 'review' | 'toolkit' | 'security'>('overview')
 
+  // Activity tracking state
+  type ActiveUser = { staff_id: string; last_seen_at: string; ip: string | null; staff_members: { id: string; name: string; department: string | null; role: string | null; office_id: string; job_level: string } }
+  type LoginHistoryRow = { id: string; ip: string | null; success: boolean; reason: string | null; attempted_at: string }
+  const [activeUsers,       setActiveUsers]       = useState<ActiveUser[]>([])
+  const [loginHistoryStaff, setLoginHistoryStaff] = useState<{ id: string; name: string; email: string } | null>(null)
+  const [loginHistory,      setLoginHistory]      = useState<LoginHistoryRow[]>([])
+  const [loginHistoryLoading, setLoginHistoryLoading] = useState(false)
+  const [loginCounts,       setLoginCounts]       = useState<Record<string, number>>({})
+
   // Security tab state
   type AuditRow = { id: string; email: string; ip: string | null; success: boolean; reason: string | null; attempted_at: string }
   type SecurityData = { today_logins: number; today_failures: number; locked_now: string[]; recent: AuditRow[] }
   const [securityData,    setSecurityData]    = useState<SecurityData | null>(null)
   const [securityLoading, setSecurityLoading] = useState(false)
+
+  async function fetchActiveUsers() {
+    const res = await fetch('/api/activity/active')
+    if (res.ok) setActiveUsers(await res.json())
+  }
+
+  async function fetchLoginCounts() {
+    const res = await fetch('/api/activity/logins?summary=1')
+    if (res.ok) setLoginCounts(await res.json())
+  }
+
+  async function openLoginHistory(staff: { id: string; name: string; email: string }) {
+    setLoginHistoryStaff(staff)
+    setLoginHistory([])
+    setLoginHistoryLoading(true)
+    const res = await fetch(`/api/activity/logins?staff_id=${staff.id}&limit=50`)
+    if (res.ok) setLoginHistory(await res.json())
+    setLoginHistoryLoading(false)
+  }
 
   async function fetchSecurity() {
     if (securityLoading) return
@@ -218,7 +246,7 @@ export default function AdminPage() {
   }
 
   // Staff Management tab state
-  const [staffList,       setStaffList]       = useState<{id:string;name:string;email:string;department:string|null;role:string|null;office_id:string|null;job_level:string;manager_id:string|null;toolkit_access?:boolean;tool_grants?:Record<string,boolean>;access_enabled?:boolean;access_roles?:string[]}[]>([])
+  const [staffList,       setStaffList]       = useState<{id:string;name:string;email:string;department:string|null;role:string|null;office_id:string|null;job_level:string;manager_id:string|null;toolkit_access?:boolean;tool_grants?:Record<string,boolean>;access_enabled?:boolean;access_roles?:string[];last_login_at?:string|null;profile_complete?:boolean;joined_at?:string|null;attendance_exempted?:boolean;timesheet_exempted?:boolean}[]>([])
   // Tool permissions drawer
   const [permOpen,    setPermOpen]    = useState(false)
   const [permStaff,   setPermStaff]   = useState<{id:string;name:string;email:string;job_level:string;department:string|null;office_id:string|null;toolkit_access?:boolean;tool_grants?:Record<string,boolean>}|null>(null)
@@ -834,12 +862,19 @@ export default function AdminPage() {
     if (!authed) return
     fetch('/api/platform-status').then(r => r.json()).then(d => setIsDemo(d.is_demo ?? false)).catch(() => {})
     fetchData()
+    fetchActiveUsers()
+    fetchLoginCounts()
+    // Heartbeat: tell server the admin is live; refresh active users list
+    const heartbeatInterval = setInterval(() => {
+      fetch('/api/activity/heartbeat', { method: 'POST' }).catch(() => {})
+      fetchActiveUsers()
+    }, 60_000)
     const ch = supabase.channel('admin-rt')
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'staff_members' }, fetchData)
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'staff_task_profiles' }, fetchData)
       .subscribe()
-    return () => { supabase.removeChannel(ch) }
-  }, [authed, fetchData])
+    return () => { supabase.removeChannel(ch); clearInterval(heartbeatInterval) }
+  }, [authed, fetchData])  // eslint-disable-line react-hooks/exhaustive-deps
 
   async function handleAuth(e: React.FormEvent) {
     e.preventDefault()
@@ -2420,34 +2455,74 @@ export default function AdminPage() {
                 </div>
               )}
 
-              {/* Login Activity */}
-              <div style={{ marginTop: '24px', background: '#FFFFFF', border: '1px solid #DDE8EE', borderRadius: '16px', overflow: 'hidden' }}>
-                <div style={{ padding: '16px 20px', borderBottom: '1px solid #E8EEF4', display: 'flex', alignItems: 'center', gap: '10px' }}>
-                  <div style={{ width: '32px', height: '32px', borderRadius: '8px', background: 'rgba(14,116,144,0.08)', border: '1px solid rgba(14,116,144,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                    <svg width="15" height="15" fill="none" stroke="#0E7490" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><polyline points="10 17 15 12 10 7"/><line x1="15" y1="12" x2="3" y2="12"/></svg>
+              {/* ── Live Now strip ───────────────────────────────────────── */}
+              {activeUsers.length > 0 && (
+                <div style={{ marginTop: '24px', background: 'linear-gradient(135deg, rgba(0,137,123,0.06) 0%, rgba(14,116,144,0.06) 100%)', border: '1px solid rgba(0,137,123,0.2)', borderRadius: '14px', padding: '14px 20px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '12px' }}>
+                    <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#00897B', boxShadow: '0 0 0 3px rgba(0,137,123,0.25)', animation: 'pulse 2s ease-in-out infinite' }} />
+                    <span style={{ fontSize: '12px', fontWeight: 800, color: '#00697B', textTransform: 'uppercase', letterSpacing: '1px' }}>Live Now — {activeUsers.length} {activeUsers.length === 1 ? 'person' : 'people'} on the platform</span>
                   </div>
-                  <div>
-                    <div style={{ fontSize: '13px', fontWeight: 800, color: '#0F1923' }}>Login Activity</div>
-                    <div style={{ fontSize: '11px', color: '#5B7080' }}>
-                      {(() => {
-                        const loggedIn = allPeople.filter(p => p.access_enabled && (p as {last_login_at?: string | null}).last_login_at)
-                        const never    = allPeople.filter(p => p.access_enabled && !(p as {last_login_at?: string | null}).last_login_at)
-                        return `${loggedIn.length} of ${loggedIn.length + never.length} enabled staff have logged in · ${never.length} never logged in`
-                      })()}
-                    </div>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+                    {activeUsers.map(u => {
+                      const m   = u.staff_members
+                      const off = getOffice(m.office_id ?? '')
+                      const mins = Math.floor((Date.now() - new Date(u.last_seen_at).getTime()) / 60000)
+                      return (
+                        <div key={u.staff_id} style={{ display: 'flex', alignItems: 'center', gap: '7px', padding: '6px 12px 6px 8px', borderRadius: '20px', background: '#FFFFFF', border: '1px solid rgba(0,137,123,0.25)' }}>
+                          <div style={{ width: '24px', height: '24px', borderRadius: '6px', background: `${off?.color ?? '#00897B'}18`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                            <span style={{ fontSize: '10px', fontWeight: 800, color: off?.color ?? '#00897B' }}>{m.name.charAt(0)}</span>
+                          </div>
+                          <div>
+                            <div style={{ fontSize: '12px', fontWeight: 700, color: '#0F1923', lineHeight: 1.2 }}>{m.name}</div>
+                            <div style={{ fontSize: '10px', color: '#5B7080' }}>{mins === 0 ? 'just now' : `${mins}m ago`}</div>
+                          </div>
+                        </div>
+                      )
+                    })}
                   </div>
                 </div>
-                <div style={{ display: 'grid', gridTemplateColumns: '2.5fr 1.8fr 1fr 1.6fr', padding: '8px 20px', background: '#E8EEF4', borderBottom: '1px solid #DDE8EE' }}>
-                  {['Name', 'Department / Role', 'Office', 'Last Login (Dubai)'].map(h => (
+              )}
+
+              {/* ── Login Activity ───────────────────────────────────────── */}
+              <div style={{ marginTop: '24px', background: '#FFFFFF', border: '1px solid #DDE8EE', borderRadius: '16px', overflow: 'hidden' }}>
+                <div style={{ padding: '16px 20px', borderBottom: '1px solid #E8EEF4', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '10px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                    <div style={{ width: '32px', height: '32px', borderRadius: '8px', background: 'rgba(14,116,144,0.08)', border: '1px solid rgba(14,116,144,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                      <svg width="15" height="15" fill="none" stroke="#0E7490" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><polyline points="10 17 15 12 10 7"/><line x1="15" y1="12" x2="3" y2="12"/></svg>
+                    </div>
+                    <div>
+                      <div style={{ fontSize: '13px', fontWeight: 800, color: '#0F1923' }}>Login Activity</div>
+                      <div style={{ fontSize: '11px', color: '#5B7080' }}>
+                        {(() => {
+                          const enabled   = allPeople.filter(p => p.access_enabled)
+                          const loggedIn  = enabled.filter(p => p.last_login_at)
+                          const neverIn   = enabled.filter(p => !p.last_login_at)
+                          return `${loggedIn.length} of ${enabled.length} enabled staff have logged in · ${neverIn.length} never logged in`
+                        })()}
+                      </div>
+                    </div>
+                  </div>
+                  <button onClick={fetchActiveUsers} style={{ padding: '5px 12px', borderRadius: '8px', border: '1px solid #DDE8EE', background: '#FFFFFF', color: '#5B7080', fontSize: '11px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: '5px' }}>
+                    <svg width="10" height="10" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
+                    Refresh
+                  </button>
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: '2.5fr 1.8fr 1fr 1.4fr 90px 80px', padding: '8px 20px', background: '#E8EEF4', borderBottom: '1px solid #DDE8EE' }}>
+                  {['Name', 'Department / Role', 'Office', 'Last Login (Dubai)', 'Sessions', ''].map(h => (
                     <div key={h} style={{ fontSize: '9px', fontWeight: 700, letterSpacing: '1.5px', textTransform: 'uppercase', color: '#5B7080' }}>{h}</div>
                   ))}
                 </div>
                 {(() => {
+                  const activeSet = new Set(activeUsers.map(u => u.staff_id))
                   const loginRows = allPeople
                     .filter(p => p.access_enabled)
                     .sort((a, b) => {
-                      const aTime = (a as {last_login_at?: string | null}).last_login_at ? new Date((a as {last_login_at?: string | null}).last_login_at!).getTime() : 0
-                      const bTime = (b as {last_login_at?: string | null}).last_login_at ? new Date((b as {last_login_at?: string | null}).last_login_at!).getTime() : 0
+                      // Live users first, then by last login desc, never-logged last
+                      const aLive = activeSet.has(a.id) ? 1 : 0
+                      const bLive = activeSet.has(b.id) ? 1 : 0
+                      if (bLive !== aLive) return bLive - aLive
+                      const aTime = a.last_login_at ? new Date(a.last_login_at).getTime() : 0
+                      const bTime = b.last_login_at ? new Date(b.last_login_at).getTime() : 0
                       return bTime - aTime
                     })
                   const showRows = loginRows.slice(0, 50)
@@ -2455,15 +2530,20 @@ export default function AdminPage() {
                     <>
                       {showRows.map((p, idx) => {
                         const off      = getOffice(p.office_id ?? '')
-                        const loginAt  = (p as {last_login_at?: string | null}).last_login_at
+                        const isLive   = activeSet.has(p.id)
+                        const loginAt  = p.last_login_at
                         const loginStr = loginAt
                           ? new Date(loginAt).toLocaleString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Dubai' })
                           : null
+                        const count = loginCounts[p.id] ?? 0
                         return (
-                          <div key={p.id} style={{ display: 'grid', gridTemplateColumns: '2.5fr 1.8fr 1fr 1.6fr', alignItems: 'center', padding: '10px 20px', borderBottom: idx < showRows.length - 1 ? '1px solid #E8EEF4' : 'none', background: !loginAt ? 'rgba(220,38,38,0.02)' : 'transparent' }}>
+                          <div key={p.id} style={{ display: 'grid', gridTemplateColumns: '2.5fr 1.8fr 1fr 1.4fr 90px 80px', alignItems: 'center', padding: '10px 20px', borderBottom: idx < showRows.length - 1 ? '1px solid #E8EEF4' : 'none', background: isLive ? 'rgba(0,137,123,0.03)' : !loginAt ? 'rgba(220,38,38,0.02)' : 'transparent' }}>
                             <div style={{ display: 'flex', alignItems: 'center', gap: '9px', minWidth: 0 }}>
-                              <div style={{ width: '28px', height: '28px', borderRadius: '7px', background: `${off?.color ?? '#00897B'}18`, border: `1px solid ${off?.color ?? '#00897B'}30`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                                <span style={{ fontSize: '11px', fontWeight: 800, color: off?.color ?? '#00897B' }}>{p.name.charAt(0)}</span>
+                              <div style={{ position: 'relative' }}>
+                                <div style={{ width: '28px', height: '28px', borderRadius: '7px', background: `${off?.color ?? '#00897B'}18`, border: `1px solid ${off?.color ?? '#00897B'}30`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                                  <span style={{ fontSize: '11px', fontWeight: 800, color: off?.color ?? '#00897B' }}>{p.name.charAt(0)}</span>
+                                </div>
+                                {isLive && <div style={{ position: 'absolute', bottom: '-2px', right: '-2px', width: '8px', height: '8px', borderRadius: '50%', background: '#00897B', border: '1.5px solid #FFFFFF' }} />}
                               </div>
                               <div style={{ minWidth: 0 }}>
                                 <div style={{ fontSize: '13px', fontWeight: 700, color: '#0F1923', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.name}</div>
@@ -2479,11 +2559,22 @@ export default function AdminPage() {
                               <span style={{ fontSize: '12px', fontWeight: 700, color: off?.color ?? '#5B7080' }}>{off?.label ?? '—'}</span>
                             </div>
                             <div>
-                              {loginStr ? (
+                              {isLive ? (
+                                <span style={{ fontSize: '11px', fontWeight: 700, color: '#00697B', background: 'rgba(0,137,123,0.1)', padding: '2px 8px', borderRadius: '5px' }}>Live now</span>
+                              ) : loginStr ? (
                                 <span style={{ fontSize: '12px', fontWeight: 600, color: '#0E7490' }}>{loginStr}</span>
                               ) : (
-                                <span style={{ fontSize: '11px', fontWeight: 700, color: '#DC2626', background: 'rgba(220,38,38,0.08)', padding: '2px 8px', borderRadius: '5px' }}>Never logged in</span>
+                                <span style={{ fontSize: '11px', fontWeight: 700, color: '#DC2626', background: 'rgba(220,38,38,0.08)', padding: '2px 8px', borderRadius: '5px' }}>Never</span>
                               )}
+                            </div>
+                            <div style={{ fontSize: '12px', fontWeight: count > 0 ? 700 : 400, color: count > 0 ? '#0F1923' : '#B8CDD8' }}>
+                              {count > 0 ? `${count}×` : '—'}
+                            </div>
+                            <div>
+                              <button onClick={() => openLoginHistory({ id: p.id, name: p.name, email: p.email })}
+                                style={{ padding: '3px 10px', borderRadius: '6px', border: '1px solid #DDE8EE', background: '#FFFFFF', color: '#5B7080', fontSize: '11px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
+                                History
+                              </button>
                             </div>
                           </div>
                         )
@@ -4671,6 +4762,88 @@ export default function AdminPage() {
           </>
         )
       })()}
+
+      {/* ── Login History Modal ── */}
+      {loginHistoryStaff && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 2000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}
+          onClick={() => setLoginHistoryStaff(null)}>
+          <div style={{ background: '#FFFFFF', borderRadius: '16px', width: '100%', maxWidth: '560px', maxHeight: '80vh', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}
+            onClick={e => e.stopPropagation()}>
+            {/* Header */}
+            <div style={{ padding: '20px 24px', borderBottom: '1px solid #E8EEF4', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <div>
+                <div style={{ fontSize: '14px', fontWeight: 800, color: '#0F1923' }}>{loginHistoryStaff.name}</div>
+                <div style={{ fontSize: '11px', color: '#5B7080' }}>{loginHistoryStaff.email} · Login history</div>
+              </div>
+              <button onClick={() => setLoginHistoryStaff(null)}
+                style={{ width: '28px', height: '28px', borderRadius: '7px', border: '1px solid #DDE8EE', background: '#FFFFFF', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <svg width="12" height="12" fill="none" stroke="#5B7080" strokeWidth="2.5" strokeLinecap="round" viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+              </button>
+            </div>
+            {/* Body */}
+            <div style={{ overflowY: 'auto', flex: 1 }}>
+              {loginHistoryLoading ? (
+                <div style={{ padding: '40px', textAlign: 'center', color: '#5B7080', fontSize: '13px' }}>Loading history…</div>
+              ) : loginHistory.length === 0 ? (
+                <div style={{ padding: '40px', textAlign: 'center', color: '#5B7080', fontSize: '13px' }}>No login records found yet.</div>
+              ) : (
+                <>
+                  {/* Stats bar */}
+                  {(() => {
+                    const successful = loginHistory.filter(r => r.success)
+                    const failed     = loginHistory.filter(r => !r.success)
+                    const lastOk     = successful[0]
+                    return (
+                      <div style={{ display: 'flex', gap: '20px', padding: '14px 24px', background: '#F8FAFC', borderBottom: '1px solid #E8EEF4' }}>
+                        {[
+                          { label: 'Total logins', value: successful.length, color: '#00897B' },
+                          { label: 'Failed attempts', value: failed.length, color: failed.length > 0 ? '#DC2626' : '#B8CDD8' },
+                          { label: 'Last seen', value: lastOk ? new Date(lastOk.attempted_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', timeZone: 'Asia/Dubai' }) : '—', color: '#0E7490' },
+                        ].map(s => (
+                          <div key={s.label}>
+                            <div style={{ fontSize: '18px', fontWeight: 900, color: s.color, lineHeight: 1 }}>{s.value}</div>
+                            <div style={{ fontSize: '10px', fontWeight: 700, color: '#5B7080', marginTop: '2px', textTransform: 'uppercase', letterSpacing: '0.7px' }}>{s.label}</div>
+                          </div>
+                        ))}
+                      </div>
+                    )
+                  })()}
+                  {/* Table */}
+                  <div style={{ padding: '0' }}>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.6fr 1fr', padding: '8px 24px', background: '#E8EEF4' }}>
+                      {['Result', 'Date & Time (Dubai)', 'IP'].map(h => (
+                        <div key={h} style={{ fontSize: '9px', fontWeight: 700, letterSpacing: '1.5px', textTransform: 'uppercase', color: '#5B7080' }}>{h}</div>
+                      ))}
+                    </div>
+                    {loginHistory.map((row, idx) => {
+                      const REASON_LABEL: Record<string, string> = {
+                        ok: 'Signed in', super_admin_ok: 'Signed in', sso: 'SSO login',
+                        wrong_password: 'Wrong password', not_found: 'Account not found',
+                        account_disabled: 'Account disabled', rate_limited: 'Rate limited',
+                        ip_blocked: 'IP blocked',
+                      }
+                      const label = REASON_LABEL[row.reason ?? ''] ?? (row.success ? 'Signed in' : 'Failed')
+                      return (
+                        <div key={row.id} style={{ display: 'grid', gridTemplateColumns: '1fr 1.6fr 1fr', alignItems: 'center', padding: '9px 24px', borderBottom: idx < loginHistory.length - 1 ? '1px solid #E8EEF4' : 'none' }}>
+                          <div>
+                            <span style={{ fontSize: '11px', fontWeight: 700, color: row.success ? '#166534' : '#DC2626', background: row.success ? 'rgba(22,101,52,0.08)' : 'rgba(220,38,38,0.08)', padding: '2px 8px', borderRadius: '5px' }}>
+                              {label}
+                            </span>
+                          </div>
+                          <div style={{ fontSize: '12px', fontWeight: 600, color: '#0F1923' }}>
+                            {new Date(row.attempted_at).toLocaleString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Dubai' })}
+                          </div>
+                          <div style={{ fontSize: '11px', color: '#5B7080', fontFamily: 'monospace' }}>{row.ip ?? '—'}</div>
+                        </div>
+                      )
+                    })}
+                  </div>
+                </>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ── Access Roles Modal ── */}
       {rolesOpen && rolesStaff && (() => {

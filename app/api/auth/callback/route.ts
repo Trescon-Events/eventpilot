@@ -104,8 +104,15 @@ export async function GET(req: NextRequest) {
     return NextResponse.redirect(`${origin}/access-pending?email=${encodeURIComponent(email)}`)
   }
 
-  // ── Track login time ──────────────────────────────────────────────────────
-  supabaseAdmin.from('staff_members').update({ last_login_at: new Date().toISOString() }).eq('id', staff.id)
+  // ── Track login time + start active session ──────────────────────────────
+  const now = new Date().toISOString()
+  supabaseAdmin.from('staff_members').update({ last_login_at: now }).eq('id', staff.id)
+  supabaseAdmin
+    .from('active_sessions')
+    .upsert(
+      { staff_id: staff.id, ip: req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ?? null, last_seen_at: now },
+      { onConflict: 'staff_id' }
+    )
 
   // ── Build session (same format as password login) ─────────────────────────
   const jobLevel    = staff.job_level ?? 'staff'

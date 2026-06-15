@@ -134,7 +134,24 @@ export async function POST(req: NextRequest) {
   // ── Successful login ───────────────────────────────────────────────────
   await logAttempt(cleanEmail, ip, true, 'ok')
 
-  supabaseAdmin.from('staff_members').update({ last_login_at: new Date().toISOString() }).eq('id', staff.id)
+  const now = new Date().toISOString()
+  supabaseAdmin.from('staff_members').update({ last_login_at: now }).eq('id', staff.id)
+
+  // Link this login_attempt row to the staff record + start active session
+  supabaseAdmin
+    .from('login_attempts')
+    .update({ staff_id: staff.id })
+    .eq('email', cleanEmail)
+    .eq('success', true)
+    .order('attempted_at', { ascending: false })
+    .limit(1)
+
+  supabaseAdmin
+    .from('active_sessions')
+    .upsert(
+      { staff_id: staff.id, ip, last_seen_at: now },
+      { onConflict: 'staff_id' }
+    )
 
   const [{ count: reportCount }, { count: profileCount }] = await Promise.all([
     supabaseAdmin.from('staff_members').select('*', { count: 'exact', head: true }).eq('manager_id', staff.id),
