@@ -101,25 +101,45 @@ function ReviewCard({ review, onUpdate }: {
 
   async function changeStatus(newStatus: string) {
     setSaving(true)
-    const res = await fetch(`/api/reviews/${review.id}`, {
-      method: 'PATCH', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ status: newStatus }),
-    })
-    setSaving(false)
-    if (res.ok) onUpdate(review.id, { status: newStatus })
+    setSaveMsg('')
+    try {
+      const res = await fetch(`/api/reviews/${review.id}`, {
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: newStatus }),
+      })
+      if (res.ok) {
+        onUpdate(review.id, { status: newStatus })
+      } else {
+        const err = await res.json().catch(() => ({}))
+        setSaveMsg(`Error ${res.status}: ${err.error ?? 'Failed to update status'}`)
+      }
+    } catch {
+      setSaveMsg('Network error')
+    } finally {
+      setSaving(false)
+    }
   }
 
   async function saveNotes() {
     setSaving(true)
-    const res = await fetch(`/api/reviews/${review.id}`, {
-      method: 'PATCH', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ admin_notes: notes }),
-    })
-    setSaving(false)
-    if (res.ok) {
-      onUpdate(review.id, { admin_notes: notes })
-      setSaveMsg('Saved')
-      setTimeout(() => setSaveMsg(''), 2000)
+    setSaveMsg('')
+    try {
+      const res = await fetch(`/api/reviews/${review.id}`, {
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ admin_notes: notes }),
+      })
+      if (res.ok) {
+        onUpdate(review.id, { admin_notes: notes })
+        setSaveMsg('Saved')
+        setTimeout(() => setSaveMsg(''), 2000)
+      } else {
+        const err = await res.json().catch(() => ({}))
+        setSaveMsg(`Error ${res.status}: ${err.error ?? 'Failed to save'}`)
+      }
+    } catch {
+      setSaveMsg('Network error — check connection')
+    } finally {
+      setSaving(false)
     }
   }
 
@@ -258,7 +278,7 @@ function ReviewCard({ review, onUpdate }: {
                 }}>
                 {saving ? 'Saving…' : 'Save Notes'}
               </button>
-              {saveMsg && <span style={{ fontSize: '12px', color: '#059669', fontWeight: 600 }}>{saveMsg}</span>}
+              {saveMsg && <span style={{ fontSize: '12px', color: saveMsg === 'Saved' ? '#059669' : '#DC2626', fontWeight: 600 }}>{saveMsg}</span>}
             </div>
           </div>
         </div>
