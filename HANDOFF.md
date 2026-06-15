@@ -17,10 +17,29 @@
 
 | Field       | Value                                                   |
 |-------------|---------------------------------------------------------|
-| Who         | Durga + Claude Code (Sonnet 4.6)                        |
+| Who         | Madhu + Claude Code (Sonnet 4.6)                        |
 | Date        | 2026-06-15                                              |
-| Handed off to | Madhu / Open                                         |
-| Deployed    | Yes — https://taos-discovery.vercel.app (Vercel, production, 15 Jun 2026) |
+| Handed off to | Durga                                                |
+| Deployed    | Yes — https://eventpilot.tresconglobal.com (Vercel, production, 15 Jun 2026) |
+
+---
+
+## What Was Built This Session (15 Jun 2026 — Madhu)
+
+### Assessment Retake
+- `app/api/auth/callback/route.ts` — SSO login now redirects non-admin users with `profile_complete = false` to `/profile` (pre-filled with id/name/dept) on every login, until they complete the assessment. Admins are unaffected.
+- `app/profile/page.tsx` — Added "Skip for now" link on the welcome screen (shown when `next` param is present). "Save & Exit" button in the interview now goes to `next` URL instead of `/login`; label changes to "Skip for now".
+- `app/dashboard/page.tsx` — Orange banner ("Your AI Readiness Score isn't set yet") shown when `profile_complete = false`. "Retake Assessment / Take Assessment" pill button added inline with the AIRS score and Foundation Track badges. Added `profile_complete?` to `StaffMember` type.
+
+### Security Fix — Admin Access
+- `app/api/auth/callback/route.ts` + `app/api/login/route.ts` — `isAdmin` was incorrectly set for any user with `job_level === 'office_head'` (an HRMS org rank). This gave Roy, Khalifa, Mithun, Naveen, Andrew, Praveen, and Suresh full admin access. Fixed: admin access now comes **only** from `access_roles` containing `admin` or `super_admin`. Madhu (`md@`) and Durga (`dc@`) unaffected — both have explicit admin roles.
+
+### Staff Access & Invites
+- Enabled and sent access invite to `roy@tresconglobal.com` (course only).
+- Sent missed invite emails to 5 staff who had `access_enabled = true` but never received the rollout email: Karthik C, Imran Mushtaq, Simran Arora, Nicholas Nunes (Course Library + Website Builder), Utkarsh Pant.
+
+### exitlite Skill Fix
+- `/Users/madhu/.claude/skills/exitlite/skill.md` — Removed hardcoded Lead Finder references. Skill now detects the current project from the working directory and applies the exit procedure to that project.
 
 ---
 
