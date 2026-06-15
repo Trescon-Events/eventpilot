@@ -24,6 +24,21 @@
 
 ---
 
+## What Was Built This Session (15 Jun 2026 — Madhu, Session 2)
+
+### Website Builder & Toolkit Access Fix
+- **Root cause**: After the security fix (previous session) removed admin rights for `office_head` job level, Prashant and Khalifa lost access to the Website Builder because `/admin/toolkit` and `/admin/events/[id]/website` were blocked by middleware for non-admins.
+- `middleware.ts` — `/admin/toolkit` and `/admin/events/[id]/(website|brand|market-intel)` are now **auth-only** (not admin-only). All other `/admin/*` routes remain admin-gated.
+- `app/admin/events/[id]/website/page.tsx` — Added grant guard: calls `/api/toolkit-access` on mount; redirects to `/dashboard` if user lacks `website_builder` grant.
+- `app/admin/events/[id]/market-intel/page.tsx` — Same pattern; checks `intelligence` grant.
+- `app/admin/events/[id]/brand/page.tsx` — Same pattern; checks `brand_studio` grant.
+- Admins are unaffected (`grants === null` → full access).
+
+### Khalifa Invite Resent
+- Sent "Your EventPilot access is ready" invite to `khalifa@tresconglobal.com` (Course Library + Website Builder). The original rollout email was not delivered to him.
+
+---
+
 ## What Was Built This Session (15 Jun 2026 — Madhu)
 
 ### Assessment Retake
@@ -283,11 +298,10 @@ Everything committed before `dc48b2b` is Durga's work and was not touched. Key p
 
 ## What's Next
 
-1. Khalifa — test Website Builder / brand book for AI2047 (has access, just needs to log in and test)
-2. Prashant + Khalifa — full Website Builder test for AI2047 event
-3. Content Hub social publishing — approval queue built, needs Meta API tokens from Madhu
-4. Security hardening (Phase 3): rate limiting, audit log, signed sessions, idle timeout — need Bangalore + Dubai office IPs first
-5. Monitor access request emails — staff without access sends request to md@ and dc@
+1. Khalifa + Prashant — full Website Builder test for AI2047 event (middleware fix deployed, invite sent to Khalifa ✅)
+2. Content Hub social publishing — approval queue built, needs Meta API tokens from Madhu
+3. Security hardening (Phase 3): rate limiting, audit log, signed sessions, idle timeout — need Bangalore + Dubai office IPs first
+4. Monitor access request emails — staff without access sends request to md@ and dc@
 
 ## Smart Data — Notes for Madhu
 
