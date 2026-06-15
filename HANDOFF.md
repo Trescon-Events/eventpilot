@@ -17,10 +17,42 @@
 
 | Field       | Value                                                   |
 |-------------|---------------------------------------------------------|
-| Who         | Madhu + Claude Code (Sonnet 4.6)                        |
+| Who         | Durga + Claude Code (Sonnet 4.6)                        |
 | Date        | 2026-06-15                                              |
-| Handed off to | Durga                                                 |
-| Deployed    | Yes — https://eventpilot.tresconglobal.com (Vercel, trescons-projects/eventpilot) |
+| Handed off to | Madhu                                                |
+| Deployed    | Yes — https://eventpilot.tresconglobal.com (Vercel, production) |
+
+---
+
+## What Was Built This Session (15 Jun 2026 — Durga)
+
+### Auto Build Log — GitHub Action + Gemini
+- `.github/workflows/enrich-commits.yml` + `.github/scripts/enrich-commit.js` — GitHub Action runs on every push to main, reads commit diff, sends to Gemini 2.5 Flash, stores AI-written title + bullets in `build_log_enriched` Supabase table
+- `app/api/build-log/route.ts` — updated to read from enriched table first, falls back to GitHub API
+- `supabase/build_log_enriched.sql` — new table created in Event Pilot Supabase (`yuyxfxoevztugtfgduks`)
+- GitHub secrets set: `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `GEMINI_API_KEY`
+- `scripts/backfill-build-log.js` — one-time script, ran locally, backfilled 74 commits (7 days of history)
+- What's Next panel now shows full day-wise build history with no manual effort
+
+### Smart Data — 100% Complete
+All missing features built and deployed:
+
+- `app/data/pipeline/page.tsx` — Pipeline Kanban board: 6 stages (Prospect → Contacted → Interested → Confirmed → Declined → Vendor), drag-drop cards, click-to-move menu, contact name/title/email shown per card
+- `app/api/data/enrich/email-guess/route.ts` — Email Guesser API wired to Apollo `people/match`; fallback pattern generator when no API key; returns confidence + verified status
+- `app/data/quality/page.tsx` + `app/api/data/quality/route.ts` — Data Quality dashboard: field completeness bars, monthly trend chart, duplicate detection, overall score ring
+- `app/data/audiences/page.tsx` + `app/api/data/audiences/route.ts` — Saved Audiences: create named ICP definitions from JSON, view, delete; GET/POST/DELETE API on `sd_saved_audiences`
+- `app/data/scoring/page.tsx` — Contact Scoring: search contact, enter event context, run Gemini research brief, shows fit score ring, brief, opening line, reasons, flags
+- `app/data/audit/page.tsx` + `app/api/data/audit/route.ts` — Enrichment Audit: field-level change log across all contacts, filterable by tool, shows contact name + old/new values
+- `app/api/data/credits/route.ts` — Credits API: today's lookup usage + tool statuses
+- `app/data/layout.tsx` — Sidebar updated: live credit bar (usage/limit with progress bar), Pipeline section added, Enrichment Audit under DATABASE, Saved Audiences + Contact Scoring + Data Quality under INTELLIGENCE
+- `supabase/smartdata_patch_jun2026.sql` — SQL for `sd_saved_audiences`, `sd_contact_scores`, missing indexes (run in SmartData Supabase `lnhtmppybqeicedgtanf`)
+
+### Staff Review System (built earlier this session)
+- `app/components/ReviewWidget.tsx` — floating "Report Issue" button, session-gated (hides when not logged in), full light theme
+- `app/admin/reviews/page.tsx` — admin triage page with light platform theme, status filters, admin notes
+- `app/api/reviews/route.ts` + `app/api/reviews/[id]/route.ts` — GET/POST/PATCH review APIs
+- `supabase/platform_reviews.sql` — `platform_reviews` table with severity, status, tool, admin_notes (already run)
+- Added Staff Reviews link to admin nav
 
 ---
 
@@ -213,12 +245,21 @@ Everything committed before `dc48b2b` is Durga's work and was not touched. Key p
 
 ## What's Next
 
-1. Test Khalifa's Website Builder access for AI2047 brand book
-2. Test Prashant + Khalifa website builder for AI2047
-3. Social media manager for AI2047 (Phase 3 proper — needs Meta API tokens from Madhu)
-4. Content Hub social publishing — approval queue built, needs Meta tokens
-5. Security hardening (Phase 3): rate limiting, audit log, signed sessions, idle timeout
-6. Monitor access request emails — any staff who tries to log in without access will send a request to md@ and dc@
+1. Khalifa — test Website Builder / brand book for AI2047 (has access, just needs to log in and test)
+2. Prashant + Khalifa — full Website Builder test for AI2047 event
+3. Content Hub social publishing — approval queue built, needs Meta API tokens from Madhu
+4. Security hardening (Phase 3): rate limiting, audit log, signed sessions, idle timeout — need Bangalore + Dubai office IPs first
+5. Monitor access request emails — staff without access sends request to md@ and dc@
+
+## Smart Data — Notes for Madhu
+
+All routes are live. To activate paid enrichment tools, add API keys to Vercel env vars:
+- `LUSHA_API_KEY` — LinkedIn Enricher + Smart Lookup
+- `APOLLO_API_KEY` — Email Guesser + Lead Finder execute
+- `MILLION_VERIFIER_API_KEY` — Email Verifier
+- `FIRECRAWL_API_KEY` — Website Finder + URL Extractor
+
+SmartData SQL patch (`supabase/smartdata_patch_jun2026.sql`) must be run in `lnhtmppybqeicedgtanf` project.
 
 ---
 
