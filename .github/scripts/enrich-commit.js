@@ -20,6 +20,9 @@ const NOISE_PATTERNS = [
   /^fix (typo|syntax|lint)/i,
   /^wip\b/i,
   /^chore\(handoff\)/i,
+  /^chore:\s*sync/i,          // empty sync / redeploy trigger commits
+  /^chore:\s*lock/i,          // lock file / port lock commits
+  /trigger redeploy/i,        // any commit whose purpose is just a redeploy
 ]
 
 function isNoise(msg) {
@@ -35,7 +38,7 @@ function resolveAuthor(email, name) {
 
 // ── Main ──────────────────────────────────────────────────────────────────────
 async function main() {
-  const sha        = execSync('git rev-parse HEAD').toString().trim()
+  const sha         = execSync('git rev-parse HEAD').toString().trim()
   const authorEmail = execSync('git log -1 --format="%ae"').toString().trim()
   const authorName  = execSync('git log -1 --format="%an"').toString().trim()
   const committedAt = execSync('git log -1 --format="%aI"').toString().trim()
@@ -56,6 +59,14 @@ async function main() {
     diffContent = execSync('git diff HEAD~1 HEAD -- "*.ts" "*.tsx" "*.js" "*.jsx" "*.sql" 2>/dev/null | head -c 6000').toString()
   } catch {
     diffContent = rawMessage
+  }
+
+  // Skip empty commits — nothing changed in code files, nothing for Gemini to summarise
+  const hasCodeChanges   = diffContent.trim().length > 0
+  const statShowsChanges = diffStat && !diffStat.includes('0 files changed') && diffStat !== 'Initial commit'
+  if (!hasCodeChanges && !statShowsChanges) {
+    console.log('Empty diff — no code changes detected. Skipping Gemini enrichment.')
+    return
   }
 
   // ── Gemini prompt ─────────────────────────────────────────────────────────
@@ -80,6 +91,7 @@ Rules:
 - Do not say "refactored" or "updated" unless it materially changes what the user sees
 - Write as if explaining to a non-developer manager what shipped
 - Skip obvious infrastructure details (TypeScript types, imports, etc.)
+- Only describe what is actually visible in the diff above — do not invent features
 
 Respond with valid JSON only. No markdown, no explanation.`
 
