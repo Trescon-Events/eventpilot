@@ -20,20 +20,34 @@ function resolveAuthor(login: string, email: string, name: string): string {
   return name?.split(' ')[0] ?? login ?? 'Team'
 }
 
+// Strip conventional commit prefix: "feat(scope): " → ""
+function stripConventional(line: string): string {
+  return line.replace(/^(feat|fix|chore|docs|refactor|style|test|build|ci|perf)(\([^)]*\))?:\s*/i, '').trim()
+}
+
 // Parse commit message → { title, items[] }
-// Convention:
-//   First line  = title
-//   Body lines starting with •, -, * = bullet items
+// Supports two formats:
+//   Standard:      "Title\n\n• bullet\n• bullet"
+//   Conventional:  "feat(scope): title\n\nitem one\nitem two" (body lines as items)
 function parseMessage(message: string): { title: string; items: string[] } {
-  const lines  = message.trim().split('\n').map(l => l.trim()).filter(Boolean)
-  const title  = lines[0] ?? ''
-  const items  = lines.slice(1).filter(l => /^[•\-\*]/.test(l)).map(l => l.replace(/^[•\-\*]\s*/, ''))
-  return { title, items }
+  const lines = message.trim().split('\n').map(l => l.trim()).filter(Boolean)
+  const rawTitle = lines[0] ?? ''
+  const title    = stripConventional(rawTitle)
+  const bodyLines = lines.slice(1)
+
+  // Prefer explicit bullet lines (•, -, *)
+  const bulletLines = bodyLines.filter(l => /^[•\-\*]/.test(l)).map(l => l.replace(/^[•\-\*]\s*/, ''))
+  if (bulletLines.length > 0) return { title, items: bulletLines }
+
+  // Fallback: treat non-empty body lines as items (Madhu's style — colon-separated details)
+  const fallbackLines = bodyLines.filter(l => l.length > 10 && !l.startsWith('Co-Authored'))
+  return { title, items: fallbackLines }
 }
 
 // Skip noise commits
 function isNoise(title: string): boolean {
-  return /^(merge|fix:|chore:|update build log|update handoff|update readme)/i.test(title)
+  const clean = stripConventional(title)
+  return /^(merge|update build log|update handoff|update readme|fix typo|wip\b)/i.test(clean)
 }
 
 function formatDate(iso: string): string {
