@@ -4304,7 +4304,7 @@ export default function AdminPage() {
                 </div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                   {[
-                    'Staff Review System — floating "Report Issue" button on every page. Staff report bugs, suggestions, and issues by tool, type, severity. Admin triages at /admin/reviews with status tracking and notes',
+                    'Staff Review System — floating "Report Issue" button on every page. Staff report bugs by tool, type, severity and can attach a screenshot. Admin triages at /admin/reviews with status tracking, notes, and screenshot preview',
                     'Auto Build Log — What\'s Next panel pulls live from GitHub commits. Zero manual updates. Every push by Durga or Madhu auto-appears, grouped by date and author',
                     'SSO-only login — Microsoft 365 is the only sign-in method. Email/password form removed. Access-pending gate for staff without access_enabled',
                     'Profile menu — unified nav bar component across all pages. Favicon, OG image, and page metadata set for correct link previews',
