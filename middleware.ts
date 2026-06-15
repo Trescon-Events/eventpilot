@@ -40,8 +40,9 @@ function parseSession(req: NextRequest): { sid: string; jl: string; adm: boolean
 
 // ── Custom domain → event slug rewriting ─────────────────────────────────
 const PLATFORM_HOSTS = [
-  'eventpilot-trescons-projects.vercel.app',
   'eventpilot.tresconglobal.com',
+  'taos-discovery.vercel.app',
+  'eventpilot-nammadaiva-agents-projects.vercel.app',
   'localhost',
   '127.0.0.1',
 ]

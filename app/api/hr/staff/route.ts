@@ -187,7 +187,7 @@ export async function POST(req: NextRequest) {
 
   /* ── Send credentials email ── */
   if (access_enabled) {
-    const loginUrl = `${process.env.NEXT_PUBLIC_SITE_URL ?? 'https://eventpilot-trescons-projects.vercel.app'}/login`
+    const loginUrl = `${process.env.NEXT_PUBLIC_SITE_URL ?? 'https://eventpilot.tresconglobal.com'}/login`
     try {
       await sendCredentials({ to: newStaff.email, name: newStaff.name, tempPassword, loginUrl })
     } catch (e) {
