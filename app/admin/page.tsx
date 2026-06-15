@@ -4250,6 +4250,14 @@ export default function AdminPage() {
                 </div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
                   {[
+                    { date: '15 Jun 2026 — Madhu', items: [
+                      'SSO-only login — email/password form removed from login page. Microsoft 365 is now the sole sign-in option. Cleaner UI, no divider or forgot-password link',
+                      'Access-pending gate — staff without access_enabled are redirected to /access-pending after SSO. Page shows "Platform in testing" message with pre-filled email and a Request Access button',
+                      'Request access flow — POST /api/request-access sends notification email to md@ and dc@tresconglobal.com when any staff member requests access. No staff is left stranded',
+                      'Rollout emails sent — "Your EventPilot access is ready" email dispatched to all enabled staff. Courses-only group sees Course Library; Prashant / Khalifa / Nicholas see Course Library + Website Builder',
+                      'Branding fixed — "Trescon Global" replaced with "Trescon" across all 34 occurrences in app files (API routes, emails, UI pages, seed data, lib utilities)',
+                      'All 126 staff enabled — access_enabled = true for entire company after decision to open access to everyone who received the rollout email',
+                    ]},
                     { date: '12 Jun 2026 — Madhu', items: [
                       'EventPilot branding applied site-wide — favicon (32×32 + 192×192 + apple-touch 180×180), OG image (1024×600 Trescon feature image for link previews), page title set to "EventPilot", and meta description added to layout',
                       'Profile menu — standalone avatar + sign-out button across Dashboard, Team, and My HR pages replaced with a unified ProfileMenu component in the nav bar. Consistent sign-out experience everywhere',

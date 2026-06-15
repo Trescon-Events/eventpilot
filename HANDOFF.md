@@ -18,7 +18,7 @@
 | Field       | Value                                                   |
 |-------------|---------------------------------------------------------|
 | Who         | Madhu + Claude Code (Sonnet 4.6)                        |
-| Date        | 2026-06-12                                              |
+| Date        | 2026-06-15                                              |
 | Handed off to | Durga                                                 |
 | Deployed    | Yes — https://eventpilot.tresconglobal.com (Vercel, trescons-projects/eventpilot) |
 
@@ -48,6 +48,38 @@ Everything committed before `dc48b2b` is Durga's work and was not touched. Key p
 - Team Dashboard, role-personalized dashboards, platform docs (20 articles)
 - Knowledge Base: Gemini-powered PDF processing
 - Weekly HRMS sync confirmed end-to-end: 124 staff, 51 projects, 349 allocations
+
+---
+
+## What Was Built This Session (15 Jun 2026 — Madhu)
+
+### Selective Staff Rollout (DB)
+- Enabled `access_enabled = true` for 25 specific staff (courses only) + Prashant, Khalifa, Nicholas (courses + Website Builder). All other staff had access disabled.
+- Final state: all 126 staff enabled after user decision to open access to everyone who received the rollout email.
+- Website Builder `tool_grants` set for Prashant, Khalifa, Nicholas.
+
+### Rollout Notification Email (`app/lib/email.ts`, `scripts/send-rollout-emails.mjs`)
+- New `sendAccessGranted()` email function — branded "You're in" email listing the user's access (Course Library / + Website Builder). Lime green CTA button, login URL.
+- Rollout emails sent to all enabled staff.
+
+### SSO-Only Login (`app/login/page.tsx`)
+- Removed email/password form, forgot-password panel, and "or" divider entirely.
+- Microsoft 365 button is now the sole login option — larger, more prominent.
+- SSO error display retained (for OAuth failure redirects).
+- Bottom wordmark updated to "Event Pilot · Trescon".
+
+### Access-Pending Gate (`app/access-pending/page.tsx`, `app/api/request-access/route.ts`)
+- New `/access-pending` page: shown to any staff member whose `access_enabled = false` after SSO.
+- Displays "Platform in testing" message with pre-filled work email and a "Request Access" button.
+- POST `/api/request-access` — sends notification email to `md@tresconglobal.com` and `dc@tresconglobal.com` when any staff member requests access.
+- New `sendAccessRequest()` function added to `app/lib/email.ts`.
+
+### SSO Callback Update (`app/api/auth/callback/route.ts`)
+- `access_enabled = false` now redirects to `/access-pending?email=xxx` instead of the login error page.
+
+### Branding: "Trescon Global" → "Trescon" (34 occurrences)
+- Global rename across all `app/` `.ts` and `.tsx` files — API routes, email templates, UI pages, seed files, lib utilities.
+- Email footer now reads "Trescon · Event Pilot".
 
 ---
 
@@ -171,12 +203,12 @@ Everything committed before `dc48b2b` is Durga's work and was not touched. Key p
 
 ## What's Next
 
-1. Staff rollout — roll out app to all 126 staff (access to courses only). Enable `access_enabled = true` for all. Staff will see "My Learning" workspace with course library only.
-2. Test Khalifa's Website Builder access for AI2047 brand book
-3. Test Prashant + Khalifa website builder for AI2047
-4. Social media manager for AI2047 (Phase 3 proper — needs Meta API tokens from Madhu)
-5. Content Hub social publishing — approval queue built, needs Meta tokens
-6. Security hardening (Phase 3): rate limiting, audit log, signed sessions, idle timeout
+1. Test Khalifa's Website Builder access for AI2047 brand book
+2. Test Prashant + Khalifa website builder for AI2047
+3. Social media manager for AI2047 (Phase 3 proper — needs Meta API tokens from Madhu)
+4. Content Hub social publishing — approval queue built, needs Meta tokens
+5. Security hardening (Phase 3): rate limiting, audit log, signed sessions, idle timeout
+6. Monitor access request emails — any staff who tries to log in without access will send a request to md@ and dc@
 
 ---
 
