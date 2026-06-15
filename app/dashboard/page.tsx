@@ -146,7 +146,10 @@ function DashboardContent() {
   const [recContext,     setRecContext]      = useState<{ mandatory_total: number; mandatory_completed: number; dept_courses: number; dept_completed: number } | null>(null)
   const [loading,        setLoading]        = useState(true)
   const [error,          setError]          = useState('')
-  const [notifications,  setNotifications]  = useState<{ id: string; title: string; body: string; course_id: string | null }[]>([])
+  const [notifications,  setNotifications]  = useState<{ id: string; title: string; body: string; course_id: string | null; review_id: string | null }[]>([])
+  type MyReviewComment = { id: string; author_type: string; author_name: string; message: string | null; is_status_change: boolean; new_status: string | null; created_at: string }
+  type MyReview = { id: string; tool: string; review_type: string; severity: string; title: string; status: string; created_at: string; comments: MyReviewComment[] }
+  const [myReviews, setMyReviews] = useState<MyReview[]>([])
   const [aiRecsLoading,  setAiRecsLoading]  = useState(false)
   const [aiRecsReady,    setAiRecsReady]    = useState(false)
   const [isDemo,         setIsDemo]         = useState(false)
@@ -239,6 +242,8 @@ function DashboardContent() {
       setRecContext(data.recommendations?.context ?? null)
       setNotifications(data.notifications ?? [])
       setLoading(false)
+      /* Load my submitted reviews with trail */
+      fetch('/api/reviews?my=1').then(r => r.ok ? r.json() : []).then(d => setMyReviews(Array.isArray(d) ? d : [])).catch(() => {})
       /* Fire AI recommendations async — cached for 30 min so Gemini isn't hit on every page load */
       loadAiRecs()
       /* Load team course progress for managers */
@@ -1449,6 +1454,76 @@ function DashboardContent() {
           )}
         </div>
       </div>
+
+      {/* ── My Submissions ── */}
+      {myReviews.length > 0 && (
+        <div style={{ maxWidth: '900px', margin: '0 auto', padding: '0 32px 32px' }}>
+          <div style={{ fontSize: '11px', fontWeight: 800, letterSpacing: '2px', textTransform: 'uppercase', color: '#5B7080', marginBottom: '12px' }}>My Submissions</div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+            {myReviews.map(r => {
+              const STATUS_COLORS: Record<string, { color: string; bg: string; label: string }> = {
+                new:          { color: '#DC2626', bg: '#DC262615', label: 'New' },
+                acknowledged: { color: '#D97706', bg: '#D9770615', label: 'Acknowledged' },
+                in_progress:  { color: '#1565C0', bg: '#1565C015', label: 'In Progress' },
+                resolved:     { color: '#059669', bg: '#05966915', label: 'Resolved' },
+                wont_fix:     { color: '#5B7080', bg: '#5B708015', label: "Won't Fix" },
+              }
+              const sm = STATUS_COLORS[r.status] ?? STATUS_COLORS.new
+              const adminReplies = r.comments.filter(c => !c.is_status_change && c.message)
+              return (
+                <div key={r.id} style={{ background: '#FFFFFF', border: '1px solid #DDE8EE', borderRadius: '14px', overflow: 'hidden' }}>
+                  {/* Header */}
+                  <div style={{ padding: '14px 18px', display: 'flex', alignItems: 'center', gap: '12px' }}>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: '14px', fontWeight: 700, color: '#0F1923', marginBottom: '3px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.title}</div>
+                      <div style={{ fontSize: '11px', color: '#5B7080' }}>
+                        Submitted {new Date(r.created_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}
+                        {adminReplies.length > 0 && <> · <span style={{ color: '#00897B', fontWeight: 700 }}>{adminReplies.length} {adminReplies.length === 1 ? 'reply' : 'replies'} from team</span></>}
+                      </div>
+                    </div>
+                    <span style={{ fontSize: '11px', fontWeight: 700, padding: '3px 10px', borderRadius: '6px', background: sm.bg, color: sm.color, whiteSpace: 'nowrap' }}>{sm.label}</span>
+                  </div>
+                  {/* Trail — status changes + admin replies */}
+                  {r.comments.length > 0 && (
+                    <div style={{ borderTop: '1px solid #E8EEF4', padding: '12px 18px', display: 'flex', flexDirection: 'column', gap: '8px', background: '#F8FAFC' }}>
+                      {r.comments.map(c => {
+                        const sc = !c.is_status_change ? null : STATUS_COLORS[c.new_status ?? '']
+                        return (
+                          <div key={c.id} style={{ display: 'flex', gap: '10px', alignItems: 'flex-start' }}>
+                            <div style={{ width: '24px', height: '24px', borderRadius: '6px', background: c.is_status_change ? (sc?.bg ?? '#E8EEF4') : 'rgba(0,137,123,0.08)', border: `1px solid ${c.is_status_change ? (sc?.color ?? '#DDE8EE') + '50' : 'rgba(0,137,123,0.2)'}`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, marginTop: '1px' }}>
+                              {c.is_status_change
+                                ? <svg width="9" height="9" fill="none" stroke={sc?.color ?? '#5B7080'} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>
+                                : <svg width="9" height="9" fill="none" stroke="#00897B" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+                              }
+                            </div>
+                            <div style={{ flex: 1 }}>
+                              <div style={{ fontSize: '11px', color: '#5B7080', marginBottom: c.message ? '4px' : '0' }}>
+                                <span style={{ fontWeight: 700, color: '#0F1923' }}>{c.author_name}</span>
+                                {c.is_status_change && c.new_status
+                                  ? <> marked as <span style={{ fontWeight: 700, color: sc?.color ?? '#5B7080' }}>{STATUS_COLORS[c.new_status]?.label ?? c.new_status}</span></>
+                                  : ' replied'
+                                }
+                                <span style={{ marginLeft: '6px' }}>
+                                  {(() => { const d = Date.now() - new Date(c.created_at).getTime(); const m = Math.floor(d/60000); return m < 2 ? 'just now' : m < 60 ? `${m}m ago` : m < 1440 ? `${Math.floor(m/60)}h ago` : `${Math.floor(m/1440)}d ago` })()}
+                                </span>
+                              </div>
+                              {c.message && (
+                                <div style={{ fontSize: '13px', color: '#0F1923', lineHeight: 1.65, background: '#FFFFFF', padding: '10px 12px', borderRadius: '8px', border: '1px solid #DDE8EE', whiteSpace: 'pre-wrap' }}>
+                                  {c.message}
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  )}
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      )}
 
       {/* ── Feedback Card ── */}
       <div style={{ maxWidth: '900px', margin: '0 auto', padding: '0 32px 48px' }}>

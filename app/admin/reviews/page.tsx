@@ -53,6 +53,12 @@ const STATUS_META: Record<string, { label: string; color: string; bg: string }> 
 
 const STATUS_FLOW = ['new', 'acknowledged', 'in_progress', 'resolved', 'wont_fix']
 
+type ReviewComment = {
+  id: string; review_id: string; author_type: 'admin' | 'staff'
+  author_name: string; message: string | null
+  is_status_change: boolean; new_status: string | null; created_at: string
+}
+
 type Review = {
   id: string; staff_id: string | null; staff_name: string; staff_email: string
   tool: string; review_type: string; severity: string; title: string
@@ -60,6 +66,7 @@ type Review = {
   screenshot_url: string | null
   resolved_at: string | null; resolved_by_name: string | null
   created_at: string; updated_at: string
+  comments?: ReviewComment[]
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -88,59 +95,81 @@ function timeAgo(iso: string) {
 
 function ReviewCard({ review, onUpdate }: {
   review:   Review
-  onUpdate: (id: string, patch: { status?: string; admin_notes?: string }) => void
+  onUpdate: (id: string, patch: { status?: string; admin_notes?: string; comments?: ReviewComment[] }) => void
 }) {
-  const [expanded, setExpanded] = useState(false)
-  const [notes,    setNotes]    = useState(review.admin_notes ?? '')
-  const [saving,   setSaving]   = useState(false)
-  const [saveMsg,  setSaveMsg]  = useState('')
+  const [expanded,   setExpanded]   = useState(false)
+  const [notes,      setNotes]      = useState(review.admin_notes ?? '')
+  const [response,   setResponse]   = useState('')
+  const [comments,   setComments]   = useState<ReviewComment[]>(review.comments ?? [])
+  const [saving,     setSaving]     = useState(false)
+  const [saveMsg,    setSaveMsg]    = useState('')
+  const [loadingTrail, setLoadingTrail] = useState(false)
 
   const typeMeta     = TYPE_META[review.review_type]  ?? { label: review.review_type, color: C.muted, bg: C.muted + '15' }
   const severityMeta = SEVERITY_META[review.severity] ?? { label: review.severity,    color: C.muted, bg: C.muted + '15' }
   const statusMeta   = STATUS_META[review.status]     ?? { label: review.status,      color: C.muted, bg: C.muted + '15' }
 
-  async function changeStatus(newStatus: string) {
+  async function patch(body: Record<string, unknown>) {
     setSaving(true)
     setSaveMsg('')
     try {
       const res = await fetch(`/api/reviews/${review.id}`, {
         method: 'PATCH', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status: newStatus }),
+        body: JSON.stringify(body),
       })
+      const data = await res.json().catch(() => ({}))
       if (res.ok) {
-        onUpdate(review.id, { status: newStatus })
+        if (data.comments) setComments(data.comments)
+        return data
       } else {
-        const err = await res.json().catch(() => ({}))
-        setSaveMsg(`Error ${res.status}: ${err.error ?? 'Failed to update status'}`)
+        setSaveMsg(`Error ${res.status}: ${data.error ?? 'Failed'}`)
+        return null
       }
     } catch {
-      setSaveMsg('Network error')
+      setSaveMsg('Network error — check connection')
+      return null
     } finally {
       setSaving(false)
     }
   }
 
+  async function changeStatus(newStatus: string) {
+    const data = await patch({ status: newStatus })
+    if (data) onUpdate(review.id, { status: newStatus, comments: data.comments })
+  }
+
   async function saveNotes() {
-    setSaving(true)
-    setSaveMsg('')
-    try {
-      const res = await fetch(`/api/reviews/${review.id}`, {
-        method: 'PATCH', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ admin_notes: notes }),
-      })
-      if (res.ok) {
-        onUpdate(review.id, { admin_notes: notes })
-        setSaveMsg('Saved')
-        setTimeout(() => setSaveMsg(''), 2000)
-      } else {
-        const err = await res.json().catch(() => ({}))
-        setSaveMsg(`Error ${res.status}: ${err.error ?? 'Failed to save'}`)
-      }
-    } catch {
-      setSaveMsg('Network error — check connection')
-    } finally {
-      setSaving(false)
+    const data = await patch({ admin_notes: notes })
+    if (data) {
+      onUpdate(review.id, { admin_notes: notes })
+      setSaveMsg('Saved')
+      setTimeout(() => setSaveMsg(''), 2000)
     }
+  }
+
+  async function sendResponse() {
+    if (!response.trim()) return
+    const data = await patch({ response: response.trim() })
+    if (data) {
+      setResponse('')
+      if (data.comments) {
+        setComments(data.comments)
+        onUpdate(review.id, { comments: data.comments })
+      }
+      setSaveMsg('Response sent')
+      setTimeout(() => setSaveMsg(''), 2000)
+    }
+  }
+
+  async function loadTrail() {
+    if (comments.length > 0) return
+    setLoadingTrail(true)
+    const res = await fetch(`/api/reviews/${review.id}`)
+    if (res.ok) {
+      const data = await res.json()
+      setComments(data.comments ?? [])
+    }
+    setLoadingTrail(false)
   }
 
   return (
@@ -152,7 +181,7 @@ function ReviewCard({ review, onUpdate }: {
     }}>
       {/* Header — always visible */}
       <button
-        onClick={() => setExpanded(v => !v)}
+        onClick={() => { setExpanded(v => !v); if (!expanded) loadTrail() }}
         style={{ width: '100%', textAlign: 'left', background: 'none', border: 'none', padding: '16px 18px', cursor: 'pointer', fontFamily: 'inherit' }}
       >
         <div style={{ display: 'flex', alignItems: 'flex-start', gap: '12px' }}>
@@ -255,9 +284,72 @@ function ReviewCard({ review, onUpdate }: {
             </div>
           </div>
 
-          {/* Admin notes */}
+          {/* ── Comment trail ── */}
+          <div style={{ marginTop: '20px' }}>
+            <div style={{ fontSize: '11px', fontWeight: 700, color: C.muted, letterSpacing: '0.8px', textTransform: 'uppercase' as const, marginBottom: '10px' }}>Activity Trail</div>
+            {loadingTrail ? (
+              <div style={{ fontSize: '12px', color: C.muted, padding: '8px 0' }}>Loading trail…</div>
+            ) : comments.length === 0 ? (
+              <div style={{ fontSize: '12px', color: C.muted, fontStyle: 'italic' }}>No activity yet.</div>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                {comments.map(c => {
+                  const isStatus = c.is_status_change
+                  const sm       = isStatus && c.new_status ? STATUS_META[c.new_status] : null
+                  return (
+                    <div key={c.id} style={{ display: 'flex', gap: '10px', alignItems: 'flex-start' }}>
+                      <div style={{ width: '28px', height: '28px', borderRadius: '7px', background: isStatus ? (sm?.bg ?? '#E8EEF4') : 'rgba(0,137,123,0.08)', border: `1px solid ${isStatus ? (sm?.color ?? C.border) + '40' : 'rgba(0,137,123,0.2)'}`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, marginTop: '1px' }}>
+                        {isStatus
+                          ? <svg width="11" height="11" fill="none" stroke={sm?.color ?? C.muted} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>
+                          : <svg width="11" height="11" fill="none" stroke="#00897B" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+                        }
+                      </div>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontSize: '11px', color: C.muted, marginBottom: '2px' }}>
+                          <span style={{ fontWeight: 700, color: C.text }}>{c.author_name}</span>
+                          {isStatus && c.new_status
+                            ? <> marked as <span style={{ fontWeight: 700, color: sm?.color ?? C.muted }}>{STATUS_META[c.new_status]?.label ?? c.new_status}</span></>
+                            : ' responded'
+                          }
+                          <span style={{ marginLeft: '6px' }}>{timeAgo(c.created_at)}</span>
+                        </div>
+                        {c.message && (
+                          <div style={{ fontSize: '13px', color: C.text, lineHeight: 1.65, background: '#F6F8FB', padding: '10px 12px', borderRadius: '8px', border: `1px solid ${C.border}`, whiteSpace: 'pre-wrap' as const }}>
+                            {c.message}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            )}
+          </div>
+
+          {/* ── Send response to staff ── */}
           <div style={{ marginTop: '16px' }}>
-            <div style={{ fontSize: '11px', fontWeight: 700, color: C.muted, letterSpacing: '0.8px', textTransform: 'uppercase' as const, marginBottom: '8px' }}>Admin Notes</div>
+            <div style={{ fontSize: '11px', fontWeight: 700, color: C.muted, letterSpacing: '0.8px', textTransform: 'uppercase' as const, marginBottom: '8px' }}>
+              Send Response to Staff
+              <span style={{ marginLeft: '6px', fontWeight: 400, textTransform: 'none' as const, letterSpacing: 0, fontSize: '11px', color: C.muted }}>— visible to {review.staff_name}, triggers notification</span>
+            </div>
+            <textarea
+              rows={3} value={response}
+              onChange={e => { setResponse(e.target.value); setSaveMsg('') }}
+              placeholder={`Write a reply to ${review.staff_name}…`}
+              style={{ width: '100%', background: '#F6F8FB', border: `1px solid ${C.border}`, borderRadius: '10px', padding: '10px 14px', fontSize: '13px', color: C.text, outline: 'none', fontFamily: 'inherit', resize: 'vertical' as const, minHeight: '72px', boxSizing: 'border-box' as const, lineHeight: 1.6 }}
+            />
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginTop: '8px' }}>
+              <button onClick={sendResponse} disabled={saving || !response.trim()}
+                style={{ background: C.teal, color: '#fff', border: 'none', borderRadius: '8px', padding: '7px 18px', fontSize: '13px', fontWeight: 700, cursor: saving || !response.trim() ? 'not-allowed' : 'pointer', fontFamily: 'inherit', opacity: saving || !response.trim() ? 0.5 : 1 }}>
+                {saving ? 'Sending…' : 'Send Response'}
+              </button>
+              {saveMsg && <span style={{ fontSize: '12px', color: saveMsg.startsWith('Error') || saveMsg.startsWith('Network') ? '#DC2626' : '#059669', fontWeight: 600 }}>{saveMsg}</span>}
+            </div>
+          </div>
+
+          {/* Admin notes — internal only */}
+          <div style={{ marginTop: '16px' }}>
+            <div style={{ fontSize: '11px', fontWeight: 700, color: C.muted, letterSpacing: '0.8px', textTransform: 'uppercase' as const, marginBottom: '8px' }}>Admin Notes <span style={{ fontWeight: 400, textTransform: 'none' as const, letterSpacing: 0 }}>— internal only, not shown to staff</span></div>
             <textarea
               rows={3} value={notes}
               onChange={e => { setNotes(e.target.value); setSaveMsg('') }}
@@ -271,14 +363,9 @@ function ReviewCard({ review, onUpdate }: {
             />
             <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginTop: '8px' }}>
               <button onClick={saveNotes} disabled={saving}
-                style={{
-                  background: C.teal, color: '#fff', border: 'none', borderRadius: '8px',
-                  padding: '7px 18px', fontSize: '13px', fontWeight: 700,
-                  cursor: saving ? 'not-allowed' : 'pointer', fontFamily: 'inherit', opacity: saving ? 0.6 : 1,
-                }}>
+                style={{ background: '#E8EEF4', color: C.text, border: `1px solid ${C.border}`, borderRadius: '8px', padding: '7px 18px', fontSize: '13px', fontWeight: 700, cursor: saving ? 'not-allowed' : 'pointer', fontFamily: 'inherit', opacity: saving ? 0.6 : 1 }}>
                 {saving ? 'Saving…' : 'Save Notes'}
               </button>
-              {saveMsg && <span style={{ fontSize: '12px', color: saveMsg === 'Saved' ? '#059669' : '#DC2626', fontWeight: 600 }}>{saveMsg}</span>}
             </div>
           </div>
         </div>
