@@ -20,6 +20,7 @@ interface StaffMember {
   team: string | null
   toolkit_access?: boolean
   tool_grants?: Record<string, boolean>
+  profile_complete?: boolean
 }
 
 interface TaskProfile {
@@ -426,6 +427,22 @@ function DashboardContent() {
           </div>
         )}
 
+        {/* ── Assessment prompt banner ── */}
+        {!staff.profile_complete && (
+          <div style={{ background: 'rgba(245,158,11,0.08)', border: '1.5px solid rgba(245,158,11,0.35)', borderRadius: '16px', padding: '16px 22px', marginBottom: '20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '16px', flexWrap: 'wrap' }}>
+            <div>
+              <div style={{ fontSize: '13px', fontWeight: 800, color: '#92400E', marginBottom: '3px' }}>Your AI Readiness Score isn&apos;t set yet</div>
+              <div style={{ fontSize: '13px', color: '#78350F', lineHeight: 1.5 }}>Complete the 5-minute assessment so the platform can match you to the right courses.</div>
+            </div>
+            <Link
+              href={`/profile?id=${staffId}&name=${encodeURIComponent(staff.name)}&dept=${encodeURIComponent(staff.department ?? '')}&next=${encodeURIComponent(`/dashboard?id=${staffId}`)}`}
+              style={{ background: '#D97706', color: '#FFFFFF', fontSize: '13px', fontWeight: 800, padding: '10px 20px', borderRadius: '50px', textDecoration: 'none', whiteSpace: 'nowrap', flexShrink: 0 }}
+            >
+              Take Assessment
+            </Link>
+          </div>
+        )}
+
         {/* ── Hero ── */}
         <div style={{ borderRadius: '20px', marginBottom: '24px', overflow: 'hidden', boxShadow: 'none' }}>
           {/* Rich colored header band */}
@@ -469,6 +486,12 @@ function DashboardContent() {
               <div style={{ fontSize: '12px', color: '#5B7080', marginTop: '6px', lineHeight: 1.4, fontWeight: 600 }}>
                 AI Readiness Score<br />out of 100
               </div>
+              <Link
+                href={`/profile?id=${staffId}&name=${encodeURIComponent(staff.name)}&dept=${encodeURIComponent(staff.department ?? '')}&next=${encodeURIComponent(`/dashboard?id=${staffId}`)}`}
+                style={{ display: 'inline-block', marginTop: '8px', fontSize: '11px', color: '#5B7080', textDecoration: 'underline' }}
+              >
+                {staff.profile_complete ? 'Retake assessment' : 'Take assessment'}
+              </Link>
             </div>
           </div>
         </div>

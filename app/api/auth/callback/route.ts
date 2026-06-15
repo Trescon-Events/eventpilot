@@ -92,7 +92,7 @@ export async function GET(req: NextRequest) {
   // ── Look up staff record ───────────────────────────────────────────────────
   const { data: staff, error } = await supabaseAdmin
     .from('staff_members')
-    .select('id, name, department, role, office_id, job_level, manager_id, access_enabled, access_roles')
+    .select('id, name, department, role, office_id, job_level, manager_id, access_enabled, access_roles, profile_complete')
     .eq('email', email)
     .single()
 
@@ -118,8 +118,19 @@ export async function GET(req: NextRequest) {
     roles: accessRoles,
   })).toString('base64')
 
-  // ── Decide destination — admin → /admin, everyone else → /dashboard ────────
-  const destination = isAdmin ? '/admin' : `/dashboard?id=${staff.id}`
+  // ── Decide destination ────────────────────────────────────────────────────
+  let destination: string
+  if (isAdmin) {
+    destination = '/admin'
+  } else if (!staff.profile_complete) {
+    // Send to assessment on every login until they complete it
+    const next = encodeURIComponent(`/dashboard?id=${staff.id}`)
+    const name = encodeURIComponent(staff.name ?? '')
+    const dept = encodeURIComponent(staff.department ?? '')
+    destination = `/profile?id=${staff.id}&name=${name}&dept=${dept}&next=${next}`
+  } else {
+    destination = `/dashboard?id=${staff.id}`
+  }
 
   const dest = req.nextUrl.clone()
   dest.pathname = destination.split('?')[0]

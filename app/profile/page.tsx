@@ -460,6 +460,11 @@ function ProfileContent() {
             <div style={{ marginTop: '14px', fontSize: '13px', color: '#0F1923' }}>
               5–8 minutes · Your answers are private
             </div>
+            {nextUrl && (
+              <a href={nextUrl} style={{ marginTop: '16px', display: 'inline-block', fontSize: '13px', color: '#5B7080', textDecoration: 'underline', cursor: 'pointer' }}>
+                Skip for now, take me to my dashboard
+              </a>
+            )}
           </div>
 
           {/* RIGHT — 3 steps */}
@@ -594,14 +599,14 @@ function ProfileContent() {
               localStorage.removeItem('tai_staff_id')
               sessionStorage.removeItem('tai_admin_authed')
               sessionStorage.removeItem('tai_admin_staff_id')
-              window.location.href = '/login'
+              window.location.href = nextUrl ?? '/dashboard'
             }}
             style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '6px 14px', borderRadius: '10px', background: '#FFFFFF', border: '1px solid #B8CDD8', cursor: 'pointer', fontFamily: 'inherit' }}
           >
             <svg width="12" height="12" fill="none" stroke="#2A3038" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24">
               <path d="M18.36 6.64a9 9 0 1 1-12.73 0"/><line x1="12" y1="2" x2="12" y2="12"/>
             </svg>
-            <span style={{ fontSize: '13px', fontWeight: 600, color: '#2D3E50' }}>Save &amp; Exit</span>
+            <span style={{ fontSize: '13px', fontWeight: 600, color: '#2D3E50' }}>{nextUrl ? 'Skip for now' : 'Save & Exit'}</span>
           </button>
         </div>
       </nav>
