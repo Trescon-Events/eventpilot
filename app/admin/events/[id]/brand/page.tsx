@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, use, useCallback } from 'react'
+import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 
 // ── Types ──────────────────────────────────────────────────────────────────────
@@ -179,6 +180,16 @@ function StringList({ values, placeholder, onChange }: { values: string[]; place
 // ── Main component ─────────────────────────────────────────────────────────────
 export default function BrandStudioPage({ params }: { params: Promise<{ id: string }> }) {
   const { id: eventId } = use(params)
+  const router = useRouter()
+
+  // Grant guard — redirect non-admins without brand_studio grant
+  useEffect(() => {
+    fetch('/api/toolkit-access').then(r => r.json()).then(d => {
+      const isAdmin = d.grants === null
+      const hasGrant = d.grants?.brand_studio === true
+      if (!isAdmin && !hasGrant) router.replace('/dashboard')
+    }).catch(() => {})
+  }, [router])
 
   const [tab,          setTab]          = useState<TabId>('upload')
   const [event,        setEvent]        = useState<Event | null>(null)

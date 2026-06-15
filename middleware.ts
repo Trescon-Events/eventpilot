@@ -112,8 +112,13 @@ export async function middleware(req: NextRequest) {
     return NextResponse.redirect(loginUrl)
   }
 
+  // Tool routes: auth-only — page handles grant check
+  const isToolRoute =
+    pathname.startsWith('/admin/toolkit') ||
+    /^\/admin\/events\/[^/]+\/(website|brand|market-intel)/.test(pathname)
+
   // /admin/* → admin only
-  if (pathname.startsWith('/admin')) {
+  if (pathname.startsWith('/admin') && !isToolRoute) {
     if (!session.adm) {
       const dest = req.nextUrl.clone()
       dest.pathname = '/dashboard'

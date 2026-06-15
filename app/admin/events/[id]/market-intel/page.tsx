@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, use, useEffect, useCallback } from 'react'
+import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import * as XLSX from 'xlsx'
 import * as scanManager from '@/app/lib/scanManager'
@@ -63,6 +64,16 @@ type JobDetail = { job: DbJob; scans: DbScan[]; companies: DbCompany[]; speakers
 // ── Main Component ────────────────────────────────────────────────────────────
 export default function MarketIntelPage({ params }: { params: Promise<{ id: string }> }) {
   const { id: eventId } = use(params)
+  const router = useRouter()
+
+  // Grant guard — redirect non-admins without intelligence grant
+  useEffect(() => {
+    fetch('/api/toolkit-access').then(r => r.json()).then(d => {
+      const isAdmin = d.grants === null
+      const hasGrant = d.grants?.intelligence === true
+      if (!isAdmin && !hasGrant) router.replace('/dashboard')
+    }).catch(() => {})
+  }, [router])
 
   const [managerState, setManagerState] = useState<ManagerState>(() => scanManager.getState())
   const [urlsInput,    setUrlsInput]    = useState('')

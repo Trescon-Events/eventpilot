@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, use, useRef } from 'react'
+import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { type PageStructure, type Section, type SectionDesign, type FooterConfig, type FooterColumn, type FooterLink, defaultStructure, defaultFooter, SECTION_TYPES, SECTION_LAYOUTS } from '@/app/lib/event-page-types'
 
@@ -278,6 +279,16 @@ function Modal({ title, onClose, children }: { title: string; onClose: () => voi
 // ── Main page ─────────────────────────────────────────────────────────────────
 export default function EventWebsiteAdmin({ params }: { params: Promise<{ id: string }> }) {
   const { id: eventId } = use(params)
+  const router = useRouter()
+
+  // Grant guard — redirect non-admins without website_builder grant
+  useEffect(() => {
+    fetch('/api/toolkit-access').then(r => r.json()).then(d => {
+      const isAdmin = d.grants === null
+      const hasGrant = d.grants?.website_builder === true
+      if (!isAdmin && !hasGrant) router.replace('/dashboard')
+    }).catch(() => {})
+  }, [router])
 
   const [tab,       setTab]       = useState<Tab>('template')
   const [contentTab, setContentTab] = useState<ContentTab>('details')
