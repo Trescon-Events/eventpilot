@@ -1,0 +1,26 @@
+name: Enrich Build Log
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  enrich:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2          # need HEAD~1 for diff
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Enrich commit with Gemini
+        env:
+          SUPABASE_URL:              ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          GEMINI_API_KEY:            ${{ secrets.GEMINI_API_KEY }}
+        run: node .github/scripts/enrich-commit.js
