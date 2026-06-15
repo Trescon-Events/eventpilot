@@ -30,9 +30,12 @@ function isNoise(msg) {
 }
 
 // ── Author resolution ─────────────────────────────────────────────────────────
+// reachcharan@gmail.com and nammadaiva-agent are both Durga's identities
 function resolveAuthor(email, name) {
-  if (email.includes('dc@tresconglobal') || name.toLowerCase().includes('durga') || email.includes('durgacharan')) return 'Durga'
-  if (email.includes('md@tresconglobal') || name.toLowerCase().includes('madhu'))  return 'Madhu'
+  const e = email.toLowerCase()
+  const n = name.toLowerCase()
+  if (e.includes('dc@tresconglobal') || e.includes('reachcharan') || n.includes('durga') || n.includes('nammadaiva')) return 'Durga'
+  if (e.includes('md@tresconglobal') || n.includes('madhu')) return 'Madhu'
   return name.split(' ')[0] || 'Team'
 }
 
