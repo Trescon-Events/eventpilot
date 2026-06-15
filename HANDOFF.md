@@ -19,7 +19,7 @@
 |-------------|---------------------------------------------------------|
 | Who         | Durga + Claude Code (Sonnet 4.6)                        |
 | Date        | 2026-06-15                                              |
-| Handed off to | Madhu                                                |
+| Handed off to | Madhu / Open                                         |
 | Deployed    | Yes — https://taos-discovery.vercel.app (Vercel, production, 15 Jun 2026) |
 
 ---
@@ -82,6 +82,23 @@ Everything committed before `dc48b2b` is Durga's work and was not touched. Key p
 - Team Dashboard, role-personalized dashboards, platform docs (20 articles)
 - Knowledge Base: Gemini-powered PDF processing
 - Weekly HRMS sync confirmed end-to-end: 124 staff, 51 projects, 349 allocations
+
+---
+
+## What Was Built This Session (15 Jun 2026 — Session 4 — Durga)
+
+### Review Widget — Screenshot Upload
+- `app/components/ReviewWidget.tsx` — Added screenshot attachment field: dashed upload zone, image preview with remove button, file validated (image only, max 5 MB)
+- `app/api/reviews/upload/route.ts` — NEW. POST endpoint: accepts image file, auto-creates `reviews` Supabase Storage bucket if missing, uploads file, returns public URL
+- `app/api/reviews/route.ts` — POST now accepts and stores `screenshot_url`
+- `app/admin/reviews/page.tsx` — Expanded card now shows screenshot thumbnail (click to open full size)
+- `supabase/platform_reviews_screenshot.sql` — `ALTER TABLE platform_reviews ADD COLUMN IF NOT EXISTS screenshot_url TEXT` — **run this in Event Pilot Supabase (`yuyxfxoevztugtfgduks`) before deploying**
+
+### Context from Madhu (15 Jun 2026)
+- Madhu added a retake assessment button (pushed to main)
+- Fouzan assigned to coordinate selected staff to take assessment and complete courses + collect feedback
+- Smart Data still pending for Madhu (no API keys set yet)
+- Review Management System confirmed by Madhu — screenshot upload requested
 
 ---
 

@@ -57,6 +57,7 @@ type Review = {
   id: string; staff_id: string | null; staff_name: string; staff_email: string
   tool: string; review_type: string; severity: string; title: string
   description: string; status: string; admin_notes: string | null
+  screenshot_url: string | null
   resolved_at: string | null; resolved_by_name: string | null
   created_at: string; updated_at: string
 }
@@ -177,6 +178,20 @@ function ReviewCard({ review, onUpdate }: {
               {review.description}
             </div>
           </div>
+
+          {/* Screenshot */}
+          {review.screenshot_url && (
+            <div style={{ marginTop: '14px' }}>
+              <div style={{ fontSize: '11px', fontWeight: 700, color: C.muted, letterSpacing: '0.8px', textTransform: 'uppercase' as const, marginBottom: '8px' }}>Screenshot</div>
+              <a href={review.screenshot_url} target="_blank" rel="noopener noreferrer" title="View full screenshot">
+                <img
+                  src={review.screenshot_url} alt="screenshot"
+                  style={{ maxWidth: '100%', maxHeight: '260px', objectFit: 'contain', borderRadius: '10px', border: `1px solid ${C.border}`, display: 'block', cursor: 'zoom-in' }}
+                />
+              </a>
+              <div style={{ fontSize: '11px', color: C.muted, marginTop: '4px' }}>Click to open full size</div>
+            </div>
+          )}
 
           {/* Staff info */}
           <div style={{ display: 'flex', gap: '24px', marginTop: '14px', flexWrap: 'wrap' as const }}>

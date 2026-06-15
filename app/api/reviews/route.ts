@@ -40,7 +40,7 @@ export async function POST(req: NextRequest) {
   const session = getSession(req)
   if (!session?.sid) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 })
 
-  const { tool, review_type, severity, title, description } = await req.json()
+  const { tool, review_type, severity, title, description, screenshot_url } = await req.json()
 
   if (!tool || !review_type || !severity || !title?.trim() || !description?.trim()) {
     return NextResponse.json({ error: 'All fields are required.' }, { status: 400 })
@@ -69,15 +69,16 @@ export async function POST(req: NextRequest) {
   }
 
   const { error } = await supabaseAdmin.from('platform_reviews').insert({
-    staff_id:    staffId,
-    staff_name:  staffName,
-    staff_email: staffEmail,
+    staff_id:       staffId,
+    staff_name:     staffName,
+    staff_email:    staffEmail,
     tool,
     review_type,
     severity,
-    title:       title.trim(),
-    description: description.trim(),
-    status:      'new',
+    title:          title.trim(),
+    description:    description.trim(),
+    status:         'new',
+    ...(screenshot_url ? { screenshot_url } : {}),
   })
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })

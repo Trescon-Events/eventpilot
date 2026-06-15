@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 
 const TOOLS = [
   { key: 'events',          label: 'Events Hub'           },
@@ -50,6 +50,11 @@ export default function ReviewWidget() {
   const [title,       setTitle]       = useState('')
   const [description, setDescription] = useState('')
 
+  // Screenshot state
+  const [screenshot,    setScreenshot]    = useState<File | null>(null)
+  const [screenshotUrl, setScreenshotUrl] = useState<string>('')   // local preview
+  const fileInputRef = useRef<HTMLInputElement>(null)
+
   useEffect(() => {
     fetch('/api/auth/session')
       .then(r => r.json())
@@ -63,7 +68,24 @@ export default function ReviewWidget() {
   function closeModal() {
     setOpen(false)
     setTool(''); setReviewType(''); setSeverity('medium'); setTitle(''); setDescription('')
+    setScreenshot(null); setScreenshotUrl('')
     setDone(false); setError('')
+  }
+
+  function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const f = e.target.files?.[0]
+    if (!f) return
+    if (!f.type.startsWith('image/')) { setError('Only image files allowed.'); return }
+    if (f.size > 5 * 1024 * 1024)    { setError('Screenshot must be under 5 MB.'); return }
+    setError('')
+    setScreenshot(f)
+    setScreenshotUrl(URL.createObjectURL(f))
+  }
+
+  function removeScreenshot() {
+    setScreenshot(null)
+    setScreenshotUrl('')
+    if (fileInputRef.current) fileInputRef.current.value = ''
   }
 
   async function handleSubmit(e: React.FormEvent) {
@@ -75,10 +97,25 @@ export default function ReviewWidget() {
     }
     setSubmitting(true)
     try {
+      // Upload screenshot if attached
+      let uploadedUrl: string | undefined
+      if (screenshot) {
+        const fd = new FormData()
+        fd.append('file', screenshot)
+        const upRes = await fetch('/api/reviews/upload', { method: 'POST', body: fd })
+        const upData = await upRes.json()
+        if (!upRes.ok) throw new Error(upData.error ?? 'Screenshot upload failed.')
+        uploadedUrl = upData.url
+      }
+
       const res = await fetch('/api/reviews', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ tool, review_type: reviewType, severity, title: title.trim(), description: description.trim() }),
+        body: JSON.stringify({
+          tool, review_type: reviewType, severity,
+          title: title.trim(), description: description.trim(),
+          ...(uploadedUrl ? { screenshot_url: uploadedUrl } : {}),
+        }),
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error ?? 'Submission failed.')
@@ -257,6 +294,60 @@ export default function ReviewWidget() {
                       onChange={e => setDescription(e.target.value)}
                       placeholder="What were you doing? What did you expect? What actually happened?"
                       style={{ ...inputStyle, resize: 'vertical', minHeight: '90px', lineHeight: '1.5' }}
+                    />
+                  </div>
+
+                  {/* Screenshot */}
+                  <div style={{ marginBottom: '20px' }}>
+                    <label style={labelStyle}>Screenshot <span style={{ fontSize: '10px', fontWeight: 500, textTransform: 'none', letterSpacing: 0, color: C.muted }}>(optional, max 5 MB)</span></label>
+                    {screenshotUrl ? (
+                      <div style={{ position: 'relative', display: 'inline-block' }}>
+                        <img
+                          src={screenshotUrl} alt="screenshot preview"
+                          style={{ maxWidth: '100%', maxHeight: '180px', borderRadius: '10px', border: `1px solid ${C.border}`, display: 'block', objectFit: 'contain' }}
+                        />
+                        <button
+                          type="button" onClick={removeScreenshot}
+                          title="Remove screenshot"
+                          style={{
+                            position: 'absolute', top: '6px', right: '6px',
+                            width: '24px', height: '24px', borderRadius: '50%',
+                            background: 'rgba(15,25,35,0.7)', border: 'none',
+                            color: '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                          }}
+                        >
+                          <svg width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" viewBox="0 0 24 24">
+                            <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+                          </svg>
+                        </button>
+                        <div style={{ fontSize: '12px', color: C.muted, marginTop: '6px' }}>{screenshot?.name}</div>
+                      </div>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => fileInputRef.current?.click()}
+                        style={{
+                          width: '100%', padding: '16px', borderRadius: '10px', cursor: 'pointer',
+                          background: C.bg, border: `1.5px dashed ${C.border}`,
+                          display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '6px',
+                          fontFamily: 'inherit', transition: 'border-color 0.15s',
+                        }}
+                        onMouseOver={e => e.currentTarget.style.borderColor = C.teal}
+                        onMouseOut={e  => e.currentTarget.style.borderColor = C.border}
+                      >
+                        <svg width="20" height="20" fill="none" stroke={C.muted} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24">
+                          <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
+                          <circle cx="8.5" cy="8.5" r="1.5"/>
+                          <polyline points="21 15 16 10 5 21"/>
+                        </svg>
+                        <span style={{ fontSize: '13px', color: C.muted, fontWeight: 600 }}>Click to attach a screenshot</span>
+                        <span style={{ fontSize: '11px', color: C.border }}>PNG, JPG, WebP</span>
+                      </button>
+                    )}
+                    <input
+                      ref={fileInputRef} type="file" accept="image/*"
+                      onChange={handleFileChange}
+                      style={{ display: 'none' }}
                     />
                   </div>
 
