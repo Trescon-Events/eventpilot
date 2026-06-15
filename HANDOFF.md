@@ -20,7 +20,7 @@
 | Who         | Durga + Claude Code (Sonnet 4.6)                        |
 | Date        | 2026-06-15                                              |
 | Handed off to | Madhu                                                |
-| Deployed    | Yes — https://eventpilot.tresconglobal.com (Vercel, production) |
+| Deployed    | Yes — https://taos-discovery.vercel.app (Vercel, production, 15 Jun 2026) |
 
 ---
 
@@ -33,6 +33,8 @@
 - GitHub secrets set: `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `GEMINI_API_KEY`
 - `scripts/backfill-build-log.js` — one-time script, ran locally, backfilled 74 commits (7 days of history)
 - What's Next panel now shows full day-wise build history with no manual effort
+- Build log groups now sorted by most recent push time (most recent author always shown first)
+- Push time now displayed in each badge: e.g. "15 Jun 2026 · 02:16 PM — Durga"
 
 ### Smart Data — 100% Complete
 All missing features built and deployed:
