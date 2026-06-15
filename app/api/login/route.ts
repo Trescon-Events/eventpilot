@@ -103,8 +103,7 @@ export async function POST(req: NextRequest) {
   // ── Layer 2: IP allowlist (skip for admins — they can login from anywhere) ──
   const jobLevel    = staff.job_level ?? 'staff'
   const accessRoles = (staff.access_roles ?? ['standard']) as string[]
-  const isAdmin     = jobLevel === 'super_admin' || jobLevel === 'office_head' || jobLevel === 'dept_head'
-    || accessRoles.includes('admin') || accessRoles.includes('super_admin')
+  const isAdmin     = accessRoles.includes('admin') || accessRoles.includes('super_admin')
   const officeIps = (process.env.OFFICE_IPS ?? '')
     .split(',')
     .map(s => s.trim())
@@ -140,8 +139,7 @@ export async function POST(req: NextRequest) {
     supabaseAdmin.from('staff_task_profiles').select('*', { count: 'exact', head: true }).eq('staff_id', staff.id),
   ])
 
-  const fullIsAdmin = jobLevel === 'super_admin' || jobLevel === 'office_head'
-    || accessRoles.includes('admin') || accessRoles.includes('super_admin')
+  const fullIsAdmin = accessRoles.includes('admin') || accessRoles.includes('super_admin')
   const hasProfile  = (profileCount ?? 0) > 0
 
   const responseBody = {

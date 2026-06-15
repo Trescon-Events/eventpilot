@@ -107,8 +107,7 @@ export async function GET(req: NextRequest) {
   // ── Build session (same format as password login) ─────────────────────────
   const jobLevel    = staff.job_level ?? 'staff'
   const accessRoles = (staff.access_roles ?? ['standard']) as string[]
-  const isAdmin     = jobLevel === 'super_admin' || jobLevel === 'office_head'
-    || accessRoles.includes('admin') || accessRoles.includes('super_admin')
+  const isAdmin     = accessRoles.includes('admin') || accessRoles.includes('super_admin')
 
   const sessionPayload = Buffer.from(JSON.stringify({
     sid:   staff.id,
