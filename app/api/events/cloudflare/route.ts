@@ -12,7 +12,7 @@ import { supabaseAdmin } from '@/app/lib/supabase'
   The CF API token is never stored — used only for this one-time call.
 */
 
-const VERCEL_HOST = 'eventpilot-trescons-projects.vercel.app'
+const VERCEL_HOST = process.env.VERCEL_PROJECT_PRODUCTION_URL ?? 'cname.vercel-dns.com'
 
 export async function POST(req: NextRequest) {
   const body = await req.json().catch(() => null)
