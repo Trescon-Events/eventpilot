@@ -45,7 +45,11 @@ function formatDate(iso: string): string {
   return new Date(iso).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })
 }
 
-type LogEntry = { date: string; author: string; items: { title: string; bullets: string[] }[] }
+type LogEntry = { date: string; time: string; author: string; maxCommittedAt: string; items: { title: string; bullets: string[] }[] }
+
+function formatTime(iso: string): string {
+  return new Date(iso).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true, timeZone: 'Asia/Dubai' })
+}
 
 // ── Main handler ──────────────────────────────────────────────────────────────
 export async function GET() {
@@ -66,11 +70,18 @@ export async function GET() {
         if (isNoise(row.title)) continue
         const dateStr = formatDate(row.committed_at)
         const key     = `${dateStr}__${row.author_name}`
-        if (!groups[key]) groups[key] = { date: dateStr, author: row.author_name, items: [] }
+        if (!groups[key]) groups[key] = { date: dateStr, time: formatTime(row.committed_at), author: row.author_name, maxCommittedAt: row.committed_at, items: [] }
+        // Track the most recent committed_at in this group
+        if (row.committed_at > groups[key].maxCommittedAt) {
+          groups[key].maxCommittedAt = row.committed_at
+          groups[key].time = formatTime(row.committed_at)
+        }
         groups[key].items.push({ title: row.title, bullets: row.bullets ?? [] })
       }
 
-      return NextResponse.json(Object.values(groups))
+      // Sort groups by most recent commit descending
+      const sorted = Object.values(groups).sort((a, b) => b.maxCommittedAt.localeCompare(a.maxCommittedAt))
+      return NextResponse.json(sorted)
     }
   } catch {
     // Fall through to GitHub API
@@ -100,9 +111,14 @@ export async function GET() {
     const dateStr = formatDate(c.commit.author.date)
     const author  = resolveAuthor(c.author?.login ?? '', c.commit.author.email, c.commit.author.name)
     const key     = `${dateStr}__${author}`
-    if (!groups[key]) groups[key] = { date: dateStr, author, items: [] }
+    if (!groups[key]) groups[key] = { date: dateStr, time: formatTime(c.commit.author.date), author, maxCommittedAt: c.commit.author.date, items: [] }
+    if (c.commit.author.date > groups[key].maxCommittedAt) {
+      groups[key].maxCommittedAt = c.commit.author.date
+      groups[key].time = formatTime(c.commit.author.date)
+    }
     groups[key].items.push({ title, bullets: items })
   }
 
-  return NextResponse.json(Object.values(groups))
+  const sorted = Object.values(groups).sort((a, b) => b.maxCommittedAt.localeCompare(a.maxCommittedAt))
+  return NextResponse.json(sorted)
 }

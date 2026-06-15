@@ -434,7 +434,7 @@ export default function AdminPage() {
   const [tourStep,    setTourStep]    = useState<number | null>(null)
   const [tourRect,    setTourRect]    = useState<DOMRect | null>(null)
   const [showRoadmap,   setShowRoadmap]   = useState(false)
-  const [buildLog,      setBuildLog]      = useState<{ date: string; author: string; items: { title: string; bullets: string[] }[] }[]>([])
+  const [buildLog,      setBuildLog]      = useState<{ date: string; time: string; author: string; items: { title: string; bullets: string[] }[] }[]>([])
   const [suggText,      setSuggText]      = useState('')
   const [suggSending,   setSuggSending]   = useState(false)
   const [suggSent,      setSuggSent]      = useState(false)
@@ -4266,7 +4266,7 @@ export default function AdminPage() {
                       <div key={di}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '10px 0 6px' }}>
                           <div style={{ fontSize: '11px', fontWeight: 800, color: badgeColor, background: badgeBg, border: `1px solid ${badgeBorder}`, borderRadius: '6px', padding: '2px 8px', whiteSpace: 'nowrap' as const }}>
-                            {day.date} — {day.author}
+                            {day.date}{day.time ? ` · ${day.time}` : ''} — {day.author}
                           </div>
                           <div style={{ flex: 1, height: '1px', background: '#DDE8EE' }} />
                         </div>
