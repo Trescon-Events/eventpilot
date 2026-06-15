@@ -4334,7 +4334,7 @@ export default function AdminPage() {
                     'Brand Studio — full 9-section brand book builder with PDF import, AI extraction, and manual builder',
                     'Website Builder — event microsites with brand sync gate and one-click palette/font sync from Brand Studio',
                     'Knowledge Base — company documents with Gemini-powered text and scanned PDF processing',
-                    'Smart Data — lead extraction, LinkedIn enrichment, email verification, contact database',
+                    'Smart Data (100%) — lead extraction, LinkedIn enrichment, email verification, contact DB, Pipeline Kanban, Email Guesser, Data Quality, Saved Audiences, Contact Scoring, Enrichment Audit',
                     'Content Hub — AI social campaigns with guided templates, approval flow, and calendar view',
                     'Team Dashboard — managers see their full team hierarchy, AIRS score per member, tier distribution, who hasn\'t started, and an AI-generated Team Health Brief',
                     'Course assignment — admin assigns any course to an individual, department, or all staff with optional due date. Staff notified instantly in-app',
