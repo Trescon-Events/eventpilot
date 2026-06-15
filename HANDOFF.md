@@ -17,10 +17,10 @@
 
 | Field       | Value                                                   |
 |-------------|---------------------------------------------------------|
-| Who         | Madhu + Claude Code (Sonnet 4.6)                        |
+| Who         | Durga + Claude Code (Sonnet 4.6)                        |
 | Date        | 2026-06-15                                              |
-| Handed off to | Durga                                                |
-| Deployed    | Yes — https://eventpilot.tresconglobal.com (Vercel, production, 15 Jun 2026) |
+| Handed off to | Madhu / Open                                         |
+| Deployed    | Yes — https://eventpilot.tresconglobal.com + taos-discovery.vercel.app (both in sync, 15 Jun 2026) |
 
 ---
 
@@ -55,6 +55,31 @@
 
 ### exitlite Skill Fix
 - `/Users/madhu/.claude/skills/exitlite/skill.md` — Removed hardcoded Lead Finder references. Skill now detects the current project from the working directory and applies the exit procedure to that project.
+
+---
+
+## What Was Built This Session (15 Jun 2026 — Durga, Session 5)
+
+### Build Log Fixes
+- `.github/scripts/enrich-commit.js` — Added noise patterns for `chore: sync`, `chore: lock`, `trigger redeploy`. Added empty-diff guard: skips Gemini enrichment if no code files changed. Added rule to Gemini prompt: "Only describe what is visible in the diff — do not invent features."
+- `enrich-commit.js` + `app/api/build-log/route.ts` — `resolveAuthor()` now maps `reachcharan@gmail.com` and `nammadaiva-agent` to **Durga** in both the GitHub Action and the live build-log API.
+- Supabase `build_log_enriched` — deleted 2 hallucinated rows (fake "Admin Dashboard" entry on empty sync commit; over-interpreted "Team Dashboard" row). Updated all `author_name = 'nammadaiva-agent'` rows to `'Durga'`.
+
+### Platform Sync — Both Vercel Projects Caught Up
+- `taos-discovery.vercel.app` (nammadaiva Vercel) was 3 commits behind after Madhu pushed directly from his machine. Triggered manual redeploy via Vercel CLI — now fully in sync with `Trescon-Events/eventpilot` main.
+- Confirmed: `eventpilot.tresconglobal.com` auto-deploys from the same GitHub repo and was already current.
+
+### Domain / Stale URL Cleanup (earlier this session)
+- `middleware.ts` — Added `taos-discovery.vercel.app` to `PLATFORM_HOSTS` (was missing; middleware was misidentifying it as a custom event domain).
+- `app/api/forgot-password/route.ts` + `app/api/hr/staff/route.ts` — Replaced hardcoded `eventpilot-trescons-projects.vercel.app` fallback with `eventpilot.tresconglobal.com`.
+- `app/api/events/cloudflare/route.ts` — `VERCEL_HOST` now reads from `VERCEL_PROJECT_PRODUCTION_URL` env var; falls back to `cname.vercel-dns.com`.
+
+### Review Widget — Screenshot Upload (earlier this session)
+- `app/components/ReviewWidget.tsx` — Screenshot attachment: dashed upload zone, image preview with remove button, validates image type + 5 MB limit.
+- `app/api/reviews/upload/route.ts` — NEW. Accepts image, auto-creates `reviews` Supabase Storage bucket, uploads, returns public URL.
+- `app/api/reviews/route.ts` — POST now stores `screenshot_url`.
+- `app/admin/reviews/page.tsx` — Expanded card shows screenshot thumbnail (click to open full size).
+- `supabase/platform_reviews_screenshot.sql` — `ADD COLUMN IF NOT EXISTS screenshot_url TEXT` — already run.
 
 ---
 
