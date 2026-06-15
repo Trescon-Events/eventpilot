@@ -31,7 +31,7 @@ function emailFooter() {
   return `
     <hr style="border:none;border-top:1px solid #E8EEF4;margin:28px 0 16px;" />
     <p style="color:#94A3B8;font-size:12px;margin:0;line-height:1.6;">
-      Trescon Global · Event Pilot<br />
+      Trescon · Event Pilot<br />
       You are receiving this because you are a registered member of Event Pilot.
     </p>
   `
@@ -213,6 +213,103 @@ export async function sendCredentials({
     from:    FROM,
     to,
     subject: `${firstName}, your Trescon account is ready`,
+    html,
+  })
+}
+
+// ── Email: Access Request (sent to admins when someone requests access) ──────
+
+export async function sendAccessRequest({
+  requesterEmail,
+}: {
+  requesterEmail: string
+}) {
+  const html = emailWrap(`
+    ${emailHeader('Access Request')}
+    <div style="padding:32px 40px;">
+      <h2 style="font-size:22px;font-weight:800;color:${DARK};margin:0 0 10px;">New access request</h2>
+      <p style="color:${MUTED};font-size:15px;line-height:1.7;margin:0 0 24px;">
+        Someone tried to log in to EventPilot and requested access.
+      </p>
+
+      <div style="background:#F8FFFE;border:1px solid #C6ECE8;border-radius:12px;padding:18px 20px;margin-bottom:24px;">
+        <div style="font-size:10px;font-weight:800;letter-spacing:2.5px;text-transform:uppercase;color:${BRAND};margin-bottom:12px;">Requester</div>
+        <div style="font-size:15px;font-weight:700;color:${DARK};">${requesterEmail}</div>
+      </div>
+
+      <p style="color:${MUTED};font-size:13px;line-height:1.6;margin:0;">
+        If you'd like to grant access, enable their account in the EventPilot admin panel.
+      </p>
+
+      ${emailFooter()}
+    </div>
+  `)
+
+  return resend.emails.send({
+    from:    FROM,
+    to:      ['md@tresconglobal.com', 'dc@tresconglobal.com'],
+    subject: `Access request: ${requesterEmail}`,
+    html,
+  })
+}
+
+// ── Email: Access Granted (rollout notification) ──────────────────────────────
+
+export async function sendAccessGranted({
+  to,
+  name,
+  tools,
+  loginUrl,
+}: {
+  to:       string
+  name:     string
+  tools:    string[]   // e.g. ['Courses'] or ['Courses', 'Website Builder']
+  loginUrl: string
+}) {
+  const firstName = name.split(' ')[0]
+  const toolList = tools.map(t => `
+    <div style="display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid #E8EEF4;">
+      <div style="width:8px;height:8px;border-radius:50%;background:${BRAND};flex-shrink:0;"></div>
+      <span style="color:${DARK};font-size:14px;font-weight:600;">${t}</span>
+    </div>
+  `).join('')
+
+  const html = emailWrap(`
+    ${emailHeader("You're in")}
+    <div style="padding:32px 40px;">
+      <h2 style="font-size:24px;font-weight:900;color:${DARK};margin:0 0 10px;letter-spacing:-0.3px;">
+        Your EventPilot access is ready, ${firstName}.
+      </h2>
+      <p style="color:${MUTED};font-size:15px;line-height:1.7;margin:0 0 24px;">
+        You've been granted access to EventPilot — Trescon's AI-powered platform.
+        Sign in with your Trescon email and get started.
+      </p>
+
+      <div style="background:#F8FFFE;border:1px solid #C6ECE8;border-radius:12px;padding:18px 20px;margin-bottom:28px;">
+        <div style="font-size:10px;font-weight:800;letter-spacing:2.5px;text-transform:uppercase;color:${BRAND};margin-bottom:12px;">Your access includes</div>
+        ${toolList}
+      </div>
+
+      <div style="text-align:center;margin:28px 0;">
+        <a href="${loginUrl}"
+          style="display:inline-block;background:${LIME};color:${DARK};font-size:15px;font-weight:800;padding:14px 36px;border-radius:50px;text-decoration:none;letter-spacing:0.3px;">
+          Sign in to EventPilot
+        </a>
+      </div>
+
+      <p style="color:#94A3B8;font-size:13px;line-height:1.6;margin:0 0 4px;">
+        Sign in at <a href="${loginUrl}" style="color:${BRAND};text-decoration:none;">${loginUrl}</a><br/>
+        Use your Microsoft 365 Trescon account or your existing EventPilot password.
+      </p>
+
+      ${emailFooter()}
+    </div>
+  `)
+
+  return resend.emails.send({
+    from:    FROM,
+    to,
+    subject: `${firstName}, your EventPilot access is ready`,
     html,
   })
 }

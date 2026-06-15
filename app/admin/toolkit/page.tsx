@@ -261,7 +261,7 @@ export default function ToolkitPage() {
         <span style={{ fontSize: '13px', fontWeight: 800, color: '#0F1923' }}>Toolkit</span>
         <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '8px' }}>
           <div style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#C0F43C', animation: 'pulse 2s infinite' }} />
-          <span style={{ fontSize: '11px', fontWeight: 700, color: '#9BAAB5', letterSpacing: '1.5px', textTransform: 'uppercase' }}>Trescon Global</span>
+          <span style={{ fontSize: '11px', fontWeight: 700, color: '#9BAAB5', letterSpacing: '1.5px', textTransform: 'uppercase' }}>Trescon</span>
         </div>
       </div>
 

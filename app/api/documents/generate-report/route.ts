@@ -84,7 +84,7 @@ export async function POST(req: NextRequest) {
   const inProg  = items.filter(i => i.status === 'in_progress').length
   const notStr  = items.filter(i => i.status === 'not_started').length
 
-  const prompt = `You are the event intelligence system for Trescon Global. Generate a comprehensive Event Status Report based on the following event details and checklist.
+  const prompt = `You are the event intelligence system for Trescon. Generate a comprehensive Event Status Report based on the following event details and checklist.
 
 EVENT DETAILS
 ─────────────

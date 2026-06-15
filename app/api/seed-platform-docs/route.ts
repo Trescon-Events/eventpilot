@@ -15,7 +15,7 @@ const DOCS = [
     slug: 'what-is-eventpilot',
     category: 'Platform Overview',
     title: 'What is Event Pilot?',
-    content: `Event Pilot is Trescon Global's internal AI learning and readiness platform. It serves all staff across the four Trescon offices — Dubai, Bangalore, Mangalore, and Manipal.
+    content: `Event Pilot is Trescon's internal AI learning and readiness platform. It serves all staff across the four Trescon offices — Dubai, Bangalore, Mangalore, and Manipal.
 
 The platform has one primary purpose: measure where every employee stands in their AI readiness today, then guide them — course by course — toward becoming confident AI practitioners in their specific role.
 

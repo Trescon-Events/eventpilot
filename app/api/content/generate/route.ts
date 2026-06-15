@@ -71,7 +71,7 @@ export async function POST(req: NextRequest) {
       ? `Event: ${event.name} | Type: ${event.type} | Location: ${event.city} | Date: ${event.event_date ?? 'TBD'}`
       : 'Event details not available'
 
-    const systemPrompt = `You are the senior social media manager for Trescon Global — a B2B events company that runs the World AI Show, World Blockchain Summit, DATE, and CARE summits across 15+ countries.
+    const systemPrompt = `You are the senior social media manager for Trescon — a B2B events company that runs the World AI Show, World Blockchain Summit, DATE, and CARE summits across 15+ countries.
 
 Your audience: CXOs, senior technology leaders, government officials, enterprise technology buyers.
 Trescon's position: A global deal facilitation platform that connects decision-makers, drives partnerships, and delivers measurable business outcomes through world-class events.

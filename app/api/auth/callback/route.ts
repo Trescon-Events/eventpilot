@@ -101,7 +101,7 @@ export async function GET(req: NextRequest) {
   }
 
   if (!staff.access_enabled) {
-    return loginRedirect(origin, 'Your account is not yet active. You will receive an email when access opens.')
+    return NextResponse.redirect(`${origin}/access-pending?email=${encodeURIComponent(email)}`)
   }
 
   // ── Build session (same format as password login) ─────────────────────────

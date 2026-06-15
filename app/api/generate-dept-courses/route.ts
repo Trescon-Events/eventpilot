@@ -25,7 +25,7 @@ export async function POST(req: NextRequest) {
 
   for (let i = 0; i < Math.min(count, 3); i++) {
     try {
-      const prompt = `You are Pilot — the AI course designer for Event Pilot at Trescon Global, a B2B events company with offices in Dubai, Bangalore, Mangalore, and Manipal.
+      const prompt = `You are Pilot — the AI course designer for Event Pilot at Trescon, a B2B events company with offices in Dubai, Bangalore, Mangalore, and Manipal.
 
 Design course number ${i + 1} of ${count} for the ${department} team at Trescon.
 Tier: ${tier_level} (foundation = basics, adoption = intermediate workflows, advanced = strategy)

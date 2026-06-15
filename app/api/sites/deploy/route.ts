@@ -132,7 +132,7 @@ export const EVENT = {
   name:        ${JSON.stringify(event.name)},
   tagline:     "",
   description: ${JSON.stringify(event.description || '')},
-  organiser:   "Trescon Global",
+  organiser:   "Trescon",
   date_display:   ${JSON.stringify(dateDisplay)},
   date_iso_start: ${JSON.stringify(event.event_date || '')},
   date_iso_end:   ${JSON.stringify(event.end_date || '')},
@@ -159,7 +159,7 @@ ${sponsorsBlock}
   ],
   footer: {
     email: "",
-    copyright: \`© \${new Date().getFullYear()} Trescon Global. All rights reserved.\`,
+    copyright: \`© \${new Date().getFullYear()} Trescon. All rights reserved.\`,
   },
   seo: {
     title_default:  ${JSON.stringify(event.name)},

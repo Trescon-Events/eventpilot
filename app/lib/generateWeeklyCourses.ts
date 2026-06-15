@@ -38,7 +38,7 @@ export async function generateWeeklyCourses(
   // 1 from latest AI news — ask Gemini what's worth learning this week
   let aiNewsCourse: typeof topSkills[0] | null = null
   try {
-    const newsPrompt = `You are an AI strategy advisor for Trescon Global, a B2B events company.
+    const newsPrompt = `You are an AI strategy advisor for Trescon, a B2B events company.
 Today is ${new Date().toISOString().split('T')[0]}.
 
 Identify the single most important recent AI tool, model, or technique released or updated in the last 2 weeks that would be practically useful for B2B events staff (e.g. account managers, marketing, operations, content).
@@ -81,7 +81,7 @@ Return ONLY valid JSON with exactly this structure, no other text:
   // ── Generate each course ─────────────────────────────────────────────────
   for (const item of coursesToGenerate) {
     try {
-      const coursePrompt = `You are Pilot — the AI course designer for Event Pilot at Trescon Global, a B2B events company with 4 offices: Dubai, Bangalore, Mangalore, and Manipal.
+      const coursePrompt = `You are Pilot — the AI course designer for Event Pilot at Trescon, a B2B events company with 4 offices: Dubai, Bangalore, Mangalore, and Manipal.
 
 An automated weekly system has identified the following training need:
 

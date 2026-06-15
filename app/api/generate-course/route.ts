@@ -16,7 +16,7 @@ export async function POST(req: NextRequest) {
   const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!)
   const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' })
 
-  const prompt = `You are Pilot — the AI course designer for Event Pilot at Trescon Global, a B2B events company with 4 offices: Dubai, Bangalore, Mangalore, and Manipal.
+  const prompt = `You are Pilot — the AI course designer for Event Pilot at Trescon, a B2B events company with 4 offices: Dubai, Bangalore, Mangalore, and Manipal.
 
 An admin has requested a new course with the following brief:
 

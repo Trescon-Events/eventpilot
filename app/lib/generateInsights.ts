@@ -53,7 +53,7 @@ export async function generateInsightsReport(
     ].filter(Boolean).join('\n')
   }).join('\n\n')
 
-  const prompt = `You are a senior AI strategy advisor analysing ${tasks.length} work profiles from Trescon Global — a B2B events company with 4 offices: Dubai, Bangalore, Mangalore, and Manipal (184 staff total). These profiles show what each staff member does, how long it takes today, what tools they use, and what new skills they want to learn.
+  const prompt = `You are a senior AI strategy advisor analysing ${tasks.length} work profiles from Trescon — a B2B events company with 4 offices: Dubai, Bangalore, Mangalore, and Manipal (184 staff total). These profiles show what each staff member does, how long it takes today, what tools they use, and what new skills they want to learn.
 
 Your job is to analyse all submissions and produce a structured intelligence report for Trescon's leadership team. The goal: identify where AI can save the most time, what to build first in Event Pilot (Trescon's internal AI learning and operations platform), and what training is needed.
 

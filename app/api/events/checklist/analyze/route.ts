@@ -71,7 +71,7 @@ export async function POST(req: NextRequest) {
     : null
 
   // Build AI prompt
-  const prompt = `You are the AI planning intelligence for Trescon Global, a B2B events company.
+  const prompt = `You are the AI planning intelligence for Trescon, a B2B events company.
 
 Analyze the current planning state for this event and return a JSON response.
 

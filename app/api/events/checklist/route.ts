@@ -21,7 +21,7 @@ async function generateChecklist(event: {
     ? Math.round((new Date(event.event_date).getTime() - Date.now()) / (7 * 24 * 60 * 60 * 1000))
     : null
 
-  const prompt = `You are the event planning system for Trescon Global, a B2B events company that runs AI summits, conferences, and forums across the Middle East and Asia.
+  const prompt = `You are the event planning system for Trescon, a B2B events company that runs AI summits, conferences, and forums across the Middle East and Asia.
 
 Generate a comprehensive event checklist for the following event:
 

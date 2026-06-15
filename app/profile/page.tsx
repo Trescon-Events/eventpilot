@@ -432,7 +432,7 @@ function ProfileContent() {
             </div>
             <span style={{ fontSize: '13px', fontWeight: 800, color: '#0F1923' }}>Event Pilot</span>
           </div>
-          <span style={{ fontSize: '13px', color: '#0F1923', fontWeight: 600 }}>AI Readiness Platform · Trescon Global</span>
+          <span style={{ fontSize: '13px', color: '#0F1923', fontWeight: 600 }}>AI Readiness Platform · Trescon</span>
         </nav>
 
         {/* Two-column body */}
@@ -448,7 +448,7 @@ function ProfileContent() {
               <span style={{ color: '#3D6B00' }}>journey starts here.</span>
             </h1>
             <p style={{ fontSize: '13px', color: '#2D3E50', lineHeight: 1.65, margin: '0 0 32px', maxWidth: '340px' }}>
-              Event Pilot is Trescon Global&apos;s internal AI learning platform — built for all 300+ staff across Dubai, Bangalore, Mangalore, and Manipal. It shows you where you stand with AI and builds a learning path around your actual daily work.
+              Event Pilot is Trescon&apos;s internal AI learning platform — built for all 300+ staff across Dubai, Bangalore, Mangalore, and Manipal. It shows you where you stand with AI and builds a learning path around your actual daily work.
             </p>
             <button
               onClick={() => { setShowWelcome(false); setStep(0) }}

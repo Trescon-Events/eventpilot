@@ -133,7 +133,7 @@ export const EVENT = {
   short_name:  ${JSON.stringify(event.name.split(' ').map((w: string) => w[0]).join('').toUpperCase())},
   tagline:     ${JSON.stringify(event.tagline || '')},
   description: ${JSON.stringify(event.description || '')},
-  organiser:   "Trescon Global",
+  organiser:   "Trescon",
 
   // ── Dates ─────────────────────────────────────────────────────────────────
   date_display:   ${JSON.stringify(dateDisplay)},
@@ -183,7 +183,7 @@ ${sponsorsBlock}
   // ── Footer ────────────────────────────────────────────────────────────────
   footer: {
     email: ${JSON.stringify(event.contact_email || '')},
-    copyright: \`© \${new Date().getFullYear()} Trescon Global. All rights reserved.\`,
+    copyright: \`© \${new Date().getFullYear()} Trescon. All rights reserved.\`,
   },
 
   // ── SEO ───────────────────────────────────────────────────────────────────

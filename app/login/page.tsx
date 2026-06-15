@@ -4,80 +4,13 @@ import { useState, useEffect } from 'react'
 import Image from 'next/image'
 
 export default function LoginPage() {
-  const [email,      setEmail]      = useState('')
-  const [password,   setPassword]   = useState('')
-  const [showPass,   setShowPass]   = useState(false)
-  const [rememberMe, setRememberMe] = useState(true)
-  const [loading,    setLoading]    = useState(false)
-  const [error,      setError]      = useState('')
+  const [error, setError] = useState('')
 
-  // Show errors redirected back from SSO callback
   useEffect(() => {
     const params = new URLSearchParams(window.location.search)
     const ssoErr = params.get('error')
     if (ssoErr) setError(ssoErr)
   }, [])
-
-  // Forgot password flow
-  const [showForgot,   setShowForgot]   = useState(false)
-  const [fpEmail,      setFpEmail]      = useState('')
-  const [fpLoading,    setFpLoading]    = useState(false)
-  const [fpSent,       setFpSent]       = useState(false)
-  const [fpError,      setFpError]      = useState('')
-
-  async function handleForgotPassword(e: React.FormEvent) {
-    e.preventDefault()
-    if (!fpEmail.trim()) { setFpError('Enter your work email.'); return }
-    setFpLoading(true)
-    setFpError('')
-    try {
-      await fetch('/api/forgot-password', {
-        method:  'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify({ email: fpEmail.trim() }),
-      })
-      setFpSent(true)
-    } catch {
-      setFpError('Something went wrong. Try again.')
-    } finally {
-      setFpLoading(false)
-    }
-  }
-
-  async function handleLogin(e: React.FormEvent) {
-    e.preventDefault()
-    if (!email.trim() || !password.trim()) { setError('Enter your email and password.'); return }
-    setLoading(true)
-    setError('')
-    try {
-      const res  = await fetch('/api/login', {
-        method:  'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify({ email: email.trim(), password: password.trim(), rememberMe }),
-      })
-      const data = await res.json()
-      if (!res.ok) { setError(data.error ?? 'Login failed. Try again.'); setLoading(false); return }
-      localStorage.setItem('tai_staff_id', data.id)
-      if (data.is_admin) {
-        sessionStorage.setItem('tai_admin_authed',   '1')
-        sessionStorage.setItem('tai_admin_staff_id', data.id)
-      } else {
-        sessionStorage.removeItem('tai_admin_authed')
-        sessionStorage.removeItem('tai_admin_staff_id')
-      }
-      const destination = data.is_admin ? '/admin' : `/dashboard?id=${data.id}`
-      // Force password change before anything else
-      if (data.must_change_password && data.id !== 'super-admin') {
-        const name = encodeURIComponent(data.name ?? '')
-        window.location.href = `/set-password?id=${data.id}&name=${name}&next=${encodeURIComponent(destination)}`
-        return
-      }
-      window.location.href = destination
-    } catch {
-      setError('Something went wrong. Check your connection and try again.')
-      setLoading(false)
-    }
-  }
 
   return (
     <div style={{
@@ -131,7 +64,7 @@ export default function LoginPage() {
           </p>
         </div>
 
-        {/* Bottom: offices + stat pills */}
+        {/* Bottom: stat pills + offices */}
         <div style={{ position: 'relative', zIndex: 1 }}>
           <div style={{ display: 'flex', gap: '10px', marginBottom: '20px', flexWrap: 'wrap' }}>
             {[
@@ -156,7 +89,7 @@ export default function LoginPage() {
         </div>
       </div>
 
-      {/* ── RIGHT PANEL — Login form ── */}
+      {/* ── RIGHT PANEL ── */}
       <div style={{
         background:     '#FFFFFF',
         display:        'flex',
@@ -168,8 +101,8 @@ export default function LoginPage() {
       }}>
         <div style={{ width: '100%', maxWidth: '360px' }}>
 
-          {/* Form header */}
-          <div style={{ marginBottom: '40px' }}>
+          {/* Header */}
+          <div style={{ marginBottom: '48px' }}>
             <div style={{ width: '48px', height: '48px', background: 'linear-gradient(135deg, #00897B 0%, #00695C 100%)', borderRadius: '14px', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '24px' }}>
               <svg width="22" height="22" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
             </div>
@@ -177,142 +110,21 @@ export default function LoginPage() {
             <h2 style={{ fontSize: '32px', fontWeight: 900, color: '#0F1923', margin: 0, letterSpacing: '-0.5px', lineHeight: 1.1 }}>Sign in to<br />Event Pilot</h2>
           </div>
 
-          {/* Forgot password panel */}
-          {showForgot && (
-            <div style={{ marginBottom: '28px', padding: '24px', background: '#F0F4F8', borderRadius: '14px', border: '1px solid #DDE8EE' }}>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '14px' }}>
-                <div style={{ fontSize: '15px', fontWeight: 800, color: '#0F1923' }}>Reset your password</div>
-                <button type="button" onClick={() => { setShowForgot(false); setFpSent(false); setFpError(''); setFpEmail('') }}
-                  style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#5B7080', padding: 0, fontSize: '20px', lineHeight: 1 }}>×</button>
-              </div>
-              {fpSent ? (
-                <div style={{ fontSize: '14px', color: '#00695C', fontWeight: 600, lineHeight: 1.55 }}>
-                  If that email is registered, a reset link has been sent. Check your inbox (and spam folder).
-                </div>
-              ) : (
-                <form onSubmit={handleForgotPassword} style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                  <input
-                    type="email"
-                    value={fpEmail}
-                    onChange={e => { setFpEmail(e.target.value); setFpError('') }}
-                    placeholder="your.email@tresconglobal.com"
-                    className="tfield"
-                    style={{ padding: '12px 14px', borderRadius: '10px', fontSize: '14px' }}
-                  />
-                  {fpError && <div style={{ fontSize: '12px', color: '#DC2626' }}>{fpError}</div>}
-                  <button type="submit" disabled={fpLoading}
-                    style={{ padding: '12px', borderRadius: '10px', background: fpLoading ? '#B8CDD8' : '#00697B', color: 'white', fontSize: '14px', fontWeight: 800, border: 'none', cursor: fpLoading ? 'not-allowed' : 'pointer', fontFamily: 'inherit' }}>
-                    {fpLoading ? 'Sending…' : 'Send reset link'}
-                  </button>
-                </form>
-              )}
+          {/* SSO error */}
+          {error && (
+            <div style={{ padding: '12px 16px', background: '#FFF1F2', border: '1px solid #FCA5A5', borderLeft: '4px solid #B91C1C', borderRadius: '10px', fontSize: '13px', color: '#B91C1C', fontWeight: 700, lineHeight: 1.5, marginBottom: '24px' }}>
+              {error}
             </div>
           )}
 
-          {/* Form */}
-          <form onSubmit={handleLogin} style={{ display: 'flex', flexDirection: 'column', gap: '18px' }}>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '7px' }}>
-              <label style={{ fontSize: '12px', fontWeight: 800, color: '#0F1923', letterSpacing: '1.2px', textTransform: 'uppercase' }}>
-                Work Email
-              </label>
-              <input
-                type="email"
-                value={email}
-                onChange={e => setEmail(e.target.value)}
-                placeholder="you@tresconglobal.com"
-                autoComplete="email"
-                disabled={loading}
-                className="tfield"
-                style={{ padding: '13px 16px', borderRadius: '10px', fontSize: '14px' }}
-              />
-            </div>
-
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '7px' }}>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                <label style={{ fontSize: '12px', fontWeight: 800, color: '#0F1923', letterSpacing: '1.2px', textTransform: 'uppercase' }}>
-                  Password
-                </label>
-                <button type="button" onClick={() => { setShowForgot(true); setFpSent(false); setFpError(''); setFpEmail(email) }}
-                  style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '12px', fontWeight: 700, color: '#00695C', padding: 0, fontFamily: 'inherit', textDecoration: 'underline' }}>
-                  Forgot password?
-                </button>
-              </div>
-              <div style={{ position: 'relative' }}>
-                <input
-                  type={showPass ? 'text' : 'password'}
-                  value={password}
-                  onChange={e => setPassword(e.target.value)}
-                  placeholder="Your password"
-                  autoComplete="current-password"
-                  disabled={loading}
-                  className="tfield"
-                  style={{ width: '100%', boxSizing: 'border-box', padding: '13px 44px 13px 16px', borderRadius: '10px', fontSize: '14px' }}
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPass(v => !v)}
-                  style={{ position: 'absolute', right: '14px', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', padding: '0', display: 'flex', alignItems: 'center', color: '#5B7080' }}
-                >
-                  {showPass ? (
-                    <svg width="17" height="17" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94"/><path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
-                  ) : (
-                    <svg width="17" height="17" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
-                  )}
-                </button>
-              </div>
-            </div>
-
-            {/* Remember me */}
-            <label style={{ display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer', userSelect: 'none' }}>
-              <div
-                onClick={() => setRememberMe(v => !v)}
-                style={{ width: '18px', height: '18px', borderRadius: '5px', border: `2px solid ${rememberMe ? '#00897B' : '#B8CDD8'}`, background: rememberMe ? '#00897B' : '#FFFFFF', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, transition: 'all 0.15s', cursor: 'pointer' }}
-              >
-                {rememberMe && <svg width="10" height="10" fill="none" stroke="white" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>}
-              </div>
-              <span style={{ fontSize: '13px', color: '#2D3E50', fontWeight: 500 }}>Remember me on this device</span>
-            </label>
-
-            {error && (
-              <div style={{ padding: '12px 16px', background: '#FFF1F2', border: '1px solid #FCA5A5', borderLeft: '4px solid #B91C1C', borderRadius: '10px', fontSize: '13px', color: '#B91C1C', fontWeight: 700, lineHeight: 1.5 }}>
-                {error}
-              </div>
-            )}
-
-            <button
-              type="submit"
-              disabled={loading}
-              style={{ marginTop: '4px', padding: '15px', borderRadius: '10px', border: 'none', background: loading ? '#B8CDD8' : 'linear-gradient(135deg, #00897B 0%, #00695C 100%)', color: loading ? '#5B7080' : 'white', fontSize: '14px', fontWeight: 800, cursor: loading ? 'not-allowed' : 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', transition: 'all 0.2s ease' }}>
-              {loading ? (
-                <>
-                  <div style={{ width: '16px', height: '16px', border: '2px solid #B8CDD8', borderTopColor: '#5B7080', borderRadius: '50%', animation: 'spin 0.7s linear infinite' }} />
-                  Signing in…
-                </>
-              ) : (
-                <>
-                  Sign In
-                  <svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg>
-                </>
-              )}
-            </button>
-          </form>
-
-          {/* Divider */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginTop: '20px' }}>
-            <div style={{ flex: 1, height: '1px', background: '#DDE8EE' }} />
-            <span style={{ fontSize: '11px', fontWeight: 700, color: '#8FA5B2', letterSpacing: '1px', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>or</span>
-            <div style={{ flex: 1, height: '1px', background: '#DDE8EE' }} />
-          </div>
-
-          {/* Microsoft SSO */}
+          {/* Microsoft SSO — only login option */}
           <a
             href="/api/auth/microsoft"
-            style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px', padding: '13px 16px', borderRadius: '10px', border: '1.5px solid #DDE8EE', background: '#FFFFFF', color: '#0F1923', fontSize: '14px', fontWeight: 700, textDecoration: 'none', cursor: 'pointer', transition: 'border-color 0.2s, box-shadow 0.2s', boxShadow: '0 1px 3px rgba(0,0,0,0.06)', fontFamily: 'inherit' }}
-            onMouseOver={e => { (e.currentTarget as HTMLAnchorElement).style.borderColor = '#00897B'; (e.currentTarget as HTMLAnchorElement).style.boxShadow = '0 2px 8px rgba(0,137,123,0.15)' }}
-            onMouseOut={e => { (e.currentTarget as HTMLAnchorElement).style.borderColor = '#DDE8EE'; (e.currentTarget as HTMLAnchorElement).style.boxShadow = '0 1px 3px rgba(0,0,0,0.06)' }}
+            style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '12px', padding: '16px 20px', borderRadius: '12px', border: '1.5px solid #DDE8EE', background: '#FFFFFF', color: '#0F1923', fontSize: '15px', fontWeight: 700, textDecoration: 'none', cursor: 'pointer', transition: 'border-color 0.2s, box-shadow 0.2s', boxShadow: '0 2px 8px rgba(0,0,0,0.07)', fontFamily: 'inherit' }}
+            onMouseOver={e => { (e.currentTarget as HTMLAnchorElement).style.borderColor = '#00897B'; (e.currentTarget as HTMLAnchorElement).style.boxShadow = '0 4px 16px rgba(0,137,123,0.18)' }}
+            onMouseOut={e => { (e.currentTarget as HTMLAnchorElement).style.borderColor = '#DDE8EE'; (e.currentTarget as HTMLAnchorElement).style.boxShadow = '0 2px 8px rgba(0,0,0,0.07)' }}
           >
-            {/* Microsoft logo */}
-            <svg width="18" height="18" viewBox="0 0 21 21" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <svg width="20" height="20" viewBox="0 0 21 21" fill="none" xmlns="http://www.w3.org/2000/svg">
               <rect x="1" y="1"   width="9" height="9" fill="#F35325"/>
               <rect x="11" y="1"  width="9" height="9" fill="#81BC06"/>
               <rect x="1" y="11"  width="9" height="9" fill="#05A6F0"/>
@@ -322,7 +134,7 @@ export default function LoginPage() {
           </a>
 
           {/* Help note */}
-          <div style={{ marginTop: '32px', padding: '16px 18px', background: '#E8EEF4', border: '1px solid #DDE8EE', borderRadius: '12px', fontSize: '13px', color: '#2D3E50', lineHeight: 1.65, textAlign: 'center' }}>
+          <div style={{ marginTop: '28px', padding: '16px 18px', background: '#E8EEF4', border: '1px solid #DDE8EE', borderRadius: '12px', fontSize: '13px', color: '#2D3E50', lineHeight: 1.65, textAlign: 'center' }}>
             Having trouble logging in?<br />
             <span style={{ fontWeight: 700, color: '#0F1923' }}>Contact your manager or the HR team.</span>
           </div>
@@ -330,13 +142,12 @@ export default function LoginPage() {
           {/* Bottom wordmark */}
           <div style={{ marginTop: '36px', textAlign: 'center', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
             <div style={{ width: '5px', height: '5px', borderRadius: '50%', background: '#00897B', animation: 'pulse 2s infinite' }} />
-            <span style={{ fontSize: '12px', fontWeight: 700, color: '#5B7080', letterSpacing: '1.5px', textTransform: 'uppercase' }}>Event Pilot · Trescon Global</span>
+            <span style={{ fontSize: '12px', fontWeight: 700, color: '#5B7080', letterSpacing: '1.5px', textTransform: 'uppercase' }}>Event Pilot · Trescon</span>
           </div>
         </div>
       </div>
 
       <style>{`
-        @keyframes spin  { to { transform: rotate(360deg); } }
         @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
       `}</style>
     </div>

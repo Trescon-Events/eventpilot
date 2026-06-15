@@ -30,7 +30,7 @@ export async function POST(req: NextRequest) {
     event.description ? `Description: ${event.description}` : null,
   ].filter(Boolean).join('\n')
 
-  const prompt = `You are a professional brand strategist for Trescon Global, a world-class B2B events company.
+  const prompt = `You are a professional brand strategist for Trescon, a world-class B2B events company.
 
 Given this event:
 ${eventSummary}
