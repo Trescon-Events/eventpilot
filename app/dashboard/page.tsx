@@ -478,6 +478,16 @@ function DashboardContent() {
                   <div style={{ fontSize: '13px', fontWeight: 800, color: trackConfig.color, marginBottom: '2px' }}>{TRACK_LABEL[track]}</div>
                   <div style={{ fontSize: '12px', color: '#5B7080', fontWeight: 600 }}>Current learning track</div>
                 </div>
+                <Link
+                  href={`/profile?id=${staffId}&name=${encodeURIComponent(staff.name)}&dept=${encodeURIComponent(staff.department ?? '')}&next=${encodeURIComponent(`/dashboard?id=${staffId}`)}`}
+                  style={{ display: 'flex', alignItems: 'center', gap: '8px', background: '#FFFFFF', border: '1.5px solid #B8CDD8', borderRadius: '12px', padding: '12px 18px', textDecoration: 'none', flexShrink: 0 }}
+                >
+                  <svg width="15" height="15" fill="none" stroke="#2D3E50" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                  <div>
+                    <div style={{ fontSize: '13px', fontWeight: 800, color: '#0F1923', marginBottom: '2px' }}>{staff.profile_complete ? 'Retake Assessment' : 'Take Assessment'}</div>
+                    <div style={{ fontSize: '12px', color: '#5B7080', fontWeight: 600 }}>Update your AIRS profile</div>
+                  </div>
+                </Link>
               </div>
             </div>
             {/* Circular score ring */}
@@ -486,12 +496,6 @@ function DashboardContent() {
               <div style={{ fontSize: '12px', color: '#5B7080', marginTop: '6px', lineHeight: 1.4, fontWeight: 600 }}>
                 AI Readiness Score<br />out of 100
               </div>
-              <Link
-                href={`/profile?id=${staffId}&name=${encodeURIComponent(staff.name)}&dept=${encodeURIComponent(staff.department ?? '')}&next=${encodeURIComponent(`/dashboard?id=${staffId}`)}`}
-                style={{ display: 'inline-block', marginTop: '8px', fontSize: '11px', color: '#5B7080', textDecoration: 'underline' }}
-              >
-                {staff.profile_complete ? 'Retake assessment' : 'Take assessment'}
-              </Link>
             </div>
           </div>
         </div>
