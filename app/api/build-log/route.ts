@@ -9,8 +9,8 @@ function resolveAuthor(login: string, email: string, name: string): string {
   const e = email?.toLowerCase() ?? ''
   const n = name?.toLowerCase()  ?? ''
   const l = login?.toLowerCase() ?? ''
-  if (e.includes('dc@trescon') || n.includes('durga') || l.includes('durgacharan')) return 'Durga'
-  if (e.includes('md@trescon') || n.includes('madhu'))                               return 'Madhu'
+  if (e.includes('dc@trescon') || e.includes('reachcharan') || n.includes('durga') || l.includes('durgacharan') || l.includes('nammadaiva')) return 'Durga'
+  if (e.includes('md@trescon') || n.includes('madhu'))                                                                                        return 'Madhu'
   return name?.split(' ')[0] ?? login ?? 'Team'
 }
 
