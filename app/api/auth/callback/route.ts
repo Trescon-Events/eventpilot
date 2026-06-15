@@ -104,6 +104,9 @@ export async function GET(req: NextRequest) {
     return NextResponse.redirect(`${origin}/access-pending?email=${encodeURIComponent(email)}`)
   }
 
+  // ── Track login time ──────────────────────────────────────────────────────
+  supabaseAdmin.from('staff_members').update({ last_login_at: new Date().toISOString() }).eq('id', staff.id)
+
   // ── Build session (same format as password login) ─────────────────────────
   const jobLevel    = staff.job_level ?? 'staff'
   const accessRoles = (staff.access_roles ?? ['standard']) as string[]

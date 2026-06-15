@@ -1081,6 +1081,15 @@ export default function AdminPage() {
     .sort((a, b) => b.toars - a.toars)
     .slice(0, 8)
 
+  // ── Assessed-only avg score (Option B — excludes unassessed staff) ──
+  const assessedScores = members
+    .filter(m => m.profile_complete)
+    .map(m => memberTairs[m.id]?.score ?? 0)
+    .filter(s => s > 0)
+  const assessedAvg  = assessedScores.length > 0 ? Math.round(assessedScores.reduce((a, b) => a + b, 0) / assessedScores.length) : 0
+  const assessedTier = airsTier(assessedAvg)
+  const participationPct = totalJoined > 0 ? Math.round(profilesComplete / totalJoined * 100) : 0
+
   // Legacy compat for existing readiness dist block
   const deptScores = sortedDeptAirs.map(d => ({ dept: d.dept, avg: d.fluency / 8, count: d.interviewed }))
   const officeScores = officeAirs.map(o => ({ ...o, avg: o.fluency / 8 }))
@@ -1515,7 +1524,7 @@ export default function AdminPage() {
             </div>
             <div style={{ fontSize: '12px', color: '#2D3E50', fontWeight: 600 }}>{totalJoined > 0 ? Math.round(profilesComplete / totalJoined * 100) : 0}% completion rate · {totalTasks} entries captured</div>
           </div>
-          <div style={{ background: '#FFFFFF', border: '1px solid #DDE8EE', borderTop: `4px solid ${orgTier.color}`, borderRadius: '14px', padding: '24px', boxShadow: '0 2px 8px rgba(15,25,35,0.06)' }}>
+          <div style={{ background: '#FFFFFF', border: '1px solid #DDE8EE', borderTop: `4px solid ${assessedAvg > 0 ? assessedTier.color : '#5B7080'}`, borderRadius: '14px', padding: '24px', boxShadow: '0 2px 8px rgba(15,25,35,0.06)' }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
               <div style={{ fontSize: '11px', fontWeight: 800, letterSpacing: '1.5px', textTransform: 'uppercase', color: '#5B7080' }}>AI Readiness Score</div>
               <Link href="/docs" style={{ fontSize: '11px', color: '#00897B', textDecoration: 'none', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '4px' }}>
@@ -1523,16 +1532,24 @@ export default function AdminPage() {
                 <svg width="9" height="9" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg>
               </Link>
             </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '14px', marginBottom: '10px' }}>
-              <span style={{ fontSize: '48px', fontWeight: 900, color: orgTier.color, lineHeight: 1 }}>{orgScore > 0 ? orgScore : '—'}</span>
-              {orgScore > 0 && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: '14px', marginBottom: '6px' }}>
+              <span style={{ fontSize: '48px', fontWeight: 900, color: assessedAvg > 0 ? assessedTier.color : '#B8CDD8', lineHeight: 1 }}>{assessedAvg > 0 ? assessedAvg : '—'}</span>
+              {assessedAvg > 0 && (
                 <div>
-                  <div style={{ fontSize: '14px', fontWeight: 800, color: orgTier.color, lineHeight: 1.2 }}>{orgTier.label}</div>
-                  <div style={{ fontSize: '12px', color: '#2D3E50', fontWeight: 600, marginTop: '4px' }}>{orgTier.desc}</div>
+                  <div style={{ fontSize: '14px', fontWeight: 800, color: assessedTier.color, lineHeight: 1.2 }}>{assessedTier.label}</div>
+                  <div style={{ fontSize: '12px', color: '#2D3E50', fontWeight: 600, marginTop: '4px' }}>{assessedTier.desc}</div>
                 </div>
               )}
             </div>
-            <div style={{ fontSize: '12px', color: '#5B7080', fontWeight: 600 }}>Baseline 25–40 · Target 60+ · out of 100</div>
+            <div style={{ fontSize: '11px', color: '#5B7080', fontWeight: 600, marginBottom: '6px' }}>
+              {assessedAvg > 0 ? `Avg of ${profilesComplete} assessed · Target 60+ · out of 100` : 'No assessments completed yet'}
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <div style={{ flex: 1, height: '5px', background: '#E8EEF4', borderRadius: '3px', overflow: 'hidden' }}>
+                <div style={{ height: '100%', width: `${participationPct}%`, background: participationPct >= 50 ? '#00897B' : participationPct >= 20 ? '#D97706' : '#DC2626', borderRadius: '3px', transition: 'width 0.6s' }} />
+              </div>
+              <span style={{ fontSize: '11px', fontWeight: 700, color: participationPct >= 50 ? '#00897B' : participationPct >= 20 ? '#D97706' : '#DC2626', whiteSpace: 'nowrap' }}>{participationPct}% assessed</span>
+            </div>
           </div>
         </div>
 
@@ -2402,6 +2419,85 @@ export default function AdminPage() {
                   })}
                 </div>
               )}
+
+              {/* Login Activity */}
+              <div style={{ marginTop: '24px', background: '#FFFFFF', border: '1px solid #DDE8EE', borderRadius: '16px', overflow: 'hidden' }}>
+                <div style={{ padding: '16px 20px', borderBottom: '1px solid #E8EEF4', display: 'flex', alignItems: 'center', gap: '10px' }}>
+                  <div style={{ width: '32px', height: '32px', borderRadius: '8px', background: 'rgba(14,116,144,0.08)', border: '1px solid rgba(14,116,144,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                    <svg width="15" height="15" fill="none" stroke="#0E7490" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><polyline points="10 17 15 12 10 7"/><line x1="15" y1="12" x2="3" y2="12"/></svg>
+                  </div>
+                  <div>
+                    <div style={{ fontSize: '13px', fontWeight: 800, color: '#0F1923' }}>Login Activity</div>
+                    <div style={{ fontSize: '11px', color: '#5B7080' }}>
+                      {(() => {
+                        const loggedIn = allPeople.filter(p => p.access_enabled && (p as {last_login_at?: string | null}).last_login_at)
+                        const never    = allPeople.filter(p => p.access_enabled && !(p as {last_login_at?: string | null}).last_login_at)
+                        return `${loggedIn.length} of ${loggedIn.length + never.length} enabled staff have logged in · ${never.length} never logged in`
+                      })()}
+                    </div>
+                  </div>
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: '2.5fr 1.8fr 1fr 1.6fr', padding: '8px 20px', background: '#E8EEF4', borderBottom: '1px solid #DDE8EE' }}>
+                  {['Name', 'Department / Role', 'Office', 'Last Login (Dubai)'].map(h => (
+                    <div key={h} style={{ fontSize: '9px', fontWeight: 700, letterSpacing: '1.5px', textTransform: 'uppercase', color: '#5B7080' }}>{h}</div>
+                  ))}
+                </div>
+                {(() => {
+                  const loginRows = allPeople
+                    .filter(p => p.access_enabled)
+                    .sort((a, b) => {
+                      const aTime = (a as {last_login_at?: string | null}).last_login_at ? new Date((a as {last_login_at?: string | null}).last_login_at!).getTime() : 0
+                      const bTime = (b as {last_login_at?: string | null}).last_login_at ? new Date((b as {last_login_at?: string | null}).last_login_at!).getTime() : 0
+                      return bTime - aTime
+                    })
+                  const showRows = loginRows.slice(0, 50)
+                  return (
+                    <>
+                      {showRows.map((p, idx) => {
+                        const off      = getOffice(p.office_id ?? '')
+                        const loginAt  = (p as {last_login_at?: string | null}).last_login_at
+                        const loginStr = loginAt
+                          ? new Date(loginAt).toLocaleString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Dubai' })
+                          : null
+                        return (
+                          <div key={p.id} style={{ display: 'grid', gridTemplateColumns: '2.5fr 1.8fr 1fr 1.6fr', alignItems: 'center', padding: '10px 20px', borderBottom: idx < showRows.length - 1 ? '1px solid #E8EEF4' : 'none', background: !loginAt ? 'rgba(220,38,38,0.02)' : 'transparent' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '9px', minWidth: 0 }}>
+                              <div style={{ width: '28px', height: '28px', borderRadius: '7px', background: `${off?.color ?? '#00897B'}18`, border: `1px solid ${off?.color ?? '#00897B'}30`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                                <span style={{ fontSize: '11px', fontWeight: 800, color: off?.color ?? '#00897B' }}>{p.name.charAt(0)}</span>
+                              </div>
+                              <div style={{ minWidth: 0 }}>
+                                <div style={{ fontSize: '13px', fontWeight: 700, color: '#0F1923', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.name}</div>
+                                <div style={{ fontSize: '11px', color: '#5B7080', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.email}</div>
+                              </div>
+                            </div>
+                            <div style={{ minWidth: 0 }}>
+                              <div style={{ fontSize: '13px', fontWeight: 600, color: '#0F1923', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.department ?? '—'}</div>
+                              <div style={{ fontSize: '11px', color: '#5B7080', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.role ?? '—'}</div>
+                            </div>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+                              <div style={{ width: '6px', height: '6px', borderRadius: '50%', background: off?.color ?? '#B8CDD8', flexShrink: 0 }} />
+                              <span style={{ fontSize: '12px', fontWeight: 700, color: off?.color ?? '#5B7080' }}>{off?.label ?? '—'}</span>
+                            </div>
+                            <div>
+                              {loginStr ? (
+                                <span style={{ fontSize: '12px', fontWeight: 600, color: '#0E7490' }}>{loginStr}</span>
+                              ) : (
+                                <span style={{ fontSize: '11px', fontWeight: 700, color: '#DC2626', background: 'rgba(220,38,38,0.08)', padding: '2px 8px', borderRadius: '5px' }}>Never logged in</span>
+                              )}
+                            </div>
+                          </div>
+                        )
+                      })}
+                      {loginRows.length > 50 && (
+                        <div style={{ padding: '10px 20px', borderTop: '1px solid #E8EEF4', fontSize: '12px', color: '#5B7080', textAlign: 'center' }}>
+                          Showing 50 of {loginRows.length} enabled staff
+                        </div>
+                      )}
+                    </>
+                  )
+                })()}
+              </div>
+
             </div>
           )
         })()}

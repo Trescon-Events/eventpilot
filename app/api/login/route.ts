@@ -134,6 +134,8 @@ export async function POST(req: NextRequest) {
   // ── Successful login ───────────────────────────────────────────────────
   await logAttempt(cleanEmail, ip, true, 'ok')
 
+  supabaseAdmin.from('staff_members').update({ last_login_at: new Date().toISOString() }).eq('id', staff.id)
+
   const [{ count: reportCount }, { count: profileCount }] = await Promise.all([
     supabaseAdmin.from('staff_members').select('*', { count: 'exact', head: true }).eq('manager_id', staff.id),
     supabaseAdmin.from('staff_task_profiles').select('*', { count: 'exact', head: true }).eq('staff_id', staff.id),
