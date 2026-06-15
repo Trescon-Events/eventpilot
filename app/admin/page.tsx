@@ -4390,7 +4390,7 @@ export default function AdminPage() {
                   <div style={{ fontSize: '11px', fontWeight: 800, letterSpacing: '1.8px', textTransform: 'uppercase', color: '#00897B' }}>Pre-Phase 3 — Current Sprint</div>
                 </div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                  [
+                  {[
                     { done: true,  title: 'Microsoft 365 SSO ✓',               desc: 'Staff log in with @tresconglobal.com Microsoft credentials. No platform password needed.' },
                     { done: true,  title: 'User Management + Access Roles ✓',   desc: 'Backend schema, HRMS sync, and admin UI all complete. 6-role system visible and editable in People tab.' },
                     { done: true,  title: 'Staff Review System ✓',              desc: 'Floating Report Issue button on every page. Staff report bugs by tool, type, severity. Admin triages at /admin/reviews.' },
