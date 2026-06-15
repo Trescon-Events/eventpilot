@@ -37,8 +37,9 @@ const NAV_GROUPS = [
   {
     label: 'DATABASE',
     items: [
-      { label: 'Contacts',  href: '/data/contacts',  icon: 'contacts' },
-      { label: 'Companies', href: '/data/companies', icon: 'building' },
+      { label: 'Contacts',          href: '/data/contacts',  icon: 'contacts' },
+      { label: 'Companies',         href: '/data/companies', icon: 'building' },
+      { label: 'Enrichment Audit',  href: '/data/audit',     icon: 'audit'    },
     ],
   },
   {
@@ -50,9 +51,11 @@ const NAV_GROUPS = [
   {
     label: 'INTELLIGENCE',
     items: [
-      { label: 'Lead Finder AI', href: '/data/lead-finder', icon: 'target' },
-      { label: 'Analytics',      href: '/data/analytics',   icon: 'chart'  },
-      { label: 'Data Quality',   href: '/data/quality',     icon: 'check'  },
+      { label: 'Lead Finder AI',   href: '/data/lead-finder', icon: 'target'    },
+      { label: 'Saved Audiences',  href: '/data/audiences',   icon: 'audiences' },
+      { label: 'Contact Scoring',  href: '/data/scoring',     icon: 'scoring'   },
+      { label: 'Analytics',        href: '/data/analytics',   icon: 'chart'     },
+      { label: 'Data Quality',     href: '/data/quality',     icon: 'check'     },
     ],
   },
 ]
@@ -90,17 +93,27 @@ function NavIcon({ name }: { name: string }) {
       return <svg {...style} width="15" height="15" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" viewBox="0 0 24 24"><rect x="3" y="3" width="5" height="18" rx="1"/><rect x="10" y="3" width="5" height="12" rx="1"/><rect x="17" y="3" width="5" height="8" rx="1"/></svg>
     case 'check':
       return <svg {...style} width="15" height="15" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" viewBox="0 0 24 24"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+    case 'audit':
+      return <svg {...style} width="15" height="15" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+    case 'audiences':
+      return <svg {...style} width="15" height="15" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+    case 'scoring':
+      return <svg {...style} width="15" height="15" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg>
     default:
       return <svg {...style} width="15" height="15" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/></svg>
   }
 }
 
+interface Credits { total_used: number; default_limit: number; tools: { key: string; active: boolean }[] }
+
 export default function DataLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
-  const [session, setSession] = useState<{ adm?: boolean; sid?: string } | null>(null)
+  const [session, setSession]   = useState<{ adm?: boolean; sid?: string } | null>(null)
+  const [credits, setCredits]   = useState<Credits | null>(null)
 
   useEffect(() => {
     fetch('/api/auth/session').then(r => r.json()).then(s => setSession(s)).catch(() => {})
+    fetch('/api/data/credits').then(r => r.json()).then(d => setCredits(d)).catch(() => {})
   }, [])
 
   const backHref  = session === null ? null : session.adm ? '/admin/toolkit' : session.sid ? `/dashboard?id=${session.sid}` : '/dashboard'
@@ -153,11 +166,19 @@ export default function DataLayout({ children }: { children: React.ReactNode }) 
 
         {/* Credits bar */}
         <div style={{ padding: '10px 20px', borderBottom: '1px solid #DDE8EE', flexShrink: 0 }}>
-          <div style={{ fontSize: '11px', color: '#9CA3AF', display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
-            <span>FC: <span style={{ color: '#6B7280' }}>—</span></span>
-            <span>MV: <span style={{ color: '#6B7280' }}>—</span></span>
-            <span>Lusha: <span style={{ color: '#6B7280' }}>—</span></span>
-          </div>
+          {credits ? (
+            <div>
+              <div style={{ fontSize: '11px', color: '#9CA3AF', marginBottom: '5px' }}>
+                Today: <span style={{ color: credits.total_used > 0 ? '#0F1923' : '#9CA3AF', fontWeight: 700 }}>{credits.total_used}</span>
+                <span style={{ color: '#C4CDD6' }}> / {credits.default_limit} lookups</span>
+              </div>
+              <div style={{ height: '3px', background: '#F0F4F7', borderRadius: '2px', overflow: 'hidden' }}>
+                <div style={{ height: '100%', background: credits.total_used / credits.default_limit > 0.8 ? '#F87171' : '#00A5A3', borderRadius: '2px', width: `${Math.min((credits.total_used / credits.default_limit) * 100, 100)}%`, transition: 'width 0.4s' }} />
+              </div>
+            </div>
+          ) : (
+            <div style={{ fontSize: '11px', color: '#C4CDD6' }}>Loading credits…</div>
+          )}
         </div>
 
         {/* Nav groups */}
