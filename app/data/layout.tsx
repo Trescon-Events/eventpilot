@@ -42,10 +42,17 @@ const NAV_GROUPS = [
     ],
   },
   {
+    label: 'PIPELINE',
+    items: [
+      { label: 'Kanban Board',  href: '/data/pipeline', icon: 'kanban' },
+    ],
+  },
+  {
     label: 'INTELLIGENCE',
     items: [
       { label: 'Lead Finder AI', href: '/data/lead-finder', icon: 'target' },
-      { label: 'Analytics',      href: '/data/analytics',   icon: 'chart' },
+      { label: 'Analytics',      href: '/data/analytics',   icon: 'chart'  },
+      { label: 'Data Quality',   href: '/data/quality',     icon: 'check'  },
     ],
   },
 ]
@@ -79,6 +86,10 @@ function NavIcon({ name }: { name: string }) {
       return <svg {...style} width="15" height="15" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg>
     case 'chart':
       return <svg {...style} width="15" height="15" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" viewBox="0 0 24 24"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
+    case 'kanban':
+      return <svg {...style} width="15" height="15" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" viewBox="0 0 24 24"><rect x="3" y="3" width="5" height="18" rx="1"/><rect x="10" y="3" width="5" height="12" rx="1"/><rect x="17" y="3" width="5" height="8" rx="1"/></svg>
+    case 'check':
+      return <svg {...style} width="15" height="15" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" viewBox="0 0 24 24"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
     default:
       return <svg {...style} width="15" height="15" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/></svg>
   }
