@@ -51,6 +51,16 @@ Everything committed before `dc48b2b` is Durga's work and was not touched. Key p
 
 ---
 
+## What Was Built This Session (15 Jun 2026 — Session 2 — Madhu)
+
+### Email ID Consolidation — madhu → madhus
+- Identified duplicate `staff_members` record created by HRMS sync after email was corrected in HRMS from `madhu@tresconglobal.com` → `madhus@tresconglobal.com`. The sync upserts on `email` as conflict key, so the corrected email created a new row instead of updating the old one.
+- Reassigned 3 `event_staff` project allocation records from old ID (`4931f8c6`) to the correct `madhus@` record (`aa1cf0f6`) so no event assignments were lost.
+- Deleted the old `madhu@tresconglobal.com` staff_members record. Both records had identical data (profile_complete = false), no data loss.
+- Sent a fresh "Your EventPilot access is ready" login email to `madhus@tresconglobal.com` via Resend confirming the updated address and linking to the Microsoft 365 SSO login page.
+
+---
+
 ## What Was Built This Session (15 Jun 2026 — Madhu)
 
 ### Selective Staff Rollout (DB)
