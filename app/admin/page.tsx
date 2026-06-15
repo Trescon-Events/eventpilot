@@ -4304,12 +4304,15 @@ export default function AdminPage() {
                 </div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                   {[
-                    'Profile menu — unified nav bar component replacing standalone avatar + sign-out buttons across all pages. Favicon, OG image, and page metadata set for correct link previews',
-                    'Persistent sessions — Remember me checkbox (30-day cookie) on password login. SSO sessions always persist 30 days',
+                    'Staff Review System — floating "Report Issue" button on every page. Staff report bugs, suggestions, and issues by tool, type, severity. Admin triages at /admin/reviews with status tracking and notes',
+                    'Auto Build Log — What\'s Next panel pulls live from GitHub commits. Zero manual updates. Every push by Durga or Madhu auto-appears, grouped by date and author',
+                    'SSO-only login — Microsoft 365 is the only sign-in method. Email/password form removed. Access-pending gate for staff without access_enabled',
+                    'Profile menu — unified nav bar component across all pages. Favicon, OG image, and page metadata set for correct link previews',
+                    'Persistent sessions — SSO sessions persist 30 days. Microsoft handles re-auth silently',
                     'Course-focused dashboard — regular staff see Course Library + My HR only. Managers see full workspace plus a My Team Learning section with direct reports\' course progress',
                     'Microsoft 365 SSO — staff sign in with @tresconglobal.com credentials, no separate platform password needed',
-                    'Access roles — 6-level role system (Standard → Super Admin) per staff member. Synced from HRMS, overridable by admin. Controls platform access beyond tool_grants',
-                    'Toolkit per-tool grants — each staff member sees only the tools they\'ve been explicitly granted. Inaccessible tools and their sidebar categories are hidden entirely',
+                    'Access roles — 6-level role system (Standard → Super Admin) per staff member. Synced from HRMS, overridable by admin',
+                    'Toolkit per-tool grants — each staff member sees only the tools they\'ve been explicitly granted. Inaccessible tools and sidebar categories hidden entirely',
                     'AIRS scoring — live AI readiness score for every staff member',
                     'Org Chart — Directory (dept-grouped table with tool dots) + Hierarchy (indented list). Click any person: full reporting chain + tool access toggles in a side panel',
                     'Tool Permissions — 8 platform modules grantable per staff member with inline dot badges, drawer UI, and Bulk Grant',
@@ -4317,7 +4320,7 @@ export default function AdminPage() {
                     'Staff Directory — /hr/staff: full searchable/filterable staff list with level, office, manager, joined date, status',
                     'Staff Onboarding Wizard — 5-step HR form at /hr/staff/new: personal info, work details, reporting structure, platform access, review & create',
                     'Password management — forgot password email, token-based reset (1hr expiry), forced first-login change, self-service change from profile, admin force-reset',
-                    'Transactional emails via Resend — password reset, welcome, credentials on new staff creation. FROM: noreply@tresconglobal.com',
+                    'Transactional emails via Resend — password reset, welcome, credentials on new staff creation. FROM: noreply@eventpilot.tresconglobal.com',
                     'Personal dashboard with role-specific course recommendations and platform access tiles',
                     'Course Library — auto-filtered to staff department, assigned courses pinned at top',
                     'Weekly auto course generation — every Sunday Pilot AI builds 3 draft courses from org skill gaps + latest AI news. Super admin reviews and publishes from Review Queue',
@@ -4337,10 +4340,10 @@ export default function AdminPage() {
                     'Course assignment — admin assigns any course to an individual, department, or all staff with optional due date. Staff notified instantly in-app',
                     'Completion certificates — auto-issued when a staff member passes a course for the first time. Stored on their profile',
                     'Brand asset generator — Imagen 3 AI generates event banners, social posts, LinkedIn banners, speaker cards, and sponsor cards from brand guidelines in Brand Studio',
-                    'Department course seeding — admin generates 1–3 dept-specific AI courses in one click from Learning Lab. Pilot AI builds full courses with reading content, tasks, and 10-question bank. Saved as drafts for review before publishing',
+                    'Department course seeding — admin generates 1–3 dept-specific AI courses in one click from Learning Lab. Saved as drafts for review before publishing',
                     'Weekly org pulse email — super admins receive a formatted report every Sunday: completions, participation rate, top dept, top skill gap, auto-generated course count',
-                    'Brand PDF export — Brand Studio generates a polished self-contained HTML brand book (cover, colors, typography, logo, voice, assets). Export PDF button in Brand Studio nav, print dialog auto-triggers',
-                    'Course Builder — /admin/courses: Review Queue for all draft courses (AI-generated, dept-seeded, suggested), All Courses table with search + tier/dept filters, editor panel with 4 sub-tabs (Details, Content, Tasks, Questions), New Course manual builder',
+                    'Brand PDF export — Brand Studio generates a polished self-contained HTML brand book. Export PDF button in Brand Studio nav, print dialog auto-triggers',
+                    'Course Builder — /admin/courses: Review Queue, All Courses table, editor panel with 4 sub-tabs, New Course manual builder',
                     'Platform Menu — role-aware, each user sees only the tools they can access',
                     'Platform Docs — AIRS scoring guide, discovery questionnaire, AI readiness playbook',
                   ].map((item, i) => (
@@ -4387,12 +4390,15 @@ export default function AdminPage() {
                   <div style={{ fontSize: '11px', fontWeight: 800, letterSpacing: '1.8px', textTransform: 'uppercase', color: '#00897B' }}>Pre-Phase 3 — Current Sprint</div>
                 </div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                  {[
-                    { done: true,  title: 'Microsoft 365 SSO',               desc: 'Staff log in with @tresconglobal.com Microsoft credentials. No platform password needed. Session synced automatically.' },
-                    { done: true,  title: 'User Management + Access Roles',   desc: 'Backend schema, HRMS sync, and admin UI all complete. 6-role system visible and editable in People tab.' },
-                    { done: false, title: 'Khalifa — Brand Book test',        desc: 'Khalifa (branding head) has Website Builder access. Needs to test brand book section under Website Builder for AI2047.' },
-                    { done: false, title: 'Website Builder test — AI2047',    desc: 'Prashant + Khalifa to fully test the website builder for AI2047 event. Prashant has WB + Market Intel + Outreach access.' },
-                    { done: false, title: 'Social media manager — AI2047',    desc: 'Phase 3 proper. Content Hub social publishing for AI2047 — LinkedIn, Instagram, Facebook. Needs Meta API tokens from Madhu.' },
+                  [
+                    { done: true,  title: 'Microsoft 365 SSO ✓',               desc: 'Staff log in with @tresconglobal.com Microsoft credentials. No platform password needed.' },
+                    { done: true,  title: 'User Management + Access Roles ✓',   desc: 'Backend schema, HRMS sync, and admin UI all complete. 6-role system visible and editable in People tab.' },
+                    { done: true,  title: 'Staff Review System ✓',              desc: 'Floating Report Issue button on every page. Staff report bugs by tool, type, severity. Admin triages at /admin/reviews.' },
+                    { done: true,  title: 'Auto Build Log ✓',                   desc: 'What\'s Next panel now pulls live from GitHub commits. No manual updates needed. Both commit styles (Durga + Madhu) supported.' },
+                    { done: false, title: 'Smart Data — complete to 100%',       desc: 'Fix Email Guesser API, enforce credit limits, build contact scoring engine, pipeline kanban, saved audiences, L2 classification.' },
+                    { done: false, title: 'Khalifa — Brand Book test',           desc: 'Khalifa (branding head) has Website Builder access. Needs to test brand book section under Website Builder for AI2047.' },
+                    { done: false, title: 'Website Builder test — AI2047',       desc: 'Prashant + Khalifa to fully test the website builder for AI2047 event. Prashant has WB + Market Intel + Outreach access.' },
+                    { done: false, title: 'Social publishing — Content Hub',     desc: 'Content Hub social publishing for AI2047. Approval workflow fully built. Needs Meta API tokens from Madhu to wire LinkedIn, Instagram, Facebook.' },
                   ].map((item, i) => (
                     <div key={i} style={{ padding: '12px 14px', background: item.done ? 'rgba(0,137,123,0.04)' : 'rgba(0,137,123,0.02)', border: `1px solid ${item.done ? 'rgba(0,137,123,0.2)' : '#DDE8EE'}`, borderRadius: '10px', display: 'flex', gap: '10px', alignItems: 'flex-start' }}>
                       <div style={{ width: '18px', height: '18px', borderRadius: '50%', background: item.done ? '#00897B' : '#E8EEF4', border: item.done ? 'none' : '2px solid #B8CDD8', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, marginTop: '1px' }}>
