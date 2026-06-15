@@ -15,60 +15,40 @@ const TOOLS = [
 ]
 
 const TYPES = [
-  { key: 'bug',         label: 'Bug',              desc: 'Something is broken or behaving incorrectly'   },
-  { key: 'not_working', label: 'Not Working',      desc: 'Feature completely fails or throws an error'   },
-  { key: 'suggestion',  label: 'Suggestion',       desc: "A new feature or workflow you'd like to see"   },
-  { key: 'improvement', label: 'Improvement',      desc: 'Existing feature that could work better'       },
+  { key: 'bug',         label: 'Bug',         desc: 'Something is broken or behaving incorrectly'  },
+  { key: 'not_working', label: 'Not Working', desc: 'Feature completely fails or throws an error'  },
+  { key: 'suggestion',  label: 'Suggestion',  desc: "A new feature or workflow you'd like to see"  },
+  { key: 'improvement', label: 'Improvement', desc: 'Existing feature that could work better'      },
 ]
 
 const SEVERITIES = [
-  { key: 'critical', label: 'Critical', color: '#EF4444', desc: 'Blocks me from working'       },
-  { key: 'high',     label: 'High',     color: '#F97316', desc: 'Significant impact on my work' },
-  { key: 'medium',   label: 'Medium',   color: '#F59E0B', desc: 'Annoying but workable'         },
-  { key: 'low',      label: 'Low',      color: '#22C55E', desc: 'Minor issue or nice-to-have'   },
+  { key: 'critical', label: 'Critical', color: '#DC2626', desc: 'Blocks me from working'        },
+  { key: 'high',     label: 'High',     color: '#EA580C', desc: 'Significant impact on my work'  },
+  { key: 'medium',   label: 'Medium',   color: '#D97706', desc: 'Annoying but workable'          },
+  { key: 'low',      label: 'Low',      color: '#059669', desc: 'Minor issue or nice-to-have'    },
 ]
 
-const s = {
-  overlay: {
-    position: 'fixed' as const, inset: 0,
-    background: 'rgba(8,10,11,0.72)', backdropFilter: 'blur(4px)',
-    zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center',
-    padding: '16px',
-  },
-  modal: {
-    background: '#0E1520', border: '1px solid rgba(255,255,255,0.08)',
-    borderRadius: '20px', width: '100%', maxWidth: '520px',
-    maxHeight: '90vh', overflowY: 'auto' as const,
-    boxShadow: '0 24px 64px rgba(0,0,0,0.6)',
-  },
-  header: {
-    padding: '20px 24px 16px',
-    borderBottom: '1px solid rgba(255,255,255,0.06)',
-    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-  },
-  body: { padding: '20px 24px 24px' },
-  label: { display: 'block', fontSize: '12px', fontWeight: 700, color: '#94A3B8', letterSpacing: '0.8px', textTransform: 'uppercase' as const, marginBottom: '8px' },
-  input: {
-    width: '100%', background: 'rgba(255,255,255,0.04)',
-    border: '1px solid rgba(255,255,255,0.1)', borderRadius: '10px',
-    padding: '10px 14px', fontSize: '14px', color: '#E2E8F0',
-    outline: 'none', boxSizing: 'border-box' as const, fontFamily: 'inherit',
-  },
-  select: {
-    width: '100%', background: '#0E1520',
-    border: '1px solid rgba(255,255,255,0.1)', borderRadius: '10px',
-    padding: '10px 14px', fontSize: '14px', color: '#E2E8F0',
-    outline: 'none', boxSizing: 'border-box' as const, fontFamily: 'inherit', cursor: 'pointer',
-  },
-  row: { marginBottom: '18px' },
+const C = {
+  bg:      '#F6F8FB',
+  surface: '#FFFFFF',
+  border:  '#DDE8EE',
+  text:    '#0F1923',
+  muted:   '#5B7080',
+  teal:    '#00897B',
 }
 
 export default function ReviewWidget() {
-  const [authed,   setAuthed]   = useState(false)
-  const [open,     setOpen]     = useState(false)
-  const [submitting, setSubmitting] = useState(false)
-  const [done,     setDone]     = useState(false)
-  const [error,    setError]    = useState('')
+  const [authed,      setAuthed]      = useState(false)
+  const [open,        setOpen]        = useState(false)
+  const [submitting,  setSubmitting]  = useState(false)
+  const [done,        setDone]        = useState(false)
+  const [error,       setError]       = useState('')
+
+  const [tool,        setTool]        = useState('')
+  const [reviewType,  setReviewType]  = useState('')
+  const [severity,    setSeverity]    = useState('medium')
+  const [title,       setTitle]       = useState('')
+  const [description, setDescription] = useState('')
 
   useEffect(() => {
     fetch('/api/auth/session')
@@ -76,12 +56,6 @@ export default function ReviewWidget() {
       .then(s => { if (s?.sid) setAuthed(true) })
       .catch(() => {})
   }, [])
-
-  const [tool,        setTool]        = useState('')
-  const [reviewType,  setReviewType]  = useState('')
-  const [severity,    setSeverity]    = useState('medium')
-  const [title,       setTitle]       = useState('')
-  const [description, setDescription] = useState('')
 
   if (!authed) return null
 
@@ -116,45 +90,67 @@ export default function ReviewWidget() {
     }
   }
 
+  const inputStyle: React.CSSProperties = {
+    width: '100%', background: C.bg, border: `1px solid ${C.border}`,
+    borderRadius: '10px', padding: '10px 14px', fontSize: '14px', color: C.text,
+    outline: 'none', boxSizing: 'border-box', fontFamily: 'inherit',
+  }
+
+  const labelStyle: React.CSSProperties = {
+    display: 'block', fontSize: '11px', fontWeight: 700, color: C.muted,
+    letterSpacing: '0.8px', textTransform: 'uppercase', marginBottom: '8px',
+  }
+
   return (
     <>
-      {/* ── Floating trigger button ── */}
+      {/* Floating trigger */}
       <button
         onClick={openModal}
         title="Report an issue or suggestion"
         style={{
           position: 'fixed', bottom: '24px', right: '24px', zIndex: 9000,
           display: 'flex', alignItems: 'center', gap: '8px',
-          background: '#00A5A3', color: '#fff',
+          background: C.teal, color: '#fff',
           border: 'none', borderRadius: '100px',
           padding: '10px 18px',
           fontSize: '13px', fontWeight: 700, fontFamily: 'inherit',
-          cursor: 'pointer', boxShadow: '0 4px 20px rgba(0,165,163,0.35)',
+          cursor: 'pointer', boxShadow: '0 4px 16px rgba(0,137,123,0.30)',
           transition: 'transform 0.15s, box-shadow 0.15s',
         }}
-        onMouseOver={e => { e.currentTarget.style.transform = 'translateY(-2px)'; e.currentTarget.style.boxShadow = '0 8px 28px rgba(0,165,163,0.45)' }}
-        onMouseOut={e  => { e.currentTarget.style.transform = 'translateY(0)';    e.currentTarget.style.boxShadow = '0 4px 20px rgba(0,165,163,0.35)' }}
+        onMouseOver={e => { e.currentTarget.style.transform = 'translateY(-2px)'; e.currentTarget.style.boxShadow = '0 8px 24px rgba(0,137,123,0.40)' }}
+        onMouseOut={e  => { e.currentTarget.style.transform = 'translateY(0)';    e.currentTarget.style.boxShadow = '0 4px 16px rgba(0,137,123,0.30)' }}
       >
         <svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24">
           <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
-          <line x1="8" y1="10" x2="16" y2="10"/>
-          <line x1="8" y1="14" x2="13" y2="14"/>
         </svg>
         Report Issue
       </button>
 
-      {/* ── Modal ── */}
+      {/* Modal */}
       {open && (
-        <div style={s.overlay} onClick={e => { if (e.target === e.currentTarget) closeModal() }}>
-          <div style={s.modal}>
+        <div
+          style={{
+            position: 'fixed', inset: 0,
+            background: 'rgba(15,25,35,0.45)', backdropFilter: 'blur(3px)',
+            zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center',
+            padding: '16px',
+          }}
+          onClick={e => { if (e.target === e.currentTarget) closeModal() }}
+        >
+          <div style={{
+            background: C.surface, border: `1px solid ${C.border}`,
+            borderRadius: '20px', width: '100%', maxWidth: '520px',
+            maxHeight: '90vh', overflowY: 'auto',
+            boxShadow: '0 16px 48px rgba(0,0,0,0.14)',
+          }}>
 
             {/* Header */}
-            <div style={s.header}>
+            <div style={{ padding: '20px 24px 16px', borderBottom: `1px solid ${C.border}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
               <div>
-                <div style={{ fontSize: '16px', fontWeight: 800, color: '#F1F5F9' }}>Report an Issue</div>
-                <div style={{ fontSize: '13px', color: '#64748B', marginTop: '2px' }}>Your feedback helps us improve Event Pilot</div>
+                <div style={{ fontSize: '16px', fontWeight: 800, color: C.text }}>Report an Issue</div>
+                <div style={{ fontSize: '13px', color: C.muted, marginTop: '2px' }}>Your feedback helps us improve Event Pilot</div>
               </div>
-              <button onClick={closeModal} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#64748B', padding: '4px' }}>
+              <button onClick={closeModal} style={{ background: 'none', border: 'none', cursor: 'pointer', color: C.muted, padding: '4px', display: 'flex', alignItems: 'center' }}>
                 <svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" viewBox="0 0 24 24">
                   <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
                 </svg>
@@ -162,20 +158,20 @@ export default function ReviewWidget() {
             </div>
 
             {/* Body */}
-            <div style={s.body}>
+            <div style={{ padding: '20px 24px 24px' }}>
               {done ? (
                 <div style={{ textAlign: 'center', padding: '32px 0' }}>
-                  <div style={{ width: '56px', height: '56px', borderRadius: '50%', background: 'rgba(0,165,163,0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px' }}>
-                    <svg width="26" height="26" fill="none" stroke="#00A5A3" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24">
+                  <div style={{ width: '56px', height: '56px', borderRadius: '50%', background: C.teal + '15', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px' }}>
+                    <svg width="26" height="26" fill="none" stroke={C.teal} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24">
                       <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
                       <polyline points="22 4 12 14.01 9 11.01"/>
                     </svg>
                   </div>
-                  <div style={{ fontSize: '17px', fontWeight: 800, color: '#F1F5F9', marginBottom: '8px' }}>Review submitted</div>
-                  <div style={{ fontSize: '14px', color: '#64748B', lineHeight: 1.6, marginBottom: '24px' }}>
-                    Thank you. We'll review this and make updates as needed. You can close this window.
+                  <div style={{ fontSize: '17px', fontWeight: 800, color: C.text, marginBottom: '8px' }}>Review submitted</div>
+                  <div style={{ fontSize: '14px', color: C.muted, lineHeight: 1.6, marginBottom: '24px' }}>
+                    Thank you. We'll review this and make updates as needed.
                   </div>
-                  <button onClick={closeModal} style={{ background: '#00A5A3', color: '#fff', border: 'none', borderRadius: '10px', padding: '10px 24px', fontSize: '14px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
+                  <button onClick={closeModal} style={{ background: C.teal, color: '#fff', border: 'none', borderRadius: '10px', padding: '10px 24px', fontSize: '14px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
                     Close
                   </button>
                 </div>
@@ -183,17 +179,18 @@ export default function ReviewWidget() {
                 <form onSubmit={handleSubmit}>
 
                   {/* Tool */}
-                  <div style={s.row}>
-                    <label style={s.label}>Which tool?  <span style={{ color: '#EF4444' }}>*</span></label>
-                    <select required value={tool} onChange={e => setTool(e.target.value)} style={s.select}>
+                  <div style={{ marginBottom: '18px' }}>
+                    <label style={labelStyle}>Which tool? <span style={{ color: '#DC2626' }}>*</span></label>
+                    <select required value={tool} onChange={e => setTool(e.target.value)}
+                      style={{ ...inputStyle, cursor: 'pointer' }}>
                       <option value="">Select tool…</option>
                       {TOOLS.map(t => <option key={t.key} value={t.key}>{t.label}</option>)}
                     </select>
                   </div>
 
                   {/* Type */}
-                  <div style={s.row}>
-                    <label style={s.label}>Type of review  <span style={{ color: '#EF4444' }}>*</span></label>
+                  <div style={{ marginBottom: '18px' }}>
+                    <label style={labelStyle}>Type of review <span style={{ color: '#DC2626' }}>*</span></label>
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
                       {TYPES.map(t => (
                         <button
@@ -201,21 +198,21 @@ export default function ReviewWidget() {
                           onClick={() => setReviewType(t.key)}
                           style={{
                             padding: '10px 12px', borderRadius: '10px', cursor: 'pointer', textAlign: 'left',
-                            background: reviewType === t.key ? 'rgba(0,165,163,0.15)' : 'rgba(255,255,255,0.03)',
-                            border: `1px solid ${reviewType === t.key ? '#00A5A3' : 'rgba(255,255,255,0.08)'}`,
+                            background: reviewType === t.key ? C.teal + '12' : C.bg,
+                            border: `1px solid ${reviewType === t.key ? C.teal : C.border}`,
                             transition: 'all 0.15s', fontFamily: 'inherit',
                           }}
                         >
-                          <div style={{ fontSize: '13px', fontWeight: 700, color: reviewType === t.key ? '#00A5A3' : '#CBD5E1' }}>{t.label}</div>
-                          <div style={{ fontSize: '11px', color: '#64748B', marginTop: '2px', lineHeight: 1.4 }}>{t.desc}</div>
+                          <div style={{ fontSize: '13px', fontWeight: 700, color: reviewType === t.key ? C.teal : C.text }}>{t.label}</div>
+                          <div style={{ fontSize: '11px', color: C.muted, marginTop: '2px', lineHeight: 1.4 }}>{t.desc}</div>
                         </button>
                       ))}
                     </div>
                   </div>
 
                   {/* Severity */}
-                  <div style={s.row}>
-                    <label style={s.label}>Severity</label>
+                  <div style={{ marginBottom: '18px' }}>
+                    <label style={labelStyle}>Severity</label>
                     <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
                       {SEVERITIES.map(sv => (
                         <button
@@ -224,9 +221,9 @@ export default function ReviewWidget() {
                           style={{
                             padding: '6px 14px', borderRadius: '100px', cursor: 'pointer', fontFamily: 'inherit',
                             fontSize: '12px', fontWeight: 700,
-                            background: severity === sv.key ? sv.color + '22' : 'rgba(255,255,255,0.04)',
-                            border: `1px solid ${severity === sv.key ? sv.color : 'rgba(255,255,255,0.1)'}`,
-                            color: severity === sv.key ? sv.color : '#64748B',
+                            background: severity === sv.key ? sv.color + '15' : C.bg,
+                            border: `1px solid ${severity === sv.key ? sv.color : C.border}`,
+                            color: severity === sv.key ? sv.color : C.muted,
                             transition: 'all 0.15s',
                           }}
                         >
@@ -235,36 +232,36 @@ export default function ReviewWidget() {
                       ))}
                     </div>
                     {severity && (
-                      <div style={{ fontSize: '12px', color: '#64748B', marginTop: '6px' }}>
+                      <div style={{ fontSize: '12px', color: C.muted, marginTop: '6px' }}>
                         {SEVERITIES.find(s => s.key === severity)?.desc}
                       </div>
                     )}
                   </div>
 
                   {/* Title */}
-                  <div style={s.row}>
-                    <label style={s.label}>Title  <span style={{ color: '#EF4444' }}>*</span></label>
+                  <div style={{ marginBottom: '18px' }}>
+                    <label style={labelStyle}>Title <span style={{ color: '#DC2626' }}>*</span></label>
                     <input
                       required type="text" value={title}
                       onChange={e => setTitle(e.target.value)}
                       placeholder="e.g. Budget export button not working in Events Hub"
-                      style={s.input}
+                      style={inputStyle}
                     />
                   </div>
 
                   {/* Description */}
-                  <div style={s.row}>
-                    <label style={s.label}>Describe the issue  <span style={{ color: '#EF4444' }}>*</span></label>
+                  <div style={{ marginBottom: '18px' }}>
+                    <label style={labelStyle}>Describe the issue <span style={{ color: '#DC2626' }}>*</span></label>
                     <textarea
                       required rows={4} value={description}
                       onChange={e => setDescription(e.target.value)}
-                      placeholder="What were you doing? What did you expect? What actually happened? Steps to reproduce if possible."
-                      style={{ ...s.input, resize: 'vertical' as const, minHeight: '90px', lineHeight: '1.5' }}
+                      placeholder="What were you doing? What did you expect? What actually happened?"
+                      style={{ ...inputStyle, resize: 'vertical', minHeight: '90px', lineHeight: '1.5' }}
                     />
                   </div>
 
                   {error && (
-                    <div style={{ background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.3)', borderRadius: '10px', padding: '10px 14px', fontSize: '13px', color: '#FCA5A5', marginBottom: '16px' }}>
+                    <div style={{ background: '#FEF2F2', border: '1px solid #FECACA', borderRadius: '10px', padding: '10px 14px', fontSize: '13px', color: '#DC2626', marginBottom: '16px' }}>
                       {error}
                     </div>
                   )}
@@ -273,11 +270,12 @@ export default function ReviewWidget() {
                     type="submit" disabled={submitting}
                     style={{
                       width: '100%', padding: '12px', borderRadius: '12px',
-                      background: submitting ? '#1A2A35' : '#00A5A3',
-                      color: submitting ? '#64748B' : '#fff',
-                      border: 'none', fontSize: '15px', fontWeight: 700,
+                      background: submitting ? C.bg : C.teal,
+                      color: submitting ? C.muted : '#fff',
+                      border: `1px solid ${submitting ? C.border : C.teal}`,
+                      fontSize: '15px', fontWeight: 700,
                       cursor: submitting ? 'not-allowed' : 'pointer', fontFamily: 'inherit',
-                      transition: 'background 0.15s',
+                      transition: 'all 0.15s',
                     }}
                   >
                     {submitting ? 'Submitting…' : 'Submit Review'}
