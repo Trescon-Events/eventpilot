@@ -4250,6 +4250,12 @@ export default function AdminPage() {
                 </div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
                   {[
+                    { date: '15 Jun 2026 — Durga', items: [
+                      'Review Management System — staff can report issues, bugs, and suggestions from any page via a floating "Report Issue" button (bottom-right). Modal collects: tool, type (bug/not working/suggestion/improvement), severity, title, and description. Submitted to platform_reviews table in Supabase',
+                      'Admin Reviews dashboard at /admin/reviews — filter by tool, type, status, severity. 5 stat cards (New, Acknowledged, In Progress, Resolved, Critical). Each card is collapsible with status change controls and admin notes field',
+                      'Staff Reviews link added to admin nav bar for quick access',
+                      'Both the widget modal and admin reviews page match the platform light theme (white/#F6F8FB, #DDE8EE borders, #0F1923 text, #00897B teal)',
+                    ]},
                     { date: '15 Jun 2026 — Madhu', items: [
                       'SSO-only login — email/password form removed from login page. Microsoft 365 is now the sole sign-in option. Cleaner UI, no divider or forgot-password link',
                       'Access-pending gate — staff without access_enabled are redirected to /access-pending after SSO. Page shows "Platform in testing" message with pre-filled email and a Request Access button',
