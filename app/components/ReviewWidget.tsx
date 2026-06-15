@@ -17,7 +17,7 @@ const TOOLS = [
 const TYPES = [
   { key: 'bug',         label: 'Bug',              desc: 'Something is broken or behaving incorrectly'   },
   { key: 'not_working', label: 'Not Working',      desc: 'Feature completely fails or throws an error'   },
-  { key: 'suggestion',  label: 'Suggestion',       desc: 'A new feature or workflow you'd like to see'   },
+  { key: 'suggestion',  label: 'Suggestion',       desc: "A new feature or workflow you'd like to see"   },
   { key: 'improvement', label: 'Improvement',      desc: 'Existing feature that could work better'       },
 ]
 
