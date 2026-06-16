@@ -24,6 +24,23 @@
 
 ---
 
+## What Was Built This Session (16 Jun 2026 — Durga, Session 2)
+
+### Internal Messaging System
+- `supabase/messages_migration.sql` — `messages` table (id, from_id, from_name, to_id, to_name, body, read, created_at) + 3 indexes (to, from, thread). Also adds `from_staff_id TEXT` column to `notifications` table. **SQL run ✅**
+- `app/api/messages/route.ts` — GET `?with=<partner_id>` fetches thread + marks incoming as read; POST `{ to_id, body }` sends message + creates bell notification with `from_staff_id`; PATCH `?with=<partner_id>` marks thread read
+- `app/api/messages/inbox/route.ts` — GET returns one entry per conversation: partner info, last message, unread count (collapses last 500 messages in JS)
+- `app/messages/page.tsx` — Split-panel messaging UI: 300px left inbox + thread panel. Avatar initials with hash colour, unread badge, date separators, sent (teal/right) vs received (gray/left) bubbles, auto-scroll, 8s thread polling. Compose modal: staff search + list with avatars. `?with=<partner_id>` URL param auto-opens thread
+- `app/api/notifications/route.ts` — Added `from_staff_id` to SELECT so bell can link to message sender's thread
+- `app/components/NavBar.tsx NotificationBell` — Message notifications (type=`message`) now show blue icon + "View message" link → `/messages?with=${from_staff_id}`
+- `app/components/PlatformMenu.tsx` — "Messages" entry added to Learning section (blue, `/messages?id=...`)
+- `app/dashboard/page.tsx` — "Messages" tile added to Platform Access grid for all staff
+
+### Button Overlap Fix
+- `app/components/ReviewWidget.tsx` — Moved "Report Issue" floating button from `bottom-right (24,24)` → `bottom-left (28,28)`. Talk to Pilot stays bottom-right. No more overlap on the dashboard or any other page.
+
+---
+
 ## What Was Built This Session (16 Jun 2026 — Durga, QA Sprint)
 
 ### Team QA Reviews — 6 Issues Fixed
@@ -353,12 +370,13 @@ Everything committed before `dc48b2b` is Durga's work and was not touched. Key p
 
 ## What's Next
 
-1. **Hands-on AI assignments** — Karthik suggestion #4: a task/submission system where staff create and submit real AI workflows. Needs new DB table + admin review queue. Deferred to next sprint.
-2. **Template live preview URLs** — Go to `/admin/templates`, edit each of the 5 templates, paste in the deployed site URL so "Preview Live Site" appears in the builder.
+1. **Template live preview URLs** — Go to `/admin/templates`, edit each of the 5 templates, paste in the deployed site URL so "Preview Live Site" appears in the builder.
+2. **Hands-on AI assignments** — a task/submission system where staff create and submit real AI workflows. Needs new DB table + admin review queue. Deferred to next sprint.
 3. Khalifa + Prashant — full Website Builder test for AI2047 event (middleware fix deployed, invite sent to Khalifa ✅)
 4. Content Hub social publishing — approval queue built, needs Meta API tokens from Madhu
 5. Security hardening (Phase 3): rate limiting, audit log, signed sessions, idle timeout — need Bangalore + Dubai office IPs first
 6. Monitor access request emails — staff without access sends request to md@ and dc@
+7. **Messaging** — live and tested. Monitor usage; next iteration could add read receipts or file attachments if requested.
 
 ## Smart Data — Notes for Madhu
 
