@@ -292,7 +292,7 @@ function ReviewCard({ review, onUpdate }: {
           </div>
 
           {/* ── Conversation thread + reply box ── */}
-          <div style={{ margin: '16px 18px 0', border: `1px solid ${C.border}`, borderRadius: '12px', overflow: 'hidden' }}>
+          <div style={{ margin: '16px 18px 0', border: `2px solid ${C.teal}`, borderRadius: '12px', overflow: 'hidden' }}>
 
             {/* Thread header */}
             <div style={{ padding: '9px 14px', background: '#F6F8FB', borderBottom: `1px solid ${C.border}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
