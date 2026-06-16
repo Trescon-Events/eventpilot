@@ -96,6 +96,7 @@ const TABS = [
   { id: 'imagery',    label: 'Imagery' },
   { id: 'grid',       label: 'Grid & Layout' },
   { id: 'voice',      label: 'Voice' },
+  { id: 'standards',  label: 'Event Standards' },
   { id: 'assets',     label: 'Asset Generator' },
 ] as const
 type TabId = typeof TABS[number]['id']
@@ -254,6 +255,20 @@ export default function BrandStudioPage({ params }: { params: Promise<{ id: stri
   const [keyMessages,      setKeyMessages]      = useState<string[]>([])
   const [styleKeywords,    setStyleKeywords]    = useState<string[]>([])
 
+  // Event Standards
+  const [stdDateFormat,     setStdDateFormat]     = useState('15 August 2025')
+  const [stdDateCustom,     setStdDateCustom]     = useState('')
+  const [stdVenueFormat,    setStdVenueFormat]    = useState('Venue name + City')
+  const [stdVenueCustom,    setStdVenueCustom]    = useState('')
+  const [stdTaglineCase,    setStdTaglineCase]    = useState('ALL CAPS')
+  const [stdTaglineWeight,  setStdTaglineWeight]  = useState('Bold')
+  const [stdTaglinePlacement, setStdTaglinePlacement] = useState('')
+  const [stdTaglineNotes,   setStdTaglineNotes]   = useState('')
+  const [stdPortraitUrl,    setStdPortraitUrl]    = useState('')
+  const [stdLandscapeUrl,   setStdLandscapeUrl]   = useState('')
+  const [stdSquareUrl,      setStdSquareUrl]      = useState('')
+  const [stdNotes,          setStdNotes]          = useState('')
+
   // Asset generator
   const [selectedAsset,  setSelectedAsset]  = useState<typeof ASSET_TYPES[number]>(ASSET_TYPES[0])
   const [prompt,         setPrompt]         = useState('')
@@ -302,6 +317,20 @@ export default function BrandStudioPage({ params }: { params: Promise<{ id: stri
     setTone(g.tone ?? [])
     setKeyMessages(g.key_messages ?? [])
     setStyleKeywords(g.style_keywords ?? [])
+    // Event Standards
+    const std = g.event_standards ?? {}
+    if (std.date_format)       setStdDateFormat(std.date_format)
+    if (std.date_custom)       setStdDateCustom(std.date_custom)
+    if (std.venue_format)      setStdVenueFormat(std.venue_format)
+    if (std.venue_custom)      setStdVenueCustom(std.venue_custom)
+    if (std.tagline_case)      setStdTaglineCase(std.tagline_case)
+    if (std.tagline_weight)    setStdTaglineWeight(std.tagline_weight)
+    if (std.tagline_placement) setStdTaglinePlacement(std.tagline_placement)
+    if (std.tagline_notes)     setStdTaglineNotes(std.tagline_notes)
+    if (std.portrait_url)      setStdPortraitUrl(std.portrait_url)
+    if (std.landscape_url)     setStdLandscapeUrl(std.landscape_url)
+    if (std.square_url)        setStdSquareUrl(std.square_url)
+    if (std.notes)             setStdNotes(std.notes)
   }
 
   // ── Load ──────────────────────────────────────────────────────
@@ -394,6 +423,20 @@ export default function BrandStudioPage({ params }: { params: Promise<{ id: stri
       tone,
       key_messages: keyMessages,
       style_keywords: styleKeywords,
+      event_standards: {
+        date_format:       stdDateFormat,
+        date_custom:       stdDateCustom || null,
+        venue_format:      stdVenueFormat,
+        venue_custom:      stdVenueCustom || null,
+        tagline_case:      stdTaglineCase,
+        tagline_weight:    stdTaglineWeight,
+        tagline_placement: stdTaglinePlacement || null,
+        tagline_notes:     stdTaglineNotes || null,
+        portrait_url:      stdPortraitUrl || null,
+        landscape_url:     stdLandscapeUrl || null,
+        square_url:        stdSquareUrl || null,
+        notes:             stdNotes || null,
+      },
       build_mode: guidelines?.build_mode ?? 'manual',
     }
     const res = await fetch('/api/events/brand', {
@@ -1053,6 +1096,148 @@ export default function BrandStudioPage({ params }: { params: Promise<{ id: stri
               <Field label="Style Keywords"><ChipList values={styleKeywords} onChange={setStyleKeywords} /></Field>
               <Field label="Key Messages"><StringList values={keyMessages} placeholder="Enter a key message…" onChange={setKeyMessages} /></Field>
             </div>
+          </div>
+        )}
+
+        {/* ════════════════════════════════════════════════════════
+            TAB: EVENT STANDARDS
+        ════════════════════════════════════════════════════════ */}
+        {tab === 'standards' && (
+          <div style={{ display: 'grid', gap: '20px' }}>
+
+            {/* Date format */}
+            <div style={S.card}>
+              <div style={S.sectionTitle}>Date Format Standard</div>
+              <p style={{ fontSize: '13px', color: '#5B7080', marginBottom: '16px', marginTop: '-8px' }}>
+                Define how the event date must appear across all creatives — social posts, banners, flyers, and the website.
+              </p>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '10px', marginBottom: '16px' }}>
+                {['15 August 2025', 'August 15, 2025', 'Aug 15, 2025', '15.08.25', 'Custom'].map(opt => (
+                  <button key={opt} onClick={() => setStdDateFormat(opt)}
+                    style={{ padding: '12px 16px', borderRadius: '10px', border: `2px solid ${stdDateFormat === opt ? '#00A5A3' : '#C8DFE0'}`, background: stdDateFormat === opt ? 'rgba(0,165,163,0.08)' : '#FAFBFC', cursor: 'pointer', fontFamily: 'inherit', fontSize: '13px', fontWeight: 700, color: stdDateFormat === opt ? '#00695C' : '#5B7080', textAlign: 'left' as const, transition: 'all 0.15s' }}>
+                    {opt === 'Custom' ? 'Custom format…' : opt}
+                  </button>
+                ))}
+              </div>
+              {stdDateFormat === 'Custom' && (
+                <Field label="Custom Date Format">
+                  <input value={stdDateCustom} onChange={e => setStdDateCustom(e.target.value)}
+                    placeholder="e.g. 15 Aug '25 | Dubai" style={S.input} />
+                </Field>
+              )}
+              <div style={{ padding: '12px 16px', borderRadius: '10px', background: '#F0F8F8', border: '1px solid #C8DFE0', marginTop: '4px' }}>
+                <span style={{ fontSize: '11px', fontWeight: 700, color: '#5B7080', textTransform: 'uppercase' as const, letterSpacing: '0.5px' }}>Preview: </span>
+                <span style={{ fontSize: '15px', fontWeight: 800, color: '#0F1923' }}>{stdDateFormat === 'Custom' ? stdDateCustom || '—' : stdDateFormat}</span>
+              </div>
+            </div>
+
+            {/* Venue format */}
+            <div style={S.card}>
+              <div style={S.sectionTitle}>Venue Format Standard</div>
+              <p style={{ fontSize: '13px', color: '#5B7080', marginBottom: '16px', marginTop: '-8px' }}>
+                How should the venue appear in creatives — short landmark name or full address?
+              </p>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '10px', marginBottom: '16px' }}>
+                {['Venue name only', 'Venue name + City', 'Full address', 'City only', 'Custom'].map(opt => (
+                  <button key={opt} onClick={() => setStdVenueFormat(opt)}
+                    style={{ padding: '12px 16px', borderRadius: '10px', border: `2px solid ${stdVenueFormat === opt ? '#00A5A3' : '#C8DFE0'}`, background: stdVenueFormat === opt ? 'rgba(0,165,163,0.08)' : '#FAFBFC', cursor: 'pointer', fontFamily: 'inherit', fontSize: '13px', fontWeight: 700, color: stdVenueFormat === opt ? '#00695C' : '#5B7080', textAlign: 'left' as const, transition: 'all 0.15s' }}>
+                    {opt}
+                  </button>
+                ))}
+              </div>
+              {stdVenueFormat === 'Custom' && (
+                <Field label="Custom Venue Format">
+                  <input value={stdVenueCustom} onChange={e => setStdVenueCustom(e.target.value)}
+                    placeholder="e.g. Atlantis The Palm, Dubai" style={S.input} />
+                </Field>
+              )}
+            </div>
+
+            {/* Tagline rules */}
+            <div style={S.card}>
+              <div style={S.sectionTitle}>Tagline Rules</div>
+              <p style={{ fontSize: '13px', color: '#5B7080', marginBottom: '20px', marginTop: '-8px' }}>
+                Define how the event tagline must be rendered so every creative team member is consistent.
+              </p>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
+                <Field label="Letter Case">
+                  <div style={{ display: 'flex', flexDirection: 'column' as const, gap: '8px' }}>
+                    {['ALL CAPS', 'Title Case', 'Sentence case'].map(opt => (
+                      <label key={opt} style={{ display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer', fontSize: '13px', fontWeight: 600, color: stdTaglineCase === opt ? '#0F1923' : '#5B7080' }}>
+                        <input type="radio" name="tagline_case" checked={stdTaglineCase === opt} onChange={() => setStdTaglineCase(opt)}
+                          style={{ accentColor: '#00A5A3', width: 16, height: 16 }} />
+                        {opt}
+                      </label>
+                    ))}
+                  </div>
+                </Field>
+                <Field label="Font Weight">
+                  <div style={{ display: 'flex', flexDirection: 'column' as const, gap: '8px' }}>
+                    {['Black (900)', 'Bold (700)', 'SemiBold (600)', 'Regular (400)'].map(opt => (
+                      <label key={opt} style={{ display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer', fontSize: '13px', fontWeight: 600, color: stdTaglineWeight === opt ? '#0F1923' : '#5B7080' }}>
+                        <input type="radio" name="tagline_weight" checked={stdTaglineWeight === opt} onChange={() => setStdTaglineWeight(opt)}
+                          style={{ accentColor: '#00A5A3', width: 16, height: 16 }} />
+                        {opt}
+                      </label>
+                    ))}
+                  </div>
+                </Field>
+              </div>
+              <div style={{ marginTop: '20px', display: 'grid', gap: '16px' }}>
+                <Field label="Placement Rule">
+                  <input value={stdTaglinePlacement} onChange={e => setStdTaglinePlacement(e.target.value)}
+                    placeholder="e.g. Always below the event name, centred, min 8px gap" style={S.input} />
+                </Field>
+                <Field label="Additional Tagline Notes">
+                  <textarea value={stdTaglineNotes} onChange={e => setStdTaglineNotes(e.target.value)}
+                    rows={3} style={S.textarea} placeholder="Any other tagline usage rules — sizing, colour, contrast…" />
+                </Field>
+              </div>
+            </div>
+
+            {/* Sample layout references */}
+            <div style={S.card}>
+              <div style={S.sectionTitle}>Sample Layout References</div>
+              <p style={{ fontSize: '13px', color: '#5B7080', marginBottom: '20px', marginTop: '-8px' }}>
+                Upload reference creatives showing how the date, venue, and tagline are placed in each format.
+                These become the visual standard the team refers to when creating any asset.
+              </p>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '16px' }}>
+                {[
+                  { label: 'Portrait (9:16)', key: 'portrait', value: stdPortraitUrl, set: setStdPortraitUrl },
+                  { label: 'Landscape (16:9)', key: 'landscape', value: stdLandscapeUrl, set: setStdLandscapeUrl },
+                  { label: 'Square (1:1)', key: 'square', value: stdSquareUrl, set: setStdSquareUrl },
+                ].map(({ label, key, value, set }) => (
+                  <div key={key}>
+                    <div style={{ fontSize: '11px', fontWeight: 700, color: '#5B7080', textTransform: 'uppercase' as const, letterSpacing: '0.5px', marginBottom: '8px' }}>{label}</div>
+                    {value ? (
+                      <div style={{ position: 'relative' as const, borderRadius: '10px', overflow: 'hidden', border: '1px solid #C8DFE0' }}>
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img src={value} alt={label} style={{ width: '100%', display: 'block', maxHeight: '160px', objectFit: 'cover', background: '#E8EEF4' }} />
+                        <button onClick={() => set('')}
+                          style={{ position: 'absolute' as const, top: 6, right: 6, width: 24, height: 24, borderRadius: '50%', background: 'rgba(15,25,35,0.7)', border: 'none', color: '#fff', cursor: 'pointer', fontSize: '14px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'inherit' }}>×</button>
+                      </div>
+                    ) : (
+                      <div>
+                        <input value={value} onChange={e => set(e.target.value)}
+                          placeholder="Paste image URL or upload via asset generator"
+                          style={{ ...S.input, fontSize: '12px' }} />
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* General notes */}
+            <div style={S.card}>
+              <Field label="General Standards Notes">
+                <textarea value={stdNotes} onChange={e => setStdNotes(e.target.value)}
+                  rows={4} style={S.textarea}
+                  placeholder="Any additional creative standards — e.g. always use white text on dark BGs, never use the logo watermark at less than 30% opacity…" />
+              </Field>
+            </div>
+
           </div>
         )}
 

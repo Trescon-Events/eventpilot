@@ -61,6 +61,8 @@ export async function POST(req: NextRequest) {
     'grid_base_px', 'grid_columns', 'breakpoints', 'spacing_tokens',
     // Voice
     'tone', 'key_messages', 'style_keywords',
+    // Event Standards
+    'event_standards',
     // Source
     'source_pdf_url', 'build_mode', 'extracted_at', 'ai_reasoning',
   ] as const
