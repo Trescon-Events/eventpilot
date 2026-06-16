@@ -18,9 +18,39 @@
 | Field       | Value                                                   |
 |-------------|---------------------------------------------------------|
 | Who         | Durga + Claude Code (Sonnet 4.6)                        |
-| Date        | 2026-06-15                                              |
+| Date        | 2026-06-16                                              |
 | Handed off to | Madhu / Open                                         |
-| Deployed    | Yes — https://eventpilot.tresconglobal.com + taos-discovery.vercel.app (both in sync, 15 Jun 2026) |
+| Deployed    | Yes — https://eventpilot.tresconglobal.com (auto-deploy on push) |
+
+---
+
+## What Was Built This Session (16 Jun 2026 — Durga, QA Sprint)
+
+### Team QA Reviews — 6 Issues Fixed
+
+#### Issue #1–3 (earlier session, now resolved)
+- Fixes from team QA carried over from previous session (see prior git commits)
+
+#### Issue #4 — Brand Standards: Event Date, Venue & Tagline (Prashant)
+- `app/admin/events/[id]/brand/page.tsx` — Added 11th tab "Event Standards" with date format grid (5 presets + custom + live preview), venue format grid, tagline case/weight radios, placement notes, sample layout reference image uploads (portrait/landscape/square), general notes
+- `app/api/events/brand/route.ts` — Added `event_standards` to ALLOWED columns whitelist
+- `supabase/event_standards_migration.sql` — `ADD COLUMN event_standards JSONB` — **SQL run ✅**
+
+#### Issue #5 — Template Preview URLs (Prashant)
+- `app/api/templates/route.ts` — Added `live_preview_url` field to `TemplateInfo` type, `dbRowToTemplate`, fallback templates, and POST upsert
+- `app/api/templates/generate/route.ts` — Updated TemplateInfo construction to include `live_preview_url`
+- `app/admin/templates/page.tsx` — Added "Live Preview URL" input to the Add/Edit Template form; "Preview" button appears on template cards when URL is set
+- `app/admin/events/[id]/website/page.tsx` — Template cards now show "Preview Live Site" button (opens new tab, stops click propagation so card isn't selected)
+- `supabase/live_preview_url_migration.sql` — `ADD COLUMN live_preview_url TEXT` — **SQL run ✅**
+- After SQL: go to `/admin/templates`, edit each template, paste its live URL
+
+#### Issue #6 — AIRS Improvements + Community (Karthik)
+- `app/lib/airs.ts` — Added `breakdownAIRS()` returning `{ avg, base, courseBonus, cappedBonus, total, courseDetails }`. Added `DEPT_USE_CASES` map with 5 practical AI use cases per department (10 depts)
+- `app/dashboard/page.tsx` — Score breakdown panel: visual progress bars for base (0–75) + course bonus (0–25), lists each completed course with tier points. AI use cases card: dept-specific, 5 cards, tool tags, "Share yours" CTA
+- `app/community/page.tsx` — NEW page: staff post prompts / use cases / automations / tips. Like button (heart), category + dept filters, form with category picker, body, optional tool name
+- `app/api/community/route.ts` — GET (with category/dept/limit/offset filters), POST (create), PATCH (toggle like with `community_likes` double-like prevention)
+- `app/components/PlatformMenu.tsx` — Added "AI Community" entry in the Learning section
+- `supabase/community_posts_migration.sql` — `community_posts` + `community_likes` tables + RPC functions — **SQL run ✅**
 
 ---
 
@@ -323,10 +353,12 @@ Everything committed before `dc48b2b` is Durga's work and was not touched. Key p
 
 ## What's Next
 
-1. Khalifa + Prashant — full Website Builder test for AI2047 event (middleware fix deployed, invite sent to Khalifa ✅)
-2. Content Hub social publishing — approval queue built, needs Meta API tokens from Madhu
-3. Security hardening (Phase 3): rate limiting, audit log, signed sessions, idle timeout — need Bangalore + Dubai office IPs first
-4. Monitor access request emails — staff without access sends request to md@ and dc@
+1. **Hands-on AI assignments** — Karthik suggestion #4: a task/submission system where staff create and submit real AI workflows. Needs new DB table + admin review queue. Deferred to next sprint.
+2. **Template live preview URLs** — Go to `/admin/templates`, edit each of the 5 templates, paste in the deployed site URL so "Preview Live Site" appears in the builder.
+3. Khalifa + Prashant — full Website Builder test for AI2047 event (middleware fix deployed, invite sent to Khalifa ✅)
+4. Content Hub social publishing — approval queue built, needs Meta API tokens from Madhu
+5. Security hardening (Phase 3): rate limiting, audit log, signed sessions, idle timeout — need Bangalore + Dubai office IPs first
+6. Monitor access request emails — staff without access sends request to md@ and dc@
 
 ## Smart Data — Notes for Madhu
 
