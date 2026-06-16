@@ -29,18 +29,19 @@ export async function POST(req: NextRequest) {
     }
 
     const template: TemplateInfo = {
-      id:           templateRow.id,
-      label:        templateRow.label,
-      event_name:   templateRow.event_name,
-      description:  templateRow.description,
-      preview_url:  templateRow.preview_url || '',
-      repo_url:     templateRow.repo_url,
-      folder_name:  templateRow.folder_name,
-      tech:         templateRow.tech || [],
-      pages:        templateRow.pages || [],
-      style_tags:   templateRow.style_tags || [],
-      color_scheme: { bg: templateRow.color_bg, accent: templateRow.color_accent, highlight: templateRow.color_highlight },
-      sort_order:   templateRow.sort_order || 0,
+      id:               templateRow.id,
+      label:            templateRow.label,
+      event_name:       templateRow.event_name,
+      description:      templateRow.description,
+      preview_url:      templateRow.preview_url || '',
+      live_preview_url: templateRow.live_preview_url || '',
+      repo_url:         templateRow.repo_url,
+      folder_name:      templateRow.folder_name,
+      tech:             templateRow.tech || [],
+      pages:            templateRow.pages || [],
+      style_tags:       templateRow.style_tags || [],
+      color_scheme:     { bg: templateRow.color_bg, accent: templateRow.color_accent, highlight: templateRow.color_highlight },
+      sort_order:       templateRow.sort_order || 0,
     }
 
     // ── Fetch event core data ─────────────────────────────────────────────

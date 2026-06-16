@@ -72,6 +72,8 @@ type Guidelines = {
   tone?: string[]
   key_messages?: string[]
   style_keywords?: string[]
+  // Event Standards
+  event_standards?: Record<string, unknown> | null
   // Meta
   source_pdf_url?: string | null
   build_mode?: string | null
@@ -318,7 +320,7 @@ export default function BrandStudioPage({ params }: { params: Promise<{ id: stri
     setKeyMessages(g.key_messages ?? [])
     setStyleKeywords(g.style_keywords ?? [])
     // Event Standards
-    const std = g.event_standards ?? {}
+    const std = (g.event_standards ?? {}) as Record<string, string>
     if (std.date_format)       setStdDateFormat(std.date_format)
     if (std.date_custom)       setStdDateCustom(std.date_custom)
     if (std.venue_format)      setStdVenueFormat(std.venue_format)

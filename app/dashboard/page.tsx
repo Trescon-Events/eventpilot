@@ -3,7 +3,7 @@
 import { useState, useEffect, useMemo, Suspense } from 'react'
 import { useSearchParams } from 'next/navigation'
 import Link from 'next/link'
-import { computeAIRS, getTier, getTrack, TIER_COLORS } from '@/app/lib/airs'
+import { computeAIRS, breakdownAIRS, getTier, getTrack, TIER_COLORS, DEPT_USE_CASES } from '@/app/lib/airs'
 import PlatformMenu from '@/app/components/PlatformMenu'
 import NavBar, { ProfileMenu, MOD_EVENTPILOT } from '@/app/components/NavBar'
 
@@ -338,6 +338,7 @@ function DashboardContent() {
   }
 
   const score      = computeAIRS(tasks, completions)
+  const scoreBreakdown = breakdownAIRS(tasks, completions)
   const tier       = getTier(score)
   const track      = getTrack(score)
   const tierConfig = TIER_COLORS[tier]
@@ -688,6 +689,7 @@ function DashboardContent() {
             { label: 'My Learning',           sub: 'Courses & AI Readiness Score',          color: '#00897B', href: `/dashboard?id=${staffId}`,                              icon: <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" viewBox="0 0 24 24"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>, show: true },
             { label: 'Course Library',        sub: 'Browse all courses',              color: '#6366F1', href: `/dashboard/library?id=${staffId}`,                       icon: <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M9 3v18M3 9h6M3 15h6"/></svg>, show: true },
             { label: 'Talk to Pilot',         sub: 'AI learning assistant',           color: '#7C3AED', href: '/chat',                                                  icon: <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>, show: true },
+            { label: 'AI Community',          sub: 'Share & discover prompts',        color: '#C2410C', href: `/community?id=${staffId}`,                                icon: <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>, show: true },
             { label: 'My Events',             sub: 'Event roles & tasks',             color: '#D97706', href: `/dashboard?id=${staffId}#events`,                        icon: <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>, show: true },
             { label: 'My HR',                 sub: 'Leave, pay & attendance',         color: '#EC4899', href: '/my-hr',                                                 icon: <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>, show: true },
             { label: 'Smart Data',            sub: 'Lead extraction & CRM',           color: '#00A5A3', href: '/data/extract/file',                                     icon: <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" viewBox="0 0 24 24"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/></svg>, show: hasTool('smart_data') },
@@ -1050,6 +1052,104 @@ function DashboardContent() {
             ))}
           </div>
         </div>
+
+        {/* ── Score Breakdown ── */}
+        {tasks.length > 0 && (() => {
+          const bd = scoreBreakdown
+          const assessmentPct = Math.min(100, Math.round((bd.base / 75) * 100))
+          return (
+            <div style={{ background: '#FFFFFF', border: '1px solid #DDE8EE', borderRadius: '16px', padding: '24px 28px', marginBottom: '24px', boxShadow: '0 1px 4px rgba(0,165,163,0.06)' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '18px' }}>
+                <h3 style={{ fontSize: '13px', fontWeight: 800, color: '#0F1923', margin: 0 }}>How your AIRS score was calculated</h3>
+                <span style={{ fontSize: '11px', fontWeight: 700, color: '#5B7080', background: '#E8EEF4', padding: '3px 10px', borderRadius: '20px' }}>Total: {bd.total} / 100</span>
+              </div>
+              {/* Base score bar */}
+              <div style={{ marginBottom: '16px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                  <div style={{ fontSize: '12px', fontWeight: 700, color: '#0F1923' }}>Assessment score</div>
+                  <div style={{ fontSize: '12px', fontWeight: 800, color: tierConfig.color }}>{bd.base} / 75 pts</div>
+                </div>
+                <div style={{ height: '8px', background: '#E8EEF4', borderRadius: '99px', overflow: 'hidden' }}>
+                  <div style={{ height: '100%', width: `${assessmentPct}%`, background: tierConfig.color, borderRadius: '99px', transition: 'width 0.6s ease' }} />
+                </div>
+                <div style={{ fontSize: '11px', color: '#5B7080', marginTop: '4px' }}>
+                  Average readiness rating: {bd.avg} / 5 across {tasks.length} profile question{tasks.length !== 1 ? 's' : ''}
+                </div>
+              </div>
+              {/* Course bonus bar */}
+              <div style={{ marginBottom: '16px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                  <div style={{ fontSize: '12px', fontWeight: 700, color: '#0F1923' }}>Course completion bonus</div>
+                  <div style={{ fontSize: '12px', fontWeight: 800, color: '#7C3AED' }}>+{bd.cappedBonus} / 25 pts max</div>
+                </div>
+                <div style={{ height: '8px', background: '#E8EEF4', borderRadius: '99px', overflow: 'hidden' }}>
+                  <div style={{ height: '100%', width: `${Math.round((bd.cappedBonus / 25) * 100)}%`, background: '#7C3AED', borderRadius: '99px', transition: 'width 0.6s ease' }} />
+                </div>
+                {bd.courseDetails.length > 0 ? (
+                  <div style={{ marginTop: '8px', display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                    {bd.courseDetails.map((c, i) => (
+                      <div key={i} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', color: '#5B7080' }}>
+                        <span>{c.title}</span>
+                        <span style={{ fontWeight: 700, color: '#7C3AED' }}>+{c.points} pts ({c.tier})</span>
+                      </div>
+                    ))}
+                    {bd.courseBonus > 25 && (
+                      <div style={{ fontSize: '11px', color: '#C2410C', fontWeight: 600 }}>Course bonus capped at 25 pts (raw: +{bd.courseBonus})</div>
+                    )}
+                  </div>
+                ) : (
+                  <div style={{ fontSize: '11px', color: '#5B7080', marginTop: '4px' }}>No courses completed yet — each course adds bonus points</div>
+                )}
+              </div>
+              {/* Points key */}
+              <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', paddingTop: '12px', borderTop: '1px solid #E8EEF4' }}>
+                {[
+                  { label: 'Foundation course', pts: '+1.5 pts', color: '#0E7490' },
+                  { label: 'Adoption course', pts: '+2.5 pts', color: '#7C3AED' },
+                  { label: 'Advanced course', pts: '+4 pts', color: '#166534' },
+                ].map(item => (
+                  <div key={item.label} style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '11px', color: '#5B7080', background: '#F8FAFC', border: '1px solid #DDE8EE', borderRadius: '8px', padding: '4px 10px' }}>
+                    <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: item.color, flexShrink: 0 }} />
+                    <span>{item.label}:</span>
+                    <span style={{ fontWeight: 800, color: item.color }}>{item.pts}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )
+        })()}
+
+        {/* ── AI Use Cases for Your Role ── */}
+        {(() => {
+          const dept = staff.department ?? ''
+          const useCases = DEPT_USE_CASES[dept] ?? DEPT_USE_CASES['Events']
+          const deptLabel = dept || 'Your Department'
+          return (
+            <div style={{ background: '#FFFFFF', border: '1px solid #DDE8EE', borderRadius: '16px', padding: '24px 28px', marginBottom: '24px', boxShadow: '0 1px 4px rgba(0,165,163,0.06)' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '18px' }}>
+                <div>
+                  <h3 style={{ fontSize: '13px', fontWeight: 800, color: '#0F1923', margin: '0 0 3px' }}>AI use cases for {deptLabel}</h3>
+                  <div style={{ fontSize: '12px', color: '#5B7080' }}>Start with any one of these tomorrow morning</div>
+                </div>
+                <Link href="/community" style={{ fontSize: '12px', fontWeight: 700, color: '#00695C', textDecoration: 'none', background: 'rgba(0,105,92,0.08)', border: '1px solid rgba(0,105,92,0.2)', padding: '5px 12px', borderRadius: '8px' }}>
+                  Share yours
+                </Link>
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: '12px' }}>
+                {useCases.map((uc, i) => (
+                  <div key={i} style={{ background: '#F8FAFC', border: '1px solid #DDE8EE', borderRadius: '12px', padding: '14px 16px' }}>
+                    <div style={{ fontSize: '12px', fontWeight: 800, color: '#0F1923', marginBottom: '6px' }}>{uc.title}</div>
+                    <div style={{ fontSize: '12px', color: '#5B7080', lineHeight: 1.55, marginBottom: '10px' }}>{uc.desc}</div>
+                    <div style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', fontSize: '10px', fontWeight: 800, color: '#00695C', background: 'rgba(0,105,92,0.08)', border: '1px solid rgba(0,105,92,0.2)', padding: '2px 8px', borderRadius: '20px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                      <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="13 17 18 12 13 7"/><polyline points="6 17 11 12 6 7"/></svg>
+                      {uc.tool}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )
+        })()}
 
         {/* ── Completed Courses ── */}
         {completedCount > 0 && (() => {
