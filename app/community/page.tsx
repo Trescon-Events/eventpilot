@@ -3,7 +3,7 @@
 import { useState, useEffect, Suspense } from 'react'
 import { useSearchParams } from 'next/navigation'
 import Link from 'next/link'
-import NavBar, { MOD_EVENTPILOT } from '@/app/components/NavBar'
+import NavBar, { NotificationBell, MOD_EVENTPILOT } from '@/app/components/NavBar'
 import PlatformMenu from '@/app/components/PlatformMenu'
 
 const C = {
@@ -116,7 +116,7 @@ function CommunityContent() {
 
   return (
     <div style={{ fontFamily: 'var(--font-manrope), Manrope, sans-serif', background: C.bg, minHeight: '100vh', color: C.text }}>
-      <NavBar module={MOD_EVENTPILOT} />
+      <NavBar module={MOD_EVENTPILOT} rightSlot={<NotificationBell staffId={staffId} />} />
       <PlatformMenu staffId={staffId} />
 
       <div style={{ maxWidth: '900px', margin: '0 auto', padding: '32px 24px' }}>

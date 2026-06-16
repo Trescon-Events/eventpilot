@@ -8,7 +8,7 @@ export async function GET(req: NextRequest) {
 
   const { data, error } = await supabaseAdmin
     .from('notifications')
-    .select('id, type, title, body, course_id, created_at')
+    .select('id, type, title, body, course_id, review_id, created_at')
     .eq('staff_id', staff_id)
     .eq('read', false)
     .order('created_at', { ascending: false })

@@ -5,7 +5,7 @@ import { useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { computeAIRS, breakdownAIRS, getTier, getTrack, TIER_COLORS, DEPT_USE_CASES } from '@/app/lib/airs'
 import PlatformMenu from '@/app/components/PlatformMenu'
-import NavBar, { ProfileMenu, MOD_EVENTPILOT } from '@/app/components/NavBar'
+import NavBar, { ProfileMenu, NotificationBell, MOD_EVENTPILOT } from '@/app/components/NavBar'
 
 /* ─── Types ──────────────────────────────────────────────────── */
 interface StaffMember {
@@ -389,6 +389,7 @@ function DashboardContent() {
             </Link>
           )}
           <PlatformMenu staffId={staffId} />
+          <NotificationBell staffId={staffId} />
           <ProfileMenu name={staff.name} roles={staff.has_reports ? undefined : undefined} />
         </>}
       />
@@ -413,11 +414,17 @@ function DashboardContent() {
                   <svg width="16" height="16" fill="none" stroke="#007A6E" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>
                 </div>
                 <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: '13px', fontWeight: 800, color: '#3D6B00', marginBottom: '4px' }}>{n.title}</div>
+                  <div style={{ fontSize: '13px', fontWeight: 800, color: n.review_id ? '#00697B' : '#3D6B00', marginBottom: '4px' }}>{n.title}</div>
                   <div style={{ fontSize: '13px', color: '#2D3E50', lineHeight: 1.65 }}>{n.body}</div>
                   {n.course_id && (
                     <a href={`/dashboard/course/${n.course_id}${staffId ? `?staff_id=${staffId}` : ''}`} style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', marginTop: '10px', fontSize: '13px', fontWeight: 700, color: '#3D6B00', textDecoration: 'none' }}>
                       View Course
+                      <svg width="10" height="10" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg>
+                    </a>
+                  )}
+                  {n.review_id && (
+                    <a href="#my-submissions" style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', marginTop: '10px', fontSize: '13px', fontWeight: 700, color: '#00697B', textDecoration: 'none' }}>
+                      View your report
                       <svg width="10" height="10" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg>
                     </a>
                   )}
@@ -1557,7 +1564,7 @@ function DashboardContent() {
 
       {/* ── My Submissions ── */}
       {myReviews.length > 0 && (
-        <div style={{ maxWidth: '900px', margin: '0 auto', padding: '0 32px 32px' }}>
+        <div id="my-submissions" style={{ maxWidth: '900px', margin: '0 auto', padding: '0 32px 32px', scrollMarginTop: '80px' }}>
           <div style={{ fontSize: '11px', fontWeight: 800, letterSpacing: '2px', textTransform: 'uppercase', color: '#5B7080', marginBottom: '12px' }}>My Submissions</div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
             {myReviews.map(r => {

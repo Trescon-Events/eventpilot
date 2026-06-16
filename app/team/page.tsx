@@ -3,7 +3,7 @@
 import { useState, useEffect, Suspense } from 'react'
 import { useSearchParams } from 'next/navigation'
 import Link from 'next/link'
-import NavBar, { ProfileMenu, MOD_PEOPLE } from '@/app/components/NavBar'
+import NavBar, { ProfileMenu, NotificationBell, MOD_PEOPLE } from '@/app/components/NavBar'
 
 type Member = {
   id: string
@@ -157,6 +157,7 @@ function TeamContent() {
         subtitle="Team Dashboard"
         rightSlot={<>
           {staffId && <Link className="tbtn tbtn-teal" href={`/dashboard?id=${staffId}`}>My Dashboard</Link>}
+          <NotificationBell />
           <ProfileMenu />
         </>}
       />

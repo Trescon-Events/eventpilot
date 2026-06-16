@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
-import NavBar, { ProfileMenu, MOD_EVENTPILOT } from '@/app/components/NavBar'
+import NavBar, { ProfileMenu, NotificationBell, MOD_EVENTPILOT } from '@/app/components/NavBar'
 import PlatformMenu from '@/app/components/PlatformMenu'
 
 /* ── Design tokens ─────────────────────────────────────────── */
@@ -226,6 +226,7 @@ export default function MyHRPage() {
           <div style={{ width: '30px', height: '30px', borderRadius: '8px', background: 'rgba(0,165,163,0.15)', border: '1.5px solid rgba(0,165,163,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
             <span style={{ fontSize: '13px', fontWeight: 800, color: TEAL }}>{(staff?.name ?? 'U').charAt(0)}</span>
           </div>
+          <NotificationBell />
           <ProfileMenu />
         </>}
       />

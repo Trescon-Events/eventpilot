@@ -189,6 +189,197 @@ async function doSignOut() {
   window.location.href = '/login'
 }
 
+/* ── Notification bell — self-contained, sits beside ProfileMenu ── */
+type Notif = { id: string; type: string; title: string; body: string; course_id: string | null; review_id: string | null; created_at: string }
+
+function timeAgoShort(iso: string) {
+  const m = Math.floor((Date.now() - new Date(iso).getTime()) / 60000)
+  if (m < 2)    return 'just now'
+  if (m < 60)   return `${m}m`
+  if (m < 1440) return `${Math.floor(m / 60)}h`
+  return `${Math.floor(m / 1440)}d`
+}
+
+export function NotificationBell({ staffId }: { staffId?: string }) {
+  const [open,   setOpen]   = useState(false)
+  const [notifs, setNotifs] = useState<Notif[]>([])
+  const [sid,    setSid]    = useState<string | null>(staffId ?? null)
+  const ref = useRef<HTMLDivElement>(null)
+
+  // Resolve staffId from session if not passed
+  useEffect(() => {
+    if (sid) return
+    fetch('/api/auth/session')
+      .then(r => r.json())
+      .then(s => { if (s?.sid && s.sid !== 'super-admin') setSid(s.sid) })
+      .catch(() => {})
+  }, [sid])
+
+  // Fetch unread count whenever sid is known
+  useEffect(() => {
+    if (!sid) return
+    const load = () =>
+      fetch(`/api/notifications?staff_id=${sid}`)
+        .then(r => r.json())
+        .then(d => Array.isArray(d) ? setNotifs(d) : setNotifs([]))
+        .catch(() => {})
+    load()
+    const t = setInterval(load, 60000) // re-poll every 60s
+    return () => clearInterval(t)
+  }, [sid])
+
+  // Close on outside click
+  useEffect(() => {
+    function handler(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false)
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [])
+
+  async function dismiss(notifId: string) {
+    if (!sid) return
+    setNotifs(prev => prev.filter(n => n.id !== notifId))
+    await fetch('/api/notifications', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ staff_id: sid, notification_id: notifId }),
+    })
+  }
+
+  async function dismissAll() {
+    if (!sid) return
+    setNotifs([])
+    setOpen(false)
+    await fetch('/api/notifications', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ staff_id: sid }),
+    })
+  }
+
+  const unread = notifs.length
+  const dashHref = sid ? `/dashboard?id=${sid}` : '/dashboard'
+
+  return (
+    <div ref={ref} style={{ position: 'relative' }}>
+      <button
+        onClick={() => setOpen(v => !v)}
+        title="Notifications"
+        style={{
+          position: 'relative',
+          width: '34px', height: '34px',
+          borderRadius: '50%',
+          background: open ? 'rgba(0,137,123,0.12)' : 'transparent',
+          border: `1.5px solid ${open ? 'rgba(0,137,123,0.35)' : '#DDE8EE'}`,
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          cursor: 'pointer', flexShrink: 0, padding: 0,
+          transition: 'all 0.15s',
+        }}
+      >
+        <svg width="15" height="15" fill="none" stroke={open ? '#00897B' : '#5B7080'} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24">
+          <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/>
+          <path d="M13.73 21a2 2 0 0 1-3.46 0"/>
+        </svg>
+        {unread > 0 && (
+          <span style={{
+            position: 'absolute', top: '-3px', right: '-3px',
+            minWidth: '16px', height: '16px',
+            background: '#DC2626', color: '#fff',
+            fontSize: '10px', fontWeight: 800,
+            borderRadius: '99px', padding: '0 4px',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            lineHeight: 1, border: '2px solid #fff',
+          }}>
+            {unread > 9 ? '9+' : unread}
+          </span>
+        )}
+      </button>
+
+      {open && (
+        <div style={{
+          position: 'absolute', top: 'calc(100% + 10px)', right: 0,
+          width: '320px',
+          background: '#FFFFFF',
+          border: '1px solid #DDE8EE',
+          borderRadius: '14px',
+          boxShadow: '0 8px 32px rgba(15,25,35,0.12)',
+          zIndex: 1000, overflow: 'hidden',
+        }}>
+          {/* Header */}
+          <div style={{ padding: '14px 16px', borderBottom: '1px solid #F1F5F9', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <span style={{ fontSize: '13px', fontWeight: 800, color: '#0F1923' }}>
+              Notifications {unread > 0 && <span style={{ fontSize: '11px', fontWeight: 700, color: '#DC2626', marginLeft: '4px' }}>{unread} unread</span>}
+            </span>
+            {unread > 0 && (
+              <button onClick={dismissAll} style={{ fontSize: '11px', fontWeight: 700, color: '#00897B', background: 'none', border: 'none', cursor: 'pointer', padding: 0, fontFamily: 'inherit' }}>
+                Mark all read
+              </button>
+            )}
+          </div>
+
+          {/* List */}
+          {notifs.length === 0 ? (
+            <div style={{ padding: '28px 16px', textAlign: 'center' }}>
+              <svg width="28" height="28" fill="none" stroke="#B8CDD8" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24" style={{ display: 'block', margin: '0 auto 10px' }}>
+                <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/>
+                <path d="M13.73 21a2 2 0 0 1-3.46 0"/>
+              </svg>
+              <div style={{ fontSize: '13px', fontWeight: 700, color: '#5B7080' }}>You&apos;re all caught up</div>
+              <div style={{ fontSize: '12px', color: '#B8CDD8', marginTop: '4px' }}>No new notifications</div>
+            </div>
+          ) : (
+            <div style={{ maxHeight: '340px', overflowY: 'auto' }}>
+              {notifs.map(n => {
+                const isReview = !!n.review_id
+                const isCourse = !!n.course_id
+                const actionHref = isReview
+                  ? `${dashHref}#my-submissions`
+                  : isCourse
+                  ? `/dashboard/course/${n.course_id}${sid ? `?staff_id=${sid}` : ''}`
+                  : dashHref
+                return (
+                  <div key={n.id} style={{ padding: '12px 16px', borderBottom: '1px solid #F8FAFC', display: 'flex', gap: '10px', alignItems: 'flex-start' }}>
+                    {/* Icon */}
+                    <div style={{ width: '30px', height: '30px', borderRadius: '8px', background: isReview ? 'rgba(0,137,123,0.1)' : 'rgba(192,244,60,0.1)', border: `1px solid ${isReview ? 'rgba(0,137,123,0.2)' : 'rgba(192,244,60,0.25)'}`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, marginTop: '1px' }}>
+                      {isReview
+                        ? <svg width="12" height="12" fill="none" stroke="#00897B" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+                        : <svg width="12" height="12" fill="none" stroke="#3D6B00" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>
+                      }
+                    </div>
+                    {/* Content */}
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: '12px', fontWeight: 800, color: '#0F1923', marginBottom: '3px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{n.title}</div>
+                      <div style={{ fontSize: '12px', color: '#5B7080', lineHeight: 1.5, marginBottom: '6px', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{n.body}</div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                        <span style={{ fontSize: '11px', color: '#B8CDD8' }}>{timeAgoShort(n.created_at)}</span>
+                        <a href={actionHref} onClick={() => dismiss(n.id)} style={{ fontSize: '11px', fontWeight: 700, color: '#00897B', textDecoration: 'none' }}>
+                          {isReview ? 'View report' : isCourse ? 'View course' : 'View'}
+                        </a>
+                      </div>
+                    </div>
+                    {/* Dismiss */}
+                    <button onClick={() => dismiss(n.id)} style={{ width: '22px', height: '22px', borderRadius: '6px', background: 'transparent', border: '1px solid #E8EEF4', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', flexShrink: 0, padding: 0 }}>
+                      <svg width="9" height="9" fill="none" stroke="#B8CDD8" strokeWidth="2.5" strokeLinecap="round" viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                    </button>
+                  </div>
+                )
+              })}
+            </div>
+          )}
+
+          {/* Footer */}
+          <div style={{ padding: '10px 16px', borderTop: '1px solid #F1F5F9', textAlign: 'center' }}>
+            <a href={dashHref} style={{ fontSize: '12px', fontWeight: 700, color: '#00897B', textDecoration: 'none' }}>
+              Go to dashboard
+            </a>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
 /* ── Profile menu — fetches session, shows avatar + dropdown ── */
 export function ProfileMenu({ name, initials, roles, jobLevel }: {
   name?:     string
