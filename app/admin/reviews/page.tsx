@@ -392,13 +392,24 @@ function ReviewCard({ review, onUpdate }: {
             />
             <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginTop: '8px' }}>
               <button onClick={saveNotes} disabled={savingNotes}
-                style={{ background: '#E8EEF4', color: C.text, border: `1px solid ${C.border}`, borderRadius: '8px', padding: '7px 18px', fontSize: '13px', fontWeight: 700, cursor: savingNotes ? 'not-allowed' : 'pointer', fontFamily: 'inherit', opacity: savingNotes ? 0.6 : 1 }}>
-                {savingNotes ? 'Saving…' : 'Save Notes'}
+                style={{
+                  display: 'inline-flex', alignItems: 'center', gap: '6px',
+                  background: notesMsg === 'Saved' ? '#059669' : '#E8EEF4',
+                  color:      notesMsg === 'Saved' ? '#FFFFFF'  : C.text,
+                  border: `1px solid ${notesMsg === 'Saved' ? '#059669' : C.border}`,
+                  borderRadius: '8px', padding: '7px 18px', fontSize: '13px', fontWeight: 700,
+                  cursor: savingNotes ? 'not-allowed' : 'pointer', fontFamily: 'inherit',
+                  opacity: savingNotes ? 0.6 : 1, transition: 'background 0.2s, color 0.2s, border-color 0.2s',
+                }}>
+                {savingNotes ? 'Saving…' : notesMsg === 'Saved' ? (
+                  <>
+                    <svg width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>
+                    Saved
+                  </>
+                ) : 'Save Notes'}
               </button>
-              {notesMsg && (
-                <span style={{ fontSize: '12px', color: notesMsg.startsWith('Error') ? '#DC2626' : '#059669', fontWeight: 600 }}>
-                  {notesMsg}
-                </span>
+              {notesMsg && notesMsg !== 'Saved' && (
+                <span style={{ fontSize: '12px', color: '#DC2626', fontWeight: 600 }}>{notesMsg}</span>
               )}
             </div>
           </div>
