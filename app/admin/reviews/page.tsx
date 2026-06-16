@@ -280,14 +280,29 @@ function ReviewCard({ review, onReply, onUpdate }: {
   onReply:  (review: Review) => void
   onUpdate: (id: string, patch: { status?: string; admin_notes?: string; comments?: ReviewComment[] }) => void
 }) {
-  const [expanded,    setExpanded]    = useState(false)
-  const [notes,       setNotes]       = useState(review.admin_notes ?? '')
-  const [savingNotes, setSavingNotes] = useState(false)
-  const [notesMsg,    setNotesMsg]    = useState('')
+  const [expanded,      setExpanded]      = useState(false)
+  const [notes,         setNotes]         = useState(review.admin_notes ?? '')
+  const [savingNotes,   setSavingNotes]   = useState(false)
+  const [notesMsg,      setNotesMsg]      = useState('')
+  const [comments,      setComments]      = useState<ReviewComment[]>(review.comments ?? [])
+  const [loadingThread, setLoadingThread] = useState(false)
 
   const typeMeta     = TYPE_META[review.review_type]  ?? { label: review.review_type, color: C.muted, bg: C.muted + '15' }
   const severityMeta = SEVERITY_META[review.severity] ?? { label: review.severity,    color: C.muted, bg: C.muted + '15' }
   const statusMeta   = STATUS_META[review.status]     ?? { label: review.status,      color: C.muted, bg: C.muted + '15' }
+
+  async function loadThread() {
+    if (comments.length > 0) return
+    setLoadingThread(true)
+    const res = await fetch(`/api/reviews/${review.id}`)
+    if (res.ok) { const d = await res.json(); setComments(d.comments ?? []) }
+    setLoadingThread(false)
+  }
+
+  // keep comments in sync when modal sends a reply
+  useEffect(() => {
+    if (review.comments) setComments(review.comments)
+  }, [review.comments])
 
   async function changeStatus(newStatus: string) {
     const res  = await fetch(`/api/reviews/${review.id}`, {
@@ -351,7 +366,7 @@ function ReviewCard({ review, onReply, onUpdate }: {
           </button>
           <Badge meta={statusMeta} />
           <button
-            onClick={() => setExpanded(v => !v)}
+            onClick={() => { setExpanded(v => !v); if (!expanded) loadThread() }}
             style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '4px', display: 'flex', alignItems: 'center' }}
           >
             <svg width="14" height="14" fill="none" stroke={C.muted} strokeWidth="2.5" strokeLinecap="round" viewBox="0 0 24 24"
@@ -418,6 +433,53 @@ function ReviewCard({ review, onReply, onUpdate }: {
                 )
               })}
             </div>
+          </div>
+
+          {/* Reply history */}
+          <div style={{ marginTop: '16px' }}>
+            <div style={{ fontSize: '11px', fontWeight: 700, color: C.muted, letterSpacing: '0.8px', textTransform: 'uppercase' as const, marginBottom: '10px' }}>
+              Replies
+              {comments.filter(c => !c.is_status_change).length > 0 && (
+                <span style={{ marginLeft: '6px', background: C.teal, color: '#fff', borderRadius: '10px', padding: '1px 7px', fontSize: '10px', fontWeight: 800 }}>
+                  {comments.filter(c => !c.is_status_change).length}
+                </span>
+              )}
+            </div>
+            {loadingThread ? (
+              <div style={{ fontSize: '12px', color: C.muted }}>Loading…</div>
+            ) : comments.length === 0 ? (
+              <div style={{ fontSize: '12px', color: C.muted, fontStyle: 'italic' }}>No replies yet — click Reply to send one.</div>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                {comments.map(c => {
+                  if (c.is_status_change) {
+                    const sm = c.new_status ? STATUS_META[c.new_status] : null
+                    return (
+                      <div key={c.id} style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <div style={{ width: '6px', height: '6px', borderRadius: '50%', background: sm?.color ?? C.muted, flexShrink: 0 }} />
+                        <span style={{ fontSize: '12px', color: C.muted }}>
+                          <span style={{ fontWeight: 700, color: C.text }}>{c.author_name}</span> marked as <span style={{ fontWeight: 700, color: sm?.color ?? C.muted }}>{STATUS_META[c.new_status ?? '']?.label ?? c.new_status}</span> · {timeAgo(c.created_at)}
+                        </span>
+                      </div>
+                    )
+                  }
+                  const isAdmin = c.author_type === 'admin'
+                  return (
+                    <div key={c.id} style={{ display: 'flex', flexDirection: 'column', alignItems: isAdmin ? 'flex-end' : 'flex-start' }}>
+                      <div style={{ fontSize: '11px', color: C.muted, marginBottom: '3px', fontWeight: 600 }}>
+                        {isAdmin
+                          ? <><span style={{ color: C.teal, fontWeight: 700 }}>{c.author_name}</span>{' · '}{timeAgo(c.created_at)}</>
+                          : <><span style={{ color: C.text, fontWeight: 700 }}>{c.author_name}</span>{' · '}{timeAgo(c.created_at)}</>
+                        }
+                      </div>
+                      <div style={{ maxWidth: '85%', padding: '8px 12px', borderRadius: isAdmin ? '10px 2px 10px 10px' : '2px 10px 10px 10px', background: isAdmin ? C.teal : '#F1F5F9', color: isAdmin ? '#fff' : C.text, fontSize: '13px', lineHeight: 1.6, whiteSpace: 'pre-wrap' as const }}>
+                        {c.message}
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            )}
           </div>
 
           {/* Admin notes */}
