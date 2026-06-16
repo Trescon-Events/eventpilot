@@ -6,7 +6,11 @@
 
 import { Resend } from 'resend'
 
-const resend = new Resend(process.env.RESEND_API_KEY)
+let _resend: Resend | null = null
+function getResend() {
+  if (!_resend) _resend = new Resend(process.env.RESEND_API_KEY)
+  return _resend
+}
 
 const FROM  = process.env.RESEND_FROM_EMAIL ?? 'Event Pilot <noreply@eventpilot.tresconglobal.com>'
 const BRAND = '#00A5A3'
@@ -84,7 +88,7 @@ export async function sendPasswordReset({
     </div>
   `)
 
-  return resend.emails.send({
+  return getResend().emails.send({
     from:    FROM,
     to,
     subject: 'Reset your Event Pilot password',
@@ -150,7 +154,7 @@ export async function sendWelcome({
     </div>
   `)
 
-  return resend.emails.send({
+  return getResend().emails.send({
     from:    FROM,
     to,
     subject: `${firstName}, welcome to Event Pilot`,
@@ -209,7 +213,7 @@ export async function sendCredentials({
     </div>
   `)
 
-  return resend.emails.send({
+  return getResend().emails.send({
     from:    FROM,
     to,
     subject: `${firstName}, your Trescon account is ready`,
@@ -245,7 +249,7 @@ export async function sendAccessRequest({
     </div>
   `)
 
-  return resend.emails.send({
+  return getResend().emails.send({
     from:    FROM,
     to:      ['md@tresconglobal.com', 'dc@tresconglobal.com'],
     subject: `Access request: ${requesterEmail}`,
@@ -306,7 +310,7 @@ export async function sendAccessGranted({
     </div>
   `)
 
-  return resend.emails.send({
+  return getResend().emails.send({
     from:    FROM,
     to,
     subject: `${firstName}, your EventPilot access is ready`,
@@ -390,7 +394,7 @@ export async function sendOrgPulseReport({
     </div>
   `)
 
-  return resend.emails.send({
+  return getResend().emails.send({
     from:    FROM,
     to,
     subject: `Event Pilot weekly pulse — week ending ${weekEnding}`,
