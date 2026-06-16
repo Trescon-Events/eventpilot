@@ -31,13 +31,16 @@ export async function GET(req: NextRequest) {
   const ext  = filename.includes('.') ? filename.split('.').pop() : 'bin'
   const path = `${eventId}/${section}/${Date.now()}.${ext}`
 
-  // Auto-create bucket if it doesn't exist (first run)
-  const { data: buckets } = await supabaseAdmin.storage.listBuckets()
-  if (!buckets?.some(b => b.name === 'event-website-assets')) {
-    await supabaseAdmin.storage.createBucket('event-website-assets', {
+  // Ensure bucket exists with correct size limit
+  const { error: createErr } = await supabaseAdmin.storage.createBucket('event-website-assets', {
+    public: true,
+    fileSizeLimit: 52428800, // 50 MB
+  })
+  if (createErr && createErr.message !== 'The resource already exists') {
+    await supabaseAdmin.storage.updateBucket('event-website-assets', {
       public: true,
-      fileSizeLimit: 52428800, // 50 MB
-    })
+      fileSizeLimit: 52428800,
+    }).catch(() => {})
   }
 
   const { data, error } = await supabaseAdmin.storage
