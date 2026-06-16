@@ -366,6 +366,7 @@ function ReviewCard({ review, onUpdate }: {
                 style={{ background: '#E8EEF4', color: C.text, border: `1px solid ${C.border}`, borderRadius: '8px', padding: '7px 18px', fontSize: '13px', fontWeight: 700, cursor: saving ? 'not-allowed' : 'pointer', fontFamily: 'inherit', opacity: saving ? 0.6 : 1 }}>
                 {saving ? 'Saving…' : 'Save Notes'}
               </button>
+              {saveMsg && <span style={{ fontSize: '12px', color: saveMsg.startsWith('Error') || saveMsg.startsWith('Network') ? '#DC2626' : '#059669', fontWeight: 600 }}>{saveMsg}</span>}
             </div>
           </div>
         </div>
