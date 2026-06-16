@@ -166,6 +166,11 @@ function ReviewCard({ review, onUpdate }: {
     if (res.ok && data.comments) {
       setComments(data.comments)
       onUpdate(review.id, { comments: data.comments })
+    } else if (!res.ok) {
+      // Remove optimistic bubble and show the real error
+      setComments(prev => prev.filter(c => !c.id.startsWith('opt-')))
+      setResponse(msg) // restore text so they can retry
+      setNotesMsg(`Send failed: ${data.error ?? 'Unknown error'}`)
     }
     setSending(false)
   }

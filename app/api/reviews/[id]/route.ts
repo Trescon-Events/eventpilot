@@ -90,24 +90,19 @@ export async function PATCH(
     if (error) return NextResponse.json({ error: error.message }, { status: 500 })
   }
 
-  // ── Trail + notifications ─────────────────────────────────────────────────
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const sideEffects: PromiseLike<any>[] = []
-
-  // Status change → trail entry
+  // ── Status change comment (blocking — must succeed) ──────────────────────
   if (status && status !== review.status) {
-    sideEffects.push(
-      supabaseAdmin.from('review_comments').insert({
-        review_id:        id,
-        author_type:      'admin',
-        author_name:      adminName,
-        is_status_change: true,
-        new_status:       status,
-        message:          null,
-      }).then(() => {})
-    )
+    const { error: scErr } = await supabaseAdmin.from('review_comments').insert({
+      review_id:        id,
+      author_type:      'admin',
+      author_name:      adminName,
+      is_status_change: true,
+      new_status:       status,
+      message:          null,
+    })
+    if (scErr) return NextResponse.json({ error: `Trail insert failed: ${scErr.message}` }, { status: 500 })
 
-    // Notify staff on meaningful transitions (not "wont_fix" silently)
+    // Notify staff — fire and forget
     if (review.staff_id && ['acknowledged', 'in_progress', 'resolved'].includes(status)) {
       const notifTitle = status === 'resolved'
         ? 'Your feedback has been resolved'
@@ -117,51 +112,47 @@ export async function PATCH(
         : status === 'in_progress' ? 'We are actively working on this.'
         : 'This has been resolved. Thank you for the input.'
       }`
-      sideEffects.push(
-        supabaseAdmin.from('notifications').insert({
-          staff_id:  review.staff_id,
-          type:      'review_update',
-          title:     notifTitle,
-          body:      notifBody,
-          review_id: id,
-        }).then(() => {})
-      )
-    }
-  }
-
-  // Admin response → trail entry + notification
-  if (response?.trim()) {
-    sideEffects.push(
-      supabaseAdmin.from('review_comments').insert({
-        review_id:        id,
-        author_type:      'admin',
-        author_name:      adminName,
-        is_status_change: false,
-        message:          response.trim(),
+      supabaseAdmin.from('notifications').insert({
+        staff_id:  review.staff_id,
+        type:      'review_update',
+        title:     notifTitle,
+        body:      notifBody,
+        review_id: id,
       }).then(() => {})
-    )
-
-    if (review.staff_id) {
-      sideEffects.push(
-        supabaseAdmin.from('notifications').insert({
-          staff_id:  review.staff_id,
-          type:      'review_update',
-          title:     `${adminName} responded to your feedback`,
-          body:      response.trim(),
-          review_id: id,
-        }).then(() => {})
-      )
     }
   }
 
-  await Promise.all(sideEffects)
+  // ── Admin response comment (blocking — must succeed) ──────────────────────
+  if (response?.trim()) {
+    const { error: respErr } = await supabaseAdmin.from('review_comments').insert({
+      review_id:        id,
+      author_type:      'admin',
+      author_name:      adminName,
+      is_status_change: false,
+      message:          response.trim(),
+    })
+    if (respErr) return NextResponse.json({ error: `Comment insert failed: ${respErr.message}` }, { status: 500 })
 
-  // Return the updated comment trail so the UI can refresh without a full reload
-  const { data: comments } = await supabaseAdmin
+    // Notify staff — fire and forget
+    if (review.staff_id) {
+      supabaseAdmin.from('notifications').insert({
+        staff_id:  review.staff_id,
+        type:      'review_update',
+        title:     `${adminName} responded to your feedback`,
+        body:      response.trim(),
+        review_id: id,
+      }).then(() => {})
+    }
+  }
+
+  // Return the full updated comment trail
+  const { data: comments, error: trailErr } = await supabaseAdmin
     .from('review_comments')
     .select('*')
     .eq('review_id', id)
     .order('created_at', { ascending: true })
+
+  if (trailErr) return NextResponse.json({ error: trailErr.message }, { status: 500 })
 
   return NextResponse.json({ ok: true, comments: comments ?? [] })
 }
