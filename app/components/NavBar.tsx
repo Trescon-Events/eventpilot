@@ -190,7 +190,7 @@ async function doSignOut() {
 }
 
 /* ── Notification bell — self-contained, sits beside ProfileMenu ── */
-type Notif = { id: string; type: string; title: string; body: string; course_id: string | null; review_id: string | null; from_staff_id: string | null; created_at: string }
+type Notif = { id: string; type: string; title: string; body: string; course_id: string | null; review_id: string | null; created_at: string }
 
 function timeAgoShort(iso: string) {
   const m = Math.floor((Date.now() - new Date(iso).getTime()) / 60000)
@@ -331,25 +331,18 @@ export function NotificationBell({ staffId }: { staffId?: string }) {
           ) : (
             <div style={{ maxHeight: '340px', overflowY: 'auto' }}>
               {notifs.map(n => {
-                const isReview  = !!n.review_id
-                const isCourse  = !!n.course_id
-                const isMessage = n.type === 'message' && !!n.from_staff_id
-                const actionHref = isMessage
-                  ? `/messages?with=${n.from_staff_id}`
-                  : isReview
+                const isReview = !!n.review_id
+                const isCourse = !!n.course_id
+                const actionHref = isReview
                   ? `${dashHref}#my-submissions`
                   : isCourse
                   ? `/dashboard/course/${n.course_id}${sid ? `?staff_id=${sid}` : ''}`
                   : dashHref
-                const iconBg     = isMessage ? 'rgba(21,101,192,0.1)'  : isReview ? 'rgba(0,137,123,0.1)'  : 'rgba(192,244,60,0.1)'
-                const iconBorder = isMessage ? 'rgba(21,101,192,0.2)'  : isReview ? 'rgba(0,137,123,0.2)'  : 'rgba(192,244,60,0.25)'
                 return (
                   <div key={n.id} style={{ padding: '12px 16px', borderBottom: '1px solid #F8FAFC', display: 'flex', gap: '10px', alignItems: 'flex-start' }}>
                     {/* Icon */}
-                    <div style={{ width: '30px', height: '30px', borderRadius: '8px', background: iconBg, border: `1px solid ${iconBorder}`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, marginTop: '1px' }}>
-                      {isMessage
-                        ? <svg width="12" height="12" fill="none" stroke="#1565C0" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
-                        : isReview
+                    <div style={{ width: '30px', height: '30px', borderRadius: '8px', background: isReview ? 'rgba(0,137,123,0.1)' : 'rgba(192,244,60,0.1)', border: `1px solid ${isReview ? 'rgba(0,137,123,0.2)' : 'rgba(192,244,60,0.25)'}`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, marginTop: '1px' }}>
+                      {isReview
                         ? <svg width="12" height="12" fill="none" stroke="#00897B" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
                         : <svg width="12" height="12" fill="none" stroke="#3D6B00" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>
                       }
@@ -360,8 +353,8 @@ export function NotificationBell({ staffId }: { staffId?: string }) {
                       <div style={{ fontSize: '12px', color: '#5B7080', lineHeight: 1.5, marginBottom: '6px', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{n.body}</div>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                         <span style={{ fontSize: '11px', color: '#B8CDD8' }}>{timeAgoShort(n.created_at)}</span>
-                        <a href={actionHref} onClick={() => dismiss(n.id)} style={{ fontSize: '11px', fontWeight: 700, color: isMessage ? '#1565C0' : '#00897B', textDecoration: 'none' }}>
-                          {isMessage ? 'View message' : isReview ? 'View report' : isCourse ? 'View course' : 'View'}
+                        <a href={actionHref} onClick={() => dismiss(n.id)} style={{ fontSize: '11px', fontWeight: 700, color: '#00897B', textDecoration: 'none' }}>
+                          {isReview ? 'View report' : isCourse ? 'View course' : 'View'}
                         </a>
                       </div>
                     </div>

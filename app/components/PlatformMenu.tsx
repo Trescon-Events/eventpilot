@@ -63,15 +63,6 @@ function buildSections(
         icon: <svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>,
       },
       {
-        title:       'Messages',
-        description: 'Chat directly with your colleagues on the platform',
-        href:        id ? `/messages?id=${id}` : '/messages',
-        color:       '#1565C0',
-        bg:          'rgba(21,101,192,0.08)',
-        border:      'rgba(21,101,192,0.2)',
-        icon: <svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/><line x1="8" y1="10" x2="16" y2="10"/><line x1="8" y1="14" x2="12" y2="14"/></svg>,
-      },
-      {
         title:       'Talk to Pilot',
         description: 'AI assistant for learning questions and course guidance',
         href:        '/chat',
