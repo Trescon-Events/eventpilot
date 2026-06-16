@@ -16,7 +16,7 @@ const C = {
 
 type Template = {
   id: string; label: string; event_name: string; description: string
-  preview_url: string; repo_url: string; folder_name: string
+  preview_url: string; live_preview_url: string; repo_url: string; folder_name: string
   tech: string[]; pages: string[]; style_tags: string[]
   color_scheme: { bg: string; accent: string; highlight: string }
   sort_order: number
@@ -24,6 +24,7 @@ type Template = {
 
 const BLANK: Partial<Template> = {
   id: '', label: '', event_name: '', description: '', repo_url: '', folder_name: '',
+  preview_url: '', live_preview_url: '',
   tech: [], pages: [], style_tags: [],
   color_scheme: { bg: '#0D0F14', accent: '#00A5A3', highlight: '#F0B732' },
   sort_order: 99,
@@ -60,9 +61,10 @@ export default function TemplatesPage() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         ...form,
-        color_bg:        form.color_scheme?.bg,
-        color_accent:    form.color_scheme?.accent,
-        color_highlight: form.color_scheme?.highlight,
+        color_bg:         form.color_scheme?.bg,
+        color_accent:     form.color_scheme?.accent,
+        color_highlight:  form.color_scheme?.highlight,
+        live_preview_url: form.live_preview_url || null,
         tech:       typeof form.tech === 'string' ? (form.tech as string).split(',').map((s: string) => s.trim()).filter(Boolean) : form.tech,
         pages:      typeof form.pages === 'string' ? (form.pages as string).split(',').map((s: string) => s.trim()).filter(Boolean) : form.pages,
         style_tags: typeof form.style_tags === 'string' ? (form.style_tags as string).split(',').map((s: string) => s.trim()).filter(Boolean) : form.style_tags,
@@ -184,6 +186,9 @@ export default function TemplatesPage() {
             <F label="Preview Image URL" value={form.preview_url || ''} onChange={v => setForm(s => ({ ...s, preview_url: v }))} placeholder="/template-previews/template-6.jpg" />
             <F label="Sort Order" value={String(form.sort_order ?? 99)} onChange={v => setForm(s => ({ ...s, sort_order: parseInt(v) || 99 }))} placeholder="6" />
           </div>
+          <div style={{ marginBottom: 14 }}>
+            <F label="Live Preview URL (public link to the deployed demo site)" value={form.live_preview_url || ''} onChange={v => setForm(s => ({ ...s, live_preview_url: v }))} placeholder="https://finance2045.tresconglobal.com" />
+          </div>
           <div style={{ display: 'flex', gap: 10 }}>
             <button onClick={save} disabled={saving}
               style={{ padding: '10px 24px', background: C.teal, color: '#fff', border: 'none', borderRadius: 10, fontSize: 13, fontWeight: 700, cursor: saving ? 'not-allowed' : 'pointer', opacity: saving ? 0.6 : 1, fontFamily: 'inherit' }}>
@@ -225,10 +230,20 @@ export default function TemplatesPage() {
                   <span style={{ fontSize: 11, color: C.muted }}><strong>Folder:</strong> <code style={{ background: C.bg, padding: '1px 5px', borderRadius: 4 }}>{t.folder_name}</code></span>
                   <a href={t.repo_url} target="_blank" rel="noopener noreferrer" style={{ fontSize: 11, color: C.teal, textDecoration: 'none' }}>View on GitHub</a>
                   <span style={{ fontSize: 11, color: C.muted }}>{t.pages.length} pages</span>
+                  {t.live_preview_url
+                    ? <a href={t.live_preview_url} target="_blank" rel="noopener noreferrer" style={{ fontSize: 11, color: C.teal, fontWeight: 700, textDecoration: 'none' }}>Live Preview</a>
+                    : <span style={{ fontSize: 11, color: C.muted, fontStyle: 'italic' }}>No preview URL — edit to add one</span>
+                  }
                 </div>
               </div>
 
               <div style={{ display: 'flex', gap: 8, flexShrink: 0 }}>
+                {t.live_preview_url && (
+                  <a href={t.live_preview_url} target="_blank" rel="noopener noreferrer"
+                    style={{ padding: '6px 14px', background: C.teal, color: '#fff', border: 'none', borderRadius: 8, fontSize: 12, fontWeight: 700, cursor: 'pointer', textDecoration: 'none', display: 'flex', alignItems: 'center' }}>
+                    Preview
+                  </a>
+                )}
                 <button onClick={() => { setForm({ ...t }); setShowForm(true) }}
                   style={{ padding: '6px 14px', background: C.bg, border: `1px solid ${C.border}`, borderRadius: 8, fontSize: 12, fontWeight: 700, cursor: 'pointer', color: C.text, fontFamily: 'inherit' }}>
                   Edit

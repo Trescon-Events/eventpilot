@@ -77,6 +77,7 @@ type Tab = 'template' | 'brand' | 'build' | 'content' | 'publish'
 
 type TemplateInfo = {
   id: string; label: string; event_name: string; description: string; preview_url: string
+  live_preview_url?: string
   tech: string[]; pages: string[]; color_scheme: { bg: string; accent: string; highlight: string }
   style_tags: string[]
 }
@@ -918,14 +919,26 @@ export default function EventWebsiteAdmin({ params }: { params: Promise<{ id: st
                     <div style={{ padding: '14px 16px' }}>
                       <div style={{ fontSize: '13px', fontWeight: 800, color: C.text, marginBottom: '6px' }}>{t.label}</div>
                       <div style={{ fontSize: '12px', color: C.muted, lineHeight: 1.55, marginBottom: '10px' }}>{t.description}</div>
-                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px', marginBottom: '8px' }}>
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px', marginBottom: '10px' }}>
                         {t.style_tags.map(tag => (
                           <span key={tag} style={{ fontSize: '10px', fontWeight: 700, padding: '2px 7px', borderRadius: '20px', background: `${C.teal}18`, color: C.teal }}>{tag}</span>
                         ))}
                       </div>
-                      <div style={{ fontSize: '11px', color: C.muted }}>
+                      <div style={{ fontSize: '11px', color: C.muted, marginBottom: t.live_preview_url ? '10px' : '0' }}>
                         <span style={{ fontWeight: 700 }}>Pages: </span>{t.pages.slice(0, 5).join(', ')}{t.pages.length > 5 ? ` +${t.pages.length - 5} more` : ''}
                       </div>
+                      {t.live_preview_url && (
+                        <a
+                          href={t.live_preview_url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          onClick={e => e.stopPropagation()}
+                          style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', fontSize: '11px', fontWeight: 700, color: C.teal, textDecoration: 'none', padding: '4px 10px', borderRadius: '6px', border: `1px solid ${C.teal}40`, background: `${C.teal}0A` }}
+                        >
+                          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+                          Preview Live Site
+                        </a>
+                      )}
                     </div>
                   </button>
                 )
