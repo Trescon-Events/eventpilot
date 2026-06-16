@@ -145,7 +145,7 @@ export default function ReviewWidget() {
         onClick={openModal}
         title="Report an issue or suggestion"
         style={{
-          position: 'fixed', bottom: '24px', right: '24px', zIndex: 9000,
+          position: 'fixed', bottom: '28px', left: '28px', zIndex: 9000,
           display: 'flex', alignItems: 'center', gap: '8px',
           background: C.teal, color: '#fff',
           border: 'none', borderRadius: '100px',
