@@ -149,7 +149,10 @@ function DashboardContent() {
   const [notifications,  setNotifications]  = useState<{ id: string; title: string; body: string; course_id: string | null; review_id: string | null }[]>([])
   type MyReviewComment = { id: string; author_type: string; author_name: string; message: string | null; is_status_change: boolean; new_status: string | null; created_at: string }
   type MyReview = { id: string; tool: string; review_type: string; severity: string; title: string; status: string; created_at: string; comments: MyReviewComment[] }
-  const [myReviews, setMyReviews] = useState<MyReview[]>([])
+  const [myReviews,      setMyReviews]      = useState<MyReview[]>([])
+  const [replyText,      setReplyText]      = useState<Record<string, string>>({})
+  const [replySending,   setReplySending]   = useState<Record<string, boolean>>({})
+  const [replyMsg,       setReplyMsg]       = useState<Record<string, string>>({})
   const [aiRecsLoading,  setAiRecsLoading]  = useState(false)
   const [aiRecsReady,    setAiRecsReady]    = useState(false)
   const [isDemo,         setIsDemo]         = useState(false)
@@ -326,6 +329,38 @@ function DashboardContent() {
         </div>
       </div>
     )
+  }
+
+  async function sendReviewReply(reviewId: string) {
+    const msg = (replyText[reviewId] ?? '').trim()
+    if (!msg) return
+    setReplySending(prev => ({ ...prev, [reviewId]: true }))
+    setReplyMsg(prev => ({ ...prev, [reviewId]: '' }))
+    try {
+      const res  = await fetch(`/api/reviews/${reviewId}/comment`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message: msg }),
+      })
+      const data = await res.json()
+      if (res.ok) {
+        setReplyText(prev => ({ ...prev, [reviewId]: '' }))
+        setReplyMsg(prev => ({ ...prev, [reviewId]: data.reopened ? 'Reply sent — issue reopened for review' : 'Reply sent' }))
+        // Update local comment trail
+        if (Array.isArray(data.comments)) {
+          setMyReviews(prev => prev.map(r => r.id === reviewId
+            ? { ...r, comments: data.comments, status: data.reopened ? 'in_progress' : r.status }
+            : r
+          ))
+        }
+        setTimeout(() => setReplyMsg(prev => ({ ...prev, [reviewId]: '' })), 4000)
+      } else {
+        setReplyMsg(prev => ({ ...prev, [reviewId]: data.error ?? 'Failed to send' }))
+      }
+    } catch {
+      setReplyMsg(prev => ({ ...prev, [reviewId]: 'Network error' }))
+    } finally {
+      setReplySending(prev => ({ ...prev, [reviewId]: false }))
+    }
   }
 
   async function dismissNotification(id: string) {
@@ -1565,7 +1600,10 @@ function DashboardContent() {
       {/* ── My Submissions ── */}
       {myReviews.length > 0 && (
         <div id="my-submissions" style={{ maxWidth: '900px', margin: '0 auto', padding: '0 32px 32px', scrollMarginTop: '80px' }}>
-          <div style={{ fontSize: '11px', fontWeight: 800, letterSpacing: '2px', textTransform: 'uppercase', color: '#5B7080', marginBottom: '12px' }}>My Submissions</div>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
+            <div style={{ fontSize: '11px', fontWeight: 800, letterSpacing: '2px', textTransform: 'uppercase', color: '#5B7080' }}>My Submissions</div>
+            <a href="/changelog" style={{ fontSize: '12px', fontWeight: 700, color: '#00897B', textDecoration: 'none' }}>See what&apos;s fixed</a>
+          </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
             {myReviews.map(r => {
               const STATUS_COLORS: Record<string, { color: string; bg: string; label: string }> = {
@@ -1623,6 +1661,36 @@ function DashboardContent() {
                           </div>
                         )
                       })}
+                    </div>
+                  )}
+                  {/* Staff reply box — only show if not wont_fix */}
+                  {r.status !== 'wont_fix' && (
+                    <div style={{ borderTop: '1px solid #E8EEF4', padding: '12px 18px', background: '#FAFBFC' }}>
+                      <div style={{ fontSize: '11px', fontWeight: 700, color: '#5B7080', marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '0.6px' }}>
+                        {r.status === 'resolved' ? 'Still having issues? Reply to reopen' : 'Reply or add more detail'}
+                      </div>
+                      <textarea
+                        rows={2}
+                        value={replyText[r.id] ?? ''}
+                        onChange={e => setReplyText(prev => ({ ...prev, [r.id]: e.target.value }))}
+                        onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendReviewReply(r.id) } }}
+                        placeholder="Write your reply… (Enter to send)"
+                        style={{ width: '100%', padding: '8px 12px', borderRadius: '8px', border: '1px solid #DDE8EE', fontSize: '13px', fontFamily: 'inherit', resize: 'none', outline: 'none', color: '#0F1923', background: '#FFFFFF', lineHeight: 1.6, boxSizing: 'border-box' }}
+                      />
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginTop: '8px' }}>
+                        <button
+                          onClick={() => sendReviewReply(r.id)}
+                          disabled={replySending[r.id] || !(replyText[r.id] ?? '').trim()}
+                          style={{ padding: '6px 16px', borderRadius: '8px', border: 'none', background: '#00897B', color: '#fff', fontSize: '12px', fontWeight: 700, cursor: replySending[r.id] || !(replyText[r.id] ?? '').trim() ? 'not-allowed' : 'pointer', fontFamily: 'inherit', opacity: replySending[r.id] || !(replyText[r.id] ?? '').trim() ? 0.5 : 1 }}
+                        >
+                          {replySending[r.id] ? 'Sending…' : 'Send Reply'}
+                        </button>
+                        {replyMsg[r.id] && (
+                          <span style={{ fontSize: '12px', fontWeight: 600, color: replyMsg[r.id].startsWith('Network') || replyMsg[r.id].startsWith('Failed') ? '#DC2626' : '#059669' }}>
+                            {replyMsg[r.id]}
+                          </span>
+                        )}
+                      </div>
                     </div>
                   )}
                 </div>

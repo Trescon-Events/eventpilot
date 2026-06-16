@@ -204,6 +204,15 @@ function buildSections(
           icon: <svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="3"/><path d="M3 9h18M9 21V9"/></svg>,
         },
         {
+          title:       "What's Fixed",
+          description: 'See all reported issues and what the team has resolved',
+          href:        '/changelog',
+          color:       '#059669',
+          bg:          'rgba(5,150,105,0.08)',
+          border:      'rgba(5,150,105,0.2)',
+          icon: <svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>,
+        },
+        {
           title:       'Platform Docs',
           description: 'Internal documentation — scoring guide, playbook, questionnaire',
           href:        '/docs',
