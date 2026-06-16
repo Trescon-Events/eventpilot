@@ -20,11 +20,18 @@ export async function GET(req: NextRequest) {
   const safeName = filename.replace(/[^a-zA-Z0-9._-]/g, '_')
   const path = `${eventId}/${Date.now()}-${safeName}`
 
-  // Ensure bucket allows up to 250 MB (update on every call is cheap — idempotent)
-  await supabaseAdmin.storage.updateBucket('brand-pdfs', {
+  // Ensure bucket exists with 250 MB limit — create first, update if already exists
+  const { error: createErr } = await supabaseAdmin.storage.createBucket('brand-pdfs', {
     public: true,
     fileSizeLimit: 262144000, // 250 MB
-  }).catch(() => {}) // ignore if bucket doesn't exist yet — createSignedUploadUrl will surface that
+  })
+  if (createErr && createErr.message !== 'The resource already exists') {
+    // bucket already exists — update size limit
+    await supabaseAdmin.storage.updateBucket('brand-pdfs', {
+      public: true,
+      fileSizeLimit: 262144000,
+    }).catch(() => {})
+  }
 
   const { data, error } = await supabaseAdmin.storage
     .from('brand-pdfs')
