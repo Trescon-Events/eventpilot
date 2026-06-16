@@ -177,7 +177,7 @@ function ImageUpload({ label, value, eventId, section, onUpload, acceptPdf = fal
 
   const isPdf   = value?.toLowerCase().includes('.pdf') || value?.includes('application/pdf')
   const accept  = acceptPdf ? 'image/*,application/pdf' : 'image/*'
-  const hint    = acceptPdf ? 'PNG, JPG, SVG or PDF · max 20 MB' : 'PNG, JPG, SVG or WebP · max 20 MB'
+  const hint    = acceptPdf ? 'PNG, JPG, SVG or PDF · max 250 MB' : 'PNG, JPG, SVG or WebP · max 50 MB'
 
   return (
     <div>
