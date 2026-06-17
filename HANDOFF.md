@@ -17,10 +17,165 @@
 
 | Field       | Value                                                   |
 |-------------|---------------------------------------------------------|
-| Who         | Durga + Claude Code (Sonnet 4.6)                        |
-| Date        | 2026-06-16                                              |
-| Handed off to | Madhu / Open                                         |
-| Deployed    | Yes — https://eventpilot.tresconglobal.com (auto-deploy on push) |
+| Who         | Madhu + Claude Code (Sonnet 4.6)                        |
+| Date        | 2026-06-17                                              |
+| Handed off to | Durga / Open                                         |
+| Deployed    | Yes — https://eventpilot.tresconglobal.com (Vercel, production, 17 Jun 2026) |
+
+---
+
+## What Was Built This Session (17 Jun 2026 — Madhu)
+
+### SSO Outage — Root Cause Investigation & Full Fix
+
+All staff were unable to log in via Microsoft SSO. Error shown: "SSO state mismatch — please try again." Users also intermittently saw a "Vercel Authentication" wall mid-flow. Full investigation and fix completed. See the **⚠️ Incident Report** section below for the complete breakdown — it is mandatory reading for anyone touching hosting, Cloudflare, or Vercel.
+
+**Files changed:**
+- `app/api/auth/microsoft/route.ts` — `redirect_uri` now uses `NEXT_PUBLIC_SITE_URL` instead of `req.nextUrl.origin` (which resolved to the internal Vercel URL through the proxy)
+- `app/api/auth/callback/route.ts` — ALL redirects (success, error, access-pending) now use `NEXT_PUBLIC_SITE_URL`. The final post-login redirect was rebuilt using `new URL(destination, origin)` instead of `req.nextUrl.clone()` which was inheriting the internal Vercel URL
+- Cloudflare Worker `eventpilot-proxy` — updated via Cloudflare API to proxy to `eventpilot-trescons-projects.vercel.app` (was: `taos-discovery.vercel.app`, a deleted/stale Vercel project)
+- Vercel project `trescons-projects/eventpilot` — Microsoft SSO env vars were empty strings; repopulated via CLI + REST API
+- Vercel project `trescons-projects/eventpilot` — SSO deployment protection disabled via Vercel API (was blocking the Cloudflare Worker proxy with auth walls)
+
+---
+
+## ⚠️ INCIDENT REPORT: SSO Outage — 17 Jun 2026
+
+**Severity:** Critical (100% of users blocked from logging in)
+**Duration:** Unknown start (discovered 17 Jun) — fixed same day
+**Triggered by:** Durga's hosting migration work on 16–17 Jun
+
+---
+
+### What Broke and Why — Layer by Layer
+
+#### Layer 1 — Wrong Cloudflare Worker target (root cause)
+
+The Cloudflare Worker `eventpilot-proxy` handles ALL traffic to `eventpilot.tresconglobal.com`. It proxies requests to a backend Vercel URL. It was set to proxy to **`taos-discovery.vercel.app`** — an OLD Vercel project that no longer had a live deployment or env vars.
+
+The active Vercel project (`trescons-projects/eventpilot`) was reachable at `eventpilot-trescons-projects.vercel.app`, but the Worker didn't know this. So all staff were hitting a dead Vercel project.
+
+#### Layer 2 — Microsoft SSO env vars were empty in Vercel
+
+In the `trescons-projects/eventpilot` Vercel project, `MICROSOFT_CLIENT_ID`, `MICROSOFT_CLIENT_SECRET`, and `MICROSOFT_TENANT_ID` were present as variable names but stored as **empty strings** — placeholders that were never filled. This caused `/api/auth/microsoft` to return `503 — Microsoft SSO not configured` even after the Worker target was fixed.
+
+#### Layer 3 — SSO routes used `req.nextUrl.origin` (wrong domain through proxy)
+
+`app/api/auth/microsoft/route.ts` and `app/api/auth/callback/route.ts` both derived the OAuth `redirect_uri` and all post-login redirect destinations from `req.nextUrl.origin`. When requests arrive via the Cloudflare Worker proxy (which rewrites the host to `eventpilot-trescons-projects.vercel.app`), `req.nextUrl.origin` resolves to `https://eventpilot-trescons-projects.vercel.app`, NOT `https://eventpilot.tresconglobal.com`. This caused:
+- `redirect_uri` sent to Azure → internal Vercel URL (Azure would reject if not pre-registered)
+- Post-login redirect sent the user's browser DIRECTLY to `eventpilot-trescons-projects.vercel.app/dashboard` (bypassing the Worker), which showed the Vercel auth wall
+- `sso_state` cookie set on `eventpilot.tresconglobal.com` was not sent when the browser navigated directly to the Vercel URL → "SSO state mismatch" error
+
+#### Layer 4 — Vercel deployment protection blocked the Worker
+
+The Vercel project had SSO protection set to `all_except_custom_domains`, meaning every request to `eventpilot-trescons-projects.vercel.app` (including the Worker's server-to-server proxy requests) was intercepted by Vercel's own auth wall. Even with an automation bypass token in the Worker header, this was unreliable and caused the Vercel auth screen to flash mid-flow in the user's browser.
+
+---
+
+### What Was Done to Fix It
+
+| Step | Action |
+|------|--------|
+| 1 | Verified SSO env vars existed but were empty strings in Vercel |
+| 2 | Deleted the 3 empty Microsoft env vars from Vercel |
+| 3 | Re-added all 3 with correct values from `.env.local` via CLI and confirmed via REST API |
+| 4 | Updated the Cloudflare Worker (`eventpilot-proxy`) to proxy to `eventpilot-trescons-projects.vercel.app` instead of `taos-discovery.vercel.app` |
+| 5 | Added Vercel automation bypass token (`x-vercel-protection-bypass`) to Worker headers |
+| 6 | Disabled Vercel SSO protection on the project via REST API (`ssoProtection: null`) |
+| 7 | Fixed `app/api/auth/microsoft/route.ts` — `redirect_uri` now uses `process.env.NEXT_PUBLIC_SITE_URL ?? req.nextUrl.origin` |
+| 8 | Fixed `app/api/auth/callback/route.ts` — `origin` overridden at top of function to `NEXT_PUBLIC_SITE_URL`; final redirect rebuilt as `new URL(destination, origin)` instead of `req.nextUrl.clone()` |
+| 9 | Deployed, verified: SSO endpoint returns 307 → `login.microsoftonline.com` with correct `redirect_uri=https://eventpilot.tresconglobal.com/api/auth/callback`; `sso_state` cookie correctly set for `eventpilot.tresconglobal.com` |
+
+---
+
+### Safety Rules — MANDATORY for Durga and Madhu
+
+These rules must be followed to prevent a repeat. **Any Claude session working on hosting or auth must read and apply these.**
+
+#### 🔴 HOSTING RULES
+
+**1. Never delete a Vercel project without doing all of the following first:**
+- Export all env vars (especially secrets like `MICROSOFT_CLIENT_*`, `RESEND_API_KEY`, `SUPABASE_SERVICE_ROLE_KEY`)
+- Update the Cloudflare Worker target URL to point to the replacement project
+- Verify the new target is accessible and returns the correct pages
+- Verify SSO still works end-to-end after the switch
+
+**2. The Cloudflare Worker IS the production router.**
+`eventpilot.tresconglobal.com` goes through the `eventpilot-proxy` Cloudflare Worker, which proxies to a Vercel deployment. If the Worker's target URL changes (e.g., a new Vercel project), ALL env vars must also exist in the new project. The Worker and the Vercel project it points to are a tightly coupled pair.
+
+Current state as of 17 Jun 2026:
+- Worker: `eventpilot-proxy` → `eventpilot-trescons-projects.vercel.app`
+- Vercel project: `trescons-projects/eventpilot`
+- Custom domain alias in Vercel: `eventpilot.tresconglobal.com`
+
+**3. If you migrate to Cloudflare Workers (via OpenNext/Wrangler), you must set Cloudflare secrets BEFORE switching the Worker route.**
+Durga added `open-next.config.ts` and `wrangler.jsonc` in preparation for a Cloudflare Workers deployment. If this migration is completed, the Microsoft SSO secrets, Supabase keys, Resend key, and all other env vars in `.env.local` must be added as Cloudflare Worker secrets (`wrangler secret put`) BEFORE the domain is pointed at the CF Worker. Skipping this will black out SSO and all API features instantly.
+
+#### 🔴 ENV VAR RULES
+
+**4. Env vars live in Vercel. `env.local` is only for local development.**
+`.env.local` is not deployed. Every env var in `.env.local` must also exist in the Vercel project under `trescons-projects/eventpilot`. If you create a second Vercel project or migrate hosting, copy ALL vars from `.env.local`. The full list is in `.env.local` — 28+ keys.
+
+**5. Never set an env var as an empty string placeholder.**
+This was how the Microsoft vars were broken. Either set the real value or don't add the key at all. An empty-string env var silently fails in the app (no error at build time, runtime returns 503 with a vague message).
+
+**6. After any env var change, always redeploy AND test the live endpoint.**
+Env var changes don't take effect until a new deployment. Use `vercel deploy --prod --yes` or push to main. Then test:
+```
+curl -s https://eventpilot.tresconglobal.com/api/auth/microsoft
+# Must return HTTP 307 (redirect to Microsoft), NOT 503
+```
+
+#### 🟡 SSO ARCHITECTURE RULES
+
+**7. SSO routes must never use `req.nextUrl.origin` for redirect URIs or post-login destinations.**
+Because all production traffic goes through a Cloudflare Worker proxy, `req.nextUrl.origin` will resolve to the internal Vercel URL (`eventpilot-trescons-projects.vercel.app`), not the public domain. All OAuth URIs and redirects in `app/api/auth/microsoft/route.ts` and `app/api/auth/callback/route.ts` are now fixed to use `process.env.NEXT_PUBLIC_SITE_URL`. Do not revert this. If you add new auth routes, follow the same pattern.
+
+**8. The Azure App registration must match the public domain.**
+Azure App (client ID `1eb65a1b-849d-414f-88f4-e0faf812fbfc`) has `https://eventpilot.tresconglobal.com/api/auth/callback` registered as a redirect URI. If the domain ever changes, you must update the Azure App registration in Entra ID (ask Madhu for access). If you add a new redirect URI (e.g., for localhost testing), add it to Azure first, then to the code.
+
+**9. Vercel deployment SSO protection must remain disabled.**
+The Vercel project's `ssoProtection` was set to `all_except_custom_domains`. This means all traffic to `eventpilot-trescons-projects.vercel.app` (including the Worker's proxy requests) hits a Vercel auth wall. This has been disabled (`ssoProtection: null`). Do not re-enable it unless the Cloudflare Worker proxy is removed and DNS points directly to Vercel. Check via:
+```
+vercel project ls  # confirm trescons-projects/eventpilot
+# Then check settings in Vercel dashboard: Settings → Deployment Protection
+```
+
+#### 🟡 CLOUDFLARE WORKER RULES
+
+**10. Any change to `eventpilot-proxy` must be tested immediately after deployment.**
+The Worker is the single gateway for all production traffic. A bad Worker deploy means 100% of users are locked out. Always test after updating:
+```
+curl -s -o /dev/null -w "%{http_code}" https://eventpilot.tresconglobal.com/login  # must be 200
+curl -s -o /dev/null -w "%{http_code}" https://eventpilot.tresconglobal.com/api/auth/microsoft  # must be 307
+```
+
+**11. The Worker must forward `x-forwarded-host` correctly.**
+The Worker sets `x-forwarded-host: eventpilot.tresconglobal.com` on all proxied requests. This is what allows Next.js to know the public hostname. Don't remove this header.
+
+---
+
+### Current Infrastructure Map (as of 17 Jun 2026)
+
+```
+Browser → eventpilot.tresconglobal.com
+            │
+            ▼ (Cloudflare DNS, proxied)
+         Cloudflare Worker: eventpilot-proxy
+            │
+            ▼ (x-vercel-protection-bypass header added)
+         Vercel: eventpilot-trescons-projects.vercel.app
+            │
+            ▼ (Next.js 16, App Router)
+         Supabase: yuyxfxoevztugtfgduks
+```
+
+SSO flow:
+```
+1. /api/auth/microsoft  →  sets sso_state cookie  →  307 to Microsoft (redirect_uri = eventpilot.tresconglobal.com/api/auth/callback)
+2. Microsoft authenticates user  →  redirects to eventpilot.tresconglobal.com/api/auth/callback
+3. /api/auth/callback  →  verifies state cookie  →  exchanges code  →  looks up staff  →  sets tcs_session cookie  →  redirects to /admin or /dashboard (all on eventpilot.tresconglobal.com)
+```
 
 ---
 
@@ -370,13 +525,25 @@ Everything committed before `dc48b2b` is Durga's work and was not touched. Key p
 
 ## What's Next
 
-1. **Template live preview URLs** — Go to `/admin/templates`, edit each of the 5 templates, paste in the deployed site URL so "Preview Live Site" appears in the builder.
-2. **Hands-on AI assignments** — a task/submission system where staff create and submit real AI workflows. Needs new DB table + admin review queue. Deferred to next sprint.
-3. Khalifa + Prashant — full Website Builder test for AI2047 event (middleware fix deployed, invite sent to Khalifa ✅)
-4. Content Hub social publishing — approval queue built, needs Meta API tokens from Madhu
-5. Security hardening (Phase 3): rate limiting, audit log, signed sessions, idle timeout — need Bangalore + Dubai office IPs first
-6. Monitor access request emails — staff without access sends request to md@ and dc@
-7. **Messaging** — live and tested. Monitor usage; next iteration could add read receipts or file attachments if requested.
+> **⚠️ Before doing anything:** Read the **Incident Report** section above. It documents the SSO outage, what caused it, and 11 safety rules that must be followed for any hosting, Cloudflare, or Vercel work. If you are Durga's Claude — you must read it in full before touching anything related to deployment.
+
+1. **Verify SSO is working for all staff** — The fix was deployed on 17 Jun. Ask Madhu or Durga to confirm at least 2–3 staff from different offices have logged in successfully via Microsoft 365 SSO before treating this as closed.
+
+2. **Cloudflare Migration Decision** — Durga added `open-next.config.ts` and `wrangler.jsonc` for a potential Cloudflare Workers deployment. This migration is NOT complete. **Do not run `wrangler deploy` or point the domain at a CF Worker** until all env vars (28+ keys from `.env.local`) are set as Cloudflare Worker secrets AND SSO is verified end-to-end on the CF Worker deployment. See Safety Rule #3 in the Incident Report.
+
+3. **Template live preview URLs** — Go to `/admin/templates`, edit each of the 5 templates, paste in the deployed site URL so "Preview Live Site" appears in the builder.
+
+4. **Hands-on AI assignments** — a task/submission system where staff create and submit real AI workflows. Needs new DB table + admin review queue. Deferred to next sprint.
+
+5. Khalifa + Prashant — full Website Builder test for AI2047 event (middleware fix deployed, invite sent to Khalifa ✅)
+
+6. Content Hub social publishing — approval queue built, needs Meta API tokens from Madhu
+
+7. Security hardening (Phase 3): rate limiting, audit log, signed sessions, idle timeout — need Bangalore + Dubai office IPs first
+
+8. Monitor access request emails — staff without access sends request to md@ and dc@
+
+9. **Messaging** — live and tested. Monitor usage; next iteration could add read receipts or file attachments if requested.
 
 ## Smart Data — Notes for Madhu
 
