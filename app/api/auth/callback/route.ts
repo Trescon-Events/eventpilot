@@ -26,7 +26,9 @@ function loginRedirect(origin: string, msg: string) {
 }
 
 export async function GET(req: NextRequest) {
-  const { searchParams, origin } = req.nextUrl
+  const { searchParams } = req.nextUrl
+  // Always use the configured public domain so redirects never expose internal Vercel URLs
+  const origin = process.env.NEXT_PUBLIC_SITE_URL ?? req.nextUrl.origin
   const code       = searchParams.get('code')
   const returnedState = searchParams.get('state')
   const oauthError = searchParams.get('error')
@@ -141,9 +143,7 @@ export async function GET(req: NextRequest) {
     destination = `/dashboard?id=${staff.id}`
   }
 
-  const dest = req.nextUrl.clone()
-  dest.pathname = destination.split('?')[0]
-  dest.search   = destination.includes('?') ? '?' + destination.split('?')[1] : ''
+  const dest = new URL(destination, origin)
 
   const res = NextResponse.redirect(dest)
 
