@@ -314,7 +314,14 @@ function ProfileContent() {
     fd.set('staff_id', staffId)
     fd.set('tasks', JSON.stringify(entries))
 
-    const result = await submitProfile(fd)
+    let result: { success?: boolean; error?: string }
+    try {
+      result = await submitProfile(fd)
+    } catch {
+      setSubmitError('Something went wrong. Please try again.')
+      setPending(false)
+      return
+    }
     if (result.error) { setSubmitError(result.error); setPending(false); return }
     setDone(true)
   }

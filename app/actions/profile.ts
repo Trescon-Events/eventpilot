@@ -37,25 +37,30 @@ export async function submitProfile(formData: FormData) {
     return { error: 'Add at least one task with a name.' }
   }
 
-  // Insert all tasks
-  const { error: insertError } = await supabaseAdmin
-    .from('staff_task_profiles')
-    .upsert({
-      staff_id,
-      responses:    validTasks,
-      submitted_at: new Date().toISOString(),
-      updated_at:   new Date().toISOString(),
-    }, { onConflict: 'staff_id' })
+  try {
+    // Insert all tasks
+    const { error: insertError } = await supabaseAdmin
+      .from('staff_task_profiles')
+      .upsert({
+        staff_id,
+        responses:    validTasks,
+        submitted_at: new Date().toISOString(),
+        updated_at:   new Date().toISOString(),
+      }, { onConflict: 'staff_id' })
 
-  if (insertError) {
-    return { error: 'Could not save your profile. Please try again.' }
+    if (insertError) {
+      return { error: 'Could not save your profile. Please try again.' }
+    }
+
+    // Mark profile as complete
+    await supabaseAdmin
+      .from('staff_members')
+      .update({ profile_complete: true })
+      .eq('id', staff_id)
+
+    return { success: true }
+  } catch (e) {
+    console.error('submitProfile error:', e)
+    return { error: 'Something went wrong. Please try again.' }
   }
-
-  // Mark profile as complete
-  await supabaseAdmin
-    .from('staff_members')
-    .update({ profile_complete: true })
-    .eq('id', staff_id)
-
-  return { success: true }
 }
