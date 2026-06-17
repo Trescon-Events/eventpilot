@@ -2,7 +2,6 @@
 
 import { useState, useRef, useEffect, Suspense } from 'react'
 import { useSearchParams } from 'next/navigation'
-import { submitProfile } from '@/app/actions/profile'
 import Link from 'next/link'
 import { buildQuestions, PROFICIENCY_LEVELS, DEPT_QUESTIONS, ALL_DEPARTMENTS } from '@/app/lib/questions'
 import type { Question } from '@/app/lib/questions'
@@ -310,13 +309,14 @@ function ProfileContent() {
       return
     }
 
-    const fd = new FormData()
-    fd.set('staff_id', staffId)
-    fd.set('tasks', JSON.stringify(entries))
-
     let result: { success?: boolean; error?: string }
     try {
-      result = await submitProfile(fd)
+      const res = await fetch('/api/task-profiles', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ staff_id: staffId, tasks: entries }),
+      })
+      result = await res.json()
     } catch {
       setSubmitError('Something went wrong. Please try again.')
       setPending(false)
