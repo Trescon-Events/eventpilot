@@ -193,6 +193,7 @@ const PLAYBOOK_TIERS = [
 export default function AdminPage() {
   const [authed, setAuthed]   = useState(() => typeof window !== 'undefined' && sessionStorage.getItem('tai_admin_authed') === '1')
   const [adminStaffId, setAdminStaffId] = useState(() => typeof window !== 'undefined' ? sessionStorage.getItem('tai_admin_staff_id') ?? '' : '')
+  const [isSuperAdmin, setIsSuperAdmin] = useState(() => typeof window !== 'undefined' && (sessionStorage.getItem('tai_admin_staff_id') === 'super-admin' || sessionStorage.getItem('tai_is_super_admin') === '1'))
   const [code, setCode]       = useState('')
   const [adminEmail, setAdminEmail] = useState('')
   const [codeError, setCodeError] = useState('')
@@ -853,6 +854,9 @@ export default function AdminPage() {
           localStorage.setItem('tai_staff_id', session.sid)
           setAdminStaffId(session.sid)
           setAuthed(true)
+          const superAdmin = session.sid === 'super-admin' || (Array.isArray(session.roles) && session.roles.includes('super_admin'))
+          if (superAdmin) sessionStorage.setItem('tai_is_super_admin', '1')
+          setIsSuperAdmin(superAdmin)
         }
       })
       .catch(() => {})
@@ -1461,8 +1465,8 @@ export default function AdminPage() {
                 ['suggest',      'Learning Lab'],
                 ['events',       'Events'],
                 ['knowledge',    'Knowledge Base'],
-                ...(adminStaffId === 'super-admin' ? [['review', 'Review Queue']] : []),
-                ...(adminStaffId === 'super-admin' ? [['security', 'Security']] : []),
+                ...(isSuperAdmin ? [['review', 'Review Queue']] : []),
+                ...(isSuperAdmin ? [['security', 'Security']] : []),
                 ['toolkit',      'Toolkit'],
               ] as [typeof tab, string][]).map(([t, label]) => {
                 const accent  = TAB_ACCENT[t] ?? '#00897B'
@@ -4222,7 +4226,7 @@ export default function AdminPage() {
         })()}
 
         {/* ── Review Queue tab (super admin only) ── */}
-        {tab === 'review' && adminStaffId === 'super-admin' && (
+        {tab === 'review' && isSuperAdmin && (
           <div>
             <div style={{ marginBottom: '28px' }}>
               <div style={{ fontSize: '13px', fontWeight: 800, letterSpacing: '2px', textTransform: 'uppercase', color: '#FF6B6B', marginBottom: '6px' }}>Review Queue</div>
@@ -4299,7 +4303,7 @@ export default function AdminPage() {
         )}
 
         {/* ── Security Tab (super admin only) ── */}
-        {tab === 'security' && adminStaffId === 'super-admin' && (
+        {tab === 'security' && isSuperAdmin && (
           <div>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '24px' }}>
               <div>
