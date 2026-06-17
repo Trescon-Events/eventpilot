@@ -55,7 +55,7 @@ export async function GET(req: NextRequest) {
   const clientId     = process.env.MICROSOFT_CLIENT_ID!
   const clientSecret = process.env.MICROSOFT_CLIENT_SECRET!
   const tenantId     = process.env.MICROSOFT_TENANT_ID!
-  const redirectUri  = `${origin}/api/auth/callback`
+  const redirectUri  = `${process.env.NEXT_PUBLIC_SITE_URL ?? origin}/api/auth/callback`
 
   const tokenRes = await fetch(
     `https://login.microsoftonline.com/${tenantId}/oauth2/v2.0/token`,

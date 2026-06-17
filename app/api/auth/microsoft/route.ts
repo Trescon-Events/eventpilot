@@ -19,7 +19,7 @@ export async function GET(req: NextRequest) {
   const next     = req.nextUrl.searchParams.get('next') ?? '/dashboard'
   const stateVal = Buffer.from(JSON.stringify({ state, next })).toString('base64')
 
-  const origin      = req.nextUrl.origin
+  const origin      = process.env.NEXT_PUBLIC_SITE_URL ?? req.nextUrl.origin
   const redirectUri = `${origin}/api/auth/callback`
 
   const params = new URLSearchParams({
