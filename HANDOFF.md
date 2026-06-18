@@ -17,10 +17,64 @@
 
 | Field         | Value                                                              |
 |---------------|--------------------------------------------------------------------|
-| Who           | Durga + Claude Code (Sonnet 4.6)                                   |
+| Who           | Madhu + Claude Code (Sonnet 4.6)                                   |
 | Date          | 2026-06-18                                                         |
-| Handed off to | Madhu                                                              |
-| Deployed      | Yes — https://eventpilot.tresconglobal.com (Vercel, production, 18 Jun 2026) |
+| Handed off to | Durga / Open                                                       |
+| Deployed      | Yes — https://eventpilot.tresconglobal.com (Railway, production, 18 Jun 2026) |
+
+---
+
+## What Was Built This Session (18 Jun 2026 — Madhu)
+
+### Vercel → Railway Migration (complete)
+
+**Why this happened:**
+Vercel's account was paused for a spend cap being hit (Durga's session noted this). Rather than just fixing the cap, Madhu decided to drop Vercel entirely and move to a cheaper, more scalable platform. The original plan was Cloudflare Workers (Durga had already added `open-next.config.ts` and `wrangler.jsonc`), but the CF Workers attempt failed — EventPilot's bundle is 16MB and CF Workers caps out at 10MB even on the paid plan. Since the app will keep growing (full HRMS, event management, content generation all coming), any size-capped platform is a dead end. Railway was chosen: no bundle size limits, same auto-deploy-from-GitHub behaviour as Vercel, standard Node.js (`next start`), ~$5/month vs Vercel Pro at ~$20/month.
+
+**What was done:**
+1. Built the app for CF Workers (`npx @opennextjs/cloudflare build`) — succeeded but deploy failed (16MB > 10MB limit)
+2. Created Railway project `eventpilot` under `Trescon's Projects` workspace
+3. Set all 28 env vars from `.env.local` into Railway via API
+4. Deployed the app to Railway via `railway up` — build succeeded, app online
+5. Railway URL: `https://eventpilot-production-90c6.up.railway.app`
+6. Updated `eventpilot-proxy` Cloudflare Worker to proxy to Railway URL instead of Vercel
+7. Verified live domain: login 200 ✅, SSO 307 ✅, admin 307 ✅
+8. Connected `Trescon-Events/eventpilot` GitHub repo to Railway service (auto-deploy on push to `main`)
+9. Deleted Vercel project, cancelled Vercel subscription
+
+**New infrastructure (as of 18 Jun 2026):**
+```
+Browser → eventpilot.tresconglobal.com
+            │
+            ▼ (Cloudflare DNS, proxied)
+         Cloudflare Worker: eventpilot-proxy
+            │
+            ▼
+         Railway: eventpilot-production-90c6.up.railway.app
+            │  (Next.js 16, Node.js runtime, next start)
+            ▼
+         Supabase: yuyxfxoevztugtfgduks
+```
+
+**How to deploy going forward (for Durga):**
+
+Just push to `main`:
+```bash
+git push origin main
+```
+
+That's it. Railway picks up the push via GitHub webhook, runs `next build`, and deploys automatically. No Vercel CLI, no `railway up`, no manual steps. You can watch the build at `railway.com/project/26f95192-091d-48d0-a4f9-f8cc4549b8a4`.
+
+**If you have local uncommitted changes:**
+```bash
+git add <your files>
+git commit -m "your message"
+git push origin main
+```
+Railway will deploy within ~3 minutes of the push.
+
+**Railway account:** `webadmin@tresconglobal.com` (GitHub: `tresconevents`)
+**Railway project URL:** `https://railway.com/project/26f95192-091d-48d0-a4f9-f8cc4549b8a4`
 
 ---
 
@@ -120,33 +174,30 @@ These rules must be followed to prevent a repeat. **Any Claude session working o
 
 #### 🔴 HOSTING RULES
 
-**1. Never delete a Vercel project without doing all of the following first:**
-- Export all env vars (especially secrets like `MICROSOFT_CLIENT_*`, `RESEND_API_KEY`, `SUPABASE_SERVICE_ROLE_KEY`)
-- Update the Cloudflare Worker target URL to point to the replacement project
-- Verify the new target is accessible and returns the correct pages
-- Verify SSO still works end-to-end after the switch
+**1. Vercel is gone. Do not reference or restore it.**
+The Vercel project (`trescons-projects/eventpilot`) has been deleted and the subscription cancelled as of 18 Jun 2026. The app runs on Railway. Do not attempt to redeploy to Vercel or add Vercel-specific config.
 
 **2. The Cloudflare Worker IS the production router.**
-`eventpilot.tresconglobal.com` goes through the `eventpilot-proxy` Cloudflare Worker, which proxies to a Vercel deployment. If the Worker's target URL changes (e.g., a new Vercel project), ALL env vars must also exist in the new project. The Worker and the Vercel project it points to are a tightly coupled pair.
+`eventpilot.tresconglobal.com` goes through the `eventpilot-proxy` Cloudflare Worker, which proxies to the Railway deployment. If Railway's URL ever changes (e.g., a new Railway project), the Worker must be updated to point to the new URL. The Worker and the Railway service it points to are a tightly coupled pair.
 
 Current state as of 18 Jun 2026:
 - Worker: `eventpilot-proxy` → `eventpilot-production-90c6.up.railway.app`
-- Railway project: `Trescon's Projects / eventpilot`
-- Vercel: **no longer used** — cancel the subscription
+- Railway project: `Trescon's Projects / eventpilot` (GitHub: `tresconevents`, `webadmin@tresconglobal.com`)
+- Vercel: **deleted and cancelled**
 
-**3. If you migrate to Cloudflare Workers (via OpenNext/Wrangler), you must set Cloudflare secrets BEFORE switching the Worker route.**
-Durga added `open-next.config.ts` and `wrangler.jsonc` in preparation for a Cloudflare Workers deployment. If this migration is completed, the Microsoft SSO secrets, Supabase keys, Resend key, and all other env vars in `.env.local` must be added as Cloudflare Worker secrets (`wrangler secret put`) BEFORE the domain is pointed at the CF Worker. Skipping this will black out SSO and all API features instantly.
+**3. Do NOT attempt a Cloudflare Workers migration.**
+`open-next.config.ts` and `wrangler.jsonc` are in the repo from a previous attempt. That migration was abandoned — the app bundle is 16MB and CF Workers caps at 10MB. The app will only grow. Railway has no size limits. Leave the CF Workers config files in place (they're harmless) but do not run `wrangler deploy`.
 
 #### 🔴 ENV VAR RULES
 
-**4. Env vars live in Vercel. `env.local` is only for local development.**
-`.env.local` is not deployed. Every env var in `.env.local` must also exist in the Vercel project under `trescons-projects/eventpilot`. If you create a second Vercel project or migrate hosting, copy ALL vars from `.env.local`. The full list is in `.env.local` — 28+ keys.
+**4. Env vars live in Railway. `.env.local` is only for local development.**
+`.env.local` is not deployed. Every env var in `.env.local` must also exist in the Railway project. All 28+ vars were set on 18 Jun 2026. If you add a new env var locally, also add it in Railway: go to the Railway project → eventpilot service → Variables tab.
 
 **5. Never set an env var as an empty string placeholder.**
-This was how the Microsoft vars were broken. Either set the real value or don't add the key at all. An empty-string env var silently fails in the app (no error at build time, runtime returns 503 with a vague message).
+This was how the Microsoft vars were broken in Vercel. Either set the real value or don't add the key at all. An empty-string env var silently fails in the app (no error at build time, runtime returns 503 with a vague message).
 
-**6. After any env var change, always redeploy AND test the live endpoint.**
-Env var changes don't take effect until a new deployment. Use `vercel deploy --prod --yes` or push to main. Then test:
+**6. After any env var change in Railway, Railway redeploys automatically.**
+Railway triggers a new deployment when you save a variable change. Then test:
 ```
 curl -s https://eventpilot.tresconglobal.com/api/auth/microsoft
 # Must return HTTP 307 (redirect to Microsoft), NOT 503
@@ -155,7 +206,7 @@ curl -s https://eventpilot.tresconglobal.com/api/auth/microsoft
 #### 🟡 SSO ARCHITECTURE RULES
 
 **7. SSO routes must never use `req.nextUrl.origin` for redirect URIs or post-login destinations.**
-Because all production traffic goes through a Cloudflare Worker proxy, `req.nextUrl.origin` will resolve to the internal Vercel URL (`eventpilot-trescons-projects.vercel.app`), not the public domain. All OAuth URIs and redirects in `app/api/auth/microsoft/route.ts` and `app/api/auth/callback/route.ts` are now fixed to use `process.env.NEXT_PUBLIC_SITE_URL`. Do not revert this. If you add new auth routes, follow the same pattern.
+Because all production traffic goes through a Cloudflare Worker proxy, `req.nextUrl.origin` will resolve to the internal Railway URL (`eventpilot-production-90c6.up.railway.app`), not the public domain. All OAuth URIs and redirects in `app/api/auth/microsoft/route.ts` and `app/api/auth/callback/route.ts` are fixed to use `process.env.NEXT_PUBLIC_SITE_URL`. Do not revert this. If you add new auth routes, follow the same pattern.
 
 **8. The Azure App registration must match the public domain.**
 Azure App (client ID `1eb65a1b-849d-414f-88f4-e0faf812fbfc`) has `https://eventpilot.tresconglobal.com/api/auth/callback` registered as a redirect URI. If the domain ever changes, you must update the Azure App registration in Entra ID (ask Madhu for access). If you add a new redirect URI (e.g., for localhost testing), add it to Azure first, then to the code.
@@ -555,39 +606,9 @@ Everything committed before `dc48b2b` is Durga's work and was not touched. Key p
 
 ---
 
-### ✅ DONE: Vercel Dropped — Now on Railway (18 Jun 2026)
+1. **Verify SSO is working for all staff** — SSO fix deployed 17 Jun, migrated to Railway 18 Jun. Ask 2–3 staff from different offices to log in via Microsoft 365 SSO and confirm it works end-to-end.
 
-**Madhu migrated the app from Vercel to Railway on 18 Jun 2026.** Vercel is no longer used. The Cloudflare Workers approach was abandoned due to CF Workers' 10MB bundle size limit (our bundle is 16MB and will keep growing).
-
-**Current infrastructure:**
-```
-Browser → eventpilot.tresconglobal.com
-            │
-            ▼ (Cloudflare DNS, proxied)
-         Cloudflare Worker: eventpilot-proxy
-            │
-            ▼
-         Railway: eventpilot-production-90c6.up.railway.app
-            │
-            ▼ (Next.js 16, Node.js, next start)
-         Supabase: yuyxfxoevztugtfgduks
-```
-
-**Railway project:** `Trescon's Projects / eventpilot`  
-**Railway URL:** `https://eventpilot-production-90c6.up.railway.app`  
-**Public domain:** `https://eventpilot.tresconglobal.com` (unchanged)
-
-**To deploy:** `railway up --service eventpilot` from the project root (or connect GitHub for auto-deploy — see below).
-
-**⚠️ GitHub auto-deploy not yet connected.** Currently deploys are manual via `railway up`. To enable auto-deploy on every push: go to the Railway project → eventpilot service → Settings → connect `Trescon-Events/eventpilot` GitHub repo.
-
-**⚠️ Madhu: cancel the Vercel subscription.** The Vercel project (`trescons-projects/eventpilot`) is no longer receiving traffic and can be deleted. Clear the outstanding balance and cancel at vercel.com/dashboard.
-
----
-
-1. **Verify SSO is working for all staff** — The fix was deployed on 17 Jun, migration to Railway on 18 Jun. Ask Madhu or Durga to confirm at least 2–3 staff from different offices have logged in successfully via Microsoft 365 SSO.
-
-2. **Connect GitHub repo to Railway** — So pushes to main auto-deploy without needing the CLI.
+2. **If you have local changes, just push** — `git push origin main` and Railway auto-deploys. No CLI needed.
 
 3. **Template live preview URLs** — Go to `/admin/templates`, edit each of the 5 templates, paste in the deployed site URL so "Preview Live Site" appears in the builder.
 
@@ -605,7 +626,7 @@ Browser → eventpilot.tresconglobal.com
 
 ## Smart Data — Notes for Madhu
 
-All routes are live. To activate paid enrichment tools, add API keys as Cloudflare Worker secrets (after the Vercel migration) or in `.env.local` for local use:
+All routes are live. To activate paid enrichment tools, add the API keys in two places: Railway (project → eventpilot service → Variables tab) AND `.env.local` for local use:
 - `LUSHA_API_KEY` — LinkedIn Enricher + Smart Lookup
 - `APOLLO_API_KEY` — Email Guesser + Lead Finder execute
 - `MILLION_VERIFIER_API_KEY` — Email Verifier
