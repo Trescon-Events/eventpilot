@@ -19,7 +19,10 @@ const PUBLIC_PREFIXES = [
   '/api/join',
   '/api/public',
   '/api/domain-lookup',
-  '/events',          // public event websites
+  '/api/verify-staff',    // used by /profile setup flow (no session at that point)
+  '/api/task-profiles',   // used by /profile setup flow (no session at that point)
+  '/profile',             // AIRS assessment — staff arrive here before they have a session
+  '/events',              // public event websites
   '/welcome',
   '/_next',
   '/favicon',
