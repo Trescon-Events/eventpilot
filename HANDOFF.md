@@ -129,10 +129,10 @@ These rules must be followed to prevent a repeat. **Any Claude session working o
 **2. The Cloudflare Worker IS the production router.**
 `eventpilot.tresconglobal.com` goes through the `eventpilot-proxy` Cloudflare Worker, which proxies to a Vercel deployment. If the Worker's target URL changes (e.g., a new Vercel project), ALL env vars must also exist in the new project. The Worker and the Vercel project it points to are a tightly coupled pair.
 
-Current state as of 17 Jun 2026:
-- Worker: `eventpilot-proxy` → `eventpilot-trescons-projects.vercel.app`
-- Vercel project: `trescons-projects/eventpilot`
-- Custom domain alias in Vercel: `eventpilot.tresconglobal.com`
+Current state as of 18 Jun 2026:
+- Worker: `eventpilot-proxy` → `eventpilot-production-90c6.up.railway.app`
+- Railway project: `Trescon's Projects / eventpilot`
+- Vercel: **no longer used** — cancel the subscription
 
 **3. If you migrate to Cloudflare Workers (via OpenNext/Wrangler), you must set Cloudflare secrets BEFORE switching the Worker route.**
 Durga added `open-next.config.ts` and `wrangler.jsonc` in preparation for a Cloudflare Workers deployment. If this migration is completed, the Microsoft SSO secrets, Supabase keys, Resend key, and all other env vars in `.env.local` must be added as Cloudflare Worker secrets (`wrangler secret put`) BEFORE the domain is pointed at the CF Worker. Skipping this will black out SSO and all API features instantly.
@@ -555,81 +555,39 @@ Everything committed before `dc48b2b` is Durga's work and was not touched. Key p
 
 ---
 
-### 🔴 PRIORITY: Drop Vercel — Migrate to Cloudflare Workers
+### ✅ DONE: Vercel Dropped — Now on Railway (18 Jun 2026)
 
-**Decision (18 Jun 2026 — Madhu):** Vercel is being dropped entirely. The app moves to Cloudflare Workers via OpenNext. Durga owns this migration end-to-end. Madhu will cancel the Vercel subscription once Durga confirms the CF deployment is live and SSO is verified.
+**Madhu migrated the app from Vercel to Railway on 18 Jun 2026.** Vercel is no longer used. The Cloudflare Workers approach was abandoned due to CF Workers' 10MB bundle size limit (our bundle is 16MB and will keep growing).
 
-The groundwork is already done — `open-next.config.ts`, `wrangler.jsonc`, and both npm packages (`@opennextjs/cloudflare`, `wrangler`) are already in the repo.
-
-#### Step-by-step for Durga's Claude session
-
-**Step 1 — Set all secrets**
-
-Run this once from the project root. It reads `.env.local` (already on this machine) and bulk-sets every non-public secret into the Cloudflare Worker:
-
-```bash
-bash scripts/set-cf-secrets.sh
+**Current infrastructure:**
+```
+Browser → eventpilot.tresconglobal.com
+            │
+            ▼ (Cloudflare DNS, proxied)
+         Cloudflare Worker: eventpilot-proxy
+            │
+            ▼
+         Railway: eventpilot-production-90c6.up.railway.app
+            │
+            ▼ (Next.js 16, Node.js, next start)
+         Supabase: yuyxfxoevztugtfgduks
 ```
 
-`NEXT_PUBLIC_*` vars are already in `wrangler.jsonc` under `vars` — the script skips those automatically.
+**Railway project:** `Trescon's Projects / eventpilot`  
+**Railway URL:** `https://eventpilot-production-90c6.up.railway.app`  
+**Public domain:** `https://eventpilot.tresconglobal.com` (unchanged)
 
-**Step 2 — Build**
+**To deploy:** `railway up --service eventpilot` from the project root (or connect GitHub for auto-deploy — see below).
 
-```bash
-npx @opennextjs/cloudflare build
-```
+**⚠️ GitHub auto-deploy not yet connected.** Currently deploys are manual via `railway up`. To enable auto-deploy on every push: go to the Railway project → eventpilot service → Settings → connect `Trescon-Events/eventpilot` GitHub repo.
 
-This produces `.open-next/worker.js` and `.open-next/assets/`.
-
-**Step 3 — Test locally**
-
-```bash
-wrangler dev
-```
-
-Verify the app loads. SSO won't fully work locally (cookie domain mismatch), but pages should render and the Microsoft redirect should initiate.
-
-**Step 4 — Deploy to Cloudflare**
-
-```bash
-wrangler deploy
-```
-
-This deploys to `eventpilot.<your-cf-subdomain>.workers.dev`. Test that URL directly — confirm pages load and SSO redirects to Microsoft correctly.
-
-**Step 5 — Update the Cloudflare Worker proxy target**
-
-The `eventpilot-proxy` Cloudflare Worker currently proxies to `eventpilot-trescons-projects.vercel.app`. Update it to proxy to the new Workers URL from Step 4. Use the CF API token already in `.env.local` (`CF_API_TOKEN`, `CF_ACCOUNT_ID`).
-
-**Step 6 — Verify end-to-end on the public domain**
-
-```bash
-curl -s -o /dev/null -w "%{http_code}" https://eventpilot.tresconglobal.com/login                  # must be 200
-curl -s -o /dev/null -w "%{http_code}" https://eventpilot.tresconglobal.com/api/auth/microsoft      # must be 307
-```
-
-Then do a full SSO login with a real Microsoft account. Confirm the session cookie, dashboard load, and admin panel all work.
-
-**Step 7 — Tell Madhu**
-
-Once Step 6 passes, tell Madhu: "CF Workers live, SSO verified — safe to cancel Vercel." Madhu cancels the Vercel subscription and removes the project.
-
-#### What does NOT need to change
-
-- Domain: `eventpilot.tresconglobal.com` stays the same (Cloudflare DNS, already proxied)
-- Azure App registration: redirect URI is `eventpilot.tresconglobal.com/api/auth/callback` — unchanged
-- Supabase: no changes
-- Code: no app code changes needed; this is purely a hosting switch
-
-#### If something breaks during migration
-
-Fall back immediately: update `eventpilot-proxy` Worker target back to `eventpilot-trescons-projects.vercel.app`. Vercel project stays live until Madhu explicitly cancels it — don't touch Vercel during the migration.
+**⚠️ Madhu: cancel the Vercel subscription.** The Vercel project (`trescons-projects/eventpilot`) is no longer receiving traffic and can be deleted. Clear the outstanding balance and cancel at vercel.com/dashboard.
 
 ---
 
-1. **Verify SSO is working for all staff** — The fix was deployed on 17 Jun. Ask Madhu or Durga to confirm at least 2–3 staff from different offices have logged in successfully via Microsoft 365 SSO before treating this as closed.
+1. **Verify SSO is working for all staff** — The fix was deployed on 17 Jun, migration to Railway on 18 Jun. Ask Madhu or Durga to confirm at least 2–3 staff from different offices have logged in successfully via Microsoft 365 SSO.
 
-2. **Cloudflare Migration** — See the PRIORITY section above. This replaces the old "Cloudflare Migration Decision" note.
+2. **Connect GitHub repo to Railway** — So pushes to main auto-deploy without needing the CLI.
 
 3. **Template live preview URLs** — Go to `/admin/templates`, edit each of the 5 templates, paste in the deployed site URL so "Preview Live Site" appears in the builder.
 
