@@ -1,6 +1,7 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "eventpilot",
+  "account_id": "b27fbe19c7798f8b75ecaeb7b5660f19",
   "main": ".open-next/worker.js",
   "compatibility_date": "2026-05-12",
   "compatibility_flags": ["nodejs_compat"],
