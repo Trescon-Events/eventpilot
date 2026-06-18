@@ -15,12 +15,38 @@
 
 ## Last Session
 
-| Field       | Value                                                   |
-|-------------|---------------------------------------------------------|
-| Who         | Madhu + Claude Code (Sonnet 4.6)                        |
-| Date        | 2026-06-17                                              |
-| Handed off to | Durga / Open                                         |
-| Deployed    | Yes — https://eventpilot.tresconglobal.com (Vercel, production, 17 Jun 2026) |
+| Field         | Value                                                              |
+|---------------|--------------------------------------------------------------------|
+| Who           | Durga + Claude Code (Sonnet 4.6)                                   |
+| Date          | 2026-06-18                                                         |
+| Handed off to | Madhu                                                              |
+| Deployed      | Yes — https://eventpilot.tresconglobal.com (Vercel, production, 18 Jun 2026) |
+
+---
+
+## What Was Built This Session (18 Jun 2026 — Durga)
+
+### 1. AIRS Assessment Submit — Root Cause Fixed
+
+Staff were getting stuck on "Submitting..." on the last question of the AIRS assessment and could never complete it. Two previous attempts to fix it (server action → API route) had not resolved the issue.
+
+**Root cause:** `/profile` and `/api/task-profiles` were not in the middleware public routes list. Staff arrive at `/profile` before they have a session cookie (from a welcome email or direct link). When they hit Submit, the POST to `/api/task-profiles` was intercepted by the auth middleware and silently redirected to `/login` — returning HTML instead of JSON. The fetch crashed, pending state was never reset, button froze forever.
+
+**Files changed:**
+- `middleware.ts` — added `/profile`, `/api/verify-staff`, `/api/task-profiles` to `PUBLIC_PREFIXES`
+- `app/profile/page.tsx` — added 15s AbortController timeout, double-submit guard (`if (pending) return`), proper non-200 error handling, real error messages shown to user
+
+**Status:** Deployed and live. Staff should be able to complete the assessment now. Ask 2–3 staff to test and confirm.
+
+---
+
+### 2. Vercel Spend Cap — Site Outage
+
+The live site went down with "This deployment is temporarily paused". Cause: Vercel account spend management cap was hit on the `trescons-projects` account.
+
+**Action needed by Madhu:** Log into Vercel → `trescons-projects` → **Settings → Billing → Spend Management** → raise or remove the monthly cap. The site came back once the cap was addressed but this will happen again if not permanently fixed.
+
+**Do NOT touch Deployment Protection** — it was disabled via REST API on 17 Jun during the SSO fix. Leave it as-is.
 
 ---
 
