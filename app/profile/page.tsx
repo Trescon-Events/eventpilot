@@ -296,6 +296,7 @@ function ProfileContent() {
 
   /* ── Submit ── */
   async function handleSubmit() {
+    if (pending) return          // prevent double-submit
     const q   = questions[step]
     const all = { ...answers, [q.id]: currentInput }
     setAnswers(all)
@@ -309,16 +310,29 @@ function ProfileContent() {
       return
     }
 
+    const controller = new AbortController()
+    const timeout    = setTimeout(() => controller.abort(), 15000)
+
     let result: { success?: boolean; error?: string }
     try {
       const res = await fetch('/api/task-profiles', {
-        method: 'POST',
+        method:  'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ staff_id: staffId, tasks: entries }),
+        body:    JSON.stringify({ staff_id: staffId, tasks: entries }),
+        signal:  controller.signal,
       })
+      clearTimeout(timeout)
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}))
+        setSubmitError((err as { error?: string }).error ?? `Server error (${res.status}). Please try again.`)
+        setPending(false)
+        return
+      }
       result = await res.json()
-    } catch {
-      setSubmitError('Something went wrong. Please try again.')
+    } catch (e: unknown) {
+      clearTimeout(timeout)
+      const isAbort = e instanceof Error && e.name === 'AbortError'
+      setSubmitError(isAbort ? 'Request timed out. Please try again.' : 'Something went wrong. Please try again.')
       setPending(false)
       return
     }
@@ -826,7 +840,7 @@ function ProfileContent() {
 
               <button
                 type="button"
-                disabled={!canAdvance && q.type !== 'text' && !pending}
+                disabled={pending || (!canAdvance && q.type !== 'text')}
                 onClick={isLastStep ? handleSubmit : saveCurrentAndAdvance}
                 style={{
                   padding: '14px 28px', borderRadius: '14px', border: 'none',
