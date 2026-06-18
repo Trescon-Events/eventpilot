@@ -45,7 +45,8 @@ yarn-error.log*
 next-env.d.ts
 
 # local utility scripts (one-time ops, not part of the app)
-/scripts/
+/scripts/*
+!/scripts/set-cf-secrets.sh
 
 # supabase temp dir (local CLI state)
 supabase/.temp/

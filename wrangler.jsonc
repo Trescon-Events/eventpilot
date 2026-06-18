@@ -7,5 +7,13 @@
   "assets": {
     "directory": ".open-next/assets",
     "binding": "ASSETS"
+  },
+  // Build-time public vars — inlined by Next.js at build, also available at runtime
+  "vars": {
+    "NEXT_PUBLIC_SUPABASE_URL": "https://yuyxfxoevztugtfgduks.supabase.co",
+    "NEXT_PUBLIC_SUPABASE_ANON_KEY": "sb_publishable_5Ytomvu3bNzMeAgtcXT5CQ_Qtohg7HN",
+    "NEXT_PUBLIC_SITE_URL": "https://eventpilot.tresconglobal.com",
+    "NEXT_PUBLIC_APP_URL": "https://eventpilot.tresconglobal.com",
+    "NEXT_PUBLIC_ADMIN_CODE": "eventpilot2026"
   }
 }

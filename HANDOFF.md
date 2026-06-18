@@ -527,9 +527,83 @@ Everything committed before `dc48b2b` is Durga's work and was not touched. Key p
 
 > **⚠️ Before doing anything:** Read the **Incident Report** section above. It documents the SSO outage, what caused it, and 11 safety rules that must be followed for any hosting, Cloudflare, or Vercel work. If you are Durga's Claude — you must read it in full before touching anything related to deployment.
 
+---
+
+### 🔴 PRIORITY: Drop Vercel — Migrate to Cloudflare Workers
+
+**Decision (18 Jun 2026 — Madhu):** Vercel is being dropped entirely. The app moves to Cloudflare Workers via OpenNext. Durga owns this migration end-to-end. Madhu will cancel the Vercel subscription once Durga confirms the CF deployment is live and SSO is verified.
+
+The groundwork is already done — `open-next.config.ts`, `wrangler.jsonc`, and both npm packages (`@opennextjs/cloudflare`, `wrangler`) are already in the repo.
+
+#### Step-by-step for Durga's Claude session
+
+**Step 1 — Set all secrets**
+
+Run this once from the project root. It reads `.env.local` (already on this machine) and bulk-sets every non-public secret into the Cloudflare Worker:
+
+```bash
+bash scripts/set-cf-secrets.sh
+```
+
+`NEXT_PUBLIC_*` vars are already in `wrangler.jsonc` under `vars` — the script skips those automatically.
+
+**Step 2 — Build**
+
+```bash
+npx @opennextjs/cloudflare build
+```
+
+This produces `.open-next/worker.js` and `.open-next/assets/`.
+
+**Step 3 — Test locally**
+
+```bash
+wrangler dev
+```
+
+Verify the app loads. SSO won't fully work locally (cookie domain mismatch), but pages should render and the Microsoft redirect should initiate.
+
+**Step 4 — Deploy to Cloudflare**
+
+```bash
+wrangler deploy
+```
+
+This deploys to `eventpilot.<your-cf-subdomain>.workers.dev`. Test that URL directly — confirm pages load and SSO redirects to Microsoft correctly.
+
+**Step 5 — Update the Cloudflare Worker proxy target**
+
+The `eventpilot-proxy` Cloudflare Worker currently proxies to `eventpilot-trescons-projects.vercel.app`. Update it to proxy to the new Workers URL from Step 4. Use the CF API token already in `.env.local` (`CF_API_TOKEN`, `CF_ACCOUNT_ID`).
+
+**Step 6 — Verify end-to-end on the public domain**
+
+```bash
+curl -s -o /dev/null -w "%{http_code}" https://eventpilot.tresconglobal.com/login                  # must be 200
+curl -s -o /dev/null -w "%{http_code}" https://eventpilot.tresconglobal.com/api/auth/microsoft      # must be 307
+```
+
+Then do a full SSO login with a real Microsoft account. Confirm the session cookie, dashboard load, and admin panel all work.
+
+**Step 7 — Tell Madhu**
+
+Once Step 6 passes, tell Madhu: "CF Workers live, SSO verified — safe to cancel Vercel." Madhu cancels the Vercel subscription and removes the project.
+
+#### What does NOT need to change
+
+- Domain: `eventpilot.tresconglobal.com` stays the same (Cloudflare DNS, already proxied)
+- Azure App registration: redirect URI is `eventpilot.tresconglobal.com/api/auth/callback` — unchanged
+- Supabase: no changes
+- Code: no app code changes needed; this is purely a hosting switch
+
+#### If something breaks during migration
+
+Fall back immediately: update `eventpilot-proxy` Worker target back to `eventpilot-trescons-projects.vercel.app`. Vercel project stays live until Madhu explicitly cancels it — don't touch Vercel during the migration.
+
+---
+
 1. **Verify SSO is working for all staff** — The fix was deployed on 17 Jun. Ask Madhu or Durga to confirm at least 2–3 staff from different offices have logged in successfully via Microsoft 365 SSO before treating this as closed.
 
-2. **Cloudflare Migration Decision** — Durga added `open-next.config.ts` and `wrangler.jsonc` for a potential Cloudflare Workers deployment. This migration is NOT complete. **Do not run `wrangler deploy` or point the domain at a CF Worker** until all env vars (28+ keys from `.env.local`) are set as Cloudflare Worker secrets AND SSO is verified end-to-end on the CF Worker deployment. See Safety Rule #3 in the Incident Report.
+2. **Cloudflare Migration** — See the PRIORITY section above. This replaces the old "Cloudflare Migration Decision" note.
 
 3. **Template live preview URLs** — Go to `/admin/templates`, edit each of the 5 templates, paste in the deployed site URL so "Preview Live Site" appears in the builder.
 
@@ -547,7 +621,7 @@ Everything committed before `dc48b2b` is Durga's work and was not touched. Key p
 
 ## Smart Data — Notes for Madhu
 
-All routes are live. To activate paid enrichment tools, add API keys to Vercel env vars:
+All routes are live. To activate paid enrichment tools, add API keys as Cloudflare Worker secrets (after the Vercel migration) or in `.env.local` for local use:
 - `LUSHA_API_KEY` — LinkedIn Enricher + Smart Lookup
 - `APOLLO_API_KEY` — Email Guesser + Lead Finder execute
 - `MILLION_VERIFIER_API_KEY` — Email Verifier
