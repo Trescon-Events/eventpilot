@@ -24,7 +24,49 @@
 
 ---
 
-## What Was Built This Session (19 Jun 2026 — Durga)
+## What Was Built This Session (19 Jun 2026 — Durga, Session 2)
+
+### AIRS Scoring Redesign — 3-Signal Model
+
+All 16 staff who took the assessment were falling in "AI-Curious" tier. Root cause: the entire score was driven by a single `ai_readiness` slider (1–5 scale). Level 2 → score 26 → AI-Curious. `automation_history` and `tool_proficiency` were already being collected and stored in `responses` JSONB but were completely ignored by the scoring formula.
+
+**Fix — `app/lib/airs.ts`:**
+- New `questBase()` helper computes all 3 signals:
+  - `ai_readiness` → 10–65 pts (was 10–75)
+  - `automation_history` → 0–15 pts bonus (5-level ordinal: 0/3/6/10/15)
+  - `tool_proficiency` → 0–10 pts bonus (avg of tool ratings, scaled 1–4)
+- Questionnaire total still capped at 75. Course bonus still capped at 25. Total still capped at 100.
+- `computeAIRS` and `breakdownAIRS` both updated. `AIRSBreakdown` type expanded with `readBase`, `autoBonus`, `profBonus` fields.
+- No DB migration needed — uses existing stored data.
+
+**Fix — `app/dashboard/page.tsx`:**
+- Score breakdown panel now shows automation history and tool proficiency contributions when > 0.
+
+**Score impact on existing 16 staff (verified against live DB):**
+
+| Name | Old | New | Tier |
+|---|---|---|---|
+| Sajeesh Kombath | 75 | 75 | AI-Forward |
+| Krishanu Karmakar | 75 | 75 | AI-Forward |
+| Fouzan Abdul Rahim | 59 | 74 | AI-Ready |
+| Prashant Mual | 59 | 71 | AI-Ready |
+| Nicholas Nunes | 59 | 69 | AI-Ready |
+| Simran Arora | 43 | 57 | AI-Ready |
+| Imran Mushtaq | 43 | 49 | AI-Aware |
+| Karthik C | 43 | 49 | AI-Aware |
+| Naveen Bharadwaj | 43 | 45 | AI-Aware |
+| Samprity Dutta | 43 | 43 | AI-Aware |
+| Event Pilot Demo | 26 | 35 | AI-Aware |
+| Kalander Shafi | 26 | 26 | AI-Curious |
+| Utkarsh Pant | 10 | 20 | AI-Curious |
+
+Old: 11 AI-Curious, 0 AI-Ready/Aware → New: 2 AI-Curious, 4 AI-Ready, 5 AI-Aware, 2 AI-Forward
+
+No action needed for existing staff — scores update automatically on next dashboard load.
+
+---
+
+## What Was Built This Session (19 Jun 2026 — Durga, Session 1)
 
 ### CLAUDE.md + HANDOFF.md Updated
 - CLAUDE.md rewritten to reflect Railway migration: hosting row updated (Vercel → Railway), Supabase login updated to dc@tresconglobal.com, build flow updated, hard rules updated.
