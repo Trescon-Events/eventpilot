@@ -17,10 +17,40 @@
 
 | Field         | Value                                                              |
 |---------------|--------------------------------------------------------------------|
-| Who           | Madhu + Claude Code (Sonnet 4.6)                                   |
-| Date          | 2026-06-18                                                         |
-| Handed off to | Durga / Open                                                       |
-| Deployed      | Yes — https://eventpilot.tresconglobal.com (Railway, production, 18 Jun 2026) |
+| Who           | Durga + Claude Code (Sonnet 4.6)                                   |
+| Date          | 2026-06-19                                                         |
+| Handed off to | Madhu / Open                                                       |
+| Deployed      | Yes — https://eventpilot.tresconglobal.com (Railway, production, 19 Jun 2026) |
+
+---
+
+## What Was Built This Session (19 Jun 2026 — Durga)
+
+### CLAUDE.md + HANDOFF.md Updated
+- CLAUDE.md rewritten to reflect Railway migration: hosting row updated (Vercel → Railway), Supabase login updated to dc@tresconglobal.com, build flow updated, hard rules updated.
+
+### Assessment Submit — Full End-to-End Fix (confirmed working)
+
+Staff from Fouzan's batch (welcome email link → `/profile` with no session) were unable to submit the assessment and their AIRS score was not showing on the dashboard. Three root causes found and fixed:
+
+**Root cause 1 (18 Jun, already deployed):** `/api/task-profiles` not in `PUBLIC_PREFIXES` — middleware blocked unauthenticated POST, returning HTML redirect instead of JSON, fetch crashed, button frozen on "Submitting...". Fixed by adding to PUBLIC_PREFIXES.
+
+**Root cause 2 (19 Jun):** Middleware only encoded `pathname` in the `next` redirect param — `?id=UUID` was stripped when staff (no session) clicked "See My Score" → `/dashboard?id=UUID`. After SSO, they landed on `/dashboard` with no id.
+- `middleware.ts` — now encodes `pathname + req.nextUrl.search` in the next param
+
+**Root cause 3 (19 Jun):** Login page Microsoft SSO button was a static `href="/api/auth/microsoft"` — never passed the `next` param through to the SSO route.
+- `app/login/page.tsx` — reads `next` from URL params, threads it through to `/api/auth/microsoft?next=...`
+
+**Root cause 4 (19 Jun):** `profile_complete = true` update in the task-profiles API silently discarded its error result. If it failed, SSO callback would loop staff back to `/profile` instead of the dashboard.
+- `app/api/task-profiles/route.ts` — now captures error, returns `profile_complete_failed: true` flag
+- `app/profile/page.tsx` — detects the flag, retries via new `/api/task-profiles/mark-complete` endpoint
+- `app/api/task-profiles/mark-complete/route.ts` — NEW. Single-purpose retry endpoint, added to PUBLIC_PREFIXES.
+
+### Checklist Task Update — Revert on Failure
+Staff were reporting tasks not saving when toggled (status reverted on next page load). The status toggle and notes Save button were doing optimistic UI updates with no error check — if the PATCH failed, local state showed success but DB wasn't updated.
+- `app/dashboard/page.tsx` — status toggle now reverts to `prev_status` if PATCH returns non-200. Notes Save reverts note text if save fails.
+
+**Status:** All confirmed working by Durga (19 Jun 2026).
 
 ---
 
@@ -606,7 +636,7 @@ Everything committed before `dc48b2b` is Durga's work and was not touched. Key p
 
 ---
 
-1. **Verify SSO is working for all staff** — SSO fix deployed 17 Jun, migrated to Railway 18 Jun. Ask 2–3 staff from different offices to log in via Microsoft 365 SSO and confirm it works end-to-end.
+1. **Assessment + score confirmed working (19 Jun)** — Tell Fouzan: both issues resolved. Staff can retry assessment link from welcome email. Score shows on dashboard after Microsoft 365 sign-in.
 
 2. **If you have local changes, just push** — `git push origin main` and Railway auto-deploys. No CLI needed.
 
