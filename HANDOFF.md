@@ -26,24 +26,25 @@
 
 ## What Was Built This Session (19 Jun 2026 — Durga, Session 3)
 
-### Admin Dashboard AIRS — Critical Fix
+### Admin Dashboard AIRS — Two Critical Fixes
 
-The admin dashboard AIRS scores were completely broken from day one. `app/admin/page.tsx` had its own `calcAIRS` function that tried to access `t.ai_readiness` and `t.tools_used` directly on the outer `staff_task_profiles` row — but those fields don't exist there. They live inside `responses[]` JSONB. So `readScores` was always `[]`, `allTools` was always `[]`, and every completed staff member scored exactly 25 (just the engagement component). No scoring formula changes in `app/lib/airs.ts` could ever affect the admin dashboard.
+**Bug 1 — task-profiles GET returning error silently (`app/api/task-profiles/route.ts`)**
+The GET route ordered by `created_at` which does not exist as a column on `staff_task_profiles` (only `submitted_at` and `updated_at` exist). Supabase returned a column-not-found error on every request. The admin page checked `tasksRes.ok`, got false, and never called `setTasks` — leaving `tasks = []` forever. This caused "No assessments completed yet", "0 entries captured", and all 16 assessed staff showing as AI-Unaware (score 0).
+- `app/api/task-profiles/route.ts` — changed `.order('created_at')` → `.order('submitted_at')`
 
-**Fix — `app/admin/page.tsx`:**
-- Imported `computeAIRS` from `app/lib/airs.ts` (now single source of truth)
-- Added `profileByStaff` map: `staff_id → responses[]`
-- Individual scores: `computeAIRS(responses)` per member
-- Dept scores: average of individual scores for assessed members
-- Org score: average of all assessed individual scores
-- Fixed `TaskProfile` / `TaskResponse` types to match actual API structure (`{ staff_id, responses[] }`)
+**Bug 2 — admin page calcAIRS never read actual data (`app/admin/page.tsx`)**
+The admin page had its own `calcAIRS` function that accessed `t.ai_readiness` and `t.tools_used` on the outer profile row — but those fields live inside `responses[]` JSONB, not on the row itself. So `readScores` and `allTools` were always empty. Every completed staff member scored exactly 25 (engagement only). No changes to `app/lib/airs.ts` could ever affect the admin.
+- Imported `computeAIRS` from `app/lib/airs.ts` — now single source of truth for all scoring
+- Added `profileByStaff` map: `staff_id → responses[]` (correct data access)
+- Individual, dept, and org scores all computed from `computeAIRS(responses)` per member
+- Fixed `TaskProfile` / `TaskResponse` types to match actual API structure
 - Fixed intelligence tab and tool count to read from `responses[]`
 
-**Expected admin scores after deploy (from DB verification):**
-- Fouzan: 74 (AI-Ready), Prashant: 71 (AI-Ready), Nicholas: 69 (AI-Ready)
-- Simran: 57 (AI-Ready), Imran: 49 (AI-Aware), Karthik: 49 (AI-Aware)
-- Naveen: 45 (AI-Aware), Samprity: 43 (AI-Aware)
+**Confirmed scores after fix (from live DB):**
 - Sajeesh & Krishanu: 75 (AI-Forward)
+- Fouzan: 74, Prashant: 71, Nicholas: 69, Simran: 57 (AI-Ready)
+- Imran & Karthik: 49, Naveen: 45, Samprity: 43, Event Pilot Demo: 35 (AI-Aware)
+- Kalander: 26, Utkarsh: 20 (AI-Curious)
 - Org avg (assessed only): ~56 → AI-Ready
 
 ---
@@ -690,9 +691,9 @@ Everything committed before `dc48b2b` is Durga's work and was not touched. Key p
 - **Admin check**: `adm: true` in session = has admin access to /admin routes
 - **HRMS sync is a temporary bridge** — EventPilot is designed to eventually replace HRMS and SmartData entirely. Don't build deep dependencies on HRMS sync existing. Design natively.
 - **Platform vision**: HRMS + SmartData will be migrated INTO EventPilot. Build as if EventPilot is the master.
-- **Port**: EventPilot dev server runs on port 3000 (hardcoded in package.json)
+- **Port**: EventPilot dev server runs on port 3003 (set in package.json)
 - **Supabase project**: yuyxfxoevztugtfgduks (main EventPilot DB)
-- **Vercel project**: trescons-projects/eventpilot → https://eventpilot.tresconglobal.com
+- **Railway project**: Trescon's Projects / eventpilot → https://eventpilot-production-90c6.up.railway.app (proxied via Cloudflare Worker → eventpilot.tresconglobal.com)
 
 ---
 
@@ -702,23 +703,29 @@ Everything committed before `dc48b2b` is Durga's work and was not touched. Key p
 
 ---
 
-1. **Assessment + score confirmed working (19 Jun)** — Tell Fouzan: both issues resolved. Staff can retry assessment link from welcome email. Score shows on dashboard after Microsoft 365 sign-in.
+### Immediate (tell Fouzan now)
+- Assessment + AIRS score is fully fixed and live. Staff can retry their welcome email link. Score shows correctly on the admin dashboard after this session.
 
-2. **If you have local changes, just push** — `git push origin main` and Railway auto-deploys. No CLI needed.
+### Sprint Items
 
-3. **Template live preview URLs** — Go to `/admin/templates`, edit each of the 5 templates, paste in the deployed site URL so "Preview Live Site" appears in the builder.
+1. **Durga / Madhu — take the assessment** — Both Durga Charan accounts and Madhukar Dudda have `profile_complete = true` but NO responses in `staff_task_profiles`. Their scores show 0. They need to submit the questionnaire via `/profile?id=<their-id>`.
 
-4. **Hands-on AI assignments** — a task/submission system where staff create and submit real AI workflows. Needs new DB table + admin review queue. Deferred to next sprint.
+2. **Template live preview URLs** — Go to `/admin/templates`, edit each of the 5 templates, paste in the deployed site URL so "Preview Live Site" appears in the builder.
 
-5. Khalifa + Prashant — full Website Builder test for AI2047 event (middleware fix deployed, invite sent to Khalifa ✅)
+3. **Hands-on AI assignments** — staff submit real AI workflows they've built. Needs new DB table + admin review queue. Deferred to next sprint.
 
-6. Content Hub social publishing — approval queue built, needs Meta API tokens from Madhu
+4. **Khalifa + Prashant — Website Builder test for AI2047** — middleware fix deployed, invite sent to Khalifa. Run the full test and confirm WB works end-to-end.
 
-7. Security hardening (Phase 3): rate limiting, audit log, signed sessions, idle timeout — need Bangalore + Dubai office IPs first
+5. **Content Hub social publishing** — approval queue is built, needs Meta API tokens from Madhu to go live.
 
-8. Monitor access request emails — staff without access sends request to md@ and dc@
+6. **Security hardening Phase 3** — rate limiting, audit log, signed sessions, idle timeout. Need Bangalore + Dubai office IPs first.
 
-9. **Messaging** — live and tested. Monitor usage; next iteration could add read receipts or file attachments if requested.
+7. **Monitor access request emails** — staff without access sends request to md@ and dc@.
+
+8. **Messaging** — live and tested. Monitor usage; next iteration: read receipts or file attachments if requested.
+
+### Deploy reminder
+`git push origin main` → Railway auto-deploys in ~3 min. No CLI needed.
 
 ## Smart Data — Notes for Madhu
 
@@ -738,5 +745,5 @@ Before signing off, confirm:
 - [ ] HANDOFF.md updated with everything built this session
 - [ ] Build Log in `app/admin/page.tsx` updated with new entries
 - [ ] All changes committed and pushed to main
-- [ ] Vercel deployment verified (check https://eventpilot.tresconglobal.com)
+- [ ] Railway deployment verified (check https://eventpilot.tresconglobal.com after ~3 min)
 - [ ] "Handed off to" field updated above
