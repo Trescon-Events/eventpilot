@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { supabase } from '@/app/lib/supabase'
 import { buildQuestions, ALL_DEPARTMENTS } from '@/app/lib/questions'
 import type { Question } from '@/app/lib/questions'
+import { computeAIRS } from '@/app/lib/airs'
 
 const ROLE_META: Record<string, { label: string; color: string; bg: string; desc: string }> = {
   standard:        { label: 'Standard',        color: '#5B7080', bg: '#5B708015', desc: 'Default — basic platform access' },
@@ -46,13 +47,18 @@ type Member = {
   profile_complete: boolean; joined_at: string
 }
 
+type TaskResponse = {
+  staff_id?: string; task_name?: string
+  task_description?: string | null; tools_used?: string[]
+  time_taken_today?: string | null; ai_time_estimate?: string | null
+  skill_needed?: string | null; ai_readiness?: number
+  frequency?: string | null; ai_proof?: string | null
+  automation_history?: string; tool_proficiency?: Record<string, number>
+}
 type TaskProfile = {
-  id: string; staff_id: string; task_name: string
-  task_description: string | null; tools_used: string[]
-  time_taken_today: string | null; ai_time_estimate: string | null
-  skill_needed: string | null; ai_readiness: number | null
-  frequency: string | null; created_at: string
-  ai_proof: string | null
+  staff_id: string
+  responses: TaskResponse[]
+  submitted_at: string | null
 }
 
 type LearningCompletion = { id: string; staff_id: string; course_id: string; test_score: number | null; passed: boolean; attempt_count: number; completed_at: string }
@@ -912,7 +918,9 @@ export default function AdminPage() {
   const profilesComplete = members.filter(m => m.profile_complete).length
   const profilePending   = totalJoined - profilesComplete
   const totalTasks       = tasks.length
-  const readinessList    = tasks.filter(t => t.ai_readiness).map(t => t.ai_readiness!)
+  // tasks is [{ staff_id, responses[] }] — flatten for readiness list
+  const allResponses     = tasks.flatMap(t => t.responses ?? [])
+  const readinessList    = allResponses.filter(r => r.ai_readiness).map(r => r.ai_readiness!)
   const avgReadiness     = readinessList.length ? (readinessList.reduce((a, b) => a + b, 0) / readinessList.length).toFixed(1) : '—'
 
   const officeMap: Record<string, { label: string; total: number; color: string; count: number }> = {}
@@ -947,7 +955,7 @@ export default function AdminPage() {
   const rdFilteredTasks = readinessDeptFilter === 'all'
     ? tasks
     : tasks.filter(t => (memberIndex[t.staff_id]?.department ?? 'Other') === readinessDeptFilter)
-  const deptReadinessList = rdFilteredTasks.filter(t => t.ai_readiness).map(t => t.ai_readiness!)
+  const deptReadinessList = rdFilteredTasks.flatMap(t => t.responses ?? []).filter(r => r.ai_readiness).map(r => r.ai_readiness!)
 
   const filteredTasks = tasks.filter(t => {
     const m = memberIndex[t.staff_id]
@@ -971,7 +979,7 @@ export default function AdminPage() {
 
   /* ── Most common tools (filtered by readinessDeptFilter) ── */
   const toolCount: Record<string, number> = {}
-  for (const t of rdFilteredTasks) for (const tool of (t.tools_used ?? [])) toolCount[tool] = (toolCount[tool] ?? 0) + 1
+  for (const t of rdFilteredTasks) for (const r of (t.responses ?? [])) for (const tool of (r.tools_used ?? [])) toolCount[tool] = (toolCount[tool] ?? 0) + 1
   const topTools = Object.entries(toolCount).sort((a, b) => b[1] - a[1]).slice(0, 10)
 
   /* ═══════════════════════════════════════════════════════════════════
@@ -1068,70 +1076,65 @@ export default function AdminPage() {
     return               { label: 'AI-Unaware',   color: '#991B1B', desc: 'Start from literacy basics' }
   }
 
-  // ── Per-department AIRS ──
+  // ── Individual AIRS scores using shared computeAIRS (single source of truth) ──
+  // tasks[] is [{ staff_id, responses[] }] — responses contains ai_readiness, automation_history, tool_proficiency
+  const profileByStaff = Object.fromEntries(tasks.map(t => [t.staff_id, t.responses ?? []]))
+
+  const memberTairs = Object.fromEntries(
+    members.map(m => {
+      const responses = profileByStaff[m.id] ?? []
+      const score = responses.length > 0 ? computeAIRS(responses) : 0
+      return [m.id, { score }]
+    })
+  )
+
+  // ── Per-department AIRS (average of individual scores, weighted by assessed members) ──
   type DeptAirs = {
     dept: string; score: number; fluency: number; maturity: number; engagement: number
     interviewed: number; joined: number; impact: typeof DEPT_IMPACT[string]
   }
   const deptAirsMap: DeptAirs[] = []
   for (const dept of [...new Set(members.map(m => m.department ?? 'Other'))]) {
-    const dMembers   = members.filter(m => (m.department ?? 'Other') === dept)
-    const dTasks     = tasks.filter(t => (memberIndex[t.staff_id]?.department ?? 'Other') === dept)
-    const readScores = dTasks.filter(t => t.ai_readiness).map(t => t.ai_readiness!)
-    const allTools   = dTasks.flatMap(t => t.tools_used ?? [])
+    const dMembers    = members.filter(m => (m.department ?? 'Other') === dept)
     const interviewed = dMembers.filter(m => m.profile_complete).length
-    const r = calcAIRS({ readinessScores: readScores, allTools, interviewed, totalJoinedForGroup: dMembers.length })
-    deptAirsMap.push({ dept, ...r, interviewed, joined: dMembers.length, impact: DEPT_IMPACT[dept] ?? DEPT_IMPACT['Other'] })
+    const dScores     = dMembers.filter(m => m.profile_complete).map(m => memberTairs[m.id]?.score ?? 0)
+    const score       = dScores.length > 0 ? Math.round(dScores.reduce((a, b) => a + b, 0) / dScores.length) : 0
+    // keep fluency/maturity/engagement for legacy UI slots — derive from score
+    deptAirsMap.push({ dept, score, fluency: score, maturity: 0, engagement: 0, interviewed, joined: dMembers.length, impact: DEPT_IMPACT[dept] ?? DEPT_IMPACT['Other'] })
   }
   const sortedDeptAirs = [...deptAirsMap].sort((a, b) => b.score - a.score)
 
   // ── Per-office AIRS ──
   const officeAirs = OFFICES.map(o => {
-    const oMembers   = members.filter(m => m.office_id === o.id)
-    const oTasks     = tasks.filter(t => memberIndex[t.staff_id]?.office_id === o.id)
-    const readScores = oTasks.filter(t => t.ai_readiness).map(t => t.ai_readiness!)
-    const allTools   = oTasks.flatMap(t => t.tools_used ?? [])
+    const oMembers    = members.filter(m => m.office_id === o.id)
     const interviewed = oMembers.filter(m => m.profile_complete).length
-    const r = calcAIRS({ readinessScores: readScores, allTools, interviewed, totalJoinedForGroup: oMembers.length })
-    return { ...o, ...r, interviewed, joined: oMembers.length }
+    const oScores     = oMembers.filter(m => m.profile_complete).map(m => memberTairs[m.id]?.score ?? 0)
+    const score       = oScores.length > 0 ? Math.round(oScores.reduce((a, b) => a + b, 0) / oScores.length) : 0
+    return { ...o, score, fluency: score, maturity: 0, engagement: 0, interviewed, joined: oMembers.length }
   }).filter(o => o.joined > 0).sort((a, b) => b.score - a.score)
 
-  // ── Org-level AIRS (weighted by dept size) ──
-  let orgScore = 0
-  if (deptAirsMap.length > 0) {
-    const totalW = deptAirsMap.reduce((s, d) => s + d.joined, 0) || 1
-    orgScore = Math.round(deptAirsMap.reduce((s, d) => s + d.score * (d.joined / totalW), 0))
-  }
+  // ── Org-level AIRS (average of all assessed individual scores) ──
+  const allAssessedScores = members.filter(m => m.profile_complete).map(m => memberTairs[m.id]?.score ?? 0)
+  const orgScore = allAssessedScores.length > 0
+    ? Math.round(allAssessedScores.reduce((a, b) => a + b, 0) / allAssessedScores.length)
+    : 0
   const orgTier = airsTier(orgScore)
 
-  // ── Top individual AIRS ──
-  const memberTairs = Object.fromEntries(
-    members.map(m => {
-      const mTasks     = tasks.filter(t => t.staff_id === m.id)
-      const readScores = mTasks.filter(t => t.ai_readiness).map(t => t.ai_readiness!)
-      const allTools   = mTasks.flatMap(t => t.tools_used ?? [])
-      const r = calcAIRS({ readinessScores: readScores, allTools, interviewed: m.profile_complete ? 1 : 0, totalJoinedForGroup: 1 })
-      return [m.id, r]
-    })
-  )
   const topIndividuals = members
     .filter(m => m.profile_complete)
     .map(m => ({ ...m, toars: memberTairs[m.id]?.score ?? 0 }))
     .sort((a, b) => b.toars - a.toars)
     .slice(0, 8)
 
-  // ── Assessed-only avg score (Option B — excludes unassessed staff) ──
-  const assessedScores = members
-    .filter(m => m.profile_complete)
-    .map(m => memberTairs[m.id]?.score ?? 0)
-    .filter(s => s > 0)
-  const assessedAvg  = assessedScores.length > 0 ? Math.round(assessedScores.reduce((a, b) => a + b, 0) / assessedScores.length) : 0
-  const assessedTier = airsTier(assessedAvg)
+  // ── Assessed-only avg score ──
+  const assessedScores  = allAssessedScores.filter(s => s > 0)
+  const assessedAvg     = assessedScores.length > 0 ? Math.round(assessedScores.reduce((a, b) => a + b, 0) / assessedScores.length) : 0
+  const assessedTier    = airsTier(assessedAvg)
   const participationPct = totalJoined > 0 ? Math.round(profilesComplete / totalJoined * 100) : 0
 
   // Legacy compat for existing readiness dist block
-  const deptScores = sortedDeptAirs.map(d => ({ dept: d.dept, avg: d.fluency / 8, count: d.interviewed }))
-  const officeScores = officeAirs.map(o => ({ ...o, avg: o.fluency / 8 }))
+  const deptScores   = sortedDeptAirs.map(d => ({ dept: d.dept, avg: d.score / 20, count: d.interviewed }))
+  const officeScores = officeAirs.map(o => ({ ...o, avg: o.score / 20 }))
 
   /* ── AI-generated response detector ──
      Flags answers that pattern-match AI writing rather than human speech.
@@ -2603,15 +2606,15 @@ export default function AdminPage() {
           const peopleWithTasks = filteredMembers
             .filter(m => m.profile_complete)
             .map(m => {
-              const personTasks = tasks.filter(t => t.staff_id === m.id)
-              const readinessTask = personTasks.find(t => t.ai_readiness != null)
-              const aiProofEntry  = personTasks.find(t => t.ai_proof)
-              const allTools      = [...new Set(personTasks.flatMap(t => t.tools_used ?? []))]
-              const mainAnswer    = personTasks.find(t => t.task_description && t.task_description.trim().length > 20)
+              const responses     = profileByStaff[m.id] ?? []
+              const readinessTask = responses.find(t => t.ai_readiness != null)
+              const aiProofEntry  = responses.find(t => t.ai_proof)
+              const allTools      = [...new Set(responses.flatMap(t => t.tools_used ?? []))]
+              const mainAnswer    = responses.find(t => t.task_description && t.task_description.trim().length > 20)
               const score         = memberTairs[m.id]?.score ?? 0
               const tier          = airsTier(score)
               const readiness     = readinessTask?.ai_readiness ?? null
-              return { member: m, personTasks, readinessTask, aiProofEntry, allTools, mainAnswer, score, tier, readiness }
+              return { member: m, personTasks: responses, readinessTask, aiProofEntry, allTools, mainAnswer, score, tier, readiness }
             })
             .sort((a, b) => b.score - a.score)
 
@@ -2728,12 +2731,12 @@ export default function AdminPage() {
                         <div style={{ borderTop: '1px solid #DDE8EE', padding: '20px' }}>
                           <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
                             {personTasks.map((t, ti) => {
-                              const hasContent = t.task_description || t.ai_proof || (t.tools_used?.length > 0)
+                              const hasContent = t.task_description || t.ai_proof || ((t.tools_used?.length ?? 0) > 0)
                               if (!hasContent) return null
                               const detection = t.task_description ? detectAIWriting(t.task_description) : { score: 0, flags: [], verdict: '' }
                               const flagColor = detection.score >= 65 ? '#FF6B6B' : detection.score >= 45 ? '#8B1A1A' : detection.score >= 25 ? '#8B1A1A' : '#00897B'
                               return (
-                                <div key={t.id} style={{ background: '#F8FAFB', border: '1px solid #DDE8EE', borderRadius: '10px', padding: '16px' }}>
+                                <div key={ti} style={{ background: '#F8FAFB', border: '1px solid #DDE8EE', borderRadius: '10px', padding: '16px' }}>
                                   {/* Task label */}
                                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '10px', flexWrap: 'wrap', gap: '8px' }}>
                                     <div style={{ fontSize: '13px', fontWeight: 700, letterSpacing: '1.5px', textTransform: 'uppercase', color: '#5B7080' }}>
@@ -2757,23 +2760,23 @@ export default function AdminPage() {
 
                                   {/* Answer text */}
                                   {t.task_description && (
-                                    <div style={{ fontSize: '13px', color: '#5B7080', lineHeight: 1.7, whiteSpace: 'pre-wrap', marginBottom: (t.ai_proof || t.tools_used?.length) ? '12px' : '0' }}>
+                                    <div style={{ fontSize: '13px', color: '#5B7080', lineHeight: 1.7, whiteSpace: 'pre-wrap', marginBottom: (t.ai_proof || (t.tools_used?.length ?? 0) > 0) ? '12px' : '0' }}>
                                       {t.task_description}
                                     </div>
                                   )}
 
                                   {/* AI Proof */}
                                   {t.ai_proof && (
-                                    <div style={{ background: 'rgba(192,244,60,0.05)', border: '1px solid rgba(192,244,60,0.18)', borderRadius: '8px', padding: '12px 14px', marginBottom: t.tools_used?.length ? '10px' : '0' }}>
+                                    <div style={{ background: 'rgba(192,244,60,0.05)', border: '1px solid rgba(192,244,60,0.18)', borderRadius: '8px', padding: '12px 14px', marginBottom: (t.tools_used?.length ?? 0) > 0 ? '10px' : '0' }}>
                                       <div style={{ fontSize: '9px', fontWeight: 700, letterSpacing: '1px', textTransform: 'uppercase', color: '#00695C', marginBottom: '6px' }}>Advanced Track — Workflow Proof</div>
                                       <div style={{ fontSize: '13px', color: '#5B7080', lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>{t.ai_proof}</div>
                                     </div>
                                   )}
 
                                   {/* Tools */}
-                                  {t.tools_used?.length > 0 && (
+                                  {(t.tools_used?.length ?? 0) > 0 && (
                                     <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', marginTop: t.task_description || t.ai_proof ? '10px' : '0' }}>
-                                      {t.tools_used.map((tool, j) => (
+                                      {(t.tools_used ?? []).map((tool, j) => (
                                         <span key={j} style={{ fontSize: '13px', color: AI_TOOLS.has(tool) ? '#3D6B00' : '#00897B', background: AI_TOOLS.has(tool) ? 'rgba(192,244,60,0.1)' : 'rgba(0,165,163,0.12)', border: `1px solid ${AI_TOOLS.has(tool) ? 'rgba(192,244,60,0.2)' : 'rgba(0,165,163,0.2)'}`, padding: '2px 9px', borderRadius: '5px' }}>{tool}</span>
                                       ))}
                                     </div>
