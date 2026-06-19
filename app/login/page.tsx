@@ -7,6 +7,7 @@ import Image from 'next/image'
 export default function LoginPage() {
   const router = useRouter()
   const [ssoError, setSsoError] = useState('')
+  const [nextParam, setNextParam] = useState('')
   const [email, setEmail]       = useState('')
   const [password, setPassword] = useState('')
   const [loginError, setLoginError] = useState('')
@@ -17,6 +18,8 @@ export default function LoginPage() {
     const params = new URLSearchParams(window.location.search)
     const err = params.get('error')
     if (err) setSsoError(err)
+    const next = params.get('next')
+    if (next) setNextParam(next)
   }, [])
 
   async function handleLogin(e: React.FormEvent) {
@@ -171,7 +174,7 @@ export default function LoginPage() {
 
           {/* Microsoft SSO button */}
           <a
-            href="/api/auth/microsoft"
+            href={`/api/auth/microsoft${nextParam ? '?next=' + encodeURIComponent(nextParam) : ''}`}
             style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '12px', padding: '14px 20px', borderRadius: '12px', border: `1.5px solid ${C.border}`, background: '#FFFFFF', color: C.text, fontSize: '15px', fontWeight: 700, textDecoration: 'none', cursor: 'pointer', transition: 'border-color 0.2s, box-shadow 0.2s', boxShadow: '0 2px 8px rgba(0,0,0,0.07)', fontFamily: 'inherit', marginBottom: '20px' }}
             onMouseOver={e => { (e.currentTarget as HTMLAnchorElement).style.borderColor = C.teal; (e.currentTarget as HTMLAnchorElement).style.boxShadow = '0 4px 16px rgba(0,137,123,0.18)' }}
             onMouseOut={e => { (e.currentTarget as HTMLAnchorElement).style.borderColor = C.border; (e.currentTarget as HTMLAnchorElement).style.boxShadow = '0 2px 8px rgba(0,0,0,0.07)' }}

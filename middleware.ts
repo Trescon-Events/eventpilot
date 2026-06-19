@@ -111,7 +111,7 @@ export async function middleware(req: NextRequest) {
   if (!session) {
     const loginUrl = req.nextUrl.clone()
     loginUrl.pathname = '/login'
-    loginUrl.search = `?next=${encodeURIComponent(pathname)}`
+    loginUrl.search = `?next=${encodeURIComponent(pathname + req.nextUrl.search)}`
     return NextResponse.redirect(loginUrl)
   }
 
