@@ -24,100 +24,83 @@
 
 ---
 
-## What Was Built This Session (19 Jun 2026 — Durga, Session 3)
+## What Was Built This Session (19 Jun 2026 — Durga)
 
-### Admin Dashboard AIRS — Two Critical Fixes
+### 1. CLAUDE.md Updated
+- Hosting row updated (Vercel → Railway), Supabase login updated to dc@tresconglobal.com, build flow and hard rules updated.
 
-**Bug 1 — task-profiles GET returning error silently (`app/api/task-profiles/route.ts`)**
-The GET route ordered by `created_at` which does not exist as a column on `staff_task_profiles` (only `submitted_at` and `updated_at` exist). Supabase returned a column-not-found error on every request. The admin page checked `tasksRes.ok`, got false, and never called `setTasks` — leaving `tasks = []` forever. This caused "No assessments completed yet", "0 entries captured", and all 16 assessed staff showing as AI-Unaware (score 0).
-- `app/api/task-profiles/route.ts` — changed `.order('created_at')` → `.order('submitted_at')`
+---
 
-**Bug 2 — admin page calcAIRS never read actual data (`app/admin/page.tsx`)**
-The admin page had its own `calcAIRS` function that accessed `t.ai_readiness` and `t.tools_used` on the outer profile row — but those fields live inside `responses[]` JSONB, not on the row itself. So `readScores` and `allTools` were always empty. Every completed staff member scored exactly 25 (engagement only). No changes to `app/lib/airs.ts` could ever affect the admin.
-- Imported `computeAIRS` from `app/lib/airs.ts` — now single source of truth for all scoring
-- Added `profileByStaff` map: `staff_id → responses[]` (correct data access)
+### 2. Assessment Submit — Full End-to-End Fix
+
+Staff were stuck on "Submitting..." and AIRS score was not showing after SSO. Four root causes, all fixed:
+
+| # | Root Cause | File Fixed |
+|---|---|---|
+| 1 | `/api/task-profiles` not in PUBLIC_PREFIXES — middleware blocked unauthenticated POST, returned HTML, fetch crashed | `middleware.ts` |
+| 2 | Middleware only encoded `pathname` in next param — `?id=UUID` was stripped, staff landed on `/dashboard` with no ID after SSO | `middleware.ts` |
+| 3 | Login page SSO button was static `href="/api/auth/microsoft"` — never passed `next` param through | `app/login/page.tsx` |
+| 4 | `profile_complete = true` update silently discarded error — SSO callback looped staff back to `/profile` | `app/api/task-profiles/route.ts`, `app/profile/page.tsx`, new `app/api/task-profiles/mark-complete/route.ts` |
+
+**Status:** Confirmed working by Durga (19 Jun 2026).
+
+---
+
+### 3. Checklist Not Saving — Fixed
+
+Staff were toggling tasks but status reverted on next page load. Optimistic UI update had no error check — if PATCH failed, local state showed success but DB was not updated.
+- `app/dashboard/page.tsx` — status toggle and notes Save both revert to previous value if PATCH returns non-200.
+
+---
+
+### 4. AIRS Scoring Redesign — 3-Signal Model
+
+All 16 staff who took the assessment were falling in "AI-Curious". Root cause: score was driven only by the `ai_readiness` slider. `automation_history` and `tool_proficiency` were already collected and stored but completely ignored.
+
+**`app/lib/airs.ts`** — new `questBase()` uses 3 signals:
+- `ai_readiness` → 10–65 pts (was 10–75)
+- `automation_history` → 0–15 pts bonus
+- `tool_proficiency` avg → 0–10 pts bonus
+- Questionnaire still capped at 75. Course bonus still capped at 25. Total still capped at 100.
+
+**`app/dashboard/page.tsx`** — breakdown panel shows each signal's contribution.
+
+No DB migration needed — uses existing stored `responses` JSONB data.
+
+---
+
+### 5. Admin Dashboard AIRS — Two Critical Fixes
+
+The admin "AI Readiness Score" panel was completely broken — showing "No assessments completed yet" and all 16 staff as AI-Unaware despite having data.
+
+**Bug 1 — `app/api/task-profiles/route.ts`**
+GET route ordered by `created_at` which does not exist on `staff_task_profiles`. Supabase returned a silent error. Admin page got `tasksRes.ok = false`, never called `setTasks`, `tasks` stayed `[]` forever.
+- Fixed: `.order('created_at')` → `.order('submitted_at')`
+
+**Bug 2 — `app/admin/page.tsx`**
+Admin page had its own `calcAIRS` that accessed `t.ai_readiness` and `t.tools_used` on the outer profile row — but those fields live inside `responses[]` JSONB. `readScores` and `allTools` were always empty. Every assessed staff member scored exactly 25 (engagement rate only).
+- Fixed: imported `computeAIRS` from `app/lib/airs.ts` — single source of truth
+- Added `profileByStaff` map: `staff_id → responses[]`
 - Individual, dept, and org scores all computed from `computeAIRS(responses)` per member
-- Fixed `TaskProfile` / `TaskResponse` types to match actual API structure
-- Fixed intelligence tab and tool count to read from `responses[]`
 
-**Confirmed scores after fix (from live DB):**
-- Sajeesh & Krishanu: 75 (AI-Forward)
-- Fouzan: 74, Prashant: 71, Nicholas: 69, Simran: 57 (AI-Ready)
-- Imran & Karthik: 49, Naveen: 45, Samprity: 43, Event Pilot Demo: 35 (AI-Aware)
-- Kalander: 26, Utkarsh: 20 (AI-Curious)
-- Org avg (assessed only): ~56 → AI-Ready
+**Confirmed live scores after fix:**
 
----
+| Name | Score | Tier |
+|---|---|---|
+| Sajeesh Kombath | 75 | AI-Forward |
+| Krishanu Karmakar | 75 | AI-Forward |
+| Fouzan Abdul Rahim | 74 | AI-Ready |
+| Prashant Mual | 71 | AI-Ready |
+| Nicholas Nunes | 69 | AI-Ready |
+| Simran Arora | 57 | AI-Ready |
+| Imran Mushtaq | 49 | AI-Aware |
+| Karthik C | 49 | AI-Aware |
+| Naveen Bharadwaj | 45 | AI-Aware |
+| Samprity Dutta | 43 | AI-Aware |
+| Kalander Shafi | 26 | AI-Curious |
+| Utkarsh Pant | 20 | AI-Curious |
 
-## What Was Built This Session (19 Jun 2026 — Durga, Session 2)
-
-### AIRS Scoring Redesign — 3-Signal Model
-
-All 16 staff who took the assessment were falling in "AI-Curious" tier. Root cause: the entire score was driven by a single `ai_readiness` slider (1–5 scale). Level 2 → score 26 → AI-Curious. `automation_history` and `tool_proficiency` were already being collected and stored in `responses` JSONB but were completely ignored by the scoring formula.
-
-**Fix — `app/lib/airs.ts`:**
-- New `questBase()` helper computes all 3 signals:
-  - `ai_readiness` → 10–65 pts (was 10–75)
-  - `automation_history` → 0–15 pts bonus (5-level ordinal: 0/3/6/10/15)
-  - `tool_proficiency` → 0–10 pts bonus (avg of tool ratings, scaled 1–4)
-- Questionnaire total still capped at 75. Course bonus still capped at 25. Total still capped at 100.
-- `computeAIRS` and `breakdownAIRS` both updated. `AIRSBreakdown` type expanded with `readBase`, `autoBonus`, `profBonus` fields.
-- No DB migration needed — uses existing stored data.
-
-**Fix — `app/dashboard/page.tsx`:**
-- Score breakdown panel now shows automation history and tool proficiency contributions when > 0.
-
-**Score impact on existing 16 staff (verified against live DB):**
-
-| Name | Old | New | Tier |
-|---|---|---|---|
-| Sajeesh Kombath | 75 | 75 | AI-Forward |
-| Krishanu Karmakar | 75 | 75 | AI-Forward |
-| Fouzan Abdul Rahim | 59 | 74 | AI-Ready |
-| Prashant Mual | 59 | 71 | AI-Ready |
-| Nicholas Nunes | 59 | 69 | AI-Ready |
-| Simran Arora | 43 | 57 | AI-Ready |
-| Imran Mushtaq | 43 | 49 | AI-Aware |
-| Karthik C | 43 | 49 | AI-Aware |
-| Naveen Bharadwaj | 43 | 45 | AI-Aware |
-| Samprity Dutta | 43 | 43 | AI-Aware |
-| Event Pilot Demo | 26 | 35 | AI-Aware |
-| Kalander Shafi | 26 | 26 | AI-Curious |
-| Utkarsh Pant | 10 | 20 | AI-Curious |
-
-Old: 11 AI-Curious, 0 AI-Ready/Aware → New: 2 AI-Curious, 4 AI-Ready, 5 AI-Aware, 2 AI-Forward
-
-No action needed for existing staff — scores update automatically on next dashboard load.
-
----
-
-## What Was Built This Session (19 Jun 2026 — Durga, Session 1)
-
-### CLAUDE.md + HANDOFF.md Updated
-- CLAUDE.md rewritten to reflect Railway migration: hosting row updated (Vercel → Railway), Supabase login updated to dc@tresconglobal.com, build flow updated, hard rules updated.
-
-### Assessment Submit — Full End-to-End Fix (confirmed working)
-
-Staff from Fouzan's batch (welcome email link → `/profile` with no session) were unable to submit the assessment and their AIRS score was not showing on the dashboard. Three root causes found and fixed:
-
-**Root cause 1 (18 Jun, already deployed):** `/api/task-profiles` not in `PUBLIC_PREFIXES` — middleware blocked unauthenticated POST, returning HTML redirect instead of JSON, fetch crashed, button frozen on "Submitting...". Fixed by adding to PUBLIC_PREFIXES.
-
-**Root cause 2 (19 Jun):** Middleware only encoded `pathname` in the `next` redirect param — `?id=UUID` was stripped when staff (no session) clicked "See My Score" → `/dashboard?id=UUID`. After SSO, they landed on `/dashboard` with no id.
-- `middleware.ts` — now encodes `pathname + req.nextUrl.search` in the next param
-
-**Root cause 3 (19 Jun):** Login page Microsoft SSO button was a static `href="/api/auth/microsoft"` — never passed the `next` param through to the SSO route.
-- `app/login/page.tsx` — reads `next` from URL params, threads it through to `/api/auth/microsoft?next=...`
-
-**Root cause 4 (19 Jun):** `profile_complete = true` update in the task-profiles API silently discarded its error result. If it failed, SSO callback would loop staff back to `/profile` instead of the dashboard.
-- `app/api/task-profiles/route.ts` — now captures error, returns `profile_complete_failed: true` flag
-- `app/profile/page.tsx` — detects the flag, retries via new `/api/task-profiles/mark-complete` endpoint
-- `app/api/task-profiles/mark-complete/route.ts` — NEW. Single-purpose retry endpoint, added to PUBLIC_PREFIXES.
-
-### Checklist Task Update — Revert on Failure
-Staff were reporting tasks not saving when toggled (status reverted on next page load). The status toggle and notes Save button were doing optimistic UI updates with no error check — if the PATCH failed, local state showed success but DB wasn't updated.
-- `app/dashboard/page.tsx` — status toggle now reverts to `prev_status` if PATCH returns non-200. Notes Save reverts note text if save fails.
-
-**Status:** All confirmed working by Durga (19 Jun 2026).
+Org avg (assessed only): ~56 → **AI-Ready**
 
 ---
 
