@@ -1114,8 +1114,10 @@ function DashboardContent() {
                 <div style={{ height: '8px', background: '#E8EEF4', borderRadius: '99px', overflow: 'hidden' }}>
                   <div style={{ height: '100%', width: `${assessmentPct}%`, background: tierConfig.color, borderRadius: '99px', transition: 'width 0.6s ease' }} />
                 </div>
-                <div style={{ fontSize: '11px', color: '#5B7080', marginTop: '4px' }}>
-                  Average readiness rating: {bd.avg} / 5 across {tasks.length} profile question{tasks.length !== 1 ? 's' : ''}
+                <div style={{ marginTop: '8px', display: 'flex', flexDirection: 'column', gap: '3px' }}>
+                  <div style={{ fontSize: '11px', color: '#5B7080' }}>AI readiness level: {bd.avg} / 5 &nbsp;→&nbsp; <span style={{ fontWeight: 700 }}>{bd.readBase} pts</span></div>
+                  {bd.autoBonus > 0 && <div style={{ fontSize: '11px', color: '#5B7080' }}>Automation history &nbsp;→&nbsp; <span style={{ fontWeight: 700, color: '#0E7490' }}>+{bd.autoBonus} pts</span></div>}
+                  {bd.profBonus > 0 && <div style={{ fontSize: '11px', color: '#5B7080' }}>Tool proficiency &nbsp;→&nbsp; <span style={{ fontWeight: 700, color: '#0E7490' }}>+{bd.profBonus} pts</span></div>}
                 </div>
               </div>
               {/* Course bonus bar */}

@@ -1,19 +1,55 @@
 /* Shared AIRS computation — single source of truth used by API routes and client pages */
 
 /*
-  Score = base (from questionnaire ai_readiness) + course completion bonus
-  Base:   questionnaire avg maps 1–5 → 10–75
-  Bonus:  foundation course passed = +1.5 pts, adoption = +2.5, advanced = +4
-  Bonus capped at 25 pts so courses can never fully substitute the questionnaire
+  Score = questionnaire base + course completion bonus
+
+  Questionnaire base (capped at 75):
+    1. ai_readiness (1–5 scale)     → 10–65 pts
+    2. automation_history (0–4 ord) → 0–15 pts bonus
+    3. tool_proficiency (avg 1–4)   → 0–10 pts bonus
+
+  Course bonus (capped at 25 pts):
+    foundation = +1.5 pts, adoption = +2.5, advanced = +4
+
   Total capped at 100
 */
+
+const AUTOMATION_OPTIONS = [
+  'No — never tried anything like that',
+  "I tried once but it didn't really stick",
+  'Yes — I have something simple that works',
+  "Yes — I've set up multiple automations",
+  'I regularly build automations as part of my work',
+]
+const AUTOMATION_BONUS = [0, 3, 6, 10, 15]
+
+function questBase(tasks: { ai_readiness?: number; automation_history?: string; tool_proficiency?: Record<string, number> }[]): number {
+  if (!tasks.length) return 0
+
+  // 1. ai_readiness base (10–65)
+  const avg      = tasks.reduce((s, t) => s + (t.ai_readiness ?? 1), 0) / tasks.length
+  const readBase = Math.round(((avg - 1) / 4) * 55 + 10)  // 10–65
+
+  // 2. Automation history bonus (0–15)
+  const autoStr  = tasks.find(t => t.automation_history)?.automation_history ?? ''
+  const autoIdx  = AUTOMATION_OPTIONS.indexOf(autoStr)
+  const autoBonus = autoIdx >= 0 ? AUTOMATION_BONUS[autoIdx] : 0
+
+  // 3. Tool proficiency bonus (0–10)
+  const profMap    = tasks.find(t => t.tool_proficiency && Object.keys(t.tool_proficiency ?? {}).length > 0)?.tool_proficiency ?? {}
+  const profValues = Object.values(profMap).filter((v): v is number => typeof v === 'number')
+  const avgProf    = profValues.length > 0 ? profValues.reduce((s, v) => s + v, 0) / profValues.length : 0
+  const profBonus  = avgProf > 0 ? Math.round(((avgProf - 1) / 3) * 10) : 0
+
+  return Math.min(75, readBase + autoBonus + profBonus)
+}
+
 export function computeAIRS(
-  tasks:       { ai_readiness: number }[],
+  tasks:        { ai_readiness?: number; automation_history?: string; tool_proficiency?: Record<string, number> }[],
   completions?: { passed: boolean; courses?: { tier_level: string } | null }[],
 ): number {
   if (!tasks.length) return 0
-  const avg  = tasks.reduce((s, t) => s + (t.ai_readiness ?? 1), 0) / tasks.length
-  const base = Math.round(((avg - 1) / 4) * 65 + 10)
+  const base = questBase(tasks)
 
   if (!completions?.length) return base
 
@@ -60,26 +96,40 @@ export const TRACK_COLORS: Record<string, { color: string; bg: string; label: st
 
 /* ── Score breakdown (for UI transparency) ────────────────────── */
 export type AIRSBreakdown = {
-  avg:           number   // raw avg readiness 1–5
-  base:          number   // base score from questionnaire (10–75)
-  courseBonus:   number   // raw bonus from courses (uncapped)
-  cappedBonus:   number   // capped at 25
-  total:         number   // final score
-  courseDetails: { title: string; tier: string; points: number }[]
+  avg:            number   // raw avg readiness 1–5
+  readBase:       number   // pts from ai_readiness only (10–65)
+  autoBonus:      number   // pts from automation history (0–15)
+  profBonus:      number   // pts from tool proficiency (0–10)
+  base:           number   // total questionnaire score (capped 75)
+  courseBonus:    number   // raw bonus from courses (uncapped)
+  cappedBonus:    number   // capped at 25
+  total:          number   // final score
+  courseDetails:  { title: string; tier: string; points: number }[]
 }
 
 export function breakdownAIRS(
-  tasks:        { ai_readiness: number }[],
+  tasks:        { ai_readiness?: number; automation_history?: string; tool_proficiency?: Record<string, number> }[],
   completions?: { passed: boolean; courses?: { tier_level: string; title?: string } | null }[],
 ): AIRSBreakdown {
-  if (!tasks.length) return { avg: 0, base: 0, courseBonus: 0, cappedBonus: 0, total: 0, courseDetails: [] }
+  const empty = { avg: 0, readBase: 0, autoBonus: 0, profBonus: 0, base: 0, courseBonus: 0, cappedBonus: 0, total: 0, courseDetails: [] }
+  if (!tasks.length) return empty
 
-  const avg  = tasks.reduce((s, t) => s + (t.ai_readiness ?? 1), 0) / tasks.length
-  const base = Math.round(((avg - 1) / 4) * 65 + 10)
+  const avg      = tasks.reduce((s, t) => s + (t.ai_readiness ?? 1), 0) / tasks.length
+  const readBase = Math.round(((avg - 1) / 4) * 55 + 10)
+
+  const autoStr   = tasks.find(t => t.automation_history)?.automation_history ?? ''
+  const autoIdx   = AUTOMATION_OPTIONS.indexOf(autoStr)
+  const autoBonus = autoIdx >= 0 ? AUTOMATION_BONUS[autoIdx] : 0
+
+  const profMap    = tasks.find(t => t.tool_proficiency && Object.keys(t.tool_proficiency ?? {}).length > 0)?.tool_proficiency ?? {}
+  const profValues = Object.values(profMap).filter((v): v is number => typeof v === 'number')
+  const avgProf    = profValues.length > 0 ? profValues.reduce((s, v) => s + v, 0) / profValues.length : 0
+  const profBonus  = avgProf > 0 ? Math.round(((avgProf - 1) / 3) * 10) : 0
+
+  const base = Math.min(75, readBase + autoBonus + profBonus)
 
   const courseDetails: AIRSBreakdown['courseDetails'] = []
   let courseBonus = 0
-
   if (completions?.length) {
     completions.filter(c => c.passed).forEach(c => {
       const tier = c.courses?.tier_level ?? ''
@@ -94,7 +144,15 @@ export function breakdownAIRS(
 
   const cappedBonus = Math.min(25, courseBonus)
   const total       = Math.min(100, Math.round(base + cappedBonus))
-  return { avg: Math.round(avg * 10) / 10, base, courseBonus: Math.round(courseBonus * 10) / 10, cappedBonus: Math.round(cappedBonus * 10) / 10, total, courseDetails }
+  return {
+    avg: Math.round(avg * 10) / 10,
+    readBase, autoBonus, profBonus,
+    base,
+    courseBonus: Math.round(courseBonus * 10) / 10,
+    cappedBonus: Math.round(cappedBonus * 10) / 10,
+    total,
+    courseDetails,
+  }
 }
 
 /* ── Department-specific AI use cases ────────────────────────── */
