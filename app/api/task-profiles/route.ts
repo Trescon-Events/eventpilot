@@ -41,10 +41,16 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Could not save your profile. Please try again.' }, { status: 500 })
     }
 
-    await supabaseAdmin
+    const { error: profileError } = await supabaseAdmin
       .from('staff_members')
       .update({ profile_complete: true })
       .eq('id', staff_id)
+
+    if (profileError) {
+      console.error('task-profiles profile_complete update error:', profileError)
+      // Responses are saved — return success but flag the issue so the client knows
+      return NextResponse.json({ success: true, profile_complete_failed: true })
+    }
 
     return NextResponse.json({ success: true })
   } catch (e) {

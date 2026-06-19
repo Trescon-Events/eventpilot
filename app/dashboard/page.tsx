@@ -1361,13 +1361,18 @@ function DashboardContent() {
                     {/* Status toggle */}
                     <button
                       onClick={async () => {
+                        const prev_status = item.status
                         const next = item.status === 'not_started' ? 'in_progress' : item.status === 'in_progress' ? 'done' : 'not_started'
                         setChecklistSaving(p => ({ ...p, [item.id]: true }))
-                        await fetch(`/api/events/my-checklist?id=${item.id}`, {
+                        setMyChecklist(prev => prev.map(i => i.id === item.id ? { ...i, status: next } : i))
+                        const res = await fetch(`/api/events/my-checklist?id=${item.id}`, {
                           method: 'PATCH', headers: { 'Content-Type': 'application/json' },
                           body: JSON.stringify({ status: next }),
                         })
-                        setMyChecklist(prev => prev.map(i => i.id === item.id ? { ...i, status: next } : i))
+                        if (!res.ok) {
+                          // Revert if save failed
+                          setMyChecklist(prev => prev.map(i => i.id === item.id ? { ...i, status: prev_status } : i))
+                        }
                         setChecklistSaving(p => ({ ...p, [item.id]: false }))
                       }}
                       style={{ width: '20px', height: '20px', borderRadius: '5px', border: `2px solid ${item.status === 'done' ? '#C0F43C' : 'rgba(15,23,42,0.16)'}`, background: item.status === 'done' ? '#C0F43C' : 'transparent', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, marginTop: '2px', transition: 'all 0.15s' }}>
@@ -1404,12 +1409,17 @@ function DashboardContent() {
                         <button
                           disabled={checklistSaving[item.id]}
                           onClick={async () => {
+                            const prev_notes = item.notes ?? ''
                             setChecklistSaving(p => ({ ...p, [item.id]: true }))
-                            await fetch(`/api/events/my-checklist?id=${item.id}`, {
+                            const res = await fetch(`/api/events/my-checklist?id=${item.id}`, {
                               method: 'PATCH', headers: { 'Content-Type': 'application/json' },
                               body: JSON.stringify({ notes: checklistNotes[item.id] ?? '' }),
                             })
-                            setMyChecklist(prev => prev.map(i => i.id === item.id ? { ...i, notes: checklistNotes[item.id] ?? '' } : i))
+                            if (res.ok) {
+                              setMyChecklist(prev => prev.map(i => i.id === item.id ? { ...i, notes: checklistNotes[item.id] ?? '' } : i))
+                            } else {
+                              setChecklistNotes(p => ({ ...p, [item.id]: prev_notes }))
+                            }
                             setChecklistSaving(p => ({ ...p, [item.id]: false }))
                           }}
                           style={{ padding: '7px 14px', borderRadius: '8px', border: 'none', background: '#F59E0B', color: '#0F1923', fontSize: '13px', fontWeight: 800, cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap' }}>

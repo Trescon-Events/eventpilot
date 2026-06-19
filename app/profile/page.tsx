@@ -313,7 +313,7 @@ function ProfileContent() {
     const controller = new AbortController()
     const timeout    = setTimeout(() => controller.abort(), 15000)
 
-    let result: { success?: boolean; error?: string }
+    let result: { success?: boolean; error?: string; profile_complete_failed?: boolean }
     try {
       const res = await fetch('/api/task-profiles', {
         method:  'POST',
@@ -337,6 +337,14 @@ function ProfileContent() {
       return
     }
     if (result.error) { setSubmitError(result.error); setPending(false); return }
+    // Responses saved. If profile_complete flag failed, retry it once silently.
+    if (result.profile_complete_failed) {
+      await fetch('/api/task-profiles/mark-complete', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ staff_id: staffId }),
+      }).catch(() => {})
+    }
     setDone(true)
   }
 
