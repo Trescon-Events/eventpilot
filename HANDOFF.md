@@ -24,6 +24,30 @@
 
 ---
 
+## What Was Built This Session (19 Jun 2026 — Durga, Session 3)
+
+### Admin Dashboard AIRS — Critical Fix
+
+The admin dashboard AIRS scores were completely broken from day one. `app/admin/page.tsx` had its own `calcAIRS` function that tried to access `t.ai_readiness` and `t.tools_used` directly on the outer `staff_task_profiles` row — but those fields don't exist there. They live inside `responses[]` JSONB. So `readScores` was always `[]`, `allTools` was always `[]`, and every completed staff member scored exactly 25 (just the engagement component). No scoring formula changes in `app/lib/airs.ts` could ever affect the admin dashboard.
+
+**Fix — `app/admin/page.tsx`:**
+- Imported `computeAIRS` from `app/lib/airs.ts` (now single source of truth)
+- Added `profileByStaff` map: `staff_id → responses[]`
+- Individual scores: `computeAIRS(responses)` per member
+- Dept scores: average of individual scores for assessed members
+- Org score: average of all assessed individual scores
+- Fixed `TaskProfile` / `TaskResponse` types to match actual API structure (`{ staff_id, responses[] }`)
+- Fixed intelligence tab and tool count to read from `responses[]`
+
+**Expected admin scores after deploy (from DB verification):**
+- Fouzan: 74 (AI-Ready), Prashant: 71 (AI-Ready), Nicholas: 69 (AI-Ready)
+- Simran: 57 (AI-Ready), Imran: 49 (AI-Aware), Karthik: 49 (AI-Aware)
+- Naveen: 45 (AI-Aware), Samprity: 43 (AI-Aware)
+- Sajeesh & Krishanu: 75 (AI-Forward)
+- Org avg (assessed only): ~56 → AI-Ready
+
+---
+
 ## What Was Built This Session (19 Jun 2026 — Durga, Session 2)
 
 ### AIRS Scoring Redesign — 3-Signal Model
