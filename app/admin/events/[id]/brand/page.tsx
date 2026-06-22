@@ -453,6 +453,12 @@ export default function BrandStudioPage({ params }: { params: Promise<{ id: stri
 
   // ── PDF import ────────────────────────────────────────────────
   async function importFromPDF(file: File) {
+    // Pre-check file size (Supabase free plan: 50 MB max)
+    if (file.size > 52428800) {
+      const sizeMB = Math.round(file.size / 1048576)
+      setMsg({ text: `File is ${sizeMB} MB — maximum allowed is 50 MB. Please compress the PDF first.`, ok: false })
+      return
+    }
     setPdfUploading(true); setPdfFileName(file.name); setMsg(null)
     try {
       setExtractProgress('Uploading PDF…')
@@ -665,7 +671,7 @@ export default function BrandStudioPage({ params }: { params: Promise<{ id: stri
                     </svg>
                     <div style={{ textAlign: 'center' }}>
                       <div style={{ fontSize: '15px', fontWeight: 700, color: '#2D3E50', marginBottom: '5px' }}>Drop brand PDF here or click to browse</div>
-                      <div style={{ fontSize: '13px', color: '#5B7080' }}>PDF only · Up to 250 MB · AI extracts all 9 brand sections</div>
+                      <div style={{ fontSize: '13px', color: '#5B7080' }}>PDF only · Up to 50 MB · AI extracts all 9 brand sections</div>
                     </div>
                     {pdfFileName && (
                       <div style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '6px 14px', borderRadius: '20px', background: 'rgba(192,244,60,0.1)', border: '1px solid rgba(192,244,60,0.3)' }}>

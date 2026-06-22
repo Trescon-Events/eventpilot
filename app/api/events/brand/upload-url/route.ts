@@ -20,16 +20,15 @@ export async function GET(req: NextRequest) {
   const safeName = filename.replace(/[^a-zA-Z0-9._-]/g, '_')
   const path = `${eventId}/${Date.now()}-${safeName}`
 
-  // Ensure bucket exists with 250 MB limit — create first, update if already exists
+  // Ensure bucket exists (Supabase free plan: 50 MB max per file)
   const { error: createErr } = await supabaseAdmin.storage.createBucket('brand-pdfs', {
     public: true,
-    fileSizeLimit: 262144000, // 250 MB
+    fileSizeLimit: 52428800, // 50 MB
   })
   if (createErr && createErr.message !== 'The resource already exists') {
-    // bucket already exists — update size limit
     await supabaseAdmin.storage.updateBucket('brand-pdfs', {
       public: true,
-      fileSizeLimit: 262144000,
+      fileSizeLimit: 52428800,
     }).catch(() => {})
   }
 

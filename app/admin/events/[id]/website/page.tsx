@@ -143,8 +143,8 @@ function ImageUpload({ label, value, eventId, section, onUpload, acceptPdf = fal
   async function handleFile(file: File) {
     setErrMsg(null)
 
-    // Pre-check file size before attempting upload
-    const maxBytes = acceptPdf ? 262144000 : 52428800 // 250 MB for PDFs, 50 MB for images
+    // Pre-check file size before attempting upload (Supabase free plan: 50 MB max)
+    const maxBytes = 52428800 // 50 MB
     if (file.size > maxBytes) {
       const sizeMB = Math.round(file.size / 1048576)
       const maxMB  = Math.round(maxBytes / 1048576)
@@ -188,7 +188,7 @@ function ImageUpload({ label, value, eventId, section, onUpload, acceptPdf = fal
 
   const isPdf   = value?.toLowerCase().includes('.pdf') || value?.includes('application/pdf')
   const accept  = acceptPdf ? 'image/*,application/pdf' : 'image/*'
-  const hint    = acceptPdf ? 'PNG, JPG, SVG or PDF · max 250 MB' : 'PNG, JPG, SVG or WebP · max 50 MB'
+  const hint    = acceptPdf ? 'PNG, JPG, SVG or PDF · max 50 MB' : 'PNG, JPG, SVG or WebP · max 50 MB'
 
   return (
     <div>
