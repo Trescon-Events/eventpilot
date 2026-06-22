@@ -118,9 +118,30 @@ function daysAgo(n: number) {
   return d.toISOString().slice(0, 10)
 }
 
-function fmtTime(t: string | null) {
+// Office timezone offsets (hours from UTC)
+const OFFICE_TZ_OFFSET: Record<string, number> = {
+  dubai:     4,     // UTC+4
+  bangalore: 5.5,   // UTC+5:30
+  mangalore: 5.5,
+  manipal:   5.5,
+}
+
+function fmtTime(t: string | null, officeId?: string | null) {
   if (!t) return '—'
-  return t.slice(0, 5)          // "HH:MM:SS" → "HH:MM"
+  // Parse "HH:MM:SS" or "HH:MM"
+  const parts = t.split(':')
+  let h = parseInt(parts[0], 10)
+  let m = parseInt(parts[1], 10)
+  if (isNaN(h) || isNaN(m)) return t.slice(0, 5)
+
+  // Apply timezone offset
+  const offset = OFFICE_TZ_OFFSET[officeId ?? ''] ?? 5.5 // default IST
+  const totalMin = h * 60 + m + offset * 60
+  h = Math.floor(totalMin / 60) % 24
+  m = Math.round(totalMin % 60)
+  if (h < 0) h += 24
+
+  return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`
 }
 
 function fmtHours(h: number | null) {
@@ -690,8 +711,8 @@ export default function AttendancePage() {
         OFFICE_LABEL[r.office_id ?? ''] ?? r.office_id ?? '',
         ...(mode === 'range' ? [r.date] : []),
         r.hasRecord ? r.status : 'no_record',
-        fmtTime(r.clock_in),
-        fmtTime(r.clock_out),
+        fmtTime(r.clock_in, r.office_id),
+        fmtTime(r.clock_out, r.office_id),
         r.work_hours != null ? Number(r.work_hours).toFixed(1) : '',
         r.location,
         r.late_arrival ? 'Yes' : 'No',
@@ -1073,7 +1094,7 @@ export default function AttendancePage() {
 
                       {/* Clock in */}
                       <td style={{ padding: '10px 12px', fontSize: '13px', fontFamily: 'monospace', color: C.text }}>
-                        {fmtTime(r.clock_in)}
+                        {fmtTime(r.clock_in, r.office_id)}
                         {isLate && r.clock_in && (
                           <svg style={{ marginLeft: '4px', verticalAlign: 'middle' }} width="11" height="11" viewBox="0 0 24 24" fill="none" stroke={C.amber} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                             <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>
@@ -1082,7 +1103,7 @@ export default function AttendancePage() {
                       </td>
 
                       {/* Clock out */}
-                      <td style={{ padding: '10px 12px', fontSize: '13px', fontFamily: 'monospace', color: C.text }}>{fmtTime(r.clock_out)}</td>
+                      <td style={{ padding: '10px 12px', fontSize: '13px', fontFamily: 'monospace', color: C.text }}>{fmtTime(r.clock_out, r.office_id)}</td>
 
                       {/* Hours */}
                       <td style={{ padding: '10px 12px', fontSize: '13px', fontWeight: 700, color: C.text }}>{fmtHours(r.work_hours)}</td>
