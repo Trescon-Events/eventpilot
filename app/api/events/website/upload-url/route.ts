@@ -31,16 +31,24 @@ export async function GET(req: NextRequest) {
   const ext  = filename.includes('.') ? filename.split('.').pop() : 'bin'
   const path = `${eventId}/${section}/${Date.now()}.${ext}`
 
-  // Ensure bucket exists with correct size limit
+  // Ensure bucket exists — 250 MB for brand PDFs, large enough for all uploads
+  const sizeLimit = PDF_SECTIONS.includes(section) ? 262144000 : 52428800 // 250 MB for PDFs, 50 MB for images
   const { error: createErr } = await supabaseAdmin.storage.createBucket('event-website-assets', {
     public: true,
-    fileSizeLimit: 52428800, // 50 MB
+    fileSizeLimit: 262144000, // 250 MB (must cover largest allowed upload)
   })
   if (createErr && createErr.message !== 'The resource already exists') {
     await supabaseAdmin.storage.updateBucket('event-website-assets', {
       public: true,
-      fileSizeLimit: 52428800,
+      fileSizeLimit: 262144000,
     }).catch(() => {})
+  }
+
+  // Validate file size per section type (stricter than bucket limit)
+  const contentLength = searchParams.get('content_length')
+  if (contentLength && parseInt(contentLength) > sizeLimit) {
+    const maxMB = Math.round(sizeLimit / 1048576)
+    return NextResponse.json({ error: `File too large. Maximum ${maxMB} MB for this upload.` }, { status: 400 })
   }
 
   const { data, error } = await supabaseAdmin.storage

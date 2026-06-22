@@ -142,6 +142,16 @@ function ImageUpload({ label, value, eventId, section, onUpload, acceptPdf = fal
 
   async function handleFile(file: File) {
     setErrMsg(null)
+
+    // Pre-check file size before attempting upload
+    const maxBytes = acceptPdf ? 262144000 : 52428800 // 250 MB for PDFs, 50 MB for images
+    if (file.size > maxBytes) {
+      const sizeMB = Math.round(file.size / 1048576)
+      const maxMB  = Math.round(maxBytes / 1048576)
+      setErrMsg(`File is ${sizeMB} MB — maximum allowed is ${maxMB} MB.`)
+      return
+    }
+
     setUploading(true)
     try {
       // Step 1: Get a signed upload URL from the server (no file sent here)
