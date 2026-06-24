@@ -739,26 +739,29 @@ Everything committed before `dc48b2b` is Durga's work and was not touched. Key p
 
 ---
 
-### Immediate (tell Fouzan now)
-- Assessment + AIRS score is fully fixed and live. Staff can retry their welcome email link. Score shows correctly on the admin dashboard after this session.
+### Commercial Tracker — Next Steps (Priority)
 
-### Sprint Items
+1. **Populate revenue targets** — BU Heads need to go to `/admin/commercial/[eventId]` → Revenue tab → add commercial inventory items (e.g., "Platinum Sponsor x5 at $50K"). This sets the revenue target. Without this, all events show $0.
 
-1. **Durga / Madhu — take the assessment** — Both Durga Charan accounts and Madhukar Dudda have `profile_complete = true` but NO responses in `staff_task_profiles`. Their scores show 0. They need to submit the questionnaire via `/profile?id=<their-id>`.
+2. **Expense approval workflow UI** — API + table exists (`commercial_approvals`), Approvals tab shows status. Need: "Request Approval" button + approval action buttons for approvers.
 
-2. **Template live preview URLs** — Go to `/admin/templates`, edit each of the 5 templates, paste in the deployed site URL so "Preview Live Site" appears in the builder.
+3. **Event closure workflow** — DB fields exist (closure_status, final_revenue/cost/profit). Need: UI to trigger closure, freeze financials, generate final report.
 
-3. **Hands-on AI assignments** — staff submit real AI workflows they've built. Needs new DB table + admin review queue. Deferred to next sprint.
+4. **PDF export** — Portfolio P&L, Event P&L, Revenue Analysis reports. API data is ready, need PDF generation endpoint.
 
-4. **Khalifa + Prashant — Website Builder test for AI2047** — middleware fix deployed, invite sent to Khalifa. Run the full test and confirm WB works end-to-end.
+5. **Weekly snapshot cron** — `/api/cron/commercial-snapshot` exists. Need to register in Railway cron or external scheduler (every Monday 06:00 UTC).
 
-5. **Content Hub social publishing** — approval queue is built, needs Meta API tokens from Madhu to go live.
+6. **Role-based access** — Commercial APIs currently accessible to any authenticated user. Need middleware checks: CEO sees all, Finance edits financial data, BU Head sees own events, staff sees timesheets only.
 
-6. **Security hardening Phase 3** — rate limiting, audit log, signed sessions, idle timeout. Need Bangalore + Dubai office IPs first.
+### Ongoing Sprint Items
 
-7. **Monitor access request emails** — staff without access sends request to md@ and dc@.
+7. **Content Hub social publishing** — approval queue built, needs Meta API tokens from Madhu.
 
-8. **Messaging** — live and tested. Monitor usage; next iteration: read receipts or file attachments if requested.
+8. **Security hardening Phase 3** — rate limiting, audit log, signed sessions, idle timeout. Need Bangalore + Dubai office IPs.
+
+9. **Khalifa + Prashant — Website Builder test for AI2047** — toolkit recent projects fix deployed. Confirm WB works end-to-end.
+
+10. **Staff issues** — use `node scripts/issues.mjs` to check and resolve reported issues from terminal.
 
 ### Deploy reminder
 `git push origin main` → Railway auto-deploys in ~3 min. No CLI needed.
