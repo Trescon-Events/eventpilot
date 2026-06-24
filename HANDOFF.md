@@ -17,10 +17,63 @@
 
 | Field         | Value                                                              |
 |---------------|--------------------------------------------------------------------|
-| Who           | Durga + Claude Code (Sonnet 4.6)                                   |
-| Date          | 2026-06-19                                                         |
+| Who           | Durga + Claude Code (Opus 4.6)                                     |
+| Date          | 2026-06-25                                                         |
 | Handed off to | Madhu / Open                                                       |
-| Deployed      | Yes — https://eventpilot.tresconglobal.com (Railway, production, 19 Jun 2026) |
+| Deployed      | Yes — https://eventpilot.tresconglobal.com (Railway, production, 25 Jun 2026) |
+
+---
+
+## What Was Built This Session (25 Jun 2026 — Durga)
+
+### Commercial Tracker — Full BRD Implementation (CEO requirement)
+
+Built the complete Commercial Tracker module per Naveen Bharadwaj's 20-section BRD. This is a new financial management system inside Event Pilot.
+
+#### Database (3 migration files, 8 new tables, 15+ column additions):
+- `commercial_inventory` — revenue target items (Category → Subcategory → Item → Qty → Price)
+- `overhead_config` + `overhead_event_allocations` — 9 overhead components, 4 allocation models
+- `commercial_adjusted` — adjusted forecast tracking (Budgeted/Adjusted/Current/Difference)
+- `commercial_scenarios` — best/expected/worst case what-if analysis
+- `commercial_weekly_snapshots` — weekly P&L trend data
+- `corporate_allocations` — corporate allocation layer (% or fixed)
+- `commercial_approvals` — 4-step approval chain (BU Head → Commercial Director → Finance → CEO)
+- Extended `events` — revenue_target, cost_budget, bu_head_id, operations_lead_id, finance_owner_id, closure_status
+- Extended `event_deals` — 11 deal types (was 5), inventory_item_id link
+- Extended `event_expenses` — vendor_name, po_number, invoice_number, payment_status, approval_status
+- Extended `expense_categories` — parent_id for subcategory hierarchy, seeded subcategories
+- Extended `staff_salary_records` — cost_center field
+
+#### APIs (15 new routes under /api/events/commercial/):
+- `inventory` — CRUD for revenue target items
+- `staff-costs` — auto-calculates from timesheets + salary records (formula: salary × days / working days)
+- `overheads/config` + `overheads/allocations` + `overheads` — overhead cost pool management + calculator
+- `adjusted` — adjusted forecast CRUD
+- `summary` — master 4-column P&L engine (Revenue - Direct Costs - Staff Costs - Overheads = Gross Profit - Corporate Allocations = Net Profit) with 6 metrics (Gross Margin, Net Margin, Revenue Achievement, Budget Variance, Cost Variance, ROI)
+- `executive` — portfolio dashboard with full P&L per event (includes staff costs + overheads)
+- `scenarios` — what-if analysis CRUD + calculator
+- `approvals` — 4-step approval workflow
+- `corporate-allocations` — corporate allocation CRUD
+- `snapshot` — weekly P&L snapshot
+- `cron/commercial-snapshot` — cron endpoint for weekly auto-snapshot
+
+#### UI (2 new pages):
+- `/admin/commercial` — Executive Dashboard: KPI cards with donut charts, cost breakdown bars, event cards/table toggle, filters (region/BU/status), traffic light indicators
+- `/admin/commercial/[eventId]` — Event Commercial Workspace: 8 tabs (Summary, Revenue, Staff Costs, Direct Costs, Overheads, P&L Statement, Scenarios, Approvals), 4-column tables everywhere, subcategory grouping, salary missing warnings, vendor/PO/invoice tracking
+
+#### Architecture cleanup:
+- Removed 863 lines of duplicate P&L from Event Workspace (`/admin/events/[id]`)
+- Event Workspace is now operations-only (checklist, RACI, planning, brand, website, content)
+- Single "Open Commercial Tracker" button links to `/admin/commercial/[eventId]`
+- "Commercial" tab added to admin dashboard tab bar
+- "Commercial Tracker" added to PlatformMenu sidebar under Administration
+
+#### Bug Fixes (2 staff-reported issues from Khalifatur Rahman):
+1. **Toolkit — recent projects** (CRITICAL): EventPicker now shows "Your Recent Projects" section at top with events that have existing website drafts or brand guidelines. "In Progress" badge. No more searching for unfinished work.
+2. **Website Builder — save after upload** (MEDIUM): Speaker photos and sponsor logos now auto-save to DB immediately after upload via PATCH. No more lost files if user doesn't click Save.
+
+#### CLI Tool:
+- `scripts/issues.mjs` — manage staff-reported issues from terminal (list/view/resolve/reply/feedback). Both issues resolved and staff notified.
 
 ---
 
