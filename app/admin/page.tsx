@@ -25,6 +25,7 @@ const PLATFORM_TOOLS = [
   { key: 'brand_studio',    label: 'Brand Studio',         desc: 'AI image generation, brand templates & creative assets',      color: '#DC2626',  icon: <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><circle cx="13.5" cy="6.5" r=".5"/><circle cx="17.5" cy="10.5" r=".5"/><circle cx="8.5" cy="7.5" r=".5"/><circle cx="6.5" cy="12.5" r=".5"/><path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10c.926 0 1.648-.746 1.648-1.688 0-.437-.18-.835-.477-1.125-.29-.289-.438-.652-.438-1.125a1.64 1.64 0 0 1 1.668-1.668h1.996c3.051 0 5.555-2.503 5.555-5.554C21.965 6.012 17.461 2 12 2z"/></svg> },
   { key: 'website_builder', label: 'Website Builder',      desc: 'Event websites, landing pages & custom domain hosting',       color: '#D97706',  icon: <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg> },
   { key: 'content',         label: 'Content Engine',       desc: 'Social media planning, AI content generation & approval flow', color: '#059669', icon: <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg> },
+  { key: 'commercial',      label: 'Commercial Tracker',   desc: 'Event P&L, revenue pipeline, budgets & financial reporting',   color: '#00695C', icon: <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M21.21 15.89A10 10 0 1 1 8 2.83"/><path d="M22 12A10 10 0 0 0 12 2v10z"/></svg> },
 ]
 
 const OFFICES = [
@@ -205,7 +206,7 @@ export default function AdminPage() {
   const [codeError, setCodeError] = useState('')
   const [members, setMembers] = useState<Member[]>([])
   const [tasks, setTasks]     = useState<TaskProfile[]>([])
-  const [tab, setTab]         = useState<'overview' | 'people' | 'intelligence' | 'learning' | 'suggest' | 'events' | 'knowledge' | 'review' | 'toolkit' | 'security'>('overview')
+  const [tab, setTab]         = useState<'overview' | 'people' | 'intelligence' | 'learning' | 'suggest' | 'events' | 'commercial' | 'knowledge' | 'review' | 'toolkit' | 'security'>('overview')
 
   // Activity tracking state
   type ActiveUser = { staff_id: string; last_seen_at: string; ip: string | null; staff_members: { id: string; name: string; department: string | null; role: string | null; office_id: string; job_level: string } }
@@ -1454,6 +1455,7 @@ export default function AdminPage() {
             learning:     '#00897B',
             suggest:      '#A478FF',
             events:       '#00897B',
+            commercial:   '#00695C',
             knowledge:    '#166534',
             review:       '#991B1B',
             security:     '#1D4ED8',
@@ -1467,6 +1469,7 @@ export default function AdminPage() {
                 ['learning',     'Staff Learning'],
                 ['suggest',      'Learning Lab'],
                 ['events',       'Events'],
+                ['commercial',   'Commercial'],
                 ['knowledge',    'Knowledge Base'],
                 ...(isSuperAdmin ? [['review', 'Review Queue']] : []),
                 ...(isSuperAdmin ? [['security', 'Security']] : []),
@@ -1477,7 +1480,7 @@ export default function AdminPage() {
                 return (
                   <button key={t}
                     id={t === 'intelligence' ? 'tour-intelligence-tab' : t === 'suggest' ? 'tour-studio-tab' : undefined}
-                    onClick={() => { if (t === 'toolkit') { window.location.href = '/admin/toolkit'; return; } setTab(t as typeof tab); if (t === 'learning') fetchLearning(); if (t === 'people') { fetchStaffList(); markProgress('staff') } if (t === 'events') { fetchEvents(); fetchEventSummaries(); } if (t === 'knowledge') { fetchDocs(); fetchCustomDocTypes(); } if (t === 'review') fetchDrafts(); if (t === 'suggest') markProgress('course'); if (t === 'security') fetchSecurity() }}
+                    onClick={() => { if (t === 'toolkit') { window.location.href = '/admin/toolkit'; return; } if (t === 'commercial') { window.location.href = '/admin/commercial'; return; } setTab(t as typeof tab); if (t === 'learning') fetchLearning(); if (t === 'people') { fetchStaffList(); markProgress('staff') } if (t === 'events') { fetchEvents(); fetchEventSummaries(); } if (t === 'knowledge') { fetchDocs(); fetchCustomDocTypes(); } if (t === 'review') fetchDrafts(); if (t === 'suggest') markProgress('course'); if (t === 'security') fetchSecurity() }}
                     style={{
                       padding:         active ? '9px 22px' : '9px 20px',
                       borderRadius:    '10px',

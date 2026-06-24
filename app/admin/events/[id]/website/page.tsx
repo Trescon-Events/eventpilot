@@ -2362,7 +2362,13 @@ export default function EventWebsiteAdmin({ params }: { params: Promise<{ id: st
             <Field label="Session Title" value={editSpeaker.session_title ?? ''} onChange={v => setEditSpeaker(s => ({ ...s, session_title: v }))} placeholder="The Future of Zero Trust" />
             <Field label="Bio" value={editSpeaker.bio ?? ''} onChange={v => setEditSpeaker(s => ({ ...s, bio: v }))} rows={3} />
             <Field label="LinkedIn URL" value={editSpeaker.linkedin_url ?? ''} onChange={v => setEditSpeaker(s => ({ ...s, linkedin_url: v }))} placeholder="https://linkedin.com/in/..." />
-            <ImageUpload label="Photo" value={editSpeaker.photo_url ?? null} eventId={eventId} section="speaker" onUpload={v => setEditSpeaker(s => ({ ...s, photo_url: v }))} />
+            <ImageUpload label="Photo" value={editSpeaker.photo_url ?? null} eventId={eventId} section="speaker" onUpload={v => {
+              setEditSpeaker(s => ({ ...s, photo_url: v }))
+              // Auto-save photo to DB immediately if editing existing speaker
+              if (editSpeaker.id) {
+                fetch('/api/events/speakers', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: editSpeaker.id, photo_url: v }) })
+              }
+            }} />
             <div style={{ borderTop: `1px solid ${C.border}`, paddingTop: '14px' }}>
               <div style={{ fontSize: '11px', fontWeight: 700, color: C.muted, textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '12px' }}>KonfHub Registration Info</div>
               <div style={g2}>
@@ -2426,7 +2432,13 @@ export default function EventWebsiteAdmin({ params }: { params: Promise<{ id: st
                 options={SPONSOR_TIER_ORDER.map(t => ({ value: t, label: t.charAt(0).toUpperCase() + t.slice(1) }))} />
             </div>
             <Field label="Website URL" value={editSponsor.website_url ?? ''} onChange={v => setEditSponsor(s => ({ ...s, website_url: v }))} placeholder="https://..." />
-            <ImageUpload label="Logo" value={editSponsor.logo_url ?? null} eventId={eventId} section="sponsor" onUpload={v => setEditSponsor(s => ({ ...s, logo_url: v }))} />
+            <ImageUpload label="Logo" value={editSponsor.logo_url ?? null} eventId={eventId} section="sponsor" onUpload={v => {
+              setEditSponsor(s => ({ ...s, logo_url: v }))
+              // Auto-save logo to DB immediately if editing existing sponsor
+              if (editSponsor.id) {
+                fetch('/api/events/sponsors', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: editSponsor.id, logo_url: v }) })
+              }
+            }} />
             <SelectField label="Visible" value={editSponsor.active === false ? 'false' : 'true'} onChange={v => setEditSponsor(s => ({ ...s, active: v === 'true' }))}
               options={[{ value: 'true', label: 'Yes — visible' }, { value: 'false', label: 'No — hidden' }]} />
             <button onClick={saveSponsor} disabled={savingSpn || !editSponsor.name}

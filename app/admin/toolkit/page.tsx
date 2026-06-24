@@ -152,9 +152,27 @@ const ICONS: Record<string, React.ReactNode> = {
 
 function EventPicker({ tool, events, onClose }: { tool: typeof TOOLS[number]; events: Event[]; onClose: () => void }) {
   const [query, setQuery] = useState('')
+  const [recentIds, setRecentIds] = useState<Set<string>>(new Set())
+
+  // Fetch events with existing work (websites, brand guidelines) to show as "Recent Projects"
+  useEffect(() => {
+    Promise.all([
+      fetch('/api/events/website?list=true').then(r => r.json()).catch(() => []),
+      fetch('/api/events/brand?list=true').then(r => r.json()).catch(() => []),
+    ]).then(([websites, brands]) => {
+      const ids = new Set<string>()
+      if (Array.isArray(websites)) websites.forEach((w: { event_id: string }) => ids.add(w.event_id))
+      if (Array.isArray(brands)) brands.forEach((b: { event_id: string }) => ids.add(b.event_id))
+      setRecentIds(ids)
+    })
+  }, [])
+
   const filtered = query.trim()
     ? events.filter(e => e.name.toLowerCase().includes(query.toLowerCase()) || (e.city ?? '').toLowerCase().includes(query.toLowerCase()))
     : events
+
+  const recentEvents = filtered.filter(e => recentIds.has(e.id))
+  const otherEvents = filtered.filter(e => !recentIds.has(e.id))
 
   return (
     <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '24px' }} onClick={onClose}>
@@ -172,6 +190,33 @@ function EventPicker({ tool, events, onClose }: { tool: typeof TOOLS[number]; ev
             style={{ width: '100%', padding: '10px 12px 10px 34px', borderRadius: '10px', border: '1px solid #DDE8EE', fontSize: '13px', fontFamily: 'inherit', color: '#0F1923', boxSizing: 'border-box', outline: 'none' }} />
         </div>
         <div style={{ overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+          {/* Recent / In-Progress Projects */}
+          {recentEvents.length > 0 && !query.trim() && (
+            <>
+              <div style={{ fontSize: '10px', fontWeight: 800, letterSpacing: '1.5px', textTransform: 'uppercase', color: '#00A5A3', padding: '4px 4px 0' }}>
+                Your Recent Projects
+              </div>
+              {recentEvents.map(ev => (
+                <Link key={ev.id} href={tool.route!(ev.id)} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 16px', borderRadius: '12px', border: `1.5px solid ${tool.accent}30`, background: `${tool.accent}06`, textDecoration: 'none', transition: 'all 0.15s' }}
+                  onMouseEnter={e => { (e.currentTarget as HTMLElement).style.borderColor = tool.accent; (e.currentTarget as HTMLElement).style.background = `${tool.accent}12` }}
+                  onMouseLeave={e => { (e.currentTarget as HTMLElement).style.borderColor = `${tool.accent}30`; (e.currentTarget as HTMLElement).style.background = `${tool.accent}06` }}>
+                  <div>
+                    <div style={{ fontSize: '14px', fontWeight: 700, color: '#0F1923', marginBottom: '3px' }}>{ev.name}</div>
+                    <div style={{ fontSize: '12px', color: '#5B7080', display: 'flex', gap: '10px' }}>
+                      {ev.city && <span>{ev.city}</span>}
+                      <span style={{ padding: '1px 7px', borderRadius: '8px', background: 'rgba(0,165,163,0.12)', color: '#00897B', fontWeight: 700 }}>In Progress</span>
+                    </div>
+                  </div>
+                  <svg width="14" height="14" fill="none" stroke={tool.accent} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg>
+                </Link>
+              ))}
+              {otherEvents.length > 0 && (
+                <div style={{ fontSize: '10px', fontWeight: 800, letterSpacing: '1.5px', textTransform: 'uppercase', color: '#8CA0B3', padding: '8px 4px 0' }}>
+                  All Events
+                </div>
+              )}
+            </>
+          )}
           {tool.id === 'market-intel' && (
             <Link href={tool.route!('__general__')} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 16px', borderRadius: '12px', border: `1.5px solid ${tool.accent}40`, background: `${tool.accent}08`, textDecoration: 'none', marginBottom: '4px' }}>
               <div>
@@ -181,9 +226,9 @@ function EventPicker({ tool, events, onClose }: { tool: typeof TOOLS[number]; ev
               <svg width="14" height="14" fill="none" stroke={tool.accent} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg>
             </Link>
           )}
-          {filtered.length === 0
+          {(query.trim() ? filtered : otherEvents).length === 0 && recentEvents.length === 0
             ? <div style={{ padding: '32px', textAlign: 'center', color: '#5B7080', fontSize: '14px' }}>No events match &ldquo;{query}&rdquo;.</div>
-            : filtered.map(ev => (
+            : (query.trim() ? filtered : otherEvents).map(ev => (
               <Link key={ev.id} href={tool.route!(ev.id)} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 16px', borderRadius: '12px', border: '1px solid #DDE8EE', background: '#FAFBFC', textDecoration: 'none', transition: 'all 0.15s' }}
                 onMouseEnter={e => { (e.currentTarget as HTMLElement).style.borderColor = tool.accent; (e.currentTarget as HTMLElement).style.background = `${tool.accent}08` }}
                 onMouseLeave={e => { (e.currentTarget as HTMLElement).style.borderColor = '#DDE8EE'; (e.currentTarget as HTMLElement).style.background = '#FAFBFC' }}>

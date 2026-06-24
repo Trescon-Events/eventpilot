@@ -9,7 +9,7 @@ import { supabaseAdmin } from '@/app/lib/supabase'
 export async function GET() {
   const { data, error } = await supabaseAdmin
     .from('expense_categories')
-    .select('id, name, is_active, sort_order')
+    .select('id, name, is_active, sort_order, parent_id, description')
     .order('sort_order', { ascending: true })
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
@@ -24,8 +24,8 @@ export async function POST(req: NextRequest) {
 
   const { data, error } = await supabaseAdmin
     .from('expense_categories')
-    .insert({ name: name.trim(), sort_order: sort_order ?? 99 })
-    .select('id, name, is_active, sort_order')
+    .insert({ name: name.trim(), sort_order: sort_order ?? 99, parent_id: body.parent_id ?? null, description: body.description ?? null })
+    .select('id, name, is_active, sort_order, parent_id, description')
     .single()
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })

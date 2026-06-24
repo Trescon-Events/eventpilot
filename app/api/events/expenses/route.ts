@@ -15,8 +15,10 @@ export async function GET(req: NextRequest) {
     .select(`
       id, description, amount, expense_currency, exchange_rate, converted_amount,
       expense_date, receipt_ref, notes, created_at,
+      vendor_name, po_number, invoice_number, payment_status,
+      approval_status, approved_by, approved_at,
       logged_by ( id, name ),
-      category:category_id ( id, name )
+      category:category_id ( id, name, parent_id )
     `)
     .eq('event_id', event_id)
     .order('expense_date', { ascending: false })
@@ -30,6 +32,7 @@ export async function POST(req: NextRequest) {
   const {
     event_id, logged_by, category_id, description,
     amount, expense_currency, exchange_rate, expense_date, receipt_ref, notes,
+    vendor_name, po_number, invoice_number, payment_status,
   } = body
 
   if (!event_id || !description || amount === undefined) {
@@ -49,6 +52,10 @@ export async function POST(req: NextRequest) {
       expense_date:     expense_date ?? null,
       receipt_ref:      receipt_ref ?? null,
       notes:            notes ?? null,
+      vendor_name:      vendor_name ?? null,
+      po_number:        po_number ?? null,
+      invoice_number:   invoice_number ?? null,
+      payment_status:   payment_status ?? 'unpaid',
     })
     .select('*')
     .single()
@@ -65,6 +72,8 @@ export async function PATCH(req: NextRequest) {
   const allowed = [
     'category_id','description','amount','expense_currency',
     'exchange_rate','expense_date','receipt_ref','notes',
+    'vendor_name','po_number','invoice_number','payment_status',
+    'approval_status','approved_by','approved_at',
   ]
   const patch: Record<string, unknown> = { updated_at: new Date().toISOString() }
   for (const key of allowed) {
