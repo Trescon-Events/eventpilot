@@ -68,12 +68,43 @@ Built the complete Commercial Tracker module per Naveen Bharadwaj's 20-section B
 - "Commercial" tab added to admin dashboard tab bar
 - "Commercial Tracker" added to PlatformMenu sidebar under Administration
 
-#### Bug Fixes (2 staff-reported issues from Khalifatur Rahman):
-1. **Toolkit — recent projects** (CRITICAL): EventPicker now shows "Your Recent Projects" section at top with events that have existing website drafts or brand guidelines. "In Progress" badge. No more searching for unfinished work.
-2. **Website Builder — save after upload** (MEDIUM): Speaker photos and sponsor logos now auto-save to DB immediately after upload via PATCH. No more lost files if user doesn't click Save.
+#### Bug Fixes (3 staff-reported issues resolved):
+1. **Toolkit — recent projects** (CRITICAL, Khalifatur): EventPicker now shows "Your Recent Projects" section at top. "In Progress" badge. No more searching for unfinished work.
+2. **Website Builder — save after upload** (MEDIUM, Khalifatur): Speaker photos and sponsor logos auto-save to DB immediately after upload.
+3. **Course completion not showing** (MEDIUM, Thulasi Devi): Dashboard now shows completed courses even if course was unpublished/archived after completion.
+
+#### P&L Calculation Fix (critical):
+- Gross Profit was Revenue - Direct Costs only (WRONG). Fixed to Revenue - (Direct + Staff + Overhead).
+- Net Profit = Gross Profit - Corporate Allocations.
+- Gross Margin was inflated ~25%. Now correct.
+
+#### Executive Dashboard KPIs:
+- Was 6 KPIs, now 11 per BRD: added total_direct_costs, total_staff_costs, total_overheads, total_gross_profit, cost_variance.
+
+#### Overhead Components Seeded:
+- 9 BRD components created in DB: office_rent, utilities, technology_costs, corporate_marketing, administrative_costs, insurance, finance_costs, commission_costs, incentives.
+
+#### Staff Cost — cost_center:
+- cost_center field now returned from staff-costs API alongside salary data.
+
+#### Website Builder Flow Fix:
+- "Create & Deploy Site" button moved from Template tab to Build tab.
+- Correct flow: Template (select) → Brand (upload) → Build (deploy) → Content (edit) → Publish (go live).
+- Publish Live button now only shows on Publish tab (was showing on every tab).
+- Custom domain CNAME target fixed: now points to Cloudflare Workers URL (was pointing to deleted Vercel project).
+- Team member invite emails now sent via Resend when added.
+
+#### Report Issue Button:
+- Now draggable — users can reposition it anywhere on screen. Position remembered in localStorage.
+
+#### Build Log Restored:
+- GitHub Actions workflow was missing since Railway migration (Jun 19). Restored + backfilled all commits from Jun 20-25.
+
+#### Renamed:
+- "Commercial" tab → "Commercial P&L" in admin dashboard + sidebar.
 
 #### CLI Tool:
-- `scripts/issues.mjs` — manage staff-reported issues from terminal (list/view/resolve/reply/feedback). Both issues resolved and staff notified.
+- `scripts/issues.mjs` — manage staff-reported issues from terminal. All 3 issues resolved + staff notified.
 
 ---
 
@@ -739,25 +770,37 @@ Everything committed before `dc48b2b` is Durga's work and was not touched. Key p
 
 ---
 
-### Commercial Tracker — Next Steps (Priority)
+### Commercial P&L — What's Done (25 Jun 2026)
+- P&L calculation fixed (Gross Profit = Revenue - ALL costs, not just direct)
+- Executive Dashboard has all 11 BRD KPIs
+- 9 overhead components seeded in DB
+- cost_center returned from staff-costs API
+- Tab renamed to "Commercial P&L"
+- Website builder flow corrected (Template → Brand → Build → Content → Publish)
+- Report Issue button is draggable
+- Build Log restored and backfilled
 
-1. **Populate revenue targets** — BU Heads need to go to `/admin/commercial/[eventId]` → Revenue tab → add commercial inventory items (e.g., "Platinum Sponsor x5 at $50K"). This sets the revenue target. Without this, all events show $0.
+### Commercial P&L — Next Steps (Priority)
 
-2. **Expense approval workflow UI** — API + table exists (`commercial_approvals`), Approvals tab shows status. Need: "Request Approval" button + approval action buttons for approvers.
+1. **Populate revenue targets** — BU Heads must add inventory items per event (Revenue tab). Without this, $0 everywhere.
 
-3. **Event closure workflow** — DB fields exist (closure_status, final_revenue/cost/profit). Need: UI to trigger closure, freeze financials, generate final report.
+2. **10-stage workflow** — BRD Section 14. No stage enforcement or UI guidance exists. Need workflow state machine.
 
-4. **PDF export** — Portfolio P&L, Event P&L, Revenue Analysis reports. API data is ready, need PDF generation endpoint.
+3. **Role-based access** — BRD Section 15. Commercial APIs currently open to any authenticated user. Need middleware checks per 10 BRD roles.
 
-5. **Weekly snapshot cron** — `/api/cron/commercial-snapshot` exists. Need to register in Railway cron or external scheduler (every Monday 06:00 UTC).
+4. **Expense approval workflow UI** — API + table exists. Need "Request Approval" button + approver action buttons in UI.
 
-6. **Role-based access** — Commercial APIs currently accessible to any authenticated user. Need middleware checks: CEO sees all, Finance edits financial data, BU Head sees own events, staff sees timesheets only.
+5. **Event closure workflow** — DB fields exist. Need UI to trigger closure, freeze financials, generate final report.
+
+6. **PDF export** — Portfolio P&L, Event P&L reports. API data ready, need PDF generation.
+
+7. **Weekly snapshot cron** — endpoint exists. Register in Railway (every Monday 06:00 UTC).
 
 ### Ongoing Sprint Items
 
-7. **Content Hub social publishing** — approval queue built, needs Meta API tokens from Madhu.
+8. **Content Hub social publishing** — needs Meta API tokens from Madhu.
 
-8. **Security hardening Phase 3** — rate limiting, audit log, signed sessions, idle timeout. Need Bangalore + Dubai office IPs.
+9. **Security hardening Phase 3** — rate limiting, audit log, signed sessions, idle timeout. Need office IPs.
 
 9. **Khalifa + Prashant — Website Builder test for AI2047** — toolkit recent projects fix deployed. Confirm WB works end-to-end.
 

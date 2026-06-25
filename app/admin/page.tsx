@@ -1469,7 +1469,7 @@ export default function AdminPage() {
                 ['learning',     'Staff Learning'],
                 ['suggest',      'Learning Lab'],
                 ['events',       'Events'],
-                ['commercial',   'Commercial'],
+                ['commercial',   'Commercial P&L'],
                 ['knowledge',    'Knowledge Base'],
                 ...(isSuperAdmin ? [['review', 'Review Queue']] : []),
                 ...(isSuperAdmin ? [['security', 'Security']] : []),
