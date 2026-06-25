@@ -99,10 +99,11 @@ export async function GET(req: NextRequest) {
   // ═══════════════════════════════════════
   // P&L ENGINE (BRD Section 11)
   // ═══════════════════════════════════════
+  // BRD Section 11: Revenue - Staff Costs - Direct Costs - Overheads = Gross Profit
   const totalCosts = directCosts + staffCosts + overheadCosts
-  const grossProfit = confirmedRevenue - directCosts
+  const grossProfit = confirmedRevenue - totalCosts
 
-  // Corporate allocations
+  // Corporate allocations (applied AFTER gross profit per BRD: Gross Profit - Corporate Allocations = Net Profit)
   const corpAlloc = corpAllocRes.data
   let corporateAllocation = 0
   if (corpAlloc) {
@@ -113,7 +114,7 @@ export async function GET(req: NextRequest) {
     }
   }
 
-  const netProfit = grossProfit - staffCosts - overheadCosts - corporateAllocation
+  const netProfit = grossProfit - corporateAllocation
   const costBudget = Number(eventRes.data?.cost_budget) || Number(budgetRes.data?.approved_budget) || 0
 
   // ═══════════════════════════════════════
@@ -143,8 +144,8 @@ export async function GET(req: NextRequest) {
   const adjStaffCost = adj ? Number(adj.adjusted_staff_cost) : 0
   const adjOverhead = adj ? Number(adj.adjusted_overhead) : 0
   const adjTotalCost = adjDirectCost + adjStaffCost + adjOverhead
-  const adjGrossProfit = adjRevenue - adjDirectCost
-  const adjNetProfit = adjRevenue - adjTotalCost - corporateAllocation
+  const adjGrossProfit = adjRevenue - adjTotalCost
+  const adjNetProfit = adjGrossProfit - corporateAllocation
 
   // ═══════════════════════════════════════
   // 4-COLUMN ROWS (BRD Section 6B + 13)

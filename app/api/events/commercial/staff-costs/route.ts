@@ -55,16 +55,15 @@ export async function GET(req: NextRequest) {
   // 4. Get salary records for all staff
   const { data: salaryRecords } = await supabaseAdmin
     .from('staff_salary_records')
-    .select('staff_id, gross_salary, currency, effective_from, effective_to')
+    .select('staff_id, gross_salary, currency, effective_from, effective_to, cost_center')
     .in('staff_id', staffIds)
     .order('effective_from', { ascending: false })
 
   // Build a map: staff_id → latest active salary
-  const salaryMap: Record<string, { gross_salary: number; currency: string }> = {}
+  const salaryMap: Record<string, { gross_salary: number; currency: string; cost_center: string | null }> = {}
   for (const sr of salaryRecords || []) {
     if (!salaryMap[sr.staff_id]) {
-      // Most recent record first (ordered desc)
-      salaryMap[sr.staff_id] = { gross_salary: Number(sr.gross_salary), currency: sr.currency }
+      salaryMap[sr.staff_id] = { gross_salary: Number(sr.gross_salary), currency: sr.currency, cost_center: sr.cost_center || null }
     }
   }
 
@@ -77,6 +76,7 @@ export async function GET(req: NextRequest) {
     days_worked: number
     monthly_salary: number
     currency: string
+    cost_center: string | null
     allocated_cost: number
     salary_missing: boolean
     months: Array<{ month: string; hours: number; cost: number }>
@@ -87,7 +87,7 @@ export async function GET(req: NextRequest) {
 
   for (const staffId of staffIds) {
     const info = staffMap[staffId] || { name: 'Unknown', department: '', email: '' }
-    const salary = salaryMap[staffId] || { gross_salary: 0, currency: 'USD' }
+    const salary = salaryMap[staffId] || { gross_salary: 0, currency: 'USD', cost_center: null }
     const salaryMissing = !salaryMap[staffId]
     const monthlyHours = staffHours[staffId]
 
@@ -121,6 +121,7 @@ export async function GET(req: NextRequest) {
       days_worked: Math.round((staffTotalHours / 8) * 100) / 100,
       monthly_salary: salary.gross_salary,
       currency: salary.currency,
+      cost_center: salary.cost_center,
       allocated_cost: Math.round(staffTotalCost * 100) / 100,
       salary_missing: salaryMissing,
       months,

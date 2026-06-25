@@ -192,6 +192,9 @@ export async function GET(req: NextRequest) {
   let portfolioCosts = 0
   let portfolioProfit = 0
   let portfolioBudgetedRevenue = 0
+  let portfolioDirectCosts = 0
+  let portfolioStaffCosts = 0
+  let portfolioOverheads = 0
   let marginSum = 0
   let marginCount = 0
 
@@ -224,6 +227,9 @@ export async function GET(req: NextRequest) {
     portfolioCosts += cost
     portfolioProfit += profit
     portfolioBudgetedRevenue += revTarget
+    portfolioDirectCosts += expenses
+    portfolioStaffCosts += staffCost
+    portfolioOverheads += finOverhead + hrOverhead
     if (revenue > 0) { marginSum += margin; marginCount++ }
 
     return {
@@ -271,11 +277,18 @@ export async function GET(req: NextRequest) {
     kpis: {
       total_events: events.length,
       total_revenue: Math.round(portfolioRevenue * 100) / 100,
+      total_direct_costs: Math.round(portfolioDirectCosts * 100) / 100,
+      total_staff_costs: Math.round(portfolioStaffCosts * 100) / 100,
+      total_overheads: Math.round(portfolioOverheads * 100) / 100,
       total_costs: Math.round(portfolioCosts * 100) / 100,
-      total_profit: Math.round(portfolioProfit * 100) / 100,
+      total_gross_profit: Math.round((portfolioRevenue - portfolioCosts) * 100) / 100,
+      total_net_profit: Math.round(portfolioProfit * 100) / 100,
       avg_margin: marginCount > 0 ? Math.round((marginSum / marginCount) * 100) / 100 : 0,
       revenue_achievement: portfolioBudgetedRevenue > 0
         ? Math.round((portfolioRevenue / portfolioBudgetedRevenue) * 10000) / 100
+        : 0,
+      cost_variance: portfolioBudgetedRevenue > 0
+        ? Math.round(((portfolioCosts - portfolioBudgetedRevenue * 0.6) / (portfolioBudgetedRevenue * 0.6 || 1)) * 10000) / 100
         : 0,
     },
     events: eventCards,
