@@ -12,14 +12,32 @@ import { supabaseAdmin } from '@/app/lib/supabase'
   The CF API token is never stored — used only for this one-time call.
 */
 
-const VERCEL_HOST = process.env.VERCEL_PROJECT_PRODUCTION_URL ?? 'cname.vercel-dns.com'
-
 export async function POST(req: NextRequest) {
   const body = await req.json().catch(() => null)
   const { website_id, cf_token, cf_zone_id, domain } = body ?? {}
 
   if (!website_id || !cf_token || !cf_zone_id || !domain) {
     return NextResponse.json({ error: 'website_id, cf_token, cf_zone_id, and domain are required' }, { status: 400 })
+  }
+
+  // Look up the deployed site to get the Workers URL as CNAME target
+  const { data: websiteRecord } = await supabaseAdmin
+    .from('event_websites')
+    .select('event_id')
+    .eq('id', website_id)
+    .single()
+
+  let cnameTarget = 'cname.vercel-dns.com' // fallback
+  if (websiteRecord?.event_id) {
+    const { data: siteRecord } = await supabaseAdmin
+      .from('event_sites')
+      .select('worker_name, site_url')
+      .eq('event_id', websiteRecord.event_id)
+      .single()
+    if (siteRecord?.worker_name) {
+      // Cloudflare Workers custom domains need a CNAME to the workers.dev subdomain
+      cnameTarget = `${siteRecord.worker_name}.workers.dev`
+    }
   }
 
   // Normalise domain — strip protocol and trailing slash
@@ -58,7 +76,7 @@ export async function POST(req: NextRequest) {
       body: JSON.stringify({
         type: 'CNAME',
         name: recordName,
-        content: VERCEL_HOST,
+        content: cnameTarget,
         proxied: true,
         ttl: 1,
       }),
@@ -75,7 +93,7 @@ export async function POST(req: NextRequest) {
       body: JSON.stringify({
         type: 'CNAME',
         name: recordName,
-        content: VERCEL_HOST,
+        content: cnameTarget,
         proxied: true,
         ttl: 1,
       }),
@@ -100,6 +118,6 @@ export async function POST(req: NextRequest) {
     ok: true,
     domain: cleanDomain,
     record_id: cfResult.result?.id,
-    message: `CNAME record created: ${cleanDomain} → ${VERCEL_HOST}`,
+    message: `CNAME record created: ${cleanDomain} → ${cnameTarget}`,
   })
 }

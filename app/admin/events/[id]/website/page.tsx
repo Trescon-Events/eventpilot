@@ -2305,7 +2305,7 @@ export default function EventWebsiteAdmin({ params }: { params: Promise<{ id: st
                 )}
                 {cfStatus === 'ok' && (
                   <div style={{ padding: '10px 14px', borderRadius: '8px', background: 'rgba(192,244,60,0.06)', border: '1px solid rgba(192,244,60,0.2)', fontSize: '12px', color: C.teal }}>
-                    {cfMsg || `CNAME record active: ${cfDomain} → eventpilot-trescons-projects.vercel.app`}
+                    {cfMsg || `CNAME record active: ${cfDomain} → Cloudflare Workers`}
                   </div>
                 )}
 
@@ -2333,7 +2333,7 @@ export default function EventWebsiteAdmin({ params }: { params: Promise<{ id: st
                 <div style={{ fontSize: '11px', color: C.muted, lineHeight: 1.5, borderTop: `1px solid ${C.border}`, paddingTop: '12px' }}>
                   What happens when you click Connect:
                   <ol style={{ margin: '6px 0 0 16px', padding: 0 }}>
-                    <li>A CNAME DNS record is created in your Cloudflare account: <code style={{ background: C.bg, padding: '1px 5px', borderRadius: '3px' }}>{cfDomain || 'yourdomain.com'} → eventpilot-trescons-projects.vercel.app</code></li>
+                    <li>A CNAME DNS record is created in your Cloudflare account: <code style={{ background: C.bg, padding: '1px 5px', borderRadius: '3px' }}>{cfDomain || 'yourdomain.com'} → your-site.workers.dev</code></li>
                     <li>Cloudflare proxies and secures the domain (SSL included)</li>
                     <li>Your event website is accessible at <code style={{ background: C.bg, padding: '1px 5px', borderRadius: '3px' }}>https://{cfDomain || 'yourdomain.com'}</code></li>
                   </ol>
