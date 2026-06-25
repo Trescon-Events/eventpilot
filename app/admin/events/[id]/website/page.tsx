@@ -814,10 +814,12 @@ export default function EventWebsiteAdmin({ params }: { params: Promise<{ id: st
               DRAFT PENDING
             </div>
           )}
-          <button onClick={togglePublish} disabled={savingSettings || publishing}
-            style={{ padding: '8px 18px', borderRadius: '8px', border: 'none', background: settings.status === 'live' && !settings.draft_structure ? 'rgba(255,107,107,0.12)' : C.green, color: settings.status === 'live' && !settings.draft_structure ? C.red : C.text, fontSize: '12px', fontWeight: 800, cursor: 'pointer', fontFamily: 'inherit', opacity: (savingSettings || publishing) ? 0.6 : 1 }}>
-            {settings.status === 'live' && !settings.draft_structure ? 'Unpublish' : settings.status === 'live' && settings.draft_structure ? 'Update Live' : 'Publish Live'}
-          </button>
+          {tab === 'publish' && (
+            <button onClick={togglePublish} disabled={savingSettings || publishing}
+              style={{ padding: '8px 18px', borderRadius: '8px', border: 'none', background: settings.status === 'live' && !settings.draft_structure ? 'rgba(255,107,107,0.12)' : C.green, color: settings.status === 'live' && !settings.draft_structure ? C.red : C.text, fontSize: '12px', fontWeight: 800, cursor: 'pointer', fontFamily: 'inherit', opacity: (savingSettings || publishing) ? 0.6 : 1 }}>
+              {settings.status === 'live' && !settings.draft_structure ? 'Unpublish' : settings.status === 'live' && settings.draft_structure ? 'Update Live' : 'Publish Live'}
+            </button>
+          )}
         </div>
       </nav>
 
@@ -955,123 +957,22 @@ export default function EventWebsiteAdmin({ params }: { params: Promise<{ id: st
               })}
             </div>
 
-            {/* Deploy button */}
-            {selectedTemplate && !deployResult && (
-              <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: '16px', padding: '24px' }}>
-                <div style={{ fontSize: '13px', fontWeight: 800, color: C.text, marginBottom: '6px' }}>
-                  {templates.find(t => t.id === selectedTemplate)?.label}
-                </div>
-                <div style={{ fontSize: '12px', color: C.muted, marginBottom: '20px', lineHeight: 1.6 }}>
-                  Event Pilot will create a GitHub repo, inject your event data, and trigger an automatic Cloudflare Workers deployment. The site will be live in 5–8 minutes.
-                </div>
-
-                {/* Progress steps while deploying */}
-                {deploying && (
-                  <div style={{ display: 'grid', gap: '10px', marginBottom: '20px' }}>
-                    {[
-                      'Reading template files from GitHub',
-                      'Creating your site repo under Trescon-Events',
-                      'Injecting event data (brand, speakers, sponsors)',
-                      'Setting up GitHub Actions for auto-deploy',
-                      'Pushing to GitHub — build will start in seconds',
-                    ].map((step, i) => (
-                      <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                        <div style={{ width: '20px', height: '20px', borderRadius: '50%', border: `2px solid ${C.teal}`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                          <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: C.teal, animation: 'pulse 1s infinite' }} />
-                        </div>
-                        <div style={{ fontSize: '12px', color: C.muted }}>{step}</div>
-                      </div>
-                    ))}
+            {/* Next step prompt */}
+            {selectedTemplate && (
+              <div style={{ background: C.surface, border: `1px solid ${C.teal}40`, borderRadius: '16px', padding: '24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <div>
+                  <div style={{ fontSize: '14px', fontWeight: 800, color: C.text, marginBottom: '4px' }}>
+                    Template selected: {templates.find(t => t.id === selectedTemplate)?.label}
                   </div>
-                )}
-
-                <button
-                  disabled={deploying}
-                  onClick={async () => {
-                    setDeploying(true)
-                    setDeployResult(null)
-                    try {
-                      const res = await fetch('/api/sites/deploy', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ event_id: eventId, template_id: selectedTemplate }),
-                      })
-                      const data = await res.json()
-                      if (!res.ok) { showMsg(data.error ?? 'Deployment failed'); return }
-                      setDeployResult(data)
-                      setExistingSite({ repo_url: data.repo_url, gh_actions_url: data.gh_actions_url, site_url: data.site_url, status: 'deploying', template_id: selectedTemplate!, worker_name: data.worker_name })
-                    } catch (e) {
-                      showMsg(e instanceof Error ? e.message : 'Deployment failed')
-                    } finally {
-                      setDeploying(false)
-                    }
-                  }}
-                  style={{ padding: '12px 28px', background: deploying ? C.muted : C.teal, color: '#fff', border: 'none', borderRadius: '10px', fontSize: '13px', fontWeight: 700, cursor: deploying ? 'not-allowed' : 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  {deploying
-                    ? <><svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" viewBox="0 0 24 24" className="spin"><line x1="12" y1="2" x2="12" y2="6"/><line x1="12" y1="18" x2="12" y2="22"/><line x1="4.93" y1="4.93" x2="7.76" y2="7.76"/><line x1="16.24" y1="16.24" x2="19.07" y2="19.07"/><line x1="2" y1="12" x2="6" y2="12"/><line x1="18" y1="12" x2="22" y2="12"/></svg> Creating site…</>
-                    : <><svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" viewBox="0 0 24 24"><polyline points="16 16 12 12 8 16"/><line x1="12" y1="12" x2="12" y2="21"/><path d="M20.39 18.39A5 5 0 0018 9h-1.26A8 8 0 103 16.3"/></svg> Create &amp; Deploy Site</>
-                  }
+                  <div style={{ fontSize: '13px', color: C.muted }}>
+                    Next, upload your brand guidelines (logos, colours, fonts) before deploying.
+                  </div>
+                </div>
+                <button onClick={() => setTab('brand')}
+                  style={{ padding: '10px 24px', background: C.teal, color: '#fff', border: 'none', borderRadius: '10px', fontSize: '13px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: '6px', whiteSpace: 'nowrap', flexShrink: 0 }}>
+                  Next: Upload Brand
+                  <svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg>
                 </button>
-              </div>
-            )}
-
-            {/* Deployment result */}
-            {deployResult && (
-              <div style={{ background: `${C.teal}08`, border: `2px solid ${C.teal}40`, borderRadius: '16px', padding: '24px', display: 'grid', gap: '16px' }}>
-
-                {/* Success header */}
-                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                  <div style={{ width: '40px', height: '40px', borderRadius: '50%', background: `${C.teal}20`, border: `2px solid ${C.teal}`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                    <svg width="18" height="18" fill="none" stroke={C.teal} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>
-                  </div>
-                  <div>
-                    <div style={{ fontSize: '15px', fontWeight: 800, color: C.teal }}>Site created successfully</div>
-                    <div style={{ fontSize: '12px', color: C.muted }}>GitHub repo is ready. Build is running now — site will be live in 5–8 minutes.</div>
-                  </div>
-                </div>
-
-                {/* Links */}
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: '10px' }}>
-                  <a href={deployResult.repo_url} target="_blank" rel="noreferrer"
-                    style={{ padding: '14px 16px', background: C.surface, border: `1px solid ${C.border}`, borderRadius: '12px', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '10px' }}>
-                    <svg width="20" height="20" fill={C.text} viewBox="0 0 24 24"><path d="M12 0C5.374 0 0 5.373 0 12c0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23A11.509 11.509 0 0112 5.803c1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576C20.566 21.797 24 17.3 24 12c0-6.627-5.373-12-12-12z"/></svg>
-                    <div>
-                      <div style={{ fontSize: '12px', fontWeight: 700, color: C.text }}>GitHub Repo</div>
-                      <div style={{ fontSize: '11px', color: C.muted, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{deployResult.repo_url.replace('https://github.com/', '')}</div>
-                    </div>
-                  </a>
-
-                  <a href={deployResult.gh_actions_url} target="_blank" rel="noreferrer"
-                    style={{ padding: '14px 16px', background: C.surface, border: `1px solid ${C.border}`, borderRadius: '12px', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '10px' }}>
-                    <svg width="20" height="20" fill="none" stroke={C.amber} strokeWidth="2" strokeLinecap="round" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
-                    <div>
-                      <div style={{ fontSize: '12px', fontWeight: 700, color: C.text }}>Build Logs</div>
-                      <div style={{ fontSize: '11px', color: C.muted }}>GitHub Actions — live progress</div>
-                    </div>
-                  </a>
-
-                  <a href={deployResult.site_url} target="_blank" rel="noreferrer"
-                    style={{ padding: '14px 16px', background: C.surface, border: `1px solid ${C.border}`, borderRadius: '12px', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '10px' }}>
-                    <svg width="20" height="20" fill="none" stroke={C.green} strokeWidth="2" strokeLinecap="round" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 010 20M12 2a15.3 15.3 0 000 20"/></svg>
-                    <div>
-                      <div style={{ fontSize: '12px', fontWeight: 700, color: C.text }}>Live URL</div>
-                      <div style={{ fontSize: '11px', color: C.muted }}>{deployResult.site_url} (active after build)</div>
-                    </div>
-                  </a>
-                </div>
-
-                {/* One-time setup note */}
-                <div style={{ background: C.bg, border: `1px solid ${C.border}`, borderRadius: '10px', padding: '14px 16px' }}>
-                  <div style={{ fontSize: '11px', fontWeight: 800, color: C.text, marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>First time only — add org secrets in GitHub</div>
-                  <div style={{ fontSize: '12px', color: C.muted, lineHeight: 1.6 }}>
-                    Go to <strong>github.com/organizations/Trescon-Events/settings/secrets/actions</strong> and add these two secrets (once, applies to all sites):
-                  </div>
-                  <div style={{ marginTop: '10px', display: 'grid', gap: '6px' }}>
-                    <code style={{ fontSize: '11px', background: C.surface, border: `1px solid ${C.border}`, borderRadius: '6px', padding: '6px 10px', display: 'block', color: C.text }}>CLOUDFLARE_API_TOKEN — your CF API token (Workers:Edit permission)</code>
-                    <code style={{ fontSize: '11px', background: C.surface, border: `1px solid ${C.border}`, borderRadius: '6px', padding: '6px 10px', display: 'block', color: C.text }}>CLOUDFLARE_ACCOUNT_ID — your CF account ID</code>
-                  </div>
-                  <div style={{ fontSize: '11px', color: C.muted, marginTop: '8px' }}>After adding, every future site deploys fully automatically with zero setup.</div>
-                </div>
               </div>
             )}
           </div>
@@ -1446,19 +1347,94 @@ export default function EventWebsiteAdmin({ params }: { params: Promise<{ id: st
           const tpl = templates.find(t => t.id === (site?.template_id ?? selectedTemplate))
 
           if (!site) {
+            const selTpl = templates.find(t => t.id === selectedTemplate)
             return (
-              <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: '16px', padding: '40px 32px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '16px', textAlign: 'center' }}>
-                <div style={{ width: '52px', height: '52px', borderRadius: '14px', background: `${C.teal}14`, border: `1px solid ${C.teal}33`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                  <svg width="24" height="24" fill="none" stroke={C.teal} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                {/* Checklist */}
+                <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: '16px', padding: '24px' }}>
+                  <div style={{ fontSize: '15px', fontWeight: 800, color: C.text, marginBottom: '16px' }}>Ready to deploy?</div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                    {[
+                      { done: !!selectedTemplate, label: 'Template selected', value: selTpl?.label || 'None', action: () => setTab('template') },
+                      { done: !!(settings.logo_primary_url || settings.brand_doc_url), label: 'Brand uploaded', value: settings.logo_primary_url ? 'Logo uploaded' : settings.brand_doc_url ? 'PDF uploaded' : 'Not yet', action: () => setTab('brand') },
+                    ].map((item, i) => (
+                      <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '12px 14px', borderRadius: '10px', background: item.done ? `${C.teal}08` : C.bg, border: `1px solid ${item.done ? C.teal+'30' : C.border}` }}>
+                        <div style={{ width: '24px', height: '24px', borderRadius: '50%', background: item.done ? C.teal : C.border, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                          {item.done ? <svg width="12" height="12" fill="none" stroke="#fff" strokeWidth="3" strokeLinecap="round" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg> : <span style={{ fontSize: '12px', fontWeight: 800, color: '#fff' }}>{i + 1}</span>}
+                        </div>
+                        <div style={{ flex: 1 }}>
+                          <div style={{ fontSize: '13px', fontWeight: 700, color: C.text }}>{item.label}</div>
+                          <div style={{ fontSize: '12px', color: item.done ? C.teal : C.muted }}>{item.value}</div>
+                        </div>
+                        {!item.done && (
+                          <button onClick={item.action} style={{ padding: '6px 14px', borderRadius: '7px', border: `1px solid ${C.border}`, background: C.surface, fontSize: '11px', fontWeight: 700, color: C.muted, cursor: 'pointer', fontFamily: 'inherit' }}>
+                            Set up
+                          </button>
+                        )}
+                      </div>
+                    ))}
+                  </div>
                 </div>
-                <div style={{ fontSize: '15px', fontWeight: 800, color: C.text }}>No site deployed yet</div>
-                <div style={{ fontSize: '13px', color: C.muted, maxWidth: '380px', lineHeight: 1.6 }}>
-                  Go to the Template tab, pick a design, and click &ldquo;Create &amp; Deploy Site&rdquo;. Your event site will be live in 5–8 minutes.
+
+                {/* Deploy button */}
+                <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: '16px', padding: '24px' }}>
+                  <div style={{ fontSize: '13px', fontWeight: 800, color: C.text, marginBottom: '6px' }}>
+                    {selTpl?.label || 'No template selected'}
+                  </div>
+                  <div style={{ fontSize: '12px', color: C.muted, marginBottom: '20px', lineHeight: 1.6 }}>
+                    Event Pilot will create a GitHub repo, inject your event data (brand, logos, speakers, sponsors) and trigger an automatic Cloudflare Workers deployment. The site will be live in 5-8 minutes.
+                  </div>
+
+                  {deploying && (
+                    <div style={{ display: 'grid', gap: '10px', marginBottom: '20px' }}>
+                      {['Reading template files from GitHub', 'Creating your site repo under Trescon-Events', 'Injecting event data (brand, speakers, sponsors)', 'Setting up GitHub Actions for auto-deploy', 'Pushing to GitHub — build will start in seconds'].map((step, i) => (
+                        <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                          <div style={{ width: '20px', height: '20px', borderRadius: '50%', border: `2px solid ${C.teal}`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                            <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: C.teal, animation: 'pulse 1s infinite' }} />
+                          </div>
+                          <div style={{ fontSize: '12px', color: C.muted }}>{step}</div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  <button
+                    disabled={deploying || !selectedTemplate}
+                    onClick={async () => {
+                      setDeploying(true); setDeployResult(null)
+                      try {
+                        const res = await fetch('/api/sites/deploy', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ event_id: eventId, template_id: selectedTemplate }) })
+                        const data = await res.json()
+                        if (!res.ok) { showMsg(data.error ?? 'Deployment failed'); return }
+                        setDeployResult(data)
+                        setExistingSite({ repo_url: data.repo_url, gh_actions_url: data.gh_actions_url, site_url: data.site_url, status: 'deploying', template_id: selectedTemplate!, worker_name: data.worker_name })
+                      } catch (e) { showMsg(e instanceof Error ? e.message : 'Deployment failed') }
+                      finally { setDeploying(false) }
+                    }}
+                    style={{ padding: '12px 28px', background: (!selectedTemplate || deploying) ? C.muted : C.teal, color: '#fff', border: 'none', borderRadius: '10px', fontSize: '13px', fontWeight: 700, cursor: (!selectedTemplate || deploying) ? 'not-allowed' : 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    {deploying
+                      ? <><svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" viewBox="0 0 24 24" className="spin"><line x1="12" y1="2" x2="12" y2="6"/><line x1="12" y1="18" x2="12" y2="22"/><line x1="4.93" y1="4.93" x2="7.76" y2="7.76"/><line x1="16.24" y1="16.24" x2="19.07" y2="19.07"/><line x1="2" y1="12" x2="6" y2="12"/><line x1="18" y1="12" x2="22" y2="12"/></svg> Creating site...</>
+                      : <><svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" viewBox="0 0 24 24"><polyline points="16 16 12 12 8 16"/><line x1="12" y1="12" x2="12" y2="21"/><path d="M20.39 18.39A5 5 0 0018 9h-1.26A8 8 0 103 16.3"/></svg> Create &amp; Deploy Site</>
+                    }
+                  </button>
+
+                  {!selectedTemplate && (
+                    <div style={{ fontSize: '12px', color: C.amber, marginTop: '10px' }}>Select a template first on the Template tab.</div>
+                  )}
                 </div>
-                <button onClick={() => setTab('template')}
-                  style={{ marginTop: '8px', padding: '10px 24px', background: C.teal, color: '#fff', border: 'none', borderRadius: '8px', fontSize: '13px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
-                  Go to Template
-                </button>
+
+                {/* One-time setup note */}
+                <div style={{ background: C.bg, border: `1px solid ${C.border}`, borderRadius: '10px', padding: '14px 16px' }}>
+                  <div style={{ fontSize: '11px', fontWeight: 800, color: C.text, marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>First time only — add org secrets in GitHub</div>
+                  <div style={{ fontSize: '12px', color: C.muted, lineHeight: 1.6 }}>
+                    Go to <strong>github.com/organizations/Trescon-Events/settings/secrets/actions</strong> and add these two secrets (once, applies to all sites):
+                  </div>
+                  <div style={{ marginTop: '10px', display: 'grid', gap: '6px' }}>
+                    <code style={{ fontSize: '11px', background: C.surface, border: `1px solid ${C.border}`, borderRadius: '6px', padding: '6px 10px', display: 'block', color: C.text }}>CLOUDFLARE_API_TOKEN — your CF API token (Workers:Edit permission)</code>
+                    <code style={{ fontSize: '11px', background: C.surface, border: `1px solid ${C.border}`, borderRadius: '6px', padding: '6px 10px', display: 'block', color: C.text }}>CLOUDFLARE_ACCOUNT_ID — your CF account ID</code>
+                  </div>
+                  <div style={{ fontSize: '11px', color: C.muted, marginTop: '8px' }}>After adding, every future site deploys fully automatically with zero setup.</div>
+                </div>
               </div>
             )
           }
