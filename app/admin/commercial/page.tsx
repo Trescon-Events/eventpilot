@@ -14,7 +14,7 @@ interface EventCard {
 }
 
 interface DashboardData {
-  kpis: { total_events: number; total_revenue: number; total_costs: number; total_profit: number; avg_margin: number; revenue_achievement: number }
+  kpis: { total_events: number; total_revenue: number; total_direct_costs: number; total_staff_costs: number; total_overheads: number; total_costs: number; total_gross_profit: number; total_net_profit: number; avg_margin: number; revenue_achievement: number; cost_variance: number }
   events: EventCard[]
   filters: { regions: string[]; business_units: string[]; statuses: string[] }
 }
@@ -92,8 +92,8 @@ export default function CommercialDashboard() {
     </div>
   )
 
-  const k = data?.kpis || { total_events:0, total_revenue:0, total_costs:0, total_profit:0, avg_margin:0, revenue_achievement:0 }
-  const profitColor = k.total_profit >= 0 ? '#2E7D32' : '#D32F2F'
+  const k = data?.kpis || { total_events:0, total_revenue:0, total_direct_costs:0, total_staff_costs:0, total_overheads:0, total_costs:0, total_gross_profit:0, total_net_profit:0, avg_margin:0, revenue_achievement:0, cost_variance:0 }
+  const profitColor = k.total_net_profit >= 0 ? '#2E7D32' : '#D32F2F'
   const marginColor = k.avg_margin >= 20 ? '#2E7D32' : k.avg_margin >= 10 ? '#E65100' : '#D32F2F'
 
   return (
@@ -154,7 +154,7 @@ export default function CommercialDashboard() {
             </div>
             <div style={{ flex: 1 }}>
               <p style={{ ...kpiLabel }}>Profit & Margin</p>
-              <p style={{ fontSize: '20px', fontWeight: 900, color: profitColor, margin: '2px 0 0', fontFamily: 'Manrope, system-ui' }}>{fc(k.total_profit)}</p>
+              <p style={{ fontSize: '20px', fontWeight: 900, color: profitColor, margin: '2px 0 0', fontFamily: 'Manrope, system-ui' }}>{fc(k.total_net_profit)}</p>
               <p style={{ fontSize: '11px', color: '#5B7080', margin: '2px 0 0' }}>Costs: {fc(k.total_costs)}</p>
             </div>
           </div>
