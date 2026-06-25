@@ -136,13 +136,29 @@ export default function ReviewWidget() {
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
-    fetch('/api/auth/session')
-      .then(r => r.json())
-      .then(s => { if (s?.sid) setAuthed(true) })
-      .catch(() => {})
+    function checkAuth() {
+      fetch('/api/auth/session')
+        .then(r => r.json())
+        .then(s => setAuthed(!!s?.sid))
+        .catch(() => setAuthed(false))
+    }
+    checkAuth()
+    // Re-check on focus (catches logout in another tab)
+    window.addEventListener('focus', checkAuth)
+    return () => window.removeEventListener('focus', checkAuth)
   }, [])
 
-  if (!authed) return null
+  // Hide on public pages
+  const isPublicPage = typeof window !== 'undefined' && (
+    window.location.pathname === '/login' ||
+    window.location.pathname === '/join' ||
+    window.location.pathname === '/set-password' ||
+    window.location.pathname === '/reset-password' ||
+    window.location.pathname === '/welcome' ||
+    window.location.pathname === '/access-pending'
+  )
+
+  if (!authed || isPublicPage) return null
 
   function openModal()  { setOpen(true); setDone(false); setError('') }
   function closeModal() {
