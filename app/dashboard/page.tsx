@@ -47,7 +47,7 @@ interface Completion {
   passed: boolean
   test_score: number | null
   attempt_count: number
-  courses?: { tier_level: string } | null
+  courses?: { tier_level: string; title?: string } | null
 }
 
 const TRACK_LABEL: Record<string, string> = {
@@ -1202,7 +1202,7 @@ function DashboardContent() {
             adoption:   { color: '#7C3AED', bg: 'rgba(124,58,237,0.12)', label: 'Adoption'   },
             advanced:   { color: '#166534', bg: 'rgba(22,101,52,0.12)',  label: 'Advanced'   },
           }
-          const done = completions.filter(c => c.passed && courses.some(cr => cr.id === c.course_id)).map(c => ({ ...c, course: courses.find(cr => cr.id === c.course_id) }))
+          const done = completions.filter(c => c.passed).map(c => ({ ...c, course: courses.find(cr => cr.id === c.course_id) || { id: c.course_id, title: c.courses?.title || 'Completed Course', tier_level: c.courses?.tier_level || 'foundation', estimated_minutes: 0, is_mandatory: false } }))
           return (
             <div id="completed-section" style={{ background: 'rgba(192,244,60,0.03)', border: '1px solid rgba(192,244,60,0.15)', borderRadius: '16px', padding: '24px 28px' }}>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '20px' }}>

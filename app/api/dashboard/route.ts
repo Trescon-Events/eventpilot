@@ -130,7 +130,7 @@ export async function GET(req: NextRequest) {
       .maybeSingle(),
     supabaseAdmin
       .from('course_completions')
-      .select('course_id, passed, test_score, attempt_count, courses(tier_level)')
+      .select('course_id, passed, test_score, attempt_count, courses(tier_level, title)')
       .eq('staff_id', id),
     getCachedCourses(),
     supabaseAdmin
