@@ -50,6 +50,8 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
   const [rejectNote, setRejectNote] = useState('')
   const [busyId, setBusyId]       = useState<string | null>(null)
   const [tab, setTab]             = useState<'weeks' | 'calendar' | 'list' | 'approvals'>('weeks')
+  const [calMonth, setCalMonth]   = useState(new Date().getMonth())
+  const [calYear, setCalYear]     = useState(new Date().getFullYear())
 
   // Week planning
   const [planWeeks, setPlanWeeks] = useState<{ week: number; theme: string; roles: string[] }[]>([])
@@ -495,78 +497,116 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
             </div>
           )
 
-          // Group posts by date
-          const byDate: Record<string, Post[]> = {}
-          posts.forEach(p => {
-            if (!byDate[p.scheduled_date]) byDate[p.scheduled_date] = []
-            byDate[p.scheduled_date].push(p)
-          })
-
-          // Determine calendar month range
-          const allDates = Object.keys(byDate).sort()
-          const start = new Date(allDates[0] + 'T00:00:00')
-          const end   = new Date(allDates[allDates.length - 1] + 'T00:00:00')
-
-          // Build months to render
-          const months: { year: number; month: number }[] = []
-          const cur = new Date(start.getFullYear(), start.getMonth(), 1)
-          const endMonth = new Date(end.getFullYear(), end.getMonth(), 1)
-          while (cur <= endMonth) {
-            months.push({ year: cur.getFullYear(), month: cur.getMonth() })
-            cur.setMonth(cur.getMonth() + 1)
-          }
-
           const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
           const MONTH_NAMES = ['January','February','March','April','May','June','July','August','September','October','November','December']
 
-          return (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '28px' }}>
-              {months.map(({ year, month }) => {
-                const firstDay = new Date(year, month, 1).getDay()
-                const daysInMonth = new Date(year, month + 1, 0).getDate()
-                const cells: (number | null)[] = [...Array(firstDay).fill(null), ...Array.from({ length: daysInMonth }, (_, i) => i + 1)]
-                while (cells.length % 7 !== 0) cells.push(null)
+          const firstDay = new Date(calYear, calMonth, 1).getDay()
+          const daysInMonth = new Date(calYear, calMonth + 1, 0).getDate()
+          const cells: (number | null)[] = [...Array(firstDay).fill(null), ...Array.from({ length: daysInMonth }, (_, i) => i + 1)]
+          while (cells.length % 7 !== 0) cells.push(null)
 
-                return (
-                  <div key={`${year}-${month}`} style={{ background: '#FFFFFF', border: '1px solid #9EC8C8', borderRadius: '14px', overflow: 'hidden' }}>
-                    <div style={{ padding: '14px 20px', borderBottom: '1px solid #C8DFE0', background: 'rgba(0,165,163,0.06)' }}>
-                      <span style={{ fontSize: '13px', fontWeight: 800, color: '#0F1923', letterSpacing: '0.5px', textTransform: 'uppercase' }}>{MONTH_NAMES[month]} {year}</span>
-                    </div>
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', borderBottom: '1px solid #C8DFE0' }}>
-                      {DAYS.map(d => (
-                        <div key={d} style={{ padding: '8px 10px', textAlign: 'center', fontSize: '13px', fontWeight: 700, color: '#0F1923', letterSpacing: '0.6px', textTransform: 'uppercase', borderRight: '1px solid #C8DFE0' }}>{d}</div>
-                      ))}
-                    </div>
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)' }}>
-                      {cells.map((day, ci) => {
-                        if (!day) return <div key={`e-${ci}`} style={{ minHeight: 80, borderRight: '1px solid #C8DFE0', borderBottom: '1px solid #C8DFE0', background: 'rgba(0,0,0,0.02)' }} />
-                        const dateKey = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`
-                        const dayPosts = byDate[dateKey] ?? []
-                        const today = new Date().toISOString().slice(0, 10)
-                        const isToday = dateKey === today
-                        return (
-                          <div key={dateKey} style={{ minHeight: 80, borderRight: '1px solid #C8DFE0', borderBottom: '1px solid #C8DFE0', padding: '6px', background: isToday ? 'rgba(0,165,163,0.04)' : 'transparent' }}>
-                            <div style={{ fontSize: '13px', fontWeight: isToday ? 800 : 600, color: isToday ? '#00A5A3' : '#0F1923', marginBottom: '4px' }}>{day}</div>
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
-                              {dayPosts.map(p => {
-                                const pc = PLATFORM_COLOR[p.platform] ?? '#888'
-                                const sc = STATUS_CFG[p.status] ?? STATUS_CFG.planned
-                                return (
-                                  <div key={p.id} onClick={() => setActivePost(p)}
-                                    style={{ fontSize: '11px', padding: '2px 5px', borderRadius: '4px', background: sc.bg || 'rgba(0,165,163,0.08)', color: pc, fontWeight: 700, cursor: 'pointer', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', border: `1px solid ${pc}30` }}
-                                    title={`${p.platform} — ${p.narrative_role}${p.text ? ': ' + p.text.slice(0, 60) : ''}`}>
-                                    {p.platform.slice(0, 2)} · {p.narrative_role.slice(0, 8)}
-                                  </div>
-                                )
-                              })}
-                            </div>
-                          </div>
-                        )
-                      })}
-                    </div>
-                  </div>
-                )
-              })}
+          const byDate: Record<string, Post[]> = {}
+          posts.forEach(p => { if (!byDate[p.scheduled_date]) byDate[p.scheduled_date] = []; byDate[p.scheduled_date].push(p) })
+
+          const today = new Date().toISOString().slice(0, 10)
+
+          // Drag state
+          function handleDragStart(e: React.DragEvent, postId: string) {
+            e.dataTransfer.setData('text/plain', postId)
+            e.dataTransfer.effectAllowed = 'move'
+          }
+
+          async function handleDrop(e: React.DragEvent, dateKey: string) {
+            e.preventDefault()
+            const postId = e.dataTransfer.getData('text/plain')
+            if (!postId) return
+            // Optimistic update
+            setPosts(prev => prev.map(p => p.id === postId ? { ...p, scheduled_date: dateKey } : p))
+            // Persist
+            await fetch(`/api/content/campaigns/${id}/posts`, {
+              method: 'PATCH',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ updates: [{ id: postId, scheduled_date: dateKey }] }),
+            })
+          }
+
+          function handleDragOver(e: React.DragEvent) { e.preventDefault(); e.dataTransfer.dropEffect = 'move' }
+
+          return (
+            <div>
+              {/* Month navigation */}
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '14px' }}>
+                <button onClick={() => { if (calMonth === 0) { setCalMonth(11); setCalYear(y => y - 1) } else setCalMonth(m => m - 1) }}
+                  style={{ padding: '8px 16px', borderRadius: '8px', border: '1px solid #C8DFE0', background: '#fff', cursor: 'pointer', fontFamily: 'inherit', fontSize: '13px', fontWeight: 700, color: '#0F1923' }}>
+                  Prev
+                </button>
+                <span style={{ fontSize: '15px', fontWeight: 800, color: '#0F1923', letterSpacing: '0.5px', textTransform: 'uppercase' }}>
+                  {MONTH_NAMES[calMonth]} {calYear}
+                </span>
+                <button onClick={() => { if (calMonth === 11) { setCalMonth(0); setCalYear(y => y + 1) } else setCalMonth(m => m + 1) }}
+                  style={{ padding: '8px 16px', borderRadius: '8px', border: '1px solid #C8DFE0', background: '#fff', cursor: 'pointer', fontFamily: 'inherit', fontSize: '13px', fontWeight: 700, color: '#0F1923' }}>
+                  Next
+                </button>
+              </div>
+
+              <div style={{ fontSize: '11px', color: '#5B7080', marginBottom: '10px', textAlign: 'center' }}>
+                Drag a post to a different day to reschedule it
+              </div>
+
+              <div style={{ background: '#FFFFFF', border: '1px solid #9EC8C8', borderRadius: '14px', overflow: 'hidden' }}>
+                {/* Day headers */}
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', borderBottom: '1px solid #C8DFE0' }}>
+                  {DAYS.map(d => (
+                    <div key={d} style={{ padding: '10px', textAlign: 'center', fontSize: '11px', fontWeight: 800, color: '#5B7080', letterSpacing: '1px', textTransform: 'uppercase', borderRight: '1px solid #C8DFE0' }}>{d}</div>
+                  ))}
+                </div>
+
+                {/* Calendar grid */}
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)' }}>
+                  {cells.map((day, ci) => {
+                    if (!day) return <div key={`e-${ci}`} style={{ minHeight: 90, borderRight: '1px solid #E8EEF4', borderBottom: '1px solid #E8EEF4', background: '#FAFBFC' }} />
+                    const dateKey = `${calYear}-${String(calMonth + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`
+                    const dayPosts = byDate[dateKey] ?? []
+                    const isToday = dateKey === today
+
+                    return (
+                      <div key={dateKey}
+                        onDragOver={handleDragOver}
+                        onDrop={e => handleDrop(e, dateKey)}
+                        style={{
+                          minHeight: 90, borderRight: '1px solid #E8EEF4', borderBottom: '1px solid #E8EEF4',
+                          padding: '6px', background: isToday ? 'rgba(0,165,163,0.05)' : 'transparent',
+                          transition: 'background 0.15s',
+                        }}>
+                        <div style={{ fontSize: '12px', fontWeight: isToday ? 800 : 600, color: isToday ? '#00A5A3' : '#0F1923', marginBottom: '4px' }}>{day}</div>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
+                          {dayPosts.map(p => {
+                            const pc = PLATFORM_COLOR[p.platform] ?? '#888'
+                            const sc = STATUS_CFG[p.status] ?? STATUS_CFG.planned
+                            return (
+                              <div key={p.id}
+                                draggable
+                                onDragStart={e => handleDragStart(e, p.id)}
+                                onClick={() => setActivePost(p)}
+                                style={{
+                                  fontSize: '10px', padding: '3px 6px', borderRadius: '5px',
+                                  background: sc.bg || '#F0F4F8', color: pc, fontWeight: 700,
+                                  cursor: 'grab', overflow: 'hidden', textOverflow: 'ellipsis',
+                                  whiteSpace: 'nowrap', border: `1px solid ${pc}25`,
+                                  display: 'flex', alignItems: 'center', gap: '3px',
+                                }}
+                                title={`${p.platform} — ${p.narrative_role}${p.text ? ': ' + p.text.slice(0, 60) : ''}\nDrag to reschedule`}>
+                                <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: pc, flexShrink: 0 }} />
+                                {p.platform.slice(0, 2)} {p.narrative_role.slice(0, 6)}
+                              </div>
+                            )
+                          })}
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
             </div>
           )
         })()}
