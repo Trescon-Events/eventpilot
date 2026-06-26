@@ -14,7 +14,7 @@ const TOOL_GRANT_KEY: Record<string, string | null> = {
   'smart-data':      'smart_data',
   'outreach':        'content',
   'course-builder':  null,
-  'tresagent':       null,
+  'tresagent':       'tresagent',
 }
 
 const TOOLS = [
