@@ -18,9 +18,56 @@
 | Field         | Value                                                              |
 |---------------|--------------------------------------------------------------------|
 | Who           | Durga + Claude Code (Opus 4.6)                                     |
-| Date          | 2026-06-25                                                         |
+| Date          | 2026-06-26                                                         |
 | Handed off to | Madhu / Open                                                       |
-| Deployed      | Yes — https://eventpilot.tresconglobal.com (Railway, production, 25 Jun 2026) |
+| Deployed      | Yes — https://eventpilot.tresconglobal.com (Railway, production, 26 Jun 2026) |
+
+---
+
+## What Was Built This Session (26 Jun 2026 — Durga)
+
+### Module B: Content Engine Upgrades (Thulasi's brief)
+
+Built 6 content engine features per Thulasi Devi S's corporate marketing brief:
+
+1. **Shared publish lib** (`app/lib/content-publish.ts`) — extracted from publish route, reusable by manual publish + cron. Added Twitter/X API v2 publishing with media upload.
+2. **Auto-publish cron** (`api/cron/content-publish`) — runs every 15 min, finds approved posts past their scheduled time, publishes automatically.
+3. **Article/blog AI generation** — `format: 'article'` param on generate endpoint produces 800-1500 word articles with headline, markdown body, SEO tags.
+4. **Social analytics** — `content_post_analytics` table + `api/content/analytics` endpoint + `api/cron/content-analytics` cron that pulls engagement metrics from Meta Graph API + LinkedIn API.
+5. **Email notifications** — approve/reject posts now send branded Resend emails to campaign creator + create in-app notifications.
+6. **Visual drag-drop calendar** — month navigation (prev/next), drag posts to reschedule, PATCH endpoint for bulk rescheduling.
+
+DB migration: `supabase/content_engine_v2.sql` (article fields + analytics table) — run 26 Jun.
+
+### Toolkit Rename
+- "Outreach" → "Content Engine" in Toolkit (label, description, features, badge)
+- "Data & Outreach" section → "Data & Marketing"
+
+### Dashboard Layout Fixes
+- Steps 01/02/03 cards → compact single-row strip (saves 150px)
+- Stat cards → compact inline row (saves 100px)
+- Tool tiles → 4-column grid (was flex wrap)
+- "What should we build next?" title 36px → 16px
+- "Content Hub" tile → "Content Engine"
+- "Finance" tile → "Commercial P&L" (links to `/admin/commercial`)
+- Added "Messages" tile to platform access grid
+- Added Messages icon to navbar (chat bubble with unread badge, next to bell)
+
+### Messaging System Restored
+- Restored `/messages` page + API routes (were reverted in previous session)
+- Fixed infinite re-render loop in thread loading (useRef guard)
+- Added Messages to PlatformMenu sidebar under "Communication" section
+
+### Bug Fixes
+- Khalifatur toolkit re-report (d9a1c620) — already fixed, resolved + notified
+- Report Issue button position validation (off-screen reset)
+- Naveen elevated to super_admin (was office_head with no admin access)
+- Commercial P&L page crash fixed (total_profit → total_net_profit type mismatch)
+- Thulasi granted content + brand_studio tool access
+
+### Staff Access Changes
+- Naveen Bharadwaj: job_level → super_admin, access_roles += admin, super_admin
+- Thulasi Devi S: tool_grants += content, brand_studio
 
 ---
 
@@ -770,15 +817,16 @@ Everything committed before `dc48b2b` is Durga's work and was not touched. Key p
 
 ---
 
-### Commercial P&L — What's Done (25 Jun 2026)
-- P&L calculation fixed (Gross Profit = Revenue - ALL costs, not just direct)
-- Executive Dashboard has all 11 BRD KPIs
-- 9 overhead components seeded in DB
-- cost_center returned from staff-costs API
-- Tab renamed to "Commercial P&L"
-- Website builder flow corrected (Template → Brand → Build → Content → Publish)
-- Report Issue button is draggable
-- Build Log restored and backfilled
+### What's Done (25-26 Jun 2026)
+- Commercial P&L: full BRD build, P&L formula fixed, 11 KPIs, overheads seeded
+- Content Engine Module B: auto-publish, articles, Twitter, analytics, calendar, email notifications
+- Dashboard layout: compact steps, grid tiles, Messages icon in navbar
+- Messaging system restored + infinite loop fixed
+- Toolkit: Outreach → Content Engine rename
+- Dashboard: Finance → Commercial P&L, Content Hub → Content Engine, Messages tile added
+- Build Log GitHub Action restored + backfilled Jun 20-25
+- Website builder flow fixed (deploy moved to Build tab)
+- Report Issue button: draggable + position validation + auth-gated
 
 ### Commercial P&L — Next Steps (Priority)
 
@@ -796,15 +844,29 @@ Everything committed before `dc48b2b` is Durga's work and was not touched. Key p
 
 7. **Weekly snapshot cron** — endpoint exists. Register in Railway (every Monday 06:00 UTC).
 
+### Content Engine — Next Steps (Thulasi's brief)
+
+8. **Thulasi testing** — Message sent via EP messaging. Awaiting feedback on Content Engine, calendar, publishing.
+
+9. **Master Data Vault** (Module A) — corporate stats, version-controlled asset library, company content repository. Not built yet.
+
+10. **WordPress API bridge** (Module A) — connect EP to live WordPress site. Not built yet.
+
+11. **Corporate Deck Builder** (Module A) — web-based presentations with dynamic variable injection. Not built yet.
+
+12. **Analytics dashboard UI** — API + cron exist, need UI screen to show post performance.
+
+13. **Multi-page social support** — Trescon Corporate + India + MENA pages. Current system: one account per platform per event.
+
 ### Ongoing Sprint Items
 
-8. **Content Hub social publishing** — needs Meta API tokens from Madhu.
+14. **Meta API tokens** — needed from Madhu for real social publishing (currently DUMMY mode).
 
-9. **Security hardening Phase 3** — rate limiting, audit log, signed sessions, idle timeout. Need office IPs.
+15. **Security hardening Phase 3** — rate limiting, audit log, signed sessions, idle timeout. Need office IPs.
 
-9. **Khalifa + Prashant — Website Builder test for AI2047** — toolkit recent projects fix deployed. Confirm WB works end-to-end.
+16. **Khalifatur — Website Builder test** — toolkit recent projects fix deployed. Confirm WB works.
 
-10. **Staff issues** — use `node scripts/issues.mjs` to check and resolve reported issues from terminal.
+17. **Staff issues** — use `node scripts/issues.mjs` to check and resolve from terminal. Zero open issues as of 26 Jun.
 
 ### Deploy reminder
 `git push origin main` → Railway auto-deploys in ~3 min. No CLI needed.
