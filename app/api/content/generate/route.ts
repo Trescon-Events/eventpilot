@@ -30,7 +30,8 @@ const NARRATIVE_ROLES: Record<string, string> = {
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json()
-    const { campaign_id, post_id, platform, narrative_role, week_theme, custom_instruction } = body
+    const { campaign_id, post_id, platform, narrative_role, week_theme, custom_instruction, format } = body
+    const isArticle = format === 'article'
 
     if (!campaign_id || !platform) {
       return NextResponse.json({ error: 'campaign_id and platform required' }, { status: 400 })
@@ -80,9 +81,14 @@ Tone: Authoritative, confident, outcome-focused. Never generic. Never "we're exc
 
 Return ONLY the post text. No preamble, no explanation, no quotation marks.`
 
+    const articleRules = `Long-form article/blog post. 800-1500 words. Professional, insightful, SEO-optimized.
+Structure: Headline (compelling, under 80 chars) → Introduction (hook the reader) → 3-5 body sections with subheadings → Key takeaways → Conclusion with CTA.
+Return as JSON: { "headline": "...", "body": "... (full markdown article)", "seo_tags": ["tag1", "tag2", "tag3"] }
+Do NOT include any preamble or explanation outside the JSON.`
+
     const userPrompt = [
-      `PLATFORM: ${platform}`,
-      `FORMAT: ${PLATFORM_RULES[platform] ?? PLATFORM_RULES.LinkedIn}`,
+      `PLATFORM: ${isArticle ? 'Blog/Article' : platform}`,
+      `FORMAT: ${isArticle ? articleRules : (PLATFORM_RULES[platform] ?? PLATFORM_RULES.LinkedIn)}`,
       '',
       `CAMPAIGN: ${campaign.name}`,
       `PHASE: ${campaign.phase?.replace('_', ' ')}`,
@@ -113,15 +119,52 @@ Return ONLY the post text. No preamble, no explanation, no quotation marks.`
     )
     const imageUrl = `https://image.pollinations.ai/prompt/${imagePrompt}?width=1080&height=1080&seed=${seed}&nologo=true`
 
-    // ── Persist to DB if post_id provided ─────────────────────────────────
-    if (post_id) {
-      await supabaseAdmin
-        .from('content_posts')
-        .update({ text, image_url: imageUrl, image_seed: seed, status: 'generated', updated_at: new Date().toISOString() })
-        .eq('id', post_id)
+    // ── Parse article JSON if article format ────────────────────────────
+    let articleHeadline: string | null = null
+    let articleBody: string | null = null
+    let seoTags: string[] | null = null
+    let finalText = text
+
+    if (isArticle) {
+      try {
+        const match = text.match(/\{[\s\S]*\}/)
+        if (match) {
+          const parsed = JSON.parse(match[0])
+          articleHeadline = parsed.headline || null
+          articleBody = parsed.body || text
+          seoTags = parsed.seo_tags || null
+          finalText = articleHeadline || text.substring(0, 100)
+        }
+      } catch {
+        articleBody = text
+        finalText = text.substring(0, 100)
+      }
     }
 
-    return NextResponse.json({ text, image_url: imageUrl, seed })
+    // ── Persist to DB if post_id provided ─────────────────────────────────
+    if (post_id) {
+      const update: Record<string, unknown> = {
+        text: finalText,
+        image_url: imageUrl,
+        image_seed: seed,
+        status: 'generated',
+        updated_at: new Date().toISOString(),
+      }
+      if (isArticle) {
+        update.format = 'article'
+        update.article_headline = articleHeadline
+        update.article_body = articleBody
+        update.seo_tags = seoTags
+      }
+      await supabaseAdmin.from('content_posts').update(update).eq('id', post_id)
+    }
+
+    return NextResponse.json({
+      text: finalText,
+      image_url: imageUrl,
+      seed,
+      ...(isArticle ? { article_headline: articleHeadline, article_body: articleBody, seo_tags: seoTags } : {}),
+    })
 
   } catch (err) {
     console.error('[content/generate]', err)
