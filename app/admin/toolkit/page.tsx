@@ -85,18 +85,18 @@ const TOOLS = [
   },
   {
     id:          'outreach',
-    label:       'Outreach',
-    description: 'AI-generated content campaigns for every stage of the event lifecycle. Build pre-event, live week, and post-event flows across LinkedIn, email, and social — with an approval queue before anything goes out.',
+    label:       'Content Engine',
+    description: 'AI-powered social media and article generation, visual content calendar, direct publishing to LinkedIn, Meta, and X — with manager approval before anything goes live.',
     features:    [
-      { icon: '▰', label: 'Multi-channel campaigns', detail: 'LinkedIn, email, WhatsApp and social in one campaign builder' },
-      { icon: '◷', label: 'Pre / live / post event flows', detail: 'Structured timelines for every phase of your event' },
-      { icon: '✎', label: 'AI content generation', detail: 'Channel-specific copy generated from your event brief' },
-      { icon: '◉', label: 'Approval queue', detail: 'Review and approve before any post is published' },
+      { icon: '✎', label: 'AI content generation', detail: 'Social posts + long-form articles generated from your event brief and brand voice' },
+      { icon: '◷', label: 'Visual content calendar', detail: 'Drag-and-drop calendar to schedule and reschedule posts across platforms' },
+      { icon: '▰', label: 'Multi-platform publishing', detail: 'Direct publish to LinkedIn, Facebook, Instagram, X — with scheduled auto-publishing' },
+      { icon: '◉', label: 'Approval workflow', detail: 'Manager reviews and approves content before it goes live. Email notifications on approve/reject' },
     ],
     accent:     '#F59E0B',
     href:       '/content',
     needsEvent: false,
-    badge:      'Campaigns',
+    badge:      'Marketing',
     category:   'Data',
   },
   {
@@ -135,7 +135,7 @@ const TOOLS = [
 
 const CATEGORIES = [
   { id: 'Events',  label: 'Event Tools' },
-  { id: 'Data',    label: 'Data & Outreach' },
+  { id: 'Data',    label: 'Data & Marketing' },
   { id: 'Academy', label: 'Academy' },
   { id: 'AI',      label: 'AI Agents' },
 ]
