@@ -749,7 +749,7 @@ function DashboardContent() {
           return (
             <div style={{ marginBottom: '24px' }}>
               <div style={{ fontSize: '11px', fontWeight: 800, letterSpacing: '2px', textTransform: 'uppercase', color: '#9CA3AF', marginBottom: '12px' }}>Your Platform Access</div>
-              <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '8px' }}>
                 {tiles.map(t => (
                   <Link key={t.label} href={t.href} style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '10px 14px', borderRadius: '12px', background: '#FFFFFF', border: `1.5px solid ${t.color}25`, textDecoration: 'none', transition: 'border-color 0.15s, box-shadow 0.15s', flexShrink: 0 }}
                     onMouseEnter={e => { e.currentTarget.style.borderColor = t.color; e.currentTarget.style.boxShadow = `0 2px 10px ${t.color}20` }}
@@ -797,47 +797,33 @@ function DashboardContent() {
               <p style={{ fontSize: '13px', color: '#2D3E50', lineHeight: 1.65, margin: '0 0 20px' }}>
                 You have been placed on the <strong style={{ color: '#0F1923' }}>{TRACK_LABEL[track]}</strong> based on your AI readiness score. Start your first course below — every course you complete moves your score forward and builds real skills you can use tomorrow.
               </p>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '10px' }}>
+              {/* Compact step strip */}
+              <div style={{ display: 'flex', gap: '8px' }}>
                 {[
-                  { step: '01', label: 'Start a course', sub: 'Pick any course and begin', color: '#00695C', bg: '#00695C' },
-                  { step: '02', label: 'Pass the assessment', sub: '60% or higher to complete', color: '#A478FF', bg: '#A478FF' },
-                  { step: '03', label: 'Watch your score climb', sub: 'AIRS updates as you learn', color: '#3D6B00', bg: '#3D6B00' },
+                  { step: '1', label: 'Start a course', color: '#00695C' },
+                  { step: '2', label: 'Pass assessment (60%+)', color: '#A478FF' },
+                  { step: '3', label: 'Score climbs', color: '#3D6B00' },
                 ].map(item => (
-                  <div key={item.step} style={{ background: item.bg, borderRadius: '14px', padding: '18px 16px' }}>
-                    <div style={{ fontSize: '11px', fontWeight: 900, color: 'rgba(255,255,255,0.7)', letterSpacing: '2px', marginBottom: '8px' }}>STEP {item.step}</div>
-                    <div style={{ fontSize: '14px', fontWeight: 800, color: '#FFFFFF', marginBottom: '4px' }}>{item.label}</div>
-                    <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.75)', lineHeight: 1.4 }}>{item.sub}</div>
+                  <div key={item.step} style={{ flex: 1, background: item.color, borderRadius: '10px', padding: '10px 14px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <span style={{ width: '22px', height: '22px', borderRadius: '50%', background: 'rgba(255,255,255,0.25)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '11px', fontWeight: 900, color: '#fff', flexShrink: 0 }}>{item.step}</span>
+                    <span style={{ fontSize: '12px', fontWeight: 700, color: '#fff' }}>{item.label}</span>
                   </div>
                 ))}
               </div>
             </div>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '10px' }}>
-              <div style={{ background: '#00897B', borderRadius: '14px', padding: '18px', display: 'flex', alignItems: 'center', gap: '12px' }}>
-                <div style={{ width: '40px', height: '40px', borderRadius: '12px', background: 'rgba(255,255,255,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                  <svg width="18" height="18" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>
-                </div>
-                <div>
-                  <div style={{ fontSize: '32px', fontWeight: 900, color: '#FFFFFF', lineHeight: 1 }}>{courses.length}</div>
-                  <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.75)', fontWeight: 600 }}>courses available</div>
-                </div>
+            {/* Quick stats — compact row */}
+            <div style={{ display: 'flex', gap: '10px' }}>
+              <div style={{ flex: 1, background: '#00897B', borderRadius: '10px', padding: '12px 16px', display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <span style={{ fontSize: '24px', fontWeight: 900, color: '#fff' }}>{courses.length}</span>
+                <span style={{ fontSize: '12px', color: 'rgba(255,255,255,0.8)', fontWeight: 600 }}>courses</span>
               </div>
-              <div style={{ background: '#8B1A1A', borderRadius: '14px', padding: '18px', display: 'flex', alignItems: 'center', gap: '12px' }}>
-                <div style={{ width: '40px', height: '40px', borderRadius: '12px', background: 'rgba(255,255,255,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                  <svg width="18" height="18" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
-                </div>
-                <div>
-                  <div style={{ fontSize: '32px', fontWeight: 900, color: '#FFFFFF', lineHeight: 1 }}>{totalMandatory}</div>
-                  <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.75)', fontWeight: 600 }}>mandatory</div>
-                </div>
+              <div style={{ flex: 1, background: '#8B1A1A', borderRadius: '10px', padding: '12px 16px', display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <span style={{ fontSize: '24px', fontWeight: 900, color: '#fff' }}>{totalMandatory}</span>
+                <span style={{ fontSize: '12px', color: 'rgba(255,255,255,0.8)', fontWeight: 600 }}>mandatory</span>
               </div>
-              <div style={{ background: trackConfig.color, borderRadius: '14px', padding: '18px', display: 'flex', alignItems: 'center', gap: '12px' }}>
-                <div style={{ width: '40px', height: '40px', borderRadius: '12px', background: 'rgba(255,255,255,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                  <svg width="18" height="18" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
-                </div>
-                <div>
-                  <div style={{ fontSize: '14px', fontWeight: 900, color: '#FFFFFF', lineHeight: 1 }}>{TRACK_LABEL[track]}</div>
-                  <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.75)', fontWeight: 600 }}>your track</div>
-                </div>
+              <div style={{ flex: 1, background: trackConfig.color, borderRadius: '10px', padding: '12px 16px', display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <span style={{ fontSize: '13px', fontWeight: 900, color: '#fff' }}>{TRACK_LABEL[track]}</span>
+                <span style={{ fontSize: '12px', color: 'rgba(255,255,255,0.8)', fontWeight: 600 }}>track</span>
               </div>
             </div>
           </div>
@@ -1717,8 +1703,8 @@ function DashboardContent() {
       {/* ── Feedback Card ── */}
       <div style={{ maxWidth: '900px', margin: '0 auto', padding: '0 32px 48px' }}>
         <div style={{ background: '#FFFFFF', border: '1px solid #DDE8EE', borderRadius: '16px', padding: '28px', boxShadow: '0 1px 4px rgba(0,165,163,0.06), 0 1px 2px rgba(0,0,0,0.04)' }}>
-          <div style={{ fontSize: '13px', fontWeight: 800, letterSpacing: '2px', textTransform: 'uppercase', color: '#A478FF', marginBottom: '8px' }}>Shape This Platform</div>
-          <h3 style={{ fontSize: '36px', fontWeight: 900, color: '#0F1923', margin: '0 0 6px' }}>What should we build next?</h3>
+          <div style={{ fontSize: '11px', fontWeight: 800, letterSpacing: '2px', textTransform: 'uppercase', color: '#A478FF', marginBottom: '6px' }}>Shape This Platform</div>
+          <h3 style={{ fontSize: '16px', fontWeight: 900, color: '#0F1923', margin: '0 0 4px' }}>What should we build next?</h3>
           <p style={{ fontSize: '13px', color: '#0F1923', margin: '0 0 18px', lineHeight: 1.65 }}>
             Event Pilot is being built for you. If there is a feature, a course, a report, or anything else you would like to see — tell us here. Every suggestion is reviewed by the team.
           </p>
