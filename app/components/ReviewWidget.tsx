@@ -48,7 +48,13 @@ function DraggableButton({ onClick }: { onClick: () => void }) {
     if (typeof window === 'undefined') return { x: 28, y: 600 }
     try {
       const saved = localStorage.getItem(STORAGE_KEY)
-      if (saved) return JSON.parse(saved)
+      if (saved) {
+        const pos = JSON.parse(saved)
+        // Validate position is on screen
+        if (pos.x >= 0 && pos.x < window.innerWidth - 40 && pos.y >= 0 && pos.y < window.innerHeight - 40) {
+          return pos
+        }
+      }
     } catch {}
     return { x: 28, y: window.innerHeight - 70 }
   }

@@ -5,7 +5,7 @@ import { useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { computeAIRS, breakdownAIRS, getTier, getTrack, TIER_COLORS, DEPT_USE_CASES } from '@/app/lib/airs'
 import PlatformMenu from '@/app/components/PlatformMenu'
-import NavBar, { ProfileMenu, NotificationBell, MOD_EVENTPILOT } from '@/app/components/NavBar'
+import NavBar, { ProfileMenu, NotificationBell, MessagesIcon, MOD_EVENTPILOT } from '@/app/components/NavBar'
 
 /* ─── Types ──────────────────────────────────────────────────── */
 interface StaffMember {
@@ -424,6 +424,7 @@ function DashboardContent() {
             </Link>
           )}
           <PlatformMenu staffId={staffId} />
+          <MessagesIcon staffId={staffId} />
           <NotificationBell staffId={staffId} />
           <ProfileMenu name={staff.name} roles={staff.has_reports ? undefined : undefined} />
         </>}
