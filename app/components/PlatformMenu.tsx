@@ -137,6 +137,22 @@ function buildSections(
     sections.push({ heading: 'Content & Marketing', items: contentItems })
   }
 
+  /* ── Communication — everyone ── */
+  sections.push({
+    heading: 'Communication',
+    items: [
+      {
+        title:       'Messages',
+        description: 'Send and receive messages with your team',
+        href:        `/messages?id=${staffId || ''}`,
+        color:       '#1565C0',
+        bg:          'rgba(21,101,192,0.08)',
+        border:      'rgba(21,101,192,0.2)',
+        icon: <svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>,
+      },
+    ],
+  })
+
   /* ── Data Intelligence — everyone ── */
   sections.push({
     heading: 'Data Intelligence',
