@@ -120,14 +120,15 @@ function MessagesContent() {
 
   useEffect(() => { if (sid) loadInbox() }, [sid, loadInbox])
 
-  // Auto-open thread from ?with= param
+  // Auto-open thread from ?with= param (run once when inbox loads)
+  const threadOpenedRef = useRef(false)
   useEffect(() => {
-    if (!withParam || !sid) return
+    if (!withParam || !sid || loadingInbox || threadOpenedRef.current) return
+    threadOpenedRef.current = true
     const conv = conversations.find(c => c.partner_id === withParam)
     if (conv) {
       loadThread(conv.partner_id, conv.partner_name)
-    } else if (withParam && conversations.length >= 0 && !loadingInbox) {
-      // New conversation — fetch name from staff list
+    } else {
       fetch(`/api/staff-list?search=${withParam}`)
         .then(r => r.json())
         .then(d => {
@@ -135,7 +136,8 @@ function MessagesContent() {
           if (s) loadThread(s.id, s.name)
         }).catch(() => {})
     }
-  }, [withParam, sid, conversations, loadingInbox, loadThread])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [withParam, sid, loadingInbox])
 
   // Scroll to bottom on new messages
   useEffect(() => {
