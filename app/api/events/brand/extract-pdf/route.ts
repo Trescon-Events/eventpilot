@@ -212,12 +212,12 @@ export async function POST(req: NextRequest) {
     }
 
     // Derive simple color fields from palette for backwards compat
-    const palette = parsed.color_palette ?? []
-    const primary   = palette.find((c: any) => c.role === 'primary')
-    const secondary = palette.find((c: any) => c.role === 'secondary')
-    const accent    = palette.find((c: any) => c.role === 'accent')
-    const bgLight   = palette.find((c: any) => c.role === 'neutral-light')
-    const bgDark    = palette.find((c: any) => c.role === 'neutral-dark')
+    const palette = (Array.isArray(parsed.color_palette) ? parsed.color_palette : []) as Array<{ hex?: string; role?: string }>
+    const primary   = palette.find(c => c.role === 'primary')
+    const secondary = palette.find(c => c.role === 'secondary')
+    const accent    = palette.find(c => c.role === 'accent')
+    const bgLight   = palette.find(c => c.role === 'neutral-light')
+    const bgDark    = palette.find(c => c.role === 'neutral-dark')
 
     const result = {
       // New full extraction

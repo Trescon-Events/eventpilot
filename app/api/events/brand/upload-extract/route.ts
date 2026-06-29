@@ -119,11 +119,12 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'AI returned malformed data. Please try again.' }, { status: 500 })
     }
 
+    const colors = Array.isArray(parsed.colors) ? parsed.colors : []
     return NextResponse.json({
-      colors:       (parsed.colors ?? []).filter((c: string) => /^#[0-9A-Fa-f]{6}$/.test(c)).slice(0, 5),
-      heading_font: parsed.heading_font ?? null,
-      body_font:    parsed.body_font    ?? null,
-      brand_name:   parsed.brand_name   ?? null,
+      colors:       colors.filter((c: string) => /^#[0-9A-Fa-f]{6}$/.test(c)).slice(0, 5),
+      heading_font: (parsed.heading_font as string) ?? null,
+      body_font:    (parsed.body_font as string)    ?? null,
+      brand_name:   (parsed.brand_name as string)   ?? null,
     })
 
   } catch (e) {
