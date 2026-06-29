@@ -496,6 +496,27 @@ export default function AttendancePage() {
 
   // ── Effects ───────────────────────────────────────────────────────────────
   useEffect(() => { loadDay(selectedDate) }, [selectedDate, loadDay])
+
+  // Auto-sync from HRMS every 5 minutes while page is open
+  useEffect(() => {
+    const doLiveSync = () => {
+      fetch(`/api/cron/attendance-live?secret=${encodeURIComponent('trescon-weekly-insights-2026')}`)
+        .then(r => r.json())
+        .then(d => {
+          if (d.synced > 0) {
+            const ts = new Date().toISOString()
+            setLastSynced(ts)
+            localStorage.setItem('att_last_synced', ts)
+            if (mode === 'day') loadDay(selectedDate); else loadRange(rangeFrom, rangeTo)
+          }
+        })
+        .catch(() => {})
+    }
+    doLiveSync() // sync immediately on page load
+    const t = setInterval(doLiveSync, 300000) // then every 5 minutes
+    return () => clearInterval(t)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
   useEffect(() => { if (mode === 'range') loadRange(rangeFrom, rangeTo) }, [mode, rangeFrom, rangeTo, loadRange])
   useEffect(() => { if (staffList.length > 0) loadTrend(staffList.length) }, [staffList.length, loadTrend])
 
