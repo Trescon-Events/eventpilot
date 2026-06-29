@@ -254,6 +254,7 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
         .post-card:hover { border-color: rgba(0,165,163,0.25); }
         .spin { animation: spin 0.8s linear infinite; }
         @keyframes spin { to { transform: rotate(360deg); } }
+        @keyframes shimmer { 0% { background-position: -200% 0; } 100% { background-position: 200% 0; } }
         .inp { width: 100%; padding: 9px 12px; border-radius: 9px; border: 1px solid #C8DFE0; background: #FFFFFF; color: #1E2124; font-size: 17px; font-family: inherit; box-sizing: border-box; outline: none; }
         .inp:focus { border-color: rgba(0,165,163,0.4); }
         .modal-bg { position: fixed; inset: 0; background: rgba(0,0,0,0.8); z-index: 100; display: flex; align-items: center; justify-content: center; padding: 24px; }
@@ -397,8 +398,12 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
                           {/* Image */}
                           <div style={{ aspectRatio: '16/9', background: `${pc}18`, position: 'relative', overflow: 'hidden' }}>
                             {post.image_url ? (
-                              // eslint-disable-next-line @next/next/no-img-element
-                              <img src={post.image_url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                              <>
+                                {/* Loading skeleton — shown until image loads */}
+                                <div className="img-skeleton" style={{ position: 'absolute', inset: 0, background: `linear-gradient(90deg, ${pc}10 25%, ${pc}20 50%, ${pc}10 75%)`, backgroundSize: '200% 100%', animation: 'shimmer 1.5s infinite' }} />
+                                {/* eslint-disable-next-line @next/next/no-img-element */}
+                                <img src={post.image_url} alt="" loading="lazy" style={{ width: '100%', height: '100%', objectFit: 'cover', position: 'relative' }} onLoad={(e) => { const skel = (e.target as HTMLImageElement).previousElementSibling; if (skel) (skel as HTMLElement).style.display = 'none' }} onError={(e) => { const skel = (e.target as HTMLImageElement).previousElementSibling; if (skel) (skel as HTMLElement).innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100%;color:#999;font-size:11px">Image unavailable</div>' }} />
+                              </>
                             ) : (
                               <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                                 <svg width="24" height="24" fill="none" stroke={`${pc}40`} strokeWidth="1.5" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="m9 9 6 6m0-6-6 6"/></svg>
