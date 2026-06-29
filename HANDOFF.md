@@ -6,210 +6,76 @@
 
 ---
 
-## Handoff Protocol
-
-**Before starting work:** Read this file. Tell the user: who last worked, what they did, and what's next.
-**Before signing off:** Update the Last Session block, What Was Built, and What's Next. Commit the updated HANDOFF.md.
-
----
-
 ## Last Session
 
 | Field         | Value                                                              |
 |---------------|--------------------------------------------------------------------|
 | Who           | Durga + Claude Code (Opus 4.6)                                     |
-| Date          | 2026-06-29                                                         |
+| Date          | 2026-06-30 (continued from 29 Jun late night)                      |
 | Handed off to | Madhu / Open                                                       |
 | Deployed      | Yes — https://eventpilot.tresconglobal.com (Railway auto-deploy)   |
 
 ---
 
-## What Was Built This Session (29 Jun 2026 — Durga)
+## What Was Built This Session (30 Jun 2026 — Durga)
 
-### Massive session — platform restructure, new modules, UX overhaul, real-time notifications
-
----
-
-### 1. Bug Fixes (Khalifatur + Thulasi)
-
-**PDF Brand Extraction (Khalifatur Rahman — HIGH):**
-- Root cause: Website Builder read `data.colors` (wrong key) instead of `data.color_palette`
-- Root cause: No `event_id` passed — full extraction was discarded, never saved to DB
-- Root cause: `maxOutputTokens: 8192` too low for large PDFs — bumped to 32768
-- Root cause: `thinkingBudget: 0` degraded extraction quality — removed
-- Added: code fence stripping, proper JSON parse error handling, 3-min client timeout
-- Files: `app/api/events/brand/extract-pdf/route.ts`, `app/api/events/brand/upload-extract/route.ts`, `app/admin/events/[id]/website/page.tsx`, `app/admin/events/[id]/brand/page.tsx`
-
-**Content Images (Thulasi — MEDIUM):**
-- Fix was already deployed (shimmer loading + onError fallback). Marked resolved in DB.
-- Both reviews marked resolved, notifications sent to staff.
-
-**TypeScript Build Error (CRITICAL):**
-- `Record<string, unknown>` type on parsed JSON broke `.find()` and `.filter()` — blocked ALL Railway deploys for hours
-- Every commit pushed today failed to deploy until this was fixed
-- **Lesson: ALWAYS run `npx next build` locally before pushing**
+### Continued from 29 Jun session — UI polish, bug fixes, new features
 
 ---
 
-### 2. New Modules Built
+### 1. Recruitment — Sample Data + UI Fix
 
-**Timesheets (`/timesheets`):**
-- Staff logs daily hours per event/project with task type
-- 7-day week grid with day cards showing entries
-- Manager approval tab with approve/reject
-- Feeds into Commercial P&L staff cost calculations
-- API: `/api/hr/timesheets` (already existed)
+**Sample recruitment data created (2 job positions, 8 candidates):**
+- Senior Event Producer (Dubai, AED 8,000-12,000) — 6 candidates across pipeline stages (applied → offer)
+- Digital Marketing Executive (Bangalore, INR 40,000-60,000) — 2 candidates
+- Each candidate has AI score, strengths/gaps, interview rounds with ratings
+- Interview feedback with 5-point ratings for communication, technical, culture, problem-solving
 
-**Salary & Compensation (`/finance/salary`):**
-- Select staff → view/add/revise salary records
-- Payroll grade selection (8 grades: L1-EX)
-- Basic/allowances/deductions breakdown with net salary calc
-- **CSV bulk import** — HR uploads CSV with email + salary data, system matches staff
-- API: `/api/hr/salary` + `/api/hr/salary/bulk` (new)
+**Recruitment Kanban UI fixes:**
+- Empty columns collapse to 100px (was 240px — huge white space)
+- Active columns expand with flex
+- Candidate cards now have avatar initials
+- Sample data banner (yellow) on demo positions
+- Collapsible JD section: "View Job Description & Requirements"
 
-**Performance Reviews (`/hr/performance`):**
-- Create reviews with 1-5 rating scale + visual rating picker
-- KPI score %, strengths, areas to improve, goals
-- Status flow: draft → submitted → acknowledged → completed
-- Filter by status and period
-- API: `/api/hr/performance` (already existed)
+### 2. HR Portal Dashboard Polish
 
-**Expense Claims (`/finance/expenses`):**
-- Staff submit expense receipts by category (travel, meals, software, etc.)
-- Manager approve/reject with rejection reason
-- Track by event, filter by status
-- Stats: total claims, pending amount, approved amount
-- New table: `expense_claims` (SQL run in Supabase)
-- API: `/api/hr/expenses` (new)
+- Nav links: added SVG icons + hover states for Attendance, Recruitment, Staff, Performance, Leave, Onboarding
+- Stat cards: alert items glow in accent colour with pulsing dot when count > 0, zero values show muted grey
+- Empty states: compact inline with small check icon (was huge centered blocks)
+- Init banner: reduced from full-width card to slim compact bar
 
-**Vendor Payments (`/finance/vendors`):**
-- Track vendor invoices: pending → approved → paid → overdue
-- Category, event, invoice number, due date
-- Approve/pay/cancel workflow
-- New table: `vendor_payments` (SQL run in Supabase)
-- API: `/api/hr/vendor-payments` (new)
+### 3. Finance Pages — Empty State Tables + Currency
 
-**Payroll Summary (`/finance/payroll`):**
-- Monthly view: all salaries + expenses by department and staff
-- Department breakdown table + staff detail table
-- Visual breakdown bar (basic/allowances/deductions)
-- API: `/api/hr/payroll-summary` (new)
+**All finance pages now show table structure even when empty:**
+- Expenses: headers (Staff, Category, Description, Event, Amount, Date, Status) + sample row at 40% opacity
+- Vendors: headers (Vendor, Category, Event, Invoice, Amount, Due Date, Status, Actions) + sample row
+- Payroll: department/staff view toggle + table headers + sample row with realistic figures
+- Salary: 4-column breakdown card with placeholder + sample format guide
 
-**Finance Portal (`/finance`):**
-- Dashboard with KPIs: monthly payroll, pending expenses, overdue vendors
-- Links to all 5 finance modules + Commercial P&L
-- Separated from HR — Finance owns salary, expenses, vendors, payroll
-- Middleware: `/finance/*` requires admin OR finance role OR Finance dept
+**Salary multi-currency:**
+- Auto-detects currency from staff's office: Dubai → AED, India offices → INR
+- Shows USD equivalent on salary card, history table, and form preview
+- Exchange rates: AED→USD 0.2723, INR→USD 0.01189
+- Office context strip: "Office: Dubai | Currency: AED | USD equivalent: $ X.XX"
 
-**Event Intelligence Brief (`/admin/events/[id]/brief`):**
-- Structured 5-section brief per event: Positioning, Messaging, Commercial, Competition, Success Metrics
-- Completion percentage auto-calculated on save
-- Feeds Content Generator + Pilot AI with event context
-- New table: `event_briefs` (SQL run in Supabase)
-- API: `/api/events/brief` (new)
+### 4. Bug Fixes
+
+**Finance pages blank (CRITICAL):**
+- `/api/hr/staff` had NO GET handler — only POST. Staff list never loaded on salary page.
+- Added GET handler: returns all active staff with id, name, email, department, role, job_level, office_id
+- Client-side session cookie not readable (Microsoft SSO format mismatch) — added API fallback
+- Changed `if (!session) return null` to show loading state instead of blank page
 
 ---
 
-### 3. AI Tool Wiring
+## KNOWN ISSUES (not yet fixed)
 
-**Content Generator** now reads from `event_briefs` as primary context:
-- Elevator pitch, value prop, key themes, messages, tone, tagline, hashtags, differentiators, delegate profile
-- Falls back to uploaded documents as secondary source
+1. **Finance pages may still show blank** — the session cookie client-side parsing issue may need further investigation. The API fallback was added but may not fully resolve it. Needs testing after deploy.
 
-**Pilot Chat** now answers event questions:
-- Loads event briefs for events the staff member is assigned to
-- Staff can ask "what is this event about?", "who is our target audience?"
-- Expanded system prompt scope to cover event-related questions
+2. **Platform Updates (What's Next)** shows static build log entries — not actual system update notifications. It's a dev changelog, not a user-facing update feed. Needs redesign.
 
----
-
-### 4. Platform Restructure
-
-**Toolkit reorganized into 6 categories with 14 tools:**
-- Event Tools (3): Website Builder, Market Intelligence, Brand Studio
-- Data & Marketing (2): Smart Data, Content Engine
-- Operations (3): Bespoke Tracker, HR Portal, Timesheets
-- Finance (2): Finance Portal, Commercial P&L
-- Academy (2): AI Course Generator, Course Manager
-- AI Agents (1): TresAgent
-
-**Toolkit sidebar redesigned:**
-- Dark background (#0F1923) with accent-coloured icons
-- Collapsible category dropdowns with chevron arrows
-- Tool count badges per category
-- Colour-coded category dots
-
-**Admin dashboard tabs cleaned up (9 tabs):**
-- Overview, People, Intelligence, Learning Analytics, AI Course Generator, Events, Knowledge Base, Review Queue (super-admin), Security (super-admin)
-- Removed duplicate Toolkit tab (already in nav bar)
-- Removed Commercial P&L tab (already in Toolkit + PlatformMenu)
-
-**Admin nav bar redesigned:**
-- 6 primary items: My Dashboard, Toolkit (highlighted), HR, Finance, Timesheets, Org Chart
-- [?] help icon dropdown: Platform Feedback, Platform Updates, Docs
-- [avatar] circle with initial: name, role, Sign out
-- Green dot for live indicator (was a text label)
-
-**Renames:**
-- "Staff Reviews" → "Platform Feedback"
-- "What's Next" → "Platform Updates"
-- "Leadership Dashboard" → "Admin Dashboard"
-- "Learning Lab" → "AI Course Generator"
-- "Staff Learning" → "Learning Analytics"
-- "Course Builder" → "Course Manager"
-- "TRESCON PLATFORM" label removed (redundant with logo)
-
-**HR / Finance separation:**
-- HR Portal owns: Staff Directory, Recruitment, Leave, Attendance, Onboarding, Performance
-- Finance Portal owns: Salary, Expenses, Vendors, Payroll, Commercial P&L
-- Old `/hr/salary`, `/hr/expenses`, `/hr/vendors`, `/hr/payroll` redirect to `/finance/*`
-
-**PLATFORM_TOOLS permissions synced:**
-- Added: `timesheets`, `finance` grant keys
-- Removed: `finance` (old duplicate of `commercial`)
-- Renamed labels to match Toolkit naming
-
-**Event workspace redesigned with RACI phase flow:**
-- Phase 1 (Concept): Event Brief + Execution Flow
-- Phase 2 (Planning): Planning Board + Commercial P&L + Brand Studio
-- Phase 3 (Public Assets): Website Builder + Content Campaigns
-- Phase 4 (Execution): Info card — speakers, sponsors, delegates, ops
-- Phase 5 (Pre-Event Lock): Info card — 21-day countdown
-
----
-
-### 5. Real-Time Notifications
-
-**Supabase Realtime + Browser Push + Sound:**
-- `RealtimeNotifications` component in app layout — always running
-- Subscribes to `notifications` + `messages` tables filtered by staff_id
-- Plays subtle two-tone ding (300ms WAV) on new notification/message
-- Browser desktop notification popup when tab is not focused
-- Dispatches custom events for instant NavBar badge updates
-- Polling kept as fallback (60s notifications, 30s messages)
-- SQL run: `ALTER PUBLICATION supabase_realtime ADD TABLE notifications, messages`
-
-**Attendance near-real-time sync:**
-- New endpoint: `/api/cron/attendance-live` — pulls today+yesterday from HRMS
-- Auto-syncs every 5 minutes while attendance page is open
-- Rate limited to max 1 sync per 2 minutes
-- Daily cron stays as backup
-
----
-
-### 6. Staff Access Changes
-
-- `dc@tresconglobal.com` — added `super_admin` to access_roles (was admin only)
-
----
-
-### 7. Database Changes (SQL run in Supabase this session)
-
-- `expense_claims` table — created
-- `vendor_payments` table — created
-- `event_briefs` table — created
-- `ALTER PUBLICATION supabase_realtime ADD TABLE notifications` — run
-- `ALTER PUBLICATION supabase_realtime ADD TABLE messages` — run
+3. **Payroll grades** (L1-EX) are default placeholders — need Trescon's actual grade structure from HR/Madhu.
 
 ---
 
@@ -217,37 +83,49 @@
 
 ### Pending — Waiting for Madhu
 
-1. **HRMS Supabase access** — old project `smdqljhuwcnfhzezrlbg` is not in Trescon org. Madhu created it under a different account. Need him to either share dashboard access or enable Realtime publication on `attendance_records` table. Once done, upgrade from 5-min polling to instant sync.
+1. **HRMS Supabase access** — old project `smdqljhuwcnfhzezrlbg` not in Trescon org. Need dashboard access or Realtime publication on `attendance_records` table.
 
-2. **Canva integration** — CANVA_CLIENT_ID + CANVA_CLIENT_SECRET need to be added to Railway env vars. Code is deployed and ready.
+2. **Canva env vars** — CANVA_CLIENT_ID + CANVA_CLIENT_SECRET on Railway.
 
-3. **HR Attendance & Payroll completion plan** — saved in memory (`project_hr_attendance_plan.md`). Durga will discuss with Madhu before building. Key items:
+3. **HR Attendance & Payroll plan** — saved in memory (`project_hr_attendance_plan.md`):
    - Holiday calendar per office (Dubai vs India holidays)
-   - LOP (Loss of Pay) auto-calculation
+   - LOP auto-calculation
    - Attendance percentage
-   - Multi-currency payroll (INR for India, AED for Dubai, USD for P&L reporting)
+   - Multi-currency payroll (INR for India, AED for Dubai, USD for P&L)
    - Monthly attendance summary reports
-   - Regularisation requests
-   - Comp-off earn flow
-   - Leave encashment
+   - Regularisation requests, comp-off, leave encashment
+
+4. **Payroll grades** — confirm Trescon's actual grade structure (L1-EX are defaults).
 
 ### Pending — Can build anytime
 
-4. **Salary data upload** — Finance team needs to upload salary CSV for 127 staff at `/finance/salary`
-5. **Event Brief adoption** — staff need to start filling briefs for existing events
-6. **Timesheet adoption** — staff need to start logging hours daily
-7. **Wire Event Brief into Website Builder** — auto-generate website copy from brief
-8. **Wire Event Brief into Market Intel** — auto-seed competitor scan targets
+5. **Finance page blank fix** — may need deeper investigation on session cookie format
+6. **Platform Updates redesign** — change from dev build log to actual user-facing changelog
+7. **Recruitment JD builder** — AI-assisted job description creation, publishable to platforms
+8. **Overall UI/UX audit** — multiple pages need design polish (Durga flagged HR portal, recruitment, finance as amateur-looking)
+
+---
+
+## Key Decisions Made This Session
+
+- **India salary in INR, Dubai salary in AED** — USD equivalent shown everywhere for P&L
+- **Exchange rates**: AED 0.2723, INR 0.01189 (approximate, hardcoded for now)
+- **Payroll grades** L1-EX are placeholders — to be confirmed with Trescon HR
+- **Finance pages** should always show table structure with headers + sample row even when empty
+- **Sample recruitment data** created for demo — marked with yellow "Sample Data" banner
 
 ---
 
 ## Previous Sessions
 
+### 29 Jun 2026 — Durga (major session)
+Built: Timesheets, Salary, Performance Reviews, Expense Claims, Vendor Payments, Payroll Summary, Finance Portal, Event Intelligence Brief, Real-time notifications (Supabase Realtime + sound + browser push), 5-minute attendance sync. Restructured: Toolkit (6 categories, 14 tools, dark sidebar, collapsible dropdowns), Admin nav bar, Finance/HR separation, Event workspace RACI flow. Fixed: PDF extraction, TypeScript build blocker.
+
 ### 28 Jun 2026 — Durga
-Bespoke Tracker full build (3 tables, 3 APIs, 3 pages, 53 auto-generated tasks per project)
+Bespoke Tracker full build (3 tables, 3 APIs, 3 pages, 53 auto-generated tasks)
 
 ### 26 Jun 2026 — Durga
-Content Engine upgrades (auto-publish cron, article generation, social analytics, email notifications, drag-drop calendar), Messaging system restored, Dashboard layout fixes, Commercial P&L crash fix
+Content Engine upgrades, Messaging restored, Dashboard layout fixes, Commercial P&L crash fix
 
 ### 25 Jun 2026 — Durga
 Commercial Tracker full BRD implementation (8 tables, 15 APIs, Executive Dashboard + Event Workspace)
