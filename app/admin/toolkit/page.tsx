@@ -424,29 +424,29 @@ export default function ToolkitPage() {
       <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
 
         {/* ── Left sidebar ─────────────────────────────────────────────── */}
-        <div style={{ width: '248px', flexShrink: 0, background: '#fff', borderRight: '1px solid #DDE8EE', display: 'flex', flexDirection: 'column', overflowY: 'auto' }}>
+        <div style={{ width: '260px', flexShrink: 0, background: '#0F1923', borderRight: '1px solid #1A2B3C', display: 'flex', flexDirection: 'column', overflowY: 'auto' }}>
           <div style={{ padding: '20px 16px 8px' }}>
-            <div style={{ fontSize: '11px', fontWeight: 800, color: '#B8CDD8', letterSpacing: '2px', textTransform: 'uppercase' }}>All Tools</div>
+            <div style={{ fontSize: '11px', fontWeight: 800, color: '#5B7080', letterSpacing: '2px', textTransform: 'uppercase' }}>All Tools</div>
           </div>
           {CATEGORIES.map(cat => {
             const catTools = visibleTools.filter(t => t.category === cat.id)
             if (catTools.length === 0) return null
             return (
               <div key={cat.id} style={{ marginBottom: '4px' }}>
-                <div style={{ fontSize: '10px', fontWeight: 800, color: '#C8D8E4', letterSpacing: '1.5px', textTransform: 'uppercase', padding: '10px 20px 4px' }}>{cat.label}</div>
+                <div style={{ fontSize: '10px', fontWeight: 800, color: '#5B7080', letterSpacing: '1.5px', textTransform: 'uppercase', padding: '12px 20px 4px' }}>{cat.label}</div>
                 {catTools.map(t => {
                   const active = t.id === activeId
                   return (
                     <button key={t.id} onClick={() => setActiveId(t.id)}
-                      style={{ width: '100%', display: 'flex', alignItems: 'center', gap: '11px', padding: '10px 16px', border: 'none', background: active ? `${t.accent}10` : 'transparent', cursor: 'pointer', fontFamily: 'inherit', textAlign: 'left', borderLeft: `3px solid ${active ? t.accent : 'transparent'}`, transition: 'all 0.15s' }}
-                      onMouseEnter={e => { if (!active) (e.currentTarget as HTMLElement).style.background = '#F4F7FA' }}
-                      onMouseLeave={e => { if (!active) (e.currentTarget as HTMLElement).style.background = 'transparent' }}>
-                      <div style={{ width: '30px', height: '30px', borderRadius: '8px', background: active ? `${t.accent}18` : '#F0F4F8', display: 'flex', alignItems: 'center', justifyContent: 'center', color: active ? t.accent : '#8899A8', flexShrink: 0, transition: 'all 0.15s' }}>
+                      style={{ width: '100%', display: 'flex', alignItems: 'center', gap: '11px', padding: '10px 16px', border: 'none', background: active ? `${t.accent}20` : 'transparent', cursor: 'pointer', fontFamily: 'inherit', textAlign: 'left', borderLeft: `3px solid ${active ? t.accent : 'transparent'}`, transition: 'all 0.15s' }}
+                      onMouseEnter={e => { if (!active) (e.currentTarget as HTMLElement).style.background = '#1A2B3C' }}
+                      onMouseLeave={e => { if (!active) (e.currentTarget as HTMLElement).style.background = active ? `${t.accent}20` : 'transparent' }}>
+                      <div style={{ width: '30px', height: '30px', borderRadius: '8px', background: active ? `${t.accent}30` : '#1A2B3C', display: 'flex', alignItems: 'center', justifyContent: 'center', color: active ? t.accent : '#8CA0B3', flexShrink: 0, transition: 'all 0.15s' }}>
                         {ICONS[t.id]}
                       </div>
                       <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ fontSize: '13px', fontWeight: active ? 800 : 600, color: active ? '#0F1923' : '#3D5060', lineHeight: 1.25 }}>{t.label}</div>
-                        <div style={{ fontSize: '10px', color: active ? t.accent : '#B8CDD8', fontWeight: 700, marginTop: '1px', letterSpacing: '0.3px' }}>{t.badge}</div>
+                        <div style={{ fontSize: '13px', fontWeight: active ? 800 : 600, color: active ? '#FFFFFF' : '#B8CDD8', lineHeight: 1.25 }}>{t.label}</div>
+                        <div style={{ fontSize: '10px', color: active ? t.accent : '#5B7080', fontWeight: 700, marginTop: '1px', letterSpacing: '0.3px' }}>{t.badge}</div>
                       </div>
                     </button>
                   )
