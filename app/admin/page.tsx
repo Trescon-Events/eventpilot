@@ -1458,7 +1458,6 @@ export default function AdminPage() {
             suggest:      '#A478FF',
             events:       '#00897B',
             commercial:   '#00695C',
-            bespoke:      '#B45309',
             knowledge:    '#166534',
             review:       '#991B1B',
             security:     '#1D4ED8',
@@ -1473,7 +1472,6 @@ export default function AdminPage() {
                 ['suggest',      'Learning Lab'],
                 ['events',       'Events'],
                 ['commercial',   'Commercial P&L'],
-                ['bespoke',      'Bespoke Tracker'],
                 ['knowledge',    'Knowledge Base'],
                 ...(isSuperAdmin ? [['review', 'Review Queue']] : []),
                 ...(isSuperAdmin ? [['security', 'Security']] : []),
@@ -1484,7 +1482,7 @@ export default function AdminPage() {
                 return (
                   <button key={t}
                     id={t === 'intelligence' ? 'tour-intelligence-tab' : t === 'suggest' ? 'tour-studio-tab' : undefined}
-                    onClick={() => { if (t === 'toolkit') { window.location.href = '/admin/toolkit'; return; } if (t === 'commercial') { window.location.href = '/admin/commercial'; return; } if (t === 'bespoke') { window.location.href = '/admin/bespoke'; return; } setTab(t as typeof tab); if (t === 'learning') fetchLearning(); if (t === 'people') { fetchStaffList(); markProgress('staff') } if (t === 'events') { fetchEvents(); fetchEventSummaries(); } if (t === 'knowledge') { fetchDocs(); fetchCustomDocTypes(); } if (t === 'review') fetchDrafts(); if (t === 'suggest') markProgress('course'); if (t === 'security') fetchSecurity() }}
+                    onClick={() => { if (t === 'toolkit') { window.location.href = '/admin/toolkit'; return; } if (t === 'commercial') { window.location.href = '/admin/commercial'; return; } setTab(t as typeof tab); if (t === 'learning') fetchLearning(); if (t === 'people') { fetchStaffList(); markProgress('staff') } if (t === 'events') { fetchEvents(); fetchEventSummaries(); } if (t === 'knowledge') { fetchDocs(); fetchCustomDocTypes(); } if (t === 'review') fetchDrafts(); if (t === 'suggest') markProgress('course'); if (t === 'security') fetchSecurity() }}
                     style={{
                       padding:         active ? '9px 22px' : '9px 20px',
                       borderRadius:    '10px',

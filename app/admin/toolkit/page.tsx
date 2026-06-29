@@ -15,6 +15,7 @@ const TOOL_GRANT_KEY: Record<string, string | null> = {
   'outreach':        'content',
   'course-builder':  null,
   'tresagent':       'tresagent',
+  'bespoke-tracker': 'bespoke',
 }
 
 const TOOLS = [
@@ -131,13 +132,30 @@ const TOOLS = [
     badge:      'AI Agent',
     category:   'AI',
   },
+  {
+    id:          'bespoke-tracker',
+    label:       'Bespoke Tracker',
+    description: 'End-to-end bespoke event lifecycle management. From client brief to invoice — track projects, manage 53 SOP tasks across 4 phases, and monitor delegate pipelines with full Kanban and table views.',
+    features:    [
+      { icon: '◷', label: 'Project pipeline', detail: 'Track bespoke events from brief through execution to close-out' },
+      { icon: '≡', label: '53-task SOP template', detail: 'Auto-generated task checklist from the Bespoke Events SOP' },
+      { icon: '◉', label: 'Delegate management', detail: 'Full delegate pipeline with bulk import, status tracking and notes' },
+      { icon: '⊞', label: 'Kanban + table views', detail: 'Switch between visual pipeline board and detailed table view' },
+    ],
+    accent:     '#B45309',
+    href:       '/admin/bespoke',
+    needsEvent: false,
+    badge:      'Operations',
+    category:   'Operations',
+  },
 ]
 
 const CATEGORIES = [
-  { id: 'Events',  label: 'Event Tools' },
-  { id: 'Data',    label: 'Data & Marketing' },
-  { id: 'Academy', label: 'Academy' },
-  { id: 'AI',      label: 'AI Agents' },
+  { id: 'Events',     label: 'Event Tools' },
+  { id: 'Data',       label: 'Data & Marketing' },
+  { id: 'Operations', label: 'Operations' },
+  { id: 'Academy',    label: 'Academy' },
+  { id: 'AI',         label: 'AI Agents' },
 ]
 
 const ICONS: Record<string, React.ReactNode> = {
@@ -148,6 +166,7 @@ const ICONS: Record<string, React.ReactNode> = {
   'outreach':        <svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M22 2 11 13M22 2 15 22 11 13 2 9l20-7z"/></svg>,
   'course-builder':  <svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>,
   'tresagent':       <svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M12 2a10 10 0 1 0 10 10"/><path d="M12 6v6l4 2"/><circle cx="19" cy="5" r="3"/></svg>,
+  'bespoke-tracker': <svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M20 7h-9"/><path d="M14 17H5"/><circle cx="17" cy="17" r="3"/><circle cx="7" cy="7" r="3"/></svg>,
 }
 
 function EventPicker({ tool, events, onClose }: { tool: typeof TOOLS[number]; events: Event[]; onClose: () => void }) {
