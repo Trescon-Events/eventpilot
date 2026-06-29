@@ -1084,20 +1084,25 @@ export default function EventWebsiteAdmin({ params }: { params: Promise<{ id: st
                       disabled={extracting}
                       onClick={async () => {
                         setExtracting(true)
-                        showMsg('Reading PDF with Gemini AI…')
+                        showMsg('Reading PDF with Gemini AI — large PDFs take 30-90 seconds…')
                         try {
+                          const controller = new AbortController()
+                          const timeout = setTimeout(() => controller.abort(), 180000) // 3 min timeout
                           const res  = await fetch('/api/events/brand/extract-pdf', {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ pdf_url: settings.brand_doc_url }),
+                            body: JSON.stringify({ pdf_url: settings.brand_doc_url, event_id: eventId }),
+                            signal: controller.signal,
                           })
+                          clearTimeout(timeout)
                           const data = await res.json()
                           if (!res.ok) { showMsg(data.error ?? 'Extraction failed', false); return }
-                          // Auto-fill colours
+                          // Auto-fill colours from color_palette
                           const colorKeys = ['brand_color_1','brand_color_2','brand_color_3','brand_color_4','brand_color_5'] as const
                           const colorUpdates: Record<string, string> = {}
-                          ;(data.colors ?? []).forEach((hex: string, i: number) => {
-                            if (colorKeys[i]) colorUpdates[colorKeys[i]] = hex
+                          const palette = data.color_palette ?? []
+                          palette.forEach((c: { hex?: string }, i: number) => {
+                            if (colorKeys[i] && c?.hex) colorUpdates[colorKeys[i]] = c.hex
                           })
                           // Auto-fill fonts
                           setSettings(s => ({
@@ -1106,9 +1111,21 @@ export default function EventWebsiteAdmin({ params }: { params: Promise<{ id: st
                             ...(data.heading_font ? { brand_font_heading: data.heading_font } : {}),
                             ...(data.body_font    ? { brand_font_body:    data.body_font    } : {}),
                           }))
-                          showMsg(`Extracted ${data.colors?.length ?? 0} colours + fonts from brand book. Review and save.`)
+                          const parts = [
+                            palette.length ? `${palette.length} colours` : null,
+                            data.heading_font ? `Heading: ${data.heading_font}` : null,
+                            data.body_font ? `Body: ${data.body_font}` : null,
+                            data.pattern_assets?.length ? `${data.pattern_assets.length} patterns` : null,
+                            data.type_scale?.length ? `${data.type_scale.length} type levels` : null,
+                            data.logo_donts?.length ? `${data.logo_donts.length} logo rules` : null,
+                          ].filter(Boolean).join(' · ')
+                          showMsg(`Brand extracted — ${parts}. Full details saved to Brand Studio.`)
                         } catch (e) {
-                          showMsg(e instanceof Error ? e.message : 'Extraction failed', false)
+                          if (e instanceof DOMException && e.name === 'AbortError') {
+                            showMsg('Extraction timed out — the PDF may be too large. Try uploading a compressed version or use Brand Studio for manual entry.', false)
+                          } else {
+                            showMsg(e instanceof Error ? e.message : 'Extraction failed', false)
+                          }
                         } finally {
                           setExtracting(false)
                         }

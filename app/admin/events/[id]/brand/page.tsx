@@ -470,12 +470,16 @@ export default function BrandStudioPage({ params }: { params: Promise<{ id: stri
       const uploadRes = await fetch(signedUrl, { method: 'PUT', headers: { 'Content-Type': 'application/pdf' }, body: file })
       if (!uploadRes.ok) { setMsg({ text: `Storage error: ${uploadRes.statusText}`, ok: false }); setPdfUploading(false); return }
 
-      setExtractProgress('Gemini is reading the brand book — this takes 30–60 seconds for large PDFs…')
+      setExtractProgress('Gemini is reading the brand book — large PDFs take 30–90 seconds…')
       setExtracting(true)
+      const controller = new AbortController()
+      const timeout = setTimeout(() => controller.abort(), 180000) // 3 min timeout
       const res  = await fetch('/api/events/brand/extract-pdf', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ pdf_url: publicUrl, event_id: eventId }),
+        signal: controller.signal,
       })
+      clearTimeout(timeout)
       const data = await res.json()
       setExtracting(false)
 
@@ -501,7 +505,11 @@ export default function BrandStudioPage({ params }: { params: Promise<{ id: stri
       setTab('identity')
     } catch (e) {
       setExtracting(false)
-      setMsg({ text: `Error: ${e instanceof Error ? e.message : 'Unknown'}`, ok: false })
+      if (e instanceof DOMException && e.name === 'AbortError') {
+        setMsg({ text: 'Extraction timed out — the PDF may be too large or complex. Try compressing the PDF or upload individual sections.', ok: false })
+      } else {
+        setMsg({ text: `Error: ${e instanceof Error ? e.message : 'Unknown'}`, ok: false })
+      }
     }
     setExtractProgress('')
     setPdfUploading(false)
