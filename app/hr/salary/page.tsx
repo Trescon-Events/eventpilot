@@ -41,6 +41,9 @@ export default function SalaryPage() {
   const [showForm, setShowForm] = useState(false)
   const [saving, setSaving] = useState(false)
   const [msg, setMsg] = useState<{ text: string; ok: boolean } | null>(null)
+  const [showBulk, setShowBulk] = useState(false)
+  const [bulkUploading, setBulkUploading] = useState(false)
+  const [bulkResult, setBulkResult] = useState<{ total: number; created: number; skipped: number; error_count: number; skipped_list: Array<{ email: string; reason: string }>; errors_list: Array<{ email: string; error: string }> } | null>(null)
 
   // Form fields
   const [fBasic, setFBasic] = useState('')
@@ -116,6 +119,35 @@ export default function SalaryPage() {
 
   const currentRecord = records.find(r => !r.effective_to)
 
+  async function handleBulkCSV(file: File) {
+    setBulkUploading(true); setBulkResult(null); setMsg(null)
+    const text = await file.text()
+    const lines = text.split('\n').map(l => l.trim()).filter(Boolean)
+    if (lines.length < 2) { setMsg({ text: 'CSV must have a header row + at least 1 data row', ok: false }); setBulkUploading(false); return }
+    const headers = lines[0].split(',').map(h => h.trim().toLowerCase().replace(/\s+/g, '_'))
+    const rows = lines.slice(1).map(line => {
+      const vals = line.split(',').map(v => v.trim())
+      const obj: Record<string, string> = {}
+      headers.forEach((h, i) => { obj[h] = vals[i] ?? '' })
+      return obj
+    }).filter(r => r.email)
+    if (rows.length === 0) { setMsg({ text: 'No valid rows found. Ensure CSV has an "email" column.', ok: false }); setBulkUploading(false); return }
+    const res = await fetch('/api/hr/salary/bulk', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ rows, created_by: session!.sid }),
+    })
+    const data = await res.json()
+    if (res.ok) {
+      setBulkResult(data)
+      setMsg({ text: `Bulk import: ${data.created} created, ${data.skipped} skipped, ${data.error_count} errors`, ok: data.created > 0 })
+      fetchStaff()
+    } else {
+      setMsg({ text: data.error ?? 'Bulk import failed', ok: false })
+    }
+    setBulkUploading(false)
+  }
+
   if (!session) return null
 
   return (
@@ -128,7 +160,13 @@ export default function SalaryPage() {
             <span style={{ color: C.border }}>/</span>
             <span style={{ fontSize: 13, color: C.text, fontWeight: 700 }}>Salary & Compensation</span>
           </div>
-          <h1 style={{ fontSize: 22, fontWeight: 800, color: C.text, margin: 0 }}>Salary & Compensation</h1>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12 }}>
+            <h1 style={{ fontSize: 22, fontWeight: 800, color: C.text, margin: 0 }}>Salary & Compensation</h1>
+            <button onClick={() => setShowBulk(true)} style={{ padding: '8px 18px', borderRadius: 8, border: `1px solid ${C.border}`, background: C.surface, color: C.text, fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
+              <svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" viewBox="0 0 24 24" style={{ verticalAlign: 'middle', marginRight: 6 }}><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+              Bulk CSV Import
+            </button>
+          </div>
         </div>
       </div>
 
@@ -314,6 +352,76 @@ export default function SalaryPage() {
                 style={{ padding: '9px 24px', borderRadius: 8, border: 'none', background: saving ? C.muted : C.purple, color: '#fff', fontSize: 13, fontWeight: 700, cursor: saving ? 'wait' : 'pointer', fontFamily: 'inherit' }}>
                 {saving ? 'Saving...' : 'Save Salary'}
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Bulk CSV upload modal */}
+      {showBulk && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }} onClick={() => { setShowBulk(false); setBulkResult(null) }}>
+          <div onClick={e => e.stopPropagation()} style={{ background: C.surface, borderRadius: 14, padding: 28, width: 520, maxHeight: '85vh', overflow: 'auto', boxShadow: '0 20px 60px rgba(0,0,0,0.2)' }}>
+            <div style={{ fontSize: 16, fontWeight: 800, color: C.text, marginBottom: 6 }}>Bulk Salary Import</div>
+            <div style={{ fontSize: 13, color: C.muted, marginBottom: 16 }}>Upload a CSV file with salary data for multiple staff members at once.</div>
+
+            <div style={{ padding: 16, borderRadius: 10, background: '#F8FAFB', border: `1px solid ${C.border}`, marginBottom: 16 }}>
+              <div style={{ fontSize: 12, fontWeight: 700, color: C.text, marginBottom: 8 }}>Required CSV format:</div>
+              <code style={{ fontSize: 11, color: C.muted, display: 'block', lineHeight: 1.8 }}>
+                email, basic_salary, allowances, deductions, currency, grade_code, effective_from, notes<br />
+                john@tresconglobal.com, 5000, 500, 200, USD, M1, 2026-07-01, Annual revision<br />
+                jane@tresconglobal.com, 4500, 400, 150, USD, L3, 2026-07-01, New hire
+              </code>
+              <div style={{ fontSize: 11, color: C.muted, marginTop: 8 }}>
+                <strong>Required:</strong> email, basic_salary<br />
+                <strong>Optional:</strong> allowances (default 0), deductions (default 0), currency (default USD), grade_code (L1-EX), effective_from (default today), notes
+              </div>
+            </div>
+
+            <label style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px 16px', borderRadius: 10, border: `2px dashed ${bulkUploading ? C.muted : C.purple}`, background: `${C.purple}04`, cursor: bulkUploading ? 'wait' : 'pointer', marginBottom: 16 }}>
+              <input type="file" accept=".csv" style={{ display: 'none' }} onChange={e => { const f = e.target.files?.[0]; if (f) handleBulkCSV(f); e.target.value = '' }} disabled={bulkUploading} />
+              <div style={{ textAlign: 'center' }}>
+                <svg width="24" height="24" fill="none" stroke={bulkUploading ? C.muted : C.purple} strokeWidth="2" strokeLinecap="round" viewBox="0 0 24 24" style={{ marginBottom: 6 }}><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+                <div style={{ fontSize: 13, fontWeight: 700, color: bulkUploading ? C.muted : C.purple }}>{bulkUploading ? 'Importing...' : 'Click to select CSV file'}</div>
+              </div>
+            </label>
+
+            {bulkResult && (
+              <div style={{ marginBottom: 16 }}>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8, marginBottom: 12 }}>
+                  <div style={{ padding: '10px 12px', borderRadius: 8, background: `${C.green}10`, textAlign: 'center' }}>
+                    <div style={{ fontSize: 18, fontWeight: 800, color: C.green }}>{bulkResult.created}</div>
+                    <div style={{ fontSize: 11, fontWeight: 600, color: C.muted }}>Created</div>
+                  </div>
+                  <div style={{ padding: '10px 12px', borderRadius: 8, background: `${C.amber}10`, textAlign: 'center' }}>
+                    <div style={{ fontSize: 18, fontWeight: 800, color: C.amber }}>{bulkResult.skipped}</div>
+                    <div style={{ fontSize: 11, fontWeight: 600, color: C.muted }}>Skipped</div>
+                  </div>
+                  <div style={{ padding: '10px 12px', borderRadius: 8, background: `${C.red}10`, textAlign: 'center' }}>
+                    <div style={{ fontSize: 18, fontWeight: 800, color: C.red }}>{bulkResult.error_count}</div>
+                    <div style={{ fontSize: 11, fontWeight: 600, color: C.muted }}>Errors</div>
+                  </div>
+                </div>
+                {bulkResult.skipped_list.length > 0 && (
+                  <details style={{ marginBottom: 8 }}>
+                    <summary style={{ fontSize: 12, fontWeight: 700, color: C.amber, cursor: 'pointer' }}>Skipped rows ({bulkResult.skipped_list.length})</summary>
+                    <div style={{ maxHeight: 120, overflow: 'auto', marginTop: 6 }}>
+                      {bulkResult.skipped_list.map((s, i) => <div key={i} style={{ fontSize: 11, color: C.muted, padding: '2px 0' }}>{s.email} — {s.reason}</div>)}
+                    </div>
+                  </details>
+                )}
+                {bulkResult.errors_list.length > 0 && (
+                  <details>
+                    <summary style={{ fontSize: 12, fontWeight: 700, color: C.red, cursor: 'pointer' }}>Errors ({bulkResult.errors_list.length})</summary>
+                    <div style={{ maxHeight: 120, overflow: 'auto', marginTop: 6 }}>
+                      {bulkResult.errors_list.map((e, i) => <div key={i} style={{ fontSize: 11, color: C.muted, padding: '2px 0' }}>{e.email} — {e.error}</div>)}
+                    </div>
+                  </details>
+                )}
+              </div>
+            )}
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+              <button onClick={() => { setShowBulk(false); setBulkResult(null) }} style={{ padding: '9px 18px', borderRadius: 8, border: `1px solid ${C.border}`, background: C.surface, color: C.muted, fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>Close</button>
             </div>
           </div>
         </div>

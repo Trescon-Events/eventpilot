@@ -377,6 +377,9 @@ export default function HRDashboard() {
             <Link href="/hr/staff" style={{ padding: '8px 12px', borderRadius: '8px', fontSize: '13px', fontWeight: 600, color: C.muted, textDecoration: 'none' }}>Staff Directory</Link>
             <Link href="/hr/salary" style={{ padding: '8px 12px', borderRadius: '8px', fontSize: '13px', fontWeight: 600, color: C.muted, textDecoration: 'none' }}>Salary</Link>
             <Link href="/hr/performance" style={{ padding: '8px 12px', borderRadius: '8px', fontSize: '13px', fontWeight: 600, color: C.muted, textDecoration: 'none' }}>Performance</Link>
+            <Link href="/hr/expenses" style={{ padding: '8px 12px', borderRadius: '8px', fontSize: '13px', fontWeight: 600, color: C.muted, textDecoration: 'none' }}>Expenses</Link>
+            <Link href="/hr/vendors" style={{ padding: '8px 12px', borderRadius: '8px', fontSize: '13px', fontWeight: 600, color: C.muted, textDecoration: 'none' }}>Vendors</Link>
+            <Link href="/hr/payroll" style={{ padding: '8px 12px', borderRadius: '8px', fontSize: '13px', fontWeight: 600, color: C.muted, textDecoration: 'none' }}>Payroll</Link>
           </div>
         </div>
       </div>
