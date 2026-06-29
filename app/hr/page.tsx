@@ -165,19 +165,12 @@ function SectionLabel({ children }: { children: React.ReactNode }) {
 
 function EmptyState({ message }: { message: string }) {
   return (
-    <div style={{
-      display: 'flex',
-      flexDirection: 'column',
-      alignItems: 'center',
-      gap: '10px',
-      padding: '32px 20px',
-      color: C.muted,
-    }}>
-      <svg width="28" height="28" viewBox="0 0 24 24" fill="none">
-        <circle cx="12" cy="12" r="10" stroke={C.teal} strokeWidth="1.5" />
+    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '14px 0', color: C.muted }}>
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" style={{ flexShrink: 0 }}>
+        <circle cx="12" cy="12" r="10" stroke={C.border} strokeWidth="1.5" />
         <path d="M8 12l3 3 5-5" stroke={C.teal} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
       </svg>
-      <span style={{ fontSize: '15px', color: C.muted }}>{message}</span>
+      <span style={{ fontSize: '13px', color: C.muted }}>{message}</span>
     </div>
   )
 }
@@ -372,10 +365,21 @@ export default function HRDashboard() {
               )}
             </button>
             <div style={{ width: '1px', height: '20px', background: C.border }} />
-            <Link href="/hr/attendance" style={{ padding: '8px 12px', borderRadius: '8px', fontSize: '13px', fontWeight: 600, color: C.muted, textDecoration: 'none' }}>Attendance</Link>
-            <Link href="/hr/recruitment" style={{ padding: '8px 12px', borderRadius: '8px', fontSize: '13px', fontWeight: 600, color: C.muted, textDecoration: 'none' }}>Recruitment</Link>
-            <Link href="/hr/staff" style={{ padding: '8px 12px', borderRadius: '8px', fontSize: '13px', fontWeight: 600, color: C.muted, textDecoration: 'none' }}>Staff Directory</Link>
-            <Link href="/hr/performance" style={{ padding: '8px 12px', borderRadius: '8px', fontSize: '13px', fontWeight: 600, color: C.muted, textDecoration: 'none' }}>Performance</Link>
+            {[
+              { href: '/hr/attendance', label: 'Attendance', icon: <svg width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg> },
+              { href: '/hr/recruitment', label: 'Recruitment', icon: <svg width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" viewBox="0 0 24 24"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="19" y1="8" x2="19" y2="14"/><line x1="22" y1="11" x2="16" y2="11"/></svg> },
+              { href: '/hr/staff', label: 'Staff', icon: <svg width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg> },
+              { href: '/hr/performance', label: 'Performance', icon: <svg width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" viewBox="0 0 24 24"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg> },
+              { href: '/hr/leave', label: 'Leave', icon: <svg width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/></svg> },
+              { href: '/hr/onboarding', label: 'Onboarding', icon: <svg width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" viewBox="0 0 24 24"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg> },
+            ].map(nav => (
+              <Link key={nav.href} href={nav.href} style={{ display: 'flex', alignItems: 'center', gap: '5px', padding: '7px 12px', borderRadius: '8px', fontSize: '12px', fontWeight: 700, color: C.muted, textDecoration: 'none', border: `1px solid transparent` }}
+                onMouseOver={e => { (e.currentTarget as HTMLElement).style.background = '#F0F4F8'; (e.currentTarget as HTMLElement).style.borderColor = C.border }}
+                onMouseOut={e => { (e.currentTarget as HTMLElement).style.background = 'transparent'; (e.currentTarget as HTMLElement).style.borderColor = 'transparent' }}>
+                <span style={{ color: C.teal }}>{nav.icon}</span>
+                {nav.label}
+              </Link>
+            ))}
           </div>
         </div>
       </div>
@@ -404,17 +408,17 @@ export default function HRDashboard() {
           </div>
         )}
 
-        {/* ── HRMS Init Banner ── */}
+        {/* ── HRMS Init Banner (compact) ── */}
         {!loading && data && !initBannerDismissed && initState === 'idle' &&
           data.headcount.total > 0 && data.onboarding.active_count === 0 && data.contracts.expiring_soon_count === 0 && (
-          <div style={{ background: C.amber + '14', border: `1px solid ${C.amber}40`, borderRadius: '12px', padding: '16px 20px', marginBottom: '20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '16px' }}>
-            <div>
-              <div style={{ fontSize: '13px', fontWeight: 800, color: C.amber, marginBottom: '2px' }}>First-time setup</div>
-              <div style={{ fontSize: '13px', color: C.muted }}>Create starter contracts, leave balances, and employment history for all active staff. Safe to run — skips anyone already set up.</div>
+          <div style={{ background: `${C.amber}08`, border: `1px solid ${C.amber}25`, borderRadius: '8px', padding: '10px 16px', marginBottom: '16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <svg width="14" height="14" fill="none" stroke={C.amber} strokeWidth="2" strokeLinecap="round" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+              <span style={{ fontSize: '12px', color: C.muted }}>First-time setup available — create contracts, leave balances, and employment history for all staff.</span>
             </div>
-            <div style={{ display: 'flex', gap: '8px', flexShrink: 0 }}>
-              <button onClick={dismissInitBanner} style={{ padding: '9px 14px', borderRadius: '8px', background: 'transparent', color: C.muted, fontSize: '13px', fontWeight: 600, border: `1px solid ${C.border}`, cursor: 'pointer', fontFamily: 'inherit' }}>Dismiss</button>
-              <button onClick={runInit} style={{ padding: '9px 20px', borderRadius: '8px', background: C.amber, color: '#fff', fontSize: '13px', fontWeight: 700, border: 'none', cursor: 'pointer', fontFamily: 'inherit' }}>Initialise HRMS</button>
+            <div style={{ display: 'flex', gap: '6px', flexShrink: 0 }}>
+              <button onClick={dismissInitBanner} style={{ padding: '5px 10px', borderRadius: '6px', background: 'transparent', color: C.muted, fontSize: '11px', fontWeight: 600, border: `1px solid ${C.border}`, cursor: 'pointer', fontFamily: 'inherit' }}>Dismiss</button>
+              <button onClick={runInit} style={{ padding: '5px 14px', borderRadius: '6px', background: C.amber, color: '#fff', fontSize: '11px', fontWeight: 700, border: 'none', cursor: 'pointer', fontFamily: 'inherit' }}>Initialise</button>
             </div>
           </div>
         )}
@@ -832,26 +836,31 @@ function StatTile({
   accent: string
   onClick?: () => void
 }) {
+  const isAlert = value > 0 && (label.includes('Pending') || label.includes('Alert') || label.includes('Expiring'))
   return (
     <div
       onClick={onClick}
       style={{
-        background: '#FFFFFF',
-        border: `1px solid #DDE8EE`,
-        borderLeft: `3px solid ${accent}`,
+        background: isAlert ? `${accent}08` : '#FFFFFF',
+        border: `1px solid ${isAlert ? `${accent}30` : '#DDE8EE'}`,
         borderRadius: '12px',
-        padding: '18px 20px',
+        padding: '16px 18px',
         flex: 1,
-        minWidth: '140px',
+        minWidth: '130px',
         cursor: onClick ? 'pointer' : 'default',
-        transition: 'box-shadow 0.12s',
+        transition: 'all 0.15s',
+        position: 'relative',
+        overflow: 'hidden',
       }}
-      onMouseEnter={e => { if (onClick) (e.currentTarget as HTMLDivElement).style.boxShadow = `0 2px 12px ${accent}22` }}
+      onMouseEnter={e => { if (onClick) (e.currentTarget as HTMLDivElement).style.boxShadow = `0 4px 16px ${accent}20` }}
       onMouseLeave={e => { (e.currentTarget as HTMLDivElement).style.boxShadow = 'none' }}
     >
-      <div style={{ fontSize: '11px', fontWeight: 700, letterSpacing: '1px', textTransform: 'uppercase', color: '#5B7080', marginBottom: '8px' }}>{label}</div>
-      <div style={{ fontSize: '30px', fontWeight: 900, color: accent, lineHeight: 1 }}>{value}</div>
-      <div style={{ fontSize: '12px', color: '#5B7080', marginTop: '5px' }}>{sub}</div>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '6px' }}>
+        <div style={{ fontSize: '11px', fontWeight: 700, letterSpacing: '0.8px', textTransform: 'uppercase', color: '#5B7080' }}>{label}</div>
+        {isAlert && value > 0 && <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: accent, animation: 'pulse 2s infinite' }} />}
+      </div>
+      <div style={{ fontSize: '26px', fontWeight: 900, color: value > 0 ? accent : '#B8CDD8', lineHeight: 1 }}>{value}</div>
+      <div style={{ fontSize: '11px', color: '#8CA0B3', marginTop: '4px' }}>{sub}</div>
     </div>
   )
 }
