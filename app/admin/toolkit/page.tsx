@@ -18,8 +18,9 @@ const TOOL_GRANT_KEY: Record<string, string | null> = {
   'tresagent':       'tresagent',
   'bespoke-tracker': 'bespoke',
   'hr-portal':       'hr_portal',
-  'commercial':      'commercial',
   'timesheets':      'timesheets',
+  'finance-portal':  'finance',
+  'commercial':      'commercial',
 }
 
 const TOOLS = [
@@ -185,22 +186,6 @@ const TOOLS = [
     category:   'Operations',
   },
   {
-    id:          'commercial',
-    label:       'Commercial P&L',
-    description: 'Full event profitability tracking — revenue pipelines, direct costs, staff costs from timesheets, overhead allocations, and multi-level approval workflows. Executive dashboard with margin analysis.',
-    features:    [
-      { icon: '◈', label: 'Revenue pipeline', detail: 'Track sponsorship, exhibition, delegate revenue with inventory management' },
-      { icon: '◉', label: 'Cost tracking', detail: 'Direct expenses, staff costs from timesheets, overhead allocation models' },
-      { icon: '▣', label: 'Executive dashboard', detail: 'Real-time P&L with gross/net margins, weekly snapshots, trend analysis' },
-      { icon: '⊙', label: 'Approval workflows', detail: '4-step approval chain — BU Head, Commercial Director, Finance, CEO' },
-    ],
-    accent:     '#00695C',
-    href:       '/admin/commercial',
-    needsEvent: false,
-    badge:      'Operations',
-    category:   'Operations',
-  },
-  {
     id:          'timesheets',
     label:       'Timesheets',
     description: 'Staff log daily hours per event or project. Managers approve submissions. Approved hours automatically calculate staff cost per event and feed into the Commercial P&L.',
@@ -216,12 +201,45 @@ const TOOLS = [
     badge:      'Operations',
     category:   'Operations',
   },
+  {
+    id:          'finance-portal',
+    label:       'Finance Portal',
+    description: 'Central finance hub — salary management, expense claim approvals, vendor invoice tracking, and monthly payroll summaries with department breakdowns.',
+    features:    [
+      { icon: '◈', label: 'Salary & compensation', detail: 'Enter and revise staff salaries, bulk CSV import, payroll grade management' },
+      { icon: '◉', label: 'Expense claims', detail: 'Review and approve staff expense submissions by category and event' },
+      { icon: '⊞', label: 'Vendor payments', detail: 'Track vendor invoices — pending, approved, paid, overdue with due date alerts' },
+      { icon: '▣', label: 'Payroll summary', detail: 'Monthly payroll overview — salaries + expenses by department and staff' },
+    ],
+    accent:     '#1565C0',
+    href:       '/finance',
+    needsEvent: false,
+    badge:      'Finance',
+    category:   'Finance',
+  },
+  {
+    id:          'commercial',
+    label:       'Commercial P&L',
+    description: 'Full event profitability tracking — revenue pipelines, direct costs, staff costs from timesheets, overhead allocations, and multi-level approval workflows. Executive dashboard with margin analysis.',
+    features:    [
+      { icon: '◈', label: 'Revenue pipeline', detail: 'Track sponsorship, exhibition, delegate revenue with inventory management' },
+      { icon: '◉', label: 'Cost tracking', detail: 'Direct expenses, staff costs from timesheets, overhead allocation models' },
+      { icon: '▣', label: 'Executive dashboard', detail: 'Real-time P&L with gross/net margins, weekly snapshots, trend analysis' },
+      { icon: '⊙', label: 'Approval workflows', detail: '4-step approval chain — BU Head, Commercial Director, Finance, CEO' },
+    ],
+    accent:     '#00695C',
+    href:       '/admin/commercial',
+    needsEvent: false,
+    badge:      'Finance',
+    category:   'Finance',
+  },
 ]
 
 const CATEGORIES = [
   { id: 'Events',     label: 'Event Tools' },
   { id: 'Data',       label: 'Data & Marketing' },
   { id: 'Operations', label: 'Operations' },
+  { id: 'Finance',    label: 'Finance' },
   { id: 'Academy',    label: 'Academy' },
   { id: 'AI',         label: 'AI Agents' },
 ]
@@ -237,6 +255,7 @@ const ICONS: Record<string, React.ReactNode> = {
   'tresagent':       <svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M12 2a10 10 0 1 0 10 10"/><path d="M12 6v6l4 2"/><circle cx="19" cy="5" r="3"/></svg>,
   'bespoke-tracker': <svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M20 7h-9"/><path d="M14 17H5"/><circle cx="17" cy="17" r="3"/><circle cx="7" cy="7" r="3"/></svg>,
   'hr-portal':       <svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>,
+  'finance-portal':  <svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><rect x="1" y="4" width="22" height="16" rx="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg>,
   'commercial':      <svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>,
   'timesheets':      <svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>,
 }

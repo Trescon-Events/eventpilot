@@ -135,6 +135,18 @@ export async function middleware(req: NextRequest) {
     return NextResponse.next()
   }
 
+  // /finance/* → admin, Finance access role, or Finance department
+  if (pathname.startsWith('/finance')) {
+    const isFinance = session.adm || (session.roles ?? []).includes('finance') || session.dept === 'Finance'
+    if (!isFinance) {
+      const dest = req.nextUrl.clone()
+      dest.pathname = '/dashboard'
+      dest.search = `?id=${session.sid}`
+      return NextResponse.redirect(dest)
+    }
+    return NextResponse.next()
+  }
+
   // /hr/* → admin, HR access role, or HR department
   if (pathname.startsWith('/hr')) {
     const isHR = session.adm || (session.roles ?? []).includes('hr') || session.dept === 'HR'
