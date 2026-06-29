@@ -27,6 +27,7 @@ const PLATFORM_TOOLS = [
   { key: 'content',         label: 'Content Engine',       desc: 'Social media planning, AI content generation & approval flow', color: '#059669', icon: <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg> },
   { key: 'commercial',      label: 'Commercial Tracker',   desc: 'Event P&L, revenue pipeline, budgets & financial reporting',   color: '#00695C', icon: <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M21.21 15.89A10 10 0 1 1 8 2.83"/><path d="M22 12A10 10 0 0 0 12 2v10z"/></svg> },
   { key: 'tresagent',       label: 'TresAgent',            desc: 'AI voice & WhatsApp outreach agent for delegate acquisition',  color: '#EC4899', icon: <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M12 2a10 10 0 1 0 10 10"/><path d="M12 6v6l4 2"/><circle cx="19" cy="5" r="3"/></svg> },
+  { key: 'bespoke',         label: 'Bespoke Tracker',      desc: 'End-to-end bespoke event lifecycle — client brief to invoice',   color: '#B45309', icon: <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M20 7h-9"/><path d="M14 17H5"/><circle cx="17" cy="17" r="3"/><circle cx="7" cy="7" r="3"/></svg> },
 ]
 
 const OFFICES = [
@@ -3491,7 +3492,7 @@ export default function AdminPage() {
 
         {/* ── Events tab ── */}
         {tab === 'events' && (() => {
-          const TYPE_COLOR: Record<string,string> = { conference:'#00897B', summit:'#A78BFA', forum:'#60A5FA', awards:'#F59E0B', workshop:'#34D399', flagship:'#8B1A1A', managed:'#3730A3', bespoke:'#5B7080', corporate:'#0F1923', others:'#B8CDD8', other:'#0F1923' }
+          const TYPE_COLOR: Record<string,string> = { conference:'#00897B', summit:'#A78BFA', forum:'#60A5FA', awards:'#F59E0B', workshop:'#34D399', flagship:'#8B1A1A', managed:'#3730A3', bespoke:'#B45309', corporate:'#0F1923', others:'#B8CDD8', other:'#0F1923' }
           const STATUS_CFG: Record<string,{color:string;bg:string}> = {
             planning:  { color:'#5B7080',  bg:'#DDE8EE' },
             upcoming:  { color:'#3730A3',  bg:'rgba(55,48,163,0.1)' },
