@@ -1367,33 +1367,34 @@ export default function AdminPage() {
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'nowrap' }}>
           {loading && <span style={{ fontSize: '12px', color: '#00897B', whiteSpace: 'nowrap' }}>Updating...</span>}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '5px', marginRight: '2px' }}>
-            <div style={{ width: '7px', height: '7px', borderRadius: '50%', background: '#00897B', animation: 'pulse 2s infinite' }} />
-            <span style={{ fontSize: '12px', color: '#5B7080' }}>Live</span>
-          </div>
+          <div style={{ width: '7px', height: '7px', borderRadius: '50%', background: '#00897B', animation: 'pulse 2s infinite', marginRight: '4px' }} title="Live — updates in real time" />
           <Link href={adminStaffId ? `/dashboard?id=${adminStaffId}` : '/dashboard'} style={{ background: '#FFFFFF', border: '1px solid #DDE8EE', color: '#374151', fontSize: '12px', fontWeight: 700, padding: '7px 11px', borderRadius: '10px', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '5px', whiteSpace: 'nowrap' }}>
-            <svg width="12" height="12" fill="none" stroke="#00A5A3" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>
-            My Learning
+            <svg width="12" height="12" fill="none" stroke="#00A5A3" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18"/><path d="M9 21V9"/></svg>
+            My Dashboard
+          </Link>
+          <Link href="/admin/toolkit" style={{ background: '#00897B', border: '1px solid #00897B', color: '#FFFFFF', fontSize: '12px', fontWeight: 700, padding: '7px 11px', borderRadius: '10px', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '5px', whiteSpace: 'nowrap' }}>
+            <svg width="12" height="12" fill="none" stroke="#FFFFFF" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg>
+            Toolkit
           </Link>
           <Link href="/hr" style={{ background: '#FFFFFF', border: '1px solid #DDE8EE', color: '#374151', fontSize: '12px', fontWeight: 700, padding: '7px 11px', borderRadius: '10px', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '5px', whiteSpace: 'nowrap' }}>
             <svg width="12" height="12" fill="none" stroke="#00A5A3" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
             HR Portal
           </Link>
+          <Link href="/finance" style={{ background: '#FFFFFF', border: '1px solid #DDE8EE', color: '#374151', fontSize: '12px', fontWeight: 700, padding: '7px 11px', borderRadius: '10px', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '5px', whiteSpace: 'nowrap' }}>
+            <svg width="12" height="12" fill="none" stroke="#00A5A3" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><rect x="1" y="4" width="22" height="16" rx="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg>
+            Finance
+          </Link>
+          <Link href="/timesheets" style={{ background: '#FFFFFF', border: '1px solid #DDE8EE', color: '#374151', fontSize: '12px', fontWeight: 700, padding: '7px 11px', borderRadius: '10px', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '5px', whiteSpace: 'nowrap' }}>
+            <svg width="12" height="12" fill="none" stroke="#00A5A3" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+            Timesheets
+          </Link>
           <Link href="/admin/org-chart" style={{ background: '#FFFFFF', border: '1px solid #DDE8EE', color: '#374151', fontSize: '12px', fontWeight: 700, padding: '7px 11px', borderRadius: '10px', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '5px', whiteSpace: 'nowrap' }}>
             <svg width="12" height="12" fill="none" stroke="#00A5A3" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><rect x="8" y="2" width="8" height="4" rx="1"/><rect x="1" y="14" width="6" height="4" rx="1"/><rect x="9" y="14" width="6" height="4" rx="1"/><rect x="17" y="14" width="6" height="4" rx="1"/><line x1="4" y1="14" x2="4" y2="11"/><line x1="12" y1="14" x2="12" y2="6"/><line x1="20" y1="14" x2="20" y2="11"/><line x1="4" y1="11" x2="20" y2="11"/></svg>
             Org Chart
           </Link>
-          <Link href="/docs" style={{ background: '#FFFFFF', border: '1px solid #DDE8EE', color: '#374151', fontSize: '12px', fontWeight: 700, padding: '7px 11px', borderRadius: '10px', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '5px', whiteSpace: 'nowrap' }}>
-            <svg width="12" height="12" fill="none" stroke="#00A5A3" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>
-            Platform Docs
-          </Link>
           <Link href="/admin/reviews" style={{ background: '#FFFFFF', border: '1px solid #DDE8EE', color: '#374151', fontSize: '12px', fontWeight: 700, padding: '7px 11px', borderRadius: '10px', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '5px', whiteSpace: 'nowrap' }}>
             <svg width="12" height="12" fill="none" stroke="#00A5A3" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
-            Staff Reviews
-          </Link>
-          <Link id="tour-pilot-btn" href="/insights" style={{ background: '#FFFFFF', border: '1px solid #DDE8EE', color: '#374151', fontSize: '12px', fontWeight: 700, padding: '7px 11px', borderRadius: '10px', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '5px', whiteSpace: 'nowrap' }}>
-            <svg width="12" height="12" fill="none" stroke="#00A5A3" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
-            AI Insights
+            Platform Feedback
           </Link>
           <button
             onClick={() => {
@@ -1401,9 +1402,13 @@ export default function AdminPage() {
               fetch('/api/build-log').then(r => r.json()).then(data => { if (Array.isArray(data)) setBuildLog(data) }).catch(() => {})
             }}
             style={{ background: '#FFFFFF', border: '1px solid #DDE8EE', color: '#374151', fontSize: '12px', fontWeight: 700, padding: '7px 11px', borderRadius: '10px', cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: '5px', whiteSpace: 'nowrap' }}>
-            <svg width="12" height="12" fill="none" stroke="#00A5A3" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
-            What&apos;s Next
+            <svg width="12" height="12" fill="none" stroke="#00A5A3" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+            Platform Updates
           </button>
+          <Link href="/docs" style={{ background: '#FFFFFF', border: '1px solid #DDE8EE', color: '#374151', fontSize: '12px', fontWeight: 700, padding: '7px 11px', borderRadius: '10px', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '5px', whiteSpace: 'nowrap' }}>
+            <svg width="12" height="12" fill="none" stroke="#00A5A3" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>
+            Docs
+          </Link>
           <button
             onClick={() => {
               localStorage.removeItem('eventpilot_staff_id')
