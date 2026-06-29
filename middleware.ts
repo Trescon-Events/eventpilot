@@ -130,8 +130,8 @@ export async function middleware(req: NextRequest) {
     }
   }
 
-  // /my-hr → accessible to ALL authenticated users (self-service HR portal)
-  if (pathname.startsWith('/my-hr')) {
+  // /my-hr, /timesheets → accessible to ALL authenticated users
+  if (pathname.startsWith('/my-hr') || pathname.startsWith('/timesheets')) {
     return NextResponse.next()
   }
 

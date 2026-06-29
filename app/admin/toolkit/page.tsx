@@ -16,6 +16,9 @@ const TOOL_GRANT_KEY: Record<string, string | null> = {
   'course-builder':  null,
   'tresagent':       'tresagent',
   'bespoke-tracker': 'bespoke',
+  'hr-portal':       'hr_portal',
+  'commercial':      'commercial',
+  'timesheets':      null,
 }
 
 const TOOLS = [
@@ -148,6 +151,54 @@ const TOOLS = [
     badge:      'Operations',
     category:   'Operations',
   },
+  {
+    id:          'hr-portal',
+    label:       'HR Portal',
+    description: 'Complete human resources management — staff directory, recruitment pipeline with AI screening, leave management, attendance tracking, onboarding/offboarding workflows, and HR alerts.',
+    features:    [
+      { icon: '◉', label: 'Staff directory & profiles', detail: 'Full employee profiles with 11 tabs — attendance, salary, documents, assets, performance' },
+      { icon: '⊞', label: 'Recruitment pipeline', detail: 'Job requisitions, AI-scored applications, structured interviews, automated hire-to-onboard' },
+      { icon: '◷', label: 'Leave & attendance', detail: 'Leave requests with approval, daily attendance tracking, WFH monitoring' },
+      { icon: '≡', label: 'Onboarding & offboarding', detail: 'Template-based checklists, 30-day plans, exit management with knowledge transfer' },
+    ],
+    accent:     '#7C3AED',
+    href:       '/hr',
+    needsEvent: false,
+    badge:      'Operations',
+    category:   'Operations',
+  },
+  {
+    id:          'commercial',
+    label:       'Commercial P&L',
+    description: 'Full event profitability tracking — revenue pipelines, direct costs, staff costs from timesheets, overhead allocations, and multi-level approval workflows. Executive dashboard with margin analysis.',
+    features:    [
+      { icon: '◈', label: 'Revenue pipeline', detail: 'Track sponsorship, exhibition, delegate revenue with inventory management' },
+      { icon: '◉', label: 'Cost tracking', detail: 'Direct expenses, staff costs from timesheets, overhead allocation models' },
+      { icon: '▣', label: 'Executive dashboard', detail: 'Real-time P&L with gross/net margins, weekly snapshots, trend analysis' },
+      { icon: '⊙', label: 'Approval workflows', detail: '4-step approval chain — BU Head, Commercial Director, Finance, CEO' },
+    ],
+    accent:     '#00695C',
+    href:       '/admin/commercial',
+    needsEvent: false,
+    badge:      'Operations',
+    category:   'Operations',
+  },
+  {
+    id:          'timesheets',
+    label:       'Timesheets',
+    description: 'Staff log daily hours per event or project. Managers approve submissions. Approved hours automatically calculate staff cost per event and feed into the Commercial P&L.',
+    features:    [
+      { icon: '◷', label: 'Daily time logging', detail: 'Staff log hours by event, project, or internal task — with notes' },
+      { icon: '◉', label: 'Manager approval', detail: 'Managers review and approve/reject team timesheets weekly' },
+      { icon: '▰', label: 'Utilisation tracking', detail: 'See billable vs internal vs bench time per staff and department' },
+      { icon: '◈', label: 'P&L integration', detail: 'Approved hours x salary rate = staff cost per event, auto-fed to Commercial P&L' },
+    ],
+    accent:     '#0284C7',
+    href:       '/timesheets',
+    needsEvent: false,
+    badge:      'Operations',
+    category:   'Operations',
+  },
 ]
 
 const CATEGORIES = [
@@ -167,6 +218,9 @@ const ICONS: Record<string, React.ReactNode> = {
   'course-builder':  <svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>,
   'tresagent':       <svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M12 2a10 10 0 1 0 10 10"/><path d="M12 6v6l4 2"/><circle cx="19" cy="5" r="3"/></svg>,
   'bespoke-tracker': <svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M20 7h-9"/><path d="M14 17H5"/><circle cx="17" cy="17" r="3"/><circle cx="7" cy="7" r="3"/></svg>,
+  'hr-portal':       <svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>,
+  'commercial':      <svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>,
+  'timesheets':      <svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>,
 }
 
 function EventPicker({ tool, events, onClose }: { tool: typeof TOOLS[number]; events: Event[]; onClose: () => void }) {
