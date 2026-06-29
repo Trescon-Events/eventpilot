@@ -18,13 +18,55 @@
 | Field         | Value                                                              |
 |---------------|--------------------------------------------------------------------|
 | Who           | Durga + Claude Code (Opus 4.6)                                     |
-| Date          | 2026-06-26                                                         |
+| Date          | 2026-06-28                                                         |
 | Handed off to | Madhu / Open                                                       |
-| Deployed      | Yes — https://eventpilot.tresconglobal.com (Railway, production, 26 Jun 2026) |
+| Deployed      | Yes — https://eventpilot.tresconglobal.com (Railway auto-deploy, 28 Jun 2026) |
 
 ---
 
-## What Was Built This Session (26 Jun 2026 — Durga)
+## What Was Built This Session (28 Jun 2026 — Durga)
+
+### Bespoke Tracker — Full Module Build
+
+Built the complete Bespoke Events lifecycle tracker per the Division SOP document. End-to-end bespoke event management from client brief to invoice settlement.
+
+**Database (3 new tables):**
+- `bespoke_projects` — client info, event basics, 6 team leads, phase tracking, client brief JSONB
+- `bespoke_tasks` — auto-generated from SOP, 53 tasks per project across 4 phases / 6 weeks
+- `bespoke_delegates` — registration pipeline with 8 stages (sourced → attended)
+- Migration: `supabase/bespoke_tracker.sql` — run manually in Supabase SQL editor 28 Jun
+
+**API Routes (3 endpoints):**
+- `/api/bespoke` (GET/POST/PATCH) — projects CRUD, auto-creates event record + auto-generates 53 tasks on creation
+- `/api/bespoke/tasks` (GET/POST/PATCH) — task management per project
+- `/api/bespoke/delegates` (GET/POST/PATCH/DELETE) — delegate pipeline management, supports bulk insert
+
+**Pages (3):**
+- `/admin/bespoke` — Pipeline view (Kanban 4-column + table toggle), project cards with registration progress
+- `/admin/bespoke/new` — Project creation form (3 sections: Client Info, Event Basics, Team Assignment)
+- `/admin/bespoke/[id]` — Project workspace with 5 tabs: Overview, Client Brief, Tasks, Pipeline, Assets
+
+**Toolkit Integration:**
+- Added "Bespoke Tracker" tile to PLATFORM_TOOLS array (key: `bespoke`, color: `#B45309`)
+- Updated bespoke event type color from `#5B7080` (grey) to `#B45309` (amber) across all TYPE_COLOR references
+
+**Key Decisions:**
+- All currency is USD ($) — confirmed by Durga as platform-wide standard
+- Team leads are text inputs for v1 — staff UUID picker to be added in v2
+- Tasks auto-calculate due dates working backwards from event date
+- Project creation auto-creates event record in events table (type: bespoke, status: planning)
+
+### What's Next
+- Wire up staff picker (UUID select) for team lead assignment
+- Add staff notification emails on project creation / task assignment
+- Build CSV import for delegate wishlist upload
+- Connect to Website Builder (landing page) and Content Engine (campaigns)
+- Add Gantt-style timeline view to project workspace
+- Test end-to-end flow with a real bespoke project (AJMS)
+
+---
+
+## Previous Session (26 Jun 2026 — Durga)
 
 ### Module B: Content Engine Upgrades (Thulasi's brief)
 
