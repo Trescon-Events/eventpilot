@@ -474,6 +474,8 @@ export default function AdminPage() {
   const [tourRect,    setTourRect]    = useState<DOMRect | null>(null)
   const [showRoadmap,   setShowRoadmap]   = useState(false)
   const [showMoreMenu,  setShowMoreMenu]  = useState(false)
+  const [showAvatarMenu, setShowAvatarMenu] = useState(false)
+  const [staffName,     setStaffName]     = useState<string | null>(null)
   const [buildLog,      setBuildLog]      = useState<{ date: string; time: string; author: string; items: { title: string; bullets: string[] }[] }[]>([])
   const [suggText,      setSuggText]      = useState('')
   const [suggSending,   setSuggSending]   = useState(false)
@@ -868,6 +870,9 @@ export default function AdminPage() {
           const superAdmin = session.sid === 'super-admin' || (Array.isArray(session.roles) && session.roles.includes('super_admin'))
           if (superAdmin) sessionStorage.setItem('tai_is_super_admin', '1')
           setIsSuperAdmin(superAdmin)
+          if (session.sid !== 'super-admin') {
+            fetch(`/api/hr/staff?id=${session.sid}`).then(r => r.json()).then(s => { if (s?.name) setStaffName(s.name) }).catch(() => {})
+          } else { setStaffName('Super Admin') }
         }
       })
       .catch(() => {})
@@ -1389,22 +1394,23 @@ export default function AdminPage() {
             <svg width="12" height="12" fill="none" stroke="#00A5A3" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
             Timesheets
           </Link>
+          <Link href="/admin/org-chart" style={{ background: '#FFFFFF', border: '1px solid #DDE8EE', color: '#374151', fontSize: '12px', fontWeight: 700, padding: '7px 11px', borderRadius: '10px', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '5px', whiteSpace: 'nowrap' }}>
+            <svg width="12" height="12" fill="none" stroke="#00A5A3" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><rect x="8" y="2" width="8" height="4" rx="1"/><rect x="1" y="14" width="6" height="4" rx="1"/><rect x="9" y="14" width="6" height="4" rx="1"/><rect x="17" y="14" width="6" height="4" rx="1"/><line x1="4" y1="14" x2="4" y2="11"/><line x1="12" y1="14" x2="12" y2="6"/><line x1="20" y1="14" x2="20" y2="11"/><line x1="4" y1="11" x2="20" y2="11"/></svg>
+            Org Chart
+          </Link>
           <div style={{ width: '1px', height: '20px', background: '#DDE8EE', margin: '0 2px' }} />
-          {/* More dropdown */}
+          {/* Help dropdown — platform support items */}
           <div style={{ position: 'relative' }}>
             <button onClick={() => setShowMoreMenu(!showMoreMenu)}
-              style={{ background: '#FFFFFF', border: '1px solid #DDE8EE', color: '#374151', fontSize: '12px', fontWeight: 700, padding: '7px 11px', borderRadius: '10px', cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: '5px', whiteSpace: 'nowrap' }}>
-              <svg width="12" height="12" fill="none" stroke="#5B7080" strokeWidth="2.5" strokeLinecap="round" viewBox="0 0 24 24"><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/></svg>
-              More
+              style={{ width: '34px', height: '34px', borderRadius: '50%', border: '1px solid #DDE8EE', background: '#FFFFFF', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+              title="Help & Support">
+              <svg width="16" height="16" fill="none" stroke="#5B7080" strokeWidth="2" strokeLinecap="round" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
             </button>
             {showMoreMenu && (
               <>
                 <div style={{ position: 'fixed', inset: 0, zIndex: 998 }} onClick={() => setShowMoreMenu(false)} />
                 <div style={{ position: 'absolute', top: '100%', right: 0, marginTop: 6, background: '#FFFFFF', border: '1px solid #DDE8EE', borderRadius: '12px', boxShadow: '0 8px 30px rgba(0,0,0,0.12)', padding: '6px', zIndex: 999, minWidth: 200 }}>
-                  <Link href="/admin/org-chart" onClick={() => setShowMoreMenu(false)} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '9px 12px', borderRadius: '8px', textDecoration: 'none', color: '#374151', fontSize: '13px', fontWeight: 600 }}>
-                    <svg width="14" height="14" fill="none" stroke="#00A5A3" strokeWidth="2" strokeLinecap="round" viewBox="0 0 24 24"><rect x="8" y="2" width="8" height="4" rx="1"/><rect x="1" y="14" width="6" height="4" rx="1"/><rect x="9" y="14" width="6" height="4" rx="1"/><rect x="17" y="14" width="6" height="4" rx="1"/><line x1="4" y1="14" x2="4" y2="11"/><line x1="12" y1="14" x2="12" y2="6"/><line x1="20" y1="14" x2="20" y2="11"/><line x1="4" y1="11" x2="20" y2="11"/></svg>
-                    Org Chart
-                  </Link>
+                  <div style={{ padding: '6px 12px 4px', fontSize: '10px', fontWeight: 800, color: '#B8CDD8', letterSpacing: '1.5px', textTransform: 'uppercase' }}>Support</div>
                   <Link href="/admin/reviews" onClick={() => setShowMoreMenu(false)} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '9px 12px', borderRadius: '8px', textDecoration: 'none', color: '#374151', fontSize: '13px', fontWeight: 600 }}>
                     <svg width="14" height="14" fill="none" stroke="#00A5A3" strokeWidth="2" strokeLinecap="round" viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
                     Platform Feedback
@@ -1418,6 +1424,25 @@ export default function AdminPage() {
                     <svg width="14" height="14" fill="none" stroke="#00A5A3" strokeWidth="2" strokeLinecap="round" viewBox="0 0 24 24"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>
                     Docs
                   </Link>
+                </div>
+              </>
+            )}
+          </div>
+          {/* Avatar dropdown — account actions */}
+          <div style={{ position: 'relative' }}>
+            <button onClick={() => setShowAvatarMenu(!showAvatarMenu)}
+              style={{ width: '34px', height: '34px', borderRadius: '50%', border: '2px solid #00897B', background: '#00897B', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#FFFFFF', fontSize: '13px', fontWeight: 800, fontFamily: 'inherit' }}
+              title="Account">
+              {(staffName ?? 'A').charAt(0).toUpperCase()}
+            </button>
+            {showAvatarMenu && (
+              <>
+                <div style={{ position: 'fixed', inset: 0, zIndex: 998 }} onClick={() => setShowAvatarMenu(false)} />
+                <div style={{ position: 'absolute', top: '100%', right: 0, marginTop: 6, background: '#FFFFFF', border: '1px solid #DDE8EE', borderRadius: '12px', boxShadow: '0 8px 30px rgba(0,0,0,0.12)', padding: '6px', zIndex: 999, minWidth: 180 }}>
+                  <div style={{ padding: '8px 12px 6px' }}>
+                    <div style={{ fontSize: '13px', fontWeight: 800, color: '#0F1923' }}>{staffName ?? 'Admin'}</div>
+                    <div style={{ fontSize: '11px', color: '#5B7080', marginTop: '2px' }}>Super Admin</div>
+                  </div>
                   <div style={{ height: '1px', background: '#DDE8EE', margin: '4px 8px' }} />
                   <button onClick={() => { localStorage.removeItem('eventpilot_staff_id'); localStorage.removeItem('tai_staff_id'); sessionStorage.removeItem('tai_admin_authed'); sessionStorage.removeItem('tai_admin_staff_id'); window.location.href = '/login' }}
                     style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '9px 12px', borderRadius: '8px', border: 'none', background: 'transparent', color: '#FF6B6B', fontSize: '13px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', width: '100%', textAlign: 'left' }}>
