@@ -367,6 +367,7 @@ export default function ToolkitPage() {
   const [events,    setEvents]    = useState<Event[]>([])
   const [activeId,  setActiveId]  = useState(TOOLS[0].id)
   const [picking,   setPicking]   = useState(false)
+  const [expandedCats, setExpandedCats] = useState<Set<string>>(new Set(CATEGORIES.map(c => c.id)))
 
   useEffect(() => {
     fetch('/api/toolkit-access').then(r => r.json()).then(d => {
@@ -431,22 +432,37 @@ export default function ToolkitPage() {
           {CATEGORIES.map(cat => {
             const catTools = visibleTools.filter(t => t.category === cat.id)
             if (catTools.length === 0) return null
+            const expanded = expandedCats.has(cat.id)
+            const catAccent = catTools[0]?.accent ?? '#5B7080'
+            const hasActive = catTools.some(t => t.id === activeId)
             return (
-              <div key={cat.id} style={{ marginBottom: '4px' }}>
-                <div style={{ fontSize: '10px', fontWeight: 800, color: '#5B7080', letterSpacing: '1.5px', textTransform: 'uppercase', padding: '12px 20px 4px' }}>{cat.label}</div>
-                {catTools.map(t => {
+              <div key={cat.id} style={{ marginBottom: '2px' }}>
+                {/* Category header — clickable to expand/collapse */}
+                <button
+                  onClick={() => setExpandedCats(prev => { const next = new Set(prev); if (next.has(cat.id)) next.delete(cat.id); else next.add(cat.id); return next })}
+                  style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 16px 10px 20px', border: 'none', background: hasActive && !expanded ? `${catAccent}15` : 'transparent', cursor: 'pointer', fontFamily: 'inherit', textAlign: 'left', transition: 'all 0.15s' }}
+                  onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = '#1A2B3C' }}
+                  onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = hasActive && !expanded ? `${catAccent}15` : 'transparent' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <div style={{ width: '6px', height: '6px', borderRadius: '50%', background: catAccent, flexShrink: 0 }} />
+                    <span style={{ fontSize: '11px', fontWeight: 800, color: expanded ? catAccent : '#8CA0B3', letterSpacing: '1.2px', textTransform: 'uppercase' }}>{cat.label}</span>
+                    <span style={{ fontSize: '10px', fontWeight: 700, color: '#5B7080', background: '#1A2B3C', padding: '1px 6px', borderRadius: '8px' }}>{catTools.length}</span>
+                  </div>
+                  <svg width="12" height="12" fill="none" stroke="#5B7080" strokeWidth="2" strokeLinecap="round" viewBox="0 0 24 24" style={{ transform: expanded ? 'rotate(180deg)' : 'rotate(0)', transition: 'transform 0.2s' }}><polyline points="6 9 12 15 18 9"/></svg>
+                </button>
+                {/* Tools list — shown when expanded */}
+                {expanded && catTools.map(t => {
                   const active = t.id === activeId
                   return (
                     <button key={t.id} onClick={() => setActiveId(t.id)}
-                      style={{ width: '100%', display: 'flex', alignItems: 'center', gap: '11px', padding: '10px 16px', border: 'none', background: active ? `${t.accent}20` : 'transparent', cursor: 'pointer', fontFamily: 'inherit', textAlign: 'left', borderLeft: `3px solid ${active ? t.accent : 'transparent'}`, transition: 'all 0.15s' }}
+                      style={{ width: '100%', display: 'flex', alignItems: 'center', gap: '11px', padding: '9px 16px 9px 28px', border: 'none', background: active ? `${t.accent}20` : 'transparent', cursor: 'pointer', fontFamily: 'inherit', textAlign: 'left', borderLeft: `3px solid ${active ? t.accent : 'transparent'}`, transition: 'all 0.15s' }}
                       onMouseEnter={e => { if (!active) (e.currentTarget as HTMLElement).style.background = '#1A2B3C' }}
                       onMouseLeave={e => { if (!active) (e.currentTarget as HTMLElement).style.background = active ? `${t.accent}20` : 'transparent' }}>
-                      <div style={{ width: '30px', height: '30px', borderRadius: '8px', background: active ? `${t.accent}30` : '#1A2B3C', display: 'flex', alignItems: 'center', justifyContent: 'center', color: active ? t.accent : '#8CA0B3', flexShrink: 0, transition: 'all 0.15s' }}>
+                      <div style={{ width: '28px', height: '28px', borderRadius: '8px', background: active ? `${t.accent}30` : '#1A2B3C', display: 'flex', alignItems: 'center', justifyContent: 'center', color: active ? t.accent : '#8CA0B3', flexShrink: 0, transition: 'all 0.15s' }}>
                         {ICONS[t.id]}
                       </div>
                       <div style={{ flex: 1, minWidth: 0 }}>
                         <div style={{ fontSize: '13px', fontWeight: active ? 800 : 600, color: active ? '#FFFFFF' : '#B8CDD8', lineHeight: 1.25 }}>{t.label}</div>
-                        <div style={{ fontSize: '10px', color: active ? t.accent : '#5B7080', fontWeight: 700, marginTop: '1px', letterSpacing: '0.3px' }}>{t.badge}</div>
                       </div>
                     </button>
                   )
