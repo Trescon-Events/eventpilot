@@ -19,7 +19,7 @@ const TOOL_GRANT_KEY: Record<string, string | null> = {
   'bespoke-tracker': 'bespoke',
   'hr-portal':       'hr_portal',
   'commercial':      'commercial',
-  'timesheets':      null,
+  'timesheets':      'timesheets',
 }
 
 const TOOLS = [

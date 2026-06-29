@@ -20,14 +20,14 @@ const PLATFORM_TOOLS = [
   { key: 'smart_data',      label: 'Smart Data',           desc: 'Apollo-style contact database, enrichment & bulk outreach',    color: '#0E7490',  icon: <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/></svg> },
   { key: 'hr_portal',       label: 'HR Portal',            desc: 'Full HR management — leave, contracts, payroll, onboarding',   color: '#7C3AED',  icon: <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg> },
   { key: 'events',          label: 'Events',               desc: 'Event creation, team RACI, budgets & delegate management',     color: '#166534',  icon: <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg> },
-  { key: 'intelligence',    label: 'Intelligence Reports', desc: 'Market intelligence, AI research & account insights',          color: '#92400E',  icon: <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg> },
-  { key: 'finance',         label: 'Finance',              desc: 'P&L dashboards, payroll grades & expense management',         color: '#1565C0',  icon: <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg> },
+  { key: 'intelligence',    label: 'Market Intelligence',  desc: 'Market intelligence, AI research & account insights',          color: '#92400E',  icon: <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg> },
   { key: 'brand_studio',    label: 'Brand Studio',         desc: 'AI image generation, brand templates & creative assets',      color: '#DC2626',  icon: <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><circle cx="13.5" cy="6.5" r=".5"/><circle cx="17.5" cy="10.5" r=".5"/><circle cx="8.5" cy="7.5" r=".5"/><circle cx="6.5" cy="12.5" r=".5"/><path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10c.926 0 1.648-.746 1.648-1.688 0-.437-.18-.835-.477-1.125-.29-.289-.438-.652-.438-1.125a1.64 1.64 0 0 1 1.668-1.668h1.996c3.051 0 5.555-2.503 5.555-5.554C21.965 6.012 17.461 2 12 2z"/></svg> },
   { key: 'website_builder', label: 'Website Builder',      desc: 'Event websites, landing pages & custom domain hosting',       color: '#D97706',  icon: <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg> },
   { key: 'content',         label: 'Content Engine',       desc: 'Social media planning, AI content generation & approval flow', color: '#059669', icon: <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg> },
-  { key: 'commercial',      label: 'Commercial Tracker',   desc: 'Event P&L, revenue pipeline, budgets & financial reporting',   color: '#00695C', icon: <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M21.21 15.89A10 10 0 1 1 8 2.83"/><path d="M22 12A10 10 0 0 0 12 2v10z"/></svg> },
+  { key: 'commercial',      label: 'Commercial P&L',      desc: 'Event P&L, revenue pipeline, budgets & financial reporting',   color: '#00695C', icon: <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M21.21 15.89A10 10 0 1 1 8 2.83"/><path d="M22 12A10 10 0 0 0 12 2v10z"/></svg> },
   { key: 'tresagent',       label: 'TresAgent',            desc: 'AI voice & WhatsApp outreach agent for delegate acquisition',  color: '#EC4899', icon: <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M12 2a10 10 0 1 0 10 10"/><path d="M12 6v6l4 2"/><circle cx="19" cy="5" r="3"/></svg> },
   { key: 'bespoke',         label: 'Bespoke Tracker',      desc: 'End-to-end bespoke event lifecycle — client brief to invoice',   color: '#B45309', icon: <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M20 7h-9"/><path d="M14 17H5"/><circle cx="17" cy="17" r="3"/><circle cx="7" cy="7" r="3"/></svg> },
+  { key: 'timesheets',      label: 'Timesheets',           desc: 'Staff time logging per event/project with manager approvals',   color: '#0284C7', icon: <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg> },
 ]
 
 const OFFICES = [
@@ -1457,7 +1457,6 @@ export default function AdminPage() {
             learning:     '#00897B',
             suggest:      '#A478FF',
             events:       '#00897B',
-            commercial:   '#00695C',
             knowledge:    '#166534',
             review:       '#991B1B',
             security:     '#1D4ED8',
@@ -1471,18 +1470,16 @@ export default function AdminPage() {
                 ['learning',     'Learning Analytics'],
                 ['suggest',      'AI Course Generator'],
                 ['events',       'Events'],
-                ['commercial',   'Commercial P&L'],
                 ['knowledge',    'Knowledge Base'],
                 ...(isSuperAdmin ? [['review', 'Review Queue']] : []),
                 ...(isSuperAdmin ? [['security', 'Security']] : []),
-                ['toolkit',      'Toolkit'],
               ] as [typeof tab, string][]).map(([t, label]) => {
                 const accent  = TAB_ACCENT[t] ?? '#00897B'
                 const active  = tab === t
                 return (
                   <button key={t}
                     id={t === 'intelligence' ? 'tour-intelligence-tab' : t === 'suggest' ? 'tour-studio-tab' : undefined}
-                    onClick={() => { if (t === 'toolkit') { window.location.href = '/admin/toolkit'; return; } if (t === 'commercial') { window.location.href = '/admin/commercial'; return; } setTab(t as typeof tab); if (t === 'learning') fetchLearning(); if (t === 'people') { fetchStaffList(); markProgress('staff') } if (t === 'events') { fetchEvents(); fetchEventSummaries(); } if (t === 'knowledge') { fetchDocs(); fetchCustomDocTypes(); } if (t === 'review') fetchDrafts(); if (t === 'suggest') markProgress('course'); if (t === 'security') fetchSecurity() }}
+                    onClick={() => { setTab(t as typeof tab); if (t === 'learning') fetchLearning(); if (t === 'people') { fetchStaffList(); markProgress('staff') } if (t === 'events') { fetchEvents(); fetchEventSummaries(); } if (t === 'knowledge') { fetchDocs(); fetchCustomDocTypes(); } if (t === 'review') fetchDrafts(); if (t === 'suggest') markProgress('course'); if (t === 'security') fetchSecurity() }}
                     style={{
                       padding:         active ? '9px 22px' : '9px 20px',
                       borderRadius:    '10px',
