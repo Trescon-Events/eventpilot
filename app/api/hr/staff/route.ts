@@ -22,6 +22,33 @@ const DEFAULT_ONBOARDING_TASKS = [
 ]
 
 /*
+  GET /api/hr/staff         — list all staff (id, name, email, department, role, job_level, office_id)
+  GET /api/hr/staff?id=X    — single staff member
+*/
+export async function GET(req: NextRequest) {
+  const id = req.nextUrl.searchParams.get('id')
+
+  if (id) {
+    const { data, error } = await supabaseAdmin
+      .from('staff_members')
+      .select('id, name, email, department, role, job_level, office_id, phone, gender, date_of_birth, work_mode, employee_code, company, business_unit, skills, manager_id, access_enabled, joined_at')
+      .eq('id', id)
+      .maybeSingle()
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+    return NextResponse.json(data)
+  }
+
+  const { data, error } = await supabaseAdmin
+    .from('staff_members')
+    .select('id, name, email, department, role, job_level, office_id')
+    .eq('access_enabled', true)
+    .order('name')
+
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  return NextResponse.json(data ?? [])
+}
+
+/*
   POST /api/hr/staff
   Full staff onboarding creation — one call to:
     1. Create staff record with all fields + hashed password
