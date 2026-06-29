@@ -224,8 +224,11 @@ export function NotificationBell({ staffId }: { staffId?: string }) {
         .then(d => Array.isArray(d) ? setNotifs(d) : setNotifs([]))
         .catch(() => {})
     load()
-    const t = setInterval(load, 60000) // re-poll every 60s
-    return () => clearInterval(t)
+    const t = setInterval(load, 60000) // re-poll every 60s as fallback
+    // Listen for Realtime events for instant update
+    const handler = () => load()
+    window.addEventListener('ep:new-notification', handler)
+    return () => { clearInterval(t); window.removeEventListener('ep:new-notification', handler) }
   }, [sid])
 
   // Close on outside click
@@ -396,8 +399,11 @@ export function MessagesIcon({ staffId }: { staffId?: string }) {
       if (Array.isArray(d)) setUnread(d.reduce((s: number, c: { unread: number }) => s + (c.unread || 0), 0))
     }).catch(() => {})
     load()
-    const t = setInterval(load, 30000)
-    return () => clearInterval(t)
+    const t = setInterval(load, 30000) // fallback polling
+    // Listen for Realtime events for instant update
+    const handler = () => load()
+    window.addEventListener('ep:new-message', handler)
+    return () => { clearInterval(t); window.removeEventListener('ep:new-message', handler) }
   }, [sid])
 
   return (

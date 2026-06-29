@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Manrope } from "next/font/google";
 import "./globals.css";
 import ReviewWidget from "@/app/components/ReviewWidget";
+import RealtimeNotifications from "@/app/components/RealtimeNotifications";
 
 const manrope = Manrope({ subsets: ["latin"], variable: "--font-manrope", display: "swap" });
 
@@ -36,6 +37,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body className="min-h-full">
         {children}
         <ReviewWidget />
+        <RealtimeNotifications />
       </body>
     </html>
   );
