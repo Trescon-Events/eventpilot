@@ -1461,6 +1461,7 @@ export default function AdminPage() {
             knowledge:    '#166534',
             review:       '#991B1B',
             security:     '#1D4ED8',
+            toolkit:      '#00695C',
           }
           return (
             <div id="tour-tabs" style={{ display: 'flex', gap: '6px', marginBottom: '28px', flexWrap: 'wrap' }}>
@@ -1474,13 +1475,14 @@ export default function AdminPage() {
                 ['knowledge',    'Knowledge Base'],
                 ...(isSuperAdmin ? [['review', 'Review Queue']] : []),
                 ...(isSuperAdmin ? [['security', 'Security']] : []),
+                ['toolkit',      'Toolkit'],
               ] as [typeof tab, string][]).map(([t, label]) => {
                 const accent  = TAB_ACCENT[t] ?? '#00897B'
                 const active  = tab === t
                 return (
                   <button key={t}
                     id={t === 'intelligence' ? 'tour-intelligence-tab' : t === 'suggest' ? 'tour-studio-tab' : undefined}
-                    onClick={() => { setTab(t as typeof tab); if (t === 'learning') fetchLearning(); if (t === 'people') { fetchStaffList(); markProgress('staff') } if (t === 'events') { fetchEvents(); fetchEventSummaries(); } if (t === 'knowledge') { fetchDocs(); fetchCustomDocTypes(); } if (t === 'review') fetchDrafts(); if (t === 'suggest') markProgress('course'); if (t === 'security') fetchSecurity() }}
+                    onClick={() => { if (t === 'toolkit') { window.location.href = '/admin/toolkit'; return; } setTab(t as typeof tab); if (t === 'learning') fetchLearning(); if (t === 'people') { fetchStaffList(); markProgress('staff') } if (t === 'events') { fetchEvents(); fetchEventSummaries(); } if (t === 'knowledge') { fetchDocs(); fetchCustomDocTypes(); } if (t === 'review') fetchDrafts(); if (t === 'suggest') markProgress('course'); if (t === 'security') fetchSecurity() }}
                     style={{
                       padding:         active ? '9px 22px' : '9px 20px',
                       borderRadius:    '10px',
