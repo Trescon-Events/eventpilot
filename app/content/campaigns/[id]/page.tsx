@@ -5,8 +5,8 @@ import Link from 'next/link'
 
 type Post = {
   id: string; campaign_id: string; week_number: number; narrative_role: string
-  platform: string; scheduled_date: string; scheduled_time: string
-  status: string; text: string; image_url: string; revision_note: string | null
+  platform: string; scheduled_date: string; scheduled_time: string; title?: string
+  status: string; text: string; image_url: string; canva_image_url?: string; revision_note: string | null
 }
 type Campaign = {
   id: string; name: string; objective: string; phase: string; status: string
@@ -38,6 +38,7 @@ function fmtDate(iso: string): string {
 
 export default function CampaignDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params)
+  const [staffId, setStaffId]     = useState<string>('')
   const [campaign, setCampaign]   = useState<Campaign | null>(null)
   const [posts,    setPosts]      = useState<Post[]>([])
   const [loading,  setLoading]    = useState(true)
@@ -84,6 +85,14 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
   }, [id])
 
   useEffect(() => { load() }, [load])
+
+  // Get staff ID from session cookie
+  useEffect(() => {
+    try {
+      const raw = document.cookie.split('; ').find(c => c.startsWith('tcs_session='))?.split('=')[1]
+      if (raw) { const s = JSON.parse(atob(raw)); setStaffId(s.sid || '') }
+    } catch { /* ignore */ }
+  }, [])
 
   function weekTheme(phase: string, wk: number, total: number): string {
     if (phase === 'pre_event') {
@@ -747,10 +756,102 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
               </div>
 
               <div style={{ padding: '24px' }}>
-                {/* Image */}
+                {/* Image + Canva edit */}
                 {post.image_url && (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img src={post.image_url} alt="" style={{ width: '100%', aspectRatio: '16/9', objectFit: 'cover', borderRadius: '10px', marginBottom: '16px' }} />
+                  <div style={{ position: 'relative', marginBottom: '16px' }}>
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={post.canva_image_url || post.image_url} alt="" style={{ width: '100%', aspectRatio: '16/9', objectFit: 'cover', borderRadius: '10px' }} />
+                    <div style={{ display: 'flex', gap: '6px', marginTop: '8px' }}>
+                      <button
+                        onClick={async () => {
+                          try {
+                            // Check if Canva is connected
+                            const checkRes = await fetch('/api/canva/design', {
+                              method: 'POST',
+                              headers: { 'Content-Type': 'application/json' },
+                              body: JSON.stringify({ action: 'check', staff_id: staffId }),
+                            })
+                            const checkData = await checkRes.json()
+                            if (!checkData.connected) {
+                              window.open(`/api/canva?staff_id=${staffId}`, '_blank')
+                              return
+                            }
+                            // Upload image to Canva
+                            const upRes = await fetch('/api/canva/design', {
+                              method: 'POST',
+                              headers: { 'Content-Type': 'application/json' },
+                              body: JSON.stringify({ action: 'upload', staff_id: staffId, image_url: post.image_url, title: post.title || 'Social Post' }),
+                            })
+                            const upData = await upRes.json()
+                            if (upData.error) { alert(upData.error); return }
+                            // Create design
+                            const designRes = await fetch('/api/canva/design', {
+                              method: 'POST',
+                              headers: { 'Content-Type': 'application/json' },
+                              body: JSON.stringify({ action: 'create', staff_id: staffId, asset_id: upData.job?.asset?.id, title: post.title || 'Social Post' }),
+                            })
+                            const designData = await designRes.json()
+                            if (designData.design?.urls?.edit_url) {
+                              window.open(designData.design.urls.edit_url, '_blank')
+                            } else {
+                              alert('Could not open Canva editor. Try again.')
+                            }
+                          } catch (e) { alert('Canva error: ' + (e instanceof Error ? e.message : 'Unknown')) }
+                        }}
+                        style={{ flex: 1, padding: '8px 12px', fontSize: '12px', fontWeight: 700, color: '#00C4CC', background: 'rgba(0,196,204,0.08)', border: '1px solid rgba(0,196,204,0.2)', borderRadius: '8px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}
+                      >
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+                        Edit in Canva
+                      </button>
+                      <button
+                        onClick={async () => {
+                          const designId = prompt('Paste your Canva Design ID (from the URL after editing):')
+                          if (!designId) return
+                          try {
+                            const expRes = await fetch('/api/canva/design', {
+                              method: 'POST',
+                              headers: { 'Content-Type': 'application/json' },
+                              body: JSON.stringify({ action: 'export', staff_id: staffId, design_id: designId }),
+                            })
+                            const expData = await expRes.json()
+                            if (expData.error) { alert(expData.error); return }
+                            // Poll for completion
+                            const jobId = expData.job?.id
+                            if (!jobId) { alert('Export started but no job ID returned'); return }
+                            let attempts = 0
+                            const poll = setInterval(async () => {
+                              attempts++
+                              const statusRes = await fetch('/api/canva/design', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ action: 'status', staff_id: staffId, job_id: jobId }),
+                              })
+                              const statusData = await statusRes.json()
+                              if (statusData.job?.status === 'success' && statusData.job?.urls?.[0]?.url) {
+                                clearInterval(poll)
+                                // Save the exported image URL back to the post
+                                await fetch('/api/content/campaigns/' + id + '/posts', {
+                                  method: 'PATCH',
+                                  headers: { 'Content-Type': 'application/json' },
+                                  body: JSON.stringify({ post_id: post.id, canva_image_url: statusData.job.urls[0].url }),
+                                })
+                                setPosts(ps => ps.map(p => p.id === post.id ? { ...p, canva_image_url: statusData.job.urls[0].url } : p))
+                                if (activePost?.id === post.id) setActivePost(prev => prev ? { ...prev, canva_image_url: statusData.job.urls[0].url } : prev)
+                                alert('Image imported from Canva!')
+                              } else if (attempts > 20) {
+                                clearInterval(poll)
+                                alert('Export timed out. Try again.')
+                              }
+                            }, 3000)
+                          } catch (e) { alert('Export error: ' + (e instanceof Error ? e.message : 'Unknown')) }
+                        }}
+                        style={{ padding: '8px 12px', fontSize: '12px', fontWeight: 700, color: '#00897B', background: 'rgba(0,137,123,0.08)', border: '1px solid rgba(0,137,123,0.2)', borderRadius: '8px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}
+                      >
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                        Import
+                      </button>
+                    </div>
+                  </div>
                 )}
 
                 {/* Copy — editable */}
