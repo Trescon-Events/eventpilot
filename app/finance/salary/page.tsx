@@ -10,7 +10,7 @@ const C = {
 }
 
 type Session = { sid: string; adm: boolean }
-type Staff = { id: string; name: string; department: string | null; role: string | null; job_level: string }
+type Staff = { id: string; name: string; department: string | null; role: string | null; job_level: string; office_id: string | null }
 type Grade = { id: string; code: string; label: string; min_salary: number; max_salary: number }
 type SalaryRecord = {
   id: string; staff_id: string; effective_from: string; effective_to: string | null;
@@ -28,6 +28,12 @@ function getSession(): Session | null {
 }
 
 function fmt(n: number) { return new Intl.NumberFormat('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(n) }
+
+const OFFICE_CURRENCY: Record<string, string> = { dubai: 'AED', bangalore: 'INR', mangalore: 'INR', manipal: 'INR' }
+const USD_RATES: Record<string, number> = { USD: 1, AED: 0.2723, INR: 0.01189, EUR: 1.08, GBP: 1.26 } // approximate
+function toUSD(amount: number, currency: string) { return amount * (USD_RATES[currency] ?? 1) }
+function getCurrencyForOffice(officeId: string | null) { return officeId ? (OFFICE_CURRENCY[officeId] ?? 'USD') : 'USD' }
+function currencySymbol(c: string) { return c === 'INR' ? 'Rs' : c === 'AED' ? 'AED' : c === 'EUR' ? 'EUR' : c === 'GBP' ? 'GBP' : '$' }
 
 export default function SalaryPage() {
   const [session, setSession] = useState<Session | null>(null)
@@ -208,26 +214,42 @@ export default function SalaryPage() {
                   <div style={{ fontSize: 18, fontWeight: 800, color: C.text }}>{selected.name}</div>
                   <div style={{ fontSize: 13, color: C.muted }}>{selected.department ?? '—'} · {selected.role ?? selected.job_level}</div>
                 </div>
-                <button onClick={() => { setShowForm(true); setFBasic(currentRecord ? String(currentRecord.basic_salary) : ''); setFAllow(currentRecord ? String(currentRecord.allowances) : '0'); setFDeduct(currentRecord ? String(currentRecord.deductions) : '0'); setFGrade(currentRecord?.grade_id ?? ''); setFCurrency(currentRecord?.currency ?? 'USD'); setFNotes(''); setFDate(new Date().toISOString().slice(0, 10)) }}
+                <button onClick={() => { setShowForm(true); setFBasic(currentRecord ? String(currentRecord.basic_salary) : ''); setFAllow(currentRecord ? String(currentRecord.allowances) : '0'); setFDeduct(currentRecord ? String(currentRecord.deductions) : '0'); setFGrade(currentRecord?.grade_id ?? ''); setFCurrency(currentRecord?.currency ?? getCurrencyForOffice(selected.office_id)); setFNotes(''); setFDate(new Date().toISOString().slice(0, 10)) }}
                   style={{ padding: '8px 18px', borderRadius: 8, border: 'none', background: C.purple, color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
                   {currentRecord ? 'Revise Salary' : '+ Add Salary'}
                 </button>
               </div>
 
               {currentRecord ? (
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 16 }}>
-                  {[
-                    { label: 'Basic Salary', value: `${currentRecord.currency} ${fmt(currentRecord.basic_salary)}`, color: C.text },
-                    { label: 'Allowances', value: `+ ${fmt(currentRecord.allowances)}`, color: C.green },
-                    { label: 'Deductions', value: `- ${fmt(currentRecord.deductions)}`, color: C.red },
-                    { label: 'Net Salary', value: `${currentRecord.currency} ${fmt(currentRecord.net_salary)}`, color: C.purple },
-                  ].map(c => (
-                    <div key={c.label} style={{ padding: '14px 16px', borderRadius: 10, background: `${c.color}08`, border: `1px solid ${c.color}20` }}>
-                      <div style={{ fontSize: 11, fontWeight: 700, color: C.muted, marginBottom: 4 }}>{c.label}</div>
-                      <div style={{ fontSize: 16, fontWeight: 800, color: c.color }}>{c.value}</div>
+                <>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 16, marginBottom: 12 }}>
+                    {[
+                      { label: 'Basic Salary', value: `${currencySymbol(currentRecord.currency)} ${fmt(currentRecord.basic_salary)}`, color: C.text },
+                      { label: 'Allowances', value: `+ ${fmt(currentRecord.allowances)}`, color: C.green },
+                      { label: 'Deductions', value: `- ${fmt(currentRecord.deductions)}`, color: C.red },
+                      { label: 'Net Salary', value: `${currencySymbol(currentRecord.currency)} ${fmt(currentRecord.net_salary)}`, color: C.purple },
+                    ].map(c => (
+                      <div key={c.label} style={{ padding: '14px 16px', borderRadius: 10, background: `${c.color}08`, border: `1px solid ${c.color}20` }}>
+                        <div style={{ fontSize: 11, fontWeight: 700, color: C.muted, marginBottom: 4 }}>{c.label}</div>
+                        <div style={{ fontSize: 16, fontWeight: 800, color: c.color }}>{c.value}</div>
+                      </div>
+                    ))}
+                  </div>
+                  {/* USD equivalent + office context */}
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 14px', borderRadius: 8, background: '#F8FAFB', border: `1px solid ${C.border}` }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                      <span style={{ fontSize: 12, color: C.muted }}>Office: <strong style={{ color: C.text }}>{selected.office_id ? selected.office_id.charAt(0).toUpperCase() + selected.office_id.slice(1) : '—'}</strong></span>
+                      <span style={{ color: C.border }}>|</span>
+                      <span style={{ fontSize: 12, color: C.muted }}>Currency: <strong style={{ color: C.text }}>{currentRecord.currency}</strong></span>
                     </div>
-                  ))}
-                </div>
+                    {currentRecord.currency !== 'USD' && (
+                      <div style={{ fontSize: 12, color: C.muted }}>
+                        USD equivalent: <strong style={{ color: C.blue }}>$ {fmt(toUSD(currentRecord.net_salary, currentRecord.currency))}</strong>
+                        <span style={{ fontSize: 10, color: '#B8CDD8', marginLeft: 4 }}>@ {USD_RATES[currentRecord.currency]}</span>
+                      </div>
+                    )}
+                  </div>
+                </>
               ) : (
                 <div style={{ borderRadius: 10, overflow: 'hidden', border: `1px solid ${C.border}` }}>
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 0 }}>
@@ -266,7 +288,7 @@ export default function SalaryPage() {
                 <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                   <thead>
                     <tr style={{ background: '#F8FAFB' }}>
-                      {['Effective From', 'Effective To', 'Grade', 'Basic', 'Gross', 'Net', 'Notes'].map(h => (
+                      {['Effective From', 'Effective To', 'Grade', 'Basic', 'Gross', 'Net', 'USD Equiv.', 'Notes'].map(h => (
                         <th key={h} style={{ padding: '10px 14px', fontSize: 11, fontWeight: 700, color: C.muted, textAlign: 'left', borderBottom: `1px solid ${C.border}` }}>{h}</th>
                       ))}
                     </tr>
@@ -277,9 +299,10 @@ export default function SalaryPage() {
                         <td style={{ padding: '10px 14px', fontSize: 13, fontWeight: 600, color: C.text }}>{r.effective_from}</td>
                         <td style={{ padding: '10px 14px', fontSize: 13, color: r.effective_to ? C.muted : C.green }}>{r.effective_to ?? 'Current'}</td>
                         <td style={{ padding: '10px 14px', fontSize: 12, color: C.muted }}>{r.grade?.code ?? '—'}</td>
-                        <td style={{ padding: '10px 14px', fontSize: 13, fontWeight: 700, color: C.text }}>{r.currency} {fmt(r.basic_salary)}</td>
-                        <td style={{ padding: '10px 14px', fontSize: 13, color: C.text }}>{fmt(r.gross_salary)}</td>
-                        <td style={{ padding: '10px 14px', fontSize: 13, fontWeight: 700, color: C.purple }}>{fmt(r.net_salary)}</td>
+                        <td style={{ padding: '10px 14px', fontSize: 13, fontWeight: 700, color: C.text }}>{currencySymbol(r.currency)} {fmt(r.basic_salary)}</td>
+                        <td style={{ padding: '10px 14px', fontSize: 13, color: C.text }}>{currencySymbol(r.currency)} {fmt(r.gross_salary)}</td>
+                        <td style={{ padding: '10px 14px', fontSize: 13, fontWeight: 700, color: C.purple }}>{currencySymbol(r.currency)} {fmt(r.net_salary)}</td>
+                        <td style={{ padding: '10px 14px', fontSize: 13, color: C.blue }}>$ {fmt(toUSD(r.net_salary, r.currency))}</td>
                         <td style={{ padding: '10px 14px', fontSize: 12, color: C.muted, maxWidth: 150, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.notes ?? '—'}</td>
                       </tr>
                     ))}
@@ -366,12 +389,23 @@ export default function SalaryPage() {
               </label>
             </div>
 
-            {fBasic && (
-              <div style={{ padding: '10px 14px', borderRadius: 8, background: `${C.purple}08`, border: `1px solid ${C.purple}20`, marginBottom: 14, display: 'flex', justifyContent: 'space-between', fontSize: 13 }}>
-                <span style={{ fontWeight: 700, color: C.muted }}>Net Salary</span>
-                <span style={{ fontWeight: 800, color: C.purple }}>{fCurrency} {fmt(Number(fBasic) + Number(fAllow || 0) - Number(fDeduct || 0))}</span>
-              </div>
-            )}
+            {fBasic && (() => {
+              const net = Number(fBasic) + Number(fAllow || 0) - Number(fDeduct || 0)
+              return (
+                <div style={{ padding: '10px 14px', borderRadius: 8, background: `${C.purple}08`, border: `1px solid ${C.purple}20`, marginBottom: 14, fontSize: 13 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: fCurrency !== 'USD' ? 4 : 0 }}>
+                    <span style={{ fontWeight: 700, color: C.muted }}>Net Salary</span>
+                    <span style={{ fontWeight: 800, color: C.purple }}>{currencySymbol(fCurrency)} {fmt(net)}</span>
+                  </div>
+                  {fCurrency !== 'USD' && (
+                    <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                      <span style={{ fontSize: 11, color: '#B8CDD8' }}>USD equivalent (for P&L)</span>
+                      <span style={{ fontSize: 12, fontWeight: 700, color: C.blue }}>$ {fmt(toUSD(net, fCurrency))}</span>
+                    </div>
+                  )}
+                </div>
+              )
+            })()}
 
             <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: C.muted, marginBottom: 20 }}>
               Notes
