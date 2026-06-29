@@ -55,7 +55,7 @@ export default function VendorsPage() {
   const [fDue, setFDue] = useState('')
   const [fNotes, setFNotes] = useState('')
 
-  useEffect(() => { setSession(getSession()) }, [])
+  useEffect(() => { const s = getSession(); if (s) setSession(s); else fetch("/api/auth/session").then(r => r.json()).then(d => { if (d?.sid) setSession({ sid: d.sid, adm: d.adm ?? false }) }).catch(() => {}) }, [])
 
   const fetchPayments = useCallback(async () => {
     setLoading(true)
@@ -92,7 +92,7 @@ export default function VendorsPage() {
     fetchPayments()
   }
 
-  if (!session) return null
+  if (!session && !loading) return null
 
   return (
     <div style={{ minHeight: '100vh', background: C.bg, fontFamily: "'Inter', system-ui, sans-serif" }}>

@@ -60,7 +60,11 @@ export default function SalaryPage() {
   const [fCurrency, setFCurrency] = useState('USD')
   const [fNotes, setFNotes] = useState('')
 
-  useEffect(() => { setSession(getSession()) }, [])
+  useEffect(() => {
+    const s = getSession()
+    if (s) setSession(s)
+    else fetch('/api/auth/session').then(r => r.json()).then(d => { if (d?.sid) setSession({ sid: d.sid, adm: d.adm ?? false }) }).catch(() => {})
+  }, [])
 
   const fetchStaff = useCallback(async () => {
     setLoading(true)
@@ -77,7 +81,7 @@ export default function SalaryPage() {
     setLoading(false)
   }, [])
 
-  useEffect(() => { if (session) fetchStaff() }, [session, fetchStaff])
+  useEffect(() => { fetchStaff() }, [fetchStaff])
 
   const fetchRecords = useCallback(async (staffId: string) => {
     const res = await fetch(`/api/hr/salary?staff_id=${staffId}`)
@@ -154,7 +158,7 @@ export default function SalaryPage() {
     setBulkUploading(false)
   }
 
-  if (!session) return null
+  if (!session && !loading) return null // only hide if definitely no session AND done loading
 
   return (
     <div style={{ minHeight: '100vh', background: C.bg, fontFamily: "'Inter', system-ui, sans-serif" }}>

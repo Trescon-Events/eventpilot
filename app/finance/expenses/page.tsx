@@ -52,7 +52,7 @@ export default function ExpensesPage() {
   const [fEvent, setFEvent] = useState('')
   const [fDate, setFDate] = useState(new Date().toISOString().slice(0, 10))
 
-  useEffect(() => { setSession(getSession()) }, [])
+  useEffect(() => { const s = getSession(); if (s) setSession(s); else fetch("/api/auth/session").then(r => r.json()).then(d => { if (d?.sid) setSession({ sid: d.sid, adm: d.adm ?? false, jl: d.jl ?? "staff" }) }).catch(() => {}) }, [])
   const isManager = session?.jl === 'team_lead' || session?.jl === 'dept_head' || session?.jl === 'office_head' || session?.adm
 
   const fetchClaims = useCallback(async () => {
@@ -90,7 +90,7 @@ export default function ExpensesPage() {
     fetchClaims()
   }
 
-  if (!session) return null
+  if (!session && !loading) return null
 
   return (
     <div style={{ minHeight: '100vh', background: C.bg, fontFamily: "'Inter', system-ui, sans-serif" }}>
