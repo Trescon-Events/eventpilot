@@ -144,9 +144,50 @@ export default function PayrollPage() {
             )}
 
             {data.staff_count === 0 && (
-              <div style={{ padding: 48, textAlign: 'center', background: C.surface, borderRadius: 12, border: `1px solid ${C.border}` }}>
-                <div style={{ fontSize: 15, fontWeight: 700, color: C.text }}>No salary data for {month}</div>
-                <div style={{ fontSize: 13, color: C.muted, marginTop: 4 }}>Upload salary records via <Link href="/hr/salary" style={{ color: C.purple, fontWeight: 700 }}>Salary & Compensation</Link> first</div>
+              <div style={{ background: C.surface, borderRadius: 12, border: `1px solid ${C.border}`, overflow: 'hidden' }}>
+                <div style={{ display: 'flex', gap: 6, padding: '12px 16px', borderBottom: `1px solid ${C.border}` }}>
+                  <button onClick={() => setView('department')} style={{ padding: '6px 14px', borderRadius: 8, border: view === 'department' ? `1.5px solid ${C.purple}` : `1px solid ${C.border}`, background: view === 'department' ? C.purple : C.surface, color: view === 'department' ? '#fff' : C.muted, fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>By Department</button>
+                  <button onClick={() => setView('staff')} style={{ padding: '6px 14px', borderRadius: 8, border: view === 'staff' ? `1.5px solid ${C.blue}` : `1px solid ${C.border}`, background: view === 'staff' ? C.blue : C.surface, color: view === 'staff' ? '#fff' : C.muted, fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>By Staff</button>
+                </div>
+                <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                  <thead><tr style={{ background: '#F8FAFB' }}>
+                    {(view === 'department' ? ['Department', 'Headcount', 'Gross Salary', 'Net Salary', 'Expenses', 'Total Cost'] : ['Name', 'Department', 'Basic', 'Allowances', 'Deductions', 'Net Salary', 'Expenses', 'Total']).map(h => (
+                      <th key={h} style={{ padding: '10px 14px', fontSize: 11, fontWeight: 700, color: C.muted, textAlign: 'left', borderBottom: `1px solid ${C.border}` }}>{h}</th>
+                    ))}
+                  </tr></thead>
+                  <tbody>
+                    <tr style={{ background: '#FAFBFC' }}>
+                      <td colSpan={view === 'department' ? 6 : 8} style={{ padding: '24px 14px', textAlign: 'center' }}>
+                        <div style={{ fontSize: 14, fontWeight: 700, color: C.text, marginBottom: 4 }}>No salary data for {month}</div>
+                        <div style={{ fontSize: 13, color: C.muted, marginBottom: 12 }}>Upload salary records for your staff to see the monthly payroll breakdown.</div>
+                        <Link href="/finance/salary" style={{ display: 'inline-block', padding: '8px 20px', borderRadius: 8, background: C.purple, color: '#fff', fontSize: 13, fontWeight: 700, textDecoration: 'none' }}>Go to Salary & Compensation</Link>
+                      </td>
+                    </tr>
+                    <tr style={{ opacity: 0.4 }}>
+                      {view === 'department' ? (
+                        <>
+                          <td style={{ padding: '10px 14px', fontSize: 13, color: C.muted }}>e.g. Events</td>
+                          <td style={{ padding: '10px 14px', fontSize: 13, color: C.muted }}>12</td>
+                          <td style={{ padding: '10px 14px', fontSize: 13, color: C.muted }}>$72,000.00</td>
+                          <td style={{ padding: '10px 14px', fontSize: 13, color: C.muted }}>$65,400.00</td>
+                          <td style={{ padding: '10px 14px', fontSize: 13, color: C.muted }}>$3,200.00</td>
+                          <td style={{ padding: '10px 14px', fontSize: 13, color: C.muted }}>$68,600.00</td>
+                        </>
+                      ) : (
+                        <>
+                          <td style={{ padding: '10px 14px', fontSize: 13, color: C.muted }}>e.g. Sarah Ahmed</td>
+                          <td style={{ padding: '10px 14px', fontSize: 12, color: C.muted }}>Events</td>
+                          <td style={{ padding: '10px 14px', fontSize: 13, color: C.muted }}>$5,000.00</td>
+                          <td style={{ padding: '10px 14px', fontSize: 13, color: C.muted }}>$500.00</td>
+                          <td style={{ padding: '10px 14px', fontSize: 13, color: C.muted }}>$200.00</td>
+                          <td style={{ padding: '10px 14px', fontSize: 13, color: C.muted }}>$5,300.00</td>
+                          <td style={{ padding: '10px 14px', fontSize: 13, color: C.muted }}>$150.00</td>
+                          <td style={{ padding: '10px 14px', fontSize: 13, color: C.muted }}>$5,450.00</td>
+                        </>
+                      )}
+                    </tr>
+                  </tbody>
+                </table>
               </div>
             )}
           </>

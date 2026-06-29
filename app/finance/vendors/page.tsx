@@ -136,7 +136,36 @@ export default function VendorsPage() {
         </div>
 
         {loading && <div style={{ padding: 40, textAlign: 'center', color: C.muted }}>Loading...</div>}
-        {!loading && payments.length === 0 && <div style={{ padding: 48, textAlign: 'center', background: C.surface, borderRadius: 12, border: `1px solid ${C.border}` }}><div style={{ fontSize: 15, fontWeight: 700, color: C.text }}>No vendor payments</div></div>}
+        {!loading && payments.length === 0 && (
+          <div style={{ background: C.surface, borderRadius: 12, border: `1px solid ${C.border}`, overflow: 'hidden' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+              <thead><tr style={{ background: '#F8FAFB' }}>
+                {['Vendor', 'Category', 'Event', 'Invoice #', 'Amount', 'Due Date', 'Status', 'Actions'].map(h => (
+                  <th key={h} style={{ padding: '10px 14px', fontSize: 11, fontWeight: 700, color: C.muted, textAlign: 'left', borderBottom: `1px solid ${C.border}` }}>{h}</th>
+                ))}
+              </tr></thead>
+              <tbody>
+                <tr style={{ background: '#FAFBFC' }}>
+                  <td colSpan={8} style={{ padding: '24px 14px', textAlign: 'center' }}>
+                    <div style={{ fontSize: 14, fontWeight: 700, color: C.text, marginBottom: 4 }}>No vendor payments recorded</div>
+                    <div style={{ fontSize: 13, color: C.muted, marginBottom: 12 }}>Track vendor invoices per event — venue, catering, AV, marketing, travel, staffing, government fees.</div>
+                    <button onClick={() => setShowForm(true)} style={{ padding: '8px 20px', borderRadius: 8, border: 'none', background: C.blue, color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>+ Add First Payment</button>
+                  </td>
+                </tr>
+                <tr style={{ opacity: 0.4 }}>
+                  <td style={{ padding: '10px 14px' }}><div style={{ fontSize: 13, color: C.muted }}>e.g. Hilton Hotels</div><div style={{ fontSize: 11, color: C.muted }}>Venue hire for 2 days</div></td>
+                  <td style={{ padding: '10px 14px', fontSize: 12, color: C.muted }}>Venue</td>
+                  <td style={{ padding: '10px 14px', fontSize: 12, color: C.muted }}>World AI Show</td>
+                  <td style={{ padding: '10px 14px', fontSize: 12, color: C.muted }}>INV-2026-001</td>
+                  <td style={{ padding: '10px 14px', fontSize: 13, color: C.muted }}>AED 45,000.00</td>
+                  <td style={{ padding: '10px 14px', fontSize: 12, color: C.muted }}>2026-08-01</td>
+                  <td style={{ padding: '10px 14px' }}><span style={{ fontSize: 11, fontWeight: 700, padding: '3px 8px', borderRadius: 6, background: `${C.amber}12`, color: C.amber }}>Pending</span></td>
+                  <td style={{ padding: '10px 14px', fontSize: 11, color: C.muted }}>Approve / Pay</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        )}
 
         {payments.length > 0 && (
           <div style={{ background: C.surface, borderRadius: 12, border: `1px solid ${C.border}`, overflow: 'hidden' }}>

@@ -229,7 +229,27 @@ export default function SalaryPage() {
                   ))}
                 </div>
               ) : (
-                <div style={{ padding: 20, textAlign: 'center', color: C.muted, fontSize: 13, background: '#F8FAFB', borderRadius: 8 }}>No salary record — click &quot;Add Salary&quot; to set up compensation</div>
+                <div style={{ borderRadius: 10, overflow: 'hidden', border: `1px solid ${C.border}` }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 0 }}>
+                    {[
+                      { label: 'Basic Salary', value: '—', color: C.muted },
+                      { label: 'Allowances', value: '—', color: C.muted },
+                      { label: 'Deductions', value: '—', color: C.muted },
+                      { label: 'Net Salary', value: '—', color: C.muted },
+                    ].map(c => (
+                      <div key={c.label} style={{ padding: '14px 16px', background: '#F8FAFB', borderRight: `1px solid ${C.border}` }}>
+                        <div style={{ fontSize: 11, fontWeight: 700, color: C.muted, marginBottom: 4 }}>{c.label}</div>
+                        <div style={{ fontSize: 16, fontWeight: 800, color: '#B8CDD8' }}>{c.value}</div>
+                      </div>
+                    ))}
+                  </div>
+                  <div style={{ padding: '16px', textAlign: 'center', background: '#FAFBFC' }}>
+                    <div style={{ fontSize: 13, color: C.muted, marginBottom: 8 }}>No salary record for {selected.name}. Set up their compensation to start tracking payroll.</div>
+                    <div style={{ fontSize: 11, color: '#B8CDD8', marginBottom: 12 }}>e.g. Basic: AED 8,000 + Allowances: AED 1,500 - Deductions: AED 500 = Net: AED 9,000 | Grade: M1 | Effective: 2026-07-01</div>
+                    <button onClick={() => { setShowForm(true); setFBasic(''); setFAllow('0'); setFDeduct('0'); setFGrade(''); setFCurrency(selected.department === 'Dubai' ? 'AED' : 'INR'); setFNotes(''); setFDate(new Date().toISOString().slice(0, 10)) }}
+                      style={{ padding: '8px 20px', borderRadius: 8, border: 'none', background: C.purple, color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>+ Add Salary Record</button>
+                  </div>
+                </div>
               )}
 
               {currentRecord?.grade && (
@@ -271,10 +291,23 @@ export default function SalaryPage() {
         )}
 
         {!selected && !loading && (
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: 300 }}>
-            <div style={{ textAlign: 'center', color: C.muted }}>
-              <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 4 }}>Select a staff member</div>
-              <div style={{ fontSize: 13 }}>Choose from the list to view or manage their salary</div>
+          <div>
+            <div style={{ background: C.surface, borderRadius: 12, border: `1px solid ${C.border}`, padding: 24, marginBottom: 16 }}>
+              <div style={{ fontSize: 15, fontWeight: 800, color: C.text, marginBottom: 8 }}>Salary & Compensation</div>
+              <div style={{ fontSize: 13, color: C.muted, lineHeight: 1.6, marginBottom: 16 }}>Select a staff member from the list to view or manage their salary. You can also bulk import salary data for all staff using a CSV file.</div>
+              <div style={{ fontSize: 12, fontWeight: 700, color: C.muted, marginBottom: 8 }}>What you can manage per staff member:</div>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 8 }}>
+                {['Basic Salary + Currency (INR / AED)', 'Allowances (housing, transport, etc.)', 'Deductions (tax, insurance, etc.)', 'Payroll Grade (L1-L3, M1-M2, SM, D1, EX)', 'Salary History with effective dates', 'Revision notes and audit trail'].map(item => (
+                  <div key={item} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, color: C.text }}>
+                    <svg width="12" height="12" fill="none" stroke={C.green} strokeWidth="2" strokeLinecap="round" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>
+                    {item}
+                  </div>
+                ))}
+              </div>
+            </div>
+            <div style={{ background: '#F8FAFB', borderRadius: 10, border: `1px dashed ${C.border}`, padding: '14px 18px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <div style={{ fontSize: 13, color: C.muted }}>Have salary data in a spreadsheet? Upload it all at once.</div>
+              <button onClick={() => setShowBulk(true)} style={{ padding: '7px 16px', borderRadius: 8, border: `1px solid ${C.purple}30`, background: `${C.purple}08`, color: C.purple, fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>Bulk CSV Import</button>
             </div>
           </div>
         )}
