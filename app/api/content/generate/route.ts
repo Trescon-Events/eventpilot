@@ -50,9 +50,35 @@ export async function POST(req: NextRequest) {
       id: string; name: string; city: string; event_date: string; type: string; description: string
     } | null
 
-    // Load event briefs from documents table
+    // Load structured event brief + uploaded documents
     let briefContext = ''
     if (event?.id) {
+      // Structured brief (primary source)
+      const { data: brief } = await supabaseAdmin
+        .from('event_briefs')
+        .select('*')
+        .eq('event_id', event.id)
+        .maybeSingle()
+
+      if (brief && brief.completion_pct > 0) {
+        const parts = [
+          brief.elevator_pitch ? `ELEVATOR PITCH: ${brief.elevator_pitch}` : '',
+          brief.value_proposition ? `VALUE PROPOSITION: ${brief.value_proposition}` : '',
+          brief.target_audience ? `TARGET AUDIENCE: ${brief.target_audience}` : '',
+          brief.industry_focus?.length ? `INDUSTRY FOCUS: ${brief.industry_focus.join(', ')}` : '',
+          brief.key_themes?.length ? `KEY THEMES: ${brief.key_themes.join(' | ')}` : '',
+          brief.key_messages?.length ? `KEY MESSAGES:\n${brief.key_messages.map((m: string) => `- ${m}`).join('\n')}` : '',
+          brief.tone_of_voice?.length ? `TONE: ${brief.tone_of_voice.join(', ')}` : '',
+          brief.tagline ? `TAGLINE: ${brief.tagline}` : '',
+          brief.hashtags?.length ? `HASHTAGS: ${brief.hashtags.join(' ')}` : '',
+          brief.differentiators?.length ? `DIFFERENTIATORS: ${brief.differentiators.join(' | ')}` : '',
+          brief.sponsor_value_prop ? `SPONSOR VALUE PROP: ${brief.sponsor_value_prop}` : '',
+          brief.delegate_profile ? `DELEGATE PROFILE: ${brief.delegate_profile}` : '',
+        ].filter(Boolean)
+        briefContext = parts.join('\n')
+      }
+
+      // Supplement with uploaded documents (secondary source)
       const { data: docs } = await supabaseAdmin
         .from('documents')
         .select('title, extracted_text')
@@ -60,10 +86,10 @@ export async function POST(req: NextRequest) {
         .eq('is_active', true)
         .in('type', ['event_brief', 'other'])
         .order('created_at', { ascending: false })
-        .limit(3)
+        .limit(2)
 
       if (docs?.length) {
-        briefContext = docs.map(d => `[${d.title}]\n${d.extracted_text}`).join('\n\n---\n\n')
+        briefContext += '\n\n---\nUPLOADED DOCUMENTS:\n' + docs.map(d => `[${d.title}]\n${d.extracted_text}`).join('\n\n')
       }
     }
 

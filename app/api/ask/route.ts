@@ -51,6 +51,8 @@ WHAT YOU CAN HELP WITH
 - General questions about AI skills relevant to work at Trescon
 - Platform navigation — where to find things, how dashboards work
 - What the different tiers mean (AI-Unaware, AI-Curious, AI-Aware, AI-Ready, AI-Forward)
+- Event-related questions — if the person is assigned to an event, you have access to the event brief and can answer questions about the event's positioning, messaging, target audience, key themes, and commercial targets
+- Helping staff understand their event assignments — what the event is about, who the audience is, what the key messages are
 
 ════════════════════════════════
 WHAT YOU WILL NOT DO
@@ -231,6 +233,33 @@ export async function POST(req: NextRequest) {
         `=== ${d.title} (${d.type}) ===\n${d.extracted_text.slice(0, 2000)}`
       ).join('\n\n---\n\n')
       staffContext += `\n\nKNOWLEDGE BASE DOCUMENTS (use these to answer questions about company policies, events, or briefs):\n${docSection}`
+    }
+
+    // Load event briefs for events this staff member is assigned to
+    const assignedEventIds = ((assignmentsRes.data ?? []) as Array<{ event_id: string }>).map(a => a.event_id)
+    if (assignedEventIds.length > 0) {
+      const { data: briefs } = await supabaseAdmin
+        .from('event_briefs')
+        .select('*, events:event_id(name, city, event_date)')
+        .in('event_id', assignedEventIds.slice(0, 5))
+
+      if (briefs?.length) {
+        const briefSection = briefs.map((b: Record<string, unknown>) => {
+          const ev = b.events as { name: string; city: string; event_date: string } | null
+          const parts = [
+            `EVENT: ${ev?.name ?? 'Unknown'} | ${ev?.city ?? ''} | ${ev?.event_date ?? ''}`,
+            b.elevator_pitch ? `Pitch: ${b.elevator_pitch}` : '',
+            b.value_proposition ? `Value Prop: ${b.value_proposition}` : '',
+            b.target_audience ? `Audience: ${b.target_audience}` : '',
+            (b.key_themes as string[] | undefined)?.length ? `Themes: ${(b.key_themes as string[]).join(', ')}` : '',
+            (b.key_messages as string[] | undefined)?.length ? `Messages: ${(b.key_messages as string[]).join(' | ')}` : '',
+            b.tagline ? `Tagline: ${b.tagline}` : '',
+            (b.differentiators as string[] | undefined)?.length ? `Differentiators: ${(b.differentiators as string[]).join(' | ')}` : '',
+          ].filter(Boolean).join('\n')
+          return parts
+        }).join('\n\n---\n\n')
+        staffContext += `\n\nEVENT BRIEFS (for events this person is assigned to — use these to answer event-related questions):\n${briefSection}`
+      }
     }
 
     if (staffRes.data) {
