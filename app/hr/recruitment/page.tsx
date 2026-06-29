@@ -100,16 +100,18 @@ function CandidateCard({ app, onMove, onScreen, onView }: {
       onMouseOver={e => (e.currentTarget.style.boxShadow = '0 2px 12px rgba(0,0,0,0.08)')}
       onMouseOut={e  => (e.currentTarget.style.boxShadow = 'none')}
     >
-      {/* Name + source */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '6px' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
-          {needsScreen && (
-            <span style={{ color: C.amber, fontSize: '12px', lineHeight: 1, flexShrink: 0 }}>●</span>
-          )}
-          {awaitingDecision && (
-            <span style={{ color: C.green, fontSize: '12px', lineHeight: 1, flexShrink: 0, animation: 'pulse 1.5s ease-in-out infinite' }}>●</span>
-          )}
-          <div style={{ fontSize: '13px', fontWeight: 800, color: C.text }}>{app.candidate?.full_name}</div>
+      {/* Name + avatar + source */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '8px' }}>
+        <div style={{ width: '32px', height: '32px', borderRadius: '50%', background: `${stage?.color ?? C.muted}15`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '12px', fontWeight: 800, color: stage?.color ?? C.muted, flexShrink: 0 }}>
+          {(app.candidate?.full_name ?? 'X').split(' ').map(w => w[0]).join('').slice(0, 2)}
+        </div>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+            {needsScreen && <span style={{ color: C.amber, fontSize: '10px', lineHeight: 1, flexShrink: 0 }}>●</span>}
+            {awaitingDecision && <span style={{ color: C.green, fontSize: '10px', lineHeight: 1, flexShrink: 0, animation: 'pulse 1.5s ease-in-out infinite' }}>●</span>}
+            <div style={{ fontSize: '13px', fontWeight: 800, color: C.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{app.candidate?.full_name}</div>
+          </div>
+          <div style={{ fontSize: '11px', color: C.muted, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{app.candidate?.email}</div>
         </div>
         {pill(C.muted, app.candidate?.source ?? 'direct')}
       </div>
@@ -117,8 +119,6 @@ function CandidateCard({ app, onMove, onScreen, onView }: {
       {awaitingDecision && (
         <div style={{ fontSize: '11px', color: C.green, fontWeight: 700, marginBottom: '6px' }}>Awaiting decision</div>
       )}
-
-      <div style={{ fontSize: '12px', color: C.muted, marginBottom: '10px' }}>{app.candidate?.email}</div>
 
       {/* AI score */}
       {app.ai_score != null && (
@@ -827,62 +827,90 @@ export default function RecruitmentPage() {
                 )}
               </div>
 
-              {/* Kanban columns */}
+              {/* Sample data banner */}
+              {activeReq && (activeReq.title === 'Senior Event Producer' || activeReq.title === 'Digital Marketing Executive') && (
+                <div style={{ padding: '8px 24px', background: '#FFF8E1', borderBottom: `1px solid #FFE082`, display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
+                  <svg width="14" height="14" fill="none" stroke="#D97706" strokeWidth="2" strokeLinecap="round" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+                  <span style={{ fontSize: '12px', fontWeight: 700, color: '#92400E' }}>Sample Data — This is a demonstration of the recruitment pipeline. These are not real candidates.</span>
+                </div>
+              )}
+
+              {/* JD Summary strip */}
+              {activeReq?.description && (
+                <div style={{ padding: '12px 24px', borderBottom: `1px solid ${C.border}`, background: C.surface, flexShrink: 0 }}>
+                  <details>
+                    <summary style={{ fontSize: '12px', fontWeight: 700, color: C.green, cursor: 'pointer' }}>
+                      View Job Description & Requirements
+                    </summary>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginTop: '12px' }}>
+                      <div>
+                        <div style={{ fontSize: '11px', fontWeight: 700, color: C.muted, textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '6px' }}>Description</div>
+                        <div style={{ fontSize: '13px', color: C.text, lineHeight: 1.6 }}>{activeReq.description}</div>
+                      </div>
+                      {activeReq.requirements && (
+                        <div>
+                          <div style={{ fontSize: '11px', fontWeight: 700, color: C.muted, textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '6px' }}>Requirements</div>
+                          <div style={{ fontSize: '13px', color: C.text, lineHeight: 1.6 }}>{activeReq.requirements}</div>
+                        </div>
+                      )}
+                    </div>
+                  </details>
+                </div>
+              )}
+
+              {/* Kanban columns — only show stages with candidates + adjacent empty stages */}
               <div style={{ flex: 1, overflowX: 'auto', display: 'flex', gap: '0', padding: '0' }}>
-                {activeStages.map(stage => {
+                {[...activeStages, 'hired', 'rejected'].map(stage => {
                   const stageApps = kanban.grouped[stage] ?? []
                   const cfg = STAGES[stage]
+                  const isEmpty = stageApps.length === 0
+                  const isEndStage = stage === 'hired' || stage === 'rejected'
+
                   return (
-                    <div key={stage} style={{ minWidth: '240px', maxWidth: '280px', flex: '0 0 240px', borderRight: `1px solid ${C.border}`, display: 'flex', flexDirection: 'column', background: C.bg }}>
-                      {/* Column header with colored top border */}
-                      <div style={{ borderTop: `3px solid ${cfg.color}`, padding: '14px 16px', background: C.surface, borderBottom: `1px solid ${C.border}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0 }}>
-                        <div>
-                          <div style={{ fontSize: '12px', fontWeight: 800, color: cfg.color }}>{cfg.label}</div>
-                          <div style={{ fontSize: '11px', color: C.muted }}>{cfg.description}</div>
-                        </div>
-                        <span style={{ background: cfg.color + '20', color: cfg.color, fontSize: '12px', fontWeight: 800, padding: '2px 8px', borderRadius: '10px' }}>
+                    <div key={stage} style={{ minWidth: isEmpty ? '100px' : '260px', maxWidth: isEmpty ? '100px' : '300px', flex: isEmpty ? '0 0 100px' : '1 1 260px', borderRight: `1px solid ${C.border}`, display: 'flex', flexDirection: 'column', background: C.bg, opacity: isEndStage && isEmpty ? 0.6 : 1 }}>
+                      {/* Column header */}
+                      <div style={{ borderTop: `3px solid ${cfg.color}`, padding: isEmpty ? '10px 8px' : '12px 14px', background: C.surface, borderBottom: `1px solid ${C.border}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0 }}>
+                        <div style={{ fontSize: isEmpty ? '11px' : '12px', fontWeight: 800, color: cfg.color }}>{cfg.label}</div>
+                        <span style={{ background: cfg.color + '20', color: cfg.color, fontSize: '11px', fontWeight: 800, padding: '2px 7px', borderRadius: '10px' }}>
                           {stageApps.length}
                         </span>
                       </div>
 
                       {/* Cards */}
-                      <div style={{ flex: 1, overflowY: 'auto', padding: '12px 10px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                      <div style={{ flex: 1, overflowY: 'auto', padding: isEmpty ? '8px 4px' : '10px 8px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
                         {stageApps.map(app => (
                           <div key={app.id}>
-                            <CandidateCard
-                              app={app}
-                              onMove={moveStage}
-                              onScreen={screenCandidate}
-                              onView={a => setSelectedApp(a)}
-                            />
-                            {screenMsg[app.id] && (
-                              <div style={{ fontSize: '11px', color: C.purple, padding: '4px 8px' }}>{screenMsg[app.id]}</div>
+                            {isEndStage ? (
+                              <div onClick={() => setSelectedApp(app)}
+                                style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: '10px', padding: '10px 12px', cursor: 'pointer' }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                  <div style={{ width: '28px', height: '28px', borderRadius: '50%', background: `${cfg.color}15`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '11px', fontWeight: 800, color: cfg.color, flexShrink: 0 }}>
+                                    {(app.candidate?.full_name ?? 'X').split(' ').map(w => w[0]).join('').slice(0, 2)}
+                                  </div>
+                                  <div>
+                                    <div style={{ fontSize: '12px', fontWeight: 700, color: C.text }}>{app.candidate?.full_name}</div>
+                                    {app.ai_score != null && <div style={{ fontSize: '11px', color: C.muted }}>Score: {app.ai_score}</div>}
+                                  </div>
+                                </div>
+                              </div>
+                            ) : (
+                              <>
+                                <CandidateCard
+                                  app={app}
+                                  onMove={moveStage}
+                                  onScreen={screenCandidate}
+                                  onView={a => setSelectedApp(a)}
+                                />
+                                {screenMsg[app.id] && (
+                                  <div style={{ fontSize: '11px', color: C.purple, padding: '4px 8px' }}>{screenMsg[app.id]}</div>
+                                )}
+                              </>
                             )}
                           </div>
                         ))}
-                      </div>
-                    </div>
-                  )
-                })}
-
-                {/* Hired + Rejected summary columns */}
-                {(['hired', 'rejected'] as const).map(stage => {
-                  const stageApps = kanban.grouped[stage] ?? []
-                  const cfg = STAGES[stage]
-                  return (
-                    <div key={stage} style={{ minWidth: '200px', flex: '0 0 200px', borderRight: `1px solid ${C.border}`, display: 'flex', flexDirection: 'column', background: C.bg, opacity: 0.85 }}>
-                      <div style={{ borderTop: `3px solid ${cfg.color}`, padding: '14px 16px', background: C.surface, borderBottom: `1px solid ${C.border}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0 }}>
-                        <div style={{ fontSize: '12px', fontWeight: 800, color: cfg.color }}>{cfg.label}</div>
-                        <span style={{ background: cfg.color + '20', color: cfg.color, fontSize: '12px', fontWeight: 800, padding: '2px 8px', borderRadius: '10px' }}>{stageApps.length}</span>
-                      </div>
-                      <div style={{ flex: 1, overflowY: 'auto', padding: '12px 10px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                        {stageApps.map(app => (
-                          <div key={app.id} onClick={() => setSelectedApp(app)}
-                            style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: '10px', padding: '10px 12px', cursor: 'pointer' }}>
-                            <div style={{ fontSize: '12px', fontWeight: 700, color: C.text }}>{app.candidate?.full_name}</div>
-                            {app.ai_score != null && <div style={{ fontSize: '11px', color: C.muted }}>AI: {app.ai_score}</div>}
-                          </div>
-                        ))}
+                        {isEmpty && !isEndStage && (
+                          <div style={{ fontSize: '11px', color: C.border, textAlign: 'center', padding: '8px 0' }}>—</div>
+                        )}
                       </div>
                     </div>
                   )
