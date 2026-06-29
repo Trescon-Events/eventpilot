@@ -157,23 +157,51 @@ export async function POST(req: NextRequest) {
         }],
         generationConfig: {
           temperature: 0.1,
-          maxOutputTokens: 8192,
-          thinkingConfig: { thinkingBudget: 0 },
+          maxOutputTokens: 32768,
         },
       }),
     })
 
-    const gemData = await gemRes.json()
-    const raw = gemData?.candidates?.[0]?.content?.parts?.[0]?.text ?? ''
-
-    // ── Step 4: Parse JSON response ───────────────────────────
-    const jsonMatch = raw.match(/\{[\s\S]*\}/)
-    if (!jsonMatch) {
-      console.error('Gemini raw response:', raw.slice(0, 500))
-      return NextResponse.json({ error: 'Could not parse brand data from PDF', raw: raw.slice(0, 500) }, { status: 500 })
+    if (!gemRes.ok) {
+      const errText = await gemRes.text()
+      console.error('Gemini generation failed:', gemRes.status, errText.slice(0, 500))
+      return NextResponse.json({ error: `Gemini extraction failed (${gemRes.status}). Please try again or use a smaller PDF.` }, { status: 502 })
     }
 
-    const parsed = JSON.parse(jsonMatch[0])
+    const gemData = await gemRes.json()
+
+    // Check for Gemini-level errors (quota, safety, etc.)
+    if (gemData?.error) {
+      console.error('Gemini API error:', JSON.stringify(gemData.error))
+      return NextResponse.json({ error: `Gemini error: ${gemData.error.message ?? 'unknown'}` }, { status: 502 })
+    }
+
+    // Handle thinking model response — text may be in a later part
+    const parts = gemData?.candidates?.[0]?.content?.parts ?? []
+    const textPart = parts.find((p: Record<string, unknown>) => typeof p.text === 'string' && p.text.trim().length > 0)
+    const raw = textPart?.text ?? ''
+
+    const finishReason = gemData?.candidates?.[0]?.finishReason
+    if (finishReason === 'MAX_TOKENS') {
+      console.error('Gemini output truncated (MAX_TOKENS) — PDF may be too complex')
+    }
+
+    // ── Step 4: Parse JSON response ───────────────────────────
+    // Strip markdown code fences if present
+    const cleaned = raw.replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/i, '').trim()
+    const jsonMatch = cleaned.match(/\{[\s\S]*\}/)
+    if (!jsonMatch) {
+      console.error('Gemini raw response (no JSON found):', raw.slice(0, 1000))
+      return NextResponse.json({ error: 'Could not parse brand data from PDF. The AI response did not contain valid JSON. Please try again.' }, { status: 500 })
+    }
+
+    let parsed: Record<string, unknown>
+    try {
+      parsed = JSON.parse(jsonMatch[0])
+    } catch (parseErr) {
+      console.error('JSON parse error:', parseErr, '\nRaw (first 1000):', raw.slice(0, 1000))
+      return NextResponse.json({ error: 'The AI returned malformed JSON. This often happens with very large PDFs. Please try again.' }, { status: 500 })
+    }
 
     // ── Step 5: Normalise ─────────────────────────────────────
     // Validate hex codes in color_palette
@@ -244,9 +272,12 @@ export async function POST(req: NextRequest) {
     // ── Step 6: Save to DB if event_id provided ───────────────
     if (event_id) {
       const { supabaseAdmin } = await import('@/app/lib/supabase')
-      await supabaseAdmin
+      const { error: dbErr } = await supabaseAdmin
         .from('event_brand_guidelines')
         .upsert({ event_id, ...result }, { onConflict: 'event_id' })
+      if (dbErr) {
+        console.error('DB upsert error (returning data anyway):', dbErr.message)
+      }
     }
 
     return NextResponse.json(result)

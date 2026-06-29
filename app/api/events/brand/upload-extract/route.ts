@@ -84,20 +84,40 @@ export async function POST(req: NextRequest) {
             { file_data: { mime_type: 'application/pdf', file_uri: fileUri } },
           ],
         }],
-        generationConfig: { temperature: 0.1, maxOutputTokens: 1024, thinkingConfig: { thinkingBudget: 0 } },
+        generationConfig: { temperature: 0.1, maxOutputTokens: 4096 },
       }),
     })
 
-    const gemData = await gemRes.json()
-    const raw     = gemData?.candidates?.[0]?.content?.parts?.[0]?.text ?? ''
-
-    const jsonMatch = raw.match(/\{[\s\S]*\}/)
-    if (!jsonMatch) {
-      console.error('Gemini raw response:', raw)
-      return NextResponse.json({ error: 'Could not parse brand data from PDF', raw }, { status: 500 })
+    if (!gemRes.ok) {
+      const errText = await gemRes.text()
+      console.error('Gemini generation failed:', gemRes.status, errText.slice(0, 500))
+      return NextResponse.json({ error: 'AI extraction failed. Please try again.' }, { status: 502 })
     }
 
-    const parsed = JSON.parse(jsonMatch[0])
+    const gemData = await gemRes.json()
+    if (gemData?.error) {
+      console.error('Gemini API error:', JSON.stringify(gemData.error))
+      return NextResponse.json({ error: `Gemini error: ${gemData.error.message ?? 'unknown'}` }, { status: 502 })
+    }
+
+    const parts = gemData?.candidates?.[0]?.content?.parts ?? []
+    const textPart = parts.find((p: Record<string, unknown>) => typeof p.text === 'string' && p.text.trim().length > 0)
+    const raw = textPart?.text ?? ''
+
+    const cleaned = raw.replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/i, '').trim()
+    const jsonMatch = cleaned.match(/\{[\s\S]*\}/)
+    if (!jsonMatch) {
+      console.error('Gemini raw response:', raw.slice(0, 500))
+      return NextResponse.json({ error: 'Could not parse brand data from PDF. Please try again.' }, { status: 500 })
+    }
+
+    let parsed: Record<string, unknown>
+    try {
+      parsed = JSON.parse(jsonMatch[0])
+    } catch {
+      console.error('JSON parse error, raw:', raw.slice(0, 500))
+      return NextResponse.json({ error: 'AI returned malformed data. Please try again.' }, { status: 500 })
+    }
 
     return NextResponse.json({
       colors:       (parsed.colors ?? []).filter((c: string) => /^#[0-9A-Fa-f]{6}$/.test(c)).slice(0, 5),
