@@ -473,6 +473,7 @@ export default function AdminPage() {
   const [tourStep,    setTourStep]    = useState<number | null>(null)
   const [tourRect,    setTourRect]    = useState<DOMRect | null>(null)
   const [showRoadmap,   setShowRoadmap]   = useState(false)
+  const [showMoreMenu,  setShowMoreMenu]  = useState(false)
   const [buildLog,      setBuildLog]      = useState<{ date: string; time: string; author: string; items: { title: string; bullets: string[] }[] }[]>([])
   const [suggText,      setSuggText]      = useState('')
   const [suggSending,   setSuggSending]   = useState(false)
@@ -1378,7 +1379,7 @@ export default function AdminPage() {
           </Link>
           <Link href="/hr" style={{ background: '#FFFFFF', border: '1px solid #DDE8EE', color: '#374151', fontSize: '12px', fontWeight: 700, padding: '7px 11px', borderRadius: '10px', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '5px', whiteSpace: 'nowrap' }}>
             <svg width="12" height="12" fill="none" stroke="#00A5A3" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
-            HR Portal
+            HR
           </Link>
           <Link href="/finance" style={{ background: '#FFFFFF', border: '1px solid #DDE8EE', color: '#374151', fontSize: '12px', fontWeight: 700, padding: '7px 11px', borderRadius: '10px', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '5px', whiteSpace: 'nowrap' }}>
             <svg width="12" height="12" fill="none" stroke="#00A5A3" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><rect x="1" y="4" width="22" height="16" rx="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg>
@@ -1388,43 +1389,45 @@ export default function AdminPage() {
             <svg width="12" height="12" fill="none" stroke="#00A5A3" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
             Timesheets
           </Link>
-          <Link href="/admin/org-chart" style={{ background: '#FFFFFF', border: '1px solid #DDE8EE', color: '#374151', fontSize: '12px', fontWeight: 700, padding: '7px 11px', borderRadius: '10px', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '5px', whiteSpace: 'nowrap' }}>
-            <svg width="12" height="12" fill="none" stroke="#00A5A3" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><rect x="8" y="2" width="8" height="4" rx="1"/><rect x="1" y="14" width="6" height="4" rx="1"/><rect x="9" y="14" width="6" height="4" rx="1"/><rect x="17" y="14" width="6" height="4" rx="1"/><line x1="4" y1="14" x2="4" y2="11"/><line x1="12" y1="14" x2="12" y2="6"/><line x1="20" y1="14" x2="20" y2="11"/><line x1="4" y1="11" x2="20" y2="11"/></svg>
-            Org Chart
-          </Link>
-          <Link href="/admin/reviews" style={{ background: '#FFFFFF', border: '1px solid #DDE8EE', color: '#374151', fontSize: '12px', fontWeight: 700, padding: '7px 11px', borderRadius: '10px', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '5px', whiteSpace: 'nowrap' }}>
-            <svg width="12" height="12" fill="none" stroke="#00A5A3" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
-            Platform Feedback
-          </Link>
-          <button
-            onClick={() => {
-              setShowRoadmap(true); setSuggSent(false); setSuggText('')
-              fetch('/api/build-log').then(r => r.json()).then(data => { if (Array.isArray(data)) setBuildLog(data) }).catch(() => {})
-            }}
-            style={{ background: '#FFFFFF', border: '1px solid #DDE8EE', color: '#374151', fontSize: '12px', fontWeight: 700, padding: '7px 11px', borderRadius: '10px', cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: '5px', whiteSpace: 'nowrap' }}>
-            <svg width="12" height="12" fill="none" stroke="#00A5A3" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
-            Platform Updates
-          </button>
-          <Link href="/docs" style={{ background: '#FFFFFF', border: '1px solid #DDE8EE', color: '#374151', fontSize: '12px', fontWeight: 700, padding: '7px 11px', borderRadius: '10px', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '5px', whiteSpace: 'nowrap' }}>
-            <svg width="12" height="12" fill="none" stroke="#00A5A3" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>
-            Docs
-          </Link>
-          <button
-            onClick={() => {
-              localStorage.removeItem('eventpilot_staff_id')
-              localStorage.removeItem('tai_staff_id')
-              sessionStorage.removeItem('tai_admin_authed')
-              sessionStorage.removeItem('tai_admin_staff_id')
-              window.location.href = '/login'
-            }}
-            style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '8px 16px', borderRadius: '10px', background: '#FFFFFF', border: '1px solid #fecaca', cursor: 'pointer', fontFamily: 'inherit' }}
-          >
-            <svg width="13" height="13" fill="none" stroke="#FF6B6B" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24">
-              <path d="M18.36 6.64a9 9 0 1 1-12.73 0"/>
-              <line x1="12" y1="2" x2="12" y2="12"/>
-            </svg>
-            <span style={{ fontSize: '13px', fontWeight: 700, color: '#FF6B6B' }}>Sign out</span>
-          </button>
+          <div style={{ width: '1px', height: '20px', background: '#DDE8EE', margin: '0 2px' }} />
+          {/* More dropdown */}
+          <div style={{ position: 'relative' }}>
+            <button onClick={() => setShowMoreMenu(!showMoreMenu)}
+              style={{ background: '#FFFFFF', border: '1px solid #DDE8EE', color: '#374151', fontSize: '12px', fontWeight: 700, padding: '7px 11px', borderRadius: '10px', cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: '5px', whiteSpace: 'nowrap' }}>
+              <svg width="12" height="12" fill="none" stroke="#5B7080" strokeWidth="2.5" strokeLinecap="round" viewBox="0 0 24 24"><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/></svg>
+              More
+            </button>
+            {showMoreMenu && (
+              <>
+                <div style={{ position: 'fixed', inset: 0, zIndex: 998 }} onClick={() => setShowMoreMenu(false)} />
+                <div style={{ position: 'absolute', top: '100%', right: 0, marginTop: 6, background: '#FFFFFF', border: '1px solid #DDE8EE', borderRadius: '12px', boxShadow: '0 8px 30px rgba(0,0,0,0.12)', padding: '6px', zIndex: 999, minWidth: 200 }}>
+                  <Link href="/admin/org-chart" onClick={() => setShowMoreMenu(false)} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '9px 12px', borderRadius: '8px', textDecoration: 'none', color: '#374151', fontSize: '13px', fontWeight: 600 }}>
+                    <svg width="14" height="14" fill="none" stroke="#00A5A3" strokeWidth="2" strokeLinecap="round" viewBox="0 0 24 24"><rect x="8" y="2" width="8" height="4" rx="1"/><rect x="1" y="14" width="6" height="4" rx="1"/><rect x="9" y="14" width="6" height="4" rx="1"/><rect x="17" y="14" width="6" height="4" rx="1"/><line x1="4" y1="14" x2="4" y2="11"/><line x1="12" y1="14" x2="12" y2="6"/><line x1="20" y1="14" x2="20" y2="11"/><line x1="4" y1="11" x2="20" y2="11"/></svg>
+                    Org Chart
+                  </Link>
+                  <Link href="/admin/reviews" onClick={() => setShowMoreMenu(false)} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '9px 12px', borderRadius: '8px', textDecoration: 'none', color: '#374151', fontSize: '13px', fontWeight: 600 }}>
+                    <svg width="14" height="14" fill="none" stroke="#00A5A3" strokeWidth="2" strokeLinecap="round" viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+                    Platform Feedback
+                  </Link>
+                  <button onClick={() => { setShowMoreMenu(false); setShowRoadmap(true); setSuggSent(false); setSuggText(''); fetch('/api/build-log').then(r => r.json()).then(data => { if (Array.isArray(data)) setBuildLog(data) }).catch(() => {}) }}
+                    style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '9px 12px', borderRadius: '8px', border: 'none', background: 'transparent', color: '#374151', fontSize: '13px', fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', width: '100%', textAlign: 'left' }}>
+                    <svg width="14" height="14" fill="none" stroke="#00A5A3" strokeWidth="2" strokeLinecap="round" viewBox="0 0 24 24"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+                    Platform Updates
+                  </button>
+                  <Link href="/docs" onClick={() => setShowMoreMenu(false)} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '9px 12px', borderRadius: '8px', textDecoration: 'none', color: '#374151', fontSize: '13px', fontWeight: 600 }}>
+                    <svg width="14" height="14" fill="none" stroke="#00A5A3" strokeWidth="2" strokeLinecap="round" viewBox="0 0 24 24"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>
+                    Docs
+                  </Link>
+                  <div style={{ height: '1px', background: '#DDE8EE', margin: '4px 8px' }} />
+                  <button onClick={() => { localStorage.removeItem('eventpilot_staff_id'); localStorage.removeItem('tai_staff_id'); sessionStorage.removeItem('tai_admin_authed'); sessionStorage.removeItem('tai_admin_staff_id'); window.location.href = '/login' }}
+                    style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '9px 12px', borderRadius: '8px', border: 'none', background: 'transparent', color: '#FF6B6B', fontSize: '13px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', width: '100%', textAlign: 'left' }}>
+                    <svg width="14" height="14" fill="none" stroke="#FF6B6B" strokeWidth="2" strokeLinecap="round" viewBox="0 0 24 24"><path d="M18.36 6.64a9 9 0 1 1-12.73 0"/><line x1="12" y1="2" x2="12" y2="12"/></svg>
+                    Sign out
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
         </div>
       </nav>
 
@@ -1442,16 +1445,12 @@ export default function AdminPage() {
         {/* Page header */}
         <div style={{ marginBottom: '32px', display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', flexWrap: 'wrap', gap: '12px' }}>
           <div>
-            <div style={{ fontSize: '13px', fontWeight: 800, letterSpacing: '2.5px', textTransform: 'uppercase', color: '#00897B', marginBottom: '6px' }}>Trescon Platform</div>
-            <h1 style={{ fontSize: '36px', fontWeight: 800, color: '#0F1923', marginBottom: '4px', margin: 0 }}>Leadership Dashboard</h1>
+            <h1 style={{ fontSize: '32px', fontWeight: 800, color: '#0F1923', margin: 0 }}>Admin Dashboard</h1>
             <p style={{ fontSize: '13px', color: '#5B7080', margin: '6px 0 0' }}>
               Live org intelligence — AI readiness, learning progress, and staff development across all offices.
             </p>
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', color: '#5B7080' }}>
-            <div style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#00897B', animation: 'pulse 2s infinite' }} />
-            Live · updates in real time
-          </div>
+          <div />
         </div>
 
         {/* ── Tabs ── */}
@@ -1480,7 +1479,6 @@ export default function AdminPage() {
                 ['knowledge',    'Knowledge Base'],
                 ...(isSuperAdmin ? [['review', 'Review Queue']] : []),
                 ...(isSuperAdmin ? [['security', 'Security']] : []),
-                ['toolkit',      'Toolkit'],
               ] as [typeof tab, string][]).map(([t, label]) => {
                 const accent  = TAB_ACCENT[t] ?? '#00897B'
                 const active  = tab === t
