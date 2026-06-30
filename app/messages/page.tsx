@@ -88,9 +88,9 @@ function MessagesContent() {
         if (s?.sid) {
           setSid(s.sid)
           // Fetch own name
-          fetch(`/api/staff-list?limit=1&id=${s.sid}`)
+          fetch(`/api/staff-list?id=${s.sid}`)
             .then(r => r.json())
-            .then(d => { if (d.staff?.[0]) setMyName(d.staff[0].name) })
+            .then(d => { if (d?.name) setMyName(d.name) })
             .catch(() => {})
         }
       })
@@ -101,7 +101,9 @@ function MessagesContent() {
     setLoadingInbox(true)
     const res = await fetch('/api/messages/inbox')
     const data = await res.json()
-    setConversations(Array.isArray(data) ? data : [])
+    const list = Array.isArray(data) ? data : []
+    list.sort((a: Conversation, b: Conversation) => new Date(b.last_time).getTime() - new Date(a.last_time).getTime())
+    setConversations(list)
     setLoadingInbox(false)
   }, [])
 
@@ -129,19 +131,22 @@ function MessagesContent() {
     if (conv) {
       loadThread(conv.partner_id, conv.partner_name)
     } else {
-      fetch(`/api/staff-list?search=${withParam}`)
+      fetch(`/api/staff-list?id=${withParam}`)
         .then(r => r.json())
         .then(d => {
-          const s = d.staff?.find((x: StaffEntry) => x.id === withParam)
-          if (s) loadThread(s.id, s.name)
+          if (d?.id) loadThread(d.id, d.name)
         }).catch(() => {})
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [withParam, sid, loadingInbox])
 
-  // Scroll to bottom on new messages
+  // Scroll to bottom only when message count increases (new message sent/received), not on initial load
+  const prevMsgCountRef = useRef(0)
   useEffect(() => {
-    threadEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+    if (messages.length > prevMsgCountRef.current && prevMsgCountRef.current > 0) {
+      threadEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+    }
+    prevMsgCountRef.current = messages.length
   }, [messages])
 
   // Poll active thread every 8s
@@ -184,9 +189,10 @@ function MessagesContent() {
   }
 
   async function loadStaffList() {
-    const res = await fetch('/api/staff-list?limit=200')
+    const res = await fetch('/api/staff-list')
     const d   = await res.json()
-    setStaffList((d.staff ?? []).filter((s: StaffEntry) => s.id !== sid))
+    const list = Array.isArray(d) ? d : (d.staff ?? [])
+    setStaffList(list.filter((s: StaffEntry) => s.id !== sid))
   }
 
   function openCompose() {
