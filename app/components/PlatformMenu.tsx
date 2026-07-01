@@ -196,11 +196,36 @@ function buildSections(
     ],
   })
 
+  /* ── Pilot Projects — shown when user is in any pilot project (client checks) ── */
+  sections.push({
+    heading: 'Pilot Projects',
+    items: [
+      {
+        title:       'My Pilot Projects',
+        description: 'View your assigned Pilot Projects and complete your pre-build checklist',
+        href:        '/pilots',
+        color:       '#7c3aed',
+        bg:          'rgba(124,58,237,0.08)',
+        border:      'rgba(124,58,237,0.2)',
+        icon: <svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>,
+      },
+    ],
+  })
+
   /* ── Administration — admins only ── */
   if (isAdmin) {
     sections.push({
       heading: 'Administration',
       items: [
+        {
+          title:       'Pilot Projects',
+          description: 'Track all Pilot Projects — checklists, build status, responsible Pilots',
+          href:        '/admin/pilots',
+          color:       '#7c3aed',
+          bg:          'rgba(124,58,237,0.08)',
+          border:      'rgba(124,58,237,0.2)',
+          icon: <svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>,
+        },
         {
           title:       'Admin Dashboard',
           description: 'Manage staff, run imports, view org-wide AI readiness',

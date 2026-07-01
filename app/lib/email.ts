@@ -401,3 +401,99 @@ export async function sendOrgPulseReport({
     html,
   })
 }
+
+// ── Email: Pilot Project Assignment ──────────────────────────────────────────
+
+export async function sendPilotAssignment({
+  to,
+  name,
+  projectName,
+  projectDescription,
+  myRole,
+  checklistItems,
+  pilotsUrl,
+}: {
+  to:                  string
+  name:                string
+  projectName:         string
+  projectDescription:  string
+  myRole:              string
+  checklistItems:      Array<{ title: string; description: string | null; category: string | null }>
+  pilotsUrl:           string
+}) {
+  const firstName = name.split(' ')[0]
+
+  const roleLabels: Record<string, string> = {
+    pilot:      'Pilot (Main Responsible)',
+    consulting: 'Consulting',
+    tracking:   'Project Tracking',
+  }
+  const roleLabel = roleLabels[myRole] ?? myRole
+
+  const roleNote: Record<string, string> = {
+    pilot:      'You are the Pilot for this project — you own the scope decisions, drive the PRD, and coordinate the build with Durga.',
+    consulting: 'You are a Consulting member — your domain expertise will shape the requirements. Thulasi or Nicholas will bring you in for your specific inputs.',
+    tracking:   'You are the Project Tracker — your job is to maintain visibility across all Pilot Projects, escalate blockers to Durga, and keep things moving.',
+  }
+
+  const itemsHtml = checklistItems.map((item, i) => `
+    <div style="display:flex;align-items:flex-start;gap:12px;padding:12px 14px;background:#f9fafb;border:1px solid #e5e7eb;border-radius:8px;margin-bottom:8px;">
+      <div style="width:22px;height:22px;border-radius:4px;border:2px solid #d1d5db;background:#fff;flex-shrink:0;margin-top:1px;display:flex;align-items:center;justify-content:center;">
+        <span style="font-size:10px;font-weight:700;color:#9ca3af;">${i + 1}</span>
+      </div>
+      <div>
+        <div style="font-size:14px;font-weight:600;color:#111827;">${item.title}</div>
+        ${item.description ? `<div style="font-size:13px;color:#6b7280;margin-top:3px;line-height:1.5;">${item.description}</div>` : ''}
+        ${item.category ? `<span style="display:inline-block;margin-top:6px;font-size:11px;padding:2px 8px;border-radius:999px;background:#f3f4f6;color:#6b7280;font-weight:600;">${item.category.replace('_', ' ')}</span>` : ''}
+      </div>
+    </div>
+  `).join('')
+
+  const html = emailWrap(`
+    ${emailHeader('Pilot Project')}
+    <div style="padding:32px 40px;">
+      <h2 style="font-size:22px;font-weight:800;color:${DARK};margin:0 0 6px;">You've been assigned to a Pilot Project</h2>
+      <p style="color:${MUTED};font-size:15px;line-height:1.7;margin:0 0 24px;">
+        Hi ${firstName}, you've been assigned to the <strong style="color:${DARK};">${projectName}</strong> Pilot Project on EventPilot.
+        Your role is <strong style="color:${DARK};">${roleLabel}</strong>.
+      </p>
+
+      <div style="background:#f0fdfa;border:1px solid #99f6e4;border-radius:10px;padding:16px 18px;margin-bottom:24px;">
+        <p style="margin:0;font-size:14px;color:#0f766e;line-height:1.6;">${roleNote[myRole] ?? ''}</p>
+      </div>
+
+      <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:16px 18px;margin-bottom:24px;">
+        <div style="font-size:11px;font-weight:800;letter-spacing:1.5px;text-transform:uppercase;color:#64748b;margin-bottom:6px;">About this project</div>
+        <p style="margin:0;font-size:14px;color:#374151;line-height:1.7;">${projectDescription}</p>
+      </div>
+
+      <div style="margin-bottom:24px;">
+        <div style="font-size:11px;font-weight:800;letter-spacing:1.5px;text-transform:uppercase;color:#64748b;margin-bottom:12px;">Your Checklist (${checklistItems.length} items)</div>
+        ${itemsHtml}
+      </div>
+
+      <div style="background:#fffbeb;border:1px solid #fde68a;border-radius:10px;padding:16px 18px;margin-bottom:28px;">
+        <p style="margin:0;font-size:13px;color:#92400e;line-height:1.6;">
+          <strong>Important:</strong> Scope and architecture questions must be discussed and decided directly with
+          <strong>Durga (dc@tresconglobal.com)</strong>. Madhu has set the high-level direction — day-to-day
+          decisions belong with you and Durga. Reach out to Madhu only for strategic input, not build decisions.
+        </p>
+      </div>
+
+      <div style="text-align:center;margin:28px 0;">
+        <a href="${pilotsUrl}" style="display:inline-block;background:${BRAND};color:#ffffff;font-weight:700;font-size:15px;padding:14px 32px;border-radius:10px;text-decoration:none;">
+          View My Pilot Projects
+        </a>
+      </div>
+
+      ${emailFooter()}
+    </div>
+  `)
+
+  return getResend().emails.send({
+    from:    FROM,
+    to,
+    subject: `Pilot Project: ${projectName} — Your role & checklist`,
+    html,
+  })
+}
