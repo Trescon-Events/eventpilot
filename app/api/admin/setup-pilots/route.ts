@@ -2,36 +2,25 @@ import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/app/lib/supabase'
 import { sendPilotAssignment } from '@/app/lib/email'
 import { Client } from 'pg'
-import dns from 'dns/promises'
+import dns from 'dns'
 
 async function runMigration(log: string[], errors: string[]) {
   const pass = process.env.SUPABASE_DB_PASSWORD
   const projectId = 'yuyxfxoevztugtfgduks'
   if (!pass) { errors.push('SUPABASE_DB_PASSWORD not set'); return }
 
-  // Try pooler first (IPv4); fall back to direct host. Railway has no IPv6 outbound.
-  const POOLER_HOST = `aws-0-ap-southeast-1.pooler.supabase.com`
-  let dbHost = POOLER_HOST
-  let dbUser = `postgres.${projectId}`
+  // Railway has no IPv6 outbound. Force IPv4 preference so dns.lookup() picks an A record.
+  try { dns.setDefaultResultOrder('ipv4first') } catch { /* Node < 16.4 */ }
 
-  try {
-    const [ipv4] = await dns.resolve4(POOLER_HOST)
-    dbHost = ipv4
-    log.push(`Pooler resolved to IPv4: ${ipv4}`)
-  } catch {
-    // Pooler DNS failed — no IPv4 path available
-    log.push(`Pooler DNS failed, aborting migration`)
-    errors.push(`Migration skipped: cannot reach Supabase over TCP from this network. Run supabase/pilots_migration.sql manually in the Supabase SQL Editor, then call this endpoint again.`)
-    return
-  }
+  const POOLER_HOST = `aws-0-ap-southeast-1.pooler.supabase.com`
 
   const client = new Client({
-    host:     dbHost,
+    host:     POOLER_HOST,
     port:     5432,
-    user:     dbUser,
+    user:     `postgres.${projectId}`,
     password: pass,
     database: 'postgres',
-    ssl:      { rejectUnauthorized: false, servername: POOLER_HOST },
+    ssl:      { rejectUnauthorized: false },
     connectionTimeoutMillis: 15000,
   })
   try {
