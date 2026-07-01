@@ -37,8 +37,11 @@ jobs:
 
       - name: Trigger leaderboard endpoint
         run: |
+          # Query-param secret works even if the proxy strips Authorization
+          # headers. Matches the pattern used by /api/cron/attendance-live.
+          SEP="?"
+          if [ -n "${{ steps.qs.outputs.qs }}" ]; then SEP="&"; fi
           curl --fail-with-body --silent --show-error \
             -X POST \
-            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
             -H "Content-Type: application/json" \
-            "https://eventpilot.tresconglobal.com/api/cron/generate-leaderboard${{ steps.qs.outputs.qs }}"
+            "https://eventpilot.tresconglobal.com/api/cron/generate-leaderboard${{ steps.qs.outputs.qs }}${SEP}secret=${{ secrets.CRON_SECRET }}"

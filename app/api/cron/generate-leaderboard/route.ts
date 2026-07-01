@@ -29,13 +29,22 @@ export const dynamic = 'force-dynamic'
 export const maxDuration = 300 // 5 minutes — 127 emails at ~10/sec
 
 export async function POST(req: NextRequest) {
-  const auth = req.headers.get('authorization') ?? ''
-  const expected = `Bearer ${process.env.CRON_SECRET ?? ''}`
-  if (!process.env.CRON_SECRET || auth !== expected) {
+  return handle(req)
+}
+
+export async function GET(req: NextRequest) {
+  return handle(req)
+}
+
+async function handle(req: NextRequest) {
+  const url = new URL(req.url)
+  const secretFromQuery  = url.searchParams.get('secret') ?? ''
+  const secretFromHeader = (req.headers.get('authorization') ?? '').replace(/^Bearer\s+/i, '')
+  const provided = secretFromHeader || secretFromQuery
+  if (!process.env.CRON_SECRET || provided !== process.env.CRON_SECRET) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
-  const url = new URL(req.url)
   const force        = url.searchParams.get('force') === '1'
   const dryRun       = url.searchParams.get('dryRun') === '1'
   const emailOnly    = url.searchParams.get('emailOnly') === '1'
