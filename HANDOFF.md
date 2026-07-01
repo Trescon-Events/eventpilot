@@ -38,10 +38,10 @@ Files: `app/dashboard/course/[id]/page.tsx`, `app/components/ReviewWidget.tsx`.
 
 ### 🕐 12:28 IST · `13cf704` — Silenced Vercel deployment error emails
 Vercel was retired 18 Jun but `vercel.json` (with 2 dead crons) remained. Vercel-GitHub App still fires on every push, tries to build, fails, emails `reachcharan@gmail.com`.
-- Deleted `vercel.json` (the 2 crons — `/api/cron/attendance-sync` 01:00 UTC and `/api/cron/hrms-sync` 19:30 UTC — had been silently unrun for 13 days)
+- Deleted `vercel.json` (2 crons: `/api/cron/attendance-sync` 01:00 UTC and `/api/cron/hrms-sync` 19:30 UTC — both unnecessary as it turned out; see next bullet)
 - Added `.vercelignore` with `*` to skip any lingering Vercel build
 - **Not fully fixed** — the GitHub App webhook is still installed on `Trescon-Events/eventpilot` and needs to be uninstalled via Vercel dashboard or GitHub App settings. See Known Issues.
-- **New gap surfaced** — those 2 dead crons need a Railway or GitHub Actions replacement. See What's Next.
+- **Correction on the dead crons**: I initially claimed the sync was dead. On re-check the attendance sync is running — `app/hr/attendance/page.tsx` polls `/api/cron/attendance-live` every 5 minutes while the page is open, and DB shows ~100 staff_attendance rows/day since 17 Jun. `hrms-sync` was always a manual admin button, not a scheduled job.
 
 ### 🕐 12:40 IST · `a6cbace` — Review auto-response system
 When an admin flips a `platform_reviews` row to `resolved`, Gemini 2.5-flash drafts a warm, first-name-personalised "Admin" comment quoting `admin_notes` as the fix summary. Signs as "— Admin", 70-160 words, no markdown / emojis / exclamations.
@@ -205,7 +205,7 @@ Salary multi-currency:
 ## Known Issues (not yet fixed)
 
 1. **Vercel-GitHub App webhook still installed on `Trescon-Events/eventpilot`** — `vercel.json` deletion silences successful builds (nothing to build now) but the webhook still fires on every push. To permanently stop: uninstall the Vercel GitHub App from the org (GitHub → Settings → GitHub Apps → Vercel → Configure → remove `eventpilot`) OR delete the `taos-discovery` project in the Vercel dashboard. **Dashboard action only — Durga.**
-2. **`attendance-sync` + `hrms-sync` crons dead for 13+ days** — both were Vercel crons in the deleted `vercel.json` (01:00 UTC and 19:30 UTC). Need a new home: Railway cron or a `.github/workflows/*.yml` on schedule. Nothing has been syncing.
+2. **Attendance sync depends on someone having `/hr/attendance` open** — the old Vercel cron (`/api/cron/attendance-sync` daily 01:00 UTC) died with the migration, but sync is not dead — `app/hr/attendance/page.tsx` polls `/api/cron/attendance-live` every 5 minutes while the page is open, and the DB shows consistent ~100 rows/day since 17 Jun. Fragility: on days when nobody opens the page (e.g., weekends), no sync happens — but the next open pulls "last 2 days" so the gap is short. A scheduled fallback (Railway cron or GitHub Actions on schedule) would harden this if needed. `hrms-sync` is intentionally a manual button on `/admin` — not a bug.
 3. **Finance pages may still show blank** — session-cookie client-side parse issue. API fallback added twice now (finance pages + RealtimeNotifications) but may not be applied universally. Needs a shared session-reader utility or systemic fix.
 4. **Platform Updates ("What's Next")** shows static dev build-log entries — it's a dev changelog, not a user-facing update feed. Needs redesign.
 5. **Payroll grades** (L1-EX) are default placeholders — need Trescon's actual grade structure from HR/Madhu.
@@ -220,7 +220,7 @@ Salary multi-currency:
 ### Pending — needs Durga action (dashboard only)
 
 1. **Uninstall Vercel GitHub App on `Trescon-Events/eventpilot`** — permanent fix for the residual webhook fires.
-2. **Restore attendance-sync + hrms-sync scheduled jobs** — Railway cron or GitHub Actions.
+2. **(Optional harden)** Add a scheduled fallback for attendance sync — the client-side polling in `/hr/attendance` covers active days, but a Railway cron / GitHub Actions on schedule would cover long stretches when the page isn't opened. Not urgent — sync is currently active.
 
 ### Pending — waiting for Madhu
 
