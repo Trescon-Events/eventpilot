@@ -1,5 +1,6 @@
 import { supabaseAdmin } from '@/app/lib/supabase'
 import { NextRequest, NextResponse } from 'next/server'
+import { generateAdminResponse, firstName } from '@/app/lib/review-auto-response'
 
 function getSession(req: NextRequest) {
   const raw = req.cookies.get('tcs_session')?.value
@@ -122,7 +123,61 @@ export async function PATCH(
     }
   }
 
-  // ── Admin response comment (blocking — must succeed) ──────────────────────
+  // ── AUTO-RESPONSE on transition to resolved ─────────────────────────────
+  // When status flips to 'resolved' and no manual response was typed,
+  // Gemini drafts a warm, specific "Admin" comment referencing the reporter's
+  // complaint and (if provided) the admin_notes as the fix summary.
+  // Comment is attributed to "Admin" — not the resolving admin's name.
+  const isResolving = status === 'resolved' && review.status !== 'resolved'
+  if (isResolving && !response?.trim()) {
+    try {
+      // Fetch full review body + reporter name
+      const { data: full } = await supabaseAdmin
+        .from('platform_reviews')
+        .select('title, description, staff_name, staff_id')
+        .eq('id', id)
+        .single()
+
+      if (full) {
+        let reporterName = full.staff_name
+        if (!reporterName && full.staff_id && full.staff_id !== 'super-admin') {
+          const { data: sm } = await supabaseAdmin
+            .from('staff_members').select('name').eq('id', full.staff_id).maybeSingle()
+          if (sm?.name) reporterName = sm.name
+        }
+
+        const autoText = await generateAdminResponse({
+          reviewTitle:       full.title || '',
+          reviewDescription: full.description || '',
+          reporterFirstName: firstName(reporterName),
+          fixSummary:        admin_notes || undefined,
+        })
+
+        await supabaseAdmin.from('review_comments').insert({
+          review_id:        id,
+          author_type:      'admin',
+          author_name:      'Admin',
+          is_status_change: false,
+          message:          autoText,
+        })
+
+        if (full.staff_id) {
+          supabaseAdmin.from('notifications').insert({
+            staff_id:  full.staff_id,
+            type:      'review_update',
+            title:     'Admin responded to your feedback',
+            body:      autoText.slice(0, 140),
+            review_id: id,
+          }).then(() => {})
+        }
+      }
+    } catch (autoErr) {
+      // Never let auto-response failures block the resolve.
+      console.error('[reviews] auto-response failed:', autoErr)
+    }
+  }
+
+  // ── Manual admin response comment (blocking — must succeed) ──────────────
   if (response?.trim()) {
     const { error: respErr } = await supabaseAdmin.from('review_comments').insert({
       review_id:        id,
