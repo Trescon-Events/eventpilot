@@ -5,6 +5,8 @@
  */
 
 import { Resend } from 'resend'
+import type { RankedRow, StaffLite, SilentStaff } from './leaderboard'
+import { supabaseAdmin } from './supabase'
 
 let _resend: Resend | null = null
 function getResend() {
@@ -658,4 +660,211 @@ export async function sendBuildRequestUpdate({
     subject: subjectMap[status] ?? `Build request update — ${title}`,
     html,
   })
+}
+
+// ── Email: Weekly Leaderboard Digest ─────────────────────────────────────────
+//
+// Fired every Monday 07:00 IST for the ISO week that just ended. Each eligible
+// staff receives a personalised digest with their rank + delta; admins receive
+// an additional "silent staff" block. Sends are paced to ~10/sec to stay well
+// inside Resend's rate limits.
+
+const LEADERBOARD_URL = `${process.env.NEXT_PUBLIC_APP_URL ?? 'https://eventpilot.tresconglobal.com'}/leaderboard`
+
+function fmtDateRange(startIST: string, endIST: string): string {
+  const opts: Intl.DateTimeFormatOptions = { day: 'numeric', month: 'short' }
+  const s = new Date(startIST + 'T12:00:00Z').toLocaleDateString('en-GB', opts)
+  const e = new Date(endIST + 'T12:00:00Z').toLocaleDateString('en-GB', opts)
+  return `${s} – ${e}`
+}
+
+function initials(name: string): string {
+  return name.split(/\s+/).filter(Boolean).slice(0, 2).map(w => w[0]?.toUpperCase() ?? '').join('')
+}
+
+function renderTop10(rows: RankedRow[], nameById: Map<string, string>, deptById: Map<string, string | null>, deltaByStaff: Map<string, number | null>): string {
+  if (rows.length === 0) {
+    return `<p style="color:${MUTED};font-size:14px;margin:12px 0 0;">No course completions this week yet — will you be first next week?</p>`
+  }
+  return rows.map(r => {
+    const name = nameById.get(r.staff_id) ?? '—'
+    const dept = deptById.get(r.staff_id) ?? ''
+    const delta = deltaByStaff.get(r.staff_id)
+    const deltaStr = delta == null
+      ? '<span style="color:#94A3B8;font-size:11px;">new</span>'
+      : delta === 0
+        ? '<span style="color:#94A3B8;font-size:11px;">—</span>'
+        : delta > 0
+          ? `<span style="color:#16A34A;font-size:11px;font-weight:700;">▲ ${delta}</span>`
+          : `<span style="color:#DC2626;font-size:11px;font-weight:700;">▼ ${Math.abs(delta)}</span>`
+    return `
+      <tr>
+        <td style="padding:10px 8px;font-size:13px;font-weight:800;color:${DARK};width:36px;text-align:center;">#${r.rank}</td>
+        <td style="padding:10px 8px;">
+          <div style="display:flex;align-items:center;gap:10px;">
+            <div style="width:28px;height:28px;border-radius:50%;background:${BRAND};color:#fff;display:inline-flex;align-items:center;justify-content:center;font-size:11px;font-weight:800;">${initials(name)}</div>
+            <div>
+              <div style="font-size:14px;font-weight:700;color:${DARK};line-height:1.2;">${name}</div>
+              ${dept ? `<div style="font-size:11px;color:${MUTED};margin-top:2px;">${dept}</div>` : ''}
+            </div>
+          </div>
+        </td>
+        <td style="padding:10px 8px;text-align:right;font-size:13px;font-weight:700;color:${DARK};">${r.score} pts</td>
+        <td style="padding:10px 8px;text-align:right;">${deltaStr}</td>
+      </tr>
+    `
+  }).join('')
+}
+
+export async function sendLeaderboardDigest({
+  weekStartIST,
+  weekEndIST,
+  eligible,
+  ranked,
+  silent,
+  priorWeekStartIST,
+}: {
+  weekStartIST:      string
+  weekEndIST:        string
+  eligible:          StaffLite[]
+  ranked:            RankedRow[]
+  silent:            SilentStaff[]
+  priorWeekStartIST: string
+}): Promise<{ emails_sent: number; admin_emails_sent: number; errors: number }> {
+  const { data: priorRows } = await supabaseAdmin
+    .from('weekly_leaderboard_snapshots')
+    .select('staff_id, rank')
+    .eq('week_start', priorWeekStartIST)
+
+  const priorRankByStaff = new Map<string, number>((priorRows ?? []).map(r => [r.staff_id, r.rank]))
+  const deltaByStaff = new Map<string, number | null>()
+  for (const r of ranked) {
+    const prior = priorRankByStaff.get(r.staff_id)
+    deltaByStaff.set(r.staff_id, prior == null ? null : prior - r.rank)
+  }
+
+  const nameById = new Map(eligible.map(s => [s.id, s.name]))
+  const deptById = new Map(eligible.map(s => [s.id, s.department]))
+
+  const top10 = ranked.slice(0, 10)
+  const top10Html = renderTop10(top10, nameById, deptById, deltaByStaff)
+  const dateRange = fmtDateRange(weekStartIST, weekEndIST)
+
+  const silentRowsHtml = silent.length === 0
+    ? `<p style="color:${MUTED};font-size:14px;margin:12px 0 0;">Everyone was active this week.</p>`
+    : silent.slice(0, 40).map(s => `
+        <tr>
+          <td style="padding:8px 6px;font-size:13px;color:${DARK};">${s.name}</td>
+          <td style="padding:8px 6px;font-size:12px;color:${MUTED};">${s.department ?? '—'}</td>
+          <td style="padding:8px 6px;font-size:12px;color:${MUTED};text-align:right;">${s.days_silent >= 9000 ? 'never' : `${s.days_silent}d`}</td>
+        </tr>
+      `).join('') + (silent.length > 40 ? `<tr><td colspan="3" style="padding:8px 6px;font-size:12px;color:${MUTED};text-align:center;font-style:italic;">…and ${silent.length - 40} more</td></tr>` : '')
+
+  const { data: adminRows } = await supabaseAdmin
+    .from('staff_members')
+    .select('id, name, email, access_roles')
+    .eq('is_active', true)
+  const admins = (adminRows ?? []).filter(a => {
+    const r = a.access_roles ?? []
+    return r.includes('admin') || r.includes('super_admin')
+  }).filter(a => !!a.email)
+
+  let emails_sent = 0
+  let admin_emails_sent = 0
+  let errors = 0
+
+  for (const s of eligible) {
+    const myRow = ranked.find(r => r.staff_id === s.id)
+    const myDelta = deltaByStaff.get(s.id)
+
+    const personalCardHtml = myRow
+      ? `
+        <div style="background:linear-gradient(135deg,#0F1923 0%,#00A5A3 100%);border-radius:12px;padding:22px 24px;margin:0 0 24px;color:#fff;">
+          <div style="font-size:12px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:rgba(255,255,255,0.6);margin-bottom:6px;">You this week</div>
+          <div style="display:flex;align-items:baseline;gap:12px;">
+            <div style="font-size:36px;font-weight:900;line-height:1;">#${myRow.rank}</div>
+            <div style="font-size:14px;color:rgba(255,255,255,0.8);">
+              ${myRow.score} pts · ${myRow.completions_count} completed
+              ${myDelta == null ? '' : myDelta === 0 ? ' · same as last week' : myDelta > 0 ? ` · <span style="color:#C0F43C;font-weight:700;">up ${myDelta} from last week</span>` : ` · <span style="color:#FCA5A5;">down ${Math.abs(myDelta)} from last week</span>`}
+            </div>
+          </div>
+        </div>
+      `
+      : `
+        <div style="background:#F0F4F8;border-radius:12px;padding:22px 24px;margin:0 0 24px;text-align:center;">
+          <div style="font-size:12px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:${MUTED};margin-bottom:8px;">You this week</div>
+          <div style="font-size:15px;color:${DARK};font-weight:600;">No course completions this week.</div>
+          <div style="font-size:13px;color:${MUTED};margin-top:6px;">Every completed course lifts your rank. Even one this week gets you on the board.</div>
+        </div>
+      `
+
+    const html = emailWrap(`
+      ${emailHeader('Weekly Learning Digest · ' + dateRange)}
+      <div style="padding:28px 32px;">
+        <p style="font-size:15px;color:${DARK};margin:0 0 20px;">Hi ${s.name.split(' ')[0]},</p>
+        ${personalCardHtml}
+        <div style="font-size:12px;font-weight:800;letter-spacing:1px;text-transform:uppercase;color:${MUTED};margin:0 0 10px;">Top 10 · this week</div>
+        <table style="width:100%;border-collapse:collapse;background:#F8FAFC;border-radius:12px;overflow:hidden;">
+          ${top10Html}
+        </table>
+        <div style="text-align:center;margin:28px 0 4px;">
+          <a href="${LEADERBOARD_URL}" style="display:inline-block;background:${BRAND};color:#ffffff;font-weight:700;font-size:14px;padding:12px 28px;border-radius:10px;text-decoration:none;">See the full leaderboard</a>
+        </div>
+        ${emailFooter()}
+      </div>
+    `)
+
+    try {
+      await getResend().emails.send({
+        from:    FROM,
+        to:      s.email,
+        subject: `Learning Leaderboard · ${dateRange}`,
+        html,
+      })
+      emails_sent++
+    } catch {
+      errors++
+    }
+    await new Promise(r => setTimeout(r, 100))
+  }
+
+  const adminHtml = emailWrap(`
+    ${emailHeader('Weekly Learning Digest · ' + dateRange)}
+    <div style="padding:28px 32px;">
+      <p style="font-size:15px;color:${DARK};margin:0 0 8px;font-weight:700;">Admin summary</p>
+      <p style="font-size:13px;color:${MUTED};margin:0 0 20px;">${ranked.length} eligible staff · ${ranked.filter(r => r.completions_count > 0).length} completed at least one course · ${silent.length} silent (no login + no attempts for 14+ days).</p>
+
+      <div style="font-size:12px;font-weight:800;letter-spacing:1px;text-transform:uppercase;color:${MUTED};margin:0 0 10px;">Top 10 · this week</div>
+      <table style="width:100%;border-collapse:collapse;background:#F8FAFC;border-radius:12px;overflow:hidden;">
+        ${top10Html}
+      </table>
+
+      <div style="font-size:12px;font-weight:800;letter-spacing:1px;text-transform:uppercase;color:${MUTED};margin:28px 0 10px;">Silent staff — 14+ days no activity</div>
+      <table style="width:100%;border-collapse:collapse;background:#FFF7ED;border-radius:12px;overflow:hidden;padding:6px;">
+        ${silentRowsHtml}
+      </table>
+
+      <div style="text-align:center;margin:28px 0 4px;">
+        <a href="${LEADERBOARD_URL}" style="display:inline-block;background:${DARK};color:#ffffff;font-weight:700;font-size:14px;padding:12px 28px;border-radius:10px;text-decoration:none;">Open leaderboard</a>
+      </div>
+      ${emailFooter()}
+    </div>
+  `)
+
+  for (const a of admins) {
+    try {
+      await getResend().emails.send({
+        from:    FROM,
+        to:      a.email,
+        subject: `Learning Leaderboard [Admin] · ${dateRange}`,
+        html:    adminHtml,
+      })
+      admin_emails_sent++
+    } catch {
+      errors++
+    }
+    await new Promise(r => setTimeout(r, 100))
+  }
+
+  return { emails_sent, admin_emails_sent, errors }
 }

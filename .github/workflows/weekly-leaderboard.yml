@@ -1,0 +1,44 @@
+name: Weekly Leaderboard
+
+on:
+  schedule:
+    # 01:30 UTC every Monday = 07:00 IST every Monday.
+    # Cron time is GitHub Actions' scheduler time (UTC).
+    - cron: '30 1 * * MON'
+  workflow_dispatch:
+    inputs:
+      week_start:
+        description: 'Optional YYYY-MM-DD Monday to backfill'
+        required: false
+      force:
+        description: 'Regenerate even if snapshot exists (true/false)'
+        required: false
+        default: 'false'
+      dry_run:
+        description: 'Compute + return but do not write or email (true/false)'
+        required: false
+        default: 'false'
+
+jobs:
+  generate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+
+    steps:
+      - name: Build query string
+        id: qs
+        run: |
+          QS=""
+          if [ -n "${{ github.event.inputs.week_start }}" ]; then QS="${QS}weekStart=${{ github.event.inputs.week_start }}&"; fi
+          if [ "${{ github.event.inputs.force }}" = "true" ]; then QS="${QS}force=1&"; fi
+          if [ "${{ github.event.inputs.dry_run }}" = "true" ]; then QS="${QS}dryRun=1&"; fi
+          QS="${QS%&}"
+          if [ -n "$QS" ]; then echo "qs=?${QS}" >> "$GITHUB_OUTPUT"; else echo "qs=" >> "$GITHUB_OUTPUT"; fi
+
+      - name: Trigger leaderboard endpoint
+        run: |
+          curl --fail-with-body --silent --show-error \
+            -X POST \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            -H "Content-Type: application/json" \
+            "https://eventpilot.tresconglobal.com/api/cron/generate-leaderboard${{ steps.qs.outputs.qs }}"
