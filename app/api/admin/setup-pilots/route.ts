@@ -9,23 +9,29 @@ async function runMigration(log: string[], errors: string[]) {
   const projectId = 'yuyxfxoevztugtfgduks'
   if (!pass) { errors.push('SUPABASE_DB_PASSWORD not set'); return }
 
-  // Railway has no IPv6 outbound; resolve to IPv4 explicitly before connecting
-  let dbHost = `db.${projectId}.supabase.co`
+  // Try pooler first (IPv4); fall back to direct host. Railway has no IPv6 outbound.
+  const POOLER_HOST = `aws-0-ap-southeast-1.pooler.supabase.com`
+  let dbHost = POOLER_HOST
+  let dbUser = `postgres.${projectId}`
+
   try {
-    const [ipv4] = await dns.resolve4(dbHost)
+    const [ipv4] = await dns.resolve4(POOLER_HOST)
     dbHost = ipv4
-    log.push(`DB host resolved to IPv4: ${ipv4}`)
-  } catch (e) {
-    log.push(`IPv4 resolve failed, using hostname: ${e instanceof Error ? e.message : String(e)}`)
+    log.push(`Pooler resolved to IPv4: ${ipv4}`)
+  } catch {
+    // Pooler DNS failed — no IPv4 path available
+    log.push(`Pooler DNS failed, aborting migration`)
+    errors.push(`Migration skipped: cannot reach Supabase over TCP from this network. Run supabase/pilots_migration.sql manually in the Supabase SQL Editor, then call this endpoint again.`)
+    return
   }
 
   const client = new Client({
     host:     dbHost,
     port:     5432,
-    user:     'postgres',
+    user:     dbUser,
     password: pass,
     database: 'postgres',
-    ssl:      { rejectUnauthorized: false },
+    ssl:      { rejectUnauthorized: false, servername: POOLER_HOST },
     connectionTimeoutMillis: 15000,
   })
   try {
