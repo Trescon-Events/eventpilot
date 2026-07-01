@@ -74,8 +74,10 @@ export default function PilotsPage() {
       const pilotsData = await pilotsRes.json()
       const sessionData = await sessionRes.json()
       setProjects(pilotsData.projects ?? [])
-      setStaffId(sessionData?.staff?.id ?? null)
-      setIsAdmin(sessionData?.staff?.isAdmin ?? false)
+      // /api/auth/session returns the raw session cookie payload — { sid, jl, adm, dept, roles }
+      // — with no nested `staff` object.
+      setStaffId(sessionData?.sid ?? null)
+      setIsAdmin(sessionData?.adm ?? false)
       setLoading(false)
     }
     load()
