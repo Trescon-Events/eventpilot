@@ -11,8 +11,7 @@ function getSession(req: NextRequest) {
    Staff replies to their own issue.
    - Validates the review belongs to this staff member
    - Inserts a review_comment with author_type: 'staff'
-   - If status was 'resolved' or 'wont_fix', flips back to 'in_progress'
-   - Creates bell notifications for all admins
+   - Creates bell notifications for all admins (they decide whether to reopen)
 */
 export async function POST(
   req: NextRequest,
@@ -56,25 +55,6 @@ export async function POST(
   })
   if (cErr) return NextResponse.json({ error: cErr.message }, { status: 500 })
 
-  // If resolved/wont_fix → reopen to in_progress
-  const shouldReopen = ['resolved', 'wont_fix'].includes(review.status)
-  if (shouldReopen) {
-    await supabaseAdmin
-      .from('platform_reviews')
-      .update({ status: 'in_progress', resolved_at: null, resolved_by_name: null })
-      .eq('id', id)
-
-    // Trail entry for the reopen
-    await supabaseAdmin.from('review_comments').insert({
-      review_id:        id,
-      author_type:      'staff',
-      author_name:      staffName,
-      is_status_change: true,
-      new_status:       'in_progress',
-      message:          null,
-    })
-  }
-
   // Notify all admins
   const { data: admins } = await supabaseAdmin
     .from('staff_members')
@@ -112,7 +92,6 @@ export async function POST(
 
   return NextResponse.json({
     ok: true,
-    reopened: shouldReopen,
     comments: comments ?? [],
   })
 }

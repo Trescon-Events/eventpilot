@@ -344,11 +344,11 @@ function DashboardContent() {
       const data = await res.json()
       if (res.ok) {
         setReplyText(prev => ({ ...prev, [reviewId]: '' }))
-        setReplyMsg(prev => ({ ...prev, [reviewId]: data.reopened ? 'Reply sent — issue reopened for review' : 'Reply sent' }))
+        setReplyMsg(prev => ({ ...prev, [reviewId]: 'Reply sent' }))
         // Update local comment trail
         if (Array.isArray(data.comments)) {
           setMyReviews(prev => prev.map(r => r.id === reviewId
-            ? { ...r, comments: data.comments, status: data.reopened ? 'in_progress' : r.status }
+            ? { ...r, comments: data.comments }
             : r
           ))
         }
