@@ -1,6 +1,6 @@
 import { supabaseAdmin } from '@/app/lib/supabase'
 import { NextRequest, NextResponse } from 'next/server'
-import { generateAdminResponse, firstName } from '@/app/lib/review-auto-response'
+import { resolveReview } from '@/app/lib/review-auto-resolve'
 
 function getSession(req: NextRequest) {
   const raw = req.cookies.get('tcs_session')?.value
@@ -53,14 +53,13 @@ export async function PATCH(
   if (!session?.adm) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
   const { id } = await params
-  const { status, admin_notes, response } = await req.json()
+  const { status, admin_notes, response, fix_commit_sha } = await req.json()
 
   const validStatuses = ['new', 'acknowledged', 'in_progress', 'resolved', 'wont_fix']
   if (status && !validStatuses.includes(status)) {
     return NextResponse.json({ error: 'Invalid status.' }, { status: 400 })
   }
 
-  // Resolve admin name
   let adminName = 'Admin'
   if (session.sid && session.sid !== 'super-admin') {
     const { data: staff } = await supabaseAdmin
@@ -68,7 +67,6 @@ export async function PATCH(
     if (staff?.name) adminName = staff.name
   }
 
-  // Fetch current review to get staff_id, title, current status
   const { data: review } = await supabaseAdmin
     .from('platform_reviews')
     .select('id, title, status, staff_id')
@@ -77,107 +75,18 @@ export async function PATCH(
 
   if (!review) return NextResponse.json({ error: 'Review not found' }, { status: 404 })
 
-  // ── Build DB patch ────────────────────────────────────────────────────────
-  const patch: Record<string, unknown> = {}
-  if (status)                    patch.status       = status
-  if (admin_notes !== undefined) patch.admin_notes  = admin_notes
-  if (status === 'resolved') {
-    patch.resolved_at        = new Date().toISOString()
-    patch.resolved_by_name   = adminName
-  }
-
-  if (Object.keys(patch).length > 0) {
-    const { error } = await supabaseAdmin.from('platform_reviews').update(patch).eq('id', id)
+  // Persist admin_notes / fix_commit_sha up front so resolveReview() reads
+  // the fresh values when it drafts the auto-response.
+  const preUpdate: Record<string, unknown> = {}
+  if (admin_notes    !== undefined) preUpdate.admin_notes    = admin_notes
+  if (fix_commit_sha !== undefined) preUpdate.fix_commit_sha = fix_commit_sha
+  if (Object.keys(preUpdate).length > 0) {
+    const { error } = await supabaseAdmin.from('platform_reviews').update(preUpdate).eq('id', id)
     if (error) return NextResponse.json({ error: error.message }, { status: 500 })
   }
 
-  // ── Status change comment (blocking — must succeed) ──────────────────────
-  if (status && status !== review.status) {
-    const { error: scErr } = await supabaseAdmin.from('review_comments').insert({
-      review_id:        id,
-      author_type:      'admin',
-      author_name:      adminName,
-      is_status_change: true,
-      new_status:       status,
-      message:          null,
-    })
-    if (scErr) return NextResponse.json({ error: `Trail insert failed: ${scErr.message}` }, { status: 500 })
-
-    // Notify staff — fire and forget
-    if (review.staff_id && ['acknowledged', 'in_progress', 'resolved'].includes(status)) {
-      const notifTitle = status === 'resolved'
-        ? 'Your feedback has been resolved'
-        : `Your feedback is now ${STATUS_LABELS[status]}`
-      const notifBody = `"${review.title}" — ${
-        status === 'acknowledged' ? 'We have received your feedback and will look into it.'
-        : status === 'in_progress' ? 'We are actively working on this.'
-        : 'This has been resolved. Thank you for the input.'
-      }`
-      supabaseAdmin.from('notifications').insert({
-        staff_id:  review.staff_id,
-        type:      'review_update',
-        title:     notifTitle,
-        body:      notifBody,
-        review_id: id,
-      }).then(() => {})
-    }
-  }
-
-  // ── AUTO-RESPONSE on transition to resolved ─────────────────────────────
-  // When status flips to 'resolved' and no manual response was typed,
-  // Gemini drafts a warm, specific "Admin" comment referencing the reporter's
-  // complaint and (if provided) the admin_notes as the fix summary.
-  // Comment is attributed to "Admin" — not the resolving admin's name.
-  const isResolving = status === 'resolved' && review.status !== 'resolved'
-  if (isResolving && !response?.trim()) {
-    try {
-      // Fetch full review body + reporter name
-      const { data: full } = await supabaseAdmin
-        .from('platform_reviews')
-        .select('title, description, staff_name, staff_id')
-        .eq('id', id)
-        .single()
-
-      if (full) {
-        let reporterName = full.staff_name
-        if (!reporterName && full.staff_id && full.staff_id !== 'super-admin') {
-          const { data: sm } = await supabaseAdmin
-            .from('staff_members').select('name').eq('id', full.staff_id).maybeSingle()
-          if (sm?.name) reporterName = sm.name
-        }
-
-        const autoText = await generateAdminResponse({
-          reviewTitle:       full.title || '',
-          reviewDescription: full.description || '',
-          reporterFirstName: firstName(reporterName),
-          fixSummary:        admin_notes || undefined,
-        })
-
-        await supabaseAdmin.from('review_comments').insert({
-          review_id:        id,
-          author_type:      'admin',
-          author_name:      'Admin',
-          is_status_change: false,
-          message:          autoText,
-        })
-
-        if (full.staff_id) {
-          supabaseAdmin.from('notifications').insert({
-            staff_id:  full.staff_id,
-            type:      'review_update',
-            title:     'Admin responded to your feedback',
-            body:      autoText.slice(0, 140),
-            review_id: id,
-          }).then(() => {})
-        }
-      }
-    } catch (autoErr) {
-      // Never let auto-response failures block the resolve.
-      console.error('[reviews] auto-response failed:', autoErr)
-    }
-  }
-
-  // ── Manual admin response comment (blocking — must succeed) ──────────────
+  // Manual admin response comment — inserted before any resolve so the
+  // resolveReview() guard sees it and skips its own auto-response.
   if (response?.trim()) {
     const { error: respErr } = await supabaseAdmin.from('review_comments').insert({
       review_id:        id,
@@ -188,7 +97,6 @@ export async function PATCH(
     })
     if (respErr) return NextResponse.json({ error: `Comment insert failed: ${respErr.message}` }, { status: 500 })
 
-    // Notify staff — fire and forget
     if (review.staff_id) {
       supabaseAdmin.from('notifications').insert({
         staff_id:  review.staff_id,
@@ -200,7 +108,42 @@ export async function PATCH(
     }
   }
 
-  // Return the full updated comment trail
+  if (status && status !== review.status) {
+    if (status === 'resolved') {
+      const outcome = await resolveReview(id, adminName)
+      if (outcome.error) return NextResponse.json({ error: outcome.error }, { status: 500 })
+    } else {
+      const { error: sErr } = await supabaseAdmin
+        .from('platform_reviews').update({ status }).eq('id', id)
+      if (sErr) return NextResponse.json({ error: sErr.message }, { status: 500 })
+
+      const { error: scErr } = await supabaseAdmin.from('review_comments').insert({
+        review_id:        id,
+        author_type:      'admin',
+        author_name:      adminName,
+        is_status_change: true,
+        new_status:       status,
+        message:          null,
+      })
+      if (scErr) return NextResponse.json({ error: `Trail insert failed: ${scErr.message}` }, { status: 500 })
+
+      if (review.staff_id && ['acknowledged', 'in_progress'].includes(status)) {
+        const notifBody = `"${review.title}" — ${
+          status === 'acknowledged'
+            ? 'We have received your feedback and will look into it.'
+            : 'We are actively working on this.'
+        }`
+        supabaseAdmin.from('notifications').insert({
+          staff_id:  review.staff_id,
+          type:      'review_update',
+          title:     `Your feedback is now ${STATUS_LABELS[status]}`,
+          body:      notifBody,
+          review_id: id,
+        }).then(() => {})
+      }
+    }
+  }
+
   const { data: comments, error: trailErr } = await supabaseAdmin
     .from('review_comments')
     .select('*')
