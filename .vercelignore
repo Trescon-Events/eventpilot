@@ -1,0 +1,5 @@
+# Vercel was retired on 18 Jun 2026 in favour of Railway.
+# This ignore rule tells any lingering Vercel-GitHub webhook to skip the build,
+# eliminating the "deployment error" notification emails to nammadaiva-agent.
+# The permanent fix is to remove the Vercel GitHub App from Trescon-Events/eventpilot.
+*
