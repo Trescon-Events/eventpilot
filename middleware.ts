@@ -116,9 +116,10 @@ export async function middleware(req: NextRequest) {
     return NextResponse.redirect(loginUrl)
   }
 
-  // Tool routes: auth-only — page handles grant check
+  // Tool routes: auth-only — page/layout handles the tool_grants check
   const isToolRoute =
     pathname.startsWith('/admin/toolkit') ||
+    pathname.startsWith('/admin/bespoke') ||
     /^\/admin\/events\/[^/]+\/(website|brand|market-intel)/.test(pathname)
 
   // /admin/* → admin only
