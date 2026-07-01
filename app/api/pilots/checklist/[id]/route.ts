@@ -9,17 +9,18 @@ function getSession(req: NextRequest) {
 }
 
 /* PATCH /api/pilots/checklist/[id]  — toggle complete/incomplete */
-export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
+export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const session = getSession(req)
   if (!session?.sid) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
+  const { id } = await params
   const { completed } = await req.json().catch(() => ({}))
 
   // Verify the item belongs to this user (or they are admin)
   const { data: item } = await supabaseAdmin
     .from('pilot_checklist_items')
     .select('assigned_to')
-    .eq('id', params.id)
+    .eq('id', id)
     .single()
 
   if (!item) return NextResponse.json({ error: 'Item not found' }, { status: 404 })
@@ -33,7 +34,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
       completed,
       completed_at: completed ? new Date().toISOString() : null,
     })
-    .eq('id', params.id)
+    .eq('id', id)
     .select()
     .single()
 
