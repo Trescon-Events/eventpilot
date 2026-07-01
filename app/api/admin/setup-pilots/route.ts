@@ -8,14 +8,15 @@ async function runMigration(log: string[], errors: string[]) {
   const projectId = 'yuyxfxoevztugtfgduks'
   if (!pass) { errors.push('SUPABASE_DB_PASSWORD not set'); return }
 
+  // Try direct host first (works from Railway/AWS); pooler is unreachable from some networks
   const client = new Client({
-    host:     `aws-0-ap-southeast-1.pooler.supabase.com`,
+    host:     `db.${projectId}.supabase.co`,
     port:     5432,
-    user:     `postgres.${projectId}`,
+    user:     'postgres',
     password: pass,
     database: 'postgres',
     ssl:      { rejectUnauthorized: false },
-    connectionTimeoutMillis: 10000,
+    connectionTimeoutMillis: 15000,
   })
   try {
     await client.connect()
