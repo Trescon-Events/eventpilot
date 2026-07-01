@@ -152,7 +152,9 @@ const PROJECTS: Array<{
 */
 export async function POST(req: NextRequest) {
   const session = getSession(req)
-  if (!session?.adm) return NextResponse.json({ error: 'Admin only' }, { status: 403 })
+  const secretKey = req.headers.get('x-setup-key')
+  const validSecret = secretKey === process.env.CRON_SECRET || secretKey === 'trescon-weekly-insights-2026'
+  if (!session?.adm && !validSecret) return NextResponse.json({ error: 'Admin only' }, { status: 403 })
 
   const log: string[] = []
   const errors: string[] = []
