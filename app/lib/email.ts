@@ -497,3 +497,165 @@ export async function sendPilotAssignment({
     html,
   })
 }
+
+// ── Email: Build Request — alert to Durga ─────────────────────────────────────
+
+export async function sendBuildRequestAlert({
+  submitterName,
+  submitterEmail,
+  projectName,
+  title,
+  message,
+  fileCount,
+  requestUrl,
+}: {
+  submitterName:  string
+  submitterEmail: string
+  projectName:    string
+  title:          string
+  message:        string
+  fileCount:      number
+  requestUrl:     string
+}) {
+  const preview = message.length > 200 ? message.slice(0, 200) + '…' : message
+
+  const html = emailWrap(`
+    ${emailHeader('New Build Request')}
+    <div style="padding:32px 40px;">
+      <h2 style="font-size:21px;font-weight:800;color:${DARK};margin:0 0 6px;">New build request submitted</h2>
+      <p style="color:${MUTED};font-size:14px;line-height:1.7;margin:0 0 24px;">
+        <strong style="color:${DARK};">${submitterName}</strong> (${submitterEmail}) submitted a build request
+        for the <strong style="color:${DARK};">${projectName}</strong> project.
+      </p>
+
+      <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:18px 20px;margin-bottom:20px;">
+        <div style="font-size:11px;font-weight:800;letter-spacing:1.5px;text-transform:uppercase;color:#64748b;margin-bottom:8px;">Request title</div>
+        <div style="font-size:16px;font-weight:700;color:${DARK};">${title}</div>
+      </div>
+
+      <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:18px 20px;margin-bottom:20px;">
+        <div style="font-size:11px;font-weight:800;letter-spacing:1.5px;text-transform:uppercase;color:#64748b;margin-bottom:8px;">Message preview</div>
+        <p style="margin:0;font-size:14px;color:#374151;line-height:1.7;">${preview}</p>
+      </div>
+
+      ${fileCount > 0 ? `
+      <div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:10px;padding:14px 18px;margin-bottom:20px;">
+        <p style="margin:0;font-size:13px;color:#1d4ed8;">
+          📎 ${fileCount} file${fileCount !== 1 ? 's' : ''} attached — download from the admin panel
+        </p>
+      </div>` : ''}
+
+      <div style="text-align:center;margin:28px 0;">
+        <a href="${requestUrl}" style="display:inline-block;background:${BRAND};color:#ffffff;font-weight:700;font-size:15px;padding:14px 32px;border-radius:10px;text-decoration:none;">
+          View in Admin Panel
+        </a>
+      </div>
+
+      <p style="font-size:13px;color:#94A3B8;margin:0;line-height:1.6;">
+        Or via CLI: <code style="background:#f1f5f9;padding:2px 6px;border-radius:4px;font-size:12px;">curl https://eventpilot.tresconglobal.com/api/build-requests?status=submitted -H "x-setup-key: trescon-weekly-insights-2026"</code>
+      </p>
+
+      ${emailFooter()}
+    </div>
+  `)
+
+  return getResend().emails.send({
+    from:    FROM,
+    to:      'dc@tresconglobal.com',
+    subject: `[Build Request] ${title} — ${projectName}`,
+    html,
+  })
+}
+
+// ── Email: Build Request — update to pilot ────────────────────────────────────
+
+export async function sendBuildRequestUpdate({
+  to,
+  name,
+  projectName,
+  title,
+  status,
+  reply,
+  pilotsUrl,
+}: {
+  to:          string
+  name:        string
+  projectName: string
+  title:       string
+  status:      string
+  reply:       string
+  pilotsUrl:   string
+}) {
+  const firstName = name.split(' ')[0]
+
+  const STATUS_META: Record<string, { label: string; color: string; bg: string; note: string }> = {
+    needs_clarification: {
+      label:  'Needs Clarification',
+      color:  '#7e22ce',
+      bg:     '#fdf4ff',
+      note:   'Durga needs more information before the build can proceed. Please reply in the Pilot Projects section.',
+    },
+    completed: {
+      label:  'Completed',
+      color:  '#166534',
+      bg:     '#f0fdf4',
+      note:   'Your build request has been completed and deployed.',
+    },
+    deferred: {
+      label:  'Deferred',
+      color:  '#6b7280',
+      bg:     '#f9fafb',
+      note:   'This request has been deferred. See Durga\'s note below for details.',
+    },
+  }
+
+  const meta = STATUS_META[status] ?? { label: status, color: BRAND, bg: '#f0fdfa', note: '' }
+
+  const html = emailWrap(`
+    ${emailHeader('Build Request Update')}
+    <div style="padding:32px 40px;">
+      <h2 style="font-size:21px;font-weight:800;color:${DARK};margin:0 0 6px;">Your build request has been updated</h2>
+      <p style="color:${MUTED};font-size:14px;line-height:1.7;margin:0 0 20px;">
+        Hi ${firstName}, your build request for <strong style="color:${DARK};">${projectName}</strong> has been updated.
+      </p>
+
+      <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:16px 20px;margin-bottom:20px;">
+        <div style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:1px;margin-bottom:6px;">Request</div>
+        <div style="font-size:15px;font-weight:700;color:${DARK};">${title}</div>
+      </div>
+
+      <div style="background:${meta.bg};border:1px solid;border-color:${meta.color}33;border-radius:10px;padding:16px 20px;margin-bottom:20px;">
+        <div style="font-size:11px;font-weight:700;color:${meta.color};text-transform:uppercase;letter-spacing:1px;margin-bottom:6px;">New Status</div>
+        <div style="font-size:15px;font-weight:700;color:${meta.color};">${meta.label}</div>
+        <p style="margin:8px 0 0;font-size:13px;color:#374151;line-height:1.6;">${meta.note}</p>
+      </div>
+
+      ${reply ? `
+      <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:16px 20px;margin-bottom:24px;">
+        <div style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:1px;margin-bottom:8px;">Note from Durga</div>
+        <p style="margin:0;font-size:14px;color:#374151;line-height:1.7;">${reply}</p>
+      </div>` : ''}
+
+      <div style="text-align:center;margin:28px 0;">
+        <a href="${pilotsUrl}" style="display:inline-block;background:${BRAND};color:#ffffff;font-weight:700;font-size:15px;padding:14px 32px;border-radius:10px;text-decoration:none;">
+          View in Pilot Projects
+        </a>
+      </div>
+
+      ${emailFooter()}
+    </div>
+  `)
+
+  const subjectMap: Record<string, string> = {
+    needs_clarification: `Action needed on your build request — ${title}`,
+    completed:           `Build complete — ${title}`,
+    deferred:            `Build request deferred — ${title}`,
+  }
+
+  return getResend().emails.send({
+    from:    FROM,
+    to,
+    subject: subjectMap[status] ?? `Build request update — ${title}`,
+    html,
+  })
+}
