@@ -10,12 +10,61 @@
 
 | Field | Value |
 |---|---|
-| Who | Durga + Claude Code (Opus 4.7) — long afternoon closing staff-reported issues + building auto-resolve infra |
-| Latest push | 2026-07-01 14:06 IST — Durga/Claude (`4528ab7`) |
-| Handed off to | Open |
-| Deployed | ✅ Yes — https://eventpilot.tresconglobal.com (Railway auto-deploy from main; boot at `4528ab7` verified 15:37 IST) |
+| Who | Madhu + Claude Code (Sonnet 4.6) — afternoon, Build Requests module |
+| Latest push | 2026-07-01 ~16:00 IST — Madhu/Claude (`21ec0d5`) |
+| Handed off to | Durga |
+| Deployed | ✅ Yes — https://eventpilot.tresconglobal.com (Railway auto-deploy from main; API confirmed live at 200) |
 
-**Session highlight:** the review lifecycle is now deploy-verified end-to-end. Once a fix is pushed and its SHA is written to `platform_reviews.fix_commit_sha`, Railway's next boot resolves the review automatically and fires the Admin auto-response comment. No more manual PATCHing after deploy.
+**Session highlight:** Build Requests module fully shipped. Pilots can now submit build requests (with PDF/image attachments) directly from `/pilots`. Durga reviews + manages them from `/admin/pilots` or via CLI curl commands. Full thread/reply lifecycle, auto file cleanup on completion, email notifications both ways.
+
+---
+
+## What Was Built — 01 Jul 2026 (Madhu / Claude Code, afternoon) — Build Requests
+
+### `21ec0d5` — Build Requests module (7 files, ~900 lines)
+
+A new module inside Pilot Projects that lets pilots submit build requests to Durga, with file attachments, threaded replies, status lifecycle, email notifications, and auto file cleanup on completion.
+
+**New API routes:**
+- `GET/POST /api/build-requests` — list all (admin/CLI) or own (pilot) requests; POST handles multipart form with up to 3 PDF/PNG/JPG files (max 10 MB each); notifies Durga via email on submit
+- `GET/PATCH /api/build-requests/[id]` — full request detail with signed file URLs + thread; PATCH is admin-only (session or `x-setup-key`); PATCH auto-deletes files from Supabase Storage when status → `completed`/`deferred`; sends pilot email notification for `needs_clarification`/`completed`/`deferred`
+- `POST /api/build-requests/[id]/replies` — pilot reply when status is `needs_clarification`; enforces pilot is submitter; admin can reply via PATCH
+
+**Email functions added to `app/lib/email.ts`:**
+- `sendBuildRequestAlert()` — to `dc@tresconglobal.com` on new submission; includes CLI command to review
+- `sendBuildRequestUpdate()` — to pilot when Durga updates status to `needs_clarification`/`completed`/`deferred`
+
+**Pages rewritten:**
+- `app/pilots/page.tsx` — per-project tabs ("✓ Checklist" | "🔧 Build Requests"); new request form with file picker; expandable rows with full message, signed file links, reply thread; pilot reply input visible only when `status === 'needs_clarification' && submitted_by === me`
+- `app/admin/pilots/page.tsx` — same tab structure; expanded detail view; inline "Update Status / Reply" form; CLI curl commands displayed in header
+
+**Middleware:** `/api/build-requests` added to `PUBLIC_PREFIXES` (auth enforced inside)
+
+**Supabase DB tables created (via Management API with PAT):**
+- `build_requests` (id, project_id, submitted_by, title, message, status DEFAULT 'submitted', created_at, updated_at)
+- `build_request_files` (id, request_id, file_name, storage_path, file_type, file_size_bytes, created_at)
+- `build_request_replies` (id, request_id, author_id, is_admin_reply, message, created_at)
+
+**Supabase Storage:** bucket `build-request-files` auto-created on first upload (private, 10 MB limit, PDF/PNG/JPG only)
+
+**Status lifecycle:** `submitted → in_review → needs_clarification ↔ (pilot reply) → in_review → completed | deferred`
+
+**Durga's CLI workflow:**
+```bash
+# See pending requests
+curl "https://eventpilot.tresconglobal.com/api/build-requests?status=submitted" \
+  -H "x-setup-key: trescon-weekly-insights-2026"
+
+# Update after completing a build
+curl -X PATCH "https://eventpilot.tresconglobal.com/api/build-requests/{id}" \
+  -H "x-setup-key: trescon-weekly-insights-2026" \
+  -H "Content-Type: application/json" \
+  -d '{"status":"completed","reply":"Done. Feature is live at ..."}'
+```
+
+**Also fixed this session:**
+- `app/api/pilots/checklist/[id]/route.ts` — Next.js 16 breaking change: `params` must be `Promise<{id}>` and awaited (was causing Railway build failure)
+- `package.json` — added `@types/pg` as devDependency (TypeScript build was failing)
 
 ---
 
@@ -286,6 +335,7 @@ Plus 19 historical admin comments backfilled retroactively for previously-resolv
 
 ## Previous Sessions
 
+- **01 Jul 2026 — Madhu/Claude (afternoon)** — Build Requests module: 3 new API routes, 2 new email functions, rewritten `/pilots` + `/admin/pilots` pages, 3 new DB tables, Supabase Storage bucket; fixes Railway build failure (Next.js 16 params + @types/pg)
 - **01 Jul 2026 — Durga/Claude (afternoon)** — Assessment module UX v2, Vercel silencer, review auto-response system + 19-comment backfill, Bespoke Tracker access fix, Pilot Projects unresponsive fix, staff-reply auto-reopen removed, **deploy-verified auto-resolve infrastructure**
 - **01 Jul 2026 — Madhu** — Pilot Projects launch (10 files, 1,625 lines) + IPv4 DNS series for pg DDL migrations on Railway
 - **30 Jun 2026 — Durga (afternoon)** — Messages fixes (staff search, scroll behaviour, inbox sort); Notification sound toggle + session fallback in RealtimeNotifications
@@ -297,4 +347,4 @@ Plus 19 historical admin comments backfilled retroactively for previously-resolv
 
 ---
 
-*This handoff was written by Claude Code (Opus 4.7) on 2026-07-01 15:45 IST, after a 4-hour afternoon session with Durga that closed 5 filed platform_reviews issues and built the deploy-verified auto-resolve system (`4528ab7`). All 8 commits are pushed to `origin/main`; Railway has booted the latest at 15:37 IST. Local main is synced.*
+*This handoff was last updated by Claude Code (Sonnet 4.6) on 2026-07-01 ~16:00 IST, after Madhu's afternoon session that shipped the Build Requests module (`21ec0d5`). All commits pushed to `origin/main`; Railway confirmed live (HTTP 200 on `/api/build-requests`). Local main is synced.*
