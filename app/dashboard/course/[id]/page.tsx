@@ -97,6 +97,9 @@ function renderInline(text: string): React.ReactNode {
 }
 
 /* ════════════════════════════════════════════════════════════════ */
+// Per-question countdown budget (was 45s — raised after staff feedback 30 Jun 2026)
+const QUESTION_TIMER_SECONDS = 65
+
 function CourseContent() {
   const params   = useParams()
   const search   = useSearchParams()
@@ -107,6 +110,7 @@ function CourseContent() {
   const [loading,         setLoading]         = useState(true)
   const [step,            setStep]            = useState(0)
   const [taskDone,        setTaskDone]        = useState<Set<number>>(new Set())
+  const [taskGateError,   setTaskGateError]   = useState(false)          // Bug 3: task-validation banner
   const [answers,         setAnswers]         = useState<Record<number, number>>({})
   const [submitting,      setSubmitting]      = useState(false)
   const [result,          setResult]          = useState<{ score: number; passed: boolean; correct: number; total: number; breakdown: BreakdownItem[]; flagged?: boolean; offense_number?: number } | null>(null)
@@ -120,10 +124,11 @@ function CourseContent() {
   const [showPopup,       setShowPopup]       = useState(false)
   const [generatingQ,     setGeneratingQ]     = useState(false)
   // One-at-a-time question flow
-  const [currentQ,        setCurrentQ]        = useState(0)
-  const [timeLeft,        setTimeLeft]        = useState(45)
-  const [qTimes,          setQTimes]          = useState<number[]>([])   // seconds taken per question
-  const [qAnswered,       setQAnswered]       = useState(false)           // current Q answered flag
+  const [currentQ,           setCurrentQ]           = useState(0)
+  const [timeLeft,           setTimeLeft]           = useState(QUESTION_TIMER_SECONDS)
+  const [qTimes,             setQTimes]             = useState<Record<number, number>>({})  // seconds taken per Q index (Bug 2/4: allow overwrite on edit)
+  const [showingReview,      setShowingReview]      = useState(false)                        // Bug 4: review-before-submit screen
+  const [editingFromReview,  setEditingFromReview]  = useState(false)                        // Bug 4: mark that Next should return to review
   const timeStartRef  = useRef<number>(Date.now())
   const qStartRef     = useRef<number>(Date.now())
   const timerRef      = useRef<ReturnType<typeof setInterval> | null>(null)
@@ -133,13 +138,13 @@ function CourseContent() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [courseId])
 
-  // Per-question countdown timer
+  // Per-question countdown timer — pauses on the review screen
   useEffect(() => {
     if (step !== 3 || generatingQ || servedQuestions.length === 0) return
+    if (showingReview) return   // Bug 4: no countdown while reviewing
     if (currentQ >= servedQuestions.length) return
 
-    setTimeLeft(45)
-    setQAnswered(false)
+    setTimeLeft(QUESTION_TIMER_SECONDS)
     qStartRef.current = Date.now()
 
     if (timerRef.current) clearInterval(timerRef.current)
@@ -147,7 +152,7 @@ function CourseContent() {
       setTimeLeft(prev => {
         if (prev <= 1) {
           clearInterval(timerRef.current!)
-          advanceQuestion()
+          handleTimerExpiry()
           return 0
         }
         return prev - 1
@@ -156,21 +161,48 @@ function CourseContent() {
 
     return () => { if (timerRef.current) clearInterval(timerRef.current) }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentQ, step, generatingQ, servedQuestions.length])
+  }, [currentQ, step, generatingQ, servedQuestions.length, showingReview])
 
-  function advanceQuestion() {
-    const timeTaken = Math.round((Date.now() - qStartRef.current) / 1000)
-    setQTimes(prev => [...prev, timeTaken])
-    setCurrentQ(prev => prev + 1)
+  // Bug 2: Select is now non-committal — user can re-select any time until they click Next.
+  function handleSelectAnswer(optionIndex: number) {
+    setAnswers(prev => ({ ...prev, [currentQ]: optionIndex }))
   }
 
-  function handleSelectAnswer(optionIndex: number) {
-    if (qAnswered) return
-    setAnswers(prev => ({ ...prev, [currentQ]: optionIndex }))
-    setQAnswered(true)
+  // Bug 2: explicit "Next" click commits the current question's time and advances.
+  // Bug 4: if editing from review, return to review. If on the last question, show review.
+  function handleNext() {
+    const timeTaken = Math.round((Date.now() - qStartRef.current) / 1000)
+    setQTimes(prev => ({ ...prev, [currentQ]: timeTaken }))
     if (timerRef.current) clearInterval(timerRef.current)
-    // Brief pause so staff can see their selection, then advance
-    setTimeout(() => advanceQuestion(), 900)
+    if (editingFromReview) {
+      setEditingFromReview(false)
+      setShowingReview(true)
+    } else if (currentQ + 1 >= servedQuestions.length) {
+      setShowingReview(true)
+    } else {
+      setCurrentQ(prev => prev + 1)
+    }
+  }
+
+  // If the countdown runs out, treat as an implicit Next (do not lose the current selection).
+  function handleTimerExpiry() {
+    const timeTaken = Math.round((Date.now() - qStartRef.current) / 1000)
+    setQTimes(prev => ({ ...prev, [currentQ]: timeTaken }))
+    if (editingFromReview) {
+      setEditingFromReview(false)
+      setShowingReview(true)
+    } else if (currentQ + 1 >= servedQuestions.length) {
+      setShowingReview(true)
+    } else {
+      setCurrentQ(prev => prev + 1)
+    }
+  }
+
+  // Bug 4: jump back from the review screen to a specific question.
+  function editQuestion(qIndex: number) {
+    setShowingReview(false)
+    setEditingFromReview(true)
+    setCurrentQ(qIndex)
   }
 
   async function loadCourse() {
@@ -196,14 +228,21 @@ function CourseContent() {
       .replace(/\{\{role\}\}/g, staffRole || 'your role')
   }
 
-  // Step 1: validate submission, show popup
+  // Step 1: validate task-completion + submission, then show popup
   function enterTest() {
     if (!course) return
+    // Bug 3: hard-gate on task completion — every step must be ticked before test begins.
+    if (taskDone.size < course.task_steps.length) {
+      setTaskGateError(true)
+      document.getElementById('task-list')?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+      return
+    }
     if (!submission.trim()) {
       setSubmissionError(true)
       document.getElementById('output-field')?.scrollIntoView({ behavior: 'smooth', block: 'center' })
       return
     }
+    setTaskGateError(false)
     setSubmissionError(false)
     setShowPopup(true)
   }
@@ -249,6 +288,8 @@ function CourseContent() {
     if (!staffId || !course || servedQuestions.length === 0) return
     setSubmitting(true)
     const timeSpent = Math.round((Date.now() - timeStartRef.current) / 1000)
+    // Bug 2/4: qTimes shape changed to Record — flatten to array in question order for backend compat.
+    const questionTimesArr: number[] = servedQuestions.map((_, i) => qTimes[i] ?? 0)
     const res = await fetch('/api/course-completion', {
       method:  'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -259,7 +300,7 @@ function CourseContent() {
         questions_served:   servedQuestions,
         task_submission:    submission || null,
         time_spent_seconds: timeSpent,
-        question_times:     qTimes,
+        question_times:     questionTimesArr,
       }),
     })
     const data = await res.json()
@@ -315,7 +356,7 @@ function CourseContent() {
               AI is your <strong style={{ color: '#0F1923' }}>learning tool</strong> here, not your shortcut. The people who grow fastest are the ones who engage honestly.
             </div>
             <div style={{ background: '#FFFFFF', border: '1px solid #DDE8EE', borderRadius: '12px', padding: '14px 16px', marginBottom: '24px', fontSize: '13px', color: '#2D3E50', lineHeight: 1.6 }}>
-              Each question has a <strong style={{ color: '#0F1923' }}>45-second timer</strong>. Questions are shown one at a time and cannot be revisited. Answer from what you know.
+              Each question has a <strong style={{ color: '#0F1923' }}>{QUESTION_TIMER_SECONDS}-second timer</strong>. You&apos;ll be able to review all your answers on one screen before submitting. Answer from what you know.
             </div>
             <button
               onClick={startTest}
@@ -451,7 +492,17 @@ function CourseContent() {
               Complete each step on your own system. Check them off as you go — then paste your output below.
             </p>
 
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '14px', marginBottom: '28px' }}>
+            {/* Bug 3: task-gate error banner */}
+            {taskGateError && (
+              <div style={{ background: 'rgba(255,107,107,0.08)', border: '1px solid rgba(255,107,107,0.35)', borderRadius: '12px', padding: '12px 16px', marginBottom: '16px', display: 'flex', gap: '10px', alignItems: 'flex-start' }}>
+                <svg width="16" height="16" fill="none" stroke="#FF6B6B" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24" style={{ flexShrink: 0, marginTop: '1px' }}><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+                <div style={{ fontSize: '13px', color: '#8B1A1A', lineHeight: 1.6, fontWeight: 700 }}>
+                  Tick off all {course.task_steps.length} hands-on steps before you can start the test.
+                </div>
+              </div>
+            )}
+
+            <div id="task-list" style={{ display: 'flex', flexDirection: 'column', gap: '14px', marginBottom: '28px', scrollMarginTop: '40px' }}>
               {course.task_steps.map((ts) => {
                 const done = taskDone.has(ts.step)
                 return (
@@ -461,6 +512,8 @@ function CourseContent() {
                     onClick={() => setTaskDone(prev => {
                       const next = new Set(prev)
                       if (next.has(ts.step)) next.delete(ts.step); else next.add(ts.step)
+                      // Bug 3: clear gate error the moment they engage with the steps
+                      if (taskGateError) setTaskGateError(false)
                       return next
                     })}
                   >
@@ -559,12 +612,14 @@ function CourseContent() {
             )}
 
             {/* One question at a time */}
-            {!generatingQ && servedQuestions.length > 0 && currentQ < servedQuestions.length && (
+            {!generatingQ && servedQuestions.length > 0 && !showingReview && currentQ < servedQuestions.length && (
               <div>
                 {/* Progress + timer header */}
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '28px' }}>
                   <div>
-                    <div style={{ fontSize: '13px', fontWeight: 800, letterSpacing: '2px', color: tierColor, textTransform: 'uppercase', marginBottom: '4px' }}>Knowledge Test</div>
+                    <div style={{ fontSize: '13px', fontWeight: 800, letterSpacing: '2px', color: tierColor, textTransform: 'uppercase', marginBottom: '4px' }}>
+                      {editingFromReview ? 'Editing Answer' : 'Knowledge Test'}
+                    </div>
                     <div style={{ fontSize: '13px', color: '#2D3E50' }}>Question {currentQ + 1} of {servedQuestions.length}</div>
                   </div>
                   {/* Countdown circle */}
@@ -573,7 +628,7 @@ function CourseContent() {
                       <circle cx="26" cy="26" r="22" fill="none" stroke="#D8EAEB" strokeWidth="3" />
                       <circle cx="26" cy="26" r="22" fill="none" stroke={timeLeft <= 10 ? '#FF6B6B' : tierColor} strokeWidth="3"
                         strokeDasharray={`${2 * Math.PI * 22}`}
-                        strokeDashoffset={`${2 * Math.PI * 22 * (1 - timeLeft / 45)}`}
+                        strokeDashoffset={`${2 * Math.PI * 22 * (1 - timeLeft / QUESTION_TIMER_SECONDS)}`}
                         strokeLinecap="round"
                         style={{ transition: 'stroke-dashoffset 0.9s linear, stroke 0.3s' }}
                       />
@@ -596,7 +651,7 @@ function CourseContent() {
                   </div>
                 </div>
 
-                {/* Options */}
+                {/* Options — Bug 2: no auto-submit; user can re-select any time before clicking Next */}
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
                   {servedQuestions[currentQ].options.map((opt, oi) => {
                     const sel = answers[currentQ] === oi
@@ -604,18 +659,16 @@ function CourseContent() {
                       <button
                         key={oi}
                         onClick={() => handleSelectAnswer(oi)}
-                        disabled={qAnswered}
                         style={{
                           padding: '14px 18px', borderRadius: '12px', textAlign: 'left',
                           border: `1.5px solid ${sel ? tierColor : '#DDE8EE'}`,
                           background: sel ? `${tierColor}18` : '#FFFFFF',
                           color: sel ? '#0F1923' : '#2D3E50',
                           fontSize: '13px', fontWeight: sel ? 700 : 400,
-                          cursor: qAnswered ? 'default' : 'pointer',
+                          cursor: 'pointer',
                           fontFamily: 'inherit',
                           display: 'flex', alignItems: 'center', gap: '12px',
                           transition: 'all 0.15s ease',
-                          opacity: qAnswered && !sel ? 0.45 : 1,
                         }}
                       >
                         <div style={{ width: '20px', height: '20px', borderRadius: '50%', border: `1.5px solid ${sel ? tierColor : '#DDE8EE'}`, background: sel ? `${tierColor}30` : 'transparent', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -627,30 +680,96 @@ function CourseContent() {
                   })}
                 </div>
 
-                {qAnswered && (
-                  <div style={{ marginTop: '16px', fontSize: '13px', color: '#0F1923', textAlign: 'center' }}>
-                    Moving to next question…
+                {/* Bug 2: explicit Next button — appears only after an option is selected */}
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: '24px', gap: '12px', flexWrap: 'wrap' }}>
+                  <div style={{ fontSize: '13px', color: answers[currentQ] !== undefined ? tierColor : '#9CA3AF', fontWeight: 600 }}>
+                    {answers[currentQ] !== undefined ? 'Answer locked in — you can change it or move on.' : 'Choose one option to continue.'}
                   </div>
-                )}
+                  <button
+                    onClick={handleNext}
+                    disabled={answers[currentQ] === undefined}
+                    style={{
+                      ...S.primaryBtn,
+                      background: answers[currentQ] === undefined ? '#DDE8EE' : tierColor,
+                      color: answers[currentQ] === undefined ? '#9CA3AF' : 'white',
+                      cursor: answers[currentQ] === undefined ? 'not-allowed' : 'pointer',
+                    }}
+                  >
+                    {editingFromReview
+                      ? 'Save & back to review'
+                      : currentQ + 1 >= servedQuestions.length
+                        ? 'Review all answers'
+                        : 'Next question'}
+                    <svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg>
+                  </button>
+                </div>
               </div>
             )}
 
-            {/* All questions answered — ready to submit */}
-            {!generatingQ && servedQuestions.length > 0 && currentQ >= servedQuestions.length && (
-              <div style={{ textAlign: 'center', padding: '40px 0' }}>
-                <div style={{ width: '64px', height: '64px', borderRadius: '50%', background: `${tierColor}15`, border: `2px solid ${tierColor}`, display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 20px' }}>
-                  <svg width="28" height="28" fill="none" stroke={tierColor} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>
+            {/* Bug 4: Review-before-submit screen — every answer visible + editable */}
+            {!generatingQ && servedQuestions.length > 0 && showingReview && (
+              <div>
+                <div style={{ fontSize: '13px', fontWeight: 800, letterSpacing: '2px', color: tierColor, textTransform: 'uppercase', marginBottom: '8px' }}>Review</div>
+                <h2 style={{ fontSize: '36px', fontWeight: 800, color: '#0F1923', marginBottom: '6px' }}>Review your answers</h2>
+                <p style={{ fontSize: '13px', color: '#2D3E50', marginBottom: '24px', lineHeight: 1.65 }}>
+                  Check every answer before submitting. Tap <strong>Edit</strong> on any question to change your response — your other answers are kept.
+                </p>
+
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginBottom: '28px' }}>
+                  {servedQuestions.map((q, i) => {
+                    const sel      = answers[i]
+                    const answered = sel !== undefined
+                    return (
+                      <div key={i} style={{ background: '#FFFFFF', border: `1px solid ${answered ? '#DDE8EE' : 'rgba(255,107,107,0.4)'}`, borderLeft: `4px solid ${answered ? tierColor : '#FF6B6B'}`, borderRadius: '14px', padding: '18px 20px', display: 'flex', gap: '14px', alignItems: 'flex-start', boxShadow: '0 1px 4px rgba(15,25,35,0.04)' }}>
+                        <div style={{ minWidth: '28px', height: '28px', borderRadius: '50%', background: answered ? `${tierColor}18` : 'rgba(255,107,107,0.12)', border: `1.5px solid ${answered ? tierColor : '#FF6B6B'}`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '13px', fontWeight: 800, color: answered ? tierColor : '#FF6B6B' }}>
+                          {i + 1}
+                        </div>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ fontSize: '13px', fontWeight: 700, color: '#0F1923', lineHeight: 1.55, marginBottom: '6px' }}>{q.question}</div>
+                          <div style={{ fontSize: '13px', color: answered ? '#2D3E50' : '#FF6B6B', fontWeight: answered ? 600 : 700 }}>
+                            {answered
+                              ? <>Your answer: <span style={{ color: '#0F1923' }}>{q.options[sel]}</span></>
+                              : 'Not answered — timer expired without a choice.'}
+                          </div>
+                        </div>
+                        <button
+                          onClick={() => editQuestion(i)}
+                          style={{
+                            padding: '8px 14px', borderRadius: '10px', border: `1px solid ${tierColor}`,
+                            background: '#FFFFFF', color: tierColor, fontSize: '13px', fontWeight: 700,
+                            cursor: 'pointer', fontFamily: 'inherit', flexShrink: 0,
+                            display: 'flex', alignItems: 'center', gap: '6px',
+                          }}
+                        >
+                          <svg width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+                          Edit
+                        </button>
+                      </div>
+                    )
+                  })}
                 </div>
-                <div style={{ fontSize: '36px', fontWeight: 800, color: '#0F1923', marginBottom: '8px' }}>All questions answered</div>
-                <div style={{ fontSize: '13px', color: '#2D3E50', marginBottom: '28px' }}>Submit when you are ready to see your result.</div>
-                <button
-                  onClick={submitAnswers}
-                  disabled={submitting}
-                  style={{ ...S.primaryBtn, background: tierColor, color: 'white', opacity: submitting ? 0.6 : 1 }}
-                >
-                  {submitting ? 'Submitting…' : 'Submit My Answers'}
-                  {!submitting && <svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>}
-                </button>
+
+                <div style={{ background: '#FFFFFF', border: '1px solid #DDE8EE', borderRadius: '12px', padding: '14px 16px', marginBottom: '20px', fontSize: '13px', color: '#2D3E50', lineHeight: 1.6 }}>
+                  Once you submit, this test result will be locked in and your AI Readiness Score will be updated. You can still retake the course later if you don&apos;t pass.
+                </div>
+
+                <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
+                  <button
+                    onClick={() => editQuestion(0)}
+                    style={S.backBtn}
+                  >
+                    <svg width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg>
+                    Review from Q1
+                  </button>
+                  <button
+                    onClick={submitAnswers}
+                    disabled={submitting}
+                    style={{ ...S.primaryBtn, background: tierColor, color: 'white', opacity: submitting ? 0.6 : 1 }}
+                  >
+                    {submitting ? 'Submitting…' : 'Submit My Answers'}
+                    {!submitting && <svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>}
+                  </button>
+                </div>
               </div>
             )}
           </div>
@@ -738,7 +857,7 @@ function CourseContent() {
                 </Link>
               ) : (
                 <>
-                  <button onClick={() => { setAnswers({}); setCurrentQ(0); setQTimes([]); setResult(null); setStep(2) }} style={{ ...S.primaryBtn, background: tierColor, color: 'white' }}>
+                  <button onClick={() => { setAnswers({}); setCurrentQ(0); setQTimes({}); setShowingReview(false); setEditingFromReview(false); setResult(null); setStep(2) }} style={{ ...S.primaryBtn, background: tierColor, color: 'white' }}>
                     Retake Test
                     <svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 102.13-9.36L1 10"/></svg>
                   </button>

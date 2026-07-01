@@ -164,7 +164,13 @@ export default function ReviewWidget() {
     window.location.pathname === '/access-pending'
   )
 
-  if (!authed || isPublicPage) return null
+  // Bug 5: never unmount the widget while a modal is open. The window.focus auth
+  // re-check can transiently return { sid: null } when the Microsoft SSO cookie
+  // parse hiccups (same class of bug as finance blank pages / RealtimeNotifications).
+  // Unmounting mid-submission was destroying the "Review submitted" success screen
+  // that staff reported as disappearing after they submitted feedback.
+  if (isPublicPage) return null
+  if (!authed && !open) return null
 
   function openModal()  { setOpen(true); setDone(false); setError('') }
   function closeModal() {
