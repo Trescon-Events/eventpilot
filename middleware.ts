@@ -21,6 +21,7 @@ const PUBLIC_PREFIXES = [
   '/api/domain-lookup',
   '/api/verify-staff',    // used by /profile setup flow (no session at that point)
   '/api/task-profiles',           // used by /profile setup flow (no session at that point)
+  '/api/admin/setup-pilots',     // one-time setup, auth checked inside via x-setup-key header
   '/profile',             // AIRS assessment — staff arrive here before they have a session
   '/events',              // public event websites
   '/welcome',
