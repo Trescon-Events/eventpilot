@@ -2,15 +2,25 @@ import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/app/lib/supabase'
 import { sendPilotAssignment } from '@/app/lib/email'
 import { Client } from 'pg'
+import dns from 'dns/promises'
 
 async function runMigration(log: string[], errors: string[]) {
   const pass = process.env.SUPABASE_DB_PASSWORD
   const projectId = 'yuyxfxoevztugtfgduks'
   if (!pass) { errors.push('SUPABASE_DB_PASSWORD not set'); return }
 
-  // Try direct host first (works from Railway/AWS); pooler is unreachable from some networks
+  // Railway has no IPv6 outbound; resolve to IPv4 explicitly before connecting
+  let dbHost = `db.${projectId}.supabase.co`
+  try {
+    const [ipv4] = await dns.resolve4(dbHost)
+    dbHost = ipv4
+    log.push(`DB host resolved to IPv4: ${ipv4}`)
+  } catch (e) {
+    log.push(`IPv4 resolve failed, using hostname: ${e instanceof Error ? e.message : String(e)}`)
+  }
+
   const client = new Client({
-    host:     `db.${projectId}.supabase.co`,
+    host:     dbHost,
     port:     5432,
     user:     'postgres',
     password: pass,
