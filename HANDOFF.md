@@ -68,6 +68,61 @@ curl -X PATCH "https://eventpilot.tresconglobal.com/api/build-requests/{id}" \
 
 ---
 
+## What Was Built — 01 Jul 2026 evening (Durga / Claude Code) — Weekly Learning Leaderboard
+
+New module: track who is completing AI courses each week, publish a Top-10 leaderboard, email digest every Monday 07:00 IST, and flag staff who have gone silent.
+
+### Data model
+- New table `weekly_leaderboard_snapshots` — `(week_start, staff_id, rank, score, completions_count, attempts_count, best_test_score, is_new_completer, streak_weeks, generated_at)` with indexes on `(week_start, rank)` and `(staff_id, week_start DESC)` for the trend view.
+
+### Scoring (`app/lib/leaderboard.ts`)
+Pure scoring library — no side effects. Per completion: **100 base + 30 if test_score ≥ 90 + 20 for first-attempt pass + tier bonus (adoption +25 / advanced +50)**. Ties broken by fewer attempts, then earlier last completion. Ranks are dense (ties share position).
+
+Also exports:
+- `getEligibleStaff()` — active, non-admin, non-super_admin, attendance-enabled, joined 14+ days before week end
+- `computeWeeklyScores()` — reads course_completions in window
+- `assignRanks()` — dense ranking with tiebreakers
+- `computeStreaks()` — consecutive prior weeks with ≥1 completion
+- `findSilentStaff()` — eligible staff with no attempts in the week AND `last_login_at` older than 14 days
+
+### Endpoint & schedule
+- `POST/GET /api/cron/generate-leaderboard` — accepts secret via `?secret=` or `Authorization: Bearer`. Query params: `?dryRun=1` (no writes/emails), `?force=1` (regenerate over existing), `?emailOnly=1`, `?weekStart=YYYY-MM-DD`. Idempotent — skips if snapshot for the target week already exists.
+- `.github/workflows/weekly-leaderboard.yml` — cron `30 1 * * MON` (01:30 UTC = 07:00 IST). Also supports `workflow_dispatch` with `week_start`, `force`, `dry_run` inputs.
+
+### In-app views
+- `GET /api/leaderboard` — returns `{ week_start, week_end, top10, me?, is_admin, total_ranked }`. `me` includes rank + delta + 4-week trend (staff-only, admins get `null`).
+- `app/leaderboard/page.tsx` — public leaderboard view. Renders top-10 with per-row delta badges, personal card with rank/delta/mini-trend chart (staff-only), scoring rules footer.
+
+### Email digest (`sendLeaderboardDigest` in `app/lib/email.ts`)
+- **Staff email**: personal rank card + top 10 + CTA. Sends to every eligible staff, paced at ~10/sec.
+- **Admin email**: same top 10 + full silent-staff list.
+- Silent-staff threshold: 14 days (softened for week 1; can tighten later).
+
+### Decisions locked in this session
+- **Admins/super_admin excluded from ranking** — they steward the platform, not the leaderboard
+- **Top-10 public, personal rank private** — full public ranking too aggressive for early culture
+- **14-day silent threshold** — first weeks will show many silent staff (only 13 completions historically); softer threshold reduces noise
+- **14-day joiner grace** — new hires never flagged as silent on week 1
+
+### Baseline seeded
+Weeks `2026-06-15` (5 rows) and `2026-06-22` (1 row) inserted directly to DB from local (bypassing endpoint, because of the CRON_SECRET issue below). This means the first scheduled fire on **Monday 06 Jul 2026 07:00 IST** for week `2026-06-29 → 2026-07-05` will have a "delta from last week" comparison.
+
+### ⚠️ Blocker before the first automatic fire
+
+The endpoint at `/api/cron/generate-leaderboard` returns **401 Unauthorized** with the CRON_SECRET value in CLAUDE.md (`trescon-weekly-insights-2026`). Confirmed the same happens on `/api/cron/weekly-insights` — same secret pattern, same result. Meaning the `CRON_SECRET` env var on Railway is either unset or a different value. `/api/cron/attendance-live` appears to work only because the "Sync now" button in `/hr/attendance` calls a completely different unauthenticated endpoint (`/api/hr/attendance/sync`) — the 5-min polling is silently 401ing all along, and manual button clicks are what write attendance rows.
+
+**Action required (Durga):**
+1. Set `CRON_SECRET` env var on Railway to whatever value should authenticate cron jobs (or confirm the current value)
+2. Add the same value as a GitHub Actions repository secret named `CRON_SECRET` under `Trescon-Events/eventpilot → Settings → Secrets and variables → Actions`
+
+Once both are set, run the workflow manually with `dry_run: true` to verify auth passes, then let the Monday 06 Jul schedule fire naturally.
+
+### Commits
+- `44f38c8` — feat(leaderboard): weekly learning leaderboard with Monday-morning digest
+- `023fc78` — fix(leaderboard): accept secret via query param too
+
+---
+
 ## What Was Built — 01 Jul 2026 (Durga / Claude Code, afternoon)
 
 Seven commits, one schema migration, and a DB cleanup. Nearly everything driven by real staff reports from `platform_reviews` — this session closed **5 filed issues** end-to-end and proactively silenced a stale infra problem.
