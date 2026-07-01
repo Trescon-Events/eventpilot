@@ -130,17 +130,18 @@ export async function GET() {
 export async function POST(req: NextRequest) {
   const body = await req.json()
 
-  // 1. Auto-create event record
+  // 1. Auto-create event record. Column names must match the events table —
+  // it has name/event_date/city, not title/start_date/location. `format`
+  // lives on bespoke_projects (inserted below), not on events at all.
   const { data: event, error: eventErr } = await supabaseAdmin
     .from('events')
     .insert({
-      title: body.title,
-      type: 'bespoke',
-      status: 'planning',
-      start_date: body.event_date,
-      location: body.city || null,
-      venue: body.venue || null,
-      format: body.format || 'physical',
+      name:       body.title,
+      type:       'bespoke',
+      status:     'planning',
+      event_date: body.event_date,
+      city:       body.city  || null,
+      venue:      body.venue || null,
     })
     .select('id')
     .single()
