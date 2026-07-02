@@ -40,7 +40,8 @@ async function ensureColumns() {
       ALTER TABLE pilot_project_members ADD COLUMN IF NOT EXISTS role_color TEXT;
     `)
     await client.end()
-  } catch {
+  } catch (e: unknown) {
+    console.error('ensureColumns failed:', e instanceof Error ? e.message : e)
     try { await client.end() } catch { /* ignore */ }
   }
 }
