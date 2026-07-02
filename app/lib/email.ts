@@ -412,6 +412,8 @@ export async function sendPilotAssignment({
   projectName,
   projectDescription,
   myRole,
+  roleLabel: roleLabelOverride,
+  roleNote: roleNoteOverride,
   checklistItems,
   pilotsUrl,
 }: {
@@ -420,6 +422,11 @@ export async function sendPilotAssignment({
   projectName:         string
   projectDescription:  string
   myRole:              string
+  /** Pass the project's own role label/note (e.g. from pilot_project_members.role_label)
+   *  for roles beyond the four defaults below — a custom role otherwise falls back to
+   *  the raw role key with no note. */
+  roleLabel?:          string
+  roleNote?:           string
   checklistItems:      Array<{ title: string; description: string | null; category: string | null }>
   pilotsUrl:           string
 }) {
@@ -427,16 +434,19 @@ export async function sendPilotAssignment({
 
   const roleLabels: Record<string, string> = {
     pilot:      'Pilot (Main Responsible)',
+    co_pilot:   'Co-Pilot (Supporting)',
     consulting: 'Consulting',
     tracking:   'Project Tracking',
   }
-  const roleLabel = roleLabels[myRole] ?? myRole
+  const roleLabel = roleLabelOverride ?? roleLabels[myRole] ?? myRole
 
-  const roleNote: Record<string, string> = {
+  const roleNotes: Record<string, string> = {
     pilot:      'You are the Pilot for this project — you own the scope decisions, drive the PRD, and coordinate the build with Durga.',
-    consulting: 'You are a Consulting member — your domain expertise will shape the requirements. Thulasi or Nicholas will bring you in for your specific inputs.',
+    co_pilot:   'You are the Co-Pilot — you support the Pilot on every scope decision and share responsibility for driving the PRD with Durga.',
+    consulting: 'You are a Consulting member — your domain expertise will shape the requirements. The Pilot will bring you in for your specific inputs.',
     tracking:   'You are the Project Tracker — your job is to maintain visibility across all Pilot Projects, escalate blockers to Durga, and keep things moving.',
   }
+  const roleNote = roleNoteOverride ?? roleNotes[myRole] ?? ''
 
   const itemsHtml = checklistItems.map((item, i) => `
     <div style="display:flex;align-items:flex-start;gap:12px;padding:12px 14px;background:#f9fafb;border:1px solid #e5e7eb;border-radius:8px;margin-bottom:8px;">
@@ -461,7 +471,7 @@ export async function sendPilotAssignment({
       </p>
 
       <div style="background:#f0fdfa;border:1px solid #99f6e4;border-radius:10px;padding:16px 18px;margin-bottom:24px;">
-        <p style="margin:0;font-size:14px;color:#0f766e;line-height:1.6;">${roleNote[myRole] ?? ''}</p>
+        <p style="margin:0;font-size:14px;color:#0f766e;line-height:1.6;">${roleNote}</p>
       </div>
 
       <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:16px 18px;margin-bottom:24px;">

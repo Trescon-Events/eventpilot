@@ -12,7 +12,7 @@ type ChecklistItem = {
 }
 
 type Member = {
-  staff_id: string; role: string
+  staff_id: string; role: string; role_label: string | null; role_color: string | null
   staff: { name: string; email: string; role: string } | null
 }
 
@@ -34,6 +34,7 @@ type BuildRequest = {
 
 type Project = {
   id: string; name: string; description: string | null; status: string
+  tool_href: string | null; tool_label: string | null
   myRole: string | null; members: Member[]; checklist: ChecklistItem[]
 }
 
@@ -87,6 +88,11 @@ function fmtDate(s: string) {
 function fileIcon(type: string) {
   if (type === 'application/pdf') return '📄'
   return '🖼️'
+}
+
+// Light background tint for a role's accent hex, e.g. '#1d4ed8' -> '#1d4ed81a' (~10% alpha)
+function tint(hex: string) {
+  return `${hex}1a`
 }
 
 // ── Main Page ─────────────────────────────────────────────────────────────────
@@ -289,7 +295,11 @@ export default function PilotsPage() {
           const myItems = project.checklist.filter(i => !isAdmin || i.assigned_to === staffId)
           const myPct   = progress(myItems)
           const statusMeta = STATUS_COLORS[project.status] ?? STATUS_COLORS.active
-          const roleMeta   = ROLE_COLORS[project.myRole ?? ''] ?? { bg: '#f3f4f6', color: '#374151' }
+          const myMember   = project.members.find(m => m.staff_id === staffId)
+          const roleMeta   = myMember?.role_color
+            ? { bg: tint(myMember.role_color), color: myMember.role_color }
+            : ROLE_COLORS[project.myRole ?? ''] ?? { bg: '#f3f4f6', color: '#374151' }
+          const roleLabel  = myMember?.role_label ?? ROLE_LABELS[project.myRole ?? ''] ?? project.myRole
           const isTrackerView = isAdmin || project.myRole === 'tracking'
           const byPerson: Record<string, { name: string; items: ChecklistItem[] }> = {}
           if (isTrackerView) {
@@ -312,18 +322,23 @@ export default function PilotsPage() {
                     {project.description && <p style={{ color: '#6b7280', fontSize: 14, margin: '0 0 12px', lineHeight: 1.6 }}>{project.description}</p>}
                     <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                       <span style={{ fontSize: 12, fontWeight: 600, padding: '3px 10px', borderRadius: 999, background: statusMeta.bg, color: statusMeta.color }}>{statusMeta.label}</span>
-                      {project.myRole && <span style={{ fontSize: 12, fontWeight: 600, padding: '3px 10px', borderRadius: 999, background: roleMeta.bg, color: roleMeta.color }}>Your role: {ROLE_LABELS[project.myRole] ?? project.myRole}</span>}
+                      {project.myRole && <span style={{ fontSize: 12, fontWeight: 600, padding: '3px 10px', borderRadius: 999, background: roleMeta.bg, color: roleMeta.color }}>Your role: {roleLabel}</span>}
                     </div>
                   </div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
-                    {PROJECT_TOOL_LINK[project.name] && (
-                      <a href={PROJECT_TOOL_LINK[project.name].href} style={{
-                        display: 'flex', alignItems: 'center', gap: 6, background: '#111827', color: '#fff',
-                        fontSize: 12, fontWeight: 700, padding: '8px 14px', borderRadius: 8, textDecoration: 'none', flexShrink: 0,
-                      }}>
-                        {PROJECT_TOOL_LINK[project.name].label} →
-                      </a>
-                    )}
+                    {(() => {
+                      const link = project.tool_href
+                        ? { href: project.tool_href, label: project.tool_label ?? 'Open tool' }
+                        : PROJECT_TOOL_LINK[project.name]
+                      return link && (
+                        <a href={link.href} style={{
+                          display: 'flex', alignItems: 'center', gap: 6, background: '#111827', color: '#fff',
+                          fontSize: 12, fontWeight: 700, padding: '8px 14px', borderRadius: 8, textDecoration: 'none', flexShrink: 0,
+                        }}>
+                          {link.label} →
+                        </a>
+                      )
+                    })()}
                     {!isTrackerView && (
                       <div style={{ textAlign: 'center', minWidth: 64 }}>
                         <div style={{ fontSize: 26, fontWeight: 800, color: myPct === 100 ? '#16a34a' : '#111827' }}>{myPct}%</div>
@@ -335,7 +350,9 @@ export default function PilotsPage() {
                 {/* Members */}
                 <div style={{ display: 'flex', gap: 16, marginTop: 16, flexWrap: 'wrap' }}>
                   {project.members.map(m => {
-                    const mRole = ROLE_COLORS[m.role] ?? { bg: '#f3f4f6', color: '#374151' }
+                    const mRole = m.role_color
+                      ? { bg: tint(m.role_color), color: m.role_color }
+                      : ROLE_COLORS[m.role] ?? { bg: '#f3f4f6', color: '#374151' }
                     return (
                       <div key={m.staff_id} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                         <div style={{ width: 28, height: 28, borderRadius: '50%', background: mRole.bg, color: mRole.color, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 700 }}>
@@ -343,7 +360,7 @@ export default function PilotsPage() {
                         </div>
                         <div>
                           <div style={{ fontSize: 12, fontWeight: 600, color: '#111827' }}>{m.staff?.name ?? 'Unknown'}</div>
-                          <div style={{ fontSize: 11, color: '#9ca3af' }}>{ROLE_LABELS[m.role] ?? m.role}</div>
+                          <div style={{ fontSize: 11, color: '#9ca3af' }}>{m.role_label ?? ROLE_LABELS[m.role] ?? m.role}</div>
                         </div>
                       </div>
                     )

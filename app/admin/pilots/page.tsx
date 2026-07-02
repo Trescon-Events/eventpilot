@@ -13,7 +13,7 @@ type ChecklistItem = {
 }
 
 type Member = {
-  staff_id: string; role: string
+  staff_id: string; role: string; role_label: string | null; role_color: string | null
   staff: { name: string; role: string; email: string } | null
 }
 
@@ -36,6 +36,7 @@ type BuildRequest = {
 
 type Project = {
   id: string; name: string; description: string | null; status: string
+  tool_href: string | null; tool_label: string | null
   members: Member[]; checklist: ChecklistItem[]
 }
 
@@ -145,15 +146,19 @@ export default function AdminPilotsPage() {
 
   const activeProject = projects.find(p => p.id === active)
 
-  const byPerson: Record<string, { name: string; email: string; role: string; items: ChecklistItem[] }> = {}
+  const byPerson: Record<string, { name: string; email: string; role: string; roleLabel: string; items: ChecklistItem[] }> = {}
   if (activeProject) {
     activeProject.checklist.forEach(item => {
       const key = item.assigned_to
-      if (!byPerson[key]) byPerson[key] = {
-        name:  item.staff?.name  ?? 'Unknown',
-        email: item.staff?.email ?? '',
-        role:  activeProject.members.find(m => m.staff_id === key)?.role ?? '',
-        items: [],
+      if (!byPerson[key]) {
+        const member = activeProject.members.find(m => m.staff_id === key)
+        byPerson[key] = {
+          name:      item.staff?.name  ?? 'Unknown',
+          email:     item.staff?.email ?? '',
+          role:      member?.role ?? '',
+          roleLabel: member?.role_label ?? (member ? ROLE_LABELS[member.role] ?? member.role : ''),
+          items:     [],
+        }
       }
       byPerson[key].items.push(item)
     })
@@ -183,6 +188,12 @@ export default function AdminPilotsPage() {
               {projects.length} active project{projects.length !== 1 ? 's' : ''}
             </p>
           </div>
+          <Link href="/admin/pilots/new" style={{
+            background: '#0d9488', color: '#fff', fontSize: 13, fontWeight: 700, padding: '10px 18px',
+            borderRadius: 8, textDecoration: 'none',
+          }}>
+            + New Pilot Project
+          </Link>
         </div>
 
         <div style={{ display: 'grid', gridTemplateColumns: '260px 1fr', gap: 24, alignItems: 'start' }}>
@@ -223,14 +234,19 @@ export default function AdminPilotsPage() {
                 <div style={{ padding: '24px 28px', borderBottom: '1px solid #f3f4f6' }}>
                   <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap' }}>
                     <h2 style={{ fontSize: 20, fontWeight: 700, color: '#111827', margin: '0 0 6px' }}>{activeProject.name}</h2>
-                    {PROJECT_TOOL_LINK[activeProject.name] && (
-                      <a href={PROJECT_TOOL_LINK[activeProject.name].href} style={{
-                        display: 'flex', alignItems: 'center', gap: 6, background: '#111827', color: '#fff',
-                        fontSize: 12, fontWeight: 700, padding: '8px 14px', borderRadius: 8, textDecoration: 'none', flexShrink: 0,
-                      }}>
-                        {PROJECT_TOOL_LINK[activeProject.name].label} →
-                      </a>
-                    )}
+                    {(() => {
+                      const link = activeProject.tool_href
+                        ? { href: activeProject.tool_href, label: activeProject.tool_label ?? 'Open tool' }
+                        : PROJECT_TOOL_LINK[activeProject.name]
+                      return link && (
+                        <a href={link.href} style={{
+                          display: 'flex', alignItems: 'center', gap: 6, background: '#111827', color: '#fff',
+                          fontSize: 12, fontWeight: 700, padding: '8px 14px', borderRadius: 8, textDecoration: 'none', flexShrink: 0,
+                        }}>
+                          {link.label} →
+                        </a>
+                      )
+                    })()}
                   </div>
                   {activeProject.description && <p style={{ color: '#6b7280', fontSize: 14, margin: '0 0 16px', lineHeight: 1.6 }}>{activeProject.description}</p>}
                   <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
@@ -241,7 +257,7 @@ export default function AdminPilotsPage() {
                         </div>
                         <div>
                           <div style={{ fontSize: 13, fontWeight: 600, color: '#111827' }}>{m.staff?.name}</div>
-                          <div style={{ fontSize: 11, color: '#6b7280' }}>{ROLE_LABELS[m.role] ?? m.role} · {m.staff?.email}</div>
+                          <div style={{ fontSize: 11, color: '#6b7280' }}>{m.role_label ?? ROLE_LABELS[m.role] ?? m.role} · {m.staff?.email}</div>
                         </div>
                       </div>
                     ))}
@@ -277,7 +293,7 @@ export default function AdminPilotsPage() {
                           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
                             <div>
                               <span style={{ fontSize: 15, fontWeight: 700, color: '#111827' }}>{person.name}</span>
-                              <span style={{ fontSize: 12, color: '#9ca3af', marginLeft: 8 }}>{ROLE_LABELS[person.role] ?? person.role}</span>
+                              <span style={{ fontSize: 12, color: '#9ca3af', marginLeft: 8 }}>{person.roleLabel}</span>
                             </div>
                             <span style={{ fontSize: 13, fontWeight: 700, color: pct === 100 ? '#16a34a' : '#6b7280' }}>{pct}%</span>
                           </div>
