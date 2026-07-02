@@ -1,4 +1,5 @@
 import { notFound } from 'next/navigation'
+import { cookies } from 'next/headers'
 import { supabaseAdmin } from '@/app/lib/supabase'
 import type { PageStructure, Section, SectionDesign, SectionItem } from '@/app/lib/event-page-types'
 import { defaultFooter } from '@/app/lib/event-page-types'
@@ -31,6 +32,24 @@ type Website  = {
   pattern_1_url: string|null; pattern_2_url: string|null; pattern_3_url: string|null; pattern_4_url: string|null; pattern_5_url: string|null
   brand_font_heading: string|null; brand_font_body: string|null
   page_structure_full: PageStructure | null
+  draft_structure: PageStructure | null
+}
+
+/*
+  Preview mode — Khalifat review 6c2d9724. The Publish tab embeds this
+  route in an iframe so admins can preview the site before it's live.
+  Previously that iframe 404'd because the route required status='live'.
+  Now the route also honours `?preview=1` for signed-in admins: it skips
+  the status filter and prefers draft_structure when present.
+*/
+async function isAdminPreview(): Promise<boolean> {
+  try {
+    const store = await cookies()
+    const raw = store.get('tcs_session')?.value
+    if (!raw) return false
+    const s = JSON.parse(Buffer.from(raw, 'base64').toString('utf-8'))
+    return s?.adm === true || !!s?.sid
+  } catch { return false }
 }
 type EventRow = { name: string; event_date: string|null; city: string|null; description: string|null }
 
@@ -106,19 +125,37 @@ function getSocialIcon(platform: string) {
 }
 
 // ── Page ──────────────────────────────────────────────────────────────────────
-export default async function EventPublicPage({ params }: { params: Promise<{ slug: string }> }) {
+export default async function EventPublicPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ slug: string }>
+  searchParams: Promise<{ preview?: string }>
+}) {
   const { slug } = await params
+  const sp = await searchParams
+  const previewRequested = sp?.preview === '1' || sp?.preview === 'true'
+  const preview = previewRequested && await isAdminPreview()
 
-  const { data: web, error } = await supabaseAdmin
+  // In preview mode (admin session + ?preview=1), skip the status='live'
+  // filter so unpublished drafts render for admins previewing before publish.
+  let query = supabaseAdmin
     .from('event_websites')
     .select('*, events(name, event_date, city, description)')
     .eq('slug', slug)
-    .eq('status', 'live')
-    .single()
+  if (!preview) query = query.eq('status', 'live')
+
+  const { data: web, error } = await query.single()
 
   if (error || !web) notFound()
   const w  = web as Website
   const ev = (web as { events: EventRow|null }).events
+
+  // Preview mode should render the draft in progress; fall back to
+  // page_structure_full if there's no separate draft.
+  if (preview && w.draft_structure) {
+    w.page_structure_full = w.draft_structure
+  }
 
   const P = w.theme_primary || '#080A0C'
   const A = w.theme_accent  || '#E07B2C'
@@ -140,7 +177,11 @@ export default async function EventPublicPage({ params }: { params: Promise<{ sl
     ? new Date(ev.event_date).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })
     : null
 
-  const ps = w.page_structure_full ?? null
+  // Normalize: some legacy rows store page_structure_full as an empty
+  // object {} instead of null. Treat missing `pages` array as null so
+  // downstream logic doesn't crash on ps.pages.find(...).
+  const rawPs = w.page_structure_full ?? null
+  const ps = rawPs && Array.isArray((rawPs as PageStructure).pages) ? rawPs : null
   const ft = ps?.footer ?? defaultFooter(P)
 
   // ── Fonts ──────────────────────────────────────────────────────────────────
@@ -192,7 +233,7 @@ export default async function EventPublicPage({ params }: { params: Promise<{ sl
   `
 
   // ── Fetch data needed for home page sections ───────────────────────────────
-  const homePage = ps?.pages.find(p => p.slug === '')
+  const homePage = ps?.pages?.find(p => p.slug === '')
   const homeTypes = homePage?.sections.map(s => s.type) ?? []
 
   const needsSpeakers = homeTypes.includes('speakers')

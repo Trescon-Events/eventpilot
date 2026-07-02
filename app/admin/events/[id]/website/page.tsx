@@ -2219,10 +2219,13 @@ export default function EventWebsiteAdmin({ params }: { params: Promise<{ id: st
                     </button>
                   ))}
                   {settings.slug && (
-                    <a href={`/events/${settings.slug}`} target="_blank" rel="noreferrer"
+                    <a
+                      href={`/events/${settings.slug}${settings.status === 'live' ? '' : '?preview=1'}`}
+                      target="_blank"
+                      rel="noreferrer"
                       style={{ marginLeft: '6px', padding: '5px 12px', borderRadius: '7px', border: `1px solid ${C.border}`, background: 'transparent', color: C.muted, fontSize: '11px', fontWeight: 700, textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '4px' }}>
                       <svg width="11" height="11" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
-                      Open
+                      {settings.status === 'live' ? 'Open' : 'Preview'}
                     </a>
                   )}
                 </div>
@@ -2231,7 +2234,7 @@ export default function EventWebsiteAdmin({ params }: { params: Promise<{ id: st
                 <div style={{ background: '#0a0a0a', display: 'flex', justifyContent: 'center', padding: previewDevice==='desktop'?'0':'20px 20px 0', minHeight: '600px' }}>
                   <iframe
                     key={previewDevice}
-                    src={`/events/${settings.slug}`}
+                    src={`/events/${settings.slug}?preview=1`}
                     style={{
                       width: previewDevice==='desktop' ? '100%' : previewDevice==='tablet' ? '768px' : '390px',
                       height: previewDevice==='mobile' ? '700px' : '600px',
