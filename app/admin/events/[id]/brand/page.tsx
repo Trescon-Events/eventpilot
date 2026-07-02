@@ -4,6 +4,7 @@ import { useState, useEffect, use, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { useDraft } from '@/app/lib/useDraft'
+import DraftReEntryModal from '@/app/components/DraftReEntryModal'
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 type ColorEntry  = { name: string; hex: string; role: string; cmyk?: { c: number; m: number; y: number; k: number } | null; usage_notes?: string | null; print_caution?: string | null }
@@ -202,7 +203,9 @@ export default function BrandStudioPage({ params }: { params: Promise<{ id: stri
   // Save & Resume — Khalifa review fcdbcbff. Every tab change pings the
   // active_drafts registry so the Resume Work sidebar on /admin/toolkit
   // knows the user was mid-way through Colors for World AI Show Bali.
-  const { save: saveDraft } = useDraft('brand_studio', eventId)
+  // Also renders a re-entry modal on mount if there's an in-progress draft.
+  const { mine: myDraft, loading: draftLoading, save: saveDraft, discard: discardDraft } = useDraft('brand_studio', eventId)
+  const [reentryDecided, setReentryDecided] = useState(false)
   const [assets,       setAssets]       = useState<BrandAsset[]>([])
   const [loading,      setLoading]      = useState(true)
   const [saving,       setSaving]       = useState(false)
@@ -367,9 +370,9 @@ export default function BrandStudioPage({ params }: { params: Promise<{ id: stri
     saveDraft({
       displayLabel: event.name,
       statusText:   'Brand Studio · ' + statusLabel,
-      toolRecordId: guidelines?.id ?? null,
+      toolRecordId: tab, // store tab so Resume drops the user back on it
     })
-  }, [tab, event?.name, guidelines?.id, saveDraft])
+  }, [tab, event?.name, saveDraft])
 
   // ── Auto-build asset prompt ───────────────────────────────────
   const buildPrompt = useCallback((a: typeof ASSET_TYPES[number]) => {
@@ -577,6 +580,23 @@ export default function BrandStudioPage({ params }: { params: Promise<{ id: stri
 
   return (
     <div style={{ minHeight: '100vh', background: '#E8EEF4', fontFamily: 'var(--font-manrope), Manrope, sans-serif', color: '#0F1923' }}>
+
+      {/* Save & Resume — re-entry modal for users returning to an in-progress draft */}
+      {!draftLoading && myDraft && !reentryDecided && (
+        <DraftReEntryModal
+          displayLabel={myDraft.event_name ?? myDraft.display_label}
+          statusText={myDraft.status_text}
+          lastUpdated={myDraft.last_updated}
+          onResume={() => {
+            // Restore the tab the user was on so "Resume" actually
+            // lands them where they left off.
+            const stored = myDraft.tool_record_id
+            if (stored && TABS.some(t => t.id === stored)) setTab(stored as TabId)
+            setReentryDecided(true)
+          }}
+          onStartNew={async () => { await discardDraft(); setReentryDecided(true) }}
+        />
+      )}
 
       {/* ── Top bar ── */}
       <nav style={{ background: '#0F1923', borderBottom: '1px solid rgba(255,255,255,0.08)', padding: '0 32px', height: '64px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', position: 'sticky', top: 0, zIndex: 100 }}>

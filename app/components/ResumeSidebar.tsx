@@ -63,6 +63,21 @@ export default function ResumeSidebar({ resolveRoute, toolLabels }: Props) {
     if (route) router.push(route)
   }
 
+  const toggleShare = async (d: Draft) => {
+    const next = !d.shared_with_team
+    setDrafts(prev => prev.map(x => x.id === d.id ? { ...x, shared_with_team: next } : x))
+    try {
+      await fetch(`/api/drafts/${d.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ shared_with_team: next }),
+      })
+    } catch {
+      // revert on failure
+      setDrafts(prev => prev.map(x => x.id === d.id ? { ...x, shared_with_team: !next } : x))
+    }
+  }
+
   return (
     <div style={{ marginTop: '18px', padding: '18px 16px 20px', borderTop: '1px solid #1A2B3C' }}>
       <div style={{ fontSize: '11px', fontWeight: 800, color: '#5B7080', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '10px' }}>
@@ -81,15 +96,12 @@ export default function ResumeSidebar({ resolveRoute, toolLabels }: Props) {
             const toolLabel = (toolLabels && toolLabels[d.tool_key]) ?? d.tool_key.replace(/_/g, ' ')
             const status    = d.status_text ?? toolLabel
             return (
-              <button
+              <div
                 key={d.id}
                 onClick={() => goTo(d)}
                 style={{
-                  display: 'block', width: '100%', textAlign: 'left',
-                  padding: '10px 12px', border: 'none',
-                  background: 'transparent', borderRadius: '10px',
-                  cursor: 'pointer', fontFamily: 'inherit',
-                  transition: 'background 0.15s',
+                  padding: '10px 12px', borderRadius: '10px',
+                  cursor: 'pointer', transition: 'background 0.15s',
                 }}
                 onMouseEnter={e => (e.currentTarget.style.background = '#1A2B3C')}
                 onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
@@ -100,7 +112,7 @@ export default function ResumeSidebar({ resolveRoute, toolLabels }: Props) {
                 <div style={{ fontSize: '11px', color: '#8CA0B3', lineHeight: 1.3, marginBottom: '2px' }}>
                   {status}
                 </div>
-                <div style={{ fontSize: '10px', color: '#5B7080', display: 'flex', gap: '6px', alignItems: 'center' }}>
+                <div style={{ fontSize: '10px', color: '#5B7080', display: 'flex', gap: '6px', alignItems: 'center', flexWrap: 'wrap' }}>
                   <span>Last edited {relativeTime(d.last_updated)}</span>
                   {!d.is_mine && d.owner_name && (
                     <>
@@ -108,8 +120,26 @@ export default function ResumeSidebar({ resolveRoute, toolLabels }: Props) {
                       <span style={{ color: '#D4AF37' }}>Shared by {d.owner_name.split(' ')[0]}</span>
                     </>
                   )}
+                  {d.is_mine && (
+                    <>
+                      <span style={{ color: '#3A4A5A' }}>·</span>
+                      <button
+                        onClick={e => { e.stopPropagation(); toggleShare(d) }}
+                        style={{
+                          background: 'transparent', border: 'none', padding: 0,
+                          fontSize: '10px', fontFamily: 'inherit', cursor: 'pointer',
+                          color: d.shared_with_team ? '#D4AF37' : '#5B7080',
+                          fontWeight: d.shared_with_team ? 700 : 400,
+                          textDecoration: 'underline', textUnderlineOffset: '2px',
+                        }}
+                        title={d.shared_with_team ? 'Click to make private' : 'Click to share this draft with your team'}
+                      >
+                        {d.shared_with_team ? 'Shared with team ✓' : 'Share with team'}
+                      </button>
+                    </>
+                  )}
                 </div>
-              </button>
+              </div>
             )
           })}
         </div>

@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { type PageStructure, type Section, type SectionDesign, type FooterConfig, type FooterColumn, type FooterLink, defaultStructure, defaultFooter, SECTION_TYPES, SECTION_LAYOUTS } from '@/app/lib/event-page-types'
 import { useDraft } from '@/app/lib/useDraft'
+import DraftReEntryModal from '@/app/components/DraftReEntryModal'
 
 // ── Color tokens ──────────────────────────────────────────────────────────────
 const C = {
@@ -305,8 +306,10 @@ export default function EventWebsiteAdmin({ params }: { params: Promise<{ id: st
   // Save & Resume — Khalifa review fcdbcbff. Every meaningful navigation
   // inside this tool pings the active_drafts registry so the Resume Work
   // sidebar back on /admin/toolkit surfaces "you were on the Speakers tab
-  // for World AI Show Indonesia 3 hours ago".
-  const { save: saveDraft } = useDraft('website_builder', eventId)
+  // for World AI Show Indonesia 3 hours ago". Also surfaces a re-entry
+  // modal on mount if the user had an in-progress draft.
+  const { mine: myDraft, loading: draftLoading, save: saveDraft, discard: discardDraft } = useDraft('website_builder', eventId)
+  const [reentryDecided, setReentryDecided] = useState(false)
 
   const [tab,       setTab]       = useState<Tab>('template')
   const [contentTab, setContentTab] = useState<ContentTab>('details')
@@ -374,12 +377,15 @@ export default function EventWebsiteAdmin({ params }: { params: Promise<{ id: st
       content:  `Editing content — ${contentTab}`,
       publish:  'Publishing',
     }
+    // Encode the current tab (and sub-tab if on Content) so Resume can
+    // drop the user back exactly where they were.
+    const positionKey = tab === 'content' ? `content:${contentTab}` : tab
     saveDraft({
       displayLabel:   eventName,
       statusText:     'Website Builder · ' + (statusMap[tab] ?? 'Editing'),
-      toolRecordId:   settings?.id ?? null,
+      toolRecordId:   positionKey,
     })
-  }, [tab, contentTab, eventName, settings?.id, saveDraft])
+  }, [tab, contentTab, eventName, saveDraft])
 
   // Builder
   const [ps,             setPs]             = useState<PageStructure | null>(null)
@@ -807,6 +813,25 @@ export default function EventWebsiteAdmin({ params }: { params: Promise<{ id: st
   return (
     <div style={{ fontFamily: 'var(--font-manrope), Manrope, sans-serif', background: C.bg, minHeight: '100vh', color: C.text }}>
       <style>{`@keyframes spin { to { transform: rotate(360deg); } } .spin { animation: spin 0.9s linear infinite; }`}</style>
+
+      {/* Save & Resume — re-entry modal for users returning to an in-progress draft */}
+      {!draftLoading && myDraft && !reentryDecided && (
+        <DraftReEntryModal
+          displayLabel={myDraft.event_name ?? myDraft.display_label}
+          statusText={myDraft.status_text}
+          lastUpdated={myDraft.last_updated}
+          onResume={() => {
+            // Restore tab / sub-tab from the stored position key so
+            // "Resume" actually lands the user where they left off.
+            const key = myDraft.tool_record_id ?? ''
+            const [t, sub] = key.split(':')
+            if (['template','brand','build','content','publish'].includes(t)) setTab(t as Tab)
+            if (t === 'content' && sub) setContentTab(sub as ContentTab)
+            setReentryDecided(true)
+          }}
+          onStartNew={async () => { await discardDraft(); setReentryDecided(true) }}
+        />
+      )}
 
       {/* Nav */}
       <nav style={{ background: C.surface, borderBottom: `1px solid ${C.border}`, padding: '0 32px', height: '64px', display: 'flex', alignItems: 'center', gap: '16px', position: 'sticky', top: 0, zIndex: 100, boxShadow: '0 1px 3px rgba(0,165,163,0.06)' }}>
