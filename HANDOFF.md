@@ -10,12 +10,66 @@
 
 | Field | Value |
 |---|---|
-| Who | Madhu + Claude Code (Sonnet 4.6) — afternoon, Build Requests module |
-| Latest push | 2026-07-01 ~16:00 IST — Madhu/Claude (`21ec0d5`) |
-| Handed off to | Durga |
-| Deployed | ✅ Yes — https://eventpilot.tresconglobal.com (Railway auto-deploy from main; API confirmed live at 200) |
+| Who | Durga + Claude Code (Opus 4.7) — early hours, Bespoke Tracker end-to-end unblock |
+| Latest push | 2026-07-02 ~04:15 IST — Durga/Claude (`2532df9`) |
+| Handed off to | Open |
+| Deployed | ✅ Yes — https://eventpilot.tresconglobal.com (Railway auto-deploy from main; boot hook ran, review auto-resolved) |
 
-**Session highlight:** Build Requests module fully shipped. Pilots can now submit build requests (with PDF/image attachments) directly from `/pilots`. Durga reviews + manages them from `/admin/pilots` or via CLI curl commands. Full thread/reply lifecycle, auto file cleanup on completion, email notifications both ways.
+**Session highlight:** Full bespoke project creation now works end-to-end for the first time since the tracker shipped 28 Jun. Two distinct bugs shipped one after the other — the events insert used column names that didn't exist (`title` vs `name`, `start_date` vs `event_date`, `location` vs `city`, `format` didn't belong at all), and the six lead columns on `bespoke_projects` had no FK constraints so PostgREST couldn't resolve the join and the detail page rendered "Project not found" even for successfully-created rows. Both fixed; the AJMS project already sitting in the DB now renders.
+
+**Also this session:** Madhu shipped a third pilot project (Website Builder & Brand Studio: Khalifa/Prashant/Nicholas/Fouzan) plus dashboard "Open tool" button + drag-and-drop / clipboard-paste on the Build Request form.
+
+---
+
+## What Was Built — 02 Jul 2026 early morning (Durga / Claude Code) — Bespoke Tracker end-to-end unblock
+
+### 🕐 00:31 IST · `06d9f27` — Bespoke create: align events insert column names
+
+`POST /api/bespoke` was inserting into `events` with column names that don't exist on that table. The Supabase error showed the `format` column as missing, but three others were wrong too. Root cause per column:
+
+| Code sent | Actual `events` column | Notes |
+|---|---|---|
+| `title` | `name` | rename |
+| `start_date` | `event_date` | rename |
+| `location` | `city` | rename |
+| `format` | (doesn't exist) | drop — lives on `bespoke_projects`, inserted next block |
+
+Been broken since 28 Jun; nobody hit it because middleware blocked non-admins from `/admin/bespoke` at all until yesterday's `b5a8376`. Fixes review `bb11a150-40c2-401a-9e64-61fafe320382` (Nicholas Nunes, HIGH severity).
+
+Auto-resolve fired on Railway boot: pushed at 00:31, Railway booted at 02:02:38, review flipped to resolved at 02:02:38, Admin auto-response comment posted at 02:02:48. Nicholas has an in-app notification waiting.
+
+### 🕐 03:55 IST · pg-direct DDL + `2532df9` (docs) — six FK constraints on the lead columns
+
+Even after the events insert was fixed, Nicholas (and Durga during retest) still saw "Project not found" on the detail page. `POST` succeeded and the row was written — the AJMS CXO Boardroom project (id `21fb39f3-5555-453b-b9e6-d88d8396c212`) was created cleanly at 15:30 IST — but the detail page's fetch to `GET /api/bespoke` was 500ing with:
+
+> *"Could not find a relationship between 'bespoke_projects' and 'commercial_lead_id' in the schema cache"*
+
+Root cause: the original `supabase/bespoke_tracker.sql` declared the six lead columns as `REFERENCES staff(id)` — a table that has never existed in this project (the staff table is `staff_members`). The FK constraints were silently never created, so PostgREST's embedded-resource resolver couldn't walk the `commercial_lead:commercial_lead_id ( id, name )` join and the whole query 500'd.
+
+Fix: applied six `ALTER TABLE ... ADD CONSTRAINT ... FOREIGN KEY (...) REFERENCES staff_members(id) ON DELETE SET NULL` via pg-direct against the production Supabase, followed by `NOTIFY pgrst, 'reload schema'`. Verified: joined query now returns clean data, AJMS project renders. Migration file `supabase/bespoke_lead_fks.sql` committed as `2532df9` for durability so any fresh environment picks up the same constraints.
+
+### Also this session (non-code)
+
+- **Reviewed Nicholas's "still can't login" concern** — no login issue found. His account is fully operational (`access_enabled`, `is_active`, `profile_complete`, `tool_grants.bespoke: true`, password_hash set). `last_login_at` is null for him but also for every other staff member — that column is not populated platform-wide, so it's not diagnostic. His two reviews yesterday prove he was authenticated then.
+- **Drafted the reply to Thulasi's Corporate Marketing Phase 1 scope email** — approves the scope, one flag: reference existing EventPilot data via queries where possible, only create new tables for testimonials + approved images.
+
+### Reviews Closed This Session
+
+| Reporter | Title | Severity | Fixed by |
+|---|---|---|---|
+| Nicholas Nunes | Issue with creating bespoke project | HIGH | `06d9f27` (events column names) + pg-direct FK migration + `2532df9` (docs) |
+
+---
+
+## What Was Built — 02 Jul 2026 afternoon (Madhu) — third pilot project + build request UX
+
+### `0651f8d` — Website Builder & Brand Studio pilot + dashboard/upload UX (3 files, +126 / −21)
+
+- **New pilot project seeded:** Website Builder & Brand Studio. Pilot: Khalifa · Co-Pilot: Prashant · Consulting: Nicholas · Tracking: Fouzan. Initial checklist entered, assignment emails sent.
+- **"Open tool" button on both pilot dashboards** (`/pilots` and `/admin/pilots`) — one-click jump into the tool being built.
+- **Drag-and-drop + clipboard-paste image upload on the Build Request form** in `/pilots` — alongside the existing file picker; same limits (3 files, 10 MB each).
+
+Nicholas is now on two projects — Pilot on Bespoke Event Module, Consulting on Khalifa's Website Builder & Brand Studio.
 
 ---
 
@@ -390,6 +444,8 @@ Plus 19 historical admin comments backfilled retroactively for previously-resolv
 
 ## Previous Sessions
 
+- **02 Jul 2026 — Durga/Claude Opus 4.7 (early hours)** — Bespoke Tracker end-to-end unblock: fixed events insert column names (`06d9f27`), applied six FK constraints via pg-direct + `supabase/bespoke_lead_fks.sql` migration (`2532df9`), drafted Thulasi's scope reply, closed Nicholas's HIGH-severity review with auto-response
+- **02 Jul 2026 — Madhu/Claude (afternoon)** — Website Builder & Brand Studio pilot project seeded; "Open tool" button + drag-and-drop image upload on Build Requests (`0651f8d`)
 - **01 Jul 2026 — Madhu/Claude (afternoon)** — Build Requests module: 3 new API routes, 2 new email functions, rewritten `/pilots` + `/admin/pilots` pages, 3 new DB tables, Supabase Storage bucket; fixes Railway build failure (Next.js 16 params + @types/pg)
 - **01 Jul 2026 — Durga/Claude (afternoon)** — Assessment module UX v2, Vercel silencer, review auto-response system + 19-comment backfill, Bespoke Tracker access fix, Pilot Projects unresponsive fix, staff-reply auto-reopen removed, **deploy-verified auto-resolve infrastructure**
 - **01 Jul 2026 — Madhu** — Pilot Projects launch (10 files, 1,625 lines) + IPv4 DNS series for pg DDL migrations on Railway
