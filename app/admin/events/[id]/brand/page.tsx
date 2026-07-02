@@ -3,6 +3,7 @@
 import { useState, useEffect, use, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
+import { useDraft } from '@/app/lib/useDraft'
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 type ColorEntry  = { name: string; hex: string; role: string; cmyk?: { c: number; m: number; y: number; k: number } | null; usage_notes?: string | null; print_caution?: string | null }
@@ -197,6 +198,11 @@ export default function BrandStudioPage({ params }: { params: Promise<{ id: stri
   const [tab,          setTab]          = useState<TabId>('upload')
   const [event,        setEvent]        = useState<Event | null>(null)
   const [guidelines,   setGuidelines]   = useState<Guidelines | null>(null)
+
+  // Save & Resume — Khalifa review fcdbcbff. Every tab change pings the
+  // active_drafts registry so the Resume Work sidebar on /admin/toolkit
+  // knows the user was mid-way through Colors for World AI Show Bali.
+  const { save: saveDraft } = useDraft('brand_studio', eventId)
   const [assets,       setAssets]       = useState<BrandAsset[]>([])
   const [loading,      setLoading]      = useState(true)
   const [saving,       setSaving]       = useState(false)
@@ -352,6 +358,18 @@ export default function BrandStudioPage({ params }: { params: Promise<{ id: stri
     })
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [eventId])
+
+  // Save & Resume — ping active_drafts on every tab change. Throttled
+  // inside useDraft so rapid tab-flipping doesn't hammer the endpoint.
+  useEffect(() => {
+    if (!event?.name) return
+    const statusLabel = TABS.find(t => t.id === tab)?.label ?? tab
+    saveDraft({
+      displayLabel: event.name,
+      statusText:   'Brand Studio · ' + statusLabel,
+      toolRecordId: guidelines?.id ?? null,
+    })
+  }, [tab, event?.name, guidelines?.id, saveDraft])
 
   // ── Auto-build asset prompt ───────────────────────────────────
   const buildPrompt = useCallback((a: typeof ASSET_TYPES[number]) => {

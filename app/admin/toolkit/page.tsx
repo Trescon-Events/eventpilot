@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
+import ResumeSidebar from '@/app/components/ResumeSidebar'
 
 type Event = { id: string; name: string; city: string | null; event_date: string | null; status: string }
 
@@ -470,6 +471,20 @@ export default function ToolkitPage() {
               </div>
             )
           })}
+
+          {/* Resume Work — Khalifa review fcdbcbff. Shows the user's
+              active drafts + team-shared drafts. Clicking one navigates
+              directly into the tool for that event. */}
+          <ResumeSidebar
+            toolLabels={Object.fromEntries(TOOLS.map(t => [t.id.replace(/-/g, '_'), t.label]))}
+            resolveRoute={(toolKey, eventId) => {
+              const t = TOOLS.find(x => x.id.replace(/-/g, '_') === toolKey)
+              if (!t) return null
+              if (t.needsEvent && eventId && typeof t.route === 'function') return t.route(eventId)
+              if (!t.needsEvent && typeof t.href === 'string') return t.href
+              return null
+            }}
+          />
         </div>
 
         {/* ── Right detail panel ────────────────────────────────────────── */}

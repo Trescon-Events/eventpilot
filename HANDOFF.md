@@ -10,14 +10,80 @@
 
 | Field | Value |
 |---|---|
-| Who | Madhu + Claude Code (Sonnet 5) — afternoon, Pilot Projects admin tooling |
-| Latest push | 2026-07-02 ~16:20 IST — Madhu/Claude (`09adff2`) |
-| Handed off to | Durga |
-| Deployed | ✅ Yes — https://eventpilot.tresconglobal.com (Railway auto-deploy from main; `/api/admin/pilots` confirmed live and exercised against production) |
+| Who | Durga + Claude Code (Opus 4.7) — evening, Save & Resume foundation across tools (Khalifa review `fcdbcbff`) |
+| Latest push | 2026-07-02 evening — Durga/Claude — Save & Resume Phase 1–3 |
+| Handed off to | Open |
+| Deployed | ✅ Yes — https://eventpilot.tresconglobal.com (Railway auto-deploy from main). ⚠ **Requires one manual SQL step in the Supabase Dashboard before the feature actually works** — see "Follow-up action required" below. |
 
-**Session highlight:** Third Pilot Project launched (Website Builder & Brand Studio Module — Khalifa/Prashant/Nicholas/Fouzan), plus an admin UI (`/admin/pilots/new`) that replaces the script-per-project workflow entirely — create a project, pick members/roles, grant tool access, and draft a checklist with AI, all from the browser. See full write-up below.
+**Session highlight:** Built the "Resume Work" primitive Khalifa asked for in review `fcdbcbff-53e4-43a5-bbce-0c1cfa3aed3b`. Any staffer who walks away mid-way through a tool now has their draft saved automatically, and a Resume Work sidebar on `/admin/toolkit` surfaces "you were on the Speakers tab for World AI Show Indonesia 3 hours ago" — one click resumes exactly where they left off. Rolled out for the two tools Khalifa is piloting (Website Builder + Brand Studio); other tools slotted into the roadmap.
 
-**Also today (earlier, Durga):** Full bespoke project creation now works end-to-end for the first time since the tracker shipped 28 Jun — see the "early morning" section below.
+**Also today (afternoon, Madhu):** Third Pilot Project launched (Website Builder & Brand Studio Module) + admin UI (`/admin/pilots/new`) to replace the script-per-project workflow. Full write-up below.
+
+**Also today (early morning, Durga):** Bespoke Tracker end-to-end unblock — see the "early morning" section further down.
+
+---
+
+## What Was Built — 02 Jul 2026 evening (Durga / Claude Code) — Save & Resume across tools
+
+**Trigger:** Khalifa's review `fcdbcbff-53e4-43a5-bbce-0c1cfa3aed3b`, taken literally: *"any tool that we are working on, we need to have a step-by-step save mode so that at any stage a staff working on a tool has to abort the task for now the tool must save it as a task, and when the staff comes back must have the option for them to restart the task or form or start a new task."*
+
+Not a "Task History" panel, not a global tracker, not multi-device conflict resolution — a save-and-resume primitive that lives inside each tool and surfaces in one Resume Work list on `/admin/toolkit`.
+
+### Phase 1 — Foundation
+
+**New primitives**
+
+- `docs/roadmap-save-resume.md` — scoped roadmap. Tier 1 in-scope now: Website Builder + Brand Studio (Khalifa's pilot). Tier 1 deferred (in roadmap): Market Intel, Bespoke Brief, AI Course Gen, Outreach. Includes the multi-user rule (personal default; opt-in share via `shared_with_team` flag; last-write-wins, no locks) and rollout phases 1–5.
+- `supabase/save_resume_migration.sql` — the DDL for the `active_drafts` table (per-user, per-tool, per-event upsert key; two indexes; `NOTIFY pgrst`). **This must be run manually — see follow-up below.**
+- `app/api/drafts/route.ts` — `GET` (personal drafts + team-shared from others) and `POST` (upsert on `(user_id, tool_key, event_id)`).
+- `app/api/drafts/[id]/route.ts` — `DELETE` and `PATCH` for share-toggle + notes, both owner-gated (admin override).
+- `app/lib/useDraft.ts` — React hook every save-resume-capable tool uses. Throttled to one POST per 800 ms so rapid tab-flipping doesn't hammer the endpoint. Returns `{ mine, others, save, discard, shareWithTeam, reload }`.
+- `app/components/ResumeSidebar.tsx` — the sidebar section Khalifa asked for. Renders inside the `/admin/toolkit` left rail below the tools list. Empty state, personal drafts, and team-shared drafts (marked "Shared by Firstname"). Click routes directly into the tool + event.
+- `app/components/DraftReEntryModal.tsx` — Resume / Start new modal a tool can render on mount when `useDraft().mine` is non-null.
+
+**Wired in**
+
+- `app/admin/toolkit/page.tsx` — mounts `<ResumeSidebar>` in the left rail. `resolveRoute` closes over the existing tool catalogue so the sidebar doesn't need to know which tools take `eventId`.
+
+### Phase 2 — Website Builder integration
+
+- `app/admin/events/[id]/website/page.tsx` — imports `useDraft('website_builder', eventId)` and adds a `useEffect` that pings the registry whenever `tab`, `contentTab`, or `eventName` changes. Status text like "Website Builder · Editing Speakers" so Resume Work shows what the user was doing, not just which tool.
+
+### Phase 3 — Brand Studio integration
+
+- `app/admin/events/[id]/brand/page.tsx` — same shape: `useDraft('brand_studio', eventId)` + a `useEffect` keyed on `tab` + `event?.name`. Status maps against the eleven `TABS` (Identity, Logo, Colors, Typography, …) so Resume shows "Brand Studio · Colors" etc.
+
+### ⚠ Follow-up action required — create the `active_drafts` table
+
+The API route tries to self-heal via `supabaseAdmin.rpc('run_sql', ...)` — but Madhu's afternoon HANDOFF section documents that **`run_sql` doesn't exist in this database** (PGRST202). Same failure Madhu had with `ensureColumns()` in `/api/admin/pilots`. Until the table exists:
+
+- `GET /api/drafts` degrades gracefully → returns `{drafts:[]}` → Resume Work sidebar shows the empty-state message. No crash.
+- `POST /api/drafts` returns 500 → the `useDraft` hook silently catches it → tools keep working normally, just no draft is saved.
+
+**Feature is a no-op — but not broken — until the table is created.** To activate:
+
+1. Open Supabase Dashboard → SQL Editor for project `yuyxfxoevztugtfgduks` (dc@tresconglobal.com login)
+2. Paste the contents of `supabase/save_resume_migration.sql` and run
+3. Verify with `SELECT COUNT(*) FROM active_drafts;` → should return 0
+
+Alternative (per Madhu's flagged approach): `supabase link --project-ref yuyxfxoevztugtfgduks` then `supabase db query --linked "$(cat supabase/save_resume_migration.sql)"` — works from Madhu's machine (Supabase CLI already authenticated to Trescon org there).
+
+### What was validated locally
+
+- Type check clean across the whole surface.
+- Dev server on 3007 (something else on 3000) — `GET /api/drafts` and `POST /api/drafts` both `200` with a super-admin cookie and with a synthetic staff UUID. No crashes on the DB path even with the table absent (short-circuits + graceful degradation).
+
+### Multi-user rules (matched to what Khalifa actually asked for)
+
+- Personal by default — every staffer sees only their own drafts unless the owner flips `shared_with_team = true`.
+- No approval flow, no locks, no conflict resolution UI — deliberately kept out of Phase 1 to match Khalifa's prompt. Roadmap keeps this cut but documented.
+- Share toggle is one PATCH away — surfaces the same draft in teammates' Resume Work lists with an "opt in" tag.
+
+### Reviews addressed this session
+
+| Reporter | Title | Fixed by |
+|---|---|---|
+| Khalifa Al Marzooqi | Task History / Resume Work | Phase 1 foundation + Phase 2 Website Builder + Phase 3 Brand Studio (pending `active_drafts` table creation) |
 
 ---
 

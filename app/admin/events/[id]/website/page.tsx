@@ -4,6 +4,7 @@ import { useState, useEffect, use, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { type PageStructure, type Section, type SectionDesign, type FooterConfig, type FooterColumn, type FooterLink, defaultStructure, defaultFooter, SECTION_TYPES, SECTION_LAYOUTS } from '@/app/lib/event-page-types'
+import { useDraft } from '@/app/lib/useDraft'
 
 // ── Color tokens ──────────────────────────────────────────────────────────────
 const C = {
@@ -301,6 +302,12 @@ export default function EventWebsiteAdmin({ params }: { params: Promise<{ id: st
     }).catch(() => {})
   }, [router])
 
+  // Save & Resume — Khalifa review fcdbcbff. Every meaningful navigation
+  // inside this tool pings the active_drafts registry so the Resume Work
+  // sidebar back on /admin/toolkit surfaces "you were on the Speakers tab
+  // for World AI Show Indonesia 3 hours ago".
+  const { save: saveDraft } = useDraft('website_builder', eventId)
+
   const [tab,       setTab]       = useState<Tab>('template')
   const [contentTab, setContentTab] = useState<ContentTab>('details')
 
@@ -354,6 +361,25 @@ export default function EventWebsiteAdmin({ params }: { params: Promise<{ id: st
   const [teamModal,   setTeamModal]   = useState(false)
   const [editTeam,    setEditTeam]    = useState<Partial<TeamMember> | null>(null)
   const [savingTeam,  setSavingTeam]  = useState(false)
+
+  // Save & Resume registry ping — fires whenever the user changes tab or
+  // sub-tab. Throttled inside useDraft, so rapid tab-flipping doesn't
+  // hammer the endpoint.
+  useEffect(() => {
+    if (!eventName) return
+    const statusMap: Record<Tab, string> = {
+      template: 'Choosing template',
+      brand:    'Brand & assets',
+      build:    'Building page structure',
+      content:  `Editing content — ${contentTab}`,
+      publish:  'Publishing',
+    }
+    saveDraft({
+      displayLabel:   eventName,
+      statusText:     'Website Builder · ' + (statusMap[tab] ?? 'Editing'),
+      toolRecordId:   settings?.id ?? null,
+    })
+  }, [tab, contentTab, eventName, settings?.id, saveDraft])
 
   // Builder
   const [ps,             setPs]             = useState<PageStructure | null>(null)
