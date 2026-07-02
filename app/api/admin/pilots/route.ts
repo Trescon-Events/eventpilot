@@ -1,8 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/app/lib/supabase'
 import { sendPilotAssignment } from '@/app/lib/email'
-import { Client } from 'pg'
-import dns from 'dns'
 
 function getSession(req: NextRequest) {
   const raw = req.cookies.get('tcs_session')?.value
@@ -15,34 +13,19 @@ const SITE = process.env.NEXT_PUBLIC_SITE_URL ?? 'https://eventpilot.tresconglob
 
 // Ensures tool_href/tool_label (pilot_projects) and role_label/role_color
 // (pilot_project_members) exist. Safe to call every time — matches the
-// self-healing pattern used by /api/admin/setup-pilots. Only reachable from
-// Railway (pooler tenant lookup fails from some local networks), so failures
-// here are swallowed — the columns are expected to already exist in that case.
+// self-healing pattern used by /api/admin/setup-pilots, but via the `run_sql`
+// RPC (already used by app/api/import/commit) instead of a direct pg
+// connection — the pooler's tenant lookup for this project fails both locally
+// and from Railway, so the raw pg approach used elsewhere in this codebase
+// doesn't work here.
 async function ensureColumns() {
-  const pass = process.env.SUPABASE_DB_PASSWORD
-  if (!pass) return
-  try { dns.setDefaultResultOrder('ipv4first') } catch { /* Node < 16.4 */ }
-  const client = new Client({
-    host: 'aws-0-ap-southeast-1.pooler.supabase.com',
-    port: 5432,
-    user: 'postgres.yuyxfxoevztugtfgduks',
-    password: pass,
-    database: 'postgres',
-    ssl: { rejectUnauthorized: false },
-    connectionTimeoutMillis: 10000,
-  })
   try {
-    await client.connect()
-    await client.query(`
-      ALTER TABLE pilot_projects        ADD COLUMN IF NOT EXISTS tool_href  TEXT;
-      ALTER TABLE pilot_projects        ADD COLUMN IF NOT EXISTS tool_label TEXT;
-      ALTER TABLE pilot_project_members ADD COLUMN IF NOT EXISTS role_label TEXT;
-      ALTER TABLE pilot_project_members ADD COLUMN IF NOT EXISTS role_color TEXT;
-    `)
-    await client.end()
+    await supabaseAdmin.rpc('run_sql', { query: `ALTER TABLE pilot_projects ADD COLUMN IF NOT EXISTS tool_href TEXT` })
+    await supabaseAdmin.rpc('run_sql', { query: `ALTER TABLE pilot_projects ADD COLUMN IF NOT EXISTS tool_label TEXT` })
+    await supabaseAdmin.rpc('run_sql', { query: `ALTER TABLE pilot_project_members ADD COLUMN IF NOT EXISTS role_label TEXT` })
+    await supabaseAdmin.rpc('run_sql', { query: `ALTER TABLE pilot_project_members ADD COLUMN IF NOT EXISTS role_color TEXT` })
   } catch (e: unknown) {
     console.error('ensureColumns failed:', e instanceof Error ? e.message : e)
-    try { await client.end() } catch { /* ignore */ }
   }
 }
 
