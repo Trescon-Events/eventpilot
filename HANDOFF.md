@@ -11,15 +11,16 @@
 | Field | Value |
 |---|---|
 | Who | Durga + Claude Code (Opus 4.7) — evening + late-night, Save & Resume + Bangalore rollout + Newsletter/Leaderboard design |
-| Latest push | 2026-07-02 late evening — Durga/Claude — `743a5f2` (Newsletter + Leaderboard v2 spec docs) |
+| Latest push | 2026-07-02 late night — Durga/Claude — `03de21e` (Website preview mode fix — Khalifat 404 review) |
 | Handed off to | Open |
 | Deployed | ✅ Yes — https://eventpilot.tresconglobal.com (Railway auto-deploy from main). `active_drafts` table was manually created by Durga via Supabase Dashboard SQL Editor — Save & Resume is fully live end-to-end. |
 
-**Session highlight — 3 things landed:**
+**Session highlight — 4 things landed:**
 
 1. **Save & Resume complete** — Khalifat's review `fcdbcbff` shipped end-to-end. Resume Work sidebar on `/admin/toolkit`, re-entry modal on both Website Builder + Brand Studio, share-with-team toggle. Khalifat can now walk away mid-tab and land exactly where he left off. Review resolved live with AI-drafted admin reply.
 2. **Bangalore rollout email fired** — 60 recipients (57 Bangalore staff + Durga + Saleem + Naveen). Announcement that Event Pilot is now ready for the wider team, rolling out office-by-office starting with Bangalore.
 3. **Newsletter + Leaderboard v2 designed and sent to Madhu** for review — via in-app messaging on Event Pilot. Full spec docs committed to `docs/`.
+4. **Second Khalifat critical resolved same-day (`03de21e`)** — his 10:50 IST review `6c2d9724` complained that clicking Preview/Publish in the Website Builder returned "404 Page Not Found." Root cause: the Publish tab embedded `/events/{slug}` in an iframe, but that route required `status='live'` — so drafts always 404'd. Fixed by adding admin-authenticated `?preview=1` mode, plus the Publish tab now auto-appends the flag on unpublished drafts. Review resolved with an AI-drafted admin reply asking him to retry.
 
 **Also today (afternoon, Madhu):** Third Pilot Project launched (Website Builder & Brand Studio Module) + admin UI (`/admin/pilots/new`) to replace the script-per-project workflow.
 
@@ -69,6 +70,26 @@ Both live in `docs/` and were also delivered to Madhu's Event Pilot inbox at `/m
 - L5: Weekly random spot-audit of 1 top-10 completion
 
 Streak freeze: 2 auto-freezes per quarter (miss a week, streak stays). Silent, no user action.
+
+### `03de21e` — Website Builder preview mode fix (Khalifat review `6c2d9724`)
+
+Khalifat filed a critical review at 10:50 IST reporting "404 Page Not Found" when clicking Preview/Publish for the World AI Show Mumbai website after completing all setup steps. Sat untouched until picked up in the late-night session.
+
+**Root cause:** the Publish tab embedded `<iframe src="/events/{slug}">` for preview and had an "Open" button linking to the same URL. But `/events/[slug]/page.tsx` was hardcoded to require `.eq('status', 'live')` — so any draft (which is every site before you click Publish) always 404'd. The preview experience was broken for the entire lifecycle up until first publish.
+
+**Fix:**
+1. `/events/[slug]/page.tsx` now accepts a `?preview=1` query param. When present AND the request has an authenticated admin session (checked via `tcs_session` cookie server-side using `next/headers`), the status filter is skipped and `draft_structure` is preferred over `page_structure_full`
+2. Publish tab now auto-appends `?preview=1` to both the iframe src and the "Open" button href when `settings.status !== 'live'`. The button also relabels to "Preview" (was "Open") to remove ambiguity
+3. Also normalized page-structure parsing — some legacy rows store `page_structure_full = {}` instead of `null`, which crashed `ps.pages.find(...)`. `ps` is now nulled unless it has a valid `pages` array
+
+**Security:** non-admins hitting `?preview=1` still get 404. The session check is server-side, cookie-based, cannot be spoofed from the browser.
+
+**Verified locally:** all three states behave correctly on port 3007:
+- Bare URL (no cookie, no preview) → 404 ✅
+- `?preview=1` without cookie → 404 ✅ (security holds)
+- `?preview=1` with admin cookie → 200, renders ✅
+
+**Review resolved:** `6c2d9724-f5c0-426e-8252-8bb012e86d6f` flipped to `resolved` with `fix_commit_sha=03de21e`. AI-drafted admin comment posted addressed to Khalifatur, asking him to retry.
 
 ### Memory rules saved this session
 
