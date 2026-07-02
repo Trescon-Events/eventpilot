@@ -2,6 +2,7 @@ import { GoogleGenerativeAI } from '@google/generative-ai'
 import { supabaseAdmin } from '@/app/lib/supabase'
 import { NextRequest, NextResponse } from 'next/server'
 import { computeAIRS, getTier } from '@/app/lib/airs'
+import { getStaffCount } from '@/app/lib/staff-count'
 
 /* ── Platform docs cache — rebuilt every 10 minutes, shared across all chat requests ── */
 let _docsCache: { text: string; ts: number } | null = null
@@ -35,10 +36,10 @@ type Message = { role: 'user' | 'assistant'; text: string }
    It defines: identity, scope, limits, escalation, and tone.
    It is injected before the docs so rules always take precedence.
 ────────────────────────────────────────────────────────────────────── */
-function buildSystemPrompt(docs: string): string {
+function buildSystemPrompt(docs: string, staffCount: number): string {
   return `You are Pilot — the internal AI learning assistant for Event Pilot, Trescon's AI readiness platform.
 
-You help all 300 Trescon employees across Dubai, Bangalore, Mangalore, and Manipal understand their learning journey on Event Pilot and grow their AI skills.
+You help all ${staffCount} Trescon employees across Dubai, Bangalore, Mangalore, and Manipal understand their learning journey on Event Pilot and grow their AI skills.
 
 ════════════════════════════════
 WHAT YOU CAN HELP WITH
@@ -286,7 +287,8 @@ export async function POST(req: NextRequest) {
     .map(m => `${m.role === 'user' ? 'Employee' : 'Pilot'}: ${m.text}`)
     .join('\n\n')
 
-  const systemPrompt = buildSystemPrompt(docsText + staffContext)
+  const staffCount = await getStaffCount()
+  const systemPrompt = buildSystemPrompt(docsText + staffContext, staffCount)
 
   const fullPrompt = thread
     ? `${systemPrompt}\n\nCONVERSATION SO FAR:\n${thread}\n\nEmployee: ${question}\n\nPilot:`

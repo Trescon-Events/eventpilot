@@ -158,6 +158,14 @@ function ProfileContent() {
   /* Welcome screen state */
   const [showWelcome, setShowWelcome] = useState(false)
 
+  // Live staff count for the welcome copy — fetched once, cached 5min server-side.
+  const [staffCount, setStaffCount] = useState<number | null>(null)
+  useEffect(() => {
+    fetch('/api/staff-count').then(r => r.json()).then(d => {
+      if (typeof d?.total === 'number') setStaffCount(d.total)
+    }).catch(() => {})
+  }, [])
+
   /* Interview state */
   const [questions, setQuestions]     = useState<Question[]>([])
   const [step, setStep]               = useState(-1)   // -1 = verify screen
@@ -477,7 +485,7 @@ function ProfileContent() {
               <span style={{ color: '#3D6B00' }}>journey starts here.</span>
             </h1>
             <p style={{ fontSize: '13px', color: '#2D3E50', lineHeight: 1.65, margin: '0 0 32px', maxWidth: '340px' }}>
-              Event Pilot is Trescon&apos;s internal AI learning platform — built for all 300+ staff across Dubai, Bangalore, Mangalore, and Manipal. It shows you where you stand with AI and builds a learning path around your actual daily work.
+              Event Pilot is Trescon&apos;s internal AI learning platform — built for {staffCount ? `all ${staffCount} staff` : 'staff'} across Dubai, Bangalore, Mangalore, and Manipal. It shows you where you stand with AI and builds a learning path around your actual daily work.
             </p>
             <button
               onClick={() => { setShowWelcome(false); setStep(0) }}

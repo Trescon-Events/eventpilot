@@ -1,5 +1,6 @@
 import { supabaseAdmin } from '@/app/lib/supabase'
 import { NextRequest, NextResponse } from 'next/server'
+import { getStaffCount } from '@/app/lib/staff-count'
 
 const ADMIN_CODE = process.env.NEXT_PUBLIC_ADMIN_CODE ?? 'eventpilot2026'
 
@@ -98,7 +99,7 @@ Covers AI leadership, automation building, team AI strategy, and end-to-end crea
 
 MANDATORY VS OPTIONAL
 
-Some courses are marked Mandatory. These are required for all staff regardless of role, department, or AI Readiness Score. Mandatory courses establish the common knowledge baseline across all 300 Trescon employees.
+Some courses are marked Mandatory. These are required for all staff regardless of role, department, or AI Readiness Score. Mandatory courses establish the common knowledge baseline across all __STAFF_COUNT__ Trescon employees.
 
 Optional courses are recommended based on your department, job level, and learning track.
 
@@ -834,11 +835,18 @@ export async function POST(req: NextRequest) {
   const { admin_code } = await req.json().catch(() => ({}))
   if (admin_code !== ADMIN_CODE) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
+  // Substitute the live staff count into content placeholders before seed.
+  const staffCount = await getStaffCount()
+
   // Upsert by slug
   const { data, error } = await supabaseAdmin
     .from('platform_docs')
     .upsert(
-      DOCS.map(d => ({ ...d, updated_at: new Date().toISOString() })),
+      DOCS.map(d => ({
+        ...d,
+        content: d.content.replace(/__STAFF_COUNT__/g, String(staffCount)),
+        updated_at: new Date().toISOString(),
+      })),
       { onConflict: 'slug' }
     )
     .select('id, slug, title')
