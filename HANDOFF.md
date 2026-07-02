@@ -10,14 +10,14 @@
 
 | Field | Value |
 |---|---|
-| Who | Durga + Claude Code (Opus 4.7) — early hours, Bespoke Tracker end-to-end unblock |
-| Latest push | 2026-07-02 ~04:15 IST — Durga/Claude (`2532df9`) |
-| Handed off to | Open |
-| Deployed | ✅ Yes — https://eventpilot.tresconglobal.com (Railway auto-deploy from main; boot hook ran, review auto-resolved) |
+| Who | Madhu + Claude Code (Sonnet 5) — afternoon, Pilot Projects admin tooling |
+| Latest push | 2026-07-02 ~16:20 IST — Madhu/Claude (`09adff2`) |
+| Handed off to | Durga |
+| Deployed | ✅ Yes — https://eventpilot.tresconglobal.com (Railway auto-deploy from main; `/api/admin/pilots` confirmed live and exercised against production) |
 
-**Session highlight:** Full bespoke project creation now works end-to-end for the first time since the tracker shipped 28 Jun. Two distinct bugs shipped one after the other — the events insert used column names that didn't exist (`title` vs `name`, `start_date` vs `event_date`, `location` vs `city`, `format` didn't belong at all), and the six lead columns on `bespoke_projects` had no FK constraints so PostgREST couldn't resolve the join and the detail page rendered "Project not found" even for successfully-created rows. Both fixed; the AJMS project already sitting in the DB now renders.
+**Session highlight:** Third Pilot Project launched (Website Builder & Brand Studio Module — Khalifa/Prashant/Nicholas/Fouzan), plus an admin UI (`/admin/pilots/new`) that replaces the script-per-project workflow entirely — create a project, pick members/roles, grant tool access, and draft a checklist with AI, all from the browser. See full write-up below.
 
-**Also this session:** Madhu shipped a third pilot project (Website Builder & Brand Studio: Khalifa/Prashant/Nicholas/Fouzan) plus dashboard "Open tool" button + drag-and-drop / clipboard-paste on the Build Request form.
+**Also today (earlier, Durga):** Full bespoke project creation now works end-to-end for the first time since the tracker shipped 28 Jun — see the "early morning" section below.
 
 ---
 
@@ -61,15 +61,38 @@ Fix: applied six `ALTER TABLE ... ADD CONSTRAINT ... FOREIGN KEY (...) REFERENCE
 
 ---
 
-## What Was Built — 02 Jul 2026 afternoon (Madhu) — third pilot project + build request UX
+## What Was Built — 02 Jul 2026 afternoon (Madhu / Claude Code) — Pilot Projects admin tooling
 
-### `0651f8d` — Website Builder & Brand Studio pilot + dashboard/upload UX (3 files, +126 / −21)
+### Part 1 — Website Builder & Brand Studio Module (3rd Pilot Project)
 
-- **New pilot project seeded:** Website Builder & Brand Studio. Pilot: Khalifa · Co-Pilot: Prashant · Consulting: Nicholas · Tracking: Fouzan. Initial checklist entered, assignment emails sent.
-- **"Open tool" button on both pilot dashboards** (`/pilots` and `/admin/pilots`) — one-click jump into the tool being built.
-- **Drag-and-drop + clipboard-paste image upload on the Build Request form** in `/pilots` — alongside the existing file picker; same limits (3 files, 10 MB each).
+Seeded directly via a one-off script (`scripts/seed-pilot-website-builder.mjs`, gitignored like the other seed scripts): Khalifa (Pilot), Prashant (Co-Pilot — new role), Nicholas (Consulting), Fouzan (Tracking). 15 checklist items across the four, assignment emails sent, `brand_studio` grant added to Khalifa + Prashant (both already had `website_builder`). `PILOTS.md` updated as project #3.
 
-Nicholas is now on two projects — Pilot on Bespoke Event Module, Consulting on Khalifa's Website Builder & Brand Studio.
+Also shipped: an "Open tool" button at the top of each project card on both `/pilots` and `/admin/pilots` (Bespoke → `/admin/bespoke`, this new project → `/admin/toolkit` as a placeholder since neither Website Builder nor Brand Studio has a standalone page yet), and drag-and-drop + clipboard-paste image upload on the Build Request form's attachment area (reuses the existing multipart upload endpoint — no backend change needed).
+
+### Part 2 — Admin UI to create Pilot Projects (replaces script-per-project)
+
+Prompted by Madhu asking whether future Pilot Projects (including ones for tools that don't exist yet) could be set up from a UI instead of a hand-written script each time. Answer was yes for everything except checklist authoring, which stayed AI-assisted rather than fully automated.
+
+**New surface:** `/admin/pilots/new` — project name/description/status, an optional tool link (label + href, left blank if the tool isn't built yet), repeatable member rows (staff search, role preset picker with a "Custom…" option for new roles + label/color), a tool-grants multi-select per member, a per-member checklist editor, and a "✨ AI-draft checklist" button that drafts all members' checklists in one call.
+
+**New APIs:**
+- `POST /api/admin/pilots` — upserts the project (by name) and its members (by project+staff), inserts checklist items only if that project+person has none yet, applies `tool_grants`, and emails assignments. Same session-or-`x-setup-key` auth pattern as `/api/admin/setup-pilots`. Idempotent — safe to re-post.
+- `POST /api/admin/pilots/draft-checklist` — Gemini 2.5-flash (`app/lib/pilot-checklist-draft.ts`), given project name/description + members (name + role label), returns a checklist per member mirroring the tone of the three hand-written ones. Admin-only, no `x-setup-key` fallback (browser-only feature).
+
+**Structural change — roles and tool links are now data, not code:**
+- `pilot_projects` gained `tool_href`, `tool_label`. `pilot_project_members` gained `role_label`, `role_color`. A new role or a tool going live no longer needs a `.tsx` edit — just a field update.
+- `app/pilots/page.tsx` and `app/admin/pilots/page.tsx` read these DB fields first, falling back to the old hardcoded `ROLE_LABELS`/`ROLE_COLORS`/`PROJECT_TOOL_LINK` maps only for rows that predate this (kept as a safety net, not removed).
+- `sendPilotAssignment()` (`app/lib/email.ts`) now accepts optional `roleLabel`/`roleNote` overrides so custom roles get a real note instead of falling back to the raw role key.
+- Backfilled `tool_href`/`tool_label`/`role_label`/`role_color` for all 3 existing projects by re-posting each to `/api/admin/pilots` with `send_emails:false` — checklist-insert guard skipped re-inserting since items already existed, so this only touched the new columns.
+
+**Deploy hiccups worth knowing about (all fixed):**
+1. `middleware.ts` was redirecting unauthenticated `x-setup-key` requests to `/login` before they reached the handler — `/api/admin/pilots` wasn't in `PUBLIC_PREFIXES` like `/api/admin/setup-pilots` is. Fixed by adding it.
+2. The DB migration (`ALTER TABLE ... ADD COLUMN`) failed identically from both this machine and Railway with `(ENOTFOUND) tenant/user postgres.yuyxfxoevztugtfgduks not found` against the pooler — not a local-network issue this time, something's off with the pooler for this project specifically. Worth remembering next time a schema change is needed here.
+3. Tried routing the migration through the `run_sql` RPC that `app/api/import/commit/route.ts` already calls for dynamic `ALTER TABLE ADD COLUMN` — **that function doesn't exist in this database** (`PGRST202`, function not found). That code's `catch { /* column may already exist */ }` has been silently swallowing this same failure — flagged below as a known issue, not fixed (out of scope this session).
+4. What actually worked: `supabase link --project-ref yuyxfxoevztugtfgduks` then `supabase db query --linked "<SQL>"` — routes through the Management API, bypassing the pooler entirely. The Supabase CLI was already authenticated on this machine. `ensureColumns()` in `/api/admin/pilots` still tries the DDL itself on every call (harmless if it fails now that columns exist) but this is the reliable manual fallback if another migration is ever needed here.
+
+### Commits
+`682443e` `6c791f3` `ed9456a` `09adff2`
 
 ---
 
@@ -370,6 +393,7 @@ Salary multi-currency:
 6. **`middleware.ts` deprecation warning (Next.js 16)** — the "middleware" file convention is deprecated and should be renamed to `proxy`. Non-blocking today but scheduled for removal in a future Next.js. See: https://nextjs.org/docs/messages/middleware-to-proxy
 7. **Super-admin Realtime blackout** — RealtimeNotifications.tsx deliberately skips Supabase Realtime for super-admin (no UUID to subscribe with). If Madhu needs live notifications, needs a workaround.
 8. **Tracker-role Pilot users only see their own items** — `/api/pilots` filters `visibleItems` to `assigned_to === session.sid` for non-admins. For a `tracking` role user (like Fouzan), the intent of the role is to see everyone's items, not just their own. Design decision needed: should tracking role bypass the per-user filter server-side? Client tracker view already handles read-only for non-owned items.
+9. **`supabaseAdmin.rpc('run_sql', ...)` in `app/api/import/commit/route.ts` silently no-ops** — the `run_sql` Postgres function it calls doesn't exist in this database (`PGRST202: function not found`), and the call site wraps it in `catch { /* column may already exist */ }`, so the "add approved new columns" step of the import-commit flow has likely never actually added a column — it just fails quietly every time. Found while debugging an unrelated migration this session (see 02 Jul entry above). Needs either creating the `run_sql` function for real, or replacing that call with the `supabase db query --linked` / Management API approach that worked this session.
 
 ---
 
@@ -445,7 +469,7 @@ Plus 19 historical admin comments backfilled retroactively for previously-resolv
 ## Previous Sessions
 
 - **02 Jul 2026 — Durga/Claude Opus 4.7 (early hours)** — Bespoke Tracker end-to-end unblock: fixed events insert column names (`06d9f27`), applied six FK constraints via pg-direct + `supabase/bespoke_lead_fks.sql` migration (`2532df9`), drafted Thulasi's scope reply, closed Nicholas's HIGH-severity review with auto-response
-- **02 Jul 2026 — Madhu/Claude (afternoon)** — Website Builder & Brand Studio pilot project seeded; "Open tool" button + drag-and-drop image upload on Build Requests (`0651f8d`)
+- **02 Jul 2026 — Madhu/Claude (afternoon)** — 3rd Pilot Project (Website Builder & Brand Studio Module) + dashboard "Open tool" button + drag-and-drop/paste upload on Build Requests (`0651f8d`); then `/admin/pilots/new` admin UI + AI-draft-checklist for creating future Pilot Projects without a script, with `tool_href`/`role_label`/`role_color` moved from hardcoded maps to DB columns
 - **01 Jul 2026 — Madhu/Claude (afternoon)** — Build Requests module: 3 new API routes, 2 new email functions, rewritten `/pilots` + `/admin/pilots` pages, 3 new DB tables, Supabase Storage bucket; fixes Railway build failure (Next.js 16 params + @types/pg)
 - **01 Jul 2026 — Durga/Claude (afternoon)** — Assessment module UX v2, Vercel silencer, review auto-response system + 19-comment backfill, Bespoke Tracker access fix, Pilot Projects unresponsive fix, staff-reply auto-reopen removed, **deploy-verified auto-resolve infrastructure**
 - **01 Jul 2026 — Madhu** — Pilot Projects launch (10 files, 1,625 lines) + IPv4 DNS series for pg DDL migrations on Railway
@@ -458,4 +482,4 @@ Plus 19 historical admin comments backfilled retroactively for previously-resolv
 
 ---
 
-*This handoff was last updated by Claude Code (Sonnet 4.6) on 2026-07-01 ~16:00 IST, after Madhu's afternoon session that shipped the Build Requests module (`21ec0d5`). All commits pushed to `origin/main`; Railway confirmed live (HTTP 200 on `/api/build-requests`). Local main is synced.*
+*This handoff was last updated by Claude Code (Sonnet 5) on 2026-07-02 ~16:20 IST, after Madhu's session that shipped the Pilot Projects admin UI (`09adff2`). All commits pushed to `origin/main`; Railway confirmed live and `/api/admin/pilots` exercised against production for all 3 existing projects. Local main is synced.*
