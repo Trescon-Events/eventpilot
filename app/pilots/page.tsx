@@ -39,11 +39,19 @@ type Project = {
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
-const ROLE_LABELS: Record<string, string> = { pilot: 'Pilot', consulting: 'Consulting', tracking: 'Project Tracking' }
+const ROLE_LABELS: Record<string, string> = { pilot: 'Pilot', co_pilot: 'Co-Pilot', consulting: 'Consulting', tracking: 'Project Tracking' }
 const ROLE_COLORS: Record<string, { bg: string; color: string }> = {
   pilot:      { bg: '#eff6ff', color: '#1d4ed8' },
+  co_pilot:   { bg: '#fdf2f8', color: '#be185d' },
   consulting: { bg: '#fef3c7', color: '#92400e' },
   tracking:   { bg: '#f0fdf4', color: '#166534' },
+}
+// Where the "Open tool" button on each project card should point. Website Builder
+// and Brand Studio don't have a standalone page yet (event-scoped only), so both
+// route to the shared Toolkit hub until that's decided.
+const PROJECT_TOOL_LINK: Record<string, { label: string; href: string }> = {
+  'Bespoke Event Module':               { label: 'Open Bespoke Tracker', href: '/admin/bespoke' },
+  'Website Builder & Brand Studio Module': { label: 'Open Toolkit', href: '/admin/toolkit' },
 }
 const STATUS_COLORS: Record<string, { bg: string; color: string; label: string }> = {
   active:   { bg: '#eff6ff', color: '#1d4ed8', label: 'Active — Not Started' },
@@ -105,6 +113,7 @@ export default function PilotsPage() {
   const [formFiles, setFormFiles]       = useState<File[]>([])
   const [formError, setFormError]       = useState('')
   const [formSubmitting, setFormSubmitting] = useState(false)
+  const [dragActive, setDragActive]     = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   // Reply state
@@ -159,13 +168,35 @@ export default function PilotsPage() {
     setToggling(null)
   }, [])
 
+  const addFiles = useCallback((incoming: File[]) => {
+    if (!incoming.length) return
+    setFormFiles(prev => {
+      const combined = [...prev, ...incoming]
+      const bad = combined.find(f => !ALLOWED_TYPES.includes(f.type) || f.size > MAX_FILE_SIZE)
+      if (bad) { setFormError('Files must be PDF, PNG or JPG and under 10 MB each'); return prev }
+      if (combined.length > 3) { setFormError('Max 3 files'); return prev }
+      setFormError('')
+      return combined
+    })
+  }, [])
+
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const selected = Array.from(e.target.files ?? [])
-    const bad = selected.find(f => !ALLOWED_TYPES.includes(f.type) || f.size > MAX_FILE_SIZE)
-    if (bad) { setFormError('Files must be PDF, PNG or JPG and under 10 MB each'); return }
-    if (selected.length > 3) { setFormError('Max 3 files'); return }
-    setFormError('')
-    setFormFiles(selected)
+    addFiles(Array.from(e.target.files ?? []))
+    e.target.value = ''
+  }
+
+  const handleDrop = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault()
+    setDragActive(false)
+    addFiles(Array.from(e.dataTransfer.files ?? []))
+  }
+
+  const handlePaste = (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
+    const pasted = Array.from(e.clipboardData?.items ?? [])
+      .filter(item => item.kind === 'file' && item.type.startsWith('image/'))
+      .map(item => item.getAsFile())
+      .filter((f): f is File => f !== null)
+    if (pasted.length) addFiles(pasted)
   }
 
   const handleSubmitRequest = async (projectId: string) => {
@@ -284,12 +315,22 @@ export default function PilotsPage() {
                       {project.myRole && <span style={{ fontSize: 12, fontWeight: 600, padding: '3px 10px', borderRadius: 999, background: roleMeta.bg, color: roleMeta.color }}>Your role: {ROLE_LABELS[project.myRole] ?? project.myRole}</span>}
                     </div>
                   </div>
-                  {!isTrackerView && (
-                    <div style={{ textAlign: 'center', minWidth: 64 }}>
-                      <div style={{ fontSize: 26, fontWeight: 800, color: myPct === 100 ? '#16a34a' : '#111827' }}>{myPct}%</div>
-                      <div style={{ fontSize: 11, color: '#9ca3af', fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.5 }}>Complete</div>
-                    </div>
-                  )}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+                    {PROJECT_TOOL_LINK[project.name] && (
+                      <a href={PROJECT_TOOL_LINK[project.name].href} style={{
+                        display: 'flex', alignItems: 'center', gap: 6, background: '#111827', color: '#fff',
+                        fontSize: 12, fontWeight: 700, padding: '8px 14px', borderRadius: 8, textDecoration: 'none', flexShrink: 0,
+                      }}>
+                        {PROJECT_TOOL_LINK[project.name].label} →
+                      </a>
+                    )}
+                    {!isTrackerView && (
+                      <div style={{ textAlign: 'center', minWidth: 64 }}>
+                        <div style={{ fontSize: 26, fontWeight: 800, color: myPct === 100 ? '#16a34a' : '#111827' }}>{myPct}%</div>
+                        <div style={{ fontSize: 11, color: '#9ca3af', fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.5 }}>Complete</div>
+                      </div>
+                    )}
+                  </div>
                 </div>
                 {/* Members */}
                 <div style={{ display: 'flex', gap: 16, marginTop: 16, flexWrap: 'wrap' }}>
@@ -400,21 +441,38 @@ export default function PilotsPage() {
                       <div style={{ marginBottom: 12 }}>
                         <label style={{ fontSize: 12, fontWeight: 700, color: '#374151', display: 'block', marginBottom: 4 }}>DETAILED INSTRUCTIONS *</label>
                         <textarea value={formMessage} onChange={e => setFormMessage(e.target.value)}
-                          placeholder="Describe exactly what you want built, how it should work, and any edge cases to consider…"
+                          onPaste={handlePaste}
+                          placeholder="Describe exactly what you want built, how it should work, and any edge cases to consider… (paste a screenshot directly here)"
                           rows={5} style={{ width: '100%', padding: '9px 12px', borderRadius: 8, border: '1px solid #d1d5db', fontSize: 14, boxSizing: 'border-box', resize: 'vertical', outline: 'none', fontFamily: 'inherit' }} />
                       </div>
                       <div style={{ marginBottom: 16 }}>
                         <label style={{ fontSize: 12, fontWeight: 700, color: '#374151', display: 'block', marginBottom: 4 }}>
                           ATTACHMENTS <span style={{ fontWeight: 400, color: '#6b7280' }}>(PDF, PNG, JPG — max 10 MB each, max 3 files)</span>
                         </label>
-                        <input ref={fileInputRef} type="file" multiple accept=".pdf,.png,.jpg,.jpeg"
-                          onChange={handleFileChange}
-                          style={{ fontSize: 13, color: '#374151' }} />
+                        <div
+                          onDragOver={e => { e.preventDefault(); setDragActive(true) }}
+                          onDragLeave={() => setDragActive(false)}
+                          onDrop={handleDrop}
+                          onClick={() => fileInputRef.current?.click()}
+                          style={{
+                            border: `1.5px dashed ${dragActive ? '#0d9488' : '#d1d5db'}`, borderRadius: 8,
+                            background: dragActive ? '#f0fdfa' : '#fafafa', padding: '16px 14px',
+                            textAlign: 'center', cursor: 'pointer', transition: 'all 0.15s',
+                          }}>
+                          <p style={{ margin: 0, fontSize: 13, color: '#6b7280' }}>
+                            Drag files here, click to browse, or paste a screenshot from your clipboard
+                          </p>
+                          <input ref={fileInputRef} type="file" multiple accept=".pdf,.png,.jpg,.jpeg"
+                            onChange={handleFileChange} onClick={e => e.stopPropagation()}
+                            style={{ display: 'none' }} />
+                        </div>
                         {formFiles.length > 0 && (
                           <div style={{ marginTop: 8, display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                             {formFiles.map((f, i) => (
-                              <span key={i} style={{ fontSize: 12, background: '#fff', border: '1px solid #d1d5db', padding: '3px 10px', borderRadius: 999, color: '#374151' }}>
+                              <span key={i} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12, background: '#fff', border: '1px solid #d1d5db', padding: '3px 6px 3px 10px', borderRadius: 999, color: '#374151' }}>
                                 {fileIcon(f.type)} {f.name} ({fmtSize(f.size)})
+                                <button type="button" onClick={() => setFormFiles(prev => prev.filter((_, j) => j !== i))}
+                                  style={{ border: 'none', background: 'none', cursor: 'pointer', color: '#9ca3af', fontSize: 13, lineHeight: 1, padding: '0 2px' }}>✕</button>
                               </span>
                             ))}
                           </div>

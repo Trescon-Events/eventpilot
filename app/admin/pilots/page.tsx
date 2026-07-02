@@ -41,7 +41,14 @@ type Project = {
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
-const ROLE_LABELS: Record<string, string> = { pilot: 'Pilot', consulting: 'Consulting', tracking: 'Tracking' }
+const ROLE_LABELS: Record<string, string> = { pilot: 'Pilot', co_pilot: 'Co-Pilot', consulting: 'Consulting', tracking: 'Tracking' }
+// Where the "Open tool" button on each project header should point. Website Builder
+// and Brand Studio don't have a standalone page yet (event-scoped only), so both
+// route to the shared Toolkit hub until that's decided.
+const PROJECT_TOOL_LINK: Record<string, { label: string; href: string }> = {
+  'Bespoke Event Module':               { label: 'Open Bespoke Tracker', href: '/admin/bespoke' },
+  'Website Builder & Brand Studio Module': { label: 'Open Toolkit', href: '/admin/toolkit' },
+}
 const STATUS_META: Record<string, { bg: string; color: string; label: string }> = {
   active:   { bg: '#eff6ff', color: '#1d4ed8', label: 'Active' },
   building: { bg: '#fef9c3', color: '#854d0e', label: 'In Build' },
@@ -214,7 +221,17 @@ export default function AdminPilotsPage() {
 
                 {/* Project header */}
                 <div style={{ padding: '24px 28px', borderBottom: '1px solid #f3f4f6' }}>
-                  <h2 style={{ fontSize: 20, fontWeight: 700, color: '#111827', margin: '0 0 6px' }}>{activeProject.name}</h2>
+                  <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap' }}>
+                    <h2 style={{ fontSize: 20, fontWeight: 700, color: '#111827', margin: '0 0 6px' }}>{activeProject.name}</h2>
+                    {PROJECT_TOOL_LINK[activeProject.name] && (
+                      <a href={PROJECT_TOOL_LINK[activeProject.name].href} style={{
+                        display: 'flex', alignItems: 'center', gap: 6, background: '#111827', color: '#fff',
+                        fontSize: 12, fontWeight: 700, padding: '8px 14px', borderRadius: 8, textDecoration: 'none', flexShrink: 0,
+                      }}>
+                        {PROJECT_TOOL_LINK[activeProject.name].label} →
+                      </a>
+                    )}
+                  </div>
                   {activeProject.description && <p style={{ color: '#6b7280', fontSize: 14, margin: '0 0 16px', lineHeight: 1.6 }}>{activeProject.description}</p>}
                   <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
                     {activeProject.members.map(m => (

@@ -70,6 +70,36 @@
 
 ---
 
+### 3. Website Builder & Brand Studio Module
+
+| Field | Detail |
+|---|---|
+| Status | Active — Pre-Build |
+| Initiated | 2 Jul 2026 |
+| Pilot (Main) | Khalifatur Rahman · khalifa@tresconglobal.com |
+| Co-Pilot | Prashant Mual · prashant@tresconglobal.com |
+| Consulting | Nicholas Nunes · nicholas@tresconglobal.com |
+| Tracking | Fouzan Abdul Rahim · fouzan@tresconglobal.com |
+
+**What it is:** A pilot project to decide how EventPilot's Website Builder and Brand Studio tools should be structured going forward — standalone hub vs. event-scoped, one unified module vs. two separate tools, and what starter templates/brand assets are needed. Scope has not been decided yet; Phase 1 is about aligning direction with Durga.
+
+**Key open questions (Khalifa + Durga to decide):**
+- [ ] One unified Website Builder + Brand Studio module, or two separate tools sharing infrastructure?
+- [ ] Standalone hub outside the Events section, or stay scoped to individual events as today?
+- [ ] Which tool gets Phase 1 focus — Website Builder, Brand Studio, or a shared foundation both need?
+- [ ] Any scope overlap with the Bespoke Event Module's own website/brand needs (flagged by Nicholas)?
+
+**Preliminary content needed (Khalifa + Prashant to prepare):**
+- [ ] Starter template/section library for Website Builder
+- [ ] Starter brand asset library for Brand Studio (logo variants, palettes, fonts)
+
+**Access:**
+- Khalifa: `website_builder` ✓, `brand_studio` ✓ (set 2 Jul 2026)
+- Prashant: `website_builder` ✓, `brand_studio` ✓ (set 2 Jul 2026)
+- Nicholas: `website_builder`, `bespoke` ✓ (already had access)
+
+---
+
 ## How Pilot Projects Work
 
 ```
@@ -115,4 +145,4 @@ When a new Pilot Project is initiated:
 
 ---
 
-*Last updated: 1 Jul 2026*
+*Last updated: 2 Jul 2026*
