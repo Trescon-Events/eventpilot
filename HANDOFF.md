@@ -10,16 +10,79 @@
 
 | Field | Value |
 |---|---|
-| Who | Durga + Claude Code (Opus 4.7) — evening, Save & Resume foundation across tools (Khalifa review `fcdbcbff`) |
-| Latest push | 2026-07-02 evening — Durga/Claude — Save & Resume Phase 1–3 |
+| Who | Durga + Claude Code (Opus 4.7) — evening + late-night, Save & Resume + Bangalore rollout + Newsletter/Leaderboard design |
+| Latest push | 2026-07-02 late evening — Durga/Claude — `743a5f2` (Newsletter + Leaderboard v2 spec docs) |
 | Handed off to | Open |
-| Deployed | ✅ Yes — https://eventpilot.tresconglobal.com (Railway auto-deploy from main). ⚠ **Requires one manual SQL step in the Supabase Dashboard before the feature actually works** — see "Follow-up action required" below. |
+| Deployed | ✅ Yes — https://eventpilot.tresconglobal.com (Railway auto-deploy from main). `active_drafts` table was manually created by Durga via Supabase Dashboard SQL Editor — Save & Resume is fully live end-to-end. |
 
-**Session highlight:** Built the "Resume Work" primitive Khalifa asked for in review `fcdbcbff-53e4-43a5-bbce-0c1cfa3aed3b`. Any staffer who walks away mid-way through a tool now has their draft saved automatically, and a Resume Work sidebar on `/admin/toolkit` surfaces "you were on the Speakers tab for World AI Show Indonesia 3 hours ago" — one click resumes exactly where they left off. Rolled out for the two tools Khalifa is piloting (Website Builder + Brand Studio); other tools slotted into the roadmap.
+**Session highlight — 3 things landed:**
 
-**Also today (afternoon, Madhu):** Third Pilot Project launched (Website Builder & Brand Studio Module) + admin UI (`/admin/pilots/new`) to replace the script-per-project workflow. Full write-up below.
+1. **Save & Resume complete** — Khalifat's review `fcdbcbff` shipped end-to-end. Resume Work sidebar on `/admin/toolkit`, re-entry modal on both Website Builder + Brand Studio, share-with-team toggle. Khalifat can now walk away mid-tab and land exactly where he left off. Review resolved live with AI-drafted admin reply.
+2. **Bangalore rollout email fired** — 60 recipients (57 Bangalore staff + Durga + Saleem + Naveen). Announcement that Event Pilot is now ready for the wider team, rolling out office-by-office starting with Bangalore.
+3. **Newsletter + Leaderboard v2 designed and sent to Madhu** for review — via in-app messaging on Event Pilot. Full spec docs committed to `docs/`.
 
-**Also today (early morning, Durga):** Bespoke Tracker end-to-end unblock — see the "early morning" section further down.
+**Also today (afternoon, Madhu):** Third Pilot Project launched (Website Builder & Brand Studio Module) + admin UI (`/admin/pilots/new`) to replace the script-per-project workflow.
+
+**Also today (early morning, Durga):** Bespoke Tracker end-to-end unblock.
+
+---
+
+## What Was Built — 02 Jul 2026 late evening (Durga / Claude Code) — Bangalore rollout + Newsletter/Leaderboard design
+
+### `e775ba1` — Save & Resume Phase 2/3 finish: re-entry modal mounted + share-with-team toggle
+
+The Phase 1–3 push (`23fe7d2`, earlier this evening) built the primitives but stopped short on two items Khalifat's prompt actually asked for. This commit finishes them:
+
+- **Re-entry modal mounted** in both Website Builder + Brand Studio. On mount, if the user has an in-progress draft for the tool + event, they see the "Resume this draft / Start new" prompt before they interact. "Resume" actually restores the tab (and content sub-tab, for Website Builder) they were on when they left — `tool_record_id` now stores the tab position (e.g. `content:speakers` for Website Builder, `colors` for Brand Studio).
+- **Share-with-team toggle** in ResumeSidebar. Each of the user's own draft rows has an inline "Share with team" button. Click flips `shared_with_team` via the existing `PATCH /api/drafts/[id]` endpoint (optimistic update, reverts on failure). Team-shared drafts show "Shared with team ✓" in gold.
+
+Khalifat's review `fcdbcbff-53e4-43a5-bbce-0c1cfa3aed3b` was auto-resolved by PATCHing to `status=resolved` with `fix_commit_sha=23fe7d2` and an admin_notes explaining what shipped. resolveReview() generated the AI-drafted admin reply addressed to Khalifat + fired the bell notification.
+
+### `5f70267` — Replace 4 hardcoded staff counts with live `getStaffCount()` helper
+
+Durga flagged that the "300+" / "184" numbers in various places were stale — Trescon is currently 127 staff, not 184 or 300+. Rather than swap in the literal 127 (drifts the moment we hire), added `app/lib/staff-count.ts` which queries `staff_members WHERE access_enabled=true`, cached 5min in-process. Wired in 4 sites:
+
+- `app/lib/generateInsights.ts` — org-strategy AI prompt count
+- `app/api/ask/route.ts` — Pilot assistant system prompt count
+- `app/api/seed-platform-docs/route.ts` — `__STAFF_COUNT__` placeholder substituted at seed time
+- `app/profile/page.tsx` — welcome copy fetches via new `GET /api/staff-count` endpoint on mount, falls back to count-less copy while loading
+
+### Bangalore rollout email fired — 60 recipients, 0 failures
+
+Announcement email that Event Pilot is now ready to roll out office-by-office starting with Bangalore. Sent via one-off script (`/tmp/send-bangalore-rollout.mjs`, not in repo) using existing Resend infra + service role Supabase key.
+
+**Recipients:** 57 Bangalore staff (`office_id='bangalore'`, `access_enabled=true`, excluding `charan@tresconglobal.com` = Charan Kaverappa, an Admin dept staffer Durga wanted to skip) + 3 explicit adds (Durga at `dc@tresconglobal.com`, Saleem at `sm@`, Naveen Bharadwaj at `naveen@`). All 60 delivered, Resend IDs logged.
+
+**Content:** short direct email — platform in test for a few weeks, ready to roll out in phases starting with Bangalore. What to expect on first login (SSO via Microsoft, dashboard, tools by role). If already using it, keep going with the AI courses. If something breaks, use Report Issue. Signed by Durga.
+
+### Two proposal specs designed + sent to Madhu via in-app messages
+
+Both live in `docs/` and were also delivered to Madhu's Event Pilot inbox at `/messages` (Madhukar Dudda, `323f2caf-7a9b-47e0-b703-02d2d6ecfc95`):
+
+**Trescon Digest** (`docs/newsletter-proposal-trescon-digest.md`, message ID `4e98d50f-7efd-4616-9b04-6a9f5adc9c93`) — fortnightly all-staff newsletter. 7-section spine: AI This Week / What Shipped / Events Pulse / Learning Corner / Faces of Trescon / You Said, We Did / Coming Up Next. Dual-channel delivery: email + new "News Corner" section at `/news` on Event Pilot itself. Every issue gets a permanent URL. Half auto-generated (learning stats, new joiners, resolved reviews), half manual (Durga's AI This Week + roadmap; Marketing's Events Pulse; rotating staff spotlight). ~70 min per fortnight split across 3 people. Build: 3–4 days.
+
+**Leaderboard v2** (`docs/leaderboard-spec-v2.md`, message ID `e5a53dd2-61ed-4029-bd06-3fe657799b29`) — pivot from rank+tier to **Mi Watch / Strava-style percentile framing**. Everyone sees "you're in top X% of Trescon, ahead of Y% of your office, Z% of your dept". Public leaderboard shrinks to top 10 + office standings. Scope stays course-only — tool adoption celebrated in the Digest instead. **5-layer anti-fake system:**
+- L1: Minimum 60% of stated course duration, focused-tab only
+- L2: Randomized tests (question bank, answer order, no back-nav, time limit)
+- L3: Trust score per completion (3+ flags = doesn't count)
+- L4: Quarterly manager attestation for Champion + Master tier learners
+- L5: Weekly random spot-audit of 1 top-10 completion
+
+Streak freeze: 2 auto-freezes per quarter (miss a week, streak stays). Silent, no user action.
+
+### Memory rules saved this session
+
+Two feedback memories added to `~/.claude/projects/-Users-durgacharan1978/memory/`:
+
+- **`feedback_eventpilot_rollout_cc_management.md`** — any broad rollout email at Trescon must CC or FYI the 13-person Management/Board list (Board: Madhukar, Mithun, Naveen, Swarnavo, Ummer; C-Suite: Anil, Christine, Durga, Edward, Saleem, Samad, Sanjiv, Vimal). Madhu Satyanarayan explicitly excluded — has platform super_admin but is a Sales director, not org management. Re-verify list before each send.
+
+### ⚠ Still open going into next session
+
+1. **`CRON_SECRET` env var mismatch** — still blocking the weekly leaderboard cron. Monday 06 Jul 07:00 IST scheduled fire will 401 unless secret is fixed. Needs `CRON_SECRET` set on Railway + GitHub Actions with the same value. Same blocker from 01 Jul evening — 4 days until it costs us a missed digest.
+
+2. **`/leaderboard` cosmetic bug** — the sole seeded baseline row shows a UUID instead of a staff name. Needs a join in `/api/leaderboard`. Cheap fix, but every Bangalore tester who lands there today sees a UUID.
+
+3. **Newsletter + Leaderboard v2 specs awaiting Madhu's read** — 5 questions each. Once he responds, we can start Phase 0 of the leaderboard rebuild (percentile model) and Phase 1 of the newsletter (composer + first Issue #1 target Friday 17 Jul).
 
 ---
 
@@ -53,20 +116,11 @@ Not a "Task History" panel, not a global tracker, not multi-device conflict reso
 
 - `app/admin/events/[id]/brand/page.tsx` — same shape: `useDraft('brand_studio', eventId)` + a `useEffect` keyed on `tab` + `event?.name`. Status maps against the eleven `TABS` (Identity, Logo, Colors, Typography, …) so Resume shows "Brand Studio · Colors" etc.
 
-### ⚠ Follow-up action required — create the `active_drafts` table
+### ✅ `active_drafts` table created — feature fully live
 
-The API route tries to self-heal via `supabaseAdmin.rpc('run_sql', ...)` — but Madhu's afternoon HANDOFF section documents that **`run_sql` doesn't exist in this database** (PGRST202). Same failure Madhu had with `ensureColumns()` in `/api/admin/pilots`. Until the table exists:
+Durga ran `supabase/save_resume_migration.sql` in the Supabase Dashboard SQL Editor at ~19:00 IST. The `active_drafts` table now exists in production. Verified against the live `/api/drafts` endpoint — returns 200 cleanly.
 
-- `GET /api/drafts` degrades gracefully → returns `{drafts:[]}` → Resume Work sidebar shows the empty-state message. No crash.
-- `POST /api/drafts` returns 500 → the `useDraft` hook silently catches it → tools keep working normally, just no draft is saved.
-
-**Feature is a no-op — but not broken — until the table is created.** To activate:
-
-1. Open Supabase Dashboard → SQL Editor for project `yuyxfxoevztugtfgduks` (dc@tresconglobal.com login)
-2. Paste the contents of `supabase/save_resume_migration.sql` and run
-3. Verify with `SELECT COUNT(*) FROM active_drafts;` → should return 0
-
-Alternative (per Madhu's flagged approach): `supabase link --project-ref yuyxfxoevztugtfgduks` then `supabase db query --linked "$(cat supabase/save_resume_migration.sql)"` — works from Madhu's machine (Supabase CLI already authenticated to Trescon org there).
+Note for future migrations here: the `run_sql` RPC still doesn't exist (PGRST202), so any `supabaseAdmin.rpc('run_sql', ...)` self-heal pattern will silently fail. Manual SQL Editor + Supabase Dashboard is the reliable path; Madhu's `supabase db query --linked` approach also works from his authenticated CLI.
 
 ### What was validated locally
 
