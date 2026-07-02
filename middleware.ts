@@ -22,6 +22,7 @@ const PUBLIC_PREFIXES = [
   '/api/verify-staff',    // used by /profile setup flow (no session at that point)
   '/api/task-profiles',           // used by /profile setup flow (no session at that point)
   '/api/admin/setup-pilots',     // one-time setup, auth checked inside via x-setup-key header
+  '/api/admin/pilots',            // create/backfill pilot projects, auth checked inside (session or x-setup-key)
   '/api/build-requests',         // build requests API, auth checked inside (session or x-setup-key)
   '/profile',             // AIRS assessment — staff arrive here before they have a session
   '/events',              // public event websites
