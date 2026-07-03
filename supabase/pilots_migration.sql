@@ -32,6 +32,14 @@ ALTER TABLE pilot_projects        ADD COLUMN IF NOT EXISTS tool_label TEXT;
 ALTER TABLE pilot_project_members ADD COLUMN IF NOT EXISTS role_label TEXT;
 ALTER TABLE pilot_project_members ADD COLUMN IF NOT EXISTS role_color TEXT;
 
+-- 3 Jul 2026: builder_id (pilot_projects) — who fields Build Requests for this
+-- project (staff_members.id). Previously implicit/hardcoded to Durga everywhere;
+-- now per-project data so e.g. the SmartExcel pilot project can route to Madhu
+-- instead. Existing 3 projects backfilled to Durga's staff id. See
+-- app/api/admin/pilots (ensureColumns + upsert) and app/api/build-requests
+-- (alert email routing, falls back to dc@tresconglobal.com if unset).
+ALTER TABLE pilot_projects ADD COLUMN IF NOT EXISTS builder_id UUID;
+
 CREATE TABLE IF NOT EXISTS pilot_checklist_items (
   id           UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   project_id   UUID NOT NULL REFERENCES pilot_projects(id) ON DELETE CASCADE,

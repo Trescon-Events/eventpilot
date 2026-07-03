@@ -138,11 +138,17 @@ export async function POST(req: NextRequest) {
   if (fileRecords.length)
     await supabaseAdmin.from('build_request_files').insert(fileRecords)
 
-  // Notify Durga
+  // Notify the project's builder (falls back to Durga if the project has none set)
   const [{ data: staff }, { data: project }] = await Promise.all([
     supabaseAdmin.from('staff_members').select('name, email').eq('id', session.sid).single(),
-    supabaseAdmin.from('pilot_projects').select('name').eq('id', projectId).single(),
+    supabaseAdmin.from('pilot_projects').select('name, builder_id').eq('id', projectId).single(),
   ])
+  let builderEmail = 'dc@tresconglobal.com'
+  if (project?.builder_id) {
+    const { data: builder } = await supabaseAdmin
+      .from('staff_members').select('email').eq('id', project.builder_id).single()
+    if (builder?.email) builderEmail = builder.email
+  }
   try {
     await sendBuildRequestAlert({
       submitterName:  staff?.name  ?? 'A pilot',
@@ -151,6 +157,7 @@ export async function POST(req: NextRequest) {
       title, message,
       fileCount: files.length,
       requestUrl: `${SITE}/admin/pilots`,
+      to: builderEmail,
     })
   } catch { /* non-blocking */ }
 

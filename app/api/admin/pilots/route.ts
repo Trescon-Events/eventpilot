@@ -22,6 +22,7 @@ async function ensureColumns() {
   try {
     await supabaseAdmin.rpc('run_sql', { query: `ALTER TABLE pilot_projects ADD COLUMN IF NOT EXISTS tool_href TEXT` })
     await supabaseAdmin.rpc('run_sql', { query: `ALTER TABLE pilot_projects ADD COLUMN IF NOT EXISTS tool_label TEXT` })
+    await supabaseAdmin.rpc('run_sql', { query: `ALTER TABLE pilot_projects ADD COLUMN IF NOT EXISTS builder_id UUID` })
     await supabaseAdmin.rpc('run_sql', { query: `ALTER TABLE pilot_project_members ADD COLUMN IF NOT EXISTS role_label TEXT` })
     await supabaseAdmin.rpc('run_sql', { query: `ALTER TABLE pilot_project_members ADD COLUMN IF NOT EXISTS role_color TEXT` })
   } catch (e: unknown) {
@@ -65,7 +66,10 @@ export async function POST(req: NextRequest) {
 
   await ensureColumns()
 
-  // Upsert project
+  // Upsert project. builder_id is only included when explicitly provided —
+  // omitting the key (rather than sending null) leaves an existing project's
+  // builder untouched on re-post, since supabase-js only SETs keys present
+  // in the payload on conflict.
   const { data: proj, error: projErr } = await supabaseAdmin
     .from('pilot_projects')
     .upsert({
@@ -74,6 +78,7 @@ export async function POST(req: NextRequest) {
       status:      body.status ?? 'active',
       tool_href:   body.tool_href || null,
       tool_label:  body.tool_label || null,
+      ...(body.builder_id ? { builder_id: body.builder_id } : {}),
     }, { onConflict: 'name' })
     .select()
     .single()

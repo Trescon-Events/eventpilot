@@ -520,6 +520,7 @@ export async function sendBuildRequestAlert({
   message,
   fileCount,
   requestUrl,
+  to = 'dc@tresconglobal.com',
 }: {
   submitterName:  string
   submitterEmail: string
@@ -528,6 +529,7 @@ export async function sendBuildRequestAlert({
   message:        string
   fileCount:      number
   requestUrl:     string
+  to?:            string
 }) {
   const preview = message.length > 200 ? message.slice(0, 200) + '…' : message
 
@@ -573,7 +575,7 @@ export async function sendBuildRequestAlert({
 
   return getResend().emails.send({
     from:    FROM,
-    to:      'dc@tresconglobal.com',
+    to,
     subject: `[Build Request] ${title} — ${projectName}`,
     html,
   })

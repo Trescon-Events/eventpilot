@@ -22,6 +22,7 @@ const TOOL_GRANT_KEY: Record<string, string | null> = {
   'timesheets':      'timesheets',
   'finance-portal':  'finance',
   'commercial':      'commercial',
+  'smart-excel':     'smart_excel',
 }
 
 const TOOLS = [
@@ -86,6 +87,22 @@ const TOOLS = [
     ],
     accent:     '#00A5A3',
     href:       '/data/extract/file',
+    needsEvent: false,
+    badge:      'Data Intelligence',
+    category:   'Data',
+  },
+  {
+    id:          'smart-excel',
+    label:       'SmartExcel',
+    description: 'Conversational, AI-assisted spreadsheet and document-to-spreadsheet jobs. Describe what you need in plain English — clarify, plan, sample, run, and refine, with a human approval step before anything runs at scale.',
+    features:    [
+      { icon: '◈', label: 'Conversational job builder', detail: 'Describe the transform in plain English — no formulas required' },
+      { icon: '◷', label: 'Governed execution loop', detail: 'Clarify → plan → approve → sample → approve → full run → refine' },
+      { icon: '↓', label: 'Any source, any format', detail: 'Spreadsheets and documents (CSV, XLSX, PDF) in, structured output out' },
+      { icon: '⊞', label: 'Reusable recipes', detail: 'Turn a successful job into a one-click recipe for next time' },
+    ],
+    accent:     '#2E7D32',
+    href:       'https://eventpilot.tresconglobal.com/api/tools/smart-excel/launch',
     needsEvent: false,
     badge:      'Data Intelligence',
     category:   'Data',
@@ -250,6 +267,7 @@ const ICONS: Record<string, React.ReactNode> = {
   'market-intel':    <svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35M11 8v6M8 11h6"/></svg>,
   'brand-studio':    <svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><circle cx="13.5" cy="6.5" r="2.5"/><circle cx="17.5" cy="10.5" r="2.5"/><circle cx="8.5" cy="7.5" r="2.5"/><circle cx="6.5" cy="12.5" r="2.5"/><path d="M12 22C6.477 22 2 17.523 2 12S6.477 2 12 2s10 4.477 10 10c0 .833-.106 1.641-.305 2.413A4 4 0 0 1 12 22z"/></svg>,
   'smart-data':      <svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/></svg>,
+  'smart-excel':     <svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="3" y1="15" x2="21" y2="15"/><line x1="9" y1="3" x2="9" y2="21"/><line x1="15" y1="3" x2="15" y2="21"/></svg>,
   'outreach':        <svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M22 2 11 13M22 2 15 22 11 13 2 9l20-7z"/></svg>,
   'ai-course-gen':   <svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M12 2a10 10 0 1 0 10 10"/><path d="M12 6v6l4 2"/><circle cx="19" cy="5" r="3"/></svg>,
   'course-manager':  <svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>,

@@ -10,21 +10,55 @@
 
 | Field | Value |
 |---|---|
-| Who | Durga + Claude Code (Opus 4.7) — evening + late-night, Save & Resume + Bangalore rollout + Newsletter/Leaderboard design |
-| Latest push | 2026-07-02 late night — Durga/Claude — `03de21e` (Website preview mode fix — Khalifat 404 review) |
+| Who | Madhu + Claude Code (Sonnet 5) — 03 Jul 2026, SmartExcel Toolkit integration |
+| Latest push | 2026-07-03 — Madhu/Claude (`bdfa1b3`, rebased onto Durga's `25ccf83`) |
 | Handed off to | Open |
-| Deployed | ✅ Yes — https://eventpilot.tresconglobal.com (Railway auto-deploy from main). `active_drafts` table was manually created by Durga via Supabase Dashboard SQL Editor — Save & Resume is fully live end-to-end. |
+| Deployed | ✅ Yes — https://eventpilot.tresconglobal.com (Railway auto-deploy from main). SmartExcel itself deployed separately to Cloudflare Workers: https://smartexcel.trescon.workers.dev |
 
-**Session highlight — 4 things landed:**
+**Session highlight:** SmartExcel — a separate AI spreadsheet-automation tool Madhu built in another terminal (TanStack Start + Cloudflare Workers, its own Neon DB) — is now wired up as a Toolkit tool inside EventPilot, with its own standalone email/password auth removed entirely in favor of an SSO bridge off EventPilot's session. Its code now lives in this repo at `tools/smartexcel/` (no separate GitHub repo). See full write-up below.
 
-1. **Save & Resume complete** — Khalifat's review `fcdbcbff` shipped end-to-end. Resume Work sidebar on `/admin/toolkit`, re-entry modal on both Website Builder + Brand Studio, share-with-team toggle. Khalifat can now walk away mid-tab and land exactly where he left off. Review resolved live with AI-drafted admin reply.
-2. **Bangalore rollout email fired** — 60 recipients (57 Bangalore staff + Durga + Saleem + Naveen). Announcement that Event Pilot is now ready for the wider team, rolling out office-by-office starting with Bangalore.
-3. **Newsletter + Leaderboard v2 designed and sent to Madhu** for review — via in-app messaging on Event Pilot. Full spec docs committed to `docs/`.
-4. **Second Khalifat critical resolved same-day (`03de21e`)** — his 10:50 IST review `6c2d9724` complained that clicking Preview/Publish in the Website Builder returned "404 Page Not Found." Root cause: the Publish tab embedded `/events/{slug}` in an iframe, but that route required `status='live'` — so drafts always 404'd. Fixed by adding admin-authenticated `?preview=1` mode, plus the Publish tab now auto-appends the flag on unpublished drafts. Review resolved with an AI-drafted admin reply asking him to retry.
+**Also today (Durga, evening + late-night, rebased in from `25ccf83`):** Save & Resume shipped end-to-end (Khalifat's review `fcdbcbff`), Bangalore rollout email (60 recipients), Newsletter + Leaderboard v2 specs sent to Madhu, and a second Khalifat critical fixed same-day (Website Builder preview-mode 404). Full detail in the section below.
 
-**Also today (afternoon, Madhu):** Third Pilot Project launched (Website Builder & Brand Studio Module) + admin UI (`/admin/pilots/new`) to replace the script-per-project workflow.
+---
 
-**Also today (early morning, Durga):** Bespoke Tracker end-to-end unblock.
+## What Was Built — 03 Jul 2026 (Madhu / Claude Code) — SmartExcel Toolkit integration
+
+### Part 1 — Toolkit card + grants
+
+- `app/admin/toolkit/page.tsx` — new `smart-excel` card (category "Data"), `TOOL_GRANT_KEY['smart-excel'] = 'smart_excel'`. `href` is the full `https://eventpilot.tresconglobal.com/api/tools/smart-excel/launch` URL so it opens in a new tab (same pattern as `tresagent`).
+- `smart_excel` (base access) and `smart_excel_admin` (admin tier within the tool) added as togglable grants in the three places staff tool access is managed: `app/admin/page.tsx`, `app/hr/staff/new/page.tsx`, `app/admin/org-chart/page.tsx`.
+
+### Part 2 — SSO bridge (replaces SmartExcel's own login entirely)
+
+SmartExcel originally had its own email/password + OTP auth (Phase 0). Decided against keeping a second credential system — SmartExcel now has **no local sign-in at all**:
+
+- `app/api/tools/smart-excel/launch/route.ts` (new) — session-authed, checks `tool_grants.smart_excel`/`smart_excel_admin`, mints a 2-minute HMAC-SHA256-signed token `{sid, email, name, role, exp}`, redirects to `${SMARTEXCEL_URL}/sso?token=...`.
+- SmartExcel side: `/sso` route verifies the signature + expiry and upserts a `users` row with no password — role comes straight from the token, re-applied on every login. Deleted SmartExcel's signup/forgot-password pages, password hashing module, invite-by-email flow, and dropped `password_hash`/`otp_codes`/`invitations` from its schema — migration applied to its Neon DB this session.
+- `SMARTEXCEL_SSO_SECRET` (random 32-byte hex) generated and set identically on both sides: Railway env var on EventPilot and as a Cloudflare Worker secret + SmartExcel's local `.env`/`.dev.vars`.
+- `SMARTEXCEL_URL` set on Railway: `https://smartexcel.trescon.workers.dev`.
+
+### Part 3 — Repo consolidation
+
+Originally planned as its own `Trescon-Events/smartexcel` GitHub repo with its own subdomain (`smartexcel.tresconglobal.com`). Madhu called both unnecessary — folded in:
+
+- Moved `~/Desktop/Projects/SmartExcel` → `~/EventPilot/tools/smartexcel/` (its `.git` had zero commits, confirmed before deleting — no history lost). It keeps its own `package.json`/`tsconfig.json`/`eslint.config.js`/toolchain (TanStack Start + Vite + Wrangler), completely independent of EventPilot's Next.js build.
+- `tsconfig.json` (root) — added `tools/smartexcel` to `exclude`, else its React-19/TanStack code breaks EventPilot's own typecheck.
+- `eslint.config.mjs` (root) — added `tools/smartexcel/**` to `globalIgnores`.
+- `tools/smartexcel/.gitignore` — added Python worker patterns (`.venv`, `__pycache__/`, `.pytest_cache`) that its original JS-only gitignore missed; without this, `worker/.venv` alone would have added ~8,500 files to a commit.
+- No subdomain, no Cloudflare Worker route in the `tresconglobal.com` zone — the Toolkit card just needs *a* reachable URL, so the default `*.workers.dev` address is enough. This also means no DNS sign-off needed from Durga (that hard rule only covers the shared zone/`eventpilot-proxy` routing, which none of this touches).
+- SmartExcel's own `HANDOFF.md` was deleted — its history now lives here. Its `CLAUDE.md` stays as a nested file (genuinely different stack/commands, same pattern as any per-project `CLAUDE.md`).
+
+### Part 4 — Per-project Build Request routing (builder_id)
+
+Madhu asked for the new SmartExcel Pilot Project to route Build Requests to him instead of Durga — previously the "builder" (who codes the tool) was implicitly always Durga, hardcoded as the alert-email recipient.
+
+- `pilot_projects` gained `builder_id` (staff FK). `ensureColumns()` in `/api/admin/pilots` self-heals it; the project upsert only sets it when explicitly provided in the request, so re-posting an existing project without a builder field never wipes one out.
+- The 3 existing projects (Bespoke Event Module, Corporate Marketing Module, Website Builder & Brand Studio Module) backfilled to Durga's staff id directly against prod.
+- `sendBuildRequestAlert()` (`app/lib/email.ts`) now takes an optional `to`, defaulting to `dc@tresconglobal.com`. `POST /api/build-requests` looks up the submitting project's `builder_id` → staff email and passes it through, falling back to Durga if unset.
+
+### Deploy summary
+
+SmartExcel deployed to Cloudflare Workers (`https://smartexcel.trescon.workers.dev`), DB migration + seed applied to its Neon DB, all required secrets pushed. `SMARTEXCEL_SSO_SECRET` + `SMARTEXCEL_URL` set on EventPilot's Railway. This commit rebased cleanly onto Durga's `25ccf83` (only this file conflicted — resolved by hand) and pushed to `origin/main`.
 
 ---
 
@@ -609,6 +643,7 @@ Plus 19 historical admin comments backfilled retroactively for previously-resolv
 
 ## Previous Sessions
 
+- **03 Jul 2026 — Madhu/Claude (afternoon)** — SmartExcel wired up as a Toolkit tool: new `smart-excel` card + `smart_excel`/`smart_excel_admin` grants, SSO-bridge launch endpoint (replaces SmartExcel's own password/OTP auth entirely), `SMARTEXCEL_SSO_SECRET` set on Railway, and its code folded into this repo at `tools/smartexcel/` (dropped the separate-GitHub-repo + separate-subdomain plan). Not pushed/deployed yet.
 - **02 Jul 2026 — Durga/Claude Opus 4.7 (early hours)** — Bespoke Tracker end-to-end unblock: fixed events insert column names (`06d9f27`), applied six FK constraints via pg-direct + `supabase/bespoke_lead_fks.sql` migration (`2532df9`), drafted Thulasi's scope reply, closed Nicholas's HIGH-severity review with auto-response
 - **02 Jul 2026 — Madhu/Claude (afternoon)** — 3rd Pilot Project (Website Builder & Brand Studio Module) + dashboard "Open tool" button + drag-and-drop/paste upload on Build Requests (`0651f8d`); then `/admin/pilots/new` admin UI + AI-draft-checklist for creating future Pilot Projects without a script, with `tool_href`/`role_label`/`role_color` moved from hardcoded maps to DB columns
 - **01 Jul 2026 — Madhu/Claude (afternoon)** — Build Requests module: 3 new API routes, 2 new email functions, rewritten `/pilots` + `/admin/pilots` pages, 3 new DB tables, Supabase Storage bucket; fixes Railway build failure (Next.js 16 params + @types/pg)

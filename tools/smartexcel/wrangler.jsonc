@@ -1,0 +1,32 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "smartexcel",
+  "compatibility_date": "2025-09-24",
+  "compatibility_flags": ["nodejs_compat"],
+  // Custom entry composes TanStack Start's fetch handler with the JOB_QUEUE consumer.
+  "main": "src/worker.ts",
+  "observability": { "enabled": true },
+
+  // Secrets (set via `wrangler secret put <NAME>` or the dashboard — never commit values):
+  //   DATABASE_URL          Neon Postgres connection string (HTTP/pooled)
+  //   SESSION_SECRET        random 32+ byte string used to sign session cookies
+  //   SMARTEXCEL_SSO_SECRET shared HMAC secret for the EventPilot SSO bridge — must match
+  //                         EventPilot's Railway env var of the same name exactly
+  //   RESEND_API_KEY        Resend API key for transactional email
+  //   GEMINI_API_KEY        Google AI Studio key (Phase 1)
+  //   WORKER_SHARED_SECRET  shared bearer token the Python worker uses to call back
+  "vars": {
+    "APP_NAME": "SmartExcel",
+    "APP_URL": "https://smartexcel.trescon.workers.dev",
+    "EMAIL_FROM": "SmartExcel <onboarding@resend.dev>",
+    "SUPER_ADMIN_EMAIL": "md@tresconglobal.com"
+  },
+
+  // Provision before deploy: `wrangler r2 bucket create smartexcel-files`
+  // and `wrangler queues create smartexcel-jobs`.
+  "r2_buckets": [{ "binding": "FILES", "bucket_name": "smartexcel-files" }],
+  "queues": {
+    "producers": [{ "binding": "JOB_QUEUE", "queue": "smartexcel-jobs" }],
+    "consumers": [{ "queue": "smartexcel-jobs", "max_batch_size": 1, "max_retries": 3 }]
+  }
+}

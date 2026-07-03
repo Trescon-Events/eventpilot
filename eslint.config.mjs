@@ -12,6 +12,8 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // tools/smartexcel is its own TanStack Start project with its own eslint config.
+    "tools/smartexcel/**",
   ]),
 ]);
 

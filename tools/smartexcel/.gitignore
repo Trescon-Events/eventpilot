@@ -1,0 +1,21 @@
+node_modules
+dist
+.output
+.vinxi
+.wrangler
+.dev.vars
+.env
+.env.*
+!.env.example
+*.local
+.DS_Store
+.idea
+.vscode/*
+!.vscode/extensions.json
+src/routeTree.gen.ts
+
+# Python worker (worker/)
+.venv
+__pycache__/
+*.pyc
+.pytest_cache

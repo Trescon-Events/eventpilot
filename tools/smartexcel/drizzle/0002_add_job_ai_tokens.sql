@@ -1,0 +1,1 @@
+ALTER TABLE "jobs" ADD COLUMN "ai_tokens" integer DEFAULT 0 NOT NULL;

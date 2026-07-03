@@ -32,6 +32,8 @@ const PLATFORM_TOOLS = [
   { key: 'brand_studio',    label: 'Brand Studio',    color: '#DB2777' },
   { key: 'website_builder', label: 'Website Builder', color: '#2563EB' },
   { key: 'content',         label: 'Content',         color: '#EA580C' },
+  { key: 'smart_excel',       label: 'SmartExcel',         color: '#2E7D32' },
+  { key: 'smart_excel_admin', label: 'SmartExcel (Admin)', color: '#1B5E20' },
 ]
 
 const STEPS = [
