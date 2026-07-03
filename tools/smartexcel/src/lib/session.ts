@@ -13,6 +13,10 @@ import type { AuthUser } from "@/types/auth";
 
 const SESSION_COOKIE = "se_session";
 const SESSION_TTL_SECONDS = 60 * 60 * 24 * 30; // 30 days
+// The app always lives under /smartexcel (build-time base path — see
+// vite.config.ts), whether reached directly or proxied through EventPilot's
+// domain. Scoping the cookie here keeps it off unrelated paths on a shared domain.
+const COOKIE_PATH = "/smartexcel";
 
 function isSecure(): boolean {
   return getConfig().APP_URL.startsWith("https://");
@@ -32,7 +36,7 @@ export async function createSession(userId: string): Promise<string> {
   setCookie(SESSION_COOKIE, token, {
     httpOnly: true,
     sameSite: "lax",
-    path: "/",
+    path: COOKIE_PATH,
     secure: isSecure(),
     maxAge: SESSION_TTL_SECONDS,
   });
@@ -44,7 +48,7 @@ export async function destroyCurrentSession(): Promise<void> {
   if (token) {
     await getDb().delete(schema.sessions).where(eq(schema.sessions.id, token));
   }
-  deleteCookie(SESSION_COOKIE, { path: "/" });
+  deleteCookie(SESSION_COOKIE, { path: COOKIE_PATH });
 }
 
 export async function getSessionUser(): Promise<AuthUser | null> {
@@ -59,7 +63,7 @@ export async function getSessionUser(): Promise<AuthUser | null> {
   if (!session) return null;
   if (session.expiresAt.getTime() < Date.now()) {
     await db.delete(schema.sessions).where(eq(schema.sessions.id, token));
-    deleteCookie(SESSION_COOKIE, { path: "/" });
+    deleteCookie(SESSION_COOKIE, { path: COOKIE_PATH });
     return null;
   }
 

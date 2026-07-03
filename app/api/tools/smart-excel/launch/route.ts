@@ -61,7 +61,10 @@ export async function GET(req: NextRequest) {
   const sig = crypto.createHmac('sha256', secret).update(payloadB64).digest()
   const token = `${payloadB64}.${b64url(sig)}`
 
-  const dest = new URL('/sso', smartExcelUrl)
+  // NOTE: new URL('/sso', smartExcelUrl) would silently drop any path prefix
+  // on smartExcelUrl (e.g. '/smartexcel') since a leading-slash path is
+  // resolved against the origin, not the base URL's own path. Concatenate instead.
+  const dest = new URL(smartExcelUrl.replace(/\/$/, '') + '/sso')
   dest.searchParams.set('token', token)
   return NextResponse.redirect(dest.toString())
 }

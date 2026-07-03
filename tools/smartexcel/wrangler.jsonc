@@ -17,7 +17,7 @@
   //   WORKER_SHARED_SECRET  shared bearer token the Python worker uses to call back
   "vars": {
     "APP_NAME": "SmartExcel",
-    "APP_URL": "https://smartexcel.trescon.workers.dev",
+    "APP_URL": "https://eventpilot.tresconglobal.com/smartexcel",
     "EMAIL_FROM": "SmartExcel <onboarding@resend.dev>",
     "SUPER_ADMIN_EMAIL": "md@tresconglobal.com"
   },

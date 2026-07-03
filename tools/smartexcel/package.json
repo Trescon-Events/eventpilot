@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "vite dev --port 3000",
     "build": "vite build",
+    "postbuild": "rm -rf dist/client/smartexcel && mkdir -p dist/client/smartexcel && mv dist/client/assets dist/client/smartexcel/assets",
     "preview": "vite preview --port 3000",
     "start": "wrangler dev",
     "deploy": "npm run build && wrangler deploy",
