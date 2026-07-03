@@ -15,7 +15,7 @@
 | Handed off to | Open |
 | Deployed | ✅ Yes — https://eventpilot.tresconglobal.com (Railway auto-deploy from main). SmartExcel itself deployed separately to Cloudflare Workers: https://smartexcel.trescon.workers.dev |
 
-**Session highlight:** SmartExcel — a separate AI spreadsheet-automation tool Madhu built in another terminal (TanStack Start + Cloudflare Workers, its own Neon DB) — is now wired up as a Toolkit tool inside EventPilot, with its own standalone email/password auth removed entirely in favor of an SSO bridge off EventPilot's session. Its code now lives in this repo at `tools/smartexcel/` (no separate GitHub repo). See full write-up below.
+**Session highlight:** SmartExcel — a separate AI spreadsheet-automation tool Madhu built in another terminal (TanStack Start + Cloudflare Workers, its own Neon DB) — is now wired up as a Toolkit tool inside EventPilot, with its own standalone email/password auth removed entirely in favor of an SSO bridge off EventPilot's session. Its code now lives in this repo at `tools/smartexcel/` (no separate GitHub repo). Deployed live, migrated, and a 4th Pilot Project created to build/test it. See full write-up below.
 
 **Also today (Durga, evening + late-night, rebased in from `25ccf83`):** Save & Resume shipped end-to-end (Khalifat's review `fcdbcbff`), Bangalore rollout email (60 recipients), Newsletter + Leaderboard v2 specs sent to Madhu, and a second Khalifat critical fixed same-day (Website Builder preview-mode 404). Full detail in the section below.
 
@@ -56,9 +56,24 @@ Madhu asked for the new SmartExcel Pilot Project to route Build Requests to him 
 - The 3 existing projects (Bespoke Event Module, Corporate Marketing Module, Website Builder & Brand Studio Module) backfilled to Durga's staff id directly against prod.
 - `sendBuildRequestAlert()` (`app/lib/email.ts`) now takes an optional `to`, defaulting to `dc@tresconglobal.com`. `POST /api/build-requests` looks up the submitting project's `builder_id` → staff email and passes it through, falling back to Durga if unset.
 
+### Part 5 — SmartExcel Pilot Project (4th project)
+
+Created via `POST /api/admin/pilots` against production (project id `20457837-9a69-48f0-b764-029cebeea9ee`), status `testing`, `tool_href` = `/api/tools/smart-excel/launch`:
+
+| Staff | Role | Notes |
+|---|---|---|
+| Madhu (Madhukar Dudda) | **Builder** (new role, `#6d28d9`) | Also `builder_id` on the project row — Build Requests route to him, not Durga. Granted `smart_excel` + `smart_excel_admin`. |
+| Kesineni Lakshmi Prashanthi | Co-Pilot | Granted `smart_excel`. 3 checklist items — run real jobs, try a messy file, test recipe save/reuse. |
+| Suresh Yadavakrishnan | Co-Pilot | Granted `smart_excel`. 3 checklist items — run real jobs, stress-test a large/complex file, test recipe save/reuse. |
+| Fouzan Abdul Rahim | Tracking | No tool grant (tracks the pilot project itself, not the tool). 3 checklist items — track Co-Pilot progress, log friction as platform reviews, weekly status to Madhu. |
+
+All 4 assignment emails sent successfully (log confirmed zero errors). `builder_id` verified against prod DB.
+
 ### Deploy summary
 
-SmartExcel deployed to Cloudflare Workers (`https://smartexcel.trescon.workers.dev`), DB migration + seed applied to its Neon DB, all required secrets pushed. `SMARTEXCEL_SSO_SECRET` + `SMARTEXCEL_URL` set on EventPilot's Railway. This commit rebased cleanly onto Durga's `25ccf83` (only this file conflicted — resolved by hand) and pushed to `origin/main`.
+SmartExcel deployed to Cloudflare Workers (`https://smartexcel.trescon.workers.dev`), DB migration + seed applied to its Neon DB, all required secrets pushed. `SMARTEXCEL_SSO_SECRET` + `SMARTEXCEL_URL` set on EventPilot's Railway. Rebased cleanly onto Durga's `25ccf83` (only `HANDOFF.md` conflicted — resolved by hand), pushed to `origin/main` as `28f77dc`, Railway deploy verified live (`/api/tools/smart-excel/launch` correctly redirects unauthenticated requests to `/login`).
+
+**Not yet done:** Python worker (`tools/smartexcel/worker/`) still needs a Cloud Run deploy for real file processing beyond small samples — first item on Madhu's own Builder checklist. Nobody has actually clicked through the live SSO flow as a real browser session yet — worth a manual smoke test.
 
 ---
 
