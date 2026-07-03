@@ -102,7 +102,12 @@ const TOOLS = [
       { icon: '⊞', label: 'Reusable recipes', detail: 'Turn a successful job into a one-click recipe for next time' },
     ],
     accent:     '#2E7D32',
-    href:       'https://eventpilot.tresconglobal.com/api/tools/smart-excel/launch',
+    // Relative path (not the full https:// URL) so this renders as a same-tab
+    // <Link>, matching every other native tool — SmartExcel is proxied under
+    // this same domain now (eventpilot.tresconglobal.com/smartexcel), so there's
+    // no longer a reason to open it in a new tab like the genuinely-external
+    // tools (tresagent) do.
+    href:       '/api/tools/smart-excel/launch',
     needsEvent: false,
     badge:      'Data Intelligence',
     category:   'Data',
