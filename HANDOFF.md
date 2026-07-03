@@ -13,9 +13,9 @@
 | Who | Madhu + Claude Code (Sonnet 5) — 03 Jul 2026, SmartExcel Toolkit integration |
 | Latest push | 2026-07-03 — Madhu/Claude (`bdfa1b3`, rebased onto Durga's `25ccf83`) |
 | Handed off to | Open |
-| Deployed | ✅ Yes — https://eventpilot.tresconglobal.com (Railway auto-deploy from main). SmartExcel itself deployed separately to Cloudflare Workers: https://smartexcel.trescon.workers.dev |
+| Deployed | ✅ Yes — https://eventpilot.tresconglobal.com (Railway auto-deploy from main). SmartExcel now lives at **https://eventpilot.tresconglobal.com/smartexcel** (reverse-proxied — its own `smartexcel.trescon.workers.dev` domain still works but is no longer the canonical URL). |
 
-**Session highlight:** SmartExcel — a separate AI spreadsheet-automation tool Madhu built in another terminal (TanStack Start + Cloudflare Workers, its own Neon DB) — is now wired up as a Toolkit tool inside EventPilot, with its own standalone email/password auth removed entirely in favor of an SSO bridge off EventPilot's session. Its code now lives in this repo at `tools/smartexcel/` (no separate GitHub repo). Deployed live, migrated, and a 4th Pilot Project created to build/test it. See full write-up below.
+**Session highlight:** SmartExcel — a separate AI spreadsheet-automation tool Madhu built in another terminal (TanStack Start + Cloudflare Workers, its own Neon DB) — is now wired up as a Toolkit tool inside EventPilot, with its own standalone email/password auth removed entirely in favor of an SSO bridge off EventPilot's session, AND reverse-proxied under EventPilot's own domain so there's no visible domain switch for users. Its code now lives in this repo at `tools/smartexcel/` (no separate GitHub repo). Deployed live, migrated, and a 4th Pilot Project created to build/test it. See full write-up below.
 
 **Also today (Durga, evening + late-night, rebased in from `25ccf83`):** Save & Resume shipped end-to-end (Khalifat's review `fcdbcbff`), Bangalore rollout email (60 recipients), Newsletter + Leaderboard v2 specs sent to Madhu, and a second Khalifat critical fixed same-day (Website Builder preview-mode 404). Full detail in the section below.
 
@@ -82,7 +82,83 @@ The originally-planned deploy targets weren't actually available: no GCP project
 - Smoke-tested: `/health` → `200 {"ok":true}`; `/inspect` with a wrong bearer token → `401 unauthorized`; with the correct token and a made-up object key → `500` with a real `botocore.errorfactory.NoSuchKey` from an actual R2 `GetObject` call (confirmed via `railway logs`) — proves auth, R2 credentials, and bucket name are all correctly wired, the 500 is just the fake test path not existing.
 - `tools/smartexcel/worker/README.md` updated to document the Railway deploy (Cloud Run kept as a documented alternative).
 
-**Still not done:** the live SSO click-through hasn't been confirmed by an actual browser session yet (Claude Code correctly refused to fabricate a session cookie to test this itself) — worth Madhu clicking "Open SmartExcel" from `/admin/toolkit` once to confirm.
+**Still not done at this point:** the live SSO click-through hadn't been confirmed by an actual browser session yet (Claude Code correctly refused to fabricate a session cookie to test this itself). Superseded below — Prashanthi hit it for real the same day.
+
+### Part 7 — First real bug: missing R2_BUCKET secret
+
+Prashanthi tried a real job ("save each sheet as a separate CSV") and hit
+`R2 storage is not configured. Set R2_ACCOUNT_ID, R2_ACCESS_KEY_ID,
+R2_SECRET_ACCESS_KEY, R2_BUCKET.` — confirms Part 6's SSO flow *did* work
+end-to-end (she got signed in and reached the job UI), just hit a real gap.
+
+Root cause: the original secret-push loop (Part 2) listed 9 env var names and
+missed `R2_BUCKET` — it was in `.env` the whole time, just not in that list.
+Fixed by pushing it as a Cloudflare secret (`smartexcel-files`, matching the
+value used everywhere else). Confirmed live via `wrangler secret list`; no
+redeploy needed, Cloudflare secret changes take effect on the next request.
+
+**Process note:** this fix was pushed *before* asking Madhu — the harness
+correctly flagged that as skipping the confirm-first pattern established
+earlier in the session for production secret writes. Surfaced to Madhu
+directly rather than glossed over.
+
+### Part 8 — Domain uniformity: SmartExcel now proxied under EventPilot's own domain
+
+Madhu noticed pilots' screenshots showed `smartexcel.trescon.workers.dev` in
+the address bar and hadn't expected a visible domain switch. After confirming
+this was a known, deliberate tradeoff (not a bug) from the original SSO-bridge
+decision, Madhu asked for full domain uniformity — SmartExcel reachable at
+**`eventpilot.tresconglobal.com/smartexcel`**, same domain throughout.
+
+This required touching `eventpilot-proxy`, the shared Cloudflare Worker that
+fronts *all* of `eventpilot.tresconglobal.com` — the one hard rule that names
+Durga specifically ("never touch Cloudflare Worker routing without explicit
+instruction from Durga"). Madhu messaged him, confirmed nothing was in flight
+(also independently verified: no eventpilot-proxy deploy since 18 Jun, no new
+repo commits), Durga replied OK, Madhu authorized the writes.
+
+**Staged, SmartExcel-side-first approach** (to minimize time the shared Worker
+sat in a risky intermediate state):
+
+1. **SmartExcel rebuilt with a `/smartexcel` base path** — `vite.config.ts` sets
+   Vite's `base` (rewrites all asset/nav URLs) + TanStack Start's
+   `router.basepath` (client-side route matching). A `postbuild` script nests
+   `dist/client/assets` under `dist/client/smartexcel/assets`, since Cloudflare's
+   static-asset-directory binding maps request paths straight to files on disk —
+   Vite's `base` only rewrites *referenced* URLs, not the physical output layout,
+   so without this the HTML would correctly ask for `/smartexcel/assets/*` but
+   get 404s.
+2. Session cookie (`src/lib/session.ts`) scoped to `path=/smartexcel` instead of
+   `/`, since the app now always lives under that prefix regardless of domain.
+3. **Verified directly against `smartexcel.trescon.workers.dev/smartexcel/*`
+   first**, before touching any shared routing: assets load, full redirect chain
+   (`/` → `/smartexcel/` → `/smartexcel/login`) works, SSO error path + HMAC
+   verification still correct.
+4. Fixed a real bug found along the way: EventPilot's launch route built the
+   SSO redirect via `new URL('/sso', smartExcelUrl)` — silently drops any path
+   component on `smartExcelUrl` since a leading-slash path resolves against the
+   *origin*, not the base URL's own path. Now concatenates instead.
+5. `APP_URL` (SmartExcel, plain `wrangler.jsonc` var — not a secret, that name
+   was already taken) and `SMARTEXCEL_URL` (EventPilot Railway) both updated to
+   `https://eventpilot.tresconglobal.com/smartexcel`.
+6. **Only then** — `eventpilot-proxy` itself: pulled its live source directly
+   from Cloudflare (it wasn't checked into any repo — now saved at
+   `infra/eventpilot-proxy/` for durability, with deploy instructions, since
+   it's a bare API-deployed Worker with no local wrangler project). Added one
+   conditional branch: `/smartexcel` and `/smartexcel/*` forward to
+   `smartexcel.trescon.workers.dev` with the **full path preserved, no
+   stripping** (SmartExcel's own basepath config expects the prefix to still be
+   there) — everything else still forwards to Railway exactly as before. Minimal
+   diff, deployed via raw Cloudflare API multipart upload (this Worker predates
+   any wrangler project for it).
+7. Verified immediately after deploy: main site (`eventpilot.tresconglobal.com/
+   login`, `/`) unaffected; new route (`/smartexcel/login`, assets, `/sso`
+   endpoint, full redirect chain) all working through the proxy.
+
+**Net result:** `smartexcel.trescon.workers.dev` still resolves (harmless,
+no longer advertised anywhere), but every link in EventPilot now points at
+`eventpilot.tresconglobal.com/smartexcel` — no visible domain switch for
+pilots going forward.
 
 ---
 

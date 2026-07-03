@@ -511,6 +511,19 @@ Neon Postgres, a separate Python/FastAPI worker for heavy processing).
 - **Still shows up as a normal Toolkit card**, gated by a `tool_grants` key
   like every other tool (see §4) — the person using it never needs to know
   it's a different framework under the hood.
+- **Same domain too, not just same login.** SmartExcel is reachable at
+  `eventpilot.tresconglobal.com/smartexcel`, not its own separate domain —
+  reverse-proxied through `eventpilot-proxy`, the one Cloudflare Worker that
+  fronts all of `eventpilot.tresconglobal.com`. This is a bigger ask than the
+  SSO bridge: the tool's own build needs to be base-path-aware (its asset URLs
+  and internal navigation have to come out prefixed correctly, e.g. Vite's
+  `base` config + a matching router basepath), and touching `eventpilot-proxy`
+  is the **one thing in this whole platform that needs Durga's explicit
+  sign-off before Claude Code touches it** — it's a single Worker serving
+  every staff member, not just users of your tool. See
+  `infra/eventpilot-proxy/README.md` for how it's deployed and how to add
+  another tool's route to it. Don't assume this happens automatically for a
+  new tool — it's a deliberate extra step, ask for it if you want it.
 - If the root `tsconfig.json`/`eslint.config.mjs` glob the whole repo (they
   do), the subdirectory needs to be added to both `exclude`/`globalIgnores` so
   its toolchain doesn't collide with the Next.js build.
@@ -540,5 +553,5 @@ Now help me write a prompt for: [describe what you want to build]
 
 ---
 
-*Last updated: 03 Jul 2026 — added Pilot Projects (§17) and the tools-outside-the-main-app pattern (§18), refreshed the Toolkit grants + module map for everything shipped since June*
+*Last updated: 03 Jul 2026 (evening) — added Pilot Projects (§17) and the tools-outside-the-main-app pattern (§18, now covering domain-uniformity via eventpilot-proxy), refreshed the Toolkit grants + module map for everything shipped since June*
 *For questions about the platform, contact Madhu (md@tresconglobal.com) or Durga (dc@tresconglobal.com)*
