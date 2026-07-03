@@ -2,8 +2,16 @@
 
 Deterministic spreadsheet/document processing service. **Not** deployable to
 Cloudflare Workers — it needs Python data libraries (pandas, openpyxl, pdfplumber)
-that require a real container. Deploy to **Google Cloud Run** (pairs naturally with
-Gemini) or **Cloudflare Containers**.
+that require a real container.
+
+**Deployed:** Railway (`smartexcel-worker` project, separate from EventPilot's
+own Railway project) — `https://smartexcel-worker-production.up.railway.app`.
+Chosen over the originally-planned Cloud Run/Cloudflare Containers because
+neither was actually available in the deploy environment (no GCP project/auth,
+and Cloudflare Containers needs the Workers Paid plan + Docker). Railway was
+already paid-for and authenticated, so it was the pragmatic choice — see
+`HANDOFF.md` (root) for the full reasoning. Cloud Run/CF Containers remain
+valid alternatives if this ever needs to move.
 
 ## Why a separate service
 
@@ -55,8 +63,17 @@ to `${APP_CALLBACK_URL}/api/worker-callback` (same Bearer):
 `POST /inspect` (Bearer) is a synchronous helper the clarification engine calls to
 read `{ sheets, headers, sample_rows }` from an uploaded file.
 
-## Deploy (Cloud Run example)
+## Deploy
 
+**Current (Railway):**
+```bash
+cd worker
+railway link   # select the smartexcel-worker project
+railway up -y -c
+```
+Env vars are already set on the Railway service (`WORKER_SHARED_SECRET`, `R2_*`, `APP_CALLBACK_URL`) — `railway variable set` to change them, `railway variable list --kv` to check.
+
+**Alternative (Cloud Run example, not currently used):**
 ```bash
 gcloud run deploy smartexcel-worker \
   --source . \

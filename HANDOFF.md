@@ -73,7 +73,16 @@ All 4 assignment emails sent successfully (log confirmed zero errors). `builder_
 
 SmartExcel deployed to Cloudflare Workers (`https://smartexcel.trescon.workers.dev`), DB migration + seed applied to its Neon DB, all required secrets pushed. `SMARTEXCEL_SSO_SECRET` + `SMARTEXCEL_URL` set on EventPilot's Railway. Rebased cleanly onto Durga's `25ccf83` (only `HANDOFF.md` conflicted — resolved by hand), pushed to `origin/main` as `28f77dc`, Railway deploy verified live (`/api/tools/smart-excel/launch` correctly redirects unauthenticated requests to `/login`).
 
-**Not yet done:** Python worker (`tools/smartexcel/worker/`) still needs a Cloud Run deploy for real file processing beyond small samples — first item on Madhu's own Builder checklist. Nobody has actually clicked through the live SSO flow as a real browser session yet — worth a manual smoke test.
+### Part 6 — Python worker deployed (Railway, not Cloud Run)
+
+The originally-planned deploy targets weren't actually available: no GCP project/`gcloud` auth existed on this machine, and Cloudflare Containers needs the Workers Paid plan (billing decision) plus Docker, neither present. Railway was already paid-for and authenticated, so — with Madhu's explicit go-ahead for the env var writes — deployed there instead as a **new, separate Railway project** (`smartexcel-worker`, not a service inside the `eventpilot` project):
+
+- Live at `https://smartexcel-worker-production.up.railway.app`, Dockerfile build, `WORKER_SHARED_SECRET` + R2 credentials + `APP_CALLBACK_URL` set (reusing the same `WORKER_SHARED_SECRET` already generated for the web app, so the two sides authenticate to each other).
+- `WORKER_URL` set as a Cloudflare secret on the SmartExcel Worker, wiring it in.
+- Smoke-tested: `/health` → `200 {"ok":true}`; `/inspect` with a wrong bearer token → `401 unauthorized`; with the correct token and a made-up object key → `500` with a real `botocore.errorfactory.NoSuchKey` from an actual R2 `GetObject` call (confirmed via `railway logs`) — proves auth, R2 credentials, and bucket name are all correctly wired, the 500 is just the fake test path not existing.
+- `tools/smartexcel/worker/README.md` updated to document the Railway deploy (Cloud Run kept as a documented alternative).
+
+**Still not done:** the live SSO click-through hasn't been confirmed by an actual browser session yet (Claude Code correctly refused to fabricate a session cookie to test this itself) — worth Madhu clicking "Open SmartExcel" from `/admin/toolkit` once to confirm.
 
 ---
 
