@@ -95,7 +95,9 @@ Each staff member has an `access_roles` array in the database. Possible values:
 
 ### Toolkit Grants (module-level access)
 
-Specific modules can be granted per person via `tool_grants` JSONB:
+Specific modules can be granted per person via `tool_grants` JSONB (a free-form
+key/value map on `staff_members` — a new tool just needs a new key, no schema
+change):
 | Module | Grant key |
 |---|---|
 | Website Builder | `website_builder` |
@@ -103,7 +105,19 @@ Specific modules can be granted per person via `tool_grants` JSONB:
 | Brand Studio | `brand_studio` |
 | Smart Data | `smart_data` |
 | Content Hub | `content` |
+| TresAgent | `tresagent` |
+| Bespoke Tracker | `bespoke` |
+| HR Portal | `hr_portal` |
+| Timesheets | `timesheets` |
+| Finance Portal | `finance` |
+| Commercial P&L | `commercial` |
+| SmartExcel | `smart_excel` (base access) / `smart_excel_admin` (admin tier within the tool) |
 | Course Builder | admin-only (no grant key) |
+| AI Course Generator | admin-only (no grant key) |
+
+Grants are toggled from `/hr/staff/new` (new staff), `/admin/org-chart`, or
+`/admin` → People → staff → Access & Tools. All three keep their own
+hand-maintained lists — add a new key to all three when a new tool ships.
 
 ### Departments (current list)
 
@@ -146,12 +160,20 @@ Do not ask Durga to build anything that already exists. Reference this when writ
 | `/admin/events/[id]/brand` | Brand Studio — 9-section brand book builder |
 | `/admin/events/[id]/website` | Website Builder — template selection, content editing |
 | `/admin/events/[id]/market-intel` | Market Intelligence reports |
-| `/admin/toolkit` | Full toolkit with all modules listed |
+| `/admin/toolkit` | Full toolkit — every tool as a card, gated by `tool_grants` (see §4) |
 | `/admin/courses` | Course Builder — create/edit/publish courses |
 | `/admin/templates` | Manage microsite templates |
 | `/admin/sites` | Published event microsites |
-| `/admin/org-chart` | Org chart — directory + hierarchy |
+| `/admin/org-chart` | Org chart — directory + hierarchy + tool grant toggles |
 | `/admin/reviews` | Staff review/feedback triage |
+| `/admin/bespoke` | Bespoke Tracker — client brief to invoice, 53-task SOP |
+| `/hr` | HR Portal — staff directory, recruitment, leave, attendance, onboarding |
+| `/timesheets` | Daily time logging + manager approval |
+| `/finance` | Finance Portal — salary, expense claims, vendor payments, payroll |
+| `/admin/commercial` | Commercial P&L — revenue, costs, executive dashboard |
+| `/pilots` | Pilot Projects — SME/Co-Pilot/Tracker view of active builds (see §17) |
+| `/admin/pilots` | Pilot Projects — admin view, all projects/members/checklists |
+| `/admin/pilots/new` | Create/edit a Pilot Project (members, roles, checklist, tool grants) |
 
 ---
 
@@ -441,7 +463,68 @@ These are intentional gaps — do not tell Claude Code to integrate them:
 
 ---
 
-## 17. Template for Sharing with Your AI Tool
+## 17. Pilot Projects — How SME-Led Builds Actually Work
+
+This is the process this very document exists to support. A **Pilot Project**
+is a scoped tool build owned by an SME (you), coded by a builder, tracked by
+someone else. It's tracked as real data in EventPilot itself, not a side
+spreadsheet.
+
+**Roles** (`pilot_project_members.role_label`, free-text — new roles are just
+a label + a hex color, no code change needed):
+- **Pilot** — the SME who owns the PRD/direction (you, usually)
+- **Co-Pilot** — a second SME/tester on the same project
+- **Consulting** — advisory input, not day-to-day ownership
+- **Tracking** — tracks progress/checklist across the project, doesn't necessarily use the tool itself
+- **Builder** — who actually codes it. **Not always Durga** — `pilot_projects.builder_id` is per-project. Whoever submits a Build Request (see below) for that project, the alert email goes to that project's builder specifically.
+
+**Build Requests** (`/pilots` or `/admin/pilots`, "🔧 Build Requests" tab): the
+in-app way to ask your project's builder for something, with file attachments
+and a reply thread — not a side Slack/email conversation. Submitting one emails
+the project's builder directly.
+
+**Checklist**: each member gets their own tick-off checklist (prerequisite /
+scope_decision / content_prep / coordination categories), visible on `/pilots`.
+
+---
+
+## 18. Tools Living Outside the Main Next.js App
+
+Not every tool has to be a Next.js route in this repo. If what you're
+proposing needs a fundamentally different stack (its own database, a
+non-Next.js framework, background job processing Next.js/Vercel-style
+functions can't do), it can still live **inside this same GitHub repo**, just
+in its own subdirectory with its own toolchain — see `tools/smartexcel/` for
+the reference example (TanStack Start + Vite + Cloudflare Workers, its own
+Neon Postgres, a separate Python/FastAPI worker for heavy processing).
+
+**What stays consistent even when the stack doesn't:**
+- **No separate GitHub repo, no separate handoff doc.** One repo, one
+  `HANDOFF.md`. The subdirectory can have its own `CLAUDE.md` for stack-specific
+  detail (commands, env vars) — same pattern as any nested `CLAUDE.md`.
+- **Login is still EventPilot's, never a second password system.** The tool
+  gets an "SSO bridge": a small EventPilot API route (see
+  `app/api/tools/smart-excel/launch/route.ts`) checks the person's
+  `tool_grants`, mints a short-lived signed token, and redirects into the
+  other app's own `/sso`-style receiver route, which creates a local session
+  from that token — no signup/login form of its own.
+- **Still shows up as a normal Toolkit card**, gated by a `tool_grants` key
+  like every other tool (see §4) — the person using it never needs to know
+  it's a different framework under the hood.
+- If the root `tsconfig.json`/`eslint.config.mjs` glob the whole repo (they
+  do), the subdirectory needs to be added to both `exclude`/`globalIgnores` so
+  its toolchain doesn't collide with the Next.js build.
+- Deploy target doesn't have to be Railway — SmartExcel is on Cloudflare
+  Workers (web app) + Railway (Python worker, a separate Railway project).
+  Whatever fits; it's independent of EventPilot's own `git push origin main` →
+  Railway flow.
+
+If your tool can reasonably be a Next.js route instead (most can — see §9),
+prefer that. This pattern is for when the stack genuinely can't be Next.js.
+
+---
+
+## 19. Template for Sharing with Your AI Tool
 
 When you open ChatGPT or Gemini to generate a prompt for Durga, paste this as the first message:
 
@@ -457,5 +540,5 @@ Now help me write a prompt for: [describe what you want to build]
 
 ---
 
-*Last updated: June 2026 — EventPilot v2.0*
+*Last updated: 03 Jul 2026 — added Pilot Projects (§17) and the tools-outside-the-main-app pattern (§18), refreshed the Toolkit grants + module map for everything shipped since June*
 *For questions about the platform, contact Madhu (md@tresconglobal.com) or Durga (dc@tresconglobal.com)*
