@@ -10,27 +10,30 @@
 
 | Field | Value |
 |---|---|
-| Who | Madhu + Claude Code (Sonnet 5) — 04 Jul 2026, SmartExcel native Next.js port |
-| Latest push | Not yet committed/pushed this session — working tree only |
+| Who | Madhu + Claude Code (Sonnet 5) — 04 Jul 2026, SmartExcel native Next.js port + full cutover |
+| Latest push | 2026-07-04 — two commits: the port itself, then the proxy/callback cleanup |
 | Handed off to | Durga |
-| Deployed | ❌ Not yet — needs new Railway env vars + a live smoke test before any push/deploy (see below) |
+| Deployed | ✅ Yes — live at `eventpilot.tresconglobal.com/smartexcel`, fully native, `eventpilot-proxy` cutover done, old bridge removed |
 
-**Session highlight:** SmartExcel was still a genuinely separate app (TanStack Start on Cloudflare Workers) reverse-proxied under `eventpilot.tresconglobal.com/smartexcel` — same domain, but no EventPilot nav/layout, because it was a different origin server under the hood. Madhu asked for the full native port (option 2 of 2 offered). All ~5,600 lines are now ported into this repo as real Next.js App Router code:
+**Session highlight:** SmartExcel was still a genuinely separate app (TanStack Start on Cloudflare Workers) reverse-proxied under `eventpilot.tresconglobal.com/smartexcel` — same domain, but no EventPilot nav/layout, because it was a different origin server under the hood. Madhu asked for the full native port and to complete the whole cutover in one session (Durga sign-off not required this time — confirmed nothing in flight on his side instead: local `main` matched `origin/main` exactly, and the live `eventpilot-proxy` Worker code was pulled from Cloudflare and diffed byte-for-byte identical to the 03 Jul repo copy before touching it).
 
-- `app/lib/smartexcel/` — DB schema/client (same Neon Postgres, untouched), roles/job-states/operations/ai/worker-dispatch/audit/storage libs, all ported near-verbatim.
-- `app/lib/smartexcel/auth.ts` — **replaces the old HMAC SSO-token bridge entirely.** Every request now reads EventPilot's own `tcs_session` cookie directly (same pattern as `/api/toolkit-access`) and syncs/loads the matching SmartExcel `users` row by email. No more separate session cookie, no more `SMARTEXCEL_SSO_SECRET` token trip.
-- `app/api/smartexcel/**` — 24 route handlers, one per ported TanStack server function (jobs, clarify/plan/sample/full-run, recipes, admin roles/audit/deleted/analytics, notifications, worker-callback).
-- `app/smartexcel/**` — 9 pages (jobs list/detail, recipes list/detail, admin dashboard/roles/audit/deleted) sharing EventPilot's own layout via `app/smartexcel/shell.tsx`, which also adds an explicit "← Back to EventPilot" link (the actual complaint that started this).
-- Toolkit card (`app/admin/toolkit/page.tsx`) now points at `/smartexcel/jobs` as a plain internal `<Link>`, same pattern as every other native tool.
-- Python worker (Railway, `smartexcel-worker`) is **completely unchanged** — still called over plain HTTP with a bearer secret, no coupling to the frontend framework.
-- `npm run build` passes clean (typecheck + all routes compiled) with new deps: `drizzle-orm`, `@neondatabase/serverless`, `zod`, `aws4fetch`, `lucide-react`, `@tanstack/react-virtual`.
+**What shipped, end to end:**
+- `app/lib/smartexcel/` — roles/job-states/operations/ai/worker-dispatch/audit/storage libs ported near-verbatim from `tools/smartexcel/src/`.
+- **Database consolidated into EventPilot's own Supabase Postgres** (was a separate Neon DB) — dedicated `smartexcel.*` Postgres schema, zero collision with EventPilot's own tables, reusing the already-existing `SUPABASE_DB_PASSWORD` direct-Postgres connection pattern from `app/api/admin/setup-pilots/route.ts` (`drizzle-orm/node-postgres` + `pg`, not the Neon HTTP driver). Started clean — no pilot-test data carried over, per Madhu (tool is still pre-launch). Note for whoever touches `setup-pilots/route.ts` next: its `POOLER_HOST` constant (`aws-0-...`) is wrong and returns "tenant/user not found" — the actual working host is `aws-1-ap-southeast-1.pooler.supabase.com`; SmartExcel's client uses the corrected one.
+- `app/lib/smartexcel/auth.ts` — **replaces the old HMAC SSO-token bridge entirely.** Every request reads EventPilot's own `tcs_session` cookie directly (same pattern as `/api/toolkit-access`) and syncs/loads the matching SmartExcel `users` row by email.
+- `app/api/smartexcel/**` — 23 route handlers (jobs, clarify/plan/sample/full-run, recipes, admin roles/audit/deleted/analytics, notifications). Worker callback lives separately (see below).
+- `app/api/worker-callback/route.ts` — **not** under `/api/smartexcel/` on purpose: the Python worker's callback path is hardcoded to `{APP_CALLBACK_URL}/api/worker-callback` (`tools/smartexcel/worker/app/main.py`), so this matches that instead of changing worker code.
+- `app/smartexcel/**` — 9 pages sharing EventPilot's own layout via `app/smartexcel/shell.tsx`, which adds an explicit "← Back to EventPilot" link (the actual complaint that started this).
+- Toolkit card now points at `/smartexcel/jobs` as a plain internal `<Link>`.
+- **`eventpilot-proxy` cutover done and verified live**: removed the `/smartexcel` special-case branch from `infra/eventpilot-proxy/proxy-worker.js` (deployed via the documented raw Cloudflare API upload) so `/smartexcel/*` now falls through to Railway like everything else. Confirmed on the real domain: `eventpilot.tresconglobal.com/smartexcel` → 307 to EventPilot's own `/login`, not the old worker.
+- **Old SSO bridge removed**: `app/api/tools/smart-excel/launch/route.ts` deleted, `SMARTEXCEL_SSO_SECRET` + `SMARTEXCEL_URL` Railway vars deleted (confirmed unreferenced first).
+- **`APP_CALLBACK_URL` fixed** on the separate `smartexcel-worker` Railway project (Python worker) → `https://eventpilot.tresconglobal.com`, so job-completion callbacks reach the new route instead of the dead old worker. Worker redeployed clean, `/health` confirmed 200.
+- New Railway env vars on EventPilot's own project: `SMARTEXCEL_R2_ACCOUNT_ID/ACCESS_KEY_ID/SECRET_ACCESS_KEY/BUCKET`, `SMARTEXCEL_WORKER_SHARED_SECRET`, `SMARTEXCEL_WORKER_URL`, `SMARTEXCEL_GEMINI_API_KEY` (copied from EventPilot's own existing `GEMINI_API_KEY` — same product, no new key needed). Pulled from the `smartexcel-worker` project's own (readable) Railway vars and piped directly, never printed to the terminal transcript — except one early command that did print raw R2/worker-secret values before the safer pattern was adopted; low-risk since it's Madhu's own private CLI session, but flagged to him directly.
+- `npm run build` passes clean (typecheck + all routes) both before and after the DB switch. New deps: `drizzle-orm`, `zod`, `aws4fetch`, `lucide-react`, `@tanstack/react-virtual` (no new Postgres driver — reused the existing `pg` dependency).
 
-**Not done yet / next session:**
-1. **New Railway env vars needed** (same values as the existing Cloudflare Worker secrets, just re-added under EventPilot's Railway project with an `SMARTEXCEL_` prefix to avoid name collisions): `SMARTEXCEL_DATABASE_URL`, `SMARTEXCEL_GEMINI_API_KEY`, `SMARTEXCEL_WORKER_URL`, `SMARTEXCEL_WORKER_SHARED_SECRET`, `SMARTEXCEL_R2_ACCOUNT_ID`, `SMARTEXCEL_R2_ACCESS_KEY_ID`, `SMARTEXCEL_R2_SECRET_ACCESS_KEY`, `SMARTEXCEL_R2_BUCKET`. **Not set by Claude** — Railway env var changes need explicit instruction per the hard rules.
-2. **Live smoke test** against real Neon/Gemini/R2 credentials hasn't happened (no access to those secrets from this session) — run one full job (upload → clarify → sample → full run) before trusting this in front of pilots.
-3. **Old SSO bridge left in place on purpose**: `app/api/tools/smart-excel/launch/route.ts` and `SMARTEXCEL_SSO_SECRET` were NOT deleted — keep them until the native routes are confirmed working live, then remove.
-4. **`eventpilot-proxy` cutover**: the shared Cloudflare Worker currently forwards `/smartexcel/*` to the old `smartexcel.trescon.workers.dev` frontend. Once the native routes are verified, that branch needs to come out so `/smartexcel/*` falls through to Railway like everything else. This touches the shared Worker — needs Durga's explicit sign-off first, same as the 03 Jul domain-uniformity change.
-5. Once fully cut over: decommission the Cloudflare Pages/Workers deploy of `tools/smartexcel`'s frontend (keep the Python worker as-is).
+**Still to do (not urgent, tool is pre-launch):**
+1. A full authenticated smoke test (upload → clarify → sample → full run) hasn't happened — only unauthenticated redirect behavior was verified live. Madhu should click through via Toolkit → SmartExcel once to confirm the whole loop works.
+2. `tools/smartexcel/` (the old TanStack Start source) and its Cloudflare Pages/Workers deploy (`smartexcel.trescon.workers.dev`) are now fully orphaned — nothing references or forwards to them anymore. Safe to decommission/delete whenever; left alone this session since it wasn't asked for.
 
 ---
 

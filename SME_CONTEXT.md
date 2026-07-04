@@ -503,12 +503,17 @@ in its own subdirectory with its own toolchain.
 even with the SSO bridge and domain-uniformity proxy below, it never actually
 shared EventPilot's layout/nav — it was still a different origin server
 underneath, just hidden behind a proxy. Read §19 below before reaching for
-this pattern; it's now the cautionary tale, not the template. The
-`tools/smartexcel/` directory and its Cloudflare Worker deploy are being kept
-only until the native port is live-verified, then decommissioned — the
-**Python worker (Railway, separate project) is unaffected either way**, since
-it was always called over plain HTTP with a bearer secret, no framework
-coupling.
+this pattern; it's now the cautionary tale, not the template. The cutover is
+fully live: `eventpilot-proxy` no longer forwards `/smartexcel/*` anywhere
+special (verified against the real domain), the old SSO bridge is deleted,
+and the database was consolidated into EventPilot's own Supabase Postgres
+(dedicated `smartexcel` schema) rather than kept on the separate Neon DB.
+`tools/smartexcel/` (the old TanStack Start source) and its Cloudflare
+Pages/Workers deploy are now fully orphaned — nothing references them — and
+can be deleted whenever. **The Python worker (Railway, separate project) was
+unaffected by any of this**, since it was always called over plain HTTP with
+a bearer secret, no framework coupling — only its `APP_CALLBACK_URL` env var
+changed, to point at EventPilot's domain instead of the old dead worker.
 
 **The pattern itself is still valid** for a tool whose stack genuinely can't
 be Next.js (e.g. it needs Python data libs Node can't run — that's why

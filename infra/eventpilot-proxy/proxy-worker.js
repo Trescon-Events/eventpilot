@@ -1,14 +1,14 @@
 // proxy-worker.js — updated to Railway (replaced Vercel 18 Jun 2026)
-// + SmartExcel routing under /smartexcel/* (03 Jul 2026) — full path preserved,
-// no rewrite, since SmartExcel's own build is base-path-aware (see
-// tools/smartexcel/vite.config.ts BASE_PATH). Everything else unchanged.
+// SmartExcel routing under /smartexcel/* (03 Jul 2026 -> 04 Jul 2026): removed.
+// SmartExcel is now native Next.js code inside EventPilot's own Railway app
+// (app/smartexcel/, app/api/smartexcel/) instead of a separately-deployed
+// TanStack Start app on smartexcel.trescon.workers.dev, so /smartexcel/*
+// falls through to the same default (Railway) target as everything else.
+// Simple hostname-swap proxy, no path-based branching anymore.
 var proxy_worker_default = {
   async fetch(request, env) {
     const url = new URL(request.url);
-    const isSmartExcel = url.pathname === "/smartexcel" || url.pathname.startsWith("/smartexcel/");
-    const targetHost = isSmartExcel
-      ? "smartexcel.trescon.workers.dev"
-      : "eventpilot-production-90c6.up.railway.app";
+    const targetHost = "eventpilot-production-90c6.up.railway.app";
     url.hostname = targetHost;
     const newHeaders = new Headers(request.headers);
     newHeaders.set("host", targetHost);
