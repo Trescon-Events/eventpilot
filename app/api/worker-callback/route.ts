@@ -1,7 +1,11 @@
-// POST /api/smartexcel/worker-callback — ported from worker-callback.ts.
-// Machine-to-machine: authenticated by SMARTEXCEL_WORKER_SHARED_SECRET, called
-// directly by the Python worker (unchanged, separate Railway service) when a
-// sample/full run finishes. Not a session/user route.
+// POST /api/worker-callback — ported from tools/smartexcel/src/server/worker-callback.ts.
+// Lives at the app root (not under /api/smartexcel/) because the Python
+// worker's callback path is hardcoded to `{APP_CALLBACK_URL}/api/worker-callback`
+// (tools/smartexcel/worker/app/main.py) — matching it here avoids touching the
+// worker's own deployed code. Machine-to-machine: authenticated by
+// SMARTEXCEL_WORKER_SHARED_SECRET, called directly by the Python worker
+// (unchanged, separate Railway service) when a sample/full run finishes. Not a
+// session/user route.
 import { NextRequest, NextResponse } from "next/server";
 import { desc, eq } from "drizzle-orm";
 import { z } from "zod";

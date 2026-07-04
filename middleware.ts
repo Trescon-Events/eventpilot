@@ -24,6 +24,7 @@ const PUBLIC_PREFIXES = [
   '/api/admin/setup-pilots',     // one-time setup, auth checked inside via x-setup-key header
   '/api/admin/pilots',            // create/backfill pilot projects, auth checked inside (session or x-setup-key)
   '/api/build-requests',         // build requests API, auth checked inside (session or x-setup-key)
+  '/api/worker-callback',        // SmartExcel Python worker callback, auth checked inside via bearer token
   '/profile',             // AIRS assessment — staff arrive here before they have a session
   '/events',              // public event websites
   '/welcome',
