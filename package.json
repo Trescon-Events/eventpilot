@@ -14,12 +14,16 @@
     "@dnd-kit/utilities": "^3.2.2",
     "@google/generative-ai": "^0.24.1",
     "@supabase/supabase-js": "^2.104.1",
+    "@tanstack/react-virtual": "^3.13.26",
     "@types/bcryptjs": "^2.4.6",
     "@types/libsodium-wrappers": "^0.7.14",
     "@types/pdf-parse": "^1.1.5",
+    "aws4fetch": "^1.0.20",
     "bcryptjs": "^3.0.3",
+    "drizzle-orm": "^0.44.0",
     "fflate": "^0.8.3",
     "libsodium-wrappers": "^0.8.4",
+    "lucide-react": "^0.575.0",
     "next": "16.2.4",
     "nodemailer": "^8.0.6",
     "pdf-parse": "^2.4.5",
@@ -27,7 +31,8 @@
     "react": "19.2.4",
     "react-dom": "19.2.4",
     "resend": "^6.12.4",
-    "xlsx": "^0.18.5"
+    "xlsx": "^0.18.5",
+    "zod": "^4.3.6"
   },
   "devDependencies": {
     "@opennextjs/cloudflare": "^1.19.9",

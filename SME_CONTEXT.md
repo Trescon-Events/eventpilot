@@ -494,50 +494,94 @@ Not every tool has to be a Next.js route in this repo. If what you're
 proposing needs a fundamentally different stack (its own database, a
 non-Next.js framework, background job processing Next.js/Vercel-style
 functions can't do), it can still live **inside this same GitHub repo**, just
-in its own subdirectory with its own toolchain — see `tools/smartexcel/` for
-the reference example (TanStack Start + Vite + Cloudflare Workers, its own
-Neon Postgres, a separate Python/FastAPI worker for heavy processing).
+in its own subdirectory with its own toolchain.
 
-**What stays consistent even when the stack doesn't:**
+**`tools/smartexcel/` used to be the reference example of this pattern**
+(TanStack Start + Vite + Cloudflare Workers, its own Neon Postgres) — as of
+04 Jul 2026 it was **fully ported into native Next.js code** at
+`app/smartexcel/` + `app/api/smartexcel/` + `app/lib/smartexcel/`, because
+even with the SSO bridge and domain-uniformity proxy below, it never actually
+shared EventPilot's layout/nav — it was still a different origin server
+underneath, just hidden behind a proxy. Read §19 below before reaching for
+this pattern; it's now the cautionary tale, not the template. The
+`tools/smartexcel/` directory and its Cloudflare Worker deploy are being kept
+only until the native port is live-verified, then decommissioned — the
+**Python worker (Railway, separate project) is unaffected either way**, since
+it was always called over plain HTTP with a bearer secret, no framework
+coupling.
+
+**The pattern itself is still valid** for a tool whose stack genuinely can't
+be Next.js (e.g. it needs Python data libs Node can't run — that's why
+SmartExcel's own heavy processing stays a separate Python/FastAPI worker even
+after the frontend went native). What stays consistent when you do reach for
+it:
 - **No separate GitHub repo, no separate handoff doc.** One repo, one
   `HANDOFF.md`. The subdirectory can have its own `CLAUDE.md` for stack-specific
   detail (commands, env vars) — same pattern as any nested `CLAUDE.md`.
-- **Login is still EventPilot's, never a second password system.** The tool
-  gets an "SSO bridge": a small EventPilot API route (see
-  `app/api/tools/smart-excel/launch/route.ts`) checks the person's
-  `tool_grants`, mints a short-lived signed token, and redirects into the
-  other app's own `/sso`-style receiver route, which creates a local session
-  from that token — no signup/login form of its own.
+- **Login is still EventPilot's, never a second password system.** Historically
+  this meant an "SSO bridge" (a signed-token handoff into the other app's own
+  session) — but if the tool is later ported native, that whole bridge
+  disappears in favor of just reading EventPilot's own session cookie
+  directly (see §19).
 - **Still shows up as a normal Toolkit card**, gated by a `tool_grants` key
   like every other tool (see §4) — the person using it never needs to know
   it's a different framework under the hood.
-- **Same domain too, not just same login.** SmartExcel is reachable at
-  `eventpilot.tresconglobal.com/smartexcel`, not its own separate domain —
-  reverse-proxied through `eventpilot-proxy`, the one Cloudflare Worker that
-  fronts all of `eventpilot.tresconglobal.com`. This is a bigger ask than the
-  SSO bridge: the tool's own build needs to be base-path-aware (its asset URLs
-  and internal navigation have to come out prefixed correctly, e.g. Vite's
-  `base` config + a matching router basepath), and touching `eventpilot-proxy`
-  is the **one thing in this whole platform that needs Durga's explicit
-  sign-off before Claude Code touches it** — it's a single Worker serving
-  every staff member, not just users of your tool. See
+- **Same domain too, not just same login**, via `eventpilot-proxy`, the one
+  Cloudflare Worker that fronts all of `eventpilot.tresconglobal.com`.
+  Touching `eventpilot-proxy` is the **one thing in this whole platform that
+  needs Durga's explicit sign-off before Claude Code touches it** — it's a
+  single Worker serving every staff member, not just users of your tool. See
   `infra/eventpilot-proxy/README.md` for how it's deployed and how to add
   another tool's route to it. Don't assume this happens automatically for a
   new tool — it's a deliberate extra step, ask for it if you want it.
 - If the root `tsconfig.json`/`eslint.config.mjs` glob the whole repo (they
   do), the subdirectory needs to be added to both `exclude`/`globalIgnores` so
   its toolchain doesn't collide with the Next.js build.
-- Deploy target doesn't have to be Railway — SmartExcel is on Cloudflare
-  Workers (web app) + Railway (Python worker, a separate Railway project).
-  Whatever fits; it's independent of EventPilot's own `git push origin main` →
-  Railway flow.
 
 If your tool can reasonably be a Next.js route instead (most can — see §9),
-prefer that. This pattern is for when the stack genuinely can't be Next.js.
+prefer that. This pattern is for when the stack genuinely can't be Next.js —
+and even then, plan for it to feel bolted-on until/unless it's later ported
+native, same as SmartExcel was.
 
 ---
 
-## 19. Template for Sharing with Your AI Tool
+## 19. Porting an Outside-the-App Tool to Native Next.js
+
+If a tool built under §18 needs to stop feeling like a different app (no
+shared nav, a visible domain switch, or — as with SmartExcel on 04 Jul 2026 —
+a same-domain proxy that still didn't share layout because it was a different
+origin server underneath), here's what actually moves and what doesn't:
+
+- **The database usually doesn't move.** SmartExcel kept its own separate
+  Neon Postgres (via `drizzle-orm`) — no reason to migrate rows into Supabase
+  just because the frontend moved. Next.js server code can query any Postgres
+  directly regardless of host (Railway, Cloudflare, wherever).
+- **A non-Next.js-compatible piece (e.g. Python data processing) stays put.**
+  SmartExcel's Python/FastAPI worker (R2 file processing via pandas) was
+  never coupled to the frontend framework — it's called over plain HTTP with
+  a bearer secret, so porting the frontend didn't touch it at all.
+- **The SSO bridge disappears entirely, not just gets simplified.** Once the
+  tool's pages are literally inside EventPilot's own Next.js app, there's no
+  second origin to hand a signed token to — every request just reads
+  EventPilot's own session cookie (`tcs_session`) directly and syncs/loads the
+  tool's own `users` row by email on demand. This deletes an entire class of
+  moving parts: the signed-token minting route, the shared HMAC secret, the
+  tool's own session table/cookie.
+- **The Toolkit card href becomes a plain internal path** (e.g.
+  `/smartexcel/jobs`), not a launch-route redirect — same as every other
+  native tool, no `target="_blank"` special-casing needed.
+- **The old proxy branch in `eventpilot-proxy` needs removing once verified**,
+  so requests fall through to Railway/Next.js instead of being forwarded to
+  the old separately-deployed frontend. This is a shared-Worker-routing
+  change — still needs Durga's sign-off, same rule as §18.
+- **Decommission order matters**: keep the old bridge/route (SSO launch
+  route, old Cloudflare Worker deploy) in place until the native routes are
+  live-verified against real production secrets (DB URL, API keys) — don't
+  delete the fallback before confirming the replacement actually works.
+
+---
+
+## 20. Template for Sharing with Your AI Tool
 
 When you open ChatGPT or Gemini to generate a prompt for Durga, paste this as the first message:
 
