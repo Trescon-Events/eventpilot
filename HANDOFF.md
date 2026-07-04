@@ -11,7 +11,7 @@
 | Field | Value |
 |---|---|
 | Who | Madhu + Claude Code (Sonnet 5) — 04 Jul 2026, SmartExcel native Next.js port + full cutover |
-| Latest push | 2026-07-04 — two commits: the port itself, then the proxy/callback cleanup |
+| Latest push | 2026-07-04 — three commits: the port itself, the proxy/callback cleanup, then a middleware bug fix found via live smoke test |
 | Handed off to | Durga |
 | Deployed | ✅ Yes — live at `eventpilot.tresconglobal.com/smartexcel`, fully native, `eventpilot-proxy` cutover done, old bridge removed |
 
@@ -30,9 +30,10 @@
 - **`APP_CALLBACK_URL` fixed** on the separate `smartexcel-worker` Railway project (Python worker) → `https://eventpilot.tresconglobal.com`, so job-completion callbacks reach the new route instead of the dead old worker. Worker redeployed clean, `/health` confirmed 200.
 - New Railway env vars on EventPilot's own project: `SMARTEXCEL_R2_ACCOUNT_ID/ACCESS_KEY_ID/SECRET_ACCESS_KEY/BUCKET`, `SMARTEXCEL_WORKER_SHARED_SECRET`, `SMARTEXCEL_WORKER_URL`, `SMARTEXCEL_GEMINI_API_KEY` (copied from EventPilot's own existing `GEMINI_API_KEY` — same product, no new key needed). Pulled from the `smartexcel-worker` project's own (readable) Railway vars and piped directly, never printed to the terminal transcript — except one early command that did print raw R2/worker-secret values before the safer pattern was adopted; low-risk since it's Madhu's own private CLI session, but flagged to him directly.
 - `npm run build` passes clean (typecheck + all routes) both before and after the DB switch. New deps: `drizzle-orm`, `zod`, `aws4fetch`, `lucide-react`, `@tanstack/react-virtual` (no new Postgres driver — reused the existing `pg` dependency).
+- **Bug found + fixed via live smoke test right after the first deploy**: `middleware.ts` protects every route behind a session-cookie login redirect by default, and `/api/worker-callback` wasn't on its public-prefix allowlist — so the Python worker's bearer-token-authenticated callback was silently redirecting to `/login` instead of reaching the handler (would have made every sample/full run hang forever in "running"). Added it to `PUBLIC_PREFIXES` in `middleware.ts`, same exemption pattern as `setup-pilots`/`build-requests`. Re-verified live: `/api/worker-callback` now returns `401 {"error":"unauthorized"}` from its own bearer-token check (not a redirect), and `/smartexcel` still correctly redirects unauthenticated browser visits to login.
 
 **Still to do (not urgent, tool is pre-launch):**
-1. A full authenticated smoke test (upload → clarify → sample → full run) hasn't happened — only unauthenticated redirect behavior was verified live. Madhu should click through via Toolkit → SmartExcel once to confirm the whole loop works.
+1. A full authenticated smoke test (upload → clarify → sample → full run) hasn't happened — only unauthenticated redirect behavior was verified live (both `/smartexcel/*` and `/api/worker-callback` now behave correctly, but no real job has actually run end-to-end yet). Madhu should click through via Toolkit → SmartExcel once to confirm the whole loop works.
 2. `tools/smartexcel/` (the old TanStack Start source) and its Cloudflare Pages/Workers deploy (`smartexcel.trescon.workers.dev`) are now fully orphaned — nothing references or forwards to them anymore. Safe to decommission/delete whenever; left alone this session since it wasn't asked for.
 
 ---
