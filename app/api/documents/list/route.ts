@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/app/lib/supabase'
+import { canAccessDocument, LEVEL_RANK } from '@/app/lib/kb/access'
 
 /*
   GET /api/documents/list
@@ -9,18 +10,8 @@ import { supabaseAdmin } from '@/app/lib/supabase'
     staff_id=uuid         → documents this staff member can access (Pilot / staff view)
     pipeline=1            → all documents including pending/flagged (admin pipeline)
 
-  Access rules for staff:
-    Layer 1 (knowledge_base) → always visible to everyone
-    Layer 2 (general)        → visible to all staff
-    Layer 3 (specific)       → only if department matches AND job_level meets min_level
+  Access rules for staff — see app/lib/kb/access.ts
 */
-
-const LEVEL_RANK: Record<string, number> = {
-  staff: 0, team_lead: 1, dept_head: 2, office_head: 3, super_admin: 4,
-}
-const MIN_LEVEL_RANK: Record<string, number> = {
-  all: 0, team_lead: 1, management: 3,
-}
 
 export async function GET(req: NextRequest) {
   const staffId  = req.nextUrl.searchParams.get('staff_id')
@@ -36,6 +27,8 @@ export async function GET(req: NextRequest) {
           id, title, type, visibility, word_count, layer, department, min_level,
           pilot_use, ai_reasoning, confidence, status, flagged,
           submitted_by, reviewed_by, review_note, created_at,
+          source_url, version, document_group_id, superseded_by, workspace_id,
+          extracted_text,
           events(name)
         `)
         .eq('is_active', true)
@@ -51,10 +44,12 @@ export async function GET(req: NextRequest) {
         .select(`
           id, title, type, visibility, word_count, layer, department, min_level,
           pilot_use, ai_reasoning, confidence, status, flagged, created_at,
+          source_url, version, document_group_id, superseded_by, workspace_id,
           events(name)
         `)
         .eq('is_active', true)
         .eq('status', 'live')
+        .is('superseded_by', null)
         .order('created_at', { ascending: false })
       if (error) throw error
       return NextResponse.json(data ?? [])
@@ -76,27 +71,15 @@ export async function GET(req: NextRequest) {
     // Fetch all live documents
     const { data: docs, error } = await supabaseAdmin
       .from('documents')
-      .select('id, title, type, word_count, layer, department, min_level, pilot_use, ai_reasoning, created_at')
+      .select('id, title, type, word_count, layer, department, min_level, pilot_use, ai_reasoning, source_url, extracted_text, created_at')
       .eq('is_active', true)
       .eq('status', 'live')
+      .is('superseded_by', null)
       .order('created_at', { ascending: false })
 
     if (error) throw error
 
-    // Filter by access rules
-    const accessible = (docs ?? []).filter(doc => {
-      // Layer 1 — always accessible
-      if (doc.layer === 'knowledge_base') return true
-      // Layer 2 — accessible to all staff
-      if (doc.layer === 'general') return true
-      // Layer 3 — department + level check
-      if (doc.layer === 'specific') {
-        const deptMatch  = doc.department === 'all' || doc.department === staffDept
-        const levelMatch = staffLevel >= (MIN_LEVEL_RANK[doc.min_level] ?? 0)
-        return deptMatch && levelMatch
-      }
-      return true
-    })
+    const accessible = (docs ?? []).filter(doc => canAccessDocument(doc, staffDept, staffLevel))
 
     return NextResponse.json(accessible)
   } catch (e) {

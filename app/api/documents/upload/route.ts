@@ -181,11 +181,15 @@ Return ONLY valid JSON, no markdown:
 // ── Route ─────────────────────────────────────────────────────────────────────
 export async function POST(req: NextRequest) {
   try {
-    const form        = await req.formData()
-    const file        = form.get('file') as File | null
-    const title       = form.get('title') as string
-    const type        = form.get('type') as string
-    const uploaded_by = form.get('uploaded_by') as string | null
+    const form          = await req.formData()
+    const file          = form.get('file') as File | null
+    const title         = form.get('title') as string
+    const type          = form.get('type') as string
+    const uploaded_by   = form.get('uploaded_by') as string | null
+    const source_url    = (form.get('source_url') as string | null)?.trim() || null
+    const workspace_id  = (form.get('workspace_id') as string | null) || null
+    const supersedes_id = (form.get('supersedes_id') as string | null) || null
+    const version_note  = (form.get('version_note') as string | null)?.trim() || null
 
     if (!file || !title || !type) {
       return NextResponse.json({ error: 'file, title and type are required' }, { status: 400 })
@@ -227,6 +231,21 @@ export async function POST(req: NextRequest) {
     const analysis = await analyseWithGemini(title, extractedText, uploader, finalType !== 'other' ? finalType : undefined)
     const flagged   = analysis.confidence < 75
 
+    // If this upload supersedes an existing document, chain it into the same version group
+    let documentGroupId: string | null = null
+    let version = 1
+    if (supersedes_id) {
+      const { data: prior } = await supabaseAdmin
+        .from('documents')
+        .select('id, document_group_id, version')
+        .eq('id', supersedes_id)
+        .single()
+      if (prior) {
+        documentGroupId = prior.document_group_id ?? prior.id
+        version = (prior.version ?? 1) + 1
+      }
+    }
+
     // Save extracted text to DB — original file is gone, never persisted
     const { data, error } = await supabaseAdmin
       .from('documents')
@@ -246,11 +265,25 @@ export async function POST(req: NextRequest) {
         ai_reasoning:   analysis.ai_reasoning,
         confidence:     analysis.confidence,
         flagged,
+        source_url:     source_url,
+        workspace_id:   workspace_id,
+        document_group_id: documentGroupId,
+        version,
+        version_note:   supersedes_id ? version_note : null,
       })
-      .select('id, title, word_count, layer, department, min_level, pilot_use, ai_reasoning, confidence, flagged')
+      .select('id, title, word_count, layer, department, min_level, pilot_use, ai_reasoning, confidence, flagged, version, document_group_id')
       .single()
 
     if (error) throw error
+
+    // First version of a group: document_group_id has no DB default, backfill it to its own id.
+    // Then, if this upload supersedes a prior version, mark that prior row superseded.
+    if (!documentGroupId) {
+      await supabaseAdmin.from('documents').update({ document_group_id: data.id }).eq('id', data.id)
+    }
+    if (supersedes_id) {
+      await supabaseAdmin.from('documents').update({ superseded_by: data.id }).eq('id', supersedes_id)
+    }
 
     return NextResponse.json({
       success:  true,

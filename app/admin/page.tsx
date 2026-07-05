@@ -6,6 +6,7 @@ import { supabase } from '@/app/lib/supabase'
 import { buildQuestions, ALL_DEPARTMENTS } from '@/app/lib/questions'
 import type { Question } from '@/app/lib/questions'
 import { computeAIRS } from '@/app/lib/airs'
+import { kbDownloadHref } from '@/app/lib/kb/download-href'
 
 const ROLE_META: Record<string, { label: string; color: string; bg: string; desc: string }> = {
   standard:        { label: 'Standard',        color: '#5B7080', bg: '#5B708015', desc: 'Default — basic platform access' },
@@ -569,11 +570,13 @@ export default function AdminPage() {
     events?: { name: string } | null
     layer: string; department: string; min_level: string
     pilot_use: boolean; confidence: number; flagged: boolean; status: string
+    source_url: string | null; version: number; document_group_id: string | null
+    superseded_by: string | null; workspace_id: string | null
   }
   const [docs,          setDocs]          = useState<DocRow[]>([])
   const [docsLoading,   setDocsLoading]   = useState(false)
   const [docFile,       setDocFile]       = useState<File | null>(null)
-  const [docForm,       setDocForm]       = useState({ title: '', type: 'policy', visibility: 'all', event_id: '' })
+  const [docForm,       setDocForm]       = useState({ title: '', type: 'policy', visibility: 'all', event_id: '', source_url: '', workspace_id: '' })
   const [docUploading,  setDocUploading]  = useState(false)
   const [docMsg,        setDocMsg]        = useState('')
   const [otherTypeLabel,setOtherTypeLabel]= useState('')
@@ -583,6 +586,179 @@ export default function AdminPage() {
   const [showCreateEvent, setShowCreateEvent] = useState(false)
   const [showUploadForm,  setShowUploadForm]  = useState(false)
   const [docFilter,       setDocFilter]       = useState<'all'|'knowledge_base'|'general'|'specific'|'flagged'>('all')
+
+  // Knowledge — sub-tab, version control, BD Workspaces
+  const [docSubTab,     setDocSubTab]     = useState<'documents' | 'workspaces'>('documents')
+  const [supersedesDoc, setSupersedesDoc] = useState<DocRow | null>(null)
+  const [versionNote,   setVersionNote]   = useState('')
+
+  type VersionRow = {
+    id: string; title: string; version: number; version_note: string | null
+    source_url: string | null; status: string; superseded_by: string | null
+    created_at: string; staff_members: { name: string } | { name: string }[] | null
+  }
+  const [versionModalGroupId,   setVersionModalGroupId]   = useState<string | null>(null)
+  const [versionHistory,        setVersionHistory]        = useState<VersionRow[]>([])
+  const [versionHistoryLoading, setVersionHistoryLoading] = useState(false)
+
+  type WorkspaceRow = {
+    id: string; name: string; slug: string | null; client_name: string | null
+    client_country: string | null; event_name: string | null; event_type: string | null
+    status: string; created_at: string
+    bd_workspace_members?: { count: number }[]; documents?: { count: number }[]
+  }
+  const [workspaces,        setWorkspaces]        = useState<WorkspaceRow[]>([])
+  const [workspacesLoading, setWorkspacesLoading] = useState(false)
+  const [workspaceForm,     setWorkspaceForm]     = useState({ name: '', client_name: '', client_country: '', event_name: '', event_type: 'managed' })
+  const [workspaceSaving,   setWorkspaceSaving]   = useState(false)
+  const [workspaceMsg,      setWorkspaceMsg]      = useState('')
+  const [showWorkspaceForm, setShowWorkspaceForm] = useState(false)
+  const [selectedWorkspaceId, setSelectedWorkspaceId] = useState<string | null>(null)
+
+  type WorkspaceMember = { id: string; role: string | null; added_at: string; staff_members: { id: string; name: string; email: string; department: string | null } }
+  const [workspaceMembers,  setWorkspaceMembers]  = useState<WorkspaceMember[]>([])
+  const [addMemberStaffId,  setAddMemberStaffId]  = useState('')
+
+  // Knowledge — smart ingest (classify → process → publish)
+  type PendingDoc = {
+    id: string; title: string; type: string; layer: string; department: string; min_level: string
+    pilot_use: boolean; status: string; source_url: string | null; word_count: number
+    extracted_text: string; created_at: string
+  }
+  type IngestResult = { success: boolean; detected_type: string; document: PendingDoc; summary: string }
+  const [showIngestForm, setShowIngestForm] = useState(false)
+  const [ingestFile,     setIngestFile]     = useState<File | null>(null)
+  const [ingesting,      setIngesting]      = useState(false)
+  const [ingestMsg,      setIngestMsg]      = useState('')
+  const [ingestResult,   setIngestResult]   = useState<IngestResult | null>(null)
+  const [pendingDocs,    setPendingDocs]    = useState<PendingDoc[]>([])
+  const [pendingLoading, setPendingLoading] = useState(false)
+  const [reviewingId,    setReviewingId]    = useState<string | null>(null)
+  const [expandedPendingId, setExpandedPendingId] = useState<string | null>(null)
+
+  async function fetchWorkspaces() {
+    setWorkspacesLoading(true)
+    const res  = await fetch('/api/bd-workspaces')
+    const data = await res.json()
+    setWorkspaces(Array.isArray(data) ? data : [])
+    setWorkspacesLoading(false)
+  }
+
+  async function createWorkspace() {
+    if (!workspaceForm.name.trim()) { setWorkspaceMsg('Workspace name is required.'); return }
+    setWorkspaceSaving(true); setWorkspaceMsg('')
+    const adminStaffId = sessionStorage.getItem('tai_admin_staff_id')
+    const res = await fetch('/api/bd-workspaces', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ...workspaceForm, created_by: adminStaffId || undefined }),
+    })
+    if (res.ok) {
+      setWorkspaceMsg('Workspace created.')
+      setWorkspaceForm({ name: '', client_name: '', client_country: '', event_name: '', event_type: 'managed' })
+      setShowWorkspaceForm(false)
+      fetchWorkspaces()
+    } else {
+      setWorkspaceMsg('Failed to create workspace.')
+    }
+    setWorkspaceSaving(false)
+  }
+
+  async function fetchWorkspaceMembers(workspaceId: string) {
+    const res  = await fetch(`/api/bd-workspaces/members?workspace_id=${workspaceId}`)
+    const data = await res.json()
+    setWorkspaceMembers(Array.isArray(data) ? data : [])
+  }
+
+  async function openWorkspace(workspaceId: string) {
+    setSelectedWorkspaceId(workspaceId)
+    fetchWorkspaceMembers(workspaceId)
+    if (staffList.length === 0) fetchStaffList()
+  }
+
+  async function addWorkspaceMember() {
+    if (!selectedWorkspaceId || !addMemberStaffId) return
+    await fetch('/api/bd-workspaces/members', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ workspace_id: selectedWorkspaceId, staff_id: addMemberStaffId }),
+    })
+    setAddMemberStaffId('')
+    fetchWorkspaceMembers(selectedWorkspaceId)
+  }
+
+  async function removeWorkspaceMember(staffId: string) {
+    if (!selectedWorkspaceId) return
+    await fetch(`/api/bd-workspaces/members?workspace_id=${selectedWorkspaceId}&staff_id=${staffId}`, { method: 'DELETE' })
+    fetchWorkspaceMembers(selectedWorkspaceId)
+  }
+
+  async function openVersionHistory(groupId: string) {
+    setVersionModalGroupId(groupId)
+    setVersionHistoryLoading(true)
+    const res  = await fetch(`/api/documents/versions?group_id=${groupId}`)
+    const data = await res.json()
+    setVersionHistory(Array.isArray(data) ? data : [])
+    setVersionHistoryLoading(false)
+  }
+
+  async function fetchPendingDocs() {
+    setPendingLoading(true)
+    const res  = await fetch('/api/documents/list?pipeline=1')
+    const data = await res.json()
+    setPendingDocs(Array.isArray(data) ? data.filter((d: PendingDoc) => d.status === 'pending') : [])
+    setPendingLoading(false)
+  }
+
+  async function ingestDocument() {
+    if (!ingestFile) return
+    setIngesting(true); setIngestMsg('Classifying and processing with Gemini… this can take a minute for large files.')
+    setIngestResult(null)
+
+    const adminStaffId = sessionStorage.getItem('tai_admin_staff_id')
+    const form = new FormData()
+    form.append('file', ingestFile)
+    if (adminStaffId) form.append('uploaded_by', adminStaffId)
+
+    try {
+      const res  = await fetch('/api/kb/ingest', { method: 'POST', body: form })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        setIngestMsg(data.error ?? 'Ingestion failed. Please try again.')
+      } else {
+        setIngestMsg('')
+        setIngestResult(data)
+        setIngestFile(null)
+        fetchPendingDocs()
+      }
+    } catch {
+      setIngestMsg('Could not reach the server. Check your connection and try again.')
+    }
+    setIngesting(false)
+  }
+
+  async function publishPendingDoc(documentId: string) {
+    const adminStaffId = sessionStorage.getItem('tai_admin_staff_id')
+    setReviewingId(documentId)
+    await fetch('/api/documents/review', {
+      method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ document_id: documentId, reviewer_id: adminStaffId, action: 'approve' }),
+    })
+    if (ingestResult?.document.id === documentId) setIngestResult(null)
+    setReviewingId(null)
+    fetchPendingDocs()
+    fetchDocs()
+  }
+
+  async function rejectPendingDoc(documentId: string) {
+    const adminStaffId = sessionStorage.getItem('tai_admin_staff_id')
+    setReviewingId(documentId)
+    await fetch('/api/documents/review', {
+      method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ document_id: documentId, reviewer_id: adminStaffId, action: 'reject', note: 'Rejected from Knowledge Base ingestion review.' }),
+    })
+    if (ingestResult?.document.id === documentId) setIngestResult(null)
+    setReviewingId(null)
+    fetchPendingDocs()
+  }
 
   async function fetchEvents() {
     setEventsLoading(true)
@@ -656,6 +832,18 @@ export default function AdminPage() {
     try {
       let data: Record<string, unknown> = {}
 
+      // Auto-store the original in R2 unless the admin pasted their own external link
+      let sourceUrl = docForm.source_url.trim()
+      if (!sourceUrl) {
+        setDocMsg('Saving original file…')
+        const s3Form = new FormData()
+        s3Form.append('file', docFile)
+        const s3Res = await fetch('/api/kb/upload-to-s3', { method: 'POST', body: s3Form })
+        const s3Data = await s3Res.json().catch(() => ({}))
+        if (s3Res.ok && s3Data.source_url) sourceUrl = s3Data.source_url
+        // Non-fatal: if storage isn't reachable, continue without a source_url rather than blocking the upload
+      }
+
       // Large files (> 4 MB): upload directly to Supabase Storage, then process server-side
       if (docFile.size > 4 * 1024 * 1024) {
         setDocMsg('Uploading to secure storage…')
@@ -689,6 +877,10 @@ export default function AdminPage() {
             visibility: docForm.visibility,
             event_id: docForm.event_id || undefined,
             uploaded_by: adminStaffId || undefined,
+            source_url: sourceUrl || undefined,
+            workspace_id: docForm.workspace_id || undefined,
+            supersedes_id: supersedesDoc?.id || undefined,
+            version_note: versionNote || undefined,
           }),
         })
         try { data = await processRes.json() } catch { /* ignore */ }
@@ -706,6 +898,10 @@ export default function AdminPage() {
         form.append('visibility', docForm.visibility)
         if (docForm.event_id) form.append('event_id', docForm.event_id)
         if (adminStaffId) form.append('uploaded_by', adminStaffId)
+        if (sourceUrl) form.append('source_url', sourceUrl)
+        if (docForm.workspace_id) form.append('workspace_id', docForm.workspace_id)
+        if (supersedesDoc) form.append('supersedes_id', supersedesDoc.id)
+        if (versionNote) form.append('version_note', versionNote)
 
         const res = await fetch('/api/documents/upload', { method: 'POST', body: form })
         try { data = await res.json() } catch { /* non-JSON e.g. 504 */ }
@@ -718,12 +914,14 @@ export default function AdminPage() {
         }
       }
 
-      setDocMsg(`Done. ${(data.document as Record<string,unknown>)?.word_count?.toLocaleString()} words extracted.${(data.analysis as Record<string,unknown>)?.flagged ? ' Flagged for review — low confidence.' : ''}`)
+      setDocMsg(`Done. ${(data.document as Record<string,unknown>)?.word_count?.toLocaleString()} words extracted.${(data.analysis as Record<string,unknown>)?.flagged ? ' Flagged for review — low confidence.' : ''}${supersedesDoc ? ' Saved as a new version.' : ''}`)
       setDocAnalysis(data.analysis as never ?? null)
       setDocFile(null)
-      setDocForm({ title: '', type: 'policy', visibility: 'all', event_id: '' })
+      setDocForm({ title: '', type: 'policy', visibility: 'all', event_id: '', source_url: '', workspace_id: '' })
       setOtherTypeLabel('')
       setSaveAsNewType(false)
+      setSupersedesDoc(null)
+      setVersionNote('')
       fetchDocs()
       if (saveAsNewType) fetchCustomDocTypes()
 
@@ -1512,7 +1710,7 @@ export default function AdminPage() {
                 return (
                   <button key={t}
                     id={t === 'intelligence' ? 'tour-intelligence-tab' : t === 'suggest' ? 'tour-studio-tab' : undefined}
-                    onClick={() => { if (t === 'toolkit') { window.location.href = '/admin/toolkit'; return; } setTab(t as typeof tab); if (t === 'learning') fetchLearning(); if (t === 'people') { fetchStaffList(); markProgress('staff') } if (t === 'events') { fetchEvents(); fetchEventSummaries(); } if (t === 'knowledge') { fetchDocs(); fetchCustomDocTypes(); } if (t === 'review') fetchDrafts(); if (t === 'suggest') markProgress('course'); if (t === 'security') fetchSecurity() }}
+                    onClick={() => { if (t === 'toolkit') { window.location.href = '/admin/toolkit'; return; } setTab(t as typeof tab); if (t === 'learning') fetchLearning(); if (t === 'people') { fetchStaffList(); markProgress('staff') } if (t === 'events') { fetchEvents(); fetchEventSummaries(); } if (t === 'knowledge') { fetchDocs(); fetchCustomDocTypes(); fetchWorkspaces(); fetchPendingDocs(); } if (t === 'review') fetchDrafts(); if (t === 'suggest') markProgress('course'); if (t === 'security') fetchSecurity() }}
                     style={{
                       padding:         active ? '9px 22px' : '9px 20px',
                       borderRadius:    '10px',
@@ -4051,6 +4249,32 @@ export default function AdminPage() {
                   </select>
                 </div>
               )}
+              <div style={{ marginBottom: '12px' }}>
+                <label style={{ fontSize: '13px', fontWeight: 700, color: '#5B7080', letterSpacing: '0.8px', textTransform: 'uppercase', display: 'block', marginBottom: '5px' }}>External Link <span style={{ textTransform: 'none', fontWeight: 500 }}>(optional — leave blank to store the original automatically)</span></label>
+                <input value={docForm.source_url} onChange={e => setDocForm(p => ({ ...p, source_url: e.target.value }))} placeholder="Only needed if the original lives elsewhere — SharePoint, Drive…"
+                  style={{ width: '100%', padding: '9px 12px', borderRadius: '9px', border: '1px solid #DDE8EE', background: '#FFFFFF', color: '#0F1923', fontSize: '13px', fontFamily: 'inherit', boxSizing: 'border-box' }} />
+              </div>
+              {(docForm.type === 'proposal' || docForm.type === 'tender') && (
+                <div style={{ marginBottom: '12px' }}>
+                  <label style={{ fontSize: '13px', fontWeight: 700, color: '#5B7080', letterSpacing: '0.8px', textTransform: 'uppercase', display: 'block', marginBottom: '5px' }}>BD Workspace <span style={{ textTransform: 'none', fontWeight: 500 }}>(optional)</span></label>
+                  <select value={docForm.workspace_id} onChange={e => setDocForm(p => ({ ...p, workspace_id: e.target.value }))}
+                    style={{ width: '100%', padding: '9px 10px', borderRadius: '9px', border: '1px solid #DDE8EE', background: '#FFFFFF', color: '#0F1923', fontSize: '13px', fontFamily: 'inherit' }}>
+                    <option value="">Not linked to a workspace</option>
+                    {workspaces.map(ws => <option key={ws.id} value={ws.id}>{ws.name}</option>)}
+                  </select>
+                </div>
+              )}
+              {supersedesDoc && (
+                <div style={{ marginBottom: '12px', padding: '12px', background: 'rgba(96,165,250,0.06)', border: '1px solid rgba(96,165,250,0.25)', borderRadius: '9px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
+                    <span style={{ fontSize: '13px', fontWeight: 800, color: '#1D4ED8' }}>Uploading a new version of &ldquo;{supersedesDoc.title}&rdquo; (v{supersedesDoc.version} → v{supersedesDoc.version + 1})</span>
+                    <button onClick={() => { setSupersedesDoc(null); setVersionNote('') }}
+                      style={{ fontSize: '13px', fontWeight: 700, color: '#5B7080', background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'inherit' }}>Cancel</button>
+                  </div>
+                  <input value={versionNote} onChange={e => setVersionNote(e.target.value)} placeholder="What changed in this version? (optional)"
+                    style={{ width: '100%', padding: '8px 10px', borderRadius: '8px', border: '1px solid #DDE8EE', background: '#FFFFFF', color: '#0F1923', fontSize: '13px', fontFamily: 'inherit', boxSizing: 'border-box' }} />
+                </div>
+              )}
               <div style={{ marginBottom: '14px' }}>
                 <label style={{ fontSize: '13px', fontWeight: 700, color: '#0F1923', letterSpacing: '0.8px', textTransform: 'uppercase', display: 'block', marginBottom: '6px' }}>File (PDF or TXT)</label>
                 <label style={{ display: 'block', padding: '18px', border: `1.5px dashed ${docFile ? 'rgba(192,244,60,0.35)' : '#DDE8EE'}`, borderRadius: '10px', textAlign: 'center', cursor: 'pointer', background: docFile ? 'rgba(192,244,60,0.04)' : 'transparent' }}>
@@ -4102,6 +4326,36 @@ export default function AdminPage() {
             </div>
           )
 
+          function renderReviewCard(doc: PendingDoc, summary: string, detectedType?: string) {
+            const isReviewing = reviewingId === doc.id
+            return (
+              <div key={doc.id} style={{ background: '#FFFFFF', border: '1px solid rgba(124,58,237,0.25)', borderRadius: '16px', padding: '20px', marginBottom: '16px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px', flexWrap: 'wrap', gap: '8px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <span style={{ fontSize: '13px', fontWeight: 700, padding: '2px 8px', borderRadius: '16px', background: 'rgba(124,58,237,0.12)', color: '#7C3AED' }}>
+                      {typeLabel(detectedType ?? doc.type)}
+                    </span>
+                    <span style={{ fontSize: '13px', fontWeight: 800, color: '#0F1923' }}>{doc.title}</span>
+                  </div>
+                  <span style={{ fontSize: '13px', color: '#5B7080' }}>{doc.word_count?.toLocaleString()} words</span>
+                </div>
+                <div style={{ maxHeight: '320px', overflowY: 'auto', padding: '14px', background: '#E8EEF4', borderRadius: '10px', marginBottom: '14px', fontSize: '13px', color: '#2D3E50', whiteSpace: 'pre-wrap', lineHeight: 1.6 }}>
+                  {summary}
+                </div>
+                <div style={{ display: 'flex', gap: '10px' }}>
+                  <button onClick={() => publishPendingDoc(doc.id)} disabled={isReviewing}
+                    style={{ padding: '9px 18px', borderRadius: '9px', border: 'none', background: isReviewing ? '#DDE8EE' : '#C0F43C', color: '#0F1923', fontSize: '13px', fontWeight: 800, cursor: isReviewing ? 'not-allowed' : 'pointer', fontFamily: 'inherit' }}>
+                    {isReviewing ? 'Working…' : 'Publish to KB'}
+                  </button>
+                  <button onClick={() => rejectPendingDoc(doc.id)} disabled={isReviewing}
+                    style={{ padding: '9px 18px', borderRadius: '9px', border: '1px solid rgba(255,107,107,0.3)', background: 'rgba(255,107,107,0.08)', color: '#FF6B6B', fontSize: '13px', fontWeight: 700, cursor: isReviewing ? 'not-allowed' : 'pointer', fontFamily: 'inherit' }}>
+                    Reject
+                  </button>
+                </div>
+              </div>
+            )
+          }
+
           return (
             <div>
               {/* Header */}
@@ -4110,15 +4364,264 @@ export default function AdminPage() {
                   <div style={{ fontSize: '13px', fontWeight: 800, letterSpacing: '2.5px', textTransform: 'uppercase', color: '#00695C', marginBottom: '6px' }}>Knowledge Base</div>
                   <h2 style={{ fontSize: '13px', fontWeight: 800, color: '#0F1923', margin: 0 }}>Documents</h2>
                 </div>
-                {docs.length > 0 && !showUploadForm && (
-                  <button onClick={() => setShowUploadForm(true)}
-                    style={{ display: 'flex', alignItems: 'center', gap: '7px', padding: '10px 18px', borderRadius: '10px', border: 'none', background: '#C0F43C', color: '#0F1923', fontSize: '13px', fontWeight: 800, cursor: 'pointer', fontFamily: 'inherit' }}>
-                    <svg width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
-                    Upload Document
-                  </button>
+                {docSubTab === 'documents' && (
+                  <div style={{ display: 'flex', gap: '8px' }}>
+                    <Link href="/admin/tools/per-creator"
+                      style={{ display: 'flex', alignItems: 'center', gap: '7px', padding: '10px 18px', borderRadius: '10px', border: '1px solid rgba(96,165,250,0.35)', background: 'rgba(96,165,250,0.08)', color: '#1D4ED8', fontSize: '13px', fontWeight: 800, textDecoration: 'none' }}>
+                      <svg width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+                      PER Creator
+                    </Link>
+                    {!showIngestForm && (
+                      <button onClick={() => setShowIngestForm(true)}
+                        style={{ display: 'flex', alignItems: 'center', gap: '7px', padding: '10px 18px', borderRadius: '10px', border: '1px solid rgba(164,120,255,0.35)', background: 'rgba(164,120,255,0.08)', color: '#7C3AED', fontSize: '13px', fontWeight: 800, cursor: 'pointer', fontFamily: 'inherit' }}>
+                        <svg width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+                        Ingest Document
+                      </button>
+                    )}
+                    {docs.length > 0 && !showUploadForm && (
+                      <button onClick={() => setShowUploadForm(true)}
+                        style={{ display: 'flex', alignItems: 'center', gap: '7px', padding: '10px 18px', borderRadius: '10px', border: 'none', background: '#C0F43C', color: '#0F1923', fontSize: '13px', fontWeight: 800, cursor: 'pointer', fontFamily: 'inherit' }}>
+                        <svg width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+                        Upload Document
+                      </button>
+                    )}
+                  </div>
+                )}
+                {docSubTab === 'workspaces' && (
+                  <div style={{ display: 'flex', gap: '8px' }}>
+                    <Link href="/admin/tools/proposal-creator"
+                      style={{ display: 'flex', alignItems: 'center', gap: '7px', padding: '10px 18px', borderRadius: '10px', border: '1px solid rgba(124,58,237,0.35)', background: 'rgba(124,58,237,0.08)', color: '#7C3AED', fontSize: '13px', fontWeight: 800, textDecoration: 'none' }}>
+                      <svg width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+                      Proposal Creator
+                    </Link>
+                    {!showWorkspaceForm && (
+                      <button onClick={() => setShowWorkspaceForm(true)}
+                        style={{ display: 'flex', alignItems: 'center', gap: '7px', padding: '10px 18px', borderRadius: '10px', border: 'none', background: '#C0F43C', color: '#0F1923', fontSize: '13px', fontWeight: 800, cursor: 'pointer', fontFamily: 'inherit' }}>
+                        <svg width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                        New Workspace
+                      </button>
+                    )}
+                  </div>
                 )}
               </div>
 
+              {/* Sub-tab pills */}
+              <div style={{ display: 'flex', gap: '8px', marginBottom: '24px' }}>
+                {([{ key: 'documents', label: 'Documents' }, { key: 'workspaces', label: 'BD Workspaces' }] as { key: typeof docSubTab; label: string }[]).map(s => (
+                  <button key={s.key} onClick={() => setDocSubTab(s.key)}
+                    style={{ padding: '8px 18px', borderRadius: '10px', border: `1px solid ${docSubTab === s.key ? 'rgba(0,165,163,0.4)' : '#DDE8EE'}`, background: docSubTab === s.key ? 'rgba(0,165,163,0.08)' : '#FFFFFF', color: docSubTab === s.key ? '#00695C' : '#5B7080', fontSize: '13px', fontWeight: 800, cursor: 'pointer', fontFamily: 'inherit' }}>
+                    {s.label}
+                  </button>
+                ))}
+              </div>
+
+              {docSubTab === 'documents' && showIngestForm && (
+                <div style={{ background: '#FFFFFF', border: '1px solid rgba(164,120,255,0.25)', borderRadius: '16px', padding: '24px', marginBottom: '20px', maxWidth: '560px' }}>
+                  <div style={{ fontSize: '13px', fontWeight: 800, color: '#7C3AED', letterSpacing: '1px', textTransform: 'uppercase', marginBottom: '6px' }}>Smart Ingest</div>
+                  <p style={{ fontSize: '13px', color: '#5B7080', margin: '0 0 16px', lineHeight: 1.6 }}>
+                    Upload a post-event report, proposal, attendee data file, or corporate document. It is auto-classified and processed into a structured Knowledge Base entry using Gemini — you review and publish before it goes live.
+                  </p>
+                  <label style={{ display: 'block', padding: '18px', border: `1.5px dashed ${ingestFile ? 'rgba(124,58,237,0.4)' : '#DDE8EE'}`, borderRadius: '10px', textAlign: 'center', cursor: 'pointer', background: ingestFile ? 'rgba(124,58,237,0.04)' : 'transparent', marginBottom: '14px' }}>
+                    <input type="file" accept=".pdf,.xlsx,.xls,.txt,.md" style={{ display: 'none' }} onChange={e => setIngestFile(e.target.files?.[0] ?? null)} />
+                    {ingestFile ? (
+                      <div style={{ fontSize: '13px', fontWeight: 700, color: '#7C3AED' }}>{ingestFile.name}</div>
+                    ) : (
+                      <div style={{ fontSize: '13px', color: '#0F1923' }}>Click to select a file — PDF, XLSX, TXT, or MD</div>
+                    )}
+                  </label>
+                  {ingestMsg && (
+                    <div style={{ fontSize: '13px', padding: '9px 12px', borderRadius: '8px', background: ingesting ? 'rgba(124,58,237,0.06)' : 'rgba(255,107,107,0.07)', border: `1px solid ${ingesting ? 'rgba(124,58,237,0.2)' : 'rgba(255,107,107,0.2)'}`, color: ingesting ? '#7C3AED' : '#FF6B6B', marginBottom: '10px', lineHeight: 1.5 }}>
+                      {ingestMsg}
+                    </div>
+                  )}
+                  <div style={{ display: 'flex', gap: '8px' }}>
+                    <button onClick={ingestDocument} disabled={ingesting || !ingestFile}
+                      style={{ flex: 1, padding: '11px', borderRadius: '9px', border: 'none', background: ingesting || !ingestFile ? '#DDE8EE' : '#7C3AED', color: '#FFFFFF', fontSize: '13px', fontWeight: 800, cursor: ingesting || !ingestFile ? 'not-allowed' : 'pointer', fontFamily: 'inherit' }}>
+                      {ingesting ? 'Processing…' : 'Start Ingestion'}
+                    </button>
+                    <button onClick={() => { setShowIngestForm(false); setIngestFile(null); setIngestMsg('') }}
+                      style={{ padding: '11px 16px', borderRadius: '9px', border: '1px solid #B8CDD8', background: '#FFFFFF', color: '#5B7080', fontSize: '13px', fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {docSubTab === 'documents' && ingestResult && renderReviewCard(ingestResult.document, ingestResult.summary, ingestResult.detected_type)}
+
+              {docSubTab === 'documents' && (() => {
+                const others = pendingDocs.filter(d => d.id !== ingestResult?.document.id)
+                if (pendingLoading || others.length === 0) return null
+                return (
+                  <div style={{ marginBottom: '24px' }}>
+                    <div style={{ fontSize: '13px', fontWeight: 800, color: '#7C3AED', textTransform: 'uppercase', letterSpacing: '2px', marginBottom: '12px' }}>
+                      Pending Review ({others.length})
+                    </div>
+                    {others.map(d => expandedPendingId === d.id
+                      ? renderReviewCard(d, d.extracted_text)
+                      : (
+                        <div key={d.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 16px', background: '#FFFFFF', border: '1px solid #DDE8EE', borderRadius: '12px', marginBottom: '8px' }}>
+                          <div>
+                            <span style={{ fontSize: '13px', fontWeight: 700, color: '#0F1923' }}>{d.title}</span>
+                            <span style={{ fontSize: '13px', color: '#5B7080', marginLeft: '8px' }}>{typeLabel(d.type)}</span>
+                          </div>
+                          <button onClick={() => setExpandedPendingId(d.id)}
+                            style={{ fontSize: '13px', fontWeight: 700, color: '#7C3AED', background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'inherit' }}>
+                            Review →
+                          </button>
+                        </div>
+                      )
+                    )}
+                  </div>
+                )
+              })()}
+
+              {docSubTab === 'workspaces' ? (
+                <div>
+                  {showWorkspaceForm && (
+                    <div style={{ background: '#FFFFFF', border: '1px solid rgba(192,244,60,0.2)', borderRadius: '16px', padding: '24px', marginBottom: '24px', maxWidth: '520px' }}>
+                      <div style={{ fontSize: '13px', fontWeight: 800, color: '#00695C', letterSpacing: '1px', textTransform: 'uppercase', marginBottom: '16px' }}>New BD Workspace</div>
+                      <div style={{ marginBottom: '12px' }}>
+                        <label style={{ fontSize: '13px', fontWeight: 700, color: '#5B7080', letterSpacing: '0.8px', textTransform: 'uppercase', display: 'block', marginBottom: '5px' }}>Workspace Name</label>
+                        <input value={workspaceForm.name} onChange={e => setWorkspaceForm(p => ({ ...p, name: e.target.value }))} placeholder="e.g. DLD LivingSphere Summit"
+                          style={{ width: '100%', padding: '9px 12px', borderRadius: '9px', border: '1px solid #DDE8EE', background: '#FFFFFF', color: '#0F1923', fontSize: '13px', fontFamily: 'inherit', boxSizing: 'border-box' }} />
+                      </div>
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginBottom: '12px' }}>
+                        <div>
+                          <label style={{ fontSize: '13px', fontWeight: 700, color: '#5B7080', letterSpacing: '0.8px', textTransform: 'uppercase', display: 'block', marginBottom: '5px' }}>Client Name</label>
+                          <input value={workspaceForm.client_name} onChange={e => setWorkspaceForm(p => ({ ...p, client_name: e.target.value }))} placeholder="e.g. Dubai Land Department"
+                            style={{ width: '100%', padding: '9px 10px', borderRadius: '9px', border: '1px solid #DDE8EE', background: '#FFFFFF', color: '#0F1923', fontSize: '13px', fontFamily: 'inherit', boxSizing: 'border-box' }} />
+                        </div>
+                        <div>
+                          <label style={{ fontSize: '13px', fontWeight: 700, color: '#5B7080', letterSpacing: '0.8px', textTransform: 'uppercase', display: 'block', marginBottom: '5px' }}>Client Country</label>
+                          <input value={workspaceForm.client_country} onChange={e => setWorkspaceForm(p => ({ ...p, client_country: e.target.value }))} placeholder="e.g. UAE"
+                            style={{ width: '100%', padding: '9px 10px', borderRadius: '9px', border: '1px solid #DDE8EE', background: '#FFFFFF', color: '#0F1923', fontSize: '13px', fontFamily: 'inherit', boxSizing: 'border-box' }} />
+                        </div>
+                      </div>
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginBottom: '14px' }}>
+                        <div>
+                          <label style={{ fontSize: '13px', fontWeight: 700, color: '#5B7080', letterSpacing: '0.8px', textTransform: 'uppercase', display: 'block', marginBottom: '5px' }}>Event Name</label>
+                          <input value={workspaceForm.event_name} onChange={e => setWorkspaceForm(p => ({ ...p, event_name: e.target.value }))} placeholder="e.g. LivingSphere Summit"
+                            style={{ width: '100%', padding: '9px 10px', borderRadius: '9px', border: '1px solid #DDE8EE', background: '#FFFFFF', color: '#0F1923', fontSize: '13px', fontFamily: 'inherit', boxSizing: 'border-box' }} />
+                        </div>
+                        <div>
+                          <label style={{ fontSize: '13px', fontWeight: 700, color: '#5B7080', letterSpacing: '0.8px', textTransform: 'uppercase', display: 'block', marginBottom: '5px' }}>Event Type</label>
+                          <select value={workspaceForm.event_type} onChange={e => setWorkspaceForm(p => ({ ...p, event_type: e.target.value }))}
+                            style={{ width: '100%', padding: '9px 10px', borderRadius: '9px', border: '1px solid #DDE8EE', background: '#FFFFFF', color: '#0F1923', fontSize: '13px', fontFamily: 'inherit' }}>
+                            <option value="managed">Managed</option>
+                            <option value="bespoke">Bespoke</option>
+                            <option value="tender">Tender</option>
+                            <option value="other">Other</option>
+                          </select>
+                        </div>
+                      </div>
+                      {workspaceMsg && <div style={{ fontSize: '13px', padding: '9px 12px', borderRadius: '8px', background: workspaceMsg.includes('created') ? 'rgba(192,244,60,0.07)' : 'rgba(255,107,107,0.07)', border: `1px solid ${workspaceMsg.includes('created') ? 'rgba(192,244,60,0.2)' : 'rgba(255,107,107,0.2)'}`, color: workspaceMsg.includes('created') ? '#3D6B00' : '#FF6B6B', marginBottom: '10px' }}>{workspaceMsg}</div>}
+                      <div style={{ display: 'flex', gap: '8px' }}>
+                        <button onClick={createWorkspace} disabled={workspaceSaving}
+                          style={{ flex: 1, padding: '11px', borderRadius: '9px', border: 'none', background: workspaceSaving ? '#DDE8EE' : '#C0F43C', color: '#0F1923', fontSize: '13px', fontWeight: 800, cursor: workspaceSaving ? 'not-allowed' : 'pointer', fontFamily: 'inherit' }}>
+                          {workspaceSaving ? 'Creating…' : 'Create Workspace'}
+                        </button>
+                        <button onClick={() => setShowWorkspaceForm(false)}
+                          style={{ padding: '11px 16px', borderRadius: '9px', border: '1px solid #B8CDD8', background: '#FFFFFF', color: '#5B7080', fontSize: '13px', fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>Cancel</button>
+                      </div>
+                    </div>
+                  )}
+
+                  {workspacesLoading && <div style={{ color: '#0F1923', fontSize: '13px', padding: '40px 0', textAlign: 'center' }}>Loading workspaces…</div>}
+
+                  {!workspacesLoading && workspaces.length === 0 && (
+                    <div style={{ padding: '40px', textAlign: 'center', color: '#0F1923', fontSize: '13px', background: '#FFFFFF', border: '1px solid #DDE8EE', borderRadius: '16px' }}>
+                      No BD workspaces yet. Create one to track a proposal or bid, its team, and its linked documents together.
+                    </div>
+                  )}
+
+                  {!workspacesLoading && workspaces.length > 0 && (
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '14px' }}>
+                      {workspaces.map(ws => {
+                        const memberCount = ws.bd_workspace_members?.[0]?.count ?? 0
+                        const docCount    = ws.documents?.[0]?.count ?? 0
+                        const STATUS_CFG: Record<string, { color: string; bg: string }> = {
+                          active:    { color: '#00897B', bg: 'rgba(0,165,163,0.12)' },
+                          won:       { color: '#3D6B00', bg: 'rgba(192,244,60,0.12)' },
+                          lost:      { color: '#8B1A1A', bg: 'rgba(139,26,26,0.1)' },
+                          pending:   { color: '#F59E0B', bg: 'rgba(245,158,11,0.12)' },
+                          withdrawn: { color: '#5B7080', bg: '#E8EEF4' },
+                        }
+                        const sc = STATUS_CFG[ws.status] ?? STATUS_CFG.active
+                        return (
+                          <button key={ws.id} onClick={() => openWorkspace(ws.id)}
+                            style={{ textAlign: 'left', background: '#FFFFFF', border: `1px solid ${selectedWorkspaceId === ws.id ? 'rgba(0,165,163,0.4)' : '#DDE8EE'}`, borderRadius: '14px', padding: '16px', cursor: 'pointer', fontFamily: 'inherit', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+                              <span style={{ fontSize: '13px', fontWeight: 700, padding: '2px 8px', borderRadius: '16px', background: sc.bg, color: sc.color, textTransform: 'capitalize' }}>{ws.status}</span>
+                              {ws.event_type && <span style={{ fontSize: '13px', fontWeight: 700, color: '#5B7080', textTransform: 'capitalize' }}>{ws.event_type}</span>}
+                            </div>
+                            <div style={{ fontSize: '13px', fontWeight: 800, color: '#0F1923' }}>{ws.name}</div>
+                            {(ws.client_name || ws.client_country) && (
+                              <div style={{ fontSize: '13px', color: '#5B7080' }}>{[ws.client_name, ws.client_country].filter(Boolean).join(' · ')}</div>
+                            )}
+                            <div style={{ display: 'flex', gap: '14px', marginTop: 'auto', paddingTop: '8px', borderTop: '1px solid #DDE8EE', fontSize: '13px', color: '#0F1923' }}>
+                              <span>{memberCount} member{memberCount !== 1 ? 's' : ''}</span>
+                              <span>{docCount} document{docCount !== 1 ? 's' : ''}</span>
+                            </div>
+                          </button>
+                        )
+                      })}
+                    </div>
+                  )}
+
+                  {selectedWorkspaceId && (() => {
+                    const ws = workspaces.find(w => w.id === selectedWorkspaceId)
+                    if (!ws) return null
+                    const wsDocs = docs.filter(d => d.workspace_id === selectedWorkspaceId)
+                    const memberIds = new Set(workspaceMembers.map(m => m.staff_members.id))
+                    return (
+                      <div style={{ marginTop: '20px', background: '#FFFFFF', border: '1px solid #DDE8EE', borderRadius: '16px', padding: '20px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
+                          <div style={{ fontSize: '13px', fontWeight: 800, color: '#0F1923' }}>{ws.name} — Team</div>
+                          <button onClick={() => setSelectedWorkspaceId(null)}
+                            style={{ fontSize: '13px', fontWeight: 700, color: '#5B7080', background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'inherit' }}>Close</button>
+                        </div>
+
+                        <div style={{ display: 'flex', gap: '8px', marginBottom: '16px', flexWrap: 'wrap' }}>
+                          {workspaceMembers.map(m => (
+                            <span key={m.id} style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', fontSize: '13px', fontWeight: 700, padding: '4px 6px 4px 10px', borderRadius: '16px', background: '#E8EEF4', color: '#0F1923' }}>
+                              {m.staff_members.name}
+                              <button onClick={() => removeWorkspaceMember(m.staff_members.id)}
+                                style={{ width: '16px', height: '16px', borderRadius: '50%', border: 'none', background: 'rgba(255,107,107,0.15)', color: '#FF6B6B', cursor: 'pointer', fontSize: '13px', lineHeight: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0 }}>×</button>
+                            </span>
+                          ))}
+                          {workspaceMembers.length === 0 && <span style={{ fontSize: '13px', color: '#5B7080' }}>No members yet.</span>}
+                        </div>
+
+                        <div style={{ display: 'flex', gap: '8px', marginBottom: '20px' }}>
+                          <select value={addMemberStaffId} onChange={e => setAddMemberStaffId(e.target.value)}
+                            style={{ flex: 1, padding: '9px 10px', borderRadius: '9px', border: '1px solid #DDE8EE', background: '#FFFFFF', color: '#0F1923', fontSize: '13px', fontFamily: 'inherit' }}>
+                            <option value="">Add a team member…</option>
+                            {staffList.filter(s => !memberIds.has(s.id)).map(s => <option key={s.id} value={s.id}>{s.name} — {s.department}</option>)}
+                          </select>
+                          <button onClick={addWorkspaceMember} disabled={!addMemberStaffId}
+                            style={{ padding: '9px 18px', borderRadius: '9px', border: 'none', background: addMemberStaffId ? '#C0F43C' : '#DDE8EE', color: '#0F1923', fontSize: '13px', fontWeight: 800, cursor: addMemberStaffId ? 'pointer' : 'not-allowed', fontFamily: 'inherit' }}>Add</button>
+                        </div>
+
+                        <div style={{ fontSize: '13px', fontWeight: 800, color: '#0F1923', marginBottom: '10px' }}>Linked Documents ({wsDocs.length})</div>
+                        {wsDocs.length === 0 ? (
+                          <div style={{ fontSize: '13px', color: '#5B7080' }}>No documents linked yet. Set &ldquo;BD Workspace&rdquo; when uploading a proposal or tender document to link it here.</div>
+                        ) : (
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                            {wsDocs.map(d => (
+                              <div key={d.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 12px', background: '#E8EEF4', borderRadius: '9px' }}>
+                                <span style={{ fontSize: '13px', fontWeight: 700, color: '#0F1923' }}>{d.title}</span>
+                                {kbDownloadHref(d.source_url, d.id) && <a href={kbDownloadHref(d.source_url, d.id)!} target="_blank" rel="noopener noreferrer" style={{ fontSize: '13px', fontWeight: 700, color: '#00897B', textDecoration: 'none' }}>Download</a>}
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    )
+                  })()}
+                </div>
+              ) : (
+              <>
               {/* EMPTY STATE */}
               {!docsLoading && docs.length === 0 && (
                 <>
@@ -4214,10 +4717,34 @@ export default function AdminPage() {
                                 {doc.flagged && (
                                   <span style={{ fontSize: '13px', fontWeight: 700, padding: '2px 8px', borderRadius: '16px', background: 'rgba(139,26,26,0.12)', color: '#8B1A1A' }}>Flagged</span>
                                 )}
+                                {doc.version > 1 && (
+                                  <button onClick={() => openVersionHistory(doc.document_group_id ?? doc.id)}
+                                    style={{ fontSize: '13px', fontWeight: 700, padding: '2px 8px', borderRadius: '16px', background: 'rgba(96,165,250,0.12)', color: '#1D4ED8', border: 'none', cursor: 'pointer', fontFamily: 'inherit' }}>
+                                    v{doc.version} · History
+                                  </button>
+                                )}
                               </div>
 
                               {/* Title */}
                               <div style={{ fontSize: '13px', fontWeight: 800, color: '#0F1923', lineHeight: 1.4 }}>{doc.title}</div>
+
+                              {/* Source link + workspace tag */}
+                              {(doc.source_url || doc.workspace_id) && (
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+                                  {kbDownloadHref(doc.source_url, doc.id) && (
+                                    <a href={kbDownloadHref(doc.source_url, doc.id)!} target="_blank" rel="noopener noreferrer"
+                                      style={{ fontSize: '13px', fontWeight: 700, color: '#00897B', textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                                      <svg width="11" height="11" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+                                      Download original
+                                    </a>
+                                  )}
+                                  {doc.workspace_id && (
+                                    <span style={{ fontSize: '13px', fontWeight: 700, color: '#5B7080' }}>
+                                      {workspaces.find(w => w.id === doc.workspace_id)?.name ?? 'BD Workspace'}
+                                    </span>
+                                  )}
+                                </div>
+                              )}
 
                               {/* Department + level (if specific) */}
                               {doc.layer === 'specific' && (
@@ -4241,15 +4768,21 @@ export default function AdminPage() {
                                 </span>
                               </div>
 
-                              {/* Footer: word count + date + remove */}
+                              {/* Footer: word count + date + actions */}
                               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 'auto', paddingTop: '8px', borderTop: '1px solid #DDE8EE' }}>
                                 <span style={{ fontSize: '13px', color: '#0F1923' }}>
                                   {doc.word_count?.toLocaleString()} words · {new Date(doc.created_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}
                                 </span>
-                                <button onClick={() => deleteDoc(doc.id)}
-                                  style={{ fontSize: '13px', fontWeight: 700, color: 'rgba(255,107,107,0.6)', background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'inherit', padding: '2px 4px' }}>
-                                  Remove
-                                </button>
+                                <div style={{ display: 'flex', gap: '10px' }}>
+                                  <button onClick={() => { setSupersedesDoc(doc); setDocForm(p => ({ ...p, title: doc.title, type: doc.type, workspace_id: doc.workspace_id ?? '' })); setShowUploadForm(true); window.scrollTo({ top: 0, behavior: 'smooth' }) }}
+                                    style={{ fontSize: '13px', fontWeight: 700, color: '#00897B', background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'inherit', padding: '2px 4px' }}>
+                                    New Version
+                                  </button>
+                                  <button onClick={() => deleteDoc(doc.id)}
+                                    style={{ fontSize: '13px', fontWeight: 700, color: 'rgba(255,107,107,0.6)', background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'inherit', padding: '2px 4px' }}>
+                                    Remove
+                                  </button>
+                                </div>
                               </div>
                             </div>
                           </div>
@@ -4258,6 +4791,47 @@ export default function AdminPage() {
                     </div>
                   )}
                 </>
+              )}
+              </>
+              )}
+
+              {/* Version history modal */}
+              {versionModalGroupId && (
+                <div onClick={() => setVersionModalGroupId(null)}
+                  style={{ position: 'fixed', inset: 0, background: 'rgba(15,25,35,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100 }}>
+                  <div onClick={e => e.stopPropagation()}
+                    style={{ background: '#FFFFFF', borderRadius: '16px', padding: '24px', width: '520px', maxWidth: '90vw', maxHeight: '80vh', overflowY: 'auto' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
+                      <div style={{ fontSize: '13px', fontWeight: 800, color: '#0F1923' }}>Version History</div>
+                      <button onClick={() => setVersionModalGroupId(null)}
+                        style={{ fontSize: '13px', fontWeight: 700, color: '#5B7080', background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'inherit' }}>Close</button>
+                    </div>
+                    {versionHistoryLoading ? (
+                      <div style={{ fontSize: '13px', color: '#5B7080', padding: '20px 0', textAlign: 'center' }}>Loading…</div>
+                    ) : (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                        {versionHistory.map(v => {
+                          const uploader = Array.isArray(v.staff_members) ? v.staff_members[0] : v.staff_members
+                          const isCurrent = !v.superseded_by
+                          return (
+                            <div key={v.id} style={{ padding: '12px 14px', background: isCurrent ? 'rgba(192,244,60,0.06)' : '#E8EEF4', border: `1px solid ${isCurrent ? 'rgba(192,244,60,0.25)' : '#DDE8EE'}`, borderRadius: '10px' }}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
+                                <span style={{ fontSize: '13px', fontWeight: 800, color: '#0F1923' }}>v{v.version}</span>
+                                {isCurrent && <span style={{ fontSize: '13px', fontWeight: 700, color: '#3D6B00', background: 'rgba(192,244,60,0.15)', padding: '1px 8px', borderRadius: '10px' }}>Current</span>}
+                                <span style={{ fontSize: '13px', color: '#5B7080', marginLeft: 'auto' }}>{new Date(v.created_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}</span>
+                              </div>
+                              {v.version_note && <div style={{ fontSize: '13px', color: '#0F1923', marginBottom: '4px' }}>{v.version_note}</div>}
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                                {uploader?.name && <span style={{ fontSize: '13px', color: '#5B7080' }}>Uploaded by {uploader.name}</span>}
+                                {kbDownloadHref(v.source_url, v.id) && <a href={kbDownloadHref(v.source_url, v.id)!} target="_blank" rel="noopener noreferrer" style={{ fontSize: '13px', fontWeight: 700, color: '#00897B', textDecoration: 'none' }}>Download</a>}
+                              </div>
+                            </div>
+                          )
+                        })}
+                      </div>
+                    )}
+                  </div>
+                </div>
               )}
             </div>
           )

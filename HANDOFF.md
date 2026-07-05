@@ -10,10 +10,51 @@
 
 | Field | Value |
 |---|---|
-| Who | Madhu + Claude Code (Sonnet 5) — 04 Jul 2026, SmartExcel native Next.js port + full cutover |
-| Latest push | 2026-07-04 — three commits: the port itself, the proxy/callback cleanup, then a middleware bug fix found via live smoke test |
+| Who | Madhu + Claude Code (Sonnet 5) — 05 Jul 2026, Knowledge Base system build (9 phases) |
+| Latest push | 2026-07-05 — this session's commit (see below) |
 | Handed off to | Durga |
-| Deployed | ✅ Yes — live at `eventpilot.tresconglobal.com/smartexcel`, fully native, `eventpilot-proxy` cutover done, old bridge removed |
+| Deployed | ✅ Yes — pushed to main, Railway auto-deploys; `KB_R2_*` env vars added to Railway production directly this session |
+
+**Session highlight:** Built the full Knowledge Base system end-to-end per `docs/EventPilot-KB-PRD-v1.0.md` — migration, seeding, admin document management (versioning + BD Workspaces), a staff-facing browse page, private R2-backed file storage, an AI classify→process ingestion pipeline with admin review/publish, a shared `getKBContext()` helper wired into Pilot AI, and three generator tools (Proposal Creator, PER Creator, intelligence-led Project Brief). Discovered along the way that the *existing* document upload feature (`/api/documents/upload` etc.) had never actually worked in production — the live `documents` table was missing 12 columns the routes already depended on — and fixed that as required groundwork. Full detail in "What Was Built — 05 Jul 2026" below.
+
+**Still to do:**
+1. Attendee-data (`.xlsx`) ingestion currently extracts full row data and hands it to Gemini for summarisation per `knowledge-engine/processors/attendee-data.md` — it does **not** implement that file's deterministic PII-stripping/seniority-inference/aggregation logic in code. Fine for now (Gemini follows the instructions reasonably) but worth a proper JS aggregation pass if attendee-data volume grows.
+2. `corporate-doc.md` ingestion path is wired (classifier + processor load) but was never exercised end-to-end live this session — only `proposal` type was tested through `/api/kb/ingest`.
+3. `EVENTPILOT_PLATFORM_DOCUMENT.md` §12 "Document Intelligence" still describes the old simple KB schema (no versioning/layers/R2) — stale, not updated this session (it's mid-edit by Madhu from before, left untouched per scope).
+4. Two large pre-existing untracked local folders — `Attendee Data Historical/` (33M, raw xlsx) and `Historical docs for KB/` (957M, raw PDFs/PPTX + Python scripts used to originally author the KB `.md` files) — must **never** be committed (repo bloat, not needed at runtime). Not gitignored yet; a future session should add them to `.gitignore` explicitly rather than relying on nobody running `git add -A`.
+5. `app/smartexcel/shell.tsx` and `EVENTPILOT_PLATFORM_DOCUMENT.md` had uncommitted changes from before this session (unrelated, pre-existing) — left as-is, not part of this session's commit.
+
+---
+
+## What Was Built — 05 Jul 2026 (Madhu + Claude Code) — Knowledge Base system (9 phases)
+
+**Phase 1 — Migration + seed.** Ran `supabase/kb_migration.sql` (versioning columns on `documents`, `bd_workspaces`/`bd_workspace_members` tables, `documents_live` view) directly against production via `pg` + the corrected pooler host (`aws-1-ap-southeast-1.pooler.supabase.com:6543` — same fix noted in the 04 Jul entry below, now also applied here since the migration needed real DB access). **Found the live `documents` table was missing `extracted_text, visibility, layer, department, min_level, ai_reasoning, confidence, flagged, uploaded_by, submitted_by, reviewed_by, review_note`** — columns `upload/process/list/review` routes already referenced but that had never actually been migrated, meaning document upload had never worked in production. Added them via new `supabase/kb_baseline_columns.sql`, and dropped the `documents_type_check` CHECK constraint `kb_migration.sql` had added (would have broken the existing free-form "custom document type" feature). Wrote `knowledge-base/seeds/seed-kb.mjs` and seeded 20 KB files (11 event PERs, 6 proposals, 3 BD reference docs) with correct layer/department/min_level/pilot_use metadata.
+
+**Phase 2 — Admin Knowledge tab upgrade** (`app/admin/page.tsx`, extended in place): source URL field on upload; version control (`document_group_id`/`version`/`superseded_by`, "New Version" upload chaining, version-history modal via new `GET /api/documents/versions`); new BD Workspaces sub-tab (`GET/POST/PATCH/DELETE /api/bd-workspaces`, `GET/POST/DELETE /api/bd-workspaces/members`).
+
+**Phase 3 — `/knowledge` staff browse page** (`app/knowledge/page.tsx`), styled to match `/dashboard/library`: search + type filters, access-controlled via the existing `/api/documents/list?staff_id=` rules, document reader modal, "Download" wired to the R2 proxy. Added to `PlatformMenu`.
+
+**Phase 4 — Private R2 storage.** New dedicated Cloudflare R2 bucket `eventpilot-kb` (separate from SmartExcel's bucket — created via the CF API using the account's existing token) + a scoped Account API token. `POST /api/kb/upload-to-s3` stores originals privately (`source_url` gets `r2:<key>`, never a public URL); `GET /api/kb/download` re-checks layer/department/min_level access before minting a short-lived presigned URL and redirecting — verified an unauthorized staff member gets a real 403, not just a hidden UI element.
+
+**Phase 5 — Ingestion pipeline.** `app/lib/kb/classify.ts` (filename-based classification, ported from `document-classifier.md`), `app/lib/kb/extract.ts` (PDF via Gemini, full-row XLSX via the `xlsx` package). `POST /api/kb/ingest`: classify → extract → load the matching `knowledge-engine/processors/*.md` guide → Gemini generates the structured `.md` (with a defensive strip for the code-fence wrapper Gemini sometimes adds despite being told not to — caught live, non-deterministic) → original stored in R2 → row inserted as `status: 'pending'`. Admin UI: "Smart Ingest" form + review-card preview + Publish/Reject reusing the *existing* `/api/documents/review` endpoint, plus a durable "Pending Review" list (`pipeline=1`) so nothing's lost if the admin navigates away mid-review.
+
+**Phase 6 — `getKBContext()`.** Consolidated the layer/department/min_level access check (previously duplicated 2x) into `app/lib/kb/access.ts`. `app/lib/kb-context.ts` exports `getKBContext({ staffId?, types?, pilotUseOnly?, limit?, maxCharsPerDoc? })`, parameterized for reuse by the generator tools. `/api/ask` (the real Pilot AI endpoint — `/api/chat` doesn't exist) now calls it instead of a ~30-line inline duplicate.
+
+**Phase 7 — Proposal Creator** (`/admin/tools/proposal-creator` + `/api/kb/generators/proposal-creator`): loads `proposal-creator.md`, pulls credentials/commercial-reference/historical-proposals/event-reports via `getKBContext()`, generates the full 16-section proposal. Verified live: cited real Trescon statistics with zero fabrication.
+
+**Phase 8 — PER Creator** (`/admin/tools/per-creator` + `/api/kb/generators/per-creator`): same shape, generates the 16-section post-event report. Verified: no fabricated quotes/stats.
+
+**Phase 9 — Intelligence-led Project Brief**: `POST /api/kb/generators/project-brief` (Gemini JSON mode) plus a "Generate with AI" button on the existing `/admin/events/[id]/brief` editor — pre-fills the manual form for review, doesn't bypass it. Verified it correctly avoided inventing a fake growth trajectory for a genuine test event with no matching KB history.
+
+**Shared infra added along the way:** `app/lib/kb/save-draft.ts` (insert-as-pending, used by both `/api/kb/ingest` and the new generic `POST /api/kb/save-generated` that all three generator tools use) and `app/lib/kb/download-href.ts` (client-side helper resolving R2-proxied vs. external-link downloads).
+
+**Verification approach:** every phase was tested live against production Supabase + R2 (not just typecheck/build) — real upload→ingest→review→publish cycles, real access-denial checks with actual staff profiles, real Gemini generations inspected for fabrication — with all test data deleted afterward. `tsc --noEmit`, `eslint`, and `next build` all clean throughout; the handful of pre-existing lint errors in `app/admin/page.tsx` (React Compiler memoization/purity warnings in unrelated Learning Lab code) predate this session and were left alone.
+
+---
+
+## What Was Built — 04 Jul 2026 (Madhu / Claude Code) — SmartExcel native Next.js port + full cutover
+
+**Deployed:** ✅ Yes — live at `eventpilot.tresconglobal.com/smartexcel`, fully native, `eventpilot-proxy` cutover done, old bridge removed. Latest push: 2026-07-04, three commits (the port itself, proxy/callback cleanup, a middleware bug fix found via live smoke test).
 
 **Session highlight:** SmartExcel was still a genuinely separate app (TanStack Start on Cloudflare Workers) reverse-proxied under `eventpilot.tresconglobal.com/smartexcel` — same domain, but no EventPilot nav/layout, because it was a different origin server under the hood. Madhu asked for the full native port and to complete the whole cutover in one session (Durga sign-off not required this time — confirmed nothing in flight on his side instead: local `main` matched `origin/main` exactly, and the live `eventpilot-proxy` Worker code was pulled from Cloudflare and diffed byte-for-byte identical to the 03 Jul repo copy before touching it).
 

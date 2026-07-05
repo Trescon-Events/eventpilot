@@ -3,6 +3,7 @@ import { supabaseAdmin } from '@/app/lib/supabase'
 import { NextRequest, NextResponse } from 'next/server'
 import { computeAIRS, getTier } from '@/app/lib/airs'
 import { getStaffCount } from '@/app/lib/staff-count'
+import { getKBContext } from '@/app/lib/kb-context'
 
 /* ── Platform docs cache — rebuilt every 10 minutes, shared across all chat requests ── */
 let _docsCache: { text: string; ts: number } | null = null
@@ -204,36 +205,9 @@ export async function POST(req: NextRequest) {
     ])
 
     // Fetch documents this staff member can access — layer-aware
-    const LEVEL_RANK: Record<string, number> = { staff: 0, team_lead: 1, dept_head: 2, office_head: 3, super_admin: 4 }
-    const MIN_LEVEL_RANK: Record<string, number> = { all: 0, team_lead: 1, management: 3 }
-    const staffDeptForDocs  = (staffRes.data?.department ?? '').toLowerCase()
-    const staffLevelForDocs = LEVEL_RANK[staffRes.data?.job_level ?? 'staff'] ?? 0
-
-    const { data: allDocs } = await supabaseAdmin
-      .from('documents')
-      .select('title, type, extracted_text, layer, department, min_level, pilot_use')
-      .eq('is_active', true)
-      .eq('status', 'live')
-      .eq('pilot_use', true)
-
-    const docs = (allDocs ?? [])
-      .filter(doc => {
-        if (doc.layer === 'knowledge_base') return true
-        if (doc.layer === 'general') return true
-        if (doc.layer === 'specific') {
-          const deptMatch  = doc.department === 'all' || doc.department === staffDeptForDocs
-          const levelMatch = staffLevelForDocs >= (MIN_LEVEL_RANK[doc.min_level] ?? 0)
-          return deptMatch && levelMatch
-        }
-        return false
-      })
-      .slice(0, 6) // cap to avoid token overflow
-
-    if (docs?.length) {
-      const docSection = docs.map(d =>
-        `=== ${d.title} (${d.type}) ===\n${d.extracted_text.slice(0, 2000)}`
-      ).join('\n\n---\n\n')
-      staffContext += `\n\nKNOWLEDGE BASE DOCUMENTS (use these to answer questions about company policies, events, or briefs):\n${docSection}`
+    const kbContext = await getKBContext({ staffId: staff_id })
+    if (kbContext.text) {
+      staffContext += `\n\nKNOWLEDGE BASE DOCUMENTS (use these to answer questions about company policies, events, or briefs):\n${kbContext.text}`
     }
 
     // Load event briefs for events this staff member is assigned to

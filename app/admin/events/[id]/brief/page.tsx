@@ -45,6 +45,8 @@ export default function BriefPage({ params }: { params: Promise<{ id: string }> 
   const [saving, setSaving] = useState(false)
   const [msg, setMsg] = useState<{ text: string; ok: boolean } | null>(null)
   const [loading, setLoading] = useState(true)
+  const [generating, setGenerating] = useState(false)
+  const [sources, setSources] = useState<string[]>([])
 
   useEffect(() => { setSession(getSession()) }, [])
 
@@ -71,6 +73,23 @@ export default function BriefPage({ params }: { params: Promise<{ id: string }> 
 
   function getArrayString(arr?: string[]) {
     return (arr ?? []).join('\n')
+  }
+
+  async function generateWithAI() {
+    setGenerating(true); setMsg(null)
+    try {
+      const res  = await fetch('/api/kb/generators/project-brief', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ event_id: eventId }),
+      })
+      const data = await res.json()
+      if (!res.ok) { setMsg({ text: data.error ?? 'Generation failed. Please try again.', ok: false }); setGenerating(false); return }
+      setBrief(prev => ({ ...prev, ...data.brief }))
+      setSources(data.sources ?? [])
+      setMsg({ text: 'Draft generated — review each section, then Save Brief.', ok: true })
+    } catch {
+      setMsg({ text: 'Could not reach the server. Check your connection and try again.', ok: false })
+    }
+    setGenerating(false)
   }
 
   async function save() {
@@ -119,6 +138,10 @@ export default function BriefPage({ params }: { params: Promise<{ id: string }> 
                 </div>
                 <span style={{ fontSize: 13, fontWeight: 800, color: brief.completion_pct >= 80 ? C.green : brief.completion_pct >= 40 ? C.amber : C.red }}>{brief.completion_pct}%</span>
               </div>
+              <button onClick={generateWithAI} disabled={generating}
+                style={{ padding: '9px 20px', borderRadius: 8, border: `1px solid ${C.purple}50`, background: generating ? C.muted : `${C.purple}12`, color: generating ? '#fff' : C.purple, fontSize: 13, fontWeight: 700, cursor: generating ? 'wait' : 'pointer', fontFamily: 'inherit' }}>
+                {generating ? 'Generating…' : 'Generate with AI'}
+              </button>
               <button onClick={save} disabled={saving}
                 style={{ padding: '9px 24px', borderRadius: 8, border: 'none', background: saving ? C.muted : C.teal, color: '#fff', fontSize: 13, fontWeight: 700, cursor: saving ? 'wait' : 'pointer', fontFamily: 'inherit' }}>
                 {saving ? 'Saving...' : 'Save Brief'}
@@ -291,6 +314,13 @@ export default function BriefPage({ params }: { params: Promise<{ id: string }> 
             </>
           )}
         </div>
+
+        {sources.length > 0 && (
+          <div style={{ marginTop: 20, padding: '14px 18px', borderRadius: 10, background: `${C.purple}08`, border: `1px solid ${C.purple}20` }}>
+            <div style={{ fontSize: 12, fontWeight: 700, color: C.purple, marginBottom: 4 }}>Reference material considered for this draft</div>
+            <div style={{ fontSize: 13, color: C.muted, lineHeight: 1.6 }}>{sources.join(' · ')}</div>
+          </div>
+        )}
 
         {/* AI context info */}
         <div style={{ marginTop: 20, padding: '14px 18px', borderRadius: 10, background: `${C.teal}08`, border: `1px solid ${C.teal}20` }}>
