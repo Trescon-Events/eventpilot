@@ -192,7 +192,9 @@ export default function BrandStudioPage({ params }: { params: Promise<{ id: stri
     fetch('/api/toolkit-access').then(r => r.json()).then(d => {
       const isAdmin = d.grants === null
       const hasGrant = d.grants?.brand_studio === true
-      if (!isAdmin && !hasGrant) router.replace('/dashboard')
+      if (!isAdmin && !hasGrant) {
+        router.replace(`/no-access?tool=brand_studio&from=${encodeURIComponent(window.location.pathname)}`)
+      }
     }).catch(() => {})
   }, [router])
 

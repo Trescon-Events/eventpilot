@@ -259,6 +259,57 @@ export async function sendAccessRequest({
   })
 }
 
+// ── Email: Tool Access Request ────────────────────────────────────────────────
+// Fired when a logged-in staff member hits a tool they don't have access to
+// and clicks "Request access" on the /no-access page.
+
+export async function sendToolAccessRequest({
+  staffName,
+  staffEmail,
+  tool,
+  fromPath,
+}: {
+  staffName:  string
+  staffEmail: string
+  tool:       string
+  fromPath?:  string | null
+}) {
+  const html = emailWrap(`
+    ${emailHeader('Tool Access Request')}
+    <div style="padding:32px 40px;">
+      <h2 style="font-size:22px;font-weight:800;color:${DARK};margin:0 0 10px;">Tool access requested</h2>
+      <p style="color:${MUTED};font-size:15px;line-height:1.7;margin:0 0 24px;">
+        A staff member tried to open a tool they don't currently have access to and asked for permission.
+      </p>
+
+      <div style="background:#F8FFFE;border:1px solid #C6ECE8;border-radius:12px;padding:18px 20px;margin-bottom:20px;">
+        <div style="font-size:10px;font-weight:800;letter-spacing:2.5px;text-transform:uppercase;color:${BRAND};margin-bottom:12px;">Requester</div>
+        <div style="font-size:15px;font-weight:700;color:${DARK};">${staffName}</div>
+        <div style="font-size:13px;color:${MUTED};margin-top:2px;">${staffEmail}</div>
+      </div>
+
+      <div style="background:#F8FFFE;border:1px solid #C6ECE8;border-radius:12px;padding:18px 20px;margin-bottom:20px;">
+        <div style="font-size:10px;font-weight:800;letter-spacing:2.5px;text-transform:uppercase;color:${BRAND};margin-bottom:12px;">Tool</div>
+        <div style="font-size:15px;font-weight:700;color:${DARK};">${tool}</div>
+        ${fromPath ? `<div style="font-size:12px;color:${MUTED};margin-top:6px;">From: <code style="background:#EEF3F7;padding:2px 6px;border-radius:4px;">${fromPath}</code></div>` : ''}
+      </div>
+
+      <p style="color:${MUTED};font-size:13px;line-height:1.6;margin:0;">
+        Grant access from the admin panel and the staff member can retry immediately.
+      </p>
+
+      ${emailFooter()}
+    </div>
+  `)
+
+  return getResend().emails.send({
+    from:    FROM,
+    to:      ['dc@tresconglobal.com'],
+    subject: `Access request: ${staffName} → ${tool}`,
+    html,
+  })
+}
+
 // ── Email: Access Granted (rollout notification) ──────────────────────────────
 
 export async function sendAccessGranted({

@@ -71,7 +71,9 @@ export default function MarketIntelPage({ params }: { params: Promise<{ id: stri
     fetch('/api/toolkit-access').then(r => r.json()).then(d => {
       const isAdmin = d.grants === null
       const hasGrant = d.grants?.intelligence === true
-      if (!isAdmin && !hasGrant) router.replace('/dashboard')
+      if (!isAdmin && !hasGrant) {
+        router.replace(`/no-access?tool=intelligence&from=${encodeURIComponent(window.location.pathname)}`)
+      }
     }).catch(() => {})
   }, [router])
 

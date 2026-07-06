@@ -130,8 +130,8 @@ export async function middleware(req: NextRequest) {
   if (pathname.startsWith('/admin') && !isToolRoute) {
     if (!session.adm) {
       const dest = req.nextUrl.clone()
-      dest.pathname = '/dashboard'
-      dest.search = `?id=${session.sid}`
+      dest.pathname = '/no-access'
+      dest.search = `?tool=admin&from=${encodeURIComponent(pathname)}`
       return NextResponse.redirect(dest)
     }
   }
@@ -146,8 +146,8 @@ export async function middleware(req: NextRequest) {
     const isFinance = session.adm || (session.roles ?? []).includes('finance') || session.dept === 'Finance'
     if (!isFinance) {
       const dest = req.nextUrl.clone()
-      dest.pathname = '/dashboard'
-      dest.search = `?id=${session.sid}`
+      dest.pathname = '/no-access'
+      dest.search = `?tool=finance&from=${encodeURIComponent(pathname)}`
       return NextResponse.redirect(dest)
     }
     return NextResponse.next()
@@ -158,8 +158,8 @@ export async function middleware(req: NextRequest) {
     const isHR = session.adm || (session.roles ?? []).includes('hr') || session.dept === 'HR'
     if (!isHR) {
       const dest = req.nextUrl.clone()
-      dest.pathname = '/dashboard'
-      dest.search = `?id=${session.sid}`
+      dest.pathname = '/no-access'
+      dest.search = `?tool=hr&from=${encodeURIComponent(pathname)}`
       return NextResponse.redirect(dest)
     }
   }

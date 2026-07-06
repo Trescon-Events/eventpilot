@@ -299,7 +299,9 @@ export default function EventWebsiteAdmin({ params }: { params: Promise<{ id: st
     fetch('/api/toolkit-access').then(r => r.json()).then(d => {
       const isAdmin = d.grants === null
       const hasGrant = d.grants?.website_builder === true
-      if (!isAdmin && !hasGrant) router.replace('/dashboard')
+      if (!isAdmin && !hasGrant) {
+        router.replace(`/no-access?tool=website_builder&from=${encodeURIComponent(window.location.pathname)}`)
+      }
     }).catch(() => {})
   }, [router])
 

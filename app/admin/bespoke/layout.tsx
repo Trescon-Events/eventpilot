@@ -36,16 +36,13 @@ export default function BespokeLayout({ children }: { children: React.ReactNode 
           setState('allowed')
         } else {
           setState('denied')
-          fetch('/api/auth/session', { cache: 'no-store' })
-            .then(r => r.json())
-            .then(s => router.replace(s?.sid ? `/dashboard?id=${s.sid}` : '/dashboard'))
-            .catch(() => router.replace('/dashboard'))
+          router.replace(`/no-access?tool=bespoke&from=${encodeURIComponent(window.location.pathname)}`)
         }
       })
       .catch(() => {
         if (cancelled) return
         setState('denied')
-        router.replace('/dashboard')
+        router.replace(`/no-access?tool=bespoke&from=${encodeURIComponent(window.location.pathname)}`)
       })
     return () => { cancelled = true }
   }, [router])
