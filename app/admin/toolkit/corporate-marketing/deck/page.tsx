@@ -4,17 +4,19 @@
   Corporate Deck Management — Phase 1.
 
   Live tabs:
-    - Overview          ✓ chunk 2 — upload PDF + save Canva link
-                        ✓ chunk 3 — run Gemini analysis + confirm mappings
-    - Dynamic Content   → chunk 4
-    - Testimonials      → chunk 4
-    - Approved Images   → chunk 4
+    - Overview          ✓ chunks 2-3 — upload, Canva link, AI analysis, confirm mappings
+    - Dynamic Content   ✓ chunk 4 — company content + stats + events + leadership
+    - Testimonials      ✓ chunk 4 — CRUD on approved testimonials
+    - Approved Images   ✓ chunk 4 — image library
     - Version History   → chunk 5
     - Settings          → chunk 5
 */
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
+import DynamicContentTab from './DynamicContentTab'
+import TestimonialsTab from './TestimonialsTab'
+import AssetsTab from './AssetsTab'
 
 const BRAND = '#8B1A1A'
 
@@ -115,7 +117,11 @@ export default function CorporateDeckPage() {
 
       {/* Body */}
       <div style={{ flex: 1, padding: '32px 40px', overflowY: 'auto' }}>
-        {tab === 'overview' ? <OverviewTab /> : <PlaceholderTab tabId={tab} />}
+        {tab === 'overview'     && <OverviewTab />}
+        {tab === 'content'      && <DynamicContentTab />}
+        {tab === 'testimonials' && <TestimonialsTab />}
+        {tab === 'images'       && <AssetsTab />}
+        {(tab === 'versions' || tab === 'settings') && <PlaceholderTab tabId={tab} />}
       </div>
     </div>
   )
