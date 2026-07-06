@@ -10,19 +10,112 @@
 
 | Field | Value |
 |---|---|
-| Who | Madhu + Claude Code (Sonnet 5) — 05 Jul 2026, Knowledge Base system build (9 phases) |
-| Latest push | 2026-07-05 — this session's commit (see below) |
-| Handed off to | Durga |
-| Deployed | ✅ Yes — pushed to main, Railway auto-deploys; `KB_R2_*` env vars added to Railway production directly this session |
+| Who | Durga + Claude Code (Opus 4.7) — 06 Jul 2026 |
+| Latest push | 2026-07-06 — commit `a96bff8` (CM-001 100 MB cap) |
+| Handed off to | Next session |
+| Deployed | ✅ Yes — pushed to main, Railway auto-deploys. **⚠ Found deploys had been silently failing since 9470abf** — see fix `fdee36b` below. All commits from today confirmed live. |
 
-**Session highlight:** Built the full Knowledge Base system end-to-end per `docs/EventPilot-KB-PRD-v1.0.md` — migration, seeding, admin document management (versioning + BD Workspaces), a staff-facing browse page, private R2-backed file storage, an AI classify→process ingestion pipeline with admin review/publish, a shared `getKBContext()` helper wired into Pilot AI, and three generator tools (Proposal Creator, PER Creator, intelligence-led Project Brief). Discovered along the way that the *existing* document upload feature (`/api/documents/upload` etc.) had never actually worked in production — the live `documents` table was missing 12 columns the routes already depended on — and fixed that as required groundwork. Full detail in "What Was Built — 05 Jul 2026" below.
+**Session highlight:** Shipped the **Corporate Marketing Module — CM-001 Corporate Deck Management Phase 1** end-to-end in 5 chunks against Thulasi's PRD. Six tabs live (Overview / Dynamic Content / Testimonials / Approved Images / Version History / Settings), 15 new API routes, 7 new tables, immutable publish-based versioning with PDF snapshotting to Supabase Storage. Also **caught + fixed a latent Suspense bug on `/no-access`** that had been silently blocking every Railway deploy since `9470abf` (7 commits queued behind it, none had actually gone live). Fired **Bangalore nudge (57 recipients) + Mangalore rollout (10 recipients) + Bangalore Management FYI (7 recipients)** — 59/59 delivered, 0 bounced. Updated memory rule so **every future rollout auto-BCCs `dc@tresconglobal.com`** for inbox record.
 
 **Still to do:**
-1. Attendee-data (`.xlsx`) ingestion currently extracts full row data and hands it to Gemini for summarisation per `knowledge-engine/processors/attendee-data.md` — it does **not** implement that file's deterministic PII-stripping/seniority-inference/aggregation logic in code. Fine for now (Gemini follows the instructions reasonably) but worth a proper JS aggregation pass if attendee-data volume grows.
-2. `corporate-doc.md` ingestion path is wired (classifier + processor load) but was never exercised end-to-end live this session — only `proposal` type was tested through `/api/kb/ingest`.
-3. `EVENTPILOT_PLATFORM_DOCUMENT.md` §12 "Document Intelligence" still describes the old simple KB schema (no versioning/layers/R2) — stale, not updated this session (it's mid-edit by Madhu from before, left untouched per scope).
-4. Two large pre-existing untracked local folders — `Attendee Data Historical/` (33M, raw xlsx) and `Historical docs for KB/` (957M, raw PDFs/PPTX + Python scripts used to originally author the KB `.md` files) — must **never** be committed (repo bloat, not needed at runtime). Not gitignored yet; a future session should add them to `.gitignore` explicitly rather than relying on nobody running `git add -A`.
-5. `app/smartexcel/shell.tsx` and `EVENTPILOT_PLATFORM_DOCUMENT.md` had uncommitted changes from before this session (unrelated, pre-existing) — left as-is, not part of this session's commit.
+1. **Thulasi + Marketing team need to test CM-001 end-to-end.** Draft email to Thulasi was written this session (Durga will send). 12-step walkthrough documented — upload deck → save Canva link → run Gemini analysis → confirm mappings → edit content across 3 tabs → publish v1 → verify Version History → make an edit → publish v2 → confirm v1 preserved.
+2. **`staff_members.last_login_at` column is not being written.** Every Bangalore staff (including Madhukar, Swarnavo, Anil — active users) shows `NEVER`. Almost certainly the Microsoft SSO callback doesn't write to it. Blocked the "target only never-logged-in staff" filter on the Bangalore nudge — sent to whole office instead. Next session: investigate `app/api/auth/microsoft/callback` (or equivalent) and see what column is actually being touched on login.
+3. **Khalifat alignment call on Website Builder & Brand Studio.** He filed a checklist with 4 scope questions (attached SME_CONTEXT.md, unified vs separate, event-scoped vs standalone, Phase 1 focus). Full reply drafted this session — Durga to review and send. Recommended direction: keep tools separate but share brand foundation; add corporate-tier above event-tier for both; Phase 1 focuses on Brand Studio as the foundation, Website Builder v2 moves to Phase 2.
+4. **`/no-access` Suspense fix was retroactive.** Every commit from `9470abf` (access-denied popup) through `2406789` (CM-001 chunk 5) had failed to deploy at Railway — the actual live site was still on `1e1c852` for that entire period. Now unblocked with `fdee36b`. Lesson learned + noted: for this repo, `next build` (not just `tsc --noEmit`) must be run before claiming anything is shipped, since `tsc` doesn't catch Next-specific prerender/RSC boundary errors.
+
+---
+
+## What Was Built — 06 Jul 2026 (Durga + Claude Code) — CM-001 Corporate Marketing Phase 1 + rollout emails + deploy unblock
+
+### The build order (9 commits pushed today)
+
+| Commit | What it does |
+|---|---|
+| `ab1bde4` | fix(access-request): `staff_members.name` (column is `name`, not `full_name`) — access-request API was silently 404ing all requests before this |
+| `527fc79` | feat(corporate-marketing) chunk 1 — DB migration (7 tables) + access gate + module shell |
+| `6b1c4fe` | feat(corporate-marketing) chunk 2 — Overview tab live (upload deck + Canva link) |
+| `f825fd2` | feat(corporate-marketing) chunk 3 — Gemini analysis + confirm mappings |
+| `0ceb203` | feat(corporate-marketing) chunk 4 — editable workspace (Dynamic Content / Testimonials / Approved Images) |
+| `2406789` | feat(corporate-marketing) chunk 5 — Publish + Version History + Settings |
+| `fdee36b` | **fix(no-access): wrap useSearchParams in Suspense — unblock every deploy** (retroactively fixes 7 stuck commits including chunks 1-5) |
+| `74107b6` | feat(corporate-marketing): show accepted file type + max size on upload UI |
+| `a96bff8` | feat(corporate-marketing): raise deck PDF cap 50 → 100 MB (server + bucket + UI) |
+
+### CM-001 Corporate Deck Management — Phase 1 complete
+
+Route: **`/admin/toolkit/corporate-marketing/deck`**. Access gate: admin OR `staff_members.tool_grants.corporate_marketing = true`. Marketing dept granted via SQL run manually by Durga in Supabase SQL editor this session.
+
+**Database (all in `supabase/corporate_marketing.sql` — ran manually against prod):**
+- `corporate_decks` — current master deck row (title, PDF path, Canva URL, AI status)
+- `corporate_deck_versions` — immutable published snapshots (version_number, published_by, change_summary, PDF path, canva_url, content_snapshot JSONB)
+- `corporate_deck_mappings` — content section ↔ slide numbers (with `confirmed` flag)
+- `corporate_company_content` — key-value store for prose (overview / vision / mission / tagline / boilerplate) + JSON stats (company_stats / event_series_stats / event_stats)
+- `corporate_testimonials` — approved quotes with author details + event FK
+- `corporate_assets` — approved image library (references shared `corporate-marketing` Storage bucket)
+- `corporate_leadership_overrides` — keyed to `staff_members.id`, Marketing controls only display_order / include_in_deck / optional corporate_bio (staff_members stays SoT for identity)
+
+**Reuses (per PRD §3, zero duplication):** `staff_members` for leadership, `events` for upcoming/past events.
+
+**Storage:** private `corporate-marketing` bucket, auto-created on first upload. Paths: `decks/{deck_id}/*.pdf` for the current master (replaced in place), `versions/{version_uuid}/*.pdf` for immutable version copies, `assets/*` for the image library. Bucket file-size cap kept in sync with `MAX_BYTES` via `updateBucket()` on re-init (fixed subtle bug where a code-side cap bump wouldn't reach Storage).
+
+**AI (chunk 3):** `app/lib/corporate-marketing/analyse-deck.ts` — Gemini 2.5 Flash reads the PDF natively (image + text), returns proposed sections via strict JSON schema. Small PDFs (<5 MB) go inline, large PDFs use the File API. Allowed-list of 14 section keys per PRD §4.2; anything Gemini returns outside the list is dropped. Sample content excerpt stored so the user can verify without re-invoking.
+
+**Publish flow (chunk 5):** copies the current PDF to `versions/{uuid}/`, aggregates content_snapshot JSONB (company_content + approved+included testimonials + approved+included assets + included leadership joined with staff_members + confirmed mappings + canva_url + deck_title), inserts `corporate_deck_versions` row. Version numbers auto-increment per deck_id. Rolls back the copied file if the DB insert fails.
+
+**API routes added (15):**
+- `/api/corporate-marketing/deck` (GET, PATCH)
+- `/api/corporate-marketing/deck/upload` (POST — multipart, auto-creates bucket)
+- `/api/corporate-marketing/deck/analyse` (POST — Gemini pipeline)
+- `/api/corporate-marketing/deck/mappings` (GET, PATCH)
+- `/api/corporate-marketing/deck/publish` (POST)
+- `/api/corporate-marketing/content` (GET, PATCH — company content)
+- `/api/corporate-marketing/events` (GET — reads existing `events` table)
+- `/api/corporate-marketing/leadership` (GET, PATCH)
+- `/api/corporate-marketing/testimonials` (GET, POST) + `/[id]` (PATCH, DELETE)
+- `/api/corporate-marketing/assets` (GET, POST) + `/[id]` (PATCH, DELETE)
+- `/api/corporate-marketing/versions` (GET — includes 1h signed URLs)
+- `/api/corporate-marketing/access` (GET — powers Settings tab access list)
+
+All enforced via shared `app/lib/corporate-marketing/auth.ts` helper (admin OR grant).
+
+**UI structure:** page shell in `app/admin/toolkit/corporate-marketing/deck/page.tsx` routes 6 tabs to per-tab component files: `OverviewTab` (in page.tsx), `DynamicContentTab.tsx` (with 4 sub-tabs), `TestimonialsTab.tsx`, `AssetsTab.tsx`, `VersionsTab.tsx`, `SettingsTab.tsx`. Publish flow via `PublishModal.tsx`. Shared helpers in `_shared.tsx` (BRAND colour, Card, Badge, styles, initials helper).
+
+### The retroactive deploy fix — `fdee36b`
+
+Every commit from `9470abf` (access-denied popup, 05 Jul) through `2406789` (CM-001 chunk 5) had **failed to build at Railway** because `/no-access/page.tsx` used `useSearchParams()` at the top level without a Suspense boundary. Next.js 16 requires that hook to be inside `<Suspense>` for prerender. `tsc --noEmit` doesn't catch this — only `next build` does.
+
+Result: Railway kept serving the last successful deploy (`1e1c852`) for 4+ days while pushes kept "succeeding" at the git level. First noticed when Durga hit the live URL and got 404 on Corporate Marketing routes. Diagnosis: `curl -I https://eventpilot.tresconglobal.com/admin/toolkit/corporate-marketing/deck` returns 307 → `/login` regardless of whether the route exists (middleware runs before Next resolves the URL), so redirect responses aren't a reliable signal that a route is deployed.
+
+Fix: wrapped `<NoAccessInner />` in `<Suspense fallback={<div>}>` and moved the `useSearchParams()` call into the inner component. `next build` now completes cleanly and all Corporate Marketing routes appear in the manifest.
+
+**Standing rule for this repo (added):** run `next build` (not just `tsc --noEmit`) before saying "shipped."
+
+### Rollout emails fired — 59/59 delivered
+
+**Mangalore rollout** (10 recipients + 10 mgmt CC, minus Shameem/Samad who were already in TO). Subject: "Event Pilot is live for Mangalore — log in this week." Resend ID `f6747c11-5609-4d24-9a38-061179c08c62`.
+
+**Bangalore nudge** (57 recipients, sent individually because Resend TO caps at 50; Charan Kaverappa excluded per prior rollout convention). Subject: "Event Pilot — a nudge if you haven't logged in yet." Written after `last_login_at` column was found to be broken — sent to whole office instead of just non-loggers to avoid mis-tagging active users like Madhukar / Swarnavo / Anil.
+
+**Bangalore Management FYI** — 1 send to 7 mgmt recipients (mgmt subset who weren't already in the Bangalore staff TO). Wraps the nudge with an "FYI — no action needed" preamble so leadership has visibility without being CC'd 57 times. Subject: "FYI: Bangalore Event Pilot nudge sent."
+
+**Sent copies to `dc@tresconglobal.com`** after Durga flagged that she had no inbox record (because `from = noreply@…` doesn't auto-populate her Sent folder). Verbatim replays of all 3 emails so she could see them exactly as recipients did.
+
+Delivery verified: all 59 sends returned `last_event: delivered` from Resend within 60s. 0 bounces, 0 complaints, 0 failures. IDs logged in-session.
+
+### Memory rule updated
+
+`feedback_eventpilot_rollout_cc_management.md` — **every future broadcast automatically BCCs `dc@tresconglobal.com`**. Was omitted previously because of a too-strict reading of the "don't CC sender on her own email" rule. New rule: don't CC her *visibly* (she's not part of the management CC list), but always BCC her because the `noreply@` from address means she has no other way to get a copy of what actually went out.
+
+### Website Builder & Brand Studio (context only — no code shipped)
+
+Khalifat (Branding, Bangalore) filed a checklist for the Website Builder & Brand Studio Pilot Project with 4 scope questions. Full point-by-point reply drafted this session — Durga will review and send. Recommended direction:
+
+- **Keep tools separate, share a brand-asset foundation underneath** (not merge into one module — they solve different jobs: Brand Studio produces, Website Builder consumes).
+- **Add a corporate/master tier above the current event tier** (not remove event-scoping). Three-tier inheritance: Corporate → Series → Event. Phase 1 adds the Corporate tier only.
+- **Brand Studio first** as the shared foundation. Website Builder v2 moves to Phase 2, led by Prashant / event marketing.
+- Git log confirmed neither Madhu nor Khalifat has touched these tools — all recent commits are Durga's. So Phase 1 direction is genuinely open.
+
+Reply email drafted, `SME_CONTEXT.md` attached, awaiting Durga to send + schedule 30-min alignment call.
 
 ---
 
