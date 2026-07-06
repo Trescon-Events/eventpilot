@@ -126,7 +126,8 @@ Article title: ${title}
 Article content (first 2000 chars): ${markdown.slice(0, 2000)}`
 
   const result = await model.generateContent(prompt, { timeout: GEMINI_TIMEOUT_MS })
-  const parsed = JSON.parse(result.response.text())
+  const text   = result.response.text().trim()
+  const parsed = JSON.parse(text.startsWith('{') ? text : text.slice(text.indexOf('{'), text.lastIndexOf('}') + 1))
   return {
     score:           Math.min(100, Math.max(0, Number(parsed.score ?? 0))),
     reasoning:       String(parsed.reasoning ?? '').slice(0, 500),
@@ -165,7 +166,8 @@ PAGE CONTENT:
 ${markdown.slice(0, 15000)}`
 
   const result = await model.generateContent(prompt, { timeout: GEMINI_TIMEOUT_MS })
-  const parsed = JSON.parse(result.response.text())
+  const text   = result.response.text().trim()
+  const parsed = JSON.parse(text.startsWith('[') ? text : text.slice(text.indexOf('['), text.lastIndexOf(']') + 1))
   return Array.isArray(parsed) ? parsed : []
 }
 
