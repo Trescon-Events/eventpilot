@@ -235,6 +235,21 @@ function OverviewTab() {
           </div>
         )}
 
+        {/* File requirements */}
+        <div style={{
+          display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap',
+          padding: '10px 14px', background: '#FAFBFC', border: '1px solid #EEF3F7',
+          borderRadius: '10px', marginBottom: '14px',
+        }}>
+          <svg width="14" height="14" fill="none" stroke="#5B7080" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24">
+            <circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/>
+          </svg>
+          <span style={{ fontSize: '12px', color: '#5B7080', fontWeight: 600 }}>
+            <strong style={{ color: '#0F1923' }}>Accepted:</strong> PDF only <span style={{ color: '#DDE8EE' }}>·</span>{' '}
+            <strong style={{ color: '#0F1923' }}>Max size:</strong> 50 MB
+          </span>
+        </div>
+
         {/* Upload / replace */}
         <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
           <input
