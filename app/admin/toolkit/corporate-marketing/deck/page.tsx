@@ -1,15 +1,15 @@
 'use client'
 
 /*
-  Corporate Deck Management — Phase 1.
+  Corporate Deck Management — Phase 1 COMPLETE.
 
-  Live tabs:
-    - Overview          ✓ chunks 2-3 — upload, Canva link, AI analysis, confirm mappings
-    - Dynamic Content   ✓ chunk 4 — company content + stats + events + leadership
-    - Testimonials      ✓ chunk 4 — CRUD on approved testimonials
-    - Approved Images   ✓ chunk 4 — image library
-    - Version History   → chunk 5
-    - Settings          → chunk 5
+  All six tabs live:
+    - Overview          chunks 2-3-5 — upload, Canva link, AI analysis, confirm mappings, publish
+    - Dynamic Content   chunk 4 — company content + stats + events + leadership
+    - Testimonials      chunk 4 — CRUD on approved testimonials
+    - Approved Images   chunk 4 — image library
+    - Version History   chunk 5 — every published snapshot
+    - Settings          chunk 5 — title, publish, access
 */
 
 import { useCallback, useEffect, useRef, useState } from 'react'
@@ -17,6 +17,9 @@ import Link from 'next/link'
 import DynamicContentTab from './DynamicContentTab'
 import TestimonialsTab from './TestimonialsTab'
 import AssetsTab from './AssetsTab'
+import VersionsTab from './VersionsTab'
+import SettingsTab from './SettingsTab'
+import PublishModal from './PublishModal'
 
 const BRAND = '#8B1A1A'
 
@@ -121,7 +124,8 @@ export default function CorporateDeckPage() {
         {tab === 'content'      && <DynamicContentTab />}
         {tab === 'testimonials' && <TestimonialsTab />}
         {tab === 'images'       && <AssetsTab />}
-        {(tab === 'versions' || tab === 'settings') && <PlaceholderTab tabId={tab} />}
+        {tab === 'versions'     && <VersionsTab />}
+        {tab === 'settings'     && <SettingsTab onDeckUpdated={async () => {}} />}
       </div>
     </div>
   )
@@ -139,6 +143,8 @@ function OverviewTab() {
   const [uploading, setUploading] = useState(false)
   const [uploadErr, setUploadErr] = useState<string | null>(null)
   const [saveNote, setSaveNote] = useState<string | null>(null)
+  const [publishing, setPublishing]   = useState(false)
+  const [publishedNote, setPublishedNote] = useState<string | null>(null)
   const fileRef = useRef<HTMLInputElement>(null)
 
   const refresh = useCallback(async () => {
@@ -307,6 +313,44 @@ function OverviewTab() {
       {deck && (deck.ai_analysis_status === 'ready' || deck.ai_analysis_status === 'confirmed') && (
         <DetectedSectionsPanel deckStatus={deck.ai_analysis_status} onRefresh={refresh} />
       )}
+
+      {/* Publish new version */}
+      {hasDeck && (
+        <section style={{ background: '#fff', border: `1px solid ${BRAND}30`, borderRadius: '20px', padding: '28px', boxShadow: '0 2px 16px rgba(0,0,0,0.04)' }}>
+          <div style={{ display: 'flex', gap: '20px', alignItems: 'flex-start', flexWrap: 'wrap' }}>
+            <div style={{ flex: 1, minWidth: '260px' }}>
+              <div style={{ fontSize: '11px', fontWeight: 800, color: BRAND, letterSpacing: '2px', textTransform: 'uppercase' }}>Publish</div>
+              <div style={{ fontSize: '18px', fontWeight: 900, color: '#0F1923', marginTop: '4px', marginBottom: '6px' }}>Publish a new deck version</div>
+              <div style={{ fontSize: '13px', color: '#5B7080', lineHeight: 1.6 }}>
+                Freezes the current PDF, Canva link, and all approved deck content into an immutable snapshot. Saving edits does NOT create a version — only this button does. Past versions stay downloadable forever from the Version History tab.
+              </div>
+            </div>
+            <button
+              onClick={() => setPublishing(true)}
+              style={{ background: BRAND, color: '#fff', border: 'none', borderRadius: '11px', padding: '14px 28px', fontSize: '14px', fontWeight: 800, cursor: 'pointer', fontFamily: 'inherit' }}
+            >
+              Publish new version
+            </button>
+          </div>
+          {publishedNote && (
+            <div style={{ marginTop: '18px', padding: '12px 16px', borderRadius: '12px', background: '#D1FAE5', border: '1px solid #6EE7B7', color: '#00695C', fontSize: '13px', fontWeight: 800 }}>
+              ✓ {publishedNote}
+            </div>
+          )}
+        </section>
+      )}
+
+      {publishing && (
+        <PublishModal
+          onClose={() => setPublishing(false)}
+          onPublished={async (num) => {
+            setPublishing(false)
+            setPublishedNote(`Published v${num}. View it in the Version History tab.`)
+            setTimeout(() => setPublishedNote(null), 8000)
+            await refresh()
+          }}
+        />
+      )}
     </div>
   )
 }
@@ -357,7 +401,7 @@ function AnalysisPanel({ deck, onRefresh }: { deck: Deck | null; onRefresh: () =
         {hasDeck && status === 'pending'   && 'Gemini reads the PDF and proposes the sections that change month-to-month. You confirm the detected sections before EventPilot creates the editable mappings.'}
         {hasDeck && status === 'running'   && 'Gemini is reading the deck. This takes 30–60 seconds for a typical corporate deck.'}
         {hasDeck && status === 'ready'     && 'Analysis complete. Confirm the detected sections below to unlock the editable workspace.'}
-        {hasDeck && status === 'confirmed' && 'Mappings are confirmed. Editable workspace is live in the Dynamic Content tab (coming in chunk 4).'}
+        {hasDeck && status === 'confirmed' && 'Mappings confirmed. Editable content is live in the Dynamic Content tab.'}
         {hasDeck && status === 'failed'    && `Analysis failed. ${deck?.pdf_file_name ? '' : ''}Try again or replace the PDF.`}
       </div>
 
@@ -650,19 +694,3 @@ function Badge({ color, bg, children }: { color: string; bg: string; children: R
   )
 }
 
-/* ────────────────────────────────────────────────────────────────
-   Placeholder tabs (chunks 4-5)
-   ──────────────────────────────────────────────────────────────── */
-
-function PlaceholderTab({ tabId }: { tabId: TabId }) {
-  const t = TABS.find(x => x.id === tabId)
-  return (
-    <div style={{ maxWidth: '840px', background: '#fff', border: '1px solid #DDE8EE', borderRadius: '20px', padding: '40px', boxShadow: '0 2px 16px rgba(0,0,0,0.04)' }}>
-      <div style={{ display: 'inline-block', fontSize: '10px', fontWeight: 800, letterSpacing: '1.5px', textTransform: 'uppercase', color: BRAND, background: `${BRAND}10`, padding: '4px 10px', borderRadius: '12px', marginBottom: '14px' }}>
-        Coming next
-      </div>
-      <div style={{ fontSize: '20px', fontWeight: 900, color: '#0F1923', marginBottom: '10px' }}>{t?.label}</div>
-      <p style={{ fontSize: '14px', color: '#5B7080', lineHeight: 1.7, margin: 0 }}>{t?.hint}. Lands in the next chunk of the build.</p>
-    </div>
-  )
-}
