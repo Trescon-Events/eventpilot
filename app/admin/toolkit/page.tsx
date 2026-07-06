@@ -17,12 +17,13 @@ const TOOL_GRANT_KEY: Record<string, string | null> = {
   'ai-course-gen':   null,
   'course-manager':  null,
   'tresagent':       'tresagent',
-  'bespoke-tracker': 'bespoke',
-  'hr-portal':       'hr_portal',
-  'timesheets':      'timesheets',
-  'finance-portal':  'finance',
-  'commercial':      'commercial',
-  'smart-excel':     'smart_excel',
+  'bespoke-tracker':      'bespoke',
+  'hr-portal':            'hr_portal',
+  'timesheets':           'timesheets',
+  'finance-portal':       'finance',
+  'commercial':           'commercial',
+  'smart-excel':          'smart_excel',
+  'corporate-marketing':  'corporate_marketing',
 }
 
 const TOOLS = [
@@ -109,6 +110,22 @@ const TOOLS = [
     needsEvent: false,
     badge:      'Data Intelligence',
     category:   'Data',
+  },
+  {
+    id:          'corporate-marketing',
+    label:       'Corporate Marketing',
+    description: 'Single workspace for all dynamic corporate content — deck, testimonials, approved assets, leadership bios. Canva stays the design master; EventPilot owns the content and every published version.',
+    features:    [
+      { icon: '◉', label: 'Corporate deck management', detail: 'Upload the master PDF + store the Canva link. AI flags the sections that change every month' },
+      { icon: '◈', label: 'Editable content workspace', detail: 'Company overview, vision, stats, testimonials, approved images — all in one place' },
+      { icon: '◷', label: 'Publish-based versioning', detail: 'Publish creates an immutable snapshot with change summary. Every past version stays downloadable' },
+      { icon: '⊞', label: 'Reuses existing EventPilot data', detail: 'Leadership pulls from staff_members, events pull from events table — no duplication' },
+    ],
+    accent:     '#8B1A1A',
+    href:       '/admin/toolkit/corporate-marketing/deck',
+    needsEvent: false,
+    badge:      'Marketing',
+    category:   'Marketing',
   },
   {
     id:          'outreach',
@@ -258,6 +275,7 @@ const TOOLS = [
 
 const CATEGORIES = [
   { id: 'Events',     label: 'Event Tools' },
+  { id: 'Marketing',  label: 'Corporate Marketing' },
   { id: 'Data',       label: 'Data & Marketing' },
   { id: 'Operations', label: 'Operations' },
   { id: 'Finance',    label: 'Finance' },
@@ -280,6 +298,7 @@ const ICONS: Record<string, React.ReactNode> = {
   'finance-portal':  <svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><rect x="1" y="4" width="22" height="16" rx="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg>,
   'commercial':      <svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>,
   'timesheets':      <svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>,
+  'corporate-marketing': <svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>,
 }
 
 function EventPicker({ tool, events, onClose }: { tool: typeof TOOLS[number]; events: Event[]; onClose: () => void }) {

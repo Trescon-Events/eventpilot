@@ -16,15 +16,16 @@ import Link from 'next/link'
 import { useSearchParams } from 'next/navigation'
 
 const TOOL_LABEL: Record<string, string> = {
-  bespoke:         'Bespoke Tracker',
-  website_builder: 'Website Builder',
-  brand_studio:    'Brand Studio',
-  intelligence:    'Market Intelligence',
-  smart_data:      'Smart Data',
-  smart_excel:     'Smart Excel',
-  admin:           'Admin Panel',
-  finance:         'Finance Portal',
-  hr:              'HR Portal',
+  bespoke:             'Bespoke Tracker',
+  website_builder:     'Website Builder',
+  brand_studio:        'Brand Studio',
+  intelligence:        'Market Intelligence',
+  smart_data:          'Smart Data',
+  smart_excel:         'Smart Excel',
+  corporate_marketing: 'Corporate Marketing',
+  admin:               'Admin Panel',
+  finance:             'Finance Portal',
+  hr:                  'HR Portal',
 }
 
 export default function NoAccessPage() {

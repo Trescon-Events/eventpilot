@@ -19,15 +19,16 @@ import { sendToolAccessRequest } from '@/app/lib/email'
 
 // Human-readable label per tool key. Keep in sync with the toolkit + gate keys.
 const TOOL_LABEL: Record<string, string> = {
-  bespoke:         'Bespoke Tracker',
-  website_builder: 'Website Builder',
-  brand_studio:    'Brand Studio',
-  intelligence:    'Market Intelligence',
-  smart_data:      'Smart Data',
-  smart_excel:     'Smart Excel',
-  admin:           'Admin Panel',
-  finance:         'Finance Portal',
-  hr:              'HR Portal',
+  bespoke:             'Bespoke Tracker',
+  website_builder:     'Website Builder',
+  brand_studio:        'Brand Studio',
+  intelligence:        'Market Intelligence',
+  smart_data:          'Smart Data',
+  smart_excel:         'Smart Excel',
+  corporate_marketing: 'Corporate Marketing',
+  admin:               'Admin Panel',
+  finance:             'Finance Portal',
+  hr:                  'HR Portal',
 }
 
 // In-process de-dup — { key: timestamp }
