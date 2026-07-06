@@ -102,7 +102,7 @@ export async function middleware(req: NextRequest) {
     pathname.startsWith('/api/admin/set-job-level') ||
     pathname.startsWith('/api/admin/tool-permissions') ||
     pathname.startsWith('/api/cron/') ||
-    pathname.startsWith('/api/kb/intel/run') ||  // cron-job.org calls this with no session cookie; auth checked inside via bearer token or admin_staff_id
+    pathname === '/api/kb/intel/run' ||  // cron-job.org calls this with no session cookie; auth checked inside via bearer token or admin_staff_id. NOT startsWith — that would also match /api/kb/intel/runs (the run-history GET) and make it public.
     pathname.startsWith('/api/seed-platform-docs') ||
     pathname.startsWith('/api/seed-courses') ||
     pathname.startsWith('/api/seed-demo')
