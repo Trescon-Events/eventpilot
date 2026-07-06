@@ -11,7 +11,7 @@
  */
 'use client'
 
-import { useState } from 'react'
+import { Suspense, useState } from 'react'
 import Link from 'next/link'
 import { useSearchParams } from 'next/navigation'
 
@@ -28,7 +28,19 @@ const TOOL_LABEL: Record<string, string> = {
   hr:                  'HR Portal',
 }
 
+// Next 16 requires useSearchParams() to be inside a Suspense boundary
+// so the /no-access route can be prerendered. Wrapping here means the
+// build no longer bails out (which was blocking every deploy since the
+// popup landed).
 export default function NoAccessPage() {
+  return (
+    <Suspense fallback={<div style={{ minHeight: '100vh', background: '#E8EEF4' }} />}>
+      <NoAccessInner />
+    </Suspense>
+  )
+}
+
+function NoAccessInner() {
   const params   = useSearchParams()
   const toolKey  = params.get('tool') ?? ''
   const fromPath = params.get('from') ?? ''
