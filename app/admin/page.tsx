@@ -865,12 +865,31 @@ export default function AdminPage() {
       })
       const data = await res.json().catch(() => ({}))
       if (!res.ok) { setIntelMsg(data.error ?? 'Run failed.'); setIntelRunning(false); return }
-      setIntelMsg(`Done. ${data.items_auto_published} auto-published, ${data.items_queued} queued for review, ${data.items_skipped} skipped.`)
-      fetchIntelAll()
+      // The pipeline runs in the background (a full run can take several minutes) —
+      // poll run history until this run leaves 'running' instead of waiting on the request.
+      setIntelMsg('Run started — this can take a few minutes for all sources. Refreshing status…')
+      const runId = data.run_id
+      let attempts = 0
+      const poll = async () => {
+        attempts++
+        await fetchIntelRuns()
+        await fetchIntelPending()
+        const latest = (await (await fetch('/api/kb/intel/runs')).json())?.find((r: { id: string }) => r.id === runId)
+        if (latest && latest.status !== 'running') {
+          setIntelMsg(`Done. ${latest.items_auto_published} auto-published, ${latest.items_queued} queued for review, ${latest.items_skipped} skipped.`)
+          setIntelRunning(false)
+        } else if (attempts >= 40) {
+          setIntelMsg('Still running — check Run History below for progress.')
+          setIntelRunning(false)
+        } else {
+          setTimeout(poll, 8000)
+        }
+      }
+      setTimeout(poll, 8000)
     } catch {
       setIntelMsg('Could not reach the server.')
+      setIntelRunning(false)
     }
-    setIntelRunning(false)
   }
 
   async function approveIntelItem(id: string) {
