@@ -60,7 +60,7 @@ export async function POST(req: NextRequest) {
   // Look up requester
   const { data: staff } = await supabaseAdmin
     .from('staff_members')
-    .select('full_name, email')
+    .select('name, email')
     .eq('id', session.sid)
     .single()
 
@@ -68,7 +68,7 @@ export async function POST(req: NextRequest) {
 
   try {
     await sendToolAccessRequest({
-      staffName:  staff.full_name || staff.email,
+      staffName:  staff.name || staff.email,
       staffEmail: staff.email,
       tool:       label,
       fromPath,
