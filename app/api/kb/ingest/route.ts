@@ -91,6 +91,7 @@ Start directly with the YAML front matter (---).`
       department: meta.department,
       min_level: meta.min_level,
       pilot_use: meta.pilot_use,
+      doc_category: meta.docCategory,
       source_url: sourceUrl,
       submitted_by: uploaded_by,
       ai_reasoning: `Ingested via classify → process pipeline. Detected type: ${docType.replace(/_/g, ' ')}. Awaiting admin publish.`,

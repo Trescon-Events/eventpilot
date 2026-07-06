@@ -5,12 +5,12 @@
 export type KbDocType = 'post_event_report' | 'proposal' | 'attendee_data' | 'corporate_doc'
 
 export const KB_TYPE_META: Record<KbDocType, {
-  type: string; layer: string; department: string; min_level: string; pilot_use: boolean; processor: string
+  type: string; layer: string; department: string; min_level: string; pilot_use: boolean; processor: string; docCategory: string
 }> = {
-  post_event_report: { type: 'event_report',      layer: 'knowledge_base', department: 'all',    min_level: 'all',       pilot_use: true,  processor: 'post-event-report.md' },
-  proposal:           { type: 'proposal',          layer: 'specific',      department: 'events',  min_level: 'team_lead', pilot_use: false, processor: 'proposal.md' },
-  attendee_data:      { type: 'other',             layer: 'specific',      department: 'events',  min_level: 'team_lead', pilot_use: false, processor: 'attendee-data.md' },
-  corporate_doc:      { type: 'corporate_profile', layer: 'knowledge_base', department: 'all',    min_level: 'all',       pilot_use: true,  processor: 'corporate-doc.md' },
+  post_event_report: { type: 'event_report',      layer: 'knowledge_base', department: 'all',    min_level: 'all',       pilot_use: true,  processor: 'post-event-report.md', docCategory: 'event_intelligence' },
+  proposal:           { type: 'proposal',          layer: 'specific',      department: 'events',  min_level: 'team_lead', pilot_use: false, processor: 'proposal.md',           docCategory: 'business_development' },
+  attendee_data:      { type: 'other',             layer: 'specific',      department: 'events',  min_level: 'team_lead', pilot_use: false, processor: 'attendee-data.md',      docCategory: 'event_intelligence' },
+  corporate_doc:      { type: 'corporate_profile', layer: 'knowledge_base', department: 'all',    min_level: 'all',       pilot_use: true,  processor: 'corporate-doc.md',      docCategory: 'company_knowledge' },
 }
 
 export function classifyFilename(filename: string): KbDocType {

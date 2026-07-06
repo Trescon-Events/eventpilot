@@ -9,6 +9,8 @@ export interface GetKBContextOptions {
   staffId?: string
   /** Only include documents of these `type` values, e.g. ['proposal', 'event_report']. Omit for any type. */
   types?: string[]
+  /** Only include documents of these `doc_category` values, e.g. ['business_development', 'company_knowledge']. Omit for any category. */
+  categories?: string[]
   /** Only include documents flagged pilot_use=true (the default, used by Pilot AI chat). Generator tools loading proposals/reports for drafting should pass false. */
   pilotUseOnly?: boolean
   /** Max number of documents to include. */
@@ -24,19 +26,30 @@ export interface GetKBContextOptions {
  * generator tools (Proposal Creator, PER Creator, Project Brief Generator).
  */
 export async function getKBContext(opts: GetKBContextOptions = {}): Promise<KBContextResult> {
-  const { staffId, types, pilotUseOnly = true, limit = 6, maxCharsPerDoc = 2000 } = opts
+  const { staffId, types, categories, pilotUseOnly = true, limit = 6, maxCharsPerDoc = 2000 } = opts
 
-  let query = supabaseAdmin
-    .from('documents')
-    .select('id, title, type, extracted_text, layer, department, min_level, pilot_use')
-    .eq('is_active', true)
-    .eq('status', 'live')
-    .is('superseded_by', null)
+  const runQuery = (applyCategories: boolean) => {
+    let query = supabaseAdmin
+      .from('documents')
+      .select('id, title, type, extracted_text, layer, department, min_level, pilot_use')
+      .eq('is_active', true)
+      .eq('status', 'live')
+      .is('superseded_by', null)
 
-  if (pilotUseOnly) query = query.eq('pilot_use', true)
-  if (types?.length) query = query.in('type', types)
+    if (pilotUseOnly) query = query.eq('pilot_use', true)
+    if (types?.length) query = query.in('type', types)
+    if (applyCategories && categories?.length) query = query.in('doc_category', categories)
 
-  const { data: allDocs } = await query
+    return query
+  }
+
+  let { data: allDocs } = await runQuery(true)
+  // A categories filter that matches nothing (e.g. older docs still tagged
+  // 'uncategorised') shouldn't silently starve a generator of reference
+  // material — fall back to the unfiltered query rather than returning empty.
+  if (categories?.length && !allDocs?.length) {
+    ;({ data: allDocs } = await runQuery(false))
+  }
   if (!allDocs?.length) return { text: '', documents: [] }
 
   let staffDept  = ''

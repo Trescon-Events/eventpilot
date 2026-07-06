@@ -10,6 +10,7 @@ export interface SaveDraftDocumentInput {
   min_level: string
   pilot_use: boolean
   ai_reasoning: string
+  doc_category?: string
   workspace_id?: string | null
   submitted_by?: string | null
   source_url?: string | null
@@ -41,6 +42,7 @@ export async function saveDraftDocument(input: SaveDraftDocumentInput) {
       department: input.department,
       min_level: input.min_level,
       pilot_use: input.pilot_use,
+      doc_category: input.doc_category ?? 'uncategorised',
       status: 'pending',
       is_active: true,
       source_url: input.source_url ?? null,
@@ -50,7 +52,7 @@ export async function saveDraftDocument(input: SaveDraftDocumentInput) {
       confidence: input.confidence ?? 90,
       flagged: false,
     })
-    .select('id, title, type, layer, department, min_level, pilot_use, status, source_url, word_count')
+    .select('id, title, type, layer, department, min_level, pilot_use, doc_category, status, source_url, word_count')
     .single()
 
   if (error) throw error

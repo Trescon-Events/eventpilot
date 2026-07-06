@@ -572,11 +572,13 @@ export default function AdminPage() {
     pilot_use: boolean; confidence: number; flagged: boolean; status: string
     source_url: string | null; version: number; document_group_id: string | null
     superseded_by: string | null; workspace_id: string | null
+    doc_category?: string
   }
   const [docs,          setDocs]          = useState<DocRow[]>([])
   const [docsLoading,   setDocsLoading]   = useState(false)
   const [docFile,       setDocFile]       = useState<File | null>(null)
-  const [docForm,       setDocForm]       = useState({ title: '', type: 'policy', visibility: 'all', event_id: '', source_url: '', workspace_id: '' })
+  const [docForm,       setDocForm]       = useState({ title: '', type: 'policy', visibility: 'all', event_id: '', source_url: '', workspace_id: '', doc_category: '' })
+  const [docCategoryFilter, setDocCategoryFilter] = useState<'all'|'event_intelligence'|'business_development'|'project_management'|'marketing'|'company_knowledge'|'external'>('all')
   const [docUploading,  setDocUploading]  = useState(false)
   const [docMsg,        setDocMsg]        = useState('')
   const [otherTypeLabel,setOtherTypeLabel]= useState('')
@@ -588,9 +590,53 @@ export default function AdminPage() {
   const [docFilter,       setDocFilter]       = useState<'all'|'knowledge_base'|'general'|'specific'|'flagged'>('all')
 
   // Knowledge — sub-tab, version control, BD Workspaces
-  const [docSubTab,     setDocSubTab]     = useState<'documents' | 'workspaces'>('documents')
+  const [docSubTab,     setDocSubTab]     = useState<'documents' | 'workspaces' | 'intelligence'>('documents')
   const [supersedesDoc, setSupersedesDoc] = useState<DocRow | null>(null)
   const [versionNote,   setVersionNote]   = useState('')
+
+  // Knowledge — Press Intelligence
+  type IntelSource = {
+    id: string; name: string; source_type: string; category: string
+    config: { url?: string; query?: string }; crawl_frequency: string; crawl_behaviour: string
+    is_active: boolean; last_run_at: string | null; last_found_count: number
+  }
+  type IntelItem = {
+    id: string; source_id: string | null; url: string; title: string | null
+    published_date: string | null; gemini_score: number | null; gemini_reasoning: string | null
+    gemini_summary: string | null; event_mentioned: string | null; article_type: string | null
+    status: string; document_id: string | null; run_id: string | null; discovered_at: string
+    kb_intel_sources?: { name: string; category: string } | null
+  }
+  type IntelRun = {
+    id: string; started_at: string; completed_at: string | null; status: string
+    sources_checked: number; urls_discovered: number; items_auto_published: number
+    items_queued: number; items_skipped: number; error_message: string | null; triggered_by: string
+  }
+  type IntelConfig = {
+    id: string; cron_schedule_display: string; is_enabled: boolean
+    auto_publish_threshold: number; review_threshold: number
+    event_registry_data: { name: string; status?: string; website?: string; description?: string }[] | null
+    event_registry_source: string; event_registry_last_updated: string | null
+  }
+  const [intelSubTab,      setIntelSubTab]      = useState<'overview' | 'review' | 'sources' | 'items'>('overview')
+  const [intelSources,     setIntelSources]     = useState<IntelSource[]>([])
+  const [intelItems,       setIntelItems]       = useState<IntelItem[]>([])
+  const [intelItemsTotal,  setIntelItemsTotal]  = useState(0)
+  const [intelPendingItems,setIntelPendingItems]= useState<IntelItem[]>([])
+  const [intelRuns,        setIntelRuns]        = useState<IntelRun[]>([])
+  const [intelConfig,      setIntelConfig]      = useState<IntelConfig | null>(null)
+  const [intelLoading,     setIntelLoading]     = useState(false)
+  const [intelRunning,     setIntelRunning]     = useState(false)
+  const [intelMsg,         setIntelMsg]         = useState('')
+  const [intelThresholds,  setIntelThresholds]  = useState({ auto_publish_threshold: 75, review_threshold: 40 })
+  const [expandedIntelItemId, setExpandedIntelItemId] = useState<string | null>(null)
+  const [expandedIntelRunId,  setExpandedIntelRunId]  = useState<string | null>(null)
+  const [intelItemsFilter, setIntelItemsFilter] = useState({ status: 'all', source_id: '', search: '' })
+  const [intelItemsPage,   setIntelItemsPage]   = useState(0)
+  const [showIntelSourceForm, setShowIntelSourceForm] = useState<false | 'owned_property' | 'partner_govt' | 'press_media'>(false)
+  const [intelSourceForm,  setIntelSourceForm]  = useState({ name: '', url: '', query: '', crawl_behaviour: 'article_discovery', crawl_frequency: 'weekly' })
+  const [intelSourceMsg,   setIntelSourceMsg]   = useState('')
+  const [editingIntelSourceId, setEditingIntelSourceId] = useState<string | null>(null)
 
   type VersionRow = {
     id: string; title: string; version: number; version_note: string | null
@@ -760,6 +806,170 @@ export default function AdminPage() {
     fetchPendingDocs()
   }
 
+  // ── Press Intelligence ──────────────────────────────────────────────────────
+  async function fetchIntelSources() {
+    const res  = await fetch('/api/kb/intel/sources')
+    const data = await res.json()
+    setIntelSources(Array.isArray(data) ? data : [])
+  }
+
+  async function fetchIntelPending() {
+    const res  = await fetch('/api/kb/intel/items?status=pending&limit=100')
+    const data = await res.json()
+    setIntelPendingItems(data.items ?? [])
+  }
+
+  async function fetchIntelItems(pageOverride?: number) {
+    const page = pageOverride ?? intelItemsPage
+    const params = new URLSearchParams()
+    if (intelItemsFilter.status !== 'all') params.set('status', intelItemsFilter.status)
+    if (intelItemsFilter.source_id) params.set('source_id', intelItemsFilter.source_id)
+    if (intelItemsFilter.search) params.set('search', intelItemsFilter.search)
+    params.set('limit', '20')
+    params.set('offset', String(page * 20))
+    const res  = await fetch(`/api/kb/intel/items?${params}`)
+    const data = await res.json()
+    setIntelItems(data.items ?? [])
+    setIntelItemsTotal(data.total ?? 0)
+    setIntelItemsPage(page)
+  }
+
+  async function fetchIntelRuns() {
+    const res  = await fetch('/api/kb/intel/runs')
+    const data = await res.json()
+    setIntelRuns(Array.isArray(data) ? data : [])
+  }
+
+  async function fetchIntelConfig() {
+    const res  = await fetch('/api/kb/intel/config')
+    const data = await res.json()
+    if (!data?.error) {
+      setIntelConfig(data)
+      setIntelThresholds({ auto_publish_threshold: data.auto_publish_threshold ?? 75, review_threshold: data.review_threshold ?? 40 })
+    }
+  }
+
+  async function fetchIntelAll() {
+    setIntelLoading(true)
+    await Promise.all([fetchIntelSources(), fetchIntelPending(), fetchIntelRuns(), fetchIntelConfig()])
+    setIntelLoading(false)
+  }
+
+  async function runIntelNow() {
+    setIntelRunning(true); setIntelMsg('')
+    const adminStaffId = sessionStorage.getItem('tai_admin_staff_id')
+    try {
+      const res  = await fetch('/api/kb/intel/run', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ admin_staff_id: adminStaffId }),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) { setIntelMsg(data.error ?? 'Run failed.'); setIntelRunning(false); return }
+      setIntelMsg(`Done. ${data.items_auto_published} auto-published, ${data.items_queued} queued for review, ${data.items_skipped} skipped.`)
+      fetchIntelAll()
+    } catch {
+      setIntelMsg('Could not reach the server.')
+    }
+    setIntelRunning(false)
+  }
+
+  async function approveIntelItem(id: string) {
+    const adminStaffId = sessionStorage.getItem('tai_admin_staff_id')
+    const res = await fetch(`/api/kb/intel/items/${id}/approve`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ admin_staff_id: adminStaffId }),
+    })
+    if (res.ok) { setIntelPendingItems(p => p.filter(i => i.id !== id)); fetchIntelItems() }
+  }
+
+  async function rejectIntelItem(id: string) {
+    const adminStaffId = sessionStorage.getItem('tai_admin_staff_id')
+    const res = await fetch(`/api/kb/intel/items/${id}/reject`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ admin_staff_id: adminStaffId }),
+    })
+    if (res.ok) { setIntelPendingItems(p => p.filter(i => i.id !== id)); fetchIntelItems() }
+  }
+
+  async function saveIntelThresholds() {
+    const adminStaffId = sessionStorage.getItem('tai_admin_staff_id')
+    await fetch('/api/kb/intel/config', {
+      method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ admin_staff_id: adminStaffId, ...intelThresholds }),
+    })
+    fetchIntelConfig()
+  }
+
+  async function toggleIntelEnabled() {
+    const adminStaffId = sessionStorage.getItem('tai_admin_staff_id')
+    await fetch('/api/kb/intel/config', {
+      method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ admin_staff_id: adminStaffId, is_enabled: !intelConfig?.is_enabled }),
+    })
+    fetchIntelConfig()
+  }
+
+  async function saveIntelSource() {
+    const adminStaffId = sessionStorage.getItem('tai_admin_staff_id')
+    const category   = showIntelSourceForm
+    const sourceType = category === 'press_media' ? 'search_query' : 'direct_url'
+    if (!category) return
+    if (!intelSourceForm.name.trim() || (sourceType === 'search_query' ? !intelSourceForm.query.trim() : !intelSourceForm.url.trim())) {
+      setIntelSourceMsg(`Name and ${sourceType === 'search_query' ? 'search query' : 'URL'} are required.`); return
+    }
+    const config = sourceType === 'search_query' ? { query: intelSourceForm.query.trim() } : { url: intelSourceForm.url.trim() }
+    const res = editingIntelSourceId
+      ? await fetch(`/api/kb/intel/sources/${editingIntelSourceId}`, {
+          method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            admin_staff_id: adminStaffId, name: intelSourceForm.name.trim(), config,
+            crawl_frequency: intelSourceForm.crawl_frequency, crawl_behaviour: intelSourceForm.crawl_behaviour,
+          }),
+        })
+      : await fetch('/api/kb/intel/sources', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            admin_staff_id: adminStaffId, name: intelSourceForm.name.trim(), source_type: sourceType, category, config,
+            crawl_frequency: intelSourceForm.crawl_frequency, crawl_behaviour: intelSourceForm.crawl_behaviour,
+          }),
+        })
+    if (res.ok) {
+      setShowIntelSourceForm(false)
+      setEditingIntelSourceId(null)
+      setIntelSourceForm({ name: '', url: '', query: '', crawl_behaviour: 'article_discovery', crawl_frequency: 'weekly' })
+      setIntelSourceMsg('')
+      fetchIntelSources()
+    } else {
+      const data = await res.json().catch(() => ({}))
+      setIntelSourceMsg(data.error ?? 'Could not save source.')
+    }
+  }
+
+  function startEditIntelSource(source: IntelSource) {
+    setEditingIntelSourceId(source.id)
+    setIntelSourceForm({
+      name: source.name, url: source.config.url ?? '', query: source.config.query ?? '',
+      crawl_behaviour: source.crawl_behaviour, crawl_frequency: source.crawl_frequency,
+    })
+    setIntelSourceMsg('')
+    setShowIntelSourceForm(source.category as 'owned_property' | 'partner_govt' | 'press_media')
+  }
+
+  async function toggleIntelSourceActive(source: IntelSource) {
+    const adminStaffId = sessionStorage.getItem('tai_admin_staff_id')
+    await fetch(`/api/kb/intel/sources/${source.id}`, {
+      method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ admin_staff_id: adminStaffId, is_active: !source.is_active }),
+    })
+    fetchIntelSources()
+  }
+
+  async function deleteIntelSource(id: string) {
+    const adminStaffId = sessionStorage.getItem('tai_admin_staff_id')
+    await fetch(`/api/kb/intel/sources/${id}?admin_staff_id=${adminStaffId}`, { method: 'DELETE' })
+    fetchIntelSources()
+  }
+
   async function fetchEvents() {
     setEventsLoading(true)
     const res  = await fetch('/api/events')
@@ -820,6 +1030,7 @@ export default function AdminPage() {
   async function uploadDoc() {
     if (!docFile || !docForm.title.trim()) { setDocMsg('File and title are required.'); return }
     if (docForm.type === 'other' && !otherTypeLabel.trim()) { setDocMsg('Please specify what type this document is.'); return }
+    if (!docForm.doc_category) { setDocMsg('Please select a category.'); return }
     setDocUploading(true); setDocMsg('')
 
     const finalType = docForm.type === 'other'
@@ -878,6 +1089,7 @@ export default function AdminPage() {
             event_id: docForm.event_id || undefined,
             uploaded_by: adminStaffId || undefined,
             source_url: sourceUrl || undefined,
+            doc_category: docForm.doc_category,
             workspace_id: docForm.workspace_id || undefined,
             supersedes_id: supersedesDoc?.id || undefined,
             version_note: versionNote || undefined,
@@ -899,6 +1111,7 @@ export default function AdminPage() {
         if (docForm.event_id) form.append('event_id', docForm.event_id)
         if (adminStaffId) form.append('uploaded_by', adminStaffId)
         if (sourceUrl) form.append('source_url', sourceUrl)
+        form.append('doc_category', docForm.doc_category)
         if (docForm.workspace_id) form.append('workspace_id', docForm.workspace_id)
         if (supersedesDoc) form.append('supersedes_id', supersedesDoc.id)
         if (versionNote) form.append('version_note', versionNote)
@@ -917,7 +1130,7 @@ export default function AdminPage() {
       setDocMsg(`Done. ${(data.document as Record<string,unknown>)?.word_count?.toLocaleString()} words extracted.${(data.analysis as Record<string,unknown>)?.flagged ? ' Flagged for review — low confidence.' : ''}${supersedesDoc ? ' Saved as a new version.' : ''}`)
       setDocAnalysis(data.analysis as never ?? null)
       setDocFile(null)
-      setDocForm({ title: '', type: 'policy', visibility: 'all', event_id: '', source_url: '', workspace_id: '' })
+      setDocForm({ title: '', type: 'policy', visibility: 'all', event_id: '', source_url: '', workspace_id: '', doc_category: '' })
       setOtherTypeLabel('')
       setSaveAsNewType(false)
       setSupersedesDoc(null)
@@ -1710,7 +1923,7 @@ export default function AdminPage() {
                 return (
                   <button key={t}
                     id={t === 'intelligence' ? 'tour-intelligence-tab' : t === 'suggest' ? 'tour-studio-tab' : undefined}
-                    onClick={() => { if (t === 'toolkit') { window.location.href = '/admin/toolkit'; return; } setTab(t as typeof tab); if (t === 'learning') fetchLearning(); if (t === 'people') { fetchStaffList(); markProgress('staff') } if (t === 'events') { fetchEvents(); fetchEventSummaries(); } if (t === 'knowledge') { fetchDocs(); fetchCustomDocTypes(); fetchWorkspaces(); fetchPendingDocs(); } if (t === 'review') fetchDrafts(); if (t === 'suggest') markProgress('course'); if (t === 'security') fetchSecurity() }}
+                    onClick={() => { if (t === 'toolkit') { window.location.href = '/admin/toolkit'; return; } setTab(t as typeof tab); if (t === 'learning') fetchLearning(); if (t === 'people') { fetchStaffList(); markProgress('staff') } if (t === 'events') { fetchEvents(); fetchEventSummaries(); } if (t === 'knowledge') { fetchDocs(); fetchCustomDocTypes(); fetchWorkspaces(); fetchPendingDocs(); if (staffList.length === 0) fetchStaffList(); fetchIntelAll(); } if (t === 'review') fetchDrafts(); if (t === 'suggest') markProgress('course'); if (t === 'security') fetchSecurity() }}
                     style={{
                       padding:         active ? '9px 22px' : '9px 20px',
                       borderRadius:    '10px',
@@ -4187,7 +4400,13 @@ export default function AdminPage() {
             specific:       { label:'Specific',       color:'#F59E0B', bg:'rgba(245,158,11,0.12)' },
           }
           const typeLabel = (t: string) => t.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())
+          const matchesCategoryFilter = (d: DocRow) => {
+            if (docCategoryFilter === 'all')      return true
+            if (docCategoryFilter === 'external')  return (d.doc_category ?? '').startsWith('external_')
+            return d.doc_category === docCategoryFilter
+          }
           const filteredDocs = docs.filter(d => {
+            if (!matchesCategoryFilter(d)) return false
             if (docFilter === 'flagged')        return d.flagged
             if (docFilter === 'knowledge_base') return d.layer === 'knowledge_base'
             if (docFilter === 'general')        return d.layer === 'general'
@@ -4195,6 +4414,8 @@ export default function AdminPage() {
             return true
           })
           const flaggedCount = docs.filter(d => d.flagged).length
+          const categoryCount = (key: typeof docCategoryFilter) =>
+            key === 'all' ? docs.length : key === 'external' ? docs.filter(d => (d.doc_category ?? '').startsWith('external_')).length : docs.filter(d => d.doc_category === key).length
 
           const uploadForm = (
             <div style={{ background: '#FFFFFF', border: '1px solid rgba(192,244,60,0.2)', borderRadius: '16px', padding: '24px' }}>
@@ -4225,6 +4446,18 @@ export default function AdminPage() {
                     <option value="event_only">Event Staff Only</option>
                   </select>
                 </div>
+              </div>
+              <div style={{ marginBottom: '12px' }}>
+                <label style={{ fontSize: '13px', fontWeight: 700, color: '#5B7080', letterSpacing: '0.8px', textTransform: 'uppercase', display: 'block', marginBottom: '5px' }}>Category</label>
+                <select value={docForm.doc_category} onChange={e => setDocForm(p => ({ ...p, doc_category: e.target.value }))}
+                  style={{ width: '100%', padding: '9px 10px', borderRadius: '9px', border: '1px solid #DDE8EE', background: '#FFFFFF', color: '#0F1923', fontSize: '13px', fontFamily: 'inherit' }}>
+                  <option value="">Select category…</option>
+                  <option value="event_intelligence">Event Intelligence</option>
+                  <option value="business_development">Business Development</option>
+                  <option value="project_management">Project Management</option>
+                  <option value="marketing">Marketing</option>
+                  <option value="company_knowledge">Company Knowledge</option>
+                </select>
               </div>
               {docForm.type === 'other' && (
                 <div style={{ marginBottom: '12px', padding: '12px', background: 'rgba(192,244,60,0.04)', border: '1px solid rgba(192,244,60,0.12)', borderRadius: '9px' }}>
@@ -4356,6 +4589,9 @@ export default function AdminPage() {
             )
           }
 
+          const adminStaffIdForRoles = typeof window !== 'undefined' ? sessionStorage.getItem('tai_admin_staff_id') : null
+          const isKbAdmin = isSuperAdmin || (staffList.find(s => s.id === adminStaffIdForRoles)?.access_roles ?? []).includes('kb_admin')
+
           return (
             <div>
               {/* Header */}
@@ -4407,7 +4643,11 @@ export default function AdminPage() {
 
               {/* Sub-tab pills */}
               <div style={{ display: 'flex', gap: '8px', marginBottom: '24px' }}>
-                {([{ key: 'documents', label: 'Documents' }, { key: 'workspaces', label: 'BD Workspaces' }] as { key: typeof docSubTab; label: string }[]).map(s => (
+                {([
+                  { key: 'documents', label: 'Documents' },
+                  { key: 'workspaces', label: 'BD Workspaces' },
+                  ...(isKbAdmin ? [{ key: 'intelligence', label: 'Intelligence' }] : []),
+                ] as { key: typeof docSubTab; label: string }[]).map(s => (
                   <button key={s.key} onClick={() => setDocSubTab(s.key)}
                     style={{ padding: '8px 18px', borderRadius: '10px', border: `1px solid ${docSubTab === s.key ? 'rgba(0,165,163,0.4)' : '#DDE8EE'}`, background: docSubTab === s.key ? 'rgba(0,165,163,0.08)' : '#FFFFFF', color: docSubTab === s.key ? '#00695C' : '#5B7080', fontSize: '13px', fontWeight: 800, cursor: 'pointer', fontFamily: 'inherit' }}>
                     {s.label}
@@ -4620,7 +4860,409 @@ export default function AdminPage() {
                     )
                   })()}
                 </div>
-              ) : (
+              ) : docSubTab === 'intelligence' ? (() => {
+                function scoreBadge(score: number | null) {
+                  if (score == null) return { color: '#5B7080', background: '#5B708015' }
+                  if (score >= 75) return { color: '#3D6B00', background: 'rgba(61,107,0,0.1)' }
+                  if (score >= 40) return { color: '#92400E', background: 'rgba(139,26,26,0.1)' }
+                  return { color: '#5B7080', background: '#5B708015' }
+                }
+
+                function renderIntelReviewCard(item: IntelItem) {
+                  const badge = scoreBadge(item.gemini_score)
+                  const isExpanded = expandedIntelItemId === item.id
+                  return (
+                    <div key={item.id} style={{ background: '#FFFFFF', border: '1px solid #DDE8EE', borderRadius: '16px', padding: '20px', marginBottom: '14px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px', flexWrap: 'wrap' }}>
+                        <span style={{ fontSize: '13px', fontWeight: 700, color: '#5B7080' }}>{item.kb_intel_sources?.name ?? 'Unknown source'}</span>
+                        <span style={{ fontSize: '13px', color: '#5B7080' }}>·</span>
+                        <span style={{ fontSize: '13px', color: '#5B7080' }}>{new Date(item.discovered_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}</span>
+                        <span style={{ marginLeft: 'auto', fontSize: '13px', fontWeight: 800, padding: '2px 10px', borderRadius: '10px', color: badge.color, background: badge.background }}>Score: {item.gemini_score ?? '—'}</span>
+                      </div>
+                      <a href={item.url} target="_blank" rel="noopener noreferrer" style={{ fontSize: '13px', fontWeight: 800, color: '#0F1923', textDecoration: 'none', display: 'block', marginBottom: '8px' }}>
+                        {item.title ?? item.url}
+                      </a>
+                      <div style={{ display: 'flex', gap: '6px', marginBottom: '8px', flexWrap: 'wrap' }}>
+                        {item.event_mentioned && <span style={{ fontSize: '13px', fontWeight: 700, color: '#00695C', background: 'rgba(0,165,163,0.1)', padding: '2px 8px', borderRadius: '10px' }}>{item.event_mentioned}</span>}
+                        {item.article_type && <span style={{ fontSize: '13px', fontWeight: 700, color: '#5B7080', background: '#E8EEF4', padding: '2px 8px', borderRadius: '10px', textTransform: 'capitalize' }}>{item.article_type.replace(/_/g, ' ')}</span>}
+                      </div>
+                      {item.gemini_reasoning && <p style={{ fontSize: '13px', color: '#5B7080', fontStyle: 'italic', margin: '0 0 10px', lineHeight: 1.6 }}>{item.gemini_reasoning}</p>}
+                      {item.gemini_summary && (
+                        <div style={{ marginBottom: '10px' }}>
+                          <button onClick={() => setExpandedIntelItemId(isExpanded ? null : item.id)}
+                            style={{ fontSize: '13px', fontWeight: 700, color: '#7C3AED', background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'inherit', padding: 0 }}>
+                            {isExpanded ? 'Hide Summary ▲' : 'Preview Summary ▼'}
+                          </button>
+                          {isExpanded && (
+                            <div style={{ marginTop: '8px', padding: '14px', background: '#E8EEF4', borderRadius: '10px', fontSize: '13px', color: '#2D3E50', whiteSpace: 'pre-wrap', lineHeight: 1.6, maxHeight: '320px', overflowY: 'auto' }}>
+                              {item.gemini_summary}
+                            </div>
+                          )}
+                        </div>
+                      )}
+                      <div style={{ display: 'flex', gap: '10px' }}>
+                        <button onClick={() => approveIntelItem(item.id)}
+                          style={{ padding: '9px 18px', borderRadius: '9px', border: 'none', background: '#C0F43C', color: '#0F1923', fontSize: '13px', fontWeight: 800, cursor: 'pointer', fontFamily: 'inherit' }}>
+                          Add to KB ✓
+                        </button>
+                        <button onClick={() => rejectIntelItem(item.id)}
+                          style={{ padding: '9px 18px', borderRadius: '9px', border: '1px solid rgba(255,107,107,0.3)', background: 'rgba(255,107,107,0.08)', color: '#FF6B6B', fontSize: '13px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
+                          Reject ✗
+                        </button>
+                      </div>
+                    </div>
+                  )
+                }
+
+                return (
+                <div>
+                  {/* Internal tab bar */}
+                  <div style={{ display: 'flex', gap: '8px', marginBottom: '20px' }}>
+                    {([
+                      { key: 'overview', label: 'Overview' },
+                      { key: 'review',   label: `Review Queue${intelPendingItems.length ? ` (${intelPendingItems.length})` : ''}` },
+                      { key: 'sources',  label: 'Sources' },
+                      { key: 'items',    label: 'All Items' },
+                    ] as { key: typeof intelSubTab; label: string }[]).map(s => (
+                      <button key={s.key} onClick={() => { setIntelSubTab(s.key); if (s.key === 'items') fetchIntelItems(0) }}
+                        style={{ padding: '8px 16px', borderRadius: '10px', border: `1px solid ${intelSubTab === s.key ? 'rgba(124,58,237,0.4)' : '#DDE8EE'}`, background: intelSubTab === s.key ? 'rgba(124,58,237,0.08)' : '#FFFFFF', color: intelSubTab === s.key ? '#7C3AED' : '#5B7080', fontSize: '13px', fontWeight: 800, cursor: 'pointer', fontFamily: 'inherit' }}>
+                        {s.label}
+                      </button>
+                    ))}
+                  </div>
+
+                  {intelLoading && <div style={{ fontSize: '13px', color: '#5B7080', marginBottom: '16px' }}>Loading…</div>}
+
+                  {intelSubTab === 'overview' && (
+                    <div>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '20px' }}>
+                        <div style={{ fontSize: '13px', fontWeight: 800, color: '#0F1923' }}>Press Intelligence</div>
+                        <button onClick={runIntelNow} disabled={intelRunning}
+                          style={{ padding: '10px 18px', borderRadius: '10px', border: 'none', background: intelRunning ? '#DDE8EE' : '#C0F43C', color: '#0F1923', fontSize: '13px', fontWeight: 800, cursor: intelRunning ? 'not-allowed' : 'pointer', fontFamily: 'inherit' }}>
+                          {intelRunning ? 'Running…' : 'Run Now ▶'}
+                        </button>
+                      </div>
+
+                      {intelMsg && <div style={{ fontSize: '13px', padding: '9px 12px', borderRadius: '8px', background: 'rgba(0,165,163,0.06)', border: '1px solid rgba(0,165,163,0.2)', color: '#00695C', marginBottom: '16px' }}>{intelMsg}</div>}
+
+                      <div style={{ display: 'flex', gap: '10px', marginBottom: '20px', flexWrap: 'wrap' }}>
+                        <div style={{ background: '#FFFFFF', border: '1px solid #DDE8EE', borderRadius: '12px', padding: '12px 16px' }}>
+                          <div style={{ fontSize: '13px', color: '#5B7080', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.6px', marginBottom: '4px' }}>Last Run</div>
+                          <div style={{ fontSize: '13px', fontWeight: 800, color: '#0F1923' }}>
+                            {intelRuns[0] ? new Date(intelRuns[0].started_at).toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : 'Never run'}
+                          </div>
+                        </div>
+                        <div style={{ background: '#FFFFFF', border: '1px solid #DDE8EE', borderRadius: '12px', padding: '12px 16px' }}>
+                          <div style={{ fontSize: '13px', color: '#5B7080', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.6px', marginBottom: '4px' }}>Next Run</div>
+                          <div style={{ fontSize: '13px', fontWeight: 800, color: '#0F1923' }}>{intelConfig?.cron_schedule_display ?? '—'}</div>
+                        </div>
+                        <div style={{ background: '#FFFFFF', border: '1px solid #DDE8EE', borderRadius: '12px', padding: '12px 16px', display: 'flex', alignItems: 'center', gap: '10px' }}>
+                          <div>
+                            <div style={{ fontSize: '13px', color: '#5B7080', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.6px', marginBottom: '4px' }}>Pipeline</div>
+                            <div style={{ fontSize: '13px', fontWeight: 800, color: intelConfig?.is_enabled ? '#3D6B00' : '#8B1A1A' }}>{intelConfig?.is_enabled ? 'Enabled' : 'Disabled'}</div>
+                          </div>
+                          <button onClick={toggleIntelEnabled}
+                            style={{ padding: '6px 12px', borderRadius: '8px', border: '1px solid #DDE8EE', background: '#FFFFFF', color: '#5B7080', fontSize: '13px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
+                            {intelConfig?.is_enabled ? 'Disable' : 'Enable'}
+                          </button>
+                        </div>
+                      </div>
+
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '12px', marginBottom: '24px' }}>
+                        {[
+                          { label: 'Auto-Published', value: intelRuns[0]?.items_auto_published ?? 0, color: '#3D6B00' },
+                          { label: 'Needs Review',   value: intelRuns[0]?.items_queued ?? 0,          color: '#92400E' },
+                          { label: 'Skipped',        value: intelRuns[0]?.items_skipped ?? 0,         color: '#5B7080' },
+                        ].map(stat => (
+                          <div key={stat.label} style={{ background: '#FFFFFF', border: '1px solid #DDE8EE', borderRadius: '12px', padding: '16px' }}>
+                            <div style={{ fontSize: '13px', color: '#5B7080', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.6px', marginBottom: '6px' }}>{stat.label}</div>
+                            <div style={{ fontSize: '24px', fontWeight: 800, color: stat.color }}>{stat.value}</div>
+                          </div>
+                        ))}
+                      </div>
+
+                      <div style={{ background: '#FFFFFF', border: '1px solid #DDE8EE', borderRadius: '16px', padding: '20px', marginBottom: '24px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '10px' }}>
+                          <div style={{ fontSize: '13px', fontWeight: 800, color: '#0F1923' }}>Event Registry — Powers Relevance Scoring</div>
+                          <span style={{ fontSize: '13px', color: '#5B7080' }}>Source: {intelConfig?.event_registry_source === 'eventpilot_internal' ? 'EventPilot Internal' : 'tresconglobal.com'}</span>
+                        </div>
+                        <div style={{ fontSize: '13px', color: '#5B7080', marginBottom: '12px' }}>
+                          Last refreshed: {intelConfig?.event_registry_last_updated ? new Date(intelConfig.event_registry_last_updated).toLocaleString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : 'Never'} · {intelConfig?.event_registry_data?.length ?? 0} events found
+                        </div>
+                        {(intelConfig?.event_registry_data?.length ?? 0) > 0 && (
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                            {intelConfig!.event_registry_data!.map((ev, i) => (
+                              <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '8px 12px', background: '#E8EEF4', borderRadius: '8px' }}>
+                                <span style={{ fontSize: '13px', fontWeight: 700, color: '#0F1923', flex: 1 }}>{ev.name}</span>
+                                {ev.status && <span style={{ fontSize: '13px', color: '#5B7080' }}>{ev.status}</span>}
+                                {ev.website && <a href={ev.website} target="_blank" rel="noopener noreferrer" style={{ fontSize: '13px', color: '#00897B', textDecoration: 'none' }}>Visit ↗</a>}
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+
+                      <div style={{ background: '#FFFFFF', border: '1px solid #DDE8EE', borderRadius: '16px', padding: '20px', marginBottom: '24px' }}>
+                        <div style={{ fontSize: '13px', fontWeight: 800, color: '#0F1923', marginBottom: '12px' }}>Run History</div>
+                        {intelRuns.length === 0 ? (
+                          <div style={{ fontSize: '13px', color: '#5B7080' }}>No runs yet.</div>
+                        ) : (
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                            {intelRuns.map(run => {
+                              const isExp = expandedIntelRunId === run.id
+                              return (
+                                <div key={run.id}>
+                                  <button onClick={() => setExpandedIntelRunId(isExp ? null : run.id)}
+                                    style={{ width: '100%', display: 'flex', alignItems: 'center', gap: '12px', padding: '10px 12px', background: '#E8EEF4', border: 'none', borderRadius: '8px', cursor: 'pointer', fontFamily: 'inherit', textAlign: 'left' }}>
+                                    <span style={{ fontSize: '13px', fontWeight: 700, color: '#0F1923' }}>{new Date(run.started_at).toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}</span>
+                                    <span style={{ fontSize: '13px', color: '#5B7080', textTransform: 'capitalize' }}>{run.triggered_by}</span>
+                                    <span style={{ fontSize: '13px', color: '#5B7080' }}>{run.sources_checked} sources</span>
+                                    <span style={{ fontSize: '13px', color: '#5B7080' }}>{run.urls_discovered} found</span>
+                                    <span style={{ fontSize: '13px', color: '#3D6B00' }}>{run.items_auto_published} published</span>
+                                    <span style={{ fontSize: '13px', color: '#92400E' }}>{run.items_queued} queued</span>
+                                    <span style={{ fontSize: '13px', color: '#5B7080' }}>{run.items_skipped} skipped</span>
+                                    <span style={{ marginLeft: 'auto', fontSize: '13px', fontWeight: 700, padding: '2px 8px', borderRadius: '10px', color: run.status === 'completed' ? '#3D6B00' : run.status === 'failed' ? '#8B1A1A' : '#5B7080', background: run.status === 'completed' ? 'rgba(61,107,0,0.1)' : run.status === 'failed' ? 'rgba(139,26,26,0.1)' : '#5B708015' }}>{run.status}</span>
+                                  </button>
+                                  {isExp && run.error_message && (
+                                    <div style={{ padding: '10px 12px', fontSize: '13px', color: '#8B1A1A', background: 'rgba(255,107,107,0.06)', borderRadius: '8px', marginTop: '4px' }}>{run.error_message}</div>
+                                  )}
+                                </div>
+                              )
+                            })}
+                          </div>
+                        )}
+                      </div>
+
+                      <div style={{ background: '#FFFFFF', border: '1px solid #DDE8EE', borderRadius: '16px', padding: '20px' }}>
+                        <div style={{ fontSize: '13px', fontWeight: 800, color: '#0F1923', marginBottom: '12px' }}>Thresholds</div>
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px', marginBottom: '14px' }}>
+                          <div>
+                            <label style={{ fontSize: '13px', fontWeight: 700, color: '#5B7080', letterSpacing: '0.8px', textTransform: 'uppercase', display: 'block', marginBottom: '5px' }}>Auto-Publish Threshold</label>
+                            <input type="number" min={0} max={100} value={intelThresholds.auto_publish_threshold}
+                              onChange={e => setIntelThresholds(p => ({ ...p, auto_publish_threshold: Number(e.target.value) }))}
+                              style={{ width: '100%', padding: '9px 12px', borderRadius: '9px', border: '1px solid #DDE8EE', background: '#FFFFFF', color: '#0F1923', fontSize: '13px', fontFamily: 'inherit', boxSizing: 'border-box' }} />
+                            <div style={{ fontSize: '13px', color: '#5B7080', marginTop: '4px' }}>Articles scoring above this are published automatically</div>
+                          </div>
+                          <div>
+                            <label style={{ fontSize: '13px', fontWeight: 700, color: '#5B7080', letterSpacing: '0.8px', textTransform: 'uppercase', display: 'block', marginBottom: '5px' }}>Review Threshold</label>
+                            <input type="number" min={0} max={100} value={intelThresholds.review_threshold}
+                              onChange={e => setIntelThresholds(p => ({ ...p, review_threshold: Number(e.target.value) }))}
+                              style={{ width: '100%', padding: '9px 12px', borderRadius: '9px', border: '1px solid #DDE8EE', background: '#FFFFFF', color: '#0F1923', fontSize: '13px', fontFamily: 'inherit', boxSizing: 'border-box' }} />
+                            <div style={{ fontSize: '13px', color: '#5B7080', marginTop: '4px' }}>Articles scoring above this but below auto-publish appear in the Review Queue</div>
+                          </div>
+                        </div>
+                        <button onClick={saveIntelThresholds}
+                          style={{ padding: '9px 18px', borderRadius: '9px', border: 'none', background: '#C0F43C', color: '#0F1923', fontSize: '13px', fontWeight: 800, cursor: 'pointer', fontFamily: 'inherit' }}>
+                          Save Changes
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
+                  {intelSubTab === 'review' && (
+                    <div>
+                      <div style={{ fontSize: '13px', fontWeight: 800, color: '#0F1923', marginBottom: '16px' }}>Needs Review ({intelPendingItems.length})</div>
+                      {intelPendingItems.length === 0 ? (
+                        <div style={{ fontSize: '13px', color: '#5B7080' }}>No items awaiting review.</div>
+                      ) : (
+                        intelPendingItems.map(item => renderIntelReviewCard(item))
+                      )}
+                    </div>
+                  )}
+
+                  {intelSubTab === 'sources' && (
+                    <div>
+                      <div style={{ background: '#FFFFFF', border: '1px solid #DDE8EE', borderRadius: '12px', padding: '14px 16px', marginBottom: '16px' }}>
+                        <div style={{ fontSize: '13px', fontWeight: 800, color: '#0F1923', marginBottom: '4px' }}>Event Registry (special — not editable)</div>
+                        <div style={{ fontSize: '13px', color: '#5B7080' }}>tresconglobal.com/events · weekly · event_extraction</div>
+                      </div>
+
+                      {([
+                        { category: 'owned_property', label: 'Owned Properties' },
+                        { category: 'partner_govt',   label: 'Partner & Government' },
+                        { category: 'press_media',    label: 'Press & Media' },
+                      ] as { category: 'owned_property' | 'partner_govt' | 'press_media'; label: string }[]).map(section => {
+                        const sectionSources = intelSources.filter(s => s.category === section.category)
+                        return (
+                          <div key={section.category} style={{ marginBottom: '20px' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '10px' }}>
+                              <div style={{ fontSize: '13px', fontWeight: 800, color: '#0F1923' }}>{section.label} ({sectionSources.length})</div>
+                              <button onClick={() => { setEditingIntelSourceId(null); setShowIntelSourceForm(section.category); setIntelSourceForm({ name: '', url: '', query: '', crawl_behaviour: 'article_discovery', crawl_frequency: 'weekly' }); setIntelSourceMsg('') }}
+                                style={{ padding: '6px 14px', borderRadius: '8px', border: '1px solid rgba(0,165,163,0.35)', background: 'rgba(0,165,163,0.08)', color: '#00695C', fontSize: '13px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
+                                + Add {section.category === 'press_media' ? 'Search Query' : 'Source'}
+                              </button>
+                            </div>
+
+                            {showIntelSourceForm === section.category && (
+                              <div style={{ background: '#FFFFFF', border: '1px solid rgba(0,165,163,0.25)', borderRadius: '12px', padding: '16px', marginBottom: '10px' }}>
+                                <div style={{ fontSize: '13px', fontWeight: 800, color: '#00695C', marginBottom: '10px', textTransform: 'uppercase', letterSpacing: '0.8px' }}>{editingIntelSourceId ? 'Edit Source' : 'New Source'}</div>
+                                <div style={{ marginBottom: '10px' }}>
+                                  <label style={{ fontSize: '13px', fontWeight: 700, color: '#5B7080', letterSpacing: '0.8px', textTransform: 'uppercase', display: 'block', marginBottom: '5px' }}>Name</label>
+                                  <input value={intelSourceForm.name} onChange={e => setIntelSourceForm(p => ({ ...p, name: e.target.value }))}
+                                    style={{ width: '100%', padding: '9px 12px', borderRadius: '9px', border: '1px solid #DDE8EE', fontSize: '13px', fontFamily: 'inherit', boxSizing: 'border-box' }} />
+                                </div>
+                                {section.category === 'press_media' ? (
+                                  <div style={{ marginBottom: '10px' }}>
+                                    <label style={{ fontSize: '13px', fontWeight: 700, color: '#5B7080', letterSpacing: '0.8px', textTransform: 'uppercase', display: 'block', marginBottom: '5px' }}>Search Query</label>
+                                    <input value={intelSourceForm.query} onChange={e => setIntelSourceForm(p => ({ ...p, query: e.target.value }))} placeholder="e.g. Trescon site:arabianbusiness.com"
+                                      style={{ width: '100%', padding: '9px 12px', borderRadius: '9px', border: '1px solid #DDE8EE', fontSize: '13px', fontFamily: 'inherit', boxSizing: 'border-box' }} />
+                                    <div style={{ fontSize: '13px', color: '#5B7080', marginTop: '4px' }}>Google search query. Use site: to restrict to a domain.</div>
+                                  </div>
+                                ) : (
+                                  <>
+                                    <div style={{ marginBottom: '10px' }}>
+                                      <label style={{ fontSize: '13px', fontWeight: 700, color: '#5B7080', letterSpacing: '0.8px', textTransform: 'uppercase', display: 'block', marginBottom: '5px' }}>URL</label>
+                                      <input value={intelSourceForm.url} onChange={e => setIntelSourceForm(p => ({ ...p, url: e.target.value }))} placeholder="https://difc.ae/newsroom"
+                                        style={{ width: '100%', padding: '9px 12px', borderRadius: '9px', border: '1px solid #DDE8EE', fontSize: '13px', fontFamily: 'inherit', boxSizing: 'border-box' }} />
+                                    </div>
+                                    <div style={{ marginBottom: '10px' }}>
+                                      <label style={{ fontSize: '13px', fontWeight: 700, color: '#5B7080', letterSpacing: '0.8px', textTransform: 'uppercase', display: 'block', marginBottom: '5px' }}>Crawl Behaviour</label>
+                                      <div style={{ display: 'flex', gap: '14px' }}>
+                                        <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px', color: '#0F1923', cursor: 'pointer' }}>
+                                          <input type="radio" checked={intelSourceForm.crawl_behaviour === 'article_discovery'} onChange={() => setIntelSourceForm(p => ({ ...p, crawl_behaviour: 'article_discovery' }))} />
+                                          Article Discovery
+                                        </label>
+                                        <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px', color: '#0F1923', cursor: 'pointer' }}>
+                                          <input type="radio" checked={intelSourceForm.crawl_behaviour === 'fact_extraction'} onChange={() => setIntelSourceForm(p => ({ ...p, crawl_behaviour: 'fact_extraction' }))} />
+                                          Fact Extraction
+                                        </label>
+                                      </div>
+                                    </div>
+                                  </>
+                                )}
+                                <div style={{ marginBottom: '10px' }}>
+                                  <label style={{ fontSize: '13px', fontWeight: 700, color: '#5B7080', letterSpacing: '0.8px', textTransform: 'uppercase', display: 'block', marginBottom: '5px' }}>Frequency</label>
+                                  <div style={{ display: 'flex', gap: '14px' }}>
+                                    <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px', color: '#0F1923', cursor: 'pointer' }}>
+                                      <input type="radio" checked={intelSourceForm.crawl_frequency === 'weekly'} onChange={() => setIntelSourceForm(p => ({ ...p, crawl_frequency: 'weekly' }))} />
+                                      Weekly
+                                    </label>
+                                    <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px', color: '#0F1923', cursor: 'pointer' }}>
+                                      <input type="radio" checked={intelSourceForm.crawl_frequency === 'monthly'} onChange={() => setIntelSourceForm(p => ({ ...p, crawl_frequency: 'monthly' }))} />
+                                      Monthly
+                                    </label>
+                                  </div>
+                                </div>
+                                {intelSourceMsg && <div style={{ fontSize: '13px', color: '#FF6B6B', marginBottom: '10px' }}>{intelSourceMsg}</div>}
+                                <div style={{ display: 'flex', gap: '8px' }}>
+                                  <button onClick={saveIntelSource}
+                                    style={{ padding: '9px 18px', borderRadius: '9px', border: 'none', background: '#C0F43C', color: '#0F1923', fontSize: '13px', fontWeight: 800, cursor: 'pointer', fontFamily: 'inherit' }}>
+                                    Save Source
+                                  </button>
+                                  <button onClick={() => { setShowIntelSourceForm(false); setEditingIntelSourceId(null); setIntelSourceMsg('') }}
+                                    style={{ padding: '9px 16px', borderRadius: '9px', border: '1px solid #B8CDD8', background: '#FFFFFF', color: '#5B7080', fontSize: '13px', fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>
+                                    Cancel
+                                  </button>
+                                </div>
+                              </div>
+                            )}
+
+                            {sectionSources.length === 0 ? (
+                              <div style={{ fontSize: '13px', color: '#5B7080' }}>No sources yet.</div>
+                            ) : (
+                              <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                                {sectionSources.map(source => (
+                                  <div key={source.id} style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '10px 14px', background: '#FFFFFF', border: '1px solid #DDE8EE', borderRadius: '10px' }}>
+                                    <button onClick={() => toggleIntelSourceActive(source)} title={source.is_active ? 'Active — click to pause' : 'Paused — click to activate'}
+                                      style={{ width: '10px', height: '10px', borderRadius: '50%', border: 'none', background: source.is_active ? '#3D6B00' : '#DDE8EE', cursor: 'pointer', flexShrink: 0, padding: 0 }} />
+                                    <span style={{ fontSize: '13px', fontWeight: 700, color: '#0F1923' }}>{source.name}</span>
+                                    <span style={{ fontSize: '13px', color: '#5B7080', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{source.config.url ?? source.config.query}</span>
+                                    <span style={{ fontSize: '13px', color: '#5B7080', textTransform: 'capitalize' }}>{source.crawl_frequency}</span>
+                                    <span style={{ fontSize: '13px', color: '#5B7080' }}>Last found: {source.last_found_count}</span>
+                                    <button onClick={() => startEditIntelSource(source)}
+                                      style={{ fontSize: '13px', fontWeight: 700, color: '#7C3AED', background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'inherit' }}>
+                                      Edit
+                                    </button>
+                                    <button onClick={() => deleteIntelSource(source.id)}
+                                      style={{ fontSize: '13px', fontWeight: 700, color: '#FF6B6B', background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'inherit' }}>
+                                      Delete
+                                    </button>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        )
+                      })}
+                    </div>
+                  )}
+
+                  {intelSubTab === 'items' && (
+                    <div>
+                      <div style={{ display: 'flex', gap: '10px', marginBottom: '16px', flexWrap: 'wrap', alignItems: 'center' }}>
+                        <input value={intelItemsFilter.search} onChange={e => setIntelItemsFilter(p => ({ ...p, search: e.target.value }))}
+                          onKeyDown={e => { if (e.key === 'Enter') fetchIntelItems(0) }}
+                          placeholder="Search title or URL…"
+                          style={{ padding: '8px 12px', borderRadius: '9px', border: '1px solid #DDE8EE', fontSize: '13px', fontFamily: 'inherit', minWidth: '220px' }} />
+                        <select value={intelItemsFilter.status} onChange={e => setIntelItemsFilter(p => ({ ...p, status: e.target.value }))}
+                          style={{ padding: '8px 12px', borderRadius: '9px', border: '1px solid #DDE8EE', fontSize: '13px', fontFamily: 'inherit' }}>
+                          <option value="all">All Statuses</option>
+                          <option value="auto_published">Auto-published</option>
+                          <option value="pending">Needs review</option>
+                          <option value="approved">Approved</option>
+                          <option value="rejected">Rejected</option>
+                          <option value="skipped">Skipped</option>
+                        </select>
+                        <select value={intelItemsFilter.source_id} onChange={e => setIntelItemsFilter(p => ({ ...p, source_id: e.target.value }))}
+                          style={{ padding: '8px 12px', borderRadius: '9px', border: '1px solid #DDE8EE', fontSize: '13px', fontFamily: 'inherit' }}>
+                          <option value="">All Sources</option>
+                          {intelSources.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                        </select>
+                        <button onClick={() => fetchIntelItems(0)}
+                          style={{ padding: '8px 16px', borderRadius: '9px', border: 'none', background: '#C0F43C', color: '#0F1923', fontSize: '13px', fontWeight: 800, cursor: 'pointer', fontFamily: 'inherit' }}>
+                          Apply
+                        </button>
+                      </div>
+
+                      {intelItems.length === 0 ? (
+                        <div style={{ fontSize: '13px', color: '#5B7080' }}>No items match these filters.</div>
+                      ) : (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                          {intelItems.map(item => {
+                            const isExp = expandedIntelItemId === item.id
+                            const badge = scoreBadge(item.gemini_score)
+                            return (
+                              <div key={item.id} style={{ background: '#FFFFFF', border: '1px solid #DDE8EE', borderRadius: '10px', padding: '12px 14px' }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+                                  <button onClick={() => setExpandedIntelItemId(isExp ? null : item.id)}
+                                    style={{ fontSize: '13px', fontWeight: 700, color: '#0F1923', background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'inherit', textAlign: 'left', flex: 1 }}>
+                                    {item.title ?? item.url}
+                                  </button>
+                                  <span style={{ fontSize: '13px', color: '#5B7080' }}>{item.kb_intel_sources?.name ?? '—'}</span>
+                                  <span style={{ fontSize: '13px', color: '#5B7080' }}>{new Date(item.discovered_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}</span>
+                                  <span style={{ fontSize: '13px', fontWeight: 800, padding: '2px 8px', borderRadius: '10px', color: badge.color, background: badge.background }}>{item.gemini_score ?? '—'}</span>
+                                  <span style={{ fontSize: '13px', fontWeight: 700, color: '#5B7080', textTransform: 'capitalize' }}>{item.status.replace(/_/g, ' ')}</span>
+                                  <a href={item.url} target="_blank" rel="noopener noreferrer" style={{ fontSize: '13px', color: '#00897B', textDecoration: 'none' }}>View original ↗</a>
+                                  {item.document_id && <Link href="/knowledge" style={{ fontSize: '13px', color: '#7C3AED', textDecoration: 'none' }}>View in KB</Link>}
+                                </div>
+                                {isExp && (
+                                  <div style={{ marginTop: '10px', padding: '12px', background: '#E8EEF4', borderRadius: '8px' }}>
+                                    {item.gemini_reasoning && <p style={{ fontSize: '13px', color: '#5B7080', fontStyle: 'italic', margin: '0 0 8px' }}>{item.gemini_reasoning}</p>}
+                                    {item.gemini_summary && <div style={{ fontSize: '13px', color: '#2D3E50', whiteSpace: 'pre-wrap', lineHeight: 1.6, maxHeight: '260px', overflowY: 'auto' }}>{item.gemini_summary}</div>}
+                                  </div>
+                                )}
+                              </div>
+                            )
+                          })}
+                        </div>
+                      )}
+
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginTop: '16px' }}>
+                        <button onClick={() => fetchIntelItems(Math.max(0, intelItemsPage - 1))} disabled={intelItemsPage === 0}
+                          style={{ padding: '7px 14px', borderRadius: '8px', border: '1px solid #DDE8EE', background: '#FFFFFF', color: '#5B7080', fontSize: '13px', fontWeight: 700, cursor: intelItemsPage === 0 ? 'not-allowed' : 'pointer', fontFamily: 'inherit' }}>
+                          ← Previous
+                        </button>
+                        <span style={{ fontSize: '13px', color: '#5B7080' }}>Page {intelItemsPage + 1} of {Math.max(1, Math.ceil(intelItemsTotal / 20))}</span>
+                        <button onClick={() => fetchIntelItems(intelItemsPage + 1)} disabled={(intelItemsPage + 1) * 20 >= intelItemsTotal}
+                          style={{ padding: '7px 14px', borderRadius: '8px', border: '1px solid #DDE8EE', background: '#FFFFFF', color: '#5B7080', fontSize: '13px', fontWeight: 700, cursor: (intelItemsPage + 1) * 20 >= intelItemsTotal ? 'not-allowed' : 'pointer', fontFamily: 'inherit' }}>
+                          Next →
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+                )
+              })() : (
               <>
               {/* EMPTY STATE */}
               {!docsLoading && docs.length === 0 && (
@@ -4676,6 +5318,24 @@ export default function AdminPage() {
 
                   {/* Inline upload form */}
                   {showUploadForm && <div style={{ marginBottom: '24px' }}>{uploadForm}</div>}
+
+                  {/* Category filter pills */}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '10px', flexWrap: 'wrap' }}>
+                    {([
+                      { key:'all',                    label:`All (${categoryCount('all')})` },
+                      { key:'event_intelligence',     label:`Event Intelligence (${categoryCount('event_intelligence')})` },
+                      { key:'business_development',   label:`Business Development (${categoryCount('business_development')})` },
+                      { key:'project_management',     label:`Project Management (${categoryCount('project_management')})` },
+                      { key:'marketing',               label:`Marketing (${categoryCount('marketing')})` },
+                      { key:'company_knowledge',       label:`Company Knowledge (${categoryCount('company_knowledge')})` },
+                      { key:'external',                label:`External (${categoryCount('external')})` },
+                    ] as {key:typeof docCategoryFilter;label:string}[]).map(f => (
+                      <button key={f.key} onClick={() => setDocCategoryFilter(f.key)}
+                        style={{ padding: '6px 14px', borderRadius: '16px', border: `1px solid ${docCategoryFilter === f.key ? 'rgba(0,165,163,0.4)' : '#DDE8EE'}`, background: docCategoryFilter === f.key ? 'rgba(0,165,163,0.08)' : 'transparent', color: docCategoryFilter === f.key ? '#00695C' : '#5B7080', fontSize: '13px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
+                        {f.label}
+                      </button>
+                    ))}
+                  </div>
 
                   {/* Filter pills + count */}
                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '20px', flexWrap: 'wrap' }}>
@@ -4774,7 +5434,7 @@ export default function AdminPage() {
                                   {doc.word_count?.toLocaleString()} words · {new Date(doc.created_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}
                                 </span>
                                 <div style={{ display: 'flex', gap: '10px' }}>
-                                  <button onClick={() => { setSupersedesDoc(doc); setDocForm(p => ({ ...p, title: doc.title, type: doc.type, workspace_id: doc.workspace_id ?? '' })); setShowUploadForm(true); window.scrollTo({ top: 0, behavior: 'smooth' }) }}
+                                  <button onClick={() => { setSupersedesDoc(doc); setDocForm(p => ({ ...p, title: doc.title, type: doc.type, workspace_id: doc.workspace_id ?? '', doc_category: doc.doc_category ?? '' })); setShowUploadForm(true); window.scrollTo({ top: 0, behavior: 'smooth' }) }}
                                     style={{ fontSize: '13px', fontWeight: 700, color: '#00897B', background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'inherit', padding: '2px 4px' }}>
                                     New Version
                                   </button>

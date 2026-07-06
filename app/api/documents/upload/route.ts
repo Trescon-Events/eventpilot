@@ -187,6 +187,7 @@ export async function POST(req: NextRequest) {
     const type          = form.get('type') as string
     const uploaded_by   = form.get('uploaded_by') as string | null
     const source_url    = (form.get('source_url') as string | null)?.trim() || null
+    const doc_category  = (form.get('doc_category') as string | null) || 'uncategorised'
     const workspace_id  = (form.get('workspace_id') as string | null) || null
     const supersedes_id = (form.get('supersedes_id') as string | null) || null
     const version_note  = (form.get('version_note') as string | null)?.trim() || null
@@ -266,12 +267,13 @@ export async function POST(req: NextRequest) {
         confidence:     analysis.confidence,
         flagged,
         source_url:     source_url,
+        doc_category:   doc_category,
         workspace_id:   workspace_id,
         document_group_id: documentGroupId,
         version,
         version_note:   supersedes_id ? version_note : null,
       })
-      .select('id, title, word_count, layer, department, min_level, pilot_use, ai_reasoning, confidence, flagged, version, document_group_id')
+      .select('id, title, word_count, layer, department, min_level, pilot_use, doc_category, ai_reasoning, confidence, flagged, version, document_group_id')
       .single()
 
     if (error) throw error

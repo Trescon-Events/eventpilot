@@ -33,11 +33,12 @@ export async function POST(req: NextRequest) {
 
     const guide = readFileSync(join(process.cwd(), 'knowledge-engine', 'generators', 'proposal-creator.md'), 'utf-8')
 
+    const PROPOSAL_CATEGORIES = ['business_development', 'event_intelligence', 'company_knowledge']
     const [credentials, reference, proposals, eventReports] = await Promise.all([
-      getKBContext({ types: ['corporate_profile'], pilotUseOnly: false, limit: 2, maxCharsPerDoc: 6000 }),
-      getKBContext({ types: ['other'],             pilotUseOnly: false, limit: 5, maxCharsPerDoc: 6000 }),
-      getKBContext({ types: ['proposal'],          pilotUseOnly: false, limit: 10, maxCharsPerDoc: 3000 }),
-      getKBContext({ types: ['event_report'],      pilotUseOnly: false, limit: 8, maxCharsPerDoc: 2000 }),
+      getKBContext({ types: ['corporate_profile'], categories: PROPOSAL_CATEGORIES, pilotUseOnly: false, limit: 2, maxCharsPerDoc: 6000 }),
+      getKBContext({ types: ['other'],             categories: PROPOSAL_CATEGORIES, pilotUseOnly: false, limit: 5, maxCharsPerDoc: 6000 }),
+      getKBContext({ types: ['proposal'],          categories: PROPOSAL_CATEGORIES, pilotUseOnly: false, limit: 10, maxCharsPerDoc: 3000 }),
+      getKBContext({ types: ['event_report'],      categories: PROPOSAL_CATEGORIES, pilotUseOnly: false, limit: 8, maxCharsPerDoc: 2000 }),
     ])
 
     const inputBlock = [

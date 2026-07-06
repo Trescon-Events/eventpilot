@@ -33,10 +33,11 @@ export async function POST(req: NextRequest) {
 
     const guide = readFileSync(join(process.cwd(), 'knowledge-engine', 'generators', 'project-brief-creator.md'), 'utf-8')
 
+    const BRIEF_CATEGORIES = ['event_intelligence', 'project_management', 'company_knowledge', 'external_owned']
     const [credentials, pastReports, proposals] = await Promise.all([
-      getKBContext({ types: ['corporate_profile'], pilotUseOnly: false, limit: 2, maxCharsPerDoc: 5000 }),
-      getKBContext({ types: ['event_report'],       pilotUseOnly: false, limit: 10, maxCharsPerDoc: 3000 }),
-      getKBContext({ types: ['proposal'],           pilotUseOnly: false, limit: 6, maxCharsPerDoc: 2500 }),
+      getKBContext({ types: ['corporate_profile'], categories: BRIEF_CATEGORIES, pilotUseOnly: false, limit: 2, maxCharsPerDoc: 5000 }),
+      getKBContext({ types: ['event_report'],       categories: BRIEF_CATEGORIES, pilotUseOnly: false, limit: 10, maxCharsPerDoc: 3000 }),
+      getKBContext({ types: ['proposal'],           categories: BRIEF_CATEGORIES, pilotUseOnly: false, limit: 6, maxCharsPerDoc: 2500 }),
     ])
 
     const eventBlock = [

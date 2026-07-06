@@ -109,7 +109,7 @@ Return ONLY valid JSON, no markdown:
 
 export async function POST(req: NextRequest) {
   try {
-    const { storage_path, title, type, uploaded_by, source_url, workspace_id, supersedes_id, version_note } = await req.json()
+    const { storage_path, title, type, uploaded_by, source_url, doc_category, workspace_id, supersedes_id, version_note } = await req.json()
     if (!storage_path || !title || !type) {
       return NextResponse.json({ error: 'storage_path, title and type are required' }, { status: 400 })
     }
@@ -179,12 +179,13 @@ export async function POST(req: NextRequest) {
         confidence: analysis.confidence,
         flagged,
         source_url: source_url?.trim() || null,
+        doc_category: doc_category || 'uncategorised',
         workspace_id: workspace_id || null,
         document_group_id: documentGroupId,
         version,
         version_note: supersedes_id ? (version_note?.trim() || null) : null,
       })
-      .select('id, title, word_count, layer, department, min_level, pilot_use, ai_reasoning, confidence, flagged, version, document_group_id')
+      .select('id, title, word_count, layer, department, min_level, pilot_use, doc_category, ai_reasoning, confidence, flagged, version, document_group_id')
       .single()
 
     if (error) throw error

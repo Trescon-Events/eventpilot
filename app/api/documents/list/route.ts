@@ -28,6 +28,7 @@ export async function GET(req: NextRequest) {
           pilot_use, ai_reasoning, confidence, status, flagged,
           submitted_by, reviewed_by, review_note, created_at,
           source_url, version, document_group_id, superseded_by, workspace_id,
+          doc_category,
           extracted_text,
           events(name)
         `)
@@ -45,6 +46,7 @@ export async function GET(req: NextRequest) {
           id, title, type, visibility, word_count, layer, department, min_level,
           pilot_use, ai_reasoning, confidence, status, flagged, created_at,
           source_url, version, document_group_id, superseded_by, workspace_id,
+          doc_category,
           events(name)
         `)
         .eq('is_active', true)
