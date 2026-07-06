@@ -341,18 +341,20 @@ export async function POST(req: NextRequest) {
   }
   const triggeredBy = isCron ? 'scheduler' : 'manual'
 
+  const { data: config } = await supabaseAdmin.from('kb_intel_config').select('*').limit(1).single()
+  if (!config) {
+    return NextResponse.json({ error: 'kb_intel_config row missing — run the migration first.' }, { status: 500 })
+  }
+  if (!config.is_enabled) {
+    return NextResponse.json({ success: true, skipped: true, reason: 'Pipeline is disabled in Intelligence → Overview.' })
+  }
+
   const { data: run, error: runErr } = await supabaseAdmin
     .from('kb_intel_runs')
     .insert({ status: 'running', triggered_by: triggeredBy })
     .select('id')
     .single()
   if (runErr || !run) return NextResponse.json({ error: 'Could not start run.' }, { status: 500 })
-
-  const { data: config } = await supabaseAdmin.from('kb_intel_config').select('*').limit(1).single()
-  if (!config) {
-    await supabaseAdmin.from('kb_intel_runs').update({ status: 'failed', completed_at: new Date().toISOString(), error_message: 'kb_intel_config row missing — run the migration first.' }).eq('id', run.id)
-    return NextResponse.json({ error: 'kb_intel_config row missing — run the migration first.' }, { status: 500 })
-  }
 
   // Fire and forget — see the note above executeRun() for why this is safe here.
   executeRun(run.id, config).catch(async e => {
