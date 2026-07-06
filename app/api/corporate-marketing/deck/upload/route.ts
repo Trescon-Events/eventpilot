@@ -22,7 +22,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/app/lib/supabase'
 
 const BUCKET = 'corporate-marketing'
-const MAX_BYTES = 50 * 1024 * 1024        // 50 MB
+const MAX_BYTES = 100 * 1024 * 1024       // 100 MB
 const ALLOWED_TYPES = ['application/pdf']
 
 type Session = { sid: string; adm?: boolean }
@@ -49,10 +49,20 @@ async function requireAccess(req: NextRequest): Promise<{ ok: true; session: Ses
 }
 
 async function ensureBucket() {
-  await supabaseAdmin.storage.createBucket(BUCKET, {
+  // createBucket errors if it already exists. In that case, sync the file
+  // size limit via updateBucket so a limit bump (e.g. 50 → 100 MB) actually
+  // reaches Supabase Storage — otherwise the bucket keeps its original cap
+  // and Storage rejects the upload even if our server code allows it.
+  const { error: createErr } = await supabaseAdmin.storage.createBucket(BUCKET, {
     public: false,
     fileSizeLimit: MAX_BYTES,
-  }).catch(() => { /* already exists — createBucket errors if it does */ })
+  })
+  if (createErr) {
+    await supabaseAdmin.storage.updateBucket(BUCKET, {
+      public: false,
+      fileSizeLimit: MAX_BYTES,
+    }).catch(() => { /* best effort */ })
+  }
 }
 
 async function pdfPageCount(buffer: Buffer): Promise<number | null> {
@@ -81,7 +91,7 @@ export async function POST(req: NextRequest) {
 
   if (!(file instanceof File)) return NextResponse.json({ error: 'file required' }, { status: 400 })
   if (!ALLOWED_TYPES.includes(file.type)) return NextResponse.json({ error: 'PDF only' }, { status: 400 })
-  if (file.size > MAX_BYTES) return NextResponse.json({ error: 'File exceeds 50 MB' }, { status: 400 })
+  if (file.size > MAX_BYTES) return NextResponse.json({ error: 'File exceeds 100 MB' }, { status: 400 })
 
   await ensureBucket()
 

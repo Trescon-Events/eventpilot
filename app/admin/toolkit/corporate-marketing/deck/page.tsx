@@ -246,7 +246,7 @@ function OverviewTab() {
           </svg>
           <span style={{ fontSize: '12px', color: '#5B7080', fontWeight: 600 }}>
             <strong style={{ color: '#0F1923' }}>Accepted:</strong> PDF only <span style={{ color: '#DDE8EE' }}>·</span>{' '}
-            <strong style={{ color: '#0F1923' }}>Max size:</strong> 50 MB
+            <strong style={{ color: '#0F1923' }}>Max size:</strong> 100 MB
           </span>
         </div>
 
