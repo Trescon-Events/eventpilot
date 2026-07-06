@@ -102,6 +102,7 @@ export async function middleware(req: NextRequest) {
     pathname.startsWith('/api/admin/set-job-level') ||
     pathname.startsWith('/api/admin/tool-permissions') ||
     pathname.startsWith('/api/cron/') ||
+    pathname.startsWith('/api/kb/intel/run') ||  // cron-job.org calls this with no session cookie; auth checked inside via bearer token or admin_staff_id
     pathname.startsWith('/api/seed-platform-docs') ||
     pathname.startsWith('/api/seed-courses') ||
     pathname.startsWith('/api/seed-demo')
