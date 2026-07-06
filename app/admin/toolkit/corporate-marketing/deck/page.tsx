@@ -5,6 +5,7 @@
 
   Live tabs:
     - Overview          ✓ chunk 2 — upload PDF + save Canva link
+                        ✓ chunk 3 — run Gemini analysis + confirm mappings
     - Dynamic Content   → chunk 4
     - Testimonials      → chunk 4
     - Approved Images   → chunk 4
@@ -293,23 +294,321 @@ function OverviewTab() {
         )}
       </section>
 
-      {/* AI analysis status */}
-      <section style={{ background: '#fff', border: '1px solid #DDE8EE', borderRadius: '20px', padding: '28px', boxShadow: '0 2px 16px rgba(0,0,0,0.04)' }}>
-        <div style={{ fontSize: '11px', fontWeight: 800, color: '#B8CDD8', letterSpacing: '2px', textTransform: 'uppercase' }}>AI Deck Analysis</div>
-        <div style={{ fontSize: '18px', fontWeight: 900, color: '#0F1923', marginTop: '4px', marginBottom: '6px' }}>Gemini section detection</div>
-        <div style={{ fontSize: '13px', color: '#5B7080', lineHeight: 1.6 }}>
-          {hasDeck
-            ? 'Ready to analyse. Once you trigger analysis, Gemini will identify the sections likely to change regularly — company info, stats, upcoming events, leadership, testimonials, images. You confirm the detected sections before EventPilot creates the editable mappings. Coming in chunk 3.'
-            : 'Upload a deck first — AI analysis runs on the uploaded PDF.'}
-        </div>
-        <button
-          disabled
-          style={{ marginTop: '16px', background: '#EEF3F7', color: '#94A3B8', border: 'none', borderRadius: '10px', padding: '11px 22px', fontSize: '13px', fontWeight: 800, cursor: 'not-allowed', fontFamily: 'inherit' }}
-        >
-          Run AI analysis (chunk 3)
-        </button>
-      </section>
+      {/* AI analysis */}
+      <AnalysisPanel deck={deck} onRefresh={refresh} />
+
+      {/* Detected sections — only rendered when analysis is ready */}
+      {deck && (deck.ai_analysis_status === 'ready' || deck.ai_analysis_status === 'confirmed') && (
+        <DetectedSectionsPanel deckStatus={deck.ai_analysis_status} onRefresh={refresh} />
+      )}
     </div>
+  )
+}
+
+/* ────────────────────────────────────────────────────────────────
+   AI analysis trigger panel
+   ──────────────────────────────────────────────────────────────── */
+
+function AnalysisPanel({ deck, onRefresh }: { deck: Deck | null; onRefresh: () => Promise<void> }) {
+  const hasDeck = !!deck?.pdf_storage_path
+  const status = deck?.ai_analysis_status ?? 'pending'
+  const [running, setRunning] = useState(false)
+  const [err, setErr] = useState<string | null>(null)
+
+  async function runAnalysis() {
+    setRunning(true)
+    setErr(null)
+    try {
+      const res = await fetch('/api/corporate-marketing/deck/analyse', { method: 'POST' })
+      if (!res.ok) {
+        const d = await res.json().catch(() => ({}))
+        throw new Error(d?.error ?? `Analysis failed (${res.status})`)
+      }
+      await onRefresh()
+    } catch (e) {
+      setErr((e as Error).message)
+    } finally {
+      setRunning(false)
+    }
+  }
+
+  const buttonLabel = (() => {
+    if (running || status === 'running') return 'Analysing…'
+    if (status === 'ready')     return 'Re-run analysis'
+    if (status === 'confirmed') return 'Re-run analysis'
+    if (status === 'failed')    return 'Retry analysis'
+    return 'Run AI analysis'
+  })()
+
+  const disabled = !hasDeck || running || status === 'running'
+
+  return (
+    <section style={{ background: '#fff', border: '1px solid #DDE8EE', borderRadius: '20px', padding: '28px', boxShadow: '0 2px 16px rgba(0,0,0,0.04)' }}>
+      <div style={{ fontSize: '11px', fontWeight: 800, color: '#B8CDD8', letterSpacing: '2px', textTransform: 'uppercase' }}>AI Deck Analysis</div>
+      <div style={{ fontSize: '18px', fontWeight: 900, color: '#0F1923', marginTop: '4px', marginBottom: '6px' }}>Gemini section detection</div>
+      <div style={{ fontSize: '13px', color: '#5B7080', lineHeight: 1.6 }}>
+        {!hasDeck && 'Upload a deck first — AI analysis runs on the uploaded PDF.'}
+        {hasDeck && status === 'pending'   && 'Gemini reads the PDF and proposes the sections that change month-to-month. You confirm the detected sections before EventPilot creates the editable mappings.'}
+        {hasDeck && status === 'running'   && 'Gemini is reading the deck. This takes 30–60 seconds for a typical corporate deck.'}
+        {hasDeck && status === 'ready'     && 'Analysis complete. Confirm the detected sections below to unlock the editable workspace.'}
+        {hasDeck && status === 'confirmed' && 'Mappings are confirmed. Editable workspace is live in the Dynamic Content tab (coming in chunk 4).'}
+        {hasDeck && status === 'failed'    && `Analysis failed. ${deck?.pdf_file_name ? '' : ''}Try again or replace the PDF.`}
+      </div>
+
+      <button
+        onClick={runAnalysis}
+        disabled={disabled}
+        style={{
+          marginTop: '16px',
+          background: disabled ? '#EEF3F7' : BRAND,
+          color:      disabled ? '#94A3B8' : '#fff',
+          border: 'none', borderRadius: '10px',
+          padding: '11px 22px', fontSize: '13px', fontWeight: 800,
+          cursor: disabled ? 'not-allowed' : 'pointer',
+          fontFamily: 'inherit',
+        }}
+      >
+        {buttonLabel}
+      </button>
+
+      {err && (
+        <div style={{ marginTop: '14px', padding: '10px 14px', borderRadius: '10px', background: '#FFF4F4', border: '1px solid #FBCACA', color: '#C2410C', fontSize: '12px', fontWeight: 700 }}>
+          {err}
+        </div>
+      )}
+    </section>
+  )
+}
+
+/* ────────────────────────────────────────────────────────────────
+   Detected sections — confirm/exclude/edit mappings
+   ──────────────────────────────────────────────────────────────── */
+
+type Mapping = {
+  id:              string
+  section_key:     string
+  section_label:   string
+  slide_numbers:   number[]
+  confirmed:       boolean
+  ai_confidence:   number | null
+  sample_content:  string
+}
+
+function DetectedSectionsPanel({ deckStatus, onRefresh }: { deckStatus: string; onRefresh: () => Promise<void> }) {
+  const [mappings, setMappings] = useState<Mapping[] | null>(null)
+  const [loading, setLoading]   = useState(true)
+  const [saving,  setSaving]    = useState(false)
+  const [errText, setErrText]   = useState<string | null>(null)
+  // Local per-row edits
+  const [drafts, setDrafts] = useState<Record<string, { include: boolean; slidesText: string; label: string }>>({})
+
+  const load = useCallback(async () => {
+    setLoading(true)
+    const res = await fetch('/api/corporate-marketing/deck/mappings', { cache: 'no-store' })
+    if (res.ok) {
+      const d = await res.json()
+      const list: Mapping[] = d.mappings ?? []
+      setMappings(list)
+      const initial: Record<string, { include: boolean; slidesText: string; label: string }> = {}
+      for (const m of list) {
+        initial[m.id] = {
+          include:    true,
+          slidesText: m.slide_numbers.join(', '),
+          label:      m.section_label,
+        }
+      }
+      setDrafts(initial)
+    }
+    setLoading(false)
+  }, [])
+
+  useEffect(() => { load() }, [load])
+
+  function toggleInclude(id: string) {
+    setDrafts(d => ({ ...d, [id]: { ...d[id], include: !d[id].include } }))
+  }
+  function editSlides(id: string, text: string) {
+    setDrafts(d => ({ ...d, [id]: { ...d[id], slidesText: text } }))
+  }
+  function editLabel(id: string, text: string) {
+    setDrafts(d => ({ ...d, [id]: { ...d[id], label: text } }))
+  }
+
+  function parseSlides(text: string): number[] {
+    return text.split(/[,\s]+/)
+      .map(x => Number(x.trim()))
+      .filter(n => Number.isInteger(n) && n > 0)
+      .sort((a, b) => a - b)
+  }
+
+  async function confirmAll() {
+    if (!mappings) return
+    setSaving(true)
+    setErrText(null)
+    try {
+      const payload = {
+        confirmed: mappings.map(m => {
+          const d = drafts[m.id]
+          return {
+            id:            m.id,
+            include:       d?.include ?? true,
+            slide_numbers: parseSlides(d?.slidesText ?? ''),
+            section_label: d?.label ?? m.section_label,
+          }
+        }),
+      }
+      const res = await fetch('/api/corporate-marketing/deck/mappings', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify(payload),
+      })
+      if (!res.ok) {
+        const d = await res.json().catch(() => ({}))
+        throw new Error(d?.error ?? 'Save failed')
+      }
+      await Promise.all([load(), onRefresh()])
+    } catch (e) {
+      setErrText((e as Error).message)
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  if (loading) {
+    return (
+      <section style={{ background: '#fff', border: '1px solid #DDE8EE', borderRadius: '20px', padding: '28px' }}>
+        <div style={{ fontSize: '13px', color: '#5B7080' }}>Loading detected sections…</div>
+      </section>
+    )
+  }
+
+  const list = mappings ?? []
+
+  if (list.length === 0) {
+    return (
+      <section style={{ background: '#fff', border: '1px solid #DDE8EE', borderRadius: '20px', padding: '28px' }}>
+        <div style={{ fontSize: '11px', fontWeight: 800, color: '#B8CDD8', letterSpacing: '2px', textTransform: 'uppercase' }}>Detected sections</div>
+        <div style={{ fontSize: '18px', fontWeight: 900, color: '#0F1923', marginTop: '4px', marginBottom: '6px' }}>No dynamic sections detected</div>
+        <p style={{ fontSize: '13px', color: '#5B7080', lineHeight: 1.6, margin: 0 }}>
+          Gemini didn&apos;t confidently identify any editable sections in this deck. This can happen with image-heavy Canva exports where text is flattened into images. Try re-running the analysis, or add sections manually from the Dynamic Content tab once chunk 4 lands.
+        </p>
+      </section>
+    )
+  }
+
+  const allConfirmed = list.every(m => m.confirmed)
+
+  return (
+    <section style={{ background: '#fff', border: '1px solid #DDE8EE', borderRadius: '20px', padding: '28px', boxShadow: '0 2px 16px rgba(0,0,0,0.04)' }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '4px' }}>
+        <div style={{ fontSize: '11px', fontWeight: 800, color: '#B8CDD8', letterSpacing: '2px', textTransform: 'uppercase' }}>Detected sections</div>
+        {allConfirmed && deckStatus === 'confirmed' && (
+          <span style={{ fontSize: '11px', fontWeight: 800, color: '#00897B', background: '#D1FAE5', padding: '5px 12px', borderRadius: '14px' }}>All confirmed ✓</span>
+        )}
+      </div>
+      <div style={{ fontSize: '18px', fontWeight: 900, color: '#0F1923', marginTop: '4px', marginBottom: '6px' }}>
+        {allConfirmed && deckStatus === 'confirmed' ? 'Sections confirmed' : 'Review and confirm'}
+      </div>
+      <div style={{ fontSize: '13px', color: '#5B7080', lineHeight: 1.6, marginBottom: '20px' }}>
+        Gemini found {list.length} candidate section{list.length === 1 ? '' : 's'}. Toggle any you don&apos;t want, correct slide numbers if needed, then confirm.
+      </div>
+
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+        {list.map(m => {
+          const d = drafts[m.id] ?? { include: true, slidesText: m.slide_numbers.join(', '), label: m.section_label }
+          const conf = m.ai_confidence ?? 0
+          const confBadge = conf >= 0.85 ? { bg: '#D1FAE5', color: '#00897B', label: `${Math.round(conf*100)}%` }
+                          : conf >= 0.6  ? { bg: '#FEF3C7', color: '#B45309', label: `${Math.round(conf*100)}%` }
+                          :                 { bg: '#FEE2E2', color: '#B91C1C', label: `${Math.round(conf*100)}%` }
+          const excluded = !d.include
+          return (
+            <div key={m.id} style={{
+              border: `1px solid ${excluded ? '#EEF3F7' : '#DDE8EE'}`,
+              background: excluded ? '#FAFBFC' : '#fff',
+              borderRadius: '14px',
+              padding: '16px 18px',
+              opacity: excluded ? 0.55 : 1,
+              transition: 'opacity 0.15s',
+            }}>
+              <div style={{ display: 'flex', gap: '12px', alignItems: 'flex-start', flexWrap: 'wrap' }}>
+                <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
+                  <input
+                    type="checkbox"
+                    checked={d.include}
+                    onChange={() => toggleInclude(m.id)}
+                    style={{ width: '16px', height: '16px', accentColor: BRAND, cursor: 'pointer' }}
+                  />
+                </label>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap', marginBottom: '6px' }}>
+                    <input
+                      type="text"
+                      value={d.label}
+                      onChange={e => editLabel(m.id, e.target.value)}
+                      disabled={excluded}
+                      style={{ fontSize: '14px', fontWeight: 800, color: '#0F1923', border: 'none', background: 'transparent', outline: 'none', padding: '2px 6px', borderRadius: '6px', minWidth: '180px', fontFamily: 'inherit' }}
+                    />
+                    <span style={{ fontSize: '10px', fontWeight: 800, color: '#94A3B8', background: '#EEF3F7', padding: '3px 8px', borderRadius: '10px', letterSpacing: '0.5px' }}>
+                      {m.section_key}
+                    </span>
+                    <span style={{ fontSize: '10px', fontWeight: 800, color: confBadge.color, background: confBadge.bg, padding: '3px 8px', borderRadius: '10px' }}>
+                      {confBadge.label}
+                    </span>
+                    {m.confirmed && (
+                      <span style={{ fontSize: '10px', fontWeight: 800, color: '#00897B', background: '#D1FAE5', padding: '3px 8px', borderRadius: '10px' }}>
+                        Mapped
+                      </span>
+                    )}
+                  </div>
+
+                  {m.sample_content && (
+                    <div style={{ fontSize: '12px', color: '#5B7080', lineHeight: 1.5, marginBottom: '10px', fontStyle: 'italic' }}>
+                      &ldquo;{m.sample_content}&rdquo;
+                    </div>
+                  )}
+
+                  <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
+                    <span style={{ fontSize: '11px', fontWeight: 700, color: '#94A3B8', letterSpacing: '0.5px', textTransform: 'uppercase' }}>Slides</span>
+                    <input
+                      type="text"
+                      value={d.slidesText}
+                      onChange={e => editSlides(m.id, e.target.value)}
+                      disabled={excluded}
+                      placeholder="e.g. 4, 18, 29"
+                      style={{ fontSize: '12px', color: '#0F1923', border: '1px solid #DDE8EE', background: '#fff', outline: 'none', padding: '5px 10px', borderRadius: '8px', fontFamily: 'inherit', width: '180px' }}
+                    />
+                  </div>
+                </div>
+              </div>
+            </div>
+          )
+        })}
+      </div>
+
+      <div style={{ marginTop: '22px', display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
+        <button
+          onClick={confirmAll}
+          disabled={saving}
+          style={{
+            background: BRAND, color: '#fff', border: 'none', borderRadius: '10px',
+            padding: '12px 26px', fontSize: '13px', fontWeight: 800,
+            cursor: saving ? 'default' : 'pointer', opacity: saving ? 0.7 : 1,
+            fontFamily: 'inherit',
+          }}
+        >
+          {saving ? 'Saving…' : allConfirmed ? 'Re-confirm all' : 'Confirm & continue'}
+        </button>
+        <span style={{ fontSize: '12px', color: '#94A3B8', fontWeight: 600 }}>
+          Confirmed sections become editable in the Dynamic Content tab (chunk 4).
+        </span>
+      </div>
+
+      {errText && (
+        <div style={{ marginTop: '14px', padding: '10px 14px', borderRadius: '10px', background: '#FFF4F4', border: '1px solid #FBCACA', color: '#C2410C', fontSize: '12px', fontWeight: 700 }}>
+          {errText}
+        </div>
+      )}
+    </section>
   )
 }
 
