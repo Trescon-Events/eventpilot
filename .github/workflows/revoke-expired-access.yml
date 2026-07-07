@@ -1,0 +1,32 @@
+name: Auto-revoke expired access
+
+# Fires the /api/cron/revoke-expired-access endpoint every 15 minutes.
+# Finds every access_requests row whose granted_until has passed,
+# reverses the tool_grants + access_roles changes, marks the row 'expired'.
+#
+# Uses Railway direct URL — the primary eventpilot.tresconglobal.com host
+# is behind Cloudflare which challenges GitHub Actions IPs as bots (see
+# weekly-leaderboard.yml note for context).
+#
+# GitHub Actions scheduled crons are best-effort — they can be delayed
+# under runner load. Fifteen-minute granularity is fine for access
+# revocation, but if precision matters more later, move to Railway's
+# native scheduler or cron-job.org.
+
+on:
+  schedule:
+    - cron: '*/15 * * * *'
+  workflow_dispatch:      # manual trigger for testing
+
+jobs:
+  revoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+
+    steps:
+      - name: Call revoke endpoint
+        run: |
+          curl --fail-with-body --silent --show-error \
+            -X GET \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            "https://eventpilot-production-90c6.up.railway.app/api/cron/revoke-expired-access"

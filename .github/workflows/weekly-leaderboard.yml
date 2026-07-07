@@ -37,6 +37,11 @@ jobs:
 
       - name: Trigger leaderboard endpoint
         run: |
+          # Hits Railway direct — the primary eventpilot.tresconglobal.com
+          # host sits behind Cloudflare which challenges GitHub Actions IPs
+          # as bots (verified 06 Jul: request returned Cloudflare "Just a
+          # moment..." 403 challenge before reaching Railway).
+          #
           # Query-param secret works even if the proxy strips Authorization
           # headers. Matches the pattern used by /api/cron/attendance-live.
           SEP="?"
@@ -44,4 +49,4 @@ jobs:
           curl --fail-with-body --silent --show-error \
             -X POST \
             -H "Content-Type: application/json" \
-            "https://eventpilot.tresconglobal.com/api/cron/generate-leaderboard${{ steps.qs.outputs.qs }}${SEP}secret=${{ secrets.CRON_SECRET }}"
+            "https://eventpilot-production-90c6.up.railway.app/api/cron/generate-leaderboard${{ steps.qs.outputs.qs }}${SEP}secret=${{ secrets.CRON_SECRET }}"
