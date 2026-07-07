@@ -26,10 +26,12 @@ function buildSections(
   isAdmin:    boolean,
   dept:       string,
   hasReports: boolean,
+  roles:      string[] = [],
 ): PlatformSection[] {
   const id = staffId
 
   const sections: PlatformSection[] = []
+  const hasFinanceAccess = isAdmin || dept === 'Finance' || roles.includes('finance')
 
   /* ── Learning — everyone ── */
   sections.push({
@@ -127,6 +129,29 @@ function buildSections(
     })
   }
   sections.push({ heading: 'Team & Organisation', items: teamItems })
+
+  /* ── Finance — anyone with finance access, non-admin path ── */
+  // Admins see Finance Portal inside the Administration section further
+  // below (grouped with Admin Dashboard, Toolkit etc.). Non-admin staff
+  // with the finance access role or Finance dept see a dedicated
+  // one-item section so they get a direct entry point without needing
+  // admin nav.
+  if (hasFinanceAccess && !isAdmin) {
+    sections.push({
+      heading: 'Finance',
+      items: [
+        {
+          title:       'Finance Portal',
+          description: 'Salary, expenses, vendor payments and payroll',
+          href:        '/finance',
+          color:       '#1565C0',
+          bg:          'rgba(21,101,192,0.08)',
+          border:      'rgba(21,101,192,0.2)',
+          icon: <svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><rect x="1" y="4" width="22" height="16" rx="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg>,
+        },
+      ],
+    })
+  }
 
   /* ── Content & Marketing — Marketing dept or admin only ── */
   if (dept === 'Marketing' || isAdmin) {
@@ -305,6 +330,7 @@ export default function PlatformMenu({ staffId }: PlatformMenuProps) {
   const [open,       setOpen]       = useState(false)
   const [isAdmin,    setIsAdmin]    = useState(false)
   const [dept,       setDept]       = useState('')
+  const [roles,      setRoles]      = useState<string[]>([])
   const [hasReports, setHasReports] = useState(false)
   const [resolvedId, setResolvedId] = useState(staffId ?? '')
   const [loaded,     setLoaded]     = useState(false)
@@ -318,6 +344,7 @@ export default function PlatformMenu({ staffId }: PlatformMenuProps) {
         if (!s) { setLoaded(true); return }
         setIsAdmin(!!s.adm)
         setDept(s.dept ?? '')
+        setRoles(Array.isArray(s.roles) ? s.roles : [])
         const sid = s.sid ?? staffId ?? ''
         setResolvedId(sid)
         if (sid) {
@@ -338,7 +365,7 @@ export default function PlatformMenu({ staffId }: PlatformMenuProps) {
   }, [open, close])
 
   const sections = loaded
-    ? buildSections(resolvedId, isAdmin, dept, hasReports)
+    ? buildSections(resolvedId, isAdmin, dept, hasReports, roles)
     : []
 
   return (
