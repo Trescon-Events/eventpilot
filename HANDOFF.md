@@ -6,6 +6,24 @@
 
 ---
 
+## 🚧 In Progress — Madhu is working on the Knowledge Base Module (started 06 Jul 2026)
+
+Madhu is actively building out the KB Document Category Layer + Press Intelligence Pipeline (`docs/EventPilot-KB-PRD-v2.0.md`). This will likely span **several days** across multiple sessions before it's finalised — **not done yet**, don't assume it's complete just because commits are landing on `main`.
+
+**Touches these areas — check before editing them:**
+- `app/admin/page.tsx` — Knowledge tab, new "Intelligence" sub-tab (large addition, ~700 lines)
+- `middleware.ts` — added a narrow exemption for `/api/kb/intel/run` (exact-match only, not a prefix — see inline comment)
+- `app/api/kb/**`, `app/lib/kb/**` — new Press Intelligence routes and helpers
+- `documents` table — new `doc_category` column (existing rows backfilled, safe/additive)
+- New tables: `kb_intel_sources`, `kb_intel_items`, `kb_intel_runs`, `kb_intel_config`
+- External: a cron-job.org job (ID `8018759`) now hits `/api/kb/intel/run` weekly — unrelated to anything Durga's side would touch, just flagging it exists
+
+**Verified no collision with Durga's CM-001 work** as of this note — rebased cleanly onto `d9444d5` (his 06 Jul session), full `next build` passes with both sets of changes combined. If you're picking up Durga's side of things in the meantime, the Knowledge tab and `middleware.ts` are where overlap is most likely — check `git log` on those files before assuming they're stable.
+
+Madhu will update this section (or replace it with a proper "What Was Built" entry) once the KB module is finalised.
+
+---
+
 ## Last Session
 
 | Field | Value |
