@@ -638,6 +638,7 @@ export default function AdminPage() {
   const [intelSourceForm,  setIntelSourceForm]  = useState({ name: '', url: '', query: '', crawl_behaviour: 'article_discovery', crawl_frequency: 'weekly' })
   const [intelSourceMsg,   setIntelSourceMsg]   = useState('')
   const [editingIntelSourceId, setEditingIntelSourceId] = useState<string | null>(null)
+  const [collapsedIntelSections, setCollapsedIntelSections] = useState<Record<string, boolean>>({})
 
   type VersionRow = {
     id: string; title: string; version: number; version_note: string | null
@@ -5103,17 +5104,22 @@ export default function AdminPage() {
                         { category: 'press_media',    label: 'Press & Media' },
                       ] as { category: 'owned_property' | 'partner_govt' | 'press_media'; label: string }[]).map(section => {
                         const sectionSources = intelSources.filter(s => s.category === section.category)
+                        const isCollapsed = collapsedIntelSections[section.category] ?? false
                         return (
                           <div key={section.category} style={{ marginBottom: '20px' }}>
                             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '10px' }}>
-                              <div style={{ fontSize: '13px', fontWeight: 800, color: '#0F1923' }}>{section.label} ({sectionSources.length})</div>
+                              <button onClick={() => setCollapsedIntelSections(p => ({ ...p, [section.category]: !isCollapsed }))}
+                                style={{ display: 'flex', alignItems: 'center', gap: '6px', background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'inherit', padding: 0 }}>
+                                <span style={{ fontSize: '11px', color: '#5B7080', transform: isCollapsed ? 'rotate(-90deg)' : 'none', transition: 'transform 0.15s' }}>▼</span>
+                                <span style={{ fontSize: '13px', fontWeight: 800, color: '#0F1923' }}>{section.label} ({sectionSources.length})</span>
+                              </button>
                               <button onClick={() => { setEditingIntelSourceId(null); setShowIntelSourceForm(section.category); setIntelSourceForm({ name: '', url: '', query: '', crawl_behaviour: 'article_discovery', crawl_frequency: 'weekly' }); setIntelSourceMsg('') }}
                                 style={{ padding: '6px 14px', borderRadius: '8px', border: '1px solid rgba(0,165,163,0.35)', background: 'rgba(0,165,163,0.08)', color: '#00695C', fontSize: '13px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
                                 + Add {section.category === 'press_media' ? 'Search Query' : 'Source'}
                               </button>
                             </div>
 
-                            {showIntelSourceForm === section.category && (
+                            {!isCollapsed && showIntelSourceForm === section.category && (
                               <div style={{ background: '#FFFFFF', border: '1px solid rgba(0,165,163,0.25)', borderRadius: '12px', padding: '16px', marginBottom: '10px' }}>
                                 <div style={{ fontSize: '13px', fontWeight: 800, color: '#00695C', marginBottom: '10px', textTransform: 'uppercase', letterSpacing: '0.8px' }}>{editingIntelSourceId ? 'Edit Source' : 'New Source'}</div>
                                 <div style={{ marginBottom: '10px' }}>
@@ -5177,7 +5183,7 @@ export default function AdminPage() {
                               </div>
                             )}
 
-                            {sectionSources.length === 0 ? (
+                            {!isCollapsed && (sectionSources.length === 0 ? (
                               <div style={{ fontSize: '13px', color: '#5B7080' }}>No sources yet.</div>
                             ) : (
                               <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
@@ -5200,7 +5206,7 @@ export default function AdminPage() {
                                   </div>
                                 ))}
                               </div>
-                            )}
+                            ))}
                           </div>
                         )
                       })}
