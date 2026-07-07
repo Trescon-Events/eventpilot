@@ -163,13 +163,48 @@ function OverviewTab() {
     setUploading(true)
     setUploadErr(null)
     try {
-      const form = new FormData()
-      form.append('file', file)
-      const res = await fetch('/api/corporate-marketing/deck/upload', { method: 'POST', body: form })
-      if (!res.ok) {
-        const d = await res.json().catch(() => ({}))
-        throw new Error(d?.error ?? `Upload failed (${res.status})`)
+      // Direct-to-Supabase upload — the API only ever sees small JSON
+      // payloads, never the file itself. This is how ~100 MB decks
+      // survive the platform's multipart-form-data body-size limits.
+
+      // 1. Ask the server for a signed upload URL
+      const initRes = await fetch('/api/corporate-marketing/deck/upload-init', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({ filename: file.name, size: file.size }),
+      })
+      if (!initRes.ok) {
+        const d = await initRes.json().catch(() => ({}))
+        throw new Error(d?.error ?? `Upload init failed (${initRes.status})`)
       }
+      const { deck_id, storage_path, signed_url } = await initRes.json()
+
+      // 2. Upload the PDF directly to Supabase Storage
+      const putRes = await fetch(signed_url, {
+        method:  'PUT',
+        headers: { 'Content-Type': file.type || 'application/pdf' },
+        body:    file,
+      })
+      if (!putRes.ok) {
+        throw new Error(`Storage upload failed (${putRes.status})`)
+      }
+
+      // 3. Tell the server to finalise — extract page count, update deck row, clear old mappings
+      const finRes = await fetch('/api/corporate-marketing/deck/upload-complete', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({
+          deck_id,
+          storage_path,
+          filename: file.name,
+          size:     file.size,
+        }),
+      })
+      if (!finRes.ok) {
+        const d = await finRes.json().catch(() => ({}))
+        throw new Error(d?.error ?? `Upload finalisation failed (${finRes.status})`)
+      }
+
       await refresh()
     } catch (e) {
       setUploadErr((e as Error).message)
