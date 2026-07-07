@@ -28,18 +28,116 @@ Madhu will update this section (or replace it with a proper "What Was Built" ent
 
 | Field | Value |
 |---|---|
-| Who | Durga + Claude Code (Opus 4.7) — 06 Jul 2026 |
-| Latest push | 2026-07-06 — commit `a96bff8` (CM-001 100 MB cap) |
+| Who | Durga + Claude Code (Opus 4.7) — 07 Jul 2026 |
+| Latest push | 2026-07-07 — commit `9caca08` (retire old deck/upload with clear refresh message) |
 | Handed off to | Next session |
-| Deployed | ✅ Yes — pushed to main, Railway auto-deploys. **⚠ Found deploys had been silently failing since 9470abf** — see fix `fdee36b` below. All commits from today confirmed live. |
+| Deployed | ✅ Yes — all 5 commits from this session confirmed live on Railway |
 
-**Session highlight:** Shipped the **Corporate Marketing Module — CM-001 Corporate Deck Management Phase 1** end-to-end in 5 chunks against Thulasi's PRD. Six tabs live (Overview / Dynamic Content / Testimonials / Approved Images / Version History / Settings), 15 new API routes, 7 new tables, immutable publish-based versioning with PDF snapshotting to Supabase Storage. Also **caught + fixed a latent Suspense bug on `/no-access`** that had been silently blocking every Railway deploy since `9470abf` (7 commits queued behind it, none had actually gone live). Fired **Bangalore nudge (57 recipients) + Mangalore rollout (10 recipients) + Bangalore Management FYI (7 recipients)** — 59/59 delivered, 0 bounced. Updated memory rule so **every future rollout auto-BCCs `dc@tresconglobal.com`** for inbox record.
+**Session highlight:** Response session — fix the fallout from yesterday's CM-001 launch as feedback rolled in, plus one new feature. **(1)** Fixed Thulasi's 66 MB deck upload — she was hitting an ambiguous "Invalid form data" because Node's formData() parser has a hidden cap around ~4 MB on Railway well below the advertised 100 MB. Switched to direct-to-Supabase-Storage upload via signed URL (same pattern used elsewhere in this repo). **(2)** Fixed Charan Kaverappa's Finance Portal access — the DB grant was applied but the PlatformMenu was gating Finance Portal behind `isAdmin`, so no non-admin ever saw it in nav. Refactored to show it to anyone with the `finance` role. **(3)** Built the **Access Requests Dashboard** end-to-end — `/admin/access-requests` with grant / deny / revoke, permanent or time-boxed (1h · 4h · 1d · 3d · 7d · 30d · Custom), auto-revoke cron for expiring grants. Access requests now persist to `access_requests` table + upgraded email template (requester role + dept + prominent URL + CTA to dashboard). **(4)** Investigated the `CRON_SECRET` blocker that's held up the leaderboard cron for a week — found TWO stacked problems: GitHub Actions had no `CRON_SECRET` at all (empty substitution) AND Cloudflare was challenging GitHub Actions IPs as bots even when the secret was correct. Fixed both by switching workflow target to Railway direct URL + setting `CRON_SECRET` on GitHub. Railway env var still needs manual sync — flagged below.
 
 **Still to do:**
-1. **Thulasi + Marketing team need to test CM-001 end-to-end.** Draft email to Thulasi was written this session (Durga will send). 12-step walkthrough documented — upload deck → save Canva link → run Gemini analysis → confirm mappings → edit content across 3 tabs → publish v1 → verify Version History → make an edit → publish v2 → confirm v1 preserved.
-2. **`staff_members.last_login_at` column is not being written.** Every Bangalore staff (including Madhukar, Swarnavo, Anil — active users) shows `NEVER`. Almost certainly the Microsoft SSO callback doesn't write to it. Blocked the "target only never-logged-in staff" filter on the Bangalore nudge — sent to whole office instead. Next session: investigate `app/api/auth/microsoft/callback` (or equivalent) and see what column is actually being touched on login.
-3. **Khalifat alignment call on Website Builder & Brand Studio.** He filed a checklist with 4 scope questions (attached SME_CONTEXT.md, unified vs separate, event-scoped vs standalone, Phase 1 focus). Full reply drafted this session — Durga to review and send. Recommended direction: keep tools separate but share brand foundation; add corporate-tier above event-tier for both; Phase 1 focuses on Brand Studio as the foundation, Website Builder v2 moves to Phase 2.
-4. **`/no-access` Suspense fix was retroactive.** Every commit from `9470abf` (access-denied popup) through `2406789` (CM-001 chunk 5) had failed to deploy at Railway — the actual live site was still on `1e1c852` for that entire period. Now unblocked with `fdee36b`. Lesson learned + noted: for this repo, `next build` (not just `tsc --noEmit`) must be run before claiming anything is shipped, since `tsc` doesn't catch Next-specific prerender/RSC boundary errors.
+1. **Thulasi retest of the 66 MB upload.** New email drafted for her explaining the fix — she needs to hard-refresh her browser (Cmd+Shift+R) to load the new client JS, then retry. First retry after the direct-to-Storage fix landed showed she was on cached OLD client → old endpoint → old "Invalid form data" error. Retired the old endpoint (`9caca08`) with an explicit "please hard-refresh" 410 response so any future cache-holding user gets an unambiguous signal.
+2. **Corporate Deck manager — Phase 2 shape decision.** Durga surfaced the "multi-party decks" question. Wrote a full framing email to Thulasi with three architecture options (multiple decks all Trescon's / workspaces per party / full multi-tenant SaaS). Thulasi owns this decision — she wrote the Phase 1 PRD, she should shape Phase 2. Email ready to send.
+3. **Charan sign-out + sign-in.** He'll see Finance Portal after his session cookie refreshes with the new `access_roles` value. Ping him.
+4. **`CRON_SECRET` on Railway** — GitHub Actions secret is set, `.env.local` value is what got pushed to GitHub. Railway holds a different value (verified via a manual test workflow that returned 401 with fresh auth). Durga couldn't complete the Railway change this session (she doesn't appear to have Railway dashboard access with her `dc@` account — Railway is under `webadmin@tresconglobal.com` per CLAUDE.md). Not urgent: the dashboard we shipped works fully without the auto-revoke cron; only impact is time-boxed grants stay `granted` past their window until manually revoked. Weekly leaderboard cron also stays broken until this syncs.
+5. **Nicholas Nunes access request unhandled.** He hit `/admin` yesterday and asked for access via the email flow. That was BEFORE we shipped the dashboard, so his request only exists as an email — it did NOT retroactively appear in `access_requests`. Either grant him admin manually or ask him to hit `/admin` again to generate a fresh dashboard row.
+
+**Carried forward from previous sessions (unchanged):**
+- **`staff_members.last_login_at` never written.** Blocks any "target never-logged-in staff" filter. Needs SSO callback investigation.
+- **Khalifat alignment call on Website Builder & Brand Studio.** Full reply drafted 06 Jul, still awaiting Durga to send.
+
+---
+
+## What Was Built — 07 Jul 2026 (Durga + Claude Code) — Post-launch fixes + Access Requests Dashboard
+
+### The build order (5 commits pushed today)
+
+| Commit | What it does |
+|---|---|
+| `2c146b5` | fix(corporate-marketing): direct-to-Storage upload — unblocks decks > ~4 MB. New POST /deck/upload-init returns Supabase signed URL, client PUTs file directly to Storage, then POST /deck/upload-complete finalises (page count via pdf-parse, mapping wipe, previous-PDF delete). The API only ever handles small JSON payloads on the upload path now. |
+| `ab3cb0e` | fix(nav): show Finance Portal to non-admins with the finance role. Root cause was PlatformMenu.tsx gating the whole "Administration" section behind `isAdmin`. Refactored to accept `roles: string[]` and render a dedicated "Finance" section for non-admin staff with finance access (grant, dept, or role). |
+| `b459d6a` | feat(access-requests): admin dashboard + time-boxed grants + auto-revoke — full end-to-end (10 files). See detail below. |
+| `6abf793` | ci(cron): route through Railway direct URL + add 15-min revoke cron. Leaderboard workflow updated to hit `eventpilot-production-90c6.up.railway.app` instead of the Cloudflare-fronted primary domain (verified 06 Jul run got a Cloudflare "Just a moment..." 403 challenge before reaching Railway). New `revoke-expired-access.yml` cron fires the new /api/cron/revoke-expired-access endpoint every 15 min via the same Railway-direct pattern. |
+| `9caca08` | fix(corporate-marketing): retire old `/deck/upload` with explicit refresh message. Body replaced with a plain 410 Gone + "Please hard-refresh the page to load the new upload flow, then try again." Any user on a stale client-JS bundle now gets an unambiguous signal instead of the ambiguous "Invalid form data" that made the new flow look like it was broken (which is exactly what happened to Thulasi on her first retest). |
+
+### Access Requests Dashboard — `/admin/access-requests`
+
+Before today: every `/no-access` "Request access" click fired an email and vanished. If the email was missed or deleted, the request was invisible. No history, no counts, no follow-up.
+
+Now every click:
+1. Writes to new `access_requests` table (see `supabase/access_requests.sql`)
+2. Sends an upgraded email (requester name + role + department in the header, exact URL rendered as a monospace pill, big CTA button to the dashboard, footer explaining permanent vs time-boxed grants)
+
+Dashboard features:
+- Tabs: Pending (default) / Granted / Denied / Expired / Revoked / All — each with a count badge
+- Search: filter by name, email, tool, path
+- Per-request card: requester avatar + name + role + dept, tool label + key, from-URL, requested-at, expiry countdown for active grants
+- **Grant modal:** duration selector (Always · 1h · 4h · 1d · 3d · 7d · 30d · Custom hours) + optional reason field
+- **Deny modal:** optional reason field
+- **Revoke button** on any active grant — reverse ahead of expiry
+- **Manual escalation** flag for `admin` tool key — shows a warning and requires explicit confirm; won't auto-apply super_admin
+
+Grant strategy (see `app/lib/access-requests/grant-map.ts`):
+- Most tool keys → set `staff_members.tool_grants.{grantKey} = true`
+- `finance` + `hr` → also add to `staff_members.access_roles` (needed by `/finance/*` and `/hr/*` middleware guards)
+- `admin` → manual-only, no auto-apply
+
+Auto-revoke cron:
+- `GET /api/cron/revoke-expired-access` — CRON_SECRET Bearer gated
+- Scheduled via new `.github/workflows/revoke-expired-access.yml` every 15 min against Railway direct URL
+- Finds all `granted` rows where `granted_until <= NOW()`, reverses tool_grants + access_roles, marks the row `expired` with `revoked_reason = 'expired'`
+- Blocked until Railway env var syncs (see Still to do #4)
+
+New files (10):
+- `supabase/access_requests.sql`
+- `app/lib/access-requests/grant-map.ts`
+- `app/api/access-request/route.ts` (modified — write-through to DB)
+- `app/lib/email.ts` (modified — upgraded template)
+- `app/api/admin/access-requests/route.ts`
+- `app/api/admin/access-requests/[id]/grant/route.ts`
+- `app/api/admin/access-requests/[id]/deny/route.ts`
+- `app/api/admin/access-requests/[id]/revoke/route.ts`
+- `app/api/cron/revoke-expired-access/route.ts`
+- `app/admin/access-requests/page.tsx`
+
+SQL migration ran manually against prod by Durga this session. Confirmed.
+
+### CM-001 Corporate Deck — direct-to-Storage upload path
+
+Old flow: single POST to `/deck/upload` with multipart form-data. Node's formData() parser has an internal buffer cap around ~4 MB on Railway that trips well below the advertised 100 MB. Thulasi's 66 MB deck hit that wall and got the ambiguous "Invalid form data" error.
+
+New flow:
+1. **POST `/deck/upload-init`** — client sends `{ filename, size }` as JSON (~200 bytes). Server validates size + type, ensures the `corporate-marketing` bucket exists with the 100 MB cap (also runs `updateBucket()` to sync the cap on already-existing buckets), reserves storage path, calls `createSignedUploadUrl()`, returns `{ deck_id, storage_path, signed_url }`.
+2. **Client PUTs the PDF directly to Supabase Storage** via the signed URL. The file never touches the app server.
+3. **POST `/deck/upload-complete`** — client sends `{ deck_id, storage_path, filename, size }`. Server downloads the freshly-uploaded PDF from Storage to extract page count via pdf-parse, updates the corporate_decks row (metadata + `ai_analysis_status = 'pending'`), wipes prior mappings, best-effort deletes the previous PDF.
+
+Defence against a client sending a mismatched storage_path: `upload-complete` requires the path to start with `decks/{deck_id}/`.
+
+Old endpoint retired in `9caca08` — returns 410 Gone with a "please hard-refresh" message so stale-cached browsers get an unambiguous signal.
+
+### Charan Finance Portal access — full sequence
+
+Two problems stacked:
+1. `staff_members.access_roles` didn't include `'finance'` — required by the `/finance/*` middleware guard. **Fixed via SQL update this session.** He also already had `tool_grants.finance = true` (needed for tile visibility in `/admin/toolkit`).
+2. `PlatformMenu.tsx` (the main grid nav most staff use) gated the entire `Administration` section behind `isAdmin`. Non-admins with finance access had NO way to reach Finance Portal from any surface. **Fixed in `ab3cb0e`** — buildSections now takes `roles` and renders a dedicated "Finance" section for non-admin finance grantees.
+
+Charan must sign out + sign back in for his session cookie's `roles` array to refresh (middleware reads roles from the cookie, not the DB — cookie is minted at login time).
+
+### CRON_SECRET investigation
+
+Yesterday's HANDOFF flagged this as still open. Root cause was actually TWO stacked problems:
+
+1. **`CRON_SECRET` not set in GitHub Actions secrets.** `gh secret list` showed only `GEMINI_API_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, `SUPABASE_URL`, `VERCEL_TOKEN`. GitHub Actions substitutes an empty string for missing secrets rather than erroring, so the workflow was silently curl'ing `?secret=` (empty) every Monday.
+
+2. **Cloudflare Bot Management blocks GitHub Actions IPs.** Even with a correct secret, requests to `eventpilot.tresconglobal.com/api/cron/*` returned a Cloudflare "Just a moment..." 403 interstitial challenge and never reached Railway. Verified by hitting the Railway direct URL (`eventpilot-production-90c6.up.railway.app`) with a wrong secret — got a clean 401 from my server, no Cloudflare challenge. So Cloudflare is the culprit on the primary host.
+
+Fixed in `6abf793`:
+- Both workflows (weekly-leaderboard, revoke-expired-access) now hit Railway direct URL, bypassing Cloudflare
+- Set `CRON_SECRET` on GitHub Actions via `gh secret set` — value taken from `.env.local`
+
+But: Railway holds a **different** value than local `.env.local`. Verified this session by running the revoke workflow — got 401 "Unauthorised" from my server (which means the request reached Railway but the secret didn't match). Durga attempted to sync the Railway env var but was blocked — Railway account is under `webadmin@tresconglobal.com`, not `dc@`. Left for a future session.
+
+**Impact of leaving it unsynced:** Time-boxed grants in the new dashboard won't auto-revoke — they'll stay `granted` past their expiry until manually revoked. Weekly leaderboard cron stays broken. Neither is user-visible or urgent.
 
 ---
 
