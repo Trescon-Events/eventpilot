@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/app/lib/supabase'
+import { sessionCookieOptions } from '@/app/lib/access/session-cookie'
 
 export async function POST(req: NextRequest) {
   // Clear active session record so admin Live Now panel updates immediately
@@ -14,12 +15,6 @@ export async function POST(req: NextRequest) {
   }
 
   const res = NextResponse.json({ success: true })
-  res.cookies.set('tcs_session', '', {
-    httpOnly: true,
-    secure:   process.env.NODE_ENV === 'production',
-    sameSite: 'lax',
-    maxAge:   0,
-    path:     '/',
-  })
+  res.cookies.set('tcs_session', '', sessionCookieOptions(0))
   return res
 }

@@ -54,6 +54,11 @@ const PLATFORM_HOSTS = [
   '127.0.0.1',
 ]
 
+// DocuHub's public permanent-link domain — a fixed platform hostname (not a
+// per-tenant custom domain), so it's handled separately from
+// resolveCustomDomain() below and checked first.
+const DOCUHUB_HOST = 'docuhub.tresconglobal.com'
+
 async function resolveCustomDomain(host: string, req: NextRequest): Promise<NextResponse | null> {
   // Strip port
   const cleanHost = host.split(':')[0]
@@ -81,6 +86,14 @@ export async function middleware(req: NextRequest) {
 
   // ── Custom domain rewriting (must run before auth) ──
   const host = req.headers.get('host') ?? ''
+  const cleanHost = host.split(':')[0]
+
+  if (cleanHost === DOCUHUB_HOST) {
+    const url = req.nextUrl.clone()
+    url.pathname = `/api/docuhub/resolve${url.pathname}`
+    return NextResponse.rewrite(url)
+  }
+
   const domainRewrite = await resolveCustomDomain(host, req)
   if (domainRewrite) return domainRewrite
 
@@ -103,6 +116,7 @@ export async function middleware(req: NextRequest) {
     pathname.startsWith('/api/admin/tool-permissions') ||
     pathname.startsWith('/api/cron/') ||
     pathname === '/api/kb/intel/run' ||  // cron-job.org calls this with no session cookie; auth checked inside via bearer token or admin_staff_id. NOT startsWith — that would also match /api/kb/intel/runs (the run-history GET) and make it public.
+    pathname.startsWith('/api/docuhub/resolve') ||  // public permanent-link resolver; visibility (public/internal) is checked inside the route itself, not here
     pathname.startsWith('/api/seed-platform-docs') ||
     pathname.startsWith('/api/seed-courses') ||
     pathname.startsWith('/api/seed-demo')

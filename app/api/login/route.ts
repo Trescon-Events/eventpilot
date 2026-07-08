@@ -1,6 +1,7 @@
 import { supabaseAdmin } from '@/app/lib/supabase'
 import { NextRequest, NextResponse } from 'next/server'
 import bcrypt from 'bcryptjs'
+import { sessionCookieOptions } from '@/app/lib/access/session-cookie'
 
 /* POST /api/login — unified login for all Event Pilot users
    Security layers applied in order:
@@ -74,12 +75,12 @@ export async function POST(req: NextRequest) {
     if (!staff) {
       const syntheticSession = Buffer.from(JSON.stringify({ sid: 'super-admin', jl: 'super_admin', adm: true, dept: '' })).toString('base64')
       const r = NextResponse.json({ id: 'super-admin', name: 'Super Admin', department: null, role: 'Super Admin', office_id: null, job_level: 'super_admin', is_admin: true, has_reports: true, has_profile: true })
-      r.cookies.set('tcs_session', syntheticSession, { httpOnly: true, secure: process.env.NODE_ENV === 'production', sameSite: 'lax', maxAge: SESSION_MAX_AGE, path: '/' })
+      r.cookies.set('tcs_session', syntheticSession, sessionCookieOptions(SESSION_MAX_AGE))
       return r
     }
     const adminSession = Buffer.from(JSON.stringify({ sid: staff.id, jl: staff.job_level ?? 'super_admin', adm: true, dept: staff.department ?? '' })).toString('base64')
     const r = NextResponse.json({ id: staff.id, name: staff.name, department: staff.department, role: staff.role, office_id: staff.office_id, job_level: staff.job_level ?? 'super_admin', is_admin: true, has_reports: true, has_profile: true })
-    r.cookies.set('tcs_session', adminSession, { httpOnly: true, secure: process.env.NODE_ENV === 'production', sameSite: 'lax', maxAge: SESSION_MAX_AGE, path: '/' })
+    r.cookies.set('tcs_session', adminSession, sessionCookieOptions(SESSION_MAX_AGE))
     return r
   }
 
@@ -183,12 +184,6 @@ export async function POST(req: NextRequest) {
   })).toString('base64')
 
   const res = NextResponse.json(responseBody)
-  res.cookies.set('tcs_session', sessionPayload, {
-    httpOnly: true,
-    secure:   process.env.NODE_ENV === 'production',
-    sameSite: 'lax',
-    maxAge:   SESSION_MAX_AGE,
-    path:     '/',
-  })
+  res.cookies.set('tcs_session', sessionPayload, sessionCookieOptions(SESSION_MAX_AGE))
   return res
 }

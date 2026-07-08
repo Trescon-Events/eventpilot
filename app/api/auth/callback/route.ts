@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/app/lib/supabase'
+import { sessionCookieOptions } from '@/app/lib/access/session-cookie'
 
 /*
   GET /api/auth/callback
@@ -151,13 +152,7 @@ export async function GET(req: NextRequest) {
   res.cookies.set('sso_state', '', { maxAge: 0, path: '/' })
 
   // SSO sessions last 30 days — Microsoft handles re-auth if the user's account is suspended
-  res.cookies.set('tcs_session', sessionPayload, {
-    httpOnly: true,
-    secure:   process.env.NODE_ENV === 'production',
-    sameSite: 'lax',
-    maxAge:   60 * 60 * 24 * 30,
-    path:     '/',
-  })
+  res.cookies.set('tcs_session', sessionPayload, sessionCookieOptions(60 * 60 * 24 * 30))
 
   return res
 }
