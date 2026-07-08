@@ -13,6 +13,12 @@ var proxy_worker_default = {
     const newHeaders = new Headers(request.headers);
     newHeaders.set("host", targetHost);
     newHeaders.set("x-forwarded-host", request.headers.get("host") || "eventpilot.tresconglobal.com");
+    // Added 2026-07-08 for DocuHub: x-forwarded-host gets overwritten by Railway's
+    // own edge before it reaches the app (confirmed via a live header-inspection
+    // test), so a custom header name is needed to actually preserve which public
+    // hostname (eventpilot.tresconglobal.com vs docuhub.tresconglobal.com) the
+    // visitor used. Purely additive — doesn't change any existing behavior.
+    newHeaders.set("x-original-host", request.headers.get("host") || "eventpilot.tresconglobal.com");
     const proxied = new Request(url.toString(), {
       method: request.method,
       headers: newHeaders,
