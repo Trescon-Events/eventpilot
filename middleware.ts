@@ -25,6 +25,7 @@ const PUBLIC_PREFIXES = [
   '/api/admin/pilots',            // create/backfill pilot projects, auth checked inside (session or x-setup-key)
   '/api/build-requests',         // build requests API, auth checked inside (session or x-setup-key)
   '/api/worker-callback',        // SmartExcel Python worker callback, auth checked inside via bearer token
+  '/api/debug-headers',   // TEMPORARY — diagnosing docuhub.tresconglobal.com Worker proxy header behavior, remove after
   '/profile',             // AIRS assessment — staff arrive here before they have a session
   '/events',              // public event websites
   '/welcome',
@@ -88,7 +89,7 @@ export async function middleware(req: NextRequest) {
   const host = req.headers.get('host') ?? ''
   const cleanHost = host.split(':')[0]
 
-  if (cleanHost === DOCUHUB_HOST) {
+  if (cleanHost === DOCUHUB_HOST && pathname !== '/api/debug-headers') {
     const url = req.nextUrl.clone()
     url.pathname = `/api/docuhub/resolve${url.pathname}`
     return NextResponse.rewrite(url)
