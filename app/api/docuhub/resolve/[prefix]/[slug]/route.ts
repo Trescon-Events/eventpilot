@@ -44,10 +44,12 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ pref
   if (doc.visibility === 'internal') {
     const staffId = getSessionStaffId(req)
     if (!staffId) {
-      const loginUrl = req.nextUrl.clone()
-      loginUrl.pathname = '/login'
-      loginUrl.search = `?next=${encodeURIComponent(`/api/docuhub/resolve/${prefix}/${slug}`)}`
-      return NextResponse.redirect(loginUrl)
+      // Build the absolute redirect from a trusted base rather than req.nextUrl.origin —
+      // in this Node runtime (unlike Edge middleware), the request's apparent host can be
+      // the container's internal localhost:3000 rather than the public domain.
+      const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? req.nextUrl.origin
+      const next = encodeURIComponent(`/api/docuhub/resolve/${prefix}/${slug}`)
+      return NextResponse.redirect(`${siteUrl}/login?next=${next}`)
     }
   }
 
