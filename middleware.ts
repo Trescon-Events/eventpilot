@@ -25,7 +25,6 @@ const PUBLIC_PREFIXES = [
   '/api/admin/pilots',            // create/backfill pilot projects, auth checked inside (session or x-setup-key)
   '/api/build-requests',         // build requests API, auth checked inside (session or x-setup-key)
   '/api/worker-callback',        // SmartExcel Python worker callback, auth checked inside via bearer token
-  '/api/debug-headers',   // TEMPORARY — diagnosing docuhub.tresconglobal.com Worker proxy header behavior, remove after
   '/profile',             // AIRS assessment — staff arrive here before they have a session
   '/events',              // public event websites
   '/welcome',
@@ -89,7 +88,23 @@ export async function middleware(req: NextRequest) {
   const host = req.headers.get('host') ?? ''
   const cleanHost = host.split(':')[0]
 
-  if (cleanHost === DOCUHUB_HOST && pathname !== '/api/debug-headers') {
+  // NOTE (2026-07-08): confirmed via a live header-inspection test that this
+  // branch cannot currently fire in production. The eventpilot-proxy Worker
+  // forwards every request to Railway with a normalized
+  // Host: eventpilot-production-90c6.up.railway.app regardless of which
+  // public hostname (eventpilot.tresconglobal.com or docuhub.tresconglobal.com)
+  // the visitor actually used — nothing in the forwarded headers preserves
+  // the original hostname, so `cleanHost` is never actually
+  // 'docuhub.tresconglobal.com' by the time it reaches this middleware.
+  // Fixing this requires either (a) a change to the Worker's own script to
+  // pass the original host through in a custom header, or (b) a separate,
+  // dedicated Worker for this route — both are Workers *Script* changes,
+  // a different (and more sensitive) permission than the Workers *Routes*
+  // edit access used to set up the route itself. Left in place, harmless,
+  // ready to work once that's resolved. Until then, DocuHub permalinks
+  // resolve correctly via the /api/docuhub/resolve/... path directly on
+  // eventpilot.tresconglobal.com.
+  if (cleanHost === DOCUHUB_HOST) {
     const url = req.nextUrl.clone()
     url.pathname = `/api/docuhub/resolve${url.pathname}`
     return NextResponse.rewrite(url)
