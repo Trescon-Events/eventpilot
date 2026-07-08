@@ -88,6 +88,15 @@ function buildSections(
   /* ── Team & Organisation — everyone + conditional Team Dashboard ── */
   const teamItems: PlatformItem[] = [
     {
+      title:       'DocuHub',
+      description: 'Upload and share post-event reports, proposals, and policies with a permanent link',
+      href:        '/docuhub',
+      color:       '#D97706',
+      bg:          'rgba(217,119,6,0.08)',
+      border:      'rgba(217,119,6,0.2)',
+      icon: <svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>,
+    },
+    {
       title:       'My HR',
       description: 'Leave requests, attendance, event assignments and your HR records',
       href:        '/my-hr',
