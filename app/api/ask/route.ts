@@ -4,6 +4,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { computeAIRS, getTier } from '@/app/lib/airs'
 import { getStaffCount } from '@/app/lib/staff-count'
 import { getKBContext } from '@/app/lib/kb-context'
+import { findDocuHubDocuments, findDocuHubDocumentsDeclaration } from '@/app/lib/docuhub/find'
 
 /* ── Platform docs cache — rebuilt every 10 minutes, shared across all chat requests ── */
 let _docsCache: { text: string; ts: number } | null = null
@@ -254,7 +255,10 @@ export async function POST(req: NextRequest) {
 
   /* ── Build Gemini prompt ── */
   const genAI  = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!)
-  const model  = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' })
+  const model  = genAI.getGenerativeModel({
+    model: 'gemini-2.5-flash',
+    tools: [{ functionDeclarations: [findDocuHubDocumentsDeclaration] }],
+  })
 
   // Build conversation thread so Pilot has multi-turn memory (last 8 exchanges)
   const thread = (history as Message[]).slice(-8)
@@ -274,7 +278,28 @@ export async function POST(req: NextRequest) {
 
   try {
     const result = await model.generateContent(finalPrompt)
-    const answer = result.response.text()
+    const calls = result.response.functionCalls()
+
+    let answer: string
+    if (calls?.length) {
+      // DocuHub lookup — a metadata-only "find a document" tool, distinct from
+      // the KB context already injected above. Only reachable after the
+      // misuse/off-topic checks above have already passed.
+      const call = calls[0]
+      const args = call.args as { query?: string; doc_type_key?: string }
+      const found = await findDocuHubDocuments({ query: args.query, docTypeKey: args.doc_type_key, staffId: staff_id })
+
+      const followUp = await model.generateContent({
+        contents: [
+          { role: 'user', parts: [{ text: finalPrompt }] },
+          { role: 'model', parts: [{ functionCall: call }] },
+          { role: 'function', parts: [{ functionResponse: { name: call.name, response: { documents: found } } }] },
+        ],
+      })
+      answer = followUp.response.text()
+    } else {
+      answer = result.response.text()
+    }
 
     /* ── Increment daily usage counter ── */
     if (staff_id && staff_id !== 'super-admin') {
