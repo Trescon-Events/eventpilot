@@ -151,8 +151,6 @@ function isOffTopic(text: string): boolean {
   return OFF_TOPIC_SIGNALS.some(p => p.test(text))
 }
 
-const DAILY_LIMIT = 10
-
 export async function POST(req: NextRequest) {
   const { question, history = [], staff_id } = await req.json().catch(() => ({}))
 
@@ -168,27 +166,15 @@ export async function POST(req: NextRequest) {
     })
   }
 
-  /* ── Daily server-side limit (20 messages / user / day) ── */
-  const today = new Date().toISOString().split('T')[0]
-  let currentCount = 0
-
-  if (staff_id && staff_id !== 'super-admin') {
-    const { data: usage } = await supabaseAdmin
-      .from('chat_usage')
-      .select('message_count')
-      .eq('staff_id', staff_id)
-      .eq('date', today)
-      .single()
-
-    currentCount = usage?.message_count ?? 0
-
-    if (currentCount >= DAILY_LIMIT) {
-      return NextResponse.json({
-        error: 'You have reached your 10-question daily limit. Your allowance resets at midnight. See you tomorrow.',
-        daily_limit: true,
-      }, { status: 429 })
-    }
-  }
+  /* ── Daily server-side limit — DISABLED for now (2026-07-08, Madhu) ──────
+     Requested off during DocuHub/Pilot testing; to be rebuilt properly
+     later. Also worth knowing when re-enabling: the live `chat_usage` table
+     schema (id, used_at, count) doesn't match what this block used to
+     reference (staff_id, date, message_count) — the read and the increment
+     upsert had both been silently failing against production regardless of
+     this flag, so the limit was already a no-op before it was turned off
+     deliberately. Fix the schema mismatch before restoring this.
+  ── */
 
   /* ── Soft signal: off-topic ── */
   const offTopic = isOffTopic(question)
@@ -303,14 +289,7 @@ export async function POST(req: NextRequest) {
     }
 
     /* ── Increment daily usage counter ── */
-    if (staff_id && staff_id !== 'super-admin') {
-      await supabaseAdmin.from('chat_usage').upsert({
-        staff_id,
-        date:            today,
-        message_count:   currentCount + 1,
-        last_message_at: new Date().toISOString(),
-      }, { onConflict: 'staff_id,date' })
-    }
+    // Daily usage counter increment — disabled alongside the limit check above (see that comment).
 
     return NextResponse.json({ answer, flagged: false })
   } catch (err) {
