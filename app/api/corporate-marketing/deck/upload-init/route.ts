@@ -26,19 +26,30 @@ import { supabaseAdmin } from '@/app/lib/supabase'
 import { requireCorporateMarketingAccess } from '@/app/lib/corporate-marketing/auth'
 
 const BUCKET = 'corporate-marketing'
-const MAX_BYTES = 100 * 1024 * 1024        // 100 MB
+// Supabase Storage plan cap on this project is 50 MB per file. Any
+// attempt to raise the bucket cap higher is rejected server-side with
+// "The object exceeded the maximum allowed size". To lift this, the
+// Supabase project itself needs a plan upgrade — NOT a code change.
+// Verified 08 Jul 2026 by trying to updateBucket to 51 MB.
+const MAX_BYTES = 50 * 1024 * 1024
 
 async function ensureBucket() {
   const { error: createErr } = await supabaseAdmin.storage.createBucket(BUCKET, {
     public: false,
     fileSizeLimit: MAX_BYTES,
   })
+  if (createErr && !/exists/i.test(createErr.message)) {
+    // Real creation failure (not "already exists") — surface it, don't swallow.
+    throw new Error(`createBucket failed: ${createErr.message}`)
+  }
   if (createErr) {
-    // Already exists — keep the file-size limit in sync
-    await supabaseAdmin.storage.updateBucket(BUCKET, {
+    // Bucket already exists — sync the cap. Surface any failure so we
+    // never advertise a limit the storage layer can't honour.
+    const { error: updErr } = await supabaseAdmin.storage.updateBucket(BUCKET, {
       public: false,
       fileSizeLimit: MAX_BYTES,
-    }).catch(() => {})
+    })
+    if (updErr) throw new Error(`updateBucket failed: ${updErr.message}`)
   }
 }
 
@@ -54,9 +65,15 @@ export async function POST(req: NextRequest) {
   if (!filename)                     return NextResponse.json({ error: 'filename required' }, { status: 400 })
   if (!filename.toLowerCase().endsWith('.pdf')) return NextResponse.json({ error: 'PDF only' }, { status: 400 })
   if (!Number.isFinite(size) || size <= 0) return NextResponse.json({ error: 'valid size required' }, { status: 400 })
-  if (size > MAX_BYTES)              return NextResponse.json({ error: 'File exceeds 100 MB' }, { status: 400 })
+  if (size > MAX_BYTES) return NextResponse.json({
+    error: `File is ${(size / 1024 / 1024).toFixed(1)} MB — max upload on this plan is 50 MB. Compress the PDF or ask Durga to upgrade the Supabase plan.`,
+  }, { status: 400 })
 
-  await ensureBucket()
+  try {
+    await ensureBucket()
+  } catch (e) {
+    return NextResponse.json({ error: (e as Error).message }, { status: 500 })
+  }
 
   // Find or create the deck row (there is only ever one "current" deck)
   const { data: existing } = await supabaseAdmin

@@ -29,7 +29,7 @@ export const runtime = 'nodejs'
 export const maxDuration = 90     // pdf-parse on a 100 MB deck can take 60+ sec
 
 const BUCKET = 'corporate-marketing'
-const MAX_BYTES = 100 * 1024 * 1024
+const MAX_BYTES = 50 * 1024 * 1024   // Supabase plan cap on this project — see upload-init note
 
 async function pdfPageCount(buffer: Buffer): Promise<number | null> {
   try {
@@ -58,7 +58,7 @@ export async function POST(req: NextRequest) {
   if (!storagePath) return NextResponse.json({ error: 'storage_path required' }, { status: 400 })
   if (!filename)    return NextResponse.json({ error: 'filename required' }, { status: 400 })
   if (!Number.isFinite(size) || size <= 0) return NextResponse.json({ error: 'valid size required' }, { status: 400 })
-  if (size > MAX_BYTES) return NextResponse.json({ error: 'File exceeds 100 MB' }, { status: 400 })
+  if (size > MAX_BYTES) return NextResponse.json({ error: 'File exceeds 50 MB (Supabase plan cap on this project)' }, { status: 400 })
   if (!storagePath.startsWith(`decks/${deckId}/`)) {
     // Defend against a client sending a storage_path that doesn't belong to its deck
     return NextResponse.json({ error: 'storage_path does not match deck_id' }, { status: 400 })

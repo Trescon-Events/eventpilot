@@ -186,7 +186,10 @@ function OverviewTab() {
         body:    file,
       })
       if (!putRes.ok) {
-        throw new Error(`Storage upload failed (${putRes.status})`)
+        // Supabase's 413 usually comes with a JSON body — try to read it
+        const bodyText = await putRes.text().catch(() => '')
+        const detail = bodyText ? ` — ${bodyText.slice(0, 200)}` : ''
+        throw new Error(`Storage upload failed (${putRes.status})${detail}`)
       }
 
       // 3. Tell the server to finalise — extract page count, update deck row, clear old mappings
@@ -281,7 +284,7 @@ function OverviewTab() {
           </svg>
           <span style={{ fontSize: '12px', color: '#5B7080', fontWeight: 600 }}>
             <strong style={{ color: '#0F1923' }}>Accepted:</strong> PDF only <span style={{ color: '#DDE8EE' }}>·</span>{' '}
-            <strong style={{ color: '#0F1923' }}>Max size:</strong> 100 MB
+            <strong style={{ color: '#0F1923' }}>Max size:</strong> 50 MB
           </span>
         </div>
 
