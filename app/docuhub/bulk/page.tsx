@@ -3,6 +3,20 @@
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import NavBar, { MOD_DOCUHUB } from '@/app/components/NavBar'
+import LocationSelect from '@/app/components/LocationSelect'
+import { KNOWN_CITIES, COUNTRIES } from '@/app/lib/docuhub/locations'
+
+const EVENT_TYPES = [
+  { value: 'managed', label: 'Managed' },
+  { value: 'signature', label: 'Signature' },
+  { value: 'bespoke', label: 'Bespoke' },
+]
+
+const EVENT_FORMATS = [
+  { value: 'in_person', label: 'In-person' },
+  { value: 'virtual', label: 'Virtual' },
+  { value: 'hybrid', label: 'Hybrid' },
+]
 
 type DocType = {
   id: string; key: string; label: string; slug_prefix: string
@@ -12,7 +26,10 @@ type DocType = {
 type Row = {
   file: File; title: string; doc_type_id: string
   object_key: string | null; uploading: boolean; uploadError: string | null
-  visibility: string; event_label: string; event_date: string; event_venue: string
+  visibility: string; event_label: string; event_type: string
+  event_start_date: string; event_end_date: string
+  event_city: string; event_country: string; event_venue: string; series: string
+  event_format: string; event_region: string
   link_expires_at: string
 }
 
@@ -31,7 +48,10 @@ export default function DocuHubBulkPage() {
     const newRows: Row[] = Array.from(files).map(file => ({
       file, title: file.name.replace(/\.[^.]+$/, ''), doc_type_id: '',
       object_key: null, uploading: true, uploadError: null,
-      visibility: 'internal', event_label: '', event_date: '', event_venue: '', link_expires_at: '',
+      visibility: 'internal', event_label: '', event_type: '',
+      event_start_date: '', event_end_date: '', event_city: '', event_country: '', event_venue: '', series: '',
+      event_format: '', event_region: '',
+      link_expires_at: '',
     }))
     setRows(p => [...p, ...newRows])
 
@@ -64,8 +84,15 @@ export default function DocuHubBulkPage() {
         doc_type_id: r.doc_type_id, title: r.title, object_key: r.object_key,
         visibility: r.visibility,
         event_label: type?.requires_event_attribution ? r.event_label : undefined,
-        event_date: type?.requires_event_attribution ? r.event_date : undefined,
+        event_type: type?.requires_event_attribution ? r.event_type : undefined,
+        event_start_date: type?.requires_event_attribution ? r.event_start_date : undefined,
+        event_end_date: type?.requires_event_attribution ? r.event_end_date : undefined,
+        event_city: type?.requires_event_attribution ? r.event_city : undefined,
+        event_country: type?.requires_event_attribution ? r.event_country : undefined,
         event_venue: type?.requires_event_attribution ? r.event_venue : undefined,
+        series: type?.requires_event_attribution ? r.series : undefined,
+        event_format: type?.requires_event_attribution ? r.event_format : undefined,
+        event_region: type?.requires_event_attribution ? r.event_region : undefined,
         link_expires_at: type?.supports_expiry && r.link_expires_at ? new Date(r.link_expires_at).toISOString() : undefined,
       }
     })
@@ -130,13 +157,41 @@ export default function DocuHubBulkPage() {
                     <button onClick={() => removeRow(i)} style={{ fontSize: '13px', fontWeight: 700, color: '#FF6B6B', background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'inherit' }}>Remove</button>
                   </div>
                   {type?.requires_event_attribution && (
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '8px', marginBottom: '8px' }}>
-                      <input value={row.event_label} onChange={e => updateRow(i, { event_label: e.target.value })} placeholder="Event name"
-                        style={{ padding: '8px 10px', borderRadius: '8px', border: '1px solid #DDE8EE', fontSize: '13px', fontFamily: 'inherit' }} />
-                      <input type="date" value={row.event_date} onChange={e => updateRow(i, { event_date: e.target.value })}
-                        style={{ padding: '8px 10px', borderRadius: '8px', border: '1px solid #DDE8EE', fontSize: '13px', fontFamily: 'inherit' }} />
-                      <input value={row.event_venue} onChange={e => updateRow(i, { event_venue: e.target.value })} placeholder="Venue"
-                        style={{ padding: '8px 10px', borderRadius: '8px', border: '1px solid #DDE8EE', fontSize: '13px', fontFamily: 'inherit' }} />
+                    <div style={{ marginBottom: '8px' }}>
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', marginBottom: '8px' }}>
+                        <input value={row.event_label} onChange={e => updateRow(i, { event_label: e.target.value })} placeholder="Event name"
+                          style={{ padding: '8px 10px', borderRadius: '8px', border: '1px solid #DDE8EE', fontSize: '13px', fontFamily: 'inherit' }} />
+                        <select value={row.event_type} onChange={e => updateRow(i, { event_type: e.target.value })}
+                          style={{ padding: '8px 10px', borderRadius: '8px', border: '1px solid #DDE8EE', fontSize: '13px', fontFamily: 'inherit' }}>
+                          <option value="">Event type…</option>
+                          {EVENT_TYPES.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
+                        </select>
+                      </div>
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', marginBottom: '8px' }}>
+                        <input type="date" value={row.event_start_date} onChange={e => updateRow(i, { event_start_date: e.target.value })}
+                          style={{ padding: '8px 10px', borderRadius: '8px', border: '1px solid #DDE8EE', fontSize: '13px', fontFamily: 'inherit' }} />
+                        <input type="date" value={row.event_end_date} onChange={e => updateRow(i, { event_end_date: e.target.value })}
+                          style={{ padding: '8px 10px', borderRadius: '8px', border: '1px solid #DDE8EE', fontSize: '13px', fontFamily: 'inherit' }} />
+                      </div>
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', marginBottom: '8px' }}>
+                        <LocationSelect value={row.event_city} onChange={v => updateRow(i, { event_city: v })} options={KNOWN_CITIES.map(c => c.city)} placeholder="City" />
+                        <LocationSelect value={row.event_country} onChange={v => updateRow(i, { event_country: v })} options={COUNTRIES} placeholder="Country" />
+                      </div>
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', marginBottom: '8px' }}>
+                        <input value={row.event_venue} onChange={e => updateRow(i, { event_venue: e.target.value })} placeholder="Venue (optional)"
+                          style={{ padding: '8px 10px', borderRadius: '8px', border: '1px solid #DDE8EE', fontSize: '13px', fontFamily: 'inherit' }} />
+                        <input value={row.series} onChange={e => updateRow(i, { series: e.target.value })} placeholder="Series (only if multi-edition)"
+                          style={{ padding: '8px 10px', borderRadius: '8px', border: '1px solid #DDE8EE', fontSize: '13px', fontFamily: 'inherit' }} />
+                      </div>
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+                        <select value={row.event_format} onChange={e => updateRow(i, { event_format: e.target.value })}
+                          style={{ padding: '8px 10px', borderRadius: '8px', border: '1px solid #DDE8EE', fontSize: '13px', fontFamily: 'inherit' }}>
+                          <option value="">Format…</option>
+                          {EVENT_FORMATS.map(f => <option key={f.value} value={f.value}>{f.label}</option>)}
+                        </select>
+                        <input value={row.event_region} onChange={e => updateRow(i, { event_region: e.target.value })} placeholder="Region (e.g. ASEAN)"
+                          style={{ padding: '8px 10px', borderRadius: '8px', border: '1px solid #DDE8EE', fontSize: '13px', fontFamily: 'inherit' }} />
+                      </div>
                     </div>
                   )}
                   {type?.supports_expiry && (

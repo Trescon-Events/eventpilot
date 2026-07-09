@@ -8,8 +8,9 @@ import { logDocuHubAction, resolveActorTier } from '@/app/lib/docuhub/audit'
 /*
   POST /api/docuhub/documents/bulk
   Body: { rows: [{ doc_type_id, title, object_key, visibility?, event_id?,
-                    event_label?, event_date?, event_venue?, link_expires_at?,
-                    description? }, ...] }
+                    event_label?, event_type?, event_start_date?, event_end_date?,
+                    event_city?, event_country?, event_venue?, series?,
+                    event_format?, event_region?, link_expires_at?, description? }, ...] }
 
   Bulk-file-only (format is always 'file' here — the bulk grid uploads each
   file individually via POST /api/docuhub/upload first, then submits the
@@ -64,8 +65,15 @@ export async function POST(req: NextRequest) {
           visibility: row.visibility || docType.default_visibility,
           event_id: row.event_id || null,
           event_label: row.event_label?.trim() || null,
-          event_date: row.event_date || null,
+          event_type: row.event_type || null,
+          event_start_date: row.event_start_date || null,
+          event_end_date: row.event_end_date || null,
+          event_city: row.event_city?.trim() || null,
+          event_country: row.event_country?.trim() || null,
           event_venue: row.event_venue?.trim() || null,
+          series: row.series?.trim() || null,
+          event_format: row.event_format || null,
+          event_region: row.event_region?.trim() || null,
           link_expires_at: docType.supports_expiry ? (row.link_expires_at || null) : null,
           description: row.description?.trim() || null,
           uploaded_by: staffId,

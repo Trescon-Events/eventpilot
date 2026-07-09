@@ -11,8 +11,9 @@ import { logDocuHubAction, resolveActorTier } from '@/app/lib/docuhub/audit'
 
   POST /api/docuhub/documents
   Body: { doc_type_id, title, slug?, format, object_key?, external_url?,
-          visibility?, event_id?, event_label?, event_date?, event_venue?,
-          link_expires_at?, description? }
+          visibility?, event_id?, event_label?, event_type?, event_start_date?,
+          event_end_date?, event_city?, event_country?, event_venue?, series?,
+          event_format?, event_region?, link_expires_at?, description? }
 */
 export async function GET(req: NextRequest) {
   const staffId = getSessionStaffId(req)
@@ -54,7 +55,8 @@ export async function POST(req: NextRequest) {
   const body = await req.json().catch(() => null)
   const {
     doc_type_id, title, slug: slugInput, format, object_key, external_url,
-    visibility, event_id, event_label, event_date, event_venue,
+    visibility, event_id, event_label, event_type, event_start_date, event_end_date,
+    event_city, event_country, event_venue, series, event_format, event_region,
     link_expires_at, description,
   } = body ?? {}
 
@@ -98,8 +100,15 @@ export async function POST(req: NextRequest) {
       visibility: visibility || docType.default_visibility,
       event_id: event_id || null,
       event_label: event_label?.trim() || null,
-      event_date: event_date || null,
+      event_type: event_type || null,
+      event_start_date: event_start_date || null,
+      event_end_date: event_end_date || null,
+      event_city: event_city?.trim() || null,
+      event_country: event_country?.trim() || null,
       event_venue: event_venue?.trim() || null,
+      series: series?.trim() || null,
+      event_format: event_format || null,
+      event_region: event_region?.trim() || null,
       link_expires_at: docType.supports_expiry ? (link_expires_at || null) : null,
       description: description?.trim() || null,
       uploaded_by: staffId,

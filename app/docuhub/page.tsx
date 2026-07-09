@@ -3,6 +3,21 @@
 import { useState, useEffect, useCallback } from 'react'
 import Link from 'next/link'
 import NavBar, { MOD_DOCUHUB } from '@/app/components/NavBar'
+import LocationSelect from '@/app/components/LocationSelect'
+import { KNOWN_CITIES, COUNTRIES } from '@/app/lib/docuhub/locations'
+import { docuhubDomain } from '@/app/lib/docuhub/domain'
+
+const EVENT_TYPES = [
+  { value: 'managed', label: 'Managed' },
+  { value: 'signature', label: 'Signature' },
+  { value: 'bespoke', label: 'Bespoke' },
+]
+
+const EVENT_FORMATS = [
+  { value: 'in_person', label: 'In-person' },
+  { value: 'virtual', label: 'Virtual' },
+  { value: 'hybrid', label: 'Hybrid' },
+]
 
 type DocType = {
   id: string; key: string; label: string; slug_prefix: string
@@ -13,21 +28,22 @@ type DocRow = {
   id: string; title: string; slug: string; format: string
   object_key: string | null; external_url: string | null
   visibility: string; event_id: string | null; event_label: string | null
-  event_date: string | null; event_venue: string | null
+  event_type: string | null; event_start_date: string | null; event_end_date: string | null
+  event_city: string | null; event_country: string | null; event_venue: string | null
+  series: string | null; event_format: string | null; event_region: string | null
   link_expires_at: string | null; description: string | null
   uploaded_by: string; created_at: string
   doc_types: { key: string; label: string; slug_prefix: string }
 }
 
-const DOCUHUB_DOMAIN = 'docuhub.tresconglobal.com'
-
 function permalinkFor(doc: DocRow): string {
-  return `https://${DOCUHUB_DOMAIN}/${doc.doc_types.slug_prefix}/${doc.slug}`
+  return `https://${docuhubDomain(doc.visibility)}/${doc.doc_types.slug_prefix}/${doc.slug}`
 }
 
 function fmtDate(d: string | null): string {
   if (!d) return '—'
-  return new Date(d).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
+  const [yyyy, mm, dd] = d.slice(0, 10).split('-')
+  return `${dd}-${mm}-${yyyy}`
 }
 
 export default function DocuHubPage() {
@@ -74,8 +90,15 @@ export default function DocuHubPage() {
       description: doc.description ?? '',
       visibility: doc.visibility,
       event_label: doc.event_label ?? '',
-      event_date: doc.event_date ?? '',
+      event_type: doc.event_type ?? '',
+      event_start_date: doc.event_start_date ?? '',
+      event_end_date: doc.event_end_date ?? '',
+      event_city: doc.event_city ?? '',
+      event_country: doc.event_country ?? '',
       event_venue: doc.event_venue ?? '',
+      series: doc.series ?? '',
+      event_format: doc.event_format ?? '',
+      event_region: doc.event_region ?? '',
       link_expires_at: doc.link_expires_at ? doc.link_expires_at.slice(0, 10) : '',
     })
     setMsg('')
@@ -86,8 +109,11 @@ export default function DocuHubPage() {
       method: 'PATCH', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         title: editForm.title, description: editForm.description, visibility: editForm.visibility,
-        event_label: editForm.event_label || null, event_date: editForm.event_date || null,
-        event_venue: editForm.event_venue || null,
+        event_label: editForm.event_label || null, event_type: editForm.event_type || null,
+        event_start_date: editForm.event_start_date || null, event_end_date: editForm.event_end_date || null,
+        event_city: editForm.event_city || null, event_country: editForm.event_country || null,
+        event_venue: editForm.event_venue || null, series: editForm.series || null,
+        event_format: editForm.event_format || null, event_region: editForm.event_region || null,
         link_expires_at: editForm.link_expires_at ? new Date(editForm.link_expires_at).toISOString() : null,
       }),
     })
@@ -180,7 +206,16 @@ export default function DocuHubPage() {
                   <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
                     <span style={{ fontSize: '13px', fontWeight: 700, padding: '2px 8px', borderRadius: '10px', background: 'rgba(217,119,6,0.1)', color: '#B45309' }}>{doc.doc_types.label}</span>
                     <span style={{ fontSize: '13px', fontWeight: 800, color: '#0F1923', flex: 1 }}>{doc.title}</span>
-                    {doc.event_label && <span style={{ fontSize: '13px', color: '#5B7080' }}>{doc.event_label}{doc.event_date ? ` · ${fmtDate(doc.event_date)}` : ''}</span>}
+                    {doc.event_label && (
+                      <span style={{ fontSize: '13px', color: '#5B7080' }}>
+                        {doc.event_label}
+                        {doc.event_start_date ? ` · ${fmtDate(doc.event_start_date)}${doc.event_end_date && doc.event_end_date !== doc.event_start_date ? ` – ${fmtDate(doc.event_end_date)}` : ''}` : ''}
+                        {doc.event_city ? ` · ${doc.event_city}` : ''}
+                        {doc.event_region ? ` · ${doc.event_region}` : ''}
+                        {doc.event_format === 'virtual' ? ' · Virtual' : doc.event_format === 'hybrid' ? ' · Hybrid' : ''}
+                        {doc.series ? ` · ${doc.series}` : ''}
+                      </span>
+                    )}
                     <span style={{ fontSize: '13px', fontWeight: 700, color: doc.visibility === 'public' ? '#3D6B00' : '#5B7080', background: doc.visibility === 'public' ? 'rgba(61,107,0,0.1)' : '#E8EEF4', padding: '2px 8px', borderRadius: '10px' }}>
                       {doc.visibility === 'public' ? 'Public' : 'Internal'}
                     </span>
@@ -191,7 +226,7 @@ export default function DocuHubPage() {
                     )}
                   </div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginTop: '8px' }}>
-                    <a href={`https://${DOCUHUB_DOMAIN}/${doc.doc_types.slug_prefix}/${doc.slug}`} target="_blank" rel="noopener noreferrer" style={{ fontSize: '13px', color: '#B45309', textDecoration: 'none', fontFamily: 'monospace' }}>
+                    <a href={permalinkFor(doc)} target="_blank" rel="noopener noreferrer" style={{ fontSize: '13px', color: '#B45309', textDecoration: 'none', fontFamily: 'monospace' }}>
                       /{doc.doc_types.slug_prefix}/{doc.slug}
                     </a>
                     <button onClick={() => copyLink(doc)} style={{ fontSize: '13px', fontWeight: 700, color: '#5B7080', background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'inherit' }}>Copy Link</button>
@@ -221,13 +256,41 @@ export default function DocuHubPage() {
                         </div>
                       </div>
                       {(doc.event_label !== null || doc.event_id) && (
-                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '10px', marginBottom: '10px' }}>
-                          <input value={editForm.event_label} onChange={e => setEditForm(p => ({ ...p, event_label: e.target.value }))} placeholder="Event name"
-                            style={{ padding: '8px 10px', borderRadius: '8px', border: '1px solid #DDE8EE', fontSize: '13px', fontFamily: 'inherit' }} />
-                          <input type="date" value={editForm.event_date} onChange={e => setEditForm(p => ({ ...p, event_date: e.target.value }))}
-                            style={{ padding: '8px 10px', borderRadius: '8px', border: '1px solid #DDE8EE', fontSize: '13px', fontFamily: 'inherit' }} />
-                          <input value={editForm.event_venue} onChange={e => setEditForm(p => ({ ...p, event_venue: e.target.value }))} placeholder="Venue"
-                            style={{ padding: '8px 10px', borderRadius: '8px', border: '1px solid #DDE8EE', fontSize: '13px', fontFamily: 'inherit' }} />
+                        <div style={{ marginBottom: '10px' }}>
+                          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginBottom: '10px' }}>
+                            <input value={editForm.event_label} onChange={e => setEditForm(p => ({ ...p, event_label: e.target.value }))} placeholder="Event name"
+                              style={{ padding: '8px 10px', borderRadius: '8px', border: '1px solid #DDE8EE', fontSize: '13px', fontFamily: 'inherit' }} />
+                            <select value={editForm.event_type} onChange={e => setEditForm(p => ({ ...p, event_type: e.target.value }))}
+                              style={{ padding: '8px 10px', borderRadius: '8px', border: '1px solid #DDE8EE', fontSize: '13px', fontFamily: 'inherit' }}>
+                              <option value="">Event type…</option>
+                              {EVENT_TYPES.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
+                            </select>
+                          </div>
+                          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginBottom: '10px' }}>
+                            <input type="date" value={editForm.event_start_date} onChange={e => setEditForm(p => ({ ...p, event_start_date: e.target.value }))}
+                              style={{ padding: '8px 10px', borderRadius: '8px', border: '1px solid #DDE8EE', fontSize: '13px', fontFamily: 'inherit' }} />
+                            <input type="date" value={editForm.event_end_date} onChange={e => setEditForm(p => ({ ...p, event_end_date: e.target.value }))}
+                              style={{ padding: '8px 10px', borderRadius: '8px', border: '1px solid #DDE8EE', fontSize: '13px', fontFamily: 'inherit' }} />
+                          </div>
+                          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginBottom: '10px' }}>
+                            <LocationSelect value={editForm.event_city} onChange={v => setEditForm(p => ({ ...p, event_city: v }))} options={KNOWN_CITIES.map(c => c.city)} placeholder="City" />
+                            <LocationSelect value={editForm.event_country} onChange={v => setEditForm(p => ({ ...p, event_country: v }))} options={COUNTRIES} placeholder="Country" />
+                          </div>
+                          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginBottom: '10px' }}>
+                            <input value={editForm.event_venue} onChange={e => setEditForm(p => ({ ...p, event_venue: e.target.value }))} placeholder="Venue (optional)"
+                              style={{ padding: '8px 10px', borderRadius: '8px', border: '1px solid #DDE8EE', fontSize: '13px', fontFamily: 'inherit' }} />
+                            <input value={editForm.series} onChange={e => setEditForm(p => ({ ...p, series: e.target.value }))} placeholder="Series (only if multi-edition)"
+                              style={{ padding: '8px 10px', borderRadius: '8px', border: '1px solid #DDE8EE', fontSize: '13px', fontFamily: 'inherit' }} />
+                          </div>
+                          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                            <select value={editForm.event_format} onChange={e => setEditForm(p => ({ ...p, event_format: e.target.value }))}
+                              style={{ padding: '8px 10px', borderRadius: '8px', border: '1px solid #DDE8EE', fontSize: '13px', fontFamily: 'inherit' }}>
+                              <option value="">Format…</option>
+                              {EVENT_FORMATS.map(f => <option key={f.value} value={f.value}>{f.label}</option>)}
+                            </select>
+                            <input value={editForm.event_region} onChange={e => setEditForm(p => ({ ...p, event_region: e.target.value }))} placeholder="Region (e.g. ASEAN)"
+                              style={{ padding: '8px 10px', borderRadius: '8px', border: '1px solid #DDE8EE', fontSize: '13px', fontFamily: 'inherit' }} />
+                          </div>
                         </div>
                       )}
                       {doc.link_expires_at !== undefined && (

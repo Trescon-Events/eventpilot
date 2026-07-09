@@ -54,10 +54,16 @@ const PLATFORM_HOSTS = [
   '127.0.0.1',
 ]
 
-// DocuHub's public permanent-link domain — a fixed platform hostname (not a
-// per-tenant custom domain), so it's handled separately from
-// resolveCustomDomain() below and checked first.
-const DOCUHUB_HOST = 'docuhub.tresconglobal.com'
+// DocuHub's permanent-link domains — fixed platform hostnames (not
+// per-tenant custom domains), so they're handled separately from
+// resolveCustomDomain() below and checked first. Two domains, not one:
+// docuhub.tresconglobal.com serves internal-visibility documents (needs the
+// tcs_session cookie, which only works within the tresconglobal.com family),
+// while docs.tresconevents.com serves public documents on a separate domain
+// Trescon owns, kept apart from the main platform domain by design. Both
+// rewrite to the same resolve route, which itself decides public vs internal
+// per-document regardless of which host was hit.
+const DOCUHUB_HOSTS = ['docuhub.tresconglobal.com', 'docs.tresconevents.com']
 
 async function resolveCustomDomain(host: string, req: NextRequest): Promise<NextResponse | null> {
   // Strip port
@@ -94,10 +100,10 @@ export async function middleware(req: NextRequest) {
   // overwrites the standard x-forwarded-host header too (confirmed via a
   // live header-inspection test) — so a custom header the Worker sets
   // (added 2026-07-08) is the only reliable signal for which of
-  // eventpilot.tresconglobal.com / docuhub.tresconglobal.com was hit.
+  // eventpilot.tresconglobal.com / docuhub.tresconglobal.com / docs.tresconevents.com was hit.
   const originalHost = (req.headers.get('x-original-host') ?? host).split(':')[0]
 
-  if (originalHost === DOCUHUB_HOST) {
+  if (DOCUHUB_HOSTS.includes(originalHost)) {
     const url = req.nextUrl.clone()
     url.pathname = `/api/docuhub/resolve${url.pathname}`
     return NextResponse.rewrite(url)

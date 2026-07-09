@@ -41,7 +41,8 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   const body = await req.json().catch(() => ({}))
   const {
     title, object_key, external_url, visibility, event_id, event_label,
-    event_date, event_venue, link_expires_at, description,
+    event_type, event_start_date, event_end_date, event_city, event_country,
+    event_venue, series, event_format, event_region, link_expires_at, description,
     // slug intentionally destructured and discarded — immutable, never applied
   } = body ?? {}
 
@@ -53,8 +54,15 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   if (visibility !== undefined)      { updates.visibility = visibility; changed.push('visibility') }
   if (event_id !== undefined)        { updates.event_id = event_id || null; changed.push('event_id') }
   if (event_label !== undefined)     { updates.event_label = event_label?.trim() || null; changed.push('event_label') }
-  if (event_date !== undefined)      { updates.event_date = event_date || null; changed.push('event_date') }
+  if (event_type !== undefined)      { updates.event_type = event_type || null; changed.push('event_type') }
+  if (event_start_date !== undefined) { updates.event_start_date = event_start_date || null; changed.push('event_start_date') }
+  if (event_end_date !== undefined)  { updates.event_end_date = event_end_date || null; changed.push('event_end_date') }
+  if (event_city !== undefined)      { updates.event_city = event_city?.trim() || null; changed.push('event_city') }
+  if (event_country !== undefined)   { updates.event_country = event_country?.trim() || null; changed.push('event_country') }
   if (event_venue !== undefined)     { updates.event_venue = event_venue?.trim() || null; changed.push('event_venue') }
+  if (series !== undefined)          { updates.series = series?.trim() || null; changed.push('series') }
+  if (event_format !== undefined)    { updates.event_format = event_format || null; changed.push('event_format') }
+  if (event_region !== undefined)    { updates.event_region = event_region?.trim() || null; changed.push('event_region') }
   if (link_expires_at !== undefined) { updates.link_expires_at = link_expires_at || null; changed.push('link_expires_at') }
   if (description !== undefined)     { updates.description = description?.trim() || null; changed.push('description') }
 

@@ -3,6 +3,9 @@
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import NavBar, { MOD_DOCUHUB } from '@/app/components/NavBar'
+import LocationSelect from '@/app/components/LocationSelect'
+import { KNOWN_CITIES, COUNTRIES } from '@/app/lib/docuhub/locations'
+import { docuhubDomain } from '@/app/lib/docuhub/domain'
 
 type DocType = {
   id: string; key: string; label: string; slug_prefix: string
@@ -11,7 +14,17 @@ type DocType = {
 }
 type EventOption = { id: string; name: string; event_date: string | null; venue: string | null; city: string | null }
 
-const DOCUHUB_DOMAIN = 'docuhub.tresconglobal.com'
+const EVENT_TYPES = [
+  { value: 'managed', label: 'Managed' },
+  { value: 'signature', label: 'Signature' },
+  { value: 'bespoke', label: 'Bespoke' },
+]
+
+const EVENT_FORMATS = [
+  { value: 'in_person', label: 'In-person' },
+  { value: 'virtual', label: 'Virtual' },
+  { value: 'hybrid', label: 'Hybrid' },
+]
 
 export default function DocuHubUploadPage() {
   const router = useRouter()
@@ -25,13 +38,20 @@ export default function DocuHubUploadPage() {
   const [events, setEvents] = useState<EventOption[]>([])
   const [eventId, setEventId] = useState('')
   const [eventLabel, setEventLabel] = useState('')
-  const [eventDate, setEventDate] = useState('')
+  const [eventType, setEventType] = useState('')
+  const [eventStartDate, setEventStartDate] = useState('')
+  const [eventEndDate, setEventEndDate] = useState('')
+  const [eventCity, setEventCity] = useState('')
+  const [eventCountry, setEventCountry] = useState('')
   const [eventVenue, setEventVenue] = useState('')
+  const [series, setSeries] = useState('')
+  const [eventFormat, setEventFormat] = useState('')
+  const [eventRegion, setEventRegion] = useState('')
   const [expiresAt, setExpiresAt] = useState('')
   const [description, setDescription] = useState('')
   const [uploading, setUploading] = useState(false)
   const [msg, setMsg] = useState('')
-  const [resultLink, setResultLink] = useState<{ prefix: string; slug: string } | null>(null)
+  const [resultLink, setResultLink] = useState<{ prefix: string; slug: string; visibility: string } | null>(null)
 
   useEffect(() => {
     fetch('/api/docuhub/doc-types').then(r => r.json()).then(d => setDocTypes(Array.isArray(d) ? d : []))
@@ -50,8 +70,10 @@ export default function DocuHubUploadPage() {
     const ev = events.find(e => e.id === id)
     if (ev) {
       setEventLabel(ev.name)
-      setEventDate(ev.event_date ?? '')
-      setEventVenue(ev.venue ?? ev.city ?? '')
+      setEventStartDate(ev.event_date ?? '')
+      setEventEndDate(ev.event_date ?? '')
+      setEventVenue(ev.venue ?? '')
+      setEventCity(ev.city ?? '')
     }
   }
 
@@ -81,14 +103,18 @@ export default function DocuHubUploadPage() {
           object_key: objectKey, external_url: format === 'link' ? externalUrl : undefined,
           visibility,
           event_id: eventId || undefined, event_label: eventLabel || undefined,
-          event_date: eventDate || undefined, event_venue: eventVenue || undefined,
+          event_type: eventType || undefined,
+          event_start_date: eventStartDate || undefined, event_end_date: eventEndDate || undefined,
+          event_city: eventCity || undefined, event_country: eventCountry || undefined,
+          event_venue: eventVenue || undefined, series: series || undefined,
+          event_format: eventFormat || undefined, event_region: eventRegion || undefined,
           link_expires_at: expiresAt ? new Date(expiresAt).toISOString() : undefined,
           description: description || undefined,
         }),
       })
       const data = await res.json()
       if (!res.ok) { setMsg(data.error ?? 'Could not save this document.'); setUploading(false); return }
-      setResultLink({ prefix: data.document.doc_types.slug_prefix, slug: data.document.slug })
+      setResultLink({ prefix: data.document.doc_types.slug_prefix, slug: data.document.slug, visibility: data.document.visibility })
     } catch {
       setMsg('Could not reach the server.')
     }
@@ -96,7 +122,7 @@ export default function DocuHubUploadPage() {
   }
 
   if (resultLink) {
-    const link = `https://${DOCUHUB_DOMAIN}/${resultLink.prefix}/${resultLink.slug}`
+    const link = `https://${docuhubDomain(resultLink.visibility)}/${resultLink.prefix}/${resultLink.slug}`
     return (
       <div style={{ minHeight: '100vh', background: '#E8EEF4', fontFamily: 'var(--font-manrope), sans-serif' }}>
         <NavBar module={MOD_DOCUHUB} homeHref="/docuhub" />
@@ -179,12 +205,44 @@ export default function DocuHubUploadPage() {
                   <option value="">Not in EventPilot / historical — type it below</option>
                   {events.map(ev => <option key={ev.id} value={ev.id}>{ev.name}</option>)}
                 </select>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '8px' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', marginBottom: '8px' }}>
                   <input value={eventLabel} onChange={e => setEventLabel(e.target.value)} placeholder="Event name"
                     style={{ padding: '8px 10px', borderRadius: '8px', border: '1px solid #DDE8EE', fontSize: '13px', fontFamily: 'inherit' }} />
-                  <input type="date" value={eventDate} onChange={e => setEventDate(e.target.value)}
+                  <select value={eventType} onChange={e => setEventType(e.target.value)}
+                    style={{ padding: '8px 10px', borderRadius: '8px', border: '1px solid #DDE8EE', fontSize: '13px', fontFamily: 'inherit' }}>
+                    <option value="">Event type…</option>
+                    {EVENT_TYPES.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
+                  </select>
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', marginBottom: '8px' }}>
+                  <div>
+                    <label style={{ fontSize: '12px', color: '#5B7080', display: 'block', marginBottom: '3px' }}>Start date</label>
+                    <input type="date" value={eventStartDate} onChange={e => setEventStartDate(e.target.value)}
+                      style={{ width: '100%', padding: '8px 10px', borderRadius: '8px', border: '1px solid #DDE8EE', fontSize: '13px', fontFamily: 'inherit', boxSizing: 'border-box' }} />
+                  </div>
+                  <div>
+                    <label style={{ fontSize: '12px', color: '#5B7080', display: 'block', marginBottom: '3px' }}>End date</label>
+                    <input type="date" value={eventEndDate} onChange={e => setEventEndDate(e.target.value)}
+                      style={{ width: '100%', padding: '8px 10px', borderRadius: '8px', border: '1px solid #DDE8EE', fontSize: '13px', fontFamily: 'inherit', boxSizing: 'border-box' }} />
+                  </div>
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', marginBottom: '8px' }}>
+                  <LocationSelect value={eventCity} onChange={setEventCity} options={KNOWN_CITIES.map(c => c.city)} placeholder="City" />
+                  <LocationSelect value={eventCountry} onChange={setEventCountry} options={COUNTRIES} placeholder="Country" />
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', marginBottom: '8px' }}>
+                  <input value={eventVenue} onChange={e => setEventVenue(e.target.value)} placeholder="Venue (optional)"
                     style={{ padding: '8px 10px', borderRadius: '8px', border: '1px solid #DDE8EE', fontSize: '13px', fontFamily: 'inherit' }} />
-                  <input value={eventVenue} onChange={e => setEventVenue(e.target.value)} placeholder="Venue"
+                  <input value={series} onChange={e => setSeries(e.target.value)} placeholder="Series (only if multi-edition)"
+                    style={{ padding: '8px 10px', borderRadius: '8px', border: '1px solid #DDE8EE', fontSize: '13px', fontFamily: 'inherit' }} />
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+                  <select value={eventFormat} onChange={e => setEventFormat(e.target.value)}
+                    style={{ padding: '8px 10px', borderRadius: '8px', border: '1px solid #DDE8EE', fontSize: '13px', fontFamily: 'inherit' }}>
+                    <option value="">Format…</option>
+                    {EVENT_FORMATS.map(f => <option key={f.value} value={f.value}>{f.label}</option>)}
+                  </select>
+                  <input value={eventRegion} onChange={e => setEventRegion(e.target.value)} placeholder="Region (e.g. ASEAN, if no single city)"
                     style={{ padding: '8px 10px', borderRadius: '8px', border: '1px solid #DDE8EE', fontSize: '13px', fontFamily: 'inherit' }} />
                 </div>
               </div>

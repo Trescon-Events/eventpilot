@@ -1,15 +1,16 @@
 import { SchemaType, type FunctionDeclaration } from '@google/generative-ai'
 import { supabaseAdmin } from '@/app/lib/supabase'
+import { docuhubDomain } from '@/app/lib/docuhub/domain'
 
 export interface DocuHubFindResult {
   title: string
   docTypeLabel: string
   eventLabel: string | null
-  eventDate: string | null
+  eventStartDate: string | null
+  eventEndDate: string | null
+  series: string | null
   link: string
 }
-
-const DOCUHUB_DOMAIN = 'docuhub.tresconglobal.com'
 
 /**
  * Metadata-only lookup for "find/locate a document" style questions —
@@ -30,7 +31,7 @@ export async function findDocuHubDocuments(opts: {
 
   let q = supabaseAdmin
     .from('docuhub_documents')
-    .select('title, slug, event_label, event_date, link_expires_at, visibility, doc_types(key, label, slug_prefix)')
+    .select('title, slug, event_label, event_start_date, event_end_date, series, link_expires_at, visibility, doc_types(key, label, slug_prefix)')
     .eq('is_active', true)
     .or(`link_expires_at.is.null,link_expires_at.gt.${new Date().toISOString()}`)
     .limit(limit)
@@ -49,8 +50,10 @@ export async function findDocuHubDocuments(opts: {
       title: d.title,
       docTypeLabel: d.doc_types.label,
       eventLabel: d.event_label,
-      eventDate: d.event_date,
-      link: `https://${DOCUHUB_DOMAIN}/${d.doc_types.slug_prefix}/${d.slug}`,
+      eventStartDate: d.event_start_date,
+      eventEndDate: d.event_end_date,
+      series: d.series,
+      link: `https://${docuhubDomain(d.visibility)}/${d.doc_types.slug_prefix}/${d.slug}`,
     }))
 }
 

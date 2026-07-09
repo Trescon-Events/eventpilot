@@ -6,12 +6,13 @@ import { presignGet } from '@/app/lib/docuhub/storage'
 /*
   GET /api/docuhub/resolve/[prefix]/[slug]
 
-  The permanent-link resolver. Reached either via the docuhub.tresconglobal.com
-  host-rewrite in middleware.ts once that subdomain exists, or directly at
-  this path on eventpilot.tresconglobal.com as a pre-DNS fallback. Public
-  documents resolve with zero session friction; internal documents require a
-  valid session. Expired or missing documents get a friendly page, not a
-  generic error.
+  The permanent-link resolver. Reached via the docuhub.tresconglobal.com or
+  docs.tresconevents.com host-rewrite in middleware.ts (see docuhubDomain()
+  in app/lib/docuhub/domain.ts for which domain a given document displays),
+  or directly at this path on eventpilot.tresconglobal.com as a pre-DNS
+  fallback. Public documents resolve with zero session friction; internal
+  documents require a valid session. Expired or missing documents get a
+  friendly page, not a generic error.
 */
 
 function friendlyPage(title: string, message: string): NextResponse {
