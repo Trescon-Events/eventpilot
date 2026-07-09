@@ -33,8 +33,15 @@ export async function POST(req: NextRequest) {
   const body = await req.json().catch(() => ({}))
   const quote      = String(body?.quote ?? '').trim()
   const authorName = String(body?.author_name ?? '').trim()
-  if (!quote)      return NextResponse.json({ error: 'quote required' }, { status: 400 })
-  if (!authorName) return NextResponse.json({ error: 'author_name required' }, { status: 400 })
+  const company    = String(body?.author_company ?? '').trim()
+
+  // Testimonials are flexible — Marketing sometimes only has the company
+  // (brand testimonial with no named person). Allow any combination.
+  // At least ONE of {quote, author_name, author_company} must be present
+  // so we're not inserting empty rows.
+  if (!quote && !authorName && !company) {
+    return NextResponse.json({ error: 'Provide at least a quote, author, or company' }, { status: 400 })
+  }
 
   const row = {
     quote,

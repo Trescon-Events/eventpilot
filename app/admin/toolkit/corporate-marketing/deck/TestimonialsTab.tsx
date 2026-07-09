@@ -45,8 +45,11 @@ export default function TestimonialsTab() {
 
   async function createRow() {
     setErr(null)
-    if (!newRow.quote.trim() || !newRow.author_name.trim()) {
-      setErr('Quote and author name are required')
+    // Testimonials are flexible — Marketing may only have a company name
+    // (brand testimonial with no named person), or a quote with no author,
+    // etc. Only reject if all three key fields are empty.
+    if (!newRow.quote.trim() && !newRow.author_name.trim() && !newRow.author_company.trim()) {
+      setErr('Please provide at least a quote, author name, or company')
       return
     }
     try {
