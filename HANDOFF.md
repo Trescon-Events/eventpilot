@@ -28,23 +28,77 @@ Madhu will update this section (or replace it with a proper "What Was Built" ent
 
 | Field | Value |
 |---|---|
-| Who | Durga + Claude Code (Opus 4.7) — 07 Jul 2026 |
-| Latest push | 2026-07-07 — commit `9caca08` (retire old deck/upload with clear refresh message) |
-| Handed off to | Next session |
-| Deployed | ✅ Yes — all 5 commits from this session confirmed live on Railway |
+| Who | Madhu + Claude Code (Sonnet 5) — 08–09 Jul 2026 |
+| Latest push | 2026-07-09 — commit `e709232` (redesign DocuHub browse page as a table, add type-to-confirm delete) |
+| Handed off to | Durga |
+| Deployed | ✅ Yes — all commits from this session confirmed live on Railway; DNS + Worker route for `docs.tresconevents.com` also live |
 
-**Session highlight:** Response session — fix the fallout from yesterday's CM-001 launch as feedback rolled in, plus one new feature. **(1)** Fixed Thulasi's 66 MB deck upload — she was hitting an ambiguous "Invalid form data" because Node's formData() parser has a hidden cap around ~4 MB on Railway well below the advertised 100 MB. Switched to direct-to-Supabase-Storage upload via signed URL (same pattern used elsewhere in this repo). **(2)** Fixed Charan Kaverappa's Finance Portal access — the DB grant was applied but the PlatformMenu was gating Finance Portal behind `isAdmin`, so no non-admin ever saw it in nav. Refactored to show it to anyone with the `finance` role. **(3)** Built the **Access Requests Dashboard** end-to-end — `/admin/access-requests` with grant / deny / revoke, permanent or time-boxed (1h · 4h · 1d · 3d · 7d · 30d · Custom), auto-revoke cron for expiring grants. Access requests now persist to `access_requests` table + upgraded email template (requester role + dept + prominent URL + CTA to dashboard). **(4)** Investigated the `CRON_SECRET` blocker that's held up the leaderboard cron for a week — found TWO stacked problems: GitHub Actions had no `CRON_SECRET` at all (empty substitution) AND Cloudflare was challenging GitHub Actions IPs as bots even when the secret was correct. Fixed both by switching workflow target to Railway direct URL + setting `CRON_SECRET` on GitHub. Railway env var still needs manual sync — flagged below.
+**Session highlight:** Built the entire **DocuHub** module from scratch (document/asset management, distinct from the Knowledge Base — original-file permanent links, not AI extraction) across two days, then used it to import Trescon's real historical document backlog. See full "What Was Built" entry below for the complete build; short version: schema + APIs + staff-facing UI (Phases A–F, 08 Jul) → structured event metadata (Series/Format/Region/dates) + a second permalink domain (`docs.tresconevents.com`, kept separate from `tresconglobal.com` for public documents) → bulk-imported all 74 historical post-event-report PDFs with dates verified against the actual source PDFs → added Client/Owner fields and imported 8 BD proposal PDFs (internal-only) → found and fixed a real production bug (browse-page crash the moment a second document type existed) → redesigned the browse page as a proper table with a type-to-confirm delete modal.
 
 **Still to do:**
-1. **Thulasi retest of the 66 MB upload.** New email drafted for her explaining the fix — she needs to hard-refresh her browser (Cmd+Shift+R) to load the new client JS, then retry. First retry after the direct-to-Storage fix landed showed she was on cached OLD client → old endpoint → old "Invalid form data" error. Retired the old endpoint (`9caca08`) with an explicit "please hard-refresh" 410 response so any future cache-holding user gets an unambiguous signal.
-2. **Corporate Deck manager — Phase 2 shape decision.** Durga surfaced the "multi-party decks" question. Wrote a full framing email to Thulasi with three architecture options (multiple decks all Trescon's / workspaces per party / full multi-tenant SaaS). Thulasi owns this decision — she wrote the Phase 1 PRD, she should shape Phase 2. Email ready to send.
-3. **Charan sign-out + sign-in.** He'll see Finance Portal after his session cookie refreshes with the new `access_roles` value. Ping him.
-4. **`CRON_SECRET` on Railway** — GitHub Actions secret is set, `.env.local` value is what got pushed to GitHub. Railway holds a different value (verified via a manual test workflow that returned 401 with fresh auth). Durga couldn't complete the Railway change this session (she doesn't appear to have Railway dashboard access with her `dc@` account — Railway is under `webadmin@tresconglobal.com` per CLAUDE.md). Not urgent: the dashboard we shipped works fully without the auto-revoke cron; only impact is time-boxed grants stay `granted` past their window until manually revoked. Weekly leaderboard cron also stays broken until this syncs.
-5. **Nicholas Nunes access request unhandled.** He hit `/admin` yesterday and asked for access via the email flow. That was BEFORE we shipped the dashboard, so his request only exists as an email — it did NOT retroactively appear in `access_requests`. Either grant him admin manually or ask him to hit `/admin` again to generate a fresh dashboard row.
+1. **Full click-through of the redesigned DocuHub browse page** (`/docuhub`) — verified healthy via curl/logs and typechecks, but hasn't been visually confirmed end-to-end by a human on a real monitor since the last push. Table layout, long-title wrapping, "Link ↗" action, and the delete-confirmation modal should all get one look-over.
+2. **Internal-document access model is still "any logged-in staff can view any internal doc."** Discussed explicitly with Madhu re: sensitive BD/financial proposals — he chose to proceed as-is for now (domain choice doesn't affect this either way; the real boundary is the login-gated resolver + private R2 bucket, both already in place and correct). If tighter role/department scoping for financial documents becomes a priority, that's a deliberate follow-up, not a bug.
+3. **`knowledge-base/bd/proposals/*/*_intelligence.md`** — 6 new files appeared untracked in the repo during this session (created 09 Jul, ~17:32–17:37) that this session did not create. Looks like a separate, parallel automated process (possibly the KB Intelligence pipeline) touched the same BD proposal source files DocuHub also uploaded. Left untouched/uncommitted since it's not this session's work and the owning process isn't clear — worth checking what generated them before they're lost or accidentally committed.
+4. **New Cloudflare token added to `.env.local`**: `CF_DNS_API_TOKEN`, scoped only to DNS + Workers Routes edit on the `tresconevents.com` zone (verified — cannot touch `tresconglobal.com` or any other zone). Used to create the `docs.tresconevents.com` DNS record + Worker route this session.
+5. **`EVENTPILOT_PLATFORM_DOCUMENT.md` and `app/smartexcel/shell.tsx`** show as locally modified but were already sitting uncommitted before this session started (not this session's work, left alone) — flagging so they don't get silently lost; whoever's change that is should commit or discard it.
 
-**Carried forward from previous sessions (unchanged):**
+**Carried forward from previous sessions (unchanged, not touched this session):**
 - **`staff_members.last_login_at` never written.** Blocks any "target never-logged-in staff" filter. Needs SSO callback investigation.
 - **Khalifat alignment call on Website Builder & Brand Studio.** Full reply drafted 06 Jul, still awaiting Durga to send.
+- **Corporate Deck manager — Phase 2 shape decision.** Framing email drafted for Thulasi (three architecture options), hers to decide.
+- **`CRON_SECRET` on Railway out of sync** — blocks auto-revoke cron + weekly leaderboard cron. Needs Railway dashboard access under `webadmin@tresconglobal.com`.
+- **Nicholas Nunes access request** — pre-dates the Access Requests Dashboard, only exists as an email. Grant manually or have him re-request.
+
+---
+
+## What Was Built — 08–09 Jul 2026 (Madhu + Claude Code) — DocuHub document management module + historical import
+
+### What DocuHub is and why it's separate from the Knowledge Base
+
+The Knowledge Base module handles AI-consumable knowledge extraction. DocuHub is a different concern: managing the *original files* of post-event reports, BD proposals, and (later) HR policies — each with a permanent shareable link that survives the file being replaced, public-vs-internal visibility, and per-type metadata. Standalone module at `/docuhub`, own R2 bucket, fully decoupled from KB ingestion (no "Add to KB" bridge). Admin-configurable document types (`doc_types` table) rather than hardcoded — currently seeded with `post_event_report`, `bd_proposal`, `hr_policy`.
+
+### Phases A–F (08 Jul) — core build
+
+- **Schema**: `doc_types`, `docuhub_documents`, `module_access` (generic per-module `user`/`admin` tier — `hasModuleAccess()` in `app/lib/access/module-access.ts`, reusable by other modules later), `docuhub_audit_log`.
+- **Storage**: dedicated `DOCUHUB_R2_*` bucket, same `aws4fetch` presigned-URL pattern as KB's bucket (`app/lib/docuhub/storage.ts`). Bucket is private — files are only ever reachable via a short-lived (5 min) presigned URL minted after an access check, never a public URL.
+- **Permanent link resolver**: `app/api/docuhub/resolve/[prefix]/[slug]/route.ts` — public documents resolve with no friction; internal documents require a valid `tcs_session` login, else redirect to `/login`. Slugs are immutable once created.
+- **Staff-facing UI**: `/docuhub` (browse/manage), `/docuhub/upload`, `/docuhub/bulk`, `/docuhub/settings` (admin-only: doc types, access grants, audit log).
+- **Pilot AI integration**: real Gemini function-calling (`app/lib/docuhub/find.ts` + `/api/ask`) — Pilot can look up and link a document mid-conversation rather than always searching.
+- **Cookie-domain fix**: `tcs_session` widened to `.tresconglobal.com` in production so it's valid across `docuhub.tresconglobal.com` too.
+
+### 09 Jul — structured event metadata + a second permalink domain
+
+Added to `docuhub_documents`: `event_type` (Managed/Signature/Bespoke), `event_start_date`/`event_end_date` (replacing a single `event_date`), `event_city`/`event_country` (new `LocationSelect` searchable combobox, seeded from real data — no such component or dataset existed anywhere in the app before), `series` (only set for multi-edition series), `event_format` (In-person/Virtual/Hybrid) + `event_region` (for virtual/pan-regional editions with no single host city).
+
+**Two permalink domains, chosen per-document by visibility** (`app/lib/docuhub/domain.ts`):
+- `docs.tresconevents.com` — public documents. A domain Trescon already owned, deliberately kept apart from `tresconglobal.com` so a large and growing volume of public document links/crawler traffic never touches the main platform domain.
+- `docuhub.tresconglobal.com` — internal documents, unchanged. Internal-visibility access relies on the `tcs_session` cookie, which can only ever be valid within the `tresconglobal.com` domain family — a genuinely separate domain like `tresconevents.com` can never receive that cookie, so internal docs *must* stay on the tresconglobal.com family.
+- Infra for the new domain: DNS `A` record (`docs` → placeholder IP, proxied) + a Cloudflare Worker Route binding `docs.tresconevents.com/*` to the existing `eventpilot-proxy` Worker (already host-agnostic, no Worker code change needed). Done using a **new, narrowly-scoped** Cloudflare API token (`CF_DNS_API_TOKEN` in `.env.local`) — the original `CF_API_TOKEN` has no DNS permission at all. The new token can only touch DNS + Workers Routes on the `tresconevents.com` zone specifically — verified it cannot reach `tresconglobal.com` or any other zone, so this can't affect anything Durga's side touches.
+
+### Historical bulk import — 74 post-event-report PDFs
+
+A prompt drafted in a separate Claude app session had proposed attaching these to the *Knowledge Base's* `documents` table instead — investigation found that unworkable (KB only has 11 rows, one per series/summary, not one per PDF edition; would have silently overwritten most files). Used DocuHub instead, which already models one row per file.
+
+- `scripts/docuhub-historical-import.mjs` (gitignored, local-only — same pattern as `scripts/run-kb-migration.mjs`): parses folder location + filename + each series' `*_master_internal.md` "Source file(s):" block for series/dates/city/venue.
+- **Dates were re-verified against the actual source PDFs**, not just the earlier KB summarization pass — parallel read-only agents opened ~24 PDFs directly and read the real cover-page dates, correcting the summarizer's guesses (which had defaulted to Jan 1 of the edition year for anything it wasn't confident about). One genuine data error caught this way: `CIO_2016_Post_event_report.pdf` is actually titled "CIO India Conclave," held in **Goa**, not Mumbai as the original guess assumed.
+- Result: all 74 files live at `docs.tresconevents.com/eventreports/<slug>`, correct series/dates/city/country/format/region, 0 flagged after corrections.
+
+### BD Proposals — Client/Owner fields + 8 real files (internal-only)
+
+Different shape from event reports — concept-stage, not a real event yet. Added `client_name` (free text) + `owner_staff_id` (FK to `staff_members`) to `docuhub_documents`, and a `requires_client_attribution` toggle on `doc_types` (parallel to `requires_event_attribution`, controls which metadata block the UI shows). `bd_proposal`'s `default_visibility` corrected from `public` to `internal` — the original seed value was wrong for a type that didn't have real content yet.
+
+8 real Trescon BD proposals imported (`scripts/docuhub-proposals-import.mjs`), Client names given directly by Madhu: DSO FutureTech Ecosystem ×2 + Dubai FutureTech Festival (client: Dubai Silicon Oasis), Dubai STEM Summit (TECOM Group), LivingSphere Summit (Dubai Land Department), Sharjah Next: Sustainability (Sharjah Next), STRIPE Oman (Oman Investment Authority), World Space Economy Summit — Central Asia Edition (Uzcosmos). All owner = Madhu, all internal-visibility — confirmed the resolver correctly redirects to login when unauthenticated.
+
+### Bug found + fixed: browse-page crash the moment a second document type existed
+
+`GET /api/docuhub/documents`'s type filter used a plain embedded-resource filter (`.eq('doc_types.key', docType)`) without an inner-join hint. PostgREST's behavior here: without `!inner`, it returns *every* row regardless of type and just nulls out `doc_types` on non-matching rows, rather than excluding them. Invisible while the table only had one document type (post-event-report); crashed the instant BD proposals (a second type) existed, because the client renders `doc.doc_types.label` — `Uncaught TypeError: Cannot read properties of null (reading 'label')`. Same latent bug existed in the Pilot AI document-search helper (`find.ts`) too, silently shrinking results instead of crashing (a `.filter()` guard there masked it). Both fixed with `doc_types!inner(...)`.
+
+### Browse page redesign
+
+Original layout was a flexbox row with title + metadata crammed onto one line — when a title was long, its flex column could get squeezed to near-zero width by sibling elements, wrapping character-by-character (visually broken). Rebuilt as a real `<table>` with `table-layout: fixed` and percentage column widths (Name / Type / Event-Client / Details / Visibility / Actions) — fixed columns can't be squeezed by content the way flex children can. The "Details" column adapts per document type via one small helper function rather than hardcoded per-type markup, so future document types just need their fields added there. "Link ↗" is now a short hyperlink instead of the raw path. **Delete now requires typing "DELETE" in a confirmation modal** before the button is even clickable — applies generically to every document type.
+
+### Commits (chronological)
+`2e869e9` Phase A+B (schema, storage, access control, CRUD) · `cab33d2` Phase C (resolver + middleware + cookie fix) · `bc76ff3` resolve-route login-redirect fix · `b578974` Phase D (staff UI) · `ef430b4` Phase E (bulk upload) · `f7236b2` Phase F (Pilot AI function-calling) · `27bf166` Pilot system-prompt scope fix · `cd1ee84`/`5a3dc4a` debug route add+remove · `49767db` original-hostname header fix · `8f272b7` structured event metadata + `docs.tresconevents.com` domain · `075fb46` doc_types filter crash fix + BD proposal fields · `e709232` browse page table redesign + delete confirmation.
 
 ---
 
