@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, Fragment } from 'react'
 import Link from 'next/link'
 import NavBar, { MOD_DOCUHUB } from '@/app/components/NavBar'
 import LocationSelect from '@/app/components/LocationSelect'
@@ -48,6 +48,30 @@ function fmtDate(d: string | null): string {
   return `${dd}-${mm}-${yyyy}`
 }
 
+const FORMAT_LABEL: Record<string, string> = { virtual: 'Virtual', hybrid: 'Hybrid', in_person: 'In-person' }
+const EVENT_TYPE_LABEL: Record<string, string> = { managed: 'Managed', signature: 'Signature', bespoke: 'Bespoke' }
+
+/** Everything shown in the "Details" column — only what's actually populated on this document. */
+function detailsFor(doc: DocRow, staffOptions: StaffOption[]): string[] {
+  const parts: string[] = []
+  if (doc.event_label) {
+    if (doc.event_start_date) {
+      parts.push(doc.event_end_date && doc.event_end_date !== doc.event_start_date
+        ? `${fmtDate(doc.event_start_date)} – ${fmtDate(doc.event_end_date)}`
+        : fmtDate(doc.event_start_date))
+    }
+    if (doc.event_city) parts.push(doc.event_city)
+    if (doc.event_region) parts.push(doc.event_region)
+    if (doc.event_format && doc.event_format !== 'in_person') parts.push(FORMAT_LABEL[doc.event_format])
+    if (doc.series) parts.push(doc.series)
+  }
+  if (doc.client_name) {
+    if (doc.event_type) parts.push(EVENT_TYPE_LABEL[doc.event_type] ?? doc.event_type)
+    if (doc.owner_staff_id) parts.push(staffOptions.find(s => s.id === doc.owner_staff_id)?.name ?? 'Owner assigned')
+  }
+  return parts
+}
+
 export default function DocuHubPage() {
   const [sid, setSid] = useState('')
   const [tier, setTier] = useState<'none' | 'user' | 'admin'>('none')
@@ -63,6 +87,9 @@ export default function DocuHubPage() {
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editForm, setEditForm] = useState<Record<string, string>>({})
   const [msg, setMsg] = useState('')
+  const [deletingDoc, setDeletingDoc] = useState<DocRow | null>(null)
+  const [deleteConfirmText, setDeleteConfirmText] = useState('')
+  const [deleting, setDeleting] = useState(false)
 
   useEffect(() => {
     fetch('/api/auth/session').then(r => r.json()).then(s => { if (s?.sid) setSid(s.sid) })
@@ -130,10 +157,12 @@ export default function DocuHubPage() {
     }
   }
 
-  async function deleteDoc(doc: DocRow) {
-    if (!confirm(`Delete "${doc.title}"? This can't be undone from here.`)) return
-    const res = await fetch(`/api/docuhub/documents/${doc.id}`, { method: 'DELETE' })
-    if (res.ok) fetchDocs()
+  async function confirmDelete() {
+    if (!deletingDoc || deleteConfirmText !== 'DELETE') return
+    setDeleting(true)
+    const res = await fetch(`/api/docuhub/documents/${deletingDoc.id}`, { method: 'DELETE' })
+    setDeleting(false)
+    if (res.ok) { setDeletingDoc(null); setDeleteConfirmText(''); fetchDocs() }
     else { const data = await res.json().catch(() => ({})); setMsg(data.error ?? 'Could not delete.') }
   }
 
@@ -165,7 +194,7 @@ export default function DocuHubPage() {
         </div>
       } />
 
-      <div style={{ maxWidth: '1100px', margin: '0 auto', padding: '32px 24px' }}>
+      <div style={{ maxWidth: '1320px', margin: '0 auto', padding: '32px 24px' }}>
         <div style={{ fontSize: '13px', fontWeight: 800, letterSpacing: '2.5px', textTransform: 'uppercase', color: '#B45309', marginBottom: '6px' }}>DocuHub</div>
         <h1 style={{ fontSize: '20px', fontWeight: 800, color: '#0F1923', margin: '0 0 20px' }}>Documents ({total})</h1>
 
@@ -202,58 +231,77 @@ export default function DocuHubPage() {
         ) : docs.length === 0 ? (
           <div style={{ fontSize: '13px', color: '#5B7080' }}>No documents match these filters.</div>
         ) : (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-            {docs.map(doc => {
-              const isOwner = doc.uploaded_by === sid
-              const canEdit = isOwner || tier === 'admin'
-              const canDelete = tier === 'admin'
-              const expired = doc.link_expires_at ? new Date(doc.link_expires_at) <= new Date() : false
-              return (
-                <div key={doc.id} style={{ background: '#FFFFFF', border: '1px solid #DDE8EE', borderRadius: '12px', padding: '14px 16px' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
-                    <span style={{ fontSize: '13px', fontWeight: 700, padding: '2px 8px', borderRadius: '10px', background: 'rgba(217,119,6,0.1)', color: '#B45309' }}>{doc.doc_types.label}</span>
-                    <span style={{ fontSize: '13px', fontWeight: 800, color: '#0F1923', flex: 1 }}>{doc.title}</span>
-                    {doc.event_label && (
-                      <span style={{ fontSize: '13px', color: '#5B7080' }}>
-                        {doc.event_label}
-                        {doc.event_start_date ? ` · ${fmtDate(doc.event_start_date)}${doc.event_end_date && doc.event_end_date !== doc.event_start_date ? ` – ${fmtDate(doc.event_end_date)}` : ''}` : ''}
-                        {doc.event_city ? ` · ${doc.event_city}` : ''}
-                        {doc.event_region ? ` · ${doc.event_region}` : ''}
-                        {doc.event_format === 'virtual' ? ' · Virtual' : doc.event_format === 'hybrid' ? ' · Hybrid' : ''}
-                        {doc.series ? ` · ${doc.series}` : ''}
-                      </span>
-                    )}
-                    {doc.client_name && (
-                      <span style={{ fontSize: '13px', color: '#5B7080' }}>
-                        {doc.client_name}
-                        {doc.event_type ? ` · ${doc.event_type}` : ''}
-                        {doc.owner_staff_id ? ` · ${staffOptions.find(s => s.id === doc.owner_staff_id)?.name ?? 'Owner'}` : ''}
-                      </span>
-                    )}
-                    <span style={{ fontSize: '13px', fontWeight: 700, color: doc.visibility === 'public' ? '#3D6B00' : '#5B7080', background: doc.visibility === 'public' ? 'rgba(61,107,0,0.1)' : '#E8EEF4', padding: '2px 8px', borderRadius: '10px' }}>
-                      {doc.visibility === 'public' ? 'Public' : 'Internal'}
-                    </span>
-                    {doc.link_expires_at && (
-                      <span style={{ fontSize: '13px', fontWeight: 700, color: expired ? '#8B1A1A' : '#92400E', background: expired ? 'rgba(139,26,26,0.1)' : 'rgba(245,158,11,0.1)', padding: '2px 8px', borderRadius: '10px' }}>
-                        {expired ? 'Expired' : `Expires ${fmtDate(doc.link_expires_at)}`}
-                      </span>
-                    )}
-                  </div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginTop: '8px' }}>
-                    <a href={permalinkFor(doc)} target="_blank" rel="noopener noreferrer" style={{ fontSize: '13px', color: '#B45309', textDecoration: 'none', fontFamily: 'monospace' }}>
-                      /{doc.doc_types.slug_prefix}/{doc.slug}
-                    </a>
-                    <button onClick={() => copyLink(doc)} style={{ fontSize: '13px', fontWeight: 700, color: '#5B7080', background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'inherit' }}>Copy Link</button>
-                    {canEdit && editingId !== doc.id && (
-                      <button onClick={() => startEdit(doc)} style={{ fontSize: '13px', fontWeight: 700, color: '#7C3AED', background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'inherit' }}>Edit</button>
-                    )}
-                    {canDelete && (
-                      <button onClick={() => deleteDoc(doc)} style={{ fontSize: '13px', fontWeight: 700, color: '#FF6B6B', background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'inherit' }}>Delete</button>
-                    )}
-                  </div>
-
-                  {editingId === doc.id && (
-                    <div style={{ marginTop: '12px', padding: '14px', background: '#E8EEF4', borderRadius: '10px' }}>
+          <div style={{ background: '#FFFFFF', border: '1px solid #DDE8EE', borderRadius: '12px', overflow: 'hidden' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', tableLayout: 'fixed' }}>
+              <colgroup>
+                <col style={{ width: '30%' }} />
+                <col style={{ width: '13%' }} />
+                <col style={{ width: '17%' }} />
+                <col style={{ width: '21%' }} />
+                <col style={{ width: '8%' }} />
+                <col style={{ width: '11%' }} />
+              </colgroup>
+              <thead>
+                <tr style={{ background: '#F7FAFC', borderBottom: '1px solid #DDE8EE' }}>
+                  {['Name', 'Type', 'Event / Client', 'Details', 'Visibility', 'Actions'].map(h => (
+                    <th key={h} style={{ textAlign: 'left', padding: '10px 14px', fontSize: '11px', fontWeight: 800, letterSpacing: '0.6px', textTransform: 'uppercase', color: '#5B7080' }}>{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {docs.map(doc => {
+                  const isOwner = doc.uploaded_by === sid
+                  const canEdit = isOwner || tier === 'admin'
+                  const canDelete = tier === 'admin'
+                  const expired = doc.link_expires_at ? new Date(doc.link_expires_at) <= new Date() : false
+                  const primary = doc.event_label ?? doc.client_name
+                  const details = detailsFor(doc, staffOptions)
+                  return (
+                    <Fragment key={doc.id}>
+                      <tr style={{ borderBottom: editingId === doc.id ? 'none' : '1px solid #EDF1F4' }}>
+                        <td style={{ padding: '12px 14px', verticalAlign: 'top', fontSize: '13px', fontWeight: 800, color: '#0F1923', wordBreak: 'normal', overflowWrap: 'anywhere' }}>
+                          {doc.title}
+                        </td>
+                        <td style={{ padding: '12px 14px', verticalAlign: 'top' }}>
+                          <span style={{ display: 'inline-block', fontSize: '12px', fontWeight: 700, padding: '2px 8px', borderRadius: '10px', background: 'rgba(217,119,6,0.1)', color: '#B45309', whiteSpace: 'nowrap' }}>{doc.doc_types.label}</span>
+                        </td>
+                        <td style={{ padding: '12px 14px', verticalAlign: 'top', fontSize: '13px', color: '#0F1923', wordBreak: 'normal', overflowWrap: 'anywhere' }}>
+                          {primary ?? <span style={{ color: '#B8CDD8' }}>—</span>}
+                        </td>
+                        <td style={{ padding: '12px 14px', verticalAlign: 'top', fontSize: '12.5px', color: '#5B7080' }}>
+                          {details.length ? details.join(' · ') : <span style={{ color: '#B8CDD8' }}>—</span>}
+                        </td>
+                        <td style={{ padding: '12px 14px', verticalAlign: 'top' }}>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', alignItems: 'flex-start' }}>
+                            <span style={{ fontSize: '12px', fontWeight: 700, color: doc.visibility === 'public' ? '#3D6B00' : '#5B7080', background: doc.visibility === 'public' ? 'rgba(61,107,0,0.1)' : '#E8EEF4', padding: '2px 8px', borderRadius: '10px', whiteSpace: 'nowrap' }}>
+                              {doc.visibility === 'public' ? 'Public' : 'Internal'}
+                            </span>
+                            {doc.link_expires_at && (
+                              <span style={{ fontSize: '11px', fontWeight: 700, color: expired ? '#8B1A1A' : '#92400E', background: expired ? 'rgba(139,26,26,0.1)' : 'rgba(245,158,11,0.1)', padding: '2px 8px', borderRadius: '10px', whiteSpace: 'nowrap' }}>
+                                {expired ? 'Expired' : `Exp. ${fmtDate(doc.link_expires_at)}`}
+                              </span>
+                            )}
+                          </div>
+                        </td>
+                        <td style={{ padding: '12px 14px', verticalAlign: 'top' }}>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', alignItems: 'flex-start' }}>
+                            <a href={permalinkFor(doc)} target="_blank" rel="noopener noreferrer" style={{ fontSize: '13px', fontWeight: 700, color: '#B45309', textDecoration: 'none' }}>Link ↗</a>
+                            <button onClick={() => copyLink(doc)} style={{ fontSize: '13px', fontWeight: 700, color: '#5B7080', background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'inherit', padding: 0 }}>Copy</button>
+                            {canEdit && (
+                              <button onClick={() => editingId === doc.id ? setEditingId(null) : startEdit(doc)} style={{ fontSize: '13px', fontWeight: 700, color: '#7C3AED', background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'inherit', padding: 0 }}>
+                                {editingId === doc.id ? 'Cancel' : 'Edit'}
+                              </button>
+                            )}
+                            {canDelete && (
+                              <button onClick={() => { setDeletingDoc(doc); setDeleteConfirmText('') }} style={{ fontSize: '13px', fontWeight: 700, color: '#FF6B6B', background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'inherit', padding: 0 }}>Delete</button>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                      {editingId === doc.id && (
+                        <tr style={{ borderBottom: '1px solid #EDF1F4' }}>
+                          <td colSpan={6} style={{ padding: '0 14px 16px' }}>
+                            <div style={{ padding: '14px', background: '#E8EEF4', borderRadius: '10px' }}>
                       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginBottom: '10px' }}>
                         <div>
                           <label style={{ fontSize: '13px', fontWeight: 700, color: '#5B7080', display: 'block', marginBottom: '4px' }}>Title</label>
@@ -337,18 +385,51 @@ export default function DocuHubPage() {
                         <textarea value={editForm.description} onChange={e => setEditForm(p => ({ ...p, description: e.target.value }))} rows={2}
                           style={{ width: '100%', padding: '8px 10px', borderRadius: '8px', border: '1px solid #DDE8EE', fontSize: '13px', fontFamily: 'inherit', boxSizing: 'border-box', resize: 'vertical' }} />
                       </div>
-                      <div style={{ display: 'flex', gap: '8px' }}>
-                        <button onClick={() => saveEdit(doc)} style={{ padding: '8px 16px', borderRadius: '8px', border: 'none', background: '#C0F43C', color: '#0F1923', fontSize: '13px', fontWeight: 800, cursor: 'pointer', fontFamily: 'inherit' }}>Save</button>
-                        <button onClick={() => setEditingId(null)} style={{ padding: '8px 14px', borderRadius: '8px', border: '1px solid #B8CDD8', background: '#FFFFFF', color: '#5B7080', fontSize: '13px', fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>Cancel</button>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              )
-            })}
+                              <div style={{ display: 'flex', gap: '8px' }}>
+                                <button onClick={() => saveEdit(doc)} style={{ padding: '8px 16px', borderRadius: '8px', border: 'none', background: '#C0F43C', color: '#0F1923', fontSize: '13px', fontWeight: 800, cursor: 'pointer', fontFamily: 'inherit' }}>Save</button>
+                                <button onClick={() => setEditingId(null)} style={{ padding: '8px 14px', borderRadius: '8px', border: '1px solid #B8CDD8', background: '#FFFFFF', color: '#5B7080', fontSize: '13px', fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>Cancel</button>
+                              </div>
+                            </div>
+                          </td>
+                        </tr>
+                      )}
+                    </Fragment>
+                  )
+                })}
+              </tbody>
+            </table>
           </div>
         )}
       </div>
+
+      {deletingDoc && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(15,25,35,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100, padding: '20px' }}>
+          <div style={{ background: '#FFFFFF', borderRadius: '16px', padding: '28px', maxWidth: '440px', width: '100%' }}>
+            <div style={{ fontSize: '16px', fontWeight: 800, color: '#0F1923', marginBottom: '10px' }}>Delete this document?</div>
+            <div style={{ fontSize: '13px', color: '#5B7080', lineHeight: 1.6, marginBottom: '16px' }}>
+              This permanently deletes <strong>&ldquo;{deletingDoc.title}&rdquo;</strong> and its permanent link. This can&rsquo;t be undone from here.
+              Type <strong>DELETE</strong> below to confirm.
+            </div>
+            <input
+              value={deleteConfirmText}
+              onChange={e => setDeleteConfirmText(e.target.value)}
+              placeholder="Type DELETE to confirm"
+              style={{ width: '100%', padding: '10px 12px', borderRadius: '9px', border: '1px solid #DDE8EE', fontSize: '13px', fontFamily: 'inherit', boxSizing: 'border-box', marginBottom: '16px' }}
+              autoFocus
+            />
+            <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
+              <button onClick={() => { setDeletingDoc(null); setDeleteConfirmText('') }}
+                style={{ padding: '10px 16px', borderRadius: '9px', border: '1px solid #DDE8EE', background: '#FFFFFF', color: '#5B7080', fontSize: '13px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
+                Cancel
+              </button>
+              <button onClick={confirmDelete} disabled={deleteConfirmText !== 'DELETE' || deleting}
+                style={{ padding: '10px 16px', borderRadius: '9px', border: 'none', background: deleteConfirmText !== 'DELETE' || deleting ? '#F3B8B8' : '#FF6B6B', color: '#FFFFFF', fontSize: '13px', fontWeight: 800, cursor: deleteConfirmText !== 'DELETE' || deleting ? 'not-allowed' : 'pointer', fontFamily: 'inherit' }}>
+                {deleting ? 'Deleting…' : 'Delete permanently'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
