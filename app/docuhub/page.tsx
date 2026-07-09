@@ -21,9 +21,10 @@ const EVENT_FORMATS = [
 
 type DocType = {
   id: string; key: string; label: string; slug_prefix: string
-  requires_event_attribution: boolean; supports_expiry: boolean
+  requires_event_attribution: boolean; requires_client_attribution: boolean; supports_expiry: boolean
   default_visibility: string; allowed_formats: string[]
 }
+type StaffOption = { id: string; name: string; email: string }
 type DocRow = {
   id: string; title: string; slug: string; format: string
   object_key: string | null; external_url: string | null
@@ -31,6 +32,7 @@ type DocRow = {
   event_type: string | null; event_start_date: string | null; event_end_date: string | null
   event_city: string | null; event_country: string | null; event_venue: string | null
   series: string | null; event_format: string | null; event_region: string | null
+  client_name: string | null; owner_staff_id: string | null
   link_expires_at: string | null; description: string | null
   uploaded_by: string; created_at: string
   doc_types: { key: string; label: string; slug_prefix: string }
@@ -50,6 +52,7 @@ export default function DocuHubPage() {
   const [sid, setSid] = useState('')
   const [tier, setTier] = useState<'none' | 'user' | 'admin'>('none')
   const [docTypes, setDocTypes] = useState<DocType[]>([])
+  const [staffOptions, setStaffOptions] = useState<StaffOption[]>([])
   const [docs, setDocs] = useState<DocRow[]>([])
   const [total, setTotal] = useState(0)
   const [loading, setLoading] = useState(false)
@@ -65,6 +68,7 @@ export default function DocuHubPage() {
     fetch('/api/auth/session').then(r => r.json()).then(s => { if (s?.sid) setSid(s.sid) })
     fetch('/api/docuhub/access/me').then(r => r.json()).then(d => setTier(d.tier ?? 'none'))
     fetch('/api/docuhub/doc-types').then(r => r.json()).then(d => setDocTypes(Array.isArray(d) ? d : []))
+    fetch('/api/staff-list').then(r => r.json()).then(d => setStaffOptions(Array.isArray(d) ? d : [])).catch(() => {})
   }, [])
 
   const fetchDocs = useCallback(async () => {
@@ -99,6 +103,8 @@ export default function DocuHubPage() {
       series: doc.series ?? '',
       event_format: doc.event_format ?? '',
       event_region: doc.event_region ?? '',
+      client_name: doc.client_name ?? '',
+      owner_staff_id: doc.owner_staff_id ?? '',
       link_expires_at: doc.link_expires_at ? doc.link_expires_at.slice(0, 10) : '',
     })
     setMsg('')
@@ -114,6 +120,7 @@ export default function DocuHubPage() {
         event_city: editForm.event_city || null, event_country: editForm.event_country || null,
         event_venue: editForm.event_venue || null, series: editForm.series || null,
         event_format: editForm.event_format || null, event_region: editForm.event_region || null,
+        client_name: editForm.client_name || null, owner_staff_id: editForm.owner_staff_id || null,
         link_expires_at: editForm.link_expires_at ? new Date(editForm.link_expires_at).toISOString() : null,
       }),
     })
@@ -216,6 +223,13 @@ export default function DocuHubPage() {
                         {doc.series ? ` · ${doc.series}` : ''}
                       </span>
                     )}
+                    {doc.client_name && (
+                      <span style={{ fontSize: '13px', color: '#5B7080' }}>
+                        {doc.client_name}
+                        {doc.event_type ? ` · ${doc.event_type}` : ''}
+                        {doc.owner_staff_id ? ` · ${staffOptions.find(s => s.id === doc.owner_staff_id)?.name ?? 'Owner'}` : ''}
+                      </span>
+                    )}
                     <span style={{ fontSize: '13px', fontWeight: 700, color: doc.visibility === 'public' ? '#3D6B00' : '#5B7080', background: doc.visibility === 'public' ? 'rgba(61,107,0,0.1)' : '#E8EEF4', padding: '2px 8px', borderRadius: '10px' }}>
                       {doc.visibility === 'public' ? 'Public' : 'Internal'}
                     </span>
@@ -291,6 +305,24 @@ export default function DocuHubPage() {
                             <input value={editForm.event_region} onChange={e => setEditForm(p => ({ ...p, event_region: e.target.value }))} placeholder="Region (e.g. ASEAN)"
                               style={{ padding: '8px 10px', borderRadius: '8px', border: '1px solid #DDE8EE', fontSize: '13px', fontFamily: 'inherit' }} />
                           </div>
+                        </div>
+                      )}
+                      {(doc.client_name !== null || doc.owner_staff_id !== null) && (
+                        <div style={{ marginBottom: '10px' }}>
+                          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginBottom: '10px' }}>
+                            <input value={editForm.client_name} onChange={e => setEditForm(p => ({ ...p, client_name: e.target.value }))} placeholder="Client (organisation name)"
+                              style={{ padding: '8px 10px', borderRadius: '8px', border: '1px solid #DDE8EE', fontSize: '13px', fontFamily: 'inherit' }} />
+                            <select value={editForm.owner_staff_id} onChange={e => setEditForm(p => ({ ...p, owner_staff_id: e.target.value }))}
+                              style={{ padding: '8px 10px', borderRadius: '8px', border: '1px solid #DDE8EE', fontSize: '13px', fontFamily: 'inherit' }}>
+                              <option value="">Owner…</option>
+                              {staffOptions.map(s => <option key={s.id} value={s.id}>{s.name} — {s.email}</option>)}
+                            </select>
+                          </div>
+                          <select value={editForm.event_type} onChange={e => setEditForm(p => ({ ...p, event_type: e.target.value }))}
+                            style={{ width: '100%', padding: '8px 10px', borderRadius: '8px', border: '1px solid #DDE8EE', fontSize: '13px', fontFamily: 'inherit' }}>
+                            <option value="">Event type…</option>
+                            {EVENT_TYPES.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
+                          </select>
                         </div>
                       )}
                       {doc.link_expires_at !== undefined && (

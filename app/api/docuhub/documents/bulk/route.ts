@@ -10,7 +10,8 @@ import { logDocuHubAction, resolveActorTier } from '@/app/lib/docuhub/audit'
   Body: { rows: [{ doc_type_id, title, object_key, visibility?, event_id?,
                     event_label?, event_type?, event_start_date?, event_end_date?,
                     event_city?, event_country?, event_venue?, series?,
-                    event_format?, event_region?, link_expires_at?, description? }, ...] }
+                    event_format?, event_region?, client_name?, owner_staff_id?,
+                    link_expires_at?, description? }, ...] }
 
   Bulk-file-only (format is always 'file' here — the bulk grid uploads each
   file individually via POST /api/docuhub/upload first, then submits the
@@ -45,6 +46,7 @@ export async function POST(req: NextRequest) {
       if (!row.object_key) throw new Error('File was not uploaded')
       if (!docType.allowed_formats.includes('file')) throw new Error(`${docType.label} does not allow file uploads`)
       if (docType.requires_event_attribution && !row.event_label?.trim()) throw new Error('Event name is required for this type')
+      if (docType.requires_client_attribution && !row.client_name?.trim()) throw new Error('Client name is required for this type')
       if (row.link_expires_at && !docType.supports_expiry) throw new Error(`${docType.label} does not support an expiry date`)
 
       let slug = slugify(row.title)
@@ -74,6 +76,8 @@ export async function POST(req: NextRequest) {
           series: row.series?.trim() || null,
           event_format: row.event_format || null,
           event_region: row.event_region?.trim() || null,
+          client_name: row.client_name?.trim() || null,
+          owner_staff_id: row.owner_staff_id || null,
           link_expires_at: docType.supports_expiry ? (row.link_expires_at || null) : null,
           description: row.description?.trim() || null,
           uploaded_by: staffId,

@@ -13,7 +13,8 @@ import { logDocuHubAction, resolveActorTier } from '@/app/lib/docuhub/audit'
   Body: { doc_type_id, title, slug?, format, object_key?, external_url?,
           visibility?, event_id?, event_label?, event_type?, event_start_date?,
           event_end_date?, event_city?, event_country?, event_venue?, series?,
-          event_format?, event_region?, link_expires_at?, description? }
+          event_format?, event_region?, client_name?, owner_staff_id?,
+          link_expires_at?, description? }
 */
 export async function GET(req: NextRequest) {
   const staffId = getSessionStaffId(req)
@@ -28,9 +29,13 @@ export async function GET(req: NextRequest) {
   const limit     = Number(params.get('limit') ?? 50)
   const offset    = Number(params.get('offset') ?? 0)
 
+  // !inner turns the embedded doc_types filter below into a real join filter —
+  // without it, PostgREST returns every row regardless of type and just nulls
+  // out doc_types on non-matching rows, which crashes the client's `doc.doc_types.label`
+  // render the moment more than one document type actually exists in the table.
   let query = supabaseAdmin
     .from('docuhub_documents')
-    .select('*, doc_types(key, label, slug_prefix)', { count: 'exact' })
+    .select('*, doc_types!inner(key, label, slug_prefix)', { count: 'exact' })
     .eq('is_active', true)
     .order('created_at', { ascending: false })
     .range(offset, offset + limit - 1)
@@ -57,7 +62,7 @@ export async function POST(req: NextRequest) {
     doc_type_id, title, slug: slugInput, format, object_key, external_url,
     visibility, event_id, event_label, event_type, event_start_date, event_end_date,
     event_city, event_country, event_venue, series, event_format, event_region,
-    link_expires_at, description,
+    client_name, owner_staff_id, link_expires_at, description,
   } = body ?? {}
 
   if (!doc_type_id || !title?.trim() || !format) {
@@ -75,6 +80,9 @@ export async function POST(req: NextRequest) {
   if (format === 'link' && !external_url?.trim()) return NextResponse.json({ error: 'external_url is required for link documents' }, { status: 400 })
   if (docType.requires_event_attribution && !event_label?.trim()) {
     return NextResponse.json({ error: 'This document type requires an event name' }, { status: 400 })
+  }
+  if (docType.requires_client_attribution && !client_name?.trim()) {
+    return NextResponse.json({ error: 'This document type requires a client name' }, { status: 400 })
   }
   if (link_expires_at && !docType.supports_expiry) {
     return NextResponse.json({ error: 'This document type does not support an expiry date' }, { status: 400 })
@@ -109,6 +117,8 @@ export async function POST(req: NextRequest) {
       series: series?.trim() || null,
       event_format: event_format || null,
       event_region: event_region?.trim() || null,
+      client_name: client_name?.trim() || null,
+      owner_staff_id: owner_staff_id || null,
       link_expires_at: docType.supports_expiry ? (link_expires_at || null) : null,
       description: description?.trim() || null,
       uploaded_by: staffId,

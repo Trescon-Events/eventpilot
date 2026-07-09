@@ -9,10 +9,11 @@ import { docuhubDomain } from '@/app/lib/docuhub/domain'
 
 type DocType = {
   id: string; key: string; label: string; slug_prefix: string
-  requires_event_attribution: boolean; supports_expiry: boolean
+  requires_event_attribution: boolean; requires_client_attribution: boolean; supports_expiry: boolean
   default_visibility: string; allowed_formats: string[]
 }
 type EventOption = { id: string; name: string; event_date: string | null; venue: string | null; city: string | null }
+type StaffOption = { id: string; name: string; email: string }
 
 const EVENT_TYPES = [
   { value: 'managed', label: 'Managed' },
@@ -47,6 +48,9 @@ export default function DocuHubUploadPage() {
   const [series, setSeries] = useState('')
   const [eventFormat, setEventFormat] = useState('')
   const [eventRegion, setEventRegion] = useState('')
+  const [staffOptions, setStaffOptions] = useState<StaffOption[]>([])
+  const [clientName, setClientName] = useState('')
+  const [ownerStaffId, setOwnerStaffId] = useState('')
   const [expiresAt, setExpiresAt] = useState('')
   const [description, setDescription] = useState('')
   const [uploading, setUploading] = useState(false)
@@ -56,6 +60,7 @@ export default function DocuHubUploadPage() {
   useEffect(() => {
     fetch('/api/docuhub/doc-types').then(r => r.json()).then(d => setDocTypes(Array.isArray(d) ? d : []))
     fetch('/api/events').then(r => r.json()).then(d => setEvents(Array.isArray(d) ? d : [])).catch(() => {})
+    fetch('/api/staff-list').then(r => r.json()).then(d => setStaffOptions(Array.isArray(d) ? d : [])).catch(() => {})
   }, [])
 
   function pickType(t: DocType) {
@@ -83,6 +88,7 @@ export default function DocuHubUploadPage() {
     if (format === 'file' && !file) { setMsg('Please choose a file.'); return }
     if (format === 'link' && !externalUrl.trim()) { setMsg('Please paste a link.'); return }
     if (selectedType.requires_event_attribution && !eventLabel.trim()) { setMsg('Event name is required for this document type.'); return }
+    if (selectedType.requires_client_attribution && !clientName.trim()) { setMsg('Client is required for this document type.'); return }
 
     setUploading(true); setMsg('')
     try {
@@ -108,6 +114,7 @@ export default function DocuHubUploadPage() {
           event_city: eventCity || undefined, event_country: eventCountry || undefined,
           event_venue: eventVenue || undefined, series: series || undefined,
           event_format: eventFormat || undefined, event_region: eventRegion || undefined,
+          client_name: clientName || undefined, owner_staff_id: ownerStaffId || undefined,
           link_expires_at: expiresAt ? new Date(expiresAt).toISOString() : undefined,
           description: description || undefined,
         }),
@@ -245,6 +252,25 @@ export default function DocuHubUploadPage() {
                   <input value={eventRegion} onChange={e => setEventRegion(e.target.value)} placeholder="Region (e.g. ASEAN, if no single city)"
                     style={{ padding: '8px 10px', borderRadius: '8px', border: '1px solid #DDE8EE', fontSize: '13px', fontFamily: 'inherit' }} />
                 </div>
+              </div>
+            )}
+
+            {selectedType.requires_client_attribution && (
+              <div style={{ marginBottom: '12px', padding: '12px', background: '#E8EEF4', borderRadius: '10px' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', marginBottom: '8px' }}>
+                  <input value={clientName} onChange={e => setClientName(e.target.value)} placeholder="Client (organisation name)"
+                    style={{ padding: '8px 10px', borderRadius: '8px', border: '1px solid #DDE8EE', fontSize: '13px', fontFamily: 'inherit' }} />
+                  <select value={ownerStaffId} onChange={e => setOwnerStaffId(e.target.value)}
+                    style={{ padding: '8px 10px', borderRadius: '8px', border: '1px solid #DDE8EE', fontSize: '13px', fontFamily: 'inherit' }}>
+                    <option value="">Owner…</option>
+                    {staffOptions.map(s => <option key={s.id} value={s.id}>{s.name} — {s.email}</option>)}
+                  </select>
+                </div>
+                <select value={eventType} onChange={e => setEventType(e.target.value)}
+                  style={{ width: '100%', padding: '8px 10px', borderRadius: '8px', border: '1px solid #DDE8EE', fontSize: '13px', fontFamily: 'inherit' }}>
+                  <option value="">Event type…</option>
+                  {EVENT_TYPES.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
+                </select>
               </div>
             )}
 

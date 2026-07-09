@@ -42,7 +42,8 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   const {
     title, object_key, external_url, visibility, event_id, event_label,
     event_type, event_start_date, event_end_date, event_city, event_country,
-    event_venue, series, event_format, event_region, link_expires_at, description,
+    event_venue, series, event_format, event_region, client_name, owner_staff_id,
+    link_expires_at, description,
     // slug intentionally destructured and discarded — immutable, never applied
   } = body ?? {}
 
@@ -63,6 +64,8 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   if (series !== undefined)          { updates.series = series?.trim() || null; changed.push('series') }
   if (event_format !== undefined)    { updates.event_format = event_format || null; changed.push('event_format') }
   if (event_region !== undefined)    { updates.event_region = event_region?.trim() || null; changed.push('event_region') }
+  if (client_name !== undefined)     { updates.client_name = client_name?.trim() || null; changed.push('client_name') }
+  if (owner_staff_id !== undefined)  { updates.owner_staff_id = owner_staff_id || null; changed.push('owner_staff_id') }
   if (link_expires_at !== undefined) { updates.link_expires_at = link_expires_at || null; changed.push('link_expires_at') }
   if (description !== undefined)     { updates.description = description?.trim() || null; changed.push('description') }
 

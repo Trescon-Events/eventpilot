@@ -20,9 +20,10 @@ const EVENT_FORMATS = [
 
 type DocType = {
   id: string; key: string; label: string; slug_prefix: string
-  requires_event_attribution: boolean; supports_expiry: boolean
+  requires_event_attribution: boolean; requires_client_attribution: boolean; supports_expiry: boolean
   default_visibility: string; allowed_formats: string[]
 }
+type StaffOption = { id: string; name: string; email: string }
 type Row = {
   file: File; title: string; doc_type_id: string
   object_key: string | null; uploading: boolean; uploadError: string | null
@@ -30,17 +31,20 @@ type Row = {
   event_start_date: string; event_end_date: string
   event_city: string; event_country: string; event_venue: string; series: string
   event_format: string; event_region: string
+  client_name: string; owner_staff_id: string
   link_expires_at: string
 }
 
 export default function DocuHubBulkPage() {
   const [docTypes, setDocTypes] = useState<DocType[]>([])
+  const [staffOptions, setStaffOptions] = useState<StaffOption[]>([])
   const [rows, setRows] = useState<Row[]>([])
   const [publishing, setPublishing] = useState(false)
   const [resultMsg, setResultMsg] = useState('')
 
   useEffect(() => {
     fetch('/api/docuhub/doc-types').then(r => r.json()).then(d => setDocTypes(Array.isArray(d) ? d : []))
+    fetch('/api/staff-list').then(r => r.json()).then(d => setStaffOptions(Array.isArray(d) ? d : [])).catch(() => {})
   }, [])
 
   async function addFiles(files: FileList | null) {
@@ -50,7 +54,7 @@ export default function DocuHubBulkPage() {
       object_key: null, uploading: true, uploadError: null,
       visibility: 'internal', event_label: '', event_type: '',
       event_start_date: '', event_end_date: '', event_city: '', event_country: '', event_venue: '', series: '',
-      event_format: '', event_region: '',
+      event_format: '', event_region: '', client_name: '', owner_staff_id: '',
       link_expires_at: '',
     }))
     setRows(p => [...p, ...newRows])
@@ -84,7 +88,7 @@ export default function DocuHubBulkPage() {
         doc_type_id: r.doc_type_id, title: r.title, object_key: r.object_key,
         visibility: r.visibility,
         event_label: type?.requires_event_attribution ? r.event_label : undefined,
-        event_type: type?.requires_event_attribution ? r.event_type : undefined,
+        event_type: (type?.requires_event_attribution || type?.requires_client_attribution) ? r.event_type : undefined,
         event_start_date: type?.requires_event_attribution ? r.event_start_date : undefined,
         event_end_date: type?.requires_event_attribution ? r.event_end_date : undefined,
         event_city: type?.requires_event_attribution ? r.event_city : undefined,
@@ -93,6 +97,8 @@ export default function DocuHubBulkPage() {
         series: type?.requires_event_attribution ? r.series : undefined,
         event_format: type?.requires_event_attribution ? r.event_format : undefined,
         event_region: type?.requires_event_attribution ? r.event_region : undefined,
+        client_name: type?.requires_client_attribution ? r.client_name : undefined,
+        owner_staff_id: type?.requires_client_attribution ? r.owner_staff_id : undefined,
         link_expires_at: type?.supports_expiry && r.link_expires_at ? new Date(r.link_expires_at).toISOString() : undefined,
       }
     })
@@ -192,6 +198,24 @@ export default function DocuHubBulkPage() {
                         <input value={row.event_region} onChange={e => updateRow(i, { event_region: e.target.value })} placeholder="Region (e.g. ASEAN)"
                           style={{ padding: '8px 10px', borderRadius: '8px', border: '1px solid #DDE8EE', fontSize: '13px', fontFamily: 'inherit' }} />
                       </div>
+                    </div>
+                  )}
+                  {type?.requires_client_attribution && (
+                    <div style={{ marginBottom: '8px' }}>
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', marginBottom: '8px' }}>
+                        <input value={row.client_name} onChange={e => updateRow(i, { client_name: e.target.value })} placeholder="Client (organisation name)"
+                          style={{ padding: '8px 10px', borderRadius: '8px', border: '1px solid #DDE8EE', fontSize: '13px', fontFamily: 'inherit' }} />
+                        <select value={row.owner_staff_id} onChange={e => updateRow(i, { owner_staff_id: e.target.value })}
+                          style={{ padding: '8px 10px', borderRadius: '8px', border: '1px solid #DDE8EE', fontSize: '13px', fontFamily: 'inherit' }}>
+                          <option value="">Owner…</option>
+                          {staffOptions.map(s => <option key={s.id} value={s.id}>{s.name} — {s.email}</option>)}
+                        </select>
+                      </div>
+                      <select value={row.event_type} onChange={e => updateRow(i, { event_type: e.target.value })}
+                        style={{ width: '100%', padding: '8px 10px', borderRadius: '8px', border: '1px solid #DDE8EE', fontSize: '13px', fontFamily: 'inherit' }}>
+                        <option value="">Event type…</option>
+                        {EVENT_TYPES.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
+                      </select>
                     </div>
                   )}
                   {type?.supports_expiry && (

@@ -29,9 +29,14 @@ export async function findDocuHubDocuments(opts: {
 }): Promise<DocuHubFindResult[]> {
   const { query, docTypeKey, eventId, staffId, limit = 5 } = opts
 
+  // !inner makes the doc_types.key filter below a real join filter — plain
+  // embedded-resource filters in PostgREST return every row regardless of
+  // match and just null out non-matching embeds, which would silently shrink
+  // (or empty) the result set once .limit() truncates before the null rows
+  // could be filtered out below.
   let q = supabaseAdmin
     .from('docuhub_documents')
-    .select('title, slug, event_label, event_start_date, event_end_date, series, link_expires_at, visibility, doc_types(key, label, slug_prefix)')
+    .select('title, slug, event_label, event_start_date, event_end_date, series, link_expires_at, visibility, doc_types!inner(key, label, slug_prefix)')
     .eq('is_active', true)
     .or(`link_expires_at.is.null,link_expires_at.gt.${new Date().toISOString()}`)
     .limit(limit)
