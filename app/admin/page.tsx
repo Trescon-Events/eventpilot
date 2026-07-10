@@ -682,6 +682,7 @@ export default function AdminPage() {
   const [pendingLoading, setPendingLoading] = useState(false)
   const [reviewingId,    setReviewingId]    = useState<string | null>(null)
   const [expandedPendingId, setExpandedPendingId] = useState<string | null>(null)
+  const [docActionMsg,   setDocActionMsg]   = useState('')
 
   // Knowledge — self-learning gap detection (KB Self-Learning PRD v3.0)
   type GapStatus = 'unresolved' | 'added' | 'skipped' | 'pending'
@@ -873,26 +874,36 @@ export default function AdminPage() {
 
   async function publishPendingDoc(documentId: string) {
     const adminStaffId = sessionStorage.getItem('tai_admin_staff_id')
+    const title = ingestResult?.document.id === documentId ? ingestResult.document.title : pendingDocs.find(d => d.id === documentId)?.title
     setReviewingId(documentId)
-    await fetch('/api/documents/review', {
+    const res = await fetch('/api/documents/review', {
       method: 'PATCH', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ document_id: documentId, reviewer_id: adminStaffId, action: 'approve' }),
     })
     if (ingestResult?.document.id === documentId) setIngestResult(null)
     setReviewingId(null)
+    if (res.ok) {
+      setDocActionMsg(`✓ Published${title ? ` "${title}"` : ''} to the Knowledge Base — it's now live.`)
+      window.setTimeout(() => setDocActionMsg(''), 6000)
+    }
     fetchPendingDocs()
     fetchDocs()
   }
 
   async function rejectPendingDoc(documentId: string) {
     const adminStaffId = sessionStorage.getItem('tai_admin_staff_id')
+    const title = ingestResult?.document.id === documentId ? ingestResult.document.title : pendingDocs.find(d => d.id === documentId)?.title
     setReviewingId(documentId)
-    await fetch('/api/documents/review', {
+    const res = await fetch('/api/documents/review', {
       method: 'PATCH', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ document_id: documentId, reviewer_id: adminStaffId, action: 'reject', note: 'Rejected from Knowledge Base ingestion review.' }),
     })
     if (ingestResult?.document.id === documentId) setIngestResult(null)
     setReviewingId(null)
+    if (res.ok) {
+      setDocActionMsg(`Rejected${title ? ` "${title}"` : ''} — it will not be published.`)
+      window.setTimeout(() => setDocActionMsg(''), 6000)
+    }
     fetchPendingDocs()
   }
 
@@ -4872,6 +4883,11 @@ export default function AdminPage() {
                       <svg width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
                       PER Creator
                     </Link>
+                    <Link href="/admin/tools/bd-chat"
+                      style={{ display: 'flex', alignItems: 'center', gap: '7px', padding: '10px 18px', borderRadius: '10px', border: '1px solid rgba(0,165,163,0.35)', background: 'rgba(0,165,163,0.08)', color: '#00695C', fontSize: '13px', fontWeight: 800, textDecoration: 'none' }}>
+                      <svg width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
+                      Knowledge Assistant
+                    </Link>
                     {!showIngestForm && (
                       <button onClick={() => setShowIngestForm(true)}
                         style={{ display: 'flex', alignItems: 'center', gap: '7px', padding: '10px 18px', borderRadius: '10px', border: '1px solid rgba(164,120,255,0.35)', background: 'rgba(164,120,255,0.08)', color: '#7C3AED', fontSize: '13px', fontWeight: 800, cursor: 'pointer', fontFamily: 'inherit' }}>
@@ -4913,6 +4929,12 @@ export default function AdminPage() {
                   </button>
                 ))}
               </div>
+
+              {docSubTab === 'documents' && docActionMsg && (
+                <div style={{ fontSize: '13px', fontWeight: 700, padding: '11px 16px', borderRadius: '10px', background: docActionMsg.startsWith('Rejected') ? 'rgba(255,107,107,0.08)' : 'rgba(192,244,60,0.1)', border: `1px solid ${docActionMsg.startsWith('Rejected') ? 'rgba(255,107,107,0.25)' : 'rgba(192,244,60,0.3)'}`, color: docActionMsg.startsWith('Rejected') ? '#8B1A1A' : '#3D6B00', marginBottom: '16px' }}>
+                  {docActionMsg}
+                </div>
+              )}
 
               {docSubTab === 'documents' && showIngestForm && (() => {
                 const effectiveType = ingestEffectiveType()
