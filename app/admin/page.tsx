@@ -7,6 +7,7 @@ import { buildQuestions, ALL_DEPARTMENTS } from '@/app/lib/questions'
 import type { Question } from '@/app/lib/questions'
 import { computeAIRS } from '@/app/lib/airs'
 import { kbDownloadHref } from '@/app/lib/kb/download-href'
+import type { Gap } from '@/app/lib/kb/gaps'
 
 const ROLE_META: Record<string, { label: string; color: string; bg: string; desc: string }> = {
   standard:        { label: 'Standard',        color: '#5B7080', bg: '#5B708015', desc: 'Default — basic platform access' },
@@ -591,7 +592,7 @@ export default function AdminPage() {
   const [docFilter,       setDocFilter]       = useState<'all'|'knowledge_base'|'general'|'specific'|'flagged'>('all')
 
   // Knowledge — sub-tab, version control, BD Workspaces
-  const [docSubTab,     setDocSubTab]     = useState<'documents' | 'workspaces' | 'intelligence'>('documents')
+  const [docSubTab,     setDocSubTab]     = useState<'documents' | 'workspaces' | 'intelligence' | 'gaps'>('documents')
   const [supersedesDoc, setSupersedesDoc] = useState<DocRow | null>(null)
   const [versionNote,   setVersionNote]   = useState('')
 
@@ -673,7 +674,7 @@ export default function AdminPage() {
     pilot_use: boolean; status: string; source_url: string | null; word_count: number
     extracted_text: string; created_at: string
   }
-  type IngestResult = { success: boolean; detected_type: string; document: PendingDoc; summary: string }
+  type IngestResult = { success: boolean; detected_type: string; document: PendingDoc; summary: string; gaps?: Gap[]; gap_session_id?: string | null }
   const [showIngestForm, setShowIngestForm] = useState(false)
   const [ingestFile,     setIngestFile]     = useState<File | null>(null)
   const [ingesting,      setIngesting]      = useState(false)
@@ -683,6 +684,38 @@ export default function AdminPage() {
   const [pendingLoading, setPendingLoading] = useState(false)
   const [reviewingId,    setReviewingId]    = useState<string | null>(null)
   const [expandedPendingId, setExpandedPendingId] = useState<string | null>(null)
+
+  // Knowledge — self-learning gap detection (KB Self-Learning PRD v3.0)
+  type GapStatus = 'unresolved' | 'added' | 'skipped' | 'pending'
+  type GapItem = Gap & { status: GapStatus; field_name?: string; field_category?: string; is_required?: boolean }
+  type GapSession = {
+    id: string; document_id: string; processor_type: string; gaps: GapItem[]; resolved: boolean
+    documents?: { title: string; type: string } | null
+  }
+  type GapResolution = {
+    gap_id: string; action: 'add_to_processor' | 'skip' | 'pending'
+    field_name?: string; field_description?: string; field_category?: string; is_required?: boolean; example_value?: string
+  }
+  type GapWizardState = {
+    mode: 'ingest' | 'review'
+    documentId: string
+    sessionId: string
+    gapIds: string[]
+    cursor: number
+    step: 1 | 2 | 3
+    selectedOption: string
+    otherText: string
+    importance: 'always' | 'optional' | 'no' | ''
+    fieldChoice: 'suggested' | 'custom'
+    customFieldName: string
+    resolutions: GapResolution[]
+    submitting: boolean
+    msg: string
+  }
+  const [gapSessions,        setGapSessions]        = useState<Record<string, GapSession>>({})
+  const [gapWizard,          setGapWizard]          = useState<GapWizardState | null>(null)
+  const [pendingGapSessions, setPendingGapSessions] = useState<GapSession[]>([])
+  const [pendingGapsLoading, setPendingGapsLoading] = useState(false)
 
   async function fetchWorkspaces() {
     setWorkspacesLoading(true)
@@ -775,6 +808,18 @@ export default function AdminPage() {
         setIngestMsg('')
         setIngestResult(data)
         setIngestFile(null)
+        if (data.gap_session_id && Array.isArray(data.gaps) && data.gaps.length > 0) {
+          setGapSessions(prev => ({
+            ...prev,
+            [data.document.id]: {
+              id: data.gap_session_id,
+              document_id: data.document.id,
+              processor_type: data.detected_type,
+              gaps: data.gaps.map((g: Gap) => ({ ...g, status: 'unresolved' })),
+              resolved: false,
+            },
+          }))
+        }
         fetchPendingDocs()
       }
     } catch {
@@ -806,6 +851,110 @@ export default function AdminPage() {
     if (ingestResult?.document.id === documentId) setIngestResult(null)
     setReviewingId(null)
     fetchPendingDocs()
+  }
+
+  // ── Self-learning gap detection ─────────────────────────────────────────────
+  async function fetchGapSession(documentId: string) {
+    const res  = await fetch(`/api/kb/gaps?document_id=${documentId}`)
+    const data = await res.json().catch(() => ({}))
+    if (data?.session) setGapSessions(prev => ({ ...prev, [documentId]: data.session }))
+  }
+
+  async function fetchPendingGapSessions() {
+    setPendingGapsLoading(true)
+    const res  = await fetch('/api/kb/gaps?pending=1')
+    const data = await res.json().catch(() => ({}))
+    setPendingGapSessions(Array.isArray(data?.sessions) ? data.sessions : [])
+    setPendingGapsLoading(false)
+  }
+
+  function startGapWizard(mode: 'ingest' | 'review', documentId: string, sessionId: string, gapIds: string[]) {
+    setGapWizard({
+      mode, documentId, sessionId, gapIds, cursor: 0, step: 1,
+      selectedOption: '', otherText: '', importance: '', fieldChoice: 'suggested', customFieldName: '',
+      resolutions: [], submitting: false, msg: '',
+    })
+  }
+
+  async function submitGapResolutions(sessionId: string, documentId: string, resolutions: GapResolution[], mode: 'ingest' | 'review') {
+    setGapWizard(prev => prev ? { ...prev, submitting: true, msg: '' } : prev)
+    const adminStaffId = sessionStorage.getItem('tai_admin_staff_id')
+    try {
+      const res = await fetch('/api/kb/gaps/resolve', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ session_id: sessionId, admin_staff_id: adminStaffId, resolutions }),
+      })
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}))
+        setGapWizard(prev => prev ? { ...prev, submitting: false, msg: data.error ?? 'Could not save your answers. Please try again.' } : prev)
+        return
+      }
+    } catch {
+      setGapWizard(prev => prev ? { ...prev, submitting: false, msg: 'Could not reach the server. Please try again.' } : prev)
+      return
+    }
+    setGapSessions(prev => { const next = { ...prev }; delete next[documentId]; return next })
+    setGapWizard(null)
+    if (mode === 'ingest') {
+      await publishPendingDoc(documentId)
+    } else {
+      fetchPendingGapSessions()
+    }
+  }
+
+  function gapWizardResetStep(w: GapWizardState): GapWizardState {
+    return { ...w, step: 1, selectedOption: '', otherText: '', importance: '', fieldChoice: 'suggested', customFieldName: '' }
+  }
+
+  function finishCurrentGap(resolution: GapResolution) {
+    if (!gapWizard) return
+    const resolutions = [...gapWizard.resolutions, resolution]
+    const cursor = gapWizard.cursor + 1
+    setGapWizard(gapWizardResetStep({ ...gapWizard, resolutions, cursor }))
+    if (gapWizard.mode === 'review' && cursor >= gapWizard.gapIds.length) {
+      submitGapResolutions(gapWizard.sessionId, gapWizard.documentId, resolutions, 'review')
+    }
+  }
+
+  function gapWizardChooseImportance(gap: GapItem, choice: 'always' | 'optional' | 'no') {
+    if (!gapWizard) return
+    if (choice === 'no') {
+      finishCurrentGap({ gap_id: gap.id, action: 'skip' })
+    } else {
+      setGapWizard({ ...gapWizard, importance: choice, step: 3 })
+    }
+  }
+
+  function gapWizardConfirmField(gap: GapItem) {
+    if (!gapWizard) return
+    const fieldName = gapWizard.fieldChoice === 'custom' && gapWizard.customFieldName.trim()
+      ? gapWizard.customFieldName.trim().toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '')
+      : gap.suggested_field_name
+    const description = gapWizard.selectedOption === '__other__'
+      ? (gapWizard.otherText.trim() || gap.description)
+      : (gapWizard.selectedOption || gap.description)
+    finishCurrentGap({
+      gap_id: gap.id,
+      action: 'add_to_processor',
+      field_name: fieldName,
+      field_description: description,
+      field_category: gap.suggested_category,
+      is_required: gapWizard.importance === 'always',
+      example_value: gap.example_value,
+    })
+  }
+
+  function gapWizardSkipGap(gap: GapItem) {
+    finishCurrentGap({ gap_id: gap.id, action: 'pending' })
+  }
+
+  function gapWizardBack() {
+    if (!gapWizard) return
+    setGapWizard({ ...gapWizard, step: (Math.max(1, gapWizard.step - 1) as 1 | 2 | 3) })
+  }
+
+  function dismissPendingGap(session: GapSession, gap: GapItem) {
+    submitGapResolutions(session.id, session.document_id, [{ gap_id: gap.id, action: 'skip' }], 'review')
   }
 
   // ── Press Intelligence ──────────────────────────────────────────────────────
@@ -1944,7 +2093,7 @@ export default function AdminPage() {
                 return (
                   <button key={t}
                     id={t === 'intelligence' ? 'tour-intelligence-tab' : t === 'suggest' ? 'tour-studio-tab' : undefined}
-                    onClick={() => { if (t === 'toolkit') { window.location.href = '/admin/toolkit'; return; } setTab(t as typeof tab); if (t === 'learning') fetchLearning(); if (t === 'people') { fetchStaffList(); markProgress('staff') } if (t === 'events') { fetchEvents(); fetchEventSummaries(); } if (t === 'knowledge') { fetchDocs(); fetchCustomDocTypes(); fetchWorkspaces(); fetchPendingDocs(); if (staffList.length === 0) fetchStaffList(); fetchIntelAll(); } if (t === 'review') fetchDrafts(); if (t === 'suggest') markProgress('course'); if (t === 'security') fetchSecurity() }}
+                    onClick={() => { if (t === 'toolkit') { window.location.href = '/admin/toolkit'; return; } setTab(t as typeof tab); if (t === 'learning') fetchLearning(); if (t === 'people') { fetchStaffList(); markProgress('staff') } if (t === 'events') { fetchEvents(); fetchEventSummaries(); } if (t === 'knowledge') { fetchDocs(); fetchCustomDocTypes(); fetchWorkspaces(); fetchPendingDocs(); if (staffList.length === 0) fetchStaffList(); fetchIntelAll(); fetchPendingGapSessions(); } if (t === 'review') fetchDrafts(); if (t === 'suggest') markProgress('course'); if (t === 'security') fetchSecurity() }}
                     style={{
                       padding:         active ? '9px 22px' : '9px 20px',
                       borderRadius:    '10px',
@@ -4580,8 +4729,201 @@ export default function AdminPage() {
             </div>
           )
 
+          function renderGapWizard(session: GapSession) {
+            if (!gapWizard || gapWizard.sessionId !== session.id) return null
+            const total = gapWizard.gapIds.length
+            const isXlsx = session.processor_type === 'attendee_data'
+            const typeName = typeLabel(session.processor_type)
+
+            if (gapWizard.cursor >= total) {
+              if (gapWizard.mode === 'review') {
+                // Review mode auto-submits as soon as the (single) gap is actioned — this state is
+                // only visible for the instant between that submit firing and the session closing.
+                return (
+                  <div style={{ background: '#F0FAFA', border: '1px solid rgba(0,165,163,0.2)', borderRadius: '10px', padding: '14px', marginBottom: '14px', fontSize: '13px', color: '#5B7080' }}>
+                    Saving…
+                  </div>
+                )
+              }
+              // Summary screen (ingest mode)
+              const added = gapWizard.resolutions.filter(r => r.action === 'add_to_processor')
+              const other = gapWizard.resolutions.filter(r => r.action !== 'add_to_processor')
+              return (
+                <div style={{ background: '#F0FAFA', border: '1px solid rgba(0,165,163,0.2)', borderRadius: '10px', padding: '18px', marginBottom: '14px' }}>
+                  <div style={{ fontSize: '13px', fontWeight: 800, color: '#00695C', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '10px' }}>All gaps resolved</div>
+                  <div style={{ fontSize: '13px', fontWeight: 700, color: '#5B7080', textTransform: 'uppercase', letterSpacing: '0.8px', marginBottom: '8px' }}>What I learned from this document</div>
+                  {added.length > 0 && (
+                    <div style={{ marginBottom: '10px' }}>
+                      <div style={{ fontSize: '13px', color: '#5B7080', marginBottom: '4px' }}>Added to {typeName} processor:</div>
+                      {added.map(r => (
+                        <div key={r.gap_id} style={{ fontSize: '13px', color: '#3D6B00', fontWeight: 700 }}>✓ {typeLabel(r.field_name ?? '')}{r.is_required ? '' : ' (optional)'}</div>
+                      ))}
+                    </div>
+                  )}
+                  {other.length > 0 && (
+                    <div style={{ marginBottom: '10px' }}>
+                      <div style={{ fontSize: '13px', color: '#5B7080', marginBottom: '4px' }}>{gapWizard.mode === 'ingest' ? 'Skipped:' : 'Deferred:'}</div>
+                      {other.map(r => {
+                        const gap = session.gaps.find(g => g.id === r.gap_id)
+                        return <div key={r.gap_id} style={{ fontSize: '13px', color: '#5B7080', fontWeight: 700 }}>✗ {gap ? typeLabel(gap.suggested_field_name || gap.description) : r.gap_id}</div>
+                      })}
+                    </div>
+                  )}
+                  {added.length > 0 && (
+                    <p style={{ fontSize: '13px', color: '#5B7080', lineHeight: 1.6, margin: '0 0 14px' }}>
+                      These new fields will be captured automatically in all future {typeName.toLowerCase()} uploads.
+                    </p>
+                  )}
+                  {gapWizard.msg && (
+                    <div style={{ fontSize: '13px', padding: '9px 12px', borderRadius: '8px', background: 'rgba(255,107,107,0.07)', border: '1px solid rgba(255,107,107,0.2)', color: '#FF6B6B', marginBottom: '10px' }}>
+                      {gapWizard.msg}
+                    </div>
+                  )}
+                  <button onClick={() => submitGapResolutions(session.id, session.document_id, gapWizard.resolutions, gapWizard.mode)} disabled={gapWizard.submitting}
+                    style={{ padding: '9px 18px', borderRadius: '9px', border: 'none', background: gapWizard.submitting ? '#DDE8EE' : '#C0F43C', color: '#0F1923', fontSize: '13px', fontWeight: 800, cursor: gapWizard.submitting ? 'not-allowed' : 'pointer', fontFamily: 'inherit' }}>
+                    {gapWizard.submitting ? 'Publishing…' : 'Publish to Knowledge Base →'}
+                  </button>
+                </div>
+              )
+            }
+
+            const gap = session.gaps.find(g => g.id === gapWizard.gapIds[gapWizard.cursor])
+            if (!gap) return null
+
+            const step = gapWizard.step
+            const gapNum = gapWizard.cursor + 1
+            const step1Ready = !!gapWizard.selectedOption && (gapWizard.selectedOption !== '__other__' || !!gapWizard.otherText.trim())
+            const step3Ready = gapWizard.fieldChoice === 'suggested' || !!gapWizard.customFieldName.trim()
+            const radioStyle = (active: boolean) => ({ display: 'flex', alignItems: 'center', gap: '8px', padding: '9px 12px', borderRadius: '9px', border: `1px solid ${active ? '#00A5A3' : '#DDE8EE'}`, background: active ? 'rgba(0,165,163,0.08)' : '#FFFFFF', cursor: 'pointer', fontSize: '13px', color: '#0F1923' } as const)
+            const inputStyle = { width: '100%', padding: '9px 12px', borderRadius: '9px', border: '1px solid #DDE8EE', background: '#FFFFFF', color: '#0F1923', fontSize: '13px', fontFamily: 'inherit', boxSizing: 'border-box' as const }
+
+            return (
+              <div style={{ background: '#FFFFFF', border: '1px solid #DDE8EE', borderRadius: '12px', padding: '18px', marginBottom: '14px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
+                  <span style={{ fontSize: '11px', fontWeight: 800, color: '#5B7080', letterSpacing: '1.5px', textTransform: 'uppercase' }}>Gap {gapNum} of {total}</span>
+                  <div style={{ display: 'flex', gap: '4px' }}>
+                    {[1, 2, 3].map(n => <span key={n} style={{ width: '8px', height: '8px', borderRadius: '50%', background: n <= step ? '#00A5A3' : '#DDE8EE' }} />)}
+                  </div>
+                </div>
+
+                <div style={{ background: '#F0FAFA', border: '1px solid rgba(0,165,163,0.15)', borderRadius: '10px', padding: '12px', marginBottom: '16px' }}>
+                  <div style={{ fontSize: '13px', color: '#0F1923', fontWeight: 700, marginBottom: '4px' }}>I found:</div>
+                  <div style={{ fontSize: '13px', color: '#2D3E50' }}>{gap.description}</div>
+                  {gap.location && <div style={{ fontSize: '13px', color: '#5B7080', marginTop: '4px' }}>Location: {gap.location}</div>}
+                </div>
+
+                <div style={{ fontSize: '11px', fontWeight: 800, color: '#00695C', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '8px' }}>Step {step} of 3</div>
+
+                {step === 1 && (
+                  <div style={{ marginBottom: '16px' }}>
+                    <div style={{ fontSize: '13px', fontWeight: 700, color: '#0F1923', marginBottom: '10px' }}>
+                      {isXlsx ? `What does column "${gap.example_value}" contain?` : 'What type of information is this?'}
+                    </div>
+                    {gap.suggested_options.length > 0 && (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: '10px' }}>
+                        {gap.suggested_options.filter(o => !/^something else/i.test(o)).map(opt => (
+                          <label key={opt} style={radioStyle(gapWizard.selectedOption === opt)}>
+                            <input type="radio" checked={gapWizard.selectedOption === opt} onChange={() => setGapWizard({ ...gapWizard, selectedOption: opt })} />
+                            {opt}
+                          </label>
+                        ))}
+                        <label style={radioStyle(gapWizard.selectedOption === '__other__')}>
+                          <input type="radio" checked={gapWizard.selectedOption === '__other__'} onChange={() => setGapWizard({ ...gapWizard, selectedOption: '__other__' })} />
+                          Something else — let me describe it
+                        </label>
+                      </div>
+                    )}
+                    {(gap.suggested_options.length === 0 || gapWizard.selectedOption === '__other__') && (
+                      <input value={gapWizard.otherText} onChange={e => setGapWizard({ ...gapWizard, otherText: e.target.value, selectedOption: '__other__' })}
+                        placeholder={isXlsx ? 'e.g. registration source, ticket tier, payment method' : 'Describe what this is'}
+                        style={inputStyle} />
+                    )}
+                  </div>
+                )}
+
+                {step === 2 && (
+                  <div style={{ marginBottom: '16px' }}>
+                    <div style={{ fontSize: '13px', fontWeight: 700, color: '#0F1923', marginBottom: '10px' }}>
+                      Should I capture this for all future {typeName.toLowerCase()}s?
+                    </div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                      {([
+                        { key: 'always', label: 'Yes — always look for this and extract it' },
+                        { key: 'optional', label: "Only when present — it's optional, not every document will have one" },
+                        { key: 'no', label: "No — this was specific to this document, don't capture it again" },
+                      ] as { key: 'always' | 'optional' | 'no'; label: string }[]).map(o => (
+                        <label key={o.key} style={radioStyle(gapWizard.importance === o.key)}>
+                          <input type="radio" checked={gapWizard.importance === o.key} onChange={() => gapWizardChooseImportance(gap, o.key)} />
+                          {o.label}
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {step === 3 && (
+                  <div style={{ marginBottom: '16px' }}>
+                    <div style={{ fontSize: '13px', fontWeight: 700, color: '#0F1923', marginBottom: '10px' }}>
+                      {isXlsx ? 'What should I map this column to?' : 'What should I call this field in the knowledge base?'}
+                    </div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: '10px' }}>
+                      <label style={radioStyle(gapWizard.fieldChoice === 'suggested')}>
+                        <input type="radio" checked={gapWizard.fieldChoice === 'suggested'} onChange={() => setGapWizard({ ...gapWizard, fieldChoice: 'suggested' })} />
+                        {typeLabel(gap.suggested_field_name)}
+                      </label>
+                      <label style={radioStyle(gapWizard.fieldChoice === 'custom')}>
+                        <input type="radio" checked={gapWizard.fieldChoice === 'custom'} onChange={() => setGapWizard({ ...gapWizard, fieldChoice: 'custom' })} />
+                        Use my own label
+                      </label>
+                    </div>
+                    {gapWizard.fieldChoice === 'custom' && (
+                      <input value={gapWizard.customFieldName} onChange={e => setGapWizard({ ...gapWizard, customFieldName: e.target.value })}
+                        placeholder="e.g. sustainability_metric" style={inputStyle} />
+                    )}
+                  </div>
+                )}
+
+                {gapWizard.msg && (
+                  <div style={{ fontSize: '13px', padding: '9px 12px', borderRadius: '8px', background: 'rgba(255,107,107,0.07)', border: '1px solid rgba(255,107,107,0.2)', color: '#FF6B6B', marginBottom: '10px' }}>
+                    {gapWizard.msg}
+                  </div>
+                )}
+
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <div style={{ display: 'flex', gap: '8px' }}>
+                    <button onClick={gapWizardBack} disabled={step === 1}
+                      style={{ padding: '9px 16px', borderRadius: '9px', border: '1px solid #B8CDD8', background: '#FFFFFF', color: step === 1 ? '#B8CDD8' : '#5B7080', fontSize: '13px', fontWeight: 600, cursor: step === 1 ? 'not-allowed' : 'pointer', fontFamily: 'inherit' }}>
+                      ← Back
+                    </button>
+                    {step === 1 && (
+                      <button onClick={() => setGapWizard({ ...gapWizard, step: 2 })} disabled={!step1Ready}
+                        style={{ padding: '9px 16px', borderRadius: '9px', border: 'none', background: step1Ready ? '#00A5A3' : '#DDE8EE', color: '#FFFFFF', fontSize: '13px', fontWeight: 800, cursor: step1Ready ? 'pointer' : 'not-allowed', fontFamily: 'inherit' }}>
+                        Next →
+                      </button>
+                    )}
+                    {step === 3 && (
+                      <button onClick={() => gapWizardConfirmField(gap)} disabled={!step3Ready}
+                        style={{ padding: '9px 16px', borderRadius: '9px', border: 'none', background: step3Ready ? '#00A5A3' : '#DDE8EE', color: '#FFFFFF', fontSize: '13px', fontWeight: 800, cursor: step3Ready ? 'pointer' : 'not-allowed', fontFamily: 'inherit' }}>
+                        Confirm
+                      </button>
+                    )}
+                  </div>
+                  <button onClick={() => gapWizardSkipGap(gap)}
+                    style={{ fontSize: '13px', color: '#5B7080', background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'inherit' }}>
+                    Skip this gap ›
+                  </button>
+                </div>
+              </div>
+            )
+          }
+
           function renderReviewCard(doc: PendingDoc, summary: string, detectedType?: string) {
             const isReviewing = reviewingId === doc.id
+            const session = gapSessions[doc.id]
+            const unresolvedGaps = session ? session.gaps.filter(g => g.status === 'unresolved') : []
+            const hasUnresolvedGaps = unresolvedGaps.length > 0
+            const wizardActive = !!gapWizard && gapWizard.sessionId === session?.id
+
             return (
               <div key={doc.id} style={{ background: '#FFFFFF', border: '1px solid rgba(124,58,237,0.25)', borderRadius: '16px', padding: '20px', marginBottom: '16px' }}>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px', flexWrap: 'wrap', gap: '8px' }}>
@@ -4596,16 +4938,34 @@ export default function AdminPage() {
                 <div style={{ maxHeight: '320px', overflowY: 'auto', padding: '14px', background: '#E8EEF4', borderRadius: '10px', marginBottom: '14px', fontSize: '13px', color: '#2D3E50', whiteSpace: 'pre-wrap', lineHeight: 1.6 }}>
                   {summary}
                 </div>
-                <div style={{ display: 'flex', gap: '10px' }}>
-                  <button onClick={() => publishPendingDoc(doc.id)} disabled={isReviewing}
-                    style={{ padding: '9px 18px', borderRadius: '9px', border: 'none', background: isReviewing ? '#DDE8EE' : '#C0F43C', color: '#0F1923', fontSize: '13px', fontWeight: 800, cursor: isReviewing ? 'not-allowed' : 'pointer', fontFamily: 'inherit' }}>
-                    {isReviewing ? 'Working…' : 'Publish to KB'}
-                  </button>
-                  <button onClick={() => rejectPendingDoc(doc.id)} disabled={isReviewing}
-                    style={{ padding: '9px 18px', borderRadius: '9px', border: '1px solid rgba(255,107,107,0.3)', background: 'rgba(255,107,107,0.08)', color: '#FF6B6B', fontSize: '13px', fontWeight: 700, cursor: isReviewing ? 'not-allowed' : 'pointer', fontFamily: 'inherit' }}>
-                    Reject
-                  </button>
-                </div>
+
+                {hasUnresolvedGaps && !wizardActive && session && (
+                  <div style={{ background: '#F0FAFA', border: '1px solid rgba(0,165,163,0.2)', borderRadius: '10px', padding: '14px', marginBottom: '14px' }}>
+                    <div style={{ fontSize: '13px', fontWeight: 800, color: '#00695C', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '6px' }}>Before you publish</div>
+                    <p style={{ fontSize: '13px', color: '#2D3E50', margin: '0 0 10px', lineHeight: 1.6 }}>
+                      I found {unresolvedGaps.length} piece{unresolvedGaps.length === 1 ? '' : 's'} of new information in this document that I haven&apos;t seen before. Help me understand {unresolvedGaps.length === 1 ? 'it' : 'them'} so I can learn from this.
+                    </p>
+                    <button onClick={() => startGapWizard('ingest', doc.id, session.id, unresolvedGaps.map(g => g.id))}
+                      style={{ padding: '9px 18px', borderRadius: '9px', border: 'none', background: '#00A5A3', color: '#FFFFFF', fontSize: '13px', fontWeight: 800, cursor: 'pointer', fontFamily: 'inherit' }}>
+                      Review {unresolvedGaps.length} gap{unresolvedGaps.length === 1 ? '' : 's'} →
+                    </button>
+                  </div>
+                )}
+
+                {wizardActive && session && renderGapWizard(session)}
+
+                {!hasUnresolvedGaps && (
+                  <div style={{ display: 'flex', gap: '10px' }}>
+                    <button onClick={() => publishPendingDoc(doc.id)} disabled={isReviewing}
+                      style={{ padding: '9px 18px', borderRadius: '9px', border: 'none', background: isReviewing ? '#DDE8EE' : '#C0F43C', color: '#0F1923', fontSize: '13px', fontWeight: 800, cursor: isReviewing ? 'not-allowed' : 'pointer', fontFamily: 'inherit' }}>
+                      {isReviewing ? 'Working…' : 'Publish to KB'}
+                    </button>
+                    <button onClick={() => rejectPendingDoc(doc.id)} disabled={isReviewing}
+                      style={{ padding: '9px 18px', borderRadius: '9px', border: '1px solid rgba(255,107,107,0.3)', background: 'rgba(255,107,107,0.08)', color: '#FF6B6B', fontSize: '13px', fontWeight: 700, cursor: isReviewing ? 'not-allowed' : 'pointer', fontFamily: 'inherit' }}>
+                      Reject
+                    </button>
+                  </div>
+                )}
               </div>
             )
           }
@@ -4668,6 +5028,7 @@ export default function AdminPage() {
                   { key: 'documents', label: 'Documents' },
                   { key: 'workspaces', label: 'BD Workspaces' },
                   ...(isKbAdmin ? [{ key: 'intelligence', label: 'Intelligence' }] : []),
+                  ...(isKbAdmin ? [{ key: 'gaps', label: `Pending Gaps (${pendingGapSessions.length})` }] : []),
                 ] as { key: typeof docSubTab; label: string }[]).map(s => (
                   <button key={s.key} onClick={() => setDocSubTab(s.key)}
                     style={{ padding: '8px 18px', borderRadius: '10px', border: `1px solid ${docSubTab === s.key ? 'rgba(0,165,163,0.4)' : '#DDE8EE'}`, background: docSubTab === s.key ? 'rgba(0,165,163,0.08)' : '#FFFFFF', color: docSubTab === s.key ? '#00695C' : '#5B7080', fontSize: '13px', fontWeight: 800, cursor: 'pointer', fontFamily: 'inherit' }}>
@@ -4726,7 +5087,7 @@ export default function AdminPage() {
                             <span style={{ fontSize: '13px', fontWeight: 700, color: '#0F1923' }}>{d.title}</span>
                             <span style={{ fontSize: '13px', color: '#5B7080', marginLeft: '8px' }}>{typeLabel(d.type)}</span>
                           </div>
-                          <button onClick={() => setExpandedPendingId(d.id)}
+                          <button onClick={() => { setExpandedPendingId(d.id); if (!gapSessions[d.id]) fetchGapSession(d.id) }}
                             style={{ fontSize: '13px', fontWeight: 700, color: '#7C3AED', background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'inherit' }}>
                             Review →
                           </button>
@@ -5287,6 +5648,59 @@ export default function AdminPage() {
                     </div>
                   )}
                 </div>
+                )
+              })() : docSubTab === 'gaps' ? (() => {
+                const actionable = (s: GapSession) => s.gaps.filter(g => g.status === 'pending' || g.status === 'unresolved')
+                return (
+                  <div>
+                    <p style={{ fontSize: '13px', color: '#5B7080', margin: '0 0 16px', lineHeight: 1.6 }}>
+                      Gaps an uploader deferred with &quot;Skip this gap&quot;, or left unresolved. Action each one using the same 3-step flow they saw at ingest.
+                    </p>
+                    {pendingGapsLoading && (
+                      <div style={{ color: '#5B7080', fontSize: '13px', padding: '40px 0', textAlign: 'center' }}>Loading…</div>
+                    )}
+                    {!pendingGapsLoading && pendingGapSessions.every(s => actionable(s).length === 0) && (
+                      <div style={{ color: '#5B7080', fontSize: '13px', padding: '40px 0', textAlign: 'center' }}>No pending gaps — every uploader has fully resolved their documents.</div>
+                    )}
+                    {!pendingGapsLoading && pendingGapSessions.map(session => {
+                      const gaps = actionable(session)
+                      if (gaps.length === 0) return null
+                      const wizardActive = gapWizard?.sessionId === session.id
+                      return (
+                        <div key={session.id} style={{ background: '#FFFFFF', border: '1px solid #DDE8EE', borderRadius: '16px', padding: '20px', marginBottom: '16px' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '14px' }}>
+                            <span style={{ fontSize: '13px', fontWeight: 700, padding: '2px 8px', borderRadius: '16px', background: 'rgba(124,58,237,0.12)', color: '#7C3AED' }}>
+                              {typeLabel(session.processor_type)}
+                            </span>
+                            <span style={{ fontSize: '13px', fontWeight: 800, color: '#0F1923' }}>{session.documents?.title ?? session.document_id}</span>
+                          </div>
+
+                          {wizardActive ? renderGapWizard(session) : (
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                              {gaps.map(gap => (
+                                <div key={gap.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px', padding: '12px 14px', background: '#F0FAFA', border: '1px solid rgba(0,165,163,0.15)', borderRadius: '10px' }}>
+                                  <div style={{ flex: 1, minWidth: 0 }}>
+                                    <div style={{ fontSize: '13px', color: '#0F1923' }}>{gap.description}</div>
+                                    {gap.location && <div style={{ fontSize: '13px', color: '#5B7080', marginTop: '2px' }}>Location: {gap.location}</div>}
+                                  </div>
+                                  <div style={{ display: 'flex', gap: '8px', flexShrink: 0 }}>
+                                    <button onClick={() => startGapWizard('review', session.document_id, session.id, [gap.id])}
+                                      style={{ padding: '7px 14px', borderRadius: '8px', border: 'none', background: '#00A5A3', color: '#FFFFFF', fontSize: '13px', fontWeight: 800, cursor: 'pointer', fontFamily: 'inherit' }}>
+                                      Resolve ✓
+                                    </button>
+                                    <button onClick={() => dismissPendingGap(session, gap)}
+                                      style={{ padding: '7px 14px', borderRadius: '8px', border: '1px solid rgba(255,107,107,0.3)', background: 'rgba(255,107,107,0.08)', color: '#FF6B6B', fontSize: '13px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
+                                      Dismiss ✗
+                                    </button>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      )
+                    })}
+                  </div>
                 )
               })() : (
               <>
