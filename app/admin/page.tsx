@@ -8,6 +8,7 @@ import type { Question } from '@/app/lib/questions'
 import { computeAIRS } from '@/app/lib/airs'
 import { kbDownloadHref } from '@/app/lib/kb/download-href'
 import type { Gap } from '@/app/lib/kb/gaps'
+import { suggestDocType, KB_TYPE_META, type KbDocType } from '@/app/lib/kb/classify'
 
 const ROLE_META: Record<string, { label: string; color: string; bg: string; desc: string }> = {
   standard:        { label: 'Standard',        color: '#5B7080', bg: '#5B708015', desc: 'Default — basic platform access' },
@@ -578,17 +579,12 @@ export default function AdminPage() {
   }
   const [docs,          setDocs]          = useState<DocRow[]>([])
   const [docsLoading,   setDocsLoading]   = useState(false)
-  const [docFile,       setDocFile]       = useState<File | null>(null)
   const [docForm,       setDocForm]       = useState({ title: '', type: 'policy', visibility: 'all', event_id: '', source_url: '', workspace_id: '', doc_category: '' })
   const [docCategoryFilter, setDocCategoryFilter] = useState<'all'|'event_intelligence'|'business_development'|'project_management'|'marketing'|'company_knowledge'|'external'>('all')
-  const [docUploading,  setDocUploading]  = useState(false)
-  const [docMsg,        setDocMsg]        = useState('')
   const [otherTypeLabel,setOtherTypeLabel]= useState('')
   const [saveAsNewType, setSaveAsNewType] = useState(false)
   const [customDocTypes,setCustomDocTypes]= useState<{ key: string; label: string }[]>([])
-  const [docAnalysis,  setDocAnalysis]   = useState<{ layer: string; department: string; min_level: string; pilot_use: boolean; ai_reasoning: string; confidence: number; flagged: boolean } | null>(null)
   const [showCreateEvent, setShowCreateEvent] = useState(false)
-  const [showUploadForm,  setShowUploadForm]  = useState(false)
   const [docFilter,       setDocFilter]       = useState<'all'|'knowledge_base'|'general'|'specific'|'flagged'>('all')
 
   // Knowledge — sub-tab, version control, BD Workspaces
@@ -674,9 +670,11 @@ export default function AdminPage() {
     pilot_use: boolean; status: string; source_url: string | null; word_count: number
     extracted_text: string; created_at: string
   }
-  type IngestResult = { success: boolean; detected_type: string; document: PendingDoc; summary: string; gaps?: Gap[]; gap_session_id?: string | null }
+  type GeneralDocAnalysis = { layer: string; department: string; min_level: string; pilot_use: boolean; ai_reasoning: string; confidence: number; flagged: boolean; suggested_type: string }
+  type IngestResult = { success: boolean; detected_type: string; document: PendingDoc; summary?: string; gaps?: Gap[]; gap_session_id?: string | null; analysis?: GeneralDocAnalysis }
   const [showIngestForm, setShowIngestForm] = useState(false)
   const [ingestFile,     setIngestFile]     = useState<File | null>(null)
+  const [ingestTypeChoice, setIngestTypeChoice] = useState<KbDocType | 'general' | null>(null)
   const [ingesting,      setIngesting]      = useState(false)
   const [ingestMsg,      setIngestMsg]      = useState('')
   const [ingestResult,   setIngestResult]   = useState<IngestResult | null>(null)
@@ -789,15 +787,53 @@ export default function AdminPage() {
     setPendingLoading(false)
   }
 
+  function ingestEffectiveType(): KbDocType | 'general' {
+    return ingestTypeChoice ?? (ingestFile ? suggestDocType(ingestFile.name) : 'general')
+  }
+
+  function resetGeneralDocForm() {
+    setDocForm({ title: '', type: 'policy', visibility: 'all', event_id: '', source_url: '', workspace_id: '', doc_category: '' })
+    setOtherTypeLabel('')
+    setSaveAsNewType(false)
+    setSupersedesDoc(null)
+    setVersionNote('')
+    setIngestTypeChoice(null)
+  }
+
   async function ingestDocument() {
     if (!ingestFile) return
-    setIngesting(true); setIngestMsg('Classifying and processing with Gemini… this can take a minute for large files.')
+    const isGeneral = ingestEffectiveType() === 'general'
+
+    if (isGeneral) {
+      if (!docForm.title.trim()) { setIngestMsg('Title is required.'); return }
+      if (docForm.type === 'other' && !otherTypeLabel.trim()) { setIngestMsg('Please specify what type this document is.'); return }
+      if (!docForm.doc_category) { setIngestMsg('Please select a category.'); return }
+    }
+
+    setIngesting(true)
+    setIngestMsg(isGeneral ? 'Analysing with AI…' : 'Classifying and processing with Gemini… this can take a minute for large files.')
     setIngestResult(null)
 
     const adminStaffId = sessionStorage.getItem('tai_admin_staff_id')
     const form = new FormData()
     form.append('file', ingestFile)
     if (adminStaffId) form.append('uploaded_by', adminStaffId)
+    form.append('doc_type_override', ingestEffectiveType())
+
+    if (isGeneral) {
+      const finalType = docForm.type === 'other'
+        ? otherTypeLabel.trim().toLowerCase().replace(/\s+/g, '_')
+        : docForm.type
+      form.append('title', docForm.title)
+      form.append('type', finalType)
+      form.append('visibility', docForm.visibility)
+      if (docForm.event_id) form.append('event_id', docForm.event_id)
+      if (docForm.source_url.trim()) form.append('source_url', docForm.source_url.trim())
+      form.append('doc_category', docForm.doc_category)
+      if (docForm.workspace_id) form.append('workspace_id', docForm.workspace_id)
+      if (supersedesDoc) form.append('supersedes_id', supersedesDoc.id)
+      if (versionNote) form.append('version_note', versionNote)
+    }
 
     try {
       const res  = await fetch('/api/kb/ingest', { method: 'POST', body: form })
@@ -820,7 +856,14 @@ export default function AdminPage() {
             },
           }))
         }
-        fetchPendingDocs()
+        if (data.detected_type === 'general') {
+          const wasSavingNewType = saveAsNewType
+          resetGeneralDocForm()
+          fetchDocs()
+          if (wasSavingNewType) fetchCustomDocTypes()
+        } else {
+          fetchPendingDocs()
+        }
       }
     } catch {
       setIngestMsg('Could not reach the server. Check your connection and try again.')
@@ -1195,123 +1238,6 @@ export default function AdminPage() {
     const res  = await fetch('/api/document-types')
     const data = await res.json()
     setCustomDocTypes(Array.isArray(data) ? data : [])
-  }
-
-  async function uploadDoc() {
-    if (!docFile || !docForm.title.trim()) { setDocMsg('File and title are required.'); return }
-    if (docForm.type === 'other' && !otherTypeLabel.trim()) { setDocMsg('Please specify what type this document is.'); return }
-    if (!docForm.doc_category) { setDocMsg('Please select a category.'); return }
-    setDocUploading(true); setDocMsg('')
-
-    const finalType = docForm.type === 'other'
-      ? otherTypeLabel.trim().toLowerCase().replace(/\s+/g, '_')
-      : docForm.type
-
-    setDocAnalysis(null)
-    const adminStaffId = sessionStorage.getItem('tai_admin_staff_id')
-
-    try {
-      let data: Record<string, unknown> = {}
-
-      // Auto-store the original in R2 unless the admin pasted their own external link
-      let sourceUrl = docForm.source_url.trim()
-      if (!sourceUrl) {
-        setDocMsg('Saving original file…')
-        const s3Form = new FormData()
-        s3Form.append('file', docFile)
-        const s3Res = await fetch('/api/kb/upload-to-s3', { method: 'POST', body: s3Form })
-        const s3Data = await s3Res.json().catch(() => ({}))
-        if (s3Res.ok && s3Data.source_url) sourceUrl = s3Data.source_url
-        // Non-fatal: if storage isn't reachable, continue without a source_url rather than blocking the upload
-      }
-
-      // Large files (> 4 MB): upload directly to Supabase Storage, then process server-side
-      if (docFile.size > 4 * 1024 * 1024) {
-        setDocMsg('Uploading to secure storage…')
-
-        // Step 1: get signed upload path + token from server
-        const urlRes = await fetch(`/api/documents/upload-url?filename=${encodeURIComponent(docFile.name)}`)
-        if (!urlRes.ok) throw new Error('Could not prepare upload. Please try again.')
-        const { path, token } = await urlRes.json()
-
-        // Step 2: use Supabase JS client to upload (handles auth headers correctly)
-        setDocMsg('Uploading file… this may take a moment for large files.')
-        const { createClient } = await import('@supabase/supabase-js')
-        const sbClient = createClient(
-          process.env.NEXT_PUBLIC_SUPABASE_URL!,
-          process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-        )
-        const { error: upErr } = await sbClient.storage
-          .from('doc-uploads')
-          .uploadToSignedUrl(path, token, docFile, { contentType: docFile.type || 'application/octet-stream' })
-        if (upErr) throw new Error(`File upload failed: ${upErr.message}`)
-
-        // Step 3: trigger server-side processing
-        setDocMsg('Analysing with AI… (large files may take 1–2 minutes)')
-        const processRes = await fetch('/api/documents/process', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            storage_path: path,
-            title: docForm.title,
-            type: finalType,
-            visibility: docForm.visibility,
-            event_id: docForm.event_id || undefined,
-            uploaded_by: adminStaffId || undefined,
-            source_url: sourceUrl || undefined,
-            doc_category: docForm.doc_category,
-            workspace_id: docForm.workspace_id || undefined,
-            supersedes_id: supersedesDoc?.id || undefined,
-            version_note: versionNote || undefined,
-          }),
-        })
-        try { data = await processRes.json() } catch { /* ignore */ }
-        if (!processRes.ok) {
-          setDocMsg((data.error as string) ?? 'Processing failed. Please try again.')
-          setDocUploading(false); return
-        }
-
-      } else {
-        // Small files: send directly through API route
-        const form = new FormData()
-        form.append('file', docFile)
-        form.append('title', docForm.title)
-        form.append('type', finalType)
-        form.append('visibility', docForm.visibility)
-        if (docForm.event_id) form.append('event_id', docForm.event_id)
-        if (adminStaffId) form.append('uploaded_by', adminStaffId)
-        if (sourceUrl) form.append('source_url', sourceUrl)
-        form.append('doc_category', docForm.doc_category)
-        if (docForm.workspace_id) form.append('workspace_id', docForm.workspace_id)
-        if (supersedesDoc) form.append('supersedes_id', supersedesDoc.id)
-        if (versionNote) form.append('version_note', versionNote)
-
-        const res = await fetch('/api/documents/upload', { method: 'POST', body: form })
-        try { data = await res.json() } catch { /* non-JSON e.g. 504 */ }
-        if (!res.ok) {
-          const msg = (data.error as string) ??
-            (res.status === 504 ? 'Pilot took too long. Try again in a moment.' :
-             res.status === 503 ? 'Pilot is under high load. Please wait and try again.' :
-             'Something went wrong. Please try again.')
-          setDocMsg(msg); setDocUploading(false); return
-        }
-      }
-
-      setDocMsg(`Done. ${(data.document as Record<string,unknown>)?.word_count?.toLocaleString()} words extracted.${(data.analysis as Record<string,unknown>)?.flagged ? ' Flagged for review — low confidence.' : ''}${supersedesDoc ? ' Saved as a new version.' : ''}`)
-      setDocAnalysis(data.analysis as never ?? null)
-      setDocFile(null)
-      setDocForm({ title: '', type: 'policy', visibility: 'all', event_id: '', source_url: '', workspace_id: '', doc_category: '' })
-      setOtherTypeLabel('')
-      setSaveAsNewType(false)
-      setSupersedesDoc(null)
-      setVersionNote('')
-      fetchDocs()
-      if (saveAsNewType) fetchCustomDocTypes()
-
-    } catch (e) {
-      setDocMsg(e instanceof Error ? e.message : 'Could not reach the server. Check your connection and try again.')
-    }
-    setDocUploading(false)
   }
 
   async function deleteDoc(id: string) {
@@ -4587,9 +4513,15 @@ export default function AdminPage() {
           const categoryCount = (key: typeof docCategoryFilter) =>
             key === 'all' ? docs.length : key === 'external' ? docs.filter(d => (d.doc_category ?? '').startsWith('external_')).length : docs.filter(d => d.doc_category === key).length
 
-          const uploadForm = (
-            <div style={{ background: '#FFFFFF', border: '1px solid rgba(192,244,60,0.2)', borderRadius: '16px', padding: '24px' }}>
-              <div style={{ fontSize: '13px', fontWeight: 800, color: '#00695C', letterSpacing: '1px', textTransform: 'uppercase', marginBottom: '16px' }}>Upload Document</div>
+          // General-document fields — shown inline in the Ingest form when the
+          // resolved type is 'general' (not one of the 4 structured KB types).
+          // Relocated from the retired standalone "Upload Document" form; same
+          // fields, same state (docForm/otherTypeLabel/saveAsNewType/
+          // supersedesDoc/versionNote), just no longer a separate card with
+          // its own file picker/submit button — those are unified into the
+          // single Ingest form now.
+          const generalDocFields = (
+            <div style={{ marginBottom: '14px', paddingTop: '4px', borderTop: '1px solid #E8EEF4' }}>
               <div style={{ marginBottom: '12px' }}>
                 <label style={{ fontSize: '13px', fontWeight: 700, color: '#5B7080', letterSpacing: '0.8px', textTransform: 'uppercase', display: 'block', marginBottom: '5px' }}>Document Title</label>
                 <input value={docForm.title} onChange={e => setDocForm(p => ({ ...p, title: e.target.value }))} placeholder="e.g. HR Policy Handbook 2026"
@@ -4676,54 +4608,6 @@ export default function AdminPage() {
                   </div>
                   <input value={versionNote} onChange={e => setVersionNote(e.target.value)} placeholder="What changed in this version? (optional)"
                     style={{ width: '100%', padding: '8px 10px', borderRadius: '8px', border: '1px solid #DDE8EE', background: '#FFFFFF', color: '#0F1923', fontSize: '13px', fontFamily: 'inherit', boxSizing: 'border-box' }} />
-                </div>
-              )}
-              <div style={{ marginBottom: '14px' }}>
-                <label style={{ fontSize: '13px', fontWeight: 700, color: '#0F1923', letterSpacing: '0.8px', textTransform: 'uppercase', display: 'block', marginBottom: '6px' }}>File (PDF or TXT)</label>
-                <label style={{ display: 'block', padding: '18px', border: `1.5px dashed ${docFile ? 'rgba(192,244,60,0.35)' : '#DDE8EE'}`, borderRadius: '10px', textAlign: 'center', cursor: 'pointer', background: docFile ? 'rgba(192,244,60,0.04)' : 'transparent' }}>
-                  <input type="file" accept=".pdf,.txt,.md" style={{ display: 'none' }} onChange={e => setDocFile(e.target.files?.[0] ?? null)} />
-                  {docFile ? (
-                    <div>
-                      <div style={{ fontSize: '13px', fontWeight: 700, color: '#00695C' }}>{docFile.name}</div>
-                      <div style={{ fontSize: '13px', color: docFile.size > 200 * 1024 * 1024 ? '#DC2626' : '#0F1923', marginTop: '2px' }}>
-                        {docFile.size >= 1024 * 1024 ? `${(docFile.size / 1024 / 1024).toFixed(1)} MB` : `${(docFile.size / 1024).toFixed(0)} KB`}
-                        {docFile.size > 200 * 1024 * 1024 && ' — too large (max 200 MB)'}
-                        {docFile.size > 10 * 1024 * 1024 && docFile.size <= 200 * 1024 * 1024 && ' — large file, will upload to secure storage first'}
-                      </div>
-                    </div>
-                  ) : (
-                    <div><svg width="20" height="20" fill="none" stroke="#0F1923" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24" style={{ margin: '0 auto 6px', display: 'block' }}><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg><div style={{ fontSize: '13px', color: '#0F1923' }}>Click to select file</div><div style={{ fontSize: '13px', color: '#0F1923', marginTop: '2px' }}>PDF or TXT · no size limit</div></div>
-                  )}
-                </label>
-              </div>
-              {docMsg && <div style={{ fontSize: '13px', padding: '9px 12px', borderRadius: '8px', background: docMsg.includes('Done') ? 'rgba(192,244,60,0.07)' : 'rgba(255,107,107,0.07)', border: `1px solid ${docMsg.includes('Done') ? 'rgba(192,244,60,0.2)' : 'rgba(255,107,107,0.2)'}`, color: docMsg.includes('Done') ? '#3D6B00' : '#FF6B6B', marginBottom: '10px', lineHeight: 1.5 }}>{docMsg}</div>}
-              <div style={{ display: 'flex', gap: '8px' }}>
-                <button onClick={uploadDoc} disabled={docUploading || !docFile || (!!docFile && docFile.size > 200 * 1024 * 1024)}
-                  style={{ flex: 1, padding: '11px', borderRadius: '9px', border: 'none', background: docUploading || !docFile || (!!docFile && docFile.size > 200 * 1024 * 1024) ? '#DDE8EE' : '#C0F43C', color: '#0F1923', fontSize: '13px', fontWeight: 800, cursor: docUploading || !docFile || (!!docFile && docFile.size > 200 * 1024 * 1024) ? 'not-allowed' : 'pointer', fontFamily: 'inherit' }}>
-                  {docUploading ? 'Analysing with AI… (large files may take 1–2 min)' : 'Upload & Analyse'}
-                </button>
-                {docs.length > 0 && <button onClick={() => setShowUploadForm(false)}
-                  style={{ padding: '11px 16px', borderRadius: '9px', border: '1px solid #B8CDD8', background: '#FFFFFF', color: '#5B7080', fontSize: '13px', fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>Cancel</button>}
-              </div>
-              {docAnalysis && (
-                <div style={{ marginTop: '14px', padding: '14px', background: docAnalysis.flagged ? 'rgba(139,26,26,0.06)' : 'rgba(0,165,163,0.06)', border: `1px solid ${docAnalysis.flagged ? 'rgba(139,26,26,0.2)' : 'rgba(0,165,163,0.2)'}`, borderRadius: '12px' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', marginBottom: '10px' }}>
-                    <span style={{ fontSize: '13px', fontWeight: 800, color: docAnalysis.flagged ? '#8B1A1A' : '#00897B', textTransform: 'uppercase', letterSpacing: '0.5px' }}>{docAnalysis.flagged ? 'Low Confidence — Flagged' : 'AI Analysis Complete'}</span>
-                    <span style={{ marginLeft: 'auto', fontSize: '13px', fontWeight: 800, color: docAnalysis.confidence >= 75 ? '#3D6B00' : '#8B1A1A' }}>{docAnalysis.confidence}%</span>
-                  </div>
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '6px', marginBottom: '10px' }}>
-                    {[{ l:'Layer', v: docAnalysis.layer.replace('_', ' ') },{ l:'Department', v: docAnalysis.department },{ l:'Min Level', v: docAnalysis.min_level }].map(({l,v}) => (
-                      <div key={l} style={{ background: '#FFFFFF', borderRadius: '7px', padding: '7px 9px' }}>
-                        <div style={{ fontSize: '9px', color: '#5B7080', fontWeight: 700, textTransform: 'uppercase', marginBottom: '2px' }}>{l}</div>
-                        <div style={{ fontSize: '13px', color: '#0F1923', fontWeight: 700, textTransform: 'capitalize' }}>{v}</div>
-                      </div>
-                    ))}
-                  </div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '5px', marginBottom: '6px' }}>
-                    <div style={{ width: '5px', height: '5px', borderRadius: '50%', background: docAnalysis.pilot_use ? '#3D6B00' : '#DDE8EE', flexShrink: 0 }} />
-                    <span style={{ fontSize: '13px', color: docAnalysis.pilot_use ? '#3D6B00' : '#0F1923', fontWeight: 600 }}>{docAnalysis.pilot_use ? 'Pilot will use this document' : 'Not indexed by Pilot'}</span>
-                  </div>
-                  <p style={{ fontSize: '13px', color: '#5B7080', lineHeight: 1.6, margin: 0 }}>{docAnalysis.ai_reasoning}</p>
                 </div>
               )}
             </div>
@@ -4995,13 +4879,6 @@ export default function AdminPage() {
                         Ingest Document
                       </button>
                     )}
-                    {docs.length > 0 && !showUploadForm && (
-                      <button onClick={() => setShowUploadForm(true)}
-                        style={{ display: 'flex', alignItems: 'center', gap: '7px', padding: '10px 18px', borderRadius: '10px', border: 'none', background: '#C0F43C', color: '#0F1923', fontSize: '13px', fontWeight: 800, cursor: 'pointer', fontFamily: 'inherit' }}>
-                        <svg width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
-                        Upload Document
-                      </button>
-                    )}
                   </div>
                 )}
                 {docSubTab === 'workspaces' && (
@@ -5037,39 +4914,104 @@ export default function AdminPage() {
                 ))}
               </div>
 
-              {docSubTab === 'documents' && showIngestForm && (
-                <div style={{ background: '#FFFFFF', border: '1px solid rgba(164,120,255,0.25)', borderRadius: '16px', padding: '24px', marginBottom: '20px', maxWidth: '560px' }}>
-                  <div style={{ fontSize: '13px', fontWeight: 800, color: '#7C3AED', letterSpacing: '1px', textTransform: 'uppercase', marginBottom: '6px' }}>Smart Ingest</div>
-                  <p style={{ fontSize: '13px', color: '#5B7080', margin: '0 0 16px', lineHeight: 1.6 }}>
-                    Upload a post-event report, proposal, attendee data file, or corporate document. It is auto-classified and processed into a structured Knowledge Base entry using Gemini — you review and publish before it goes live.
-                  </p>
-                  <label style={{ display: 'block', padding: '18px', border: `1.5px dashed ${ingestFile ? 'rgba(124,58,237,0.4)' : '#DDE8EE'}`, borderRadius: '10px', textAlign: 'center', cursor: 'pointer', background: ingestFile ? 'rgba(124,58,237,0.04)' : 'transparent', marginBottom: '14px' }}>
-                    <input type="file" accept=".pdf,.xlsx,.xls,.txt,.md" style={{ display: 'none' }} onChange={e => setIngestFile(e.target.files?.[0] ?? null)} />
-                    {ingestFile ? (
-                      <div style={{ fontSize: '13px', fontWeight: 700, color: '#7C3AED' }}>{ingestFile.name}</div>
-                    ) : (
-                      <div style={{ fontSize: '13px', color: '#0F1923' }}>Click to select a file — PDF, XLSX, TXT, or MD</div>
+              {docSubTab === 'documents' && showIngestForm && (() => {
+                const effectiveType = ingestEffectiveType()
+                const isGeneral = effectiveType === 'general'
+                const generalReady = docForm.title.trim() && docForm.doc_category && (docForm.type !== 'other' || otherTypeLabel.trim())
+                const canSubmit = !!ingestFile && (!isGeneral || generalReady)
+                const TYPE_OPTIONS: { key: KbDocType | 'general'; label: string }[] = [
+                  { key: 'proposal', label: 'Proposal' },
+                  { key: 'post_event_report', label: 'Post-Event Report' },
+                  { key: 'attendee_data', label: 'Attendee Data' },
+                  { key: 'corporate_doc', label: 'Corporate Doc' },
+                  { key: 'general', label: 'General Document' },
+                ]
+                return (
+                  <div style={{ background: '#FFFFFF', border: '1px solid rgba(164,120,255,0.25)', borderRadius: '16px', padding: '24px', marginBottom: '20px', maxWidth: '560px' }}>
+                    <div style={{ fontSize: '13px', fontWeight: 800, color: '#7C3AED', letterSpacing: '1px', textTransform: 'uppercase', marginBottom: '6px' }}>Ingest Document</div>
+                    <p style={{ fontSize: '13px', color: '#5B7080', margin: '0 0 16px', lineHeight: 1.6 }}>
+                      A post-event report, proposal, attendee data file, or corporate document is auto-classified and restructured into a Knowledge Base entry using Gemini — you review and publish before it goes live. Anything else is a General Document — classified for access only, published immediately, original wording kept exactly as-is.
+                    </p>
+                    <label style={{ display: 'block', padding: '18px', border: `1.5px dashed ${ingestFile ? 'rgba(124,58,237,0.4)' : '#DDE8EE'}`, borderRadius: '10px', textAlign: 'center', cursor: 'pointer', background: ingestFile ? 'rgba(124,58,237,0.04)' : 'transparent', marginBottom: '14px' }}>
+                      <input type="file" accept=".pdf,.xlsx,.xls,.txt,.md" style={{ display: 'none' }} onChange={e => { setIngestFile(e.target.files?.[0] ?? null); setIngestTypeChoice(null) }} />
+                      {ingestFile ? (
+                        <div style={{ fontSize: '13px', fontWeight: 700, color: '#7C3AED' }}>{ingestFile.name}</div>
+                      ) : (
+                        <div style={{ fontSize: '13px', color: '#0F1923' }}>Click to select a file — PDF, XLSX, TXT, or MD (max 100 MB)</div>
+                      )}
+                    </label>
+
+                    {ingestFile && (
+                      <div style={{ marginBottom: '14px' }}>
+                        <label style={{ fontSize: '13px', fontWeight: 700, color: '#5B7080', letterSpacing: '0.8px', textTransform: 'uppercase', display: 'block', marginBottom: '6px' }}>
+                          {ingestTypeChoice ? 'Type' : 'Detected type'}
+                        </label>
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+                          {TYPE_OPTIONS.map(opt => (
+                            <button key={opt.key} onClick={() => setIngestTypeChoice(opt.key)}
+                              style={{ padding: '6px 12px', borderRadius: '16px', border: `1px solid ${effectiveType === opt.key ? 'rgba(124,58,237,0.4)' : '#DDE8EE'}`, background: effectiveType === opt.key ? 'rgba(124,58,237,0.08)' : '#FFFFFF', color: effectiveType === opt.key ? '#7C3AED' : '#5B7080', fontSize: '13px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
+                              {opt.label}
+                            </button>
+                          ))}
+                        </div>
+                        {!isGeneral && (
+                          <p style={{ fontSize: '13px', color: '#5B7080', margin: '8px 0 0', lineHeight: 1.5 }}>
+                            Not right? Choose <strong>General Document</strong> instead to skip restructuring and keep the original wording exactly as uploaded.
+                          </p>
+                        )}
+                      </div>
                     )}
-                  </label>
-                  {ingestMsg && (
-                    <div style={{ fontSize: '13px', padding: '9px 12px', borderRadius: '8px', background: ingesting ? 'rgba(124,58,237,0.06)' : 'rgba(255,107,107,0.07)', border: `1px solid ${ingesting ? 'rgba(124,58,237,0.2)' : 'rgba(255,107,107,0.2)'}`, color: ingesting ? '#7C3AED' : '#FF6B6B', marginBottom: '10px', lineHeight: 1.5 }}>
-                      {ingestMsg}
+
+                    {isGeneral && generalDocFields}
+
+                    {ingestMsg && (
+                      <div style={{ fontSize: '13px', padding: '9px 12px', borderRadius: '8px', background: ingesting ? 'rgba(124,58,237,0.06)' : 'rgba(255,107,107,0.07)', border: `1px solid ${ingesting ? 'rgba(124,58,237,0.2)' : 'rgba(255,107,107,0.2)'}`, color: ingesting ? '#7C3AED' : '#FF6B6B', marginBottom: '10px', lineHeight: 1.5 }}>
+                        {ingestMsg}
+                      </div>
+                    )}
+                    <div style={{ display: 'flex', gap: '8px' }}>
+                      <button onClick={ingestDocument} disabled={ingesting || !canSubmit}
+                        style={{ flex: 1, padding: '11px', borderRadius: '9px', border: 'none', background: ingesting || !canSubmit ? '#DDE8EE' : '#7C3AED', color: '#FFFFFF', fontSize: '13px', fontWeight: 800, cursor: ingesting || !canSubmit ? 'not-allowed' : 'pointer', fontFamily: 'inherit' }}>
+                        {ingesting ? 'Processing…' : 'Start Ingestion'}
+                      </button>
+                      <button onClick={() => { setShowIngestForm(false); setIngestFile(null); setIngestMsg(''); resetGeneralDocForm() }}
+                        style={{ padding: '11px 16px', borderRadius: '9px', border: '1px solid #B8CDD8', background: '#FFFFFF', color: '#5B7080', fontSize: '13px', fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>
+                        Cancel
+                      </button>
                     </div>
-                  )}
-                  <div style={{ display: 'flex', gap: '8px' }}>
-                    <button onClick={ingestDocument} disabled={ingesting || !ingestFile}
-                      style={{ flex: 1, padding: '11px', borderRadius: '9px', border: 'none', background: ingesting || !ingestFile ? '#DDE8EE' : '#7C3AED', color: '#FFFFFF', fontSize: '13px', fontWeight: 800, cursor: ingesting || !ingestFile ? 'not-allowed' : 'pointer', fontFamily: 'inherit' }}>
-                      {ingesting ? 'Processing…' : 'Start Ingestion'}
-                    </button>
-                    <button onClick={() => { setShowIngestForm(false); setIngestFile(null); setIngestMsg('') }}
-                      style={{ padding: '11px 16px', borderRadius: '9px', border: '1px solid #B8CDD8', background: '#FFFFFF', color: '#5B7080', fontSize: '13px', fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>
-                      Cancel
-                    </button>
+                  </div>
+                )
+              })()}
+
+              {docSubTab === 'documents' && ingestResult && ingestResult.detected_type === 'general' && ingestResult.analysis && (
+                <div style={{ background: '#FFFFFF', border: '1px solid rgba(192,244,60,0.25)', borderRadius: '16px', padding: '20px', marginBottom: '16px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
+                    <span style={{ fontSize: '13px', fontWeight: 800, color: '#0F1923' }}>{ingestResult.document.title}</span>
+                    <span style={{ fontSize: '13px', color: '#5B7080' }}>{ingestResult.document.word_count?.toLocaleString()} words</span>
+                  </div>
+                  <div style={{ padding: '14px', background: ingestResult.analysis.flagged ? 'rgba(139,26,26,0.06)' : 'rgba(0,165,163,0.06)', border: `1px solid ${ingestResult.analysis.flagged ? 'rgba(139,26,26,0.2)' : 'rgba(0,165,163,0.2)'}`, borderRadius: '12px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', marginBottom: '10px' }}>
+                      <span style={{ fontSize: '13px', fontWeight: 800, color: ingestResult.analysis.flagged ? '#8B1A1A' : '#00897B', textTransform: 'uppercase', letterSpacing: '0.5px' }}>{ingestResult.analysis.flagged ? 'Low Confidence — Flagged' : 'Published to Knowledge Base'}</span>
+                      <span style={{ marginLeft: 'auto', fontSize: '13px', fontWeight: 800, color: ingestResult.analysis.confidence >= 75 ? '#3D6B00' : '#8B1A1A' }}>{ingestResult.analysis.confidence}%</span>
+                    </div>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '6px', marginBottom: '10px' }}>
+                      {[{ l: 'Layer', v: ingestResult.analysis.layer.replace('_', ' ') }, { l: 'Department', v: ingestResult.analysis.department }, { l: 'Min Level', v: ingestResult.analysis.min_level }].map(({ l, v }) => (
+                        <div key={l} style={{ background: '#FFFFFF', borderRadius: '7px', padding: '7px 9px' }}>
+                          <div style={{ fontSize: '9px', color: '#5B7080', fontWeight: 700, textTransform: 'uppercase', marginBottom: '2px' }}>{l}</div>
+                          <div style={{ fontSize: '13px', color: '#0F1923', fontWeight: 700, textTransform: 'capitalize' }}>{v}</div>
+                        </div>
+                      ))}
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '5px', marginBottom: '6px' }}>
+                      <div style={{ width: '5px', height: '5px', borderRadius: '50%', background: ingestResult.analysis.pilot_use ? '#3D6B00' : '#DDE8EE', flexShrink: 0 }} />
+                      <span style={{ fontSize: '13px', color: ingestResult.analysis.pilot_use ? '#3D6B00' : '#0F1923', fontWeight: 600 }}>{ingestResult.analysis.pilot_use ? 'Pilot will use this document' : 'Not indexed by Pilot'}</span>
+                    </div>
+                    <p style={{ fontSize: '13px', color: '#5B7080', lineHeight: 1.6, margin: 0 }}>{ingestResult.analysis.ai_reasoning}</p>
                   </div>
                 </div>
               )}
 
-              {docSubTab === 'documents' && ingestResult && renderReviewCard(ingestResult.document, ingestResult.summary, ingestResult.detected_type)}
+              {docSubTab === 'documents' && ingestResult && ingestResult.detected_type !== 'general' && renderReviewCard(ingestResult.document, ingestResult.summary ?? '', ingestResult.detected_type)}
 
               {docSubTab === 'documents' && (() => {
                 const others = pendingDocs.filter(d => d.id !== ingestResult?.document.id)
@@ -5723,7 +5665,12 @@ export default function AdminPage() {
                       </div>
                     ))}
                   </div>
-                  <div style={{ maxWidth: '520px', margin: '0 auto' }}>{uploadForm}</div>
+                  <div style={{ maxWidth: '520px', margin: '0 auto', textAlign: 'center' }}>
+                    <button onClick={() => setShowIngestForm(true)}
+                      style={{ padding: '11px 24px', borderRadius: '9px', border: 'none', background: '#7C3AED', color: '#FFFFFF', fontSize: '13px', fontWeight: 800, cursor: 'pointer', fontFamily: 'inherit' }}>
+                      Ingest Document
+                    </button>
+                  </div>
                 </>
               )}
 
@@ -5755,9 +5702,6 @@ export default function AdminPage() {
                       ))}
                     </div>
                   </details>
-
-                  {/* Inline upload form */}
-                  {showUploadForm && <div style={{ marginBottom: '24px' }}>{uploadForm}</div>}
 
                   {/* Category filter pills */}
                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '10px', flexWrap: 'wrap' }}>
@@ -5874,7 +5818,7 @@ export default function AdminPage() {
                                   {doc.word_count?.toLocaleString()} words · {new Date(doc.created_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}
                                 </span>
                                 <div style={{ display: 'flex', gap: '10px' }}>
-                                  <button onClick={() => { setSupersedesDoc(doc); setDocForm(p => ({ ...p, title: doc.title, type: doc.type, workspace_id: doc.workspace_id ?? '', doc_category: doc.doc_category ?? '' })); setShowUploadForm(true); window.scrollTo({ top: 0, behavior: 'smooth' }) }}
+                                  <button onClick={() => { setSupersedesDoc(doc); setDocForm(p => ({ ...p, title: doc.title, type: doc.type, workspace_id: doc.workspace_id ?? '', doc_category: doc.doc_category ?? '' })); setIngestTypeChoice('general'); setShowIngestForm(true); window.scrollTo({ top: 0, behavior: 'smooth' }) }}
                                     style={{ fontSize: '13px', fontWeight: 700, color: '#00897B', background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'inherit', padding: '2px 4px' }}>
                                     New Version
                                   </button>

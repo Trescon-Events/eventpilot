@@ -3,25 +3,32 @@ import { readFileSync } from 'fs'
 import { join } from 'path'
 import { GoogleGenerativeAI } from '@google/generative-ai'
 import { randomUUID } from 'crypto'
-import { classifyFilename, KB_TYPE_META } from '@/app/lib/kb/classify'
+import { suggestDocType, KB_TYPE_META, KbDocType } from '@/app/lib/kb/classify'
 import { extractKbText } from '@/app/lib/kb/extract'
 import { putObject, KB_R2_PREFIX } from '@/app/lib/kb/storage'
 import { saveDraftDocument } from '@/app/lib/kb/save-draft'
 import { supabaseAdmin } from '@/app/lib/supabase'
 import { detectGaps, Gap } from '@/app/lib/kb/gaps'
 import { buildEffectiveProcessorGuide } from '@/app/lib/kb/update-processor'
+import { analyseGeneralDocument } from '@/app/lib/kb/analyse-general'
 
 export const maxDuration = 120
 
 /*
   POST /api/kb/ingest
-  Body: multipart/form-data { file, uploaded_by? }
+  Body: multipart/form-data { file, uploaded_by?, doc_type_override? }
 
-  Classify → extract → process (Gemini, guided by the matching
-  knowledge-engine/processors/*.md file) → store original in R2 → insert a
-  'pending' document row (not yet visible to staff or Pilot). Returns the
-  generated summary so the admin can review it before publishing — publishing
-  and rejecting both reuse the existing PATCH /api/documents/review endpoint.
+  Single entry point for every KB upload. doc_type_override picks the branch
+  (client resolves it via suggestDocType() + an uploader override control):
+  - One of the 4 structured KbDocTypes → classify → extract → process (Gemini,
+    guided by the matching knowledge-engine/processors/*.md file) → store
+    original in R2 → insert a 'pending' document row, plus self-learning gap
+    detection. Admin reviews/publishes via PATCH /api/documents/review.
+  - 'general' (or omitted, with the filename not matching a real signal) →
+    classify-only (layer/department/min_level/pilot_use, not a content
+    rewrite) → store the raw extracted text verbatim → publish immediately
+    (status: 'live'). No gap detection — there's no schema to detect gaps
+    against. This replaces the retired /api/documents/upload.
 */
 export async function POST(req: NextRequest) {
   try {
@@ -40,9 +47,13 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: `File is too large (${(file.size / 1024 / 1024).toFixed(0)} MB). Maximum is 100 MB.` }, { status: 413 })
     }
 
-    const buffer  = Buffer.from(await file.arrayBuffer())
-    const docType = classifyFilename(file.name)
-    const meta    = KB_TYPE_META[docType]
+    const buffer = Buffer.from(await file.arrayBuffer())
+
+    const overrideRaw = form.get('doc_type_override') as string | null
+    const resolvedType: KbDocType | 'general' =
+      overrideRaw && overrideRaw in KB_TYPE_META ? (overrideRaw as KbDocType)
+      : overrideRaw === 'general' ? 'general'
+      : suggestDocType(file.name)
 
     let extractedText: string
     try {
@@ -53,6 +64,13 @@ export async function POST(req: NextRequest) {
     if (!extractedText) {
       return NextResponse.json({ error: 'Could not extract any content from this file.' }, { status: 422 })
     }
+
+    if (resolvedType === 'general') {
+      return await handleGeneralIngest(form, file, buffer, extractedText, uploaded_by)
+    }
+
+    const docType = resolvedType
+    const meta    = KB_TYPE_META[docType]
 
     // Load the matching processor guide, then merge in any self-learned fields
     // that are registered in kb_field_registry but not yet reflected in the
@@ -153,4 +171,83 @@ Start directly with the YAML front matter (---).`
     console.error('kb ingest error:', msg)
     return NextResponse.json({ error: 'Something went wrong while processing this document. Please try again.' }, { status: 500 })
   }
+}
+
+/*
+  General-document branch (anything that isn't one of the 4 structured
+  types) — classify-only, no content rewrite, publishes immediately.
+  Ported from the retired /api/documents/upload/route.ts, folded into the
+  single ingest entry point. Extra form fields carry what that route used to
+  collect directly (title, type incl. custom/"other", visibility, event
+  link, category, external source link, BD workspace link, versioning).
+*/
+async function handleGeneralIngest(
+  form: FormData,
+  file: File,
+  buffer: Buffer,
+  extractedText: string,
+  uploaded_by: string | null
+): Promise<NextResponse> {
+  const title          = (form.get('title') as string | null)?.trim() || file.name
+  const type            = (form.get('type') as string | null) || 'other'
+  const visibility      = (form.get('visibility') as string | null) || 'all'
+  const event_id        = (form.get('event_id') as string | null) || undefined
+  const doc_category    = (form.get('doc_category') as string | null) || 'uncategorised'
+  const sourceUrlInput  = (form.get('source_url') as string | null)?.trim() || null
+  const workspace_id    = (form.get('workspace_id') as string | null) || undefined
+  const supersedes_id   = (form.get('supersedes_id') as string | null) || undefined
+  const version_note    = (form.get('version_note') as string | null)?.trim() || undefined
+
+  let uploader = { name: 'Unknown', department: null as string | null, role: null as string | null, job_level: null as string | null }
+  if (uploaded_by) {
+    const { data: staffData } = await supabaseAdmin
+      .from('staff_members')
+      .select('name, department, role, job_level')
+      .eq('id', uploaded_by)
+      .single()
+    if (staffData) uploader = staffData
+  }
+
+  const analysis = await analyseGeneralDocument(title, extractedText, uploader, type !== 'other' ? type : undefined)
+  const flagged  = analysis.confidence < 75
+
+  // Store the original in R2 unless the uploader pasted their own external link
+  let sourceUrl = sourceUrlInput
+  if (!sourceUrl) {
+    const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_')
+    const r2Key    = `kb/${randomUUID()}/${safeName}`
+    await putObject(r2Key, buffer, file.type || 'application/octet-stream')
+    sourceUrl = `${KB_R2_PREFIX}${r2Key}`
+  }
+
+  const doc = await saveDraftDocument({
+    title,
+    type,
+    content: extractedText,
+    layer: analysis.layer,
+    department: analysis.department,
+    min_level: analysis.min_level,
+    pilot_use: analysis.pilot_use,
+    doc_category,
+    source_url: sourceUrl,
+    submitted_by: uploaded_by,
+    ai_reasoning: analysis.ai_reasoning,
+    confidence: analysis.confidence,
+    status: 'live',
+    visibility,
+    event_id,
+    workspace_id,
+    supersedes_id,
+    version_note,
+    flagged,
+  })
+
+  return NextResponse.json({
+    success: true,
+    detected_type: 'general',
+    document: doc,
+    analysis: { ...analysis, flagged },
+    gaps: [],
+    gap_session_id: null,
+  })
 }

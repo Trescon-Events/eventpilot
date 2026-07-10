@@ -14,6 +14,34 @@ export const KB_TYPE_META: Record<KbDocType, {
 }
 
 export function classifyFilename(filename: string): KbDocType {
+  const strong = suggestDocType(filename)
+  if (strong !== 'general') return strong
+
+  // Weak, guess-based fallback — only used where a forced structured type is
+  // required (kept for callers ported before the 'general' path existed).
+  // New callers should prefer suggestDocType() and let a 'general' result
+  // stand rather than force one of these guesses.
+  const dot = filename.lastIndexOf('.')
+  const stem = (dot > 0 ? filename.slice(0, dot) : filename).toLowerCase()
+  const ext  = (dot > 0 ? filename.slice(dot) : '').toLowerCase()
+
+  if (ext === '.pdf' || ext === '.pptx' || ext === '.ppt') {
+    return (stem.includes('summit') || stem.includes('forum') || stem.includes('expo'))
+      ? 'proposal'
+      : 'corporate_doc'
+  }
+
+  return 'corporate_doc'
+}
+
+/*
+  Filename-based auto-suggestion for the Ingest Document flow. Only returns a
+  structured KbDocType when a real, specific filename signal matches — never
+  the old extension-only/content-buzzword guesses (see classifyFilename above),
+  since a weak guess should surface as 'general' with an uploader override
+  rather than silently force a document through the wrong schema rewrite.
+*/
+export function suggestDocType(filename: string): KbDocType | 'general' {
   const dot = filename.lastIndexOf('.')
   const stem = (dot > 0 ? filename.slice(0, dot) : filename).toLowerCase()
   const ext  = (dot > 0 ? filename.slice(dot) : '').toLowerCase()
@@ -32,12 +60,5 @@ export function classifyFilename(filename: string): KbDocType {
     return 'corporate_doc'
   }
 
-  // Extension-based fallback
-  if (ext === '.pdf' || ext === '.pptx' || ext === '.ppt') {
-    return (stem.includes('summit') || stem.includes('forum') || stem.includes('expo'))
-      ? 'proposal'
-      : 'corporate_doc'
-  }
-
-  return 'corporate_doc'
+  return 'general'
 }
