@@ -95,6 +95,49 @@ What action does the proposal request from the prospect?
 
 ---
 
+## Learned Fields (Self-Learning)
+
+Fields confirmed by uploaders that extend the sections above.
+
+### Strategic Rationale
+
+- **Market Landscape Analysis** (optional)
+  - Description: In this document, we are proposing Dubai Silicon Oasis (DSO) with an initiative called Futuretech Innovation & Ecosystemt Management Strategy. As part of this we are pitching them to host 3 different events: STRIDE (Science, Technology Research, Innovation & Development, Future Venture Capital Forum, and Dubai FutureTech Festival. As part of the pitch, in the second slide, we tried to show the current competitor events in this space, their strengths and Gaps, how our proposed events can fill that gap. also, we tried to show how DSO can claim this space with their own strengths.
+  - Example: `GITEX Global: Large-scale visibility, Broad not conversion-led. LEAP: Regional scale, General tech not DSO-owned. STEP Conference: Startup exposure, Limited investor conversion.`
+  - Field name: `market_landscape_analysis`
+  - *Added: 2026-07-10*
+
+- **Expected Outcomes** (required)
+  - Description: Yes. Our proposals did not have this level of detail. But going forward we will have, This is also required.
+  - Example: `Tangible ROI: number of qualified leads generated, number of startups exploring DSO establishment, number of pilots, partnerships, companies established. Strategic Intangible ROI: stronger international visibility for DSO, improved investor confidence in the DSO proposition.`
+  - Field name: `expected_outcomes`
+  - *Added: 2026-07-10*
+
+### Event Concept
+
+- **Proposed Event Platforms** (optional)
+  - Description: This proposal is pitched as an initiative called "Futuretech Innovation & Ecosystem Management Strategy". its more of a strategy pitch. And as part of the pitch we are proposing 3 distinct events that the client should host. We will have to have separate sections for such proposals where there are multiple events proposed. Because each event will be elaborated and talked about in the proposal.
+  - Example: `PLATFORM 1: STRIDE (Sep 2026, Role: Research Engine, Scale: 500 attendees). PLATFORM 2: Future VC (Nov 2026, Role: Capital Engine, Scale: 300 delegates). PLATFORM 3: Dubai FutureTech Festival (Mar 2027, Role: Global Flagship, Scale: 5,000+ delegates).`
+  - Field name: `proposed_event_platforms`
+  - *Added: 2026-07-10*
+
+### Format and Activations
+
+- **Pre Event Activations** (optional)
+  - Description: Yes. we sometimes propose "pre-event activations" as well as "on-site activations", both.
+  - Example: `DAILTECH Onsite Cluster Dialogues, Podcast, FutureTech Friday Meet up. Frequent Cluster Dialogues / Meetups led by DTEC to build momentum during non event months.`
+  - Field name: `pre_event_activations`
+  - *Added: 2026-07-10*
+
+### Target Audience
+
+- **Audience Engagement Purpose** (required)
+  - Description: Yes. Some of our previous propsoals did not have this level of breakdown. But going forward we intend to have this. this is required.
+  - Example: `Government & Regulators -> Key Personas: Ministers, Policy Advisors; Purpose of Engagement: Showcase tech-friendly policies, facilitate collaborations, align national goals, reinforce Dubai as a secure global hub.`
+  - Field name: `audience_engagement_purpose`
+  - *Added: 2026-07-10*
+---
+
 ## Output Schema
 
 ```markdown
