@@ -29,7 +29,18 @@ function objectUrl(endpoint: string, key: string): string {
 
 export async function putObject(key: string, body: Buffer, contentType: string): Promise<void> {
   const { aws, endpoint } = r2Client()
-  const signed = await aws.sign(objectUrl(endpoint, key), { method: 'PUT', body: new Uint8Array(body), headers: { 'Content-Type': contentType } })
+  // aws4fetch never sets Content-Length itself — it expects the runtime's fetch
+  // to compute it from the body when the signed Request is actually dispatched.
+  // That implicit computation doesn't reliably happen for a Uint8Array body on
+  // a pre-built Request object re-fetched via a bare fetch() call in this
+  // runtime, and R2 rejects the request outright without it (411
+  // MissingContentLength) — so set it explicitly. 'content-length' is in
+  // aws4fetch's own UNSIGNABLE_HEADERS list, so this can't affect the signature.
+  const signed = await aws.sign(objectUrl(endpoint, key), {
+    method: 'PUT',
+    body: new Uint8Array(body),
+    headers: { 'Content-Type': contentType, 'Content-Length': String(body.byteLength) },
+  })
   const res = await fetch(signed)
   if (!res.ok) throw new Error(`R2 upload failed: ${res.status} ${await res.text().catch(() => '')}`)
 }
