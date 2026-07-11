@@ -683,6 +683,9 @@ export default function AdminPage() {
   const [reviewingId,    setReviewingId]    = useState<string | null>(null)
   const [expandedPendingId, setExpandedPendingId] = useState<string | null>(null)
   const [docActionMsg,   setDocActionMsg]   = useState('')
+  const [deletingDoc,    setDeletingDoc]    = useState<DocRow | null>(null)
+  const [deleteConfirmText, setDeleteConfirmText] = useState('')
+  const [deleting,       setDeleting]       = useState(false)
 
   // Knowledge — self-learning gap detection (KB Self-Learning PRD v3.0)
   type GapStatus = 'unresolved' | 'added' | 'skipped' | 'pending'
@@ -1251,9 +1254,20 @@ export default function AdminPage() {
     setCustomDocTypes(Array.isArray(data) ? data : [])
   }
 
-  async function deleteDoc(id: string) {
-    await fetch(`/api/documents/list?id=${id}`, { method: 'DELETE' })
-    fetchDocs()
+  async function confirmDeleteDoc() {
+    if (!deletingDoc || deleteConfirmText !== 'DELETE') return
+    setDeleting(true)
+    const res = await fetch(`/api/documents/list?id=${deletingDoc.id}`, { method: 'DELETE' })
+    setDeleting(false)
+    if (res.ok) {
+      setDocActionMsg(`✓ Removed "${deletingDoc.title}" from the Knowledge Base.`)
+      window.setTimeout(() => setDocActionMsg(''), 6000)
+      setDeletingDoc(null)
+      setDeleteConfirmText('')
+      fetchDocs()
+    } else {
+      setDocActionMsg('Could not remove the document. Please try again.')
+    }
   }
 
 
@@ -4930,11 +4944,14 @@ export default function AdminPage() {
                 ))}
               </div>
 
-              {docSubTab === 'documents' && docActionMsg && (
-                <div style={{ fontSize: '13px', fontWeight: 700, padding: '11px 16px', borderRadius: '10px', background: docActionMsg.startsWith('Rejected') ? 'rgba(255,107,107,0.08)' : 'rgba(192,244,60,0.1)', border: `1px solid ${docActionMsg.startsWith('Rejected') ? 'rgba(255,107,107,0.25)' : 'rgba(192,244,60,0.3)'}`, color: docActionMsg.startsWith('Rejected') ? '#8B1A1A' : '#3D6B00', marginBottom: '16px' }}>
-                  {docActionMsg}
-                </div>
-              )}
+              {docSubTab === 'documents' && docActionMsg && (() => {
+                const isSuccess = docActionMsg.startsWith('✓')
+                return (
+                  <div style={{ fontSize: '13px', fontWeight: 700, padding: '11px 16px', borderRadius: '10px', background: isSuccess ? 'rgba(192,244,60,0.1)' : 'rgba(255,107,107,0.08)', border: `1px solid ${isSuccess ? 'rgba(192,244,60,0.3)' : 'rgba(255,107,107,0.25)'}`, color: isSuccess ? '#3D6B00' : '#8B1A1A', marginBottom: '16px' }}>
+                    {docActionMsg}
+                  </div>
+                )
+              })()}
 
               {docSubTab === 'documents' && showIngestForm && (() => {
                 const effectiveType = ingestEffectiveType()
@@ -5844,7 +5861,7 @@ export default function AdminPage() {
                                     style={{ fontSize: '13px', fontWeight: 700, color: '#00897B', background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'inherit', padding: '2px 4px' }}>
                                     New Version
                                   </button>
-                                  <button onClick={() => deleteDoc(doc.id)}
+                                  <button onClick={() => setDeletingDoc(doc)}
                                     style={{ fontSize: '13px', fontWeight: 700, color: 'rgba(255,107,107,0.6)', background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'inherit', padding: '2px 4px' }}>
                                     Remove
                                   </button>
@@ -5896,6 +5913,36 @@ export default function AdminPage() {
                         })}
                       </div>
                     )}
+                  </div>
+                </div>
+              )}
+
+              {deletingDoc && (
+                <div onClick={() => { setDeletingDoc(null); setDeleteConfirmText('') }}
+                  style={{ position: 'fixed', inset: 0, background: 'rgba(15,25,35,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100, padding: '20px' }}>
+                  <div onClick={e => e.stopPropagation()}
+                    style={{ background: '#FFFFFF', borderRadius: '16px', padding: '28px', maxWidth: '440px', width: '100%' }}>
+                    <div style={{ fontSize: '16px', fontWeight: 800, color: '#0F1923', marginBottom: '10px' }}>Remove this document?</div>
+                    <div style={{ fontSize: '13px', color: '#5B7080', lineHeight: 1.6, marginBottom: '16px' }}>
+                      This removes <strong>&ldquo;{deletingDoc.title}&rdquo;</strong> from the Knowledge Base — it will no longer be visible to staff or Pilot. Type <strong>DELETE</strong> below to confirm.
+                    </div>
+                    <input
+                      value={deleteConfirmText}
+                      onChange={e => setDeleteConfirmText(e.target.value)}
+                      placeholder="Type DELETE to confirm"
+                      style={{ width: '100%', padding: '10px 12px', borderRadius: '9px', border: '1px solid #DDE8EE', fontSize: '13px', fontFamily: 'inherit', boxSizing: 'border-box', marginBottom: '16px' }}
+                      autoFocus
+                    />
+                    <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
+                      <button onClick={() => { setDeletingDoc(null); setDeleteConfirmText('') }}
+                        style={{ padding: '10px 16px', borderRadius: '9px', border: '1px solid #DDE8EE', background: '#FFFFFF', color: '#5B7080', fontSize: '13px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
+                        Cancel
+                      </button>
+                      <button onClick={confirmDeleteDoc} disabled={deleteConfirmText !== 'DELETE' || deleting}
+                        style={{ padding: '10px 16px', borderRadius: '9px', border: 'none', background: deleteConfirmText !== 'DELETE' || deleting ? '#F3B8B8' : '#FF6B6B', color: '#FFFFFF', fontSize: '13px', fontWeight: 800, cursor: deleteConfirmText !== 'DELETE' || deleting ? 'not-allowed' : 'pointer', fontFamily: 'inherit' }}>
+                        {deleting ? 'Removing…' : 'Remove permanently'}
+                      </button>
+                    </div>
                   </div>
                 </div>
               )}
