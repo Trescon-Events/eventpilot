@@ -6,21 +6,18 @@
 
 ---
 
-## 🚧 In Progress — Madhu is working on the Knowledge Base Module (started 06 Jul 2026)
+## 🚧 In Progress — KB self-learning + BD Knowledge Assistant (started 10 Jul 2026)
 
-Madhu is actively building out the KB Document Category Layer + Press Intelligence Pipeline (`docs/EventPilot-KB-PRD-v2.0.md`). This will likely span **several days** across multiple sessions before it's finalised — **not done yet**, don't assume it's complete just because commits are landing on `main`.
+Madhu (with Claude Code) has been building out the KB module's self-learning ingest pipeline (`docs/EventPilot-KB-PRD-v3.0.md` — a separate, later effort than the v2.0 Press Intelligence work referenced by this banner previously, which was completed and folded into a normal "What Was Built" entry). **Not finalised** — see "Still to do" below and the 10–12 Jul "What Was Built" entry for the full build.
 
 **Touches these areas — check before editing them:**
-- `app/admin/page.tsx` — Knowledge tab, new "Intelligence" sub-tab (large addition, ~700 lines)
-- `middleware.ts` — added a narrow exemption for `/api/kb/intel/run` (exact-match only, not a prefix — see inline comment)
-- `app/api/kb/**`, `app/lib/kb/**` — new Press Intelligence routes and helpers
-- `documents` table — new `doc_category` column (existing rows backfilled, safe/additive)
-- New tables: `kb_intel_sources`, `kb_intel_items`, `kb_intel_runs`, `kb_intel_config`
-- External: a cron-job.org job (ID `8018759`) now hits `/api/kb/intel/run` weekly — unrelated to anything Durga's side would touch, just flagging it exists
+- `app/admin/page.tsx` — Knowledge tab: gap-resolution wizard, "Pending Gaps" sub-tab, single unified "Ingest Document" flow (Upload Document was retired), delete-confirmation modal
+- `app/api/kb/ingest/route.ts`, `app/api/kb/gaps/**`, `app/api/kb/bd-chat/**`, `app/lib/kb/**` — new/changed routes and helpers, see full entry below
+- New tables: `kb_field_registry`, `kb_processor_changelog`, `kb_gap_sessions`
+- Retired: `app/api/documents/upload`, `/process`, `/upload-url` (folded into `/api/kb/ingest`)
+- New admin tool: `/admin/tools/bd-chat` ("Knowledge Assistant") — deliberately separate from Pilot AI (`/chat`, `/api/ask`), not touched by this work
 
-**Verified no collision with Durga's CM-001 work** as of this note — rebased cleanly onto `d9444d5` (his 06 Jul session), full `next build` passes with both sets of changes combined. If you're picking up Durga's side of things in the meantime, the Knowledge tab and `middleware.ts` are where overlap is most likely — check `git log` on those files before assuming they're stable.
-
-Madhu will update this section (or replace it with a proper "What Was Built" entry) once the KB module is finalised.
+Madhu will update this section (or replace it with a proper "What Was Built" entry) once this iteration is finalised.
 
 ---
 
@@ -28,19 +25,20 @@ Madhu will update this section (or replace it with a proper "What Was Built" ent
 
 | Field | Value |
 |---|---|
-| Who | Madhu + Claude Code (Sonnet 5) — 08–09 Jul 2026 |
-| Latest push | 2026-07-09 — commit `e709232` (redesign DocuHub browse page as a table, add type-to-confirm delete) |
+| Who | Madhu + Claude Code (Sonnet 5) — 10–12 Jul 2026 |
+| Latest push | 2026-07-11 — commit `3c74951` (require typing DELETE to remove a KB document, add confirmation) |
 | Handed off to | Durga |
-| Deployed | ✅ Yes — all commits from this session confirmed live on Railway; DNS + Worker route for `docs.tresconevents.com` also live |
+| Deployed | ✅ Yes — all 7 commits from this session confirmed live on Railway (deploy history checked via `railway deployment list`) |
 
-**Session highlight:** Built the entire **DocuHub** module from scratch (document/asset management, distinct from the Knowledge Base — original-file permanent links, not AI extraction) across two days, then used it to import Trescon's real historical document backlog. See full "What Was Built" entry below for the complete build; short version: schema + APIs + staff-facing UI (Phases A–F, 08 Jul) → structured event metadata (Series/Format/Region/dates) + a second permalink domain (`docs.tresconevents.com`, kept separate from `tresconglobal.com` for public documents) → bulk-imported all 74 historical post-event-report PDFs with dates verified against the actual source PDFs → added Client/Owner fields and imported 8 BD proposal PDFs (internal-only) → found and fixed a real production bug (browse-page crash the moment a second document type existed) → redesigned the browse page as a proper table with a type-to-confirm delete modal.
+**Session highlight:** Built the KB module's self-learning gap-detection pipeline end-to-end (PRD v3.0) — a second Gemini pass that detects information a document has that the processor guide doesn't ask for, a 3-step radio-button wizard to classify each gap, and confirmed fields get written back into the processor `.md` files so future uploads capture them automatically. Then, after finding the two upload buttons ("Ingest Document" vs "Upload Document") were confusing (different pipelines, no visible reason to pick one over the other), consolidated them into a single "Ingest Document" entry point. Along the way, found and fixed two real production bugs unrelated to this session's own new code (a pre-existing R2 upload failure affecting every real-file KB upload, and a pre-existing crash for any super-admin session), and built a separate "BD Knowledge Assistant" chat scoped to BD/company-knowledge documents, isolated from Pilot AI. Full detail in the "What Was Built — 10–12 Jul 2026" entry below.
 
 **Still to do:**
-1. **Full click-through of the redesigned DocuHub browse page** (`/docuhub`) — verified healthy via curl/logs and typechecks, but hasn't been visually confirmed end-to-end by a human on a real monitor since the last push. Table layout, long-title wrapping, "Link ↗" action, and the delete-confirmation modal should all get one look-over.
-2. **Internal-document access model is still "any logged-in staff can view any internal doc."** Discussed explicitly with Madhu re: sensitive BD/financial proposals — he chose to proceed as-is for now (domain choice doesn't affect this either way; the real boundary is the login-gated resolver + private R2 bucket, both already in place and correct). If tighter role/department scoping for financial documents becomes a priority, that's a deliberate follow-up, not a bug.
-3. **`knowledge-base/bd/proposals/*/*_intelligence.md`** — 6 new files appeared untracked in the repo during this session (created 09 Jul, ~17:32–17:37) that this session did not create. Looks like a separate, parallel automated process (possibly the KB Intelligence pipeline) touched the same BD proposal source files DocuHub also uploaded. Left untouched/uncommitted since it's not this session's work and the owning process isn't clear — worth checking what generated them before they're lost or accidentally committed.
-4. **New Cloudflare token added to `.env.local`**: `CF_DNS_API_TOKEN`, scoped only to DNS + Workers Routes edit on the `tresconevents.com` zone (verified — cannot touch `tresconglobal.com` or any other zone). Used to create the `docs.tresconevents.com` DNS record + Worker route this session.
-5. **`EVENTPILOT_PLATFORM_DOCUMENT.md` and `app/smartexcel/shell.tsx`** show as locally modified but were already sitting uncommitted before this session started (not this session's work, left alone) — flagging so they don't get silently lost; whoever's change that is should commit or discard it.
+1. **Full click-through of the new BD Knowledge Assistant** (`/admin/tools/bd-chat`) and the consolidated Ingest Document flow's "General Document" path — both were verified thoroughly via direct production API testing (real Gemini calls, real DB writes, then cleaned up), but not yet visually confirmed end-to-end by a human clicking through in a browser.
+2. **Aggregate/count queries are deliberately not built yet** — e.g. "how many proposals have we sent to DSO" cannot be answered today. Investigation found real data gaps: the dominant proposal-ingest path never sets `documents.workspace_id`, `bd_workspaces.client_name` is unnormalized free text, and a second, disconnected proposal-document system (`docuhub_documents`) has its own free-text client field. Madhu's explicit call: fix that data linkage first, then build the aggregate-query tool — not bundled into this session. The BD Knowledge Assistant's system prompt already tells the model to say "I can't compute that yet" rather than guess.
+3. **`workspace_id` auto-linking fix** (make structured proposal ingest actually set/match a `bd_workspaces` row from the `client_name` already present in the generated summary's front matter) is the recommended next piece of work, per #2 above.
+4. **Two test proposal documents created while building/testing this session's features were found and deleted** from production (with Madhu's explicit confirmation) — deleting a document only detaches `kb_field_registry`/`kb_processor_changelog` rows (`ON DELETE SET NULL`), never removes them, so the fields the system learned from testing were preserved and the processor `.md` file was re-synced to match. If you see references to "DSO-FutureTech-Ecosystem" or "World Space Economy Summit — Central Asia Edition" test documents anywhere, they were intentionally removed, not lost.
+5. **`knowledge-base/bd/proposals/*/*_intelligence.md`** (6 files, flagged untracked in the previous handoff too) — still untracked, still unclear which process generates them. Not touched this session either; still worth investigating before they're lost or accidentally committed.
+6. **`EVENTPILOT_PLATFORM_DOCUMENT.md` and `app/smartexcel/shell.tsx`** still show as locally modified from before this session started (carried forward from the previous handoff, still not this session's work, left alone).
 
 **Carried forward from previous sessions (unchanged, not touched this session):**
 - **`staff_members.last_login_at` never written.** Blocks any "target never-logged-in staff" filter. Needs SSO callback investigation.
@@ -48,6 +46,39 @@ Madhu will update this section (or replace it with a proper "What Was Built" ent
 - **Corporate Deck manager — Phase 2 shape decision.** Framing email drafted for Thulasi (three architecture options), hers to decide.
 - **`CRON_SECRET` on Railway out of sync** — blocks auto-revoke cron + weekly leaderboard cron. Needs Railway dashboard access under `webadmin@tresconglobal.com`.
 - **Nicholas Nunes access request** — pre-dates the Access Requests Dashboard, only exists as an email. Grant manually or have him re-request.
+
+---
+
+## What Was Built — 10–12 Jul 2026 (Madhu + Claude Code) — KB self-learning ingest, single Ingest Document flow, BD Knowledge Assistant
+
+### Self-learning gap detection (PRD v3.0)
+
+- **Migration** `supabase/kb_selflearn_migration.sql` — 3 new tables: `kb_field_registry` (every field ever confirmed by an uploader, durable source of truth), `kb_processor_changelog` (audit trail), `kb_gap_sessions` (gaps flagged per ingest, each with its own per-gap `status`).
+- **`app/lib/kb/gaps.ts`** — `detectGaps()`: a second, best-effort Gemini call (own try/catch, never blocks the main ingest) that compares a document against its processor guide and flags information the guide doesn't capture. For `attendee_data` (xlsx), this is a deterministic column-header diff instead — no Gemini call needed.
+- **`app/lib/kb/update-processor.ts`** — `updateProcessorFile()` safely inserts a confirmed field into the right processor `.md` file (never truncates existing content); `buildEffectiveProcessorGuide()` merges active `kb_field_registry` rows into the guide sent to Gemini at request time — this matters because **Railway rebuilds the container from git on every deploy**, so a raw file edit alone would be silently wiped by the next unrelated deploy. The registry (Supabase) is the durable source of truth; the file edit is best-effort/for human readability.
+- **Gap conversation UI** in `app/admin/page.tsx` — 3-step radio-button wizard (never free chat) slotted into the existing ingest review card: classify → importance → naming, with a "Skip this gap" escape hatch at every step, and a "Pending Gaps" sub-tab for reviewing gaps an uploader deferred.
+- Found via a real live test (Durga ingesting an actual DSO proposal): after publishing, the review card just vanished with **no success confirmation at all** — fixed with a proper banner.
+
+### Consolidated Ingest Document (single entry point)
+
+- The KB module had two upload buttons — "Ingest Document" (Gemini-restructures content into a schema for 4 fixed types, then gap detection) and "Upload Document" (classify-only, stores raw text verbatim, publishes immediately) — different enough that testing the wrong one looked broken. Investigated whether they could just be removed down to one: **no** — Pilot injects `extracted_text` into its prompt verbatim with zero RAG/fact-checking layer, so forcing every document (including policy/compliance docs) through the schema-rewrite would risk silently altering exact wording with no way back to the original.
+- Consolidated to one "Ingest Document" button that auto-suggests a type by filename (`suggestDocType()` in `app/lib/kb/classify.ts` — only returns a structured type on a real filename signal, `'general'` otherwise) with a visible override control, so a weak guess never silently forces the wrong pipeline. Structured types keep the existing restructure+gap-detection+review pipeline; `'general'` gets the old Upload Document's classify-only, verbatim-text, instant-publish behavior (`app/lib/kb/analyse-general.ts`), including its custom types/versioning/event-workspace-linking fields, now folded into the one form.
+- Retired `app/api/documents/upload`, `/process`, `/upload-url` (confirmed no other callers first) — also dropped their 200MB presigned-URL-to-storage staging (a legacy Vercel body-size workaround; Railway doesn't need it, Ingest's existing 100MB direct upload already works fine in production).
+
+### Two pre-existing production bugs found and fixed along the way (not introduced this session)
+
+- **R2 uploads failing with `411 MissingContentLength`** — surfaced the moment Durga tried a real PDF through the live UI. `putObject()` relied on the runtime implicitly computing `Content-Length` from a `Uint8Array` body on a pre-signed `Request` object re-fetched via a bare `fetch()` call — that implicit computation wasn't happening reliably in Railway's runtime. Fixed by setting `Content-Length` explicitly (`content-length` is in `aws4fetch`'s own `UNSIGNABLE_HEADERS` list, so this can't affect the signature). This bug blocked every real-file KB upload in production, not just this session's new code.
+- **Super-admin KB uploads always 500'd** — `submitted_by` (a `uuid` column) was written directly from `uploaded_by` without mapping the `'super-admin'` sentinel to `null` the way every other admin route already does.
+
+### BD Knowledge Assistant — separate chat for KB/BD documents
+
+- Testing surfaced that the only chat in the app (Pilot AI, `app/chat` + `/api/ask`) is deliberately scoped to onboarding/learning-journey topics only, and proposals are `pilot_use: false` by design — there was no way to ask anything using BD/company-knowledge documents anywhere in the app.
+- Madhu's call: build a genuinely separate chat now (new route + new page, no shared files touched) with the explicit intent to merge into Pilot AI later, rather than risk the working Learning Assistant while EventPilot is still under active development.
+- New admin tool `app/admin/tools/bd-chat` ("Knowledge Assistant", linked next to "PER Creator") + `app/api/kb/bd-chat/route.ts` — reuses `getKBContext({ pilotUseOnly: false, categories: [...BD categories] })` (the same options the 3 document-generator tools already use), so it carries the existing access-control rules (`canAccessDocument`/`LEVEL_RANK`) forward automatically via a real `staff_id`. Same pattern as `/api/ask` — no streaming, no server-persisted history, `gemini-2.5-flash`. No aggregate/count-query tool yet (see "Still to do" above) — the system prompt tells the model to say so rather than fabricate a number.
+
+### KB document delete confirmation
+
+- "Remove" on a KB document deleted it immediately with zero confirmation before or after. Reused DocuHub's exact type-to-confirm pattern (type the literal word `DELETE` before the button enables) instead of inventing a new one, plus a success/error banner afterward.
 
 ---
 
@@ -1025,6 +1056,13 @@ Salary multi-currency:
 ---
 
 ## What's Next
+
+### Pending — Knowledge Base (10–12 Jul session)
+
+0. **Manual browser click-through** of the consolidated Ingest Document flow (especially the "General Document" path and type-override control) and the new BD Knowledge Assistant (`/admin/tools/bd-chat`) — both verified thoroughly via direct production API testing, not yet by a human clicking through live.
+1. **`workspace_id` auto-linking fix** — make structured proposal ingest actually match/create a `bd_workspaces` row from the `client_name` already present in the generated summary's front matter. Recommended next step before building any aggregate/count-query capability for the BD Knowledge Assistant.
+2. **Aggregate/count queries for BD Knowledge Assistant** — deliberately deferred (Madhu's call) until #1 above is solid; today the underlying data (`workspace_id` linkage, `bd_workspaces.client_name` normalization) isn't reliable enough for a real count to be trustworthy.
+3. **`knowledge-base/bd/proposals/*/*_intelligence.md`** (6 untracked files) — still unexplained, carried forward from the previous handoff.
 
 ### Pending — SmartExcel (03 Jul session)
 
