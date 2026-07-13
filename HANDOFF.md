@@ -26,11 +26,11 @@ Madhu will update this section (or replace it with a proper "What Was Built" ent
 | Field | Value |
 |---|---|
 | Who | Durga + Claude Code (Opus 4.7) — 13 Jul 2026 |
-| Latest push | 2026-07-13 — commit `85f3555` (Nic's 4 PRDs: Brief overhaul, wizard rewrite, Overview dynamic binding, Tasks format-conditional) |
+| Latest push | 2026-07-13 — commit `8933629` (Thulasi's Deck Readiness Dashboard + change tracking) |
 | Handed off to | Next session |
-| Deployed | ✅ Yes — commits `e027f2e` (3 bug fixes) + `85f3555` (4 PRDs) both live on Railway |
+| Deployed | ✅ Yes — commits `e027f2e` (Nic 3 bugs), `85f3555` (Nic 4 PRDs), `8933629` (Thulasi CM refinement) all live on Railway |
 
-**Session highlight:** Nic (Nicholas Nunes) had raised 7 build_requests on the Bespoke pilot project between 02–10 Jul, all `status: submitted`, none actioned. Split them into 3 bugs + 4 feature PRDs. **All 7 shipped and closed this session.**
+**Session highlight:** Cleared **every open build_request in the tracker**. 7 from Nic (Bespoke pilot) + 3 from Thulasi (Corporate Marketing pilot) = 10 total, all now `status: completed` with detailed reply-outs. Nic's 3 bugs + 4 feature PRDs shipped (see below). Thulasi's original PRD + workflow-marker ping closed as already-shipped (CM-001 Phase 1 landed 06 Jul); her Phase-1 Refinement PRD (Readiness Dashboard + change tracking) built and shipped in this session's third commit.
 
 Bugs (commit `e027f2e`): fixed the shared "silent-failure" pattern where data ops succeeded but the UI gave zero feedback. (1) Added tasks landed at `sort_order 999` and rendered below the 13 auto-seeded SOP tasks in Phase 1 — invisible unless scrolled. Now compute `max(sort_order) + 1` per phase + flash the new row briefly on insert. (2) Save Brief persisted `brief_data` to the DB every click but showed no confirmation — now displays a green "✓ Saved" chip or a red retry chip. (3) Create-bespoke-project was fixed 01 Jul via commit `06d9f27` but Nic re-reported on 02 Jul from a stale client cache — closed with a hard-refresh note.
 
@@ -84,6 +84,23 @@ Closed all 7 build_requests via `PATCH /api/build-requests/[id]` with detailed r
 - **Corporate Deck manager — Phase 2 shape decision.** Framing email drafted for Thulasi (three architecture options), hers to decide.
 - **`CRON_SECRET` on Railway out of sync** — blocks auto-revoke cron + weekly leaderboard cron. Needs Railway dashboard access under `webadmin@tresconglobal.com`.
 - **Nicholas Nunes access request** — pre-dates the Access Requests Dashboard, only exists as an email. Grant manually or have him re-request.
+
+---
+
+## What Was Built — 13 Jul 2026 late-evening (Durga + Claude Code) — Thulasi's Deck Readiness Dashboard
+
+### Commit `8933629` · `feat(corporate-marketing): Deck Readiness Dashboard + change tracking`
+
+Ships Thulasi's Phase-1 Refinement PRD (build_request `ba9c7ef1`) on top of the shipped CM-001 module. Also closed her other two build_requests (`aeb08430` original PRD, `7b432d92` workflow marker) as already-delivered from the 06 Jul session — the whole tracker is now zero-open.
+
+- **New route `app/api/corporate-marketing/deck/readiness/route.ts`** — GET returns `current_version`, `last_published_at`, `overall_status`, `sections[]` (6 sections with per-section status + last_modified + optional last_synced for Events), and `changes_since_publish[]` (top ~10 sorted by updated_at). Change detection is a canonical-JSON hash of each section against the latest `corporate_deck_versions.content_snapshot`. No new schema — the existing snapshot column supports this end-to-end.
+- **New component `ReadinessDashboard.tsx`** — three cards rendered at the top of the Overview tab: summary (version + last published + status pill), section grid (Company Info / Statistics / Events / Leadership / Testimonials / Images with a status pill + last-modified + Events last-synced), and Changes Since Last Publish timeline. Empty and not-yet-published states handled.
+- **"Dynamic Content" → "Live Content"** across the CM module UI copy (tab label + 4 helper strings + 1 header comment). Internal identifiers (`id: 'content'`, `DynamicContentTab.tsx` filename) left alone to avoid rippling imports outside the PRD scope.
+- Out-of-scope items honoured: no PDF regen, no Canva sync, no AI redesign, no website/social propagation.
+
+### Known behavior worth noting
+
+Events "Last synced" is derived from `MAX(events.updated_at)`. There's no deck-owned sync log because Events data flows live (not via ETL). So the timestamp semantically means "when Events data last changed" — which is what a Marketing user cares about, but if you ever want a true "when did the deck last fetch Events" timestamp, that's a follow-up.
 
 ---
 
