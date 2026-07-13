@@ -30,7 +30,19 @@ Madhu will update this section (or replace it with a proper "What Was Built" ent
 | Handed off to | Next session |
 | Deployed | ✅ Yes — commits `e027f2e` (Nic 3 bugs), `85f3555` (Nic 4 PRDs), `8933629` (Thulasi CM refinement), `da02509`+`2630deb` (leaderboard cron fallback auth + 3-week backfill), `020439a` (finance security), `2061939` (P&L Readiness) all live on Railway |
 
-**Session highlight:** Cleared **every open build_request in the tracker**. 7 from Nic (Bespoke pilot) + 3 from Thulasi (Corporate Marketing pilot) = 10 total, all now `status: completed` with detailed reply-outs. Nic's 3 bugs + 4 feature PRDs shipped (see below). Thulasi's original PRD + workflow-marker ping closed as already-shipped (CM-001 Phase 1 landed 06 Jul); her Phase-1 Refinement PRD (Readiness Dashboard + change tracking) built and shipped in this session's third commit.
+**Session highlight (long day — 13 commits shipped):**
+
+1. **Cleared every open build_request in the tracker** — 7 from Nic (Bespoke pilot) + 3 from Thulasi (Corporate Marketing pilot). Nic: 3 silent-failure bugs (sort_order 999, no save-brief feedback, stale-cache re-report) + 4 large feature PRDs (Brief overhaul with Gemini PDF parser + locking, wizard rewrite, Overview dynamic binding, Tasks format-conditional). Thulasi: original PRD + workflow ping closed as already-shipped; Phase-1 Refinement (Deck Readiness Dashboard + change tracking) built.
+
+2. **Leaderboard cron unblocked + 3 weeks backfilled.** Fallback auth in `/api/cron/generate-leaderboard` so it works regardless of Railway env sync. Backfilled 29 Jun / 06 Jul / 13 Jul weeks silently. Discovered: 06 Jul + 13 Jul weeks had **zero course completions across 113 staff** — engagement gap, not a cron gap. Founder + manager approach drafted with Durga, not yet actioned.
+
+3. **Finance data security lockdown.** Salary + payroll data was previously readable by any authenticated user (zero auth checks on 6 API routes). Now gated by `requireFinanceAccess` (admin OR explicit `access_roles: 'finance'` — dept membership no longer sufficient). RLS enabled on `staff_salary_records` + `payroll_grades` + new `salary_access_log`. Every salary read/write now audit-logged.
+
+4. **Account changes.** Removed `admin` + `super_admin` from `reachcharan@gmail.com` (personal Gmail shouldn't carry production admin). Added **Ummer Shameem** (CFO) with `['project_manager','finance','admin']`. Isaac Leonard's dept-shortcut access removed by middleware fix.
+
+5. **Commercial P&L Readiness intelligence** built and shipped (commit `2061939`). Per-event + portfolio dashboards showing 6 data-completeness checks with owners + fix URLs. Weighted score, three status bands (ready ≥95, partial 60-94, high_risk <60). Same pattern as Thulasi's Deck Readiness — natural extension of the existing P&L plumbing.
+
+6. **Charan salary-upload email drafted, CC'ing Shameem** (initiative: all finance-domain outbound must CC the CFO going forward — saved as a permanent rule). Waiting for Durga to send from `dc@` (Resend can't send from that address — only `eventpilot.tresconglobal.com` and `notifications.tresconglobal.com` are verified). Once Charan uploads salaries + timesheet backlog is approved + revenue targets fill in, P&L numbers become real.
 
 Bugs (commit `e027f2e`): fixed the shared "silent-failure" pattern where data ops succeeded but the UI gave zero feedback. (1) Added tasks landed at `sort_order 999` and rendered below the 13 auto-seeded SOP tasks in Phase 1 — invisible unless scrolled. Now compute `max(sort_order) + 1` per phase + flash the new row briefly on insert. (2) Save Brief persisted `brief_data` to the DB every click but showed no confirmation — now displays a green "✓ Saved" chip or a red retry chip. (3) Create-bespoke-project was fixed 01 Jul via commit `06d9f27` but Nic re-reported on 02 Jul from a stale client cache — closed with a hard-refresh note.
 
