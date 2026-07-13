@@ -18,17 +18,20 @@ export const maxDuration = 120
   POST /api/kb/ingest
   Body: multipart/form-data { file, uploaded_by?, doc_type_override? }
 
-  Single entry point for every KB upload. doc_type_override picks the branch
-  (client resolves it via suggestDocType() + an uploader override control):
+  Single entry point for every KB upload. The uploader first picks an intent
+  (summarise into the KB vs. upload as-is) in the client UI, which resolves to
+  doc_type_override:
   - One of the 4 structured KbDocTypes → classify → extract → process (Gemini,
     guided by the matching knowledge-engine/processors/*.md file) → store
     original in R2 → insert a 'pending' document row, plus self-learning gap
     detection. Admin reviews/publishes via PATCH /api/documents/review.
-  - 'general' (or omitted, with the filename not matching a real signal) →
-    classify-only (layer/department/min_level/pilot_use, not a content
-    rewrite) → store the raw extracted text verbatim → publish immediately
-    (status: 'live'). No gap detection — there's no schema to detect gaps
-    against. This replaces the retired /api/documents/upload.
+  - 'general' (upload-as-is intent) → classify-only (layer/department/
+    min_level/pilot_use, not a content rewrite) → store the raw extracted
+    text verbatim → insert a 'pending' document row, same as the structured
+    branch — the admin still reviews and explicitly publishes via PATCH
+    /api/documents/review, just without gap detection (there's no schema to
+    detect gaps against). This replaces the retired /api/documents/upload,
+    which used to publish this branch immediately with no review step.
 */
 export async function POST(req: NextRequest) {
   try {
@@ -174,12 +177,14 @@ Start directly with the YAML front matter (---).`
 }
 
 /*
-  General-document branch (anything that isn't one of the 4 structured
-  types) — classify-only, no content rewrite, publishes immediately.
-  Ported from the retired /api/documents/upload/route.ts, folded into the
-  single ingest entry point. Extra form fields carry what that route used to
-  collect directly (title, type incl. custom/"other", visibility, event
-  link, category, external source link, BD workspace link, versioning).
+  General-document branch ("upload as-is" intent) — classify-only, no content
+  rewrite, saved as a pending draft awaiting admin publish (same review gate
+  as the structured branch). Ported from the retired
+  /api/documents/upload/route.ts, folded into the single ingest entry point
+  — that route used to publish this branch immediately; this one no longer
+  does. Extra form fields carry what that route used to collect directly
+  (title, type incl. custom/"other", visibility, event link, category,
+  external source link, BD workspace link, versioning).
 */
 async function handleGeneralIngest(
   form: FormData,
@@ -233,7 +238,6 @@ async function handleGeneralIngest(
     submitted_by: uploaded_by,
     ai_reasoning: analysis.ai_reasoning,
     confidence: analysis.confidence,
-    status: 'live',
     visibility,
     event_id,
     workspace_id,

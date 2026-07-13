@@ -42,7 +42,7 @@ type Project = {
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
-const ROLE_LABELS: Record<string, string> = { pilot: 'Pilot', co_pilot: 'Co-Pilot', consulting: 'Consulting', tracking: 'Tracking' }
+const ROLE_LABELS: Record<string, string> = { pilot: 'Pilot', co_pilot: 'Co-Pilot', consulting: 'Consulting', tracking: 'Tracking', builder: 'Builder', collaborator: 'Collaborator' }
 // Where the "Open tool" button on each project header should point. Website Builder
 // and Brand Studio don't have a standalone page yet (event-scoped only), so both
 // route to the shared Toolkit hub until that's decided.

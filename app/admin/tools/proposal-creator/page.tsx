@@ -86,11 +86,12 @@ export default function ProposalCreatorPage() {
   return (
     <div style={{ minHeight: '100vh', background: C.bg, fontFamily: 'var(--font-manrope), Manrope, sans-serif' }}>
       <div style={{ background: C.surface, borderBottom: `1px solid ${C.border}`, padding: '0 32px', height: '58px', display: 'flex', alignItems: 'center', gap: '12px' }}>
-        <Link href="/admin" style={{ textDecoration: 'none' }}>
+        <Link href="/admin?tab=knowledge&sub=workspaces" style={{ textDecoration: 'none' }}>
           <img src="/trescon-logo.png" alt="Trescon" style={{ height: '34px', width: 'auto' }} />
         </Link>
         <div style={{ width: '1px', height: '20px', background: C.border }} />
         <div style={{ fontSize: '13px', fontWeight: 800, color: C.text }}>Proposal Creator</div>
+        <Link href="/admin?tab=knowledge&sub=workspaces" style={{ marginLeft: 'auto', fontSize: '13px', fontWeight: 700, color: C.muted, textDecoration: 'none' }}>‹ Knowledge Base</Link>
       </div>
 
       <div style={{ maxWidth: '860px', margin: '0 auto', padding: '40px 24px 80px', display: 'grid', gap: '24px' }}>

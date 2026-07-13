@@ -142,7 +142,7 @@ export default function BDChatPage() {
   return (
     <div style={{ minHeight: '100vh', background: C.bg, fontFamily: 'var(--font-manrope), Manrope, sans-serif', display: 'flex', flexDirection: 'column' }}>
       <div style={{ background: C.surface, borderBottom: `1px solid ${C.border}`, padding: '0 32px', height: '58px', display: 'flex', alignItems: 'center', gap: '12px', flexShrink: 0 }}>
-        <Link href="/admin" style={{ textDecoration: 'none' }}>
+        <Link href="/admin?tab=knowledge&sub=documents" style={{ textDecoration: 'none' }}>
           <img src="/trescon-logo.png" alt="Trescon" style={{ height: '34px', width: 'auto' }} />
         </Link>
         <div style={{ width: '1px', height: '20px', background: C.border }} />
@@ -157,8 +157,8 @@ export default function BDChatPage() {
               New conversation
             </button>
           )}
-          <Link href="/admin" style={{ padding: '8px 16px', borderRadius: '9px', border: `1px solid rgba(0,165,163,0.3)`, background: 'rgba(0,165,163,0.08)', color: C.teal, fontSize: '13px', fontWeight: 700, textDecoration: 'none' }}>
-            ‹ Admin
+          <Link href="/admin?tab=knowledge&sub=documents" style={{ padding: '8px 16px', borderRadius: '9px', border: `1px solid rgba(0,165,163,0.3)`, background: 'rgba(0,165,163,0.08)', color: C.teal, fontSize: '13px', fontWeight: 700, textDecoration: 'none' }}>
+            ‹ Knowledge Base
           </Link>
         </div>
       </div>

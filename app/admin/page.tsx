@@ -10,6 +10,8 @@ import { kbDownloadHref } from '@/app/lib/kb/download-href'
 import type { Gap } from '@/app/lib/kb/gaps'
 import { suggestDocType, KB_TYPE_META, type KbDocType } from '@/app/lib/kb/classify'
 
+const INGEST_STAGES = ['Reading your document…', 'Organising the details…', 'Almost done…']
+
 const ROLE_META: Record<string, { label: string; color: string; bg: string; desc: string }> = {
   standard:        { label: 'Standard',        color: '#5B7080', bg: '#5B708015', desc: 'Default — basic platform access' },
   hr:              { label: 'HR',              color: '#92400E', bg: '#92400E15', desc: 'Access to HR portal and leave management' },
@@ -210,12 +212,21 @@ export default function AdminPage() {
   const [authed, setAuthed]   = useState(() => typeof window !== 'undefined' && sessionStorage.getItem('tai_admin_authed') === '1')
   const [adminStaffId, setAdminStaffId] = useState(() => typeof window !== 'undefined' ? sessionStorage.getItem('tai_admin_staff_id') ?? '' : '')
   const [isSuperAdmin, setIsSuperAdmin] = useState(() => typeof window !== 'undefined' && (sessionStorage.getItem('tai_admin_staff_id') === 'super-admin' || sessionStorage.getItem('tai_is_super_admin') === '1'))
+  const [kbAccessTier, setKbAccessTier] = useState<'none' | 'user' | 'admin'>('none')
+  useEffect(() => {
+    fetch('/api/kb/access/me').then(r => r.json()).then(d => setKbAccessTier(d.tier ?? 'none')).catch(() => {})
+  }, [])
   const [code, setCode]       = useState('')
   const [adminEmail, setAdminEmail] = useState('')
   const [codeError, setCodeError] = useState('')
   const [members, setMembers] = useState<Member[]>([])
   const [tasks, setTasks]     = useState<TaskProfile[]>([])
-  const [tab, setTab]         = useState<'overview' | 'people' | 'intelligence' | 'learning' | 'suggest' | 'events' | 'commercial' | 'knowledge' | 'review' | 'toolkit' | 'security'>('overview')
+  type AdminTab = 'overview' | 'people' | 'intelligence' | 'learning' | 'suggest' | 'events' | 'commercial' | 'knowledge' | 'review' | 'toolkit' | 'security' | 'docuhub'
+  const [tab, setTab]         = useState<AdminTab>(() => {
+    if (typeof window === 'undefined') return 'overview'
+    const t = new URLSearchParams(window.location.search).get('tab') as AdminTab | null
+    return t ?? 'overview'
+  })
 
   // Activity tracking state
   type ActiveUser = { staff_id: string; last_seen_at: string; ip: string | null; staff_members: { id: string; name: string; department: string | null; role: string | null; office_id: string; job_level: string } }
@@ -588,7 +599,23 @@ export default function AdminPage() {
   const [docFilter,       setDocFilter]       = useState<'all'|'knowledge_base'|'general'|'specific'|'flagged'>('all')
 
   // Knowledge — sub-tab, version control, BD Workspaces
-  const [docSubTab,     setDocSubTab]     = useState<'documents' | 'workspaces' | 'intelligence' | 'gaps'>('documents')
+  type DocSubTab = 'documents' | 'workspaces' | 'intelligence' | 'gaps' | 'admins'
+  const [docSubTab,     setDocSubTab]     = useState<DocSubTab>(() => {
+    if (typeof window === 'undefined') return 'documents'
+    const s = new URLSearchParams(window.location.search).get('sub') as DocSubTab | null
+    return s ?? 'documents'
+  })
+  // Keeps the URL in sync with the current tab/sub-tab (replaceState, not
+  // pushState — tab switches shouldn't spam browser history) so a "back" link
+  // from a tool page (e.g. /admin?tab=knowledge&sub=documents) lands the user
+  // where they actually came from instead of always Overview.
+  const syncAdminUrl = (t: string, sub?: string) => {
+    if (typeof window === 'undefined') return
+    const params = new URLSearchParams(window.location.search)
+    params.set('tab', t)
+    if (sub) params.set('sub', sub); else params.delete('sub')
+    window.history.replaceState(null, '', `${window.location.pathname}?${params.toString()}`)
+  }
   const [supersedesDoc, setSupersedesDoc] = useState<DocRow | null>(null)
   const [versionNote,   setVersionNote]   = useState('')
 
@@ -674,8 +701,15 @@ export default function AdminPage() {
   type IngestResult = { success: boolean; detected_type: string; document: PendingDoc; summary?: string; gaps?: Gap[]; gap_session_id?: string | null; analysis?: GeneralDocAnalysis }
   const [showIngestForm, setShowIngestForm] = useState(false)
   const [ingestFile,     setIngestFile]     = useState<File | null>(null)
-  const [ingestTypeChoice, setIngestTypeChoice] = useState<KbDocType | 'general' | null>(null)
+  // Top-level choice the uploader makes explicitly: summarise into a structured
+  // KB entry (reviewed before publish) vs. keep the original wording as-is
+  // (still reviewed before publish, just no restructuring/gap detection).
+  const [ingestIntent,   setIngestIntent]   = useState<'summarise' | 'verbatim' | null>(null)
+  // Only meaningful when intent is 'summarise' — which of the 4 structured
+  // types to use, overriding the filename-based suggestion.
+  const [ingestTypeChoice, setIngestTypeChoice] = useState<KbDocType | null>(null)
   const [ingesting,      setIngesting]      = useState(false)
+  const [ingestStage,    setIngestStage]    = useState(0)
   const [ingestMsg,      setIngestMsg]      = useState('')
   const [ingestResult,   setIngestResult]   = useState<IngestResult | null>(null)
   const [pendingDocs,    setPendingDocs]    = useState<PendingDoc[]>([])
@@ -718,6 +752,20 @@ export default function AdminPage() {
   const [gapWizard,          setGapWizard]          = useState<GapWizardState | null>(null)
   const [pendingGapSessions, setPendingGapSessions] = useState<GapSession[]>([])
   const [pendingGapsLoading, setPendingGapsLoading] = useState(false)
+
+  // Knowledge Base — module admins (module_access, module_key='kb')
+  type ModuleGrant = { id: string; staff_id: string; tier: 'user' | 'admin'; granted_at: string; staff_members: { name: string; email: string } | null }
+  const [kbAccessGrants,  setKbAccessGrants]  = useState<ModuleGrant[]>([])
+  const [kbAccessLoading, setKbAccessLoading] = useState(false)
+  const [kbGrantStaffId,  setKbGrantStaffId]  = useState('')
+  const [kbGrantTier,     setKbGrantTier]     = useState<'user' | 'admin'>('admin')
+  const [kbGrantMsg,      setKbGrantMsg]      = useState('')
+
+  useEffect(() => {
+    if (!ingesting) { setIngestStage(0); return }
+    const id = setInterval(() => setIngestStage(s => (s + 1) % INGEST_STAGES.length), 2200)
+    return () => clearInterval(id)
+  }, [ingesting])
 
   async function fetchWorkspaces() {
     setWorkspacesLoading(true)
@@ -791,8 +839,23 @@ export default function AdminPage() {
     setPendingLoading(false)
   }
 
+  // What the filename alone would suggest, before the uploader's explicit choice.
+  function ingestSuggestedIntent(): 'summarise' | 'verbatim' {
+    if (!ingestFile) return 'verbatim'
+    return suggestDocType(ingestFile.name) === 'general' ? 'verbatim' : 'summarise'
+  }
+
+  function ingestEffectiveIntent(): 'summarise' | 'verbatim' {
+    return ingestIntent ?? ingestSuggestedIntent()
+  }
+
   function ingestEffectiveType(): KbDocType | 'general' {
-    return ingestTypeChoice ?? (ingestFile ? suggestDocType(ingestFile.name) : 'general')
+    if (ingestEffectiveIntent() === 'verbatim') return 'general'
+    if (ingestTypeChoice) return ingestTypeChoice
+    const suggested = ingestFile ? suggestDocType(ingestFile.name) : 'general'
+    // Chose "summarise" but the filename gave no structured signal — fall
+    // back to Proposal rather than silently reverting to General.
+    return suggested === 'general' ? 'proposal' : suggested
   }
 
   function resetGeneralDocForm() {
@@ -802,6 +865,7 @@ export default function AdminPage() {
     setSupersedesDoc(null)
     setVersionNote('')
     setIngestTypeChoice(null)
+    setIngestIntent(null)
   }
 
   async function ingestDocument() {
@@ -815,7 +879,7 @@ export default function AdminPage() {
     }
 
     setIngesting(true)
-    setIngestMsg(isGeneral ? 'Analysing with AI…' : 'Classifying and processing with Gemini… this can take a minute for large files.')
+    setIngestMsg('')
     setIngestResult(null)
 
     const adminStaffId = sessionStorage.getItem('tai_admin_staff_id')
@@ -863,11 +927,13 @@ export default function AdminPage() {
         if (data.detected_type === 'general') {
           const wasSavingNewType = saveAsNewType
           resetGeneralDocForm()
-          fetchDocs()
           if (wasSavingNewType) fetchCustomDocTypes()
         } else {
-          fetchPendingDocs()
+          setIngestTypeChoice(null)
+          setIngestIntent(null)
         }
+        setShowIngestForm(false)
+        fetchPendingDocs()
       }
     } catch {
       setIngestMsg('Could not reach the server. Check your connection and try again.')
@@ -923,6 +989,32 @@ export default function AdminPage() {
     const data = await res.json().catch(() => ({}))
     setPendingGapSessions(Array.isArray(data?.sessions) ? data.sessions : [])
     setPendingGapsLoading(false)
+  }
+
+  async function fetchKbAccess() {
+    setKbAccessLoading(true)
+    const res  = await fetch('/api/kb/access')
+    const data = await res.json().catch(() => ([]))
+    setKbAccessGrants(Array.isArray(data) ? data : [])
+    setKbAccessLoading(false)
+  }
+
+  async function grantKbAccess() {
+    if (!kbGrantStaffId) { setKbGrantMsg('Select a staff member first.'); return }
+    setKbGrantMsg('')
+    const res = await fetch('/api/kb/access', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ staff_id: kbGrantStaffId, tier: kbGrantTier }),
+    })
+    const data = await res.json().catch(() => ({}))
+    if (!res.ok) { setKbGrantMsg(data.error ?? 'Could not grant access.'); return }
+    setKbGrantStaffId('')
+    fetchKbAccess()
+  }
+
+  async function revokeKbAccess(grantId: string) {
+    await fetch(`/api/kb/access/${grantId}`, { method: 'DELETE' })
+    fetchKbAccess()
   }
 
   function startGapWizard(mode: 'ingest' | 'review', documentId: string, sessionId: string, gapIds: string[]) {
@@ -1978,7 +2070,7 @@ export default function AdminPage() {
                     <div style={{ fontSize: '11px', color: '#5B7080', marginTop: '2px' }}>Super Admin</div>
                   </div>
                   <div style={{ height: '1px', background: '#DDE8EE', margin: '4px 8px' }} />
-                  <button onClick={() => { localStorage.removeItem('eventpilot_staff_id'); localStorage.removeItem('tai_staff_id'); sessionStorage.removeItem('tai_admin_authed'); sessionStorage.removeItem('tai_admin_staff_id'); window.location.href = '/login' }}
+                  <button onClick={async () => { try { await fetch('/api/auth/logout', { method: 'POST' }) } catch { /* ignore */ }; localStorage.removeItem('eventpilot_staff_id'); localStorage.removeItem('tai_staff_id'); sessionStorage.removeItem('tai_admin_authed'); sessionStorage.removeItem('tai_admin_staff_id'); window.location.href = '/login' }}
                     style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '9px 12px', borderRadius: '8px', border: 'none', background: 'transparent', color: '#FF6B6B', fontSize: '13px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', width: '100%', textAlign: 'left' }}>
                     <svg width="14" height="14" fill="none" stroke="#FF6B6B" strokeWidth="2" strokeLinecap="round" viewBox="0 0 24 24"><path d="M18.36 6.64a9 9 0 1 1-12.73 0"/><line x1="12" y1="2" x2="12" y2="12"/></svg>
                     Sign out
@@ -2025,6 +2117,7 @@ export default function AdminPage() {
             review:       '#991B1B',
             security:     '#1D4ED8',
             toolkit:      '#00695C',
+            docuhub:      '#7C3AED',
           }
           return (
             <div id="tour-tabs" style={{ display: 'flex', gap: '6px', marginBottom: '28px', flexWrap: 'wrap' }}>
@@ -2036,6 +2129,7 @@ export default function AdminPage() {
                 ['suggest',      'AI Course Generator'],
                 ['events',       'Events'],
                 ['knowledge',    'Knowledge Base'],
+                ['docuhub',      'DocuHub'],
                 ...(isSuperAdmin ? [['review', 'Review Queue']] : []),
                 ...(isSuperAdmin ? [['security', 'Security']] : []),
               ] as [typeof tab, string][]).map(([t, label]) => {
@@ -2044,7 +2138,7 @@ export default function AdminPage() {
                 return (
                   <button key={t}
                     id={t === 'intelligence' ? 'tour-intelligence-tab' : t === 'suggest' ? 'tour-studio-tab' : undefined}
-                    onClick={() => { if (t === 'toolkit') { window.location.href = '/admin/toolkit'; return; } setTab(t as typeof tab); if (t === 'learning') fetchLearning(); if (t === 'people') { fetchStaffList(); markProgress('staff') } if (t === 'events') { fetchEvents(); fetchEventSummaries(); } if (t === 'knowledge') { fetchDocs(); fetchCustomDocTypes(); fetchWorkspaces(); fetchPendingDocs(); if (staffList.length === 0) fetchStaffList(); fetchIntelAll(); fetchPendingGapSessions(); } if (t === 'review') fetchDrafts(); if (t === 'suggest') markProgress('course'); if (t === 'security') fetchSecurity() }}
+                    onClick={() => { if (t === 'toolkit') { window.location.href = '/admin/toolkit'; return; } if (t === 'docuhub') { window.location.href = '/docuhub'; return; } setTab(t as typeof tab); syncAdminUrl(t, t === 'knowledge' ? docSubTab : undefined); if (t === 'learning') fetchLearning(); if (t === 'people') { fetchStaffList(); markProgress('staff') } if (t === 'events') { fetchEvents(); fetchEventSummaries(); } if (t === 'knowledge') { fetchDocs(); fetchCustomDocTypes(); fetchWorkspaces(); fetchPendingDocs(); if (staffList.length === 0) fetchStaffList(); fetchIntelAll(); fetchPendingGapSessions(); } if (t === 'review') fetchDrafts(); if (t === 'suggest') markProgress('course'); if (t === 'security') fetchSecurity() }}
                     style={{
                       padding:         active ? '9px 22px' : '9px 20px',
                       borderRadius:    '10px',
@@ -4854,10 +4948,16 @@ export default function AdminPage() {
                     <p style={{ fontSize: '13px', color: '#2D3E50', margin: '0 0 10px', lineHeight: 1.6 }}>
                       I found {unresolvedGaps.length} piece{unresolvedGaps.length === 1 ? '' : 's'} of new information in this document that I haven&apos;t seen before. Help me understand {unresolvedGaps.length === 1 ? 'it' : 'them'} so I can learn from this.
                     </p>
-                    <button onClick={() => startGapWizard('ingest', doc.id, session.id, unresolvedGaps.map(g => g.id))}
-                      style={{ padding: '9px 18px', borderRadius: '9px', border: 'none', background: '#00A5A3', color: '#FFFFFF', fontSize: '13px', fontWeight: 800, cursor: 'pointer', fontFamily: 'inherit' }}>
-                      Review {unresolvedGaps.length} gap{unresolvedGaps.length === 1 ? '' : 's'} →
-                    </button>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+                      <button onClick={() => startGapWizard('ingest', doc.id, session.id, unresolvedGaps.map(g => g.id))} disabled={isReviewing}
+                        style={{ padding: '9px 18px', borderRadius: '9px', border: 'none', background: '#00A5A3', color: '#FFFFFF', fontSize: '13px', fontWeight: 800, cursor: isReviewing ? 'not-allowed' : 'pointer', fontFamily: 'inherit' }}>
+                        Review {unresolvedGaps.length} gap{unresolvedGaps.length === 1 ? '' : 's'} →
+                      </button>
+                      <button onClick={() => rejectPendingDoc(doc.id)} disabled={isReviewing}
+                        style={{ fontSize: '13px', color: '#5B7080', background: 'none', border: 'none', cursor: isReviewing ? 'not-allowed' : 'pointer', fontFamily: 'inherit', fontWeight: 600 }}>
+                        Discard this job
+                      </button>
+                    </div>
                   </div>
                 )}
 
@@ -4880,7 +4980,7 @@ export default function AdminPage() {
           }
 
           const adminStaffIdForRoles = typeof window !== 'undefined' ? sessionStorage.getItem('tai_admin_staff_id') : null
-          const isKbAdmin = isSuperAdmin || (staffList.find(s => s.id === adminStaffIdForRoles)?.access_roles ?? []).includes('kb_admin')
+          const isKbAdmin = isSuperAdmin || kbAccessTier === 'admin' || (staffList.find(s => s.id === adminStaffIdForRoles)?.access_roles ?? []).includes('kb_admin')
 
           return (
             <div>
@@ -4936,8 +5036,9 @@ export default function AdminPage() {
                   { key: 'workspaces', label: 'BD Workspaces' },
                   ...(isKbAdmin ? [{ key: 'intelligence', label: 'Intelligence' }] : []),
                   ...(isKbAdmin ? [{ key: 'gaps', label: `Pending Gaps (${pendingGapSessions.length})` }] : []),
+                  ...(isKbAdmin ? [{ key: 'admins', label: 'Admins' }] : []),
                 ] as { key: typeof docSubTab; label: string }[]).map(s => (
-                  <button key={s.key} onClick={() => setDocSubTab(s.key)}
+                  <button key={s.key} onClick={() => { setDocSubTab(s.key); syncAdminUrl('knowledge', s.key); if (s.key === 'admins') { fetchKbAccess(); if (staffList.length === 0) fetchStaffList() } }}
                     style={{ padding: '8px 18px', borderRadius: '10px', border: `1px solid ${docSubTab === s.key ? 'rgba(0,165,163,0.4)' : '#DDE8EE'}`, background: docSubTab === s.key ? 'rgba(0,165,163,0.08)' : '#FFFFFF', color: docSubTab === s.key ? '#00695C' : '#5B7080', fontSize: '13px', fontWeight: 800, cursor: 'pointer', fontFamily: 'inherit' }}>
                     {s.label}
                   </button>
@@ -4954,70 +5055,105 @@ export default function AdminPage() {
               })()}
 
               {docSubTab === 'documents' && showIngestForm && (() => {
+                const effectiveIntent = ingestEffectiveIntent()
+                const isGeneral = effectiveIntent === 'verbatim'
                 const effectiveType = ingestEffectiveType()
-                const isGeneral = effectiveType === 'general'
                 const generalReady = docForm.title.trim() && docForm.doc_category && (docForm.type !== 'other' || otherTypeLabel.trim())
                 const canSubmit = !!ingestFile && (!isGeneral || generalReady)
-                const TYPE_OPTIONS: { key: KbDocType | 'general'; label: string }[] = [
+                const STRUCTURED_TYPE_OPTIONS: { key: KbDocType; label: string }[] = [
                   { key: 'proposal', label: 'Proposal' },
                   { key: 'post_event_report', label: 'Post-Event Report' },
                   { key: 'attendee_data', label: 'Attendee Data' },
                   { key: 'corporate_doc', label: 'Corporate Doc' },
-                  { key: 'general', label: 'General Document' },
+                ]
+                const INTENT_OPTIONS: { key: 'summarise' | 'verbatim'; title: string; desc: string }[] = [
+                  { key: 'summarise', title: 'Summarise into the Knowledge Base', desc: 'AI restructures the content into a searchable KB entry. You review the summary — and resolve any new fields it found — before it goes live.' },
+                  { key: 'verbatim', title: 'Upload as-is', desc: 'Original wording is kept exactly as uploaded, no rewriting. You still review the AI\'s access-level decision before it goes live.' },
                 ]
                 return (
                   <div style={{ background: '#FFFFFF', border: '1px solid rgba(164,120,255,0.25)', borderRadius: '16px', padding: '24px', marginBottom: '20px', maxWidth: '560px' }}>
                     <div style={{ fontSize: '13px', fontWeight: 800, color: '#7C3AED', letterSpacing: '1px', textTransform: 'uppercase', marginBottom: '6px' }}>Ingest Document</div>
-                    <p style={{ fontSize: '13px', color: '#5B7080', margin: '0 0 16px', lineHeight: 1.6 }}>
-                      A post-event report, proposal, attendee data file, or corporate document is auto-classified and restructured into a Knowledge Base entry using Gemini — you review and publish before it goes live. Anything else is a General Document — classified for access only, published immediately, original wording kept exactly as-is.
-                    </p>
-                    <label style={{ display: 'block', padding: '18px', border: `1.5px dashed ${ingestFile ? 'rgba(124,58,237,0.4)' : '#DDE8EE'}`, borderRadius: '10px', textAlign: 'center', cursor: 'pointer', background: ingestFile ? 'rgba(124,58,237,0.04)' : 'transparent', marginBottom: '14px' }}>
-                      <input type="file" accept=".pdf,.xlsx,.xls,.txt,.md" style={{ display: 'none' }} onChange={e => { setIngestFile(e.target.files?.[0] ?? null); setIngestTypeChoice(null) }} />
-                      {ingestFile ? (
-                        <div style={{ fontSize: '13px', fontWeight: 700, color: '#7C3AED' }}>{ingestFile.name}</div>
-                      ) : (
-                        <div style={{ fontSize: '13px', color: '#0F1923' }}>Click to select a file — PDF, XLSX, TXT, or MD (max 100 MB)</div>
-                      )}
-                    </label>
 
-                    {ingestFile && (
-                      <div style={{ marginBottom: '14px' }}>
-                        <label style={{ fontSize: '13px', fontWeight: 700, color: '#5B7080', letterSpacing: '0.8px', textTransform: 'uppercase', display: 'block', marginBottom: '6px' }}>
-                          {ingestTypeChoice ? 'Type' : 'Detected type'}
-                        </label>
-                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
-                          {TYPE_OPTIONS.map(opt => (
-                            <button key={opt.key} onClick={() => setIngestTypeChoice(opt.key)}
-                              style={{ padding: '6px 12px', borderRadius: '16px', border: `1px solid ${effectiveType === opt.key ? 'rgba(124,58,237,0.4)' : '#DDE8EE'}`, background: effectiveType === opt.key ? 'rgba(124,58,237,0.08)' : '#FFFFFF', color: effectiveType === opt.key ? '#7C3AED' : '#5B7080', fontSize: '13px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
-                              {opt.label}
-                            </button>
-                          ))}
+                    {ingesting ? (
+                      <div style={{ padding: '10px 0 4px' }}>
+                        <div style={{ fontSize: '13px', fontWeight: 700, color: '#0F1923', marginBottom: '18px' }}>{ingestFile?.name}</div>
+                        <div style={{ position: 'relative', height: '8px', borderRadius: '999px', background: '#EDE9FE', overflow: 'hidden', marginBottom: '14px' }}>
+                          <div style={{ position: 'absolute', left: '-40%', top: 0, bottom: 0, width: '40%', borderRadius: '999px', background: 'linear-gradient(90deg, #A478FF, #7C3AED)', animation: 'ingestBarSlide 1.3s ease-in-out infinite' }} />
                         </div>
-                        {!isGeneral && (
-                          <p style={{ fontSize: '13px', color: '#5B7080', margin: '8px 0 0', lineHeight: 1.5 }}>
-                            Not right? Choose <strong>General Document</strong> instead to skip restructuring and keep the original wording exactly as uploaded.
-                          </p>
+                        <div key={ingestStage} style={{ fontSize: '13px', fontWeight: 700, color: '#7C3AED', animation: 'tourPop 0.3s ease' }}>
+                          {INGEST_STAGES[ingestStage]}
+                        </div>
+                        <div style={{ fontSize: '13px', color: '#5B7080', marginTop: '4px' }}>Large files can take a little longer.</div>
+                      </div>
+                    ) : (
+                      <>
+                        <p style={{ fontSize: '13px', color: '#5B7080', margin: '0 0 16px', lineHeight: 1.6 }}>
+                          Upload a file, choose how it should be processed, then review before it publishes.
+                        </p>
+                        <label style={{ display: 'block', padding: '18px', border: `1.5px dashed ${ingestFile ? 'rgba(124,58,237,0.4)' : '#DDE8EE'}`, borderRadius: '10px', textAlign: 'center', cursor: 'pointer', background: ingestFile ? 'rgba(124,58,237,0.04)' : 'transparent', marginBottom: '14px' }}>
+                          <input type="file" accept=".pdf,.xlsx,.xls,.txt,.md" style={{ display: 'none' }} onChange={e => { setIngestFile(e.target.files?.[0] ?? null); setIngestTypeChoice(null); setIngestIntent(null) }} />
+                          {ingestFile ? (
+                            <div style={{ fontSize: '13px', fontWeight: 700, color: '#7C3AED' }}>{ingestFile.name}</div>
+                          ) : (
+                            <div style={{ fontSize: '13px', color: '#0F1923' }}>Click to select a file — PDF, XLSX, TXT, or MD (max 100 MB)</div>
+                          )}
+                        </label>
+
+                        {ingestFile && (
+                          <div style={{ marginBottom: '14px' }}>
+                            <label style={{ fontSize: '13px', fontWeight: 700, color: '#5B7080', letterSpacing: '0.8px', textTransform: 'uppercase', display: 'block', marginBottom: '6px' }}>
+                              What should happen with this document?
+                            </label>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                              {INTENT_OPTIONS.map(opt => {
+                                const active = effectiveIntent === opt.key
+                                return (
+                                  <button key={opt.key} onClick={() => { setIngestIntent(opt.key); setIngestTypeChoice(null) }}
+                                    style={{ textAlign: 'left', padding: '12px 14px', borderRadius: '10px', border: `1.5px solid ${active ? 'rgba(124,58,237,0.4)' : '#DDE8EE'}`, background: active ? 'rgba(124,58,237,0.06)' : '#FFFFFF', cursor: 'pointer', fontFamily: 'inherit' }}>
+                                    <div style={{ fontSize: '13px', fontWeight: 800, color: active ? '#7C3AED' : '#0F1923', marginBottom: '3px' }}>{opt.title}</div>
+                                    <div style={{ fontSize: '13px', color: '#5B7080', lineHeight: 1.5 }}>{opt.desc}</div>
+                                  </button>
+                                )
+                              })}
+                            </div>
+                          </div>
                         )}
-                      </div>
-                    )}
 
-                    {isGeneral && generalDocFields}
+                        {ingestFile && !isGeneral && (
+                          <div style={{ marginBottom: '14px' }}>
+                            <label style={{ fontSize: '13px', fontWeight: 700, color: '#5B7080', letterSpacing: '0.8px', textTransform: 'uppercase', display: 'block', marginBottom: '6px' }}>
+                              {ingestTypeChoice ? 'Type' : 'Detected type'}
+                            </label>
+                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+                              {STRUCTURED_TYPE_OPTIONS.map(opt => (
+                                <button key={opt.key} onClick={() => setIngestTypeChoice(opt.key)}
+                                  style={{ padding: '6px 12px', borderRadius: '16px', border: `1px solid ${effectiveType === opt.key ? 'rgba(124,58,237,0.4)' : '#DDE8EE'}`, background: effectiveType === opt.key ? 'rgba(124,58,237,0.08)' : '#FFFFFF', color: effectiveType === opt.key ? '#7C3AED' : '#5B7080', fontSize: '13px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
+                                  {opt.label}
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+                        )}
 
-                    {ingestMsg && (
-                      <div style={{ fontSize: '13px', padding: '9px 12px', borderRadius: '8px', background: ingesting ? 'rgba(124,58,237,0.06)' : 'rgba(255,107,107,0.07)', border: `1px solid ${ingesting ? 'rgba(124,58,237,0.2)' : 'rgba(255,107,107,0.2)'}`, color: ingesting ? '#7C3AED' : '#FF6B6B', marginBottom: '10px', lineHeight: 1.5 }}>
-                        {ingestMsg}
-                      </div>
+                        {isGeneral && generalDocFields}
+
+                        {ingestMsg && (
+                          <div style={{ fontSize: '13px', padding: '9px 12px', borderRadius: '8px', background: 'rgba(255,107,107,0.07)', border: '1px solid rgba(255,107,107,0.2)', color: '#FF6B6B', marginBottom: '10px', lineHeight: 1.5 }}>
+                            {ingestMsg}
+                          </div>
+                        )}
+                        <div style={{ display: 'flex', gap: '8px' }}>
+                          <button onClick={ingestDocument} disabled={!canSubmit}
+                            style={{ flex: 1, padding: '11px', borderRadius: '9px', border: 'none', background: !canSubmit ? '#DDE8EE' : '#7C3AED', color: '#FFFFFF', fontSize: '13px', fontWeight: 800, cursor: !canSubmit ? 'not-allowed' : 'pointer', fontFamily: 'inherit' }}>
+                            Start Ingestion
+                          </button>
+                          <button onClick={() => { setShowIngestForm(false); setIngestFile(null); setIngestMsg(''); resetGeneralDocForm() }}
+                            style={{ padding: '11px 16px', borderRadius: '9px', border: '1px solid #B8CDD8', background: '#FFFFFF', color: '#5B7080', fontSize: '13px', fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>
+                            Cancel
+                          </button>
+                        </div>
+                      </>
                     )}
-                    <div style={{ display: 'flex', gap: '8px' }}>
-                      <button onClick={ingestDocument} disabled={ingesting || !canSubmit}
-                        style={{ flex: 1, padding: '11px', borderRadius: '9px', border: 'none', background: ingesting || !canSubmit ? '#DDE8EE' : '#7C3AED', color: '#FFFFFF', fontSize: '13px', fontWeight: 800, cursor: ingesting || !canSubmit ? 'not-allowed' : 'pointer', fontFamily: 'inherit' }}>
-                        {ingesting ? 'Processing…' : 'Start Ingestion'}
-                      </button>
-                      <button onClick={() => { setShowIngestForm(false); setIngestFile(null); setIngestMsg(''); resetGeneralDocForm() }}
-                        style={{ padding: '11px 16px', borderRadius: '9px', border: '1px solid #B8CDD8', background: '#FFFFFF', color: '#5B7080', fontSize: '13px', fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>
-                        Cancel
-                      </button>
-                    </div>
                   </div>
                 )
               })()}
@@ -5030,7 +5166,7 @@ export default function AdminPage() {
                   </div>
                   <div style={{ padding: '14px', background: ingestResult.analysis.flagged ? 'rgba(139,26,26,0.06)' : 'rgba(0,165,163,0.06)', border: `1px solid ${ingestResult.analysis.flagged ? 'rgba(139,26,26,0.2)' : 'rgba(0,165,163,0.2)'}`, borderRadius: '12px' }}>
                     <div style={{ display: 'flex', alignItems: 'center', marginBottom: '10px' }}>
-                      <span style={{ fontSize: '13px', fontWeight: 800, color: ingestResult.analysis.flagged ? '#8B1A1A' : '#00897B', textTransform: 'uppercase', letterSpacing: '0.5px' }}>{ingestResult.analysis.flagged ? 'Low Confidence — Flagged' : 'Published to Knowledge Base'}</span>
+                      <span style={{ fontSize: '13px', fontWeight: 800, color: ingestResult.analysis.flagged ? '#8B1A1A' : '#00897B', textTransform: 'uppercase', letterSpacing: '0.5px' }}>{ingestResult.analysis.flagged ? 'Low Confidence — Needs Review' : 'Ready to Publish'}</span>
                       <span style={{ marginLeft: 'auto', fontSize: '13px', fontWeight: 800, color: ingestResult.analysis.confidence >= 75 ? '#3D6B00' : '#8B1A1A' }}>{ingestResult.analysis.confidence}%</span>
                     </div>
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '6px', marginBottom: '10px' }}>
@@ -5046,6 +5182,16 @@ export default function AdminPage() {
                       <span style={{ fontSize: '13px', color: ingestResult.analysis.pilot_use ? '#3D6B00' : '#0F1923', fontWeight: 600 }}>{ingestResult.analysis.pilot_use ? 'Pilot will use this document' : 'Not indexed by Pilot'}</span>
                     </div>
                     <p style={{ fontSize: '13px', color: '#5B7080', lineHeight: 1.6, margin: 0 }}>{ingestResult.analysis.ai_reasoning}</p>
+                  </div>
+                  <div style={{ display: 'flex', gap: '10px', marginTop: '14px' }}>
+                    <button onClick={() => publishPendingDoc(ingestResult.document.id)} disabled={reviewingId === ingestResult.document.id}
+                      style={{ padding: '9px 18px', borderRadius: '9px', border: 'none', background: reviewingId === ingestResult.document.id ? '#DDE8EE' : '#C0F43C', color: '#0F1923', fontSize: '13px', fontWeight: 800, cursor: reviewingId === ingestResult.document.id ? 'not-allowed' : 'pointer', fontFamily: 'inherit' }}>
+                      {reviewingId === ingestResult.document.id ? 'Working…' : 'Publish to KB'}
+                    </button>
+                    <button onClick={() => rejectPendingDoc(ingestResult.document.id)} disabled={reviewingId === ingestResult.document.id}
+                      style={{ padding: '9px 18px', borderRadius: '9px', border: '1px solid rgba(255,107,107,0.3)', background: 'rgba(255,107,107,0.08)', color: '#FF6B6B', fontSize: '13px', fontWeight: 700, cursor: reviewingId === ingestResult.document.id ? 'not-allowed' : 'pointer', fontFamily: 'inherit' }}>
+                      Reject
+                    </button>
                   </div>
                 </div>
               )}
@@ -5683,6 +5829,67 @@ export default function AdminPage() {
                     })}
                   </div>
                 )
+              })() : docSubTab === 'admins' ? (() => {
+                const staffById = Object.fromEntries(staffList.map(s => [s.id, s]))
+                return (
+                  <div>
+                    <p style={{ fontSize: '13px', color: '#5B7080', margin: '0 0 16px', lineHeight: 1.6 }}>
+                      Admins can review and publish pending documents, manage Press Intelligence sources, and resolve gaps. Super admins always have full access regardless of this list.
+                    </p>
+
+                    <div style={{ background: '#FFFFFF', border: '1px solid #DDE8EE', borderRadius: '14px', padding: '18px', marginBottom: '20px' }}>
+                      <div style={{ fontSize: '13px', fontWeight: 800, color: '#0F1923', marginBottom: '12px' }}>Grant access</div>
+                      <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'flex-end' }}>
+                        <div style={{ flex: '1 1 240px' }}>
+                          <label style={{ fontSize: '13px', fontWeight: 700, color: '#5B7080', letterSpacing: '0.8px', textTransform: 'uppercase', display: 'block', marginBottom: '5px' }}>Staff member</label>
+                          <select value={kbGrantStaffId} onChange={e => setKbGrantStaffId(e.target.value)}
+                            style={{ width: '100%', padding: '9px 12px', borderRadius: '9px', border: '1px solid #DDE8EE', background: '#FFFFFF', color: '#0F1923', fontSize: '13px', fontFamily: 'inherit' }}>
+                            <option value="">— Select —</option>
+                            {staffList.slice().sort((a, b) => a.name.localeCompare(b.name)).map(s => (
+                              <option key={s.id} value={s.id}>{s.name} ({s.email})</option>
+                            ))}
+                          </select>
+                        </div>
+                        <div style={{ flex: '0 0 140px' }}>
+                          <label style={{ fontSize: '13px', fontWeight: 700, color: '#5B7080', letterSpacing: '0.8px', textTransform: 'uppercase', display: 'block', marginBottom: '5px' }}>Tier</label>
+                          <select value={kbGrantTier} onChange={e => setKbGrantTier(e.target.value as 'user' | 'admin')}
+                            style={{ width: '100%', padding: '9px 12px', borderRadius: '9px', border: '1px solid #DDE8EE', background: '#FFFFFF', color: '#0F1923', fontSize: '13px', fontFamily: 'inherit' }}>
+                            <option value="admin">Admin</option>
+                            <option value="user">User</option>
+                          </select>
+                        </div>
+                        <button onClick={grantKbAccess}
+                          style={{ padding: '10px 18px', borderRadius: '9px', border: 'none', background: '#7C3AED', color: '#FFFFFF', fontSize: '13px', fontWeight: 800, cursor: 'pointer', fontFamily: 'inherit' }}>
+                          Grant
+                        </button>
+                      </div>
+                      {kbGrantMsg && <div style={{ fontSize: '13px', color: '#FF6B6B', marginTop: '10px' }}>{kbGrantMsg}</div>}
+                    </div>
+
+                    {kbAccessLoading && <div style={{ color: '#5B7080', fontSize: '13px', padding: '20px 0', textAlign: 'center' }}>Loading…</div>}
+                    {!kbAccessLoading && kbAccessGrants.length === 0 && (
+                      <div style={{ color: '#5B7080', fontSize: '13px', padding: '20px 0', textAlign: 'center' }}>No one has been granted KB module access yet — super admins still have full access.</div>
+                    )}
+                    {!kbAccessLoading && kbAccessGrants.map(g => {
+                      const staff = g.staff_members ?? staffById[g.staff_id]
+                      return (
+                        <div key={g.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 16px', background: '#FFFFFF', border: '1px solid #DDE8EE', borderRadius: '12px', marginBottom: '8px' }}>
+                          <div>
+                            <span style={{ fontSize: '13px', fontWeight: 700, color: '#0F1923' }}>{staff?.name ?? g.staff_id}</span>
+                            <span style={{ fontSize: '13px', color: '#5B7080', marginLeft: '8px' }}>{staff?.email}</span>
+                            <span style={{ fontSize: '13px', fontWeight: 700, padding: '2px 8px', borderRadius: '16px', background: g.tier === 'admin' ? 'rgba(124,58,237,0.12)' : 'rgba(0,165,163,0.1)', color: g.tier === 'admin' ? '#7C3AED' : '#00695C', marginLeft: '10px' }}>
+                              {g.tier === 'admin' ? 'Admin' : 'User'}
+                            </span>
+                          </div>
+                          <button onClick={() => revokeKbAccess(g.id)}
+                            style={{ fontSize: '13px', fontWeight: 700, color: '#FF6B6B', background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'inherit' }}>
+                            Revoke
+                          </button>
+                        </div>
+                      )
+                    })}
+                  </div>
+                )
               })() : (
               <>
               {/* EMPTY STATE */}
@@ -5857,7 +6064,7 @@ export default function AdminPage() {
                                   {doc.word_count?.toLocaleString()} words · {new Date(doc.created_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}
                                 </span>
                                 <div style={{ display: 'flex', gap: '10px' }}>
-                                  <button onClick={() => { setSupersedesDoc(doc); setDocForm(p => ({ ...p, title: doc.title, type: doc.type, workspace_id: doc.workspace_id ?? '', doc_category: doc.doc_category ?? '' })); setIngestTypeChoice('general'); setShowIngestForm(true); window.scrollTo({ top: 0, behavior: 'smooth' }) }}
+                                  <button onClick={() => { setSupersedesDoc(doc); setDocForm(p => ({ ...p, title: doc.title, type: doc.type, workspace_id: doc.workspace_id ?? '', doc_category: doc.doc_category ?? '' })); setIngestIntent('verbatim'); setShowIngestForm(true); window.scrollTo({ top: 0, behavior: 'smooth' }) }}
                                     style={{ fontSize: '13px', fontWeight: 700, color: '#00897B', background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'inherit', padding: '2px 4px' }}>
                                     New Version
                                   </button>
@@ -6136,7 +6343,7 @@ export default function AdminPage() {
         )}
 
       </div>
-      <style>{`@keyframes pulse{0%,100%{opacity:1}50%{opacity:0.4}} @keyframes spin{to{transform:rotate(360deg)}} @keyframes demoGlow{0%{color:#8B1A1A}20%{color:#FF6B6B}40%{color:#C0F43C}60%{color:#00A5A3}80%{color:#8B1A1A}100%{color:#FFD08A}} @keyframes tourPop{0%{opacity:0;transform:scale(0.95) translateY(6px)}100%{opacity:1;transform:scale(1) translateY(0)}} @keyframes slideInRight{0%{transform:translateX(100%);opacity:0}100%{transform:translateX(0);opacity:1}}`}</style>
+      <style>{`@keyframes pulse{0%,100%{opacity:1}50%{opacity:0.4}} @keyframes spin{to{transform:rotate(360deg)}} @keyframes demoGlow{0%{color:#8B1A1A}20%{color:#FF6B6B}40%{color:#C0F43C}60%{color:#00A5A3}80%{color:#8B1A1A}100%{color:#FFD08A}} @keyframes tourPop{0%{opacity:0;transform:scale(0.95) translateY(6px)}100%{opacity:1;transform:scale(1) translateY(0)}} @keyframes slideInRight{0%{transform:translateX(100%);opacity:0}100%{transform:translateX(0);opacity:1}} @keyframes ingestBarSlide{0%{left:-40%}100%{left:100%}}`}</style>
 
       {/* ── What's Next — Roadmap Panel ── */}
       {showRoadmap && (

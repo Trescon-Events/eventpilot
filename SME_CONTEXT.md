@@ -471,12 +471,15 @@ someone else. It's tracked as real data in EventPilot itself, not a side
 spreadsheet.
 
 **Roles** (`pilot_project_members.role_label`, free-text — new roles are just
-a label + a hex color, no code change needed):
+a label + a hex color, no code change needed; `ROLE_PRESETS` in
+`/admin/pilots/new` currently offers six as one-click presets, any other label
+is still just a "Custom…" entry away):
 - **Pilot** — the SME who owns the PRD/direction (you, usually)
 - **Co-Pilot** — a second SME/tester on the same project
 - **Consulting** — advisory input, not day-to-day ownership
 - **Tracking** — tracks progress/checklist across the project, doesn't necessarily use the tool itself
-- **Builder** — who actually codes it. **Not always Durga** — `pilot_projects.builder_id` is per-project. Whoever submits a Build Request (see below) for that project, the alert email goes to that project's builder specifically.
+- **Collaborator** — looped in on relevant decisions and asked for input as the project progresses, without owning a specific slice of it
+- **Builder** — who actually codes it. **Not always Durga** — `pilot_projects.builder_id` is per-project (its own dropdown on the New Pilot Project form, separate from adding someone as a "Builder" member — most projects do both). Whoever submits a Build Request (see below) for that project, the alert email goes to that project's builder specifically.
 
 **Build Requests** (`/pilots` or `/admin/pilots`, "🔧 Build Requests" tab): the
 in-app way to ask your project's builder for something, with file attachments
@@ -602,5 +605,6 @@ Now help me write a prompt for: [describe what you want to build]
 
 ---
 
-*Last updated: 03 Jul 2026 (evening) — added Pilot Projects (§17) and the tools-outside-the-main-app pattern (§18, now covering domain-uniformity via eventpilot-proxy), refreshed the Toolkit grants + module map for everything shipped since June*
+*Last updated: 13 Jul 2026 — Pilot Projects (§17) role model extended with Collaborator preset and a dedicated Project Builder field, separate from the Builder member role*
+*Previously updated: 03 Jul 2026 (evening) — added Pilot Projects (§17) and the tools-outside-the-main-app pattern (§18, now covering domain-uniformity via eventpilot-proxy), refreshed the Toolkit grants + module map for everything shipped since June*
 *For questions about the platform, contact Madhu (md@tresconglobal.com) or Durga (dc@tresconglobal.com)*

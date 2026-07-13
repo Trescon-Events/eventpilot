@@ -24,10 +24,12 @@ type MemberDraft = {
 // ── Constants ─────────────────────────────────────────────────────────────────
 
 const ROLE_PRESETS = [
-  { key: 'pilot',      label: 'Pilot',      color: '#1d4ed8', note: 'You are the Pilot for this project — you own the scope decisions, drive the PRD, and coordinate the build with Durga.' },
-  { key: 'co_pilot',   label: 'Co-Pilot',   color: '#be185d', note: 'You are the Co-Pilot — you support the Pilot on every scope decision and share responsibility for driving the PRD with Durga.' },
-  { key: 'consulting', label: 'Consulting', color: '#92400e', note: 'You are a Consulting member — your domain expertise will shape the requirements. The Pilot will bring you in for your specific inputs.' },
-  { key: 'tracking',   label: 'Tracking',   color: '#166534', note: 'You are the Project Tracker — your job is to maintain visibility across all Pilot Projects, escalate blockers to Durga, and keep things moving.' },
+  { key: 'pilot',       label: 'Pilot',       color: '#1d4ed8', note: 'You are the Pilot for this project — you own the scope decisions, drive the PRD, and coordinate the build with Durga.' },
+  { key: 'co_pilot',    label: 'Co-Pilot',    color: '#be185d', note: 'You are the Co-Pilot — you support the Pilot on every scope decision and share responsibility for driving the PRD with Durga.' },
+  { key: 'consulting',  label: 'Consulting',  color: '#92400e', note: 'You are a Consulting member — your domain expertise will shape the requirements. The Pilot will bring you in for your specific inputs.' },
+  { key: 'tracking',    label: 'Tracking',    color: '#166534', note: 'You are the Project Tracker — your job is to maintain visibility across all Pilot Projects, escalate blockers to Durga, and keep things moving.' },
+  { key: 'collaborator',label: 'Collaborator',color: '#0e7490', note: 'You are a Collaborator on this project — you\'ll be looped in on relevant decisions and asked for input as it progresses.' },
+  { key: 'builder',     label: 'Builder',     color: '#6d28d9', note: 'You are the Builder for this project — you code it, and Build Requests submitted for this project are routed to you.' },
 ]
 
 const TOOL_GRANT_OPTIONS = [
@@ -64,6 +66,7 @@ export default function NewPilotProjectPage() {
   const [status, setStatus] = useState('active')
   const [toolLabel, setToolLabel] = useState('')
   const [toolHref, setToolHref] = useState('')
+  const [builderId, setBuilderId] = useState('')
   const [members, setMembers] = useState<MemberDraft[]>([emptyMember()])
   const [drafting, setDrafting] = useState(false)
   const [draftError, setDraftError] = useState('')
@@ -136,6 +139,7 @@ export default function NewPilotProjectPage() {
       body: JSON.stringify({
         name: name.trim(), description: description.trim(), status,
         tool_href: toolHref.trim() || null, tool_label: toolLabel.trim() || null,
+        ...(builderId ? { builder_id: builderId } : {}),
         members: valid, send_emails: true,
       }),
     })
@@ -174,7 +178,7 @@ export default function NewPilotProjectPage() {
               <button onClick={() => router.push('/admin/pilots')} style={{ background: '#0d9488', color: '#fff', border: 'none', borderRadius: 8, padding: '10px 20px', fontSize: 14, fontWeight: 700, cursor: 'pointer' }}>
                 View Pilot Projects
               </button>
-              <button onClick={() => { setResult(null); setName(''); setDescription(''); setToolLabel(''); setToolHref(''); setMembers([emptyMember()]) }}
+              <button onClick={() => { setResult(null); setName(''); setDescription(''); setToolLabel(''); setToolHref(''); setBuilderId(''); setMembers([emptyMember()]) }}
                 style={{ background: '#fff', color: '#6b7280', border: '1px solid #e5e7eb', borderRadius: 8, padding: '10px 16px', fontSize: 14, cursor: 'pointer' }}>
                 Create Another
               </button>
@@ -203,6 +207,15 @@ export default function NewPilotProjectPage() {
                     <option value="testing">Testing</option>
                     <option value="complete">Complete</option>
                     <option value="paused">Paused</option>
+                  </select>
+                </div>
+                <div style={{ flex: 1 }}>
+                  <label style={labelStyle}>PROJECT BUILDER <span style={{ fontWeight: 400, color: '#9ca3af' }}>(optional — who Build Requests route to)</span></label>
+                  <select value={builderId} onChange={e => setBuilderId(e.target.value)} style={inputStyle}>
+                    <option value="">— Unset (falls back to Durga) —</option>
+                    {staffList.slice().sort((a, b) => a.name.localeCompare(b.name)).map(s => (
+                      <option key={s.id} value={s.id}>{s.name} ({s.email})</option>
+                    ))}
                   </select>
                 </div>
               </div>

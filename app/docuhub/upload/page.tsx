@@ -148,7 +148,9 @@ export default function DocuHubUploadPage() {
 
   return (
     <div style={{ minHeight: '100vh', background: '#E8EEF4', fontFamily: 'var(--font-manrope), sans-serif' }}>
-      <NavBar module={MOD_DOCUHUB} homeHref="/docuhub" subtitle="Upload" />
+      <NavBar module={MOD_DOCUHUB} homeHref="/docuhub" subtitle="Upload" rightSlot={
+        <button onClick={() => router.push('/docuhub')} style={{ padding: '8px 14px', borderRadius: '9px', border: '1px solid #DDE8EE', background: '#FFFFFF', color: '#5B7080', fontSize: '13px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>Back</button>
+      } />
       <div style={{ maxWidth: '640px', margin: '0 auto', padding: '32px 24px' }}>
         <h1 style={{ fontSize: '20px', fontWeight: 800, color: '#0F1923', margin: '0 0 20px' }}>Upload a Document</h1>
 

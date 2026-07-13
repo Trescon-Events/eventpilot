@@ -113,6 +113,18 @@ Fields confirmed by uploaders that extend the sections above.
   - Field name: `expected_outcomes`
   - *Added: 2026-07-10*
 
+- **National Strategic Alignment Agendas** (required)
+  - Description: Its important in any proposal. Keep it
+  - Example: `Dubai's D33 Agenda, UAE Digital Economy Strategy, Operation 300bn, Vision 2030`
+  - Field name: `national_strategic_alignment_agendas`
+  - *Added: 2026-07-13*
+
+- **Client Unique Strategic Assets** (optional)
+  - Description: yes that is correct. Keep it.
+  - Example: `Startup engine, Pilot environment, Business establishment, Integrated economic zone, R&D expansion`
+  - Field name: `client_unique_strategic_assets`
+  - *Added: 2026-07-13*
+
 ### Event Concept
 
 - **Proposed Event Platforms** (optional)
@@ -136,6 +148,30 @@ Fields confirmed by uploaders that extend the sections above.
   - Example: `Government & Regulators -> Key Personas: Ministers, Policy Advisors; Purpose of Engagement: Showcase tech-friendly policies, facilitate collaborations, align national goals, reinforce Dubai as a secure global hub.`
   - Field name: `audience_engagement_purpose`
   - *Added: 2026-07-10*
+
+### Proposal metadata
+
+- **Client Internal Ecosystem Components** (optional)
+  - Description: Those entities are part of DSO. and aligning our proposed strategy with these entities help us in establishing our strategy better which is "A mandate-led platform strategy — not an events strategy." So the way we are showing the seven priority clusters are also keeping in mind the same idea.
+  - Example: `DTEC as startup engine, Dubai Digital Park as pilot environment, District 10 as R&D expansion`
+  - Field name: `client_internal_ecosystem_components`
+  - *Added: 2026-07-13*
+
+### Themes and tracks
+
+- **Client Strategic Tech Clusters** (optional)
+  - Description: That is correct.. Keep it.
+  - Example: `PropTech, Robotics, Mobility, MedTech, Cybersecurity, Deep/Quantum, AI`
+  - Field name: `client_strategic_tech_clusters`
+  - *Added: 2026-07-13*
+
+### Trescon's Scope of Work
+
+- **Partnership Strategic Nature** (optional)
+  - Description: strategic_consulting
+  - Example: `Not an event organiser. An ecosystem builder. A mandate-led platform strategy – not an events strategy.`
+  - Field name: `partnership_strategic_nature`
+  - *Added: 2026-07-13*
 ---
 
 ## Output Schema

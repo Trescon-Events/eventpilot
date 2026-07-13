@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import Link from 'next/link'
 import NavBar, { MOD_DOCUHUB } from '@/app/components/NavBar'
 
 type DocType = {
@@ -100,7 +101,9 @@ export default function DocuHubSettingsPage() {
 
   return (
     <div style={{ minHeight: '100vh', background: '#E8EEF4', fontFamily: 'var(--font-manrope), sans-serif' }}>
-      <NavBar module={MOD_DOCUHUB} homeHref="/docuhub" subtitle="Settings" />
+      <NavBar module={MOD_DOCUHUB} homeHref="/docuhub" subtitle="Settings" rightSlot={
+        <Link href="/docuhub" style={{ padding: '8px 14px', borderRadius: '9px', border: '1px solid #DDE8EE', background: '#FFFFFF', color: '#5B7080', fontSize: '13px', fontWeight: 700, textDecoration: 'none' }}>Back</Link>
+      } />
       <div style={{ maxWidth: '900px', margin: '0 auto', padding: '32px 24px' }}>
         <h1 style={{ fontSize: '20px', fontWeight: 800, color: '#0F1923', margin: '0 0 20px' }}>DocuHub Settings</h1>
 

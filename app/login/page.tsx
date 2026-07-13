@@ -10,6 +10,7 @@ export default function LoginPage() {
   const [nextParam, setNextParam] = useState('')
   const [email, setEmail]       = useState('')
   const [password, setPassword] = useState('')
+  const [rememberMe, setRememberMe] = useState(false)
   const [loginError, setLoginError] = useState('')
   const [loading, setLoading]   = useState(false)
   const [showPassword, setShowPassword] = useState(false)
@@ -30,7 +31,7 @@ export default function LoginPage() {
       const res = await fetch('/api/login', {
         method:  'POST',
         headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify({ email: email.trim(), password }),
+        body:    JSON.stringify({ email: email.trim(), password, rememberMe }),
       })
       const data = await res.json()
       if (!res.ok) {
@@ -236,6 +237,16 @@ export default function LoginPage() {
                 </button>
               </div>
             </div>
+
+            <label style={{ display: 'flex', alignItems: 'center', gap: '9px', cursor: 'pointer', userSelect: 'none' }}>
+              <input
+                type="checkbox"
+                checked={rememberMe}
+                onChange={e => setRememberMe(e.target.checked)}
+                style={{ width: '16px', height: '16px', accentColor: C.teal, cursor: 'pointer' }}
+              />
+              <span style={{ fontSize: '13px', color: C.muted, fontWeight: 600 }}>Remember me on this device</span>
+            </label>
 
             {loginError && (
               <div style={{ padding: '10px 14px', background: '#FFF1F2', border: '1px solid #FCA5A5', borderLeft: '4px solid #B91C1C', borderRadius: '8px', fontSize: '13px', color: '#B91C1C', fontWeight: 700, lineHeight: 1.5 }}>

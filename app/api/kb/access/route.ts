@@ -3,11 +3,17 @@ import { supabaseAdmin } from '@/app/lib/supabase'
 import { getSessionStaffId } from '@/app/lib/access/session'
 import { hasModuleAccess } from '@/app/lib/access/module-access'
 
-const MODULE_KEY = 'dochub'
+const MODULE_KEY = 'kb'
 
 /*
-  GET /api/docuhub/access   — dochub_admin only. Lists current grants for this module.
-  POST /api/docuhub/access  — dochub_admin only. Body: { staff_id, tier }
+  GET /api/kb/access   — kb module admin only. Lists current grants for this module.
+  POST /api/kb/access  — kb module admin only. Body: { staff_id, tier }
+
+  Mirrors app/api/docuhub/access/route.ts — module_access is the same generic
+  per-module user/admin tier table, just scoped to module_key='kb' here. This
+  is the go-forward replacement for the old staff_members.access_roles
+  'kb_admin' string (see app/lib/kb/intel-access.ts), which had no UI to
+  grant/revoke it.
 
   The staff_members embed must specify !staff_id — module_access also has a
   granted_by FK to staff_members, so an unqualified embed is ambiguous and

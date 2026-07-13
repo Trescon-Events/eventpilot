@@ -6,21 +6,6 @@
 
 ---
 
-## 🚧 In Progress — KB self-learning + BD Knowledge Assistant (started 10 Jul 2026)
-
-Madhu (with Claude Code) has been building out the KB module's self-learning ingest pipeline (`docs/EventPilot-KB-PRD-v3.0.md` — a separate, later effort than the v2.0 Press Intelligence work referenced by this banner previously, which was completed and folded into a normal "What Was Built" entry). **Not finalised** — see "Still to do" below and the 10–12 Jul "What Was Built" entry for the full build.
-
-**Touches these areas — check before editing them:**
-- `app/admin/page.tsx` — Knowledge tab: gap-resolution wizard, "Pending Gaps" sub-tab, single unified "Ingest Document" flow (Upload Document was retired), delete-confirmation modal
-- `app/api/kb/ingest/route.ts`, `app/api/kb/gaps/**`, `app/api/kb/bd-chat/**`, `app/lib/kb/**` — new/changed routes and helpers, see full entry below
-- New tables: `kb_field_registry`, `kb_processor_changelog`, `kb_gap_sessions`
-- Retired: `app/api/documents/upload`, `/process`, `/upload-url` (folded into `/api/kb/ingest`)
-- New admin tool: `/admin/tools/bd-chat` ("Knowledge Assistant") — deliberately separate from Pilot AI (`/chat`, `/api/ask`), not touched by this work
-
-Madhu will update this section (or replace it with a proper "What Was Built" entry) once this iteration is finalised.
-
----
-
 ## Last Session
 
 | Field | Value |
@@ -29,6 +14,8 @@ Madhu will update this section (or replace it with a proper "What Was Built" ent
 | Latest push | 2026-07-13 — commit `2061939` (Commercial P&L Readiness intelligence — per-event + portfolio) |
 | Handed off to | Next session |
 | Deployed | ✅ Yes — commits `e027f2e` (Nic 3 bugs), `85f3555` (Nic 4 PRDs), `8933629` (Thulasi CM refinement), `da02509`+`2630deb` (leaderboard cron fallback auth + 3-week backfill), `020439a` (finance security), `2061939` (P&L Readiness) all live on Railway |
+
+**Earlier the same day:** a separate Madhu + Claude Code (Sonnet 5) session also shipped — KB/DocuHub module-admin UI, a real access-control fix (super admins outside the Events department were locked out of proposals), a full KB Ingest Document UX overhaul, navigation fixes, and two new Pilot Projects. Commit `4647933`. See "What Was Built — 13 Jul 2026 (Madhu + Claude Code)" below for full detail — merged into this file alongside Durga's later work below.
 
 **Session highlight (long day — 13 commits shipped):**
 
@@ -50,20 +37,27 @@ PRDs (commit `85f3555`): all four feature PRDs delivered. See "What Was Built �
 
 Closed all 7 build_requests via `PATCH /api/build-requests/[id]` with detailed replies — auto-emails Nic via `sendBuildRequestUpdate`.
 
+**Also shipped earlier the same day (Madhu + Claude Code session, commit `4647933`):** closed out the KB self-learning banner from the previous handoff — the BD Knowledge Assistant + General Document path got real, live click-through testing, which is what surfaced a real production access-control bug: `canAccessDocument()` had no super-admin bypass for department-scoped documents, so any super admin outside the "Events" department (confirmed via Madhu's own account, department "Board") was silently locked out of every ingested proposal, including via the BD Knowledge Assistant. Also shipped: a full UX pass on the KB "Ingest Document" flow (explicit summarise-vs-upload-as-is intent question, animated progress instead of a static "Processing with Gemini…" label, auto-collapsing form on completion, a "Discard this job" escape hatch on the gap-review card), a real module-admin grant/revoke UI for both Knowledge Base and DocuHub (fixing a pre-existing 500 in DocuHub's own Access tab along the way — an ambiguous `module_access → staff_members` FK embed), a fix for a "kicked out of the module" navigation bug affecting all 3 KB tool pages, and two new Pilot Projects (Knowledge Base Module, DocuHub Module) with full role assignments. Full detail in "What Was Built — 13 Jul 2026 (Madhu + Claude Code)" below.
+
 **Still to do:**
 1. **DOCX brief parsing** — the brief uploader accepts PDF cleanly (pdf-parse → Gemini structured JSON). DOCX returns a 400 with a "please upload as PDF" message. If a DOCX path is genuinely needed, install `mammoth` and add DOCX text extraction to `/api/bespoke/parse-brief`. Not urgent — Nic's PRD asked for both formats but PDF is the common brief format.
 2. **Hybrid format task filtering** — Nic's PRD didn't spec hybrid explicitly. Current behavior: hybrid gets the physical SOP tasks (assumes it's a physical event with a webinar stream). Documented inline in the POST handler comment. Review once we have a real hybrid project.
 3. **Nic's original access request** (pre-dashboard) still not converted to a proper `access_requests` row — carried from 07 Jul.
+4. **Aggregate/count queries are deliberately not built yet** — e.g. "how many proposals have we sent to DSO" cannot be answered today. Investigation found real data gaps: the dominant proposal-ingest path never sets `documents.workspace_id`, `bd_workspaces.client_name` is unnormalized free text, and a second, disconnected proposal-document system (`docuhub_documents`) has its own free-text client field. Madhu's explicit call: fix that data linkage first, then build the aggregate-query tool. The BD Knowledge Assistant's system prompt already tells the model to say "I can't compute that yet" rather than guess.
+5. **`workspace_id` auto-linking fix** (make structured proposal ingest actually set/match a `bd_workspaces` row from the `client_name` already present in the generated summary's front matter) is the recommended next piece of work, per #4 above.
+6. **`knowledge-engine/processors/proposal.md` picked up 5 new confirmed fields** (`national_strategic_alignment_agendas`, `client_unique_strategic_assets`, `client_internal_ecosystem_components`, `client_strategic_tech_clusters`, `partnership_strategic_nature`) from Madhu resolving the self-learning gap wizard on a real DSO FutureTech Ecosystem proposal upload — legitimate product behavior, not a manual edit, already committed.
+7. **`knowledge-base/bd/proposals/*/*_intelligence.md`** (6 files, flagged untracked in prior handoffs too) — still untracked, still Madhu's own separate WIP per his instruction, not touched or committed.
+8. **`EVENTPILOT_PLATFORM_DOCUMENT.md` and `app/smartexcel/shell.tsx`** still show as locally modified from before either session today started — still not this work, left alone again.
+9. **DocuHub module-admin UI now works but was previously silently broken** (see "What Was Built" below) — worth a sweep for any other `module_access` embed queries elsewhere in the codebase that might hit the same ambiguous-FK issue if extended to a 3rd module.
 
-**Carried forward from previous sessions (unchanged, not touched this session):**
+**Carried forward from previous sessions (unchanged, not touched today):**
 - **`staff_members.last_login_at` never written.** Blocks any "target never-logged-in staff" filter. Needs SSO callback investigation.
 - **Khalifat alignment call on Website Builder & Brand Studio.** Full reply drafted 06 Jul, still awaiting Durga to send.
 - **Corporate Deck manager — Phase 2 shape decision.** Framing email drafted for Thulasi (three architecture options), hers to decide.
 - **`CRON_SECRET` on Railway out of sync** — blocks auto-revoke cron + weekly leaderboard cron. Needs Railway dashboard access under `webadmin@tresconglobal.com`.
 - **Thulasi retest of 66 MB deck upload** — she needs to hard-refresh her browser to load the new client bundle.
 - **Charan Kaverappa sign-out + sign-in** to see the new Finance Portal.
-- **KB module (Madhu 10–12 Jul)** — BD Knowledge Assistant `/admin/tools/bd-chat` and consolidated Ingest Document "General Document" flow need a human click-through end-to-end.
-- **`workspace_id` auto-linking fix** for structured proposal ingest (Madhu's recommended next piece of work).
+- **Nicholas Nunes access request** — pre-dates the Access Requests Dashboard, only exists as an email. Grant manually or have him re-request. (Note: Nicholas was added as Co-Pilot to the two new Pilot Projects today — a different system from the Access Requests Dashboard; this open item is unrelated and still outstanding.)
 
 ---
 
@@ -80,22 +74,56 @@ Closed all 7 build_requests via `PATCH /api/build-requests/[id]` with detailed r
 | Handed off to | Durga |
 | Deployed | ✅ Yes — all 7 commits from that session confirmed live on Railway |
 
-**Session highlight:** Built the KB module's self-learning gap-detection pipeline end-to-end (PRD v3.0) — a second Gemini pass that detects information a document has that the processor guide doesn't ask for, a 3-step radio-button wizard to classify each gap, and confirmed fields get written back into the processor `.md` files so future uploads capture them automatically. Then, after finding the two upload buttons ("Ingest Document" vs "Upload Document") were confusing (different pipelines, no visible reason to pick one over the other), consolidated them into a single "Ingest Document" entry point. Along the way, found and fixed two real production bugs unrelated to this session's own new code (a pre-existing R2 upload failure affecting every real-file KB upload, and a pre-existing crash for any super-admin session), and built a separate "BD Knowledge Assistant" chat scoped to BD/company-knowledge documents, isolated from Pilot AI. Full detail in the "What Was Built — 10–12 Jul 2026" entry below.
+---
 
-**Still to do:**
-1. **Full click-through of the new BD Knowledge Assistant** (`/admin/tools/bd-chat`) and the consolidated Ingest Document flow's "General Document" path — both were verified thoroughly via direct production API testing (real Gemini calls, real DB writes, then cleaned up), but not yet visually confirmed end-to-end by a human clicking through in a browser.
-2. **Aggregate/count queries are deliberately not built yet** — e.g. "how many proposals have we sent to DSO" cannot be answered today. Investigation found real data gaps: the dominant proposal-ingest path never sets `documents.workspace_id`, `bd_workspaces.client_name` is unnormalized free text, and a second, disconnected proposal-document system (`docuhub_documents`) has its own free-text client field. Madhu's explicit call: fix that data linkage first, then build the aggregate-query tool — not bundled into this session. The BD Knowledge Assistant's system prompt already tells the model to say "I can't compute that yet" rather than guess.
-3. **`workspace_id` auto-linking fix** (make structured proposal ingest actually set/match a `bd_workspaces` row from the `client_name` already present in the generated summary's front matter) is the recommended next piece of work, per #2 above.
-4. **Two test proposal documents created while building/testing this session's features were found and deleted** from production (with Madhu's explicit confirmation) — deleting a document only detaches `kb_field_registry`/`kb_processor_changelog` rows (`ON DELETE SET NULL`), never removes them, so the fields the system learned from testing were preserved and the processor `.md` file was re-synced to match. If you see references to "DSO-FutureTech-Ecosystem" or "World Space Economy Summit — Central Asia Edition" test documents anywhere, they were intentionally removed, not lost.
-5. **`knowledge-base/bd/proposals/*/*_intelligence.md`** (6 files, flagged untracked in the previous handoff too) — still untracked, still unclear which process generates them. Not touched this session either; still worth investigating before they're lost or accidentally committed.
-6. **`EVENTPILOT_PLATFORM_DOCUMENT.md` and `app/smartexcel/shell.tsx`** still show as locally modified from before this session started (carried forward from the previous handoff, still not this session's work, left alone).
+## What Was Built — 13 Jul 2026 (Madhu + Claude Code) — DocuHub nav + module admins, KB ingest UX overhaul, access-control fix, navigation fixes, Pilot Projects
 
-**Carried forward from previous sessions (unchanged, not touched this session):**
-- **`staff_members.last_login_at` never written.** Blocks any "target never-logged-in staff" filter. Needs SSO callback investigation.
-- **Khalifat alignment call on Website Builder & Brand Studio.** Full reply drafted 06 Jul, still awaiting Durga to send.
-- **Corporate Deck manager — Phase 2 shape decision.** Framing email drafted for Thulasi (three architecture options), hers to decide.
-- **`CRON_SECRET` on Railway out of sync** — blocks auto-revoke cron + weekly leaderboard cron. Needs Railway dashboard access under `webadmin@tresconglobal.com`.
-- **Nicholas Nunes access request** — pre-dates the Access Requests Dashboard, only exists as an email. Grant manually or have him re-request.
+### Local dev workflow
+
+Set up local-first development going forward (Madhu wants to test on `localhost:3000` before pushing, not push-per-change). Confirmed `.env.local` already points at the same shared Supabase project as production (no separate local DB), so local testing is real but any test data created must be cleaned up afterward — done via the app's own UI throughout this session (never raw SQL against shared data).
+
+- **Local bypass login**: no code change needed — `md@tresconglobal.com` already logs in locally via `/api/login`'s staff-password path (`STAFF_DEFAULT_PASSWORD` in `.env.local`), bypassing Microsoft SSO (which only works against the production redirect URI).
+- **"Remember me" checkbox** added to `/login` (`app/login/page.tsx`) — wires the `rememberMe` flag `/api/login` already supported (30-day session vs. 8-hour default) but the form never sent.
+- **Fixed the admin panel's own "Sign out" button** (`app/admin/page.tsx`) — it only cleared `localStorage`/`sessionStorage` and redirected, never called `/api/auth/logout`, so the httpOnly `tcs_session` cookie (now persistent for 30 days with Remember Me) survived a "logout" from inside `/admin`. Now calls the real logout endpoint first, matching `NavBar.tsx`'s `doSignOut()`.
+
+### KB Ingest Document — UX overhaul
+
+Feedback: the upload flow only showed a static "Processing…" button label, said "Classifying and processing with Gemini…" (shouldn't name the AI vendor to end users), gave no indication when processing finished, and the "Ingest Document" form stayed visible mid-review — forcing a scroll past a stale form to find the actual result.
+
+- **Explicit intent question** replacing the old silent filename-based default: "Summarise into the Knowledge Base" vs. "Upload as-is" — the filename-based guess still pre-selects one, but the uploader always sees and can override the choice (previously, an unmatched filename silently defaulted to instant-publish-with-no-review).
+- **General/"Upload as-is" documents now go through the same pending+admin-review gate as structured types** (`app/api/kb/ingest/route.ts`) — previously published live immediately with zero confirmation, a real gap flagged directly by Madhu using it.
+- **Animated progress bar + rotating plain-language status** (`INGEST_STAGES` in `app/admin/page.tsx`: "Reading your document…" → "Organising the details…" → "Almost done…") replacing the static message — no AI vendor named anywhere in the UI now.
+- **Form auto-collapses the instant processing finishes**, so the review card is the only thing visible — no more scrolling past a stale form.
+- **"Discard this job" added to the gap-review card** — previously, a document with unresolved gaps only offered "Review N gaps →", with no way to bail out; now reuses the existing reject action, just surfaced earlier in the flow.
+
+### Real production bug found via live testing: super-admin department lockout
+
+Madhu did a full ingest → gap-wizard → publish cycle on a real DSO FutureTech Ecosystem proposal, then asked the BD Knowledge Assistant about it — got "I don't have any documents that mention a DSO proposal," despite the document being live. Root cause: `canAccessDocument()` (`app/lib/kb/access.ts`) required exact department match for `layer: 'specific'` documents (all proposals are hardcoded `department: 'events'`), with **no exemption for super admins outside that department**. Madhu's own account is department "Board." Fixed with a one-line super-admin bypass at the top of `canAccessDocument()`, ahead of all layer/department/level checks — this is shared by `getKBContext()` (BD chat, Proposal/PER Creator), `/api/documents/list`, and `/api/kb/download`, so it fixes visibility across all of those, not just the one chat. Verified live: same question now correctly returns the proposal's actual event platforms (STRIDE, Future VC, Dubai FutureTech Festival).
+
+### DocuHub button + module-admin management for both KB and DocuHub
+
+- Added a **"DocuHub" tab** to the admin top nav, right next to "Knowledge Base" (`app/admin/page.tsx`) — previously DocuHub had zero entry point from `/admin`, only reachable via the general staff platform menu.
+- **New "Admins" sub-tab under Knowledge Base** — grant/revoke module-admin access via a real UI, reusing the existing `module_access` table (`module_key='kb'`) rather than the old UI-less `access_roles` array `'kb_admin'` string. New routes: `app/api/kb/access/route.ts` (GET/POST), `app/api/kb/access/[id]/route.ts` (DELETE), `app/api/kb/access/me/route.ts`. `isKbAdmin()` (`app/lib/kb/intel-access.ts`) now checks both the new `module_access` grants and the legacy `access_roles` string, so no one already granted loses access.
+- **Found and fixed a pre-existing bug in DocuHub's own Access tab** (`app/api/docuhub/access/route.ts`) — `module_access` has two FKs to `staff_members` (`staff_id` and `granted_by`), so the unqualified `.select('*, staff_members(name, email))` embed was ambiguous and 500'd on every grant/list call. This was silently broken in production before this session (DocuHub's settings page showed "Current Grants (0)" with no visible error). Fixed by qualifying the embed as `staff_members!staff_id(...)` in both the new KB routes and the pre-existing DocuHub route.
+- **Hussain Shabbir Mithaiwala and Thulasi Devi S granted Admin on both modules**, done live through the real UI (not a DB script).
+
+### Navigation fixes — "kicked out of the module" on back
+
+Audited every DocuHub page and every `app/admin/tools/*` (KB generator) page. DocuHub was already fine (`NavBar` with `homeHref="/docuhub"` on every page, consistently). The 3 KB tool pages (`per-creator`, `proposal-creator`, `bd-chat`) all hardcoded their back link/logo to bare `/admin`, and `/admin`'s `tab`/`docSubTab` state (`app/admin/page.tsx`) had no URL memory — always initialized to Overview/Documents — so "back" from any of them dumped the user on Admin Overview, losing all Knowledge Base context. Fixed:
+- `tab`/`docSubTab` now read their initial value from `?tab=` / `?sub=` on mount (same lazy-`useState`-from-`window.location.search` pattern already used for the `?welcome=1` onboarding flag — no `useSearchParams()` hook, so no Suspense-boundary requirement).
+- A `syncAdminUrl()` helper keeps the URL in sync (via `history.replaceState`, not `pushState`) as the user switches tabs, so the back link's destination is always accurate.
+- All 3 tool pages' back links now point at `/admin?tab=knowledge&sub=documents` (or `sub=workspaces` for Proposal Creator, matching where its launch link actually lives).
+- Minor DocuHub polish: added explicit "Back" links to `settings` and `upload` (previously logo-only, not a functional bug but a discoverability gap flagged in the same audit).
+
+### Pilot Projects — two new projects, two new role presets
+
+- Added **"Builder"** and **"Collaborator"** as proper `ROLE_PRESETS` (`app/admin/pilots/new/page.tsx`) — Builder previously only existed as a one-off custom role (used for the SmartExcel project); Collaborator didn't exist anywhere in the app.
+- Added a **"Project Builder" selector** to the New Pilot Project form, wired to `pilot_projects.builder_id` — the backend already supported it (`POST /api/admin/pilots`) but no UI ever exposed it; it had only ever been set by hand for the SmartExcel project.
+- Created **"Knowledge Base Module"** and **"DocuHub Module"** Pilot Projects, each with: Madhukar Dudda — Builder, Thulasi Devi S + Hussain Shabbir — Co-Pilot, Shadi Dawi + Imran Mushtaq — Collaborator, Fouzan Abdul Rahim — Tracking. Nicholas Nunes added as Co-Pilot to both shortly after, on explicit request. All assignment emails sent for real (this is the Pilot Projects system's actual purpose — confirmed via the live "Project created and members notified" success screen each time).
+
+### Verification approach
+
+Every UI change this session was verified live in a real browser (Playwright driving the actual local dev server against the real shared Supabase project — no mocks), not just `tsc`/`next build`. Two throwaway test documents created during the ingest-UX testing were cleaned up afterward through the app's own Discard/Remove flows. `tsc --noEmit` and `next build` both clean throughout.
 
 ---
 

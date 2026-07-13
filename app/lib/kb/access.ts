@@ -18,6 +18,7 @@ export function canAccessDocument(
   staffDept: string,
   staffLevel: number
 ): boolean {
+  if (staffLevel >= LEVEL_RANK.super_admin) return true
   if (doc.layer === 'knowledge_base') return true
   if (doc.layer === 'general') return true
   if (doc.layer === 'specific') {
