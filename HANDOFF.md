@@ -26,15 +26,22 @@ Madhu will update this section (or replace it with a proper "What Was Built" ent
 | Field | Value |
 |---|---|
 | Who | Durga + Claude Code (Opus 4.7) — 13 Jul 2026 |
-| Latest push | 2026-07-13 — commit `e027f2e` (fix bespoke silent-failure bugs surfaced by Nic) |
+| Latest push | 2026-07-13 — commit `85f3555` (Nic's 4 PRDs: Brief overhaul, wizard rewrite, Overview dynamic binding, Tasks format-conditional) |
 | Handed off to | Next session |
-| Deployed | ✅ Yes — commit `e027f2e` live on Railway (confirmed via `build_log_enriched`) |
+| Deployed | ✅ Yes — commits `e027f2e` (3 bug fixes) + `85f3555` (4 PRDs) both live on Railway |
 
-**Session highlight:** Nic (Nicholas Nunes) had raised 7 build_requests on the Bespoke pilot project between 02–10 Jul, all `status: submitted` and none of them acted on. Sorted them into 3 real bugs + 4 large feature PRDs (per Durga's read: PRDs need Madhu/Sid alignment, not auto-build). All 3 bugs turned out to share the same **silent-failure pattern** — the data operations succeeded but the UI gave zero feedback, so success and failure looked identical: (1) added tasks landed at `sort_order 999`, invisible below 13 auto-seeded SOP tasks in Phase 1; (2) Save Brief persisted `brief_data` to the DB every click but the button had no success indicator; (3) the create-bespoke-project bug was actually fixed 01 Jul (commit `06d9f27`) — Nic re-reported on 02 Jul from a stale client cache. Fixed the two live bugs, closed all 3 build_requests with detailed explanations via `PATCH /api/build-requests/[id]` (auto-emails Nic via `sendBuildRequestUpdate`). See "What Was Built — 13 Jul 2026" below.
+**Session highlight:** Nic (Nicholas Nunes) had raised 7 build_requests on the Bespoke pilot project between 02–10 Jul, all `status: submitted`, none actioned. Split them into 3 bugs + 4 feature PRDs. **All 7 shipped and closed this session.**
+
+Bugs (commit `e027f2e`): fixed the shared "silent-failure" pattern where data ops succeeded but the UI gave zero feedback. (1) Added tasks landed at `sort_order 999` and rendered below the 13 auto-seeded SOP tasks in Phase 1 — invisible unless scrolled. Now compute `max(sort_order) + 1` per phase + flash the new row briefly on insert. (2) Save Brief persisted `brief_data` to the DB every click but showed no confirmation — now displays a green "✓ Saved" chip or a red retry chip. (3) Create-bespoke-project was fixed 01 Jul via commit `06d9f27` but Nic re-reported on 02 Jul from a stale client cache — closed with a hard-refresh note.
+
+PRDs (commit `85f3555`): all four feature PRDs delivered. See "What Was Built — 13 Jul 2026" below for the full breakdown of the Brief section overhaul (15 new columns + PDF drag-drop → Gemini parse → Brief-First locking with downstream task lock), New Bespoke Project wizard rewrite (3-step, Physical/Webinar conditional, runway calc, searchable staff dropdowns), Overview page dynamic binding (team lead fallbacks, format-conditional venue, registration progress, live phase calc, Suggested Tasks card), and Tasks tab format-conditional generation (11 physical-only tasks tagged + 6 new webinar-only tasks + proportional-runway due dates + auto-recalculation on date changes).
+
+Closed all 7 build_requests via `PATCH /api/build-requests/[id]` with detailed replies — auto-emails Nic via `sendBuildRequestUpdate`.
 
 **Still to do:**
-1. **Nic's 4 feature PRDs (all `status: submitted`)** — deliberately not touched this session. Two 09 Jul + two 10 Jul, all Claude-drafted architectural PRDs: (a) "Changes to the Bespoke Tracker Form" — schema migration + conditional Physical/Webinar rendering + runway calc + new team-assignments wizard step; (b) "Changes to the overview page" — dynamic team-lead binding, format-conditional stats, live phase calculator, "Suggested Tasks" component; (c) "Suggested changes to the tasks tab" — 53-task SOP auto-seed on create, format-conditional filter, timeline-proportional due-dates, role badges, real-time completion; (d) "Suggestions for the Brief Section" — 15 new columns, brief-file uploader, Gemini API PDF/DOCX parser, "Brief-First" locking with orange banner, downstream-task lock. Each is days of work. Route through **Madhu** — he's the builder assigned to the Bespoke pilot project (`pilot_projects.builder_id = e2e98541-…`). Do NOT auto-build without a product-priority call.
-2. **Nic's original access request** (pre-dashboard) still not converted to a proper `access_requests` row — carried from 07 Jul.
+1. **DOCX brief parsing** — the brief uploader accepts PDF cleanly (pdf-parse → Gemini structured JSON). DOCX returns a 400 with a "please upload as PDF" message. If a DOCX path is genuinely needed, install `mammoth` and add DOCX text extraction to `/api/bespoke/parse-brief`. Not urgent — Nic's PRD asked for both formats but PDF is the common brief format.
+2. **Hybrid format task filtering** — Nic's PRD didn't spec hybrid explicitly. Current behavior: hybrid gets the physical SOP tasks (assumes it's a physical event with a webinar stream). Documented inline in the POST handler comment. Review once we have a real hybrid project.
+3. **Nic's original access request** (pre-dashboard) still not converted to a proper `access_requests` row — carried from 07 Jul.
 
 **Carried forward from previous sessions (unchanged, not touched this session):**
 - **`staff_members.last_login_at` never written.** Blocks any "target never-logged-in staff" filter. Needs SSO callback investigation.
@@ -80,7 +87,62 @@ Madhu will update this section (or replace it with a proper "What Was Built" ent
 
 ---
 
-## What Was Built — 13 Jul 2026 (Durga + Claude Code) — Nic's bespoke bugs (silent-failure trio)
+## What Was Built — 13 Jul 2026 evening (Durga + Claude Code) — Nic's 4 feature PRDs
+
+### Commit `85f3555` · `feat(bespoke): Nic's 4 PRDs — Brief overhaul, wizard rewrite, Overview dynamic binding, Tasks format-conditional`
+
+Applied migration `supabase/bespoke_prd_expansion_2026_07_13.sql` — 22 new additive columns on `bespoke_projects` + `bespoke-briefs` private Storage bucket. All UI changes match the existing bespoke module conventions.
+
+### PRD #4 · Brief Section (build_request `da4814c1`)
+
+- **15 new columns** on `bespoke_projects`: `primary_goal`, `success_criteria`, `key_themes`, `desired_outcome` (TEXT); `icp_job_titles`, `icp_industries`, `icp_geographies` (TEXT[]); `target_accounts_list` (TEXT); `client_approver_name` (VARCHAR 100), `client_approver_email` (VARCHAR 255); `speakers`, `agenda`, `registration_questions` (JSONB DEFAULT '[]'); `brief_file_url` (TEXT); `brief_is_locked` (BOOLEAN DEFAULT false).
+- **Brief tab rewrite** in `app/admin/bespoke/[id]/page.tsx`: orange "Briefing Incomplete" banner (hidden when locked), drag-drop PDF uploader → `/api/bespoke/brief-upload` → `/api/bespoke/parse-brief` (Gemini 2.5 Flash structured-JSON), cards for Event Objectives / ICP (3 textareas backed by TEXT[]) / Target Accounts / Client Approver / Logistics + Brand / Speakers (add-remove rows) / Agenda (add-remove rows) / Registration Questions (add-remove rows). Verify-and-Lock button with hard-required validation (primary_goal, client_approver_name, at least one ICP field non-empty) and soft warnings (speakers empty, target_accounts empty, agenda empty). Unlock button when locked. Green success banner on lock ("Downstream tasks unlocked") for 3s.
+- **Downstream lock behavior** in the Tasks tab: Phase 2/3/4 tasks are rendered `disabled` + `opacity: 0.5` when `brief_is_locked === false`; Phase 1 stays interactive. Info banner explains.
+- **New route `app/api/bespoke/brief-upload/route.ts`** — multipart FormData, PDF/DOCX validation, ≤20MB size cap, uploads to `bespoke-briefs` bucket at `<project_id>/<timestamp>-<filename>`, updates `brief_file_url`, returns `{storage_path, signed_url}` (signed URL 1h TTL).
+- **New route `app/api/bespoke/parse-brief/route.ts`** — downloads file from Storage, dynamic-imports `pdf-parse` (matches the retired `corporate-marketing/deck` pattern), truncates to 40k chars, calls Gemini 2.5 Flash with a strict-JSON extraction prompt returning the 13 field slots (`primary_goal` etc.), defensive type-casting + 20-item caps on all arrays. DOCX returns 400 "please upload as PDF" (mammoth not installed).
+
+### PRD #1 · New Bespoke Project wizard (build_request `99d46879`)
+
+- **7 new columns**: `webinar_platform` (VARCHAR 50), `webinar_link` (TEXT), `client_assets_url` (TEXT), and four `*_lead_manual` fallback columns (VARCHAR 255) — `commercial_lead_manual`, `marketing_lead_manual`, `delegate_lead_manual`, `operations_lead_manual`.
+- **3-step wizard rewrite** of `app/admin/bespoke/new/page.tsx`:
+  - **Step 1 Event Basics**: title, format segmented buttons (Physical → `format='physical'`, Webinar → `format='virtual'`, Hybrid dropped from UI), event date + time, target delegate count, target delegate profile (kept free-form). Physical shows City + Venue (allows "TBD"). Webinar shows Webinar Platform dropdown (Zoom / MS Teams / GoToWebinar / Webex / Other) + Access Link.
+  - **Step 2 Client Information + Runway**: all existing client fields + Client Brand Assets URL input (inline non-blocking URL validation) + **live Outreach Runway calculator card** that updates when both dates are filled (blue helper card, orange warning if event ≤ contract signed).
+  - **Step 3 Team Assignments**: four `StaffComboBox` combo-boxes (Commercial, Marketing, Delegacy, Operations) — type-to-search from `/api/staff-list`, selecting a person stores `<role>_lead_id`, typing a name that doesn't match stores `<role>_lead_manual` and sets id to null. Design Lead + Production Advisor kept below as "Additional (optional)" text inputs.
+  - Progress bar in the header (`step/3 × 100%`), Back/Next with per-step validation, Create Project on step 3.
+- **POST `/api/bespoke`** extended to insert the 7 new columns.
+
+### PRD #2 · Overview page dynamic binding (build_request `fb3c2573`)
+
+Modified only the Overview tab section of `app/admin/bespoke/[id]/page.tsx`.
+
+- **Team Leads card**: `leadLabel(fkObj, manual)` helper resolves the joined staff FK first (`project.commercial_lead?.name`), then the manual fallback (with "(external)" suffix), then "Unassigned".
+- **Quick Stats card**: format-conditional Venue row — Physical/Hybrid shows `venue, city`; Virtual (Webinar) shows the literal "Webinar" with the platform on a muted sub-line. Added Client row + Registration Target row (`registered / target` + inline `ProgressBar height={6}`).
+- **Phase Progress card**: `computePhase(project)` computes the active phase live from `contract_signed_date` → `event_date` (0-15% Initiation, 15-83% Campaign, 83-100% Live, post-event Closure). Active phase gets bold + orange `#B45309` band, others muted. Helper line below: `Day N of X — Y days remaining` (or a fallback prompt when dates are missing).
+- **Suggested Tasks card (NEW)**: renders below Recent Activity. Filters `tasks` state for `phase === activePhase && status !== 'done'`, sorts by `due_date` ascending (nulls last), shows top 5 with title + role badge + `fmtDate(due_date)` (red `#DC2626` when overdue).
+
+### PRD #3 · Tasks tab enhancements (build_request `9db75c01`)
+
+Modified `app/api/bespoke/route.ts` + Tasks tab section of `app/admin/bespoke/[id]/page.tsx`.
+
+- **`TASK_TEMPLATES` extended** with `formatScope: 'physical' | 'virtual' | 'both'` on every entry. Default `'both'`. 11 tasks tagged `'physical'` (venue sourcing, print vendors, print layouts, printed materials, venue AV rehearsal, transport, direct venue staff, manage check-in). 6 NEW `'virtual'` tasks added into the appropriate phase/week slots (webinar platform setup, streaming test, webinar access links + calendar invites, technical dry-run with speakers, live broadcast monitoring, live attendance tracking via webinar platform).
+- **`calculateDueDate` replaced** with a proportional-runway version: Phase 1 first 15% of `contract_signed_date → event_date` runway, Phase 2 15-83% distributed evenly across the distinct weeks in Phase 2, Phase 3 83-100%, Phase 4 fixed offset (event_date + 10 days). Returns null when either date is missing.
+- **POST seed loop** filters templates by `formatScope` (virtual keeps `both`+`virtual`, physical/hybrid keeps `both`+`physical`) and uses the new signature.
+- **PATCH auto-recalc**: when the incoming body updates `contract_signed_date` OR `event_date` OR `format`, the endpoint bulk-updates every task's `due_date` after the main update. Wrapped in try/catch — never blocks the PATCH response.
+- **"Recalculate deadlines" button** in the Tasks tab header — small ghost button. Triggers a PATCH with the current values + reloads tasks, briefly shows "✓ Updated" for 2s.
+- Role badges + assignee names already render on task rows. Real-time completion tracking already works via `toggleTaskStatus`. Brief-lock behavior (from PRD #4) intact.
+
+### Build request close-outs (all 4, via `PATCH /api/build-requests/[id]`)
+
+- `da4814c1` · Suggestions for the Brief Section → `completed`
+- `99d46879` · Changes to the Bespoke Tracker Form → `completed`
+- `fb3c2573` · Changes to the overview page → `completed`
+- `9db75c01` · Suggested changes to the tasks tab → `completed`
+
+Each got a detailed reply covering what shipped + a hard-refresh instruction. `sendBuildRequestUpdate` fires 4 emails to Nic through Resend.
+
+---
+
+## What Was Built — 13 Jul 2026 morning (Durga + Claude Code) — Nic's bespoke bugs (silent-failure trio)
 
 ### The build order (1 commit pushed today)
 
