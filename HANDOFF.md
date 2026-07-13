@@ -26,9 +26,9 @@ Madhu will update this section (or replace it with a proper "What Was Built" ent
 | Field | Value |
 |---|---|
 | Who | Durga + Claude Code (Opus 4.7) — 13 Jul 2026 |
-| Latest push | 2026-07-13 — commit `8933629` (Thulasi's Deck Readiness Dashboard + change tracking) |
+| Latest push | 2026-07-13 — commit `020439a` (finance data security lockdown + Shameem as CFO) |
 | Handed off to | Next session |
-| Deployed | ✅ Yes — commits `e027f2e` (Nic 3 bugs), `85f3555` (Nic 4 PRDs), `8933629` (Thulasi CM refinement) all live on Railway |
+| Deployed | ✅ Yes — commits `e027f2e` (Nic 3 bugs), `85f3555` (Nic 4 PRDs), `8933629` (Thulasi CM refinement), `da02509`+`2630deb` (leaderboard cron fallback auth + 3-week backfill), `020439a` (finance security) all live on Railway |
 
 **Session highlight:** Cleared **every open build_request in the tracker**. 7 from Nic (Bespoke pilot) + 3 from Thulasi (Corporate Marketing pilot) = 10 total, all now `status: completed` with detailed reply-outs. Nic's 3 bugs + 4 feature PRDs shipped (see below). Thulasi's original PRD + workflow-marker ping closed as already-shipped (CM-001 Phase 1 landed 06 Jul); her Phase-1 Refinement PRD (Readiness Dashboard + change tracking) built and shipped in this session's third commit.
 
@@ -84,6 +84,51 @@ Closed all 7 build_requests via `PATCH /api/build-requests/[id]` with detailed r
 - **Corporate Deck manager — Phase 2 shape decision.** Framing email drafted for Thulasi (three architecture options), hers to decide.
 - **`CRON_SECRET` on Railway out of sync** — blocks auto-revoke cron + weekly leaderboard cron. Needs Railway dashboard access under `webadmin@tresconglobal.com`.
 - **Nicholas Nunes access request** — pre-dates the Access Requests Dashboard, only exists as an email. Grant manually or have him re-request.
+
+---
+
+## What Was Built — 13 Jul 2026 night (Durga + Claude Code) — Finance data security lockdown + Shameem as CFO
+
+### Commit `020439a` · `security(finance): lock salary + payroll data behind explicit finance access`
+
+Salary and payroll data was effectively open to any authenticated user before this. Every `/api/hr/salary/*`, `/api/hr/payroll-*`, and finance-touching `/api/events/commercial/*` route ran `supabaseAdmin` queries with zero auth check. Anyone logged into the platform could open dev tools and pull anyone's salary via a single fetch call. Six coordinated fixes:
+
+1. **`app/lib/finance/auth.ts`** — new `requireFinanceAccess(req)` helper. Policy matches the tightened `/finance/*` middleware: **admin OR super_admin OR explicit `access_roles: ['finance']`.** Department membership deliberately NOT accepted. Returns `{ ok, session }` on pass, `{ ok: false, res: 403 }` on fail. Consumers early-return the res on failure.
+
+2. **Six API endpoints gated by `requireFinanceAccess`** (first line of every handler):
+   - `/api/hr/salary` — GET, POST, PATCH
+   - `/api/hr/salary/bulk` — POST
+   - `/api/hr/payroll-summary` — GET
+   - `/api/hr/payroll-grades` — GET, POST, PATCH
+   - `/api/events/commercial/staff-costs` — GET (joins `staff_salary_records` for per-event cost aggregation)
+   - `/api/events/commercial/executive` — GET (reads `gross_salary` for portfolio-level dashboards)
+
+3. **`middleware.ts` `/finance/*` gate tightened** — `session.dept === 'Finance'` shortcut removed. Access must be an explicit access_role grant. Dept alone is HR onboarding metadata, not an authorisation decision.
+
+4. **`supabase/finance_security_2026_07_13.sql`** — RLS enabled on `staff_salary_records`, `payroll_grades`, and the new `salary_access_log` with default-deny policies for authenticated + anon roles. Service role bypasses RLS, so functional behaviour of the API path is unchanged; defense-in-depth if the anon key ever leaks. **Migration already applied to live DB.**
+
+5. **`salary_access_log` audit table** — every successful salary/payroll call writes a row with `(actor_id, actor_name, target_staff_id, action, route, is_admin, ts)`. Actions: `read | write | bulk_write | summary_read`. `logFinanceAccess()` helper in `app/lib/finance/auth.ts` wraps the insert in try/catch — **audit failures never block the endpoint.**
+
+6. **Account changes applied to live DB** (not code):
+   - `reachcharan@gmail.com` — stripped `admin` + `super_admin` from access_roles. Personal Gmail addresses should not carry production admin/super_admin. Kept `hr`, `project_manager`, `project_director`.
+   - **Ummer Shameem** (`shameem@tresconglobal.com`, Board dept, role: Chief Financial Officer) — granted `access_roles: ['project_manager','finance','admin']`. Previously only had `project_manager` despite being CFO by title. He's now the Head of Finance on the platform.
+   - Isaac Leonard — his dept-only shortcut access is removed by the middleware fix. His `access_roles: ['standard']` no longer opens `/finance/*`.
+
+### Final finance-access holders (audit-approved)
+
+| Name | Email | Dept | access_roles |
+|---|---|---|---|
+| Durga Charan | `dc@tresconglobal.com` | Management | `['admin']` |
+| Ummer Shameem | `shameem@tresconglobal.com` | Board | `['project_manager','finance','admin']` |
+| Madhukar Dudda | `md@tresconglobal.com` | Board | `['super_admin','finance','admin','project_manager']` |
+| Saleem | `sm@tresconglobal.com` | Management | `['standard','admin']` |
+| Charan Kaverappa | `charan@tresconglobal.com` | Admin | `['project_manager','finance']` |
+
+### Still to do
+
+- **Send Charan the salary-upload email** (CC Shameem). Draft ready, requires Durga to send from `dc@tresconglobal.com` (Resend can't send from that address — only `eventpilot.tresconglobal.com` and `notifications.tresconglobal.com` are verified). Or verify `tresconglobal.com` root in Resend (SPF + DKIM) so future automated sends can use `dc@` correctly.
+- **Weekly leaderboard cron** — fallback auth landed today (commits `da02509` + `2630deb`), 3 missing weeks backfilled silently. Two of those 3 weeks had zero completions across 113 staff — engagement problem, not cron problem. Founder-signal + manager-accountability approach drafted with Durga; not yet actioned.
+- **Auto course generation** — not built; the `/api/generate-course` endpoint is admin-triggered, not automated. 20 courses seeded 25 Apr, zero new since.
 
 ---
 
