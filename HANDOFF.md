@@ -25,10 +25,41 @@ Madhu will update this section (or replace it with a proper "What Was Built" ent
 
 | Field | Value |
 |---|---|
+| Who | Durga + Claude Code (Opus 4.7) — 13 Jul 2026 |
+| Latest push | 2026-07-13 — commit `e027f2e` (fix bespoke silent-failure bugs surfaced by Nic) |
+| Handed off to | Next session |
+| Deployed | ✅ Yes — commit `e027f2e` live on Railway (confirmed via `build_log_enriched`) |
+
+**Session highlight:** Nic (Nicholas Nunes) had raised 7 build_requests on the Bespoke pilot project between 02–10 Jul, all `status: submitted` and none of them acted on. Sorted them into 3 real bugs + 4 large feature PRDs (per Durga's read: PRDs need Madhu/Sid alignment, not auto-build). All 3 bugs turned out to share the same **silent-failure pattern** — the data operations succeeded but the UI gave zero feedback, so success and failure looked identical: (1) added tasks landed at `sort_order 999`, invisible below 13 auto-seeded SOP tasks in Phase 1; (2) Save Brief persisted `brief_data` to the DB every click but the button had no success indicator; (3) the create-bespoke-project bug was actually fixed 01 Jul (commit `06d9f27`) — Nic re-reported on 02 Jul from a stale client cache. Fixed the two live bugs, closed all 3 build_requests with detailed explanations via `PATCH /api/build-requests/[id]` (auto-emails Nic via `sendBuildRequestUpdate`). See "What Was Built — 13 Jul 2026" below.
+
+**Still to do:**
+1. **Nic's 4 feature PRDs (all `status: submitted`)** — deliberately not touched this session. Two 09 Jul + two 10 Jul, all Claude-drafted architectural PRDs: (a) "Changes to the Bespoke Tracker Form" — schema migration + conditional Physical/Webinar rendering + runway calc + new team-assignments wizard step; (b) "Changes to the overview page" — dynamic team-lead binding, format-conditional stats, live phase calculator, "Suggested Tasks" component; (c) "Suggested changes to the tasks tab" — 53-task SOP auto-seed on create, format-conditional filter, timeline-proportional due-dates, role badges, real-time completion; (d) "Suggestions for the Brief Section" — 15 new columns, brief-file uploader, Gemini API PDF/DOCX parser, "Brief-First" locking with orange banner, downstream-task lock. Each is days of work. Route through **Madhu** — he's the builder assigned to the Bespoke pilot project (`pilot_projects.builder_id = e2e98541-…`). Do NOT auto-build without a product-priority call.
+2. **Nic's original access request** (pre-dashboard) still not converted to a proper `access_requests` row — carried from 07 Jul.
+
+**Carried forward from previous sessions (unchanged, not touched this session):**
+- **`staff_members.last_login_at` never written.** Blocks any "target never-logged-in staff" filter. Needs SSO callback investigation.
+- **Khalifat alignment call on Website Builder & Brand Studio.** Full reply drafted 06 Jul, still awaiting Durga to send.
+- **Corporate Deck manager — Phase 2 shape decision.** Framing email drafted for Thulasi (three architecture options), hers to decide.
+- **`CRON_SECRET` on Railway out of sync** — blocks auto-revoke cron + weekly leaderboard cron. Needs Railway dashboard access under `webadmin@tresconglobal.com`.
+- **Thulasi retest of 66 MB deck upload** — she needs to hard-refresh her browser to load the new client bundle.
+- **Charan Kaverappa sign-out + sign-in** to see the new Finance Portal.
+- **KB module (Madhu 10–12 Jul)** — BD Knowledge Assistant `/admin/tools/bd-chat` and consolidated Ingest Document "General Document" flow need a human click-through end-to-end.
+- **`workspace_id` auto-linking fix** for structured proposal ingest (Madhu's recommended next piece of work).
+
+---
+
+## Previous Session Summary
+
+**Previous session** was Madhu + Claude Code (Sonnet 5) 10–12 Jul 2026 — KB self-learning ingest, single Ingest Document flow, BD Knowledge Assistant. Latest push before this session was commit `3c74951` (require typing DELETE to remove a KB document). Full detail in the "What Was Built — 10–12 Jul 2026" entry below.
+
+<!-- Original 10-12 Jul session table preserved for continuity -->
+
+| Field | Value |
+|---|---|
 | Who | Madhu + Claude Code (Sonnet 5) — 10–12 Jul 2026 |
 | Latest push | 2026-07-11 — commit `3c74951` (require typing DELETE to remove a KB document, add confirmation) |
 | Handed off to | Durga |
-| Deployed | ✅ Yes — all 7 commits from this session confirmed live on Railway (deploy history checked via `railway deployment list`) |
+| Deployed | ✅ Yes — all 7 commits from that session confirmed live on Railway |
 
 **Session highlight:** Built the KB module's self-learning gap-detection pipeline end-to-end (PRD v3.0) — a second Gemini pass that detects information a document has that the processor guide doesn't ask for, a 3-step radio-button wizard to classify each gap, and confirmed fields get written back into the processor `.md` files so future uploads capture them automatically. Then, after finding the two upload buttons ("Ingest Document" vs "Upload Document") were confusing (different pipelines, no visible reason to pick one over the other), consolidated them into a single "Ingest Document" entry point. Along the way, found and fixed two real production bugs unrelated to this session's own new code (a pre-existing R2 upload failure affecting every real-file KB upload, and a pre-existing crash for any super-admin session), and built a separate "BD Knowledge Assistant" chat scoped to BD/company-knowledge documents, isolated from Pilot AI. Full detail in the "What Was Built — 10–12 Jul 2026" entry below.
 
@@ -46,6 +77,51 @@ Madhu will update this section (or replace it with a proper "What Was Built" ent
 - **Corporate Deck manager — Phase 2 shape decision.** Framing email drafted for Thulasi (three architecture options), hers to decide.
 - **`CRON_SECRET` on Railway out of sync** — blocks auto-revoke cron + weekly leaderboard cron. Needs Railway dashboard access under `webadmin@tresconglobal.com`.
 - **Nicholas Nunes access request** — pre-dates the Access Requests Dashboard, only exists as an email. Grant manually or have him re-request.
+
+---
+
+## What Was Built — 13 Jul 2026 (Durga + Claude Code) — Nic's bespoke bugs (silent-failure trio)
+
+### The build order (1 commit pushed today)
+
+| Commit | What it does |
+|---|---|
+| `e027f2e` | fix(bespoke): three silent-failure bugs surfaced by Nic — sort_order calculation on POST /api/bespoke/tasks, task-added flash + inline error handling on the client, Save Brief success/error chip. |
+
+### Root-cause pattern
+
+All 3 of Nic's bespoke bugs looked like broken code but were actually **silent successes** — the data operations completed, but the UI gave zero visual feedback, so success and failure were indistinguishable. Each fix restores a signal so the user can see what happened.
+
+### 1. `Adding a new task doesn't work`
+
+- `app/api/bespoke/tasks/route.ts` POST: previously used `sort_order: body.sort_order || 999` — user-added tasks landed at the very bottom of the phase, below the 13 auto-seeded SOP tasks (which occupy sort_order 0–12). Off-screen unless the user scrolled the phase to the end. Now computes `nextSortOrder = max(existing sort_order in phase) + 1` before insert, so user tasks land immediately after the auto-tasks in visual order.
+- `app/admin/bespoke/[id]/page.tsx` `addTask()`: awaits the tasks reload, then flashes the newly-inserted row's background to `#FEF3C7` (soft yellow) for 1.6s so the user sees exactly which row was added. Handles `!res.ok` with an inline red error banner instead of the previous silent no-op.
+- Nic's two attempted tasks ("Submit brief" 06 Jul, "XYS" 02 Jul) were confirmed already in `bespoke_tasks` at sort_order 999 — they'd been added, just invisible.
+
+### 2. `Issue with submitting brief`
+
+- `app/admin/bespoke/[id]/page.tsx` `saveBrief()`: previously fired PATCH with no return check and no UI feedback — brief_data was persisting to the DB (Nic's AJMS project shows `brief_status: in_progress`), but the button gave no signal. Now checks `res.ok`, sets a `briefSaveState` state → renders a green "✓ Saved" chip for 2.4s on success or a red "Couldn't save. Please retry." chip on failure, next to the Save Brief button.
+
+### 3. `Having issue when creating a bespoke project`
+
+- Already fixed on 01 Jul (commit `06d9f27`) — Nic re-reported next day from a stale client cache. No code change; closed with a note asking for a hard-refresh.
+
+### Build request close-outs (all 3, via `PATCH /api/build-requests/[id]`)
+
+- `baa0c998` · Having issue when creating a bespoke project → `completed`
+- `748e126e` · Issue with submitting brief → `completed`
+- `6b5cb2e6` · Adding a new task doesn't work → `completed`
+
+Each got a detailed reply explaining the root cause + what changed + a hard-refresh instruction. The PATCH endpoint auto-fires `sendBuildRequestUpdate()` — Nic gets 3 emails through Resend at `nn@tresconglobal.com` (or whatever's on his `staff_members` row).
+
+### Deliberately NOT built this session (Nic's 4 feature PRDs)
+
+Four `submitted` build_requests remain open — all Claude-drafted architectural PRDs, each days of work. Route through Madhu (Bespoke pilot builder). Do NOT auto-build without a product-priority call with Sid.
+
+- `9db75c01` · Suggested changes to the tasks tab within bespoke tracker (53-task SOP auto-seed, format-conditional, timeline-proportional deadlines)
+- `da4814c1` · Suggestions for the Brief Section (15 new columns, brief-file uploader + Gemini AI parser, Brief-First locking with downstream-task lock)
+- `fb3c2573` · Changes to the overview page (dynamic team-lead binding, format-conditional stats, phase progress calc, Suggested Tasks component)
+- `99d46879` · Changes to the Bespoke Tracker Form (11-col schema migration, conditional Physical/Webinar, runway calculator, new team-assignments wizard step)
 
 ---
 
