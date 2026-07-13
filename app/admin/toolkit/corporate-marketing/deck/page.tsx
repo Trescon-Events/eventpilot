@@ -5,7 +5,7 @@
 
   All six tabs live:
     - Overview          chunks 2-3-5 — upload, Canva link, AI analysis, confirm mappings, publish
-    - Dynamic Content   chunk 4 — company content + stats + events + leadership
+    - Live Content      chunk 4 — company content + stats + events + leadership
     - Testimonials      chunk 4 — CRUD on approved testimonials
     - Approved Images   chunk 4 — image library
     - Version History   chunk 5 — every published snapshot
@@ -20,6 +20,7 @@ import AssetsTab from './AssetsTab'
 import VersionsTab from './VersionsTab'
 import SettingsTab from './SettingsTab'
 import PublishModal from './PublishModal'
+import ReadinessDashboard from './ReadinessDashboard'
 
 const BRAND = '#8B1A1A'
 
@@ -42,7 +43,7 @@ type Deck = {
 
 const TABS: { id: TabId; label: string; hint: string }[] = [
   { id: 'overview',     label: 'Overview',        hint: 'Upload deck, save Canva link, run AI analysis' },
-  { id: 'content',      label: 'Dynamic Content', hint: 'Company overview, vision, mission, stats, events, leadership' },
+  { id: 'content',      label: 'Live Content',    hint: 'Company overview, vision, mission, stats, events, leadership' },
   { id: 'testimonials', label: 'Testimonials',    hint: 'Approved testimonials used in the deck' },
   { id: 'images',       label: 'Approved Images', hint: 'Corporate image library' },
   { id: 'versions',     label: 'Version History', hint: 'Every published deck version — immutable' },
@@ -247,6 +248,9 @@ function OverviewTab() {
 
   return (
     <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '24px', maxWidth: '900px' }}>
+
+      {/* Readiness dashboard — always at the top */}
+      <ReadinessDashboard />
 
       {/* Deck card */}
       <section style={{ background: '#fff', border: '1px solid #DDE8EE', borderRadius: '20px', padding: '28px', boxShadow: '0 2px 16px rgba(0,0,0,0.04)' }}>
@@ -454,7 +458,7 @@ function AnalysisPanel({ deck, onRefresh }: { deck: Deck | null; onRefresh: () =
         {hasDeck && status === 'pending'   && 'Gemini reads the PDF and proposes the sections that change month-to-month. You confirm the detected sections before EventPilot creates the editable mappings.'}
         {hasDeck && status === 'running'   && 'Gemini is reading the deck. This takes 30–60 seconds for a typical corporate deck.'}
         {hasDeck && status === 'ready'     && 'Analysis complete. Confirm the detected sections below to unlock the editable workspace.'}
-        {hasDeck && status === 'confirmed' && 'Mappings confirmed. Editable content is live in the Dynamic Content tab.'}
+        {hasDeck && status === 'confirmed' && 'Mappings confirmed. Editable content is live in the Live Content tab.'}
         {hasDeck && status === 'failed'    && `Analysis failed. ${deck?.pdf_file_name ? '' : ''}Try again or replace the PDF.`}
       </div>
 
@@ -593,7 +597,7 @@ function DetectedSectionsPanel({ deckStatus, onRefresh }: { deckStatus: string; 
         <div style={{ fontSize: '11px', fontWeight: 800, color: '#B8CDD8', letterSpacing: '2px', textTransform: 'uppercase' }}>Detected sections</div>
         <div style={{ fontSize: '18px', fontWeight: 900, color: '#0F1923', marginTop: '4px', marginBottom: '6px' }}>No dynamic sections detected</div>
         <p style={{ fontSize: '13px', color: '#5B7080', lineHeight: 1.6, margin: 0 }}>
-          Gemini didn&apos;t confidently identify any editable sections in this deck. This can happen with image-heavy Canva exports where text is flattened into images. Try re-running the analysis, or add sections manually from the Dynamic Content tab once chunk 4 lands.
+          Gemini didn&apos;t confidently identify any editable sections in this deck. This can happen with image-heavy Canva exports where text is flattened into images. Try re-running the analysis, or add sections manually from the Live Content tab once chunk 4 lands.
         </p>
       </section>
     )
@@ -702,7 +706,7 @@ function DetectedSectionsPanel({ deckStatus, onRefresh }: { deckStatus: string; 
           {saving ? 'Saving…' : allConfirmed ? 'Re-confirm all' : 'Confirm & continue'}
         </button>
         <span style={{ fontSize: '12px', color: '#94A3B8', fontWeight: 600 }}>
-          Confirmed sections become editable in the Dynamic Content tab (chunk 4).
+          Confirmed sections become editable in the Live Content tab (chunk 4).
         </span>
       </div>
 

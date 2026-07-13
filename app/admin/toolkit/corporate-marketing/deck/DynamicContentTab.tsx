@@ -1,7 +1,7 @@
 'use client'
 
 /*
-  Dynamic Content tab. Four sub-sections:
+  Live Content tab. Four sub-sections:
     1. Company content — prose (overview, vision, mission, tagline, boilerplate)
     2. Statistics       — structured JSON (label + value pairs)
     3. Events           — read-only preview of upcoming/past from `events`
