@@ -56,8 +56,11 @@ async function handle(req: NextRequest) {
   const secretFromHeader = (req.headers.get('authorization') ?? '').replace(/^Bearer\s+/i, '')
   const secretFromSetupHeader = req.headers.get('x-setup-key') ?? ''
   const provided = secretFromHeader || secretFromSetupHeader || secretFromQuery
-  const expected = process.env.CRON_SECRET || CRON_SECRET_FALLBACK
-  if (!provided || provided !== expected) {
+  // Accept EITHER the env value OR the hardcoded fallback — so if Railway's env
+  // is out of sync with GitHub's secret, the fallback still lets the endpoint
+  // run. Rotate both together if the secret ever changes.
+  const acceptable = new Set([process.env.CRON_SECRET, CRON_SECRET_FALLBACK].filter(Boolean) as string[])
+  if (!provided || !acceptable.has(provided)) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
