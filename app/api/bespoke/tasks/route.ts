@@ -41,6 +41,27 @@ export async function PATCH(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   const body = await req.json()
+  const phase = body.phase || 1
+
+  // Compute next sort_order for this project+phase so a user-added task lands
+  // right after the auto-seeded SOP tasks (which start at 0). Previously this
+  // defaulted to 999, which put every new task below ~13 auto-tasks — invisible
+  // unless the user scrolled the phase to the bottom. Nic's bug report on 06 Jul
+  // was exactly this: he added a task, it went to sort_order 999, and he didn't
+  // see it.
+  let nextSortOrder = 0
+  if (body.sort_order == null) {
+    const { data: existing } = await supabaseAdmin
+      .from('bespoke_tasks')
+      .select('sort_order')
+      .eq('project_id', body.project_id)
+      .eq('phase', phase)
+      .order('sort_order', { ascending: false })
+      .limit(1)
+    if (existing && existing.length > 0 && existing[0].sort_order != null) {
+      nextSortOrder = existing[0].sort_order + 1
+    }
+  }
 
   const { data, error } = await supabaseAdmin
     .from('bespoke_tasks')
@@ -48,13 +69,13 @@ export async function POST(req: NextRequest) {
       project_id: body.project_id,
       title: body.title,
       description: body.description || null,
-      phase: body.phase || 1,
+      phase,
       week_number: body.week_number || null,
       assigned_to: body.assigned_to || null,
       assigned_role: body.assigned_role || null,
       due_date: body.due_date || null,
       status: 'pending',
-      sort_order: body.sort_order || 999,
+      sort_order: body.sort_order ?? nextSortOrder,
     })
     .select()
     .single()

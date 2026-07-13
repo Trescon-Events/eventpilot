@@ -173,6 +173,9 @@ export default function BespokeWorkspacePage({ params }: { params: Promise<{ id:
   const [briefSaving, setBriefSaving] = useState(false)
   const [addTaskPhase, setAddTaskPhase] = useState<number | null>(null)
   const [newTaskTitle, setNewTaskTitle] = useState('')
+  const [taskError, setTaskError] = useState<string | null>(null)
+  const [flashTaskId, setFlashTaskId] = useState<string | null>(null)
+  const [briefSaveState, setBriefSaveState] = useState<'idle' | 'saved' | 'error'>('idle')
   const [showAddDelegate, setShowAddDelegate] = useState(false)
   const [newDelegate, setNewDelegate] = useState({ name: '', company: '', title: '', email: '', source: 'client_wishlist', notes: '' })
 
@@ -194,7 +197,7 @@ export default function BespokeWorkspacePage({ params }: { params: Promise<{ id:
   }, [id])
 
   const loadTasks = useCallback(() => {
-    fetch(`/api/bespoke/tasks?project_id=${id}`)
+    return fetch(`/api/bespoke/tasks?project_id=${id}`)
       .then(r => r.json())
       .then(d => { if (Array.isArray(d)) setTasks(d) })
       .catch(() => {})
@@ -223,15 +226,26 @@ export default function BespokeWorkspacePage({ params }: { params: Promise<{ id:
   /* ── Add custom task ──────────────────────────────────────────── */
   const addTask = async (phase: number) => {
     if (!newTaskTitle.trim()) return
+    setTaskError(null)
     const res = await fetch('/api/bespoke/tasks', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ project_id: id, title: newTaskTitle.trim(), phase }),
     })
     if (res.ok) {
+      const created = await res.json().catch(() => null)
       setNewTaskTitle('')
       setAddTaskPhase(null)
-      loadTasks()
+      await loadTasks()
+      // Brief highlight so the user sees exactly which row was added — the
+      // list can be long enough that the new task lands off-screen otherwise.
+      if (created?.id) {
+        setFlashTaskId(created.id)
+        setTimeout(() => setFlashTaskId(null), 1600)
+      }
+    } else {
+      const err = await res.json().catch(() => ({}))
+      setTaskError(err?.error || 'Failed to add task. Try again or refresh the page.')
     }
   }
 
@@ -271,13 +285,27 @@ export default function BespokeWorkspacePage({ params }: { params: Promise<{ id:
   /* ── Save brief ───────────────────────────────────────────────── */
   const saveBrief = async () => {
     setBriefSaving(true)
-    await fetch('/api/bespoke', {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id, brief_data: briefData, brief_status: 'in_progress' }),
-    })
-    setBriefSaving(false)
-    loadProject()
+    setBriefSaveState('idle')
+    try {
+      const res = await fetch('/api/bespoke', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id, brief_data: briefData, brief_status: 'in_progress' }),
+      })
+      if (res.ok) {
+        setBriefSaveState('saved')
+        // Auto-fade the confirmation after ~2.4s so the button stops advertising
+        // a stale state.
+        setTimeout(() => setBriefSaveState('idle'), 2400)
+        loadProject()
+      } else {
+        setBriefSaveState('error')
+      }
+    } catch {
+      setBriefSaveState('error')
+    } finally {
+      setBriefSaving(false)
+    }
   }
 
   const startBrief = async () => {
@@ -575,7 +603,7 @@ export default function BespokeWorkspacePage({ params }: { params: Promise<{ id:
                 </div>
 
                 {/* Save */}
-                <div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
                   <button onClick={saveBrief} disabled={briefSaving} style={{
                     padding: '10px 28px', borderRadius: '8px', border: 'none', background: briefSaving ? '#B8CDD8' : '#B45309',
                     color: '#FFFFFF', fontSize: '14px', fontWeight: 700, cursor: briefSaving ? 'not-allowed' : 'pointer',
@@ -583,6 +611,26 @@ export default function BespokeWorkspacePage({ params }: { params: Promise<{ id:
                   }}>
                     {briefSaving ? 'Saving...' : 'Save Brief'}
                   </button>
+                  {briefSaveState === 'saved' && (
+                    <span style={{
+                      display: 'inline-flex', alignItems: 'center', gap: '6px',
+                      padding: '6px 12px', borderRadius: '999px',
+                      background: '#DCFCE7', color: '#166534',
+                      fontSize: '12px', fontWeight: 700, fontFamily: 'var(--font-manrope)',
+                    }}>
+                      ✓ Saved
+                    </span>
+                  )}
+                  {briefSaveState === 'error' && (
+                    <span style={{
+                      display: 'inline-flex', alignItems: 'center', gap: '6px',
+                      padding: '6px 12px', borderRadius: '999px',
+                      background: '#FEE2E2', color: '#991B1B',
+                      fontSize: '12px', fontWeight: 700, fontFamily: 'var(--font-manrope)',
+                    }}>
+                      Couldn&rsquo;t save. Please retry.
+                    </span>
+                  )}
                 </div>
               </div>
             )}
@@ -623,7 +671,8 @@ export default function BespokeWorkspacePage({ params }: { params: Promise<{ id:
                         <div key={t.id} style={{
                           display: 'flex', alignItems: 'center', gap: '12px', padding: '12px 20px',
                           borderBottom: '1px solid #F0F4F8',
-                          background: overdue ? '#FEF2F2' : 'transparent',
+                          background: flashTaskId === t.id ? '#FEF3C7' : (overdue ? '#FEF2F2' : 'transparent'),
+                          transition: 'background 0.4s ease',
                         }}>
                           {/* Checkbox */}
                           <button onClick={() => toggleTaskStatus(t)} style={{ border: 'none', background: 'none', cursor: 'pointer', padding: 0, display: 'flex' }}>
@@ -663,17 +712,24 @@ export default function BespokeWorkspacePage({ params }: { params: Promise<{ id:
 
                   {/* Add task inline form */}
                   {addTaskPhase === phase && (
-                    <div style={{ padding: '12px 20px', borderTop: '1px solid #DDE8EE', display: 'flex', gap: '8px', alignItems: 'center' }}>
-                      <input style={{ ...INPUT_STYLE, flex: 1 }} placeholder="New task title..." value={newTaskTitle} onChange={e => setNewTaskTitle(e.target.value)}
-                        onKeyDown={e => { if (e.key === 'Enter') addTask(phase) }} autoFocus />
-                      <button onClick={() => addTask(phase)} style={{
-                        padding: '8px 16px', borderRadius: '8px', border: 'none', background: '#B45309', color: '#FFFFFF',
-                        fontSize: '13px', fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--font-manrope)', whiteSpace: 'nowrap',
-                      }}>Add</button>
-                      <button onClick={() => setAddTaskPhase(null)} style={{
-                        padding: '8px 12px', borderRadius: '8px', border: '1px solid #B8CDD8', background: '#FFFFFF',
-                        fontSize: '13px', fontWeight: 600, color: '#5B7080', cursor: 'pointer', fontFamily: 'var(--font-manrope)',
-                      }}>Cancel</button>
+                    <div style={{ padding: '12px 20px', borderTop: '1px solid #DDE8EE', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                      <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                        <input style={{ ...INPUT_STYLE, flex: 1 }} placeholder="New task title..." value={newTaskTitle} onChange={e => setNewTaskTitle(e.target.value)}
+                          onKeyDown={e => { if (e.key === 'Enter') addTask(phase) }} autoFocus />
+                        <button onClick={() => addTask(phase)} style={{
+                          padding: '8px 16px', borderRadius: '8px', border: 'none', background: '#B45309', color: '#FFFFFF',
+                          fontSize: '13px', fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--font-manrope)', whiteSpace: 'nowrap',
+                        }}>Add</button>
+                        <button onClick={() => { setAddTaskPhase(null); setTaskError(null) }} style={{
+                          padding: '8px 12px', borderRadius: '8px', border: '1px solid #B8CDD8', background: '#FFFFFF',
+                          fontSize: '13px', fontWeight: 600, color: '#5B7080', cursor: 'pointer', fontFamily: 'var(--font-manrope)',
+                        }}>Cancel</button>
+                      </div>
+                      {taskError && (
+                        <div style={{ fontSize: '12px', fontWeight: 600, color: '#DC2626', padding: '4px 2px' }}>
+                          {taskError}
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>
