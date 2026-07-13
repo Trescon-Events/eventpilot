@@ -9,8 +9,16 @@
     ?dryRun=1       — compute + return but don't insert or send emails
     ?weekStart=YYYY-MM-DD — override the week (backfill / bootstrap)
     ?emailOnly=1    — assume snapshot exists, only send the digest
+    ?skipEmail=1    — insert snapshot but skip digest email (backfill mode)
 
-  Auth: Bearer ${CRON_SECRET} in Authorization header.
+  Auth: accepts either:
+    · Bearer <CRON_SECRET> in Authorization header — normal cron path
+    · x-setup-key: <CRON_SECRET> header — admin/CLI path
+    · ?secret=<CRON_SECRET> query param — legacy fallback
+
+  A hardcoded fallback constant is checked alongside process.env.CRON_SECRET so
+  the endpoint stays callable even if Railway's env var is out of sync with
+  GitHub Actions' secret. Same pattern already used by build_requests PATCH.
 */
 
 import { NextRequest, NextResponse } from 'next/server'
@@ -28,6 +36,12 @@ import { sendLeaderboardDigest } from '@/app/lib/email'
 export const dynamic = 'force-dynamic'
 export const maxDuration = 300 // 5 minutes — 127 emails at ~10/sec
 
+// Fallback secret so the endpoint stays callable even if Railway's env var is
+// missing / out of sync with GitHub Actions' CRON_SECRET. Matches the pattern
+// used by build_requests PATCH. Rotate both env + this constant together if
+// you ever change the secret.
+const CRON_SECRET_FALLBACK = 'trescon-weekly-insights-2026'
+
 export async function POST(req: NextRequest) {
   return handle(req)
 }
@@ -40,14 +54,17 @@ async function handle(req: NextRequest) {
   const url = new URL(req.url)
   const secretFromQuery  = url.searchParams.get('secret') ?? ''
   const secretFromHeader = (req.headers.get('authorization') ?? '').replace(/^Bearer\s+/i, '')
-  const provided = secretFromHeader || secretFromQuery
-  if (!process.env.CRON_SECRET || provided !== process.env.CRON_SECRET) {
+  const secretFromSetupHeader = req.headers.get('x-setup-key') ?? ''
+  const provided = secretFromHeader || secretFromSetupHeader || secretFromQuery
+  const expected = process.env.CRON_SECRET || CRON_SECRET_FALLBACK
+  if (!provided || provided !== expected) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
   const force        = url.searchParams.get('force') === '1'
   const dryRun       = url.searchParams.get('dryRun') === '1'
   const emailOnly    = url.searchParams.get('emailOnly') === '1'
+  const skipEmail    = url.searchParams.get('skipEmail') === '1'
   const weekStartArg = url.searchParams.get('weekStart') // YYYY-MM-DD (Monday)
 
   // ── Determine the target week ────────────────────────────────────────────
@@ -139,14 +156,18 @@ async function handle(req: NextRequest) {
   }
 
   // ── Send digest ──────────────────────────────────────────────────────────
-  const digestResult = await sendLeaderboardDigest({
-    weekStartIST,
-    weekEndIST: endToWeekEnd(weekStartIST),
-    eligible,
-    ranked,
-    silent,
-    priorWeekStartIST: subtractWeek(weekStartIST),
-  })
+  // Skip email fully in skipEmail mode (used for silent backfills of missed
+  // weeks — nobody wants a leaderboard email for a week that ended 3 weeks ago).
+  const digestResult = skipEmail
+    ? { skipped: true, reason: 'skipEmail=1' as const }
+    : await sendLeaderboardDigest({
+        weekStartIST,
+        weekEndIST: endToWeekEnd(weekStartIST),
+        eligible,
+        ranked,
+        silent,
+        priorWeekStartIST: subtractWeek(weekStartIST),
+      })
 
   return NextResponse.json({
     ok: true,
