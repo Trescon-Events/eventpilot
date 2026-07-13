@@ -1,12 +1,19 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/app/lib/supabase'
+import { requireFinanceAccess } from '@/app/lib/finance/auth'
 
 // GET           — list all active grades
 // GET ?id=X     — single grade
 // POST          — create a grade
 // PATCH         — update a grade
+//
+// All methods gated by requireFinanceAccess. Grade min/max salary bands
+// are compensation policy and shouldn't leak outside Finance.
 
 export async function GET(req: NextRequest) {
+  const auth = await requireFinanceAccess(req)
+  if (!auth.ok) return auth.res
+
   const { searchParams } = new URL(req.url)
   const id = searchParams.get('id')
 
@@ -30,6 +37,9 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
+  const auth = await requireFinanceAccess(req)
+  if (!auth.ok) return auth.res
+
   const body = await req.json()
   const { code, label, min_salary, max_salary, currency, notes } = body
   if (!code || !label) {
@@ -53,6 +63,9 @@ export async function POST(req: NextRequest) {
 }
 
 export async function PATCH(req: NextRequest) {
+  const auth = await requireFinanceAccess(req)
+  if (!auth.ok) return auth.res
+
   const { id, ...updates } = await req.json()
   if (!id) return NextResponse.json({ error: 'id required' }, { status: 400 })
 

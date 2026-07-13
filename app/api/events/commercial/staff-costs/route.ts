@@ -1,13 +1,24 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/app/lib/supabase'
+import { requireFinanceAccess, logFinanceAccess } from '@/app/lib/finance/auth'
 
 // GET ?event_id=X&month=YYYY-MM  — calculate staff cost allocation for an event
 // If no month, calculates across all months with timesheet entries
+//
+// Gated by requireFinanceAccess — this endpoint joins salaries against
+// per-event timesheet allocations. Effectively surfaces per-staff comp
+// for anyone with visibility, so treat as salary-tier data.
 
 export async function GET(req: NextRequest) {
+  const auth = await requireFinanceAccess(req)
+  if (!auth.ok) return auth.res
+
   const params = new URL(req.url).searchParams
   const event_id = params.get('event_id')
   if (!event_id) return NextResponse.json({ error: 'event_id required' }, { status: 400 })
+
+  // Silent best-effort audit log
+  await logFinanceAccess(auth.session, 'summary_read', '/api/events/commercial/staff-costs', null)
 
   const month = params.get('month') // optional: YYYY-MM
 

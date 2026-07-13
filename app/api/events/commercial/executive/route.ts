@@ -1,10 +1,18 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/app/lib/supabase'
+import { requireFinanceAccess, logFinanceAccess } from '@/app/lib/finance/auth'
 
 // GET ?region=X&bu=X&status=X  — portfolio executive dashboard
-// Returns: KPIs + per-event cards
+// Returns: KPIs + per-event cards.
+//
+// Gated by requireFinanceAccess — this endpoint reads gross_salary from
+// staff_salary_records to compute per-event staff costs. Same data-
+// sensitivity as /api/hr/payroll-summary.
 
 export async function GET(req: NextRequest) {
+  const auth = await requireFinanceAccess(req)
+  if (!auth.ok) return auth.res
+
   const params = new URL(req.url).searchParams
   const regionFilter = params.get('region')
   const buFilter = params.get('bu')
@@ -272,6 +280,8 @@ export async function GET(req: NextRequest) {
   const regions = [...new Set((allEvents || []).map(e => e.region).filter(Boolean))]
   const bus = [...new Set((allEvents || []).map(e => e.business_unit).filter(Boolean))]
   const statuses = [...new Set((allEvents || []).map(e => e.status).filter(Boolean))]
+
+  await logFinanceAccess(auth.session, 'summary_read', '/api/events/commercial/executive', null)
 
   return NextResponse.json({
     kpis: {

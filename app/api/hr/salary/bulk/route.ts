@@ -1,13 +1,20 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/app/lib/supabase'
+import { requireFinanceAccess, logFinanceAccess } from '@/app/lib/finance/auth'
 
 /**
  * POST /api/hr/salary/bulk
  * Body: { rows: Array<{ email, basic_salary, allowances?, deductions?, currency?, grade_code?, effective_from?, notes? }>, created_by? }
  * Matches staff by email, creates salary records in bulk.
  * Returns { created, skipped, errors }
+ *
+ * Gated by requireFinanceAccess — admin or explicit finance access_role only.
+ * Every successful bulk call logs one audit row per created record.
  */
 export async function POST(req: NextRequest) {
+  const auth = await requireFinanceAccess(req)
+  if (!auth.ok) return auth.res
+
   const { rows, created_by } = await req.json()
 
   if (!Array.isArray(rows) || rows.length === 0) {
@@ -70,13 +77,16 @@ export async function POST(req: NextRequest) {
         currency: row.currency || 'USD',
         grade_id: gradeId,
         notes: row.notes || 'Bulk import',
-        created_by: created_by ?? null,
+        created_by: created_by ?? auth.session.sid,
       })
 
     if (error) {
       errors.push({ email, error: error.message })
     } else {
       created.push({ email, name: staff.name })
+      // Audit each created row so the log captures which staff had their
+      // salary written during the bulk upload.
+      await logFinanceAccess(auth.session, 'bulk_write', '/api/hr/salary/bulk', staff.id)
     }
   }
 

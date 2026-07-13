@@ -1,12 +1,19 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/app/lib/supabase'
+import { requireFinanceAccess, logFinanceAccess } from '@/app/lib/finance/auth'
 
 /**
  * GET /api/hr/payroll-summary?month=2026-07
  * Returns: { month, staff_count, total_basic, total_allowances, total_deductions,
  *            total_gross, total_net, total_expenses, grand_total, by_department[] }
+ *
+ * Gated by requireFinanceAccess — this aggregates every staff salary into
+ * totals + a department breakdown. Never expose to a non-finance user.
  */
 export async function GET(req: NextRequest) {
+  const auth = await requireFinanceAccess(req)
+  if (!auth.ok) return auth.res
+
   const month = new URL(req.url).searchParams.get('month') ?? new Date().toISOString().slice(0, 7)
   const [y, m] = month.split('-')
   const monthStart = `${y}-${m}-01`
@@ -69,6 +76,8 @@ export async function GET(req: NextRequest) {
   const byDepartment = Object.entries(deptMap).map(([dept, v]) => ({
     department: dept, ...v, total: v.net + v.expenses,
   })).sort((a, b) => b.total - a.total)
+
+  await logFinanceAccess(auth.session, 'summary_read', '/api/hr/payroll-summary', null)
 
   return NextResponse.json({
     month,

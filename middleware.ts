@@ -170,9 +170,17 @@ export async function middleware(req: NextRequest) {
     return NextResponse.next()
   }
 
-  // /finance/* → admin, Finance access role, or Finance department
+  // /finance/* → admin OR explicit finance access_role only.
+  // Department membership is NOT sufficient — access must be granted
+  // explicitly by an admin. Matches app/lib/finance/auth.ts policy
+  // used by every /api/hr/salary/* + /api/hr/payroll-* + finance-adjacent
+  // API route. Do NOT re-add a `dept === 'Finance'` shortcut.
   if (pathname.startsWith('/finance')) {
-    const isFinance = session.adm || (session.roles ?? []).includes('finance') || session.dept === 'Finance'
+    const roles = session.roles ?? []
+    const isFinance = session.adm
+      || roles.includes('finance')
+      || roles.includes('admin')
+      || roles.includes('super_admin')
     if (!isFinance) {
       const dest = req.nextUrl.clone()
       dest.pathname = '/no-access'
