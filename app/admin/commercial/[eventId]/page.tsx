@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useParams } from 'next/navigation'
 import Link from 'next/link'
+import ReadinessCard from './ReadinessCard'
 
 type Tab = 'summary' | 'revenue' | 'staff' | 'costs' | 'overheads' | 'pnl' | 'scenarios' | 'approvals'
 
@@ -149,6 +150,9 @@ export default function CommercialWorkspace() {
             Event Operations
           </Link>
         </div>
+
+        {/* ── P&L Readiness (surfaces missing inputs before rendering the P&L) ── */}
+        {eventId && <ReadinessCard eventId={eventId} />}
 
         {/* ── QUICK KPIs (always visible) ── */}
         {summary && (

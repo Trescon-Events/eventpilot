@@ -2,6 +2,9 @@
 
 import { useState, useEffect, useMemo } from 'react'
 import Link from 'next/link'
+import PortfolioReadinessCard from './PortfolioReadinessCard'
+
+type ReadinessBucket = 'ready' | 'partial' | 'high_risk'
 
 interface EventCard {
   id: string; name: string; status: string; event_date: string | null
@@ -62,6 +65,8 @@ export default function CommercialDashboard() {
   const [sortBy, setSortBy] = useState<'name'|'revenue'|'profit'|'margin'>('revenue')
   const [sortDir, setSortDir] = useState<'asc'|'desc'>('desc')
   const [view, setView] = useState<'cards'|'table'>('cards')
+  const [readinessBucket, setReadinessBucket] = useState<ReadinessBucket | null>(null)
+  const [readinessEventIds, setReadinessEventIds] = useState<string[]>([])
 
   useEffect(() => {
     const p = new URLSearchParams()
@@ -74,11 +79,13 @@ export default function CommercialDashboard() {
 
   const sorted = useMemo(() => {
     if (!data?.events) return []
-    return [...data.events].sort((a, b) => {
+    const idSet = readinessBucket ? new Set(readinessEventIds) : null
+    const filtered = idSet ? data.events.filter(e => idSet.has(e.id)) : data.events
+    return [...filtered].sort((a, b) => {
       const m = sortDir === 'asc' ? 1 : -1
       return sortBy === 'name' ? m * a.name.localeCompare(b.name) : m * ((a[sortBy]||0) - (b[sortBy]||0))
     })
-  }, [data?.events, sortBy, sortDir])
+  }, [data?.events, sortBy, sortDir, readinessBucket, readinessEventIds])
 
   function doSort(c: 'name'|'revenue'|'profit'|'margin') {
     if (sortBy === c) setSortDir(d => d === 'asc' ? 'desc' : 'asc')
@@ -115,6 +122,12 @@ export default function CommercialDashboard() {
             Back to Admin
           </Link>
         </div>
+
+        {/* ── PORTFOLIO P&L READINESS ── */}
+        <PortfolioReadinessCard
+          activeBucket={readinessBucket}
+          onBucketFilter={(b, ids) => { setReadinessBucket(b); setReadinessEventIds(ids) }}
+        />
 
         {/* ── KPI ROW with Donut Charts ── */}
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.5fr 1.5fr 1fr', gap: '12px', marginBottom: '18px' }}>
