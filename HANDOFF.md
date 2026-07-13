@@ -26,9 +26,9 @@ Madhu will update this section (or replace it with a proper "What Was Built" ent
 | Field | Value |
 |---|---|
 | Who | Durga + Claude Code (Opus 4.7) — 13 Jul 2026 |
-| Latest push | 2026-07-13 — commit `020439a` (finance data security lockdown + Shameem as CFO) |
+| Latest push | 2026-07-13 — commit `2061939` (Commercial P&L Readiness intelligence — per-event + portfolio) |
 | Handed off to | Next session |
-| Deployed | ✅ Yes — commits `e027f2e` (Nic 3 bugs), `85f3555` (Nic 4 PRDs), `8933629` (Thulasi CM refinement), `da02509`+`2630deb` (leaderboard cron fallback auth + 3-week backfill), `020439a` (finance security) all live on Railway |
+| Deployed | ✅ Yes — commits `e027f2e` (Nic 3 bugs), `85f3555` (Nic 4 PRDs), `8933629` (Thulasi CM refinement), `da02509`+`2630deb` (leaderboard cron fallback auth + 3-week backfill), `020439a` (finance security), `2061939` (P&L Readiness) all live on Railway |
 
 **Session highlight:** Cleared **every open build_request in the tracker**. 7 from Nic (Bespoke pilot) + 3 from Thulasi (Corporate Marketing pilot) = 10 total, all now `status: completed` with detailed reply-outs. Nic's 3 bugs + 4 feature PRDs shipped (see below). Thulasi's original PRD + workflow-marker ping closed as already-shipped (CM-001 Phase 1 landed 06 Jul); her Phase-1 Refinement PRD (Readiness Dashboard + change tracking) built and shipped in this session's third commit.
 
@@ -84,6 +84,50 @@ Closed all 7 build_requests via `PATCH /api/build-requests/[id]` with detailed r
 - **Corporate Deck manager — Phase 2 shape decision.** Framing email drafted for Thulasi (three architecture options), hers to decide.
 - **`CRON_SECRET` on Railway out of sync** — blocks auto-revoke cron + weekly leaderboard cron. Needs Railway dashboard access under `webadmin@tresconglobal.com`.
 - **Nicholas Nunes access request** — pre-dates the Access Requests Dashboard, only exists as an email. Grant manually or have him re-request.
+
+---
+
+## What Was Built — 13 Jul 2026 late-night (Durga + Claude Code) — Commercial P&L Readiness intelligence
+
+### Commit `2061939` · `feat(commercial): P&L Readiness intelligence — per-event + portfolio`
+
+Adds a data-completeness intelligence layer on top of the existing Commercial P&L system so users see immediately what data is present and what's missing before trusting the numbers. Same pattern as the Deck Readiness Dashboard shipped for Thulasi earlier today. Six weighted checks per event; portfolio-level rollup with clickable bucket filters.
+
+**Six checks per event, weighted:**
+- `revenue_target` set (weight 3, Sales)
+- `cost_budget` set (weight 2, Finance)
+- `timesheets_approved` ≥ 90% (weight 2, HR)
+- `staff_salaries` present for every staff-with-timesheets (weight 3, Finance)
+- `overhead_allocation` live — global pool + per-event rule (weight 1, Finance)
+- `corporate_allocation` set with non-zero amount/percentage (weight 1, Finance)
+
+Score = `sum(status_score × weight) / sum(weight) × 100`. Status bands: `≥95 ready · 60-94 partial · <60 high_risk`.
+
+**New route `app/api/events/commercial/readiness/route.ts`** (gated by `requireFinanceAccess`):
+- `?event_id=X` — per-event readiness with 6-check breakdown, each with owner tag + fix URL.
+- no param — portfolio readiness: 3 buckets (`ready`/`partial`/`high_risk`), `gaps_by_owner`, `overall_score_pct`, `top_5_worst`.
+
+**New component `app/admin/commercial/[eventId]/ReadinessCard.tsx`** — first card in the per-event workspace (above the KPI strip). Progress bar in status colour. Per-check row: status icon + label + detail + owner pill + fix link.
+
+**New component `app/admin/commercial/PortfolioReadinessCard.tsx`** — first card on the portfolio dashboard. Clickable bucket tiles filter the event list below (callback pattern; toggles off on re-click). Gaps by owner and Worst-5-events dragging the portfolio, each linking to the event's commercial page.
+
+### Schema reality vs. spec
+
+- `overhead_components` in the original spec is actually two tables: `overhead_config` (global monthly pools per component) + `overhead_event_allocations` (per-event rules). Check `ok` only when both a live global pool AND a per-event allocation exist; `partial` when globals live but this event isn't allocated; `missing` otherwise.
+- `corporate_allocations` is per-event, `type: 'percentage' | 'fixed'`. `ok` only when the amount/percentage is non-zero.
+- `staff_salaries` current = `staff_salary_records` where `effective_to IS NULL` OR `> today`.
+
+No schema changes. All additive. Zero risk to the existing P&L math.
+
+### Currently blocking P&L numbers (surfaced by the new dashboard the moment you open it)
+
+- `staff_salary_records` = 0 rows → every staff-cost line = $0. Charan's upload solves this.
+- 134 unapproved timesheets → recent months under-report staff hours.
+- 62 events have `revenue_target` = 0 → revenue-achievement percentages are meaningless.
+- `overhead_config` has zero rows → overhead cost slice = $0 across all events.
+- `event_deals` = 0 rows → revenue side has nothing to compute from.
+
+The dashboard names each of these per event + shows who owns fixing them.
 
 ---
 
