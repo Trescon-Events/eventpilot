@@ -5,10 +5,11 @@ import { sessionCookieOptions } from '@/app/lib/access/session-cookie'
 
 /* POST /api/login — unified login for all Event Pilot users
    Security layers applied in order:
-   1. Brute force — 5 failed attempts in 15 min → 15-min lockout
-   2. IP allowlist — if OFFICE_IPS env var is set, non-admin staff must be on office network
-   3. Password check — bcrypt per-user hash or org-wide default
-   4. Audit log — every attempt (success + failure) written to login_attempts
+   1. Password auth is local-dev only — production requires Microsoft SSO for everyone
+   2. Brute force — 5 failed attempts in 15 min → 15-min lockout
+   3. IP allowlist — if OFFICE_IPS env var is set, non-admin staff must be on office network
+   4. Password check — bcrypt against a per-user hash only (no shared/default password)
+   5. Audit log — every attempt (success + failure) written to login_attempts
 */
 
 const LOCKOUT_WINDOW_MS  = 15 * 60 * 1000  // 15 minutes
@@ -35,10 +36,14 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Email and password are required.' }, { status: 400 })
   }
 
+  // Password login only exists for local development. Production is Microsoft SSO only.
+  if (process.env.NODE_ENV === 'production') {
+    return NextResponse.json({ error: 'Password sign-in is disabled. Please use Microsoft SSO.' }, { status: 403 })
+  }
+
   const cleanEmail       = email.trim().toLowerCase()
   const superAdminEmail  = process.env.SUPER_ADMIN_EMAIL?.toLowerCase()
   const superAdminPass   = process.env.SUPER_ADMIN_PASSWORD
-  const staffDefaultPass = process.env.STAFF_DEFAULT_PASSWORD ?? 'eventpilot@2026'
 
   // ── Layer 1: Brute force check (all users except super admin) ──────────
   if (cleanEmail !== superAdminEmail) {
@@ -119,17 +124,14 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  // ── Layer 3: Password check ────────────────────────────────────────────
-  let passwordValid = false
-  if (staff.password_hash) {
-    passwordValid = await bcrypt.compare(password, staff.password_hash)
-  } else {
-    passwordValid = password === staffDefaultPass
-  }
+  // ── Layer 3: Password check — per-user hash only, no shared default ────
+  const passwordValid = staff.password_hash
+    ? await bcrypt.compare(password, staff.password_hash)
+    : false
 
   if (!passwordValid) {
     await logAttempt(cleanEmail, ip, false, 'wrong_password')
-    return NextResponse.json({ error: 'Incorrect password. Use your temporary password from your welcome email.' }, { status: 401 })
+    return NextResponse.json({ error: 'Incorrect password, or this account is not enabled for password sign-in. Use Microsoft SSO.' }, { status: 401 })
   }
 
   // ── Successful login ───────────────────────────────────────────────────

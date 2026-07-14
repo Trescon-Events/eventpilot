@@ -14,6 +14,9 @@ export default function LoginPage() {
   const [loginError, setLoginError] = useState('')
   const [loading, setLoading]   = useState(false)
   const [showPassword, setShowPassword] = useState(false)
+  // Password sign-in is a local-dev-only escape hatch for exception accounts —
+  // production is Microsoft SSO for everyone, so this never shows on the live site.
+  const [showPasswordForm, setShowPasswordForm] = useState(false)
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search)
@@ -21,6 +24,9 @@ export default function LoginPage() {
     if (err) setSsoError(err)
     const next = params.get('next')
     if (next) setNextParam(next)
+    if (process.env.NODE_ENV !== 'production' && params.get('staff') === '1') {
+      setShowPasswordForm(true)
+    }
   }, [])
 
   async function handleLogin(e: React.FormEvent) {
@@ -189,6 +195,7 @@ export default function LoginPage() {
             Sign in with Microsoft 365
           </a>
 
+          {showPasswordForm && <>
           {/* Divider */}
           <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '20px' }}>
             <div style={{ flex: 1, height: '1px', background: C.border }} />
@@ -265,9 +272,9 @@ export default function LoginPage() {
 
           {/* Help note */}
           <div style={{ marginTop: '24px', padding: '14px 16px', background: C.bg, border: `1px solid ${C.border}`, borderRadius: '12px', fontSize: '13px', color: '#2D3E50', lineHeight: 1.65, textAlign: 'center' }}>
-            First time? Use the temporary password<br />from your welcome email.<br />
-            <span style={{ fontWeight: 700, color: C.text }}>Contact your manager if you need help.</span>
+            Local dev sign-in. Contact your admin if you need help.
           </div>
+          </>}
 
           {/* Bottom wordmark */}
           <div style={{ marginTop: '28px', textAlign: 'center', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
