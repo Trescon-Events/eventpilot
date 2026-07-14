@@ -10,10 +10,16 @@
 
 | Field | Value |
 |---|---|
-| Who | Durga + Claude Code (Opus 4.7) — 13 Jul 2026 |
-| Latest push | 2026-07-13 — commit `2061939` (Commercial P&L Readiness intelligence — per-event + portfolio) |
-| Handed off to | Next session |
-| Deployed | ✅ Yes — commits `e027f2e` (Nic 3 bugs), `85f3555` (Nic 4 PRDs), `8933629` (Thulasi CM refinement), `da02509`+`2630deb` (leaderboard cron fallback auth + 3-week backfill), `020439a` (finance security), `2061939` (P&L Readiness) all live on Railway |
+| Who | Madhu + Claude Code (Sonnet 5) — 14 Jul 2026 |
+| Latest push | 2026-07-14 — commit `ca7fcbd` (module registry + shared shell rollout across app, close tool-access security gap) |
+| Handed off to | Durga |
+| Deployed | ✅ Yes — commit `ca7fcbd` live on Railway (follows `f3d71d9`, local-password-login restriction, also pushed this session) |
+
+**Session highlight (14 Jul 2026):** a full navigation & access-control audit and 5-phase fix, requested explicitly by Madhu with Durga's sign-off ("no more stop-gap fixes"). Consolidated 3 independently-maintained module lists into one registry (`app/lib/registry/`), closed a real security gap (Website Builder/Brand Studio/Market Intelligence/Bespoke Tracker had zero server-side access enforcement, only client-side tile hiding), built a shared nav-shell component (`AppShellNav`), and migrated every module with an existing nav header to it — Dashboard, Messages, Chat, Docs, Changelog, Community, Insights, My HR, Team, Content, Course Library, Platform Reviews, Course Manager, Toolkit hub, Timesheets, Finance (5 pages), HR (9 pages), Data (15+ pages via one shared layout), KB, DocuHub. Full detail in "What Was Built — 14 Jul 2026" below.
+
+Two real regressions were caught and fixed mid-migration (KB's registry icon was the wrong shape; icon color/sizing didn't survive the menu-tile → page-badge conversion) — both root-caused generically in `AppShellNav` so the bug class can't recur. Also found, but explicitly deferred per Madhu's instruction ("leave it, log it for later"): 8 files (Timesheets, 3 Finance pages, HR Performance, Admin event brief, Content campaign detail, RealtimeNotifications) resolve session from `document.cookie` reading the `tcs_session` cookie — which is `httpOnly` and never reaches JS, so `getSession()` always returns `null`. On 5 of those files this means a hard `return null` — **the page has likely rendered blank for every user, always**, independent of this session's changes. Not fixed this session; logged as a follow-up (fix: resolve via `GET /api/auth/session` like the rest of the app does).
+
+Two accounts (Madhu Satyanarayan, Naveen Bharadwaj) were also found with incorrect `super_admin` and stale tool grants — corrected to plain staff with basic access only (AI Assessment + courses), per Madhu's explicit instruction that only Durga and Madhukar should ever be super admins.
 
 **Earlier the same day:** a separate Madhu + Claude Code (Sonnet 5) session also shipped — KB/DocuHub module-admin UI, a real access-control fix (super admins outside the Events department were locked out of proposals), a full KB Ingest Document UX overhaul, navigation fixes, and two new Pilot Projects. Commit `4647933`. See "What Was Built — 13 Jul 2026 (Madhu + Claude Code)" below for full detail — merged into this file alongside Durga's later work below.
 
@@ -58,6 +64,40 @@ Closed all 7 build_requests via `PATCH /api/build-requests/[id]` with detailed r
 - **Thulasi retest of 66 MB deck upload** — she needs to hard-refresh her browser to load the new client bundle.
 - **Charan Kaverappa sign-out + sign-in** to see the new Finance Portal.
 - **Nicholas Nunes access request** — pre-dates the Access Requests Dashboard, only exists as an email. Grant manually or have him re-request. (Note: Nicholas was added as Co-Pilot to the two new Pilot Projects today — a different system from the Access Requests Dashboard; this open item is unrelated and still outstanding.)
+
+---
+
+## What Was Built — 14 Jul 2026 (Madhu + Claude Code) — Navigation & access-control redesign, module registry
+
+### Commit `f3d71d9` · `security(auth): restrict password login to local dev only, per-user hashes only`
+
+Set up local-only password login for exactly two people (Madhu, Durga), everyone else forced to Microsoft SSO — in production unconditionally, and locally unless a hidden `?staff=1` query param is present on `/login`. `app/api/login/route.ts` + `app/api/admin-login/route.ts`: removed the `STAFF_DEFAULT_PASSWORD` fallback, added a production-only 403 block with an SSO message, password check now strictly `staff.password_hash ? bcrypt.compare(...) : false` (no more shared default password for anyone).
+
+### Commit `ca7fcbd` · `feat(nav,access): module registry + shared shell rollout across app, close tool-access security gap`
+
+Triggered by a string of small nav bugs (missing Admin Dashboard button, broken back-links, KB showing "please sign in" while logged in) that all traced back to the same root cause: **no single source of truth for what modules exist or who can access them.** A full audit found 5 different navigation idioms coexisting, 3 independently-maintained module lists, and a real security gap. Madhu + Durga agreed to fix it properly rather than patch symptoms — planned in 5 phases (plan file: `~/.claude/plans/composed-herding-kahn.md`), all shipped this session.
+
+**Phase 1 — Module registry.** `app/lib/registry/modules.tsx` (data: key/label/icon/color/href/access per module) + `app/lib/registry/access.ts` (server-only: `checkAccess`, `getAccessibleModuleKeys`, `requireModuleAccess`) + `GET /api/modules/accessible`. `PlatformMenu.tsx` and `app/admin/toolkit/page.tsx` (Toolkit hub) now derive their tile lists from this registry instead of 3 separately-hand-maintained arrays. Caught 2 real bugs via disposable test accounts before shipping: Finance access had dropped its `department === 'Finance'` fallback clause, and a `has_reports` check was querying a column that doesn't exist (it's computed as `COUNT(reports) > 0`, matching `/api/staff-member`'s existing logic).
+
+**Phase 2 — Closed a real security gap.** Website Builder, Brand Studio, Market Intelligence, and Bespoke Tracker had zero server-side access enforcement — only client-side tile hiding, so any authenticated staff member could reach them directly by URL. Added `requireModuleAccess()` server-side gates via new/rewritten `layout.tsx` files. Ahead of enforcing this, found and fixed two real data bugs: `job_level = 'super_admin'` was incorrectly set on Madhu Satyanarayan and Naveen Bharadwaj (neither should have had it — corrected to plain `staff`, `access_roles` reset, `tool_grants` cleared, basic access only per Madhu's explicit instruction that only Durga and Madhukar are ever super admins), and several tool_grants were stale vs. the real Pilot Projects rosters (corrected to match, per screenshots Madhu provided).
+
+**Phase 3 — Built `AppShellNav`** (`app/components/AppShell.tsx`), a shared nav-shell component reading module identity from the registry via a `moduleKey` prop, piloted on KB's 3 pages.
+
+**Phase 4 — Migrated every module with an existing nav header** to `AppShellNav`: Dashboard, Course Library, Messages, Chat, Docs, Changelog, Community, Insights, My HR, Team, Content (+ campaign detail), Platform Reviews, Course Manager, Toolkit hub, Timesheets, Finance (hub, vendors, salary, expenses, payroll), HR (hub, attendance, recruitment, staff list/detail/new, onboarding, leave, performance), Data (15+ pages under one shared `layout.tsx` — since Data uses a fixed-sidebar layout rather than a top bar, only the `PlatformMenu` switcher was added into its existing sidebar identity block, leaving the sidebar navigation untouched), KB, DocuHub. Two deliberate skips: Leaderboard (had no badge to replace — migrating would add a visual element that wasn't there before) and SmartExcel (fully bespoke shell, already correctly gated server-side, and its `shell.tsx` has an unrelated uncommitted diff in progress that predates this session — left alone to avoid colliding with it).
+
+Two real regressions caught mid-migration: KB's registry icon was set to DocuHub's file-icon shape instead of its own open-book shape (wrong in both the menu tile and the page badge — meaning an earlier "pixel-identical" check had been too coarse); and registry icons (18×18, for menu tiles) rendered wrong-sized and wrong-colored when reused directly as an 11×11 white-stroke page badge. Both root-caused generically in `AppShellNav` (icon force-resized/recolored via `cloneElement` for every consumer) rather than patched per-page, plus a `pageBadge` override field added to `ModuleDef` for the 4 modules (`kb`, `pilot-ai`/Chat, `team-dashboard`/Team, `my-hr`/My HR) whose original menu tile and page badge genuinely differed.
+
+**Found, not fixed — logged for later per Madhu's explicit instruction ("leave it, log it for later"):** 8 files resolve session via `document.cookie.split(...).find(c => c.startsWith('tcs_session='))`, but `tcs_session` is `httpOnly` and never reaches JS — `getSession()` always returns `null`. On 5 files this means a hard `if (!session) return null`: **`app/timesheets/page.tsx`, `app/finance/vendors/page.tsx`, `app/finance/salary/page.tsx`, `app/finance/expenses/page.tsx`, `app/hr/performance/page.tsx` have likely rendered blank for every user, always** — pre-existing, unrelated to this session's changes. 3 more reference the same broken pattern without a hard return (likely silent partial breakage, not a blank page): `app/admin/events/[id]/brief/page.tsx`, `app/content/campaigns/[id]/page.tsx`, `app/components/RealtimeNotifications.tsx`. Fix (not done): resolve via `GET /api/auth/session` like the rest of the app.
+
+**Also this session (smaller, related):** Knowledge Assistant scoped to KB/DocuHub Pilot Project members specifically, capped at 20 msgs/day (unlimited for Madhu/Durga) via a new `assistant_usage` table; new `/knowledge/settings` and `/knowledge/assistant` pages; `app/admin/tools/bd-chat` retired (superseded); `isAdmin` detection fixed on Dashboard and Docs (was `sessionStorage`-only, missed the case where a user's admin session was only in the httpOnly cookie).
+
+### Verification approach
+
+`npx tsc --noEmit` clean throughout, after every phase. Non-admin access paths verified with disposable `zz-test-*` staff accounts (password-login only), always created and deleted with Madhu's explicit sign-off per instance — never by impersonating a real person. Visual changes verified via Playwright screenshots; after the KB icon-shape miss, upgraded to exact pixel-color sampling (Python PIL `getpixel()`) rather than visual scanning alone, since a coarse visual check had already missed a wrong icon shape and color once.
+
+### Deploy status
+
+Both commits (`f3d71d9`, `ca7fcbd`) pushed to `main` and confirmed live on Railway. `EVENTPILOT_PLATFORM_DOCUMENT.md`'s pre-existing local modification (present before this session started) was included in the `ca7fcbd` commit since it was a legitimate tracked-file change sitting in the working tree; `app/smartexcel/shell.tsx`'s pre-existing unrelated diff was deliberately left uncommitted (see SmartExcel skip above). Left uncommitted, deliberately out of scope for this push: `.scratch/`, `Attendee Data Historical/`, `Historical docs for KB/`, `docs/EventPilot-KB-PRD-*.md` drafts, `knowledge-base/bd/proposals/*` (Madhu's own separate BD work, flagged in prior handoffs too).
 
 ---
 

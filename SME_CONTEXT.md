@@ -149,6 +149,8 @@ Do not ask Durga to build anything that already exists. Reference this when writ
 | `/data` | Smart Data — lead extraction, enrichment, pipeline, scoring |
 | `/content` | Content Hub — AI social campaigns |
 | `/hr` | HRMS — full HR management (HR role only) |
+| `/knowledge` | Knowledge Base — browse/search ingested company knowledge; `/knowledge/settings` (admin grants), `/knowledge/assistant` (Knowledge Assistant chat, KB/DocuHub pilot members only, 20 msgs/day cap) |
+| `/docuhub` | DocuHub — post-event reports, BD proposals, permanent shareable links; `/docuhub/upload`, `/docuhub/bulk`, `/docuhub/settings` |
 
 ### Admin Pages
 
@@ -277,10 +279,13 @@ Describing these precisely will help your AI tool generate prompts that produce 
 | Component | File | What it does |
 |---|---|---|
 | `NavBar` | `app/components/NavBar.tsx` | Top nav with logo, profile menu, notification bell |
-| `PlatformMenu` | `app/components/PlatformMenu.tsx` | Slide-in full-platform navigation |
+| `AppShellNav` | `app/components/AppShell.tsx` | Preferred wrapper around `NavBar` for any page with a module identity — pass `moduleKey="<registry key>"` and it resolves label/icon/color from the module registry instead of a hardcoded `MOD_*` constant. Use this for any new page, not a raw `NavBar` + `MOD_*` import. |
+| `PlatformMenu` | `app/components/PlatformMenu.tsx` | Slide-in full-platform navigation — grid-icon trigger, derives its tile list from the module registry (`app/lib/registry/modules.tsx`) + `GET /api/modules/accessible`, not a hardcoded list |
 | `ReviewWidget` | `app/components/ReviewWidget.tsx` | Floating "Report Issue" button (bottom-left) |
 
-All pages should include `<NavBar />`. Do not rebuild navigation from scratch.
+All pages should include `<AppShellNav moduleKey="..."/>` (or plain `<NavBar/>` if no module identity applies). Do not rebuild navigation from scratch, and do not hand-maintain a new list of "what modules exist" anywhere — add the module to `app/lib/registry/modules.tsx` once and every surface (PlatformMenu, Toolkit hub, page badges) picks it up automatically.
+
+**Module registry & access control** (`app/lib/registry/`): `modules.tsx` is the single source of truth for every module's key/label/icon/color/href/access rule — read it before assuming a module doesn't exist or building a new nav list. `access.ts` (server-only) exposes `requireModuleAccess(moduleKey)` — call this at the top of a `layout.tsx` for any page that should be gated server-side; client-side-only tile hiding is not sufficient (this was a real production security gap, closed 14 Jul 2026).
 
 ---
 
