@@ -2,6 +2,8 @@
 
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
+import { AppShellNav } from '@/app/components/AppShell'
+import PlatformMenu from '@/app/components/PlatformMenu'
 
 const C = {
   bg:      '#F6F8FB',
@@ -127,13 +129,7 @@ export default function LeaveManagerPage() {
   return (
     <div style={{ minHeight: '100vh', background: C.bg, fontFamily: 'system-ui, sans-serif' }}>
       {/* Header */}
-      <div style={{ background: C.surface, borderBottom: `1px solid ${C.border}`, padding: '0 32px' }}>
-        <div style={{ maxWidth: '1000px', margin: '0 auto', display: 'flex', alignItems: 'center', height: '60px', gap: '16px' }}>
-          <Link href="/hr" style={{ fontSize: '13px', color: C.muted, textDecoration: 'none', fontWeight: 600 }}>← HR Portal</Link>
-          <div style={{ width: '1px', height: '20px', background: C.border }} />
-          <div style={{ fontSize: '15px', fontWeight: 800, color: C.text }}>Leave Manager</div>
-        </div>
-      </div>
+      <AppShellNav moduleKey="hr" moduleHref="/hr" subtitle="Leave Manager" rightSlot={<PlatformMenu />} />
 
       <div style={{ maxWidth: '1000px', margin: '0 auto', padding: '32px' }}>
 

@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import type { SavedReport } from '@/app/lib/generateInsights'
-import NavBar, { MOD_INTELLIGENCE } from '@/app/components/NavBar'
+import { AppShellNav } from '@/app/components/AppShell'
 
 export default function InsightsPage() {
   const [authed,      setAuthed]      = useState(false)
@@ -87,7 +87,7 @@ export default function InsightsPage() {
               Enter Intelligence Hub
             </button>
           </form>
-          <Link href="/dashboard" style={{ display: 'block', marginTop: '20px', fontSize: '13px', color: '#2D3E50', textDecoration: 'none' }}>Back to dashboard</Link>
+          <Link href="/admin" style={{ display: 'block', marginTop: '20px', fontSize: '13px', color: '#2D3E50', textDecoration: 'none' }}>Back to admin</Link>
         </div>
       </div>
     )
@@ -98,8 +98,8 @@ export default function InsightsPage() {
     <div style={{ fontFamily: 'var(--font-manrope), Manrope, sans-serif', background: '#E8EEF4', minHeight: '100vh', color: '#0F1923' }}>
 
       {/* Nav */}
-      <NavBar
-        module={MOD_INTELLIGENCE}
+      <AppShellNav
+        moduleKey="insights"
         subtitle="Reports"
         homeHref="/admin"
         rightSlot={<Link className="tbtn tbtn-teal" href="/admin">Admin Dashboard</Link>}

@@ -2,6 +2,8 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import Link from 'next/link'
+import { AppShellNav } from '@/app/components/AppShell'
+import PlatformMenu from '@/app/components/PlatformMenu'
 
 const C = { bg: '#F6F8FB', surface: '#FFFFFF', border: '#DDE8EE', text: '#0F1923', muted: '#5B7080', green: '#00897B', amber: '#D97706', red: '#8B1A1A', blue: '#0284C7', purple: '#6C54B5' }
 
@@ -33,13 +35,9 @@ export default function PayrollPage() {
 
   return (
     <div style={{ minHeight: '100vh', background: C.bg, fontFamily: "'Inter', system-ui, sans-serif" }}>
+      <AppShellNav moduleKey="finance" moduleHref="/finance" subtitle="Payroll Summary" rightSlot={<PlatformMenu />} />
       <div style={{ background: C.surface, borderBottom: `1px solid ${C.border}`, padding: '20px 32px' }}>
         <div style={{ maxWidth: 1100, margin: '0 auto' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 8 }}>
-            <Link href="/finance" style={{ color: C.muted, textDecoration: 'none', fontSize: 13 }}>Finance</Link>
-            <span style={{ color: C.border }}>/</span>
-            <span style={{ fontSize: 13, color: C.text, fontWeight: 700 }}>Payroll Summary</span>
-          </div>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12 }}>
             <h1 style={{ fontSize: 22, fontWeight: 800, color: C.text, margin: 0 }}>Payroll Summary</h1>
             <input type="month" value={month} onChange={e => setMonth(e.target.value)} style={{ padding: '7px 12px', borderRadius: 8, border: `1px solid ${C.border}`, fontSize: 13, fontFamily: 'inherit', color: C.text }} />

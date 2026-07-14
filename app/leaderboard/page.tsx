@@ -1,7 +1,6 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import Link from 'next/link'
 import NavBar from '@/app/components/NavBar'
 
 type Row = {
@@ -50,6 +49,15 @@ function DeltaBadge({ delta }: { delta: number | null }) {
   return                <span style={{ color: '#DC2626', fontSize: 11, fontWeight: 800 }}>▼ {Math.abs(delta)}</span>
 }
 
+function LeaderboardShell({ children }: { children: React.ReactNode }) {
+  return (
+    <div style={{ minHeight: '100vh', background: '#F0F4F8', fontFamily: 'var(--font-manrope)' }}>
+      <NavBar homeHref="/dashboard" />
+      {children}
+    </div>
+  )
+}
+
 export default function LeaderboardPage() {
   const [data, setData]     = useState<Payload | null>(null)
   const [loading, setLoad]  = useState(true)
@@ -68,30 +76,27 @@ export default function LeaderboardPage() {
 
   if (loading) {
     return (
-      <div style={{ minHeight: '100vh', background: '#F0F4F8' }}>
-        <NavBar />
+      <LeaderboardShell>
         <div style={{ padding: '80px 24px', textAlign: 'center', color: '#5B7080', fontFamily: 'var(--font-manrope)', fontSize: 15, fontWeight: 600 }}>
           Loading leaderboard…
         </div>
-      </div>
+      </LeaderboardShell>
     )
   }
   if (error || !data) {
     return (
-      <div style={{ minHeight: '100vh', background: '#F0F4F8' }}>
-        <NavBar />
+      <LeaderboardShell>
         <div style={{ padding: '80px 24px', textAlign: 'center', color: '#DC2626', fontFamily: 'var(--font-manrope)', fontSize: 15, fontWeight: 600 }}>
           {error ?? 'No data'}
         </div>
-      </div>
+      </LeaderboardShell>
     )
   }
 
   const { top10, me, week_start, week_end, is_admin, total_ranked } = data
 
   return (
-    <div style={{ minHeight: '100vh', background: '#F0F4F8', fontFamily: 'var(--font-manrope)' }}>
-      <NavBar />
+    <LeaderboardShell>
       <div style={{ maxWidth: 780, margin: '0 auto', padding: '32px 24px 48px' }}>
 
         {/* Header */}
@@ -192,10 +197,7 @@ export default function LeaderboardPage() {
           <br />Admins are excluded from ranks — they steward the platform, not the leaderboard.
         </p>
 
-        <div style={{ textAlign: 'center', marginTop: 20 }}>
-          <Link href="/dashboard" style={{ fontSize: 13, color: '#00695C', fontWeight: 700, textDecoration: 'none' }}>← Back to dashboard</Link>
-        </div>
       </div>
-    </div>
+    </LeaderboardShell>
   )
 }

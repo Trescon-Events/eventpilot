@@ -2,6 +2,8 @@
 
 import { useState, useEffect, useMemo } from 'react'
 import Link from 'next/link'
+import { AppShellNav } from '@/app/components/AppShell'
+import PlatformMenu from '@/app/components/PlatformMenu'
 
 const C = {
   bg:      '#F6F8FB',
@@ -109,25 +111,24 @@ export default function StaffDirectoryPage() {
     <div style={{ minHeight: '100vh', background: C.bg, fontFamily: 'system-ui, sans-serif' }}>
 
       {/* Header */}
-      <div style={{ background: C.surface, borderBottom: `1px solid ${C.border}`, padding: '0 28px', position: 'sticky', top: 0, zIndex: 50 }}>
-        <div style={{ display: 'flex', alignItems: 'center', height: '56px', gap: '10px' }}>
-          <Link href="/hr" style={{ fontSize: '12px', color: C.muted, textDecoration: 'none', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '3px' }}>
-            <svg width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg>
-            HR Portal
-          </Link>
-          <div style={{ width: '1px', height: '18px', background: C.border }} />
-          <span style={{ fontSize: '14px', fontWeight: 800, color: C.text }}>Staff Directory</span>
-          <div style={{ flex: 1 }} />
-          <Link href="/hr/staff/new" style={{
-            display: 'inline-flex', alignItems: 'center', gap: '6px',
-            padding: '8px 16px', borderRadius: '8px', background: C.teal, color: '#fff',
-            textDecoration: 'none', fontSize: '13px', fontWeight: 700,
-          }}>
-            <svg width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-            Add New Staff
-          </Link>
-        </div>
-      </div>
+      <AppShellNav
+        moduleKey="hr"
+        moduleHref="/hr"
+        subtitle="Staff Directory"
+        rightSlot={
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <Link href="/hr/staff/new?from=/hr/staff" style={{
+              display: 'inline-flex', alignItems: 'center', gap: '6px',
+              padding: '8px 16px', borderRadius: '8px', background: C.teal, color: '#fff',
+              textDecoration: 'none', fontSize: '13px', fontWeight: 700,
+            }}>
+              <svg width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+              Add New Staff
+            </Link>
+            <PlatformMenu />
+          </div>
+        }
+      />
 
       <div style={{ maxWidth: '1200px', margin: '0 auto', padding: '24px 24px 60px' }}>
 

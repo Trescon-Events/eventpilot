@@ -1,16 +1,34 @@
-# Event Pilot — Complete Platform Document
-**Version 1.0 — April 2026**
-**Trescon Global — Internal AI Readiness Platform**
+# EventPilot — Complete Platform Document
+**Version 2.0 — June 2026**
+**Trescon — Internal Event Management & Operations Platform**
 
 ---
 
-## 1. What Is Event Pilot
+## 1. What Is EventPilot
 
-Event Pilot is Trescon Global's internal AI learning and readiness platform. It serves all 300 staff across four offices — Dubai, Bangalore, Mangalore, and Manipal.
+EventPilot is Trescon's internal operations platform. It serves all staff across four offices — Dubai, Bangalore, Mangalore, and Manipal — and is the single system of record for event management, HR operations, data & leads, content production, and AI learning.
 
-The platform has one primary purpose: measure where every employee stands in their AI readiness today, then guide them — course by course — toward becoming confident AI practitioners in their specific role.
+The platform began as an AI readiness tool but has grown into a full-fledged event management and operations suite. Its modules cover the entire Trescon operating model: planning and running events, managing people, finding and enriching leads, building event websites and brand assets, publishing social content, and tracking AI skill growth across the org.
 
-Event Pilot is not a generic e-learning platform. Every course, every recommendation, and every score is calibrated to the work Trescon employees actually do: running events, selling sponsorships, managing campaigns, handling finance, leading teams, and building deals across 80+ countries.
+**Core modules live as of June 2026:**
+
+| Module | Description |
+|---|---|
+| Events Hub | Create and manage events; RACI, P&L, execution flow, checklists, deals, team assignments |
+| HRMS | Attendance, leave, recruitment pipeline, contracts, payroll grades, onboarding wizard |
+| My HR | Self-service portal — leave requests, attendance, event tasks for all staff |
+| Smart Data | Lead extraction, enrichment (Apollo, Lusha), email verification, contact DB, pipeline kanban |
+| Website Builder | Event microsites with template library; brand sync gate; live preview |
+| Brand Studio | 9-section brand book builder, AI asset generator (Imagen 3), PDF export |
+| Content Hub | AI social campaigns, approval flow, guided templates, Meta publishing queue |
+| Course Library | AI learning paths, assessments, completion certificates |
+| Community | Staff share AI prompts, use cases, and automations; like/filter system |
+| Messaging | Internal DMs between staff; inbox, thread view, read status |
+| Knowledge Base | PDF upload → text extraction → Gemini-powered Q&A via Pilot AI |
+| Pilot AI | Internal AI assistant — answers questions about the platform, events, policies, and staff profile |
+| Admin Dashboard | Full org overview, intelligence reports, staff management, review queue, build log |
+
+EventPilot is designed to eventually absorb HRMS and SmartData entirely — it is the master platform, not a satellite tool.
 
 ### The Weekly Loop
 
@@ -39,8 +57,8 @@ Managers see their team's progress. Admins see the full organisation. Everyone h
 | PDF Processing | pdf-parse | 2.4.5 | Text extraction from uploaded documents |
 | Styling | Inline styles | — | No CSS framework; full design control |
 | Font | Manrope | — | Platform-wide typography |
-| Hosting | Vercel | — | Production deployment |
-| Dev Port | 3003 | — | Local development always |
+| Hosting | Railway | — | Production deployment (auto-deploy on push to main) |
+| Dev Port | 3000 | — | Local development always |
 
 ### Architecture Pattern
 
@@ -802,19 +820,35 @@ Every Gemini call has a silent fallback:
 
 ---
 
-## 18. Deployment Checklist (Vercel)
+## 18. Deployment Checklist (Railway)
 
-Before deploying to production:
+Deployment is automatic — just push to main:
 
-- [ ] Add all environment variables to Vercel
+```bash
+git push origin main
+```
+
+Railway picks up the push via GitHub webhook, runs `next build`, and deploys. Monitor at: `railway.com/project/26f95192-091d-48d0-a4f9-f8cc4549b8a4`
+
+**Infrastructure (as of 18 Jun 2026):**
+```
+Browser → eventpilot.tresconglobal.com
+            ↓ (Cloudflare DNS, proxied)
+         Cloudflare Worker: eventpilot-proxy
+            ↓
+         Railway: eventpilot-production-90c6.up.railway.app
+            ↓
+         Supabase: yuyxfxoevztugtfgduks
+```
+
+**Before deploying a new environment:**
+- [ ] Add all env vars to Railway (project → eventpilot service → Variables tab)
 - [ ] Set `NEXT_PUBLIC_SITE_URL` to production domain
 - [ ] Confirm `.env.local` is in `.gitignore` (it is)
 - [ ] Run `npm run build` locally — confirm zero errors
-- [ ] Run the `documents_events.sql` in Supabase if not done
-- [ ] Confirm `notifications` table exists in Supabase
-- [ ] Test login flow end-to-end on preview URL
-- [ ] Set up cron-job.org for `/api/cron/weekly-insights` after domain confirmed
-- [ ] Add `CRON_SECRET` to Vercel environment variables
+- [ ] Run any pending Supabase migration SQL files
+- [ ] Test SSO end-to-end: `curl https://eventpilot.tresconglobal.com/api/auth/microsoft` must return 307
+- [ ] Add `CRON_SECRET` to Railway env vars for weekly insight cron
 
 ---
 
@@ -845,5 +879,5 @@ Before deploying to production:
 
 ---
 
-*Document last updated: April 2026*
-*Platform version: 1.0 — Management Review Build*
+*Document last updated: June 2026*
+*Platform version: 2.0 — Full Operations Platform*

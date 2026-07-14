@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import { usePathname } from 'next/navigation'
 import Link from 'next/link'
+import PlatformMenu from '@/app/components/PlatformMenu'
 
 const NAV_GROUPS = [
   {
@@ -157,10 +158,11 @@ export default function DataLayout({ children }: { children: React.ReactNode }) 
                 <path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/>
               </svg>
             </div>
-            <div>
+            <div style={{ flex: 1, minWidth: 0 }}>
               <div style={{ fontSize: '14px', fontWeight: 800, color: '#0F1923', letterSpacing: '-0.2px' }}>Smart Data</div>
               <div style={{ fontSize: '11px', color: '#9CA3AF', marginTop: '1px' }}>Data Intelligence</div>
             </div>
+            <PlatformMenu />
           </div>
         </div>
 

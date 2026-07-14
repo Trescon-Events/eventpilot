@@ -14,6 +14,8 @@ interface Module {
 interface NavBarProps {
   /** Module identity shown after the Trescon logo */
   module?: Module
+  /** Where the module badge links to — makes it part of a clickable EventPilot / Module / Page breadcrumb */
+  moduleHref?: string
   /** Page label shown after module (secondary breadcrumb) */
   subtitle?: string
   /** Animated green dot + "Live" text */
@@ -28,6 +30,7 @@ interface NavBarProps {
 
 export default function NavBar({
   module,
+  moduleHref,
   subtitle,
   liveIndicator,
   homeHref = '/admin',
@@ -35,6 +38,24 @@ export default function NavBar({
   centerSlot,
 }: NavBarProps) {
   const accent = module?.color ?? '#00897B'
+  const moduleBadge = module && (
+    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+      {module.icon && (
+        <div style={{
+          width: '22px', height: '22px',
+          background: accent,
+          borderRadius: '6px',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          flexShrink: 0,
+        }}>
+          {module.icon}
+        </div>
+      )}
+      <span style={{ fontSize: '13px', fontWeight: 800, color: '#0F1923', whiteSpace: 'nowrap' }}>
+        {module.name}
+      </span>
+    </div>
+  )
 
   return (
     <nav className="t-nav">
@@ -58,22 +79,9 @@ export default function NavBar({
         {module && (
           <>
             <div className="t-nav-sep" style={{ margin: '0 14px' }} />
-            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-              {module.icon && (
-                <div style={{
-                  width: '22px', height: '22px',
-                  background: accent,
-                  borderRadius: '6px',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  flexShrink: 0,
-                }}>
-                  {module.icon}
-                </div>
-              )}
-              <span style={{ fontSize: '13px', fontWeight: 800, color: '#0F1923', whiteSpace: 'nowrap' }}>
-                {module.name}
-              </span>
-            </div>
+            {moduleHref ? (
+              <Link href={moduleHref} style={{ textDecoration: 'none' }}>{moduleBadge}</Link>
+            ) : moduleBadge}
           </>
         )}
 

@@ -1,19 +1,26 @@
 import { GoogleGenerativeAI } from '@google/generative-ai'
 import { NextRequest, NextResponse } from 'next/server'
 import { getKBContext } from '@/app/lib/kb-context'
+import { getSessionStaffId } from '@/app/lib/access/session'
+import { supabaseAdmin } from '@/app/lib/supabase'
 
 /*
   POST /api/kb/bd-chat
-  Body: { question: string, history: Message[], staff_id?: string }
+  Body: { question: string, history: Message[] }
 
-  A separate, admin-only chat scoped to BD/company-knowledge documents —
-  deliberately isolated from /api/ask (the staff-facing Learning Assistant)
-  so this can evolve independently while EventPilot is still under active
-  development, with the intent to merge the two later. Reuses the same
-  building blocks /api/ask already relies on: getKBContext() for
-  access-filtered document retrieval and gemini-2.5-flash for generation —
-  just with pilotUseOnly: false (so proposals, which are pilot_use: false by
-  design, are included) and BD-relevant categories.
+  A separate chat scoped to BD/company-knowledge documents — deliberately
+  isolated from /api/ask (the staff-facing Learning Assistant) so this can
+  evolve independently while EventPilot is still under active development,
+  with the intent to merge the two later. Reuses the same building blocks
+  /api/ask already relies on: getKBContext() for access-filtered document
+  retrieval and gemini-2.5-flash for generation — just with
+  pilotUseOnly: false (so proposals, which are pilot_use: false by design,
+  are included) and BD-relevant categories.
+
+  Access: super admins always have unrestricted access. Everyone else must
+  be a pilot_project_members row on the "Knowledge Base Module" or
+  "DocuHub Module" pilot project, capped at DAILY_LIMIT messages/day
+  (assistant_usage table, reset at UTC midnight).
 
   No aggregate/count-query capability yet — see knowledge-engine/processors
   and kb_field_registry docs for why (workspace_id linkage + client-name
@@ -24,6 +31,28 @@ import { getKBContext } from '@/app/lib/kb-context'
 type Message = { role: 'user' | 'assistant'; text: string }
 
 const KB_CATEGORIES = ['business_development', 'event_intelligence', 'company_knowledge']
+const DAILY_LIMIT = 20
+const ELIGIBLE_PROJECT_NAMES = ['Knowledge Base Module', 'DocuHub Module']
+
+async function resolveAccess(staffId: string | null): Promise<{ allowed: boolean; unlimited: boolean }> {
+  if (!staffId) return { allowed: false, unlimited: false }
+  if (staffId === 'super-admin') return { allowed: true, unlimited: true }
+
+  const { data: staff } = await supabaseAdmin.from('staff_members').select('job_level').eq('id', staffId).single()
+  if (staff?.job_level === 'super_admin') return { allowed: true, unlimited: true }
+
+  const { data: projects } = await supabaseAdmin.from('pilot_projects').select('id').in('name', ELIGIBLE_PROJECT_NAMES)
+  const projectIds = (projects ?? []).map(p => p.id)
+  if (projectIds.length === 0) return { allowed: false, unlimited: false }
+
+  const { count } = await supabaseAdmin
+    .from('pilot_project_members')
+    .select('*', { count: 'exact', head: true })
+    .eq('staff_id', staffId)
+    .in('project_id', projectIds)
+
+  return { allowed: (count ?? 0) > 0, unlimited: false }
+}
 
 function buildSystemPrompt(docs: string): string {
   return `You are the Trescon Knowledge Assistant — an internal tool for looking up information from Trescon's business development and company knowledge documents (proposals, post-event reports, corporate documents, attendee data summaries).
@@ -67,11 +96,46 @@ function isMisuse(text: string): boolean {
   return BLOCKED_PATTERNS.some(p => p.test(text))
 }
 
+/* GET /api/kb/bd-chat — eligibility + remaining message count for the current session, so the UI can show it upfront. */
+export async function GET(req: NextRequest) {
+  const staffId = getSessionStaffId(req)
+  const access = await resolveAccess(staffId)
+  if (!access.allowed) return NextResponse.json({ allowed: false })
+
+  if (access.unlimited) return NextResponse.json({ allowed: true, unlimited: true })
+
+  const today = new Date().toISOString().slice(0, 10)
+  const { data: usage } = await supabaseAdmin
+    .from('assistant_usage').select('count').eq('staff_id', staffId).eq('usage_date', today).single()
+  const used = usage?.count ?? 0
+  return NextResponse.json({ allowed: true, unlimited: false, used, limit: DAILY_LIMIT, remaining: Math.max(0, DAILY_LIMIT - used) })
+}
+
 export async function POST(req: NextRequest) {
-  const { question, history = [], staff_id } = await req.json().catch(() => ({}))
+  const staffId = getSessionStaffId(req)
+  const { question, history = [] } = await req.json().catch(() => ({}))
 
   if (!question?.trim()) {
     return NextResponse.json({ error: 'Question is required.' }, { status: 400 })
+  }
+
+  const access = await resolveAccess(staffId)
+  if (!access.allowed) {
+    return NextResponse.json({ error: 'The Knowledge Assistant is only available to people assigned to the Knowledge Base or DocuHub pilot projects. Ask an admin for access.' }, { status: 403 })
+  }
+
+  const today = new Date().toISOString().slice(0, 10)
+  if (!access.unlimited) {
+    const { data: usage } = await supabaseAdmin
+      .from('assistant_usage').select('count').eq('staff_id', staffId).eq('usage_date', today).single()
+    const used = usage?.count ?? 0
+    if (used >= DAILY_LIMIT) {
+      return NextResponse.json({ error: `You've reached today's limit of ${DAILY_LIMIT} messages. It resets at midnight UTC.`, limit_reached: true }, { status: 429 })
+    }
+    await supabaseAdmin.from('assistant_usage').upsert(
+      { staff_id: staffId, usage_date: today, count: used + 1, updated_at: new Date().toISOString() },
+      { onConflict: 'staff_id,usage_date' }
+    )
   }
 
   if (isMisuse(question)) {
@@ -82,7 +146,7 @@ export async function POST(req: NextRequest) {
   }
 
   const kbContext = await getKBContext({
-    staffId: staff_id && staff_id !== 'super-admin' ? staff_id : undefined,
+    staffId: staffId && staffId !== 'super-admin' ? staffId : undefined,
     pilotUseOnly: false,
     categories: KB_CATEGORIES,
     limit: 8,

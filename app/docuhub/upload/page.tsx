@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
-import NavBar, { MOD_DOCUHUB } from '@/app/components/NavBar'
+import { AppShellNav } from '@/app/components/AppShell'
 import LocationSelect from '@/app/components/LocationSelect'
 import { KNOWN_CITIES, COUNTRIES } from '@/app/lib/docuhub/locations'
 import { docuhubDomain } from '@/app/lib/docuhub/domain'
@@ -132,7 +132,7 @@ export default function DocuHubUploadPage() {
     const link = `https://${docuhubDomain(resultLink.visibility)}/${resultLink.prefix}/${resultLink.slug}`
     return (
       <div style={{ minHeight: '100vh', background: '#E8EEF4', fontFamily: 'var(--font-manrope), sans-serif' }}>
-        <NavBar module={MOD_DOCUHUB} homeHref="/docuhub" />
+        <AppShellNav moduleKey="docuhub" moduleHref="/docuhub" homeHref="/docuhub" />
         <div style={{ maxWidth: '560px', margin: '80px auto', padding: '32px', background: '#FFFFFF', borderRadius: '16px', border: '1px solid #DDE8EE', textAlign: 'center' }}>
           <div style={{ fontSize: '18px', fontWeight: 800, color: '#0F1923', marginBottom: '10px' }}>Document published</div>
           <div style={{ fontSize: '13px', color: '#5B7080', marginBottom: '16px' }}>This is its permanent link — it stays the same even if you replace the file later.</div>
@@ -148,7 +148,7 @@ export default function DocuHubUploadPage() {
 
   return (
     <div style={{ minHeight: '100vh', background: '#E8EEF4', fontFamily: 'var(--font-manrope), sans-serif' }}>
-      <NavBar module={MOD_DOCUHUB} homeHref="/docuhub" subtitle="Upload" rightSlot={
+      <AppShellNav moduleKey="docuhub" moduleHref="/docuhub" homeHref="/docuhub" subtitle="Upload" rightSlot={
         <button onClick={() => router.push('/docuhub')} style={{ padding: '8px 14px', borderRadius: '9px', border: '1px solid #DDE8EE', background: '#FFFFFF', color: '#5B7080', fontSize: '13px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>Back</button>
       } />
       <div style={{ maxWidth: '640px', margin: '0 auto', padding: '32px 24px' }}>

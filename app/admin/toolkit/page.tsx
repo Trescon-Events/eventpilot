@@ -1,277 +1,56 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useMemo } from 'react'
 import Link from 'next/link'
 import ResumeSidebar from '@/app/components/ResumeSidebar'
+import { AppShellNav } from '@/app/components/AppShell'
+import PlatformMenu from '@/app/components/PlatformMenu'
+import { getModuleRegistry } from '@/app/lib/registry/modules'
 
 type Event = { id: string; name: string; city: string | null; event_date: string | null; status: string }
 
-// Maps each tool to its tool_grants key in staff_members.
-// null = admin-only (no grant key — only shown to admins)
-const TOOL_GRANT_KEY: Record<string, string | null> = {
-  'website-builder': 'website_builder',
-  'market-intel':    'intelligence',
-  'brand-studio':    'brand_studio',
-  'smart-data':      'smart_data',
-  'outreach':        'content',
-  'ai-course-gen':   null,
-  'course-manager':  null,
-  'tresagent':       'tresagent',
-  'bespoke-tracker':      'bespoke',
-  'hr-portal':            'hr_portal',
-  'timesheets':           'timesheets',
-  'finance-portal':       'finance',
-  'commercial':           'commercial',
-  'smart-excel':          'smart_excel',
-  'corporate-marketing':  'corporate_marketing',
+type Tool = {
+  id: string; label: string; description: string
+  features: { icon: string; label: string; detail: string }[]
+  accent: string
+  route?: (eventId: string) => string
+  href?: string
+  needsEvent: boolean
+  badge: string
+  category: string
+  /** registry key — used only to cross-check against /api/modules/accessible, not read by the rest of this page */
+  registryKey: string
 }
 
-const TOOLS = [
-  {
-    id:          'website-builder',
-    label:       'Website Builder',
-    description: 'Build and publish fully custom event websites end-to-end. Start from a template, design every section, load your brand, and go live with a single click — including custom domain via Cloudflare.',
-    features:    [
-      { icon: '◻', label: 'Drag-and-drop section builder', detail: 'Hero, stats, speakers, agenda, sponsors, media and more' },
-      { icon: '◈', label: 'Brand system', detail: 'Logos, colour palette, fonts — applied across the whole site' },
-      { icon: '▣', label: 'Live preview', detail: 'See your site on desktop, tablet and mobile before publishing' },
-      { icon: '⊙', label: 'Custom domain', detail: 'Automated Cloudflare DNS — domain live in under a minute' },
-      { icon: '◷', label: 'Draft & publish versioning', detail: 'Edit safely. Live site stays untouched until you publish. One-click rollback.' },
-    ],
-    accent:     '#00897B',
-    route:      (eventId: string) => `/admin/events/${eventId}/website`,
-    needsEvent: true,
-    badge:      'Event Tool',
-    category:   'Events',
-  },
-  {
-    id:          'market-intel',
-    label:       'Market Intelligence',
-    description: 'AI-powered research engine for any event. Surface the right speakers, understand your competitive landscape, and identify the companies that belong in the room.',
-    features:    [
-      { icon: '◉', label: 'Competitor event analysis', detail: 'Understand what competing events are doing and where gaps exist' },
-      { icon: '◈', label: 'Speaker discovery & scoring', detail: 'Find top voices in your sector ranked by relevance and reach' },
-      { icon: '⊞', label: 'Company & industry mapping', detail: 'Map target companies, sectors, and decision-maker profiles' },
-      { icon: '↓', label: 'Exportable reports', detail: 'Download intelligence as structured reports for your team' },
-    ],
-    accent:     '#6366F1',
-    route:      (eventId: string) => `/admin/events/${eventId}/market-intel`,
-    needsEvent: true,
-    badge:      'Event Tool',
-    category:   'Events',
-  },
-  {
-    id:          'brand-studio',
-    label:       'Brand Studio',
-    description: 'Upload a brand document and extract the full identity — colours, fonts, tone of voice. Then generate on-brand visual assets using Imagen 3 for any event.',
-    features:    [
-      { icon: '◈', label: 'AI brand extraction', detail: 'Upload a PDF — colours, fonts and key messages pulled automatically' },
-      { icon: '▣', label: 'Imagen 3 asset generation', detail: 'Generate hero images, social banners and key visuals on-brand' },
-      { icon: '◉', label: 'Logo management', detail: 'Primary, white, dark and horizontal variants in one place' },
-      { icon: '◻', label: 'Colour & typography system', detail: 'Define the palette and fonts that flow into the website builder' },
-    ],
-    accent:     '#A78BFA',
-    route:      (eventId: string) => `/admin/events/${eventId}/brand`,
-    needsEvent: true,
-    badge:      'Event Tool',
-    category:   'Events',
-  },
-  {
-    id:          'smart-data',
-    label:       'Smart Data',
-    description: 'Your full B2B intelligence pipeline. Extract leads from any source, enrich them with LinkedIn and Apollo data, verify every email, and manage your contact database — all from one place.',
-    features:    [
-      { icon: '↓', label: 'File & URL extraction', detail: 'Upload CSVs, PDFs or paste a URL — contacts pulled instantly' },
-      { icon: '◈', label: 'LinkedIn & Apollo enrichment', detail: 'Job titles, companies, LinkedIn profiles and contact details' },
-      { icon: '◉', label: 'Email verification', detail: 'Bulk verify deliverability before any outreach campaign' },
-      { icon: '⊞', label: 'Contact database', detail: 'Unified B2B database with tagging, filtering and CSV export' },
-    ],
-    accent:     '#00A5A3',
-    href:       '/data/extract/file',
-    needsEvent: false,
-    badge:      'Data Intelligence',
-    category:   'Data',
-  },
-  {
-    id:          'smart-excel',
-    label:       'SmartExcel',
-    description: 'Conversational, AI-assisted spreadsheet and document-to-spreadsheet jobs. Describe what you need in plain English — clarify, plan, sample, run, and refine, with a human approval step before anything runs at scale.',
-    features:    [
-      { icon: '◈', label: 'Conversational job builder', detail: 'Describe the transform in plain English — no formulas required' },
-      { icon: '◷', label: 'Governed execution loop', detail: 'Clarify → plan → approve → sample → approve → full run → refine' },
-      { icon: '↓', label: 'Any source, any format', detail: 'Spreadsheets and documents (CSV, XLSX, PDF) in, structured output out' },
-      { icon: '⊞', label: 'Reusable recipes', detail: 'Turn a successful job into a one-click recipe for next time' },
-    ],
-    accent:     '#2E7D32',
-    // Native Next.js route inside EventPilot itself (app/smartexcel/) — no
-    // longer a separately-deployed app, so this is a plain same-tab <Link>
-    // like every other native tool.
-    href:       '/smartexcel/jobs',
-    needsEvent: false,
-    badge:      'Data Intelligence',
-    category:   'Data',
-  },
-  {
-    id:          'corporate-marketing',
-    label:       'Corporate Marketing',
-    description: 'Single workspace for all dynamic corporate content — deck, testimonials, approved assets, leadership bios. Canva stays the design master; EventPilot owns the content and every published version.',
-    features:    [
-      { icon: '◉', label: 'Corporate deck management', detail: 'Upload the master PDF + store the Canva link. AI flags the sections that change every month' },
-      { icon: '◈', label: 'Editable content workspace', detail: 'Company overview, vision, stats, testimonials, approved images — all in one place' },
-      { icon: '◷', label: 'Publish-based versioning', detail: 'Publish creates an immutable snapshot with change summary. Every past version stays downloadable' },
-      { icon: '⊞', label: 'Reuses existing EventPilot data', detail: 'Leadership pulls from staff_members, events pull from events table — no duplication' },
-    ],
-    accent:     '#8B1A1A',
-    href:       '/admin/toolkit/corporate-marketing/deck',
-    needsEvent: false,
-    badge:      'Marketing',
-    category:   'Marketing',
-  },
-  {
-    id:          'outreach',
-    label:       'Content Engine',
-    description: 'AI-powered social media and article generation, visual content calendar, direct publishing to LinkedIn, Meta, and X — with manager approval before anything goes live.',
-    features:    [
-      { icon: '✎', label: 'AI content generation', detail: 'Social posts + long-form articles generated from your event brief and brand voice' },
-      { icon: '◷', label: 'Visual content calendar', detail: 'Drag-and-drop calendar to schedule and reschedule posts across platforms' },
-      { icon: '▰', label: 'Multi-platform publishing', detail: 'Direct publish to LinkedIn, Facebook, Instagram, X — with scheduled auto-publishing' },
-      { icon: '◉', label: 'Approval workflow', detail: 'Manager reviews and approves content before it goes live. Email notifications on approve/reject' },
-    ],
-    accent:     '#F59E0B',
-    href:       '/content',
-    needsEvent: false,
-    badge:      'Marketing',
-    category:   'Data',
-  },
-  {
-    id:          'ai-course-gen',
-    label:       'AI Course Generator',
-    description: 'Describe a skill gap or topic — Gemini AI designs a complete course with reading content, hands-on tasks, and a 10-question quiz. Bulk-seed courses per department in one click.',
-    features:    [
-      { icon: '◈', label: 'AI-powered course design', detail: 'Type a topic — get a full course with content, tasks, and quiz in seconds' },
-      { icon: '⊞', label: 'Department seeding', detail: 'Generate 1-3 courses for any department in one go' },
-      { icon: '◉', label: 'Personalised tasks', detail: 'Hands-on tasks auto-adapt to each staff member\'s role and department' },
-      { icon: '◷', label: 'Review before publish', detail: 'Edit everything before going live — nothing publishes without your approval' },
-    ],
-    accent:     '#A78BFA',
-    href:       '/admin?tab=suggest',
-    needsEvent: false,
-    badge:      'Academy',
-    category:   'Academy',
-  },
-  {
-    id:          'course-manager',
-    label:       'Course Manager',
-    description: 'Review, edit, and publish courses. Manage the draft queue from AI-generated and manually created courses. Full editor for content, tasks, questions, and department targeting.',
-    features:    [
-      { icon: '≡', label: 'Draft review queue', detail: 'All AI-generated and manual drafts in one place for review' },
-      { icon: '?', label: 'Full course editor', detail: 'Edit content, tasks, quiz questions, departments, and settings' },
-      { icon: '⊞', label: 'Publish controls', detail: 'Save as draft or publish directly — mandatory flag, department targeting' },
-      { icon: '◷', label: 'Course catalogue', detail: 'View and manage all published courses with search and filters' },
-    ],
-    accent:     '#0EA5E9',
-    href:       '/admin/courses',
-    needsEvent: false,
-    badge:      'Academy',
-    category:   'Academy',
-  },
-  {
-    id:          'tresagent',
-    label:       'TresAgent',
-    description: 'AI-powered voice and WhatsApp outreach agent. Automates delegate acquisition at scale — makes calls, sends follow-ups, and tracks every conversation across multiple events simultaneously.',
-    features:    [
-      { icon: '◉', label: 'Voice call automation', detail: 'AI agent calls prospects and handles the full conversation' },
-      { icon: '▰', label: 'WhatsApp messaging flows', detail: 'Automated WhatsApp sequences with personalisation' },
-      { icon: '⊞', label: 'Multi-event support', detail: 'Run acquisition campaigns for several events in parallel' },
-      { icon: '◷', label: 'Live conversation tracking', detail: 'Full transcript and outcome log for every call and message' },
-    ],
-    accent:     '#EC4899',
-    href:       'https://trescon-reach.vercel.app',
-    needsEvent: false,
-    badge:      'AI Agent',
-    category:   'AI',
-  },
-  {
-    id:          'bespoke-tracker',
-    label:       'Bespoke Tracker',
-    description: 'End-to-end bespoke event lifecycle management. From client brief to invoice — track projects, manage 53 SOP tasks across 4 phases, and monitor delegate pipelines with full Kanban and table views.',
-    features:    [
-      { icon: '◷', label: 'Project pipeline', detail: 'Track bespoke events from brief through execution to close-out' },
-      { icon: '≡', label: '53-task SOP template', detail: 'Auto-generated task checklist from the Bespoke Events SOP' },
-      { icon: '◉', label: 'Delegate management', detail: 'Full delegate pipeline with bulk import, status tracking and notes' },
-      { icon: '⊞', label: 'Kanban + table views', detail: 'Switch between visual pipeline board and detailed table view' },
-    ],
-    accent:     '#B45309',
-    href:       '/admin/bespoke',
-    needsEvent: false,
-    badge:      'Operations',
-    category:   'Operations',
-  },
-  {
-    id:          'hr-portal',
-    label:       'HR Portal',
-    description: 'Complete human resources management — staff directory, recruitment pipeline with AI screening, leave management, attendance tracking, onboarding/offboarding workflows, and HR alerts.',
-    features:    [
-      { icon: '◉', label: 'Staff directory & profiles', detail: 'Full employee profiles with 11 tabs — attendance, salary, documents, assets, performance' },
-      { icon: '⊞', label: 'Recruitment pipeline', detail: 'Job requisitions, AI-scored applications, structured interviews, automated hire-to-onboard' },
-      { icon: '◷', label: 'Leave & attendance', detail: 'Leave requests with approval, daily attendance tracking, WFH monitoring' },
-      { icon: '≡', label: 'Onboarding & offboarding', detail: 'Template-based checklists, 30-day plans, exit management with knowledge transfer' },
-    ],
-    accent:     '#7C3AED',
-    href:       '/hr',
-    needsEvent: false,
-    badge:      'Operations',
-    category:   'Operations',
-  },
-  {
-    id:          'timesheets',
-    label:       'Timesheets',
-    description: 'Staff log daily hours per event or project. Managers approve submissions. Approved hours automatically calculate staff cost per event and feed into the Commercial P&L.',
-    features:    [
-      { icon: '◷', label: 'Daily time logging', detail: 'Staff log hours by event, project, or internal task — with notes' },
-      { icon: '◉', label: 'Manager approval', detail: 'Managers review and approve/reject team timesheets weekly' },
-      { icon: '▰', label: 'Utilisation tracking', detail: 'See billable vs internal vs bench time per staff and department' },
-      { icon: '◈', label: 'P&L integration', detail: 'Approved hours x salary rate = staff cost per event, auto-fed to Commercial P&L' },
-    ],
-    accent:     '#0284C7',
-    href:       '/timesheets',
-    needsEvent: false,
-    badge:      'Operations',
-    category:   'Operations',
-  },
-  {
-    id:          'finance-portal',
-    label:       'Finance Portal',
-    description: 'Central finance hub — salary management, expense claim approvals, vendor invoice tracking, and monthly payroll summaries with department breakdowns.',
-    features:    [
-      { icon: '◈', label: 'Salary & compensation', detail: 'Enter and revise staff salaries, bulk CSV import, payroll grade management' },
-      { icon: '◉', label: 'Expense claims', detail: 'Review and approve staff expense submissions by category and event' },
-      { icon: '⊞', label: 'Vendor payments', detail: 'Track vendor invoices — pending, approved, paid, overdue with due date alerts' },
-      { icon: '▣', label: 'Payroll summary', detail: 'Monthly payroll overview — salaries + expenses by department and staff' },
-    ],
-    accent:     '#1565C0',
-    href:       '/finance',
-    needsEvent: false,
-    badge:      'Finance',
-    category:   'Finance',
-  },
-  {
-    id:          'commercial',
-    label:       'Commercial P&L',
-    description: 'Full event profitability tracking — revenue pipelines, direct costs, staff costs from timesheets, overhead allocations, and multi-level approval workflows. Executive dashboard with margin analysis.',
-    features:    [
-      { icon: '◈', label: 'Revenue pipeline', detail: 'Track sponsorship, exhibition, delegate revenue with inventory management' },
-      { icon: '◉', label: 'Cost tracking', detail: 'Direct expenses, staff costs from timesheets, overhead allocation models' },
-      { icon: '▣', label: 'Executive dashboard', detail: 'Real-time P&L with gross/net margins, weekly snapshots, trend analysis' },
-      { icon: '⊙', label: 'Approval workflows', detail: '4-step approval chain — BU Head, Commercial Director, Finance, CEO' },
-    ],
-    accent:     '#00695C',
-    href:       '/admin/commercial',
-    needsEvent: false,
-    badge:      'Finance',
-    category:   'Finance',
-  },
-]
+// Tile data (icons, labels, descriptions, hrefs) now comes from the shared
+// module registry (app/lib/registry/modules.tsx) instead of a hardcoded
+// array here — PlatformMenu.tsx reads the same source. Per-user visibility
+// is resolved server-side via GET /api/modules/accessible?surface=toolkitHub
+// instead of the old grants===null-means-admin dance.
+function buildToolsFromRegistry(): Tool[] {
+  return getModuleRegistry()
+    .filter(m => m.toolkitHub)
+    .map(m => {
+      const t = m.toolkitHub!
+      const href = typeof m.href === 'function' ? undefined : m.href
+      const route = typeof m.href === 'function'
+        ? (eventId: string) => (m.href as (ctx: { eventId?: string }) => string)({ eventId })
+        : undefined
+      return {
+        id: t.legacyId ?? m.key,
+        label: t.label ?? m.label,
+        description: t.description ?? m.description,
+        features: t.features ?? [],
+        accent: t.color ?? m.color,
+        route,
+        href,
+        needsEvent: !!m.needsEvent,
+        badge: t.badge,
+        category: t.category,
+        registryKey: m.key,
+      }
+    })
+}
 
 const CATEGORIES = [
   { id: 'Events',     label: 'Event Tools' },
@@ -301,7 +80,7 @@ const ICONS: Record<string, React.ReactNode> = {
   'corporate-marketing': <svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>,
 }
 
-function EventPicker({ tool, events, onClose }: { tool: typeof TOOLS[number]; events: Event[]; onClose: () => void }) {
+function EventPicker({ tool, events, onClose }: { tool: Tool; events: Event[]; onClose: () => void }) {
   const [query, setQuery] = useState('')
   const [recentIds, setRecentIds] = useState<Set<string>>(new Set())
 
@@ -402,29 +181,29 @@ function EventPicker({ tool, events, onClose }: { tool: typeof TOOLS[number]; ev
 }
 
 export default function ToolkitPage() {
+  const allTools = useMemo(buildToolsFromRegistry, [])
   const [checking,  setChecking]  = useState(true)
-  const [allowed,   setAllowed]   = useState(false)
-  const [grants,    setGrants]    = useState<Record<string,boolean> | null>(null)
+  const [accessibleKeys, setAccessibleKeys] = useState<Set<string> | null>(null)
   const [events,    setEvents]    = useState<Event[]>([])
-  const [activeId,  setActiveId]  = useState(TOOLS[0].id)
+  // Matches the original hardcoded TOOLS array's first entry (Website
+  // Builder) — the registry's own ordering differs, so this is pinned
+  // explicitly rather than defaulting to whatever's first in the registry.
+  const [activeId,  setActiveId]  = useState(allTools.find(t => t.id === 'website-builder')?.id ?? allTools[0].id)
   const [picking,   setPicking]   = useState(false)
   const [expandedCats, setExpandedCats] = useState<Set<string>>(new Set(CATEGORIES.map(c => c.id)))
 
   useEffect(() => {
-    fetch('/api/toolkit-access').then(r => r.json()).then(d => {
-      setAllowed(d.access === true)
-      setGrants('grants' in d ? d.grants : null)
+    fetch('/api/modules/accessible?surface=toolkitHub').then(r => r.json()).then(d => {
+      setAccessibleKeys(new Set(Array.isArray(d.keys) ? d.keys : []))
       setChecking(false)
     }).catch(() => setChecking(false))
     fetch('/api/events').then(r => r.json()).then(d => setEvents(Array.isArray(d) ? d : [])).catch(() => {})
   }, [])
 
-  // null grants = admin (show all). Object grants = staff (show only granted tools).
-  const visibleTools = grants === null
-    ? TOOLS
-    : TOOLS.filter(t => { const key = TOOL_GRANT_KEY[t.id]; return key !== null && grants[key] === true })
+  const visibleTools = allTools.filter(t => accessibleKeys?.has(t.registryKey))
+  const allowed = visibleTools.length > 0
 
-  const tool = visibleTools.find(t => t.id === activeId) ?? visibleTools[0] ?? TOOLS[0]
+  const tool = visibleTools.find(t => t.id === activeId) ?? visibleTools[0] ?? allTools[0]
 
   if (checking) return (
     <div style={{ height: '100vh', background: '#E8EEF4', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'var(--font-manrope), Manrope, sans-serif' }}>
@@ -449,18 +228,19 @@ export default function ToolkitPage() {
     <div style={{ height: '100vh', display: 'flex', flexDirection: 'column', fontFamily: 'var(--font-manrope), Manrope, sans-serif', background: '#E8EEF4', overflow: 'hidden' }}>
 
       {/* Top bar */}
-      <div style={{ background: '#fff', borderBottom: '1px solid #DDE8EE', padding: '0 32px', height: '52px', display: 'flex', alignItems: 'center', gap: '10px', flexShrink: 0, zIndex: 10 }}>
-        <Link href="/admin" style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#5B7080', fontSize: '13px', fontWeight: 600, textDecoration: 'none' }}>
-          <svg width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg>
-          Admin
-        </Link>
-        <span style={{ color: '#DDE8EE', fontSize: '13px' }}>/</span>
-        <span style={{ fontSize: '13px', fontWeight: 800, color: '#0F1923' }}>Toolkit</span>
-        <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <div style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#C0F43C', animation: 'pulse 2s infinite' }} />
-          <span style={{ fontSize: '11px', fontWeight: 700, color: '#9BAAB5', letterSpacing: '1.5px', textTransform: 'uppercase' }}>Trescon</span>
-        </div>
-      </div>
+      <AppShellNav
+        moduleKey="toolkit"
+        homeHref="/admin"
+        rightSlot={
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <div style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#C0F43C', animation: 'pulse 2s infinite' }} />
+              <span style={{ fontSize: '11px', fontWeight: 700, color: '#9BAAB5', letterSpacing: '1.5px', textTransform: 'uppercase' }}>Trescon</span>
+            </div>
+            <PlatformMenu />
+          </div>
+        }
+      />
 
       {/* Main split */}
       <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
@@ -516,9 +296,9 @@ export default function ToolkitPage() {
               active drafts + team-shared drafts. Clicking one navigates
               directly into the tool for that event. */}
           <ResumeSidebar
-            toolLabels={Object.fromEntries(TOOLS.map(t => [t.id.replace(/-/g, '_'), t.label]))}
+            toolLabels={Object.fromEntries(allTools.map(t => [t.id.replace(/-/g, '_'), t.label]))}
             resolveRoute={(toolKey, eventId) => {
-              const t = TOOLS.find(x => x.id.replace(/-/g, '_') === toolKey)
+              const t = allTools.find(x => x.id.replace(/-/g, '_') === toolKey)
               if (!t) return null
               if (t.needsEvent && eventId && typeof t.route === 'function') return t.route(eventId)
               if (!t.needsEvent && typeof t.href === 'string') return t.href

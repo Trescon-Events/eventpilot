@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from 'react'
 import Link from 'next/link'
 import PlatformMenu from '@/app/components/PlatformMenu'
-import NavBar, { MOD_TRESCI } from '@/app/components/NavBar'
+import { AppShellNav } from '@/app/components/AppShell'
 
 type Message = { role: 'user' | 'assistant'; text: string; flagged?: boolean }
 
@@ -232,8 +232,8 @@ export default function ChatPage() {
     <div style={{ fontFamily: 'var(--font-manrope), Manrope, sans-serif', background: '#E8EEF4', minHeight: '100vh', display: 'flex', flexDirection: 'column', color: '#0F1923' }}>
 
       {/* Nav */}
-      <NavBar
-        module={MOD_TRESCI}
+      <AppShellNav
+        moduleKey="pilot-ai"
         homeHref={staffId ? `/dashboard?id=${staffId}` : '/login'}
         centerSlot={
           <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>

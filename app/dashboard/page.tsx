@@ -5,7 +5,8 @@ import { useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { computeAIRS, breakdownAIRS, getTier, getTrack, TIER_COLORS, DEPT_USE_CASES } from '@/app/lib/airs'
 import PlatformMenu from '@/app/components/PlatformMenu'
-import NavBar, { ProfileMenu, NotificationBell, MessagesIcon, MOD_EVENTPILOT } from '@/app/components/NavBar'
+import { ProfileMenu, NotificationBell, MessagesIcon } from '@/app/components/NavBar'
+import { AppShellNav } from '@/app/components/AppShell'
 
 /* ─── Types ──────────────────────────────────────────────────── */
 interface StaffMember {
@@ -186,7 +187,25 @@ function DashboardContent() {
   const [cpDone,        setCpDone]        = useState(false)
   const [showCpC,       setShowCpC]       = useState(false)
   const [showCpN,       setShowCpN]       = useState(false)
-  const isAdmin = typeof window !== 'undefined' && sessionStorage.getItem('tai_admin_authed') === '1'
+  // Seed from the sessionStorage cache (set after visiting /admin) so there's no flicker,
+  // then confirm against the real tcs_session cookie — covers logging straight into /dashboard
+  // without ever having visited /admin first.
+  const [isAdmin, setIsAdmin] = useState(
+    () => typeof window !== 'undefined' && sessionStorage.getItem('tai_admin_authed') === '1'
+  )
+
+  useEffect(() => {
+    fetch('/api/auth/session')
+      .then(r => r.json())
+      .then(session => {
+        if (session?.adm) {
+          sessionStorage.setItem('tai_admin_authed', '1')
+          if (session.sid) sessionStorage.setItem('tai_admin_staff_id', session.sid)
+          setIsAdmin(true)
+        }
+      })
+      .catch(() => {})
+  }, [])
 
   const tip = DAILY_TIPS[new Date().getDate() % DAILY_TIPS.length]
 
@@ -400,8 +419,8 @@ function DashboardContent() {
   return (
     <div style={S.page}>
       {/* ── Nav ── */}
-      <NavBar
-        module={MOD_EVENTPILOT}
+      <AppShellNav
+        moduleKey="eventpilot"
         subtitle={isAdmin ? 'Personal View' : 'My Dashboard'}
         homeHref={staffId ? `/dashboard?id=${staffId}` : '/dashboard'}
         rightSlot={<>

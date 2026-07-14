@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
-import NavBar, { MOD_DOCUHUB } from '@/app/components/NavBar'
+import { AppShellNav } from '@/app/components/AppShell'
 import LocationSelect from '@/app/components/LocationSelect'
 import { KNOWN_CITIES, COUNTRIES } from '@/app/lib/docuhub/locations'
 
@@ -127,7 +127,7 @@ export default function DocuHubBulkPage() {
 
   return (
     <div style={{ minHeight: '100vh', background: '#E8EEF4', fontFamily: 'var(--font-manrope), sans-serif' }}>
-      <NavBar module={MOD_DOCUHUB} homeHref="/docuhub" subtitle="Bulk Upload" rightSlot={
+      <AppShellNav moduleKey="docuhub" moduleHref="/docuhub" homeHref="/docuhub" subtitle="Bulk Upload" rightSlot={
         <Link href="/docuhub" style={{ padding: '8px 14px', borderRadius: '9px', border: '1px solid #DDE8EE', background: '#FFFFFF', color: '#5B7080', fontSize: '13px', fontWeight: 700, textDecoration: 'none' }}>Back</Link>
       } />
       <div style={{ maxWidth: '1100px', margin: '0 auto', padding: '32px 24px' }}>

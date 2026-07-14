@@ -2,7 +2,8 @@
 
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
-import NavBar, { ProfileMenu, NotificationBell, MOD_EVENTPILOT } from '@/app/components/NavBar'
+import { ProfileMenu, NotificationBell } from '@/app/components/NavBar'
+import { AppShellNav } from '@/app/components/AppShell'
 import PlatformMenu from '@/app/components/PlatformMenu'
 
 /* ── Design tokens ─────────────────────────────────────────── */
@@ -217,8 +218,8 @@ export default function MyHRPage() {
   return (
     <div style={{ minHeight: '100vh', background: BG, fontFamily: 'system-ui, -apple-system, sans-serif' }}>
 
-      <NavBar
-        module={MOD_EVENTPILOT}
+      <AppShellNav
+        moduleKey="my-hr"
         subtitle="My HR"
         homeHref={session?.sid ? `/dashboard?id=${session.sid}` : '/dashboard'}
         rightSlot={<>

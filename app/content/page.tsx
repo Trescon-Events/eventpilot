@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback, Suspense } from 'react'
 import Link from 'next/link'
 import { useSearchParams } from 'next/navigation'
-import NavBar, { MOD_EVENTPILOT } from '@/app/components/NavBar'
+import { AppShellNav } from '@/app/components/AppShell'
 
 type Event = { id: string; name: string; city: string; event_date: string | null; type: string }
 type Campaign = {
@@ -194,8 +194,8 @@ function ContentHubInner() {
 
   return (
     <div style={{ minHeight: '100vh', background: '#F8FAFB', color: '#0F1923', fontFamily: 'var(--font-manrope), Manrope, sans-serif' }}>
-      <NavBar
-        module={MOD_EVENTPILOT}
+      <AppShellNav
+        moduleKey="eventpilot"
         subtitle="Content Hub"
         homeHref="/admin/toolkit"
         rightSlot={

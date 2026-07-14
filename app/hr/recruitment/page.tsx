@@ -1,7 +1,8 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import Link from 'next/link'
+import { AppShellNav } from '@/app/components/AppShell'
+import PlatformMenu from '@/app/components/PlatformMenu'
 
 const C = {
   bg:      '#F6F8FB',
@@ -692,22 +693,11 @@ export default function RecruitmentPage() {
   return (
     <div style={{ minHeight: '100vh', background: C.bg, fontFamily: 'system-ui, sans-serif' }}>
       {/* Header */}
-      <div style={{ background: C.surface, borderBottom: `1px solid ${C.border}`, padding: '0 32px', position: 'sticky', top: 0, zIndex: 10 }}>
-        <div style={{ maxWidth: '1400px', margin: '0 auto', display: 'flex', alignItems: 'center', justifyContent: 'space-between', height: '60px' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-            <Link href="/hr" style={{ fontSize: '13px', color: C.muted, textDecoration: 'none', fontWeight: 600 }}>← HR Portal</Link>
-            <span style={{ color: C.border, fontSize: '13px' }}>/</span>
-            <Link href="/hr/recruitment" style={{ fontSize: '13px', color: C.muted, textDecoration: 'none', fontWeight: 600 }}>Recruitment</Link>
-            {activeReq && (
-              <>
-                <span style={{ color: C.border, fontSize: '13px' }}>/</span>
-                <span style={{ fontSize: '14px', fontWeight: 700, color: C.text }}>{activeReq.title}</span>
-                {activeReq.department && (
-                  <span style={{ fontSize: '12px', color: C.muted }}>{activeReq.department}</span>
-                )}
-              </>
-            )}
-          </div>
+      <AppShellNav
+        moduleKey="hr"
+        moduleHref="/hr"
+        subtitle={activeReq ? `Recruitment / ${activeReq.title}` : 'Recruitment'}
+        rightSlot={
           <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
             <button onClick={() => setReqFilter(f => f === 'open' ? 'all' : 'open')}
               style={{ padding: '7px 14px', borderRadius: '8px', background: C.bg, border: `1px solid ${C.border}`, fontSize: '12px', fontWeight: 700, color: C.muted, cursor: 'pointer', fontFamily: 'inherit' }}>
@@ -723,9 +713,10 @@ export default function RecruitmentPage() {
               style={{ padding: '8px 16px', borderRadius: '10px', background: C.green, color: '#fff', fontSize: '13px', fontWeight: 700, border: 'none', cursor: 'pointer', fontFamily: 'inherit' }}>
               + Open Position
             </button>
+            <PlatformMenu />
           </div>
-        </div>
-      </div>
+        }
+      />
 
       <div style={{ display: 'flex', height: 'calc(100vh - 60px)' }}>
         {/* ── Left: Requisitions sidebar ── */}

@@ -227,7 +227,7 @@ export default function BespokePipelinePage() {
       {/* ── Dark Header Bar ─────────────────────────────────────── */}
       <div style={{ background: '#0F1923', padding: '20px 32px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-          <Link href="/admin" style={{ color: '#5B7080', display: 'flex', alignItems: 'center' }}>
+          <Link href="/admin/toolkit" style={{ color: '#5B7080', display: 'flex', alignItems: 'center' }}>
             <BackArrow />
           </Link>
           <h1 style={{ margin: 0, fontSize: '22px', fontWeight: 800, color: '#FFFFFF' }}>Bespoke Tracker</h1>

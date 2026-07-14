@@ -3,7 +3,8 @@
 import { useState, useEffect, useRef, Suspense, useCallback } from 'react'
 import { useSearchParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
-import NavBar, { ProfileMenu, NotificationBell, MOD_EVENTPILOT } from '@/app/components/NavBar'
+import { ProfileMenu, NotificationBell } from '@/app/components/NavBar'
+import { AppShellNav } from '@/app/components/AppShell'
 
 /* ── Types ──────────────────────────────────────────────────────── */
 type Conversation = {
@@ -216,8 +217,8 @@ function MessagesContent() {
 
   return (
     <div style={{ fontFamily: 'var(--font-manrope), Manrope, sans-serif', background: C.bg, minHeight: '100vh', color: C.text, display: 'flex', flexDirection: 'column' }}>
-      <NavBar
-        module={MOD_EVENTPILOT}
+      <AppShellNav
+        moduleKey="eventpilot"
         subtitle="Messages"
         homeHref={sid ? `/dashboard?id=${sid}` : '/dashboard'}
         rightSlot={<>

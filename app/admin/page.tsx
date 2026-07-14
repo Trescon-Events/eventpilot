@@ -4997,7 +4997,7 @@ export default function AdminPage() {
                       <svg width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
                       PER Creator
                     </Link>
-                    <Link href="/admin/tools/bd-chat"
+                    <Link href="/knowledge/assistant"
                       style={{ display: 'flex', alignItems: 'center', gap: '7px', padding: '10px 18px', borderRadius: '10px', border: '1px solid rgba(0,165,163,0.35)', background: 'rgba(0,165,163,0.08)', color: '#00695C', fontSize: '13px', fontWeight: 800, textDecoration: 'none' }}>
                       <svg width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
                       Knowledge Assistant
@@ -5030,19 +5030,23 @@ export default function AdminPage() {
               </div>
 
               {/* Sub-tab pills */}
-              <div style={{ display: 'flex', gap: '8px', marginBottom: '24px' }}>
+              <div style={{ display: 'flex', gap: '8px', marginBottom: '24px', alignItems: 'center' }}>
                 {([
                   { key: 'documents', label: 'Documents' },
                   { key: 'workspaces', label: 'BD Workspaces' },
                   ...(isKbAdmin ? [{ key: 'intelligence', label: 'Intelligence' }] : []),
                   ...(isKbAdmin ? [{ key: 'gaps', label: `Pending Gaps (${pendingGapSessions.length})` }] : []),
-                  ...(isKbAdmin ? [{ key: 'admins', label: 'Admins' }] : []),
                 ] as { key: typeof docSubTab; label: string }[]).map(s => (
-                  <button key={s.key} onClick={() => { setDocSubTab(s.key); syncAdminUrl('knowledge', s.key); if (s.key === 'admins') { fetchKbAccess(); if (staffList.length === 0) fetchStaffList() } }}
+                  <button key={s.key} onClick={() => { setDocSubTab(s.key); syncAdminUrl('knowledge', s.key) }}
                     style={{ padding: '8px 18px', borderRadius: '10px', border: `1px solid ${docSubTab === s.key ? 'rgba(0,165,163,0.4)' : '#DDE8EE'}`, background: docSubTab === s.key ? 'rgba(0,165,163,0.08)' : '#FFFFFF', color: docSubTab === s.key ? '#00695C' : '#5B7080', fontSize: '13px', fontWeight: 800, cursor: 'pointer', fontFamily: 'inherit' }}>
                     {s.label}
                   </button>
                 ))}
+                {isKbAdmin && (
+                  <Link href="/knowledge/settings" style={{ marginLeft: 'auto', fontSize: '13px', fontWeight: 700, color: '#00897B', textDecoration: 'none' }}>
+                    Manage KB access →
+                  </Link>
+                )}
               </div>
 
               {docSubTab === 'documents' && docActionMsg && (() => {
@@ -5830,64 +5834,11 @@ export default function AdminPage() {
                   </div>
                 )
               })() : docSubTab === 'admins' ? (() => {
-                const staffById = Object.fromEntries(staffList.map(s => [s.id, s]))
                 return (
-                  <div>
-                    <p style={{ fontSize: '13px', color: '#5B7080', margin: '0 0 16px', lineHeight: 1.6 }}>
-                      Admins can review and publish pending documents, manage Press Intelligence sources, and resolve gaps. Super admins always have full access regardless of this list.
-                    </p>
-
-                    <div style={{ background: '#FFFFFF', border: '1px solid #DDE8EE', borderRadius: '14px', padding: '18px', marginBottom: '20px' }}>
-                      <div style={{ fontSize: '13px', fontWeight: 800, color: '#0F1923', marginBottom: '12px' }}>Grant access</div>
-                      <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'flex-end' }}>
-                        <div style={{ flex: '1 1 240px' }}>
-                          <label style={{ fontSize: '13px', fontWeight: 700, color: '#5B7080', letterSpacing: '0.8px', textTransform: 'uppercase', display: 'block', marginBottom: '5px' }}>Staff member</label>
-                          <select value={kbGrantStaffId} onChange={e => setKbGrantStaffId(e.target.value)}
-                            style={{ width: '100%', padding: '9px 12px', borderRadius: '9px', border: '1px solid #DDE8EE', background: '#FFFFFF', color: '#0F1923', fontSize: '13px', fontFamily: 'inherit' }}>
-                            <option value="">— Select —</option>
-                            {staffList.slice().sort((a, b) => a.name.localeCompare(b.name)).map(s => (
-                              <option key={s.id} value={s.id}>{s.name} ({s.email})</option>
-                            ))}
-                          </select>
-                        </div>
-                        <div style={{ flex: '0 0 140px' }}>
-                          <label style={{ fontSize: '13px', fontWeight: 700, color: '#5B7080', letterSpacing: '0.8px', textTransform: 'uppercase', display: 'block', marginBottom: '5px' }}>Tier</label>
-                          <select value={kbGrantTier} onChange={e => setKbGrantTier(e.target.value as 'user' | 'admin')}
-                            style={{ width: '100%', padding: '9px 12px', borderRadius: '9px', border: '1px solid #DDE8EE', background: '#FFFFFF', color: '#0F1923', fontSize: '13px', fontFamily: 'inherit' }}>
-                            <option value="admin">Admin</option>
-                            <option value="user">User</option>
-                          </select>
-                        </div>
-                        <button onClick={grantKbAccess}
-                          style={{ padding: '10px 18px', borderRadius: '9px', border: 'none', background: '#7C3AED', color: '#FFFFFF', fontSize: '13px', fontWeight: 800, cursor: 'pointer', fontFamily: 'inherit' }}>
-                          Grant
-                        </button>
-                      </div>
-                      {kbGrantMsg && <div style={{ fontSize: '13px', color: '#FF6B6B', marginTop: '10px' }}>{kbGrantMsg}</div>}
-                    </div>
-
-                    {kbAccessLoading && <div style={{ color: '#5B7080', fontSize: '13px', padding: '20px 0', textAlign: 'center' }}>Loading…</div>}
-                    {!kbAccessLoading && kbAccessGrants.length === 0 && (
-                      <div style={{ color: '#5B7080', fontSize: '13px', padding: '20px 0', textAlign: 'center' }}>No one has been granted KB module access yet — super admins still have full access.</div>
-                    )}
-                    {!kbAccessLoading && kbAccessGrants.map(g => {
-                      const staff = g.staff_members ?? staffById[g.staff_id]
-                      return (
-                        <div key={g.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 16px', background: '#FFFFFF', border: '1px solid #DDE8EE', borderRadius: '12px', marginBottom: '8px' }}>
-                          <div>
-                            <span style={{ fontSize: '13px', fontWeight: 700, color: '#0F1923' }}>{staff?.name ?? g.staff_id}</span>
-                            <span style={{ fontSize: '13px', color: '#5B7080', marginLeft: '8px' }}>{staff?.email}</span>
-                            <span style={{ fontSize: '13px', fontWeight: 700, padding: '2px 8px', borderRadius: '16px', background: g.tier === 'admin' ? 'rgba(124,58,237,0.12)' : 'rgba(0,165,163,0.1)', color: g.tier === 'admin' ? '#7C3AED' : '#00695C', marginLeft: '10px' }}>
-                              {g.tier === 'admin' ? 'Admin' : 'User'}
-                            </span>
-                          </div>
-                          <button onClick={() => revokeKbAccess(g.id)}
-                            style={{ fontSize: '13px', fontWeight: 700, color: '#FF6B6B', background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'inherit' }}>
-                            Revoke
-                          </button>
-                        </div>
-                      )
-                    })}
+                  <div style={{ textAlign: 'center', padding: '40px 0' }}>
+                    <div style={{ fontSize: '14px', fontWeight: 800, color: '#0F1923', marginBottom: '8px' }}>KB access management has moved</div>
+                    <div style={{ fontSize: '13px', color: '#5B7080', marginBottom: '16px' }}>It now lives in the Knowledge Base module&apos;s own Settings page.</div>
+                    <Link href="/knowledge/settings" className="tbtn tbtn-teal" style={{ display: 'inline-flex' }}>Open Knowledge Base Settings</Link>
                   </div>
                 )
               })() : (

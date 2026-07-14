@@ -2,6 +2,8 @@
 
 import { useState, useEffect, useMemo } from 'react'
 import Link from 'next/link'
+import { AppShellNav } from '@/app/components/AppShell'
+import PlatformMenu from '@/app/components/PlatformMenu'
 
 const C = {
   bg:      '#F6F8FB',
@@ -251,6 +253,14 @@ export default function NewStaffPage() {
   const [result,    setResult]    = useState<{ staff_id: string; name: string; email: string; temp_password: string } | null>(null)
   const [errors,    setErrors]    = useState<Record<string, string>>({})
 
+  // Where "Add Staff" was launched from — Staff list, HR hub, or Onboarding tracker
+  // all link here, so the back link follows a ?from= param instead of hardcoding one.
+  const [backHref, setBackHref] = useState('/hr/staff')
+  useEffect(() => {
+    const from = new URLSearchParams(window.location.search).get('from')
+    if (from) setBackHref(from)
+  }, [])
+
   // ── Form state ──────────────────────────────────────────────────────────────
   // Step 1: Personal
   const [salutation,   setSalutation]   = useState('')
@@ -414,8 +424,8 @@ export default function NewStaffPage() {
               Add Another
             </button>
           </div>
-          <Link href="/hr/onboarding" style={{ display: 'block', marginTop: '14px', fontSize: '12px', color: C.muted, textDecoration: 'none' }}>
-            Back to Onboarding Tracker
+          <Link href={backHref} style={{ display: 'block', marginTop: '14px', fontSize: '12px', color: C.muted, textDecoration: 'none' }}>
+            Back
           </Link>
         </div>
       </div>
@@ -428,18 +438,21 @@ export default function NewStaffPage() {
     <div style={{ minHeight: '100vh', background: C.bg, fontFamily: 'system-ui, sans-serif' }}>
 
       {/* ── Header ── */}
-      <div style={{ background: C.surface, borderBottom: `1px solid ${C.border}`, padding: '0 24px', position: 'sticky', top: 0, zIndex: 50 }}>
-        <div style={{ display: 'flex', alignItems: 'center', height: '56px', gap: '10px' }}>
-          <Link href="/hr/onboarding" style={{ fontSize: '12px', color: C.muted, textDecoration: 'none', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '3px' }}>
-            <svg width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg>
-            Onboarding
-          </Link>
-          <div style={{ width: '1px', height: '18px', background: C.border }} />
-          <span style={{ fontSize: '14px', fontWeight: 800, color: C.text }}>Add New Staff Member</span>
-          <div style={{ flex: 1 }} />
-          <span style={{ fontSize: '12px', color: C.muted }}>Step {step} of {STEPS.length}</span>
-        </div>
-      </div>
+      <AppShellNav
+        moduleKey="hr"
+        moduleHref="/hr"
+        subtitle="Add New Staff Member"
+        rightSlot={
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <span style={{ fontSize: '12px', color: C.muted }}>Step {step} of {STEPS.length}</span>
+            <Link href={backHref} style={{ fontSize: '12px', color: C.muted, textDecoration: 'none', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '3px' }}>
+              <svg width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg>
+              Back
+            </Link>
+            <PlatformMenu />
+          </div>
+        }
+      />
 
       {/* ── Progress bar ── */}
       <div style={{ background: C.surface, borderBottom: `1px solid ${C.border}`, padding: '0 24px' }}>

@@ -2,7 +2,8 @@
 
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
-import NavBar, { MOD_EVENTPILOT, ProfileMenu, NotificationBell } from '@/app/components/NavBar'
+import { ProfileMenu, NotificationBell } from '@/app/components/NavBar'
+import { AppShellNav } from '@/app/components/AppShell'
 import PlatformMenu from '@/app/components/PlatformMenu'
 
 const TOOL_LABELS: Record<string, string> = {
@@ -75,8 +76,8 @@ export default function ChangelogPage() {
 
   return (
     <div style={{ minHeight: '100vh', background: '#F6F8FB' }}>
-      <NavBar
-        module={MOD_EVENTPILOT}
+      <AppShellNav
+        moduleKey="eventpilot"
         subtitle="What's Fixed"
         homeHref="/dashboard"
         rightSlot={

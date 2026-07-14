@@ -1,7 +1,8 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
-import Link from 'next/link'
+import { AppShellNav } from '@/app/components/AppShell'
+import PlatformMenu from '@/app/components/PlatformMenu'
 
 const C = {
   bg: '#E8EEF4', surface: '#FFFFFF', border: '#DDE8EE', text: '#0F1923', muted: '#5B7080',
@@ -9,6 +10,7 @@ const C = {
 }
 
 type Message = { role: 'user' | 'assistant'; text: string; flagged?: boolean }
+type Status = { allowed: boolean; unlimited?: boolean; used?: number; limit?: number; remaining?: number }
 
 const SUGGESTED = [
   'What proposals do we have for government clients?',
@@ -88,17 +90,19 @@ function MessageBubble({ msg }: { msg: Message }) {
   )
 }
 
-export default function BDChatPage() {
+export default function KnowledgeAssistantPage() {
   const [messages, setMessages] = useState<Message[]>([])
   const [input,    setInput]    = useState('')
   const [loading,  setLoading]  = useState(false)
-  const [staffId,  setStaffId]  = useState<string | null>(null)
+  const [status,   setStatus]   = useState<Status | null>(null)
   const bottomRef = useRef<HTMLDivElement>(null)
   const inputRef  = useRef<HTMLTextAreaElement>(null)
 
-  useEffect(() => {
-    setStaffId(sessionStorage.getItem('tai_admin_staff_id'))
-  }, [])
+  function refreshStatus() {
+    fetch('/api/kb/bd-chat').then(r => r.json()).then(setStatus).catch(() => setStatus({ allowed: false }))
+  }
+
+  useEffect(() => { refreshStatus() }, [])
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -114,7 +118,7 @@ export default function BDChatPage() {
     try {
       const res = await fetch('/api/kb/bd-chat', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ question, history: messages.slice(-8), staff_id: staffId }),
+        body: JSON.stringify({ question, history: messages.slice(-8) }),
       })
       const data = await res.json()
       if (!res.ok || data.error) {
@@ -122,6 +126,7 @@ export default function BDChatPage() {
       } else {
         setMessages(prev => [...prev, { role: 'assistant', text: data.answer, flagged: data.flagged }])
       }
+      refreshStatus()
     } catch {
       setMessages(prev => [...prev, { role: 'assistant', text: 'Connection error. Please check your network and try again.' }])
     } finally {
@@ -138,30 +143,38 @@ export default function BDChatPage() {
   }
 
   const isEmpty = messages.length === 0
+  const capped = status?.allowed && !status.unlimited && (status.remaining ?? 1) <= 0
+
+  if (status && !status.allowed) {
+    return (
+      <div style={{ minHeight: '100vh', background: C.bg, fontFamily: 'var(--font-manrope), Manrope, sans-serif' }}>
+        <AppShellNav moduleKey="kb" moduleHref="/knowledge" homeHref="/knowledge" subtitle="Knowledge Assistant" rightSlot={<PlatformMenu />} />
+        <div style={{ maxWidth: '480px', margin: '80px auto', textAlign: 'center' }}>
+          <div style={{ fontSize: '16px', fontWeight: 800, color: C.text, marginBottom: '8px' }}>Knowledge Assistant access required</div>
+          <div style={{ fontSize: '13px', color: C.muted }}>This is currently open to people assigned to the Knowledge Base or DocuHub pilot projects. Ask an admin for access.</div>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div style={{ minHeight: '100vh', background: C.bg, fontFamily: 'var(--font-manrope), Manrope, sans-serif', display: 'flex', flexDirection: 'column' }}>
-      <div style={{ background: C.surface, borderBottom: `1px solid ${C.border}`, padding: '0 32px', height: '58px', display: 'flex', alignItems: 'center', gap: '12px', flexShrink: 0 }}>
-        <Link href="/admin?tab=knowledge&sub=documents" style={{ textDecoration: 'none' }}>
-          <img src="/trescon-logo.png" alt="Trescon" style={{ height: '34px', width: 'auto' }} />
-        </Link>
-        <div style={{ width: '1px', height: '20px', background: C.border }} />
-        <div style={{ fontSize: '13px', fontWeight: 800, color: C.text }}>Knowledge Assistant</div>
-        <span style={{ fontSize: '11px', fontWeight: 700, color: '#8B1A1A', background: 'rgba(139,26,26,0.08)', border: '1px solid rgba(139,26,26,0.2)', borderRadius: '6px', padding: '2px 8px' }}>
-          Beta — no aggregate/count queries yet
-        </span>
-        <div style={{ marginLeft: 'auto', display: 'flex', gap: '10px' }}>
+      <AppShellNav moduleKey="kb" moduleHref="/knowledge" homeHref="/knowledge" subtitle="Knowledge Assistant" rightSlot={
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+          {status?.allowed && !status.unlimited && (
+            <span style={{ fontSize: '12px', fontWeight: 700, color: capped ? C.red : C.muted }}>
+              {status.remaining}/{status.limit} messages left today
+            </span>
+          )}
           {messages.length > 0 && (
             <button onClick={() => setMessages([])}
               style={{ padding: '8px 16px', borderRadius: '9px', border: `1px solid ${C.border}`, background: C.surface, color: C.muted, fontSize: '13px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
               New conversation
             </button>
           )}
-          <Link href="/admin?tab=knowledge&sub=documents" style={{ padding: '8px 16px', borderRadius: '9px', border: `1px solid rgba(0,165,163,0.3)`, background: 'rgba(0,165,163,0.08)', color: C.teal, fontSize: '13px', fontWeight: 700, textDecoration: 'none' }}>
-            ‹ Knowledge Base
-          </Link>
+          <PlatformMenu />
         </div>
-      </div>
+      } />
 
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', maxWidth: '760px', width: '100%', margin: '0 auto', padding: '0 24px' }}>
         {isEmpty && (
@@ -177,8 +190,8 @@ export default function BDChatPage() {
             </p>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', width: '100%', maxWidth: '600px' }}>
               {SUGGESTED.map(q => (
-                <button key={q} onClick={() => send(q)}
-                  style={{ padding: '12px 16px', background: C.surface, border: `1px solid ${C.border}`, borderLeft: `3px solid ${C.tealAccent}`, borderRadius: '12px', color: C.text, fontSize: '13px', fontWeight: 600, cursor: 'pointer', textAlign: 'left', fontFamily: 'inherit', lineHeight: 1.45 }}>
+                <button key={q} onClick={() => send(q)} disabled={capped}
+                  style={{ padding: '12px 16px', background: C.surface, border: `1px solid ${C.border}`, borderLeft: `3px solid ${C.tealAccent}`, borderRadius: '12px', color: C.text, fontSize: '13px', fontWeight: 600, cursor: capped ? 'not-allowed' : 'pointer', textAlign: 'left', fontFamily: 'inherit', lineHeight: 1.45, opacity: capped ? 0.5 : 1 }}>
                   {q}
                 </button>
               ))}
@@ -206,33 +219,41 @@ export default function BDChatPage() {
         )}
 
         <div style={{ paddingBottom: '28px', paddingTop: '12px', flexShrink: 0 }}>
-          <div style={{ display: 'flex', gap: '10px', alignItems: 'flex-end', background: C.surface, border: `1px solid ${C.border}`, borderRadius: '16px', padding: '12px 14px' }}>
-            <textarea
-              ref={inputRef}
-              value={input}
-              onChange={e => setInput(e.target.value)}
-              onKeyDown={handleKey}
-              placeholder="Ask about a proposal, report, or company knowledge…"
-              rows={1}
-              disabled={loading}
-              style={{ flex: 1, background: 'none', border: 'none', outline: 'none', color: C.text, fontSize: '13px', fontFamily: 'inherit', resize: 'none', lineHeight: 1.65, maxHeight: '120px', overflowY: 'auto', padding: 0 }}
-              onInput={e => {
-                const el = e.currentTarget
-                el.style.height = 'auto'
-                el.style.height = Math.min(el.scrollHeight, 120) + 'px'
-              }}
-            />
-            <button
-              onClick={() => send(input)}
-              disabled={!input.trim() || loading}
-              style={{ width: '36px', height: '36px', borderRadius: '10px', background: input.trim() && !loading ? C.tealAccent : '#E5E7EB', border: 'none', cursor: input.trim() && !loading ? 'pointer' : 'default', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}
-            >
-              <svg width="15" height="15" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
-            </button>
-          </div>
-          <div style={{ textAlign: 'center', marginTop: '8px', fontSize: '12px', color: C.muted, lineHeight: 1.65 }}>
-            Press Enter to send · Shift+Enter for new line
-          </div>
+          {capped ? (
+            <div style={{ padding: '14px 18px', background: 'rgba(255,107,107,0.08)', border: `1px solid rgba(255,107,107,0.3)`, borderRadius: '14px', textAlign: 'center', fontSize: '13px', color: C.red, fontWeight: 600 }}>
+              You&apos;ve reached today&apos;s limit of {status?.limit} messages. It resets at midnight UTC.
+            </div>
+          ) : (
+            <>
+              <div style={{ display: 'flex', gap: '10px', alignItems: 'flex-end', background: C.surface, border: `1px solid ${C.border}`, borderRadius: '16px', padding: '12px 14px' }}>
+                <textarea
+                  ref={inputRef}
+                  value={input}
+                  onChange={e => setInput(e.target.value)}
+                  onKeyDown={handleKey}
+                  placeholder="Ask about a proposal, report, or company knowledge…"
+                  rows={1}
+                  disabled={loading}
+                  style={{ flex: 1, background: 'none', border: 'none', outline: 'none', color: C.text, fontSize: '13px', fontFamily: 'inherit', resize: 'none', lineHeight: 1.65, maxHeight: '120px', overflowY: 'auto', padding: 0 }}
+                  onInput={e => {
+                    const el = e.currentTarget
+                    el.style.height = 'auto'
+                    el.style.height = Math.min(el.scrollHeight, 120) + 'px'
+                  }}
+                />
+                <button
+                  onClick={() => send(input)}
+                  disabled={!input.trim() || loading}
+                  style={{ width: '36px', height: '36px', borderRadius: '10px', background: input.trim() && !loading ? C.tealAccent : '#E5E7EB', border: 'none', cursor: input.trim() && !loading ? 'pointer' : 'default', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}
+                >
+                  <svg width="15" height="15" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+                </button>
+              </div>
+              <div style={{ textAlign: 'center', marginTop: '8px', fontSize: '12px', color: C.muted, lineHeight: 1.65 }}>
+                Press Enter to send · Shift+Enter for new line
+              </div>
+            </>
+          )}
         </div>
       </div>
 

@@ -2,7 +2,8 @@
 
 import { useState, useEffect, useCallback, Fragment } from 'react'
 import Link from 'next/link'
-import NavBar, { MOD_DOCUHUB } from '@/app/components/NavBar'
+import { AppShellNav } from '@/app/components/AppShell'
+import PlatformMenu from '@/app/components/PlatformMenu'
 import LocationSelect from '@/app/components/LocationSelect'
 import { KNOWN_CITIES, COUNTRIES } from '@/app/lib/docuhub/locations'
 import { docuhubDomain } from '@/app/lib/docuhub/domain'
@@ -174,13 +175,16 @@ export default function DocuHubPage() {
 
   return (
     <div style={{ minHeight: '100vh', background: '#E8EEF4', fontFamily: 'var(--font-manrope), sans-serif' }}>
-      <NavBar module={MOD_DOCUHUB} homeHref="/docuhub" rightSlot={
-        <div style={{ display: 'flex', gap: '8px' }}>
+      <AppShellNav moduleKey="docuhub" moduleHref="/docuhub" homeHref="/docuhub" rightSlot={
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
           {tier === 'admin' && (
             <Link href="/docuhub/settings" style={{ padding: '8px 14px', borderRadius: '9px', border: '1px solid #DDE8EE', background: '#FFFFFF', color: '#5B7080', fontSize: '13px', fontWeight: 700, textDecoration: 'none' }}>
               Settings
             </Link>
           )}
+          <Link href="/knowledge/assistant" style={{ padding: '8px 14px', borderRadius: '9px', border: '1px solid rgba(0,165,163,0.35)', background: 'rgba(0,165,163,0.08)', color: '#00695C', fontSize: '13px', fontWeight: 700, textDecoration: 'none' }}>
+            Knowledge Assistant
+          </Link>
           {tier !== 'none' && (
             <>
               <Link href="/docuhub/bulk" style={{ padding: '8px 14px', borderRadius: '9px', border: '1px solid #DDE8EE', background: '#FFFFFF', color: '#5B7080', fontSize: '13px', fontWeight: 700, textDecoration: 'none' }}>
@@ -191,6 +195,7 @@ export default function DocuHubPage() {
               </Link>
             </>
           )}
+          <PlatformMenu />
         </div>
       } />
 

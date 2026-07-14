@@ -2,7 +2,8 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react'
 import Link from 'next/link'
-import NavBar, { MOD_EVENTPILOT, ProfileMenu } from '@/app/components/NavBar'
+import { ProfileMenu } from '@/app/components/NavBar'
+import { AppShellNav } from '@/app/components/AppShell'
 
 const C = {
   bg:      '#F6F8FB',
@@ -566,7 +567,7 @@ export default function AdminReviewsPage() {
 
   return (
     <div style={{ minHeight: '100vh', background: C.bg }}>
-      <NavBar module={MOD_EVENTPILOT} subtitle="Platform Reviews" rightSlot={<ProfileMenu />} />
+      <AppShellNav moduleKey="eventpilot" subtitle="Platform Reviews" rightSlot={<ProfileMenu />} />
 
       {replyReview && (
         <ReplyModal

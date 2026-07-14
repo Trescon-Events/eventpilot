@@ -1,7 +1,8 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
-import Link from 'next/link'
+import { AppShellNav } from '@/app/components/AppShell'
+import PlatformMenu from '@/app/components/PlatformMenu'
 
 // ── Design tokens ─────────────────────────────────────────────────────────────
 const C = {
@@ -160,14 +161,10 @@ export default function TimesheetsPage() {
 
   return (
     <div style={{ minHeight: '100vh', background: C.bg, fontFamily: "'Inter', system-ui, sans-serif" }}>
+      <AppShellNav moduleKey="timesheets" subtitle="Timesheets" rightSlot={<PlatformMenu />} />
       {/* ── Header ── */}
       <div style={{ background: C.surface, borderBottom: `1px solid ${C.border}`, padding: '20px 32px' }}>
         <div style={{ maxWidth: 1100, margin: '0 auto' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 8 }}>
-            <Link href="/dashboard" style={{ color: C.muted, textDecoration: 'none', fontSize: 13 }}>Dashboard</Link>
-            <span style={{ color: C.border }}>/</span>
-            <span style={{ fontSize: 13, color: C.text, fontWeight: 700 }}>Timesheets</span>
-          </div>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12 }}>
             <h1 style={{ fontSize: 22, fontWeight: 800, color: C.text, margin: 0 }}>Timesheets</h1>
             <div style={{ display: 'flex', gap: 6 }}>

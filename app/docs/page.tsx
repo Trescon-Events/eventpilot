@@ -5,7 +5,7 @@ import Link from 'next/link'
 import ScoringGuideContent from './ScoringGuideContent'
 import QuestionnaireContent from './QuestionnaireContent'
 import PlaybookContent from './PlaybookContent'
-import NavBar, { MOD_KNOWLEDGE } from '@/app/components/NavBar'
+import { AppShellNav } from '@/app/components/AppShell'
 
 type Doc = {
   id: string
@@ -116,6 +116,10 @@ export default function DocsPage() {
 
   useEffect(() => {
     setIsAdmin(sessionStorage.getItem('tai_admin_authed') === '1')
+    fetch('/api/auth/session')
+      .then(r => r.json())
+      .then(s => { if (s?.adm) { sessionStorage.setItem('tai_admin_authed', '1'); setIsAdmin(true) } })
+      .catch(() => {})
     fetch('/api/platform-docs')
       .then(r => r.json())
       .then(data => {
@@ -167,8 +171,8 @@ export default function DocsPage() {
     <div style={{ fontFamily: 'var(--font-manrope), Manrope, sans-serif', background: '#E8EEF4', minHeight: '100vh', color: '#0F1923' }}>
 
       {/* Nav */}
-      <NavBar
-        module={MOD_KNOWLEDGE}
+      <AppShellNav
+        moduleKey="kb"
         subtitle="Platform Docs"
         homeHref="/dashboard"
         rightSlot={isAdmin ? (

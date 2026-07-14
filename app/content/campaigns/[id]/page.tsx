@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback, use } from 'react'
 import Link from 'next/link'
+import { AppShellNav } from '@/app/components/AppShell'
 
 type Post = {
   id: string; campaign_id: string; week_number: number; narrative_role: string
@@ -269,6 +270,8 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
         .modal-bg { position: fixed; inset: 0; background: rgba(0,0,0,0.8); z-index: 100; display: flex; align-items: center; justify-content: center; padding: 24px; }
         .modal-box { background: #FFFFFF; border: 1px solid #C8DFE0; border-radius: 18px; width: 100%; max-width: 680px; max-height: 90vh; overflow-y: auto; }
       `}</style>
+
+      <AppShellNav moduleKey="eventpilot" moduleHref="/content" homeHref="/admin/toolkit" />
 
       {/* Top bar */}
       <div style={{ borderBottom: '1px solid #C8DFE0', padding: '20px 40px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '16px', boxShadow: '0 1px 3px rgba(0,165,163,0.08)' }}>

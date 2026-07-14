@@ -3,7 +3,8 @@
 import { useState, useEffect, useMemo, Suspense } from 'react'
 import { useSearchParams } from 'next/navigation'
 import Link from 'next/link'
-import NavBar, { MOD_EVENTPILOT } from '@/app/components/NavBar'
+import { AppShellNav } from '@/app/components/AppShell'
+import PlatformMenu from '@/app/components/PlatformMenu'
 import { kbDownloadHref } from '@/app/lib/kb/download-href'
 
 interface DocRow {
@@ -87,14 +88,27 @@ function DocumentReader({ doc, staffId, onClose }: { doc: DocRow; staffId: strin
 }
 
 function KnowledgeContent() {
-  const params  = useSearchParams()
-  const staffId = params.get('id') ?? ''
+  const params    = useSearchParams()
+  const urlStaffId = params.get('id') ?? ''
+  const [staffId, setStaffId] = useState(urlStaffId)
 
   const [docs,       setDocs]       = useState<DocRow[]>([])
   const [loading,    setLoading]    = useState(true)
   const [search,     setSearch]     = useState('')
   const [typeFilter, setTypeFilter] = useState('all')
   const [readDoc,    setReadDoc]    = useState<DocRow | null>(null)
+  const [kbTier,     setKbTier]     = useState<'none' | 'user' | 'admin'>('none')
+
+  // Falls back to the session cookie when no ?id= is in the URL — covers
+  // landing here from a nav link (breadcrumb, module switcher) rather than
+  // a staff-specific dashboard link.
+  useEffect(() => {
+    if (urlStaffId) return
+    fetch('/api/auth/session')
+      .then(r => r.json())
+      .then(s => { if (s?.sid && s.sid !== 'super-admin') setStaffId(s.sid) })
+      .catch(() => {})
+  }, [urlStaffId])
 
   useEffect(() => {
     if (!staffId) return
@@ -104,6 +118,10 @@ function KnowledgeContent() {
       .catch(() => setDocs([]))
       .finally(() => setLoading(false))
   }, [staffId])
+
+  useEffect(() => {
+    fetch('/api/kb/access/me').then(r => r.json()).then(d => setKbTier(d.tier ?? 'none')).catch(() => {})
+  }, [])
 
   const types = useMemo(() => Array.from(new Set(docs.map(d => d.type))).sort(), [docs])
 
@@ -115,16 +133,29 @@ function KnowledgeContent() {
 
   return (
     <div style={{ fontFamily: 'var(--font-manrope), Manrope, sans-serif', background: '#E8EEF4', minHeight: '100vh', color: '#0F1923' }}>
-      <NavBar
-        module={MOD_EVENTPILOT}
-        subtitle="Knowledge Base"
+      <AppShellNav
+        moduleKey="kb"
+        moduleHref="/knowledge"
         homeHref={staffId ? `/dashboard?id=${staffId}` : '/dashboard'}
-        rightSlot={staffId ? (
-          <Link href={`/dashboard?id=${staffId}`} className="tbtn tbtn-teal">
-            <svg width="11" height="11" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg>
-            My Dashboard
-          </Link>
-        ) : undefined}
+        rightSlot={
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            {kbTier === 'admin' && (
+              <Link href="/knowledge/settings" style={{ padding: '8px 14px', borderRadius: '9px', border: '1px solid #DDE8EE', background: '#FFFFFF', color: '#5B7080', fontSize: '13px', fontWeight: 700, textDecoration: 'none' }}>
+                Settings
+              </Link>
+            )}
+            <Link href="/knowledge/assistant" style={{ padding: '8px 14px', borderRadius: '9px', border: '1px solid rgba(0,165,163,0.35)', background: 'rgba(0,165,163,0.08)', color: '#00695C', fontSize: '13px', fontWeight: 700, textDecoration: 'none' }}>
+              Knowledge Assistant
+            </Link>
+            {staffId && (
+              <Link href={`/dashboard?id=${staffId}`} className="tbtn tbtn-teal">
+                <svg width="11" height="11" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg>
+                My Dashboard
+              </Link>
+            )}
+            <PlatformMenu staffId={staffId} />
+          </div>
+        }
       />
 
       <div style={{ maxWidth: '1020px', margin: '0 auto', padding: '40px 24px 80px' }}>

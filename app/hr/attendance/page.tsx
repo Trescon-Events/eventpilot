@@ -2,6 +2,8 @@
 
 import { useState, useEffect, useMemo, useCallback } from 'react'
 import Link from 'next/link'
+import { AppShellNav } from '@/app/components/AppShell'
+import PlatformMenu from '@/app/components/PlatformMenu'
 
 // ── Design tokens ─────────────────────────────────────────────────────────────
 const C = {
@@ -758,15 +760,13 @@ export default function AttendancePage() {
   return (
     <div style={{ minHeight: '100vh', background: C.bg, fontFamily: 'system-ui, sans-serif' }}>
 
-      {/* ── Top bar (sticky) ── */}
-      <div style={{ background: C.surface, borderBottom: `1px solid ${C.border}`, padding: '0 32px', position: 'sticky', top: 0, zIndex: 50 }}>
-        <div style={{ maxWidth: '1280px', margin: '0 auto', display: 'flex', alignItems: 'center', height: '60px', gap: '10px' }}>
-          <Link href="/hr" style={{ fontSize: '13px', color: C.muted, textDecoration: 'none', fontWeight: 600, flexShrink: 0 }}>← HR Portal</Link>
-          <div style={{ width: '1px', height: '20px', background: C.border }} />
-          <span style={{ fontSize: '15px', fontWeight: 800, color: C.text, flexShrink: 0 }}>Attendance</span>
-
-          <div style={{ flex: 1 }} />
-
+      {/* ── Top bar ── */}
+      <AppShellNav
+        moduleKey="hr"
+        moduleHref="/hr"
+        subtitle="Attendance"
+        rightSlot={
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
           {syncMsg && (
             <span style={{ fontSize: '11px', color: syncMsg.startsWith('Sync failed') ? C.red : C.green, maxWidth: '280px', textAlign: 'right' }}>
               {syncMsg}
@@ -792,8 +792,10 @@ export default function AttendancePage() {
             <svg width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
             Log Record
           </button>
-        </div>
-      </div>
+          <PlatformMenu />
+          </div>
+        }
+      />
 
       <div style={{ maxWidth: '1280px', margin: '0 auto', padding: '24px 32px' }}>
 

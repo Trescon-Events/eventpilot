@@ -3,7 +3,8 @@
 import { useState, useEffect, Suspense } from 'react'
 import { useSearchParams } from 'next/navigation'
 import Link from 'next/link'
-import NavBar, { ProfileMenu, NotificationBell, MOD_PEOPLE } from '@/app/components/NavBar'
+import { ProfileMenu, NotificationBell } from '@/app/components/NavBar'
+import { AppShellNav } from '@/app/components/AppShell'
 
 type Member = {
   id: string
@@ -152,8 +153,8 @@ function TeamContent() {
   if (!loading && members.length === 0) return (
     <div style={{ fontFamily: 'var(--font-manrope),Manrope,sans-serif', background: '#E8EEF4', minHeight: '100vh', color: '#0F1923' }}>
       {/* Nav */}
-      <NavBar
-        module={MOD_PEOPLE}
+      <AppShellNav
+        moduleKey="team-dashboard"
         subtitle="Team Dashboard"
         rightSlot={<>
           {staffId && <Link className="tbtn tbtn-teal" href={`/dashboard?id=${staffId}`}>My Dashboard</Link>}
@@ -220,8 +221,8 @@ function TeamContent() {
     <div style={{ fontFamily: 'var(--font-manrope),Manrope,sans-serif', background: '#E8EEF4', minHeight: '100vh', color: '#0F1923' }}>
 
       {/* Nav */}
-      <NavBar
-        module={MOD_PEOPLE}
+      <AppShellNav
+        moduleKey="team-dashboard"
         subtitle={scopeLabel}
         rightSlot={<>
           {staffId && <Link className="tbtn tbtn-teal" href={`/dashboard?id=${staffId}`}>My Dashboard</Link>}

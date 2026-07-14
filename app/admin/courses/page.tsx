@@ -1,7 +1,8 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
-import Link from 'next/link'
+import { AppShellNav } from '@/app/components/AppShell'
+import PlatformMenu from '@/app/components/PlatformMenu'
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 type TaskStep = { step: number; instruction: string; tip: string }
@@ -525,22 +526,23 @@ export default function CoursesPage() {
     <div style={{ minHeight: '100vh', background: '#F0F4F8', fontFamily: "'Helvetica Neue', Arial, sans-serif" }}>
 
       {/* Top nav */}
-      <nav style={{ background: 'linear-gradient(135deg,#0F1923 0%,#00A5A3 100%)', padding: '0 32px', display: 'flex', alignItems: 'center', gap: '16px', height: '60px', position: 'sticky', top: 0, zIndex: 50 }}>
-        <Link href="/admin" style={{ display: 'flex', alignItems: 'center', gap: '6px', color: 'rgba(255,255,255,0.6)', fontSize: '13px', fontWeight: 700, textDecoration: 'none' }}>
-          <svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg>
-          Admin
-        </Link>
-        <span style={{ color: 'rgba(255,255,255,0.3)', fontSize: '13px' }}>/</span>
-        <span style={{ color: '#ffffff', fontSize: '15px', fontWeight: 800 }}>Course Builder</span>
-        <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '8px' }}>
-          {drafts.length > 0 && (
-            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '5px 12px', borderRadius: '20px', background: 'rgba(217,119,6,0.2)', border: '1px solid rgba(217,119,6,0.35)' }}>
-              <div style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#F59E0B' }} />
-              <span style={{ fontSize: '12px', fontWeight: 800, color: '#FCD34D' }}>{drafts.length} draft{drafts.length > 1 ? 's' : ''} pending</span>
-            </div>
-          )}
-        </div>
-      </nav>
+      <AppShellNav
+        moduleKey="course-manager"
+        moduleHref="/admin/toolkit"
+        homeHref="/admin"
+        subtitle="Course Builder"
+        rightSlot={
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            {drafts.length > 0 && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '5px 12px', borderRadius: '20px', background: 'rgba(217,119,6,0.12)', border: '1px solid rgba(217,119,6,0.3)' }}>
+                <div style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#D97706' }} />
+                <span style={{ fontSize: '12px', fontWeight: 800, color: '#B45309' }}>{drafts.length} draft{drafts.length > 1 ? 's' : ''} pending</span>
+              </div>
+            )}
+            <PlatformMenu />
+          </div>
+        }
+      />
 
       <div style={{ maxWidth: '1100px', margin: '0 auto', padding: '32px 32px 80px' }}>
 

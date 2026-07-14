@@ -3,7 +3,7 @@
 import { useState, useEffect, Suspense } from 'react'
 import { useSearchParams } from 'next/navigation'
 import Link from 'next/link'
-import NavBar, { MOD_EVENTPILOT } from '@/app/components/NavBar'
+import { AppShellNav } from '@/app/components/AppShell'
 
 interface Course {
   id:                 string
@@ -117,8 +117,8 @@ function LibraryContent() {
   return (
     <div style={S.page}>
       {/* Nav */}
-      <NavBar
-        module={MOD_EVENTPILOT}
+      <AppShellNav
+        moduleKey="eventpilot"
         subtitle="Course Library"
         homeHref={staffId ? `/dashboard?id=${staffId}` : '/dashboard'}
         rightSlot={staffId ? (
