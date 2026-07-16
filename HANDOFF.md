@@ -10,10 +10,35 @@
 
 | Field | Value |
 |---|---|
-| Who | Madhu + Claude Code (Sonnet 5) — 14 Jul 2026 |
-| Latest push | 2026-07-14 — commit `ca7fcbd` (module registry + shared shell rollout across app, close tool-access security gap) |
+| Who | Madhu + Claude Code (Sonnet 5) — 15–16 Jul 2026 |
+| Latest push | 2026-07-16 — commit `95d18c3` (persistent global shell, module sidebars, breadcrumbs — full nav architecture overhaul) |
 | Handed off to | Durga |
-| Deployed | ✅ Yes — commit `ca7fcbd` live on Railway (follows `f3d71d9`, local-password-login restriction, also pushed this session) |
+| Deployed | ✅ Yes — commit `95d18c3` live on Railway, confirmed via `/login` (200) and `/admin/toolkit` (307, unauthenticated redirect) on both the Railway URL and `eventpilot.tresconglobal.com` |
+
+**Session highlight (15–16 Jul 2026):** Madhu asked to grant KB/DocuHub/Knowledge Assistant module access to 5 people — which surfaced that Knowledge Base and DocuHub were still sitting inside the Admin Dashboard rather than as real Toolkit-gated tools. That escalated (with Madhu's explicit go-ahead to "do everything at once") into a full navigation architecture overhaul once he noticed the top bar remounting on every navigation, module sub-nav crammed into the top bar instead of a sidebar, a duplicate "My Dashboard" button, and no breadcrumbs anywhere.
+
+**1. KB/DocuHub/Knowledge Assistant → Toolkit.** Moved out of the Admin Dashboard entirely into `/admin/toolkit/*` as `tool_grant`-gated tools (`knowledge_base`, `docuhub`), matching Website Builder/Brand Studio/Market Intelligence/Bespoke Tracker. Knowledge Assistant became its own separately-gated tool (previously piggybacked on Pilot Project membership — see the `bd-chat` access-model change below). Legacy `/knowledge/*` and `/docuhub/*` URLs redirect (`middleware.ts`) to the new nested paths so old bookmarks/emails keep working.
+
+**2. Persistent nav architecture (the big one).** Three-tier chrome separation, matching how Stripe/Linear/Vercel structure dashboards:
+   - **`GlobalShell`** (`app/components/GlobalShell.tsx`) — logo, breadcrumb strip, quick-access (Toolkit/Pilot Projects/Team Dashboard), Help/Sound/Profile. Lives once in the root layout via a new `AuthedShellGate` (pathname-gated client wrapper — public pages like `/login`/`/events/*` render bare), so it **never remounts between navigations**, unlike the old per-page `AppShellNav`.
+   - **`ModuleSidebar`** (`app/components/ModuleSidebar.tsx`) — shared per-module left sidebar, one per module with 2+ sub-pages. Rolled out to Finance, HR, Knowledge Base, DocuHub, and Smart Data (`/data`, reconciled from its own older bespoke sidebar).
+   - **`PageHeader`** (`app/components/PageHeader.tsx`) — page-level title/description/actions, replacing every remaining `AppShellNav`/`NavBar` top bar across ~50 pages.
+   - **Breadcrumbs** (`app/lib/nav/breadcrumbs.ts`) — zero-registration, pure prefix-match derivation off the module registry (`app/lib/registry/modules.tsx`) + current URL. Event-scoped/dynamic-path tools use a new `breadcrumbPattern`/`breadcrumbParent` pair on their registry entry.
+   - New `GET /api/nav/quick-access` (fetched once by `GlobalShell`, not per-page).
+
+**3. Full-app rollout + cleanup sweep.** Migrated every remaining page — Dashboard, Content, Messages, Chat, Team, Timesheets, My HR, Changelog, Docs, Insights, Community, Admin Reviews, Admin Courses, Toolkit hub (reskinned from its old dark sidebar to the shared light theme), Bespoke Tracker (3 pages), Commercial Tracker (portfolio + per-event), 5 event-workspace pages (overview/plan/execution/brand/website/market-intel — dropped redundant "‹ Toolkit"/"Admin" back-links now covered by the real breadcrumb, kept genuinely unique per-event links the global breadcrumb can't replicate), Pilot Projects (3 pages), PER/Proposal Creator, Leaderboard. Along the way: fixed a real breadcrumb bug (SmartExcel's registry `href` pointed only at `/jobs`, so `/recipes` and `/admin` silently got no breadcrumb), added ~10 missing registry entries for orphan pages that had no breadcrumb trail at all, and fixed a genuine `ModuleSidebar` active-state bug (a module's root nav item and its current sub-page both lit up simultaneously — fixed via longest-prefix-match).
+
+**Verification:** `npx tsc --noEmit` and `npx next build` clean after every phase; `next lint` run against every touched file post-hoc as a pre-push audit — flagged some pre-existing warnings elsewhere in the codebase, none introduced by this work (each traced against `git diff` to confirm). All verification this session was `tsc`/`build`/curl/lint only — **no authenticated browser click-through was done** (no login credentials available this session); Madhu still needs to visually confirm the shell persists with no flash, sidebar active-states are correct, and breadcrumb text reads correctly on deep pages.
+
+**Also this session:** `bd-chat`'s access model (`app/api/kb/bd-chat/route.ts`) switched from Pilot Project membership ("Knowledge Base Module"/"DocuHub Module" projects) to the same `tool_grants.knowledge_assistant` flag every other gated tool uses — consistent with Knowledge Assistant becoming its own grantable Toolkit tool rather than piggybacking on pilot rosters.
+
+**Stale doc found and fixed:** `AGENTS.md`'s session-end protocol says to manually prepend a Build Log entry in `app/admin/page.tsx` — that's now obsolete, the Build Log (`buildLog` state, `GET /api/build-log`) already pulls live from GitHub commits with a "live · auto-updates on every commit" label. Nothing to hand-edit there; the commit message below is what will surface.
+
+**Left alone, flagged again (unrelated to this session, still untouched):** `.scratch/`, `Attendee Data Historical/`, `Historical docs for KB/`, `docs/EventPilot-KB-PRD-v1.0.md`/`v1.1.md`/`v3.0.md` drafts, `knowledge-base/bd/proposals/*` (6 files, Madhu's own BD work), `knowledge-engine/processors/proposal.md` (pre-existing modification from before this session).
+
+---
+
+## What Was Built — 14 Jul 2026 (Madhu + Claude Code) — Navigation & access-control redesign, module registry (previous session, preserved below)
 
 **Session highlight (14 Jul 2026):** a full navigation & access-control audit and 5-phase fix, requested explicitly by Madhu with Durga's sign-off ("no more stop-gap fixes"). Consolidated 3 independently-maintained module lists into one registry (`app/lib/registry/`), closed a real security gap (Website Builder/Brand Studio/Market Intelligence/Bespoke Tracker had zero server-side access enforcement, only client-side tile hiding), built a shared nav-shell component (`AppShellNav`), and migrated every module with an existing nav header to it — Dashboard, Messages, Chat, Docs, Changelog, Community, Insights, My HR, Team, Content, Course Library, Platform Reviews, Course Manager, Toolkit hub, Timesheets, Finance (5 pages), HR (9 pages), Data (15+ pages via one shared layout), KB, DocuHub. Full detail in "What Was Built — 14 Jul 2026" below.
 
