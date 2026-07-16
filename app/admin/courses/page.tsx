@@ -1,8 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
-import { AppShellNav } from '@/app/components/AppShell'
-import PlatformMenu from '@/app/components/PlatformMenu'
+import PageHeader from '@/app/components/PageHeader'
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 type TaskStep = { step: number; instruction: string; tip: string }
@@ -525,23 +524,15 @@ export default function CoursesPage() {
   return (
     <div style={{ minHeight: '100vh', background: '#F0F4F8', fontFamily: "'Helvetica Neue', Arial, sans-serif" }}>
 
-      {/* Top nav */}
-      <AppShellNav
-        moduleKey="course-manager"
-        moduleHref="/admin/toolkit"
-        homeHref="/admin"
-        subtitle="Course Builder"
-        rightSlot={
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            {drafts.length > 0 && (
-              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '5px 12px', borderRadius: '20px', background: 'rgba(217,119,6,0.12)', border: '1px solid rgba(217,119,6,0.3)' }}>
-                <div style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#D97706' }} />
-                <span style={{ fontSize: '12px', fontWeight: 800, color: '#B45309' }}>{drafts.length} draft{drafts.length > 1 ? 's' : ''} pending</span>
-              </div>
-            )}
-            <PlatformMenu />
+      {/* Page header */}
+      <PageHeader
+        title="Course Builder"
+        actions={drafts.length > 0 ? (
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '5px 12px', borderRadius: '20px', background: 'rgba(217,119,6,0.12)', border: '1px solid rgba(217,119,6,0.3)' }}>
+            <div style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#D97706' }} />
+            <span style={{ fontSize: '12px', fontWeight: 800, color: '#B45309' }}>{drafts.length} draft{drafts.length > 1 ? 's' : ''} pending</span>
           </div>
-        }
+        ) : undefined}
       />
 
       <div style={{ maxWidth: '1100px', margin: '0 auto', padding: '32px 32px 80px' }}>

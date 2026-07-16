@@ -75,6 +75,22 @@ export type ModuleDef = {
     color?: string
     label?: string
   }
+
+  /**
+   * Breadcrumb derivation hints — only needed for the handful of entries
+   * whose `href` is a ctx-function AND whose PATH (not just querystring)
+   * varies at runtime, e.g. event-scoped tools. Most ctx-function entries
+   * (dashboard, messages, etc.) only vary the querystring, so plain
+   * pathname-prefix matching against `href({})` already works for those —
+   * see app/lib/nav/breadcrumbs.ts.
+   */
+  /** Path template with `:param` placeholders, matched against the current
+   *  pathname segment-by-segment (e.g. '/admin/events/:eventId/website'). */
+  breadcrumbPattern?: string
+  /** Registry key of this entry's breadcrumb ancestor — a single explicit
+   *  hop, used when the pattern's own path can't be prefix-matched to find
+   *  one automatically. */
+  breadcrumbParent?: string
 }
 
 /* ── Shared icons (kept identical to PlatformMenu.tsx / NavBar.tsx) ── */
@@ -138,31 +154,8 @@ export function getModuleRegistry(): ModuleDef[] {
       // tile's purple bolt — a genuine pre-existing divergence, not a bug.
       pageBadge: { icon: I.message, color: '#00A5A3', label: 'Pilot AI' },
     },
-    {
-      // icon was wrongly set to the DocuHub-style file icon in an earlier
-      // pass — the original PlatformMenu tile actually reuses the same
-      // open-book shape as "My Dashboard" (verified against git history).
-      key: 'kb', label: 'Knowledge Base',
-      description: 'Browse company policies, past event reports, and reference documents',
-      icon: I.dashboard, color: '#0E7490',
-      href: ctx => ctx.staffId ? `/knowledge?id=${ctx.staffId}` : '/knowledge',
-      access: { kind: 'always' },
-      platformMenu: { section: 'Learning' },
-      // The page's own nav badge (formerly MOD_KNOWLEDGE) is grey, not the
-      // menu tile's teal-blue — a genuine pre-existing divergence.
-      pageBadge: { color: '#5B7080' },
-    },
 
     /* ── Team & Organisation ── */
-    {
-      key: 'docuhub', label: 'DocuHub',
-      description: 'Upload and share post-event reports, proposals, and policies with a permanent link',
-      icon: <svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>,
-      color: '#D97706',
-      href: '/docuhub',
-      access: { kind: 'always' },
-      platformMenu: { section: 'Team & Organisation' },
-    },
     {
       key: 'my-hr', label: 'My HR',
       description: 'Leave requests, attendance, event assignments and your HR records',
@@ -351,6 +344,14 @@ export function getModuleRegistry(): ModuleDef[] {
       href: '/admin',
       access: { kind: 'admin_only' },
       platformMenu: { section: 'Administration' },
+      // The Admin Dashboard's own nav badge has always shown a 2x2-square
+      // grid icon + "Platform Admin" (teal), not the gear/#3D6B00 used for
+      // its PlatformMenu tile — a genuine pre-existing divergence, same
+      // pattern as kb/my-hr/team-dashboard/pilot-ai above.
+      pageBadge: {
+        color: '#00897B', label: 'Platform Admin',
+        icon: <svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>,
+      },
     },
     {
       key: 'finance-admin', label: 'Finance Portal',
@@ -393,6 +394,74 @@ export function getModuleRegistry(): ModuleDef[] {
       platformMenu: { section: 'Administration' },
     },
 
+    /* ── Toolkit-only: Knowledge ──
+       Moved out of PlatformMenu (formerly Learning/Team & Organisation,
+       access: 'always') into Toolkit-only, tool_grant-gated tools — per
+       Madhu's 15 Jul redesign request. Real pages live nested under
+       /admin/toolkit/knowledge-base and /admin/toolkit/docuhub now (see
+       their layout.tsx server-side access gates), not the old top-level
+       /knowledge and /docuhub — those paths now 404 without the middleware
+       redirect that forwards them here. Note: these grantKeys are
+       deliberately distinct token strings from module_access.module_key
+       ('kb' / 'dochub', a separate table governing what a granted user can
+       DO once inside — e.g. KB admin tier — not whether they can enter at
+       all). Registry `key` stays 'kb'/'docuhub' unchanged so isKbAdmin(),
+       AppShellNav pageBadges, and other existing 'kb'/'docuhub' references
+       don't need to change. */
+    {
+      key: 'kb', label: 'Knowledge Base',
+      description: 'Browse company policies, past event reports, and reference documents — plus ingest new documents and manage BD proposal intelligence.',
+      icon: I.dashboard, color: '#0E7490',
+      href: '/admin/toolkit/knowledge-base',
+      access: { kind: 'tool_grant', grantKey: 'knowledge_base' },
+      // The page's own nav badge (formerly MOD_KNOWLEDGE) is grey, not the
+      // tile's teal-blue — a genuine pre-existing divergence, preserved.
+      pageBadge: { color: '#5B7080' },
+      toolkitHub: {
+        category: 'Knowledge', badge: 'Knowledge',
+        description: 'Company knowledge base — policies, past event reports, and BD proposal intelligence, with a self-learning ingest pipeline and admin console for document review.',
+        features: [
+          { icon: '◉', label: 'Search & browse documents', detail: 'Company policies, past event reports, and reference documents, filterable by department' },
+          { icon: '↓', label: 'Document ingest', detail: 'Upload a document — AI classifies, summarises, and flags gaps before publishing' },
+          { icon: '◈', label: 'BD proposal intelligence', detail: 'Structured proposal workspace per client, feeding the Knowledge Assistant' },
+          { icon: '≡', label: 'Version history', detail: 'Every published revision stays downloadable, with a full change log' },
+        ],
+      },
+    },
+    {
+      key: 'docuhub', label: 'DocuHub',
+      description: 'Upload and share post-event reports, proposals, and policies with a permanent link',
+      icon: <svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>,
+      color: '#D97706',
+      href: '/admin/toolkit/docuhub',
+      access: { kind: 'tool_grant', grantKey: 'docuhub' },
+      toolkitHub: {
+        category: 'Knowledge', badge: 'Knowledge',
+        description: 'Upload and share post-event reports, proposals, and policies with a permanent link — with per-document access control and a full audit log.',
+        features: [
+          { icon: '↓', label: 'Upload & bulk upload', detail: 'Single or batch document upload, tagged by type and client' },
+          { icon: '⊙', label: 'Permanent links', detail: 'Every document gets a stable, shareable link that never breaks' },
+          { icon: '◉', label: 'Access control', detail: 'Grant view/edit access per person, per document type' },
+          { icon: '≡', label: 'Audit log', detail: 'Every view, edit, and download tracked for compliance' },
+        ],
+      },
+    },
+    {
+      key: 'knowledge-assistant', label: 'Knowledge Assistant',
+      description: 'AI assistant that answers questions about company knowledge — proposals, policies, and past event reports — grounded only in ingested documents.',
+      icon: I.bolt, color: '#0891B2',
+      href: '/admin/toolkit/knowledge-assistant',
+      access: { kind: 'tool_grant', grantKey: 'knowledge_assistant' },
+      toolkitHub: {
+        category: 'Knowledge', badge: 'Knowledge',
+        features: [
+          { icon: '◈', label: 'Grounded Q&A', detail: 'Answers only from ingested Knowledge Base and DocuHub documents — no guessing' },
+          { icon: '◉', label: 'BD proposal recall', detail: 'Ask about any client, event platform, or past proposal by name' },
+          { icon: '◷', label: 'Daily usage cap', detail: '20 messages a day per person, unlimited for super admins' },
+        ],
+      },
+    },
+
     /* ── Toolkit-only: Event Tools ── */
     {
       key: 'website-builder', label: 'Website Builder',
@@ -400,6 +469,7 @@ export function getModuleRegistry(): ModuleDef[] {
       icon: I.wrench, color: '#00897B',
       href: ctx => `/admin/events/${ctx.eventId}/website`,
       needsEvent: true,
+      breadcrumbPattern: '/admin/events/:eventId/website', breadcrumbParent: 'toolkit',
       access: { kind: 'tool_grant', grantKey: 'website_builder' },
       toolkitHub: {
         category: 'Events', badge: 'Event Tool',
@@ -419,6 +489,7 @@ export function getModuleRegistry(): ModuleDef[] {
       color: '#6366F1',
       href: ctx => `/admin/events/${ctx.eventId}/market-intel`,
       needsEvent: true,
+      breadcrumbPattern: '/admin/events/:eventId/market-intel', breadcrumbParent: 'toolkit',
       access: { kind: 'tool_grant', grantKey: 'intelligence' },
       toolkitHub: {
         category: 'Events', badge: 'Event Tool',
@@ -437,6 +508,7 @@ export function getModuleRegistry(): ModuleDef[] {
       color: '#A78BFA',
       href: ctx => `/admin/events/${ctx.eventId}/brand`,
       needsEvent: true,
+      breadcrumbPattern: '/admin/events/:eventId/brand', breadcrumbParent: 'toolkit',
       access: { kind: 'tool_grant', grantKey: 'brand_studio' },
       toolkitHub: {
         category: 'Events', badge: 'Event Tool',
@@ -472,7 +544,8 @@ export function getModuleRegistry(): ModuleDef[] {
       description: 'Conversational, AI-assisted spreadsheet and document-to-spreadsheet jobs. Describe what you need in plain English — clarify, plan, sample, run, and refine, with a human approval step before anything runs at scale.',
       icon: <svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="9" y1="21" x2="9" y2="9"/></svg>,
       color: '#2E7D32',
-      href: '/smartexcel/jobs',
+      href: '/smartexcel',
+      breadcrumbParent: 'toolkit',
       access: { kind: 'tool_grant', grantKey: 'smart_excel' },
       toolkitHub: {
         category: 'Data', badge: 'Data Intelligence',
@@ -542,6 +615,7 @@ export function getModuleRegistry(): ModuleDef[] {
       icon: <svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>,
       color: '#B45309',
       href: '/admin/bespoke',
+      breadcrumbParent: 'toolkit',
       access: { kind: 'tool_grant', grantKey: 'bespoke' },
       toolkitHub: {
         category: 'Operations', badge: 'Operations',
@@ -561,6 +635,7 @@ export function getModuleRegistry(): ModuleDef[] {
       icon: <svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>,
       color: '#00695C',
       href: '/admin/commercial',
+      breadcrumbParent: 'toolkit',
       access: { kind: 'admin_only' },
       toolkitHub: {
         category: 'Finance', badge: 'Finance', access: { kind: 'tool_grant', grantKey: 'commercial' },
@@ -592,6 +667,83 @@ export function getModuleRegistry(): ModuleDef[] {
       color: '#A478FF',
       href: '/insights',
       access: { kind: 'admin_only' },
+    },
+    {
+      key: 'admin-reviews', label: 'Platform Reviews',
+      description: 'Staff feedback on platform tools — issues, bugs, and suggestions.',
+      icon: <svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>,
+      color: '#DC2626',
+      href: '/admin/reviews',
+      access: { kind: 'admin_only' },
+    },
+    {
+      key: 'per-creator', label: 'PER Creator',
+      description: 'Generates a post-event report from submitted event data, pulling in past editions and Trescon credentials.',
+      icon: I.dashboard, color: '#60A5FA',
+      href: '/admin/tools/per-creator',
+      breadcrumbParent: 'kb',
+      access: { kind: 'tool_grant', grantKey: 'knowledge_base' },
+    },
+    {
+      key: 'proposal-creator', label: 'Proposal Creator',
+      description: 'Generates a client proposal from a prospect brief, pulling in Trescon commercial models and historical proposals.',
+      icon: I.dashboard, color: '#7C3AED',
+      href: '/admin/tools/proposal-creator',
+      breadcrumbParent: 'kb',
+      access: { kind: 'tool_grant', grantKey: 'knowledge_base' },
+    },
+    {
+      key: 'commercial-event', label: 'Commercial Tracker',
+      description: 'Per-event commercial P&L workspace — not independently navigable, reached only via the Commercial Tracker tool.',
+      icon: I.dashboard, color: '#00695C',
+      href: ctx => `/admin/commercial/${ctx.eventId}`,
+      needsEvent: true,
+      breadcrumbPattern: '/admin/commercial/:eventId', breadcrumbParent: 'toolkit',
+      access: { kind: 'admin_only' },
+    },
+    {
+      key: 'admin-event-workspace', label: 'Event Workspace',
+      description: 'Per-event workspace — checklist, details, and links into the event-scoped tools.',
+      icon: I.dashboard, color: '#00695C',
+      href: ctx => `/admin/events/${ctx.eventId}`,
+      needsEvent: true,
+      breadcrumbPattern: '/admin/events/:eventId',
+      access: { kind: 'admin_only' },
+    },
+    {
+      key: 'admin-event-plan', label: 'Planning Board',
+      description: 'Per-event task planning kanban/table board.',
+      icon: I.dashboard, color: '#00695C',
+      href: ctx => `/admin/events/${ctx.eventId}/plan`,
+      needsEvent: true,
+      breadcrumbPattern: '/admin/events/:eventId/plan',
+      access: { kind: 'admin_only' },
+    },
+    {
+      key: 'admin-event-execution', label: 'Execution Flow',
+      description: 'Per-event execution timeline and checkpoint tracking.',
+      icon: I.dashboard, color: '#00695C',
+      href: ctx => `/admin/events/${ctx.eventId}/execution`,
+      needsEvent: true,
+      breadcrumbPattern: '/admin/events/:eventId/execution',
+      access: { kind: 'admin_only' },
+    },
+    {
+      key: 'admin-event-brief', label: 'Event Brief',
+      description: 'Per-event intelligence brief.',
+      icon: I.dashboard, color: '#00695C',
+      href: ctx => `/admin/events/${ctx.eventId}/brief`,
+      needsEvent: true,
+      breadcrumbPattern: '/admin/events/:eventId/brief',
+      access: { kind: 'admin_only' },
+    },
+    {
+      key: 'leaderboard', label: 'Leaderboard',
+      description: 'Weekly learning leaderboard ranked by course completions.',
+      icon: <svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M18 20V10"/><path d="M12 20V4"/><path d="M6 20v-6"/></svg>,
+      color: '#00A5A3',
+      href: '/leaderboard',
+      access: { kind: 'always' },
     },
   ]
 }

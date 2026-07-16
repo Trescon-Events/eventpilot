@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import Link from 'next/link'
+import PageHeader from '@/app/components/PageHeader'
 
 const C = {
   bg: '#E8EEF4', surface: '#FFFFFF', border: '#DDE8EE', text: '#0F1923', muted: '#5B7080',
@@ -90,24 +90,13 @@ export default function PerCreatorPage() {
 
   return (
     <div style={{ minHeight: '100vh', background: C.bg, fontFamily: 'var(--font-manrope), Manrope, sans-serif' }}>
-      <div style={{ background: C.surface, borderBottom: `1px solid ${C.border}`, padding: '0 32px', height: '58px', display: 'flex', alignItems: 'center', gap: '12px' }}>
-        <Link href="/admin?tab=knowledge&sub=documents" style={{ textDecoration: 'none' }}>
-          <img src="/trescon-logo.png" alt="Trescon" style={{ height: '34px', width: 'auto' }} />
-        </Link>
-        <div style={{ width: '1px', height: '20px', background: C.border }} />
-        <div style={{ fontSize: '13px', fontWeight: 800, color: C.text }}>PER Creator</div>
-        <Link href="/admin?tab=knowledge&sub=documents" style={{ marginLeft: 'auto', fontSize: '13px', fontWeight: 700, color: C.muted, textDecoration: 'none' }}>‹ Knowledge Base</Link>
-      </div>
+      <PageHeader
+        eyebrow="Knowledge Base — Generator"
+        title="Post-Event Report Creator"
+        description="Enter the event data once it's wrapped. The most relevant past editions and Trescon's credentials are pulled in automatically for structure and the closing “About Trescon” section."
+      />
 
       <div style={{ maxWidth: '860px', margin: '0 auto', padding: '40px 24px 80px', display: 'grid', gap: '24px' }}>
-        <div>
-          <div style={{ fontSize: '13px', fontWeight: 800, letterSpacing: '2.5px', textTransform: 'uppercase', color: C.blue, marginBottom: '8px' }}>Knowledge Base — Generator</div>
-          <h1 style={{ fontSize: '32px', fontWeight: 900, margin: '0 0 8px', letterSpacing: '-0.4px', color: C.text }}>Post-Event Report Creator</h1>
-          <p style={{ fontSize: '13px', color: C.muted, margin: 0, lineHeight: 1.6 }}>
-            Enter the event data once it&rsquo;s wrapped. The most relevant past editions and Trescon&rsquo;s credentials are pulled in automatically for structure and the closing &ldquo;About Trescon&rdquo; section.
-          </p>
-        </div>
-
         {/* Step 1 — Input */}
         <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: '16px', padding: '24px' }}>
           <div style={{ fontSize: '13px', fontWeight: 800, color: C.text, marginBottom: '16px' }}>1. Event Data</div>

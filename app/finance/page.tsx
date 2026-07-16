@@ -2,8 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
-import { AppShellNav } from '@/app/components/AppShell'
-import PlatformMenu from '@/app/components/PlatformMenu'
+import PageHeader from '@/app/components/PageHeader'
 
 const C = { bg: '#F6F8FB', surface: '#FFFFFF', border: '#DDE8EE', text: '#0F1923', muted: '#5B7080', green: '#00897B', amber: '#D97706', red: '#8B1A1A', blue: '#1565C0', purple: '#6C54B5' }
 
@@ -56,12 +55,7 @@ export default function FinanceDashboard() {
 
   return (
     <div style={{ minHeight: '100vh', background: C.bg, fontFamily: "'Inter', system-ui, sans-serif" }}>
-      <AppShellNav moduleKey="finance" moduleHref="/admin/toolkit" homeHref="/admin/toolkit" rightSlot={<PlatformMenu />} />
-      <div style={{ background: C.surface, borderBottom: `1px solid ${C.border}`, padding: '20px 32px' }}>
-        <div style={{ maxWidth: 1100, margin: '0 auto' }}>
-          <h1 style={{ fontSize: 22, fontWeight: 800, color: C.text, margin: 0 }}>Finance Portal</h1>
-        </div>
-      </div>
+      <PageHeader eyebrow="Finance" title="Overview" description="Monthly payroll, expense claims, and vendor payment status at a glance." />
 
       <div style={{ maxWidth: 1100, margin: '0 auto', padding: '24px 32px' }}>
         {/* KPI cards */}

@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import type { SavedReport } from '@/app/lib/generateInsights'
-import { AppShellNav } from '@/app/components/AppShell'
+import PageHeader from '@/app/components/PageHeader'
 
 export default function InsightsPage() {
   const [authed,      setAuthed]      = useState(false)
@@ -97,28 +97,16 @@ export default function InsightsPage() {
   return (
     <div style={{ fontFamily: 'var(--font-manrope), Manrope, sans-serif', background: '#E8EEF4', minHeight: '100vh', color: '#0F1923' }}>
 
-      {/* Nav */}
-      <AppShellNav
-        moduleKey="insights"
-        subtitle="Reports"
-        homeHref="/admin"
-        rightSlot={<Link className="tbtn tbtn-teal" href="/admin">Admin Dashboard</Link>}
-      />
-
-      <div style={{ padding: '40px', maxWidth: '1000px', margin: '0 auto' }}>
-
-        {/* Page header */}
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '28px', gap: '24px', flexWrap: 'wrap' }}>
-          <div>
-            <h1 style={{ fontSize: '36px', fontWeight: 800, color: '#0F1923', marginBottom: '6px' }}>Event Pilot Intelligence Report</h1>
-            <p style={{ fontSize: '13px', color: '#2D3E50', lineHeight: 1.65 }}>
-              {loading
-                ? 'Loading reports...'
-                : savedReports.length === 0
-                  ? `${taskCount} profiles on record — no report generated yet`
-                  : `${savedReports.length} report${savedReports.length !== 1 ? 's' : ''} saved · auto-generated every Sunday at 8 PM IST`}
-            </p>
-          </div>
+      {/* Page header */}
+      <PageHeader
+        eyebrow="Reports"
+        title="Event Pilot Intelligence Report"
+        description={loading
+          ? 'Loading reports...'
+          : savedReports.length === 0
+            ? `${taskCount} profiles on record — no report generated yet`
+            : `${savedReports.length} report${savedReports.length !== 1 ? 's' : ''} saved · auto-generated every Sunday at 8 PM IST`}
+        actions={
           <button
             onClick={generateInsights}
             disabled={generating || taskCount === 0}
@@ -141,7 +129,10 @@ export default function InsightsPage() {
               </>
             )}
           </button>
-        </div>
+        }
+      />
+
+      <div style={{ padding: '40px', maxWidth: '1000px', margin: '0 auto' }}>
 
         {error && (
           <div style={{ background: '#FF6B6B15', border: '1px solid #FF6B6B40', borderRadius: '12px', padding: '18px 20px', marginBottom: '24px', fontSize: '13px', color: '#FF6B6B' }}>

@@ -1,8 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
-import { AppShellNav } from '@/app/components/AppShell'
-import PlatformMenu from '@/app/components/PlatformMenu'
+import PageHeader from '@/app/components/PageHeader'
 
 const C = {
   bg: '#F6F8FB', surface: '#FFFFFF', border: '#DDE8EE', text: '#0F1923',
@@ -134,26 +133,20 @@ export default function PerformancePage() {
   return (
     <div style={{ minHeight: '100vh', background: C.bg, fontFamily: "'Inter', system-ui, sans-serif" }}>
       {/* Header */}
-      <AppShellNav moduleKey="hr" moduleHref="/hr" subtitle="Performance Reviews" rightSlot={<PlatformMenu />} />
-      <div style={{ background: C.surface, borderBottom: `1px solid ${C.border}`, padding: '20px 32px' }}>
-        <div style={{ maxWidth: 1100, margin: '0 auto' }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12 }}>
-            <h1 style={{ fontSize: 22, fontWeight: 800, color: C.text, margin: 0 }}>Performance Reviews</h1>
-            <div style={{ display: 'flex', gap: 6 }}>
-              <button onClick={() => setTab('overview')}
-                style={{ padding: '7px 18px', borderRadius: 8, border: tab === 'overview' ? `1.5px solid ${C.purple}` : `1px solid ${C.border}`, background: tab === 'overview' ? C.purple : C.surface, color: tab === 'overview' ? '#fff' : C.muted, fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
-                All Reviews
-              </button>
-              {isManager && (
-                <button onClick={() => setTab('create')}
-                  style={{ padding: '7px 18px', borderRadius: 8, border: tab === 'create' ? `1.5px solid ${C.green}` : `1px solid ${C.border}`, background: tab === 'create' ? C.green : C.surface, color: tab === 'create' ? '#fff' : C.muted, fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
-                  + New Review
-                </button>
-              )}
-            </div>
-          </div>
+      <PageHeader eyebrow="HR" title="Performance Reviews" actions={
+        <div style={{ display: 'flex', gap: 6 }}>
+          <button onClick={() => setTab('overview')}
+            style={{ padding: '7px 18px', borderRadius: 8, border: tab === 'overview' ? `1.5px solid ${C.purple}` : `1px solid ${C.border}`, background: tab === 'overview' ? C.purple : C.surface, color: tab === 'overview' ? '#fff' : C.muted, fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
+            All Reviews
+          </button>
+          {isManager && (
+            <button onClick={() => setTab('create')}
+              style={{ padding: '7px 18px', borderRadius: 8, border: tab === 'create' ? `1.5px solid ${C.green}` : `1px solid ${C.border}`, background: tab === 'create' ? C.green : C.surface, color: tab === 'create' ? '#fff' : C.muted, fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
+              + New Review
+            </button>
+          )}
         </div>
-      </div>
+      } />
 
       <div style={{ maxWidth: 1100, margin: '0 auto', padding: '24px 32px' }}>
         {msg && <div style={{ padding: '10px 16px', borderRadius: 8, marginBottom: 16, background: msg.ok ? `${C.green}12` : `${C.red}12`, border: `1px solid ${msg.ok ? C.green : C.red}30`, color: msg.ok ? C.green : C.red, fontSize: 13, fontWeight: 600 }}>{msg.text}</div>}

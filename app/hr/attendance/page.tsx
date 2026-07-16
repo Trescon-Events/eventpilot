@@ -2,8 +2,7 @@
 
 import { useState, useEffect, useMemo, useCallback } from 'react'
 import Link from 'next/link'
-import { AppShellNav } from '@/app/components/AppShell'
-import PlatformMenu from '@/app/components/PlatformMenu'
+import PageHeader from '@/app/components/PageHeader'
 
 // ── Design tokens ─────────────────────────────────────────────────────────────
 const C = {
@@ -761,41 +760,35 @@ export default function AttendancePage() {
     <div style={{ minHeight: '100vh', background: C.bg, fontFamily: 'system-ui, sans-serif' }}>
 
       {/* ── Top bar ── */}
-      <AppShellNav
-        moduleKey="hr"
-        moduleHref="/hr"
-        subtitle="Attendance"
-        rightSlot={
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-          {syncMsg && (
-            <span style={{ fontSize: '11px', color: syncMsg.startsWith('Sync failed') ? C.red : C.green, maxWidth: '280px', textAlign: 'right' }}>
-              {syncMsg}
-            </span>
-          )}
+      <PageHeader eyebrow="HR" title="Attendance" actions={
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+        {syncMsg && (
+          <span style={{ fontSize: '11px', color: syncMsg.startsWith('Sync failed') ? C.red : C.green, maxWidth: '280px', textAlign: 'right' }}>
+            {syncMsg}
+          </span>
+        )}
 
-          <button onClick={() => syncHRMS(30)} disabled={syncing}
-            style={{ padding: '7px 14px', borderRadius: '8px', border: `1px solid ${C.green}`, fontSize: '12px', fontWeight: 700, color: C.green, background: C.surface, cursor: 'pointer', fontFamily: 'inherit', opacity: syncing ? 0.6 : 1, flexShrink: 0, display: 'flex', alignItems: 'center', gap: '5px' }}>
-            <svg width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polyline points="8 17 12 21 16 17"/><line x1="12" y1="3" x2="12" y2="21"/></svg>
-            {syncing ? 'Syncing…' : 'Sync 30d'}
-          </button>
-          <button onClick={() => syncHRMS(365)} disabled={syncing}
-            style={{ padding: '7px 12px', borderRadius: '8px', border: `1px solid ${C.border}`, fontSize: '12px', fontWeight: 700, color: C.muted, background: C.surface, cursor: 'pointer', fontFamily: 'inherit', flexShrink: 0 }}>
-            Sync All
-          </button>
-          <button onClick={exportCSV}
-            style={{ padding: '7px 12px', borderRadius: '8px', border: `1px solid ${C.border}`, fontSize: '12px', fontWeight: 700, color: C.text, background: C.surface, cursor: 'pointer', fontFamily: 'inherit', flexShrink: 0, display: 'flex', alignItems: 'center', gap: '5px' }}>
-            <svg width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polyline points="8 17 12 21 16 17"/><line x1="12" y1="3" x2="12" y2="21"/></svg>
-            CSV
-          </button>
-          <button onClick={() => setShowLog(true)}
-            style={{ padding: '7px 14px', borderRadius: '8px', background: C.text, color: '#fff', fontSize: '12px', fontWeight: 700, border: 'none', cursor: 'pointer', fontFamily: 'inherit', flexShrink: 0, display: 'flex', alignItems: 'center', gap: '5px' }}>
-            <svg width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-            Log Record
-          </button>
-          <PlatformMenu />
-          </div>
-        }
-      />
+        <button onClick={() => syncHRMS(30)} disabled={syncing}
+          style={{ padding: '7px 14px', borderRadius: '8px', border: `1px solid ${C.green}`, fontSize: '12px', fontWeight: 700, color: C.green, background: C.surface, cursor: 'pointer', fontFamily: 'inherit', opacity: syncing ? 0.6 : 1, flexShrink: 0, display: 'flex', alignItems: 'center', gap: '5px' }}>
+          <svg width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polyline points="8 17 12 21 16 17"/><line x1="12" y1="3" x2="12" y2="21"/></svg>
+          {syncing ? 'Syncing…' : 'Sync 30d'}
+        </button>
+        <button onClick={() => syncHRMS(365)} disabled={syncing}
+          style={{ padding: '7px 12px', borderRadius: '8px', border: `1px solid ${C.border}`, fontSize: '12px', fontWeight: 700, color: C.muted, background: C.surface, cursor: 'pointer', fontFamily: 'inherit', flexShrink: 0 }}>
+          Sync All
+        </button>
+        <button onClick={exportCSV}
+          style={{ padding: '7px 12px', borderRadius: '8px', border: `1px solid ${C.border}`, fontSize: '12px', fontWeight: 700, color: C.text, background: C.surface, cursor: 'pointer', fontFamily: 'inherit', flexShrink: 0, display: 'flex', alignItems: 'center', gap: '5px' }}>
+          <svg width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polyline points="8 17 12 21 16 17"/><line x1="12" y1="3" x2="12" y2="21"/></svg>
+          CSV
+        </button>
+        <button onClick={() => setShowLog(true)}
+          style={{ padding: '7px 14px', borderRadius: '8px', background: C.text, color: '#fff', fontSize: '12px', fontWeight: 700, border: 'none', cursor: 'pointer', fontFamily: 'inherit', flexShrink: 0, display: 'flex', alignItems: 'center', gap: '5px' }}>
+          <svg width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          Log Record
+        </button>
+        </div>
+      } />
 
       <div style={{ maxWidth: '1280px', margin: '0 auto', padding: '24px 32px' }}>
 

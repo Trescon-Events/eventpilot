@@ -1,11 +1,10 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import Link from 'next/link'
 import ScoringGuideContent from './ScoringGuideContent'
 import QuestionnaireContent from './QuestionnaireContent'
 import PlaybookContent from './PlaybookContent'
-import { AppShellNav } from '@/app/components/AppShell'
+import PageHeader from '@/app/components/PageHeader'
 
 type Doc = {
   id: string
@@ -108,18 +107,12 @@ export default function DocsPage() {
   })
   const [loading,    setLoading]    = useState(true)
   const [search,     setSearch]     = useState('')
-  const [isAdmin,    setIsAdmin]    = useState(false)
   // Sections open by default
   const [openSections, setOpenSections] = useState<Set<string>>(
     new Set(['Platform Reference', 'Platform Overview', 'Operations Reference'])
   )
 
   useEffect(() => {
-    setIsAdmin(sessionStorage.getItem('tai_admin_authed') === '1')
-    fetch('/api/auth/session')
-      .then(r => r.json())
-      .then(s => { if (s?.adm) { sessionStorage.setItem('tai_admin_authed', '1'); setIsAdmin(true) } })
-      .catch(() => {})
     fetch('/api/platform-docs')
       .then(r => r.json())
       .then(data => {
@@ -170,15 +163,8 @@ export default function DocsPage() {
   return (
     <div style={{ fontFamily: 'var(--font-manrope), Manrope, sans-serif', background: '#E8EEF4', minHeight: '100vh', color: '#0F1923' }}>
 
-      {/* Nav */}
-      <AppShellNav
-        moduleKey="kb"
-        subtitle="Platform Docs"
-        homeHref="/dashboard"
-        rightSlot={isAdmin ? (
-          <Link className="tbtn tbtn-teal" href="/admin">Admin Dashboard</Link>
-        ) : undefined}
-      />
+      {/* Page header */}
+      <PageHeader title="Platform Docs" />
 
       <div style={{ display: 'grid', gridTemplateColumns: '256px 1fr', minHeight: 'calc(100vh - 56px)' }}>
 

@@ -1,8 +1,8 @@
 'use client'
 
 import { useState, useEffect, useMemo } from 'react'
-import Link from 'next/link'
 import PortfolioReadinessCard from './PortfolioReadinessCard'
+import PageHeader from '@/app/components/PageHeader'
 
 type ReadinessBucket = 'ready' | 'partial' | 'high_risk'
 
@@ -105,23 +105,9 @@ export default function CommercialDashboard() {
 
   return (
     <div style={{ background: '#E8EEF4', minHeight: '100vh' }}>
-      <div style={{ maxWidth: '1440px', margin: '0 auto', padding: '20px 24px' }}>
+      <PageHeader eyebrow="Executive Dashboard" title="Commercial Tracker" />
 
-        {/* ── HEADER ── */}
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-            <div style={{ width: '40px', height: '40px', borderRadius: '12px', background: '#FFFFFF', border: '1px solid #D8EAEB', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 1px 3px rgba(0,0,0,0.04)' }}>
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#00A5A3" strokeWidth="2"><path d="M21.21 15.89A10 10 0 1 1 8 2.83"/><path d="M22 12A10 10 0 0 0 12 2v10z"/></svg>
-            </div>
-            <div>
-              <h1 style={{ fontSize: '20px', fontWeight: 900, color: '#0F1923', margin: 0 }}>Commercial Tracker</h1>
-              <p style={{ fontSize: '11px', color: '#5B7080', margin: 0, fontWeight: 600 }}>Executive Dashboard</p>
-            </div>
-          </div>
-          <Link href="/admin" style={{ fontSize: '12px', fontWeight: 700, color: '#5B7080', textDecoration: 'none', padding: '7px 16px', border: '1px solid #D8EAEB', borderRadius: '8px', background: '#FFFFFF', boxShadow: '0 1px 2px rgba(0,0,0,0.04)' }}>
-            Back to Admin
-          </Link>
-        </div>
+      <div style={{ maxWidth: '1440px', margin: '0 auto', padding: '20px 24px' }}>
 
         {/* ── PORTFOLIO P&L READINESS ── */}
         <PortfolioReadinessCard

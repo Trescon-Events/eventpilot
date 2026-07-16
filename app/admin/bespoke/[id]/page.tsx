@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback, use } from 'react'
 import Link from 'next/link'
+import PageHeader from '@/app/components/PageHeader'
 
 /* ═══════════════════════════════════════════════════════════════════
    TYPES
@@ -165,14 +166,6 @@ function computePhase(project: BespokeProject): { activePhase: 1|2|3|4; label: s
 /* ═══════════════════════════════════════════════════════════════════
    SVG ICONS
    ═══════════════════════════════════════════════════════════════════ */
-function BackArrow() {
-  return (
-    <svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24">
-      <path d="M19 12H5" /><polyline points="12 19 5 12 12 5" />
-    </svg>
-  )
-}
-
 function PlusIcon() {
   return (
     <svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" viewBox="0 0 24 24">
@@ -653,26 +646,22 @@ export default function BespokeWorkspacePage({ params }: { params: Promise<{ id:
 
   return (
     <div style={{ minHeight: '100vh', background: '#E8EEF4', fontFamily: 'var(--font-manrope)' }}>
-      {/* ═══ Dark Header ════════════════════════════════════════════ */}
-      <div style={{ background: '#0F1923', padding: '20px 32px' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '16px', marginBottom: '12px' }}>
-          <Link href="/admin/bespoke" style={{ color: '#5B7080', display: 'flex', alignItems: 'center' }}>
-            <BackArrow />
-          </Link>
-          <h1 style={{ margin: 0, fontSize: '22px', fontWeight: 800, color: '#FFFFFF', flex: 1 }}>{project.title}</h1>
+      <PageHeader
+        title={project.title}
+        description={
+          <>
+            {project.client_company} · {fmtDate(project.event_date)}{project.city ? ` · ${project.city}` : ''}
+            {days !== null && (
+              <> · <span style={{ fontWeight: 700, color: days <= 7 ? '#EF4444' : days <= 14 ? '#B45309' : 'inherit' }}>
+                {days > 0 ? `${days} days left` : days === 0 ? 'Event Day' : `${Math.abs(days)} days ago`}
+              </span></>
+            )}
+          </>
+        }
+        actions={
           <span style={{ fontSize: '11px', fontWeight: 700, padding: '3px 10px', borderRadius: '6px', background: fmtC.bg, color: fmtC.fg }}>{project.format}</span>
-        </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '24px', paddingLeft: '34px' }}>
-          <span style={{ fontSize: '14px', color: '#B8CDD8', fontWeight: 500 }}>{project.client_company}</span>
-          <span style={{ fontSize: '13px', color: '#5B7080' }}>{fmtDate(project.event_date)}</span>
-          {project.city && <span style={{ fontSize: '13px', color: '#5B7080' }}>{project.city}</span>}
-          {days !== null && (
-            <span style={{ fontSize: '13px', fontWeight: 700, color: days <= 7 ? '#EF4444' : days <= 14 ? '#F59E0B' : '#C0F43C' }}>
-              {days > 0 ? `${days} days left` : days === 0 ? 'Event Day' : `${Math.abs(days)} days ago`}
-            </span>
-          )}
-        </div>
-      </div>
+        }
+      />
 
       {/* ═══ KPI Strip ══════════════════════════════════════════════ */}
       <div style={{ padding: '20px 32px 0', display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '16px' }}>

@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useMemo } from 'react'
 import Link from 'next/link'
+import PageHeader from '@/app/components/PageHeader'
 
 type DelegateStats = { total: number; registered: number; attended: number }
 
@@ -61,15 +62,6 @@ function daysLeft(eventDate: string | null): number | null {
 function fmtDate(d: string | null): string {
   if (!d) return '--'
   return new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
-}
-
-/* ── Back Arrow SVG ────────────────────────────────────────────── */
-function BackArrow() {
-  return (
-    <svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24">
-      <path d="M19 12H5" /><polyline points="12 19 5 12 12 5" />
-    </svg>
-  )
 }
 
 /* ── Plus SVG ──────────────────────────────────────────────────── */
@@ -224,28 +216,22 @@ export default function BespokePipelinePage() {
 
   return (
     <div style={{ minHeight: '100vh', background: '#E8EEF4', fontFamily: 'var(--font-manrope)' }}>
-      {/* ── Dark Header Bar ─────────────────────────────────────── */}
-      <div style={{ background: '#0F1923', padding: '20px 32px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-          <Link href="/admin/toolkit" style={{ color: '#5B7080', display: 'flex', alignItems: 'center' }}>
-            <BackArrow />
+      <PageHeader
+        title="Bespoke Tracker"
+        description={`${projects.length} project${projects.length !== 1 ? 's' : ''}`}
+        actions={
+          <Link href="/admin/bespoke/new" style={{
+            display: 'flex', alignItems: 'center', gap: '6px', padding: '8px 18px', borderRadius: '8px',
+            background: '#B45309', color: '#FFFFFF', fontSize: '14px', fontWeight: 700, textDecoration: 'none',
+            transition: 'background 0.2s',
+          }}
+            onMouseEnter={e => (e.currentTarget.style.background = '#92400E')}
+            onMouseLeave={e => (e.currentTarget.style.background = '#B45309')}
+          >
+            <PlusIcon /> New Project
           </Link>
-          <h1 style={{ margin: 0, fontSize: '22px', fontWeight: 800, color: '#FFFFFF' }}>Bespoke Tracker</h1>
-          <span style={{ fontSize: '12px', fontWeight: 700, padding: '3px 10px', borderRadius: '6px', background: '#B4530920', color: '#B45309' }}>
-            {projects.length} project{projects.length !== 1 ? 's' : ''}
-          </span>
-        </div>
-        <Link href="/admin/bespoke/new" style={{
-          display: 'flex', alignItems: 'center', gap: '6px', padding: '8px 18px', borderRadius: '8px',
-          background: '#B45309', color: '#FFFFFF', fontSize: '14px', fontWeight: 700, textDecoration: 'none',
-          transition: 'background 0.2s',
-        }}
-          onMouseEnter={e => (e.currentTarget.style.background = '#92400E')}
-          onMouseLeave={e => (e.currentTarget.style.background = '#B45309')}
-        >
-          <PlusIcon /> New Project
-        </Link>
-      </div>
+        }
+      />
 
       {/* ── View Toggle Bar ─────────────────────────────────────── */}
       <div style={{ padding: '16px 32px 0', display: 'flex', alignItems: 'center', gap: '8px' }}>

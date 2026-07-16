@@ -4,9 +4,8 @@ import { useState, useEffect, useMemo, Suspense } from 'react'
 import { useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { computeAIRS, breakdownAIRS, getTier, getTrack, TIER_COLORS, DEPT_USE_CASES } from '@/app/lib/airs'
-import PlatformMenu from '@/app/components/PlatformMenu'
-import { ProfileMenu, NotificationBell, MessagesIcon } from '@/app/components/NavBar'
-import { AppShellNav } from '@/app/components/AppShell'
+import { NotificationBell, MessagesIcon } from '@/app/components/NavBar'
+import PageHeader from '@/app/components/PageHeader'
 
 /* ─── Types ──────────────────────────────────────────────────── */
 interface StaffMember {
@@ -418,34 +417,18 @@ function DashboardContent() {
 
   return (
     <div style={S.page}>
-      {/* ── Nav ── */}
-      <AppShellNav
-        moduleKey="eventpilot"
-        subtitle={isAdmin ? 'Personal View' : 'My Dashboard'}
-        homeHref={staffId ? `/dashboard?id=${staffId}` : '/dashboard'}
-        rightSlot={<>
-          {(staff.has_reports || isAdmin) && (
-            <Link className="tbtn tbtn-purple" href={`/team?manager_id=${staffId}&staff_id=${staffId}`}>
-              <svg width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
-              Team Dashboard
-            </Link>
-          )}
-          {isAdmin && (
-            <Link className="tbtn tbtn-teal" href="/admin">
-              <svg width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
-              Admin Dashboard
-            </Link>
-          )}
+      {/* ── Page header ── */}
+      <PageHeader
+        title={isAdmin ? 'Personal View' : 'My Dashboard'}
+        actions={<>
           {isAdmin && (
             <Link className="tbtn tbtn-purple" href="/hr">
               <svg width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
               HR Portal
             </Link>
           )}
-          <PlatformMenu staffId={staffId} />
           <MessagesIcon staffId={staffId} />
           <NotificationBell staffId={staffId} />
-          <ProfileMenu name={staff.name} roles={staff.has_reports ? undefined : undefined} />
         </>}
       />
 

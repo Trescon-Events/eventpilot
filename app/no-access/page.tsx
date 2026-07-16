@@ -26,6 +26,9 @@ const TOOL_LABEL: Record<string, string> = {
   admin:               'Admin Panel',
   finance:             'Finance Portal',
   hr:                  'HR Portal',
+  knowledge_base:      'Knowledge Base',
+  docuhub:             'DocuHub',
+  knowledge_assistant: 'Knowledge Assistant',
 }
 
 // Next 16 requires useSearchParams() to be inside a Suspense boundary

@@ -1,8 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import Link from 'next/link'
-import { AppShellNav } from '@/app/components/AppShell'
+import PageHeader from '@/app/components/PageHeader'
 import LocationSelect from '@/app/components/LocationSelect'
 import { KNOWN_CITIES, COUNTRIES } from '@/app/lib/docuhub/locations'
 
@@ -127,12 +126,8 @@ export default function DocuHubBulkPage() {
 
   return (
     <div style={{ minHeight: '100vh', background: '#E8EEF4', fontFamily: 'var(--font-manrope), sans-serif' }}>
-      <AppShellNav moduleKey="docuhub" moduleHref="/docuhub" homeHref="/docuhub" subtitle="Bulk Upload" rightSlot={
-        <Link href="/docuhub" style={{ padding: '8px 14px', borderRadius: '9px', border: '1px solid #DDE8EE', background: '#FFFFFF', color: '#5B7080', fontSize: '13px', fontWeight: 700, textDecoration: 'none' }}>Back</Link>
-      } />
-      <div style={{ maxWidth: '1100px', margin: '0 auto', padding: '32px 24px' }}>
-        <h1 style={{ fontSize: '20px', fontWeight: 800, color: '#0F1923', margin: '0 0 8px' }}>Bulk Upload</h1>
-        <p style={{ fontSize: '13px', color: '#5B7080', margin: '0 0 20px' }}>Select multiple files, fix up the details inline, then publish them all at once.</p>
+      <PageHeader eyebrow="DocuHub" title="Bulk Upload" description="Select multiple files, fix up the details inline, then publish them all at once." />
+      <div style={{ maxWidth: '1100px', margin: '0 auto', padding: '24px' }}>
 
         <label style={{ display: 'block', padding: '24px', border: '1.5px dashed #DDE8EE', borderRadius: '12px', textAlign: 'center', cursor: 'pointer', marginBottom: '20px', background: '#FFFFFF' }}>
           <input type="file" multiple style={{ display: 'none' }} onChange={e => addFiles(e.target.files)} />

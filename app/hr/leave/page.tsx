@@ -2,8 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
-import { AppShellNav } from '@/app/components/AppShell'
-import PlatformMenu from '@/app/components/PlatformMenu'
+import PageHeader from '@/app/components/PageHeader'
 
 const C = {
   bg:      '#F6F8FB',
@@ -129,7 +128,7 @@ export default function LeaveManagerPage() {
   return (
     <div style={{ minHeight: '100vh', background: C.bg, fontFamily: 'system-ui, sans-serif' }}>
       {/* Header */}
-      <AppShellNav moduleKey="hr" moduleHref="/hr" subtitle="Leave Manager" rightSlot={<PlatformMenu />} />
+      <PageHeader eyebrow="HR" title="Leave Manager" />
 
       <div style={{ maxWidth: '1000px', margin: '0 auto', padding: '32px' }}>
 

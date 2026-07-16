@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useParams } from 'next/navigation'
 import Link from 'next/link'
+import PageHeader from '@/app/components/PageHeader'
 import ReadinessCard from './ReadinessCard'
 
 type Tab = 'summary' | 'revenue' | 'staff' | 'costs' | 'overheads' | 'pnl' | 'scenarios' | 'approvals'
@@ -131,25 +132,19 @@ export default function CommercialWorkspace() {
 
   return (
     <div style={{ background: '#E8EEF4', minHeight: '100vh' }}>
+      <PageHeader
+        title={summary?.event_name || 'Event Workspace'}
+        actions={
+          <>
+            {summary && <span style={{ fontSize: '11px', fontWeight: 700, padding: '3px 10px', borderRadius: '6px', background: h.bg, color: h.color }}>{h.label}</span>}
+            <Link href={`/admin/events/${eventId}`} style={{ fontSize: '12px', fontWeight: 700, color: '#5B7080', textDecoration: 'none', padding: '6px 14px', border: '1px solid #D8EAEB', borderRadius: '8px', background: '#fff', display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/></svg>
+              Event Operations
+            </Link>
+          </>
+        }
+      />
       <div style={{ maxWidth: '1440px', margin: '0 auto', padding: '20px 24px' }}>
-
-        {/* ── HEADER ── */}
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: '16px' }}>
-          <div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '2px' }}>
-              <Link href="/admin/commercial" style={{ fontSize: '10px', fontWeight: 800, letterSpacing: '1.5px', textTransform: 'uppercase' as const, color: '#00A5A3', textDecoration: 'none' }}>Commercial Tracker</Link>
-              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#8CA0B3" strokeWidth="2"><path d="M9 18l6-6-6-6"/></svg>
-            </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-              <h1 style={{ fontSize: '20px', fontWeight: 900, color: '#0F1923', margin: 0 }}>{summary?.event_name || 'Event Workspace'}</h1>
-              {summary && <span style={{ fontSize: '11px', fontWeight: 700, padding: '3px 10px', borderRadius: '6px', background: h.bg, color: h.color }}>{h.label}</span>}
-            </div>
-          </div>
-          <Link href={`/admin/events/${eventId}`} style={{ fontSize: '12px', fontWeight: 700, color: '#5B7080', textDecoration: 'none', padding: '6px 14px', border: '1px solid #D8EAEB', borderRadius: '8px', background: '#fff', display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/></svg>
-            Event Operations
-          </Link>
-        </div>
 
         {/* ── P&L Readiness (surfaces missing inputs before rendering the P&L) ── */}
         {eventId && <ReadinessCard eventId={eventId} />}

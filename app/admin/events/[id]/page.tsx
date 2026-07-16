@@ -559,18 +559,6 @@ export default function EventWorkspacePage({ params }: { params: Promise<{ id: s
   return (
     <div style={{ fontFamily: 'var(--font-manrope), Manrope, sans-serif', background: '#E8EEF4', minHeight: '100vh', color: '#0F1923' }}>
 
-      {/* Nav */}
-      <nav style={{ background: '#FFFFFF', borderBottom: '1px solid #DDE8EE', padding: '0 32px', height: '64px', display: 'flex', alignItems: 'center', gap: '16px', boxShadow: '0 1px 3px rgba(0,165,163,0.08)', position: 'sticky', top: 0, zIndex: 100 }}>
-        <Link href="/admin" style={{ fontSize: '13px', color: '#0F1923', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '6px' }}>
-          <svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M19 12H5M12 5l-7 7 7 7"/></svg>
-          Admin
-        </Link>
-        <span style={{ color: '#2D3E50' }}>/</span>
-        <span style={{ fontSize: '13px', color: '#0F1923' }}>Events</span>
-        <span style={{ color: '#2D3E50' }}>/</span>
-        <span style={{ fontSize: '13px', fontWeight: 700, color: '#0F1923' }}>{event.name}</span>
-      </nav>
-
       <div style={{ maxWidth: '1200px', margin: '0 auto', padding: '40px 32px' }}>
 
         {/* Event header */}

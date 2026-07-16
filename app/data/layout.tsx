@@ -1,11 +1,9 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { usePathname } from 'next/navigation'
-import Link from 'next/link'
-import PlatformMenu from '@/app/components/PlatformMenu'
+import ModuleSidebar, { type SidebarGroup } from '@/app/components/ModuleSidebar'
 
-const NAV_GROUPS = [
+const NAV_GROUPS: { label: string; items: { label: string; href: string; icon: string }[] }[] = [
   {
     label: 'LEAD EXTRACTION',
     items: [
@@ -105,131 +103,64 @@ function NavIcon({ name }: { name: string }) {
   }
 }
 
+const SIDEBAR_GROUPS: SidebarGroup[] = NAV_GROUPS.map(g => ({
+  label: g.label,
+  items: g.items.map(i => ({ label: i.label, href: i.href, icon: <NavIcon name={i.icon} /> })),
+}))
+
+const MODULE_ICON = (
+  <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" viewBox="0 0 24 24">
+    <ellipse cx="12" cy="5" rx="9" ry="3"/>
+    <path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/>
+    <path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/>
+  </svg>
+)
+
 interface Credits { total_used: number; default_limit: number; tools: { key: string; active: boolean }[] }
 
 export default function DataLayout({ children }: { children: React.ReactNode }) {
-  const pathname = usePathname()
-  const [session, setSession]   = useState<{ adm?: boolean; sid?: string } | null>(null)
-  const [credits, setCredits]   = useState<Credits | null>(null)
+  const [credits, setCredits] = useState<Credits | null>(null)
 
   useEffect(() => {
-    fetch('/api/auth/session').then(r => r.json()).then(s => setSession(s)).catch(() => {})
     fetch('/api/data/credits').then(r => r.json()).then(d => setCredits(d)).catch(() => {})
   }, [])
 
-  const backHref  = session === null ? null : session.adm ? '/admin/toolkit' : session.sid ? `/dashboard?id=${session.sid}` : '/dashboard'
-  const backLabel = session?.adm ? 'Back to Toolkit' : 'Back to Dashboard'
+  const creditsBar = (
+    <div style={{ padding: '12px 18px', borderBottom: '1px solid var(--border-light)', flexShrink: 0 }}>
+      {credits ? (
+        <div>
+          <div style={{ fontSize: '11px', color: 'var(--ink4)', marginBottom: '5px' }}>
+            Today: <span style={{ color: credits.total_used > 0 ? 'var(--ink)' : 'var(--ink4)', fontWeight: 700 }}>{credits.total_used}</span>
+            <span> / {credits.default_limit} lookups</span>
+          </div>
+          <div style={{ height: '3px', background: 'var(--border-light)', borderRadius: '2px', overflow: 'hidden' }}>
+            <div style={{ height: '100%', background: credits.total_used / credits.default_limit > 0.8 ? '#F87171' : '#00A5A3', borderRadius: '2px', width: `${Math.min((credits.total_used / credits.default_limit) * 100, 100)}%`, transition: 'width 0.4s' }} />
+          </div>
+        </div>
+      ) : (
+        <div style={{ fontSize: '11px', color: 'var(--ink4)' }}>Loading credits…</div>
+      )}
+    </div>
+  )
 
-  const isActive = (href: string) => {
-    const base = href.split('?')[0]
-    if (base === '/data/l2' && pathname === '/data/l2') return true
-    if (base === '/data/enrichment' && pathname === '/data/enrichment') return true
-    return pathname === base || (base !== '/data' && pathname.startsWith(base + '/'))
-  }
+  const jobStatus = (
+    <div style={{ padding: '12px 18px', borderTop: '1px solid var(--border-light)', flexShrink: 0, display: 'flex', alignItems: 'center', gap: '6px' }}>
+      <div style={{ width: '6px', height: '6px', borderRadius: '50%', background: 'var(--ink4)', flexShrink: 0 }} />
+      <span style={{ fontSize: '12px', color: 'var(--ink4)' }}>0 jobs running</span>
+    </div>
+  )
 
   return (
-    <div style={{ display: 'flex', minHeight: '100vh', background: '#F8FAFB', fontFamily: 'system-ui, -apple-system, sans-serif' }}>
-      {/* Fixed sidebar */}
-      <div style={{
-        position: 'fixed', top: 0, left: 0, bottom: 0, width: '260px',
-        background: '#FFFFFF', borderRight: '1px solid #DDE8EE',
-        display: 'flex', flexDirection: 'column', zIndex: 100, overflowY: 'auto',
-      }}>
-        {/* Back to platform + logo */}
-        <div style={{ padding: '14px 20px 14px', borderBottom: '1px solid #DDE8EE', flexShrink: 0 }}>
-          {/* Back link */}
-          {backHref && (
-            <Link href={backHref} style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', color: '#9CA3AF', textDecoration: 'none', marginBottom: '14px' }}
-              onMouseEnter={e => (e.currentTarget.style.color = '#00A5A3')}
-              onMouseLeave={e => (e.currentTarget.style.color = '#9CA3AF')}
-            >
-              <svg width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" viewBox="0 0 24 24">
-                <polyline points="15 18 9 12 15 6"/>
-              </svg>
-              {backLabel}
-            </Link>
-          )}
-          {/* Module identity */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-            <div style={{ width: '32px', height: '32px', borderRadius: '8px', background: 'rgba(0,165,163,0.1)', border: '1px solid rgba(0,165,163,0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-              <svg width="16" height="16" fill="none" stroke="#00A5A3" strokeWidth="2" strokeLinecap="round" viewBox="0 0 24 24">
-                <ellipse cx="12" cy="5" rx="9" ry="3"/>
-                <path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/>
-                <path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/>
-              </svg>
-            </div>
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ fontSize: '14px', fontWeight: 800, color: '#0F1923', letterSpacing: '-0.2px' }}>Smart Data</div>
-              <div style={{ fontSize: '11px', color: '#9CA3AF', marginTop: '1px' }}>Data Intelligence</div>
-            </div>
-            <PlatformMenu />
-          </div>
-        </div>
-
-        {/* Credits bar */}
-        <div style={{ padding: '10px 20px', borderBottom: '1px solid #DDE8EE', flexShrink: 0 }}>
-          {credits ? (
-            <div>
-              <div style={{ fontSize: '11px', color: '#9CA3AF', marginBottom: '5px' }}>
-                Today: <span style={{ color: credits.total_used > 0 ? '#0F1923' : '#9CA3AF', fontWeight: 700 }}>{credits.total_used}</span>
-                <span style={{ color: '#C4CDD6' }}> / {credits.default_limit} lookups</span>
-              </div>
-              <div style={{ height: '3px', background: '#F0F4F7', borderRadius: '2px', overflow: 'hidden' }}>
-                <div style={{ height: '100%', background: credits.total_used / credits.default_limit > 0.8 ? '#F87171' : '#00A5A3', borderRadius: '2px', width: `${Math.min((credits.total_used / credits.default_limit) * 100, 100)}%`, transition: 'width 0.4s' }} />
-              </div>
-            </div>
-          ) : (
-            <div style={{ fontSize: '11px', color: '#C4CDD6' }}>Loading credits…</div>
-          )}
-        </div>
-
-        {/* Nav groups */}
-        <div style={{ flex: 1, padding: '12px 0', overflowY: 'auto' }}>
-          {NAV_GROUPS.map(group => (
-            <div key={group.label} style={{ marginBottom: '4px' }}>
-              <div style={{ padding: '8px 20px 4px', fontSize: '11px', fontWeight: 700, color: '#9CA3AF', letterSpacing: '1.5px', textTransform: 'uppercase' }}>
-                {group.label}
-              </div>
-              {group.items.map(item => {
-                const active = isActive(item.href)
-                return (
-                  <Link
-                    key={item.href}
-                    href={item.href}
-                    style={{
-                      display: 'flex', alignItems: 'center', gap: '10px',
-                      padding: '8px 20px', marginBottom: '1px',
-                      fontSize: '13px', fontWeight: active ? 600 : 400,
-                      color: active ? '#00A5A3' : '#6B7280',
-                      background: active ? 'rgba(0,165,163,0.1)' : 'transparent',
-                      borderLeft: active ? '2px solid #00A5A3' : '2px solid transparent',
-                      textDecoration: 'none',
-                      transition: 'background 0.12s, color 0.12s',
-                    }}
-                  >
-                    <NavIcon name={item.icon} />
-                    {item.label}
-                  </Link>
-                )
-              })}
-            </div>
-          ))}
-        </div>
-
-        {/* Bottom status */}
-        <div style={{ padding: '12px 20px', borderTop: '1px solid #DDE8EE', flexShrink: 0 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '6px' }}>
-            <div style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#9CA3AF', flexShrink: 0 }} />
-            <span style={{ fontSize: '12px', color: '#9CA3AF' }}>0 jobs running</span>
-          </div>
-          <div style={{ fontSize: '11px', color: '#9CA3AF', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-            reachcharan@gmail.com
-          </div>
-        </div>
-      </div>
-
-      {/* Main content */}
-      <div style={{ marginLeft: '260px', flex: 1, minHeight: '100vh', background: '#F8FAFB' }}>
+    <div style={{ display: 'flex', minHeight: '100vh', background: '#F8FAFB' }}>
+      <ModuleSidebar
+        moduleLabel="Smart Data"
+        moduleIcon={MODULE_ICON}
+        moduleColor="#00A5A3"
+        groups={SIDEBAR_GROUPS}
+        extraTop={creditsBar}
+        extraBottom={jobStatus}
+      />
+      <div style={{ flex: 1, minWidth: 0, minHeight: '100vh', background: '#F8FAFB' }}>
         {children}
       </div>
     </div>

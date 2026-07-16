@@ -531,8 +531,6 @@ export default function EventPlanPage({ params }: { params: Promise<{ id: string
 
       {/* ── Nav ── */}
       <nav style={{ background: SURFACE, borderBottom: `1px solid ${BORDER}`, padding: '0 32px', height: '60px', display: 'flex', alignItems: 'center', gap: '14px', position: 'sticky', top: 0, zIndex: 100 }}>
-        <Link href="/admin" style={{ fontSize: '13px', color: DARK, textDecoration: 'none' }}>Admin</Link>
-        <span style={{ color: MUTED }}>/</span>
         <Link href={`/admin/events/${eventId}`} style={{ fontSize: '13px', color: DARK, textDecoration: 'none' }}>{event?.name ?? 'Event'}</Link>
         <span style={{ color: MUTED }}>/</span>
         <span style={{ fontSize: '13px', fontWeight: 800 }}>Planning Board</span>

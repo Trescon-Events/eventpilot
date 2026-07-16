@@ -3,8 +3,7 @@
 import { useState, useEffect, useMemo, Suspense } from 'react'
 import { useSearchParams } from 'next/navigation'
 import Link from 'next/link'
-import { AppShellNav } from '@/app/components/AppShell'
-import PlatformMenu from '@/app/components/PlatformMenu'
+import PageHeader from '@/app/components/PageHeader'
 import { kbDownloadHref } from '@/app/lib/kb/download-href'
 
 interface DocRow {
@@ -133,41 +132,18 @@ function KnowledgeContent() {
 
   return (
     <div style={{ fontFamily: 'var(--font-manrope), Manrope, sans-serif', background: '#E8EEF4', minHeight: '100vh', color: '#0F1923' }}>
-      <AppShellNav
-        moduleKey="kb"
-        moduleHref="/knowledge"
-        homeHref={staffId ? `/dashboard?id=${staffId}` : '/dashboard'}
-        rightSlot={
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            {kbTier === 'admin' && (
-              <Link href="/knowledge/settings" style={{ padding: '8px 14px', borderRadius: '9px', border: '1px solid #DDE8EE', background: '#FFFFFF', color: '#5B7080', fontSize: '13px', fontWeight: 700, textDecoration: 'none' }}>
-                Settings
-              </Link>
-            )}
-            <Link href="/knowledge/assistant" style={{ padding: '8px 14px', borderRadius: '9px', border: '1px solid rgba(0,165,163,0.35)', background: 'rgba(0,165,163,0.08)', color: '#00695C', fontSize: '13px', fontWeight: 700, textDecoration: 'none' }}>
-              Knowledge Assistant
-            </Link>
-            {staffId && (
-              <Link href={`/dashboard?id=${staffId}`} className="tbtn tbtn-teal">
-                <svg width="11" height="11" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg>
-                My Dashboard
-              </Link>
-            )}
-            <PlatformMenu staffId={staffId} />
-          </div>
+      <PageHeader
+        eyebrow="Knowledge Base"
+        title="Documents"
+        description="Browse company policies, past event reports, and reference material — only what you have access to."
+        actions={
+          <Link href="/admin/toolkit/knowledge-assistant" style={{ padding: '8px 14px', borderRadius: '9px', border: '1px solid rgba(0,165,163,0.35)', background: 'rgba(0,165,163,0.08)', color: '#00695C', fontSize: '13px', fontWeight: 700, textDecoration: 'none' }}>
+            Knowledge Assistant
+          </Link>
         }
       />
 
-      <div style={{ maxWidth: '1020px', margin: '0 auto', padding: '40px 24px 80px' }}>
-        {/* Header */}
-        <div style={{ marginBottom: '28px' }}>
-          <div style={{ fontSize: '13px', fontWeight: 800, letterSpacing: '2.5px', color: '#00695C', textTransform: 'uppercase', marginBottom: '8px' }}>Event Pilot</div>
-          <h1 style={{ fontSize: '36px', fontWeight: 900, margin: '0 0 8px', letterSpacing: '-0.4px', color: '#0F1923' }}>Knowledge Base</h1>
-          <p style={{ fontSize: '13px', color: '#2D3E50', margin: 0 }}>
-            Browse company policies, past event reports, and reference material — only what you have access to.
-          </p>
-        </div>
-
+      <div style={{ maxWidth: '1020px', margin: '0 auto', padding: '32px 24px 80px' }}>
         {/* Filters */}
         <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', marginBottom: '24px', alignItems: 'center' }}>
           <input

@@ -2,9 +2,8 @@
 
 import { useState, useEffect, useRef, Suspense, useCallback } from 'react'
 import { useSearchParams, useRouter } from 'next/navigation'
-import Link from 'next/link'
-import { ProfileMenu, NotificationBell } from '@/app/components/NavBar'
-import { AppShellNav } from '@/app/components/AppShell'
+import { NotificationBell } from '@/app/components/NavBar'
+import PageHeader from '@/app/components/PageHeader'
 
 /* ── Types ──────────────────────────────────────────────────────── */
 type Conversation = {
@@ -217,15 +216,7 @@ function MessagesContent() {
 
   return (
     <div style={{ fontFamily: 'var(--font-manrope), Manrope, sans-serif', background: C.bg, minHeight: '100vh', color: C.text, display: 'flex', flexDirection: 'column' }}>
-      <AppShellNav
-        moduleKey="eventpilot"
-        subtitle="Messages"
-        homeHref={sid ? `/dashboard?id=${sid}` : '/dashboard'}
-        rightSlot={<>
-          <NotificationBell staffId={sid ?? undefined} />
-          <ProfileMenu />
-        </>}
-      />
+      <PageHeader title="Messages" actions={<NotificationBell staffId={sid ?? undefined} />} />
 
       <div style={{ flex: 1, display: 'flex', maxWidth: '1100px', width: '100%', margin: '0 auto', padding: '24px', gap: '16px', minHeight: 0, height: 'calc(100vh - 64px)', boxSizing: 'border-box' }}>
 

@@ -1,8 +1,7 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
-import { AppShellNav } from '@/app/components/AppShell'
-import PlatformMenu from '@/app/components/PlatformMenu'
+import PageHeader from '@/app/components/PageHeader'
 
 const C = {
   bg: '#E8EEF4', surface: '#FFFFFF', border: '#DDE8EE', text: '#0F1923', muted: '#5B7080',
@@ -148,10 +147,10 @@ export default function KnowledgeAssistantPage() {
   if (status && !status.allowed) {
     return (
       <div style={{ minHeight: '100vh', background: C.bg, fontFamily: 'var(--font-manrope), Manrope, sans-serif' }}>
-        <AppShellNav moduleKey="kb" moduleHref="/knowledge" homeHref="/knowledge" subtitle="Knowledge Assistant" rightSlot={<PlatformMenu />} />
+        <PageHeader title="Knowledge Assistant" />
         <div style={{ maxWidth: '480px', margin: '80px auto', textAlign: 'center' }}>
           <div style={{ fontSize: '16px', fontWeight: 800, color: C.text, marginBottom: '8px' }}>Knowledge Assistant access required</div>
-          <div style={{ fontSize: '13px', color: C.muted }}>This is currently open to people assigned to the Knowledge Base or DocuHub pilot projects. Ask an admin for access.</div>
+          <div style={{ fontSize: '13px', color: C.muted }}>Ask an admin to grant you Knowledge Assistant access from the Toolkit.</div>
         </div>
       </div>
     )
@@ -159,22 +158,19 @@ export default function KnowledgeAssistantPage() {
 
   return (
     <div style={{ minHeight: '100vh', background: C.bg, fontFamily: 'var(--font-manrope), Manrope, sans-serif', display: 'flex', flexDirection: 'column' }}>
-      <AppShellNav moduleKey="kb" moduleHref="/knowledge" homeHref="/knowledge" subtitle="Knowledge Assistant" rightSlot={
-        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-          {status?.allowed && !status.unlimited && (
-            <span style={{ fontSize: '12px', fontWeight: 700, color: capped ? C.red : C.muted }}>
-              {status.remaining}/{status.limit} messages left today
-            </span>
-          )}
-          {messages.length > 0 && (
-            <button onClick={() => setMessages([])}
-              style={{ padding: '8px 16px', borderRadius: '9px', border: `1px solid ${C.border}`, background: C.surface, color: C.muted, fontSize: '13px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
-              New conversation
-            </button>
-          )}
-          <PlatformMenu />
-        </div>
-      } />
+      <PageHeader title="Knowledge Assistant" actions={<>
+        {status?.allowed && !status.unlimited && (
+          <span style={{ fontSize: '12px', fontWeight: 700, color: capped ? C.red : C.muted }}>
+            {status.remaining}/{status.limit} messages left today
+          </span>
+        )}
+        {messages.length > 0 && (
+          <button onClick={() => setMessages([])}
+            style={{ padding: '8px 16px', borderRadius: '9px', border: `1px solid ${C.border}`, background: C.surface, color: C.muted, fontSize: '13px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
+            New conversation
+          </button>
+        )}
+      </>} />
 
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', maxWidth: '760px', width: '100%', margin: '0 auto', padding: '0 24px' }}>
         {isEmpty && (

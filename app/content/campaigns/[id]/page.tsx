@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback, use } from 'react'
 import Link from 'next/link'
-import { AppShellNav } from '@/app/components/AppShell'
+import PageHeader from '@/app/components/PageHeader'
 
 type Post = {
   id: string; campaign_id: string; week_number: number; narrative_role: string
@@ -271,26 +271,10 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
         .modal-box { background: #FFFFFF; border: 1px solid #C8DFE0; border-radius: 18px; width: 100%; max-width: 680px; max-height: 90vh; overflow-y: auto; }
       `}</style>
 
-      <AppShellNav moduleKey="eventpilot" moduleHref="/content" homeHref="/admin/toolkit" />
-
-      {/* Top bar */}
-      <div style={{ borderBottom: '1px solid #C8DFE0', padding: '20px 40px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '16px', boxShadow: '0 1px 3px rgba(0,165,163,0.08)' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '14px', minWidth: 0 }}>
-          <Link href="/content" style={{ color: '#2D3E50', display: 'flex', flexShrink: 0 }}>
-            <svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg>
-          </Link>
-          <div style={{ minWidth: 0 }}>
-            <div style={{ fontSize: '13px', fontWeight: 700, color: '#0F1923', letterSpacing: '1px', textTransform: 'uppercase', marginBottom: '2px' }}>
-              {campaign.events?.name ?? 'Content Campaign'}
-            </div>
-            <h1 style={{ fontSize: '36px', fontWeight: 900, color: '#0F1923', margin: 0, letterSpacing: '-0.02em', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-              {campaign.name}
-            </h1>
-          </div>
-        </div>
-
-        {/* Stats + Generate All */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '24px', flexShrink: 0 }}>
+      <PageHeader
+        eyebrow={campaign.events?.name ?? 'Content Campaign'}
+        title={campaign.name}
+        actions={<>
           <div style={{ display: 'flex', gap: '16px' }}>
             {[
               { label: 'Posts', val: posts.length, color: '#2D3E50' },
@@ -299,8 +283,8 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
               { label: 'Posted', val: postedCount, color: '#00695C' },
             ].map(s => (
               <div key={s.label} style={{ textAlign: 'center' }}>
-                <div style={{ fontSize: '36px', fontWeight: 900, color: s.color, lineHeight: 1 }}>{s.val}</div>
-                <div style={{ fontSize: '13px', color: '#0F1923', letterSpacing: '0.8px', textTransform: 'uppercase' }}>{s.label}</div>
+                <div style={{ fontSize: '20px', fontWeight: 900, color: s.color, lineHeight: 1 }}>{s.val}</div>
+                <div style={{ fontSize: '11px', color: '#0F1923', letterSpacing: '0.8px', textTransform: 'uppercase' }}>{s.label}</div>
               </div>
             ))}
           </div>
@@ -314,8 +298,8 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
               }
             </button>
           )}
-        </div>
-      </div>
+        </>}
+      />
 
       {/* Tabs */}
       <div style={{ padding: '16px 40px', borderBottom: '1px solid #C8DFE0', display: 'flex', gap: '6px' }}>

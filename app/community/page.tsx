@@ -2,10 +2,8 @@
 
 import { useState, useEffect, Suspense } from 'react'
 import { useSearchParams } from 'next/navigation'
-import Link from 'next/link'
 import { NotificationBell } from '@/app/components/NavBar'
-import { AppShellNav } from '@/app/components/AppShell'
-import PlatformMenu from '@/app/components/PlatformMenu'
+import PageHeader from '@/app/components/PageHeader'
 
 const C = {
   bg:      '#E8EEF4',
@@ -117,28 +115,19 @@ function CommunityContent() {
 
   return (
     <div style={{ fontFamily: 'var(--font-manrope), Manrope, sans-serif', background: C.bg, minHeight: '100vh', color: C.text }}>
-      <AppShellNav moduleKey="eventpilot" homeHref={`/dashboard?id=${staffId}`} rightSlot={<NotificationBell staffId={staffId} />} />
-      <PlatformMenu staffId={staffId} />
+      <PageHeader
+        title="AI Community"
+        description={`Share prompts, use cases, and automation ideas with the team — ${total} posts so far`}
+        actions={<>
+          <NotificationBell staffId={staffId} />
+          <button onClick={() => setShowForm(!showForm)}
+            style={{ fontSize: '13px', fontWeight: 700, color: '#FFFFFF', padding: '9px 18px', background: C.teal, border: 'none', borderRadius: '10px', cursor: 'pointer', fontFamily: 'inherit' }}>
+            + Share Something
+          </button>
+        </>}
+      />
 
       <div style={{ maxWidth: '900px', margin: '0 auto', padding: '32px 24px' }}>
-
-        {/* Header */}
-        <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16, marginBottom: '28px', flexWrap: 'wrap' }}>
-          <div>
-            <div style={{ fontSize: '22px', fontWeight: 900, color: C.text, marginBottom: '4px' }}>AI Community</div>
-            <div style={{ fontSize: '14px', color: C.muted }}>Share prompts, use cases, and automation ideas with the team — {total} posts so far</div>
-          </div>
-          <div style={{ display: 'flex', gap: 8, flexShrink: 0 }}>
-            <Link href={`/dashboard?id=${staffId}`}
-              style={{ fontSize: '13px', fontWeight: 700, color: C.muted, textDecoration: 'none', padding: '9px 16px', background: C.surface, border: `1px solid ${C.border}`, borderRadius: '10px' }}>
-              Back to Dashboard
-            </Link>
-            <button onClick={() => setShowForm(!showForm)}
-              style={{ fontSize: '13px', fontWeight: 700, color: '#FFFFFF', padding: '9px 18px', background: C.teal, border: 'none', borderRadius: '10px', cursor: 'pointer', fontFamily: 'inherit' }}>
-              + Share Something
-            </button>
-          </div>
-        </div>
 
         {/* Post form */}
         {showForm && (

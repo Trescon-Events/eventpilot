@@ -3,8 +3,6 @@
 import { useEffect, useState, useMemo } from 'react'
 import Link from 'next/link'
 import ResumeSidebar from '@/app/components/ResumeSidebar'
-import { AppShellNav } from '@/app/components/AppShell'
-import PlatformMenu from '@/app/components/PlatformMenu'
 import { getModuleRegistry } from '@/app/lib/registry/modules'
 
 type Event = { id: string; name: string; city: string | null; event_date: string | null; status: string }
@@ -53,6 +51,7 @@ function buildToolsFromRegistry(): Tool[] {
 }
 
 const CATEGORIES = [
+  { id: 'Knowledge',  label: 'Knowledge' },
   { id: 'Events',     label: 'Event Tools' },
   { id: 'Marketing',  label: 'Corporate Marketing' },
   { id: 'Data',       label: 'Data & Marketing' },
@@ -63,6 +62,9 @@ const CATEGORIES = [
 ]
 
 const ICONS: Record<string, React.ReactNode> = {
+  'kb':              <svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>,
+  'docuhub':         <svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>,
+  'knowledge-assistant': <svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>,
   'website-builder': <svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="3"/><path d="M3 9h18M9 21V9"/></svg>,
   'market-intel':    <svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35M11 8v6M8 11h6"/></svg>,
   'brand-studio':    <svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><circle cx="13.5" cy="6.5" r="2.5"/><circle cx="17.5" cy="10.5" r="2.5"/><circle cx="8.5" cy="7.5" r="2.5"/><circle cx="6.5" cy="12.5" r="2.5"/><path d="M12 22C6.477 22 2 17.523 2 12S6.477 2 12 2s10 4.477 10 10c0 .833-.106 1.641-.305 2.413A4 4 0 0 1 12 22z"/></svg>,
@@ -225,30 +227,12 @@ export default function ToolkitPage() {
   )
 
   return (
-    <div style={{ height: '100vh', display: 'flex', flexDirection: 'column', fontFamily: 'var(--font-manrope), Manrope, sans-serif', background: '#E8EEF4', overflow: 'hidden' }}>
+    <div style={{ height: '100vh', display: 'flex', fontFamily: 'var(--font-manrope), Manrope, sans-serif', background: '#E8EEF4', overflow: 'hidden' }}>
 
-      {/* Top bar */}
-      <AppShellNav
-        moduleKey="toolkit"
-        homeHref="/admin"
-        rightSlot={
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <div style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#C0F43C', animation: 'pulse 2s infinite' }} />
-              <span style={{ fontSize: '11px', fontWeight: 700, color: '#9BAAB5', letterSpacing: '1.5px', textTransform: 'uppercase' }}>Trescon</span>
-            </div>
-            <PlatformMenu />
-          </div>
-        }
-      />
-
-      {/* Main split */}
-      <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
-
-        {/* ── Left sidebar ─────────────────────────────────────────────── */}
-        <div style={{ width: '260px', flexShrink: 0, background: '#0F1923', borderRight: '1px solid #1A2B3C', display: 'flex', flexDirection: 'column', overflowY: 'auto' }}>
+      {/* ── Left sidebar ─────────────────────────────────────────────── */}
+      <div style={{ width: '260px', flexShrink: 0, background: 'var(--sidebar-bg)', borderRight: '1px solid var(--border-light)', display: 'flex', flexDirection: 'column', overflowY: 'auto' }}>
           <div style={{ padding: '20px 16px 8px' }}>
-            <div style={{ fontSize: '11px', fontWeight: 800, color: '#5B7080', letterSpacing: '2px', textTransform: 'uppercase' }}>All Tools</div>
+            <div style={{ fontSize: '11px', fontWeight: 800, color: 'var(--ink4)', letterSpacing: '2px', textTransform: 'uppercase' }}>All Tools</div>
           </div>
           {CATEGORIES.map(cat => {
             const catTools = visibleTools.filter(t => t.category === cat.id)
@@ -262,28 +246,28 @@ export default function ToolkitPage() {
                 <button
                   onClick={() => setExpandedCats(prev => { const next = new Set(prev); if (next.has(cat.id)) next.delete(cat.id); else next.add(cat.id); return next })}
                   style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 16px 10px 20px', border: 'none', background: hasActive && !expanded ? `${catAccent}15` : 'transparent', cursor: 'pointer', fontFamily: 'inherit', textAlign: 'left', transition: 'all 0.15s' }}
-                  onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = '#1A2B3C' }}
+                  onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--border-light)' }}
                   onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = hasActive && !expanded ? `${catAccent}15` : 'transparent' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                     <div style={{ width: '6px', height: '6px', borderRadius: '50%', background: catAccent, flexShrink: 0 }} />
-                    <span style={{ fontSize: '11px', fontWeight: 800, color: expanded ? catAccent : '#8CA0B3', letterSpacing: '1.2px', textTransform: 'uppercase' }}>{cat.label}</span>
-                    <span style={{ fontSize: '10px', fontWeight: 700, color: '#5B7080', background: '#1A2B3C', padding: '1px 6px', borderRadius: '8px' }}>{catTools.length}</span>
+                    <span style={{ fontSize: '11px', fontWeight: 800, color: expanded ? catAccent : 'var(--ink3)', letterSpacing: '1.2px', textTransform: 'uppercase' }}>{cat.label}</span>
+                    <span style={{ fontSize: '10px', fontWeight: 700, color: 'var(--ink4)', background: 'var(--border-light)', padding: '1px 6px', borderRadius: '8px' }}>{catTools.length}</span>
                   </div>
-                  <svg width="12" height="12" fill="none" stroke="#5B7080" strokeWidth="2" strokeLinecap="round" viewBox="0 0 24 24" style={{ transform: expanded ? 'rotate(180deg)' : 'rotate(0)', transition: 'transform 0.2s' }}><polyline points="6 9 12 15 18 9"/></svg>
+                  <svg width="12" height="12" fill="none" stroke="var(--ink4)" strokeWidth="2" strokeLinecap="round" viewBox="0 0 24 24" style={{ transform: expanded ? 'rotate(180deg)' : 'rotate(0)', transition: 'transform 0.2s' }}><polyline points="6 9 12 15 18 9"/></svg>
                 </button>
                 {/* Tools list — shown when expanded */}
                 {expanded && catTools.map(t => {
                   const active = t.id === activeId
                   return (
                     <button key={t.id} onClick={() => setActiveId(t.id)}
-                      style={{ width: '100%', display: 'flex', alignItems: 'center', gap: '11px', padding: '9px 16px 9px 28px', border: 'none', background: active ? `${t.accent}20` : 'transparent', cursor: 'pointer', fontFamily: 'inherit', textAlign: 'left', borderLeft: `3px solid ${active ? t.accent : 'transparent'}`, transition: 'all 0.15s' }}
-                      onMouseEnter={e => { if (!active) (e.currentTarget as HTMLElement).style.background = '#1A2B3C' }}
-                      onMouseLeave={e => { if (!active) (e.currentTarget as HTMLElement).style.background = active ? `${t.accent}20` : 'transparent' }}>
-                      <div style={{ width: '28px', height: '28px', borderRadius: '8px', background: active ? `${t.accent}30` : '#1A2B3C', display: 'flex', alignItems: 'center', justifyContent: 'center', color: active ? t.accent : '#8CA0B3', flexShrink: 0, transition: 'all 0.15s' }}>
+                      style={{ width: '100%', display: 'flex', alignItems: 'center', gap: '11px', padding: '9px 16px 9px 28px', border: 'none', background: active ? `${t.accent}12` : 'transparent', cursor: 'pointer', fontFamily: 'inherit', textAlign: 'left', borderLeft: `3px solid ${active ? t.accent : 'transparent'}`, transition: 'all 0.15s' }}
+                      onMouseEnter={e => { if (!active) (e.currentTarget as HTMLElement).style.background = 'var(--border-light)' }}
+                      onMouseLeave={e => { if (!active) (e.currentTarget as HTMLElement).style.background = active ? `${t.accent}12` : 'transparent' }}>
+                      <div style={{ width: '28px', height: '28px', borderRadius: '8px', background: active ? `${t.accent}1F` : 'var(--border-light)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: active ? t.accent : 'var(--ink3)', flexShrink: 0, transition: 'all 0.15s' }}>
                         {ICONS[t.id]}
                       </div>
                       <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ fontSize: '13px', fontWeight: active ? 800 : 600, color: active ? '#FFFFFF' : '#B8CDD8', lineHeight: 1.25 }}>{t.label}</div>
+                        <div style={{ fontSize: '13px', fontWeight: active ? 800 : 600, color: active ? t.accent : 'var(--ink3)', lineHeight: 1.25 }}>{t.label}</div>
                       </div>
                     </button>
                   )
@@ -381,7 +365,6 @@ export default function ToolkitPage() {
 
           </div>
         </div>
-      </div>
 
       {picking && <EventPicker tool={tool} events={events} onClose={() => setPicking(false)} />}
       <style>{`@keyframes pulse{0%,100%{opacity:1}50%{opacity:0.4}}`}</style>

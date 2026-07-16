@@ -1,8 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
-import { AppShellNav } from '@/app/components/AppShell'
-import PlatformMenu from '@/app/components/PlatformMenu'
+import PageHeader from '@/app/components/PageHeader'
 
 const C = { bg: '#F6F8FB', surface: '#FFFFFF', border: '#DDE8EE', text: '#0F1923', muted: '#5B7080', green: '#00897B', amber: '#D97706', red: '#8B1A1A', blue: '#0284C7', purple: '#6C54B5' }
 
@@ -95,19 +94,11 @@ export default function ExpensesPage() {
 
   return (
     <div style={{ minHeight: '100vh', background: C.bg, fontFamily: "'Inter', system-ui, sans-serif" }}>
-      <AppShellNav moduleKey="finance" moduleHref="/finance" subtitle="Expense Claims" rightSlot={<PlatformMenu />} />
-      <div style={{ background: C.surface, borderBottom: `1px solid ${C.border}`, padding: '20px 32px' }}>
-        <div style={{ maxWidth: 1100, margin: '0 auto' }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12 }}>
-            <h1 style={{ fontSize: 22, fontWeight: 800, color: C.text, margin: 0 }}>Expense Claims</h1>
-            <div style={{ display: 'flex', gap: 6 }}>
-              <button onClick={() => setTab('all')} style={{ padding: '7px 18px', borderRadius: 8, border: tab === 'all' ? `1.5px solid ${C.blue}` : `1px solid ${C.border}`, background: tab === 'all' ? C.blue : C.surface, color: tab === 'all' ? '#fff' : C.muted, fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>All Claims</button>
-              {isManager && <button onClick={() => setTab('pending')} style={{ padding: '7px 18px', borderRadius: 8, border: tab === 'pending' ? `1.5px solid ${C.amber}` : `1px solid ${C.border}`, background: tab === 'pending' ? C.amber : C.surface, color: tab === 'pending' ? '#fff' : C.muted, fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>Pending Approval</button>}
-              <button onClick={() => setShowForm(true)} style={{ padding: '7px 18px', borderRadius: 8, border: 'none', background: C.green, color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>+ New Claim</button>
-            </div>
-          </div>
-        </div>
-      </div>
+      <PageHeader eyebrow="Finance" title="Expense Claims" actions={<>
+        <button onClick={() => setTab('all')} style={{ padding: '7px 18px', borderRadius: 8, border: tab === 'all' ? `1.5px solid ${C.blue}` : `1px solid ${C.border}`, background: tab === 'all' ? C.blue : C.surface, color: tab === 'all' ? '#fff' : C.muted, fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>All Claims</button>
+        {isManager && <button onClick={() => setTab('pending')} style={{ padding: '7px 18px', borderRadius: 8, border: tab === 'pending' ? `1.5px solid ${C.amber}` : `1px solid ${C.border}`, background: tab === 'pending' ? C.amber : C.surface, color: tab === 'pending' ? '#fff' : C.muted, fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>Pending Approval</button>}
+        <button onClick={() => setShowForm(true)} style={{ padding: '7px 18px', borderRadius: 8, border: 'none', background: C.green, color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>+ New Claim</button>
+      </>} />
 
       <div style={{ maxWidth: 1100, margin: '0 auto', padding: '24px 32px' }}>
         {msg && <div style={{ padding: '10px 16px', borderRadius: 8, marginBottom: 16, background: msg.ok ? `${C.green}12` : `${C.red}12`, border: `1px solid ${msg.ok ? C.green : C.red}30`, color: msg.ok ? C.green : C.red, fontSize: 13, fontWeight: 600 }}>{msg.text}</div>}

@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback, Suspense } from 'react'
 import Link from 'next/link'
 import { useSearchParams } from 'next/navigation'
-import { AppShellNav } from '@/app/components/AppShell'
+import PageHeader from '@/app/components/PageHeader'
 
 type Event = { id: string; name: string; city: string; event_date: string | null; type: string }
 type Campaign = {
@@ -194,11 +194,11 @@ function ContentHubInner() {
 
   return (
     <div style={{ minHeight: '100vh', background: '#F8FAFB', color: '#0F1923', fontFamily: 'var(--font-manrope), Manrope, sans-serif' }}>
-      <AppShellNav
-        moduleKey="eventpilot"
-        subtitle="Content Hub"
-        homeHref="/admin/toolkit"
-        rightSlot={
+      <PageHeader
+        eyebrow="Content Hub"
+        title="AI Social Media Campaigns"
+        description="Pick an event, choose a campaign template, and let AI generate every social post — week by week. Review, approve, and publish in one place."
+        actions={
           <button onClick={() => setShowCreate(true)}
             style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '8px 18px', borderRadius: '10px', border: 'none', background: '#00A5A3', color: '#FFFFFF', fontSize: '13px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
             <svg width="11" height="11" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
@@ -208,15 +208,6 @@ function ContentHubInner() {
       />
 
       <div style={{ maxWidth: '1100px', margin: '0 auto', padding: '40px 24px 80px' }}>
-
-        {/* ── Page header ── */}
-        <div style={{ marginBottom: '36px' }}>
-          <div style={{ fontSize: '12px', fontWeight: 800, letterSpacing: '2.5px', color: '#00695C', textTransform: 'uppercase', marginBottom: '8px' }}>Content Hub</div>
-          <h1 style={{ fontSize: '32px', fontWeight: 900, color: '#0F1923', margin: '0 0 10px', letterSpacing: '-0.4px' }}>AI Social Media Campaigns</h1>
-          <p style={{ fontSize: '15px', color: '#6B7280', margin: 0, lineHeight: 1.6, maxWidth: '600px' }}>
-            Pick an event, choose a campaign template, and let AI generate every social post — week by week. Review, approve, and publish in one place.
-          </p>
-        </div>
 
         {/* ── How it works ── */}
         {campaigns.length === 0 && !loading && (

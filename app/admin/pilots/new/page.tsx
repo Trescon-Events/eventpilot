@@ -2,8 +2,7 @@
 
 import { useEffect, useState, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
-import NavBar from '@/app/components/NavBar'
-import Link from 'next/link'
+import PageHeader from '@/app/components/PageHeader'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -151,16 +150,11 @@ export default function NewPilotProjectPage() {
 
   return (
     <div style={{ minHeight: '100vh', background: '#f8fafc' }}>
-      <NavBar />
+      <PageHeader
+        title="New Pilot Project"
+        description="Works whether or not the tool exists yet — leave the tool link blank if it hasn't been built."
+      />
       <div style={{ maxWidth: 780, margin: '0 auto', padding: '40px 24px 80px' }}>
-
-        <div style={{ marginBottom: 28 }}>
-          <Link href="/admin/pilots" style={{ fontSize: 13, color: '#0d9488', textDecoration: 'none', fontWeight: 600 }}>← Back to Pilot Projects</Link>
-          <h1 style={{ fontSize: 24, fontWeight: 800, color: '#111827', margin: '10px 0 6px' }}>New Pilot Project</h1>
-          <p style={{ color: '#6b7280', fontSize: 14, margin: 0 }}>
-            Works whether or not the tool exists yet — leave the tool link blank if it hasn&apos;t been built.
-          </p>
-        </div>
 
         {result ? (
           <div style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: 14, padding: 28 }}>

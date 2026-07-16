@@ -2,9 +2,8 @@
 
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
-import { ProfileMenu, NotificationBell } from '@/app/components/NavBar'
-import { AppShellNav } from '@/app/components/AppShell'
-import PlatformMenu from '@/app/components/PlatformMenu'
+import { NotificationBell } from '@/app/components/NavBar'
+import PageHeader from '@/app/components/PageHeader'
 
 const TOOL_LABELS: Record<string, string> = {
   events:          'Events Hub',
@@ -76,29 +75,14 @@ export default function ChangelogPage() {
 
   return (
     <div style={{ minHeight: '100vh', background: '#F6F8FB' }}>
-      <AppShellNav
-        moduleKey="eventpilot"
-        subtitle="What's Fixed"
-        homeHref="/dashboard"
-        rightSlot={
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <PlatformMenu />
-            <NotificationBell />
-            <ProfileMenu />
-          </div>
-        }
+      <PageHeader
+        eyebrow="Platform Updates"
+        title="What's Been Fixed"
+        description="Every issue reported by the team — and what we did about it."
+        actions={<NotificationBell />}
       />
 
       <div style={{ maxWidth: '820px', margin: '0 auto', padding: '36px 24px 80px' }}>
-
-        {/* Header */}
-        <div style={{ marginBottom: '32px' }}>
-          <div style={{ fontSize: '11px', fontWeight: 800, letterSpacing: '2px', textTransform: 'uppercase', color: '#00897B', marginBottom: '8px' }}>Platform Updates</div>
-          <h1 style={{ fontSize: '28px', fontWeight: 900, color: '#0F1923', margin: '0 0 8px' }}>What's Been Fixed</h1>
-          <p style={{ fontSize: '15px', color: '#5B7080', margin: 0, lineHeight: 1.6 }}>
-            Every issue reported by the team — and what we did about it.
-          </p>
-        </div>
 
         {/* Stats */}
         <div style={{ display: 'flex', gap: '12px', marginBottom: '28px', flexWrap: 'wrap' }}>

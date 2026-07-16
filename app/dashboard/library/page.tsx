@@ -3,7 +3,7 @@
 import { useState, useEffect, Suspense } from 'react'
 import { useSearchParams } from 'next/navigation'
 import Link from 'next/link'
-import { AppShellNav } from '@/app/components/AppShell'
+import PageHeader from '@/app/components/PageHeader'
 
 interface Course {
   id:                 string
@@ -116,53 +116,36 @@ function LibraryContent() {
 
   return (
     <div style={S.page}>
-      {/* Nav */}
-      <AppShellNav
-        moduleKey="eventpilot"
-        subtitle="Course Library"
-        homeHref={staffId ? `/dashboard?id=${staffId}` : '/dashboard'}
-        rightSlot={staffId ? (
-          <Link href={`/dashboard?id=${staffId}`} className="tbtn tbtn-teal">
-            <svg width="11" height="11" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg>
-            My Dashboard
-          </Link>
+      {/* Page header */}
+      <PageHeader
+        eyebrow="Event Pilot Learning Library"
+        title="Course Library"
+        description={`${courses.length} total · ${completedCount} completed by you`}
+        actions={myDept !== 'All Departments' ? (
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <span style={{ fontSize: '12px', fontWeight: 700, color: '#00897B', background: 'rgba(0,165,163,0.1)', border: '1px solid rgba(0,165,163,0.25)', padding: '3px 10px', borderRadius: '16px' }}>
+              {myDept}
+            </span>
+            {deptFilter === myDept ? (
+              <button
+                onClick={() => setDeptFilter('All Departments')}
+                style={{ fontSize: '12px', color: '#9CA3AF', background: 'none', border: 'none', cursor: 'pointer', padding: '2px 6px', fontFamily: 'inherit' }}
+              >
+                Show all depts
+              </button>
+            ) : (
+              <button
+                onClick={() => setDeptFilter(myDept)}
+                style={{ fontSize: '12px', color: '#00897B', background: 'none', border: 'none', cursor: 'pointer', padding: '2px 6px', fontFamily: 'inherit', fontWeight: 700 }}
+              >
+                Back to {myDept}
+              </button>
+            )}
+          </div>
         ) : undefined}
       />
 
       <div style={{ maxWidth: '1020px', margin: '0 auto', padding: '40px 24px 80px' }}>
-
-        {/* Header */}
-        <div style={{ marginBottom: '32px' }}>
-          <div style={{ fontSize: '13px', fontWeight: 800, letterSpacing: '2.5px', color: '#00695C', textTransform: 'uppercase', marginBottom: '8px' }}>Event Pilot Learning Library</div>
-          <h1 style={{ fontSize: '36px', fontWeight: 900, margin: '0 0 8px', letterSpacing: '-0.4px', color: '#0F1923' }}>Course Library</h1>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
-            <p style={{ fontSize: '13px', color: '#2D3E50', margin: 0 }}>
-              {courses.length} total · {completedCount} completed by you
-            </p>
-            {myDept !== 'All Departments' && (
-              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                <span style={{ fontSize: '12px', fontWeight: 700, color: '#00897B', background: 'rgba(0,165,163,0.1)', border: '1px solid rgba(0,165,163,0.25)', padding: '3px 10px', borderRadius: '16px' }}>
-                  {myDept}
-                </span>
-                {deptFilter === myDept ? (
-                  <button
-                    onClick={() => setDeptFilter('All Departments')}
-                    style={{ fontSize: '12px', color: '#9CA3AF', background: 'none', border: 'none', cursor: 'pointer', padding: '2px 6px', fontFamily: 'inherit' }}
-                  >
-                    Show all depts
-                  </button>
-                ) : (
-                  <button
-                    onClick={() => setDeptFilter(myDept)}
-                    style={{ fontSize: '12px', color: '#00897B', background: 'none', border: 'none', cursor: 'pointer', padding: '2px 6px', fontFamily: 'inherit', fontWeight: 700 }}
-                  >
-                    Back to {myDept}
-                  </button>
-                )}
-              </div>
-            )}
-          </div>
-        </div>
 
         {/* Tier summary strip */}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '10px', marginBottom: '28px' }}>

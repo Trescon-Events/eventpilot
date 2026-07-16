@@ -2,8 +2,7 @@
 
 import { useState, useEffect, useCallback, Fragment } from 'react'
 import Link from 'next/link'
-import { AppShellNav } from '@/app/components/AppShell'
-import PlatformMenu from '@/app/components/PlatformMenu'
+import PageHeader from '@/app/components/PageHeader'
 import LocationSelect from '@/app/components/LocationSelect'
 import { KNOWN_CITIES, COUNTRIES } from '@/app/lib/docuhub/locations'
 import { docuhubDomain } from '@/app/lib/docuhub/domain'
@@ -175,34 +174,22 @@ export default function DocuHubPage() {
 
   return (
     <div style={{ minHeight: '100vh', background: '#E8EEF4', fontFamily: 'var(--font-manrope), sans-serif' }}>
-      <AppShellNav moduleKey="docuhub" moduleHref="/docuhub" homeHref="/docuhub" rightSlot={
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          {tier === 'admin' && (
-            <Link href="/docuhub/settings" style={{ padding: '8px 14px', borderRadius: '9px', border: '1px solid #DDE8EE', background: '#FFFFFF', color: '#5B7080', fontSize: '13px', fontWeight: 700, textDecoration: 'none' }}>
-              Settings
-            </Link>
-          )}
-          <Link href="/knowledge/assistant" style={{ padding: '8px 14px', borderRadius: '9px', border: '1px solid rgba(0,165,163,0.35)', background: 'rgba(0,165,163,0.08)', color: '#00695C', fontSize: '13px', fontWeight: 700, textDecoration: 'none' }}>
+      <PageHeader
+        eyebrow="DocuHub"
+        title={`Documents (${total})`}
+        actions={<>
+          <Link href="/admin/toolkit/knowledge-assistant" style={{ padding: '8px 14px', borderRadius: '9px', border: '1px solid rgba(0,165,163,0.35)', background: 'rgba(0,165,163,0.08)', color: '#00695C', fontSize: '13px', fontWeight: 700, textDecoration: 'none' }}>
             Knowledge Assistant
           </Link>
           {tier !== 'none' && (
-            <>
-              <Link href="/docuhub/bulk" style={{ padding: '8px 14px', borderRadius: '9px', border: '1px solid #DDE8EE', background: '#FFFFFF', color: '#5B7080', fontSize: '13px', fontWeight: 700, textDecoration: 'none' }}>
-                Bulk Upload
-              </Link>
-              <Link href="/docuhub/upload" style={{ padding: '8px 16px', borderRadius: '9px', border: 'none', background: '#D97706', color: '#FFFFFF', fontSize: '13px', fontWeight: 800, textDecoration: 'none' }}>
-                + Upload
-              </Link>
-            </>
+            <Link href="/admin/toolkit/docuhub/upload" style={{ padding: '8px 16px', borderRadius: '9px', border: 'none', background: '#D97706', color: '#FFFFFF', fontSize: '13px', fontWeight: 800, textDecoration: 'none' }}>
+              + Upload
+            </Link>
           )}
-          <PlatformMenu />
-        </div>
-      } />
+        </>}
+      />
 
-      <div style={{ maxWidth: '1320px', margin: '0 auto', padding: '32px 24px' }}>
-        <div style={{ fontSize: '13px', fontWeight: 800, letterSpacing: '2.5px', textTransform: 'uppercase', color: '#B45309', marginBottom: '6px' }}>DocuHub</div>
-        <h1 style={{ fontSize: '20px', fontWeight: 800, color: '#0F1923', margin: '0 0 20px' }}>Documents ({total})</h1>
-
+      <div style={{ maxWidth: '1320px', margin: '0 auto', padding: '24px' }}>
         {tier === 'none' && (
           <div style={{ background: '#FFFFFF', border: '1px solid #DDE8EE', borderRadius: '12px', padding: '16px', marginBottom: '20px', fontSize: '13px', color: '#5B7080' }}>
             You can browse documents here, but you don&rsquo;t have upload access yet. Ask a DocuHub admin to grant you access.

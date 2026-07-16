@@ -3,8 +3,7 @@
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { useParams } from 'next/navigation'
-import { AppShellNav } from '@/app/components/AppShell'
-import PlatformMenu from '@/app/components/PlatformMenu'
+import PageHeader from '@/app/components/PageHeader'
 
 const C = {
   bg:      '#F6F8FB',
@@ -306,15 +305,9 @@ export default function StaffHRProfile() {
   return (
     <div style={{ minHeight: '100vh', background: C.bg, fontFamily: 'system-ui, sans-serif' }}>
       {/* Header */}
-      <AppShellNav
-        moduleKey="hr"
-        moduleHref="/hr"
-        subtitle={staff.name}
-        rightSlot={<div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-          {!staff.access_enabled && pill(C.red, 'Access Disabled')}
-          <PlatformMenu />
-        </div>}
-      />
+      <PageHeader eyebrow="HR" title={staff.name} actions={
+        !staff.access_enabled ? pill(C.red, 'Access Disabled') : undefined
+      } />
 
       <div style={{ maxWidth: '1100px', margin: '0 auto', padding: '32px' }}>
         {/* Profile hero */}

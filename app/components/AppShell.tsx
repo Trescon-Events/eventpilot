@@ -1,6 +1,7 @@
 'use client'
 
-import { cloneElement, isValidElement } from 'react'
+import { cloneElement, isValidElement, useEffect, useState } from 'react'
+import Link from 'next/link'
 import NavBar from '@/app/components/NavBar'
 import { getModuleRegistry } from '@/app/lib/registry/modules'
 
@@ -45,9 +46,17 @@ interface AppShellNavProps {
   liveIndicator?: boolean
   rightSlot?: React.ReactNode
   centerSlot?: React.ReactNode
+  /** Forwarded to NavBar's ProfileMenu — pass the staff name if this page
+   *  already has it loaded, to skip an extra lookup. */
+  profileName?: string
 }
 
-export function AppShellNav({ moduleKey, moduleHref, subtitle, homeHref, liveIndicator, rightSlot, centerSlot }: AppShellNavProps) {
+const quickLinkStyle: React.CSSProperties = {
+  padding: '8px 14px', borderRadius: '9px', border: '1px solid #DDE8EE', background: '#FFFFFF',
+  color: '#5B7080', fontSize: '13px', fontWeight: 700, textDecoration: 'none', whiteSpace: 'nowrap',
+}
+
+export function AppShellNav({ moduleKey, moduleHref, subtitle, homeHref, liveIndicator, rightSlot, centerSlot, profileName }: AppShellNavProps) {
   const mod = getModuleRegistry().find(m => m.key === moduleKey)
   if (!mod) {
     // Fails loudly in dev rather than silently rendering a blank nav —
@@ -63,6 +72,27 @@ export function AppShellNav({ moduleKey, moduleHref, subtitle, homeHref, liveInd
 
   const resolvedModuleHref = moduleHref ?? (typeof mod?.href === 'string' ? mod.href : undefined)
 
+  // Toolkit / Pilot Projects quick-access buttons — shown on every page that
+  // uses AppShellNav (not just per-page opt-in like rightSlot) so they can't
+  // be silently missed. Toolkit only had a menu presence for admins before
+  // this (its registry entry is admin_only in PlatformMenu); staff granted
+  // individual tools had no discovery path to /admin/toolkit at all. Added
+  // 15 Jul 2026 per Madhu's request.
+  const [quickAccess, setQuickAccess] = useState({ toolkit: false, pilots: false, pilotsHref: '/pilots' })
+  useEffect(() => {
+    fetch('/api/nav/quick-access')
+      .then(r => r.json())
+      .then(d => setQuickAccess({ toolkit: !!d.toolkit, pilots: !!d.pilots, pilotsHref: d.pilotsHref ?? '/pilots' }))
+      .catch(() => {})
+  }, [])
+
+  const quickLinks = (quickAccess.toolkit || quickAccess.pilots) && (
+    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+      {quickAccess.toolkit && <Link href="/admin/toolkit" style={quickLinkStyle}>Toolkit</Link>}
+      {quickAccess.pilots && <Link href={quickAccess.pilotsHref} style={quickLinkStyle}>Pilot Projects</Link>}
+    </div>
+  )
+
   return (
     <NavBar
       module={badge}
@@ -70,8 +100,16 @@ export function AppShellNav({ moduleKey, moduleHref, subtitle, homeHref, liveInd
       subtitle={subtitle}
       homeHref={homeHref ?? '/dashboard'}
       liveIndicator={liveIndicator}
-      rightSlot={rightSlot}
+      rightSlot={
+        quickLinks || rightSlot ? (
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            {quickLinks}
+            {rightSlot}
+          </div>
+        ) : undefined
+      }
       centerSlot={centerSlot}
+      profileName={profileName}
     />
   )
 }

@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import NavBar from '@/app/components/NavBar'
+import PageHeader from '@/app/components/PageHeader'
 
 type Row = {
   rank:              number
@@ -52,7 +52,6 @@ function DeltaBadge({ delta }: { delta: number | null }) {
 function LeaderboardShell({ children }: { children: React.ReactNode }) {
   return (
     <div style={{ minHeight: '100vh', background: '#F0F4F8', fontFamily: 'var(--font-manrope)' }}>
-      <NavBar homeHref="/dashboard" />
       {children}
     </div>
   )
@@ -77,6 +76,7 @@ export default function LeaderboardPage() {
   if (loading) {
     return (
       <LeaderboardShell>
+        <PageHeader eyebrow="Learning Leaderboard" title="Leaderboard" />
         <div style={{ padding: '80px 24px', textAlign: 'center', color: '#5B7080', fontFamily: 'var(--font-manrope)', fontSize: 15, fontWeight: 600 }}>
           Loading leaderboard…
         </div>
@@ -86,6 +86,7 @@ export default function LeaderboardPage() {
   if (error || !data) {
     return (
       <LeaderboardShell>
+        <PageHeader eyebrow="Learning Leaderboard" title="Leaderboard" />
         <div style={{ padding: '80px 24px', textAlign: 'center', color: '#DC2626', fontFamily: 'var(--font-manrope)', fontSize: 15, fontWeight: 600 }}>
           {error ?? 'No data'}
         </div>
@@ -97,18 +98,12 @@ export default function LeaderboardPage() {
 
   return (
     <LeaderboardShell>
+      <PageHeader
+        eyebrow="Learning Leaderboard"
+        title={`Week of ${fmtRange(week_start, week_end)}`}
+        description={total_ranked > 0 ? `${total_ranked} staff ranked · updated every Monday 07:00 IST` : 'Snapshot not yet generated for this week.'}
+      />
       <div style={{ maxWidth: 780, margin: '0 auto', padding: '32px 24px 48px' }}>
-
-        {/* Header */}
-        <div style={{ marginBottom: 24 }}>
-          <div style={{ fontSize: 12, fontWeight: 800, letterSpacing: 1, textTransform: 'uppercase', color: '#5B7080', marginBottom: 6 }}>
-            Learning Leaderboard
-          </div>
-          <h1 style={{ margin: 0, fontSize: 28, fontWeight: 900, color: '#0F1923' }}>Week of {fmtRange(week_start, week_end)}</h1>
-          <p style={{ margin: '6px 0 0', fontSize: 14, color: '#5B7080' }}>
-            {total_ranked > 0 ? `${total_ranked} staff ranked · updated every Monday 07:00 IST` : 'Snapshot not yet generated for this week.'}
-          </p>
-        </div>
 
         {/* Personal card (staff only) */}
         {!is_admin && me && (

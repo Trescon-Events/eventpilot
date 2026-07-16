@@ -3,15 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-
-/* ── Back Arrow SVG ────────────────────────────────────────────── */
-function BackArrow() {
-  return (
-    <svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24">
-      <path d="M19 12H5" /><polyline points="12 19 5 12 12 5" />
-    </svg>
-  )
-}
+import PageHeader from '@/app/components/PageHeader'
 
 const INPUT_STYLE: React.CSSProperties = {
   width: '100%', padding: '10px 14px', borderRadius: '8px', border: '1px solid #B8CDD8',
@@ -386,16 +378,10 @@ export default function NewBespokeProjectPage() {
 
   return (
     <div style={{ minHeight: '100vh', background: '#E8EEF4', fontFamily: 'var(--font-manrope)' }}>
-      {/* ── Dark Header Bar ─────────────────────────────────────── */}
-      <div style={{ background: '#0F1923', padding: '20px 32px', display: 'flex', alignItems: 'center', gap: '16px' }}>
-        <Link href="/admin/bespoke" style={{ color: '#5B7080', display: 'flex', alignItems: 'center' }}>
-          <BackArrow />
-        </Link>
-        <h1 style={{ margin: 0, fontSize: '22px', fontWeight: 800, color: '#FFFFFF' }}>New Bespoke Project</h1>
-        <div style={{ marginLeft: 'auto', fontSize: '13px', fontWeight: 600, color: '#B8CDD8' }}>
-          Step {step} of 3 — {stepLabel}
-        </div>
-      </div>
+      <PageHeader
+        title="New Bespoke Project"
+        description={`Step ${step} of 3 — ${stepLabel}`}
+      />
 
       {/* ── Progress Bar ────────────────────────────────────────── */}
       <div style={{ height: '4px', background: '#DDE8EE', width: '100%' }}>

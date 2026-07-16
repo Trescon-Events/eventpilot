@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useRef, useCallback } from 'react'
+import { useState, useEffect, useRef } from 'react'
 
 const TOOLS = [
   { key: 'events',          label: 'Events Hub'           },
@@ -37,92 +37,6 @@ const C = {
   teal:    '#00897B',
 }
 
-function DraggableButton({ onClick }: { onClick: () => void }) {
-  const STORAGE_KEY = 'ep_report_btn_pos'
-  const btnRef = useRef<HTMLButtonElement>(null)
-  const dragging = useRef(false)
-  const didDrag = useRef(false)
-  const offset = useRef({ x: 0, y: 0 })
-
-  const getInitialPos = () => {
-    if (typeof window === 'undefined') return { x: 28, y: 600 }
-    try {
-      const saved = localStorage.getItem(STORAGE_KEY)
-      if (saved) {
-        const pos = JSON.parse(saved)
-        // Validate position is on screen
-        if (pos.x >= 0 && pos.x < window.innerWidth - 40 && pos.y >= 0 && pos.y < window.innerHeight - 40) {
-          return pos
-        }
-      }
-    } catch {}
-    return { x: 28, y: window.innerHeight - 70 }
-  }
-
-  const [pos, setPos] = useState(getInitialPos)
-
-  const onPointerDown = useCallback((e: React.PointerEvent) => {
-    const btn = btnRef.current
-    if (!btn) return
-    dragging.current = true
-    didDrag.current = false
-    const rect = btn.getBoundingClientRect()
-    offset.current = { x: e.clientX - rect.left, y: e.clientY - rect.top }
-    btn.setPointerCapture(e.pointerId)
-    btn.style.cursor = 'grabbing'
-    btn.style.transition = 'none'
-  }, [])
-
-  const onPointerMove = useCallback((e: React.PointerEvent) => {
-    if (!dragging.current) return
-    didDrag.current = true
-    const x = Math.max(0, Math.min(e.clientX - offset.current.x, window.innerWidth - 160))
-    const y = Math.max(0, Math.min(e.clientY - offset.current.y, window.innerHeight - 44))
-    setPos({ x, y })
-  }, [])
-
-  const onPointerUp = useCallback((e: React.PointerEvent) => {
-    if (!dragging.current) return
-    dragging.current = false
-    const btn = btnRef.current
-    if (btn) {
-      btn.releasePointerCapture(e.pointerId)
-      btn.style.cursor = 'grab'
-      btn.style.transition = 'box-shadow 0.15s'
-    }
-    const newPos = { x: Math.max(0, Math.min(e.clientX - offset.current.x, window.innerWidth - 160)), y: Math.max(0, Math.min(e.clientY - offset.current.y, window.innerHeight - 44)) }
-    setPos(newPos)
-    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(newPos)) } catch {}
-    // If user just clicked (didn't drag), open the modal
-    if (!didDrag.current) onClick()
-  }, [onClick])
-
-  return (
-    <button
-      ref={btnRef}
-      onPointerDown={onPointerDown}
-      onPointerMove={onPointerMove}
-      onPointerUp={onPointerUp}
-      title="Report an issue or suggestion — drag to reposition"
-      style={{
-        position: 'fixed', left: `${pos.x}px`, top: `${pos.y}px`, zIndex: 9000,
-        display: 'flex', alignItems: 'center', gap: '8px',
-        background: C.teal, color: '#fff',
-        border: 'none', borderRadius: '100px',
-        padding: '10px 18px',
-        fontSize: '13px', fontWeight: 700, fontFamily: 'inherit',
-        cursor: 'grab', boxShadow: '0 4px 16px rgba(0,137,123,0.30)',
-        touchAction: 'none', userSelect: 'none',
-      }}
-    >
-      <svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24">
-        <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
-      </svg>
-      Report Issue
-    </button>
-  )
-}
-
 export default function ReviewWidget() {
   const [authed,      setAuthed]      = useState(false)
   const [open,        setOpen]        = useState(false)
@@ -152,6 +66,15 @@ export default function ReviewWidget() {
     // Re-check on focus (catches logout in another tab)
     window.addEventListener('focus', checkAuth)
     return () => window.removeEventListener('focus', checkAuth)
+  }, [])
+
+  // NavBar's shared Help menu ("Report an Issue") opens this same modal via
+  // a custom event rather than duplicating the form — this widget is the
+  // one place it's implemented.
+  useEffect(() => {
+    function openFromHelpMenu() { setOpen(true); setDone(false); setError('') }
+    window.addEventListener('ep:open-report-issue', openFromHelpMenu)
+    return () => window.removeEventListener('ep:open-report-issue', openFromHelpMenu)
   }, [])
 
   // Hide on public pages
@@ -248,9 +171,6 @@ export default function ReviewWidget() {
 
   return (
     <>
-      {/* Floating draggable trigger */}
-      <DraggableButton onClick={openModal} />
-
       {/* Modal */}
       {open && (
         <div

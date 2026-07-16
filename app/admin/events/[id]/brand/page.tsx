@@ -603,12 +603,6 @@ export default function BrandStudioPage({ params }: { params: Promise<{ id: stri
       {/* ── Top bar ── */}
       <nav style={{ background: '#0F1923', borderBottom: '1px solid rgba(255,255,255,0.08)', padding: '0 32px', height: '64px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', position: 'sticky', top: 0, zIndex: 100 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-          <Link href="/admin/toolkit"
-            style={{ display: 'flex', alignItems: 'center', gap: '6px', color: 'rgba(255,255,255,0.55)', fontSize: '13px', fontWeight: 600, textDecoration: 'none' }}>
-            <svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M19 12H5M12 5l-7 7 7 7"/></svg>
-            Toolkit
-          </Link>
-          <span style={{ color: 'rgba(255,255,255,0.2)' }}>/</span>
           <div>
             {event && <div style={{ fontSize: '11px', fontWeight: 700, color: 'rgba(255,255,255,0.4)', textTransform: 'uppercase', letterSpacing: '1.5px' }}>{event.name}</div>}
             <div style={{ fontSize: '15px', fontWeight: 900, color: '#FFFFFF' }}>Brand Studio</div>

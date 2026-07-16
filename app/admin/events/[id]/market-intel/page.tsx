@@ -2,7 +2,6 @@
 
 import { useState, use, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
-import Link from 'next/link'
 import * as XLSX from 'xlsx'
 import * as scanManager from '@/app/lib/scanManager'
 import type { JobBatch, ManagerState, Participant, Speaker } from '@/app/lib/scanManager'
@@ -266,8 +265,6 @@ export default function MarketIntelPage({ params }: { params: Promise<{ id: stri
       <div style={{ background: SURFACE, borderBottom: `1px solid ${BORDER}`, padding: '0 32px', position: 'sticky', top: 0, zIndex: 200 }}>
         <div style={{ maxWidth: '1360px', margin: '0 auto', display: 'flex', alignItems: 'center', justifyContent: 'space-between', height: '56px', gap: '16px' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
-            <Link href="/admin/toolkit" style={{ fontSize: '13px', color: MUTED, textDecoration: 'none', fontWeight: 600 }}>← Toolkit</Link>
-            <div style={{ width: '1px', height: '20px', background: BORDER }} />
             <div style={{ fontSize: '15px', fontWeight: 800, color: DARK }}>
               {eventId === '__general__' ? 'General Research' : 'Market Intelligence'}
             </div>

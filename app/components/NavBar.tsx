@@ -26,6 +26,11 @@ interface NavBarProps {
   rightSlot?: React.ReactNode
   /** Extra content between logo area and right slot */
   centerSlot?: React.ReactNode
+  /** Passed straight to the built-in ProfileMenu's `name` prop — lets a page
+   *  that already has the staff record loaded (e.g. Dashboard) skip
+   *  ProfileMenu's own /api/staff-member lookup. Optional; ProfileMenu
+   *  resolves its own name when omitted. */
+  profileName?: string
 }
 
 export default function NavBar({
@@ -36,6 +41,7 @@ export default function NavBar({
   homeHref = '/admin',
   rightSlot,
   centerSlot,
+  profileName,
 }: NavBarProps) {
   const accent = module?.color ?? '#00897B'
   const moduleBadge = module && (
@@ -59,7 +65,12 @@ export default function NavBar({
 
   return (
     <nav className="t-nav">
-      {/* ── Left: Trescon logo + EventPilot name + optional module page label ── */}
+      {/* ── Left: Trescon logo + EventPilot name + optional module page label ──
+          Logo/wordmark always links to /dashboard — every logged-in person's
+          own home, regardless of which module/page they're currently in. Not
+          homeHref's raw default (/admin, kept only for legacy callers that
+          still pass nothing) — AppShellNav is the real entry point and
+          always passes /dashboard explicitly. */}
       <div className="t-nav-left">
         <Link
           href={homeHref}
@@ -70,10 +81,7 @@ export default function NavBar({
             alt="Trescon"
             style={{ height: '34px', width: 'auto', display: 'block' }}
           />
-          <div style={{ display: 'flex', flexDirection: 'column', lineHeight: 1 }}>
-            <span style={{ fontSize: '14px', fontWeight: 900, color: '#0F1923', letterSpacing: '-0.2px' }}>EventPilot</span>
-            <span style={{ fontSize: '10px', fontWeight: 700, color: '#00897B', letterSpacing: '1.5px', textTransform: 'uppercase', marginTop: '2px' }}>by Trescon</span>
-          </div>
+          <span style={{ fontSize: '15px', fontWeight: 900, color: '#0F1923', letterSpacing: '-0.2px', whiteSpace: 'nowrap' }}>EventPilot</span>
         </Link>
 
         {module && (
@@ -108,13 +116,151 @@ export default function NavBar({
         )}
       </div>
 
-      {/* ── Right: action buttons ── */}
-      {rightSlot && (
-        <div className="t-nav-right">
-          {rightSlot}
+      {/* ── Right: whatever this page passes in, then Help, Sound, Profile —
+          always last, always in this order, on every single page. Not
+          opt-in like rightSlot used to be (most pages never remembered to
+          add ProfileMenu) — baked into NavBar itself so it can't be missed. */}
+      <div className="t-nav-right">
+        {rightSlot}
+        <HelpMenu />
+        <SoundToggle />
+        <ProfileMenu name={profileName} />
+      </div>
+    </nav>
+  )
+}
+
+/* ── Help menu — "?" button, always visible, same position everywhere.
+   Report an Issue is available to everyone (opens the existing global
+   ReviewWidget submit modal via a custom event, no duplicate form). The
+   remaining items (Review Queue, Platform Docs) are real admin_only pages
+   today, so only shown to admins — showing them to everyone would just
+   send regular staff to a page that immediately bounces them to
+   /no-access. ── */
+export function HelpMenu() {
+  const [open, setOpen] = useState(false)
+  const [isAdmin, setIsAdmin] = useState(false)
+  const ref = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    fetch('/api/auth/session').then(r => r.json()).then(s => setIsAdmin(!!s?.adm)).catch(() => {})
+  }, [])
+
+  useEffect(() => {
+    function handleClick(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false)
+    }
+    document.addEventListener('mousedown', handleClick)
+    return () => document.removeEventListener('mousedown', handleClick)
+  }, [])
+
+  return (
+    <div ref={ref} style={{ position: 'relative' }}>
+      <button
+        onClick={() => setOpen(v => !v)}
+        title="Help & Support"
+        style={{
+          width: '34px', height: '34px', borderRadius: '50%',
+          border: `1px solid ${open ? 'rgba(0,137,123,0.35)' : '#DDE8EE'}`,
+          background: open ? 'rgba(0,137,123,0.12)' : '#FFFFFF',
+          cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
+          flexShrink: 0, padding: 0,
+        }}
+      >
+        <svg width="16" height="16" fill="none" stroke={open ? '#00897B' : '#5B7080'} strokeWidth="2" strokeLinecap="round" viewBox="0 0 24 24">
+          <circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/>
+        </svg>
+      </button>
+
+      {open && (
+        <div style={{ position: 'absolute', top: 'calc(100% + 10px)', right: 0, background: '#FFFFFF', border: '1px solid #DDE8EE', borderRadius: '12px', boxShadow: '0 8px 30px rgba(0,0,0,0.12)', padding: '6px', zIndex: 1000, minWidth: 200 }}>
+          <div style={{ padding: '6px 12px 4px', fontSize: '10px', fontWeight: 800, color: '#B8CDD8', letterSpacing: '1.5px', textTransform: 'uppercase' }}>Support</div>
+          <button
+            onClick={() => { setOpen(false); window.dispatchEvent(new CustomEvent('ep:open-report-issue')) }}
+            style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '9px 12px', borderRadius: '8px', border: 'none', background: 'transparent', color: '#374151', fontSize: '13px', fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', width: '100%', textAlign: 'left' }}>
+            <svg width="14" height="14" fill="none" stroke="#00A5A3" strokeWidth="2" strokeLinecap="round" viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+            Report an Issue
+          </button>
+          {isAdmin && (
+            <>
+              <Link href="/admin/reviews" onClick={() => setOpen(false)} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '9px 12px', borderRadius: '8px', textDecoration: 'none', color: '#374151', fontSize: '13px', fontWeight: 600 }}>
+                <svg width="14" height="14" fill="none" stroke="#00A5A3" strokeWidth="2" strokeLinecap="round" viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+                Review Queue
+              </Link>
+              <Link href="/docs" onClick={() => setOpen(false)} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '9px 12px', borderRadius: '8px', textDecoration: 'none', color: '#374151', fontSize: '13px', fontWeight: 600 }}>
+                <svg width="14" height="14" fill="none" stroke="#00A5A3" strokeWidth="2" strokeLinecap="round" viewBox="0 0 24 24"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>
+                Platform Docs
+              </Link>
+            </>
+          )}
         </div>
       )}
-    </nav>
+    </div>
+  )
+}
+
+/* ── Sound toggle — mute/unmute the notification chime, always visible,
+   between Help and Profile. Moved here from RealtimeNotifications.tsx's own
+   floating bottom-left button (which is what actually plays the sound) —
+   both read/write the same 'ep_sound_enabled' localStorage key, so this
+   button doesn't need any direct connection to that component. ── */
+export function SoundToggle() {
+  const [open, setOpen] = useState(false)
+  const [enabled, setEnabled] = useState(true)
+  const ref = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    setEnabled(localStorage.getItem('ep_sound_enabled') !== 'false')
+  }, [])
+
+  useEffect(() => {
+    function handleClick(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false)
+    }
+    document.addEventListener('mousedown', handleClick)
+    return () => document.removeEventListener('mousedown', handleClick)
+  }, [])
+
+  function toggle() {
+    const next = !enabled
+    setEnabled(next)
+    localStorage.setItem('ep_sound_enabled', String(next))
+    setOpen(false)
+  }
+
+  return (
+    <div ref={ref} style={{ position: 'relative' }}>
+      <button
+        onClick={() => setOpen(v => !v)}
+        title={enabled ? 'Notification sound: ON' : 'Notification sound: OFF'}
+        style={{
+          width: '34px', height: '34px', borderRadius: '50%',
+          border: `1px solid ${enabled ? 'rgba(0,137,123,0.35)' : '#DDE8EE'}`,
+          background: enabled ? 'rgba(0,137,123,0.12)' : '#FFFFFF',
+          cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
+          flexShrink: 0, padding: 0,
+        }}
+      >
+        {enabled ? (
+          <svg width="16" height="16" fill="none" stroke="#00897B" strokeWidth="2" strokeLinecap="round" viewBox="0 0 24 24"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/></svg>
+        ) : (
+          <svg width="16" height="16" fill="none" stroke="#5B7080" strokeWidth="2" strokeLinecap="round" viewBox="0 0 24 24"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><line x1="23" y1="9" x2="17" y2="15"/><line x1="17" y1="9" x2="23" y2="15"/></svg>
+        )}
+      </button>
+
+      {open && (
+        <div style={{ position: 'absolute', top: 'calc(100% + 10px)', right: 0, background: '#FFFFFF', border: '1px solid #DDE8EE', borderRadius: '12px', boxShadow: '0 8px 30px rgba(0,0,0,0.12)', padding: '6px', zIndex: 1000, minWidth: 190 }}>
+          <button onClick={toggle} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '9px 12px', borderRadius: '8px', border: 'none', background: 'transparent', color: '#374151', fontSize: '13px', fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', width: '100%', textAlign: 'left' }}>
+            {enabled ? (
+              <svg width="14" height="14" fill="none" stroke="#8B1A1A" strokeWidth="2" strokeLinecap="round" viewBox="0 0 24 24"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><line x1="23" y1="9" x2="17" y2="15"/><line x1="17" y1="9" x2="23" y2="15"/></svg>
+            ) : (
+              <svg width="14" height="14" fill="none" stroke="#00897B" strokeWidth="2" strokeLinecap="round" viewBox="0 0 24 24"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/></svg>
+            )}
+            {enabled ? 'Mute notifications' : 'Unmute notifications'}
+          </button>
+        </div>
+      )}
+    </div>
   )
 }
 
@@ -446,21 +592,27 @@ export function ProfileMenu({ name, initials, roles, jobLevel }: {
 }) {
   const [open,    setOpen]    = useState(false)
   const [session, setSession] = useState<{ sid: string; jl: string; adm: boolean; dept: string; roles?: string[] } | null>(null)
+  const [resolvedName, setResolvedName] = useState<string | null>(null)
   const ref = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     fetch('/api/auth/session').then(r => r.json()).then(s => { if (s) setSession(s) }).catch(() => {})
   }, [])
 
+  // The session cookie only carries sid/jl/adm/dept — no name. Now that
+  // NavBar renders this automatically on every page (rather than each page
+  // opting in and passing its own already-fetched `name`), resolve the real
+  // name ourselves so an unadorned <ProfileMenu /> doesn't show a raw
+  // staff-id UUID as the display name.
   useEffect(() => {
-    function handleClick(e: MouseEvent) {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false)
-    }
-    document.addEventListener('mousedown', handleClick)
-    return () => document.removeEventListener('mousedown', handleClick)
-  }, [])
+    if (name || !session?.sid || session.sid === 'super-admin') return
+    fetch(`/api/staff-member?id=${session.sid}`)
+      .then(r => r.json())
+      .then(d => { if (d?.name) setResolvedName(d.name) })
+      .catch(() => {})
+  }, [name, session?.sid])
 
-  const displayName    = name ?? session?.sid ?? 'You'
+  const displayName    = name ?? resolvedName ?? (session?.sid === 'super-admin' ? 'Super Admin' : session?.sid) ?? 'You'
   const displayInitial = initials ?? (displayName.charAt(0).toUpperCase())
   const effectiveRoles = roles ?? session?.roles ?? ['standard']
   const effectiveLevel = jobLevel ?? session?.jl ?? 'staff'

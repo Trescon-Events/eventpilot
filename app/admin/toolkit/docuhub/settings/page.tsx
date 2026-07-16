@@ -1,8 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { AppShellNav } from '@/app/components/AppShell'
-import PlatformMenu from '@/app/components/PlatformMenu'
+import PageHeader from '@/app/components/PageHeader'
 
 type DocType = {
   id: string; key: string; label: string; slug_prefix: string
@@ -90,7 +89,7 @@ export default function DocuHubSettingsPage() {
   if (tier !== 'admin') {
     return (
       <div style={{ minHeight: '100vh', background: '#E8EEF4', fontFamily: 'var(--font-manrope), sans-serif' }}>
-        <AppShellNav moduleKey="docuhub" moduleHref="/docuhub" homeHref="/docuhub" />
+        <PageHeader eyebrow="DocuHub" title="Settings" />
         <div style={{ maxWidth: '480px', margin: '80px auto', textAlign: 'center' }}>
           <div style={{ fontSize: '16px', fontWeight: 800, color: '#0F1923', marginBottom: '8px' }}>DocuHub admin access required</div>
           <div style={{ fontSize: '13px', color: '#5B7080' }}>Ask a current DocuHub admin to grant you access.</div>
@@ -101,10 +100,8 @@ export default function DocuHubSettingsPage() {
 
   return (
     <div style={{ minHeight: '100vh', background: '#E8EEF4', fontFamily: 'var(--font-manrope), sans-serif' }}>
-      <AppShellNav moduleKey="docuhub" moduleHref="/docuhub" homeHref="/docuhub" subtitle="Settings" rightSlot={<PlatformMenu />} />
-      <div style={{ maxWidth: '900px', margin: '0 auto', padding: '32px 24px' }}>
-        <h1 style={{ fontSize: '20px', fontWeight: 800, color: '#0F1923', margin: '0 0 20px' }}>DocuHub Settings</h1>
-
+      <PageHeader eyebrow="DocuHub" title="Settings" />
+      <div style={{ maxWidth: '900px', margin: '0 auto', padding: '24px' }}>
         <div style={{ display: 'flex', gap: '8px', marginBottom: '24px' }}>
           {([{ key: 'types', label: 'Document Types' }, { key: 'access', label: 'Access' }, { key: 'activity', label: 'Recent Activity' }] as { key: typeof tab; label: string }[]).map(t => (
             <button key={t.key} onClick={() => setTab(t.key)}

@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState, useCallback, useRef } from 'react'
-import NavBar from '@/app/components/NavBar'
+import PageHeader from '@/app/components/PageHeader'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -254,7 +254,7 @@ export default function PilotsPage() {
 
   if (loading) return (
     <div style={{ minHeight: '100vh', background: '#f8fafc' }}>
-      <NavBar />
+      <PageHeader eyebrow="🚀 Pilot Projects" title="Pilot Projects" />
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: 'calc(100vh - 64px)' }}>
         <p style={{ color: '#6b7280', fontSize: 15 }}>Loading your pilot projects…</p>
       </div>
@@ -263,7 +263,7 @@ export default function PilotsPage() {
 
   if (!projects.length) return (
     <div style={{ minHeight: '100vh', background: '#f8fafc' }}>
-      <NavBar />
+      <PageHeader eyebrow="🚀 Pilot Projects" title="Pilot Projects" />
       <div style={{ maxWidth: 600, margin: '80px auto', textAlign: 'center', padding: '0 24px' }}>
         <div style={{ fontSize: 40, marginBottom: 16 }}>🚀</div>
         <h2 style={{ fontSize: 22, fontWeight: 700, color: '#111827', margin: '0 0 8px' }}>No pilot projects yet</h2>
@@ -274,21 +274,11 @@ export default function PilotsPage() {
 
   return (
     <div style={{ minHeight: '100vh', background: '#f8fafc' }}>
-      <NavBar />
+      <PageHeader
+        title="Pilot Projects"
+        description={<>Complete your checklist items, then submit build requests for Durga to implement. Scope and architecture questions go directly to <strong>Durga (dc@tresconglobal.com)</strong>.</>}
+      />
       <div style={{ maxWidth: 860, margin: '0 auto', padding: '40px 24px' }}>
-
-        {/* Header */}
-        <div style={{ marginBottom: 36 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 6 }}>
-            <span style={{ fontSize: 22 }}>🚀</span>
-            <h1 style={{ fontSize: 26, fontWeight: 800, color: '#111827', margin: 0 }}>Pilot Projects</h1>
-          </div>
-          <p style={{ color: '#6b7280', fontSize: 15, margin: 0, lineHeight: 1.6 }}>
-            Complete your checklist items, then submit build requests for Durga to implement.
-            {' '}Scope and architecture questions go directly to{' '}
-            <strong style={{ color: '#111827' }}>Durga (dc@tresconglobal.com)</strong>.
-          </p>
-        </div>
 
         {projects.map(project => {
           const tab = activeTab[project.id] ?? 'checklist'

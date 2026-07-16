@@ -1,8 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { AppShellNav } from '@/app/components/AppShell'
-import PlatformMenu from '@/app/components/PlatformMenu'
+import PageHeader from '@/app/components/PageHeader'
 
 type Grant = { id: string; staff_id: string; tier: string; granted_at: string; staff_members: { name: string; email: string } | null }
 type StaffOption = { id: string; name: string; email: string }
@@ -48,7 +47,7 @@ export default function KnowledgeSettingsPage() {
   if (tier !== 'admin') {
     return (
       <div style={{ minHeight: '100vh', background: '#E8EEF4', fontFamily: 'var(--font-manrope), sans-serif' }}>
-        <AppShellNav moduleKey="kb" moduleHref="/knowledge" homeHref="/knowledge" />
+        <PageHeader eyebrow="Knowledge Base" title="Settings" />
         <div style={{ maxWidth: '480px', margin: '80px auto', textAlign: 'center' }}>
           <div style={{ fontSize: '16px', fontWeight: 800, color: '#0F1923', marginBottom: '8px' }}>Knowledge Base admin access required</div>
           <div style={{ fontSize: '13px', color: '#5B7080' }}>Ask a current KB admin to grant you access.</div>
@@ -59,10 +58,8 @@ export default function KnowledgeSettingsPage() {
 
   return (
     <div style={{ minHeight: '100vh', background: '#E8EEF4', fontFamily: 'var(--font-manrope), sans-serif' }}>
-      <AppShellNav moduleKey="kb" moduleHref="/knowledge" homeHref="/knowledge" subtitle="Settings" rightSlot={<PlatformMenu />} />
-      <div style={{ maxWidth: '900px', margin: '0 auto', padding: '32px 24px' }}>
-        <h1 style={{ fontSize: '20px', fontWeight: 800, color: '#0F1923', margin: '0 0 20px' }}>Knowledge Base Settings</h1>
-
+      <PageHeader eyebrow="Knowledge Base" title="Settings" />
+      <div style={{ maxWidth: '900px', margin: '0 auto', padding: '24px' }}>
         <div style={{ display: 'flex', gap: '8px', marginBottom: '24px' }}>
           <button style={{ padding: '8px 16px', borderRadius: '10px', border: '1px solid rgba(91,112,128,0.4)', background: 'rgba(91,112,128,0.08)', color: '#5B7080', fontSize: '13px', fontWeight: 800, fontFamily: 'inherit' }}>
             Access

@@ -1,8 +1,8 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import NavBar from '@/app/components/NavBar'
 import Link from 'next/link'
+import PageHeader from '@/app/components/PageHeader'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -166,7 +166,7 @@ export default function AdminPilotsPage() {
 
   if (loading) return (
     <div style={{ minHeight: '100vh', background: '#f8fafc' }}>
-      <NavBar />
+      <PageHeader title="Pilot Projects" />
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: 400 }}>
         <p style={{ color: '#6b7280' }}>Loading pilot projects…</p>
       </div>
@@ -175,26 +175,19 @@ export default function AdminPilotsPage() {
 
   return (
     <div style={{ minHeight: '100vh', background: '#f8fafc' }}>
-      <NavBar />
-      <div style={{ maxWidth: 1100, margin: '0 auto', padding: '40px 24px' }}>
-
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 32 }}>
-          <div>
-            <div style={{ marginBottom: 4 }}>
-              <Link href="/admin" style={{ fontSize: 13, color: '#6b7280', textDecoration: 'none' }}>← Admin</Link>
-            </div>
-            <h1 style={{ fontSize: 26, fontWeight: 800, color: '#111827', margin: 0 }}>Pilot Projects</h1>
-            <p style={{ color: '#6b7280', fontSize: 14, margin: '4px 0 0' }}>
-              {projects.length} active project{projects.length !== 1 ? 's' : ''}
-            </p>
-          </div>
+      <PageHeader
+        title="Pilot Projects"
+        description={`${projects.length} active project${projects.length !== 1 ? 's' : ''}`}
+        actions={
           <Link href="/admin/pilots/new" style={{
             background: '#0d9488', color: '#fff', fontSize: 13, fontWeight: 700, padding: '10px 18px',
             borderRadius: 8, textDecoration: 'none',
           }}>
             + New Pilot Project
           </Link>
-        </div>
+        }
+      />
+      <div style={{ maxWidth: 1100, margin: '0 auto', padding: '40px 24px' }}>
 
         <div style={{ display: 'grid', gridTemplateColumns: '260px 1fr', gap: 24, alignItems: 'start' }}>
 

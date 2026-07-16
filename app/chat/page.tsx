@@ -2,8 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react'
 import Link from 'next/link'
-import PlatformMenu from '@/app/components/PlatformMenu'
-import { AppShellNav } from '@/app/components/AppShell'
+import PageHeader from '@/app/components/PageHeader'
 
 type Message = { role: 'user' | 'assistant'; text: string; flagged?: boolean }
 
@@ -231,31 +230,16 @@ export default function ChatPage() {
   return (
     <div style={{ fontFamily: 'var(--font-manrope), Manrope, sans-serif', background: '#E8EEF4', minHeight: '100vh', display: 'flex', flexDirection: 'column', color: '#0F1923' }}>
 
-      {/* Nav */}
-      <AppShellNav
-        moduleKey="pilot-ai"
-        homeHref={staffId ? `/dashboard?id=${staffId}` : '/login'}
-        centerSlot={
-          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-            <div style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#3D9A00', flexShrink: 0 }} />
-            <span style={{ fontSize: '13px', color: '#2D3E50' }}>AI Learning Assistant</span>
-            <span style={{ fontSize: '11px', fontWeight: 700, color: '#3D6B00', background: '#F0FDE4', border: '1px solid #BBF7D0', borderRadius: '6px', padding: '2px 8px' }}>
-              {SESSION_LIMIT} q/day
-            </span>
-          </div>
-        }
-        rightSlot={<>
-          {messages.length > 0 && !isBlocked && (
-            <button className="tbtn tbtn-ghost" onClick={() => { setMessages([]); setSessionCount(0) }}>
-              New conversation
-            </button>
-          )}
-          <Link className="tbtn tbtn-teal" href={staffId ? `/dashboard?id=${staffId}` : '/login'}>
-            <svg width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg>
-            My Dashboard
-          </Link>
-          <PlatformMenu staffId={staffId} />
-        </>}
+      {/* Page header */}
+      <PageHeader
+        eyebrow="Pilot AI"
+        title="AI Learning Assistant"
+        description={`${SESSION_LIMIT} questions per day`}
+        actions={messages.length > 0 && !isBlocked ? (
+          <button className="tbtn tbtn-ghost" onClick={() => { setMessages([]); setSessionCount(0) }}>
+            New conversation
+          </button>
+        ) : undefined}
       />
 
       {/* Main */}

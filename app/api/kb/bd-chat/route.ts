@@ -2,6 +2,7 @@ import { GoogleGenerativeAI } from '@google/generative-ai'
 import { NextRequest, NextResponse } from 'next/server'
 import { getKBContext } from '@/app/lib/kb-context'
 import { getSessionStaffId } from '@/app/lib/access/session'
+import { hasToolGrant } from '@/app/lib/access/tool-grants'
 import { supabaseAdmin } from '@/app/lib/supabase'
 
 /*
@@ -17,10 +18,14 @@ import { supabaseAdmin } from '@/app/lib/supabase'
   pilotUseOnly: false (so proposals, which are pilot_use: false by design,
   are included) and BD-relevant categories.
 
-  Access: super admins always have unrestricted access. Everyone else must
-  be a pilot_project_members row on the "Knowledge Base Module" or
-  "DocuHub Module" pilot project, capped at DAILY_LIMIT messages/day
-  (assistant_usage table, reset at UTC midnight).
+  Access: super admins always have unrestricted access. Everyone else needs
+  staff_members.tool_grants.knowledge_assistant === true (granted via Admin →
+  People → Tool Permissions, same mechanism as every other gated tool),
+  capped at DAILY_LIMIT messages/day (assistant_usage table, reset at UTC
+  midnight). Previously gated by Pilot Project membership in "Knowledge Base
+  Module"/"DocuHub Module" — retired 15 Jul 2026 in favor of this tool_grant,
+  per Madhu's request to make Knowledge Assistant its own separately
+  grantable tool rather than piggybacking on pilot project rosters.
 
   No aggregate/count-query capability yet — see knowledge-engine/processors
   and kb_field_registry docs for why (workspace_id linkage + client-name
@@ -32,7 +37,6 @@ type Message = { role: 'user' | 'assistant'; text: string }
 
 const KB_CATEGORIES = ['business_development', 'event_intelligence', 'company_knowledge']
 const DAILY_LIMIT = 20
-const ELIGIBLE_PROJECT_NAMES = ['Knowledge Base Module', 'DocuHub Module']
 
 async function resolveAccess(staffId: string | null): Promise<{ allowed: boolean; unlimited: boolean }> {
   if (!staffId) return { allowed: false, unlimited: false }
@@ -41,17 +45,8 @@ async function resolveAccess(staffId: string | null): Promise<{ allowed: boolean
   const { data: staff } = await supabaseAdmin.from('staff_members').select('job_level').eq('id', staffId).single()
   if (staff?.job_level === 'super_admin') return { allowed: true, unlimited: true }
 
-  const { data: projects } = await supabaseAdmin.from('pilot_projects').select('id').in('name', ELIGIBLE_PROJECT_NAMES)
-  const projectIds = (projects ?? []).map(p => p.id)
-  if (projectIds.length === 0) return { allowed: false, unlimited: false }
-
-  const { count } = await supabaseAdmin
-    .from('pilot_project_members')
-    .select('*', { count: 'exact', head: true })
-    .eq('staff_id', staffId)
-    .in('project_id', projectIds)
-
-  return { allowed: (count ?? 0) > 0, unlimited: false }
+  const granted = await hasToolGrant(staffId, 'knowledge_assistant')
+  return { allowed: granted, unlimited: false }
 }
 
 function buildSystemPrompt(docs: string): string {
@@ -121,7 +116,7 @@ export async function POST(req: NextRequest) {
 
   const access = await resolveAccess(staffId)
   if (!access.allowed) {
-    return NextResponse.json({ error: 'The Knowledge Assistant is only available to people assigned to the Knowledge Base or DocuHub pilot projects. Ask an admin for access.' }, { status: 403 })
+    return NextResponse.json({ error: 'You don\'t have access to the Knowledge Assistant. Ask an admin to grant it from the Toolkit.' }, { status: 403 })
   }
 
   const today = new Date().toISOString().slice(0, 10)

@@ -22,7 +22,8 @@ interface NotifItem {
 // Ported from tools/smartexcel/src/routes/_app.tsx (AppLayout). Native to
 // EventPilot now, so "sign out" and navigation live one level up — this shell
 // adds an explicit "Back to EventPilot" link (the whole point of this port)
-// instead of its own logout button.
+// instead of its own logout button. Its own top breadcrumb bar was removed
+// once GlobalShell started rendering a real one above every page.
 export function SmartExcelShell({ user, children }: { user: ShellUser; children: ReactNode }) {
   const pathname = usePathname();
   const isAdmin = user.isSuperAdmin || user.roleKey === "admin";
@@ -30,22 +31,8 @@ export function SmartExcelShell({ user, children }: { user: ShellUser; children:
 
   return (
     <div className="flex h-screen flex-col bg-[#E8EEF4] text-[#0F1923]">
-      {/* Top bar — matches /admin/toolkit's breadcrumb bar so this reads as part of EventPilot */}
-      <div className="flex h-[52px] shrink-0 items-center gap-2.5 border-b border-[#DDE8EE] bg-white px-8">
-        <Link href="/admin/toolkit" className="flex items-center gap-1.5 text-[13px] font-semibold text-[#5B7080] hover:text-[#0F1923]">
-          <ArrowLeft size={13} />
-          Toolkit
-        </Link>
-        <span className="text-[13px] text-[#DDE8EE]">/</span>
-        <span className="text-[13px] font-extrabold text-[#0F1923]">SmartExcel</span>
-        <div className="ml-auto flex items-center gap-2">
-          <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-[#C0F43C]" />
-          <span className="text-[11px] font-bold uppercase tracking-wider text-[#9BAAB5]">Trescon</span>
-        </div>
-      </div>
-
       <div className="relative flex min-h-0 flex-1">
-        <aside className="group/sidebar fixed inset-y-[52px] left-0 z-30 flex w-12 flex-col overflow-hidden border-r border-[#1A2B3C] bg-[#0F1923] shadow-xl shadow-black/20 transition-[width] duration-150 ease-out hover:w-56 focus-within:w-56">
+        <aside className="group/sidebar fixed inset-y-0 left-0 z-30 flex w-12 flex-col overflow-hidden border-r border-[#1A2B3C] bg-[#0F1923] shadow-xl shadow-black/20 transition-[width] duration-150 ease-out hover:w-56 focus-within:w-56">
           <div className="flex h-11 shrink-0 items-center px-3">
             <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-[#00897B] text-xs font-bold text-white">
               S

@@ -1,9 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback, useRef } from 'react'
-import Link from 'next/link'
-import { ProfileMenu } from '@/app/components/NavBar'
-import { AppShellNav } from '@/app/components/AppShell'
+import PageHeader from '@/app/components/PageHeader'
 
 const C = {
   bg:      '#F6F8FB',
@@ -567,7 +565,7 @@ export default function AdminReviewsPage() {
 
   return (
     <div style={{ minHeight: '100vh', background: C.bg }}>
-      <AppShellNav moduleKey="eventpilot" subtitle="Platform Reviews" rightSlot={<ProfileMenu />} />
+      <PageHeader title="Platform Reviews" />
 
       {replyReview && (
         <ReplyModal
@@ -578,11 +576,6 @@ export default function AdminReviewsPage() {
       )}
 
       <div style={{ maxWidth: '960px', margin: '0 auto', padding: '32px 20px' }}>
-
-        <Link href="/admin" style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', fontSize: '13px', color: C.muted, textDecoration: 'none', marginBottom: '24px', fontWeight: 600 }}>
-          <svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" viewBox="0 0 24 24"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
-          Back to Admin
-        </Link>
 
         <div style={{ marginBottom: '28px' }}>
           <h1 style={{ fontSize: '26px', fontWeight: 900, color: C.text, margin: 0 }}>Platform Reviews</h1>

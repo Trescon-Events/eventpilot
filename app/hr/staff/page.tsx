@@ -2,8 +2,7 @@
 
 import { useState, useEffect, useMemo } from 'react'
 import Link from 'next/link'
-import { AppShellNav } from '@/app/components/AppShell'
-import PlatformMenu from '@/app/components/PlatformMenu'
+import PageHeader from '@/app/components/PageHeader'
 
 const C = {
   bg:      '#F6F8FB',
@@ -111,24 +110,16 @@ export default function StaffDirectoryPage() {
     <div style={{ minHeight: '100vh', background: C.bg, fontFamily: 'system-ui, sans-serif' }}>
 
       {/* Header */}
-      <AppShellNav
-        moduleKey="hr"
-        moduleHref="/hr"
-        subtitle="Staff Directory"
-        rightSlot={
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <Link href="/hr/staff/new?from=/hr/staff" style={{
-              display: 'inline-flex', alignItems: 'center', gap: '6px',
-              padding: '8px 16px', borderRadius: '8px', background: C.teal, color: '#fff',
-              textDecoration: 'none', fontSize: '13px', fontWeight: 700,
-            }}>
-              <svg width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-              Add New Staff
-            </Link>
-            <PlatformMenu />
-          </div>
-        }
-      />
+      <PageHeader eyebrow="HR" title="Staff Directory" actions={
+        <Link href="/hr/staff/new?from=/hr/staff" style={{
+          display: 'inline-flex', alignItems: 'center', gap: '6px',
+          padding: '8px 16px', borderRadius: '8px', background: C.teal, color: '#fff',
+          textDecoration: 'none', fontSize: '13px', fontWeight: 700,
+        }}>
+          <svg width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          Add New Staff
+        </Link>
+      } />
 
       <div style={{ maxWidth: '1200px', margin: '0 auto', padding: '24px 24px 60px' }}>
 

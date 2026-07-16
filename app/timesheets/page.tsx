@@ -1,8 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
-import { AppShellNav } from '@/app/components/AppShell'
-import PlatformMenu from '@/app/components/PlatformMenu'
+import PageHeader from '@/app/components/PageHeader'
 
 // ── Design tokens ─────────────────────────────────────────────────────────────
 const C = {
@@ -161,28 +160,22 @@ export default function TimesheetsPage() {
 
   return (
     <div style={{ minHeight: '100vh', background: C.bg, fontFamily: "'Inter', system-ui, sans-serif" }}>
-      <AppShellNav moduleKey="timesheets" subtitle="Timesheets" rightSlot={<PlatformMenu />} />
-      {/* ── Header ── */}
-      <div style={{ background: C.surface, borderBottom: `1px solid ${C.border}`, padding: '20px 32px' }}>
-        <div style={{ maxWidth: 1100, margin: '0 auto' }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12 }}>
-            <h1 style={{ fontSize: 22, fontWeight: 800, color: C.text, margin: 0 }}>Timesheets</h1>
-            <div style={{ display: 'flex', gap: 6 }}>
-              <button onClick={() => setTab('my')}
-                style={{ padding: '7px 18px', borderRadius: 8, border: tab === 'my' ? `1.5px solid ${C.blue}` : `1px solid ${C.border}`, background: tab === 'my' ? C.blue : C.surface, color: tab === 'my' ? '#fff' : C.muted, fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
-                My Timesheet
-              </button>
-              {isManager && (
-                <button onClick={() => { setTab('approve'); fetchPending() }}
-                  style={{ padding: '7px 18px', borderRadius: 8, border: tab === 'approve' ? `1.5px solid ${C.amber}` : `1px solid ${C.border}`, background: tab === 'approve' ? C.amber : C.surface, color: tab === 'approve' ? '#fff' : C.muted, fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', position: 'relative' }}>
-                  Approvals
-                  {pending.length > 0 && <span style={{ position: 'absolute', top: -6, right: -6, width: 18, height: 18, borderRadius: '50%', background: C.red, color: '#fff', fontSize: 10, fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{pending.length}</span>}
-                </button>
-              )}
-            </div>
-          </div>
-        </div>
-      </div>
+      <PageHeader
+        title="Timesheets"
+        actions={<>
+          <button onClick={() => setTab('my')}
+            style={{ padding: '7px 18px', borderRadius: 8, border: tab === 'my' ? `1.5px solid ${C.blue}` : `1px solid ${C.border}`, background: tab === 'my' ? C.blue : C.surface, color: tab === 'my' ? '#fff' : C.muted, fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
+            My Timesheet
+          </button>
+          {isManager && (
+            <button onClick={() => { setTab('approve'); fetchPending() }}
+              style={{ padding: '7px 18px', borderRadius: 8, border: tab === 'approve' ? `1.5px solid ${C.amber}` : `1px solid ${C.border}`, background: tab === 'approve' ? C.amber : C.surface, color: tab === 'approve' ? '#fff' : C.muted, fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', position: 'relative' }}>
+              Approvals
+              {pending.length > 0 && <span style={{ position: 'absolute', top: -6, right: -6, width: 18, height: 18, borderRadius: '50%', background: C.red, color: '#fff', fontSize: 10, fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{pending.length}</span>}
+            </button>
+          )}
+        </>}
+      />
 
       <div style={{ maxWidth: 1100, margin: '0 auto', padding: '24px 32px' }}>
         {msg && <div style={{ padding: '10px 16px', borderRadius: 8, marginBottom: 16, background: msg.ok ? `${C.green}12` : `${C.red}12`, border: `1px solid ${msg.ok ? C.green : C.red}30`, color: msg.ok ? C.green : C.red, fontSize: 13, fontWeight: 600 }}>{msg.text}</div>}

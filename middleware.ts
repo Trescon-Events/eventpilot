@@ -112,6 +112,29 @@ export async function middleware(req: NextRequest) {
   const domainRewrite = await resolveCustomDomain(host, req)
   if (domainRewrite) return domainRewrite
 
+  // ── Legacy path redirects (KB/DocuHub/Assistant moved under
+  // /admin/toolkit/*, 15 Jul 2026) ──
+  // Old bookmarks/emails linking to /knowledge or /docuhub should keep
+  // working rather than 404 — redirect to the new nested, tool_grant-gated
+  // locations instead of leaving a stub page file behind at the old path.
+  // Checked most-specific-first: /knowledge/assistant now lives as its own
+  // separate tool, not nested under knowledge-base.
+  if (pathname === '/knowledge/assistant' || pathname.startsWith('/knowledge/assistant/')) {
+    const url = req.nextUrl.clone()
+    url.pathname = '/admin/toolkit/knowledge-assistant' + pathname.slice('/knowledge/assistant'.length)
+    return NextResponse.redirect(url)
+  }
+  if (pathname === '/knowledge' || pathname.startsWith('/knowledge/')) {
+    const url = req.nextUrl.clone()
+    url.pathname = '/admin/toolkit/knowledge-base' + pathname.slice('/knowledge'.length)
+    return NextResponse.redirect(url)
+  }
+  if (pathname === '/docuhub' || pathname.startsWith('/docuhub/')) {
+    const url = req.nextUrl.clone()
+    url.pathname = '/admin/toolkit/docuhub' + pathname.slice('/docuhub'.length)
+    return NextResponse.redirect(url)
+  }
+
   // Allow static assets and public file extensions
   if (PUBLIC_FILE_EXTENSIONS.test(pathname)) return NextResponse.next()
 

@@ -3,8 +3,8 @@
 import { useState, useEffect, Suspense } from 'react'
 import { useSearchParams } from 'next/navigation'
 import Link from 'next/link'
-import { ProfileMenu, NotificationBell } from '@/app/components/NavBar'
-import { AppShellNav } from '@/app/components/AppShell'
+import { NotificationBell } from '@/app/components/NavBar'
+import PageHeader from '@/app/components/PageHeader'
 
 type Member = {
   id: string
@@ -87,8 +87,6 @@ function TeamContent() {
   const [briefStats,  setBriefStats]  = useState<{ avgScore: number; teamSize: number; zeroCourses: number; noProfile: number } | null>(null)
   const [gapDept,     setGapDept]     = useState<string | null>(null)
 
-  const isAdmin = typeof window !== 'undefined' && sessionStorage.getItem('tai_admin_authed') === '1'
-
   async function generateBrief() {
     if (!managerId || briefState === 'loading') return
     setBriefState('loading')
@@ -152,16 +150,8 @@ function TeamContent() {
 
   if (!loading && members.length === 0) return (
     <div style={{ fontFamily: 'var(--font-manrope),Manrope,sans-serif', background: '#E8EEF4', minHeight: '100vh', color: '#0F1923' }}>
-      {/* Nav */}
-      <AppShellNav
-        moduleKey="team-dashboard"
-        subtitle="Team Dashboard"
-        rightSlot={<>
-          {staffId && <Link className="tbtn tbtn-teal" href={`/dashboard?id=${staffId}`}>My Dashboard</Link>}
-          <NotificationBell />
-          <ProfileMenu />
-        </>}
-      />
+      {/* Page header */}
+      <PageHeader title="Team Dashboard" actions={<NotificationBell />} />
 
       <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: 'calc(100vh - 64px)', padding: '40px 24px', textAlign: 'center' }}>
         {/* Icon */}
@@ -220,27 +210,14 @@ function TeamContent() {
   return (
     <div style={{ fontFamily: 'var(--font-manrope),Manrope,sans-serif', background: '#E8EEF4', minHeight: '100vh', color: '#0F1923' }}>
 
-      {/* Nav */}
-      <AppShellNav
-        moduleKey="team-dashboard"
-        subtitle={scopeLabel}
-        rightSlot={<>
-          {staffId && <Link className="tbtn tbtn-teal" href={`/dashboard?id=${staffId}`}>My Dashboard</Link>}
-          {isAdmin && <Link className="tbtn tbtn-teal" href="/admin">Admin Dashboard</Link>}
-          <ProfileMenu />
-        </>}
+      {/* Page header */}
+      <PageHeader
+        eyebrow={scopeLabel}
+        title={`${manager?.name}'s Team`}
+        description={`${manager?.role} · ${JOB_LEVEL_LABEL[manager?.job_level ?? ''] ?? manager?.job_level} · ${members.length} people reporting`}
       />
 
       <div style={{ maxWidth: '1040px', margin: '0 auto', padding: '40px 24px 80px' }}>
-
-        {/* Header */}
-        <div style={{ marginBottom: '32px' }}>
-          <div style={{ fontSize: '13px', fontWeight: 800, letterSpacing: '2px', textTransform: 'uppercase', color: '#00695C', marginBottom: '8px' }}>{scopeLabel}</div>
-          <h1 style={{ fontSize: '36px', fontWeight: 800, margin: '0 0 4px', color: '#0F1923' }}>{manager?.name}&apos;s Team</h1>
-          <div style={{ fontSize: '13px', color: '#2D3E50' }}>
-            {manager?.role} · {JOB_LEVEL_LABEL[manager?.job_level ?? ''] ?? manager?.job_level} · {members.length} people reporting
-          </div>
-        </div>
 
         {/* Summary stats */}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '12px', marginBottom: '28px' }}>

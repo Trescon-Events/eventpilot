@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
-import { AppShellNav } from '@/app/components/AppShell'
+import PageHeader from '@/app/components/PageHeader'
 import LocationSelect from '@/app/components/LocationSelect'
 import { KNOWN_CITIES, COUNTRIES } from '@/app/lib/docuhub/locations'
 import { docuhubDomain } from '@/app/lib/docuhub/domain'
@@ -132,14 +132,14 @@ export default function DocuHubUploadPage() {
     const link = `https://${docuhubDomain(resultLink.visibility)}/${resultLink.prefix}/${resultLink.slug}`
     return (
       <div style={{ minHeight: '100vh', background: '#E8EEF4', fontFamily: 'var(--font-manrope), sans-serif' }}>
-        <AppShellNav moduleKey="docuhub" moduleHref="/docuhub" homeHref="/docuhub" />
+        <PageHeader eyebrow="DocuHub" title="Upload" />
         <div style={{ maxWidth: '560px', margin: '80px auto', padding: '32px', background: '#FFFFFF', borderRadius: '16px', border: '1px solid #DDE8EE', textAlign: 'center' }}>
           <div style={{ fontSize: '18px', fontWeight: 800, color: '#0F1923', marginBottom: '10px' }}>Document published</div>
           <div style={{ fontSize: '13px', color: '#5B7080', marginBottom: '16px' }}>This is its permanent link — it stays the same even if you replace the file later.</div>
           <div style={{ padding: '12px', background: '#E8EEF4', borderRadius: '10px', fontFamily: 'monospace', fontSize: '13px', color: '#B45309', marginBottom: '20px', wordBreak: 'break-all' }}>{link}</div>
           <div style={{ display: 'flex', gap: '10px', justifyContent: 'center' }}>
             <button onClick={() => { navigator.clipboard.writeText(link) }} style={{ padding: '10px 18px', borderRadius: '9px', border: 'none', background: '#C0F43C', color: '#0F1923', fontSize: '13px', fontWeight: 800, cursor: 'pointer', fontFamily: 'inherit' }}>Copy Link</button>
-            <button onClick={() => router.push('/docuhub')} style={{ padding: '10px 18px', borderRadius: '9px', border: '1px solid #DDE8EE', background: '#FFFFFF', color: '#5B7080', fontSize: '13px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>Back to DocuHub</button>
+            <button onClick={() => router.push('/admin/toolkit/docuhub')} style={{ padding: '10px 18px', borderRadius: '9px', border: '1px solid #DDE8EE', background: '#FFFFFF', color: '#5B7080', fontSize: '13px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>Back to DocuHub</button>
           </div>
         </div>
       </div>
@@ -148,12 +148,8 @@ export default function DocuHubUploadPage() {
 
   return (
     <div style={{ minHeight: '100vh', background: '#E8EEF4', fontFamily: 'var(--font-manrope), sans-serif' }}>
-      <AppShellNav moduleKey="docuhub" moduleHref="/docuhub" homeHref="/docuhub" subtitle="Upload" rightSlot={
-        <button onClick={() => router.push('/docuhub')} style={{ padding: '8px 14px', borderRadius: '9px', border: '1px solid #DDE8EE', background: '#FFFFFF', color: '#5B7080', fontSize: '13px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>Back</button>
-      } />
-      <div style={{ maxWidth: '640px', margin: '0 auto', padding: '32px 24px' }}>
-        <h1 style={{ fontSize: '20px', fontWeight: 800, color: '#0F1923', margin: '0 0 20px' }}>Upload a Document</h1>
-
+      <PageHeader eyebrow="DocuHub" title="Upload a Document" />
+      <div style={{ maxWidth: '640px', margin: '0 auto', padding: '24px' }}>
         {!selectedType ? (
           <div>
             <div style={{ fontSize: '13px', fontWeight: 700, color: '#5B7080', marginBottom: '12px' }}>What are you uploading?</div>

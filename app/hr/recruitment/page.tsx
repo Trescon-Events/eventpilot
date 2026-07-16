@@ -1,8 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { AppShellNav } from '@/app/components/AppShell'
-import PlatformMenu from '@/app/components/PlatformMenu'
+import PageHeader from '@/app/components/PageHeader'
 
 const C = {
   bg:      '#F6F8FB',
@@ -691,34 +690,28 @@ export default function RecruitmentPage() {
   }
 
   return (
-    <div style={{ minHeight: '100vh', background: C.bg, fontFamily: 'system-ui, sans-serif' }}>
+    <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', background: C.bg, fontFamily: 'system-ui, sans-serif' }}>
       {/* Header */}
-      <AppShellNav
-        moduleKey="hr"
-        moduleHref="/hr"
-        subtitle={activeReq ? `Recruitment / ${activeReq.title}` : 'Recruitment'}
-        rightSlot={
-          <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-            <button onClick={() => setReqFilter(f => f === 'open' ? 'all' : 'open')}
-              style={{ padding: '7px 14px', borderRadius: '8px', background: C.bg, border: `1px solid ${C.border}`, fontSize: '12px', fontWeight: 700, color: C.muted, cursor: 'pointer', fontFamily: 'inherit' }}>
-              {reqFilter === 'open' ? 'Show All' : 'Open Only'}
+      <PageHeader eyebrow="HR" title="Recruitment" description={activeReq ? activeReq.title : undefined} actions={
+        <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+          <button onClick={() => setReqFilter(f => f === 'open' ? 'all' : 'open')}
+            style={{ padding: '7px 14px', borderRadius: '8px', background: C.bg, border: `1px solid ${C.border}`, fontSize: '12px', fontWeight: 700, color: C.muted, cursor: 'pointer', fontFamily: 'inherit' }}>
+            {reqFilter === 'open' ? 'Show All' : 'Open Only'}
+          </button>
+          {activeReqId && (
+            <button onClick={() => setShowAddCand(true)}
+              style={{ padding: '8px 16px', borderRadius: '10px', border: `1px solid ${C.border}`, fontSize: '13px', fontWeight: 700, color: C.text, background: C.surface, cursor: 'pointer', fontFamily: 'inherit' }}>
+              + Add Candidate
             </button>
-            {activeReqId && (
-              <button onClick={() => setShowAddCand(true)}
-                style={{ padding: '8px 16px', borderRadius: '10px', border: `1px solid ${C.border}`, fontSize: '13px', fontWeight: 700, color: C.text, background: C.surface, cursor: 'pointer', fontFamily: 'inherit' }}>
-                + Add Candidate
-              </button>
-            )}
-            <button onClick={() => setShowNewReq(true)}
-              style={{ padding: '8px 16px', borderRadius: '10px', background: C.green, color: '#fff', fontSize: '13px', fontWeight: 700, border: 'none', cursor: 'pointer', fontFamily: 'inherit' }}>
-              + Open Position
-            </button>
-            <PlatformMenu />
-          </div>
-        }
-      />
+          )}
+          <button onClick={() => setShowNewReq(true)}
+            style={{ padding: '8px 16px', borderRadius: '10px', background: C.green, color: '#fff', fontSize: '13px', fontWeight: 700, border: 'none', cursor: 'pointer', fontFamily: 'inherit' }}>
+            + Open Position
+          </button>
+        </div>
+      } />
 
-      <div style={{ display: 'flex', height: 'calc(100vh - 60px)' }}>
+      <div style={{ display: 'flex', flex: 1, minHeight: 0 }}>
         {/* ── Left: Requisitions sidebar ── */}
         <div style={{ width: '280px', borderRight: `1px solid ${C.border}`, background: C.surface, overflowY: 'auto', flexShrink: 0 }}>
           <div style={{ padding: '16px', borderBottom: `1px solid ${C.border}` }}>

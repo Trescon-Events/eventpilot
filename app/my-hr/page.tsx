@@ -1,10 +1,8 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import Link from 'next/link'
-import { ProfileMenu, NotificationBell } from '@/app/components/NavBar'
-import { AppShellNav } from '@/app/components/AppShell'
-import PlatformMenu from '@/app/components/PlatformMenu'
+import { NotificationBell } from '@/app/components/NavBar'
+import PageHeader from '@/app/components/PageHeader'
 
 /* ── Design tokens ─────────────────────────────────────────── */
 const BG     = '#F8FAFB'
@@ -218,19 +216,7 @@ export default function MyHRPage() {
   return (
     <div style={{ minHeight: '100vh', background: BG, fontFamily: 'system-ui, -apple-system, sans-serif' }}>
 
-      <AppShellNav
-        moduleKey="my-hr"
-        subtitle="My HR"
-        homeHref={session?.sid ? `/dashboard?id=${session.sid}` : '/dashboard'}
-        rightSlot={<>
-          <PlatformMenu staffId={session?.sid ?? ''} />
-          <div style={{ width: '30px', height: '30px', borderRadius: '8px', background: 'rgba(0,165,163,0.15)', border: '1.5px solid rgba(0,165,163,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-            <span style={{ fontSize: '13px', fontWeight: 800, color: TEAL }}>{(staff?.name ?? 'U').charAt(0)}</span>
-          </div>
-          <NotificationBell />
-          <ProfileMenu />
-        </>}
-      />
+      <PageHeader title="My HR" actions={<NotificationBell />} />
 
       {/* Page header */}
       <div style={{ background: '#FFFFFF', borderBottom: `1px solid ${BORDER}`, padding: '20px 32px' }}>
