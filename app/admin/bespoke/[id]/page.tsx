@@ -3,6 +3,8 @@
 import { useState, useEffect, useCallback, use } from 'react'
 import Link from 'next/link'
 import PageHeader from '@/app/components/PageHeader'
+import { ImportDelegatesModal } from './ImportDelegatesModal'
+import { DelegateKanban } from './DelegateKanban'
 
 /* ═══════════════════════════════════════════════════════════════════
    TYPES
@@ -220,6 +222,9 @@ export default function BespokeWorkspacePage({ params }: { params: Promise<{ id:
   const [recalcState, setRecalcState] = useState<'idle' | 'pending' | 'done'>('idle')
   const [showAddDelegate, setShowAddDelegate] = useState(false)
   const [newDelegate, setNewDelegate] = useState({ name: '', company: '', title: '', email: '', source: 'client_wishlist', notes: '' })
+  // Pipeline view toggle + import modal state — Nic PRD 16 Jul 2026
+  const [pipelineView, setPipelineView] = useState<'table' | 'kanban'>('table')
+  const [showImportModal, setShowImportModal] = useState(false)
 
   /* ── PRD #4 Brief state ─────────────────────────────────────────
      Every new brief field is held locally so users can edit freely,
@@ -1563,15 +1568,48 @@ export default function BespokeWorkspacePage({ params }: { params: Promise<{ id:
               </div>
             </div>
 
-            {/* Add Delegate button */}
-            <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-              <button onClick={() => setShowAddDelegate(!showAddDelegate)} style={{
-                display: 'flex', alignItems: 'center', gap: '6px', padding: '8px 18px', borderRadius: '8px',
-                border: 'none', background: '#B45309', color: '#FFFFFF', fontSize: '13px', fontWeight: 700,
-                cursor: 'pointer', fontFamily: 'var(--font-manrope)',
+            {/* Toolbar: view toggle (Table | Kanban) + Import + Add Delegate — Nic PRD 16 Jul 2026 */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+              {/* View toggle */}
+              <div style={{
+                display: 'inline-flex', border: '1px solid #DDE8EE', background: '#F8FAFC',
+                borderRadius: '8px', padding: '2px',
               }}>
-                <PlusIcon /> Add Delegate
-              </button>
+                {(['table', 'kanban'] as const).map(v => (
+                  <button
+                    key={v}
+                    onClick={() => setPipelineView(v)}
+                    style={{
+                      padding: '6px 14px', borderRadius: '6px', border: 'none',
+                      background: pipelineView === v ? '#FFFFFF' : 'transparent',
+                      color: pipelineView === v ? '#0F1923' : '#5B7080',
+                      fontSize: '12px', fontWeight: 700, cursor: 'pointer',
+                      fontFamily: 'var(--font-manrope)',
+                      boxShadow: pipelineView === v ? '0 1px 2px rgba(15,25,35,0.06)' : 'none',
+                      textTransform: 'capitalize',
+                    }}
+                  >
+                    {v === 'kanban' ? 'Kanban Board' : 'Table'}
+                  </button>
+                ))}
+              </div>
+
+              <div style={{ display: 'flex', gap: '8px' }}>
+                <button onClick={() => setShowImportModal(true)} style={{
+                  display: 'flex', alignItems: 'center', gap: '6px', padding: '8px 16px', borderRadius: '8px',
+                  border: '1px solid #B45309', background: '#FFFFFF', color: '#B45309', fontSize: '13px', fontWeight: 700,
+                  cursor: 'pointer', fontFamily: 'var(--font-manrope)',
+                }}>
+                  Import CSV / XLSX
+                </button>
+                <button onClick={() => setShowAddDelegate(!showAddDelegate)} style={{
+                  display: 'flex', alignItems: 'center', gap: '6px', padding: '8px 18px', borderRadius: '8px',
+                  border: 'none', background: '#B45309', color: '#FFFFFF', fontSize: '13px', fontWeight: 700,
+                  cursor: 'pointer', fontFamily: 'var(--font-manrope)',
+                }}>
+                  <PlusIcon /> Add Delegate
+                </button>
+              </div>
             </div>
 
             {/* Add Delegate inline form */}
@@ -1624,11 +1662,27 @@ export default function BespokeWorkspacePage({ params }: { params: Promise<{ id:
               </div>
             )}
 
-            {/* Delegate Table */}
+            {/* Delegate Table or Kanban (view toggle above) */}
+            {pipelineView === 'kanban' ? (
+              delegates.length === 0 ? (
+                <div style={{ background: '#FFFFFF', borderRadius: '12px', border: '1px solid #DDE8EE', padding: '40px', textAlign: 'center', fontSize: '15px', color: '#5B7080' }}>
+                  No delegates in pipeline yet. Add your first delegate or import a spreadsheet above.
+                </div>
+              ) : (
+                <DelegateKanban
+                  delegates={delegates}
+                  stages={[...DELEGATE_STAGES]}
+                  stageLabels={STAGE_LABELS}
+                  stageColors={STAGE_COLORS}
+                  sourceLabels={SOURCE_LABELS}
+                  onStageChange={updateDelegateStage}
+                />
+              )
+            ) : (
             <div style={{ background: '#FFFFFF', borderRadius: '12px', border: '1px solid #DDE8EE', overflow: 'hidden' }}>
               {delegates.length === 0 ? (
                 <div style={{ padding: '40px', textAlign: 'center', fontSize: '15px', color: '#5B7080' }}>
-                  No delegates in pipeline yet. Add your first delegate above.
+                  No delegates in pipeline yet. Add your first delegate or import a spreadsheet above.
                 </div>
               ) : (
                 <table style={{ width: '100%', borderCollapse: 'collapse', fontFamily: 'var(--font-manrope)' }}>
@@ -1677,6 +1731,16 @@ export default function BespokeWorkspacePage({ params }: { params: Promise<{ id:
                 </table>
               )}
             </div>
+            )}
+
+            {/* Import modal — mounted here so it's inside the Pipeline tab tree */}
+            {showImportModal && (
+              <ImportDelegatesModal
+                projectId={id}
+                onImportComplete={() => { loadDelegates() }}
+                onClose={() => setShowImportModal(false)}
+              />
+            )}
           </div>
         )}
 
