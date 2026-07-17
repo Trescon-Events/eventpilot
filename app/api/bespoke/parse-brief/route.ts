@@ -39,9 +39,27 @@ type ParsedBrief = {
 }
 
 async function extractPdfText(buffer: Buffer): Promise<string> {
-  const mod = await import('pdf-parse')
-  const parse = (mod as unknown as { default?: (b: Buffer) => Promise<{ text?: string }> }).default
-              ?? (mod as unknown as (b: Buffer) => Promise<{ text?: string }>)
+  // pdf-parse's index.js runs a self-test on import that fs.readFile's a
+  // fixture PDF — that path doesn't exist in Next's bundled server output,
+  // and the CJS→ESM wrapping can also produce { default: { default: fn } }
+  // in production (Railway) while dev sees { default: fn } directly.
+  // Both failure modes surface as "n is not a function" in minified prod.
+  // Import the internal module directly and walk the export shape defensively.
+  type PdfParseFn = (b: Buffer) => Promise<{ text?: string }>
+  // Internal path skips the buggy index.js self-test. TypeScript has no
+  // types for the internal file — construct the path so TS doesn't try
+  // to resolve it, then walk the export shape at runtime.
+  const modPath = 'pdf-parse/lib/pdf-parse.js'
+  const mod = (await import(/* @vite-ignore */ modPath)) as unknown as {
+    default?: PdfParseFn | { default?: PdfParseFn }
+  }
+  const candidates: unknown[] = [
+    mod.default,
+    (mod.default as { default?: PdfParseFn } | undefined)?.default,
+    mod,
+  ]
+  const parse = candidates.find(c => typeof c === 'function') as PdfParseFn | undefined
+  if (!parse) throw new Error('pdf-parse did not export a callable function')
   const result = await parse(buffer)
   return (result?.text ?? '').trim()
 }

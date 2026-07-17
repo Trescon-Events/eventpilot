@@ -293,13 +293,34 @@ export async function POST(req: NextRequest) {
     sort_order: i,
   }))
 
-  const { error: taskErr } = await supabaseAdmin
+  // Insert tasks and RETURN the actual inserted rows so we know how many
+  // landed, not just how many we intended to send. Previously we only
+  // console.error'd on failure and returned tasks_created: tasks.length,
+  // which produced silent 0/0-task projects when the insert failed — a
+  // Nic reported this on 14 Jul.
+  const { data: insertedTasks, error: taskErr } = await supabaseAdmin
     .from('bespoke_tasks')
     .insert(tasks)
+    .select('id')
 
-  if (taskErr) console.error('Task generation error:', taskErr.message)
+  if (taskErr) {
+    console.error('Task generation error:', taskErr.message)
+    return NextResponse.json(
+      {
+        id: project.id,
+        event_id: event.id,
+        tasks_created: 0,
+        task_seed_error: taskErr.message,
+        warning: 'Project created but SOP task auto-seed failed — tasks tab will be empty. Please add tasks manually or contact the admin.',
+      },
+      { status: 207 }, // Multi-Status: project OK, tasks failed
+    )
+  }
 
-  return NextResponse.json({ id: project.id, event_id: event.id, tasks_created: tasks.length }, { status: 201 })
+  return NextResponse.json(
+    { id: project.id, event_id: event.id, tasks_created: insertedTasks?.length ?? 0 },
+    { status: 201 },
+  )
 }
 
 // ── PATCH ───────────────────────────────────────────────────────
