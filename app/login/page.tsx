@@ -53,13 +53,13 @@ export default function LoginPage() {
   }
 
   const C = {
-    teal:    '#00897B',
-    tealDk:  '#00695C',
-    lime:    '#C0F43C',
-    bg:      '#E8EEF4',
-    border:  '#DDE8EE',
-    text:    '#0F1923',
-    muted:   '#5B7080',
+    teal:    'var(--teal-mid)',
+    tealDk:  'var(--teal)', // NOTE: named "tealDk" historically; migration table maps this hex to var(--teal), not var(--teal-dark)
+    lime:    'var(--lime)',
+    bg:      'var(--surface)',
+    border:  'var(--border)',
+    text:    'var(--ink)',
+    muted:   'var(--ink3)',
   }
 
   const inputStyle: React.CSSProperties = {
@@ -69,7 +69,7 @@ export default function LoginPage() {
     border:       `1.5px solid ${C.border}`,
     fontSize:     '15px',
     color:        C.text,
-    background:   '#FFFFFF',
+    background:   'var(--card)',
     outline:      'none',
     fontFamily:   'inherit',
     boxSizing:    'border-box',
@@ -153,7 +153,7 @@ export default function LoginPage() {
 
       {/* ── RIGHT PANEL ── */}
       <div style={{
-        background:     '#FFFFFF',
+        background:     'var(--card)',
         display:        'flex',
         flexDirection:  'column',
         alignItems:     'center',
@@ -174,7 +174,7 @@ export default function LoginPage() {
 
           {/* SSO error */}
           {ssoError && (
-            <div style={{ padding: '12px 16px', background: '#FFF1F2', border: '1px solid #FCA5A5', borderLeft: '4px solid #B91C1C', borderRadius: '10px', fontSize: '13px', color: '#B91C1C', fontWeight: 700, lineHeight: 1.5, marginBottom: '20px' }}>
+            <div style={{ padding: '12px 16px', background: 'var(--red-light)', border: '1px solid var(--red-border)', borderLeft: '4px solid var(--red)', borderRadius: '10px', fontSize: '13px', color: 'var(--red)', fontWeight: 700, lineHeight: 1.5, marginBottom: '20px' }}>
               {ssoError}
             </div>
           )}
@@ -182,7 +182,7 @@ export default function LoginPage() {
           {/* Microsoft SSO button */}
           <a
             href={`/api/auth/microsoft${nextParam ? '?next=' + encodeURIComponent(nextParam) : ''}`}
-            style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '12px', padding: '14px 20px', borderRadius: '12px', border: `1.5px solid ${C.border}`, background: '#FFFFFF', color: C.text, fontSize: '15px', fontWeight: 700, textDecoration: 'none', cursor: 'pointer', transition: 'border-color 0.2s, box-shadow 0.2s', boxShadow: '0 2px 8px rgba(0,0,0,0.07)', fontFamily: 'inherit', marginBottom: '20px' }}
+            style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '12px', padding: '14px 20px', borderRadius: '12px', border: `1.5px solid ${C.border}`, background: '#FFFFFF', color: '#0F1923', fontSize: '15px', fontWeight: 700, textDecoration: 'none', cursor: 'pointer', transition: 'border-color 0.2s, box-shadow 0.2s', boxShadow: '0 2px 8px rgba(0,0,0,0.07)', fontFamily: 'inherit', marginBottom: '20px' }}
             onMouseOver={e => { (e.currentTarget as HTMLAnchorElement).style.borderColor = C.teal; (e.currentTarget as HTMLAnchorElement).style.boxShadow = '0 4px 16px rgba(0,137,123,0.18)' }}
             onMouseOut={e => { (e.currentTarget as HTMLAnchorElement).style.borderColor = C.border; (e.currentTarget as HTMLAnchorElement).style.boxShadow = '0 2px 8px rgba(0,0,0,0.07)' }}
           >
@@ -256,7 +256,7 @@ export default function LoginPage() {
             </label>
 
             {loginError && (
-              <div style={{ padding: '10px 14px', background: '#FFF1F2', border: '1px solid #FCA5A5', borderLeft: '4px solid #B91C1C', borderRadius: '8px', fontSize: '13px', color: '#B91C1C', fontWeight: 700, lineHeight: 1.5 }}>
+              <div style={{ padding: '10px 14px', background: 'var(--red-light)', border: '1px solid var(--red-border)', borderLeft: '4px solid var(--red)', borderRadius: '8px', fontSize: '13px', color: 'var(--red)', fontWeight: 700, lineHeight: 1.5 }}>
                 {loginError}
               </div>
             )}
@@ -264,14 +264,14 @@ export default function LoginPage() {
             <button
               type="submit"
               disabled={loading}
-              style={{ padding: '14px', borderRadius: '12px', border: 'none', background: loading ? '#A5D6D2' : `linear-gradient(135deg, ${C.teal} 0%, ${C.tealDk} 100%)`, color: '#FFFFFF', fontSize: '15px', fontWeight: 800, cursor: loading ? 'not-allowed' : 'pointer', fontFamily: 'inherit', letterSpacing: '0.3px' }}
+              style={{ padding: '14px', borderRadius: '12px', border: 'none', background: loading ? '#2A5F58' : `linear-gradient(135deg, ${C.teal} 0%, ${C.tealDk} 100%)`, color: 'var(--teal-light)', fontSize: '15px', fontWeight: 800, cursor: loading ? 'not-allowed' : 'pointer', fontFamily: 'inherit', letterSpacing: '0.3px' }}
             >
               {loading ? 'Signing in...' : 'Sign In'}
             </button>
           </form>
 
           {/* Help note */}
-          <div style={{ marginTop: '24px', padding: '14px 16px', background: C.bg, border: `1px solid ${C.border}`, borderRadius: '12px', fontSize: '13px', color: '#2D3E50', lineHeight: 1.65, textAlign: 'center' }}>
+          <div style={{ marginTop: '24px', padding: '14px 16px', background: C.bg, border: `1px solid ${C.border}`, borderRadius: '12px', fontSize: '13px', color: 'var(--ink2)', lineHeight: 1.65, textAlign: 'center' }}>
             Local dev sign-in. Contact your admin if you need help.
           </div>
           </>}

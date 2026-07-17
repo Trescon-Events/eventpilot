@@ -3,7 +3,11 @@
 import { useState, useEffect, useCallback } from 'react'
 import PageHeader from '@/app/components/PageHeader'
 
-const C = { bg: '#F6F8FB', surface: '#FFFFFF', border: '#DDE8EE', text: '#0F1923', muted: '#5B7080', green: '#00897B', amber: '#D97706', red: '#8B1A1A', blue: '#0284C7', purple: '#6C54B5' }
+const C = {
+  bg: 'var(--surface)', surface: 'var(--card)', border: 'var(--border)', text: 'var(--ink)', muted: 'var(--ink3)',
+  green: 'var(--teal-mid)', // NOTE: named "green" historically, this is brand teal
+  amber: '#F5B94D', red: 'var(--red)', blue: 'var(--info)',
+}
 
 const CATEGORIES = [
   { value: 'travel', label: 'Travel' }, { value: 'accommodation', label: 'Accommodation' },
@@ -97,11 +101,11 @@ export default function ExpensesPage() {
       <PageHeader eyebrow="Finance" title="Expense Claims" actions={<>
         <button onClick={() => setTab('all')} style={{ padding: '7px 18px', borderRadius: 8, border: tab === 'all' ? `1.5px solid ${C.blue}` : `1px solid ${C.border}`, background: tab === 'all' ? C.blue : C.surface, color: tab === 'all' ? '#fff' : C.muted, fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>All Claims</button>
         {isManager && <button onClick={() => setTab('pending')} style={{ padding: '7px 18px', borderRadius: 8, border: tab === 'pending' ? `1.5px solid ${C.amber}` : `1px solid ${C.border}`, background: tab === 'pending' ? C.amber : C.surface, color: tab === 'pending' ? '#fff' : C.muted, fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>Pending Approval</button>}
-        <button onClick={() => setShowForm(true)} style={{ padding: '7px 18px', borderRadius: 8, border: 'none', background: C.green, color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>+ New Claim</button>
+        <button onClick={() => setShowForm(true)} style={{ padding: '7px 18px', borderRadius: 8, border: 'none', background: C.green, color: 'var(--teal-light)', fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>+ New Claim</button>
       </>} />
 
       <div style={{ maxWidth: 1100, margin: '0 auto', padding: '24px 32px' }}>
-        {msg && <div style={{ padding: '10px 16px', borderRadius: 8, marginBottom: 16, background: msg.ok ? `${C.green}12` : `${C.red}12`, border: `1px solid ${msg.ok ? C.green : C.red}30`, color: msg.ok ? C.green : C.red, fontSize: 13, fontWeight: 600 }}>{msg.text}</div>}
+        {msg && <div style={{ padding: '10px 16px', borderRadius: 8, marginBottom: 16, background: msg.ok ? `${'color-mix(in srgb, ' + (C.green) + ' 7%, transparent)'}` : `${'color-mix(in srgb, ' + (C.red) + ' 7%, transparent)'}`, border: `1px solid ${'color-mix(in srgb, ' + (msg.ok ? C.green : C.red) + ' 19%, transparent)'}`, color: msg.ok ? C.green : C.red, fontSize: 13, fontWeight: 600 }}>{msg.text}</div>}
 
         {/* Stats */}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12, marginBottom: 20 }}>
@@ -131,17 +135,17 @@ export default function ExpensesPage() {
         {!loading && filtered.length === 0 && (
           <div style={{ background: C.surface, borderRadius: 12, border: `1px solid ${C.border}`, overflow: 'hidden' }}>
             <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-              <thead><tr style={{ background: '#F8FAFB' }}>
+              <thead><tr style={{ background: 'var(--surface)' }}>
                 {['Staff', 'Category', 'Description', 'Event', 'Amount', 'Date', 'Status'].map(h => (
                   <th key={h} style={{ padding: '10px 14px', fontSize: 11, fontWeight: 700, color: C.muted, textAlign: 'left', borderBottom: `1px solid ${C.border}` }}>{h}</th>
                 ))}
               </tr></thead>
               <tbody>
-                <tr style={{ background: '#FAFBFC' }}>
+                <tr style={{ background: 'var(--surface)' }}>
                   <td colSpan={7} style={{ padding: '24px 14px', textAlign: 'center' }}>
                     <div style={{ fontSize: 14, fontWeight: 700, color: C.text, marginBottom: 4 }}>No expense claims submitted yet</div>
                     <div style={{ fontSize: 13, color: C.muted, marginBottom: 12 }}>Staff submit receipts for travel, meals, software, marketing, and other expenses. Managers approve or reject.</div>
-                    <button onClick={() => setShowForm(true)} style={{ padding: '8px 20px', borderRadius: 8, border: 'none', background: C.green, color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>+ Submit First Claim</button>
+                    <button onClick={() => setShowForm(true)} style={{ padding: '8px 20px', borderRadius: 8, border: 'none', background: C.green, color: 'var(--teal-light)', fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>+ Submit First Claim</button>
                   </td>
                 </tr>
                 <tr style={{ opacity: 0.4 }}>
@@ -151,7 +155,7 @@ export default function ExpensesPage() {
                   <td style={{ padding: '10px 14px', fontSize: 12, color: C.muted }}>World AI Show</td>
                   <td style={{ padding: '10px 14px', fontSize: 13, color: C.muted }}>AED 2,500.00</td>
                   <td style={{ padding: '10px 14px', fontSize: 12, color: C.muted }}>2026-07-15</td>
-                  <td style={{ padding: '10px 14px' }}><span style={{ fontSize: 11, fontWeight: 700, padding: '3px 8px', borderRadius: 6, background: `${C.amber}12`, color: C.amber }}>Pending</span></td>
+                  <td style={{ padding: '10px 14px' }}><span style={{ fontSize: 11, fontWeight: 700, padding: '3px 8px', borderRadius: 6, background: `${'color-mix(in srgb, ' + (C.amber) + ' 7%, transparent)'}`, color: C.amber }}>Pending</span></td>
                 </tr>
               </tbody>
             </table>
@@ -161,7 +165,7 @@ export default function ExpensesPage() {
         {filtered.length > 0 && (
           <div style={{ background: C.surface, borderRadius: 12, border: `1px solid ${C.border}`, overflow: 'hidden' }}>
             <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-              <thead><tr style={{ background: '#F8FAFB' }}>
+              <thead><tr style={{ background: 'var(--surface)' }}>
                 {['Staff', 'Category', 'Description', 'Event', 'Amount', 'Date', 'Status', ...(isManager && tab === 'pending' ? ['Actions'] : [])].map(h => (
                   <th key={h} style={{ padding: '10px 14px', fontSize: 11, fontWeight: 700, color: C.muted, textAlign: 'left', borderBottom: `1px solid ${C.border}` }}>{h}</th>
                 ))}
@@ -170,17 +174,17 @@ export default function ExpensesPage() {
                 {filtered.map(c => {
                   const s = STATUS_MAP[c.status] ?? STATUS_MAP.pending
                   return (
-                    <tr key={c.id} style={{ borderBottom: `1px solid ${C.border}08` }}>
+                    <tr key={c.id} style={{ borderBottom: `1px solid ${'color-mix(in srgb, ' + (C.border) + ' 3%, transparent)'}` }}>
                       <td style={{ padding: '10px 14px', fontSize: 13, fontWeight: 700, color: C.text }}>{c.staff?.name ?? '—'}</td>
                       <td style={{ padding: '10px 14px', fontSize: 12, color: C.muted }}>{CATEGORIES.find(x => x.value === c.category)?.label ?? c.category}</td>
                       <td style={{ padding: '10px 14px', fontSize: 13, color: C.text, maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.description}</td>
                       <td style={{ padding: '10px 14px', fontSize: 12, color: C.muted }}>{c.event?.name ?? '—'}</td>
                       <td style={{ padding: '10px 14px', fontSize: 13, fontWeight: 800, color: C.text }}>{c.currency} {fmt(c.amount)}</td>
                       <td style={{ padding: '10px 14px', fontSize: 12, color: C.muted }}>{c.expense_date}</td>
-                      <td style={{ padding: '10px 14px' }}><span style={{ fontSize: 11, fontWeight: 700, padding: '3px 8px', borderRadius: 6, background: `${s.color}12`, color: s.color }}>{s.label}</span></td>
+                      <td style={{ padding: '10px 14px' }}><span style={{ fontSize: 11, fontWeight: 700, padding: '3px 8px', borderRadius: 6, background: `${'color-mix(in srgb, ' + (s.color) + ' 7%, transparent)'}`, color: s.color }}>{s.label}</span></td>
                       {isManager && tab === 'pending' && c.status === 'pending' && (
                         <td style={{ padding: '10px 14px', display: 'flex', gap: 6 }}>
-                          <button onClick={() => handleAction(c.id, 'approved')} style={{ padding: '5px 12px', borderRadius: 6, border: 'none', background: C.green, color: '#fff', fontSize: 11, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>Approve</button>
+                          <button onClick={() => handleAction(c.id, 'approved')} style={{ padding: '5px 12px', borderRadius: 6, border: 'none', background: C.green, color: 'var(--teal-light)', fontSize: 11, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>Approve</button>
                           <button onClick={() => { const r = prompt('Rejection reason:'); if (r) handleAction(c.id, 'rejected', r) }} style={{ padding: '5px 12px', borderRadius: 6, border: `1px solid ${C.red}`, background: 'transparent', color: C.red, fontSize: 11, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>Reject</button>
                         </td>
                       )}
@@ -227,7 +231,7 @@ export default function ExpensesPage() {
             </label>
             <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
               <button onClick={() => setShowForm(false)} style={{ padding: '9px 18px', borderRadius: 8, border: `1px solid ${C.border}`, background: C.surface, color: C.muted, fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>Cancel</button>
-              <button onClick={submitClaim} disabled={saving} style={{ padding: '9px 24px', borderRadius: 8, border: 'none', background: saving ? C.muted : C.green, color: '#fff', fontSize: 13, fontWeight: 700, cursor: saving ? 'wait' : 'pointer', fontFamily: 'inherit' }}>{saving ? 'Submitting...' : 'Submit Claim'}</button>
+              <button onClick={submitClaim} disabled={saving} style={{ padding: '9px 24px', borderRadius: 8, border: 'none', background: saving ? C.muted : C.green, color: 'var(--teal-light)', fontSize: 13, fontWeight: 700, cursor: saving ? 'wait' : 'pointer', fontFamily: 'inherit' }}>{saving ? 'Submitting...' : 'Submit Claim'}</button>
             </div>
           </div>
         </div>

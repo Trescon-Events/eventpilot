@@ -18,14 +18,27 @@ import type { ReactNode } from 'react'
 
 export type ModuleAccess =
   | { kind: 'always' }                                        // any authenticated user
-  | { kind: 'admin_only' }
+  | { kind: 'admin_only'; grantKey?: string; moduleAccessKey?: string }
   | { kind: 'module_access'; moduleKey: string; minTier: 'user' | 'admin' }
-  | { kind: 'tool_grant'; grantKey: string | null }            // null = admin-only, no grant key (matches TOOL_GRANT_KEY convention)
+  | { kind: 'tool_grant'; grantKey: string | null; moduleAccessKey?: string }
+    // null grantKey = admin-only, no grant key (matches TOOL_GRANT_KEY convention).
+    // moduleAccessKey, when set, is the module_access.module_key this tool ALSO
+    // accepts as sufficient for entry — i.e. granting someone a tier (user or
+    // admin) via this tool's own Settings→Access tab is enough to get in, not
+    // just the People-module tool_grants toggle. Not always equal to `key`
+    // (docuhub's module_access rows use 'dochub', a pre-existing DB naming
+    // mismatch) — set explicitly per module, never derived from `key`.
   | { kind: 'role_or_admin'; roles: string[] }                 // e.g. hr access_roles
-  | { kind: 'dept_or_admin'; dept: string }                    // e.g. Marketing dept
-  | { kind: 'role_or_dept_or_admin'; roles: string[]; dept: string }  // e.g. finance role OR Finance dept OR admin
+  | { kind: 'dept_or_admin'; dept: string; grantKey?: string }  // e.g. Marketing dept
+  | { kind: 'role_or_dept_or_admin'; roles: string[]; dept: string; grantKey?: string }  // e.g. finance role OR Finance dept OR admin
   | { kind: 'role_or_dept_not_admin'; roles: string[]; dept: string } // same, but admins see a separate Administration-section tile instead
   | { kind: 'has_reports_or_admin' }
+  // `grantKey`, where present on admin_only / dept_or_admin / role_or_dept_or_admin,
+  // is purely ADDITIVE — a tool_grants.<key> === true (or, once wired, a
+  // module_access row) grants entry on TOP OF the existing role/dept/admin
+  // condition, never replacing or narrowing it. Lets the People-module
+  // "Tool Permissions" drawer (or a tool's own Settings→Access tab) grant a
+  // specific person access without changing their role or department.
 
 export type ModuleHrefCtx = { staffId?: string; eventId?: string }
 
@@ -121,7 +134,7 @@ export function getModuleRegistry(): ModuleDef[] {
     {
       key: 'dashboard', label: 'My Dashboard',
       description: 'Your AI Readiness Score, learning track, and recommended courses',
-      icon: I.dashboard, color: '#00897B',
+      icon: I.dashboard, color: '#009D8D',
       href: ctx => ctx.staffId ? `/dashboard?id=${ctx.staffId}` : '/dashboard',
       access: { kind: 'always' },
       platformMenu: { section: 'Learning' },
@@ -129,7 +142,7 @@ export function getModuleRegistry(): ModuleDef[] {
     {
       key: 'course-library', label: 'Course Library',
       description: 'Browse all published courses across every tier and department',
-      icon: I.library, color: '#3D6B00',
+      icon: I.library, color: '#5A9E00',
       href: ctx => ctx.staffId ? `/dashboard/library?id=${ctx.staffId}` : '/dashboard/library',
       access: { kind: 'always' },
       platformMenu: { section: 'Learning' },
@@ -138,7 +151,7 @@ export function getModuleRegistry(): ModuleDef[] {
       key: 'ai-community', label: 'AI Community',
       description: 'Share prompts, use cases, and automation ideas with your team',
       icon: <svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>,
-      color: '#C2410C',
+      color: '#F15516',
       href: ctx => ctx.staffId ? `/community?id=${ctx.staffId}` : '/community',
       access: { kind: 'always' },
       platformMenu: { section: 'Learning' },
@@ -164,12 +177,12 @@ export function getModuleRegistry(): ModuleDef[] {
       access: { kind: 'always' },
       platformMenu: { section: 'Team & Organisation' },
       // /my-hr's own nav badge uses MOD_PEOPLE (green), not this tile's pink.
-      pageBadge: { color: '#3D6B00', label: 'People & Org' },
+      pageBadge: { color: '#5A9E00', label: 'People & Org' },
     },
     {
       key: 'timesheets', label: 'Timesheets',
       description: 'Log daily hours per event or project, view weekly summaries and approvals',
-      icon: I.clock, color: '#0284C7',
+      icon: I.clock, color: '#0291DB',
       href: '/timesheets',
       access: { kind: 'always' },
       platformMenu: { section: 'Team & Organisation' },
@@ -187,25 +200,25 @@ export function getModuleRegistry(): ModuleDef[] {
     {
       key: 'team-dashboard', label: 'Team Dashboard',
       description: 'AIRS overview, completion rates, and progress for your direct team',
-      icon: I.people, color: '#7C3AED',
+      icon: I.people, color: '#A172F2',
       href: ctx => ctx.staffId ? `/team?manager_id=${ctx.staffId}&staff_id=${ctx.staffId}` : '/team',
       access: { kind: 'has_reports_or_admin' },
       platformMenu: { section: 'Team & Organisation' },
       // /team's own nav badge uses MOD_PEOPLE (green), not this tile's purple.
-      pageBadge: { color: '#3D6B00', label: 'People & Org' },
+      pageBadge: { color: '#5A9E00', label: 'People & Org' },
     },
     {
       key: 'hr', label: 'HR Portal',
       description: 'Complete human resources management — staff directory, recruitment pipeline with AI screening, leave management, attendance tracking, onboarding/offboarding workflows, and HR alerts.',
-      icon: I.grid, color: '#7C3AED',
+      icon: I.grid, color: '#A172F2',
       href: '/hr',
       access: { kind: 'admin_only' },
       // PlatformMenu only ever showed this to admins ("HR Admin"); the
       // Toolkit hub shows it to admins OR anyone with the hr_portal grant.
       // Both preserved as-is rather than silently unified.
-      platformMenu: { section: 'Team & Organisation', label: 'HR Admin', description: 'Leave approvals, onboarding, offboarding and org management', color: '#BE185D' },
+      platformMenu: { section: 'Team & Organisation', label: 'HR Admin', description: 'Leave approvals, onboarding, offboarding and org management', color: '#E95391' },
       toolkitHub: {
-        category: 'Operations', badge: 'Operations', legacyId: 'hr-portal', access: { kind: 'tool_grant', grantKey: 'hr_portal' },
+        category: 'Operations', badge: 'Operations', legacyId: 'hr-portal', access: { kind: 'tool_grant', grantKey: 'hr_portal', moduleAccessKey: 'hr' },
         features: [
           { icon: '◉', label: 'Staff directory & profiles', detail: 'Full employee profiles with 11 tabs — attendance, salary, documents, assets, performance' },
           { icon: '⊞', label: 'Recruitment pipeline', detail: 'Job requisitions, AI-scored applications, structured interviews, automated hire-to-onboard' },
@@ -219,7 +232,7 @@ export function getModuleRegistry(): ModuleDef[] {
     {
       key: 'finance', label: 'Finance Portal',
       description: 'Salary, expenses, vendor payments and payroll',
-      icon: I.bank, color: '#1565C0',
+      icon: I.bank, color: '#3D8EEA',
       href: '/finance',
       access: { kind: 'role_or_dept_or_admin', roles: ['finance'], dept: 'Finance' },
       // Non-admins with finance access see this under "Finance". Admins see
@@ -228,7 +241,7 @@ export function getModuleRegistry(): ModuleDef[] {
       // two distinct PlatformSection entries for the same href.
       platformMenu: { section: 'Finance', access: { kind: 'role_or_dept_not_admin', roles: ['finance'], dept: 'Finance' } },
       toolkitHub: {
-        category: 'Finance', badge: 'Finance', legacyId: 'finance-portal', access: { kind: 'tool_grant', grantKey: 'finance' },
+        category: 'Finance', badge: 'Finance', legacyId: 'finance-portal', access: { kind: 'tool_grant', grantKey: 'finance', moduleAccessKey: 'finance' },
         description: 'Central finance hub — salary management, expense claim approvals, vendor invoice tracking, and monthly payroll summaries with department breakdowns.',
         features: [
           { icon: '◈', label: 'Salary & compensation', detail: 'Enter and revise staff salaries, bulk CSV import, payroll grade management' },
@@ -248,7 +261,7 @@ export function getModuleRegistry(): ModuleDef[] {
       access: { kind: 'dept_or_admin', dept: 'Marketing' },
       platformMenu: { section: 'Content & Marketing' },
       toolkitHub: {
-        category: 'Data', badge: 'Marketing', label: 'Content Engine', color: '#F59E0B', legacyId: 'outreach', access: { kind: 'tool_grant', grantKey: 'content' },
+        category: 'Data', badge: 'Marketing', label: 'Content Engine', color: '#F59E0B', legacyId: 'outreach', access: { kind: 'tool_grant', grantKey: 'content', moduleAccessKey: 'content' },
         description: 'AI-powered social media and article generation, visual content calendar, direct publishing to LinkedIn, Meta, and X — with manager approval before anything goes live.',
         features: [
           { icon: '✎', label: 'AI content generation', detail: 'Social posts + long-form articles generated from your event brief and brand voice' },
@@ -261,7 +274,7 @@ export function getModuleRegistry(): ModuleDef[] {
     {
       key: 'content-approvals', label: 'Approval Queue',
       description: 'Review and approve posts submitted by the marketing team',
-      icon: I.check, color: '#059669',
+      icon: I.check, color: '#05A070',
       href: '/content?tab=approvals',
       access: { kind: 'has_reports_or_admin' },
       platformMenu: { section: 'Content & Marketing' },
@@ -271,7 +284,7 @@ export function getModuleRegistry(): ModuleDef[] {
     {
       key: 'messages', label: 'Messages',
       description: 'Send and receive messages with your team',
-      icon: I.message, color: '#1565C0',
+      icon: I.message, color: '#3D8EEA',
       href: ctx => `/messages?id=${ctx.staffId ?? ''}`,
       access: { kind: 'always' },
       platformMenu: { section: 'Communication' },
@@ -286,7 +299,7 @@ export function getModuleRegistry(): ModuleDef[] {
       access: { kind: 'always' },
       platformMenu: { section: 'Data Intelligence' },
       toolkitHub: {
-        category: 'Data', badge: 'Data Intelligence', label: 'Smart Data', legacyId: 'smart-data', access: { kind: 'tool_grant', grantKey: 'smart_data' },
+        category: 'Data', badge: 'Data Intelligence', label: 'Smart Data', legacyId: 'smart-data', access: { kind: 'tool_grant', grantKey: 'smart_data', moduleAccessKey: 'data-extract' },
         description: 'Your full B2B intelligence pipeline. Extract leads from any source, enrich them with LinkedIn and Apollo data, verify every email, and manage your contact database — all from one place.',
         features: [
           { icon: '↓', label: 'File & URL extraction', detail: 'Upload CSVs, PDFs or paste a URL — contacts pulled instantly' },
@@ -299,7 +312,7 @@ export function getModuleRegistry(): ModuleDef[] {
     {
       key: 'data-contacts', label: 'Contacts & Companies',
       description: 'Search, enrich, and manage your full B2B database',
-      icon: I.people, color: '#6366F1',
+      icon: I.people, color: '#7A7DF3',
       href: '/data/contacts',
       access: { kind: 'always' },
       platformMenu: { section: 'Data Intelligence' },
@@ -322,7 +335,7 @@ export function getModuleRegistry(): ModuleDef[] {
     {
       key: 'my-pilots', label: 'My Pilot Projects',
       description: 'View your assigned Pilot Projects and complete your pre-build checklist',
-      icon: I.layers, color: '#7c3aed',
+      icon: I.layers, color: '#A172F2',
       href: '/pilots',
       access: { kind: 'always' },
       platformMenu: { section: 'Pilot Projects' },
@@ -332,7 +345,7 @@ export function getModuleRegistry(): ModuleDef[] {
     {
       key: 'admin-pilots', label: 'Pilot Projects',
       description: 'Track all Pilot Projects — checklists, build status, responsible Pilots',
-      icon: I.layers, color: '#7c3aed',
+      icon: I.layers, color: '#A172F2',
       href: '/admin/pilots',
       access: { kind: 'admin_only' },
       platformMenu: { section: 'Administration' },
@@ -340,7 +353,7 @@ export function getModuleRegistry(): ModuleDef[] {
     {
       key: 'admin', label: 'Admin Dashboard',
       description: 'Manage staff, run imports, view org-wide AI readiness',
-      icon: I.gear, color: '#3D6B00',
+      icon: I.gear, color: '#5A9E00',
       href: '/admin',
       access: { kind: 'admin_only' },
       platformMenu: { section: 'Administration' },
@@ -349,14 +362,14 @@ export function getModuleRegistry(): ModuleDef[] {
       // its PlatformMenu tile — a genuine pre-existing divergence, same
       // pattern as kb/my-hr/team-dashboard/pilot-ai above.
       pageBadge: {
-        color: '#00897B', label: 'Platform Admin',
+        color: '#009D8D', label: 'Platform Admin',
         icon: <svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>,
       },
     },
     {
       key: 'finance-admin', label: 'Finance Portal',
       description: 'Salary, expenses, vendor payments, payroll and Commercial P&L',
-      icon: I.bank, color: '#1565C0',
+      icon: I.bank, color: '#3D8EEA',
       href: '/finance',
       access: { kind: 'admin_only' },
       platformMenu: { section: 'Administration' },
@@ -364,7 +377,7 @@ export function getModuleRegistry(): ModuleDef[] {
     {
       key: 'toolkit', label: 'Toolkit',
       description: 'Smart Data, Website Builder, Market Intelligence, Brand Studio, Outreach and TresAgent',
-      icon: I.wrench, color: '#00695C',
+      icon: I.wrench, color: '#009C89',
       href: '/admin/toolkit',
       access: { kind: 'admin_only' },
       platformMenu: { section: 'Administration' },
@@ -372,7 +385,7 @@ export function getModuleRegistry(): ModuleDef[] {
     {
       key: 'site-builder', label: 'Site Builder',
       description: 'Pick an event and a template — Event Pilot creates the GitHub repo and deploys the site automatically.',
-      icon: I.browser, color: '#0369A1',
+      icon: I.browser, color: '#0493E2',
       href: '/admin/sites',
       access: { kind: 'admin_only' },
       platformMenu: { section: 'Administration' },
@@ -380,7 +393,7 @@ export function getModuleRegistry(): ModuleDef[] {
     {
       key: 'changelog', label: "What's Fixed",
       description: 'See all reported issues and what the team has resolved',
-      icon: I.check, color: '#059669',
+      icon: I.check, color: '#05A070',
       href: '/changelog',
       access: { kind: 'admin_only' },
       platformMenu: { section: 'Administration' },
@@ -388,7 +401,7 @@ export function getModuleRegistry(): ModuleDef[] {
     {
       key: 'docs', label: 'Platform Docs',
       description: 'Internal documentation — scoring guide, playbook, questionnaire',
-      icon: I.docLines, color: '#2D3E50',
+      icon: I.docLines, color: '#5E8FC2',
       href: '/docs',
       access: { kind: 'admin_only' },
       platformMenu: { section: 'Administration' },
@@ -411,12 +424,12 @@ export function getModuleRegistry(): ModuleDef[] {
     {
       key: 'kb', label: 'Knowledge Base',
       description: 'Browse company policies, past event reports, and reference documents — plus ingest new documents and manage BD proposal intelligence.',
-      icon: I.dashboard, color: '#0E7490',
+      icon: I.dashboard, color: '#1296BA',
       href: '/admin/toolkit/knowledge-base',
-      access: { kind: 'tool_grant', grantKey: 'knowledge_base' },
+      access: { kind: 'tool_grant', grantKey: 'knowledge_base', moduleAccessKey: 'kb' },
       // The page's own nav badge (formerly MOD_KNOWLEDGE) is grey, not the
       // tile's teal-blue — a genuine pre-existing divergence, preserved.
-      pageBadge: { color: '#5B7080' },
+      pageBadge: { color: '#5591BE' },
       toolkitHub: {
         category: 'Knowledge', badge: 'Knowledge',
         description: 'Company knowledge base — policies, past event reports, and BD proposal intelligence, with a self-learning ingest pipeline and admin console for document review.',
@@ -434,7 +447,7 @@ export function getModuleRegistry(): ModuleDef[] {
       icon: <svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>,
       color: '#D97706',
       href: '/admin/toolkit/docuhub',
-      access: { kind: 'tool_grant', grantKey: 'docuhub' },
+      access: { kind: 'tool_grant', grantKey: 'docuhub', moduleAccessKey: 'dochub' },
       toolkitHub: {
         category: 'Knowledge', badge: 'Knowledge',
         description: 'Upload and share post-event reports, proposals, and policies with a permanent link — with per-document access control and a full audit log.',
@@ -449,9 +462,9 @@ export function getModuleRegistry(): ModuleDef[] {
     {
       key: 'knowledge-assistant', label: 'Knowledge Assistant',
       description: 'AI assistant that answers questions about company knowledge — proposals, policies, and past event reports — grounded only in ingested documents.',
-      icon: I.bolt, color: '#0891B2',
+      icon: I.bolt, color: '#0899BC',
       href: '/admin/toolkit/knowledge-assistant',
-      access: { kind: 'tool_grant', grantKey: 'knowledge_assistant' },
+      access: { kind: 'tool_grant', grantKey: 'knowledge_assistant', moduleAccessKey: 'knowledge-assistant' },
       toolkitHub: {
         category: 'Knowledge', badge: 'Knowledge',
         features: [
@@ -466,11 +479,11 @@ export function getModuleRegistry(): ModuleDef[] {
     {
       key: 'website-builder', label: 'Website Builder',
       description: 'Build and publish fully custom event websites end-to-end. Start from a template, design every section, load your brand, and go live with a single click — including custom domain via Cloudflare.',
-      icon: I.wrench, color: '#00897B',
+      icon: I.wrench, color: '#009D8D',
       href: ctx => `/admin/events/${ctx.eventId}/website`,
       needsEvent: true,
       breadcrumbPattern: '/admin/events/:eventId/website', breadcrumbParent: 'toolkit',
-      access: { kind: 'tool_grant', grantKey: 'website_builder' },
+      access: { kind: 'tool_grant', grantKey: 'website_builder', moduleAccessKey: 'website-builder' },
       toolkitHub: {
         category: 'Events', badge: 'Event Tool',
         features: [
@@ -486,11 +499,11 @@ export function getModuleRegistry(): ModuleDef[] {
       key: 'market-intel', label: 'Market Intelligence',
       description: 'AI-powered research engine for any event. Surface the right speakers, understand your competitive landscape, and identify the companies that belong in the room.',
       icon: <svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>,
-      color: '#6366F1',
+      color: '#7A7DF3',
       href: ctx => `/admin/events/${ctx.eventId}/market-intel`,
       needsEvent: true,
       breadcrumbPattern: '/admin/events/:eventId/market-intel', breadcrumbParent: 'toolkit',
-      access: { kind: 'tool_grant', grantKey: 'intelligence' },
+      access: { kind: 'tool_grant', grantKey: 'intelligence', moduleAccessKey: 'market-intel' },
       toolkitHub: {
         category: 'Events', badge: 'Event Tool',
         features: [
@@ -509,7 +522,7 @@ export function getModuleRegistry(): ModuleDef[] {
       href: ctx => `/admin/events/${ctx.eventId}/brand`,
       needsEvent: true,
       breadcrumbPattern: '/admin/events/:eventId/brand', breadcrumbParent: 'toolkit',
-      access: { kind: 'tool_grant', grantKey: 'brand_studio' },
+      access: { kind: 'tool_grant', grantKey: 'brand_studio', moduleAccessKey: 'brand-studio' },
       toolkitHub: {
         category: 'Events', badge: 'Event Tool',
         features: [
@@ -526,7 +539,7 @@ export function getModuleRegistry(): ModuleDef[] {
       key: 'corporate-marketing', label: 'Corporate Marketing',
       description: 'Single workspace for all dynamic corporate content — deck, testimonials, approved assets, leadership bios. Canva stays the design master; EventPilot owns the content and every published version.',
       icon: <svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg>,
-      color: '#8B1A1A',
+      color: '#E26262',
       href: '/admin/toolkit/corporate-marketing/deck',
       access: { kind: 'tool_grant', grantKey: 'corporate_marketing' },
       toolkitHub: {
@@ -543,7 +556,7 @@ export function getModuleRegistry(): ModuleDef[] {
       key: 'smart-excel', label: 'SmartExcel',
       description: 'Conversational, AI-assisted spreadsheet and document-to-spreadsheet jobs. Describe what you need in plain English — clarify, plan, sample, run, and refine, with a human approval step before anything runs at scale.',
       icon: <svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="9" y1="21" x2="9" y2="9"/></svg>,
-      color: '#2E7D32',
+      color: '#3A9F3F',
       href: '/smartexcel',
       breadcrumbParent: 'toolkit',
       access: { kind: 'tool_grant', grantKey: 'smart_excel' },
@@ -613,10 +626,10 @@ export function getModuleRegistry(): ModuleDef[] {
       key: 'bespoke-tracker', label: 'Bespoke Tracker',
       description: 'End-to-end bespoke event lifecycle management. From client brief to invoice — track projects, manage 53 SOP tasks across 4 phases, and monitor delegate pipelines with full Kanban and table views.',
       icon: <svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>,
-      color: '#B45309',
+      color: '#E0670B',
       href: '/admin/bespoke',
       breadcrumbParent: 'toolkit',
-      access: { kind: 'tool_grant', grantKey: 'bespoke' },
+      access: { kind: 'tool_grant', grantKey: 'bespoke', moduleAccessKey: 'bespoke-tracker' },
       toolkitHub: {
         category: 'Operations', badge: 'Operations',
         features: [
@@ -633,12 +646,17 @@ export function getModuleRegistry(): ModuleDef[] {
       key: 'commercial', label: 'Commercial P&L',
       description: 'Full event profitability tracking — revenue pipelines, direct costs, staff costs from timesheets, overhead allocations, and multi-level approval workflows. Executive dashboard with margin analysis.',
       icon: <svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>,
-      color: '#00695C',
+      color: '#009C89',
       href: '/admin/commercial',
       breadcrumbParent: 'toolkit',
-      access: { kind: 'admin_only' },
+      // Was admin_only with no real route enforcement at all (no layout.tsx
+      // existed; middleware's generic /admin/* rule applied by default, and
+      // the toolkitHub tool_grant below only ever controlled Toolkit-hub tile
+      // visibility). Now enforced for real via app/admin/commercial/layout.tsx
+      // + requireModuleAccess('commercial') + middleware.ts's isToolRoute.
+      access: { kind: 'admin_only', grantKey: 'commercial', moduleAccessKey: 'commercial' },
       toolkitHub: {
-        category: 'Finance', badge: 'Finance', access: { kind: 'tool_grant', grantKey: 'commercial' },
+        category: 'Finance', badge: 'Finance', access: { kind: 'tool_grant', grantKey: 'commercial', moduleAccessKey: 'commercial' },
         features: [
           { icon: '◈', label: 'Revenue pipeline', detail: 'Track sponsorship, exhibition, delegate revenue with inventory management' },
           { icon: '◉', label: 'Cost tracking', detail: 'Direct expenses, staff costs from timesheets, overhead allocation models' },
@@ -656,7 +674,7 @@ export function getModuleRegistry(): ModuleDef[] {
     {
       key: 'eventpilot', label: 'Event Pilot',
       description: 'Generic platform identity — shown on pages with no more specific module.',
-      icon: I.bolt, color: '#00897B',
+      icon: I.bolt, color: '#009D8D',
       href: '/dashboard',
       access: { kind: 'always' },
     },
@@ -672,7 +690,7 @@ export function getModuleRegistry(): ModuleDef[] {
       key: 'admin-reviews', label: 'Platform Reviews',
       description: 'Staff feedback on platform tools — issues, bugs, and suggestions.',
       icon: <svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>,
-      color: '#DC2626',
+      color: '#E55F5F',
       href: '/admin/reviews',
       access: { kind: 'admin_only' },
     },
@@ -687,7 +705,7 @@ export function getModuleRegistry(): ModuleDef[] {
     {
       key: 'proposal-creator', label: 'Proposal Creator',
       description: 'Generates a client proposal from a prospect brief, pulling in Trescon commercial models and historical proposals.',
-      icon: I.dashboard, color: '#7C3AED',
+      icon: I.dashboard, color: '#A172F2',
       href: '/admin/tools/proposal-creator',
       breadcrumbParent: 'kb',
       access: { kind: 'tool_grant', grantKey: 'knowledge_base' },
@@ -695,7 +713,7 @@ export function getModuleRegistry(): ModuleDef[] {
     {
       key: 'commercial-event', label: 'Commercial Tracker',
       description: 'Per-event commercial P&L workspace — not independently navigable, reached only via the Commercial Tracker tool.',
-      icon: I.dashboard, color: '#00695C',
+      icon: I.dashboard, color: '#009C89',
       href: ctx => `/admin/commercial/${ctx.eventId}`,
       needsEvent: true,
       breadcrumbPattern: '/admin/commercial/:eventId', breadcrumbParent: 'toolkit',
@@ -704,7 +722,7 @@ export function getModuleRegistry(): ModuleDef[] {
     {
       key: 'admin-event-workspace', label: 'Event Workspace',
       description: 'Per-event workspace — checklist, details, and links into the event-scoped tools.',
-      icon: I.dashboard, color: '#00695C',
+      icon: I.dashboard, color: '#009C89',
       href: ctx => `/admin/events/${ctx.eventId}`,
       needsEvent: true,
       breadcrumbPattern: '/admin/events/:eventId',
@@ -713,7 +731,7 @@ export function getModuleRegistry(): ModuleDef[] {
     {
       key: 'admin-event-plan', label: 'Planning Board',
       description: 'Per-event task planning kanban/table board.',
-      icon: I.dashboard, color: '#00695C',
+      icon: I.dashboard, color: '#009C89',
       href: ctx => `/admin/events/${ctx.eventId}/plan`,
       needsEvent: true,
       breadcrumbPattern: '/admin/events/:eventId/plan',
@@ -722,7 +740,7 @@ export function getModuleRegistry(): ModuleDef[] {
     {
       key: 'admin-event-execution', label: 'Execution Flow',
       description: 'Per-event execution timeline and checkpoint tracking.',
-      icon: I.dashboard, color: '#00695C',
+      icon: I.dashboard, color: '#009C89',
       href: ctx => `/admin/events/${ctx.eventId}/execution`,
       needsEvent: true,
       breadcrumbPattern: '/admin/events/:eventId/execution',
@@ -731,7 +749,7 @@ export function getModuleRegistry(): ModuleDef[] {
     {
       key: 'admin-event-brief', label: 'Event Brief',
       description: 'Per-event intelligence brief.',
-      icon: I.dashboard, color: '#00695C',
+      icon: I.dashboard, color: '#009C89',
       href: ctx => `/admin/events/${ctx.eventId}/brief`,
       needsEvent: true,
       breadcrumbPattern: '/admin/events/:eventId/brief',

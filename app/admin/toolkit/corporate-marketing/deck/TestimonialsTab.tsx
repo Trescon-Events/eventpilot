@@ -111,7 +111,7 @@ export default function TestimonialsTab() {
     }
   }
 
-  if (loading) return <Card><div style={{ fontSize: '13px', color: '#5B7080' }}>Loading testimonials…</div></Card>
+  if (loading) return <Card><div style={{ fontSize: '13px', color: 'var(--ink3)' }}>Loading testimonials…</div></Card>
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '18px', maxWidth: '980px' }}>
@@ -120,7 +120,7 @@ export default function TestimonialsTab() {
           <div style={{ flex: 1, minWidth: 0 }}>
             <SectionLabel>Testimonials</SectionLabel>
             <H2 style={{ marginBottom: '6px' }}>{rows.length} approved quote{rows.length === 1 ? '' : 's'}</H2>
-            <div style={{ fontSize: '13px', color: '#5B7080', lineHeight: 1.6 }}>
+            <div style={{ fontSize: '13px', color: 'var(--ink3)', lineHeight: 1.6 }}>
               Approved testimonials used in the deck. Only rows marked <strong>Approved</strong> AND <strong>Include in deck</strong> appear in the published version.
             </div>
           </div>
@@ -150,7 +150,7 @@ export default function TestimonialsTab() {
       </Card>
 
       {rows.length === 0 && !creating && (
-        <Card><div style={{ fontSize: '13px', color: '#94A3B8', fontStyle: 'italic', textAlign: 'center', padding: '20px' }}>No testimonials yet — add one above.</div></Card>
+        <Card><div style={{ fontSize: '13px', color: 'var(--ink3)', fontStyle: 'italic', textAlign: 'center', padding: '20px' }}>No testimonials yet — add one above.</div></Card>
       )}
 
       {rows.map(t => (
@@ -189,7 +189,7 @@ export default function TestimonialsTab() {
               </div>
 
               <div style={{ display: 'flex', gap: '18px', alignItems: 'center', marginTop: '14px', flexWrap: 'wrap' }}>
-                <label style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer', fontSize: '12px', fontWeight: 700, color: '#0F1923' }}>
+                <label style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer', fontSize: '12px', fontWeight: 700, color: 'var(--ink)' }}>
                   <input
                     type="checkbox"
                     checked={t.approved}
@@ -198,7 +198,7 @@ export default function TestimonialsTab() {
                   />
                   Approved
                 </label>
-                <label style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer', fontSize: '12px', fontWeight: 700, color: '#0F1923' }}>
+                <label style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer', fontSize: '12px', fontWeight: 700, color: 'var(--ink)' }}>
                   <input
                     type="checkbox"
                     checked={t.include_in_deck}
@@ -207,21 +207,21 @@ export default function TestimonialsTab() {
                   />
                   In deck
                 </label>
-                <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', fontWeight: 700, color: '#0F1923' }}>
+                <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', fontWeight: 700, color: 'var(--ink)' }}>
                   Order
                   <input
                     type="number"
                     value={t.display_order}
                     onChange={e => setRows(prev => prev.map(r => r.id === t.id ? { ...r, display_order: Number.parseInt(e.target.value || '0', 10) } : r))}
                     onBlur={e => patchRow(t.id, { display_order: Number.parseInt(e.target.value || '0', 10) })}
-                    style={{ width: '55px', padding: '5px 8px', borderRadius: '6px', border: '1px solid #DDE8EE', fontSize: '12px', fontFamily: 'inherit', textAlign: 'center' }}
+                    style={{ width: '55px', padding: '5px 8px', borderRadius: '6px', border: '1px solid var(--border)', fontSize: '12px', fontFamily: 'inherit', textAlign: 'center' }}
                   />
                 </label>
                 <div style={{ marginLeft: 'auto', display: 'flex', gap: '10px', alignItems: 'center' }}>
-                  <span style={{ fontSize: '11px', color: '#94A3B8', fontWeight: 600 }}>Added {fmtDate(t.created_at)}</span>
+                  <span style={{ fontSize: '11px', color: 'var(--ink4)', fontWeight: 600 }}>Added {fmtDate(t.created_at)}</span>
                   <button
                     onClick={() => deleteRow(t.id)}
-                    style={{ background: 'transparent', border: 'none', color: '#B91C1C', cursor: 'pointer', fontSize: '12px', fontWeight: 700, padding: '4px 8px' }}
+                    style={{ background: 'transparent', border: 'none', color: 'var(--red)', cursor: 'pointer', fontSize: '12px', fontWeight: 700, padding: '4px 8px' }}
                   >
                     Delete
                   </button>

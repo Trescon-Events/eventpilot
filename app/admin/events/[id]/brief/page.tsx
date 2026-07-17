@@ -3,7 +3,25 @@
 import { useState, useEffect, use } from 'react'
 import Link from 'next/link'
 
-const C = { bg: '#F6F8FB', surface: '#FFFFFF', border: '#DDE8EE', text: '#0F1923', muted: '#5B7080', green: '#00897B', amber: '#D97706', red: '#8B1A1A', blue: '#1565C0', purple: '#6C54B5', teal: '#00897B' }
+// bg/surface/border/text/muted/blue are plain CSS var() refs — safe everywhere
+// they're used in this file. green/amber/red/purple/teal stay literal hex
+// (matching the dark-theme token values 1:1) because this file concatenates
+// alpha-hex suffixes onto them at runtime (e.g. `${C.purple}12`, `${C.teal}20`)
+// — `var(--purple)12` isn't valid CSS, so those specific tokens can't be
+// var() here (same convention as app/admin/events/[id]/website/page.tsx).
+const C = {
+  bg:      'var(--surface)',
+  surface: 'var(--card)',
+  border:  'var(--border)',
+  text:    'var(--ink)',
+  muted:   'var(--ink3)',
+  green:   '#12C9BD',  // = var(--teal-mid)
+  amber:   '#F5B94D',  // = var(--amber)
+  red:     '#F1667A',  // = var(--red)
+  blue:    'var(--info)',
+  purple:  '#A78BFA',  // = var(--purple) (unchanged value)
+  teal:    '#12C9BD',  // = var(--teal-mid)
+}
 
 type Brief = {
   event_id: string; completion_pct: number;
@@ -28,12 +46,14 @@ function getSession() {
   try { return JSON.parse(atob(raw)) as { sid: string } } catch { return null }
 }
 
+// onColor = text color to use when this section's tab is active (solid
+// background) — per family, never white (rule 3: solid-fill text pairing)
 const SECTIONS = [
-  { id: 'positioning', label: 'Positioning', color: C.blue },
-  { id: 'messaging', label: 'Messaging', color: C.purple },
-  { id: 'commercial', label: 'Commercial', color: C.green },
-  { id: 'competition', label: 'Competition', color: C.amber },
-  { id: 'metrics', label: 'Success Metrics', color: C.teal },
+  { id: 'positioning', label: 'Positioning', color: C.blue, onColor: 'var(--info-light)' },
+  { id: 'messaging', label: 'Messaging', color: C.purple, onColor: 'var(--purple-light)' },
+  { id: 'commercial', label: 'Commercial', color: C.green, onColor: 'var(--teal-light)' },
+  { id: 'competition', label: 'Competition', color: C.amber, onColor: 'var(--amber-light)' },
+  { id: 'metrics', label: 'Success Metrics', color: C.teal, onColor: 'var(--teal-light)' },
 ]
 
 export default function BriefPage({ params }: { params: Promise<{ id: string }> }) {
@@ -139,11 +159,11 @@ export default function BriefPage({ params }: { params: Promise<{ id: string }> 
                 <span style={{ fontSize: 13, fontWeight: 800, color: brief.completion_pct >= 80 ? C.green : brief.completion_pct >= 40 ? C.amber : C.red }}>{brief.completion_pct}%</span>
               </div>
               <button onClick={generateWithAI} disabled={generating}
-                style={{ padding: '9px 20px', borderRadius: 8, border: `1px solid ${C.purple}50`, background: generating ? C.muted : `${C.purple}12`, color: generating ? '#fff' : C.purple, fontSize: 13, fontWeight: 700, cursor: generating ? 'wait' : 'pointer', fontFamily: 'inherit' }}>
+                style={{ padding: '9px 20px', borderRadius: 8, border: `1px solid ${C.purple}50`, background: generating ? 'var(--ink4)' : `${C.purple}12`, color: generating ? 'var(--ink3)' : C.purple, fontSize: 13, fontWeight: 700, cursor: generating ? 'wait' : 'pointer', fontFamily: 'inherit' }}>
                 {generating ? 'Generating…' : 'Generate with AI'}
               </button>
               <button onClick={save} disabled={saving}
-                style={{ padding: '9px 24px', borderRadius: 8, border: 'none', background: saving ? C.muted : C.teal, color: '#fff', fontSize: 13, fontWeight: 700, cursor: saving ? 'wait' : 'pointer', fontFamily: 'inherit' }}>
+                style={{ padding: '9px 24px', borderRadius: 8, border: 'none', background: saving ? 'var(--ink4)' : C.teal, color: saving ? 'var(--ink3)' : 'var(--teal-light)', fontSize: 13, fontWeight: 700, cursor: saving ? 'wait' : 'pointer', fontFamily: 'inherit' }}>
                 {saving ? 'Saving...' : 'Save Brief'}
               </button>
             </div>
@@ -158,7 +178,7 @@ export default function BriefPage({ params }: { params: Promise<{ id: string }> 
         <div style={{ display: 'flex', gap: 6, marginBottom: 24 }}>
           {SECTIONS.map(s => (
             <button key={s.id} onClick={() => setActiveSection(s.id)}
-              style={{ padding: '8px 18px', borderRadius: 8, border: activeSection === s.id ? `1.5px solid ${s.color}` : `1px solid ${C.border}`, background: activeSection === s.id ? s.color : C.surface, color: activeSection === s.id ? '#fff' : C.muted, fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
+              style={{ padding: '8px 18px', borderRadius: 8, border: activeSection === s.id ? `1.5px solid ${s.color}` : `1px solid ${C.border}`, background: activeSection === s.id ? s.color : C.surface, color: activeSection === s.id ? s.onColor : C.muted, fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
               {s.label}
             </button>
           ))}

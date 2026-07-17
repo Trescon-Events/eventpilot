@@ -56,7 +56,7 @@ export default function SettingsTab({ onDeckUpdated }: { onDeckUpdated: () => Pr
     }
   }
 
-  if (loading) return <Card><div style={{ fontSize: '13px', color: '#5B7080' }}>Loading settings…</div></Card>
+  if (loading) return <Card><div style={{ fontSize: '13px', color: 'var(--ink3)' }}>Loading settings…</div></Card>
 
   const dirty = title.trim() !== orig.trim()
 
@@ -65,7 +65,7 @@ export default function SettingsTab({ onDeckUpdated }: { onDeckUpdated: () => Pr
       <Card>
         <SectionLabel>Deck title</SectionLabel>
         <H2 style={{ marginBottom: '6px' }}>Name shown across the workspace</H2>
-        <div style={{ fontSize: '13px', color: '#5B7080', lineHeight: 1.6, marginBottom: '14px' }}>
+        <div style={{ fontSize: '13px', color: 'var(--ink3)', lineHeight: 1.6, marginBottom: '14px' }}>
           Only used internally in EventPilot. Doesn&apos;t rename the PDF file itself.
         </div>
         <div style={{ display: 'flex', gap: '10px' }}>
@@ -79,14 +79,14 @@ export default function SettingsTab({ onDeckUpdated }: { onDeckUpdated: () => Pr
             {saving ? 'Saving…' : 'Save title'}
           </PrimaryButton>
         </div>
-        {savedNote && <div style={{ marginTop: '10px', fontSize: '12px', color: '#00897B', fontWeight: 700 }}>{savedNote}</div>}
+        {savedNote && <div style={{ marginTop: '10px', fontSize: '12px', color: 'var(--teal-mid)', fontWeight: 700 }}>{savedNote}</div>}
         {err && <ErrorBox>{err}</ErrorBox>}
       </Card>
 
       <Card>
         <SectionLabel>Publish</SectionLabel>
         <H2 style={{ marginBottom: '6px' }}>Publish a new immutable version</H2>
-        <div style={{ fontSize: '13px', color: '#5B7080', lineHeight: 1.6, marginBottom: '14px' }}>
+        <div style={{ fontSize: '13px', color: 'var(--ink3)', lineHeight: 1.6, marginBottom: '14px' }}>
           Same button lives on the Overview tab. Once published, the version is downloadable forever from Version History and cannot be overwritten.
         </div>
         <GhostButton onClick={() => setPublishing(true)}>Open publish dialog →</GhostButton>
@@ -95,23 +95,23 @@ export default function SettingsTab({ onDeckUpdated }: { onDeckUpdated: () => Pr
       <Card>
         <SectionLabel>Who has access</SectionLabel>
         <H2 style={{ marginBottom: '6px' }}>{members.length} member{members.length === 1 ? '' : 's'} with access</H2>
-        <div style={{ fontSize: '13px', color: '#5B7080', lineHeight: 1.6, marginBottom: '14px' }}>
+        <div style={{ fontSize: '13px', color: 'var(--ink3)', lineHeight: 1.6, marginBottom: '14px' }}>
           Grants are managed from the admin toolkit access matrix. Anyone here can upload deck versions, edit content, and publish.
         </div>
         {members.length === 0 ? (
-          <div style={{ fontSize: '12px', color: '#94A3B8', fontStyle: 'italic' }}>No access records found.</div>
+          <div style={{ fontSize: '12px', color: 'var(--ink3)', fontStyle: 'italic' }}>No access records found.</div>
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
             {members.map(m => (
-              <div key={m.id} style={{ display: 'flex', gap: '12px', alignItems: 'center', padding: '10px 14px', border: '1px solid #EEF3F7', borderRadius: '12px', background: '#FAFBFC' }}>
+              <div key={m.id} style={{ display: 'flex', gap: '12px', alignItems: 'center', padding: '10px 14px', border: '1px solid var(--border-light)', borderRadius: '12px', background: 'var(--border-light)' }}>
                 <div style={{ width: '32px', height: '32px', borderRadius: '50%', background: `${BRAND}12`, color: BRAND, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '11px', fontWeight: 800 }}>
                   {initials(m.name)}
                 </div>
                 <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: '13px', fontWeight: 700, color: '#0F1923' }}>{m.name}</div>
-                  <div style={{ fontSize: '11px', color: '#5B7080', marginTop: '2px' }}>{[m.email, m.department].filter(Boolean).join(' · ')}</div>
+                  <div style={{ fontSize: '13px', fontWeight: 700, color: 'var(--ink)' }}>{m.name}</div>
+                  <div style={{ fontSize: '11px', color: 'var(--ink3)', marginTop: '2px' }}>{[m.email, m.department].filter(Boolean).join(' · ')}</div>
                 </div>
-                <span style={{ fontSize: '10px', fontWeight: 800, letterSpacing: '0.5px', textTransform: 'uppercase', color: m.kind === 'admin' ? '#B45309' : '#00897B', background: m.kind === 'admin' ? '#FEF3C7' : '#D1FAE5', padding: '4px 10px', borderRadius: '10px' }}>
+                <span style={{ fontSize: '10px', fontWeight: 800, letterSpacing: '0.5px', textTransform: 'uppercase', color: m.kind === 'admin' ? 'var(--amber)' : 'var(--teal-mid)', background: m.kind === 'admin' ? 'var(--amber-light)' : 'var(--teal-light)', padding: '4px 10px', borderRadius: '10px' }}>
                   {m.kind === 'admin' ? 'Admin' : 'Grant'}
                 </span>
               </div>

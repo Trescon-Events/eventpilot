@@ -36,6 +36,7 @@
   },
   "devDependencies": {
     "@opennextjs/cloudflare": "^1.19.9",
+    "@playwright/test": "^1.61.1",
     "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
     "@types/nodemailer": "^8.0.0",

@@ -4,6 +4,28 @@
 // EventPilot's own `tcs_session` cookie directly (same as
 // app/api/toolkit-access/route.ts) and syncs/loads the matching SmartExcel
 // `users` row by email — no separate login, no separate session table.
+//
+// Why this doesn't use the shared registry (app/lib/registry/access.ts
+// checkAccess()/requireModuleAccess()) or the generic module_access table:
+// SmartExcel predates that unification and layers its own workspace/role/
+// permission model (schema.users/roles/permissions, ported from the
+// standalone app) on top of the entry-gate check done here. Migrating it
+// onto the generic module_access gate would only cover the front-door
+// check — it wouldn't touch this per-request user sync or the internal
+// RBAC (see app/smartexcel/admin/roles + PERMISSIONS in ./lib/roles), so
+// there's no net simplification, just added risk. It stays bespoke on
+// purpose; see also the comment in app/lib/access/tool-grants.ts.
+//
+// The entry gate itself (grants.smart_excel / grants.smart_excel_admin
+// below) still reads the *same* staff_members.tool_grants JSONB column
+// that the shared registry's hasToolGrant() reads — so the generic
+// "Staff -> Access & Tools" toggle (app/admin/org-chart, app/hr/staff/new,
+// /api/admin/tool-permissions) and the access-requests grant flow both
+// correctly grant/revoke SmartExcel access. What SmartExcel's own
+// admin/roles page controls is a separate, narrower concern: which
+// *permissions* the already-granted "admin" vs "standard" role has inside
+// SmartExcel — not who holds smart_excel/smart_excel_admin in the first
+// place. Don't confuse the two when reasoning about access bugs here.
 import { cookies } from "next/headers";
 import { eq } from "drizzle-orm";
 import { getDb, schema, type DB } from "./db/client";

@@ -80,18 +80,21 @@ export function getTrack(score: number): 'foundation' | 'adoption' | 'advanced' 
   return 'foundation'
 }
 
+// NOTE: kept as literal hex, not var(--x) — consumers (e.g. app/dashboard/page.tsx)
+// concatenate an alpha suffix at runtime (`${tierConfig.color}CC`), which var() can't do.
+// Values match the equivalent CSS var()'s brightened dark-theme value in globals.css.
 export const TIER_COLORS: Record<string, { color: string; bg: string; border: string }> = {
-  'AI-Forward': { color: '#166534', bg: '#16653415', border: '#16653440' },
-  'AI-Ready':   { color: '#0E7490', bg: '#0E749015', border: '#0E749040' },
-  'AI-Aware':   { color: '#92400E', bg: '#92400E15', border: '#92400E40' },
-  'AI-Curious': { color: '#C2410C', bg: '#C2410C15', border: '#C2410C40' },
-  'AI-Unaware': { color: '#991B1B', bg: '#991B1B15', border: '#991B1B40' },
+  'AI-Forward': { color: '#34D399', bg: '#34D39915', border: '#2D6E52' }, // matches var(--success)
+  'AI-Ready':   { color: '#12C9BD', bg: '#12C9BD15', border: '#1E5A54' }, // matches var(--teal-mid) / var(--teal-border)
+  'AI-Aware':   { color: '#F5B94D', bg: '#F5B94D15', border: '#8F6A2A' }, // matches var(--amber) / var(--amber-border)
+  'AI-Curious': { color: '#FB923C', bg: '#FB923C15', border: '#8F5A2E' }, // matches var(--orange) / var(--orange-border)
+  'AI-Unaware': { color: '#F1667A', bg: '#F1667A15', border: '#8F4550' }, // matches var(--red) / var(--red-border)
 }
 
 export const TRACK_COLORS: Record<string, { color: string; bg: string; label: string }> = {
-  foundation: { color: '#0E7490', bg: 'rgba(14,116,144,0.12)',  label: 'Foundation' },
-  adoption:   { color: '#7C3AED', bg: 'rgba(124,58,237,0.12)', label: 'Adoption'   },
-  advanced:   { color: '#166534', bg: 'rgba(22,101,52,0.12)',  label: 'Advanced'   },
+  foundation: { color: '#5AA9F2', bg: 'rgba(90,169,242,0.12)',  label: 'Foundation' }, // matches var(--info)
+  adoption:   { color: '#A78BFA', bg: 'rgba(167,139,250,0.12)', label: 'Adoption'   }, // matches var(--purple)
+  advanced:   { color: '#34D399', bg: 'rgba(52,211,153,0.12)',  label: 'Advanced'   }, // matches var(--success)
 }
 
 /* ── Score breakdown (for UI transparency) ────────────────────── */

@@ -6,20 +6,22 @@ import { NotificationBell } from '@/app/components/NavBar'
 import PageHeader from '@/app/components/PageHeader'
 
 const C = {
-  bg:      '#E8EEF4',
-  surface: '#FFFFFF',
-  border:  '#DDE8EE',
-  text:    '#0F1923',
-  muted:   '#5B7080',
-  teal:    '#00695C',
-  green:   '#C0F43C',
+  bg:      'var(--surface)',
+  surface: 'var(--card)',
+  border:  'var(--border)',
+  text:    'var(--ink)',
+  muted:   'var(--ink3)',
+  teal:    'var(--teal)',
 }
 
 const CATEGORY_META: Record<string, { label: string; color: string; bg: string; desc: string }> = {
-  prompt:     { label: 'Prompt',     color: '#0E7490', bg: 'rgba(14,116,144,0.1)',   desc: 'A reusable AI prompt' },
-  use_case:   { label: 'Use Case',   color: '#7C3AED', bg: 'rgba(124,58,237,0.1)',  desc: 'A workflow or task you used AI for' },
-  automation: { label: 'Automation', color: '#166534', bg: 'rgba(22,101,52,0.1)',   desc: 'A Zapier/Make/script automation' },
-  tip:        { label: 'Tip',        color: '#92400E', bg: 'rgba(146,64,14,0.1)',   desc: 'A quick AI tip or shortcut' },
+  // Colors brightened (HSL lightness raised, hue/sat preserved) from the original
+  // light-theme values so each clears 4.5:1 contrast against the dark card (#142330);
+  // bg tints re-derived from the same brightened RGB so badge fill still matches text.
+  prompt:     { label: 'Prompt',     color: '#1296BA', bg: 'rgba(18,150,186,0.1)',  desc: 'A reusable AI prompt' },
+  use_case:   { label: 'Use Case',   color: '#A172F2', bg: 'rgba(161,114,242,0.1)', desc: 'A workflow or task you used AI for' },
+  automation: { label: 'Automation', color: '#23A052', bg: 'rgba(35,160,82,0.1)',   desc: 'A Zapier/Make/script automation' },
+  tip:        { label: 'Tip',        color: '#E66516', bg: 'rgba(230,101,22,0.1)',  desc: 'A quick AI tip or shortcut' },
 }
 
 const ALL_CATEGORIES = ['all', 'prompt', 'use_case', 'automation', 'tip']
@@ -121,7 +123,7 @@ function CommunityContent() {
         actions={<>
           <NotificationBell staffId={staffId} />
           <button onClick={() => setShowForm(!showForm)}
-            style={{ fontSize: '13px', fontWeight: 700, color: '#FFFFFF', padding: '9px 18px', background: C.teal, border: 'none', borderRadius: '10px', cursor: 'pointer', fontFamily: 'inherit' }}>
+            style={{ fontSize: '13px', fontWeight: 700, color: 'var(--teal-light)', padding: '9px 18px', background: C.teal, border: 'none', borderRadius: '10px', cursor: 'pointer', fontFamily: 'inherit' }}>
             + Share Something
           </button>
         </>}
@@ -169,10 +171,10 @@ function CommunityContent() {
                 placeholder="e.g. ChatGPT, Claude, Perplexity, Zapier, Make..."
                 style={{ width: '100%', padding: '9px 12px', borderRadius: '8px', border: `1px solid ${C.border}`, fontSize: '13px', fontFamily: 'inherit', color: C.text, boxSizing: 'border-box' }} />
             </div>
-            {postMsg && <div style={{ fontSize: '12px', color: '#C2410C', marginBottom: '12px' }}>{postMsg}</div>}
+            {postMsg && <div style={{ fontSize: '12px', color: 'var(--red)', marginBottom: '12px' }}>{postMsg}</div>}
             <div style={{ display: 'flex', gap: '10px' }}>
               <button onClick={submitPost} disabled={posting}
-                style={{ padding: '10px 24px', background: C.teal, color: '#fff', border: 'none', borderRadius: '10px', fontSize: '13px', fontWeight: 700, cursor: posting ? 'not-allowed' : 'pointer', opacity: posting ? 0.6 : 1, fontFamily: 'inherit' }}>
+                style={{ padding: '10px 24px', background: C.teal, color: 'var(--teal-light)', border: 'none', borderRadius: '10px', fontSize: '13px', fontWeight: 700, cursor: posting ? 'not-allowed' : 'pointer', opacity: posting ? 0.6 : 1, fontFamily: 'inherit' }}>
                 {posting ? 'Posting…' : 'Post to Community'}
               </button>
               <button onClick={() => setShowForm(false)}
@@ -190,7 +192,7 @@ function CommunityContent() {
             const active = catFilter === cat
             return (
               <button key={cat} onClick={() => setCatFilter(cat)}
-                style={{ padding: '6px 14px', borderRadius: '8px', border: `1.5px solid ${active ? (m?.color ?? C.teal) : C.border}`, background: active ? (m?.bg ?? `${C.teal}15`) : C.surface, fontSize: '12px', fontWeight: 700, color: active ? (m?.color ?? C.teal) : C.muted, cursor: 'pointer', fontFamily: 'inherit' }}>
+                style={{ padding: '6px 14px', borderRadius: '8px', border: `1.5px solid ${active ? (m?.color ?? C.teal) : C.border}`, background: active ? (m?.bg ?? `${'color-mix(in srgb, ' + (C.teal) + ' 8%, transparent)'}`) : C.surface, fontSize: '12px', fontWeight: 700, color: active ? (m?.color ?? C.teal) : C.muted, cursor: 'pointer', fontFamily: 'inherit' }}>
                 {cat === 'all' ? 'All' : m!.label}
               </button>
             )
@@ -215,7 +217,7 @@ function CommunityContent() {
             <div style={{ fontSize: '14px', fontWeight: 700, color: C.text, marginBottom: '6px' }}>No posts yet</div>
             <div style={{ fontSize: '13px', color: C.muted, marginBottom: '20px' }}>Be the first to share a prompt or use case with the team</div>
             <button onClick={() => setShowForm(true)}
-              style={{ padding: '10px 24px', background: C.teal, color: '#fff', border: 'none', borderRadius: '10px', fontSize: '13px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
+              style={{ padding: '10px 24px', background: C.teal, color: 'var(--teal-light)', border: 'none', borderRadius: '10px', fontSize: '13px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
               Share Something
             </button>
           </div>
@@ -229,7 +231,7 @@ function CommunityContent() {
                   {/* Header row */}
                   <div style={{ display: 'flex', alignItems: 'flex-start', gap: '12px', marginBottom: '10px' }}>
                     {/* Avatar initial */}
-                    <div style={{ width: '36px', height: '36px', borderRadius: '50%', background: m.bg, border: `2px solid ${m.color}30`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, fontSize: '13px', fontWeight: 800, color: m.color }}>
+                    <div style={{ width: '36px', height: '36px', borderRadius: '50%', background: m.bg, border: `2px solid ${'color-mix(in srgb, ' + (m.color) + ' 19%, transparent)'}`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, fontSize: '13px', fontWeight: 800, color: m.color }}>
                       {post.staff_name.charAt(0).toUpperCase()}
                     </div>
                     <div style={{ flex: 1, minWidth: 0 }}>
@@ -244,16 +246,16 @@ function CommunityContent() {
                   {/* Title */}
                   <div style={{ fontSize: '14px', fontWeight: 800, color: C.text, marginBottom: '8px' }}>{post.title}</div>
                   {/* Body */}
-                  <div style={{ fontSize: '13px', color: '#2D3E50', lineHeight: 1.65, marginBottom: '12px', whiteSpace: 'pre-wrap' }}>{post.body}</div>
+                  <div style={{ fontSize: '13px', color: 'var(--ink2)', lineHeight: 1.65, marginBottom: '12px', whiteSpace: 'pre-wrap' }}>{post.body}</div>
                   {/* Footer */}
                   <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
                     {post.tool_name && (
-                      <span style={{ fontSize: '11px', fontWeight: 700, color: C.teal, background: `${C.teal}10`, border: `1px solid ${C.teal}30`, padding: '3px 9px', borderRadius: '20px' }}>
+                      <span style={{ fontSize: '11px', fontWeight: 700, color: C.teal, background: `${'color-mix(in srgb, ' + (C.teal) + ' 6%, transparent)'}`, border: `1px solid ${'color-mix(in srgb, ' + (C.teal) + ' 19%, transparent)'}`, padding: '3px 9px', borderRadius: '20px' }}>
                         {post.tool_name}
                       </span>
                     )}
                     <button onClick={() => like(post.id)}
-                      style={{ display: 'flex', alignItems: 'center', gap: '5px', padding: '4px 12px', borderRadius: '8px', border: `1.5px solid ${isLiked ? C.teal : C.border}`, background: isLiked ? `${C.teal}10` : 'transparent', fontSize: '12px', fontWeight: 700, color: isLiked ? C.teal : C.muted, cursor: staffId ? 'pointer' : 'default', fontFamily: 'inherit' }}>
+                      style={{ display: 'flex', alignItems: 'center', gap: '5px', padding: '4px 12px', borderRadius: '8px', border: `1.5px solid ${isLiked ? C.teal : C.border}`, background: isLiked ? `${'color-mix(in srgb, ' + (C.teal) + ' 6%, transparent)'}` : 'transparent', fontSize: '12px', fontWeight: 700, color: isLiked ? C.teal : C.muted, cursor: staffId ? 'pointer' : 'default', fontFamily: 'inherit' }}>
                       <svg width="13" height="13" fill={isLiked ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
                       {post.likes > 0 && post.likes}
                     </button>

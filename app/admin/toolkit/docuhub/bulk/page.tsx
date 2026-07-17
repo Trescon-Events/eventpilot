@@ -125,54 +125,54 @@ export default function DocuHubBulkPage() {
   const allReady = rows.length > 0 && rows.every(r => r.object_key && r.title.trim() && r.doc_type_id)
 
   return (
-    <div style={{ minHeight: '100vh', background: '#E8EEF4', fontFamily: 'var(--font-manrope), sans-serif' }}>
+    <div style={{ minHeight: '100vh', background: 'var(--surface)', fontFamily: 'var(--font-manrope), sans-serif' }}>
       <PageHeader eyebrow="DocuHub" title="Bulk Upload" description="Select multiple files, fix up the details inline, then publish them all at once." />
       <div style={{ maxWidth: '1100px', margin: '0 auto', padding: '24px' }}>
 
-        <label style={{ display: 'block', padding: '24px', border: '1.5px dashed #DDE8EE', borderRadius: '12px', textAlign: 'center', cursor: 'pointer', marginBottom: '20px', background: '#FFFFFF' }}>
+        <label style={{ display: 'block', padding: '24px', border: '1.5px dashed var(--border)', borderRadius: '12px', textAlign: 'center', cursor: 'pointer', marginBottom: '20px', background: 'var(--card)' }}>
           <input type="file" multiple style={{ display: 'none' }} onChange={e => addFiles(e.target.files)} />
-          <span style={{ fontSize: '13px', color: '#5B7080' }}>Click to select files, or add more anytime</span>
+          <span style={{ fontSize: '13px', color: 'var(--ink3)' }}>Click to select files, or add more anytime</span>
         </label>
 
-        {resultMsg && <div style={{ fontSize: '13px', padding: '9px 12px', borderRadius: '8px', background: 'rgba(217,119,6,0.08)', border: '1px solid rgba(217,119,6,0.25)', color: '#B45309', marginBottom: '16px' }}>{resultMsg}</div>}
+        {resultMsg && <div style={{ fontSize: '13px', padding: '9px 12px', borderRadius: '8px', background: 'var(--amber-light)', border: '1px solid var(--amber-border)', color: 'var(--amber)', marginBottom: '16px' }}>{resultMsg}</div>}
 
         {rows.length > 0 && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginBottom: '20px' }}>
             {rows.map((row, i) => {
               const type = docTypes.find(t => t.id === row.doc_type_id)
               return (
-                <div key={i} style={{ background: '#FFFFFF', border: `1px solid ${row.uploadError ? 'rgba(255,107,107,0.4)' : '#DDE8EE'}`, borderRadius: '12px', padding: '14px' }}>
+                <div key={i} style={{ background: 'var(--card)', border: `1px solid ${row.uploadError ? 'var(--red-border)' : 'var(--border)'}`, borderRadius: '12px', padding: '14px' }}>
                   <div style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr 1fr auto', gap: '8px', marginBottom: '8px', alignItems: 'center' }}>
                     <input value={row.title} onChange={e => updateRow(i, { title: e.target.value })} placeholder="Title"
-                      style={{ padding: '8px 10px', borderRadius: '8px', border: '1px solid #DDE8EE', fontSize: '13px', fontFamily: 'inherit' }} />
+                      style={{ padding: '8px 10px', borderRadius: '8px', border: '1px solid var(--border)', fontSize: '13px', fontFamily: 'inherit' }} />
                     <select value={row.doc_type_id} onChange={e => updateRow(i, { doc_type_id: e.target.value })}
-                      style={{ padding: '8px 10px', borderRadius: '8px', border: '1px solid #DDE8EE', fontSize: '13px', fontFamily: 'inherit' }}>
+                      style={{ padding: '8px 10px', borderRadius: '8px', border: '1px solid var(--border)', fontSize: '13px', fontFamily: 'inherit' }}>
                       <option value="">Select type…</option>
                       {docTypes.filter(t => t.allowed_formats.includes('file')).map(t => <option key={t.id} value={t.id}>{t.label}</option>)}
                     </select>
                     <select value={row.visibility} onChange={e => updateRow(i, { visibility: e.target.value })}
-                      style={{ padding: '8px 10px', borderRadius: '8px', border: '1px solid #DDE8EE', fontSize: '13px', fontFamily: 'inherit' }}>
+                      style={{ padding: '8px 10px', borderRadius: '8px', border: '1px solid var(--border)', fontSize: '13px', fontFamily: 'inherit' }}>
                       <option value="internal">Internal</option>
                       <option value="public">Public</option>
                     </select>
-                    <button onClick={() => removeRow(i)} style={{ fontSize: '13px', fontWeight: 700, color: '#FF6B6B', background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'inherit' }}>Remove</button>
+                    <button onClick={() => removeRow(i)} style={{ fontSize: '13px', fontWeight: 700, color: 'var(--red)', background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'inherit' }}>Remove</button>
                   </div>
                   {type?.requires_event_attribution && (
                     <div style={{ marginBottom: '8px' }}>
                       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', marginBottom: '8px' }}>
                         <input value={row.event_label} onChange={e => updateRow(i, { event_label: e.target.value })} placeholder="Event name"
-                          style={{ padding: '8px 10px', borderRadius: '8px', border: '1px solid #DDE8EE', fontSize: '13px', fontFamily: 'inherit' }} />
+                          style={{ padding: '8px 10px', borderRadius: '8px', border: '1px solid var(--border)', fontSize: '13px', fontFamily: 'inherit' }} />
                         <select value={row.event_type} onChange={e => updateRow(i, { event_type: e.target.value })}
-                          style={{ padding: '8px 10px', borderRadius: '8px', border: '1px solid #DDE8EE', fontSize: '13px', fontFamily: 'inherit' }}>
+                          style={{ padding: '8px 10px', borderRadius: '8px', border: '1px solid var(--border)', fontSize: '13px', fontFamily: 'inherit' }}>
                           <option value="">Event type…</option>
                           {EVENT_TYPES.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
                         </select>
                       </div>
                       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', marginBottom: '8px' }}>
                         <input type="date" value={row.event_start_date} onChange={e => updateRow(i, { event_start_date: e.target.value })}
-                          style={{ padding: '8px 10px', borderRadius: '8px', border: '1px solid #DDE8EE', fontSize: '13px', fontFamily: 'inherit' }} />
+                          style={{ padding: '8px 10px', borderRadius: '8px', border: '1px solid var(--border)', fontSize: '13px', fontFamily: 'inherit' }} />
                         <input type="date" value={row.event_end_date} onChange={e => updateRow(i, { event_end_date: e.target.value })}
-                          style={{ padding: '8px 10px', borderRadius: '8px', border: '1px solid #DDE8EE', fontSize: '13px', fontFamily: 'inherit' }} />
+                          style={{ padding: '8px 10px', borderRadius: '8px', border: '1px solid var(--border)', fontSize: '13px', fontFamily: 'inherit' }} />
                       </div>
                       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', marginBottom: '8px' }}>
                         <LocationSelect value={row.event_city} onChange={v => updateRow(i, { event_city: v })} options={KNOWN_CITIES.map(c => c.city)} placeholder="City" />
@@ -180,18 +180,18 @@ export default function DocuHubBulkPage() {
                       </div>
                       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', marginBottom: '8px' }}>
                         <input value={row.event_venue} onChange={e => updateRow(i, { event_venue: e.target.value })} placeholder="Venue (optional)"
-                          style={{ padding: '8px 10px', borderRadius: '8px', border: '1px solid #DDE8EE', fontSize: '13px', fontFamily: 'inherit' }} />
+                          style={{ padding: '8px 10px', borderRadius: '8px', border: '1px solid var(--border)', fontSize: '13px', fontFamily: 'inherit' }} />
                         <input value={row.series} onChange={e => updateRow(i, { series: e.target.value })} placeholder="Series (only if multi-edition)"
-                          style={{ padding: '8px 10px', borderRadius: '8px', border: '1px solid #DDE8EE', fontSize: '13px', fontFamily: 'inherit' }} />
+                          style={{ padding: '8px 10px', borderRadius: '8px', border: '1px solid var(--border)', fontSize: '13px', fontFamily: 'inherit' }} />
                       </div>
                       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
                         <select value={row.event_format} onChange={e => updateRow(i, { event_format: e.target.value })}
-                          style={{ padding: '8px 10px', borderRadius: '8px', border: '1px solid #DDE8EE', fontSize: '13px', fontFamily: 'inherit' }}>
+                          style={{ padding: '8px 10px', borderRadius: '8px', border: '1px solid var(--border)', fontSize: '13px', fontFamily: 'inherit' }}>
                           <option value="">Format…</option>
                           {EVENT_FORMATS.map(f => <option key={f.value} value={f.value}>{f.label}</option>)}
                         </select>
                         <input value={row.event_region} onChange={e => updateRow(i, { event_region: e.target.value })} placeholder="Region (e.g. ASEAN)"
-                          style={{ padding: '8px 10px', borderRadius: '8px', border: '1px solid #DDE8EE', fontSize: '13px', fontFamily: 'inherit' }} />
+                          style={{ padding: '8px 10px', borderRadius: '8px', border: '1px solid var(--border)', fontSize: '13px', fontFamily: 'inherit' }} />
                       </div>
                     </div>
                   )}
@@ -199,15 +199,15 @@ export default function DocuHubBulkPage() {
                     <div style={{ marginBottom: '8px' }}>
                       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', marginBottom: '8px' }}>
                         <input value={row.client_name} onChange={e => updateRow(i, { client_name: e.target.value })} placeholder="Client (organisation name)"
-                          style={{ padding: '8px 10px', borderRadius: '8px', border: '1px solid #DDE8EE', fontSize: '13px', fontFamily: 'inherit' }} />
+                          style={{ padding: '8px 10px', borderRadius: '8px', border: '1px solid var(--border)', fontSize: '13px', fontFamily: 'inherit' }} />
                         <select value={row.owner_staff_id} onChange={e => updateRow(i, { owner_staff_id: e.target.value })}
-                          style={{ padding: '8px 10px', borderRadius: '8px', border: '1px solid #DDE8EE', fontSize: '13px', fontFamily: 'inherit' }}>
+                          style={{ padding: '8px 10px', borderRadius: '8px', border: '1px solid var(--border)', fontSize: '13px', fontFamily: 'inherit' }}>
                           <option value="">Owner…</option>
                           {staffOptions.map(s => <option key={s.id} value={s.id}>{s.name} — {s.email}</option>)}
                         </select>
                       </div>
                       <select value={row.event_type} onChange={e => updateRow(i, { event_type: e.target.value })}
-                        style={{ width: '100%', padding: '8px 10px', borderRadius: '8px', border: '1px solid #DDE8EE', fontSize: '13px', fontFamily: 'inherit' }}>
+                        style={{ width: '100%', padding: '8px 10px', borderRadius: '8px', border: '1px solid var(--border)', fontSize: '13px', fontFamily: 'inherit' }}>
                         <option value="">Event type…</option>
                         {EVENT_TYPES.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
                       </select>
@@ -216,9 +216,9 @@ export default function DocuHubBulkPage() {
                   {type?.supports_expiry && (
                     <input type="date" value={row.link_expires_at} onChange={e => updateRow(i, { link_expires_at: e.target.value })}
                       placeholder="Expires (optional)"
-                      style={{ padding: '8px 10px', borderRadius: '8px', border: '1px solid #DDE8EE', fontSize: '13px', fontFamily: 'inherit', marginBottom: '8px' }} />
+                      style={{ padding: '8px 10px', borderRadius: '8px', border: '1px solid var(--border)', fontSize: '13px', fontFamily: 'inherit', marginBottom: '8px' }} />
                   )}
-                  <div style={{ fontSize: '13px', color: row.uploadError ? '#FF6B6B' : row.uploading ? '#5B7080' : '#3D6B00' }}>
+                  <div style={{ fontSize: '13px', color: row.uploadError ? 'var(--red)' : row.uploading ? 'var(--ink3)' : 'var(--lime)' }}>
                     {row.uploadError ? row.uploadError : row.uploading ? 'Uploading…' : `Uploaded — ${row.file.name}`}
                   </div>
                 </div>
@@ -229,7 +229,7 @@ export default function DocuHubBulkPage() {
 
         {rows.length > 0 && (
           <button onClick={publishAll} disabled={!allReady || publishing}
-            style={{ padding: '12px 24px', borderRadius: '10px', border: 'none', background: !allReady || publishing ? '#DDE8EE' : '#D97706', color: '#FFFFFF', fontSize: '13px', fontWeight: 800, cursor: !allReady || publishing ? 'not-allowed' : 'pointer', fontFamily: 'inherit' }}>
+            style={{ padding: '12px 24px', borderRadius: '10px', border: 'none', background: !allReady || publishing ? 'var(--border)' : 'var(--amber)', color: !allReady || publishing ? 'var(--ink4)' : 'var(--amber-light)', fontSize: '13px', fontWeight: 800, cursor: !allReady || publishing ? 'not-allowed' : 'pointer', fontFamily: 'inherit' }}>
             {publishing ? 'Publishing…' : `Publish All (${rows.length})`}
           </button>
         )}

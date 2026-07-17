@@ -7,18 +7,24 @@ import { useDraft } from '@/app/lib/useDraft'
 import DraftReEntryModal from '@/app/components/DraftReEntryModal'
 
 // ── Color tokens ──────────────────────────────────────────────────────────────
+// bg/surface/border/text are plain CSS var() refs — safe everywhere they're used
+// in this file. muted/sub/green/teal/purple/amber/red stay literal hex (matching
+// the dark-theme token values 1:1) because this file concatenates alpha-hex
+// suffixes onto several of them at runtime (e.g. `C.teal+'44'`, and the <Tag>
+// component's `${color}18`) — `var(--teal)44` isn't valid CSS, so those specific
+// tokens can't be var() here (same convention as app/admin/events/[id]/execution/page.tsx).
 const C = {
-  bg:      '#E8EEF4',
-  surface: '#FFFFFF',
-  border:  '#DDE8EE',
-  text:    '#0F1923',
-  muted:   '#5B7080',
-  sub:     '#2D3E50',
-  green:   '#C0F43C',
-  teal:    '#00695C',
-  purple:  '#A78BFA',
-  amber:   '#F59E0B',
-  red:     '#FF6B6B',
+  bg:      'var(--surface)',
+  surface: 'var(--card)',
+  border:  'var(--border)',
+  text:    'var(--ink)',
+  muted:   '#7E93A1',  // = var(--ink3)
+  sub:     '#B7C6D1',  // = var(--ink2)
+  green:   '#C0F43C',  // = var(--lime) (unchanged value)
+  teal:    '#0EA79D',  // = var(--teal)
+  purple:  '#A78BFA',  // = var(--purple) (unchanged value)
+  amber:   '#F5B94D',  // = var(--amber)
+  red:     '#F1667A',  // = var(--red)
 }
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -91,7 +97,7 @@ const AGENDA_TYPES = ['keynote', 'panel', 'workshop', 'fireside', 'networking', 
 
 function StatusDot({ booking }: { booking: string | null }) {
   return (
-    <span style={{ display: 'inline-block', width: 8, height: 8, borderRadius: '50%', background: booking ? '#22C55E' : C.border, marginRight: 6 }} />
+    <span style={{ display: 'inline-block', width: 8, height: 8, borderRadius: '50%', background: booking ? 'var(--success)' : C.border, marginRight: 6 }} />
   )
 }
 
@@ -213,7 +219,7 @@ function ImageUpload({ label, value, eventId, section, onUpload, acceptPdf = fal
         {value ? (
           <>
             {isPdf
-              ? <div style={{ width: 44, height: 44, borderRadius: 8, background: 'rgba(239,68,68,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+              ? <div style={{ width: 44, height: 44, borderRadius: 8, background: 'rgba(241,102,122,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
                   <svg width="20" height="20" fill="none" stroke={C.red} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="9" y1="13" x2="15" y2="13"/><line x1="9" y1="17" x2="15" y2="17"/></svg>
                 </div>
               // eslint-disable-next-line @next/next/no-img-element
@@ -262,7 +268,7 @@ function ImageUpload({ label, value, eventId, section, onUpload, acceptPdf = fal
               </a>
             )}
             <button onClick={() => { onUpload(''); setErrMsg(null) }}
-              style={{ fontSize: '11px', color: C.red, background: 'rgba(255,107,107,0.08)', border: `1px solid rgba(255,107,107,0.3)`, borderRadius: 6, padding: '4px 10px', cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap' }}>
+              style={{ fontSize: '11px', color: C.red, background: 'rgba(241,102,122,0.08)', border: `1px solid rgba(241,102,122,0.3)`, borderRadius: 6, padding: '4px 10px', cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap' }}>
               Remove
             </button>
           </>
@@ -803,7 +809,7 @@ export default function EventWebsiteAdmin({ params }: { params: Promise<{ id: st
   const SET = (key: keyof WebsiteSettings) => (val: string) => setSettings(s => ({ ...s, [key]: val }))
 
   const g2 = { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px' } as React.CSSProperties
-  const card = { background: '#F8FAFF', border: `1px solid ${C.border}`, borderRadius: '12px', padding: '20px', marginBottom: '12px' } as React.CSSProperties
+  const card = { background: 'var(--card-hi)', border: `1px solid ${C.border}`, borderRadius: '12px', padding: '20px', marginBottom: '12px' } as React.CSSProperties
 
   if (loading) return (
     <div style={{ fontFamily: 'var(--font-manrope), Manrope, sans-serif', background: C.bg, minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -835,7 +841,7 @@ export default function EventWebsiteAdmin({ params }: { params: Promise<{ id: st
       )}
 
       {/* Nav */}
-      <nav style={{ background: C.surface, borderBottom: `1px solid ${C.border}`, padding: '0 32px', height: '64px', display: 'flex', alignItems: 'center', gap: '16px', position: 'sticky', top: 0, zIndex: 100, boxShadow: '0 1px 3px rgba(0,165,163,0.06)' }}>
+      <nav style={{ background: C.surface, borderBottom: `1px solid ${C.border}`, padding: '0 32px', height: '64px', display: 'flex', alignItems: 'center', gap: '16px', position: 'sticky', top: 0, zIndex: 100, boxShadow: '0 1px 3px rgba(18,201,189,0.06)' }}>
         <span style={{ fontSize: '13px', color: C.muted, fontWeight: 500 }}>{eventName}</span>
         <span style={{ color: C.border }}>/</span>
         <span style={{ fontSize: '13px', fontWeight: 700 }}>Website</span>
@@ -853,17 +859,17 @@ export default function EventWebsiteAdmin({ params }: { params: Promise<{ id: st
               API
             </a>
           )}
-          <div style={{ padding: '4px 10px', borderRadius: '20px', background: settings.status === 'live' ? 'rgba(192,244,60,0.15)' : 'rgba(91,112,128,0.1)', fontSize: '11px', fontWeight: 700, color: settings.status === 'live' ? C.teal : C.muted }}>
+          <div style={{ padding: '4px 10px', borderRadius: '20px', background: settings.status === 'live' ? 'rgba(192,244,60,0.15)' : 'rgba(126,147,161,0.1)', fontSize: '11px', fontWeight: 700, color: settings.status === 'live' ? C.teal : C.muted }}>
             {settings.status === 'live' ? 'LIVE' : 'DRAFT'}
           </div>
           {settings.draft_structure && (
-            <div style={{ padding: '4px 10px', borderRadius: '20px', background: 'rgba(245,158,11,0.1)', fontSize: '11px', fontWeight: 700, color: C.amber }}>
+            <div style={{ padding: '4px 10px', borderRadius: '20px', background: 'rgba(245,185,77,0.1)', fontSize: '11px', fontWeight: 700, color: C.amber }}>
               DRAFT PENDING
             </div>
           )}
           {tab === 'publish' && (
             <button onClick={togglePublish} disabled={savingSettings || publishing}
-              style={{ padding: '8px 18px', borderRadius: '8px', border: 'none', background: settings.status === 'live' && !settings.draft_structure ? 'rgba(255,107,107,0.12)' : C.green, color: settings.status === 'live' && !settings.draft_structure ? C.red : C.text, fontSize: '12px', fontWeight: 800, cursor: 'pointer', fontFamily: 'inherit', opacity: (savingSettings || publishing) ? 0.6 : 1 }}>
+              style={{ padding: '8px 18px', borderRadius: '8px', border: 'none', background: settings.status === 'live' && !settings.draft_structure ? 'rgba(241,102,122,0.12)' : C.green, color: settings.status === 'live' && !settings.draft_structure ? C.red : 'var(--lime-dark)', fontSize: '12px', fontWeight: 800, cursor: 'pointer', fontFamily: 'inherit', opacity: (savingSettings || publishing) ? 0.6 : 1 }}>
               {settings.status === 'live' && !settings.draft_structure ? 'Unpublish' : settings.status === 'live' && settings.draft_structure ? 'Update Live' : 'Publish Live'}
             </button>
           )}
@@ -874,7 +880,7 @@ export default function EventWebsiteAdmin({ params }: { params: Promise<{ id: st
 
         {/* Toast */}
         {msg && (
-          <div style={{ marginBottom: '16px', padding: '10px 16px', borderRadius: '10px', background: msgOk ? 'rgba(192,244,60,0.08)' : 'rgba(255,107,107,0.08)', border: `1px solid ${msgOk ? 'rgba(192,244,60,0.3)' : 'rgba(255,107,107,0.3)'}`, color: msgOk ? C.teal : C.red, fontSize: '13px' }}>
+          <div style={{ marginBottom: '16px', padding: '10px 16px', borderRadius: '10px', background: msgOk ? 'rgba(192,244,60,0.08)' : 'rgba(241,102,122,0.08)', border: `1px solid ${msgOk ? 'rgba(192,244,60,0.3)' : 'rgba(241,102,122,0.3)'}`, color: msgOk ? C.teal : C.red, fontSize: '13px' }}>
             {msg}
           </div>
         )}
@@ -896,8 +902,8 @@ export default function EventWebsiteAdmin({ params }: { params: Promise<{ id: st
                 }
                 setTab(s.id as Tab)
               }}
-                style={{ flex: 1, minWidth: '120px', display: 'flex', alignItems: 'center', gap: '10px', padding: '10px 16px', borderRadius: '10px', border: 'none', background: active ? C.text : 'transparent', color: active ? C.green : C.muted, cursor: 'pointer', fontFamily: 'inherit', textAlign: 'left', transition: 'all 0.15s' }}>
-                <div style={{ width: '28px', height: '28px', borderRadius: '50%', background: active ? C.green : C.border, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '12px', fontWeight: 900, color: active ? C.text : C.muted, flexShrink: 0 }}>{s.step}</div>
+                style={{ flex: 1, minWidth: '120px', display: 'flex', alignItems: 'center', gap: '10px', padding: '10px 16px', borderRadius: '10px', border: 'none', background: active ? 'var(--surface)' : 'transparent', color: active ? 'var(--lime)' : C.muted, cursor: 'pointer', fontFamily: 'inherit', textAlign: 'left', transition: 'all 0.15s' }}>
+                <div style={{ width: '28px', height: '28px', borderRadius: '50%', background: active ? C.green : C.border, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '12px', fontWeight: 900, color: active ? 'var(--lime-dark)' : C.muted, flexShrink: 0 }}>{s.step}</div>
                 <div>
                   <div style={{ fontSize: '13px', fontWeight: 700, lineHeight: 1.2 }}>{s.label}</div>
                   <div style={{ fontSize: '10px', fontWeight: 500, opacity: 0.65, lineHeight: 1.2 }}>{s.hint}</div>
@@ -925,7 +931,7 @@ export default function EventWebsiteAdmin({ params }: { params: Promise<{ id: st
                 <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
                   {existingSite.site_url && (
                     <a href={existingSite.site_url} target="_blank" rel="noreferrer"
-                      style={{ padding: '8px 16px', background: C.teal, color: '#fff', borderRadius: '8px', fontSize: '12px', fontWeight: 700, textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      style={{ padding: '8px 16px', background: C.teal, color: 'var(--teal-light)', borderRadius: '8px', fontSize: '12px', fontWeight: 700, textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '6px' }}>
                       <svg width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" viewBox="0 0 24 24"><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
                       Visit Site
                     </a>
@@ -969,7 +975,7 @@ export default function EventWebsiteAdmin({ params }: { params: Promise<{ id: st
                       <div style={{ width: '24px', height: '24px', borderRadius: '50%', background: t.color_scheme.accent, border: '2px solid rgba(255,255,255,0.2)' }} />
                       <div style={{ width: '24px', height: '24px', borderRadius: '50%', background: t.color_scheme.highlight, border: '2px solid rgba(255,255,255,0.2)' }} />
                       {sel && (
-                        <div style={{ position: 'absolute', top: '10px', right: '10px', background: C.teal, color: '#fff', fontSize: '11px', fontWeight: 800, padding: '3px 8px', borderRadius: '20px' }}>SELECTED</div>
+                        <div style={{ position: 'absolute', top: '10px', right: '10px', background: C.teal, color: 'var(--teal-light)', fontSize: '11px', fontWeight: 800, padding: '3px 8px', borderRadius: '20px' }}>SELECTED</div>
                       )}
                       <div style={{ position: 'absolute', top: '10px', left: '14px', background: 'rgba(0,0,0,0.5)', color: 'rgba(255,255,255,0.8)', fontSize: '10px', fontWeight: 700, padding: '2px 8px', borderRadius: '20px', backdropFilter: 'blur(4px)' }}>{t.event_name}</div>
                     </div>
@@ -1016,7 +1022,7 @@ export default function EventWebsiteAdmin({ params }: { params: Promise<{ id: st
                   </div>
                 </div>
                 <button onClick={() => setTab('brand')}
-                  style={{ padding: '10px 24px', background: C.teal, color: '#fff', border: 'none', borderRadius: '10px', fontSize: '13px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: '6px', whiteSpace: 'nowrap', flexShrink: 0 }}>
+                  style={{ padding: '10px 24px', background: C.teal, color: 'var(--teal-light)', border: 'none', borderRadius: '10px', fontSize: '13px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: '6px', whiteSpace: 'nowrap', flexShrink: 0 }}>
                   Next: Upload Brand
                   <svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg>
                 </button>
@@ -1031,28 +1037,28 @@ export default function EventWebsiteAdmin({ params }: { params: Promise<{ id: st
 
             {/* ── Brand Studio Sync Gate ── */}
             {!brandGuidelines ? (
-              <div style={{ background: '#FFF8F0', border: '1.5px solid #F59E0B', borderRadius: '16px', padding: '20px 24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '16px', flexWrap: 'wrap' }}>
+              <div style={{ background: 'var(--amber-light)', border: '1.5px solid var(--amber-border)', borderRadius: '16px', padding: '20px 24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '16px', flexWrap: 'wrap' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
-                  <div style={{ width: '40px', height: '40px', borderRadius: '10px', background: 'rgba(245,158,11,0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                    <svg width="20" height="20" fill="none" stroke="#F59E0B" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+                  <div style={{ width: '40px', height: '40px', borderRadius: '10px', background: 'rgba(245,185,77,0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                    <svg width="20" height="20" fill="none" stroke="var(--amber)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
                   </div>
                   <div>
-                    <div style={{ fontSize: '13px', fontWeight: 800, color: '#92400E', marginBottom: '3px' }}>Brand guidelines not set up yet</div>
-                    <div style={{ fontSize: '12px', color: '#B45309', lineHeight: 1.5 }}>Upload your brand PDF and extract colours + fonts in Brand Studio first, then sync them here.</div>
+                    <div style={{ fontSize: '13px', fontWeight: 800, color: 'var(--amber)', marginBottom: '3px' }}>Brand guidelines not set up yet</div>
+                    <div style={{ fontSize: '12px', color: 'var(--amber)', lineHeight: 1.5 }}>Upload your brand PDF and extract colours + fonts in Brand Studio first, then sync them here.</div>
                   </div>
                 </div>
                 <a
                   href={`/admin/events/${eventId}/brand`}
-                  style={{ display: 'inline-flex', alignItems: 'center', gap: '7px', padding: '10px 18px', borderRadius: '10px', background: '#F59E0B', color: '#FFFFFF', fontSize: '13px', fontWeight: 800, textDecoration: 'none', whiteSpace: 'nowrap', flexShrink: 0 }}>
+                  style={{ display: 'inline-flex', alignItems: 'center', gap: '7px', padding: '10px 18px', borderRadius: '10px', background: '#F5B94D', color: 'var(--amber-light)', fontSize: '13px', fontWeight: 800, textDecoration: 'none', whiteSpace: 'nowrap', flexShrink: 0 }}>
                   <svg width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
                   Set Up Brand Studio
                 </a>
               </div>
             ) : (
-              <div style={{ background: 'rgba(0,105,92,0.04)', border: '1.5px solid rgba(0,105,92,0.2)', borderRadius: '16px', padding: '20px 24px' }}>
+              <div style={{ background: 'rgba(14,167,157,0.04)', border: '1.5px solid rgba(14,167,157,0.2)', borderRadius: '16px', padding: '20px 24px' }}>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '16px', flexWrap: 'wrap', marginBottom: '16px' }}>
                   <div>
-                    <div style={{ fontSize: '13px', fontWeight: 800, color: '#00695C', marginBottom: '3px' }}>Brand Studio — Guidelines Ready</div>
+                    <div style={{ fontSize: '13px', fontWeight: 800, color: 'var(--teal-mid)', marginBottom: '3px' }}>Brand Studio — Guidelines Ready</div>
                     <div style={{ fontSize: '12px', color: C.muted }}>Click sync to apply the saved brand colours and fonts to this website.</div>
                   </div>
                   <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
@@ -1082,7 +1088,7 @@ export default function EventWebsiteAdmin({ params }: { params: Promise<{ id: st
                         }
                         setSyncingBrand(false)
                       }}
-                      style={{ display: 'inline-flex', alignItems: 'center', gap: '7px', padding: '10px 18px', borderRadius: '10px', border: 'none', background: syncingBrand ? C.border : C.teal, color: '#fff', fontSize: '13px', fontWeight: 800, cursor: syncingBrand ? 'wait' : 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap' }}>
+                      style={{ display: 'inline-flex', alignItems: 'center', gap: '7px', padding: '10px 18px', borderRadius: '10px', border: 'none', background: syncingBrand ? C.border : C.teal, color: 'var(--teal-light)', fontSize: '13px', fontWeight: 800, cursor: syncingBrand ? 'wait' : 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap' }}>
                       <svg width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-4.5"/></svg>
                       {syncingBrand ? 'Syncing…' : 'Sync to Website'}
                     </button>
@@ -1095,18 +1101,18 @@ export default function EventWebsiteAdmin({ params }: { params: Promise<{ id: st
                     { label: 'Secondary', color: brandGuidelines.secondary_color },
                     { label: 'Accent',    color: brandGuidelines.accent_color },
                   ].map(({ label, color }) => (
-                    <div key={label} style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '5px 10px', borderRadius: '8px', background: '#FFFFFF', border: `1px solid ${C.border}` }}>
+                    <div key={label} style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '5px 10px', borderRadius: '8px', background: 'var(--card-hi)', border: `1px solid ${C.border}` }}>
                       <div style={{ width: '14px', height: '14px', borderRadius: '4px', background: color, flexShrink: 0 }} />
                       <span style={{ fontSize: '11px', fontWeight: 700, color: C.muted }}>{label}</span>
                       <span style={{ fontSize: '11px', fontFamily: 'monospace', color: C.text }}>{color}</span>
                     </div>
                   ))}
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '5px 10px', borderRadius: '8px', background: '#FFFFFF', border: `1px solid ${C.border}` }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '5px 10px', borderRadius: '8px', background: 'var(--card-hi)', border: `1px solid ${C.border}` }}>
                     <svg width="12" height="12" fill="none" stroke={C.muted} strokeWidth="2" strokeLinecap="round" viewBox="0 0 24 24"><polyline points="4 7 4 4 20 4 20 7"/><line x1="9" y1="20" x2="15" y2="20"/><line x1="12" y1="4" x2="12" y2="20"/></svg>
                     <span style={{ fontSize: '11px', fontWeight: 700, color: C.muted }}>Heading</span>
                     <span style={{ fontSize: '11px', color: C.text }}>{brandGuidelines.heading_font}</span>
                   </div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '5px 10px', borderRadius: '8px', background: '#FFFFFF', border: `1px solid ${C.border}` }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '5px 10px', borderRadius: '8px', background: 'var(--card-hi)', border: `1px solid ${C.border}` }}>
                     <svg width="12" height="12" fill="none" stroke={C.muted} strokeWidth="2" strokeLinecap="round" viewBox="0 0 24 24"><line x1="17" y1="10" x2="3" y2="10"/><line x1="21" y1="6" x2="3" y2="6"/><line x1="21" y1="14" x2="3" y2="14"/><line x1="17" y1="18" x2="3" y2="18"/></svg>
                     <span style={{ fontSize: '11px', fontWeight: 700, color: C.muted }}>Body</span>
                     <span style={{ fontSize: '11px', color: C.text }}>{brandGuidelines.body_font}</span>
@@ -1118,7 +1124,7 @@ export default function EventWebsiteAdmin({ params }: { params: Promise<{ id: st
             {/* Step 1 — Brand Document */}
             <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: '16px', padding: '24px' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '6px' }}>
-                <div style={{ width: '24px', height: '24px', borderRadius: '50%', background: C.teal, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '12px', fontWeight: 900, color: '#fff', flexShrink: 0 }}>1</div>
+                <div style={{ width: '24px', height: '24px', borderRadius: '50%', background: C.teal, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '12px', fontWeight: 900, color: 'var(--teal-light)', flexShrink: 0 }}>1</div>
                 <div style={{ fontSize: '13px', fontWeight: 800, color: C.text }}>Brand Guidelines Document</div>
               </div>
               <div style={{ fontSize: '12px', color: C.muted, marginBottom: '16px', paddingLeft: '34px' }}>Upload your brand PDF. Once uploaded, manually set the colours and fonts extracted from it below.</div>
@@ -1181,7 +1187,7 @@ export default function EventWebsiteAdmin({ params }: { params: Promise<{ id: st
                         display: 'inline-flex', alignItems: 'center', gap: 7,
                         padding: '8px 16px', borderRadius: 8, border: 'none',
                         background: extracting ? C.border : C.teal,
-                        color: extracting ? C.muted : '#fff',
+                        color: extracting ? C.muted : 'var(--teal-light)',
                         fontSize: '12px', fontWeight: 800, cursor: extracting ? 'wait' : 'pointer',
                         fontFamily: 'inherit', transition: 'all 0.15s',
                       }}>
@@ -1203,10 +1209,15 @@ export default function EventWebsiteAdmin({ params }: { params: Promise<{ id: st
             {/* Step 2 — Logos */}
             <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: '16px', padding: '24px' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '6px' }}>
-                <div style={{ width: '24px', height: '24px', borderRadius: '50%', background: C.teal, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '12px', fontWeight: 900, color: '#fff', flexShrink: 0 }}>2</div>
+                <div style={{ width: '24px', height: '24px', borderRadius: '50%', background: C.teal, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '12px', fontWeight: 900, color: 'var(--teal-light)', flexShrink: 0 }}>2</div>
                 <div style={{ fontSize: '13px', fontWeight: 800, color: C.text }}>Logo Variants</div>
               </div>
               <div style={{ fontSize: '12px', color: C.muted, marginBottom: '16px', paddingLeft: '34px' }}>Upload all logo versions — used across the website and in the media kit.</div>
+              {/* NOTE: the 4 boxes below are intentionally NOT theme-tokenized. They're a
+                  fixed dark/light contrast pair so the admin can preview how each logo
+                  variant looks against its intended background (white/light logos need a
+                  dark box, dark logos need a light box) — that pairing must hold regardless
+                  of the app's own light/dark theme, so left as literal fixed colors. */}
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', paddingLeft: '34px' }}>
                 <div style={{ background: '#0F1923', borderRadius: '10px', padding: '16px' }}>
                   <ImageUpload label="Primary Logo (colour)" value={settings.logo_primary_url ?? null} eventId={eventId} section="logo_primary" onUpload={v => setSettings(s => ({ ...s, logo_primary_url: v }))} />
@@ -1226,7 +1237,7 @@ export default function EventWebsiteAdmin({ params }: { params: Promise<{ id: st
             {/* Step 2b — Patterns & Section Backgrounds */}
             <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: '16px', padding: '24px' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '6px' }}>
-                <div style={{ width: '24px', height: '24px', borderRadius: '50%', background: '#6366F1', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '11px', fontWeight: 900, color: '#fff', flexShrink: 0 }}>2b</div>
+                <div style={{ width: '24px', height: '24px', borderRadius: '50%', background: 'var(--indigo)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '11px', fontWeight: 900, color: 'var(--indigo-light)', flexShrink: 0 }}>2b</div>
                 <div style={{ fontSize: '13px', fontWeight: 800, color: C.text }}>Patterns, Textures & Section Backgrounds</div>
               </div>
               <div style={{ fontSize: '12px', color: C.muted, marginBottom: '16px', paddingLeft: '34px' }}>Upload brand patterns and textures. Section backgrounds override the global theme per section.</div>
@@ -1237,7 +1248,7 @@ export default function EventWebsiteAdmin({ params }: { params: Promise<{ id: st
                     const k = `pattern_${n}_url` as keyof WebsiteSettings
                     const v = settings[k] as string | null
                     return (
-                      <div key={n} style={{ background: '#F8FAFF', border: `1px solid ${C.border}`, borderRadius: '10px', padding: '10px' }}>
+                      <div key={n} style={{ background: 'var(--card-hi)', border: `1px solid ${C.border}`, borderRadius: '10px', padding: '10px' }}>
                         {v && <div style={{ width: '100%', height: '56px', borderRadius: '6px', backgroundImage: `url(${v})`, backgroundSize: 'cover', backgroundPosition: 'center', marginBottom: '8px' }} />}
                         <ImageUpload label={`Pattern ${n}`} value={v ?? null} eventId={eventId} section={`pattern_${n}`} onUpload={val => setSettings(s => ({ ...s, [k]: val }))} />
                       </div>
@@ -1256,7 +1267,7 @@ export default function EventWebsiteAdmin({ params }: { params: Promise<{ id: st
             {/* Step 3 — Colours */}
             <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: '16px', padding: '24px' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '6px' }}>
-                <div style={{ width: '24px', height: '24px', borderRadius: '50%', background: C.teal, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '12px', fontWeight: 900, color: '#fff', flexShrink: 0 }}>3</div>
+                <div style={{ width: '24px', height: '24px', borderRadius: '50%', background: C.teal, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '12px', fontWeight: 900, color: 'var(--teal-light)', flexShrink: 0 }}>3</div>
                 <div style={{ fontSize: '13px', fontWeight: 800, color: C.text }}>Brand Colours</div>
               </div>
               <div style={{ fontSize: '12px', color: C.muted, marginBottom: '16px', paddingLeft: '34px' }}>
@@ -1331,7 +1342,7 @@ export default function EventWebsiteAdmin({ params }: { params: Promise<{ id: st
                       setSettings(s => ({ ...s, theme_primary: c1 ?? '#080A0C', theme_accent: c2 ?? '#E07B2C', theme_teal: c3 ?? '#00B4B0' }))
                       showMsg('Colours applied to website theme.')
                     }}
-                    style={{ padding: '10px 20px', borderRadius: '8px', border: 'none', background: C.green, color: C.text, fontSize: '12px', fontWeight: 800, cursor: 'pointer', fontFamily: 'inherit' }}>
+                    style={{ padding: '10px 20px', borderRadius: '8px', border: 'none', background: C.green, color: 'var(--lime-dark)', fontSize: '12px', fontWeight: 800, cursor: 'pointer', fontFamily: 'inherit' }}>
                     Apply Colours to Website Theme
                   </button>
                   {/* Live preview strip */}
@@ -1357,7 +1368,7 @@ export default function EventWebsiteAdmin({ params }: { params: Promise<{ id: st
             {/* Step 4 — Typography */}
             <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: '16px', padding: '24px' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '6px' }}>
-                <div style={{ width: '24px', height: '24px', borderRadius: '50%', background: C.teal, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '12px', fontWeight: 900, color: '#fff', flexShrink: 0 }}>4</div>
+                <div style={{ width: '24px', height: '24px', borderRadius: '50%', background: C.teal, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '12px', fontWeight: 900, color: 'var(--teal-light)', flexShrink: 0 }}>4</div>
                 <div style={{ fontSize: '13px', fontWeight: 800, color: C.text }}>Typography</div>
               </div>
               <div style={{ fontSize: '12px', color: C.muted, marginBottom: '16px', paddingLeft: '34px' }}>Font names from your brand document (must be available on Google Fonts).</div>
@@ -1367,7 +1378,7 @@ export default function EventWebsiteAdmin({ params }: { params: Promise<{ id: st
               </div>
               {(settings.brand_font_heading || settings.brand_font_body) && (
                 <div style={{ marginTop: '12px', paddingLeft: '34px' }}>
-                  <div style={{ padding: '14px 16px', borderRadius: '8px', background: '#F8FAFF', border: `1px solid ${C.border}` }}>
+                  <div style={{ padding: '14px 16px', borderRadius: '8px', background: 'var(--card-hi)', border: `1px solid ${C.border}` }}>
                     <div style={{ fontFamily: settings.brand_font_heading ?? 'inherit', fontSize: '22px', fontWeight: 900, color: C.text, marginBottom: '6px' }}>Heading Preview — {settings.brand_font_heading || 'system font'}</div>
                     <div style={{ fontFamily: settings.brand_font_body ?? 'inherit', fontSize: '14px', color: C.muted, lineHeight: 1.6 }}>Body text preview — {settings.brand_font_body || 'system font'}. The quick brown fox jumps over the lazy dog.</div>
                   </div>
@@ -1378,7 +1389,7 @@ export default function EventWebsiteAdmin({ params }: { params: Promise<{ id: st
             {/* Step 5 — Additional Assets */}
             <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: '16px', padding: '24px' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '6px' }}>
-                <div style={{ width: '24px', height: '24px', borderRadius: '50%', background: C.teal, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '12px', fontWeight: 900, color: '#fff', flexShrink: 0 }}>5</div>
+                <div style={{ width: '24px', height: '24px', borderRadius: '50%', background: C.teal, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '12px', fontWeight: 900, color: 'var(--teal-light)', flexShrink: 0 }}>5</div>
                 <div style={{ fontSize: '13px', fontWeight: 800, color: C.text }}>Media Kit & Brand Hub Links</div>
               </div>
               <div style={{ fontSize: '12px', color: C.muted, marginBottom: '16px', paddingLeft: '34px' }}>Links to the full brand hub and media kit — shown on the public event website.</div>
@@ -1391,7 +1402,7 @@ export default function EventWebsiteAdmin({ params }: { params: Promise<{ id: st
             {/* Save + Export */}
             <div style={{ display: 'flex', gap: '10px' }}>
               <button onClick={saveSettings} disabled={savingSettings}
-                style={{ padding: '12px 28px', borderRadius: '10px', border: 'none', background: C.green, color: C.text, fontSize: '13px', fontWeight: 800, cursor: 'pointer', fontFamily: 'inherit', opacity: savingSettings ? 0.6 : 1 }}>
+                style={{ padding: '12px 28px', borderRadius: '10px', border: 'none', background: C.green, color: 'var(--lime-dark)', fontSize: '13px', fontWeight: 800, cursor: 'pointer', fontFamily: 'inherit', opacity: savingSettings ? 0.6 : 1 }}>
                 {savingSettings ? 'Saving…' : 'Save Brand Settings'}
               </button>
               <button onClick={exportBrandConfig}
@@ -1424,7 +1435,7 @@ export default function EventWebsiteAdmin({ params }: { params: Promise<{ id: st
                     ].map((item, i) => (
                       <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '12px 14px', borderRadius: '10px', background: item.done ? `${C.teal}08` : C.bg, border: `1px solid ${item.done ? C.teal+'30' : C.border}` }}>
                         <div style={{ width: '24px', height: '24px', borderRadius: '50%', background: item.done ? C.teal : C.border, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                          {item.done ? <svg width="12" height="12" fill="none" stroke="#fff" strokeWidth="3" strokeLinecap="round" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg> : <span style={{ fontSize: '12px', fontWeight: 800, color: '#fff' }}>{i + 1}</span>}
+                          {item.done ? <svg width="12" height="12" fill="none" stroke="var(--teal-light)" strokeWidth="3" strokeLinecap="round" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg> : <span style={{ fontSize: '12px', fontWeight: 800, color: 'var(--teal-light)' }}>{i + 1}</span>}
                         </div>
                         <div style={{ flex: 1 }}>
                           <div style={{ fontSize: '13px', fontWeight: 700, color: C.text }}>{item.label}</div>
@@ -1475,7 +1486,7 @@ export default function EventWebsiteAdmin({ params }: { params: Promise<{ id: st
                       } catch (e) { showMsg(e instanceof Error ? e.message : 'Deployment failed') }
                       finally { setDeploying(false) }
                     }}
-                    style={{ padding: '12px 28px', background: (!selectedTemplate || deploying) ? C.muted : C.teal, color: '#fff', border: 'none', borderRadius: '10px', fontSize: '13px', fontWeight: 700, cursor: (!selectedTemplate || deploying) ? 'not-allowed' : 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    style={{ padding: '12px 28px', background: (!selectedTemplate || deploying) ? C.muted : C.teal, color: 'var(--teal-light)', border: 'none', borderRadius: '10px', fontSize: '13px', fontWeight: 700, cursor: (!selectedTemplate || deploying) ? 'not-allowed' : 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: '8px' }}>
                     {deploying
                       ? <><svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" viewBox="0 0 24 24" className="spin"><line x1="12" y1="2" x2="12" y2="6"/><line x1="12" y1="18" x2="12" y2="22"/><line x1="4.93" y1="4.93" x2="7.76" y2="7.76"/><line x1="16.24" y1="16.24" x2="19.07" y2="19.07"/><line x1="2" y1="12" x2="6" y2="12"/><line x1="18" y1="12" x2="22" y2="12"/></svg> Creating site...</>
                       : <><svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" viewBox="0 0 24 24"><polyline points="16 16 12 12 8 16"/><line x1="12" y1="12" x2="12" y2="21"/><path d="M20.39 18.39A5 5 0 0018 9h-1.26A8 8 0 103 16.3"/></svg> Create &amp; Deploy Site</>
@@ -1510,7 +1521,7 @@ export default function EventWebsiteAdmin({ params }: { params: Promise<{ id: st
 
               {/* Status header */}
               <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: '16px', padding: '24px 28px', display: 'flex', alignItems: 'center', gap: '16px', flexWrap: 'wrap' }}>
-                <div style={{ width: '44px', height: '44px', borderRadius: '12px', background: isLive ? 'rgba(0,105,92,0.1)' : 'rgba(245,158,11,0.1)', border: `1px solid ${isLive ? C.teal+'44' : C.amber+'44'}`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                <div style={{ width: '44px', height: '44px', borderRadius: '12px', background: isLive ? 'rgba(14,167,157,0.1)' : 'rgba(245,185,77,0.1)', border: `1px solid ${isLive ? C.teal+'44' : C.amber+'44'}`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
                   {isLive
                     ? <svg width="20" height="20" fill="none" stroke={C.teal} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>
                     : <svg width="20" height="20" fill="none" stroke={C.amber} strokeWidth="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
@@ -1527,7 +1538,7 @@ export default function EventWebsiteAdmin({ params }: { params: Promise<{ id: st
                 </div>
                 {site.site_url && (
                   <a href={site.site_url} target="_blank" rel="noreferrer"
-                    style={{ padding: '10px 20px', background: C.teal, color: '#fff', borderRadius: '9px', fontSize: '13px', fontWeight: 700, textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0 }}>
+                    style={{ padding: '10px 20px', background: C.teal, color: 'var(--teal-light)', borderRadius: '9px', fontSize: '13px', fontWeight: 700, textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0 }}>
                     <svg width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
                     Visit Live Site
                   </a>
@@ -1540,6 +1551,8 @@ export default function EventWebsiteAdmin({ params }: { params: Promise<{ id: st
                 {/* GitHub repo */}
                 <a href={site.repo_url} target="_blank" rel="noreferrer"
                   style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: '12px', padding: '20px', textDecoration: 'none', display: 'flex', flexDirection: 'column', gap: '10px', transition: 'border-color 0.15s' }}>
+                  {/* Icon tile intentionally left as GitHub's own near-black brand
+                      background (matches the Actions tile below) — not app chrome. */}
                   <div style={{ width: '36px', height: '36px', borderRadius: '9px', background: '#0F1923', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                     <svg width="18" height="18" viewBox="0 0 24 24" fill="#fff"><path d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.531 1.032 1.531 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z"/></svg>
                   </div>
@@ -1554,6 +1567,8 @@ export default function EventWebsiteAdmin({ params }: { params: Promise<{ id: st
                 {site.gh_actions_url && (
                   <a href={site.gh_actions_url} target="_blank" rel="noreferrer"
                     style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: '12px', padding: '20px', textDecoration: 'none', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                    {/* #161b22 / #f0883e are GitHub's own brand colours (Actions log
+                        tile) — intentionally left as literal, not app theme chrome. */}
                     <div style={{ width: '36px', height: '36px', borderRadius: '9px', background: '#161b22', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                       <svg width="18" height="18" fill="none" stroke="#f0883e" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
                     </div>
@@ -1590,7 +1605,7 @@ export default function EventWebsiteAdmin({ params }: { params: Promise<{ id: st
                       } catch (e) { setMsg(String(e)); setMsgOk(false) }
                       setSyncingDeploy(false)
                     }}
-                    style={{ padding: '8px 16px', background: syncingDeploy ? C.muted : C.teal, color: '#fff', border: 'none', borderRadius: '7px', fontSize: '12px', fontWeight: 700, cursor: syncingDeploy ? 'not-allowed' : 'pointer', fontFamily: 'inherit', width: 'fit-content' }}>
+                    style={{ padding: '8px 16px', background: syncingDeploy ? C.muted : C.teal, color: 'var(--teal-light)', border: 'none', borderRadius: '7px', fontSize: '12px', fontWeight: 700, cursor: syncingDeploy ? 'not-allowed' : 'pointer', fontFamily: 'inherit', width: 'fit-content' }}>
                     {syncingDeploy ? 'Syncing…' : 'Sync Now'}
                   </button>
                 </div>
@@ -1614,7 +1629,7 @@ export default function EventWebsiteAdmin({ params }: { params: Promise<{ id: st
         {/* ── SETTINGS ─────────────────────────────────────────────────── */}
         {tab === 'content' && existingSite && (
           /* ── Site sync status banner ──────────────────────────────────── */
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', background: contentSyncError ? 'rgba(255,107,107,0.08)' : contentSyncing ? 'rgba(0,105,92,0.06)' : 'rgba(192,244,60,0.07)', border: `1px solid ${contentSyncError ? C.red+'44' : contentSyncing ? C.teal+'44' : C.green+'44'}`, borderRadius: '10px', padding: '10px 16px', marginBottom: '14px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', background: contentSyncError ? 'rgba(241,102,122,0.08)' : contentSyncing ? 'rgba(14,167,157,0.06)' : 'rgba(192,244,60,0.07)', border: `1px solid ${contentSyncError ? C.red+'44' : contentSyncing ? C.teal+'44' : C.green+'44'}`, borderRadius: '10px', padding: '10px 16px', marginBottom: '14px' }}>
             {contentSyncing ? (
               <>
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={C.teal} strokeWidth="2.5" strokeLinecap="round"><path d="M21 12a9 9 0 11-6.219-8.56"/></svg>
@@ -1652,7 +1667,7 @@ export default function EventWebsiteAdmin({ params }: { params: Promise<{ id: st
               { id: 'team',     label: `Team${team.length ? ` (${team.length})` : ''}` },
             ] as { id: ContentTab; label: string }[]).map(ct => (
               <button key={ct.id} onClick={() => setContentTab(ct.id)}
-                style={{ padding: '7px 16px', borderRadius: '7px', border: 'none', background: contentTab === ct.id ? C.text : 'transparent', color: contentTab === ct.id ? C.green : C.muted, fontSize: '12px', fontWeight: contentTab === ct.id ? 700 : 500, cursor: 'pointer', fontFamily: 'inherit' }}>
+                style={{ padding: '7px 16px', borderRadius: '7px', border: 'none', background: contentTab === ct.id ? 'var(--surface)' : 'transparent', color: contentTab === ct.id ? 'var(--lime)' : C.muted, fontSize: '12px', fontWeight: contentTab === ct.id ? 700 : 500, cursor: 'pointer', fontFamily: 'inherit' }}>
                 {ct.label}
               </button>
             ))}
@@ -1755,7 +1770,7 @@ export default function EventWebsiteAdmin({ params }: { params: Promise<{ id: st
             {/* Save button */}
             <div style={{ gridColumn: '1/-1', display: 'flex', gap: '10px' }}>
               <button onClick={saveSettings} disabled={savingSettings}
-                style={{ padding: '12px 28px', borderRadius: '10px', border: 'none', background: C.green, color: C.text, fontSize: '13px', fontWeight: 800, cursor: 'pointer', fontFamily: 'inherit', opacity: savingSettings ? 0.6 : 1 }}>
+                style={{ padding: '12px 28px', borderRadius: '10px', border: 'none', background: C.green, color: 'var(--lime-dark)', fontSize: '13px', fontWeight: 800, cursor: 'pointer', fontFamily: 'inherit', opacity: savingSettings ? 0.6 : 1 }}>
                 {savingSettings ? 'Saving…' : 'Save Settings'}
               </button>
             </div>
@@ -1823,7 +1838,7 @@ export default function EventWebsiteAdmin({ params }: { params: Promise<{ id: st
                             <input value={item.author??''} onChange={e => patchItem(pid,sid,item.id,{author:e.target.value})} placeholder="Full Name" style={{ padding:'6px 9px', borderRadius:'6px', border:`1px solid ${C.border}`, fontSize:'13px', fontFamily:'inherit', color:C.text }} />
                             <input value={item.role??''} onChange={e => patchItem(pid,sid,item.id,{role:e.target.value})} placeholder="Title, Company" style={{ padding:'6px 9px', borderRadius:'6px', border:`1px solid ${C.border}`, fontSize:'13px', fontFamily:'inherit', color:C.text }} />
                             <input value={item.photo_url??''} onChange={e => patchItem(pid,sid,item.id,{photo_url:e.target.value})} placeholder="Photo URL (optional)" style={{ padding:'6px 9px', borderRadius:'6px', border:`1px solid ${C.border}`, fontSize:'13px', fontFamily:'inherit', color:C.text }} />
-                            <button onClick={() => removeItem(pid,sid,item.id)} style={{ padding:'6px', borderRadius:'6px', border:`1px solid rgba(255,107,107,.25)`, background:'rgba(255,107,107,.06)', color:C.red, fontSize:'12px', cursor:'pointer', fontFamily:'inherit' }}>Remove</button>
+                            <button onClick={() => removeItem(pid,sid,item.id)} style={{ padding:'6px', borderRadius:'6px', border:`1px solid rgba(241,102,122,.25)`, background:'rgba(241,102,122,.06)', color:C.red, fontSize:'12px', cursor:'pointer', fontFamily:'inherit' }}>Remove</button>
                           </div>
                         ))}
                         <button onClick={() => addItem(pid,sid,{quote:'',author:'',role:''})}
@@ -1845,7 +1860,7 @@ export default function EventWebsiteAdmin({ params }: { params: Promise<{ id: st
                           <div key={item.id} style={{ background:C.bg, border:`1px solid ${C.border}`, borderRadius:'10px', padding:'14px', display:'flex', flexDirection:'column', gap:'8px' }}>
                             <input value={item.question??''} onChange={e => patchItem(pid,sid,item.id,{question:e.target.value})} placeholder="Question" style={{ padding:'6px 9px', borderRadius:'6px', border:`1px solid ${C.border}`, fontSize:'13px', fontFamily:'inherit', color:C.text }} />
                             <textarea value={item.answer??''} onChange={e => patchItem(pid,sid,item.id,{answer:e.target.value})} placeholder="Answer..." rows={3} style={{ padding:'6px 9px', borderRadius:'6px', border:`1px solid ${C.border}`, fontSize:'13px', fontFamily:'inherit', color:C.text, resize:'vertical' }} />
-                            <button onClick={() => removeItem(pid,sid,item.id)} style={{ alignSelf:'flex-end', padding:'5px 12px', borderRadius:'6px', border:`1px solid rgba(255,107,107,.25)`, background:'rgba(255,107,107,.06)', color:C.red, fontSize:'12px', cursor:'pointer', fontFamily:'inherit' }}>Remove</button>
+                            <button onClick={() => removeItem(pid,sid,item.id)} style={{ alignSelf:'flex-end', padding:'5px 12px', borderRadius:'6px', border:`1px solid rgba(241,102,122,.25)`, background:'rgba(241,102,122,.06)', color:C.red, fontSize:'12px', cursor:'pointer', fontFamily:'inherit' }}>Remove</button>
                           </div>
                         ))}
                         <button onClick={() => addItem(pid,sid,{question:'',answer:''})}
@@ -1868,7 +1883,7 @@ export default function EventWebsiteAdmin({ params }: { params: Promise<{ id: st
                             {item.image_url && <div style={{ width:'44px', height:'36px', borderRadius:'6px', backgroundImage:`url(${item.image_url})`, backgroundSize:'cover', flexShrink:0 }} />}
                             <input value={item.image_url??''} onChange={e => patchItem(pid,sid,item.id,{image_url:e.target.value})} placeholder="Image URL" style={{ flex:1, padding:'6px 9px', borderRadius:'6px', border:`1px solid ${C.border}`, fontSize:'13px', fontFamily:'inherit', color:C.text }} />
                             <input value={item.caption??''} onChange={e => patchItem(pid,sid,item.id,{caption:e.target.value})} placeholder="Caption" style={{ width:'120px', padding:'6px 9px', borderRadius:'6px', border:`1px solid ${C.border}`, fontSize:'13px', fontFamily:'inherit', color:C.text }} />
-                            <button onClick={() => removeItem(pid,sid,item.id)} style={{ padding:'5px 8px', borderRadius:'5px', border:`1px solid rgba(255,107,107,.25)`, background:'rgba(255,107,107,.06)', color:C.red, fontSize:'14px', cursor:'pointer', fontFamily:'inherit', flexShrink:0 }}>×</button>
+                            <button onClick={() => removeItem(pid,sid,item.id)} style={{ padding:'5px 8px', borderRadius:'5px', border:`1px solid rgba(241,102,122,.25)`, background:'rgba(241,102,122,.06)', color:C.red, fontSize:'14px', cursor:'pointer', fontFamily:'inherit', flexShrink:0 }}>×</button>
                           </div>
                         ))}
                         <button onClick={() => addItem(pid,sid,{image_url:'',caption:''})}
@@ -1891,7 +1906,7 @@ export default function EventWebsiteAdmin({ params }: { params: Promise<{ id: st
                           <div key={item.id} style={{ display:'flex', gap:'8px' }}>
                             <input value={item.label??''} onChange={e => patchItem(pid,sid,item.id,{label:e.target.value})} placeholder={i===0?'Primary label':'Secondary label'} style={{ width:'160px', padding:'6px 9px', borderRadius:'6px', border:`1px solid ${C.border}`, fontSize:'13px', fontFamily:'inherit', color:C.text }} />
                             <input value={item.href??''} onChange={e => patchItem(pid,sid,item.id,{href:e.target.value})} placeholder="URL or page-slug" style={{ flex:1, padding:'6px 9px', borderRadius:'6px', border:`1px solid ${C.border}`, fontSize:'13px', fontFamily:'inherit', color:C.text }} />
-                            <button onClick={() => removeItem(pid,sid,item.id)} style={{ padding:'5px 8px', borderRadius:'5px', border:`1px solid rgba(255,107,107,.25)`, background:'rgba(255,107,107,.06)', color:C.red, fontSize:'14px', cursor:'pointer', fontFamily:'inherit', flexShrink:0 }}>×</button>
+                            <button onClick={() => removeItem(pid,sid,item.id)} style={{ padding:'5px 8px', borderRadius:'5px', border:`1px solid rgba(241,102,122,.25)`, background:'rgba(241,102,122,.06)', color:C.red, fontSize:'14px', cursor:'pointer', fontFamily:'inherit', flexShrink:0 }}>×</button>
                           </div>
                         ))}
                         {items.length < 3 && (
@@ -1935,7 +1950,7 @@ export default function EventWebsiteAdmin({ params }: { params: Promise<{ id: st
                   <>
                     {dashSections.map(sec => secContentEditor(cspPage, sec))}
                     <button onClick={saveBuilder} disabled={savingBuilder}
-                      style={{ width:'100%', padding:'12px', borderRadius:'10px', border:'none', background:C.green, color:C.text, fontSize:'14px', fontWeight:800, cursor:'pointer', fontFamily:'inherit', opacity:savingBuilder?0.6:1, marginTop:'8px' }}>
+                      style={{ width:'100%', padding:'12px', borderRadius:'10px', border:'none', background:C.green, color:'var(--lime-dark)', fontSize:'14px', fontWeight:800, cursor:'pointer', fontFamily:'inherit', opacity:savingBuilder?0.6:1, marginTop:'8px' }}>
                       {savingBuilder ? 'Saving…' : 'Save All Changes'}
                     </button>
                   </>
@@ -1959,7 +1974,7 @@ export default function EventWebsiteAdmin({ params }: { params: Promise<{ id: st
                   {syncing ? 'Syncing…' : '⟳ Sync to KonfHub'}
                 </button>
                 <button onClick={() => { setEditSpeaker({ tier: 'speaker', status: 'approved', active: true, dial_code: '+971', country: 'UAE' }); setSpModal(true) }}
-                  style={{ padding: '9px 18px', borderRadius: '8px', border: 'none', background: C.green, color: C.text, fontSize: '12px', fontWeight: 800, cursor: 'pointer', fontFamily: 'inherit' }}>
+                  style={{ padding: '9px 18px', borderRadius: '8px', border: 'none', background: C.green, color: 'var(--lime-dark)', fontSize: '12px', fontWeight: 800, cursor: 'pointer', fontFamily: 'inherit' }}>
                   + Add Speaker
                 </button>
               </div>
@@ -1976,7 +1991,7 @@ export default function EventWebsiteAdmin({ params }: { params: Promise<{ id: st
                           // eslint-disable-next-line @next/next/no-img-element
                           <img src={sp.photo_url} alt={sp.name} style={{ width: '40px', height: '40px', borderRadius: '20px', objectFit: 'cover', flexShrink: 0 }} />
                         ) : (
-                          <div style={{ width: '40px', height: '40px', borderRadius: '20px', background: '#E07B2C22', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '16px', fontWeight: 800, color: '#E07B2C' }}>{sp.name.charAt(0)}</div>
+                          <div style={{ width: '40px', height: '40px', borderRadius: '20px', background: '#FB923C22', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '16px', fontWeight: 800, color: 'var(--orange)' }}>{sp.name.charAt(0)}</div>
                         )}
                         <div style={{ flex: 1, minWidth: 0 }}>
                           <div style={{ fontWeight: 700, fontSize: '14px', color: C.text }}>{sp.name}</div>
@@ -1986,13 +2001,13 @@ export default function EventWebsiteAdmin({ params }: { params: Promise<{ id: st
                           <StatusDot booking={sp.konfhub_booking_id} />
                           <Tag color={sp.status === 'approved' ? C.teal : sp.status === 'rejected' ? C.red : C.amber}>{sp.status}</Tag>
                           {!sp.active && <Tag color={C.muted}>hidden</Tag>}
-                          {sp.konfhub_booking_id && <Tag color="#22C55E">KonfHub ✓</Tag>}
+                          {sp.konfhub_booking_id && <Tag color="#34D399">KonfHub ✓</Tag>}
                         </div>
                         <div style={{ display: 'flex', gap: '6px', flexShrink: 0 }}>
                           <button onClick={() => { setEditSpeaker(sp); setSpModal(true) }}
-                            style={{ padding: '5px 12px', borderRadius: '6px', border: `1px solid ${C.border}`, background: '#F8FAFF', color: C.sub, fontSize: '11px', cursor: 'pointer', fontFamily: 'inherit' }}>Edit</button>
+                            style={{ padding: '5px 12px', borderRadius: '6px', border: `1px solid ${C.border}`, background: 'var(--card-hi)', color: C.sub, fontSize: '11px', cursor: 'pointer', fontFamily: 'inherit' }}>Edit</button>
                           <button onClick={() => deleteSpeaker(sp.id)}
-                            style={{ padding: '5px 10px', borderRadius: '6px', border: `1px solid rgba(255,107,107,0.3)`, background: 'rgba(255,107,107,0.08)', color: C.red, fontSize: '11px', cursor: 'pointer', fontFamily: 'inherit' }}>×</button>
+                            style={{ padding: '5px 10px', borderRadius: '6px', border: `1px solid rgba(241,102,122,0.3)`, background: 'rgba(241,102,122,0.08)', color: C.red, fontSize: '11px', cursor: 'pointer', fontFamily: 'inherit' }}>×</button>
                         </div>
                       </div>
                     ))}
@@ -2017,7 +2032,7 @@ export default function EventWebsiteAdmin({ params }: { params: Promise<{ id: st
                 <div style={{ fontSize: '12px', color: C.muted, marginTop: '2px' }}>{agenda.length} sessions across {Object.keys(agByDay).length} day(s)</div>
               </div>
               <button onClick={() => { setEditAgenda({ day: 1, type: 'session', active: true }); setAgModal(true) }}
-                style={{ padding: '9px 18px', borderRadius: '8px', border: 'none', background: C.green, color: C.text, fontSize: '12px', fontWeight: 800, cursor: 'pointer', fontFamily: 'inherit' }}>
+                style={{ padding: '9px 18px', borderRadius: '8px', border: 'none', background: C.green, color: 'var(--lime-dark)', fontSize: '12px', fontWeight: 800, cursor: 'pointer', fontFamily: 'inherit' }}>
                 + Add Session
               </button>
             </div>
@@ -2041,9 +2056,9 @@ export default function EventWebsiteAdmin({ params }: { params: Promise<{ id: st
                         </div>
                         <div style={{ display: 'flex', gap: '6px', flexShrink: 0 }}>
                           <button onClick={() => { setEditAgenda(ag); setAgModal(true) }}
-                            style={{ padding: '5px 12px', borderRadius: '6px', border: `1px solid ${C.border}`, background: '#F8FAFF', color: C.sub, fontSize: '11px', cursor: 'pointer', fontFamily: 'inherit' }}>Edit</button>
+                            style={{ padding: '5px 12px', borderRadius: '6px', border: `1px solid ${C.border}`, background: 'var(--card-hi)', color: C.sub, fontSize: '11px', cursor: 'pointer', fontFamily: 'inherit' }}>Edit</button>
                           <button onClick={() => deleteAgenda(ag.id)}
-                            style={{ padding: '5px 10px', borderRadius: '6px', border: `1px solid rgba(255,107,107,0.3)`, background: 'rgba(255,107,107,0.08)', color: C.red, fontSize: '11px', cursor: 'pointer', fontFamily: 'inherit' }}>×</button>
+                            style={{ padding: '5px 10px', borderRadius: '6px', border: `1px solid rgba(241,102,122,0.3)`, background: 'rgba(241,102,122,0.08)', color: C.red, fontSize: '11px', cursor: 'pointer', fontFamily: 'inherit' }}>×</button>
                         </div>
                       </div>
                     ))}
@@ -2068,7 +2083,7 @@ export default function EventWebsiteAdmin({ params }: { params: Promise<{ id: st
                 <div style={{ fontSize: '12px', color: C.muted, marginTop: '2px' }}>{sponsors.length} total</div>
               </div>
               <button onClick={() => { setEditSponsor({ tier: 'gold', active: true }); setSpnModal(true) }}
-                style={{ padding: '9px 18px', borderRadius: '8px', border: 'none', background: C.green, color: C.text, fontSize: '12px', fontWeight: 800, cursor: 'pointer', fontFamily: 'inherit' }}>
+                style={{ padding: '9px 18px', borderRadius: '8px', border: 'none', background: C.green, color: 'var(--lime-dark)', fontSize: '12px', fontWeight: 800, cursor: 'pointer', fontFamily: 'inherit' }}>
                 + Add Sponsor
               </button>
             </div>
@@ -2091,7 +2106,7 @@ export default function EventWebsiteAdmin({ params }: { params: Promise<{ id: st
                           <button onClick={() => { setEditSponsor(sp); setSpnModal(true) }}
                             style={{ flex: 1, padding: '5px', borderRadius: '6px', border: `1px solid ${C.border}`, background: C.surface, color: C.sub, fontSize: '11px', cursor: 'pointer', fontFamily: 'inherit' }}>Edit</button>
                           <button onClick={() => deleteSponsor(sp.id)}
-                            style={{ padding: '5px 10px', borderRadius: '6px', border: `1px solid rgba(255,107,107,0.3)`, background: 'rgba(255,107,107,0.08)', color: C.red, fontSize: '11px', cursor: 'pointer', fontFamily: 'inherit' }}>×</button>
+                            style={{ padding: '5px 10px', borderRadius: '6px', border: `1px solid rgba(241,102,122,0.3)`, background: 'rgba(241,102,122,0.08)', color: C.red, fontSize: '11px', cursor: 'pointer', fontFamily: 'inherit' }}>×</button>
                         </div>
                       </div>
                     ))}
@@ -2116,7 +2131,7 @@ export default function EventWebsiteAdmin({ params }: { params: Promise<{ id: st
                 <div style={{ fontSize: '12px', color: C.muted, marginTop: '2px' }}>Manage who can contribute to this event website.</div>
               </div>
               <button onClick={() => { setEditTeam({ role: 'content', status: 'pending' }); setTeamModal(true) }}
-                style={{ padding: '9px 18px', borderRadius: '8px', border: 'none', background: C.green, color: C.text, fontSize: '12px', fontWeight: 800, cursor: 'pointer', fontFamily: 'inherit' }}>
+                style={{ padding: '9px 18px', borderRadius: '8px', border: 'none', background: C.green, color: 'var(--lime-dark)', fontSize: '12px', fontWeight: 800, cursor: 'pointer', fontFamily: 'inherit' }}>
                 + Add Member
               </button>
             </div>
@@ -2141,7 +2156,7 @@ export default function EventWebsiteAdmin({ params }: { params: Promise<{ id: st
                 <div style={{ fontSize: '11px', fontWeight: 800, color: C.amber, letterSpacing: '1px', textTransform: 'uppercase', marginBottom: '10px' }}>
                   Pending Approvals ({speakers.filter(s => s.status === 'pending').length})
                 </div>
-                <div style={{ background: C.surface, border: `1px solid rgba(245,158,11,0.3)`, borderRadius: '14px', overflow: 'hidden' }}>
+                <div style={{ background: C.surface, border: `1px solid rgba(245,185,77,0.3)`, borderRadius: '14px', overflow: 'hidden' }}>
                   {speakers.filter(s => s.status === 'pending').map((sp, i, arr) => (
                     <div key={sp.id} style={{ display: 'flex', alignItems: 'center', gap: '14px', padding: '14px 20px', borderBottom: i < arr.length-1 ? `1px solid ${C.border}` : 'none' }}>
                       <div style={{ flex: 1 }}>
@@ -2152,7 +2167,7 @@ export default function EventWebsiteAdmin({ params }: { params: Promise<{ id: st
                         <button onClick={async () => { await fetch(`/api/events/speakers?id=${sp.id}`, { method: 'PATCH', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ status: 'approved', active: true }) }); loadSpeakers(); showMsg(`${sp.name} approved.`) }}
                           style={{ padding: '6px 14px', borderRadius: '6px', border: 'none', background: 'rgba(192,244,60,0.15)', color: C.teal, fontSize: '12px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>Approve</button>
                         <button onClick={async () => { await fetch(`/api/events/speakers?id=${sp.id}`, { method: 'PATCH', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ status: 'rejected' }) }); loadSpeakers(); showMsg(`Rejected.`, false) }}
-                          style={{ padding: '6px 14px', borderRadius: '6px', border: `1px solid rgba(255,107,107,0.3)`, background: 'rgba(255,107,107,0.08)', color: C.red, fontSize: '12px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>Reject</button>
+                          style={{ padding: '6px 14px', borderRadius: '6px', border: `1px solid rgba(241,102,122,0.3)`, background: 'rgba(241,102,122,0.08)', color: C.red, fontSize: '12px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>Reject</button>
                       </div>
                     </div>
                   ))}
@@ -2178,10 +2193,10 @@ export default function EventWebsiteAdmin({ params }: { params: Promise<{ id: st
                       <div style={{ fontSize: '12px', color: C.muted }}>{m.email}</div>
                     </div>
                     <span style={{ fontSize: '11px', fontWeight: 700, padding: '2px 8px', borderRadius: '20px', background: m.role === 'admin' ? `${C.purple}18` : m.role === 'design' ? `${C.amber}18` : `${C.teal}18`, color: m.role === 'admin' ? C.purple : m.role === 'design' ? C.amber : C.teal }}>{m.role}</span>
-                    <span style={{ fontSize: '11px', fontWeight: 700, padding: '2px 8px', borderRadius: '20px', background: m.status === 'accepted' ? 'rgba(192,244,60,0.12)' : 'rgba(91,112,128,0.1)', color: m.status === 'accepted' ? C.teal : C.muted }}>{m.status}</span>
+                    <span style={{ fontSize: '11px', fontWeight: 700, padding: '2px 8px', borderRadius: '20px', background: m.status === 'accepted' ? 'rgba(192,244,60,0.12)' : 'rgba(126,147,161,0.1)', color: m.status === 'accepted' ? C.teal : C.muted }}>{m.status}</span>
                     <div style={{ display: 'flex', gap: '6px' }}>
-                      <button onClick={() => { setEditTeam(m); setTeamModal(true) }} style={{ padding: '5px 12px', borderRadius: '6px', border: `1px solid ${C.border}`, background: '#F8FAFF', color: C.sub, fontSize: '11px', cursor: 'pointer', fontFamily: 'inherit' }}>Edit</button>
-                      <button onClick={() => deleteTeamMember(m.id)} style={{ padding: '5px 10px', borderRadius: '6px', border: `1px solid rgba(255,107,107,0.3)`, background: 'rgba(255,107,107,0.08)', color: C.red, fontSize: '11px', cursor: 'pointer', fontFamily: 'inherit' }}>×</button>
+                      <button onClick={() => { setEditTeam(m); setTeamModal(true) }} style={{ padding: '5px 12px', borderRadius: '6px', border: `1px solid ${C.border}`, background: 'var(--card-hi)', color: C.sub, fontSize: '11px', cursor: 'pointer', fontFamily: 'inherit' }}>Edit</button>
+                      <button onClick={() => deleteTeamMember(m.id)} style={{ padding: '5px 10px', borderRadius: '6px', border: `1px solid rgba(241,102,122,0.3)`, background: 'rgba(241,102,122,0.08)', color: C.red, fontSize: '11px', cursor: 'pointer', fontFamily: 'inherit' }}>×</button>
                     </div>
                   </div>
                 ))}
@@ -2198,7 +2213,7 @@ export default function EventWebsiteAdmin({ params }: { params: Promise<{ id: st
             <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: '16px', overflow: 'hidden' }}>
               <div style={{ padding: '20px 24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: `1px solid ${C.border}` }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                  <div style={{ width: '26px', height: '26px', borderRadius: '50%', background: C.teal, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '12px', fontWeight: 900, color: '#fff' }}>1</div>
+                  <div style={{ width: '26px', height: '26px', borderRadius: '50%', background: C.teal, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '12px', fontWeight: 900, color: 'var(--teal-light)' }}>1</div>
                   <span style={{ fontSize: '15px', fontWeight: 800, color: C.text }}>Preview & test all links</span>
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
@@ -2227,6 +2242,8 @@ export default function EventWebsiteAdmin({ params }: { params: Promise<{ id: st
                 </div>
               </div>
               {settings.slug ? (
+                // Letterboxing behind the live-preview iframe — intentionally always
+                // near-black regardless of app theme (frames the TENANT's public site).
                 <div style={{ background: '#0a0a0a', display: 'flex', justifyContent: 'center', padding: previewDevice==='desktop'?'0':'20px 20px 0', minHeight: '600px' }}>
                   <iframe
                     key={previewDevice}
@@ -2250,7 +2267,7 @@ export default function EventWebsiteAdmin({ params }: { params: Promise<{ id: st
             {/* ── Step 2: Publish ──────────────────────────────────────── */}
             <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: '16px', padding: '24px' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '18px' }}>
-                <div style={{ width: '26px', height: '26px', borderRadius: '50%', background: '#6366F1', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '12px', fontWeight: 900, color: '#fff' }}>2</div>
+                <div style={{ width: '26px', height: '26px', borderRadius: '50%', background: 'var(--indigo)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '12px', fontWeight: 900, color: 'var(--indigo-light)' }}>2</div>
                 <div>
                   <div style={{ fontSize: '15px', fontWeight: 800, color: C.text }}>Publish to the web</div>
                   <div style={{ fontSize: '12px', color: C.muted, marginTop: '2px' }}>
@@ -2259,7 +2276,7 @@ export default function EventWebsiteAdmin({ params }: { params: Promise<{ id: st
                       : 'Draft — not yet visible to the public'}
                   </div>
                 </div>
-                <div style={{ marginLeft: 'auto', padding: '5px 12px', borderRadius: '20px', background: settings.status==='live'?'rgba(192,244,60,0.12)':'rgba(91,112,128,0.1)', fontSize: '11px', fontWeight: 700, color: settings.status==='live'?C.teal:C.muted }}>
+                <div style={{ marginLeft: 'auto', padding: '5px 12px', borderRadius: '20px', background: settings.status==='live'?'rgba(192,244,60,0.12)':'rgba(126,147,161,0.1)', fontSize: '11px', fontWeight: 700, color: settings.status==='live'?C.teal:C.muted }}>
                   {settings.status === 'live' ? 'LIVE' : 'DRAFT'}
                 </div>
               </div>
@@ -2267,32 +2284,32 @@ export default function EventWebsiteAdmin({ params }: { params: Promise<{ id: st
               <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
                 {settings.status !== 'live' && (
                   <button onClick={publishDraft} disabled={publishing}
-                    style={{ padding: '10px 22px', borderRadius: '10px', border: 'none', background: C.green, color: C.text, fontSize: '13px', fontWeight: 800, cursor: 'pointer', fontFamily: 'inherit', opacity: publishing ? 0.6 : 1 }}>
+                    style={{ padding: '10px 22px', borderRadius: '10px', border: 'none', background: C.green, color: 'var(--lime-dark)', fontSize: '13px', fontWeight: 800, cursor: 'pointer', fontFamily: 'inherit', opacity: publishing ? 0.6 : 1 }}>
                     {publishing ? 'Publishing…' : 'Publish Live'}
                   </button>
                 )}
                 {settings.status === 'live' && settings.draft_structure && (
                   <button onClick={publishDraft} disabled={publishing}
-                    style={{ padding: '10px 22px', borderRadius: '10px', border: 'none', background: C.green, color: C.text, fontSize: '13px', fontWeight: 800, cursor: 'pointer', fontFamily: 'inherit', opacity: publishing ? 0.6 : 1 }}>
+                    style={{ padding: '10px 22px', borderRadius: '10px', border: 'none', background: C.green, color: 'var(--lime-dark)', fontSize: '13px', fontWeight: 800, cursor: 'pointer', fontFamily: 'inherit', opacity: publishing ? 0.6 : 1 }}>
                     {publishing ? 'Publishing…' : 'Replace live with draft'}
                   </button>
                 )}
                 {settings.status === 'live' && (
                   <button onClick={unpublish} disabled={savingSettings}
-                    style={{ padding: '10px 22px', borderRadius: '10px', border: `1px solid rgba(255,107,107,0.3)`, background: 'rgba(255,107,107,0.08)', color: C.red, fontSize: '13px', fontWeight: 800, cursor: 'pointer', fontFamily: 'inherit', opacity: savingSettings ? 0.6 : 1 }}>
+                    style={{ padding: '10px 22px', borderRadius: '10px', border: `1px solid rgba(241,102,122,0.3)`, background: 'rgba(241,102,122,0.08)', color: C.red, fontSize: '13px', fontWeight: 800, cursor: 'pointer', fontFamily: 'inherit', opacity: savingSettings ? 0.6 : 1 }}>
                     Unpublish
                   </button>
                 )}
                 {settings.published_snapshot && (
                   <button onClick={rollback} disabled={rollbacking}
-                    style={{ padding: '10px 22px', borderRadius: '10px', border: `1px solid ${C.border}`, background: '#F8FAFF', color: C.sub, fontSize: '13px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', opacity: rollbacking ? 0.6 : 1 }}>
+                    style={{ padding: '10px 22px', borderRadius: '10px', border: `1px solid ${C.border}`, background: 'var(--card-hi)', color: C.sub, fontSize: '13px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', opacity: rollbacking ? 0.6 : 1 }}>
                     {rollbacking ? 'Rolling back…' : 'Rollback to previous'}
                   </button>
                 )}
               </div>
 
               {settings.status === 'live' && !settings.draft_structure && (
-                <div style={{ marginTop: '14px', padding: '10px 14px', borderRadius: '8px', background: 'rgba(0,105,92,0.06)', border: `1px solid rgba(0,105,92,0.18)`, fontSize: '12px', color: C.teal }}>
+                <div style={{ marginTop: '14px', padding: '10px 14px', borderRadius: '8px', background: 'rgba(14,167,157,0.06)', border: `1px solid rgba(14,167,157,0.18)`, fontSize: '12px', color: C.teal }}>
                   Site is live. To make changes, go to Step 2 (Build) and click &ldquo;Edit current site&rdquo; or &ldquo;Start fresh redesign&rdquo;.
                 </div>
               )}
@@ -2301,7 +2318,7 @@ export default function EventWebsiteAdmin({ params }: { params: Promise<{ id: st
             {/* ── Step 3: Custom domain via Cloudflare ─────────────────── */}
             <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: '16px', padding: '24px' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '18px' }}>
-                <div style={{ width: '26px', height: '26px', borderRadius: '50%', background: '#F59E0B', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '12px', fontWeight: 900, color: '#fff' }}>3</div>
+                <div style={{ width: '26px', height: '26px', borderRadius: '50%', background: 'var(--amber)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '12px', fontWeight: 900, color: 'var(--amber-light)' }}>3</div>
                 <div>
                   <div style={{ fontSize: '15px', fontWeight: 800, color: C.text }}>Connect custom domain</div>
                   <div style={{ fontSize: '12px', color: C.muted, marginTop: '2px' }}>Enter your Cloudflare details — we&apos;ll add the DNS record automatically.</div>
@@ -2342,7 +2359,7 @@ export default function EventWebsiteAdmin({ params }: { params: Promise<{ id: st
                 </div>
 
                 {cfStatus === 'error' && (
-                  <div style={{ padding: '10px 14px', borderRadius: '8px', background: 'rgba(255,107,107,0.08)', border: '1px solid rgba(255,107,107,0.25)', fontSize: '12px', color: C.red }}>
+                  <div style={{ padding: '10px 14px', borderRadius: '8px', background: 'rgba(241,102,122,0.08)', border: '1px solid rgba(241,102,122,0.25)', fontSize: '12px', color: C.red }}>
                     {cfMsg}
                   </div>
                 )}
@@ -2369,7 +2386,7 @@ export default function EventWebsiteAdmin({ params }: { params: Promise<{ id: st
                       setCfStatus('error'); setCfMsg('Network error — please try again')
                     }
                   }}
-                  style={{ padding: '11px', borderRadius: '10px', border: 'none', background: cfStatus==='ok'?C.teal+'22':C.green, color: cfStatus==='ok'?C.teal:C.text, fontSize: '13px', fontWeight: 800, cursor: (!cfDomain||!cfZoneId||!cfToken||cfStatus==='connecting')?'default':'pointer', fontFamily: 'inherit', opacity: (!cfDomain||!cfZoneId||!cfToken)?0.5:1, transition: 'all 0.15s' }}>
+                  style={{ padding: '11px', borderRadius: '10px', border: 'none', background: cfStatus==='ok'?C.teal+'22':C.green, color: cfStatus==='ok'?C.teal:'var(--lime-dark)', fontSize: '13px', fontWeight: 800, cursor: (!cfDomain||!cfZoneId||!cfToken||cfStatus==='connecting')?'default':'pointer', fontFamily: 'inherit', opacity: (!cfDomain||!cfZoneId||!cfToken)?0.5:1, transition: 'all 0.15s' }}>
                   {cfStatus === 'connecting' ? 'Connecting…' : cfStatus === 'ok' ? 'Domain connected — reconnect' : 'Connect Domain Automatically'}
                 </button>
 
@@ -2431,7 +2448,7 @@ export default function EventWebsiteAdmin({ params }: { params: Promise<{ id: st
             </div>
             <div style={{ display: 'flex', gap: '8px', marginTop: '4px' }}>
               <button onClick={saveSpeaker} disabled={savingSp || !editSpeaker.name}
-                style={{ flex: 1, padding: '11px', borderRadius: '8px', border: 'none', background: C.green, color: C.text, fontSize: '13px', fontWeight: 800, cursor: 'pointer', fontFamily: 'inherit', opacity: savingSp ? 0.6 : 1 }}>
+                style={{ flex: 1, padding: '11px', borderRadius: '8px', border: 'none', background: C.green, color: 'var(--lime-dark)', fontSize: '13px', fontWeight: 800, cursor: 'pointer', fontFamily: 'inherit', opacity: savingSp ? 0.6 : 1 }}>
                 {savingSp ? 'Saving…' : editSpeaker.id ? 'Save Changes' : 'Add Speaker'}
               </button>
             </div>
@@ -2458,7 +2475,7 @@ export default function EventWebsiteAdmin({ params }: { params: Promise<{ id: st
             <SelectField label="Visible" value={editAgenda.active === false ? 'false' : 'true'} onChange={v => setEditAgenda(s => ({ ...s, active: v === 'true' }))}
               options={[{ value: 'true', label: 'Yes — visible' }, { value: 'false', label: 'No — hidden' }]} />
             <button onClick={saveAgenda} disabled={savingAg || !editAgenda.title}
-              style={{ padding: '11px', borderRadius: '8px', border: 'none', background: C.green, color: C.text, fontSize: '13px', fontWeight: 800, cursor: 'pointer', fontFamily: 'inherit', opacity: savingAg ? 0.6 : 1 }}>
+              style={{ padding: '11px', borderRadius: '8px', border: 'none', background: C.green, color: 'var(--lime-dark)', fontSize: '13px', fontWeight: 800, cursor: 'pointer', fontFamily: 'inherit', opacity: savingAg ? 0.6 : 1 }}>
               {savingAg ? 'Saving…' : editAgenda.id ? 'Save Changes' : 'Add Session'}
             </button>
           </div>
@@ -2485,7 +2502,7 @@ export default function EventWebsiteAdmin({ params }: { params: Promise<{ id: st
             <SelectField label="Visible" value={editSponsor.active === false ? 'false' : 'true'} onChange={v => setEditSponsor(s => ({ ...s, active: v === 'true' }))}
               options={[{ value: 'true', label: 'Yes — visible' }, { value: 'false', label: 'No — hidden' }]} />
             <button onClick={saveSponsor} disabled={savingSpn || !editSponsor.name}
-              style={{ padding: '11px', borderRadius: '8px', border: 'none', background: C.green, color: C.text, fontSize: '13px', fontWeight: 800, cursor: 'pointer', fontFamily: 'inherit', opacity: savingSpn ? 0.6 : 1 }}>
+              style={{ padding: '11px', borderRadius: '8px', border: 'none', background: C.green, color: 'var(--lime-dark)', fontSize: '13px', fontWeight: 800, cursor: 'pointer', fontFamily: 'inherit', opacity: savingSpn ? 0.6 : 1 }}>
               {savingSpn ? 'Saving…' : editSponsor.id ? 'Save Changes' : 'Add Sponsor'}
             </button>
           </div>
@@ -2510,7 +2527,7 @@ export default function EventWebsiteAdmin({ params }: { params: Promise<{ id: st
               Team members are managed by email. They access their role-specific sections through the event admin panel.
             </div>
             <button onClick={saveTeamMember} disabled={savingTeam || !editTeam.email}
-              style={{ padding: '11px', borderRadius: '8px', border: 'none', background: C.green, color: C.text, fontSize: '13px', fontWeight: 800, cursor: 'pointer', fontFamily: 'inherit', opacity: savingTeam ? 0.6 : 1 }}>
+              style={{ padding: '11px', borderRadius: '8px', border: 'none', background: C.green, color: 'var(--lime-dark)', fontSize: '13px', fontWeight: 800, cursor: 'pointer', fontFamily: 'inherit', opacity: savingTeam ? 0.6 : 1 }}>
               {savingTeam ? 'Saving…' : editTeam.id ? 'Save Changes' : 'Add to Team'}
             </button>
           </div>

@@ -1,19 +1,19 @@
 'use client'
 
-const T = '#0F1923'
-const M = '#2D3E50'
-const S = '#5B7080'
-const BG = '#F6F8FB'
-const BD = '#DDE8EE'
+const T = 'var(--ink)'
+const M = 'var(--ink2)'
+const S = 'var(--ink3)'
+const BG = 'var(--surface)'
+const BD = 'var(--border)'
 
 export default function ScoringGuideContent() {
   return (
     <div>
       {/* What AIRS measures */}
-      <div style={{ background: 'rgba(0,137,123,0.06)', border: '1px solid rgba(0,137,123,0.2)', borderRadius: '16px', padding: '28px 32px', marginBottom: '28px' }}>
+      <div style={{ background: 'rgba(18,201,189,0.06)', border: '1px solid rgba(18,201,189,0.2)', borderRadius: '16px', padding: '28px 32px', marginBottom: '28px' }}>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '32px' }}>
           <div>
-            <div style={{ fontSize: '13px', fontWeight: 700, letterSpacing: '2px', textTransform: 'uppercase', color: '#00897B', marginBottom: '12px' }}>What AIRS measures</div>
+            <div style={{ fontSize: '13px', fontWeight: 700, letterSpacing: '2px', textTransform: 'uppercase', color: 'var(--teal-mid)', marginBottom: '12px' }}>What AIRS measures</div>
             <p style={{ fontSize: '13px', color: M, lineHeight: 1.7, marginBottom: '14px' }}>
               Most AI readiness frameworks measure awareness and intention. AIRS measures <strong style={{ color: T }}>actual behaviour</strong>: which tools people use, how fluent they are, and whether they showed up to be assessed.
             </p>
@@ -22,7 +22,7 @@ export default function ScoringGuideContent() {
             </p>
           </div>
           <div>
-            <div style={{ fontSize: '13px', fontWeight: 700, letterSpacing: '2px', textTransform: 'uppercase', color: '#00897B', marginBottom: '12px' }}>What AIRS does NOT measure</div>
+            <div style={{ fontSize: '13px', fontWeight: 700, letterSpacing: '2px', textTransform: 'uppercase', color: 'var(--teal-mid)', marginBottom: '12px' }}>What AIRS does NOT measure</div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
               {[
                 'Whether someone is a good employee',
@@ -31,8 +31,8 @@ export default function ScoringGuideContent() {
                 'Future potential — only current state',
               ].map((item, i) => (
                 <div key={i} style={{ display: 'flex', gap: '10px', alignItems: 'flex-start' }}>
-                  <div style={{ width: '18px', height: '18px', borderRadius: '5px', background: 'rgba(139,26,26,0.08)', border: '1px solid rgba(139,26,26,0.25)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, marginTop: '1px' }}>
-                    <svg width="8" height="8" fill="none" stroke="#8B1A1A" strokeWidth="2.5" strokeLinecap="round" viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                  <div style={{ width: '18px', height: '18px', borderRadius: '5px', background: 'rgba(241,102,122,0.08)', border: '1px solid rgba(241,102,122,0.25)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, marginTop: '1px' }}>
+                    <svg width="8" height="8" fill="none" stroke="var(--red)" strokeWidth="2.5" strokeLinecap="round" viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
                   </div>
                   <span style={{ fontSize: '13px', color: M, lineHeight: 1.5 }}>{item}</span>
                 </div>
@@ -47,19 +47,19 @@ export default function ScoringGuideContent() {
         <div style={{ fontSize: '13px', fontWeight: 700, letterSpacing: '2px', textTransform: 'uppercase', color: S, marginBottom: '16px' }}>How the Score Is Built — 3 Dimensions</div>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '14px', marginBottom: '16px' }}>
           {[
-            { num: '01', label: 'AI Fluency', pts: '0–40 pts', color: '#00897B',
+            { num: '01', label: 'AI Fluency', pts: '0–40 pts', color: '#12C9BD',
               what: 'How confident and capable staff are at using AI tools in their daily work, based on their self-reported readiness level in the interview.',
               how: 'Average self-reported readiness (1–5 scale) across all interviewed staff, scaled to 40 points.',
               why: 'Highest weight. AI adoption lives or dies on whether people are willing and able to use the tools. Low fluency means training is the bottleneck.',
               example: 'A department where 8 out of 10 people rate themselves 4–5 scores ~32/40 on fluency.',
             },
-            { num: '02', label: 'Digital Maturity', pts: '0–35 pts', color: '#7A6600',
+            { num: '02', label: 'Digital Maturity', pts: '0–35 pts', color: '#A38800',
               what: 'How sophisticated the tools people actually use are. Using Salesforce and Figma signals higher digital maturity than only using Excel.',
               how: 'Ratio of AI tools (3x weight) and modern SaaS (1.5x weight) mentioned across all interviews, capped to prevent inflation from volume.',
               why: 'Predicts how fast a team can adopt AI workflows. Teams already on modern SaaS can layer in AI features without rebuilding habits.',
               example: 'A team that mentions ChatGPT, HubSpot, and Notion will score higher than one that mentions only Excel and email.',
             },
-            { num: '03', label: 'Engagement Rate', pts: '0–25 pts', color: '#8B1A1A',
+            { num: '03', label: 'Engagement Rate', pts: '0–25 pts', color: '#F1667A',
               what: 'What percentage of staff who registered actually completed the AI interview. This is a signal of organisational willingness.',
               how: 'Interviewed / Joined × 25. If 80% of a department completed the interview, they score 20/25.',
               why: 'Lowest weight but non-negotiable signal. A team that does not show up to be assessed cannot be trained effectively.',
@@ -99,13 +99,13 @@ export default function ScoringGuideContent() {
         <div style={{ background: BG, border: `1px solid ${BD}`, borderRadius: '14px', padding: '18px 24px', display: 'flex', alignItems: 'center', gap: '16px', flexWrap: 'wrap' }}>
           <div style={{ fontSize: '13px', fontWeight: 700, color: S, letterSpacing: '1px', textTransform: 'uppercase', flexShrink: 0 }}>Formula:</div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
-            <span style={{ fontSize: '13px', fontWeight: 800, color: '#00897B', background: 'rgba(0,137,123,0.1)', padding: '4px 12px', borderRadius: '7px' }}>AI Fluency (max 40)</span>
+            <span style={{ fontSize: '13px', fontWeight: 800, color: 'var(--teal-mid)', background: 'rgba(18,201,189,0.1)', padding: '4px 12px', borderRadius: '7px' }}>AI Fluency (max 40)</span>
             <span style={{ fontSize: '15px', color: S, fontWeight: 300 }}>+</span>
-            <span style={{ fontSize: '13px', fontWeight: 800, color: '#7A6600', background: 'rgba(122,102,0,0.08)', padding: '4px 12px', borderRadius: '7px' }}>Digital Maturity (max 35)</span>
+            <span style={{ fontSize: '13px', fontWeight: 800, color: '#A38800', background: 'rgba(163,136,0,0.1)', padding: '4px 12px', borderRadius: '7px' }}>Digital Maturity (max 35)</span>
             <span style={{ fontSize: '15px', color: S, fontWeight: 300 }}>+</span>
-            <span style={{ fontSize: '13px', fontWeight: 800, color: '#8B1A1A', background: 'rgba(139,26,26,0.08)', padding: '4px 12px', borderRadius: '7px' }}>Engagement (max 25)</span>
+            <span style={{ fontSize: '13px', fontWeight: 800, color: 'var(--red)', background: 'rgba(241,102,122,0.1)', padding: '4px 12px', borderRadius: '7px' }}>Engagement (max 25)</span>
             <span style={{ fontSize: '15px', color: S, fontWeight: 300 }}>=</span>
-            <span style={{ fontSize: '13px', fontWeight: 900, color: T, background: '#E8EEF4', padding: '4px 14px', borderRadius: '7px', border: `1px solid ${BD}` }}>AIRS (0–100)</span>
+            <span style={{ fontSize: '13px', fontWeight: 900, color: T, background: 'var(--surface)', padding: '4px 14px', borderRadius: '7px', border: `1px solid ${BD}` }}>AIRS (0–100)</span>
           </div>
         </div>
       </div>
@@ -115,28 +115,28 @@ export default function ScoringGuideContent() {
         <div style={{ fontSize: '13px', fontWeight: 700, letterSpacing: '2px', textTransform: 'uppercase', color: S, marginBottom: '16px' }}>The 5-Tier Ladder</div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', borderRadius: '16px', overflow: 'hidden', border: `1px solid ${BD}` }}>
           {[
-            { tier: 'AI-Forward',  range: '75–100', color: '#166534',
+            { tier: 'AI-Forward',  range: '75–100', color: '#34D399',
               what: 'Staff are already building AI workflows — not just using tools but connecting them to save real time.',
               action: 'Assign as AI Pilot Lead. Give them a business problem and 30 days to ship a working automation.',
             },
-            { tier: 'AI-Ready',    range: '55–74',  color: '#0E7490',
+            { tier: 'AI-Ready',    range: '55–74',  color: '#12C9BD',
               what: 'Confident AI user. Has a few tools in their daily routine but not yet building automated systems.',
               action: 'Pair with AI-Forward colleague. 30-day guided workflow adoption plan.',
             },
-            { tier: 'AI-Aware',    range: '35–54',  color: '#92400E',
+            { tier: 'AI-Aware',    range: '35–54',  color: '#F5B94D',
               what: 'Knows what AI is and has tried it at least once, but not using it consistently.',
               action: 'Half-day foundation workshop. Pick one AI tool for their role and build a 2-week daily habit.',
             },
-            { tier: 'AI-Curious',  range: '15–34',  color: '#C2410C',
+            { tier: 'AI-Curious',  range: '15–34',  color: '#FB923C',
               what: 'Has heard about AI but has not used it in a work context. Needs motivation before instruction.',
               action: 'Role-specific AI demo: show 3 concrete things AI can do for their exact job.',
             },
-            { tier: 'AI-Unaware',  range: '0–14',   color: '#991B1B',
+            { tier: 'AI-Unaware',  range: '0–14',   color: '#F1667A',
               what: 'Not actively using digital tools beyond the most basic level.',
               action: 'Digital literacy assessment first. Personal onboarding plan required.',
             },
           ].map((tier, i) => (
-            <div key={tier.tier} style={{ display: 'grid', gridTemplateColumns: '140px 1fr 1fr', background: i % 2 === 0 ? BG : '#FFFFFF' }}>
+            <div key={tier.tier} style={{ display: 'grid', gridTemplateColumns: '140px 1fr 1fr', background: i % 2 === 0 ? BG : 'var(--card)' }}>
               <div style={{ padding: '20px', borderRight: `1px solid ${BD}`, display: 'flex', flexDirection: 'column', gap: '4px' }}>
                 <span style={{ fontSize: '13px', fontWeight: 900, color: tier.color, background: `${tier.color}12`, padding: '2px 8px', borderRadius: '5px', width: 'fit-content' }}>{tier.tier}</span>
                 <span style={{ fontSize: '13px', fontWeight: 900, color: tier.color, lineHeight: 1 }}>{tier.range}</span>

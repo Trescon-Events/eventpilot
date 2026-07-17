@@ -82,19 +82,19 @@ function LinkedInEnrichForm() {
   return (
     <div style={{ marginTop: '16px' }}>
       <div style={{ display: 'flex', gap: '8px' }}>
-        <input value={url} onChange={e => setUrl(e.target.value)} onKeyDown={e => e.key === 'Enter' && run()} placeholder="https://www.linkedin.com/in/username/" style={{ flex: 1, padding: '10px 14px', borderRadius: '9px', border: '1px solid #DDE8EE', fontSize: '13px', color: '#0F1923', outline: 'none', background: '#F8FAFB' }} />
-        <button onClick={run} disabled={loading || !url.trim()} style={{ padding: '10px 20px', borderRadius: '9px', background: loading ? 'rgba(0,165,163,0.2)' : '#00A5A3', color: loading ? '#9CA3AF' : '#FFFFFF', border: 'none', cursor: 'pointer', fontSize: '13px', fontWeight: 700 }}>
+        <input value={url} onChange={e => setUrl(e.target.value)} onKeyDown={e => e.key === 'Enter' && run()} placeholder="https://www.linkedin.com/in/username/" style={{ flex: 1, padding: '10px 14px', borderRadius: '9px', border: '1px solid var(--border)', fontSize: '13px', color: 'var(--ink)', outline: 'none', background: 'var(--surface)' }} />
+        <button onClick={run} disabled={loading || !url.trim()} style={{ padding: '10px 20px', borderRadius: '9px', background: loading ? 'rgba(18,201,189,0.2)' : 'var(--teal-mid)', color: loading ? 'var(--ink3)' : 'var(--teal-light)', border: 'none', cursor: 'pointer', fontSize: '13px', fontWeight: 700 }}>
           {loading ? 'Enriching…' : 'Enrich'}
         </button>
       </div>
-      {error && <div style={{ marginTop: '10px', fontSize: '13px', color: '#F87171', background: 'rgba(248,113,113,0.08)', padding: '8px 12px', borderRadius: '8px' }}>{error}</div>}
+      {error && <div style={{ marginTop: '10px', fontSize: '13px', color: 'var(--red)', background: 'var(--red-light)', padding: '8px 12px', borderRadius: '8px' }}>{error}</div>}
       {result && (
-        <div style={{ marginTop: '12px', background: 'rgba(52,211,153,0.05)', border: '1px solid rgba(52,211,153,0.2)', borderRadius: '10px', padding: '14px' }}>
-          <div style={{ fontSize: '13px', fontWeight: 700, color: '#34D399', marginBottom: '8px' }}>Enriched — {result.fields_enriched} fields</div>
+        <div style={{ marginTop: '12px', background: 'var(--success-light)', border: '1px solid rgba(52,211,153,0.3)', borderRadius: '10px', padding: '14px' }}>
+          <div style={{ fontSize: '13px', fontWeight: 700, color: 'var(--success)', marginBottom: '8px' }}>Enriched — {result.fields_enriched} fields</div>
           {Object.entries(result.contact?.property_values ?? {}).filter(([, v]) => v).slice(0, 8).map(([k, v]) => (
             <div key={k} style={{ display: 'flex', gap: '12px', padding: '4px 0', fontSize: '13px' }}>
-              <span style={{ color: '#9CA3AF', minWidth: '120px' }}>{k}</span>
-              <span style={{ color: '#0F1923', fontWeight: 500 }}>{Array.isArray(v) ? (v as any[]).join(', ') : String(v)}</span>
+              <span style={{ color: 'var(--ink3)', minWidth: '120px' }}>{k}</span>
+              <span style={{ color: 'var(--ink)', fontWeight: 500 }}>{Array.isArray(v) ? (v as any[]).join(', ') : String(v)}</span>
             </div>
           ))}
         </div>
@@ -126,22 +126,22 @@ function EmailVerifyForm() {
   return (
     <div style={{ marginTop: '16px' }}>
       <div style={{ display: 'flex', gap: '8px' }}>
-        <input value={email} onChange={e => setEmail(e.target.value)} onKeyDown={e => e.key === 'Enter' && run()} placeholder="email@company.com" type="email" style={{ flex: 1, padding: '10px 14px', borderRadius: '9px', border: '1px solid #DDE8EE', fontSize: '13px', color: '#0F1923', outline: 'none', background: '#F8FAFB' }} />
-        <button onClick={run} disabled={loading || !email.trim()} style={{ padding: '10px 20px', borderRadius: '9px', background: loading ? 'rgba(0,165,163,0.2)' : '#00A5A3', color: loading ? '#9CA3AF' : '#FFFFFF', border: 'none', cursor: 'pointer', fontSize: '13px', fontWeight: 700 }}>
+        <input value={email} onChange={e => setEmail(e.target.value)} onKeyDown={e => e.key === 'Enter' && run()} placeholder="email@company.com" type="email" style={{ flex: 1, padding: '10px 14px', borderRadius: '9px', border: '1px solid var(--border)', fontSize: '13px', color: 'var(--ink)', outline: 'none', background: 'var(--surface)' }} />
+        <button onClick={run} disabled={loading || !email.trim()} style={{ padding: '10px 20px', borderRadius: '9px', background: loading ? 'rgba(18,201,189,0.2)' : 'var(--teal-mid)', color: loading ? 'var(--ink3)' : 'var(--teal-light)', border: 'none', cursor: 'pointer', fontSize: '13px', fontWeight: 700 }}>
           {loading ? 'Verifying…' : 'Verify'}
         </button>
       </div>
-      {error && <div style={{ marginTop: '10px', fontSize: '13px', color: '#F87171', background: 'rgba(248,113,113,0.08)', padding: '8px 12px', borderRadius: '8px' }}>{error}</div>}
+      {error && <div style={{ marginTop: '10px', fontSize: '13px', color: 'var(--red)', background: 'var(--red-light)', padding: '8px 12px', borderRadius: '8px' }}>{error}</div>}
       {result && (
-        <div style={{ marginTop: '12px', background: result.valid ? 'rgba(52,211,153,0.05)' : 'rgba(248,113,113,0.05)', border: `1px solid ${result.valid ? 'rgba(52,211,153,0.2)' : 'rgba(248,113,113,0.2)'}`, borderRadius: '10px', padding: '14px' }}>
+        <div style={{ marginTop: '12px', background: result.valid ? 'var(--success-light)' : 'var(--red-light)', border: `1px solid ${result.valid ? 'rgba(52,211,153,0.3)' : 'rgba(241,102,122,0.3)'}`, borderRadius: '10px', padding: '14px' }}>
           <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
-            <div style={{ width: '10px', height: '10px', borderRadius: '50%', background: result.valid ? '#34D399' : '#F87171', flexShrink: 0 }} />
-            <span style={{ fontSize: '14px', fontWeight: 700, color: result.valid ? '#34D399' : '#F87171' }}>{result.valid ? 'Valid Email' : 'Invalid Email'}</span>
-            <span style={{ fontSize: '12px', color: '#6B7280' }}>{result.result}</span>
-            <span style={{ fontSize: '12px', color: '#9CA3AF', marginLeft: 'auto' }}>Quality: {result.quality_score}/100</span>
+            <div style={{ width: '10px', height: '10px', borderRadius: '50%', background: result.valid ? 'var(--success)' : 'var(--red)', flexShrink: 0 }} />
+            <span style={{ fontSize: '14px', fontWeight: 700, color: result.valid ? 'var(--success)' : 'var(--red)' }}>{result.valid ? 'Valid Email' : 'Invalid Email'}</span>
+            <span style={{ fontSize: '12px', color: 'var(--ink2)' }}>{result.result}</span>
+            <span style={{ fontSize: '12px', color: 'var(--ink3)', marginLeft: 'auto' }}>Quality: {result.quality_score}/100</span>
           </div>
-          {result.free && <div style={{ fontSize: '12px', color: '#FBBF24', marginTop: '6px' }}>Free email provider</div>}
-          {result.role && <div style={{ fontSize: '12px', color: '#FBBF24', marginTop: '6px' }}>Role-based address (info@, contact@, etc.)</div>}
+          {result.free && <div style={{ fontSize: '12px', color: 'var(--amber)', marginTop: '6px' }}>Free email provider</div>}
+          {result.role && <div style={{ fontSize: '12px', color: 'var(--amber)', marginTop: '6px' }}>Role-based address (info@, contact@, etc.)</div>}
         </div>
       )}
     </div>
@@ -176,27 +176,27 @@ export default function ToolsPage() {
   }
 
   return (
-    <div style={{ minHeight: '100vh', background: '#F8FAFB', fontFamily: 'system-ui, sans-serif' }}>
+    <div style={{ minHeight: '100vh', background: 'var(--surface)', fontFamily: 'system-ui, sans-serif' }}>
       {/* Page header */}
-      <div style={{ background: '#FFFFFF', borderBottom: '1px solid #DDE8EE', padding: '0 24px', height: '52px', display: 'flex', alignItems: 'center', gap: '12px' }}>
-        <svg width="16" height="16" fill="none" stroke="#00A5A3" strokeWidth="2" strokeLinecap="round" viewBox="0 0 24 24">
+      <div style={{ background: 'var(--card)', borderBottom: '1px solid var(--border)', padding: '0 24px', height: '52px', display: 'flex', alignItems: 'center', gap: '12px' }}>
+        <svg width="16" height="16" fill="none" stroke="var(--teal-mid)" strokeWidth="2" strokeLinecap="round" viewBox="0 0 24 24">
           <path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/>
         </svg>
-        <span style={{ fontSize: '15px', fontWeight: 700, color: '#0F1923' }}>Tool Settings</span>
-        <span style={{ fontSize: '13px', color: '#9CA3AF' }}>Configure API keys and tool limits</span>
+        <span style={{ fontSize: '15px', fontWeight: 700, color: 'var(--ink)' }}>Tool Settings</span>
+        <span style={{ fontSize: '13px', color: 'var(--ink3)' }}>Configure API keys and tool limits</span>
       </div>
 
       <div style={{ padding: '24px', maxWidth: '900px' }}>
         {/* API Keys Status */}
-        <div style={{ background: '#FFFFFF', border: '1px solid #DDE8EE', borderRadius: '14px', padding: '20px', marginBottom: '20px' }}>
-          <div style={{ fontSize: '14px', fontWeight: 700, color: '#0F1923', marginBottom: '14px' }}>API Key Status</div>
+        <div style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: '14px', padding: '20px', marginBottom: '20px' }}>
+          <div style={{ fontSize: '14px', fontWeight: 700, color: 'var(--ink)', marginBottom: '14px' }}>API Key Status</div>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '10px' }}>
             {Object.entries(keyStatus).map(([key, configured]) => (
-              <div key={key} style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '10px 14px', borderRadius: '10px', background: configured ? 'rgba(52,211,153,0.06)' : 'rgba(248,113,113,0.06)', border: `1px solid ${configured ? 'rgba(52,211,153,0.2)' : 'rgba(248,113,113,0.2)'}` }}>
-                <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: configured ? '#34D399' : '#F87171', flexShrink: 0 }} />
+              <div key={key} style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '10px 14px', borderRadius: '10px', background: configured ? 'var(--success-light)' : 'var(--red-light)', border: `1px solid ${configured ? 'rgba(52,211,153,0.3)' : 'rgba(241,102,122,0.3)'}` }}>
+                <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: configured ? 'var(--success)' : 'var(--red)', flexShrink: 0 }} />
                 <div>
-                  <div style={{ fontSize: '13px', fontWeight: 600, color: '#0F1923' }}>{key}</div>
-                  <div style={{ fontSize: '12px', color: configured ? '#34D399' : '#F87171' }}>{configured ? 'Configured' : 'Not configured — add to .env.local'}</div>
+                  <div style={{ fontSize: '13px', fontWeight: 600, color: 'var(--ink)' }}>{key}</div>
+                  <div style={{ fontSize: '12px', color: configured ? 'var(--success)' : 'var(--red)' }}>{configured ? 'Configured' : 'Not configured — add to .env.local'}</div>
                 </div>
               </div>
             ))}
@@ -204,13 +204,13 @@ export default function ToolsPage() {
         </div>
 
         {/* Daily Credit Limits */}
-        <div style={{ background: '#FFFFFF', border: '1px solid #DDE8EE', borderRadius: '14px', padding: '20px', marginBottom: '20px' }}>
-          <div style={{ fontSize: '14px', fontWeight: 700, color: '#0F1923', marginBottom: '14px' }}>Daily Credit Limits</div>
+        <div style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: '14px', padding: '20px', marginBottom: '20px' }}>
+          <div style={{ fontSize: '14px', fontWeight: 700, color: 'var(--ink)', marginBottom: '14px' }}>Daily Credit Limits</div>
           <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
             {limits.map(l => (
-              <div key={l.job_level} style={{ padding: '10px 16px', borderRadius: '10px', background: '#F8FAFB', border: '1px solid #DDE8EE', textAlign: 'center' }}>
-                <div style={{ fontSize: '20px', fontWeight: 800, color: '#0F1923' }}>{l.daily_limit === 999 ? '∞' : l.daily_limit}</div>
-                <div style={{ fontSize: '12px', color: '#9CA3AF', marginTop: '2px' }}>{l.job_level.replace('_', ' ')}</div>
+              <div key={l.job_level} style={{ padding: '10px 16px', borderRadius: '10px', background: 'var(--surface)', border: '1px solid var(--border)', textAlign: 'center' }}>
+                <div style={{ fontSize: '20px', fontWeight: 800, color: 'var(--ink)' }}>{l.daily_limit === 999 ? '∞' : l.daily_limit}</div>
+                <div style={{ fontSize: '12px', color: 'var(--ink3)', marginTop: '2px' }}>{l.job_level.replace('_', ' ')}</div>
               </div>
             ))}
           </div>
@@ -219,59 +219,59 @@ export default function ToolsPage() {
         {/* Tools list */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
           {loading ? (
-            <div style={{ padding: '48px', textAlign: 'center', color: '#9CA3AF', fontSize: '15px' }}>Loading tools…</div>
+            <div style={{ padding: '48px', textAlign: 'center', color: 'var(--ink3)', fontSize: '15px' }}>Loading tools…</div>
           ) : tools.map(tool => {
             const info = TOOL_DESCRIPTIONS[tool.tool_key]
             const isExpanded = expanded === tool.tool_key
             return (
-              <div key={tool.id} style={{ background: '#FFFFFF', border: '1px solid #DDE8EE', borderRadius: '14px', overflow: 'hidden' }}>
+              <div key={tool.id} style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: '14px', overflow: 'hidden' }}>
                 <div style={{ padding: '16px 20px', display: 'flex', alignItems: 'center', gap: '14px', cursor: 'pointer' }} onClick={() => setExpanded(isExpanded ? null : tool.tool_key)}>
-                  <div style={{ width: '40px', height: '40px', borderRadius: '10px', background: tool.is_active ? 'rgba(0,165,163,0.1)' : 'rgba(74,85,104,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: tool.is_active ? '#00A5A3' : '#9CA3AF', flexShrink: 0 }}>
+                  <div style={{ width: '40px', height: '40px', borderRadius: '10px', background: tool.is_active ? 'var(--teal-light)' : 'rgba(255,255,255,0.06)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: tool.is_active ? 'var(--teal-mid)' : 'var(--ink3)', flexShrink: 0 }}>
                     <ToolIcon name={info?.icon ?? 'search'} />
                   </div>
                   <div style={{ flex: 1 }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                      <span style={{ fontSize: '14px', fontWeight: 700, color: '#0F1923' }}>{tool.display_name}</span>
-                      <span style={{ fontSize: '11px', fontWeight: 700, padding: '2px 8px', borderRadius: '10px', background: tool.is_active ? 'rgba(52,211,153,0.1)' : 'rgba(248,113,113,0.1)', color: tool.is_active ? '#34D399' : '#F87171' }}>
+                      <span style={{ fontSize: '14px', fontWeight: 700, color: 'var(--ink)' }}>{tool.display_name}</span>
+                      <span style={{ fontSize: '11px', fontWeight: 700, padding: '2px 8px', borderRadius: '10px', background: tool.is_active ? 'var(--success-light)' : 'var(--red-light)', color: tool.is_active ? 'var(--success)' : 'var(--red)' }}>
                         {tool.is_active ? 'Active' : 'Disabled'}
                       </span>
                       {!tool.api_key_configured && (
-                        <span style={{ fontSize: '11px', fontWeight: 700, padding: '2px 8px', borderRadius: '10px', background: 'rgba(251,191,36,0.1)', color: '#FBBF24' }}>
+                        <span style={{ fontSize: '11px', fontWeight: 700, padding: '2px 8px', borderRadius: '10px', background: 'var(--amber-light)', color: 'var(--amber)' }}>
                           API Key Missing
                         </span>
                       )}
                     </div>
-                    <div style={{ fontSize: '13px', color: '#6B7280', marginTop: '2px' }}>{info?.desc ?? ''}</div>
+                    <div style={{ fontSize: '13px', color: 'var(--ink2)', marginTop: '2px' }}>{info?.desc ?? ''}</div>
                   </div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                     {tool.credits_per_use > 0 && (
-                      <span style={{ fontSize: '12px', color: '#9CA3AF' }}>{tool.credits_per_use} credit{tool.credits_per_use !== 1 ? 's' : ''}/use</span>
+                      <span style={{ fontSize: '12px', color: 'var(--ink3)' }}>{tool.credits_per_use} credit{tool.credits_per_use !== 1 ? 's' : ''}/use</span>
                     )}
                     <button
                       onClick={e => { e.stopPropagation(); toggleTool(tool) }}
                       disabled={toggling === tool.tool_key}
-                      style={{ padding: '6px 12px', borderRadius: '8px', fontSize: '12px', fontWeight: 700, border: '1px solid #DDE8EE', background: '#F8FAFB', cursor: 'pointer', color: tool.is_active ? '#F87171' : '#34D399' }}
+                      style={{ padding: '6px 12px', borderRadius: '8px', fontSize: '12px', fontWeight: 700, border: '1px solid var(--border)', background: 'var(--surface)', cursor: 'pointer', color: tool.is_active ? 'var(--red)' : 'var(--success)' }}
                     >
                       {tool.is_active ? 'Disable' : 'Enable'}
                     </button>
-                    <svg width="16" height="16" fill="none" stroke="#9CA3AF" strokeWidth="2" strokeLinecap="round" viewBox="0 0 24 24" style={{ transform: isExpanded ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }}>
+                    <svg width="16" height="16" fill="none" stroke="var(--ink4)" strokeWidth="2" strokeLinecap="round" viewBox="0 0 24 24" style={{ transform: isExpanded ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }}>
                       <polyline points="6 9 12 15 18 9"/>
                     </svg>
                   </div>
                 </div>
 
                 {isExpanded && (
-                  <div style={{ padding: '0 20px 20px', borderTop: '1px solid #DDE8EE' }}>
+                  <div style={{ padding: '0 20px 20px', borderTop: '1px solid var(--border)' }}>
                     {tool.tool_key === 'linkedin_enricher' && <LinkedInEnrichForm />}
                     {tool.tool_key === 'email_verifier' && <EmailVerifyForm />}
                     {tool.tool_key === 'lead_finder' && (
-                      <div style={{ marginTop: '16px', padding: '14px', background: 'rgba(0,165,163,0.06)', borderRadius: '10px', border: '1px solid rgba(0,165,163,0.2)' }}>
-                        <div style={{ fontSize: '13px', color: '#0F1923' }}>Use the <Link href="/data/lead-finder" style={{ color: '#00A5A3', fontWeight: 700 }}>Lead Finder AI</Link> page for the full conversational ICP experience.</div>
+                      <div style={{ marginTop: '16px', padding: '14px', background: 'var(--teal-light)', borderRadius: '10px', border: '1px solid var(--teal-border)' }}>
+                        <div style={{ fontSize: '13px', color: 'var(--ink)' }}>Use the <Link href="/data/lead-finder" style={{ color: 'var(--teal-mid)', fontWeight: 700 }}>Lead Finder AI</Link> page for the full conversational ICP experience.</div>
                       </div>
                     )}
                     {(tool.tool_key === 'smart_lookup' || tool.tool_key === 'website_finder' || tool.tool_key === 'email_guesser') && (
-                      <div style={{ marginTop: '16px', padding: '14px', background: '#F8FAFB', borderRadius: '10px', border: '1px solid #DDE8EE' }}>
-                        <div style={{ fontSize: '13px', color: '#6B7280' }}>
+                      <div style={{ marginTop: '16px', padding: '14px', background: 'var(--surface)', borderRadius: '10px', border: '1px solid var(--border)' }}>
+                        <div style={{ fontSize: '13px', color: 'var(--ink2)' }}>
                           {tool.api_key_configured
                             ? 'This tool is configured and ready. Use it from the Contacts view on individual records.'
                             : `Requires ${tool.requires_api_key} in your .env.local file.`
@@ -280,7 +280,7 @@ export default function ToolsPage() {
                       </div>
                     )}
                     {tool.maintenance_message && (
-                      <div style={{ marginTop: '10px', padding: '10px 12px', background: 'rgba(251,191,36,0.06)', borderRadius: '8px', fontSize: '13px', color: '#FBBF24' }}>
+                      <div style={{ marginTop: '10px', padding: '10px 12px', background: 'var(--amber-light)', borderRadius: '8px', fontSize: '13px', color: 'var(--amber)' }}>
                         {tool.maintenance_message}
                       </div>
                     )}

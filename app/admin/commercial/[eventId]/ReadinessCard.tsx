@@ -32,9 +32,18 @@ interface Readiness {
 }
 
 const STATUS_COLOR: Record<EventStatus, string> = {
-  ready: '#2E7D32',
-  partial: '#F57F17',
-  high_risk: '#C62828',
+  ready: 'var(--success)',
+  partial: 'var(--amber)',
+  high_risk: 'var(--red)',
+}
+
+// Companion "-light" tint for each STATUS_COLOR entry — used as the score badge's
+// background instead of computing a translucent wash via string-alpha concatenation
+// (which doesn't work once the color is a css var reference).
+const STATUS_BG: Record<EventStatus, string> = {
+  ready: 'var(--success-light)',
+  partial: 'var(--amber-light)',
+  high_risk: 'var(--red-light)',
 }
 
 const STATUS_LABEL: Record<EventStatus, string> = {
@@ -44,9 +53,9 @@ const STATUS_LABEL: Record<EventStatus, string> = {
 }
 
 const CHECK_COLOR: Record<CheckStatus, string> = {
-  ok: '#2E7D32',
-  partial: '#F57F17',
-  missing: '#C62828',
+  ok: 'var(--success)',
+  partial: 'var(--amber)',
+  missing: 'var(--red)',
 }
 
 const CHECK_ICON: Record<CheckStatus, string> = {
@@ -70,8 +79,8 @@ export default function ReadinessCard({ eventId }: { eventId: string }) {
   useEffect(() => { if (eventId) load() }, [eventId, load])
 
   const cardStyle: React.CSSProperties = {
-    background: '#FFFFFF',
-    border: '1px solid #DDE8EE',
+    background: 'var(--card)',
+    border: '1px solid var(--border)',
     borderRadius: '12px',
     padding: '20px 24px',
     marginBottom: '20px',
@@ -82,28 +91,29 @@ export default function ReadinessCard({ eventId }: { eventId: string }) {
     return (
       <div style={cardStyle}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
-          <span style={{ fontSize: '17px', fontWeight: 800, color: '#0F1923' }}>P&amp;L Readiness</span>
-          <span style={{ fontSize: '11px', color: '#5B7080' }}>Loading&hellip;</span>
+          <span style={{ fontSize: '17px', fontWeight: 800, color: 'var(--ink)' }}>P&amp;L Readiness</span>
+          <span style={{ fontSize: '11px', color: 'var(--ink3)' }}>Loading&hellip;</span>
         </div>
-        <div style={{ height: '6px', background: '#E8EEF4', borderRadius: '3px', marginBottom: '14px' }} />
+        <div style={{ height: '6px', background: 'var(--surface)', borderRadius: '3px', marginBottom: '14px' }} />
         {[0, 1, 2, 3, 4, 5].map(i => (
-          <div key={i} style={{ height: '14px', background: '#F0F4F8', borderRadius: '3px', marginBottom: '10px', opacity: 0.6 - i * 0.06 }} />
+          <div key={i} style={{ height: '14px', background: 'var(--surface)', borderRadius: '3px', marginBottom: '10px', opacity: 0.6 - i * 0.06 }} />
         ))}
       </div>
     )
   }
 
   const color = STATUS_COLOR[data.status]
+  const bg = STATUS_BG[data.status]
 
   return (
     <div style={cardStyle}>
       {/* ── Header ── */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
         <div style={{ display: 'flex', alignItems: 'baseline', gap: '10px' }}>
-          <span style={{ fontSize: '17px', fontWeight: 700, color: '#0F1923' }}>P&amp;L Readiness</span>
+          <span style={{ fontSize: '17px', fontWeight: 700, color: 'var(--ink)' }}>P&amp;L Readiness</span>
           <span style={{
             fontSize: '14px', fontWeight: 800, color, padding: '2px 10px', borderRadius: '10px',
-            background: `${color}14`,
+            background: bg,
           }}>
             {data.score_pct}% &middot; {STATUS_LABEL[data.status]}
           </span>
@@ -111,8 +121,8 @@ export default function ReadinessCard({ eventId }: { eventId: string }) {
         <button
           onClick={load}
           style={{
-            fontSize: '11px', fontWeight: 700, color: '#00695C', background: 'transparent',
-            border: '1px solid #DDE8EE', padding: '5px 12px', borderRadius: '7px', cursor: 'pointer',
+            fontSize: '11px', fontWeight: 700, color: 'var(--teal)', background: 'transparent',
+            border: '1px solid var(--border)', padding: '5px 12px', borderRadius: '7px', cursor: 'pointer',
             fontFamily: 'inherit',
           }}
         >
@@ -122,7 +132,7 @@ export default function ReadinessCard({ eventId }: { eventId: string }) {
 
       {/* ── Progress bar ── */}
       <div style={{
-        height: '6px', background: '#E8EEF4', borderRadius: '3px',
+        height: '6px', background: 'var(--surface)', borderRadius: '3px',
         overflow: 'hidden', marginBottom: '16px',
       }}>
         <div style={{
@@ -136,7 +146,7 @@ export default function ReadinessCard({ eventId }: { eventId: string }) {
         {data.checks.map((c, i) => (
           <div key={c.key} style={{
             display: 'flex', alignItems: 'center', gap: '10px', padding: '10px 0',
-            borderBottom: i < data.checks.length - 1 ? '1px solid #F0F4F8' : 'none',
+            borderBottom: i < data.checks.length - 1 ? '1px solid var(--surface)' : 'none',
           }}>
             <span style={{
               fontSize: '15px', fontWeight: 900, color: CHECK_COLOR[c.status],
@@ -144,15 +154,15 @@ export default function ReadinessCard({ eventId }: { eventId: string }) {
             }}>
               {CHECK_ICON[c.status]}
             </span>
-            <span style={{ fontSize: '14px', color: '#0F1923', fontWeight: 600, flexShrink: 0 }}>
+            <span style={{ fontSize: '14px', color: 'var(--ink)', fontWeight: 600, flexShrink: 0 }}>
               {c.label}
             </span>
-            <span style={{ fontSize: '13px', color: '#5B7080', flex: 1, textAlign: 'right' }}>
+            <span style={{ fontSize: '13px', color: 'var(--ink3)', flex: 1, textAlign: 'right' }}>
               {c.detail}
             </span>
             <span style={{
               fontSize: '10px', fontWeight: 800, letterSpacing: '1px', textTransform: 'uppercase',
-              color: '#5B7080', background: '#F0F4F8', padding: '3px 8px', borderRadius: '10px',
+              color: 'var(--ink3)', background: 'var(--surface)', padding: '3px 8px', borderRadius: '10px',
               flexShrink: 0,
             }}>
               {c.owner}
@@ -161,7 +171,7 @@ export default function ReadinessCard({ eventId }: { eventId: string }) {
               <a
                 href={c.fix_url}
                 style={{
-                  fontSize: '12px', fontWeight: 700, color: '#00695C', textDecoration: 'none',
+                  fontSize: '12px', fontWeight: 700, color: 'var(--teal)', textDecoration: 'none',
                   flexShrink: 0, minWidth: '30px', textAlign: 'right',
                 }}
               >

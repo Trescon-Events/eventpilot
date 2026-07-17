@@ -4,8 +4,8 @@ import { useState, useEffect } from 'react'
 import PageHeader from '@/app/components/PageHeader'
 
 const C = {
-  bg: '#E8EEF4', surface: '#FFFFFF', border: '#DDE8EE', text: '#0F1923', muted: '#5B7080',
-  teal: '#00695C', green: '#C0F43C', blue: '#60A5FA', red: '#FF6B6B',
+  bg: 'var(--surface)', surface: 'var(--card)', border: 'var(--border)', text: 'var(--ink)', muted: 'var(--ink3)',
+  teal: 'var(--teal)', green: 'var(--lime)', blue: 'var(--info)', red: 'var(--red)', // NOTE: "green" holds brand lime, not teal, here; "blue" now maps to the info accent (closest match, no exact token existed for #60A5FA)
 }
 
 type Workspace = { id: string; name: string }
@@ -166,7 +166,7 @@ export default function PerCreatorPage() {
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '14px', flexWrap: 'wrap', gap: '10px' }}>
               <div style={{ fontSize: '13px', fontWeight: 800, color: C.text }}>2. Review &amp; Edit</div>
               <button onClick={copyToClipboard}
-                style={{ fontSize: '13px', fontWeight: 700, color: C.teal, background: 'none', border: `1px solid ${C.teal}40`, borderRadius: '8px', padding: '6px 14px', cursor: 'pointer', fontFamily: 'inherit' }}>
+                style={{ fontSize: '13px', fontWeight: 700, color: C.teal, background: 'none', border: `1px solid ${'color-mix(in srgb, ' + (C.teal) + ' 25%, transparent)'}`, borderRadius: '8px', padding: '6px 14px', cursor: 'pointer', fontFamily: 'inherit' }}>
                 {copied ? 'Copied!' : 'Copy to Clipboard'}
               </button>
             </div>
@@ -181,7 +181,7 @@ export default function PerCreatorPage() {
                 {workspaces.map(ws => <option key={ws.id} value={ws.id}>{ws.name}</option>)}
               </select>
 
-              {saveMsg && <div style={{ marginBottom: '10px', fontSize: '13px', padding: '9px 12px', borderRadius: '8px', background: saveMsg.includes('Saved') ? 'rgba(192,244,60,0.08)' : 'rgba(255,107,107,0.07)', border: `1px solid ${saveMsg.includes('Saved') ? 'rgba(192,244,60,0.25)' : 'rgba(255,107,107,0.2)'}`, color: saveMsg.includes('Saved') ? '#3D6B00' : C.red }}>{saveMsg}</div>}
+              {saveMsg && <div style={{ marginBottom: '10px', fontSize: '13px', padding: '9px 12px', borderRadius: '8px', background: saveMsg.includes('Saved') ? 'rgba(192,244,60,0.08)' : 'rgba(255,107,107,0.07)', border: `1px solid ${saveMsg.includes('Saved') ? 'rgba(192,244,60,0.25)' : 'rgba(255,107,107,0.2)'}`, color: saveMsg.includes('Saved') ? 'var(--lime)' : C.red }}>{saveMsg}</div>}
 
               <button onClick={saveToKB} disabled={saving}
                 style={{ width: '100%', padding: '11px', borderRadius: '9px', border: 'none', background: saving ? C.border : C.green, color: C.text, fontSize: '13px', fontWeight: 800, cursor: saving ? 'not-allowed' : 'pointer', fontFamily: 'inherit' }}>

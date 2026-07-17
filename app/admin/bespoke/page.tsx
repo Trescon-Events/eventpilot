@@ -33,17 +33,17 @@ const PHASE_LABELS: Record<string, string> = {
 }
 
 const PHASE_COLORS: Record<string, { bg: string; fg: string }> = {
-  initiation: { bg: '#FFF8E1', fg: '#B45309' },
-  campaign: { bg: '#E0F2F1', fg: '#00695C' },
-  live: { bg: '#E8F5E9', fg: '#2E7D32' },
-  closure: { bg: '#F3E5F5', fg: '#7B1FA2' },
-  completed: { bg: '#ECEFF1', fg: '#546E7A' },
+  initiation: { bg: 'var(--amber-light)', fg: 'var(--amber)' },
+  campaign: { bg: 'var(--teal-light)', fg: 'var(--teal)' },
+  live: { bg: 'var(--success-light)', fg: 'var(--success)' },
+  closure: { bg: 'var(--purple-light)', fg: 'var(--purple)' },
+  completed: { bg: 'rgba(255,255,255,0.06)', fg: 'var(--ink3)' },
 }
 
 const FORMAT_COLORS: Record<string, { bg: string; fg: string }> = {
-  physical: { bg: '#E8F5E9', fg: '#2E7D32' },
-  virtual: { bg: '#E3F2FD', fg: '#1565C0' },
-  hybrid: { bg: '#F3E5F5', fg: '#7B1FA2' },
+  physical: { bg: 'var(--success-light)', fg: 'var(--success)' },
+  virtual: { bg: 'var(--info-light)', fg: 'var(--info)' },
+  hybrid: { bg: 'var(--purple-light)', fg: 'var(--purple)' },
 }
 
 const KANBAN_COLS = [
@@ -76,14 +76,14 @@ function PlusIcon() {
 /* ── Kanban / Table Toggle Icons ───────────────────────────────── */
 function KanbanIcon({ active }: { active: boolean }) {
   return (
-    <svg width="16" height="16" fill={active ? '#00695C' : '#5B7080'} viewBox="0 0 24 24">
+    <svg width="16" height="16" fill={active ? 'var(--teal)' : 'var(--ink3)'} viewBox="0 0 24 24">
       <rect x="2" y="3" width="6" height="18" rx="1" /><rect x="9" y="3" width="6" height="12" rx="1" /><rect x="16" y="3" width="6" height="15" rx="1" />
     </svg>
   )
 }
 function TableIcon({ active }: { active: boolean }) {
   return (
-    <svg width="16" height="16" fill="none" stroke={active ? '#00695C' : '#5B7080'} strokeWidth="2" strokeLinecap="round" viewBox="0 0 24 24">
+    <svg width="16" height="16" fill="none" stroke={active ? 'var(--teal)' : 'var(--ink3)'} strokeWidth="2" strokeLinecap="round" viewBox="0 0 24 24">
       <line x1="3" y1="6" x2="21" y2="6" /><line x1="3" y1="12" x2="21" y2="12" /><line x1="3" y1="18" x2="21" y2="18" />
     </svg>
   )
@@ -93,8 +93,8 @@ function TableIcon({ active }: { active: boolean }) {
 function ProgressBar({ value, max, height = 6 }: { value: number; max: number; height?: number }) {
   const pct = max > 0 ? Math.min((value / max) * 100, 100) : 0
   return (
-    <div style={{ height, background: '#E8EEF4', borderRadius: height / 2, overflow: 'hidden', width: '100%' }}>
-      <div style={{ height: '100%', width: `${pct}%`, background: pct >= 80 ? '#2E7D32' : pct >= 50 ? '#00695C' : '#B45309', borderRadius: height / 2, transition: 'width 0.4s ease' }} />
+    <div style={{ height, background: 'var(--surface)', borderRadius: height / 2, overflow: 'hidden', width: '100%' }}>
+      <div style={{ height: '100%', width: `${pct}%`, background: pct >= 80 ? 'var(--success)' : pct >= 50 ? 'var(--teal)' : '#F5B94D', borderRadius: height / 2, transition: 'width 0.4s ease' }} />
     </div>
   )
 }
@@ -106,28 +106,28 @@ function ProjectCard({ p }: { p: BespokeProject }) {
   return (
     <Link href={`/admin/bespoke/${p.id}`} style={{ textDecoration: 'none', color: 'inherit', display: 'block' }}>
       <div style={{
-        background: '#FFFFFF', borderRadius: '10px', padding: '16px', border: '1px solid #DDE8EE',
+        background: 'var(--card)', borderRadius: '10px', padding: '16px', border: '1px solid var(--border)',
         cursor: 'pointer', transition: 'box-shadow 0.2s, border-color 0.2s',
       }}
-        onMouseEnter={e => { e.currentTarget.style.boxShadow = '0 4px 16px rgba(0,0,0,0.08)'; e.currentTarget.style.borderColor = '#B45309' }}
-        onMouseLeave={e => { e.currentTarget.style.boxShadow = 'none'; e.currentTarget.style.borderColor = '#DDE8EE' }}
+        onMouseEnter={e => { e.currentTarget.style.boxShadow = 'var(--shadow-md)'; e.currentTarget.style.borderColor = '#F5B94D' }}
+        onMouseLeave={e => { e.currentTarget.style.boxShadow = 'none'; e.currentTarget.style.borderColor = 'var(--border)' }}
       >
         {/* Title + Format */}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '8px', marginBottom: '8px' }}>
-          <div style={{ fontFamily: 'var(--font-manrope)', fontWeight: 700, fontSize: '15px', color: '#0F1923', lineHeight: '1.3' }}>{p.title}</div>
+          <div style={{ fontFamily: 'var(--font-manrope)', fontWeight: 700, fontSize: '15px', color: 'var(--ink)', lineHeight: '1.3' }}>{p.title}</div>
           <span style={{ fontSize: '11px', fontWeight: 700, padding: '2px 8px', borderRadius: '6px', background: fmtC.bg, color: fmtC.fg, whiteSpace: 'nowrap', flexShrink: 0 }}>
             {p.format}
           </span>
         </div>
 
         {/* Client */}
-        <div style={{ fontSize: '13px', color: '#5B7080', fontWeight: 500, marginBottom: '10px' }}>{p.client_company}</div>
+        <div style={{ fontSize: '13px', color: 'var(--ink3)', fontWeight: 500, marginBottom: '10px' }}>{p.client_company}</div>
 
         {/* Event date + Days left */}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
-          <span style={{ fontSize: '12px', color: '#5B7080' }}>{fmtDate(p.event_date)}</span>
+          <span style={{ fontSize: '12px', color: 'var(--ink3)' }}>{fmtDate(p.event_date)}</span>
           {days !== null && (
-            <span style={{ fontSize: '11px', fontWeight: 700, color: days <= 7 ? '#DC2626' : days <= 14 ? '#B45309' : '#5B7080' }}>
+            <span style={{ fontSize: '11px', fontWeight: 700, color: days <= 7 ? 'var(--red)' : days <= 14 ? '#F5B94D' : 'var(--ink3)' }}>
               {days > 0 ? `${days}d left` : days === 0 ? 'Today' : `${Math.abs(days)}d ago`}
             </span>
           )}
@@ -136,15 +136,15 @@ function ProjectCard({ p }: { p: BespokeProject }) {
         {/* Registration progress */}
         <div style={{ marginBottom: '8px' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
-            <span style={{ fontSize: '11px', color: '#5B7080', fontWeight: 600 }}>Registrations</span>
-            <span style={{ fontSize: '11px', color: '#0F1923', fontWeight: 700 }}>{p.delegate_stats.registered} / {p.target_delegate_count}</span>
+            <span style={{ fontSize: '11px', color: 'var(--ink3)', fontWeight: 600 }}>Registrations</span>
+            <span style={{ fontSize: '11px', color: 'var(--ink)', fontWeight: 700 }}>{p.delegate_stats.registered} / {p.target_delegate_count}</span>
           </div>
           <ProgressBar value={p.delegate_stats.registered} max={p.target_delegate_count} />
         </div>
 
         {/* Commercial lead */}
         {p.commercial_lead && (
-          <div style={{ fontSize: '12px', color: '#5B7080', marginTop: '8px' }}>
+          <div style={{ fontSize: '12px', color: 'var(--ink3)', marginTop: '8px' }}>
             <span style={{ fontWeight: 600 }}>Lead:</span> {p.commercial_lead.name}
           </div>
         )}
@@ -162,9 +162,9 @@ function SortHead({ label, field, sortBy, sortDir, onSort }: {
   return (
     <th
       onClick={() => onSort(field)}
-      style={{ padding: '10px 12px', textAlign: 'left', fontSize: '12px', fontWeight: 700, color: active ? '#00695C' : '#5B7080', cursor: 'pointer', userSelect: 'none', whiteSpace: 'nowrap', borderBottom: '1px solid #DDE8EE' }}
+      style={{ padding: '10px 12px', textAlign: 'left', fontSize: '12px', fontWeight: 700, color: active ? 'var(--teal)' : 'var(--ink3)', cursor: 'pointer', userSelect: 'none', whiteSpace: 'nowrap', borderBottom: '1px solid var(--border)' }}
     >
-      {label} {active ? (sortDir === 'asc' ? '\u2191' : '\u2193') : ''}
+      {label} {active ? (sortDir === 'asc' ? '↑' : '↓') : ''}
     </th>
   )
 }
@@ -208,28 +208,34 @@ export default function BespokePipelinePage() {
   /* ── Loading ──────────────────────────────────────────────────── */
   if (loading) {
     return (
-      <div style={{ minHeight: '100vh', background: '#E8EEF4', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-        <div style={{ fontSize: '15px', color: '#5B7080', fontFamily: 'var(--font-manrope)', fontWeight: 600 }}>Loading bespoke projects...</div>
+      <div style={{ minHeight: '100vh', background: 'var(--surface)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <div style={{ fontSize: '15px', color: 'var(--ink3)', fontFamily: 'var(--font-manrope)', fontWeight: 600 }}>Loading bespoke projects...</div>
       </div>
     )
   }
 
   return (
-    <div style={{ minHeight: '100vh', background: '#E8EEF4', fontFamily: 'var(--font-manrope)' }}>
+    <div style={{ minHeight: '100vh', background: 'var(--surface)', fontFamily: 'var(--font-manrope)' }}>
       <PageHeader
         title="Bespoke Tracker"
         description={`${projects.length} project${projects.length !== 1 ? 's' : ''}`}
         actions={
-          <Link href="/admin/bespoke/new" style={{
-            display: 'flex', alignItems: 'center', gap: '6px', padding: '8px 18px', borderRadius: '8px',
-            background: '#B45309', color: '#FFFFFF', fontSize: '14px', fontWeight: 700, textDecoration: 'none',
-            transition: 'background 0.2s',
-          }}
-            onMouseEnter={e => (e.currentTarget.style.background = '#92400E')}
-            onMouseLeave={e => (e.currentTarget.style.background = '#B45309')}
-          >
-            <PlusIcon /> New Project
-          </Link>
+          <>
+            <Link href="/admin/bespoke/new" style={{
+              display: 'flex', alignItems: 'center', gap: '6px', padding: '8px 18px', borderRadius: '8px',
+              background: '#F5B94D', color: 'var(--amber-light)', fontSize: '14px', fontWeight: 700, textDecoration: 'none',
+              transition: 'background 0.2s',
+            }}
+              onMouseEnter={e => (e.currentTarget.style.background = 'var(--amber-border)')}
+              onMouseLeave={e => (e.currentTarget.style.background = '#F5B94D')}
+            >
+              <PlusIcon /> New Project
+            </Link>
+            <Link href="/admin/bespoke/settings" title="Settings"
+              style={{ width: '34px', height: '34px', display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: '8px', border: '1px solid var(--ink4)', background: 'var(--card)', color: 'var(--ink3)', flexShrink: 0 }}>
+              <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+            </Link>
+          </>
         }
       />
 
@@ -237,15 +243,15 @@ export default function BespokePipelinePage() {
       <div style={{ padding: '16px 32px 0', display: 'flex', alignItems: 'center', gap: '8px' }}>
         <button onClick={() => setView('kanban')} style={{
           display: 'flex', alignItems: 'center', gap: '6px', padding: '6px 14px', borderRadius: '8px',
-          border: view === 'kanban' ? '2px solid #00695C' : '1px solid #B8CDD8', background: view === 'kanban' ? '#E0F2F1' : '#FFFFFF',
-          fontSize: '13px', fontWeight: 700, color: view === 'kanban' ? '#00695C' : '#5B7080', cursor: 'pointer',
+          border: view === 'kanban' ? '2px solid var(--teal)' : '1px solid var(--ink4)', background: view === 'kanban' ? 'var(--teal-light)' : 'var(--card)',
+          fontSize: '13px', fontWeight: 700, color: view === 'kanban' ? 'var(--teal)' : 'var(--ink3)', cursor: 'pointer',
         }}>
           <KanbanIcon active={view === 'kanban'} /> Kanban
         </button>
         <button onClick={() => setView('table')} style={{
           display: 'flex', alignItems: 'center', gap: '6px', padding: '6px 14px', borderRadius: '8px',
-          border: view === 'table' ? '2px solid #00695C' : '1px solid #B8CDD8', background: view === 'table' ? '#E0F2F1' : '#FFFFFF',
-          fontSize: '13px', fontWeight: 700, color: view === 'table' ? '#00695C' : '#5B7080', cursor: 'pointer',
+          border: view === 'table' ? '2px solid var(--teal)' : '1px solid var(--ink4)', background: view === 'table' ? 'var(--teal-light)' : 'var(--card)',
+          fontSize: '13px', fontWeight: 700, color: view === 'table' ? 'var(--teal)' : 'var(--ink3)', cursor: 'pointer',
         }}>
           <TableIcon active={view === 'table'} /> Table
         </button>
@@ -256,19 +262,19 @@ export default function BespokePipelinePage() {
         {projects.length === 0 ? (
           /* Empty State */
           <div style={{
-            background: '#FFFFFF', borderRadius: '12px', border: '1px solid #DDE8EE', padding: '64px 32px',
+            background: 'var(--card)', borderRadius: '12px', border: '1px solid var(--border)', padding: '64px 32px',
             textAlign: 'center',
           }}>
-            <div style={{ fontSize: '48px', marginBottom: '16px', color: '#B8CDD8' }}>
-              <svg width="48" height="48" fill="none" stroke="currentColor" strokeWidth="1.5" viewBox="0 0 24 24" style={{ color: '#B8CDD8' }}>
+            <div style={{ fontSize: '48px', marginBottom: '16px', color: 'var(--ink4)' }}>
+              <svg width="48" height="48" fill="none" stroke="currentColor" strokeWidth="1.5" viewBox="0 0 24 24" style={{ color: 'var(--ink4)' }}>
                 <rect x="3" y="3" width="18" height="18" rx="2" /><line x1="9" y1="9" x2="15" y2="15" /><line x1="15" y1="9" x2="9" y2="15" />
               </svg>
             </div>
-            <div style={{ fontSize: '17px', fontWeight: 700, color: '#0F1923', marginBottom: '8px' }}>No bespoke projects yet</div>
-            <div style={{ fontSize: '15px', color: '#5B7080', marginBottom: '24px' }}>Create your first one.</div>
+            <div style={{ fontSize: '17px', fontWeight: 700, color: 'var(--ink)', marginBottom: '8px' }}>No bespoke projects yet</div>
+            <div style={{ fontSize: '15px', color: 'var(--ink3)', marginBottom: '24px' }}>Create your first one.</div>
             <Link href="/admin/bespoke/new" style={{
               display: 'inline-flex', alignItems: 'center', gap: '6px', padding: '10px 24px', borderRadius: '8px',
-              background: '#B45309', color: '#FFFFFF', fontSize: '14px', fontWeight: 700, textDecoration: 'none',
+              background: '#F5B94D', color: 'var(--amber-light)', fontSize: '14px', fontWeight: 700, textDecoration: 'none',
             }}>
               <PlusIcon /> New Project
             </Link>
@@ -283,10 +289,10 @@ export default function BespokePipelinePage() {
                   <div style={{
                     display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px', padding: '0 4px',
                   }}>
-                    <span style={{ fontSize: '13px', fontWeight: 800, color: '#2D3E50', textTransform: 'uppercase', letterSpacing: '0.5px' }}>{col.label}</span>
+                    <span style={{ fontSize: '13px', fontWeight: 800, color: 'var(--ink2)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>{col.label}</span>
                     <span style={{
                       fontSize: '11px', fontWeight: 700, padding: '1px 8px', borderRadius: '10px',
-                      background: '#E8EEF4', color: '#5B7080',
+                      background: 'var(--surface)', color: 'var(--ink3)',
                     }}>{colProjects.length}</span>
                   </div>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
@@ -298,14 +304,14 @@ export default function BespokePipelinePage() {
           </div>
         ) : (
           /* ── Table View ───────────────────────────────────────── */
-          <div style={{ background: '#FFFFFF', borderRadius: '12px', border: '1px solid #DDE8EE', overflow: 'hidden' }}>
+          <div style={{ background: 'var(--card)', borderRadius: '12px', border: '1px solid var(--border)', overflow: 'hidden' }}>
             <table style={{ width: '100%', borderCollapse: 'collapse', fontFamily: 'var(--font-manrope)' }}>
               <thead>
-                <tr style={{ background: '#F8FAFC' }}>
+                <tr style={{ background: 'var(--border-light)' }}>
                   <SortHead label="Title" field="title" sortBy={sortBy} sortDir={sortDir} onSort={handleSort} />
                   <SortHead label="Client" field="client_company" sortBy={sortBy} sortDir={sortDir} onSort={handleSort} />
                   <SortHead label="Event Date" field="event_date" sortBy={sortBy} sortDir={sortDir} onSort={handleSort} />
-                  <th style={{ padding: '10px 12px', textAlign: 'left', fontSize: '12px', fontWeight: 700, color: '#5B7080', borderBottom: '1px solid #DDE8EE' }}>Format</th>
+                  <th style={{ padding: '10px 12px', textAlign: 'left', fontSize: '12px', fontWeight: 700, color: 'var(--ink3)', borderBottom: '1px solid var(--border)' }}>Format</th>
                   <SortHead label="Phase" field="phase" sortBy={sortBy} sortDir={sortDir} onSort={handleSort} />
                   <SortHead label="Registrations" field="registrations" sortBy={sortBy} sortDir={sortDir} onSort={handleSort} />
                   <SortHead label="Commercial Lead" field="lead" sortBy={sortBy} sortDir={sortDir} onSort={handleSort} />
@@ -320,13 +326,13 @@ export default function BespokePipelinePage() {
                   return (
                     <tr key={p.id}
                       onClick={() => window.location.href = `/admin/bespoke/${p.id}`}
-                      style={{ cursor: 'pointer', borderBottom: '1px solid #F0F4F8', transition: 'background 0.15s' }}
-                      onMouseEnter={e => (e.currentTarget.style.background = '#F8FAFC')}
+                      style={{ cursor: 'pointer', borderBottom: '1px solid var(--surface)', transition: 'background 0.15s' }}
+                      onMouseEnter={e => (e.currentTarget.style.background = 'var(--border-light)')}
                       onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
                     >
-                      <td style={{ padding: '12px', fontSize: '14px', fontWeight: 700, color: '#0F1923' }}>{p.title}</td>
-                      <td style={{ padding: '12px', fontSize: '14px', color: '#2D3E50' }}>{p.client_company}</td>
-                      <td style={{ padding: '12px', fontSize: '13px', color: '#5B7080' }}>{fmtDate(p.event_date)}</td>
+                      <td style={{ padding: '12px', fontSize: '14px', fontWeight: 700, color: 'var(--ink)' }}>{p.title}</td>
+                      <td style={{ padding: '12px', fontSize: '14px', color: 'var(--ink2)' }}>{p.client_company}</td>
+                      <td style={{ padding: '12px', fontSize: '13px', color: 'var(--ink3)' }}>{fmtDate(p.event_date)}</td>
                       <td style={{ padding: '12px' }}>
                         <span style={{ fontSize: '11px', fontWeight: 700, padding: '2px 8px', borderRadius: '6px', background: fc.bg, color: fc.fg }}>{p.format}</span>
                       </td>
@@ -336,13 +342,13 @@ export default function BespokePipelinePage() {
                       <td style={{ padding: '12px' }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                           <ProgressBar value={p.delegate_stats.registered} max={p.target_delegate_count} height={5} />
-                          <span style={{ fontSize: '12px', fontWeight: 700, color: '#0F1923', whiteSpace: 'nowrap' }}>{p.delegate_stats.registered}/{p.target_delegate_count}</span>
+                          <span style={{ fontSize: '12px', fontWeight: 700, color: 'var(--ink)', whiteSpace: 'nowrap' }}>{p.delegate_stats.registered}/{p.target_delegate_count}</span>
                         </div>
                       </td>
-                      <td style={{ padding: '12px', fontSize: '13px', color: '#2D3E50' }}>{p.commercial_lead?.name || '--'}</td>
+                      <td style={{ padding: '12px', fontSize: '13px', color: 'var(--ink2)' }}>{p.commercial_lead?.name || '--'}</td>
                       <td style={{ padding: '12px' }}>
                         {days !== null ? (
-                          <span style={{ fontSize: '13px', fontWeight: 700, color: days <= 7 ? '#DC2626' : days <= 14 ? '#B45309' : '#2D3E50' }}>
+                          <span style={{ fontSize: '13px', fontWeight: 700, color: days <= 7 ? 'var(--red)' : days <= 14 ? '#F5B94D' : 'var(--ink2)' }}>
                             {days > 0 ? `${days}d` : days === 0 ? 'Today' : `${Math.abs(days)}d ago`}
                           </span>
                         ) : '--'}

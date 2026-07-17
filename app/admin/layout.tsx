@@ -44,24 +44,24 @@ function ScanBanner() {
   return (
     <div style={{
       position:   'fixed', bottom: '24px', right: '24px', zIndex: 9999,
-      background: '#0F1923', color: '#FFFFFF', borderRadius: '14px',
+      background: 'var(--card-hi)', color: 'var(--ink)', borderRadius: '14px',
       padding:    '14px 18px', boxShadow: '0 8px 32px rgba(0,0,0,0.4)',
-      minWidth:   '280px', maxWidth: '340px', border: '1px solid rgba(99,102,241,0.4)',
+      minWidth:   '280px', maxWidth: '340px', border: '1px solid rgba(129,140,248,0.4)',
     }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '10px' }}>
         <div style={{
           width: '8px', height: '8px', borderRadius: '50%',
-          background: running ? '#6366F1' : '#10B981', flexShrink: 0,
-          boxShadow: running ? '0 0 0 3px rgba(99,102,241,0.3)' : 'none',
+          background: running ? 'var(--indigo)' : 'var(--success)', flexShrink: 0,
+          boxShadow: running ? '0 0 0 3px rgba(129,140,248,0.3)' : 'none',
         }} />
-        <div style={{ flex: 1, fontSize: '13px', fontWeight: 800, color: '#FFFFFF' }}>
+        <div style={{ flex: 1, fontSize: '13px', fontWeight: 800, color: 'var(--ink)' }}>
           {running ? 'Market Intelligence Scan Running' : 'Market Intel Scan Complete'}
         </div>
       </div>
 
       {/* Progress bar */}
       <div style={{ height: '4px', background: 'rgba(255,255,255,0.12)', borderRadius: '2px', marginBottom: '8px', overflow: 'hidden' }}>
-        <div style={{ height: '100%', width: `${pct}%`, background: running ? '#6366F1' : '#10B981', borderRadius: '2px', transition: 'width 0.4s ease' }} />
+        <div style={{ height: '100%', width: `${pct}%`, background: running ? 'var(--indigo)' : 'var(--success)', borderRadius: '2px', transition: 'width 0.4s ease' }} />
       </div>
 
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -70,7 +70,7 @@ function ScanBanner() {
         </div>
         {eventId && (
           <Link href={`/admin/events/${eventId}/market-intel`}
-            style={{ fontSize: '11px', fontWeight: 800, color: '#6366F1', textDecoration: 'none', padding: '3px 8px', background: 'rgba(99,102,241,0.15)', borderRadius: '6px' }}>
+            style={{ fontSize: '11px', fontWeight: 800, color: 'var(--indigo)', textDecoration: 'none', padding: '3px 8px', background: 'rgba(129,140,248,0.15)', borderRadius: '6px' }}>
             View progress →
           </Link>
         )}

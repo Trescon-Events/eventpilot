@@ -13,9 +13,9 @@ interface QualityData {
 }
 
 function pctColor(pct: number): string {
-  if (pct >= 80) return '#34D399'
-  if (pct >= 50) return '#FBBF24'
-  return '#F87171'
+  if (pct >= 80) return 'var(--success)'
+  if (pct >= 50) return 'var(--amber)'
+  return 'var(--red)'
 }
 
 export default function QualityPage() {
@@ -31,22 +31,22 @@ export default function QualityPage() {
 
   if (loading) {
     return (
-      <div style={{ minHeight: '100vh', background: '#F8FAFB', fontFamily: 'system-ui, sans-serif' }}>
-        <div style={{ background: '#FFFFFF', borderBottom: '1px solid #DDE8EE', padding: '0 24px', height: '52px', display: 'flex', alignItems: 'center' }}>
-          <span style={{ fontSize: '15px', fontWeight: 700, color: '#0F1923' }}>Data Quality</span>
+      <div style={{ minHeight: '100vh', background: 'var(--surface)', fontFamily: 'system-ui, sans-serif' }}>
+        <div style={{ background: 'var(--card)', borderBottom: '1px solid var(--border)', padding: '0 24px', height: '52px', display: 'flex', alignItems: 'center' }}>
+          <span style={{ fontSize: '15px', fontWeight: 700, color: 'var(--ink)' }}>Data Quality</span>
         </div>
-        <div style={{ padding: '64px', textAlign: 'center', color: '#9CA3AF', fontSize: '15px' }}>Analysing contacts…</div>
+        <div style={{ padding: '64px', textAlign: 'center', color: 'var(--ink3)', fontSize: '15px' }}>Analysing contacts…</div>
       </div>
     )
   }
 
   if (!data || data.total === 0) {
     return (
-      <div style={{ minHeight: '100vh', background: '#F8FAFB', fontFamily: 'system-ui, sans-serif' }}>
-        <div style={{ background: '#FFFFFF', borderBottom: '1px solid #DDE8EE', padding: '0 24px', height: '52px', display: 'flex', alignItems: 'center' }}>
-          <span style={{ fontSize: '15px', fontWeight: 700, color: '#0F1923' }}>Data Quality</span>
+      <div style={{ minHeight: '100vh', background: 'var(--surface)', fontFamily: 'system-ui, sans-serif' }}>
+        <div style={{ background: 'var(--card)', borderBottom: '1px solid var(--border)', padding: '0 24px', height: '52px', display: 'flex', alignItems: 'center' }}>
+          <span style={{ fontSize: '15px', fontWeight: 700, color: 'var(--ink)' }}>Data Quality</span>
         </div>
-        <div style={{ padding: '64px', textAlign: 'center', color: '#9CA3AF', fontSize: '15px' }}>No contacts in the database yet.</div>
+        <div style={{ padding: '64px', textAlign: 'center', color: 'var(--ink3)', fontSize: '15px' }}>No contacts in the database yet.</div>
       </div>
     )
   }
@@ -62,15 +62,15 @@ export default function QualityPage() {
   ]
 
   return (
-    <div style={{ minHeight: '100vh', background: '#F8FAFB', fontFamily: 'system-ui, sans-serif' }}>
+    <div style={{ minHeight: '100vh', background: 'var(--surface)', fontFamily: 'system-ui, sans-serif' }}>
       {/* Header */}
-      <div style={{ background: '#FFFFFF', borderBottom: '1px solid #DDE8EE', padding: '0 24px', height: '52px', display: 'flex', alignItems: 'center', gap: '12px' }}>
-        <svg width="16" height="16" fill="none" stroke="#00A5A3" strokeWidth="2" strokeLinecap="round" viewBox="0 0 24 24">
+      <div style={{ background: 'var(--card)', borderBottom: '1px solid var(--border)', padding: '0 24px', height: '52px', display: 'flex', alignItems: 'center', gap: '12px' }}>
+        <svg width="16" height="16" fill="none" stroke="var(--teal-mid)" strokeWidth="2" strokeLinecap="round" viewBox="0 0 24 24">
           <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
           <polyline points="22 4 12 14.01 9 11.01"/>
         </svg>
-        <span style={{ fontSize: '15px', fontWeight: 700, color: '#0F1923' }}>Data Quality</span>
-        <span style={{ fontSize: '13px', color: '#9CA3AF' }}>Field completeness and enrichment health</span>
+        <span style={{ fontSize: '15px', fontWeight: 700, color: 'var(--ink)' }}>Data Quality</span>
+        <span style={{ fontSize: '13px', color: 'var(--ink3)' }}>Field completeness and enrichment health</span>
       </div>
 
       <div style={{ padding: '24px', maxWidth: '1100px' }}>
@@ -78,10 +78,10 @@ export default function QualityPage() {
         {/* Stats row */}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: '12px', marginBottom: '24px' }}>
           {statsRow.map(s => (
-            <div key={s.label} style={{ background: '#FFFFFF', border: '1px solid #DDE8EE', borderRadius: '14px', padding: '18px' }}>
-              <div style={{ fontSize: '11px', fontWeight: 700, color: '#9CA3AF', textTransform: 'uppercase', letterSpacing: '1.5px', marginBottom: '8px' }}>{s.label}</div>
-              <div style={{ fontSize: '26px', fontWeight: 800, color: '#0F1923', lineHeight: 1 }}>{s.value}</div>
-              <div style={{ fontSize: '11px', color: '#9CA3AF', marginTop: '5px' }}>{s.sub}</div>
+            <div key={s.label} style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: '14px', padding: '18px' }}>
+              <div style={{ fontSize: '11px', fontWeight: 700, color: 'var(--ink3)', textTransform: 'uppercase', letterSpacing: '1.5px', marginBottom: '8px' }}>{s.label}</div>
+              <div style={{ fontSize: '26px', fontWeight: 800, color: 'var(--ink)', lineHeight: 1 }}>{s.value}</div>
+              <div style={{ fontSize: '11px', color: 'var(--ink3)', marginTop: '5px' }}>{s.sub}</div>
             </div>
           ))}
         </div>
@@ -89,17 +89,17 @@ export default function QualityPage() {
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px', marginBottom: '24px' }}>
 
           {/* Field completeness */}
-          <div style={{ background: '#FFFFFF', border: '1px solid #DDE8EE', borderRadius: '16px', padding: '20px' }}>
-            <div style={{ fontSize: '14px', fontWeight: 700, color: '#0F1923', marginBottom: '16px' }}>Field Completeness</div>
+          <div style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: '16px', padding: '20px' }}>
+            <div style={{ fontSize: '14px', fontWeight: 700, color: 'var(--ink)', marginBottom: '16px' }}>Field Completeness</div>
             {data.fields
               .sort((a, b) => b.pct - a.pct)
               .map(f => (
                 <div key={f.key} style={{ marginBottom: '13px' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '5px' }}>
-                    <span style={{ fontSize: '13px', color: '#6B7280' }}>{f.label}</span>
+                    <span style={{ fontSize: '13px', color: 'var(--ink2)' }}>{f.label}</span>
                     <span style={{ fontSize: '13px', fontWeight: 700, color: pctColor(f.pct) }}>{f.pct}%</span>
                   </div>
-                  <div style={{ height: '5px', background: '#F0F4F7', borderRadius: '3px', overflow: 'hidden' }}>
+                  <div style={{ height: '5px', background: 'var(--border-light)', borderRadius: '3px', overflow: 'hidden' }}>
                     <div style={{
                       height: '100%', borderRadius: '3px',
                       background: pctColor(f.pct),
@@ -107,7 +107,7 @@ export default function QualityPage() {
                       transition: 'width 0.6s ease',
                     }} />
                   </div>
-                  <div style={{ fontSize: '11px', color: '#C4CDD6', marginTop: '3px' }}>
+                  <div style={{ fontSize: '11px', color: 'var(--ink3)', marginTop: '3px' }}>
                     {f.filled.toLocaleString()} of {f.total.toLocaleString()}
                   </div>
                 </div>
@@ -115,10 +115,10 @@ export default function QualityPage() {
           </div>
 
           {/* Monthly trend */}
-          <div style={{ background: '#FFFFFF', border: '1px solid #DDE8EE', borderRadius: '16px', padding: '20px' }}>
-            <div style={{ fontSize: '14px', fontWeight: 700, color: '#0F1923', marginBottom: '16px' }}>Monthly Additions (last 6 months)</div>
+          <div style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: '16px', padding: '20px' }}>
+            <div style={{ fontSize: '14px', fontWeight: 700, color: 'var(--ink)', marginBottom: '16px' }}>Monthly Additions (last 6 months)</div>
             {data.monthly_trend.length === 0 ? (
-              <div style={{ color: '#9CA3AF', fontSize: '13px', textAlign: 'center', padding: '32px 0' }}>No data yet</div>
+              <div style={{ color: 'var(--ink3)', fontSize: '13px', textAlign: 'center', padding: '32px 0' }}>No data yet</div>
             ) : (
               <div style={{ display: 'flex', alignItems: 'flex-end', gap: '10px', height: '140px', paddingBottom: '20px' }}>
                 {data.monthly_trend.map(m => {
@@ -126,9 +126,9 @@ export default function QualityPage() {
                   const label  = new Date(m.month + '-01').toLocaleDateString('en-GB', { month: 'short', year: '2-digit' })
                   return (
                     <div key={m.month} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px', height: '100%', justifyContent: 'flex-end' }}>
-                      <div style={{ fontSize: '10px', fontWeight: 700, color: '#0F1923' }}>{m.count}</div>
-                      <div style={{ width: '100%', background: '#00A5A3', borderRadius: '4px 4px 0 0', height: `${height}%`, minHeight: '4px', transition: 'height 0.5s' }} />
-                      <div style={{ fontSize: '10px', color: '#9CA3AF', whiteSpace: 'nowrap' }}>{label}</div>
+                      <div style={{ fontSize: '10px', fontWeight: 700, color: 'var(--ink)' }}>{m.count}</div>
+                      <div style={{ width: '100%', background: 'var(--teal-mid)', borderRadius: '4px 4px 0 0', height: `${height}%`, minHeight: '4px', transition: 'height 0.5s' }} />
+                      <div style={{ fontSize: '10px', color: 'var(--ink3)', whiteSpace: 'nowrap' }}>{label}</div>
                     </div>
                   )
                 })}
@@ -137,16 +137,16 @@ export default function QualityPage() {
 
             {/* Duplicate alert */}
             {data.duplicates > 0 && (
-              <div style={{ marginTop: '16px', padding: '12px 14px', background: 'rgba(248,113,113,0.06)', border: '1px solid rgba(248,113,113,0.2)', borderRadius: '10px', display: 'flex', gap: '10px', alignItems: 'flex-start' }}>
-                <svg width="14" height="14" fill="none" stroke="#F87171" strokeWidth="2" strokeLinecap="round" viewBox="0 0 24 24" style={{ flexShrink: 0, marginTop: '1px' }}>
+              <div style={{ marginTop: '16px', padding: '12px 14px', background: 'var(--red-light)', border: '1px solid var(--red-border)', borderRadius: '10px', display: 'flex', gap: '10px', alignItems: 'flex-start' }}>
+                <svg width="14" height="14" fill="none" stroke="var(--red)" strokeWidth="2" strokeLinecap="round" viewBox="0 0 24 24" style={{ flexShrink: 0, marginTop: '1px' }}>
                   <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
                   <line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>
                 </svg>
                 <div>
-                  <div style={{ fontSize: '13px', fontWeight: 700, color: '#F87171', marginBottom: '2px' }}>
+                  <div style={{ fontSize: '13px', fontWeight: 700, color: 'var(--red)', marginBottom: '2px' }}>
                     {data.duplicates} possible duplicate{data.duplicates !== 1 ? 's' : ''} detected
                   </div>
-                  <div style={{ fontSize: '12px', color: '#9CA3AF' }}>Multiple contacts share the same email address. Review in Contacts view.</div>
+                  <div style={{ fontSize: '12px', color: 'var(--ink3)' }}>Multiple contacts share the same email address. Review in Contacts view.</div>
                 </div>
               </div>
             )}
@@ -154,9 +154,9 @@ export default function QualityPage() {
         </div>
 
         {/* Coverage score */}
-        <div style={{ background: '#FFFFFF', border: '1px solid #DDE8EE', borderRadius: '16px', padding: '20px' }}>
-          <div style={{ fontSize: '14px', fontWeight: 700, color: '#0F1923', marginBottom: '4px' }}>Overall Database Score</div>
-          <div style={{ fontSize: '13px', color: '#9CA3AF', marginBottom: '20px' }}>Average completeness across all key fields</div>
+        <div style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: '16px', padding: '20px' }}>
+          <div style={{ fontSize: '14px', fontWeight: 700, color: 'var(--ink)', marginBottom: '4px' }}>Overall Database Score</div>
+          <div style={{ fontSize: '13px', color: 'var(--ink3)', marginBottom: '20px' }}>Average completeness across all key fields</div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '24px' }}>
             {(() => {
               const avg = Math.round(data.fields.reduce((sum, f) => sum + f.pct, 0) / data.fields.length)
@@ -165,7 +165,7 @@ export default function QualityPage() {
                 <>
                   <div style={{ position: 'relative', width: '80px', height: '80px', flexShrink: 0 }}>
                     <svg width="80" height="80" viewBox="0 0 80 80">
-                      <circle cx="40" cy="40" r="34" fill="none" stroke="#F0F4F7" strokeWidth="8"/>
+                      <circle cx="40" cy="40" r="34" fill="none" stroke="var(--border-light)" strokeWidth="8"/>
                       <circle
                         cx="40" cy="40" r="34" fill="none" stroke={color} strokeWidth="8"
                         strokeLinecap="round"
@@ -180,10 +180,10 @@ export default function QualityPage() {
                     </div>
                   </div>
                   <div>
-                    <div style={{ fontSize: '20px', fontWeight: 800, color: '#0F1923', marginBottom: '4px' }}>
+                    <div style={{ fontSize: '20px', fontWeight: 800, color: 'var(--ink)', marginBottom: '4px' }}>
                       {avg >= 80 ? 'Excellent' : avg >= 60 ? 'Good' : avg >= 40 ? 'Fair' : 'Needs Attention'}
                     </div>
-                    <div style={{ fontSize: '13px', color: '#9CA3AF', lineHeight: 1.6 }}>
+                    <div style={{ fontSize: '13px', color: 'var(--ink3)', lineHeight: 1.6 }}>
                       {avg >= 80
                         ? 'Your contact database is well-enriched and ready for outreach.'
                         : avg >= 60

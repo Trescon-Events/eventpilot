@@ -5,16 +5,15 @@ import PageHeader from '@/app/components/PageHeader'
 
 // ── Design tokens ─────────────────────────────────────────────────────────────
 const C = {
-  bg:      '#F6F8FB',
-  surface: '#FFFFFF',
-  border:  '#DDE8EE',
-  text:    '#0F1923',
-  muted:   '#5B7080',
-  green:   '#00897B',
-  amber:   '#D97706',
-  red:     '#8B1A1A',
-  blue:    '#0284C7',
-  purple:  '#6C54B5',
+  bg:      'var(--surface)',
+  surface: 'var(--card)',
+  border:  'var(--border)',
+  text:    'var(--ink)',
+  muted:   'var(--ink3)',
+  green:   'var(--teal-mid)', // NOTE: named "green" historically, this is brand teal
+  amber:   'var(--amber)',
+  red:     'var(--red)',
+  blue:    'var(--info)',
 }
 
 const TASK_TYPES = [
@@ -27,9 +26,11 @@ const TASK_TYPES = [
   { value: 'other',                label: 'Other' },
 ]
 
+// NOTE: brightened vs. the original light-theme hexes to clear 4.5:1 contrast
+// against the dark card background (#142330) — see contrast pass, Jul 2026.
 const TASK_COLORS: Record<string, string> = {
-  project_work: '#00897B', event_execution: '#1565C0', business_development: '#D97706',
-  internal_meeting: '#6C54B5', training: '#0284C7', admin: '#5B7080', other: '#8B1A1A',
+  project_work: '#009D8D', event_execution: '#3D8EEA', business_development: '#D97706',
+  internal_meeting: '#9481CF', training: '#0291DB', admin: '#5591BE', other: '#E26262',
 }
 
 type Session = { sid: string; adm: boolean; jl: string; dept: string }
@@ -164,21 +165,21 @@ export default function TimesheetsPage() {
         title="Timesheets"
         actions={<>
           <button onClick={() => setTab('my')}
-            style={{ padding: '7px 18px', borderRadius: 8, border: tab === 'my' ? `1.5px solid ${C.blue}` : `1px solid ${C.border}`, background: tab === 'my' ? C.blue : C.surface, color: tab === 'my' ? '#fff' : C.muted, fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
+            style={{ padding: '7px 18px', borderRadius: 8, border: tab === 'my' ? `1.5px solid ${C.blue}` : `1px solid ${C.border}`, background: tab === 'my' ? C.blue : C.surface, color: tab === 'my' ? 'var(--info-light)' : C.muted, fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
             My Timesheet
           </button>
           {isManager && (
             <button onClick={() => { setTab('approve'); fetchPending() }}
-              style={{ padding: '7px 18px', borderRadius: 8, border: tab === 'approve' ? `1.5px solid ${C.amber}` : `1px solid ${C.border}`, background: tab === 'approve' ? C.amber : C.surface, color: tab === 'approve' ? '#fff' : C.muted, fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', position: 'relative' }}>
+              style={{ padding: '7px 18px', borderRadius: 8, border: tab === 'approve' ? `1.5px solid ${C.amber}` : `1px solid ${C.border}`, background: tab === 'approve' ? C.amber : C.surface, color: tab === 'approve' ? 'var(--amber-light)' : C.muted, fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', position: 'relative' }}>
               Approvals
-              {pending.length > 0 && <span style={{ position: 'absolute', top: -6, right: -6, width: 18, height: 18, borderRadius: '50%', background: C.red, color: '#fff', fontSize: 10, fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{pending.length}</span>}
+              {pending.length > 0 && <span style={{ position: 'absolute', top: -6, right: -6, width: 18, height: 18, borderRadius: '50%', background: C.red, color: 'var(--red-light)', fontSize: 10, fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{pending.length}</span>}
             </button>
           )}
         </>}
       />
 
       <div style={{ maxWidth: 1100, margin: '0 auto', padding: '24px 32px' }}>
-        {msg && <div style={{ padding: '10px 16px', borderRadius: 8, marginBottom: 16, background: msg.ok ? `${C.green}12` : `${C.red}12`, border: `1px solid ${msg.ok ? C.green : C.red}30`, color: msg.ok ? C.green : C.red, fontSize: 13, fontWeight: 600 }}>{msg.text}</div>}
+        {msg && <div style={{ padding: '10px 16px', borderRadius: 8, marginBottom: 16, background: msg.ok ? `${'color-mix(in srgb, ' + (C.green) + ' 7%, transparent)'}` : `${'color-mix(in srgb, ' + (C.red) + ' 7%, transparent)'}`, border: `1px solid ${'color-mix(in srgb, ' + (msg.ok ? C.green : C.red) + ' 19%, transparent)'}`, color: msg.ok ? C.green : C.red, fontSize: 13, fontWeight: 600 }}>{msg.text}</div>}
 
         {/* ══════════ MY TIMESHEET TAB ══════════ */}
         {tab === 'my' && (
@@ -200,7 +201,7 @@ export default function TimesheetsPage() {
               <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                 <div style={{ fontSize: 14, fontWeight: 700, color: C.text }}>Total: <span style={{ color: totalHours >= 40 ? C.green : totalHours >= 20 ? C.amber : C.red }}>{totalHours}h</span> / 40h</div>
                 <button onClick={() => { setShowForm(true); setFormDate(new Date().toISOString().slice(0, 10)) }}
-                  style={{ padding: '8px 18px', borderRadius: 8, border: 'none', background: C.blue, color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
+                  style={{ padding: '8px 18px', borderRadius: 8, border: 'none', background: C.blue, color: 'var(--info-light)', fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
                   + Log Hours
                 </button>
               </div>
@@ -219,7 +220,7 @@ export default function TimesheetsPage() {
                       <span style={{ fontSize: 12, fontWeight: 800, color: dayTotal > 0 ? C.text : C.border }}>{dayTotal}h</span>
                     </div>
                     {dayEntries.map(e => (
-                      <div key={e.id} style={{ padding: '6px 8px', borderRadius: 6, marginBottom: 4, background: `${TASK_COLORS[e.task_type] ?? C.muted}10`, borderLeft: `3px solid ${TASK_COLORS[e.task_type] ?? C.muted}` }}>
+                      <div key={e.id} style={{ padding: '6px 8px', borderRadius: 6, marginBottom: 4, background: `${'color-mix(in srgb, ' + (TASK_COLORS[e.task_type] ?? C.muted) + ' 6%, transparent)'}`, borderLeft: `3px solid ${TASK_COLORS[e.task_type] ?? C.muted}` }}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                           <span style={{ fontSize: 11, fontWeight: 700, color: TASK_COLORS[e.task_type] ?? C.muted }}>{e.hours}h</span>
                           <span style={{ fontSize: 10, fontWeight: 600, color: e.approved ? C.green : C.amber }}>{e.approved ? 'Approved' : 'Pending'}</span>
@@ -248,7 +249,7 @@ export default function TimesheetsPage() {
                 </div>
                 <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                   <thead>
-                    <tr style={{ background: '#F8FAFB' }}>
+                    <tr style={{ background: 'var(--surface)' }}>
                       {['Date', 'Hours', 'Type', 'Event', 'Description', 'Status', ''].map(h => (
                         <th key={h} style={{ padding: '10px 14px', fontSize: 11, fontWeight: 700, color: C.muted, textAlign: 'left', borderBottom: `1px solid ${C.border}` }}>{h}</th>
                       ))}
@@ -256,16 +257,16 @@ export default function TimesheetsPage() {
                   </thead>
                   <tbody>
                     {entries.map(e => (
-                      <tr key={e.id} style={{ borderBottom: `1px solid ${C.border}08` }}>
+                      <tr key={e.id} style={{ borderBottom: `1px solid ${'color-mix(in srgb, ' + (C.border) + ' 3%, transparent)'}` }}>
                         <td style={{ padding: '10px 14px', fontSize: 13, fontWeight: 600, color: C.text }}>{fmtDate(e.date)}</td>
                         <td style={{ padding: '10px 14px', fontSize: 13, fontWeight: 800, color: C.text }}>{e.hours}h</td>
                         <td style={{ padding: '10px 14px' }}>
-                          <span style={{ fontSize: 11, fontWeight: 700, padding: '3px 8px', borderRadius: 6, background: `${TASK_COLORS[e.task_type] ?? C.muted}12`, color: TASK_COLORS[e.task_type] ?? C.muted }}>{TASK_TYPES.find(t => t.value === e.task_type)?.label ?? e.task_type}</span>
+                          <span style={{ fontSize: 11, fontWeight: 700, padding: '3px 8px', borderRadius: 6, background: `${'color-mix(in srgb, ' + (TASK_COLORS[e.task_type] ?? C.muted) + ' 7%, transparent)'}`, color: TASK_COLORS[e.task_type] ?? C.muted }}>{TASK_TYPES.find(t => t.value === e.task_type)?.label ?? e.task_type}</span>
                         </td>
                         <td style={{ padding: '10px 14px', fontSize: 12, color: C.muted }}>{e.event?.name ?? '—'}</td>
                         <td style={{ padding: '10px 14px', fontSize: 13, color: C.text, maxWidth: 250, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{e.description}</td>
                         <td style={{ padding: '10px 14px' }}>
-                          <span style={{ fontSize: 11, fontWeight: 700, padding: '3px 8px', borderRadius: 6, background: e.approved ? `${C.green}12` : `${C.amber}12`, color: e.approved ? C.green : C.amber }}>
+                          <span style={{ fontSize: 11, fontWeight: 700, padding: '3px 8px', borderRadius: 6, background: e.approved ? `${'color-mix(in srgb, ' + (C.green) + ' 7%, transparent)'}` : `${'color-mix(in srgb, ' + (C.amber) + ' 7%, transparent)'}`, color: e.approved ? C.green : C.amber }}>
                             {e.approved ? 'Approved' : 'Pending'}
                           </span>
                         </td>
@@ -286,7 +287,7 @@ export default function TimesheetsPage() {
               <div style={{ textAlign: 'center', padding: 48, background: C.surface, borderRadius: 12, border: `1px solid ${C.border}` }}>
                 <div style={{ fontSize: 15, fontWeight: 700, color: C.text, marginBottom: 6 }}>No hours logged this week</div>
                 <div style={{ fontSize: 13, color: C.muted, marginBottom: 16 }}>Click &quot;Log Hours&quot; to start tracking your time</div>
-                <button onClick={() => setShowForm(true)} style={{ padding: '10px 20px', borderRadius: 8, border: 'none', background: C.blue, color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>+ Log Hours</button>
+                <button onClick={() => setShowForm(true)} style={{ padding: '10px 20px', borderRadius: 8, border: 'none', background: C.blue, color: 'var(--info-light)', fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>+ Log Hours</button>
               </div>
             )}
           </>
@@ -306,7 +307,7 @@ export default function TimesheetsPage() {
               <div style={{ background: C.surface, borderRadius: 12, border: `1px solid ${C.border}`, overflow: 'hidden' }}>
                 <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                   <thead>
-                    <tr style={{ background: '#F8FAFB' }}>
+                    <tr style={{ background: 'var(--surface)' }}>
                       {['Staff', 'Department', 'Date', 'Hours', 'Type', 'Event', 'Description', 'Actions'].map(h => (
                         <th key={h} style={{ padding: '10px 14px', fontSize: 11, fontWeight: 700, color: C.muted, textAlign: 'left', borderBottom: `1px solid ${C.border}` }}>{h}</th>
                       ))}
@@ -314,19 +315,19 @@ export default function TimesheetsPage() {
                   </thead>
                   <tbody>
                     {pending.map(e => (
-                      <tr key={e.id} style={{ borderBottom: `1px solid ${C.border}08` }}>
+                      <tr key={e.id} style={{ borderBottom: `1px solid ${'color-mix(in srgb, ' + (C.border) + ' 3%, transparent)'}` }}>
                         <td style={{ padding: '10px 14px', fontSize: 13, fontWeight: 700, color: C.text }}>{e.staff?.name ?? '—'}</td>
                         <td style={{ padding: '10px 14px', fontSize: 12, color: C.muted }}>{e.staff?.department ?? '—'}</td>
                         <td style={{ padding: '10px 14px', fontSize: 13, color: C.text }}>{fmtDate(e.date)}</td>
                         <td style={{ padding: '10px 14px', fontSize: 13, fontWeight: 800, color: C.text }}>{e.hours}h</td>
                         <td style={{ padding: '10px 14px' }}>
-                          <span style={{ fontSize: 11, fontWeight: 700, padding: '3px 8px', borderRadius: 6, background: `${TASK_COLORS[e.task_type] ?? C.muted}12`, color: TASK_COLORS[e.task_type] ?? C.muted }}>{TASK_TYPES.find(t => t.value === e.task_type)?.label ?? e.task_type}</span>
+                          <span style={{ fontSize: 11, fontWeight: 700, padding: '3px 8px', borderRadius: 6, background: `${'color-mix(in srgb, ' + (TASK_COLORS[e.task_type] ?? C.muted) + ' 7%, transparent)'}`, color: TASK_COLORS[e.task_type] ?? C.muted }}>{TASK_TYPES.find(t => t.value === e.task_type)?.label ?? e.task_type}</span>
                         </td>
                         <td style={{ padding: '10px 14px', fontSize: 12, color: C.muted }}>{e.event?.name ?? '—'}</td>
                         <td style={{ padding: '10px 14px', fontSize: 12, color: C.text, maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{e.description}</td>
                         <td style={{ padding: '10px 14px', display: 'flex', gap: 6 }}>
                           <button onClick={() => handleApproval(e.id, true)}
-                            style={{ padding: '5px 12px', borderRadius: 6, border: 'none', background: C.green, color: '#fff', fontSize: 11, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>Approve</button>
+                            style={{ padding: '5px 12px', borderRadius: 6, border: 'none', background: C.green, color: 'var(--teal-light)', fontSize: 11, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>Approve</button>
                           <button onClick={() => handleApproval(e.id, false)}
                             style={{ padding: '5px 12px', borderRadius: 6, border: `1px solid ${C.red}`, background: 'transparent', color: C.red, fontSize: 11, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>Reject</button>
                         </td>
@@ -385,7 +386,7 @@ export default function TimesheetsPage() {
             <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
               <button onClick={() => setShowForm(false)} style={{ padding: '9px 18px', borderRadius: 8, border: `1px solid ${C.border}`, background: C.surface, color: C.muted, fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>Cancel</button>
               <button onClick={submitEntry} disabled={saving}
-                style={{ padding: '9px 24px', borderRadius: 8, border: 'none', background: saving ? C.muted : C.blue, color: '#fff', fontSize: 13, fontWeight: 700, cursor: saving ? 'wait' : 'pointer', fontFamily: 'inherit' }}>
+                style={{ padding: '9px 24px', borderRadius: 8, border: 'none', background: saving ? C.muted : C.blue, color: 'var(--info-light)', fontSize: 13, fontWeight: 700, cursor: saving ? 'wait' : 'pointer', fontFamily: 'inherit' }}>
                 {saving ? 'Saving...' : 'Log Hours'}
               </button>
             </div>

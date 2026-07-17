@@ -30,7 +30,7 @@ This prevents duplicate work and ensures continuity between Madhu and Durga's se
    - Update "What Was Built This Session" with files changed and what each change does
    - Update "Pre-Phase 3 Checklist" status
    - Update "What's Next"
-2. Update the Build Log inside `app/admin/page.tsx` → What's Next panel → Build Log array (prepend a new date entry at the top)
+2. Build Log is automatic — no action needed. The What's Next panel's Build Log (`app/admin/page.tsx`) fetches live from `GET /api/build-log`, which derives its entries from GitHub commits. It is not a hand-maintained array; a clear commit message in step 3 is what surfaces there.
 3. Commit everything including HANDOFF.md and push to main
 4. Verify the Vercel deployment succeeded
 5. Tell the user: "Handoff complete. Here is your sign-off summary: [brief summary]"

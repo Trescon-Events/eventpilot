@@ -176,6 +176,7 @@ export async function middleware(req: NextRequest) {
   const isToolRoute =
     pathname.startsWith('/admin/toolkit') ||
     pathname.startsWith('/admin/bespoke') ||
+    pathname.startsWith('/admin/commercial') ||
     /^\/admin\/events\/[^/]+\/(website|brand|market-intel)/.test(pathname)
 
   // /admin/* → admin only

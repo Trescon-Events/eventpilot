@@ -5,15 +5,14 @@ import Link from 'next/link'
 import PageHeader from '@/app/components/PageHeader'
 
 const C = {
-  bg:      '#F6F8FB',
-  surface: '#FFFFFF',
-  border:  '#DDE8EE',
-  text:    '#0F1923',
-  muted:   '#5B7080',
-  teal:    '#00897B',
-  amber:   '#D97706',
-  red:     '#DC2626',
-  purple:  '#6C54B5',
+  bg:      'var(--surface)',
+  surface: 'var(--card)',
+  border:  'var(--border)',
+  text:    'var(--ink)',
+  muted:   'var(--ink3)',
+  teal:    'var(--teal-mid)',
+  amber:   '#F5B94D',
+  red:     'var(--red)',
 }
 
 const OFFICES    = ['Dubai', 'Bangalore', 'Mangalore', 'Manipal']
@@ -24,17 +23,22 @@ const GENDERS    = ['Male', 'Female', 'Other', 'Prefer not to say']
 const SALUTATIONS = ['Mr', 'Ms', 'Mrs', 'Dr', 'Prof']
 const BLOOD_GROUPS = ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-']
 
+// Colors brightened vs. the old light-theme values so each stays legible as a
+// small dot / toggle-track fill against the dark card background (#142330) —
+// each individually HSL-brightened to clear ~4.6:1 contrast while keeping its
+// original hue, since these are per-module brand identity colors and should
+// stay visually distinct from one another (not collapsed onto shared tokens).
 const PLATFORM_TOOLS = [
-  { key: 'smart_data',      label: 'Smart Data',      color: '#0E7490' },
-  { key: 'hr_portal',       label: 'HR Portal',       color: '#7C3AED' },
-  { key: 'events',          label: 'Events',          color: '#DC2626' },
-  { key: 'intelligence',    label: 'Intelligence',    color: '#D97706' },
-  { key: 'finance',         label: 'Finance',         color: '#059669' },
-  { key: 'brand_studio',    label: 'Brand Studio',    color: '#DB2777' },
-  { key: 'website_builder', label: 'Website Builder', color: '#2563EB' },
-  { key: 'content',         label: 'Content',         color: '#EA580C' },
-  { key: 'smart_excel',       label: 'SmartExcel',         color: '#2E7D32' },
-  { key: 'smart_excel_admin', label: 'SmartExcel (Admin)', color: '#1B5E20' },
+  { key: 'smart_data',      label: 'Smart Data',      color: '#1296BA' },
+  { key: 'hr_portal',       label: 'HR Portal',       color: '#A172F2' },
+  { key: 'events',          label: 'Events',          color: '#E55F5F' },
+  { key: 'intelligence',    label: 'Intelligence',    color: '#DE7A06' },
+  { key: 'finance',         label: 'Finance',         color: '#05A070' },
+  { key: 'brand_studio',    label: 'Brand Studio',    color: '#E35795' },
+  { key: 'website_builder', label: 'Website Builder', color: '#5888F0' },
+  { key: 'content',         label: 'Content',         color: '#EF5A0C' },
+  { key: 'smart_excel',       label: 'SmartExcel',         color: '#3A9F3F' },
+  { key: 'smart_excel_admin', label: 'SmartExcel (Admin)', color: '#2EA137' },
 ]
 
 const STEPS = [
@@ -123,9 +127,9 @@ function StaffSearch({ staff, value, onChange, placeholder }: {
       {selected && !open ? (
         <div style={{
           display: 'flex', alignItems: 'center', gap: '10px', padding: '8px 12px',
-          border: `1px solid ${C.teal}`, borderRadius: '8px', background: C.teal + '06', cursor: 'pointer',
+          border: `1px solid ${C.teal}`, borderRadius: '8px', background: 'color-mix(in srgb, ' + C.teal + ' 2%, transparent)', cursor: 'pointer',
         }} onClick={() => { setOpen(true); setQuery('') }}>
-          <div style={{ width: 28, height: 28, borderRadius: '50%', background: C.teal + '20', color: C.teal, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '11px', fontWeight: 800 }}>
+          <div style={{ width: 28, height: 28, borderRadius: '50%', background: 'color-mix(in srgb, ' + C.teal + ' 13%, transparent)', color: C.teal, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '11px', fontWeight: 800 }}>
             {selected.name.split(' ').slice(0,2).map(w=>w[0]).join('').toUpperCase()}
           </div>
           <div style={{ flex: 1 }}>
@@ -158,10 +162,10 @@ function StaffSearch({ staff, value, onChange, placeholder }: {
           {filtered.map(s => (
             <div key={s.id} onMouseDown={() => { onChange(s.id); setOpen(false); setQuery('') }}
               style={{ padding: '10px 14px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '10px', borderBottom: `1px solid ${C.border}` }}
-              onMouseEnter={e => (e.currentTarget.style.background = '#F0F4F8')}
+              onMouseEnter={e => (e.currentTarget.style.background = 'var(--card-hi)')}
               onMouseLeave={e => (e.currentTarget.style.background = '')}
             >
-              <div style={{ width: 26, height: 26, borderRadius: '50%', background: C.muted + '20', color: C.muted, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '10px', fontWeight: 800, flexShrink: 0 }}>
+              <div style={{ width: 26, height: 26, borderRadius: '50%', background: 'color-mix(in srgb, ' + C.muted + ' 13%, transparent)', color: C.muted, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '10px', fontWeight: 800, flexShrink: 0 }}>
                 {s.name.split(' ').slice(0,2).map(w=>w[0]).join('').toUpperCase()}
               </div>
               <div>
@@ -201,7 +205,7 @@ function ReportMultiSelect({ staff, selected, onChange }: {
       {selectedStaff.length > 0 && (
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginBottom: '10px' }}>
           {selectedStaff.map(s => (
-            <div key={s.id} style={{ display: 'flex', alignItems: 'center', gap: '5px', padding: '3px 8px 3px 6px', background: C.teal + '12', border: `1px solid ${C.teal}30`, borderRadius: '6px' }}>
+            <div key={s.id} style={{ display: 'flex', alignItems: 'center', gap: '5px', padding: '3px 8px 3px 6px', background: 'color-mix(in srgb, ' + C.teal + ' 7%, transparent)', border: `1px solid ${'color-mix(in srgb, ' + (C.teal) + ' 19%, transparent)'}`, borderRadius: '6px' }}>
               <span style={{ fontSize: '11px', fontWeight: 700, color: C.teal }}>{s.name}</span>
               <button onClick={() => toggle(s.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: C.teal, padding: 0, display: 'flex', alignItems: 'center' }}>
                 <svg width="10" height="10" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
@@ -224,7 +228,7 @@ function ReportMultiSelect({ staff, selected, onChange }: {
               <div key={s.id} onClick={() => toggle(s.id)} style={{
                 display: 'flex', alignItems: 'center', gap: '10px',
                 padding: '9px 12px', cursor: 'pointer',
-                background: isOn ? C.teal + '08' : C.surface,
+                background: isOn ? 'color-mix(in srgb, ' + C.teal + ' 3%, transparent)' : C.surface,
                 borderBottom: `1px solid ${C.border}`,
               }}>
                 <div style={{ width: 10, height: 10, borderRadius: '50%', border: `2px solid ${isOn ? C.teal : C.border}`, background: isOn ? C.teal : 'transparent', flexShrink: 0 }} />
@@ -376,7 +380,7 @@ export default function NewStaffPage() {
     return (
       <div style={{ minHeight: '100vh', background: C.bg, display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'system-ui, sans-serif', padding: '40px 20px' }}>
         <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: '16px', padding: '48px', maxWidth: '480px', width: '100%', textAlign: 'center' }}>
-          <div style={{ width: 56, height: 56, borderRadius: '50%', background: C.teal + '18', color: C.teal, display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 20px' }}>
+          <div style={{ width: 56, height: 56, borderRadius: '50%', background: 'color-mix(in srgb, ' + C.teal + ' 9%, transparent)', color: C.teal, display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 20px' }}>
             <svg width="24" height="24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>
           </div>
           <div style={{ fontSize: '18px', fontWeight: 800, color: C.text, marginBottom: '6px' }}>
@@ -387,7 +391,7 @@ export default function NewStaffPage() {
           </div>
 
           {/* Credentials box */}
-          <div style={{ background: '#F0F4F8', borderRadius: '12px', padding: '20px', textAlign: 'left', marginBottom: '24px' }}>
+          <div style={{ background: 'var(--surface)', borderRadius: '12px', padding: '20px', textAlign: 'left', marginBottom: '24px' }}>
             <div style={{ fontSize: '11px', fontWeight: 700, color: C.muted, textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '12px' }}>Login Credentials</div>
             <div style={{ marginBottom: '10px' }}>
               <div style={{ fontSize: '11px', color: C.muted, marginBottom: '2px' }}>Email</div>
@@ -404,7 +408,7 @@ export default function NewStaffPage() {
 
           <div style={{ display: 'flex', gap: '10px' }}>
             <Link href={`/hr/staff/${result.staff_id}`} style={{
-              flex: 1, padding: '10px', borderRadius: '8px', background: C.teal, color: '#fff',
+              flex: 1, padding: '10px', borderRadius: '8px', background: C.teal, color: 'var(--teal-light)',
               textAlign: 'center', textDecoration: 'none', fontSize: '13px', fontWeight: 700,
             }}>
               View Profile
@@ -619,7 +623,7 @@ export default function NewStaffPage() {
               </Field>
 
               {managerObj && (
-                <div style={{ padding: '12px 14px', background: '#F0F9F7', border: `1px solid ${C.teal}25`, borderRadius: '8px', marginTop: '-10px', marginBottom: '20px' }}>
+                <div style={{ padding: '12px 14px', background: 'var(--teal-light)', border: `1px solid ${'color-mix(in srgb, ' + (C.teal) + ' 15%, transparent)'}`, borderRadius: '8px', marginTop: '-10px', marginBottom: '20px' }}>
                   <div style={{ fontSize: '11px', color: C.muted }}>
                     {name.split(' ')[0] || 'This person'} will report to <strong style={{ color: C.text }}>{managerObj.name}</strong>
                     {managerObj.role ? ` (${managerObj.role})` : ''}
@@ -646,7 +650,7 @@ export default function NewStaffPage() {
               )}
 
               {(jobLevel === 'staff') && (
-                <div style={{ padding: '16px', background: '#F0F4F8', borderRadius: '8px', fontSize: '12px', color: C.muted }}>
+                <div style={{ padding: '16px', background: 'var(--surface)', borderRadius: '8px', fontSize: '12px', color: C.muted }}>
                   Staff-level members do not have direct reports. If this person will manage a team, change their job level to Team Lead or above.
                 </div>
               )}
@@ -660,7 +664,7 @@ export default function NewStaffPage() {
               <div style={{ fontSize: '13px', color: C.muted, marginBottom: '28px' }}>Set what this person can access from day one</div>
 
               <Field label="Login Access">
-                <div style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '12px 14px', background: accessEnabled ? C.teal + '06' : '#F0F4F8', border: `1px solid ${accessEnabled ? C.teal + '30' : C.border}`, borderRadius: '8px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '12px 14px', background: accessEnabled ? 'color-mix(in srgb, ' + C.teal + ' 2%, transparent)' : 'var(--surface)', border: `1px solid ${accessEnabled ? 'color-mix(in srgb, ' + C.teal + ' 19%, transparent)' : C.border}`, borderRadius: '8px' }}>
                   <Toggle on={accessEnabled} onChange={setAccessEnabled} />
                   <div>
                     <div style={{ fontSize: '13px', fontWeight: 700, color: C.text }}>Enable login immediately</div>
@@ -679,7 +683,7 @@ export default function NewStaffPage() {
                       <div key={t.key} style={{
                         display: 'flex', alignItems: 'center', gap: '12px',
                         padding: '10px 14px', borderRadius: '8px',
-                        background: on ? t.color + '08' : '#FAFBFC',
+                        background: on ? t.color + '08' : 'var(--surface)',
                         border: `1px solid ${on ? t.color + '30' : C.border}`,
                         transition: 'all 0.12s',
                       }}>
@@ -693,7 +697,7 @@ export default function NewStaffPage() {
               </Field>
 
               <Field label="Onboarding Checklist">
-                <div style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '12px 14px', background: startOnboarding ? C.teal + '06' : '#F0F4F8', border: `1px solid ${startOnboarding ? C.teal + '30' : C.border}`, borderRadius: '8px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '12px 14px', background: startOnboarding ? 'color-mix(in srgb, ' + C.teal + ' 2%, transparent)' : 'var(--surface)', border: `1px solid ${startOnboarding ? 'color-mix(in srgb, ' + C.teal + ' 19%, transparent)' : C.border}`, borderRadius: '8px' }}>
                   <Toggle on={startOnboarding} onChange={setStartOnboarding} />
                   <div>
                     <div style={{ fontSize: '13px', fontWeight: 700, color: C.text }}>Auto-start onboarding checklist</div>
@@ -755,7 +759,7 @@ export default function NewStaffPage() {
                 },
               ].map(section => (
                 <div key={section.title} style={{ marginBottom: '16px', border: `1px solid ${C.border}`, borderRadius: '10px', overflow: 'hidden' }}>
-                  <div style={{ padding: '8px 14px', background: '#F0F4F8', fontSize: '11px', fontWeight: 700, color: C.muted, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                  <div style={{ padding: '8px 14px', background: 'var(--surface)', fontSize: '11px', fontWeight: 700, color: C.muted, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
                     {section.title}
                   </div>
                   {section.rows.map(([label, value]) => (
@@ -768,7 +772,7 @@ export default function NewStaffPage() {
               ))}
 
               {errors.submit && (
-                <div style={{ padding: '12px 14px', background: C.red + '10', border: `1px solid ${C.red}30`, borderRadius: '8px', color: C.red, fontSize: '13px', marginBottom: '16px' }}>
+                <div style={{ padding: '12px 14px', background: 'color-mix(in srgb, ' + C.red + ' 6%, transparent)', border: `1px solid ${'color-mix(in srgb, ' + (C.red) + ' 19%, transparent)'}`, borderRadius: '8px', color: C.red, fontSize: '13px', marginBottom: '16px' }}>
                   {errors.submit}
                 </div>
               )}
@@ -784,14 +788,14 @@ export default function NewStaffPage() {
             )}
             <div style={{ flex: 1 }} />
             {step < 5 && (
-              <button onClick={next} style={{ padding: '10px 28px', borderRadius: '8px', border: 'none', background: C.teal, color: '#fff', cursor: 'pointer', fontSize: '13px', fontWeight: 700, fontFamily: 'inherit' }}>
+              <button onClick={next} style={{ padding: '10px 28px', borderRadius: '8px', border: 'none', background: C.teal, color: 'var(--teal-light)', cursor: 'pointer', fontSize: '13px', fontWeight: 700, fontFamily: 'inherit' }}>
                 Continue
               </button>
             )}
             {step === 5 && (
               <button onClick={createStaff} disabled={saving} style={{
                 padding: '10px 32px', borderRadius: '8px', border: 'none',
-                background: saving ? C.muted : C.teal, color: '#fff',
+                background: saving ? C.muted : C.teal, color: saving ? '#fff' : 'var(--teal-light)',
                 cursor: saving ? 'wait' : 'pointer',
                 fontSize: '13px', fontWeight: 800, fontFamily: 'inherit',
               }}>

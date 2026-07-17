@@ -79,9 +79,9 @@ function relTime(iso: string): string {
 
 function StatusPill({ status }: { status: Status }) {
   const styles: Record<Status, { bg: string; color: string; label: string }> = {
-    up_to_date:        { bg: '#DCFCE7', color: '#166534', label: 'Up to date' },
-    needs_review:      { bg: '#FFF7ED', color: '#B45309', label: 'Update Recommended' },
-    not_yet_published: { bg: '#EEF3F7', color: '#5B7080', label: 'Not yet published' },
+    up_to_date:        { bg: 'var(--success-light)', color: 'var(--success)', label: 'Up to date' },
+    needs_review:      { bg: 'var(--amber-light)', color: 'var(--amber)', label: 'Update Recommended' },
+    not_yet_published: { bg: 'var(--border-light)', color: 'var(--ink3)', label: 'Not yet published' },
   }
   const s = styles[status]
   return (
@@ -129,7 +129,7 @@ export default function ReadinessDashboard() {
     return (
       <Card>
         <SectionLabel>Deck Readiness</SectionLabel>
-        <div style={{ fontSize: '13px', color: '#5B7080', marginTop: '10px' }}>Loading…</div>
+        <div style={{ fontSize: '13px', color: 'var(--ink3)', marginTop: '10px' }}>Loading…</div>
       </Card>
     )
   }
@@ -138,7 +138,7 @@ export default function ReadinessDashboard() {
     return (
       <Card>
         <SectionLabel>Deck Readiness</SectionLabel>
-        <div style={{ marginTop: '10px', fontSize: '13px', color: '#C2410C', fontWeight: 700 }}>
+        <div style={{ marginTop: '10px', fontSize: '13px', color: 'var(--red)', fontWeight: 700 }}>
           {error ?? 'Failed to load readiness data.'}
         </div>
       </Card>
@@ -151,7 +151,7 @@ export default function ReadinessDashboard() {
   return (
     <div style={{ display: 'grid', gap: '20px' }}>
       {/* Summary card */}
-      <Card style={{ borderColor: overall_status === 'needs_review' ? '#FED7AA' : '#DDE8EE' }}>
+      <Card style={{ borderColor: overall_status === 'needs_review' ? 'var(--amber-border)' : 'var(--border)' }}>
         <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '20px', flexWrap: 'wrap' }}>
           <div style={{ flex: 1, minWidth: '240px' }}>
             <SectionLabel>Deck Readiness</SectionLabel>
@@ -159,34 +159,34 @@ export default function ReadinessDashboard() {
 
             <div style={{ display: 'flex', gap: '32px', flexWrap: 'wrap', marginBottom: '14px' }}>
               <div>
-                <div style={{ fontSize: '10px', fontWeight: 800, color: '#B8CDD8', letterSpacing: '1.5px', textTransform: 'uppercase' }}>Current version</div>
-                <div style={{ fontSize: '20px', fontWeight: 900, color: '#0F1923', marginTop: '2px' }}>
+                <div style={{ fontSize: '10px', fontWeight: 800, color: 'var(--ink4)', letterSpacing: '1.5px', textTransform: 'uppercase' }}>Current version</div>
+                <div style={{ fontSize: '20px', fontWeight: 900, color: 'var(--ink)', marginTop: '2px' }}>
                   v{current_version}
                   {published_version !== null && (
-                    <span style={{ fontSize: '12px', fontWeight: 700, color: '#5B7080', marginLeft: '8px' }}>
+                    <span style={{ fontSize: '12px', fontWeight: 700, color: 'var(--ink3)', marginLeft: '8px' }}>
                       (last published v{published_version})
                     </span>
                   )}
                 </div>
               </div>
               <div>
-                <div style={{ fontSize: '10px', fontWeight: 800, color: '#B8CDD8', letterSpacing: '1.5px', textTransform: 'uppercase' }}>Last published</div>
-                <div style={{ fontSize: '20px', fontWeight: 900, color: '#0F1923', marginTop: '2px' }}>
+                <div style={{ fontSize: '10px', fontWeight: 800, color: 'var(--ink4)', letterSpacing: '1.5px', textTransform: 'uppercase' }}>Last published</div>
+                <div style={{ fontSize: '20px', fontWeight: 900, color: 'var(--ink)', marginTop: '2px' }}>
                   {last_published_at ? fmtDate(last_published_at) : '—'}
                 </div>
               </div>
             </div>
 
             <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-              <span style={{ fontSize: '11px', fontWeight: 800, color: '#5B7080', letterSpacing: '0.5px', textTransform: 'uppercase' }}>Status</span>
+              <span style={{ fontSize: '11px', fontWeight: 800, color: 'var(--ink3)', letterSpacing: '0.5px', textTransform: 'uppercase' }}>Status</span>
               <StatusPill status={overall_status} />
               {overall_status === 'needs_review' && (
-                <span style={{ fontSize: '12px', color: '#5B7080', fontWeight: 600 }}>
+                <span style={{ fontSize: '12px', color: 'var(--ink3)', fontWeight: 600 }}>
                   Content has changed since the last published version.
                 </span>
               )}
               {notYetPublished && (
-                <span style={{ fontSize: '12px', color: '#5B7080', fontWeight: 600 }}>
+                <span style={{ fontSize: '12px', color: 'var(--ink3)', fontWeight: 600 }}>
                   Publish a first version to start tracking changes.
                 </span>
               )}
@@ -210,16 +210,16 @@ export default function ReadinessDashboard() {
                 alignItems:     'center',
                 gap:            '16px',
                 padding:        '12px 4px',
-                borderTop:      i === 0 ? 'none' : '1px solid #EEF3F7',
+                borderTop:      i === 0 ? 'none' : '1px solid var(--border-light)',
               }}
             >
-              <div style={{ fontSize: '14px', fontWeight: 700, color: '#0F1923' }}>
+              <div style={{ fontSize: '14px', fontWeight: 700, color: 'var(--ink)' }}>
                 {s.name}
               </div>
               <div>
                 <StatusPill status={s.status} />
               </div>
-              <div style={{ fontSize: '12px', color: '#5B7080', textAlign: 'right', fontWeight: 600 }}>
+              <div style={{ fontSize: '12px', color: 'var(--ink3)', textAlign: 'right', fontWeight: 600 }}>
                 {s.key === 'events' && s.last_synced && (
                   <>Last synced: {fmtDateTime(s.last_synced)}</>
                 )}
@@ -244,11 +244,11 @@ export default function ReadinessDashboard() {
         <H2 style={{ marginBottom: '16px' }}>Changes since last publish</H2>
 
         {notYetPublished ? (
-          <div style={{ fontSize: '13px', color: '#5B7080', fontWeight: 600 }}>
+          <div style={{ fontSize: '13px', color: 'var(--ink3)', fontWeight: 600 }}>
             The deck has not been published yet. Once you publish a first version, tracked changes will appear here.
           </div>
         ) : changes_since_publish.length === 0 ? (
-          <div style={{ fontSize: '13px', color: '#94A3B8', fontWeight: 600 }}>
+          <div style={{ fontSize: '13px', color: 'var(--ink3)', fontWeight: 600 }}>
             No changes since the last publish.
           </div>
         ) : (
@@ -259,13 +259,13 @@ export default function ReadinessDashboard() {
                   width: '10px', height: '10px', borderRadius: '50%',
                   background: BRAND, flexShrink: 0,
                 }}/>
-                <div style={{ fontSize: '12px', fontWeight: 800, color: '#0F1923', minWidth: '150px' }}>
+                <div style={{ fontSize: '12px', fontWeight: 800, color: 'var(--ink)', minWidth: '150px' }}>
                   {c.section}
                 </div>
-                <div style={{ fontSize: '13px', color: '#0F1923', flex: 1 }}>
+                <div style={{ fontSize: '13px', color: 'var(--ink)', flex: 1 }}>
                   {c.field}
                 </div>
-                <div style={{ fontSize: '12px', color: '#5B7080', fontWeight: 600, whiteSpace: 'nowrap' }}>
+                <div style={{ fontSize: '12px', color: 'var(--ink3)', fontWeight: 600, whiteSpace: 'nowrap' }}>
                   {relTime(c.updated_at)}
                 </div>
               </div>

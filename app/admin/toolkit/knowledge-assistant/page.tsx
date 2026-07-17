@@ -1,11 +1,12 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
+import Link from 'next/link'
 import PageHeader from '@/app/components/PageHeader'
 
 const C = {
-  bg: '#E8EEF4', surface: '#FFFFFF', border: '#DDE8EE', text: '#0F1923', muted: '#5B7080',
-  teal: '#00695C', tealAccent: '#00A5A3', green: '#C0F43C', purple: '#7C3AED', red: '#FF6B6B',
+  bg: 'var(--surface)', surface: 'var(--card)', border: 'var(--border)', text: 'var(--ink)', muted: 'var(--ink3)',
+  teal: 'var(--teal)', tealAccent: 'var(--teal-mid)', red: 'var(--red)',
 }
 
 type Message = { role: 'user' | 'assistant'; text: string; flagged?: boolean }
@@ -45,13 +46,13 @@ function renderText(text: string) {
       return (
         <div key={i} style={{ display: 'flex', gap: '8px', marginBottom: '3px' }}>
           <div style={{ width: '4px', height: '4px', borderRadius: '50%', background: C.tealAccent, marginTop: '9px', flexShrink: 0 }} />
-          <span style={{ fontSize: '13px', color: '#2D3E50', lineHeight: 1.65 }}>{renderInline(content)}</span>
+          <span style={{ fontSize: '13px', color: 'var(--ink2)', lineHeight: 1.65 }}>{renderInline(content)}</span>
         </div>
       )
     }
 
     return (
-      <p key={i} style={{ fontSize: '13px', color: '#2D3E50', lineHeight: 1.65, margin: '0 0 4px' }}>
+      <p key={i} style={{ fontSize: '13px', color: 'var(--ink2)', lineHeight: 1.65, margin: '0 0 4px' }}>
         {renderInline(line)}
       </p>
     )
@@ -75,7 +76,7 @@ function MessageBubble({ msg }: { msg: Message }) {
         border: isUser ? 'none' : `1px solid ${C.border}`,
       }}>
         {isUser ? (
-          <p style={{ fontSize: '13px', color: 'white', margin: 0, lineHeight: 1.65 }}>{msg.text}</p>
+          <p style={{ fontSize: '13px', color: 'var(--teal-light)', margin: 0, lineHeight: 1.65 }}>{msg.text}</p>
         ) : (
           <div>{renderText(msg.text)}</div>
         )}
@@ -170,6 +171,10 @@ export default function KnowledgeAssistantPage() {
             New conversation
           </button>
         )}
+        <Link href="/admin/toolkit/knowledge-assistant/settings" title="Settings"
+          style={{ width: '34px', height: '34px', display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: '9px', border: `1px solid ${C.border}`, background: C.surface, color: C.muted, flexShrink: 0 }}>
+          <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+        </Link>
       </>} />
 
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', maxWidth: '760px', width: '100%', margin: '0 auto', padding: '0 24px' }}>
@@ -181,7 +186,7 @@ export default function KnowledgeAssistantPage() {
               </div>
               <h1 style={{ fontSize: '32px', fontWeight: 900, color: C.text, margin: 0, letterSpacing: '-0.3px' }}>Knowledge Assistant</h1>
             </div>
-            <p style={{ fontSize: '13px', color: '#2D3E50', margin: '0 0 32px', maxWidth: '420px', lineHeight: 1.65 }}>
+            <p style={{ fontSize: '13px', color: 'var(--ink2)', margin: '0 0 32px', maxWidth: '420px', lineHeight: 1.65 }}>
               Ask questions using proposals, post-event reports, and company knowledge in the Knowledge Base. Access is restricted the same way as everywhere else — you&apos;ll only see what your department and job level allow. Separate from Pilot AI (the staff learning assistant) for now, with the intention of merging the two later.
             </p>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', width: '100%', maxWidth: '600px' }}>
@@ -240,7 +245,7 @@ export default function KnowledgeAssistantPage() {
                 <button
                   onClick={() => send(input)}
                   disabled={!input.trim() || loading}
-                  style={{ width: '36px', height: '36px', borderRadius: '10px', background: input.trim() && !loading ? C.tealAccent : '#E5E7EB', border: 'none', cursor: input.trim() && !loading ? 'pointer' : 'default', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}
+                  style={{ width: '36px', height: '36px', borderRadius: '10px', background: input.trim() && !loading ? C.tealAccent : 'var(--card-hi)', border: 'none', cursor: input.trim() && !loading ? 'pointer' : 'default', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}
                 >
                   <svg width="15" height="15" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
                 </button>
@@ -255,7 +260,7 @@ export default function KnowledgeAssistantPage() {
 
       <style>{`
         @keyframes bdchatBounce { 0%,80%,100%{transform:translateY(0)} 40%{transform:translateY(-6px)} }
-        textarea::placeholder { color: #9CA3AF; }
+        textarea::placeholder { color: var(--ink3); }
       `}</style>
     </div>
   )

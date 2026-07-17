@@ -22,7 +22,10 @@ import SettingsTab from './SettingsTab'
 import PublishModal from './PublishModal'
 import ReadinessDashboard from './ReadinessDashboard'
 
-const BRAND = '#8B1A1A'
+// Literal hex (not var(--red)) — several usages below concatenate an
+// alpha suffix at runtime (e.g. `${BRAND}12`), which requires a raw hex
+// string. Value mirrors var(--red) exactly.
+const BRAND = '#F1667A'
 
 type TabId = 'overview' | 'content' | 'testimonials' | 'images' | 'versions' | 'settings'
 
@@ -68,35 +71,35 @@ export default function CorporateDeckPage() {
   return (
     <div style={{
       minHeight: '100vh',
-      background: '#E8EEF4',
+      background: 'var(--surface)',
       fontFamily: 'var(--font-manrope), Manrope, sans-serif',
       display: 'flex',
       flexDirection: 'column',
     }}>
       {/* Breadcrumb */}
-      <div style={{ background: '#fff', borderBottom: '1px solid #DDE8EE', padding: '0 32px', height: '52px', display: 'flex', alignItems: 'center', gap: '10px', flexShrink: 0 }}>
-        <Link href="/admin/toolkit" style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#5B7080', fontSize: '13px', fontWeight: 600, textDecoration: 'none' }}>
+      <div style={{ background: 'var(--card)', borderBottom: '1px solid var(--border)', padding: '0 32px', height: '52px', display: 'flex', alignItems: 'center', gap: '10px', flexShrink: 0 }}>
+        <Link href="/admin/toolkit" style={{ display: 'flex', alignItems: 'center', gap: '6px', color: 'var(--ink3)', fontSize: '13px', fontWeight: 600, textDecoration: 'none' }}>
           <svg width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg>
           Toolkit
         </Link>
-        <span style={{ color: '#DDE8EE', fontSize: '13px' }}>/</span>
-        <span style={{ fontSize: '13px', color: '#5B7080', fontWeight: 600 }}>Corporate Marketing</span>
-        <span style={{ color: '#DDE8EE', fontSize: '13px' }}>/</span>
-        <span style={{ fontSize: '13px', fontWeight: 800, color: '#0F1923' }}>Deck</span>
+        <span style={{ color: 'var(--border)', fontSize: '13px' }}>/</span>
+        <span style={{ fontSize: '13px', color: 'var(--ink3)', fontWeight: 600 }}>Corporate Marketing</span>
+        <span style={{ color: 'var(--border)', fontSize: '13px' }}>/</span>
+        <span style={{ fontSize: '13px', fontWeight: 800, color: 'var(--ink)' }}>Deck</span>
         <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '8px' }}>
           <span style={{ fontSize: '10px', fontWeight: 800, letterSpacing: '1.5px', textTransform: 'uppercase', color: BRAND, background: `${BRAND}12`, padding: '3px 10px', borderRadius: '14px' }}>Phase 1 · MVP</span>
         </div>
       </div>
 
       {/* Module header */}
-      <div style={{ padding: '28px 40px 20px', background: '#fff', borderBottom: '1px solid #EEF3F7' }}>
+      <div style={{ padding: '28px 40px 20px', background: 'var(--card)', borderBottom: '1px solid var(--border-light)' }}>
         <div style={{ display: 'flex', gap: '18px', alignItems: 'flex-start' }}>
           <div style={{ width: '56px', height: '56px', borderRadius: '16px', background: `${BRAND}12`, color: BRAND, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
             <svg width="26" height="26" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
           </div>
           <div style={{ flex: 1 }}>
-            <div style={{ fontSize: '24px', fontWeight: 900, color: '#0F1923', letterSpacing: '-0.3px' }}>Corporate Deck Management</div>
-            <div style={{ fontSize: '14px', color: '#5B7080', marginTop: '6px', maxWidth: '760px', lineHeight: 1.6 }}>
+            <div style={{ fontSize: '24px', fontWeight: 900, color: 'var(--ink)', letterSpacing: '-0.3px' }}>Corporate Deck Management</div>
+            <div style={{ fontSize: '14px', color: 'var(--ink3)', marginTop: '6px', maxWidth: '760px', lineHeight: 1.6 }}>
               Manage all dynamic content in Trescon&apos;s corporate deck. Canva stays the master design file — EventPilot becomes the master source for content and every published version.
             </div>
           </div>
@@ -104,14 +107,14 @@ export default function CorporateDeckPage() {
       </div>
 
       {/* Tabs */}
-      <div style={{ background: '#fff', borderBottom: '1px solid #EEF3F7', padding: '0 40px', display: 'flex', gap: '2px', overflowX: 'auto' }}>
+      <div style={{ background: 'var(--card)', borderBottom: '1px solid var(--border-light)', padding: '0 40px', display: 'flex', gap: '2px', overflowX: 'auto' }}>
         {TABS.map(t => {
           const active = tab === t.id
           return (
             <button
               key={t.id}
               onClick={() => setTab(t.id)}
-              style={{ border: 'none', background: 'transparent', padding: '14px 18px', fontSize: '13px', fontWeight: active ? 800 : 600, color: active ? BRAND : '#5B7080', borderBottom: `2px solid ${active ? BRAND : 'transparent'}`, cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap' }}
+              style={{ border: 'none', background: 'transparent', padding: '14px 18px', fontSize: '13px', fontWeight: active ? 800 : 600, color: active ? BRAND : 'var(--ink3)', borderBottom: `2px solid ${active ? BRAND : 'transparent'}`, cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap' }}
             >
               {t.label}
             </button>
@@ -242,7 +245,7 @@ function OverviewTab() {
     }
   }
 
-  if (loading) return <div style={{ fontSize: '13px', color: '#5B7080' }}>Loading…</div>
+  if (loading) return <div style={{ fontSize: '13px', color: 'var(--ink3)' }}>Loading…</div>
 
   const hasDeck = !!deck?.pdf_storage_path
 
@@ -253,11 +256,11 @@ function OverviewTab() {
       <ReadinessDashboard />
 
       {/* Deck card */}
-      <section style={{ background: '#fff', border: '1px solid #DDE8EE', borderRadius: '20px', padding: '28px', boxShadow: '0 2px 16px rgba(0,0,0,0.04)' }}>
+      <section style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: '20px', padding: '28px', boxShadow: 'var(--shadow-sm)' }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '18px' }}>
           <div>
-            <div style={{ fontSize: '11px', fontWeight: 800, color: '#B8CDD8', letterSpacing: '2px', textTransform: 'uppercase' }}>Master Deck</div>
-            <div style={{ fontSize: '18px', fontWeight: 900, color: '#0F1923', marginTop: '4px' }}>
+            <div style={{ fontSize: '11px', fontWeight: 800, color: 'var(--ink4)', letterSpacing: '2px', textTransform: 'uppercase' }}>Master Deck</div>
+            <div style={{ fontSize: '18px', fontWeight: 900, color: 'var(--ink)', marginTop: '4px' }}>
               {hasDeck ? (deck?.pdf_file_name ?? 'Untitled') : 'No deck uploaded yet'}
             </div>
           </div>
@@ -272,7 +275,7 @@ function OverviewTab() {
             <Stat label="Uploaded by" value={deck?.uploaded_by_name ?? '—'} />
           </div>
         ) : (
-          <div style={{ fontSize: '13px', color: '#5B7080', lineHeight: 1.7, marginBottom: '20px' }}>
+          <div style={{ fontSize: '13px', color: 'var(--ink3)', lineHeight: 1.7, marginBottom: '20px' }}>
             Upload Trescon&apos;s current corporate deck as a PDF. The AI analysis step will read it to identify sections that change often (stats, events, leadership, testimonials) so Marketing can maintain them without touching Canva.
           </div>
         )}
@@ -280,15 +283,15 @@ function OverviewTab() {
         {/* File requirements */}
         <div style={{
           display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap',
-          padding: '10px 14px', background: '#FAFBFC', border: '1px solid #EEF3F7',
+          padding: '10px 14px', background: 'var(--border-light)', border: '1px solid var(--border-light)',
           borderRadius: '10px', marginBottom: '14px',
         }}>
-          <svg width="14" height="14" fill="none" stroke="#5B7080" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24">
+          <svg width="14" height="14" fill="none" stroke="var(--ink3)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24">
             <circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/>
           </svg>
-          <span style={{ fontSize: '12px', color: '#5B7080', fontWeight: 600 }}>
-            <strong style={{ color: '#0F1923' }}>Accepted:</strong> PDF only <span style={{ color: '#DDE8EE' }}>·</span>{' '}
-            <strong style={{ color: '#0F1923' }}>Max size:</strong> 50 MB
+          <span style={{ fontSize: '12px', color: 'var(--ink3)', fontWeight: 600 }}>
+            <strong style={{ color: 'var(--ink)' }}>Accepted:</strong> PDF only <span style={{ color: 'var(--border)' }}>·</span>{' '}
+            <strong style={{ color: 'var(--ink)' }}>Max size:</strong> 50 MB
           </span>
         </div>
 
@@ -304,7 +307,7 @@ function OverviewTab() {
           <button
             onClick={() => fileRef.current?.click()}
             disabled={uploading}
-            style={{ background: BRAND, color: '#fff', border: 'none', borderRadius: '10px', padding: '11px 22px', fontSize: '13px', fontWeight: 800, cursor: uploading ? 'default' : 'pointer', opacity: uploading ? 0.7 : 1, fontFamily: 'inherit' }}
+            style={{ background: BRAND, color: 'var(--red-light)', border: 'none', borderRadius: '10px', padding: '11px 22px', fontSize: '13px', fontWeight: 800, cursor: uploading ? 'default' : 'pointer', opacity: uploading ? 0.7 : 1, fontFamily: 'inherit' }}
           >
             {uploading ? 'Uploading…' : hasDeck ? 'Replace deck' : 'Upload deck (PDF)'}
           </button>
@@ -313,7 +316,7 @@ function OverviewTab() {
               href={deck.pdf_signed_url}
               target="_blank"
               rel="noreferrer"
-              style={{ background: 'transparent', color: '#0F1923', border: '1px solid #DDE8EE', borderRadius: '10px', padding: '11px 20px', fontSize: '13px', fontWeight: 700, textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: '6px' }}
+              style={{ background: 'transparent', color: 'var(--ink)', border: '1px solid var(--border)', borderRadius: '10px', padding: '11px 20px', fontSize: '13px', fontWeight: 700, textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: '6px' }}
             >
               View PDF
               <svg width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
@@ -322,17 +325,17 @@ function OverviewTab() {
         </div>
 
         {uploadErr && (
-          <div style={{ marginTop: '14px', padding: '10px 14px', borderRadius: '10px', background: '#FFF4F4', border: '1px solid #FBCACA', color: '#C2410C', fontSize: '12px', fontWeight: 700 }}>
+          <div style={{ marginTop: '14px', padding: '10px 14px', borderRadius: '10px', background: 'var(--red-light)', border: '1px solid var(--red-border)', color: 'var(--red)', fontSize: '12px', fontWeight: 700 }}>
             {uploadErr}
           </div>
         )}
       </section>
 
       {/* Canva link */}
-      <section style={{ background: '#fff', border: '1px solid #DDE8EE', borderRadius: '20px', padding: '28px', boxShadow: '0 2px 16px rgba(0,0,0,0.04)' }}>
-        <div style={{ fontSize: '11px', fontWeight: 800, color: '#B8CDD8', letterSpacing: '2px', textTransform: 'uppercase' }}>Canva Design</div>
-        <div style={{ fontSize: '18px', fontWeight: 900, color: '#0F1923', marginTop: '4px', marginBottom: '6px' }}>Master design link</div>
-        <div style={{ fontSize: '13px', color: '#5B7080', lineHeight: 1.6, marginBottom: '16px' }}>
+      <section style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: '20px', padding: '28px', boxShadow: 'var(--shadow-sm)' }}>
+        <div style={{ fontSize: '11px', fontWeight: 800, color: 'var(--ink4)', letterSpacing: '2px', textTransform: 'uppercase' }}>Canva Design</div>
+        <div style={{ fontSize: '18px', fontWeight: 900, color: 'var(--ink)', marginTop: '4px', marginBottom: '6px' }}>Master design link</div>
+        <div style={{ fontSize: '13px', color: 'var(--ink3)', lineHeight: 1.6, marginBottom: '16px' }}>
           Canva stays the design source of truth. Paste the shared link so anyone opening the deck knows where to edit design changes.
         </div>
         <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
@@ -341,12 +344,12 @@ function OverviewTab() {
             placeholder="https://www.canva.com/design/…"
             value={canvaUrl}
             onChange={e => setCanvaUrl(e.target.value)}
-            style={{ flex: 1, minWidth: '260px', padding: '11px 14px', borderRadius: '10px', border: '1px solid #DDE8EE', fontSize: '13px', fontFamily: 'inherit', color: '#0F1923', outline: 'none' }}
+            style={{ flex: 1, minWidth: '260px', padding: '11px 14px', borderRadius: '10px', border: '1px solid var(--border)', fontSize: '13px', fontFamily: 'inherit', color: 'var(--ink)', outline: 'none' }}
           />
           <button
             onClick={saveCanva}
             disabled={savingLink}
-            style={{ background: '#0F1923', color: '#fff', border: 'none', borderRadius: '10px', padding: '11px 22px', fontSize: '13px', fontWeight: 800, cursor: savingLink ? 'default' : 'pointer', opacity: savingLink ? 0.7 : 1, fontFamily: 'inherit' }}
+            style={{ background: 'var(--teal-mid)', color: 'var(--teal-light)', border: 'none', borderRadius: '10px', padding: '11px 22px', fontSize: '13px', fontWeight: 800, cursor: savingLink ? 'default' : 'pointer', opacity: savingLink ? 0.7 : 1, fontFamily: 'inherit' }}
           >
             {savingLink ? 'Saving…' : 'Save link'}
           </button>
@@ -357,7 +360,7 @@ function OverviewTab() {
           )}
         </div>
         {saveNote && (
-          <div style={{ marginTop: '10px', fontSize: '12px', color: saveNote === 'Saved' ? '#00897B' : '#C2410C', fontWeight: 700 }}>
+          <div style={{ marginTop: '10px', fontSize: '12px', color: saveNote === 'Saved' ? 'var(--teal-mid)' : 'var(--red)', fontWeight: 700 }}>
             {saveNote}
           </div>
         )}
@@ -373,24 +376,24 @@ function OverviewTab() {
 
       {/* Publish new version */}
       {hasDeck && (
-        <section style={{ background: '#fff', border: `1px solid ${BRAND}30`, borderRadius: '20px', padding: '28px', boxShadow: '0 2px 16px rgba(0,0,0,0.04)' }}>
+        <section style={{ background: 'var(--card)', border: `1px solid ${BRAND}30`, borderRadius: '20px', padding: '28px', boxShadow: 'var(--shadow-sm)' }}>
           <div style={{ display: 'flex', gap: '20px', alignItems: 'flex-start', flexWrap: 'wrap' }}>
             <div style={{ flex: 1, minWidth: '260px' }}>
               <div style={{ fontSize: '11px', fontWeight: 800, color: BRAND, letterSpacing: '2px', textTransform: 'uppercase' }}>Publish</div>
-              <div style={{ fontSize: '18px', fontWeight: 900, color: '#0F1923', marginTop: '4px', marginBottom: '6px' }}>Publish a new deck version</div>
-              <div style={{ fontSize: '13px', color: '#5B7080', lineHeight: 1.6 }}>
+              <div style={{ fontSize: '18px', fontWeight: 900, color: 'var(--ink)', marginTop: '4px', marginBottom: '6px' }}>Publish a new deck version</div>
+              <div style={{ fontSize: '13px', color: 'var(--ink3)', lineHeight: 1.6 }}>
                 Freezes the current PDF, Canva link, and all approved deck content into an immutable snapshot. Saving edits does NOT create a version — only this button does. Past versions stay downloadable forever from the Version History tab.
               </div>
             </div>
             <button
               onClick={() => setPublishing(true)}
-              style={{ background: BRAND, color: '#fff', border: 'none', borderRadius: '11px', padding: '14px 28px', fontSize: '14px', fontWeight: 800, cursor: 'pointer', fontFamily: 'inherit' }}
+              style={{ background: BRAND, color: 'var(--red-light)', border: 'none', borderRadius: '11px', padding: '14px 28px', fontSize: '14px', fontWeight: 800, cursor: 'pointer', fontFamily: 'inherit' }}
             >
               Publish new version
             </button>
           </div>
           {publishedNote && (
-            <div style={{ marginTop: '18px', padding: '12px 16px', borderRadius: '12px', background: '#D1FAE5', border: '1px solid #6EE7B7', color: '#00695C', fontSize: '13px', fontWeight: 800 }}>
+            <div style={{ marginTop: '18px', padding: '12px 16px', borderRadius: '12px', background: 'var(--teal-light)', border: '1px solid var(--teal-border)', color: 'var(--teal)', fontSize: '13px', fontWeight: 800 }}>
               ✓ {publishedNote}
             </div>
           )}
@@ -450,10 +453,10 @@ function AnalysisPanel({ deck, onRefresh }: { deck: Deck | null; onRefresh: () =
   const disabled = !hasDeck || running || status === 'running'
 
   return (
-    <section style={{ background: '#fff', border: '1px solid #DDE8EE', borderRadius: '20px', padding: '28px', boxShadow: '0 2px 16px rgba(0,0,0,0.04)' }}>
-      <div style={{ fontSize: '11px', fontWeight: 800, color: '#B8CDD8', letterSpacing: '2px', textTransform: 'uppercase' }}>AI Deck Analysis</div>
-      <div style={{ fontSize: '18px', fontWeight: 900, color: '#0F1923', marginTop: '4px', marginBottom: '6px' }}>Gemini section detection</div>
-      <div style={{ fontSize: '13px', color: '#5B7080', lineHeight: 1.6 }}>
+    <section style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: '20px', padding: '28px', boxShadow: 'var(--shadow-sm)' }}>
+      <div style={{ fontSize: '11px', fontWeight: 800, color: 'var(--ink4)', letterSpacing: '2px', textTransform: 'uppercase' }}>AI Deck Analysis</div>
+      <div style={{ fontSize: '18px', fontWeight: 900, color: 'var(--ink)', marginTop: '4px', marginBottom: '6px' }}>Gemini section detection</div>
+      <div style={{ fontSize: '13px', color: 'var(--ink3)', lineHeight: 1.6 }}>
         {!hasDeck && 'Upload a deck first — AI analysis runs on the uploaded PDF.'}
         {hasDeck && status === 'pending'   && 'Gemini reads the PDF and proposes the sections that change month-to-month. You confirm the detected sections before EventPilot creates the editable mappings.'}
         {hasDeck && status === 'running'   && 'Gemini is reading the deck. This takes 30–60 seconds for a typical corporate deck.'}
@@ -467,8 +470,8 @@ function AnalysisPanel({ deck, onRefresh }: { deck: Deck | null; onRefresh: () =
         disabled={disabled}
         style={{
           marginTop: '16px',
-          background: disabled ? '#EEF3F7' : BRAND,
-          color:      disabled ? '#94A3B8' : '#fff',
+          background: disabled ? 'var(--border-light)' : BRAND,
+          color:      disabled ? 'var(--ink4)' : 'var(--red-light)',
           border: 'none', borderRadius: '10px',
           padding: '11px 22px', fontSize: '13px', fontWeight: 800,
           cursor: disabled ? 'not-allowed' : 'pointer',
@@ -479,7 +482,7 @@ function AnalysisPanel({ deck, onRefresh }: { deck: Deck | null; onRefresh: () =
       </button>
 
       {err && (
-        <div style={{ marginTop: '14px', padding: '10px 14px', borderRadius: '10px', background: '#FFF4F4', border: '1px solid #FBCACA', color: '#C2410C', fontSize: '12px', fontWeight: 700 }}>
+        <div style={{ marginTop: '14px', padding: '10px 14px', borderRadius: '10px', background: 'var(--red-light)', border: '1px solid var(--red-border)', color: 'var(--red)', fontSize: '12px', fontWeight: 700 }}>
           {err}
         </div>
       )}
@@ -583,8 +586,8 @@ function DetectedSectionsPanel({ deckStatus, onRefresh }: { deckStatus: string; 
 
   if (loading) {
     return (
-      <section style={{ background: '#fff', border: '1px solid #DDE8EE', borderRadius: '20px', padding: '28px' }}>
-        <div style={{ fontSize: '13px', color: '#5B7080' }}>Loading detected sections…</div>
+      <section style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: '20px', padding: '28px' }}>
+        <div style={{ fontSize: '13px', color: 'var(--ink3)' }}>Loading detected sections…</div>
       </section>
     )
   }
@@ -593,10 +596,10 @@ function DetectedSectionsPanel({ deckStatus, onRefresh }: { deckStatus: string; 
 
   if (list.length === 0) {
     return (
-      <section style={{ background: '#fff', border: '1px solid #DDE8EE', borderRadius: '20px', padding: '28px' }}>
-        <div style={{ fontSize: '11px', fontWeight: 800, color: '#B8CDD8', letterSpacing: '2px', textTransform: 'uppercase' }}>Detected sections</div>
-        <div style={{ fontSize: '18px', fontWeight: 900, color: '#0F1923', marginTop: '4px', marginBottom: '6px' }}>No dynamic sections detected</div>
-        <p style={{ fontSize: '13px', color: '#5B7080', lineHeight: 1.6, margin: 0 }}>
+      <section style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: '20px', padding: '28px' }}>
+        <div style={{ fontSize: '11px', fontWeight: 800, color: 'var(--ink4)', letterSpacing: '2px', textTransform: 'uppercase' }}>Detected sections</div>
+        <div style={{ fontSize: '18px', fontWeight: 900, color: 'var(--ink)', marginTop: '4px', marginBottom: '6px' }}>No dynamic sections detected</div>
+        <p style={{ fontSize: '13px', color: 'var(--ink3)', lineHeight: 1.6, margin: 0 }}>
           Gemini didn&apos;t confidently identify any editable sections in this deck. This can happen with image-heavy Canva exports where text is flattened into images. Try re-running the analysis, or add sections manually from the Live Content tab once chunk 4 lands.
         </p>
       </section>
@@ -606,17 +609,17 @@ function DetectedSectionsPanel({ deckStatus, onRefresh }: { deckStatus: string; 
   const allConfirmed = list.every(m => m.confirmed)
 
   return (
-    <section style={{ background: '#fff', border: '1px solid #DDE8EE', borderRadius: '20px', padding: '28px', boxShadow: '0 2px 16px rgba(0,0,0,0.04)' }}>
+    <section style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: '20px', padding: '28px', boxShadow: 'var(--shadow-sm)' }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '4px' }}>
-        <div style={{ fontSize: '11px', fontWeight: 800, color: '#B8CDD8', letterSpacing: '2px', textTransform: 'uppercase' }}>Detected sections</div>
+        <div style={{ fontSize: '11px', fontWeight: 800, color: 'var(--ink4)', letterSpacing: '2px', textTransform: 'uppercase' }}>Detected sections</div>
         {allConfirmed && deckStatus === 'confirmed' && (
-          <span style={{ fontSize: '11px', fontWeight: 800, color: '#00897B', background: '#D1FAE5', padding: '5px 12px', borderRadius: '14px' }}>All confirmed ✓</span>
+          <span style={{ fontSize: '11px', fontWeight: 800, color: 'var(--teal-mid)', background: 'var(--teal-light)', padding: '5px 12px', borderRadius: '14px' }}>All confirmed ✓</span>
         )}
       </div>
-      <div style={{ fontSize: '18px', fontWeight: 900, color: '#0F1923', marginTop: '4px', marginBottom: '6px' }}>
+      <div style={{ fontSize: '18px', fontWeight: 900, color: 'var(--ink)', marginTop: '4px', marginBottom: '6px' }}>
         {allConfirmed && deckStatus === 'confirmed' ? 'Sections confirmed' : 'Review and confirm'}
       </div>
-      <div style={{ fontSize: '13px', color: '#5B7080', lineHeight: 1.6, marginBottom: '20px' }}>
+      <div style={{ fontSize: '13px', color: 'var(--ink3)', lineHeight: 1.6, marginBottom: '20px' }}>
         Gemini found {list.length} candidate section{list.length === 1 ? '' : 's'}. Toggle any you don&apos;t want, correct slide numbers if needed, then confirm.
       </div>
 
@@ -624,14 +627,14 @@ function DetectedSectionsPanel({ deckStatus, onRefresh }: { deckStatus: string; 
         {list.map(m => {
           const d = drafts[m.id] ?? { include: true, slidesText: m.slide_numbers.join(', '), label: m.section_label }
           const conf = m.ai_confidence ?? 0
-          const confBadge = conf >= 0.85 ? { bg: '#D1FAE5', color: '#00897B', label: `${Math.round(conf*100)}%` }
-                          : conf >= 0.6  ? { bg: '#FEF3C7', color: '#B45309', label: `${Math.round(conf*100)}%` }
-                          :                 { bg: '#FEE2E2', color: '#B91C1C', label: `${Math.round(conf*100)}%` }
+          const confBadge = conf >= 0.85 ? { bg: 'var(--teal-light)', color: 'var(--teal-mid)', label: `${Math.round(conf*100)}%` }
+                          : conf >= 0.6  ? { bg: 'var(--amber-light)', color: 'var(--amber)', label: `${Math.round(conf*100)}%` }
+                          :                 { bg: 'var(--red-light)', color: 'var(--red)', label: `${Math.round(conf*100)}%` }
           const excluded = !d.include
           return (
             <div key={m.id} style={{
-              border: `1px solid ${excluded ? '#EEF3F7' : '#DDE8EE'}`,
-              background: excluded ? '#FAFBFC' : '#fff',
+              border: `1px solid ${excluded ? 'var(--border-light)' : 'var(--border)'}`,
+              background: excluded ? 'var(--border-light)' : 'var(--card)',
               borderRadius: '14px',
               padding: '16px 18px',
               opacity: excluded ? 0.55 : 1,
@@ -653,36 +656,36 @@ function DetectedSectionsPanel({ deckStatus, onRefresh }: { deckStatus: string; 
                       value={d.label}
                       onChange={e => editLabel(m.id, e.target.value)}
                       disabled={excluded}
-                      style={{ fontSize: '14px', fontWeight: 800, color: '#0F1923', border: 'none', background: 'transparent', outline: 'none', padding: '2px 6px', borderRadius: '6px', minWidth: '180px', fontFamily: 'inherit' }}
+                      style={{ fontSize: '14px', fontWeight: 800, color: 'var(--ink)', border: 'none', background: 'transparent', outline: 'none', padding: '2px 6px', borderRadius: '6px', minWidth: '180px', fontFamily: 'inherit' }}
                     />
-                    <span style={{ fontSize: '10px', fontWeight: 800, color: '#94A3B8', background: '#EEF3F7', padding: '3px 8px', borderRadius: '10px', letterSpacing: '0.5px' }}>
+                    <span style={{ fontSize: '10px', fontWeight: 800, color: 'var(--ink4)', background: 'var(--border-light)', padding: '3px 8px', borderRadius: '10px', letterSpacing: '0.5px' }}>
                       {m.section_key}
                     </span>
                     <span style={{ fontSize: '10px', fontWeight: 800, color: confBadge.color, background: confBadge.bg, padding: '3px 8px', borderRadius: '10px' }}>
                       {confBadge.label}
                     </span>
                     {m.confirmed && (
-                      <span style={{ fontSize: '10px', fontWeight: 800, color: '#00897B', background: '#D1FAE5', padding: '3px 8px', borderRadius: '10px' }}>
+                      <span style={{ fontSize: '10px', fontWeight: 800, color: 'var(--teal-mid)', background: 'var(--teal-light)', padding: '3px 8px', borderRadius: '10px' }}>
                         Mapped
                       </span>
                     )}
                   </div>
 
                   {m.sample_content && (
-                    <div style={{ fontSize: '12px', color: '#5B7080', lineHeight: 1.5, marginBottom: '10px', fontStyle: 'italic' }}>
+                    <div style={{ fontSize: '12px', color: 'var(--ink3)', lineHeight: 1.5, marginBottom: '10px', fontStyle: 'italic' }}>
                       &ldquo;{m.sample_content}&rdquo;
                     </div>
                   )}
 
                   <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
-                    <span style={{ fontSize: '11px', fontWeight: 700, color: '#94A3B8', letterSpacing: '0.5px', textTransform: 'uppercase' }}>Slides</span>
+                    <span style={{ fontSize: '11px', fontWeight: 700, color: 'var(--ink4)', letterSpacing: '0.5px', textTransform: 'uppercase' }}>Slides</span>
                     <input
                       type="text"
                       value={d.slidesText}
                       onChange={e => editSlides(m.id, e.target.value)}
                       disabled={excluded}
                       placeholder="e.g. 4, 18, 29"
-                      style={{ fontSize: '12px', color: '#0F1923', border: '1px solid #DDE8EE', background: '#fff', outline: 'none', padding: '5px 10px', borderRadius: '8px', fontFamily: 'inherit', width: '180px' }}
+                      style={{ fontSize: '12px', color: 'var(--ink)', border: '1px solid var(--border)', background: 'var(--card)', outline: 'none', padding: '5px 10px', borderRadius: '8px', fontFamily: 'inherit', width: '180px' }}
                     />
                   </div>
                 </div>
@@ -697,7 +700,7 @@ function DetectedSectionsPanel({ deckStatus, onRefresh }: { deckStatus: string; 
           onClick={confirmAll}
           disabled={saving}
           style={{
-            background: BRAND, color: '#fff', border: 'none', borderRadius: '10px',
+            background: BRAND, color: 'var(--red-light)', border: 'none', borderRadius: '10px',
             padding: '12px 26px', fontSize: '13px', fontWeight: 800,
             cursor: saving ? 'default' : 'pointer', opacity: saving ? 0.7 : 1,
             fontFamily: 'inherit',
@@ -705,13 +708,13 @@ function DetectedSectionsPanel({ deckStatus, onRefresh }: { deckStatus: string; 
         >
           {saving ? 'Saving…' : allConfirmed ? 'Re-confirm all' : 'Confirm & continue'}
         </button>
-        <span style={{ fontSize: '12px', color: '#94A3B8', fontWeight: 600 }}>
+        <span style={{ fontSize: '12px', color: 'var(--ink4)', fontWeight: 600 }}>
           Confirmed sections become editable in the Live Content tab (chunk 4).
         </span>
       </div>
 
       {errText && (
-        <div style={{ marginTop: '14px', padding: '10px 14px', borderRadius: '10px', background: '#FFF4F4', border: '1px solid #FBCACA', color: '#C2410C', fontSize: '12px', fontWeight: 700 }}>
+        <div style={{ marginTop: '14px', padding: '10px 14px', borderRadius: '10px', background: 'var(--red-light)', border: '1px solid var(--red-border)', color: 'var(--red)', fontSize: '12px', fontWeight: 700 }}>
           {errText}
         </div>
       )}
@@ -721,23 +724,23 @@ function DetectedSectionsPanel({ deckStatus, onRefresh }: { deckStatus: string; 
 
 function Stat({ label, value }: { label: string; value: string }) {
   return (
-    <div style={{ background: '#FAFBFC', border: '1px solid #EEF3F7', borderRadius: '12px', padding: '12px 14px' }}>
-      <div style={{ fontSize: '10px', fontWeight: 800, color: '#B8CDD8', letterSpacing: '1.5px', textTransform: 'uppercase' }}>{label}</div>
-      <div style={{ fontSize: '14px', fontWeight: 700, color: '#0F1923', marginTop: '4px' }}>{value}</div>
+    <div style={{ background: 'var(--border-light)', border: '1px solid var(--border-light)', borderRadius: '12px', padding: '12px 14px' }}>
+      <div style={{ fontSize: '10px', fontWeight: 800, color: 'var(--ink4)', letterSpacing: '1.5px', textTransform: 'uppercase' }}>{label}</div>
+      <div style={{ fontSize: '14px', fontWeight: 700, color: 'var(--ink)', marginTop: '4px' }}>{value}</div>
     </div>
   )
 }
 
 function StatusBadge({ status, hasDeck }: { status: Deck['ai_analysis_status']; hasDeck: boolean }) {
   if (!hasDeck) {
-    return <Badge color="#94A3B8" bg="#EEF3F7">Empty</Badge>
+    return <Badge color="var(--ink3)" bg="var(--border-light)">Empty</Badge>
   }
   const map: Record<Deck['ai_analysis_status'], { label: string; color: string; bg: string }> = {
-    pending:   { label: 'Ready to analyse', color: '#B45309', bg: '#FEF3C7' },
-    running:   { label: 'Analysing…',        color: '#1D4ED8', bg: '#DBEAFE' },
-    ready:     { label: 'Awaiting confirm',  color: '#B45309', bg: '#FEF3C7' },
-    confirmed: { label: 'Mapped',            color: '#00897B', bg: '#D1FAE5' },
-    failed:    { label: 'Failed',            color: '#B91C1C', bg: '#FEE2E2' },
+    pending:   { label: 'Ready to analyse', color: 'var(--amber)', bg: 'var(--amber-light)' },
+    running:   { label: 'Analysing…',        color: 'var(--info)', bg: 'var(--info-light)' },
+    ready:     { label: 'Awaiting confirm',  color: 'var(--amber)', bg: 'var(--amber-light)' },
+    confirmed: { label: 'Mapped',            color: 'var(--teal-mid)', bg: 'var(--teal-light)' },
+    failed:    { label: 'Failed',            color: 'var(--red)', bg: 'var(--red-light)' },
   }
   const s = map[status]
   return <Badge color={s.color} bg={s.bg}>{s.label}</Badge>

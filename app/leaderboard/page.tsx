@@ -43,15 +43,15 @@ function fmtRange(start: string, end: string): string {
 }
 
 function DeltaBadge({ delta }: { delta: number | null }) {
-  if (delta == null) return <span style={{ color: '#94A3B8', fontSize: 11, fontWeight: 600 }}>new</span>
-  if (delta === 0)   return <span style={{ color: '#94A3B8', fontSize: 11, fontWeight: 600 }}>—</span>
-  if (delta > 0)     return <span style={{ color: '#16A34A', fontSize: 11, fontWeight: 800 }}>▲ {delta}</span>
-  return                <span style={{ color: '#DC2626', fontSize: 11, fontWeight: 800 }}>▼ {Math.abs(delta)}</span>
+  if (delta == null) return <span style={{ color: 'var(--ink4)', fontSize: 11, fontWeight: 600 }}>new</span>
+  if (delta === 0)   return <span style={{ color: 'var(--ink4)', fontSize: 11, fontWeight: 600 }}>—</span>
+  if (delta > 0)     return <span style={{ color: 'var(--success)', fontSize: 11, fontWeight: 800 }}>▲ {delta}</span>
+  return                <span style={{ color: 'var(--red)', fontSize: 11, fontWeight: 800 }}>▼ {Math.abs(delta)}</span>
 }
 
 function LeaderboardShell({ children }: { children: React.ReactNode }) {
   return (
-    <div style={{ minHeight: '100vh', background: '#F0F4F8', fontFamily: 'var(--font-manrope)' }}>
+    <div style={{ minHeight: '100vh', background: 'var(--surface)', fontFamily: 'var(--font-manrope)' }}>
       {children}
     </div>
   )
@@ -77,7 +77,7 @@ export default function LeaderboardPage() {
     return (
       <LeaderboardShell>
         <PageHeader eyebrow="Learning Leaderboard" title="Leaderboard" />
-        <div style={{ padding: '80px 24px', textAlign: 'center', color: '#5B7080', fontFamily: 'var(--font-manrope)', fontSize: 15, fontWeight: 600 }}>
+        <div style={{ padding: '80px 24px', textAlign: 'center', color: 'var(--ink3)', fontFamily: 'var(--font-manrope)', fontSize: 15, fontWeight: 600 }}>
           Loading leaderboard…
         </div>
       </LeaderboardShell>
@@ -87,7 +87,7 @@ export default function LeaderboardPage() {
     return (
       <LeaderboardShell>
         <PageHeader eyebrow="Learning Leaderboard" title="Leaderboard" />
-        <div style={{ padding: '80px 24px', textAlign: 'center', color: '#DC2626', fontFamily: 'var(--font-manrope)', fontSize: 15, fontWeight: 600 }}>
+        <div style={{ padding: '80px 24px', textAlign: 'center', color: 'var(--red)', fontFamily: 'var(--font-manrope)', fontSize: 15, fontWeight: 600 }}>
           {error ?? 'No data'}
         </div>
       </LeaderboardShell>
@@ -108,8 +108,12 @@ export default function LeaderboardPage() {
         {/* Personal card (staff only) */}
         {!is_admin && me && (
           <div style={{
-            background: 'linear-gradient(135deg,#0F1923 0%,#00A5A3 100%)',
-            borderRadius: 14, padding: '22px 26px', color: '#fff', marginBottom: 24,
+            // Custom dark→teal-border gradient (not a plain var(--card) fill) since this
+            // is the one intentionally 'branded' highlight card on the page; endpoints
+            // picked (rather than var(--teal-mid)) so the white/lime/red text below
+            // stays legible across the whole gradient, not just the dark end.
+            background: 'linear-gradient(135deg, var(--surface) 0%, var(--teal-border) 100%)',
+            borderRadius: 14, padding: '22px 26px', color: 'var(--ink)', marginBottom: 24,
           }}>
             <div style={{ fontSize: 11, fontWeight: 800, letterSpacing: 1, textTransform: 'uppercase', color: 'rgba(255,255,255,0.65)', marginBottom: 6 }}>
               You this week
@@ -122,8 +126,8 @@ export default function LeaderboardPage() {
                     {me.score} pts · {me.completions_count} completed
                     {me.delta == null ? '' :
                      me.delta === 0 ? ' · same as last week' :
-                     me.delta > 0 ? <> · <span style={{ color: '#C0F43C', fontWeight: 700 }}>up {me.delta} from last week</span></> :
-                                     <> · <span style={{ color: '#FCA5A5' }}>down {Math.abs(me.delta)} from last week</span></>}
+                     me.delta > 0 ? <> · <span style={{ color: 'var(--lime)', fontWeight: 700 }}>up {me.delta} from last week</span></> :
+                                     <> · <span style={{ color: '#FCB4B4' /* brightened salmon-red: plain var(--red) only measures ~2.6:1 against the card's teal-border gradient endpoint */ }}>down {Math.abs(me.delta)} from last week</span></>}
                   </div>
                 </div>
                 {me.trend.length >= 2 && (
@@ -150,33 +154,33 @@ export default function LeaderboardPage() {
         )}
 
         {/* Top 10 card */}
-        <div style={{ background: '#fff', borderRadius: 14, border: '1px solid #E8EEF4', overflow: 'hidden' }}>
+        <div style={{ background: 'var(--card)', borderRadius: 14, border: '1px solid var(--border-light)', overflow: 'hidden' }}>
           <div style={{ padding: '18px 24px 8px' }}>
-            <div style={{ fontSize: 12, fontWeight: 800, letterSpacing: 1, textTransform: 'uppercase', color: '#5B7080' }}>Top 10 · this week</div>
+            <div style={{ fontSize: 12, fontWeight: 800, letterSpacing: 1, textTransform: 'uppercase', color: 'var(--ink3)' }}>Top 10 · this week</div>
           </div>
 
           {top10.length === 0 ? (
-            <div style={{ padding: '32px 24px', textAlign: 'center', color: '#5B7080', fontSize: 14 }}>
+            <div style={{ padding: '32px 24px', textAlign: 'center', color: 'var(--ink3)', fontSize: 14 }}>
               No course completions this week yet. Will you be first next Monday?
             </div>
           ) : (
             <table style={{ width: '100%', borderCollapse: 'collapse' }}>
               <tbody>
                 {top10.map(r => (
-                  <tr key={r.staff_id} style={{ borderTop: '1px solid #F0F4F8' }}>
-                    <td style={{ padding: '12px 14px', width: 44, textAlign: 'center', fontSize: 13, fontWeight: 900, color: '#0F1923' }}>#{r.rank}</td>
+                  <tr key={r.staff_id} style={{ borderTop: '1px solid var(--border-light)' }}>
+                    <td style={{ padding: '12px 14px', width: 44, textAlign: 'center', fontSize: 13, fontWeight: 900, color: 'var(--ink)' }}>#{r.rank}</td>
                     <td style={{ padding: '12px 8px' }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                        <div style={{ width: 30, height: 30, borderRadius: '50%', background: '#00A5A3', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 800 }}>
+                        <div style={{ width: 30, height: 30, borderRadius: '50%', background: 'var(--teal-mid)', color: 'var(--teal-light)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 800 }}>
                           {initials(r.name)}
                         </div>
                         <div>
-                          <div style={{ fontSize: 14, fontWeight: 700, color: '#0F1923', lineHeight: 1.2 }}>{r.name}</div>
-                          {r.department && <div style={{ fontSize: 11, color: '#5B7080', marginTop: 2 }}>{r.department}</div>}
+                          <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--ink)', lineHeight: 1.2 }}>{r.name}</div>
+                          {r.department && <div style={{ fontSize: 11, color: 'var(--ink3)', marginTop: 2 }}>{r.department}</div>}
                         </div>
                       </div>
                     </td>
-                    <td style={{ padding: '12px 8px', textAlign: 'right', fontSize: 13, fontWeight: 700, color: '#0F1923' }}>{r.score} pts</td>
+                    <td style={{ padding: '12px 8px', textAlign: 'right', fontSize: 13, fontWeight: 700, color: 'var(--ink)' }}>{r.score} pts</td>
                     <td style={{ padding: '12px 14px', textAlign: 'right', width: 56 }}>
                       <DeltaBadge delta={r.delta} />
                     </td>
@@ -187,7 +191,7 @@ export default function LeaderboardPage() {
           )}
         </div>
 
-        <p style={{ marginTop: 20, fontSize: 12, color: '#5B7080', textAlign: 'center' }}>
+        <p style={{ marginTop: 20, fontSize: 12, color: 'var(--ink3)', textAlign: 'center' }}>
           Scoring — 100 pts per course completed · +30 if test score ≥ 90 · +20 for first-attempt pass · level bonus (Adoption +25 · Advanced +50). Ties broken by fewer attempts.
           <br />Admins are excluded from ranks — they steward the platform, not the leaderboard.
         </p>

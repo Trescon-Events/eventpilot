@@ -79,15 +79,15 @@ export default function ResumeSidebar({ resolveRoute, toolLabels }: Props) {
   }
 
   return (
-    <div style={{ marginTop: '18px', padding: '18px 16px 20px', borderTop: '1px solid #1A2B3C' }}>
-      <div style={{ fontSize: '11px', fontWeight: 800, color: '#5B7080', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '10px' }}>
+    <div style={{ marginTop: '18px', padding: '18px 16px 20px', borderTop: '1px solid var(--border-light)' }}>
+      <div style={{ fontSize: '11px', fontWeight: 800, color: 'var(--ink3)', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '10px' }}>
         Resume Work
       </div>
 
       {loading ? (
-        <div style={{ fontSize: '12px', color: '#5B7080', padding: '4px 0' }}>Loading…</div>
+        <div style={{ fontSize: '12px', color: 'var(--ink3)', padding: '4px 0' }}>Loading…</div>
       ) : drafts.length === 0 ? (
-        <div style={{ fontSize: '12px', color: '#5B7080', padding: '4px 0', lineHeight: 1.6 }}>
+        <div style={{ fontSize: '12px', color: 'var(--ink3)', padding: '4px 0', lineHeight: 1.6 }}>
           Your unfinished work will appear here as you save drafts inside the tools.
         </div>
       ) : (
@@ -103,32 +103,32 @@ export default function ResumeSidebar({ resolveRoute, toolLabels }: Props) {
                   padding: '10px 12px', borderRadius: '10px',
                   cursor: 'pointer', transition: 'background 0.15s',
                 }}
-                onMouseEnter={e => (e.currentTarget.style.background = '#1A2B3C')}
+                onMouseEnter={e => (e.currentTarget.style.background = 'var(--card-hi)')}
                 onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
               >
-                <div style={{ fontSize: '12px', fontWeight: 700, color: '#F5F5F2', lineHeight: 1.3, marginBottom: '2px' }}>
+                <div style={{ fontSize: '12px', fontWeight: 700, color: 'var(--ink)', lineHeight: 1.3, marginBottom: '2px' }}>
                   {d.event_name ?? d.display_label}
                 </div>
-                <div style={{ fontSize: '11px', color: '#8CA0B3', lineHeight: 1.3, marginBottom: '2px' }}>
+                <div style={{ fontSize: '11px', color: 'var(--ink4)', lineHeight: 1.3, marginBottom: '2px' }}>
                   {status}
                 </div>
-                <div style={{ fontSize: '10px', color: '#5B7080', display: 'flex', gap: '6px', alignItems: 'center', flexWrap: 'wrap' }}>
+                <div style={{ fontSize: '10px', color: 'var(--ink3)', display: 'flex', gap: '6px', alignItems: 'center', flexWrap: 'wrap' }}>
                   <span>Last edited {relativeTime(d.last_updated)}</span>
                   {!d.is_mine && d.owner_name && (
                     <>
-                      <span style={{ color: '#3A4A5A' }}>·</span>
-                      <span style={{ color: '#D4AF37' }}>Shared by {d.owner_name.split(' ')[0]}</span>
+                      <span style={{ color: 'var(--ink4)' }}>·</span>
+                      <span style={{ color: 'var(--amber)' }}>Shared by {d.owner_name.split(' ')[0]}</span>
                     </>
                   )}
                   {d.is_mine && (
                     <>
-                      <span style={{ color: '#3A4A5A' }}>·</span>
+                      <span style={{ color: 'var(--ink4)' }}>·</span>
                       <button
                         onClick={e => { e.stopPropagation(); toggleShare(d) }}
                         style={{
                           background: 'transparent', border: 'none', padding: 0,
                           fontSize: '10px', fontFamily: 'inherit', cursor: 'pointer',
-                          color: d.shared_with_team ? '#D4AF37' : '#5B7080',
+                          color: d.shared_with_team ? 'var(--amber)' : 'var(--ink3)',
                           fontWeight: d.shared_with_team ? 700 : 400,
                           textDecoration: 'underline', textUnderlineOffset: '2px',
                         }}

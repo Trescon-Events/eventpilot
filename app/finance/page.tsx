@@ -4,7 +4,11 @@ import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import PageHeader from '@/app/components/PageHeader'
 
-const C = { bg: '#F6F8FB', surface: '#FFFFFF', border: '#DDE8EE', text: '#0F1923', muted: '#5B7080', green: '#00897B', amber: '#D97706', red: '#8B1A1A', blue: '#1565C0', purple: '#6C54B5' }
+const C = {
+  bg: 'var(--surface)', surface: 'var(--card)', border: 'var(--border)', text: 'var(--ink)', muted: 'var(--ink3)',
+  green: 'var(--teal-mid)', // NOTE: named "green" historically, this is brand teal
+  amber: '#F5B94D', red: 'var(--red)', blue: 'var(--info)', purple: 'var(--purple)',
+}
 
 type Summary = { staff_count: number; total_gross: number; total_net: number; total_expenses: number; grand_total: number }
 type ExpenseStat = { pending: number; approved: number; pending_amount: number }
@@ -50,7 +54,7 @@ export default function FinanceDashboard() {
     { label: 'Expense Claims', desc: 'Review and approve staff expense submissions', path: '/finance/expenses', color: C.amber, icon: <svg width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" viewBox="0 0 24 24"><rect x="1" y="4" width="22" height="16" rx="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg>, badge: expStat.pending > 0 ? `${expStat.pending} pending` : undefined },
     { label: 'Vendor Payments', desc: 'Track vendor invoices, approve payments, monitor overdue', path: '/finance/vendors', color: C.blue, icon: <svg width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" viewBox="0 0 24 24"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>, badge: vendStat.overdue > 0 ? `${vendStat.overdue} overdue` : undefined },
     { label: 'Payroll Summary', desc: 'Monthly payroll overview — salaries + expenses by department', path: '/finance/payroll', color: C.green, icon: <svg width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" viewBox="0 0 24 24"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg> },
-    { label: 'Commercial P&L', desc: 'Event profitability — revenue, costs, margins, approvals', path: '/admin/commercial', color: '#00695C', icon: <svg width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" viewBox="0 0 24 24"><path d="M21.21 15.89A10 10 0 1 1 8 2.83"/><path d="M22 12A10 10 0 0 0 12 2v10z"/></svg> },
+    { label: 'Commercial P&L', desc: 'Event profitability — revenue, costs, margins, approvals', path: '/admin/commercial', color: 'var(--teal)', icon: <svg width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" viewBox="0 0 24 24"><path d="M21.21 15.89A10 10 0 1 1 8 2.83"/><path d="M22 12A10 10 0 0 0 12 2v10z"/></svg> },
   ]
 
   return (
@@ -90,11 +94,11 @@ export default function FinanceDashboard() {
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 14 }}>
           {MODULES.map(m => (
             <Link key={m.path} href={m.path} style={{ textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 16, padding: '20px 22px', borderRadius: 12, background: C.surface, border: `1px solid ${C.border}`, transition: 'all 0.15s' }}>
-              <div style={{ width: 44, height: 44, borderRadius: 10, background: `${m.color}10`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, color: m.color }}>{m.icon}</div>
+              <div style={{ width: 44, height: 44, borderRadius: 10, background: `${'color-mix(in srgb, ' + (m.color) + ' 6%, transparent)'}`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, color: m.color }}>{m.icon}</div>
               <div style={{ flex: 1 }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                   <span style={{ fontSize: 15, fontWeight: 800, color: C.text }}>{m.label}</span>
-                  {m.badge && <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 10, background: `${C.red}12`, color: C.red }}>{m.badge}</span>}
+                  {m.badge && <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 10, background: `${'color-mix(in srgb, ' + (C.red) + ' 7%, transparent)'}`, color: C.red }}>{m.badge}</span>}
                 </div>
                 <div style={{ fontSize: 13, color: C.muted, marginTop: 3 }}>{m.desc}</div>
               </div>

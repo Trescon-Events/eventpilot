@@ -49,13 +49,13 @@ export default function CorporateMarketingLayout({ children }: { children: React
   return (
     <div style={{
       minHeight: '100vh',
-      background: '#E8EEF4',
+      background: 'var(--surface)',
       display: 'flex',
       alignItems: 'center',
       justifyContent: 'center',
       fontFamily: 'var(--font-manrope)',
     }}>
-      <div style={{ fontSize: '14px', color: '#5B7080', fontWeight: 600 }}>
+      <div style={{ fontSize: '14px', color: 'var(--ink3)', fontWeight: 600 }}>
         {state === 'checking' ? 'Loading Corporate Marketing…' : 'Redirecting…'}
       </div>
     </div>

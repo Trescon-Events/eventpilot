@@ -422,10 +422,20 @@ export const ALL_DEPARTMENTS = [
   'DemandifyMedia', 'Leadership', 'Other',
 ]
 
-/* ─── Proficiency level definitions (used by profile + questionnaire preview) ─── */
+/* ─── Proficiency level definitions (used by profile + questionnaire preview) ───
+   Literal hex (this file has no CSS custom-property access) — consumers concatenate
+   an alpha suffix at runtime (`${color}18`), so these can't be var() references.
+   Brightened/re-picked to clear ~4.5:1+ contrast against the dark card (#142330)
+   the color reads as both text and a translucent-tint badge background on:
+     Basic     — unchanged, #FF9F43 already clears 7.8:1 on the dark card
+     Confident — #7A6600 (2.8:1, fails) brightened to #AD9100 (5.2:1)
+     Advanced  — #00A5A3 (5.3:1) swapped for the theme's --teal-mid (#12C9BD, 7.7:1)
+     Builder   — #3D6B00 (2.5:1) swapped for the theme's --lime (#C0F43C, 12.4:1) —
+                 standalone badge/status text uses bright lime, not lime-dark
+   ──────────────────────────────────────────────────────────────────────────── */
 export const PROFICIENCY_LEVELS = [
   { level: 1, label: 'Basic',     desc: 'I follow steps, someone set it up for me',    color: '#FF9F43' },
-  { level: 2, label: 'Confident', desc: 'I figure most things out myself',              color: '#7A6600' },
-  { level: 3, label: 'Advanced',  desc: "Use features most people don't, troubleshoot", color: '#00A5A3' },
-  { level: 4, label: 'Builder',   desc: "I've automated with it / set it up for others", color: '#3D6B00' },
+  { level: 2, label: 'Confident', desc: 'I figure most things out myself',              color: '#AD9100' },
+  { level: 3, label: 'Advanced',  desc: "Use features most people don't, troubleshoot", color: '#12C9BD' },
+  { level: 4, label: 'Builder',   desc: "I've automated with it / set it up for others", color: '#C0F43C' },
 ]

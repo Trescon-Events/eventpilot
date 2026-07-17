@@ -6,15 +6,15 @@ import { useParams } from 'next/navigation'
 import PageHeader from '@/app/components/PageHeader'
 
 const C = {
-  bg:      '#F6F8FB',
-  surface: '#FFFFFF',
-  border:  '#DDE8EE',
-  text:    '#0F1923',
-  muted:   '#5B7080',
-  green:   '#00897B',
-  amber:   '#D97706',
-  red:     '#8B1A1A',
-  purple:  '#6C54B5',
+  bg:      'var(--surface)',
+  surface: 'var(--card)',
+  border:  'var(--border)',
+  text:    'var(--ink)',
+  muted:   'var(--ink3)',
+  green:   'var(--teal-mid)', // NOTE: named "green" historically, this is brand teal
+  amber:   '#F5B94D',
+  red:     'var(--red)',
+  purple:  'var(--purple)',
 }
 
 /* ── Types ───────────────────────────────────────────────────────────── */
@@ -312,7 +312,7 @@ export default function StaffHRProfile() {
       <div style={{ maxWidth: '1100px', margin: '0 auto', padding: '32px' }}>
         {/* Profile hero */}
         <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: '16px', padding: '28px', marginBottom: '16px', display: 'flex', gap: '24px', alignItems: 'flex-start' }}>
-          <div style={{ width: '56px', height: '56px', borderRadius: '14px', background: C.green + '20', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '22px', fontWeight: 800, color: C.green, flexShrink: 0 }}>
+          <div style={{ width: '56px', height: '56px', borderRadius: '14px', background: 'color-mix(in srgb, ' + C.green + ' 13%, transparent)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '22px', fontWeight: 800, color: C.green, flexShrink: 0 }}>
             {staff.name.charAt(0).toUpperCase()}
           </div>
           <div style={{ flex: 1 }}>
@@ -381,7 +381,7 @@ export default function StaffHRProfile() {
                     {task.due_date && <div style={{ fontSize: '12px', color: C.muted }}>{task.due_date}</div>}
                     {task.status !== 'completed' && task.status !== 'skipped' && (
                       <button disabled={busy === task.id} onClick={() => updateOnboardingTask(task.id, 'completed')}
-                        style={{ padding: '4px 10px', borderRadius: '6px', background: C.green, color: '#fff', fontSize: '11px', fontWeight: 700, border: 'none', cursor: 'pointer', fontFamily: 'inherit' }}>
+                        style={{ padding: '4px 10px', borderRadius: '6px', background: C.green, color: 'var(--teal-light)', fontSize: '11px', fontWeight: 700, border: 'none', cursor: 'pointer', fontFamily: 'inherit' }}>
                         Mark done
                       </button>
                     )}
@@ -418,7 +418,7 @@ export default function StaffHRProfile() {
                 </div>
               )}
               {(staff.emergency_contact_name || staff.emergency_contact_phone) && (
-                <div style={{ marginTop: '14px', padding: '12px 14px', background: C.amber + '10', borderRadius: '10px', border: `1px solid ${C.amber}30` }}>
+                <div style={{ marginTop: '14px', padding: '12px 14px', background: 'color-mix(in srgb, ' + C.amber + ' 6%, transparent)', borderRadius: '10px', border: `1px solid ${'color-mix(in srgb, ' + (C.amber) + ' 19%, transparent)'}` }}>
                   <div style={{ fontSize: '11px', color: C.amber, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.8px', marginBottom: '6px' }}>Emergency Contact</div>
                   <div style={{ fontSize: '14px', fontWeight: 700, color: C.text }}>{staff.emergency_contact_name ?? '—'}</div>
                   <div style={{ fontSize: '13px', color: C.muted }}>{staff.emergency_contact_phone ?? '—'}</div>
@@ -428,7 +428,7 @@ export default function StaffHRProfile() {
                 <div style={{ marginTop: '14px' }}>
                   <div style={{ fontSize: '11px', color: C.muted, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.8px', marginBottom: '8px' }}>Skills</div>
                   <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
-                    {staff.skills.map(s => <span key={s} style={{ padding: '3px 10px', borderRadius: '10px', background: C.purple + '15', color: C.purple, fontSize: '12px', fontWeight: 600 }}>{s}</span>)}
+                    {staff.skills.map(s => <span key={s} style={{ padding: '3px 10px', borderRadius: '10px', background: 'color-mix(in srgb, ' + C.purple + ' 8%, transparent)', color: C.purple, fontSize: '12px', fontWeight: 600 }}>{s}</span>)}
                   </div>
                 </div>
               )}
@@ -547,7 +547,7 @@ export default function StaffHRProfile() {
                       }
                       setLeaveSaving(false)
                     }}
-                    style={{ padding: '8px 20px', borderRadius: '8px', background: C.green, color: '#fff', fontSize: '13px', fontWeight: 700, border: 'none', cursor: 'pointer', fontFamily: 'inherit', opacity: leaveSaving ? 0.6 : 1 }}>
+                    style={{ padding: '8px 20px', borderRadius: '8px', background: C.green, color: 'var(--teal-light)', fontSize: '13px', fontWeight: 700, border: 'none', cursor: 'pointer', fontFamily: 'inherit', opacity: leaveSaving ? 0.6 : 1 }}>
                     {leaveSaving ? 'Submitting…' : 'Submit Request'}
                   </button>
                   {leaveMsg && <span style={{ fontSize: '13px', color: leaveMsg === 'Request submitted.' ? C.green : C.red }}>{leaveMsg}</span>}
@@ -796,7 +796,7 @@ export default function StaffHRProfile() {
                         {doc.expiry_date && pill(expired ? C.red : expiringSoon ? C.amber : C.green, expired ? `Expired ${doc.expiry_date}` : `Expires ${doc.expiry_date}`)}
                         {doc.file_url && (
                           <a href={doc.file_url} target="_blank" rel="noopener noreferrer"
-                            style={{ padding: '4px 10px', borderRadius: '6px', background: C.green, color: '#fff', fontSize: '11px', fontWeight: 700, textDecoration: 'none' }}>
+                            style={{ padding: '4px 10px', borderRadius: '6px', background: C.green, color: 'var(--teal-light)', fontSize: '11px', fontWeight: 700, textDecoration: 'none' }}>
                             View
                           </a>
                         )}
@@ -845,7 +845,7 @@ export default function StaffHRProfile() {
               <Section title="Salary History">
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                   {salary.map((rec, i) => (
-                    <div key={rec.id} style={{ padding: '14px 16px', borderRadius: '12px', background: i === 0 ? C.green + '08' : C.bg, border: `1px solid ${i === 0 ? C.green + '40' : C.border}` }}>
+                    <div key={rec.id} style={{ padding: '14px 16px', borderRadius: '12px', background: i === 0 ? 'color-mix(in srgb, ' + C.green + ' 3%, transparent)' : C.bg, border: `1px solid ${i === 0 ? 'color-mix(in srgb, ' + C.green + ' 25%, transparent)' : C.border}` }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '8px' }}>
                         <div style={{ fontSize: '13px', fontWeight: 800, color: C.text }}>
                           {rec.currency} {rec.basic_salary.toLocaleString()}
@@ -954,7 +954,7 @@ export default function StaffHRProfile() {
                       </div>
                       {task.status !== 'completed' ? (
                         <button disabled={busy === task.id} onClick={() => updateOffboardingTask(task.id)}
-                          style={{ padding: '6px 14px', borderRadius: '8px', background: C.green, color: '#fff', fontSize: '12px', fontWeight: 700, border: 'none', cursor: 'pointer', fontFamily: 'inherit' }}>
+                          style={{ padding: '6px 14px', borderRadius: '8px', background: C.green, color: 'var(--teal-light)', fontSize: '12px', fontWeight: 700, border: 'none', cursor: 'pointer', fontFamily: 'inherit' }}>
                           Mark done
                         </button>
                       ) : (

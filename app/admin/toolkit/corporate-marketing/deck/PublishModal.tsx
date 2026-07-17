@@ -43,20 +43,20 @@ export default function PublishModal({ onClose, onPublished }: { onClose: () => 
       zIndex: 1000, padding: '20px',
     }} onClick={saving ? undefined : onClose}>
       <div
-        style={{ background: '#fff', borderRadius: '20px', padding: '32px', width: '100%', maxWidth: '520px', boxShadow: '0 24px 64px rgba(0,0,0,0.18)' }}
+        style={{ background: 'var(--card)', borderRadius: '20px', padding: '32px', width: '100%', maxWidth: '520px', boxShadow: 'var(--shadow-md)' }}
         onClick={e => e.stopPropagation()}
       >
         <div style={{ fontSize: '11px', fontWeight: 800, color: BRAND, letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '6px' }}>
           Publish new version
         </div>
-        <div style={{ fontSize: '20px', fontWeight: 900, color: '#0F1923', marginBottom: '10px', letterSpacing: '-0.3px' }}>
+        <div style={{ fontSize: '20px', fontWeight: 900, color: 'var(--ink)', marginBottom: '10px', letterSpacing: '-0.3px' }}>
           Create an immutable snapshot
         </div>
-        <div style={{ fontSize: '13px', color: '#5B7080', lineHeight: 1.6, marginBottom: '20px' }}>
+        <div style={{ fontSize: '13px', color: 'var(--ink3)', lineHeight: 1.6, marginBottom: '20px' }}>
           A version freezes the current PDF, Canva link, and all approved deck content. It cannot be overwritten. Anyone can download it from Version History.
         </div>
 
-        <label style={{ display: 'block', fontSize: '12px', fontWeight: 800, color: '#0F1923', marginBottom: '6px' }}>
+        <label style={{ display: 'block', fontSize: '12px', fontWeight: 800, color: 'var(--ink)', marginBottom: '6px' }}>
           What changed in this version?
         </label>
         <textarea

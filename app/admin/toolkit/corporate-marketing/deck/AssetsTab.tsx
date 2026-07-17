@@ -99,7 +99,7 @@ export default function AssetsTab() {
     }
   }
 
-  if (loading) return <Card><div style={{ fontSize: '13px', color: '#5B7080' }}>Loading images…</div></Card>
+  if (loading) return <Card><div style={{ fontSize: '13px', color: 'var(--ink3)' }}>Loading images…</div></Card>
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '18px', maxWidth: '1200px' }}>
@@ -108,7 +108,7 @@ export default function AssetsTab() {
           <div style={{ flex: 1, minWidth: 0 }}>
             <SectionLabel>Approved Images</SectionLabel>
             <H2 style={{ marginBottom: '6px' }}>{assets.length} image{assets.length === 1 ? '' : 's'} in library</H2>
-            <div style={{ fontSize: '13px', color: '#5B7080', lineHeight: 1.6 }}>
+            <div style={{ fontSize: '13px', color: 'var(--ink3)', lineHeight: 1.6 }}>
               Corporate image library. Upload JPG / PNG / WEBP / GIF (max 10 MB each). Only <strong>Approved</strong> + <strong>Include in deck</strong> images appear in published versions.
             </div>
           </div>
@@ -132,20 +132,20 @@ export default function AssetsTab() {
 
       {assets.length === 0 ? (
         <Card>
-          <div style={{ fontSize: '13px', color: '#94A3B8', fontStyle: 'italic', textAlign: 'center', padding: '20px' }}>
+          <div style={{ fontSize: '13px', color: 'var(--ink3)', fontStyle: 'italic', textAlign: 'center', padding: '20px' }}>
             No images yet — upload above.
           </div>
         </Card>
       ) : (
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))', gap: '16px' }}>
           {assets.map(a => (
-            <div key={a.id} style={{ background: '#fff', border: '1px solid #DDE8EE', borderRadius: '14px', overflow: 'hidden', boxShadow: '0 2px 12px rgba(0,0,0,0.04)' }}>
-              <div style={{ aspectRatio: '4 / 3', background: '#EEF3F7', position: 'relative', overflow: 'hidden' }}>
+            <div key={a.id} style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: '14px', overflow: 'hidden', boxShadow: 'var(--shadow-sm)' }}>
+              <div style={{ aspectRatio: '4 / 3', background: 'var(--border-light)', position: 'relative', overflow: 'hidden' }}>
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 {a.signed_url && <img src={a.signed_url} alt={a.title ?? a.file_name ?? 'asset'} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />}
                 <div style={{ position: 'absolute', top: '8px', right: '8px', display: 'flex', gap: '4px' }}>
                   {!a.approved && (
-                    <span style={{ fontSize: '9px', fontWeight: 800, color: '#B45309', background: '#FEF3C7', padding: '3px 8px', borderRadius: '10px', letterSpacing: '0.3px' }}>
+                    <span style={{ fontSize: '9px', fontWeight: 800, color: 'var(--amber)', background: 'var(--amber-light)', padding: '3px 8px', borderRadius: '10px', letterSpacing: '0.3px' }}>
                       NEEDS APPROVAL
                     </span>
                   )}
@@ -160,7 +160,7 @@ export default function AssetsTab() {
                   style={{ ...inputStyle, fontSize: '12px', padding: '6px 10px', fontWeight: 700, border: 'none', background: 'transparent' }}
                 />
                 <div style={{ display: 'flex', gap: '10px', alignItems: 'center', marginTop: '8px', flexWrap: 'wrap' }}>
-                  <label style={{ display: 'flex', alignItems: 'center', gap: '5px', cursor: 'pointer', fontSize: '11px', fontWeight: 700, color: '#0F1923' }}>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '5px', cursor: 'pointer', fontSize: '11px', fontWeight: 700, color: 'var(--ink)' }}>
                     <input
                       type="checkbox"
                       checked={a.approved}
@@ -169,7 +169,7 @@ export default function AssetsTab() {
                     />
                     Approved
                   </label>
-                  <label style={{ display: 'flex', alignItems: 'center', gap: '5px', cursor: 'pointer', fontSize: '11px', fontWeight: 700, color: '#0F1923' }}>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '5px', cursor: 'pointer', fontSize: '11px', fontWeight: 700, color: 'var(--ink)' }}>
                     <input
                       type="checkbox"
                       checked={a.include_in_deck}
@@ -180,12 +180,12 @@ export default function AssetsTab() {
                   </label>
                 </div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '10px' }}>
-                  <span style={{ fontSize: '10px', color: '#94A3B8', fontWeight: 600 }}>
+                  <span style={{ fontSize: '10px', color: 'var(--ink4)', fontWeight: 600 }}>
                     {a.file_bytes ? `${Math.round(a.file_bytes / 1024)} KB` : ''}
                   </span>
                   <button
                     onClick={() => deleteAsset(a.id)}
-                    style={{ background: 'transparent', border: 'none', color: '#B91C1C', cursor: 'pointer', fontSize: '11px', fontWeight: 700, padding: '2px 6px' }}
+                    style={{ background: 'transparent', border: 'none', color: 'var(--red)', cursor: 'pointer', fontSize: '11px', fontWeight: 700, padding: '2px 6px' }}
                   >
                     Delete
                   </button>

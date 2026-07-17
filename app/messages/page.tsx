@@ -206,12 +206,12 @@ function MessagesContent() {
   )
 
   const C = {
-    bg:      '#E8EEF4',
-    surface: '#FFFFFF',
-    border:  '#DDE8EE',
-    text:    '#0F1923',
-    muted:   '#5B7080',
-    teal:    '#00695C',
+    bg:      'var(--surface)',
+    surface: 'var(--card)',
+    border:  'var(--border)',
+    text:    'var(--ink)',
+    muted:   'var(--ink3)',
+    teal:    'var(--teal)',
   }
 
   return (
@@ -227,7 +227,7 @@ function MessagesContent() {
             <div>
               <div style={{ fontSize: '14px', fontWeight: 800, color: C.text }}>Inbox</div>
               {conversations.reduce((t, c) => t + c.unread, 0) > 0 && (
-                <div style={{ fontSize: '11px', color: '#DC2626', fontWeight: 700, marginTop: '2px' }}>
+                <div style={{ fontSize: '11px', color: 'var(--red)', fontWeight: 700, marginTop: '2px' }}>
                   {conversations.reduce((t, c) => t + c.unread, 0)} unread
                 </div>
               )}
@@ -259,10 +259,10 @@ function MessagesContent() {
                 return (
                   <button key={c.partner_id}
                     onClick={() => loadThread(c.partner_id, c.partner_name)}
-                    style={{ width: '100%', padding: '12px 16px', display: 'flex', gap: '10px', alignItems: 'flex-start', background: isActive ? `${C.teal}10` : 'transparent', borderLeft: isActive ? `3px solid ${C.teal}` : '3px solid transparent', border: 'none', cursor: 'pointer', textAlign: 'left', fontFamily: 'inherit', borderBottom: `1px solid ${C.border}` }}
+                    style={{ width: '100%', padding: '12px 16px', display: 'flex', gap: '10px', alignItems: 'flex-start', background: isActive ? `${'color-mix(in srgb, ' + (C.teal) + ' 6%, transparent)'}` : 'transparent', borderLeft: isActive ? `3px solid ${C.teal}` : '3px solid transparent', border: 'none', cursor: 'pointer', textAlign: 'left', fontFamily: 'inherit', borderBottom: `1px solid ${C.border}` }}
                   >
                     {/* Avatar */}
-                    <div style={{ width: '36px', height: '36px', borderRadius: '50%', background: color, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, fontSize: '13px', fontWeight: 800, color: '#fff' }}>
+                    <div style={{ width: '36px', height: '36px', borderRadius: '50%', background: color, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, fontSize: '13px', fontWeight: 800, color: 'var(--surface)' }}>
                       {initials(c.partner_name)}
                     </div>
                     <div style={{ flex: 1, minWidth: 0 }}>
@@ -275,7 +275,7 @@ function MessagesContent() {
                           {c.is_mine ? 'You: ' : ''}{c.last_body}
                         </span>
                         {c.unread > 0 && (
-                          <span style={{ minWidth: '18px', height: '18px', borderRadius: '99px', background: '#DC2626', color: '#fff', fontSize: '10px', fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, padding: '0 4px' }}>
+                          <span style={{ minWidth: '18px', height: '18px', borderRadius: '99px', background: '#DC2626', color: 'var(--red-light)', fontSize: '10px', fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, padding: '0 4px' }}>
                             {c.unread}
                           </span>
                         )}
@@ -293,7 +293,7 @@ function MessagesContent() {
           {!activeId ? (
             /* Empty state */
             <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '16px', padding: '40px' }}>
-              <div style={{ width: '64px', height: '64px', borderRadius: '16px', background: `${C.teal}12`, border: `1.5px solid ${C.teal}30`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <div style={{ width: '64px', height: '64px', borderRadius: '16px', background: `${'color-mix(in srgb, ' + (C.teal) + ' 7%, transparent)'}`, border: `1.5px solid ${'color-mix(in srgb, ' + (C.teal) + ' 19%, transparent)'}`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                 <svg width="28" height="28" fill="none" stroke={C.teal} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
               </div>
               <div style={{ textAlign: 'center' }}>
@@ -301,7 +301,7 @@ function MessagesContent() {
                 <div style={{ fontSize: '13px', color: C.muted, lineHeight: 1.6 }}>Pick someone from the inbox or start a new message</div>
               </div>
               <button onClick={openCompose}
-                style={{ padding: '10px 24px', background: C.teal, color: '#fff', border: 'none', borderRadius: '10px', fontSize: '13px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
+                style={{ padding: '10px 24px', background: C.teal, color: 'var(--teal-light)', border: 'none', borderRadius: '10px', fontSize: '13px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
                 New Message
               </button>
             </div>
@@ -309,7 +309,7 @@ function MessagesContent() {
             <>
               {/* Thread header */}
               <div style={{ padding: '14px 20px', borderBottom: `1px solid ${C.border}`, display: 'flex', alignItems: 'center', gap: '12px' }}>
-                <div style={{ width: '36px', height: '36px', borderRadius: '50%', background: avatarColor(activeId), display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '13px', fontWeight: 800, color: '#fff', flexShrink: 0 }}>
+                <div style={{ width: '36px', height: '36px', borderRadius: '50%', background: avatarColor(activeId), display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '13px', fontWeight: 800, color: 'var(--surface)', flexShrink: 0 }}>
                   {initials(activeName)}
                 </div>
                 <div>
@@ -337,7 +337,7 @@ function MessagesContent() {
                         )}
                         <div style={{ display: 'flex', justifyContent: isMine ? 'flex-end' : 'flex-start', gap: '8px', alignItems: 'flex-end' }}>
                           {!isMine && (
-                            <div style={{ width: '28px', height: '28px', borderRadius: '50%', background: color, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '11px', fontWeight: 800, color: '#fff', flexShrink: 0 }}>
+                            <div style={{ width: '28px', height: '28px', borderRadius: '50%', background: color, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '11px', fontWeight: 800, color: 'var(--surface)', flexShrink: 0 }}>
                               {initials(m.from_name)}
                             </div>
                           )}
@@ -345,7 +345,7 @@ function MessagesContent() {
                             {!isMine && (
                               <div style={{ fontSize: '11px', fontWeight: 700, color: C.muted, marginBottom: '4px' }}>{m.from_name}</div>
                             )}
-                            <div style={{ padding: '10px 14px', borderRadius: isMine ? '14px 14px 4px 14px' : '14px 14px 14px 4px', background: isMine ? C.teal : '#F1F5F9', color: isMine ? '#fff' : C.text, fontSize: '14px', lineHeight: 1.55, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
+                            <div style={{ padding: '10px 14px', borderRadius: isMine ? '14px 14px 4px 14px' : '14px 14px 14px 4px', background: isMine ? C.teal : 'var(--border-light)', color: isMine ? 'var(--teal-light)' : C.text, fontSize: '14px', lineHeight: 1.55, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
                               {m.body}
                             </div>
                             <div style={{ fontSize: '10px', color: C.muted, marginTop: '4px', textAlign: isMine ? 'right' : 'left' }}>
@@ -369,7 +369,7 @@ function MessagesContent() {
                   onKeyDown={handleKey}
                   placeholder={`Message ${activeName}…`}
                   rows={1}
-                  style={{ flex: 1, padding: '10px 14px', borderRadius: '12px', border: `1.5px solid ${C.border}`, fontSize: '14px', fontFamily: 'inherit', color: C.text, resize: 'none', outline: 'none', lineHeight: 1.5, maxHeight: '120px', overflowY: 'auto', boxSizing: 'border-box', background: '#F8FAFC' }}
+                  style={{ flex: 1, padding: '10px 14px', borderRadius: '12px', border: `1.5px solid ${C.border}`, fontSize: '14px', fontFamily: 'inherit', color: C.text, resize: 'none', outline: 'none', lineHeight: 1.5, maxHeight: '120px', overflowY: 'auto', boxSizing: 'border-box', background: 'var(--border-light)' }}
                   onInput={e => {
                     const t = e.currentTarget
                     t.style.height = 'auto'
@@ -377,7 +377,7 @@ function MessagesContent() {
                   }}
                 />
                 <button onClick={send} disabled={!body.trim() || sending}
-                  style={{ width: '40px', height: '40px', borderRadius: '12px', background: body.trim() ? C.teal : '#E8EEF4', border: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: body.trim() ? 'pointer' : 'default', flexShrink: 0, transition: 'background 0.15s' }}
+                  style={{ width: '40px', height: '40px', borderRadius: '12px', background: body.trim() ? C.teal : 'var(--surface)', border: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: body.trim() ? 'pointer' : 'default', flexShrink: 0, transition: 'background 0.15s' }}
                 >
                   <svg width="16" height="16" fill="none" stroke={body.trim() ? '#fff' : C.muted} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
                 </button>
@@ -392,10 +392,10 @@ function MessagesContent() {
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(15,25,35,0.5)', zIndex: 2000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '24px' }}
           onClick={e => { if (e.target === e.currentTarget) setShowCompose(false) }}
         >
-          <div style={{ background: '#fff', borderRadius: '16px', padding: '24px', width: '100%', maxWidth: '440px', boxShadow: '0 24px 64px rgba(15,25,35,0.2)' }}>
+          <div style={{ background: 'var(--card)', borderRadius: '16px', padding: '24px', width: '100%', maxWidth: '440px', boxShadow: '0 24px 64px rgba(15,25,35,0.2)' }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '18px' }}>
               <div style={{ fontSize: '14px', fontWeight: 800, color: C.text }}>New Message</div>
-              <button onClick={() => setShowCompose(false)} style={{ width: '28px', height: '28px', borderRadius: '8px', background: '#F1F5F9', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <button onClick={() => setShowCompose(false)} style={{ width: '28px', height: '28px', borderRadius: '8px', background: 'var(--border-light)', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                 <svg width="11" height="11" fill="none" stroke={C.text} strokeWidth="2.5" strokeLinecap="round" viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
               </button>
             </div>
@@ -421,10 +421,10 @@ function MessagesContent() {
                     loadThread(s.id, s.name)
                   }}
                   style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '10px 12px', borderRadius: '10px', border: 'none', background: 'transparent', cursor: 'pointer', textAlign: 'left', fontFamily: 'inherit', width: '100%' }}
-                  onMouseOver={e => (e.currentTarget.style.background = '#F8FAFC')}
+                  onMouseOver={e => (e.currentTarget.style.background = 'var(--border-light)')}
                   onMouseOut={e  => (e.currentTarget.style.background = 'transparent')}
                 >
-                  <div style={{ width: '34px', height: '34px', borderRadius: '50%', background: avatarColor(s.id), display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '12px', fontWeight: 800, color: '#fff', flexShrink: 0 }}>
+                  <div style={{ width: '34px', height: '34px', borderRadius: '50%', background: avatarColor(s.id), display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '12px', fontWeight: 800, color: 'var(--surface)', flexShrink: 0 }}>
                     {initials(s.name)}
                   </div>
                   <div>

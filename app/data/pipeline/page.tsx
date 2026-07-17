@@ -18,13 +18,19 @@ interface PipelineEntry {
   } | null
 }
 
+// NOTE: `color` values here are kept as literal hex (not CSS var()) because they get
+// concatenated at runtime with an alpha suffix below (e.g. `${stage.color}22`) — a
+// var() reference can't be concatenated like that. Each literal is the same brightened
+// value as its matching design-token (--ink3, --amber, --info, --success, --red,
+// --purple) so it stays in sync with the rest of the dark theme; contrast vs. --card
+// (#142330) verified ≥4.5:1 for all six.
 const STAGES = [
-  { key: 'prospect',  label: 'Prospect',  color: '#9CA3AF', bg: 'rgba(156,163,175,0.08)' },
-  { key: 'contacted', label: 'Contacted', color: '#FBBF24', bg: 'rgba(251,191,36,0.08)'  },
-  { key: 'interested',label: 'Interested',color: '#60A5FA', bg: 'rgba(96,165,250,0.08)'  },
-  { key: 'confirmed', label: 'Confirmed', color: '#34D399', bg: 'rgba(52,211,153,0.08)'  },
-  { key: 'declined',  label: 'Declined',  color: '#F87171', bg: 'rgba(248,113,113,0.08)' },
-  { key: 'vendor',    label: 'Vendor',    color: '#A78BFA', bg: 'rgba(167,139,250,0.08)' },
+  { key: 'prospect',  label: 'Prospect',  color: '#7E93A1', bg: 'rgba(126,147,161,0.08)' },
+  { key: 'contacted', label: 'Contacted', color: '#F5B94D', bg: 'var(--amber-light)'  },
+  { key: 'interested',label: 'Interested',color: '#5AA9F2', bg: 'var(--info-light)'  },
+  { key: 'confirmed', label: 'Confirmed', color: '#34D399', bg: 'var(--success-light)' },
+  { key: 'declined',  label: 'Declined',  color: '#F1667A', bg: 'var(--red-light)' },
+  { key: 'vendor',    label: 'Vendor',    color: '#A78BFA', bg: 'var(--purple-light)' },
 ]
 
 function contactName(rec?: PipelineEntry['sd_contact_records'] | null): string {
@@ -100,32 +106,32 @@ export default function PipelinePage() {
   const totalContacts = entries.length
 
   return (
-    <div style={{ minHeight: '100vh', background: '#F8FAFB', fontFamily: 'system-ui, sans-serif' }}>
+    <div style={{ minHeight: '100vh', background: 'var(--surface)', fontFamily: 'system-ui, sans-serif' }}>
 
       {/* Header */}
-      <div style={{ background: '#FFFFFF', borderBottom: '1px solid #DDE8EE', padding: '0 24px', height: '52px', display: 'flex', alignItems: 'center', gap: '16px' }}>
-        <svg width="16" height="16" fill="none" stroke="#00A5A3" strokeWidth="2" strokeLinecap="round" viewBox="0 0 24 24">
+      <div style={{ background: 'var(--card)', borderBottom: '1px solid var(--border)', padding: '0 24px', height: '52px', display: 'flex', alignItems: 'center', gap: '16px' }}>
+        <svg width="16" height="16" fill="none" stroke="var(--teal-mid)" strokeWidth="2" strokeLinecap="round" viewBox="0 0 24 24">
           <rect x="3" y="3" width="5" height="18" rx="1"/><rect x="10" y="3" width="5" height="12" rx="1"/><rect x="17" y="3" width="5" height="8" rx="1"/>
         </svg>
-        <span style={{ fontSize: '15px', fontWeight: 700, color: '#0F1923' }}>Pipeline</span>
-        <span style={{ fontSize: '13px', color: '#9CA3AF' }}>{totalContacts} contacts across {STAGES.length} stages</span>
+        <span style={{ fontSize: '15px', fontWeight: 700, color: 'var(--ink)' }}>Pipeline</span>
+        <span style={{ fontSize: '13px', color: 'var(--ink3)' }}>{totalContacts} contacts across {STAGES.length} stages</span>
         <div style={{ flex: 1 }} />
         <input
           value={eventFilter}
           onChange={e => setEventFilter(e.target.value)}
           placeholder="Filter by event ID…"
-          style={{ padding: '6px 12px', border: '1px solid #DDE8EE', borderRadius: '8px', fontSize: '13px', color: '#0F1923', background: '#F8FAFB', outline: 'none', width: '200px' }}
+          style={{ padding: '6px 12px', border: '1px solid var(--border)', borderRadius: '8px', fontSize: '13px', color: 'var(--ink)', background: 'var(--surface)', outline: 'none', width: '200px' }}
         />
         <button
           onClick={load}
-          style={{ padding: '7px 14px', borderRadius: '8px', border: '1px solid #DDE8EE', background: '#FFFFFF', fontSize: '13px', color: '#6B7280', cursor: 'pointer', fontWeight: 600 }}
+          style={{ padding: '7px 14px', borderRadius: '8px', border: '1px solid var(--border)', background: 'var(--card)', fontSize: '13px', color: 'var(--ink2)', cursor: 'pointer', fontWeight: 600 }}
         >
           Refresh
         </button>
       </div>
 
       {loading ? (
-        <div style={{ padding: '64px', textAlign: 'center', color: '#9CA3AF', fontSize: '15px' }}>Loading pipeline…</div>
+        <div style={{ padding: '64px', textAlign: 'center', color: 'var(--ink3)', fontSize: '15px' }}>Loading pipeline…</div>
       ) : (
         <div style={{ padding: '20px', overflowX: 'auto' }}>
           <div style={{ display: 'grid', gridTemplateColumns: `repeat(${STAGES.length}, 260px)`, gap: '12px', minWidth: `${STAGES.length * 272}px` }}>
@@ -138,8 +144,8 @@ export default function PipelinePage() {
                   onDragOver={e => onDragOver(e, stage.key)}
                   onDrop={e => onDrop(e, stage.key)}
                   style={{
-                    background:   isOver ? 'rgba(0,165,163,0.04)' : stage.bg,
-                    border:       isOver ? '1.5px dashed #00A5A3' : `1px solid ${stage.color}22`,
+                    background:   isOver ? 'rgba(18,201,189,0.04)' : stage.bg,
+                    border:       isOver ? '1.5px dashed var(--teal-mid)' : `1px solid ${stage.color}22`,
                     borderRadius: '14px',
                     minHeight:    '400px',
                     transition:   'border 0.15s, background 0.15s',
@@ -149,13 +155,13 @@ export default function PipelinePage() {
                   <div style={{ padding: '12px 16px', borderBottom: `1px solid ${stage.color}22`, display: 'flex', alignItems: 'center', gap: '8px' }}>
                     <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: stage.color, flexShrink: 0 }} />
                     <span style={{ fontSize: '12px', fontWeight: 700, color: stage.color, textTransform: 'uppercase', letterSpacing: '1px' }}>{stage.label}</span>
-                    <span style={{ marginLeft: 'auto', fontSize: '12px', fontWeight: 700, color: '#9CA3AF' }}>{cards.length}</span>
+                    <span style={{ marginLeft: 'auto', fontSize: '12px', fontWeight: 700, color: 'var(--ink4)' }}>{cards.length}</span>
                   </div>
 
                   {/* Cards */}
                   <div style={{ padding: '10px 10px' }}>
                     {cards.length === 0 && (
-                      <div style={{ padding: '24px 0', textAlign: 'center', color: '#C4CDD6', fontSize: '12px' }}>No contacts</div>
+                      <div style={{ padding: '24px 0', textAlign: 'center', color: 'var(--ink3)', fontSize: '12px' }}>No contacts</div>
                     )}
                     {cards.map(entry => (
                       <PipelineCard
@@ -202,8 +208,8 @@ function PipelineCard({
       onDragStart={onDragStart}
       onDragEnd={onDragEnd}
       style={{
-        background:   '#FFFFFF',
-        border:       '1px solid #DDE8EE',
+        background:   'var(--card)',
+        border:       '1px solid var(--border)',
         borderRadius: '10px',
         padding:      '12px',
         marginBottom: '8px',
@@ -216,30 +222,30 @@ function PipelineCard({
       onMouseLeave={e => { (e.currentTarget as HTMLElement).style.boxShadow = '0 1px 3px rgba(0,0,0,0.04)' }}
     >
       {/* Name + event */}
-      <div style={{ fontSize: '13px', fontWeight: 700, color: '#0F1923', marginBottom: '2px' }}>{name}</div>
-      {sub && <div style={{ fontSize: '11px', color: '#9CA3AF', marginBottom: '6px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{sub}</div>}
+      <div style={{ fontSize: '13px', fontWeight: 700, color: 'var(--ink)', marginBottom: '2px' }}>{name}</div>
+      {sub && <div style={{ fontSize: '11px', color: 'var(--ink3)', marginBottom: '6px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{sub}</div>}
       {entry.event_name && (
-        <div style={{ fontSize: '11px', color: '#00A5A3', marginBottom: '6px' }}>{entry.event_name}</div>
+        <div style={{ fontSize: '11px', color: 'var(--teal-mid)', marginBottom: '6px' }}>{entry.event_name}</div>
       )}
 
       {/* Email */}
       {pv.email && (
-        <div style={{ fontSize: '11px', color: '#6B7280', marginBottom: '6px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{pv.email}</div>
+        <div style={{ fontSize: '11px', color: 'var(--ink2)', marginBottom: '6px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{pv.email}</div>
       )}
 
       {/* Meta */}
       <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
         {entry.assigned_to && (
-          <span style={{ fontSize: '10px', color: '#9CA3AF', background: '#F8FAFB', border: '1px solid #DDE8EE', padding: '1px 6px', borderRadius: '6px' }}>{entry.assigned_to}</span>
+          <span style={{ fontSize: '10px', color: 'var(--ink3)', background: 'var(--surface)', border: '1px solid var(--border)', padding: '1px 6px', borderRadius: '6px' }}>{entry.assigned_to}</span>
         )}
         {entry.next_action_date && (
-          <span style={{ fontSize: '10px', color: '#FBBF24' }}>
+          <span style={{ fontSize: '10px', color: 'var(--amber)' }}>
             {new Date(entry.next_action_date).toLocaleDateString('en-GB', { day: '2-digit', month: 'short' })}
           </span>
         )}
         <button
           onClick={() => setOpen(o => !o)}
-          style={{ marginLeft: 'auto', background: 'none', border: 'none', cursor: 'pointer', color: '#9CA3AF', padding: '2px', display: 'flex', alignItems: 'center' }}
+          style={{ marginLeft: 'auto', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--ink4)', padding: '2px', display: 'flex', alignItems: 'center' }}
         >
           <svg width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" viewBox="0 0 24 24">
             <circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/>
@@ -249,8 +255,8 @@ function PipelineCard({
 
       {/* Move controls (expand) */}
       {open && !moving && (
-        <div style={{ marginTop: '10px', borderTop: '1px solid #DDE8EE', paddingTop: '10px' }}>
-          <div style={{ fontSize: '10px', fontWeight: 700, color: '#9CA3AF', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '6px' }}>Move to</div>
+        <div style={{ marginTop: '10px', borderTop: '1px solid var(--border)', paddingTop: '10px' }}>
+          <div style={{ fontSize: '10px', fontWeight: 700, color: 'var(--ink3)', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '6px' }}>Move to</div>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px' }}>
             {stages.map(s => (
               <button

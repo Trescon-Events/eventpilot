@@ -1,67 +1,125 @@
 @import "tailwindcss";
 
 /* ── Design Tokens ─────────────────────────────────────────────── */
+/* Dark navy/teal theme (15-16 Jul 2026 color overhaul). Token NAMES are
+   unchanged from the previous light theme on purpose — every consumer
+   (`var(--ink)`, `var(--card)`, etc.) keeps working, only the VALUES
+   flipped. This file is the single place brand colors live; nothing
+   else should hardcode a hex value that has a token here. */
 :root {
   --font-manrope: 'Manrope', sans-serif;
 
-  /* Teal — primary brand */
-  --teal:          #00695C;
-  --teal-dark:     #004D40;
-  --teal-mid:      #00897B;
-  --teal-light:    #E0F2F1;
-  --teal-border:   #80CBC4;
+  /* Teal — primary brand (brightened vs. the old light-theme shade so it
+     still pops against a dark background) */
+  --teal:          #0EA79D;
+  --teal-dark:     #0B8079;
+  --teal-mid:      #12C9BD;
+  --teal-light:    #12332F; /* dark, teal-tinted swatch — was a pale wash in light mode */
+  --teal-border:   #1E5A54;
 
-  /* Lime — brand accent */
+  /* Lime — brand accent (already vivid; needed no light/dark inversion) */
   --lime:          #C0F43C;
-  --lime-dark:     #33691E;
-  --lime-light:    #F1F8E9;
-  --lime-border:   #AED581;
+  --lime-dark:     #33691E; /* text-on-lime-button, unrelated to overall theme */
+  --lime-light:    #2A3B12;
+  --lime-border:   #6B8F2E;
 
   /* Indigo */
-  --indigo:        #3730A3;
-  --indigo-light:  #EEF2FF;
-  --indigo-border: #A5B4FC;
+  --indigo:        #818CF8;
+  --indigo-light:  #23253F;
+  --indigo-border: #4C4F8F;
 
   /* Purple */
-  --purple:        #6B21A8;
-  --purple-light:  #F5F3FF;
-  --purple-border: #C4B5FD;
+  --purple:        #A78BFA;
+  --purple-light:  #2C2340;
+  --purple-border: #6B5A9E;
 
   /* Amber */
-  --amber:         #92400E;
-  --amber-light:   #FFFBEB;
-  --amber-border:  #FCD34D;
+  --amber:         #F5B94D;
+  --amber-light:   #3D2E14;
+  --amber-border:  #8F6A2A;
 
   /* Red */
-  --red:           #B91C1C;
-  --red-light:     #FFF1F2;
-  --red-border:    #FCA5A5;
+  --red:           #F1667A;
+  --red-light:     #3D1B21;
+  --red-border:    #8F4550;
 
   /* Orange (foundation / curious tier) */
-  --orange:        #C2410C;
-  --orange-light:  #FFF3E0;
-  --orange-border: #FDBA74;
+  --orange:        #FB923C;
+  --orange-light:  #3D2415;
+  --orange-border: #8F5A2E;
 
-  /* Ink / Text — maximum contrast */
-  --ink:           #0F1923;
-  --ink2:          #2D3E50;
-  --ink3:          #5B7080;
-  --ink4:          #8CA0AC; /* de-emphasized: chevrons, count badges, secondary icons */
+  /* Semantic status — distinct from the brand teal/lime accents above */
+  --success:       #34D399;
+  --success-light: #0D3527; /* dark tint — text-on-success-solid-button, matches every other family's -light role */
+  --warning:       var(--amber);
+  --danger:        var(--red);
+  --info:          #5AA9F2;
+  --info-light:    #17324A; /* dark tint — text-on-info-solid-button, matches every other family's -light role */
 
-  /* Borders */
-  --border:        #B8CDD8;
-  --border-light:  #DDE8EE;
+  /* Ink / Text — near-white hierarchy, darkest → faintest */
+  --ink:           #F2F6F8;
+  --ink2:          #B7C6D1;
+  --ink3:          #7E93A1;
+  --ink4:          #6B8296; /* de-emphasized: chevrons, count badges, secondary icons */
 
-  /* Surfaces */
-  --surface:       #E8EEF4;
-  --card:          #FFFFFF;
-  --sidebar-bg:    #FBFCFD; /* near-white, subtly distinct from --card so persistent sidebars read as a separate plane */
+  /* Borders — translucent so they read correctly against any of the surfaces below */
+  --border:        rgba(255,255,255,0.14);
+  --border-light:  rgba(255,255,255,0.07);
 
-  /* Shadows */
-  --shadow-sm:     0 1px 3px rgba(15,25,35,0.07), 0 1px 2px rgba(15,25,35,0.05);
-  --shadow-md:     0 4px 12px rgba(15,25,35,0.08), 0 2px 4px rgba(15,25,35,0.05);
-  --shadow-teal:   0 2px 10px rgba(0,137,123,0.14);
+  /* Surfaces — darkest to lightest: page bg < sidebar/header < card < hovered card */
+  --surface:       #0A121A;
+  --card:          #142330;
+  --card-hi:       #1B2C3B; /* hovered / active card, new this pass */
+  --sidebar-bg:    #101C27; /* one step lighter than page bg, subtly distinct so persistent sidebars read as a separate plane */
+
+  /* Shadows — black-based shadows computed for a white page are nearly
+     invisible on a dark one; deepened + a teal glow instead of a flat drop */
+  --shadow-sm:     0 1px 3px rgba(0,0,0,0.35), 0 1px 2px rgba(0,0,0,0.25);
+  --shadow-md:     0 4px 14px rgba(0,0,0,0.45), 0 2px 6px rgba(0,0,0,0.3);
+  --shadow-teal:   0 2px 14px rgba(18,201,189,0.22);
 }
+
+/* ── Text-on-surface pairing rules ─────────────────────────────────────
+   Dark-theme text visibility bugs almost always come from picking an ink
+   tier or a family color without checking what it's actually sitting on.
+   Contrast-checked (WCAG) once here so every page can just follow the
+   rule instead of re-deriving it — this is the actual "centralized
+   styling" convention, not just the token values above:
+
+   1. Body/UI text on a plain surface (--surface / --card / --card-hi /
+      --sidebar-bg) → use the ink scale, by importance:
+        --ink   primary text / headings           (17:1 on surface, 14.7:1 on card)
+        --ink2  secondary text / descriptions      (10.8:1 / 9.2:1)
+        --ink3  muted text / labels / metadata     (5.9:1 / 5.0:1)
+        --ink4  de-emphasized ONLY — chevrons, count badges, disabled
+                icons. NEVER body copy or anything a user must read
+                reliably (3.3:1 / 4.0:1 — passes for large text/icons,
+                fails WCAG AA for normal text size).
+      Never use a family color (teal/red/amber/...) for plain body text —
+      those are accents/status, not part of the ink hierarchy.
+
+   2. Text on a color family's OWN "-light" tint (e.g. a status badge,
+      an alert, a soft-colored card) → use that SAME family's bright/main
+      value, never --ink. E.g. text on `var(--red-light)` background is
+      `var(--red)`, text on `var(--teal-light)` is `var(--teal-mid)`.
+      Every family here was chosen so its bright value on its own -light
+      value clears 5:1+ (see `.scard-*`/`.tbadge-*` below for the
+      reference implementation) — mixing families (e.g. red text on a
+      teal tint) is never contrast-checked and must not be done.
+
+   3. Text on a SOLID saturated brand button (a full-color fill, e.g.
+      `.tbtn-solid`, `.tbtn-lime`, or any inline `background: var(--teal-mid)`
+      button) → use that SAME family's "-light" token as the text color,
+      never white and never --ink. White-on-brand-color measures 2-3:1 on
+      every family here (fails WCAG AA outright) — each family's own
+      "-light" tint was chosen as a dark, same-hue swatch specifically so
+      it also works as button text, clearing 5:1+ on its own bright value
+      (e.g. `var(--teal-light)` on `var(--teal-mid)` is 6.6:1, `var(--lime-dark)`
+      on `var(--lime)` is 5.1:1, `var(--red-light)` on `var(--red)` is 5.0:1).
+      This keeps the button feeling on-brand (dark teal text on a teal
+      button) instead of generic gray-on-color, and needs no new tokens —
+      reuse the "-light"/"-dark" value the family already has.
+   ──────────────────────────────────────────────────────────────────── */
 
 @theme inline {
   --font-sans: var(--font-manrope);
@@ -93,7 +151,7 @@ input, select, textarea {
   font-family: var(--font-manrope), sans-serif;
   font-size: 13px;
 }
-input::placeholder, textarea::placeholder { color: #94A3B8; }
+input::placeholder, textarea::placeholder { color: var(--ink3); }
 option { background: var(--card); color: var(--ink); }
 
 /* ── Navigation ────────────────────────────────────────────────── */
@@ -156,8 +214,8 @@ option { background: var(--card); color: var(--ink); }
 .tbtn-amber  { background: var(--amber-light);   border-color: var(--amber-border);  color: var(--amber); }
 .tbtn-red    { background: var(--red-light);     border-color: var(--red-border);    color: var(--red); }
 .tbtn-ghost  { background: transparent;          border-color: var(--border);        color: var(--ink2); }
-.tbtn-solid  { background: var(--teal-mid);      border-color: var(--teal-mid);      color: #FFFFFF; }
-.tbtn-lime   { background: var(--lime);          border-color: #A3D424;              color: #1A3500; }
+.tbtn-solid  { background: var(--teal-mid);      border-color: var(--teal-mid);      color: var(--teal-light); }
+.tbtn-lime   { background: var(--lime);          border-color: #A3D424;              color: var(--lime-dark); }
 
 /* ── Cards ─────────────────────────────────────────────────────── */
 .tcard {
@@ -222,4 +280,4 @@ option { background: var(--card); color: var(--ink); }
 .tbadge-purple { background: var(--purple-light);  border-color: var(--purple-border); color: var(--purple); }
 .tbadge-amber  { background: var(--amber-light);   border-color: var(--amber-border);  color: var(--amber); }
 .tbadge-red    { background: var(--red-light);     border-color: var(--red-border);    color: var(--red); }
-.tbadge-grey   { background: #F1F5F9;              border-color: #CBD5E1;              color: #475569; }
+.tbadge-grey   { background: rgba(255,255,255,0.06); border-color: var(--border);       color: var(--ink3); }

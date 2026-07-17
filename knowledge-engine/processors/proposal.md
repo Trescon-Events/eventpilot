@@ -125,6 +125,12 @@ Fields confirmed by uploaders that extend the sections above.
   - Field name: `client_unique_strategic_assets`
   - *Added: 2026-07-13*
 
+- **Competitor Event Analysis** (optional)
+  - Description: This slide talks about benchmarking competitor events, identify gaps in those events that our proposed event will fill in. This is an important information to inlcude in the proposal. Keep it.
+  - Example: `Future Technologies Conference (FTC 2025): Large-scale, Europe-focused; excels in Al/robotics demos. Misses STEM integration and policy outcomes - Dubai STEM Summit fills this gap.`
+  - Field name: `competitor_event_analysis`
+  - *Added: 2026-07-15*
+
 ### Event Concept
 
 - **Proposed Event Platforms** (optional)
@@ -133,6 +139,12 @@ Fields confirmed by uploaders that extend the sections above.
   - Field name: `proposed_event_platforms`
   - *Added: 2026-07-10*
 
+- **Event Differentiators** (optional)
+  - Description: This is also part of competitor analysis. Keep it.
+  - Example: `Government-Led Innovation Clinic: On-site tracks with Ministry of Al and TECOM to fast-track STEM projects (briefings, templates, checklists). Gap addressed: Peers lack jurisdiction-specific 'clinics.'`
+  - Field name: `event_differentiators`
+  - *Added: 2026-07-15*
+
 ### Format and Activations
 
 - **Pre Event Activations** (optional)
@@ -140,6 +152,12 @@ Fields confirmed by uploaders that extend the sections above.
   - Example: `DAILTECH Onsite Cluster Dialogues, Podcast, FutureTech Friday Meet up. Frequent Cluster Dialogues / Meetups led by DTEC to build momentum during non event months.`
   - Field name: `pre_event_activations`
   - *Added: 2026-07-10*
+
+- **Post Event Activations** (optional)
+  - Description: this is proposed in some cases. in order to extend the value of the event further after the event, we proposed a few engagement activities after the event also. keep it.
+  - Example: `POST EVENT: Cluster visit for international delegates the day after the event, STEM World Cup`
+  - Field name: `post_event_activations`
+  - *Added: 2026-07-15*
 
 ### Target Audience
 
@@ -172,6 +190,22 @@ Fields confirmed by uploaders that extend the sections above.
   - Example: `Not an event organiser. An ecosystem builder. A mandate-led platform strategy – not an events strategy.`
   - Field name: `partnership_strategic_nature`
   - *Added: 2026-07-13*
+
+### Governance / Partnership Structure
+
+- **Envisioned Partners** (required)
+  - Description: Its a mix of all sorts of potential and relevant partners for the event.  It includes all the above such as government entities, industry leaders, solution providers, media, Academy, thought leaadership etc.. keep it.
+  - Example: `Government Partners: UNITED ARAB EMIRATES MINISTER OF STATE FOR ARTIFICIAL INTELLIGENCE... Industry Partners: Pfizer, Microsoft. Academic Partners: MIT, Stanford University. Media Partners: Bloomberg, CNN.`
+  - Field name: `envisioned_partners`
+  - *Added: 2026-07-15*
+
+### Commercial Model / Expected Outcomes
+
+- **Indirect Outcomes** (optional)
+  - Description: This is more or less an indirect outcomes from the proposed event that is directly related to the client's business operations.
+  - Example: `Commercial & Residential Real Estate, Employee & Dependant Visas, Business Licensing, Retail & F&B`
+  - Field name: `indirect_outcomes`
+  - *Added: 2026-07-15*
 ---
 
 ## Output Schema

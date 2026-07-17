@@ -2,16 +2,20 @@
 
 import { useState, useRef } from 'react'
 
-/* ── per-card accent colours ── */
+/* ── per-card accent colours ──
+   NOTE: `.color` values stay literal (brightened) hex, not var() — they're
+   concatenated with a runtime alpha suffix (`${accent}10`) in dropZone()
+   below, which only works with a real hex string. Values match the
+   equivalent CSS var (teal-mid / indigo / amber / purple). */
 const ACCENTS = {
-  teal:   { color: '#00A5A3', bg: 'rgba(0,165,163,0.08)',   border: 'rgba(0,165,163,0.25)',   stripe: '#00A5A3' },
-  indigo: { color: '#6366F1', bg: 'rgba(99,102,241,0.08)',  border: 'rgba(99,102,241,0.25)',  stripe: '#6366F1' },
-  amber:  { color: '#D97706', bg: 'rgba(217,119,6,0.08)',   border: 'rgba(217,119,6,0.25)',   stripe: '#F59E0B' },
-  purple: { color: '#7C3AED', bg: 'rgba(124,58,237,0.08)',  border: 'rgba(124,58,237,0.25)',  stripe: '#7C3AED' },
+  teal:   { color: '#12C9BD', bg: 'rgba(18,201,189,0.08)',  border: 'rgba(18,201,189,0.25)',  stripe: '#12C9BD' },
+  indigo: { color: '#818CF8', bg: 'rgba(129,140,248,0.08)', border: 'rgba(129,140,248,0.25)', stripe: '#818CF8' },
+  amber:  { color: '#F5B94D', bg: 'rgba(245,185,77,0.08)',  border: 'rgba(245,185,77,0.25)',  stripe: '#F5B94D' },
+  purple: { color: '#A78BFA', bg: 'rgba(167,139,250,0.08)', border: 'rgba(167,139,250,0.25)', stripe: '#A78BFA' },
 }
 
 const card = (accent: keyof typeof ACCENTS): React.CSSProperties => ({
-  background: '#FFFFFF',
+  background: 'var(--card)',
   border: `1px solid ${ACCENTS[accent].border}`,
   borderRadius: '14px',
   borderTop: `3px solid ${ACCENTS[accent].stripe}`,
@@ -22,8 +26,8 @@ const card = (accent: keyof typeof ACCENTS): React.CSSProperties => ({
 })
 
 const dropZone = (active: boolean, accent: string): React.CSSProperties => ({
-  border: `1px dashed ${active ? accent : '#DDE8EE'}`,
-  background: active ? `${accent}10` : '#FAFBFC',
+  border: `1px dashed ${active ? accent : 'var(--border)'}`,
+  background: active ? `${accent}10` : 'var(--border-light)',
   borderRadius: '10px',
   padding: '32px 24px',
   display: 'flex',
@@ -38,8 +42,8 @@ const dropZone = (active: boolean, accent: string): React.CSSProperties => ({
 const btn = (disabled: boolean, accent: string): React.CSSProperties => ({
   padding: '11px 20px',
   borderRadius: '9px',
-  background: disabled ? '#F3F4F6' : accent,
-  color: disabled ? '#9CA3AF' : '#FFFFFF',
+  background: disabled ? 'var(--border-light)' : accent,
+  color: disabled ? 'var(--ink4)' : 'var(--surface)',
   border: 'none',
   cursor: disabled ? 'default' : 'pointer',
   fontSize: '14px',
@@ -159,12 +163,12 @@ export default function LeadExtractionPage() {
   const useRichTable = allRawKeys.length > 2
 
   return (
-    <div style={{ minHeight: '100vh', background: '#F8FAFB', fontFamily: 'system-ui, sans-serif' }}>
+    <div style={{ minHeight: '100vh', background: 'var(--surface)', fontFamily: 'system-ui, sans-serif' }}>
 
       {/* Page header */}
-      <div style={{ background: '#FFFFFF', borderBottom: '1px solid #DDE8EE', padding: '20px 28px' }}>
-        <div style={{ fontSize: '22px', fontWeight: 900, color: '#0F1923', marginBottom: '3px', letterSpacing: '-0.3px' }}>Lead Extraction</div>
-        <div style={{ fontSize: '15px', color: '#6B7280' }}>Extract company names and website URLs from multiple sources</div>
+      <div style={{ background: 'var(--card)', borderBottom: '1px solid var(--border)', padding: '20px 28px' }}>
+        <div style={{ fontSize: '22px', fontWeight: 900, color: 'var(--ink)', marginBottom: '3px', letterSpacing: '-0.3px' }}>Lead Extraction</div>
+        <div style={{ fontSize: '15px', color: 'var(--ink3)' }}>Extract company names and website URLs from multiple sources</div>
       </div>
 
       {/* 2×2 grid */}
@@ -179,8 +183,8 @@ export default function LeadExtractionPage() {
               </svg>
             </div>
             <div>
-              <div style={{ fontSize: '15px', fontWeight: 700, color: '#0F1923' }}>Company & URL Finder — Files</div>
-              <div style={{ fontSize: '13px', color: '#6B7280', marginTop: '2px' }}>PDF, Image, Excel, Word files</div>
+              <div style={{ fontSize: '15px', fontWeight: 700, color: 'var(--ink)' }}>Company & URL Finder — Files</div>
+              <div style={{ fontSize: '13px', color: 'var(--ink3)', marginTop: '2px' }}>PDF, Image, Excel, Word files</div>
             </div>
           </div>
 
@@ -193,18 +197,18 @@ export default function LeadExtractionPage() {
             onDrop={e => { e.preventDefault(); setDrag1(false); setFile1(e.dataTransfer.files[0] ?? null) }}
             onClick={() => fileRef1.current?.click()}
           >
-            <svg width="28" height="28" fill="none" stroke="#9CA3AF" strokeWidth="1.5" strokeLinecap="round" viewBox="0 0 24 24" style={{ marginBottom: '10px' }}>
+            <svg width="28" height="28" fill="none" stroke="var(--ink4)" strokeWidth="1.5" strokeLinecap="round" viewBox="0 0 24 24" style={{ marginBottom: '10px' }}>
               <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/>
             </svg>
             {file1 ? (
               <div>
-                <div style={{ fontSize: '14px', fontWeight: 600, color: '#0F1923' }}>{file1.name}</div>
-                <div style={{ fontSize: '12px', color: '#9CA3AF', marginTop: '3px' }}>Click to change</div>
+                <div style={{ fontSize: '14px', fontWeight: 600, color: 'var(--ink)' }}>{file1.name}</div>
+                <div style={{ fontSize: '12px', color: 'var(--ink4)', marginTop: '3px' }}>Click to change</div>
               </div>
             ) : (
               <div>
-                <div style={{ fontSize: '14px', color: '#0F1923', fontWeight: 500 }}>Drop file here</div>
-                <div style={{ fontSize: '13px', color: '#9CA3AF', marginTop: '3px' }}>or click to browse</div>
+                <div style={{ fontSize: '14px', color: 'var(--ink)', fontWeight: 500 }}>Drop file here</div>
+                <div style={{ fontSize: '13px', color: 'var(--ink4)', marginTop: '3px' }}>or click to browse</div>
               </div>
             )}
           </div>
@@ -213,19 +217,19 @@ export default function LeadExtractionPage() {
             {analyzing ? 'Analyzing…' : 'Analyze File →'}
           </button>
           {fileErr && (
-            <div style={{ padding: '10px 12px', background: 'rgba(220,38,38,0.06)', border: '1px solid rgba(220,38,38,0.2)', borderRadius: '8px', fontSize: '13px', color: '#DC2626' }}>
+            <div style={{ padding: '10px 12px', background: 'rgba(241,102,122,0.06)', border: '1px solid rgba(241,102,122,0.2)', borderRadius: '8px', fontSize: '13px', color: 'var(--red)' }}>
               {fileErr}
             </div>
           )}
           {fileMeta && (
-            <div style={{ padding: '10px 12px', background: 'rgba(0,165,163,0.06)', border: '1px solid rgba(0,165,163,0.2)', borderRadius: '8px', fontSize: '12px', color: '#0F1923' }}>
-              <div style={{ fontWeight: 700, marginBottom: '4px', color: '#00A5A3' }}>Column mapping used</div>
+            <div style={{ padding: '10px 12px', background: 'rgba(18,201,189,0.06)', border: '1px solid rgba(18,201,189,0.2)', borderRadius: '8px', fontSize: '12px', color: 'var(--ink)' }}>
+              <div style={{ fontWeight: 700, marginBottom: '4px', color: 'var(--teal-mid)' }}>Column mapping used</div>
               <div>Company col: <strong>{fileMeta.name_col_used}</strong></div>
               <div>Website col: <strong>{fileMeta.website_col_used}</strong></div>
-              <div style={{ marginTop: '4px', color: '#6B7280' }}>All headers: {fileMeta.headers_found?.join(', ')}</div>
+              <div style={{ marginTop: '4px', color: 'var(--ink3)' }}>All headers: {fileMeta.headers_found?.join(', ')}</div>
             </div>
           )}
-          {fileRes.length > 0 && <div style={{ fontSize: '13px', color: '#059669', fontWeight: 600 }}>{fileRes.length} records extracted</div>}
+          {fileRes.length > 0 && <div style={{ fontSize: '13px', color: 'var(--success)', fontWeight: 600 }}>{fileRes.length} records extracted</div>}
         </div>
 
         {/* Card 2 — URL Extractor */}
@@ -237,13 +241,13 @@ export default function LeadExtractionPage() {
               </svg>
             </div>
             <div>
-              <div style={{ fontSize: '15px', fontWeight: 700, color: '#0F1923' }}>URL Extractor</div>
-              <div style={{ fontSize: '13px', color: '#6B7280', marginTop: '2px' }}>Extract from web pages</div>
+              <div style={{ fontSize: '15px', fontWeight: 700, color: 'var(--ink)' }}>URL Extractor</div>
+              <div style={{ fontSize: '13px', color: 'var(--ink3)', marginTop: '2px' }}>Extract from web pages</div>
             </div>
           </div>
 
           <div>
-            <div style={{ fontSize: '13px', color: '#6B7280', marginBottom: '8px' }}>Paste URLs (one per line):</div>
+            <div style={{ fontSize: '13px', color: 'var(--ink3)', marginBottom: '8px' }}>Paste URLs (one per line):</div>
             <textarea
               value={urlText}
               onChange={e => setUrlText(e.target.value)}
@@ -251,23 +255,23 @@ export default function LeadExtractionPage() {
               rows={7}
               style={{
                 width: '100%', padding: '12px 14px', borderRadius: '10px',
-                border: '1px solid #DDE8EE', fontSize: '13px', color: '#0F1923',
-                background: '#FAFBFC', resize: 'vertical', outline: 'none',
+                border: '1px solid var(--border)', fontSize: '13px', color: 'var(--ink)',
+                background: 'var(--border-light)', resize: 'vertical', outline: 'none',
                 fontFamily: 'system-ui', lineHeight: 1.6, boxSizing: 'border-box',
               }}
             />
           </div>
 
           {urlSetup && (
-            <div style={{ padding: '12px 14px', background: 'rgba(245,158,11,0.06)', border: '1px solid rgba(245,158,11,0.2)', borderRadius: '9px', fontSize: '13px', color: '#92400E' }}>
-              Add <code style={{ background: 'rgba(245,158,11,0.1)', padding: '1px 5px', borderRadius: '4px' }}>FIRECRAWL_API_KEY</code> to .env.local to enable URL scraping.
+            <div style={{ padding: '12px 14px', background: 'rgba(245,185,77,0.06)', border: '1px solid rgba(245,185,77,0.2)', borderRadius: '9px', fontSize: '13px', color: 'var(--amber)' }}>
+              Add <code style={{ background: 'rgba(245,185,77,0.1)', padding: '1px 5px', borderRadius: '4px' }}>FIRECRAWL_API_KEY</code> to .env.local to enable URL scraping.
             </div>
           )}
 
           <button onClick={() => extractUrls(urlText, setUrlRes, setExtracting, setUrlSetup)} disabled={!urlText.trim() || extracting} style={btn(!urlText.trim() || extracting, ACCENTS.indigo.color)}>
             {extracting ? 'Extracting…' : 'Extract Companies →'}
           </button>
-          {urlRes.length > 0 && <div style={{ fontSize: '13px', color: '#059669', fontWeight: 600 }}>{urlRes.length} companies extracted</div>}
+          {urlRes.length > 0 && <div style={{ fontSize: '13px', color: 'var(--success)', fontWeight: 600 }}>{urlRes.length} companies extracted</div>}
         </div>
 
         {/* Card 3 — Website Finder from Company Names */}
@@ -279,8 +283,8 @@ export default function LeadExtractionPage() {
               </svg>
             </div>
             <div>
-              <div style={{ fontSize: '15px', fontWeight: 700, color: '#0F1923' }}>Website Finder — From Company Names</div>
-              <div style={{ fontSize: '13px', color: '#6B7280', marginTop: '2px' }}>Finds Company URLs of submitted company names using online/AI search</div>
+              <div style={{ fontSize: '15px', fontWeight: 700, color: 'var(--ink)' }}>Website Finder — From Company Names</div>
+              <div style={{ fontSize: '13px', color: 'var(--ink3)', marginTop: '2px' }}>Finds Company URLs of submitted company names using online/AI search</div>
             </div>
           </div>
 
@@ -293,21 +297,21 @@ export default function LeadExtractionPage() {
             onDrop={e => { e.preventDefault(); setDrag2(false); setFile2(e.dataTransfer.files[0] ?? null) }}
             onClick={() => fileRef2.current?.click()}
           >
-            <svg width="22" height="22" fill="none" stroke="#9CA3AF" strokeWidth="1.5" strokeLinecap="round" viewBox="0 0 24 24" style={{ marginBottom: '8px' }}>
+            <svg width="22" height="22" fill="none" stroke="var(--ink4)" strokeWidth="1.5" strokeLinecap="round" viewBox="0 0 24 24" style={{ marginBottom: '8px' }}>
               <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/>
             </svg>
-            <span style={{ fontSize: '14px', color: '#0F1923', fontWeight: 500 }}>
-              {file2 ? file2.name : <>Drop file or <span style={{ color: '#00A5A3', fontWeight: 600 }}>browse</span></>}
+            <span style={{ fontSize: '14px', color: 'var(--ink)', fontWeight: 500 }}>
+              {file2 ? file2.name : <>Drop file or <span style={{ color: 'var(--teal-mid)', fontWeight: 600 }}>browse</span></>}
             </span>
-            <span style={{ fontSize: '12px', color: '#9CA3AF', marginTop: '4px' }}>Excel, CSV, or Word</span>
+            <span style={{ fontSize: '12px', color: 'var(--ink4)', marginTop: '4px' }}>Excel, CSV, or Word</span>
           </div>
 
-          <div style={{ fontSize: '13px', color: '#9CA3AF' }}>Supports company lists with optional Country column for better accuracy</div>
+          <div style={{ fontSize: '13px', color: 'var(--ink4)' }}>Supports company lists with optional Country column for better accuracy</div>
 
           <button onClick={() => analyzeFile(file2, setFindRes, setFinding, undefined, undefined)} disabled={!file2 || finding} style={btn(!file2 || finding, ACCENTS.amber.color)}>
             {finding ? 'Finding…' : 'Analyze File →'}
           </button>
-          {findRes.length > 0 && <div style={{ fontSize: '13px', color: '#059669', fontWeight: 600 }}>{findRes.length} websites found</div>}
+          {findRes.length > 0 && <div style={{ fontSize: '13px', color: 'var(--success)', fontWeight: 600 }}>{findRes.length} websites found</div>}
         </div>
 
         {/* Card 4 — Website Finder from Directory URLs */}
@@ -319,8 +323,8 @@ export default function LeadExtractionPage() {
               </svg>
             </div>
             <div>
-              <div style={{ fontSize: '15px', fontWeight: 700, color: '#0F1923' }}>Website Finder — From Directory URLs</div>
-              <div style={{ fontSize: '13px', color: '#6B7280', marginTop: '2px' }}>Finds company URLs from exhibitor / directory detail pages</div>
+              <div style={{ fontSize: '15px', fontWeight: 700, color: 'var(--ink)' }}>Website Finder — From Directory URLs</div>
+              <div style={{ fontSize: '13px', color: 'var(--ink3)', marginTop: '2px' }}>Finds company URLs from exhibitor / directory detail pages</div>
             </div>
           </div>
 
@@ -334,20 +338,20 @@ export default function LeadExtractionPage() {
             onDrop={e => { e.preventDefault(); setDrag3(false); const f = e.dataTransfer.files[0] ?? null; setFile3(f); parseDirFile(f) }}
             onClick={() => fileRef3.current?.click()}
           >
-            <svg width="22" height="22" fill="none" stroke="#9CA3AF" strokeWidth="1.5" strokeLinecap="round" viewBox="0 0 24 24" style={{ marginBottom: '8px' }}>
+            <svg width="22" height="22" fill="none" stroke="var(--ink4)" strokeWidth="1.5" strokeLinecap="round" viewBox="0 0 24 24" style={{ marginBottom: '8px' }}>
               <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/>
             </svg>
             {dirParsing ? (
-              <span style={{ fontSize: '14px', color: '#6B7280' }}>Parsing Excel…</span>
+              <span style={{ fontSize: '14px', color: 'var(--ink3)' }}>Parsing Excel…</span>
             ) : file3 ? (
               <div>
-                <div style={{ fontSize: '14px', fontWeight: 600, color: '#0F1923' }}>{file3.name}</div>
-                <div style={{ fontSize: '12px', color: '#9CA3AF', marginTop: '3px' }}>Click to change</div>
+                <div style={{ fontSize: '14px', fontWeight: 600, color: 'var(--ink)' }}>{file3.name}</div>
+                <div style={{ fontSize: '12px', color: 'var(--ink4)', marginTop: '3px' }}>Click to change</div>
               </div>
             ) : (
               <div>
-                <div style={{ fontSize: '14px', color: '#0F1923', fontWeight: 500 }}>Upload Excel with URLs</div>
-                <div style={{ fontSize: '12px', color: '#9CA3AF', marginTop: '3px' }}>Company detail page links · or paste below</div>
+                <div style={{ fontSize: '14px', color: 'var(--ink)', fontWeight: 500 }}>Upload Excel with URLs</div>
+                <div style={{ fontSize: '12px', color: 'var(--ink4)', marginTop: '3px' }}>Company detail page links · or paste below</div>
               </div>
             )}
           </div>
@@ -360,46 +364,46 @@ export default function LeadExtractionPage() {
             rows={4}
             style={{
               width: '100%', padding: '10px 12px', borderRadius: '9px',
-              border: '1px solid #DDE8EE', fontSize: '13px', color: '#0F1923',
-              background: '#FAFBFC', resize: 'vertical', outline: 'none',
+              border: '1px solid var(--border)', fontSize: '13px', color: 'var(--ink)',
+              background: 'var(--border-light)', resize: 'vertical', outline: 'none',
               fontFamily: 'system-ui', lineHeight: 1.6, boxSizing: 'border-box',
             }}
           />
 
           {dirSetup && (
-            <div style={{ padding: '12px 14px', background: 'rgba(245,158,11,0.06)', border: '1px solid rgba(245,158,11,0.2)', borderRadius: '9px', fontSize: '13px', color: '#92400E' }}>
-              Add <code style={{ background: 'rgba(245,158,11,0.1)', padding: '1px 5px', borderRadius: '4px' }}>FIRECRAWL_API_KEY</code> to enable directory scraping.
+            <div style={{ padding: '12px 14px', background: 'rgba(245,185,77,0.06)', border: '1px solid rgba(245,185,77,0.2)', borderRadius: '9px', fontSize: '13px', color: 'var(--amber)' }}>
+              Add <code style={{ background: 'rgba(245,185,77,0.1)', padding: '1px 5px', borderRadius: '4px' }}>FIRECRAWL_API_KEY</code> to enable directory scraping.
             </div>
           )}
 
           <button onClick={() => extractUrls(dirText, setDirRes, setDirExtracting, setDirSetup)} disabled={!dirText.trim() || dirExtracting} style={btn(!dirText.trim() || dirExtracting, ACCENTS.purple.color)}>
             {dirExtracting ? 'Extracting…' : 'Extract from Pages →'}
           </button>
-          {dirRes.length > 0 && <div style={{ fontSize: '13px', color: '#059669', fontWeight: 600 }}>{dirRes.length} companies extracted</div>}
+          {dirRes.length > 0 && <div style={{ fontSize: '13px', color: 'var(--success)', fontWeight: 600 }}>{dirRes.length} companies extracted</div>}
         </div>
       </div>
 
       {/* Combined results */}
       {allResults.length > 0 && (
         <div style={{ padding: '0 28px 32px', maxWidth: useRichTable ? '100%' : '1100px', overflowX: 'auto' }}>
-          <div style={{ background: '#FFFFFF', border: '1px solid #DDE8EE', borderRadius: '14px', overflow: 'hidden', minWidth: useRichTable ? '900px' : 'auto' }}>
-            <div style={{ padding: '14px 20px', borderBottom: '1px solid #DDE8EE', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <span style={{ fontSize: '15px', fontWeight: 700, color: '#0F1923' }}>Extraction Results</span>
-              <span style={{ fontSize: '13px', color: '#6B7280' }}>{allResults.length} records</span>
+          <div style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: '14px', overflow: 'hidden', minWidth: useRichTable ? '900px' : 'auto' }}>
+            <div style={{ padding: '14px 20px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span style={{ fontSize: '15px', fontWeight: 700, color: 'var(--ink)' }}>Extraction Results</span>
+              <span style={{ fontSize: '13px', color: 'var(--ink3)' }}>{allResults.length} records</span>
             </div>
 
             {useRichTable ? (
               /* Rich table — all columns from Excel */
               <>
-                <div style={{ display: 'grid', gridTemplateColumns: allRawKeys.map(() => '1fr').join(' '), padding: '10px 20px', background: '#F8FAFB', borderBottom: '1px solid #DDE8EE', gap: '12px' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: allRawKeys.map(() => '1fr').join(' '), padding: '10px 20px', background: 'var(--surface)', borderBottom: '1px solid var(--border)', gap: '12px' }}>
                   {allRawKeys.map(h => (
-                    <div key={h} style={{ fontSize: '11px', fontWeight: 700, color: '#9CA3AF', textTransform: 'uppercase', letterSpacing: '0.8px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{h}</div>
+                    <div key={h} style={{ fontSize: '11px', fontWeight: 700, color: 'var(--ink4)', textTransform: 'uppercase', letterSpacing: '0.8px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{h}</div>
                   ))}
                 </div>
                 {allResults.map((r: any, i: number) => (
-                  <div key={i} style={{ display: 'grid', gridTemplateColumns: allRawKeys.map(() => '1fr').join(' '), padding: '10px 20px', borderBottom: i < allResults.length - 1 ? '1px solid #F3F4F6' : 'none', gap: '12px', background: i % 2 === 0 ? '#FFFFFF' : '#FAFBFC' }}>
+                  <div key={i} style={{ display: 'grid', gridTemplateColumns: allRawKeys.map(() => '1fr').join(' '), padding: '10px 20px', borderBottom: i < allResults.length - 1 ? '1px solid var(--border-light)' : 'none', gap: '12px', background: i % 2 === 0 ? 'var(--card)' : 'var(--border-light)' }}>
                     {allRawKeys.map(k => (
-                      <div key={k} style={{ fontSize: '13px', color: '#0F1923', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      <div key={k} style={{ fontSize: '13px', color: 'var(--ink)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                         {r._row?.[k] || '—'}
                       </div>
                     ))}
@@ -409,15 +413,15 @@ export default function LeadExtractionPage() {
             ) : (
               /* Simple 2-col table */
               <>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', padding: '10px 20px', background: '#F8FAFB', borderBottom: '1px solid #DDE8EE' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', padding: '10px 20px', background: 'var(--surface)', borderBottom: '1px solid var(--border)' }}>
                   {['Company', 'Website'].map(h => (
-                    <div key={h} style={{ fontSize: '11px', fontWeight: 700, color: '#9CA3AF', textTransform: 'uppercase', letterSpacing: '1px' }}>{h}</div>
+                    <div key={h} style={{ fontSize: '11px', fontWeight: 700, color: 'var(--ink4)', textTransform: 'uppercase', letterSpacing: '1px' }}>{h}</div>
                   ))}
                 </div>
                 {allResults.map((r: any, i: number) => (
-                  <div key={i} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', padding: '11px 20px', borderBottom: i < allResults.length - 1 ? '1px solid #F3F4F6' : 'none' }}>
-                    <div style={{ fontSize: '14px', color: '#0F1923', fontWeight: 500 }}>{r.name || '—'}</div>
-                    <div style={{ fontSize: '14px', color: '#00A5A3' }}>{r.website || '—'}</div>
+                  <div key={i} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', padding: '11px 20px', borderBottom: i < allResults.length - 1 ? '1px solid var(--border-light)' : 'none' }}>
+                    <div style={{ fontSize: '14px', color: 'var(--ink)', fontWeight: 500 }}>{r.name || '—'}</div>
+                    <div style={{ fontSize: '14px', color: 'var(--teal-mid)' }}>{r.website || '—'}</div>
                   </div>
                 ))}
               </>

@@ -6,16 +6,16 @@ import PageHeader from '@/app/components/PageHeader'
 
 // ── Design tokens ─────────────────────────────────────────────────────────────
 const C = {
-  bg:      '#F6F8FB',
-  surface: '#FFFFFF',
-  border:  '#DDE8EE',
-  text:    '#0F1923',
-  muted:   '#5B7080',
-  green:   '#00897B',
-  amber:   '#D97706',
-  red:     '#8B1A1A',
-  purple:  '#6C54B5',
-  blue:    '#1565C0',
+  bg:      'var(--surface)',
+  surface: 'var(--card)',
+  border:  'var(--border)',
+  text:    'var(--ink)',
+  muted:   'var(--ink3)',
+  green:   'var(--teal-mid)', // NOTE: named "green" historically, this is brand teal
+  amber:   'var(--amber)',
+  red:     'var(--red)',
+  purple:  'var(--purple)',
+  blue:    'var(--info)',
 }
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -162,7 +162,7 @@ function pill(color: string, label: string) {
   return (
     <span style={{
       display: 'inline-block', padding: '2px 8px', borderRadius: '10px',
-      fontSize: '11px', fontWeight: 700, background: color + '20', color,
+      fontSize: '11px', fontWeight: 700, background: `color-mix(in srgb, ${color} 20%, transparent)`, color,
       letterSpacing: '0.3px', whiteSpace: 'nowrap',
     }}>
       {label}
@@ -276,7 +276,7 @@ function EditModal({ row, onClose, onSave }: {
           <button onClick={onClose} style={{ flex: 1, padding: '10px', borderRadius: '10px', border: `1px solid ${C.border}`, background: C.surface, color: C.muted, fontSize: '13px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
             Cancel
           </button>
-          <button onClick={save} disabled={saving} style={{ flex: 2, padding: '10px', borderRadius: '10px', background: C.green, color: '#fff', fontSize: '13px', fontWeight: 700, border: 'none', cursor: 'pointer', fontFamily: 'inherit', opacity: saving ? 0.6 : 1 }}>
+          <button onClick={save} disabled={saving} style={{ flex: 2, padding: '10px', borderRadius: '10px', background: C.green, color: 'var(--teal-light)', fontSize: '13px', fontWeight: 700, border: 'none', cursor: 'pointer', fontFamily: 'inherit', opacity: saving ? 0.6 : 1 }}>
             {saving ? 'Saving…' : 'Save Changes'}
           </button>
         </div>
@@ -365,7 +365,7 @@ function LogModal({ date, staffList, onClose, onSaved }: {
 
         <div style={{ display: 'flex', gap: '10px', marginTop: '20px' }}>
           <button onClick={onClose} style={{ flex: 1, padding: '10px', borderRadius: '10px', border: `1px solid ${C.border}`, background: C.surface, color: C.muted, fontSize: '13px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>Cancel</button>
-          <button onClick={save} disabled={saving || !logStaff} style={{ flex: 2, padding: '10px', borderRadius: '10px', background: C.green, color: '#fff', fontSize: '13px', fontWeight: 700, border: 'none', cursor: 'pointer', fontFamily: 'inherit', opacity: saving || !logStaff ? 0.6 : 1 }}>
+          <button onClick={save} disabled={saving || !logStaff} style={{ flex: 2, padding: '10px', borderRadius: '10px', background: C.green, color: 'var(--teal-light)', fontSize: '13px', fontWeight: 700, border: 'none', cursor: 'pointer', fontFamily: 'inherit', opacity: saving || !logStaff ? 0.6 : 1 }}>
             {saving ? 'Saving…' : 'Save Record'}
           </button>
         </div>
@@ -380,7 +380,7 @@ function StatTile({ label, count, color, active, onClick }: {
 }) {
   return (
     <button onClick={onClick} style={{
-      background: active ? color + '12' : C.surface,
+      background: active ? `color-mix(in srgb, ${color} 12%, transparent)` : C.surface,
       border: `2px solid ${active ? color : C.border}`,
       borderRadius: '12px', padding: '12px 8px', textAlign: 'center',
       cursor: 'pointer', fontFamily: 'inherit', outline: 'none', width: '100%',
@@ -783,7 +783,7 @@ export default function AttendancePage() {
           CSV
         </button>
         <button onClick={() => setShowLog(true)}
-          style={{ padding: '7px 14px', borderRadius: '8px', background: C.text, color: '#fff', fontSize: '12px', fontWeight: 700, border: 'none', cursor: 'pointer', fontFamily: 'inherit', flexShrink: 0, display: 'flex', alignItems: 'center', gap: '5px' }}>
+          style={{ padding: '7px 14px', borderRadius: '8px', background: C.green, color: 'var(--teal-light)', fontSize: '12px', fontWeight: 700, border: 'none', cursor: 'pointer', fontFamily: 'inherit', flexShrink: 0, display: 'flex', alignItems: 'center', gap: '5px' }}>
           <svg width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
           Log Record
         </button>
@@ -801,10 +801,10 @@ export default function AttendancePage() {
 
         {/* ── Weekend banner ── */}
         {mode === 'day' && isWeekendDate(selectedDate) && (
-          <div style={{ background: C.amber + '10', border: `1px solid ${C.amber}40`, borderRadius: '12px', padding: '12px 18px', marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '10px' }}>
+          <div style={{ background: 'color-mix(in srgb, ' + C.amber + ' 6%, transparent)', border: `1px solid ${'color-mix(in srgb, ' + (C.amber) + ' 25%, transparent)'}`, borderRadius: '12px', padding: '12px 18px', marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '10px' }}>
             <svg width="16" height="16" fill="none" stroke={C.amber} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
             <span style={{ fontSize: '13px', fontWeight: 700, color: C.amber }}>Weekend — attendance not expected on {fmtDateLong(selectedDate)}</span>
-            <button onClick={() => setSelectedDate(lastWorkingDay())} style={{ marginLeft: 'auto', padding: '5px 12px', borderRadius: '7px', border: `1px solid ${C.amber}60`, background: C.surface, fontSize: '12px', fontWeight: 700, color: C.amber, cursor: 'pointer', fontFamily: 'inherit' }}>
+            <button onClick={() => setSelectedDate(lastWorkingDay())} style={{ marginLeft: 'auto', padding: '5px 12px', borderRadius: '7px', border: `1px solid ${'color-mix(in srgb, ' + (C.amber) + ' 38%, transparent)'}`, background: C.surface, fontSize: '12px', fontWeight: 700, color: C.amber, cursor: 'pointer', fontFamily: 'inherit' }}>
               Go to last working day
             </button>
           </div>
@@ -823,7 +823,7 @@ export default function AttendancePage() {
                   display: 'flex', alignItems: 'center', gap: '10px',
                   padding: '8px 12px', borderRadius: '12px',
                   border: `2px solid ${active ? col : C.border}`,
-                  background: active ? col + '10' : C.surface,
+                  background: active ? `color-mix(in srgb, ${col} 10%, transparent)` : C.surface,
                   cursor: 'pointer', fontFamily: 'inherit', outline: 'none',
                   transition: 'all 0.15s',
                 }}>
@@ -857,7 +857,7 @@ export default function AttendancePage() {
             border: `2px solid ${isToday ? C.green : C.border}`,
             fontSize: '13px', fontWeight: 800,
             color: isToday ? C.green : C.text,
-            background: isToday ? C.green + '10' : C.surface,
+            background: isToday ? 'color-mix(in srgb, ' + C.green + ' 6%, transparent)' : C.surface,
             cursor: 'pointer', fontFamily: 'inherit',
             display: 'flex', alignItems: 'center', gap: '7px',
           }}>
@@ -945,7 +945,7 @@ export default function AttendancePage() {
                 Sync from HRMS
               </button>
               <button onClick={() => setShowLog(true)}
-                style={{ padding: '9px 18px', borderRadius: '9px', background: C.text, color: '#fff', fontSize: '13px', fontWeight: 700, border: 'none', cursor: 'pointer', fontFamily: 'inherit' }}>
+                style={{ padding: '9px 18px', borderRadius: '9px', background: C.green, color: 'var(--teal-light)', fontSize: '13px', fontWeight: 700, border: 'none', cursor: 'pointer', fontFamily: 'inherit' }}>
                 Log manually
               </button>
             </div>
@@ -1001,15 +1001,15 @@ export default function AttendancePage() {
 
         {/* ── Bulk action bar ── */}
         {selectedKeys.size > 0 && (
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', background: C.text, color: '#fff', borderRadius: '10px', padding: '10px 16px', marginBottom: '12px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', background: C.green, color: 'var(--teal-light)', borderRadius: '10px', padding: '10px 16px', marginBottom: '12px' }}>
             <span style={{ fontSize: '13px', fontWeight: 700 }}>{selectedKeys.size} selected</span>
-            <span style={{ color: 'rgba(255,255,255,0.4)', fontSize: '12px' }}>→ set status to</span>
+            <span style={{ color: 'var(--teal-light)', fontSize: '12px' }}>→ set status to</span>
             <select value={bulkStatus} onChange={e => setBulkStatus(e.target.value)}
-              style={{ padding: '6px 10px', borderRadius: '8px', border: 'none', fontSize: '13px', fontFamily: 'inherit', background: '#fff', color: C.text, cursor: 'pointer' }}>
+              style={{ padding: '6px 10px', borderRadius: '8px', border: 'none', fontSize: '13px', fontFamily: 'inherit', background: 'var(--card)', color: C.text, cursor: 'pointer' }}>
               {ALL_STATUSES.map(s => <option key={s} value={s}>{STATUS_LABEL[s]}</option>)}
             </select>
             <button onClick={applyBulk} disabled={bulkBusy}
-              style={{ padding: '6px 16px', borderRadius: '8px', background: C.green, color: '#fff', border: 'none', fontSize: '13px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', opacity: bulkBusy ? 0.6 : 1 }}>
+              style={{ padding: '6px 16px', borderRadius: '8px', background: C.green, color: 'var(--teal-light)', border: 'none', fontSize: '13px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', opacity: bulkBusy ? 0.6 : 1 }}>
               {bulkBusy ? 'Applying…' : 'Apply'}
             </button>
             <button onClick={() => setSelectedKeys(new Set())}
@@ -1051,7 +1051,7 @@ export default function AttendancePage() {
                   const noRec    = !r.hasRecord
                   const isLate   = r.late_arrival
                   const isSelect = selectedKeys.has(r.key)
-                  const rowBg    = isSelect ? C.green + '08' : noRec ? C.red + '05' : i % 2 === 0 ? C.surface : C.bg
+                  const rowBg    = isSelect ? 'color-mix(in srgb, ' + C.green + ' 3%, transparent)' : noRec ? 'color-mix(in srgb, ' + C.red + ' 2%, transparent)' : i % 2 === 0 ? C.surface : C.bg
                   const sc       = STATUS_COLOR[r.status] ?? C.muted
                   // 3px left border on rows that have a record, matching status color
                   const leftBorder = r.hasRecord ? `3px solid ${sc}` : `3px solid transparent`
@@ -1096,13 +1096,13 @@ export default function AttendancePage() {
                       <td style={{ padding: '10px 12px' }}>
                         {noRec ? (
                           <select defaultValue="" onChange={e => updateStatus(r, e.target.value)}
-                            style={{ padding: '3px 8px', borderRadius: '8px', border: `1px solid ${C.red}40`, fontSize: '12px', fontWeight: 700, color: C.red, background: C.red + '0D', fontFamily: 'inherit', cursor: 'pointer', outline: 'none' }}>
+                            style={{ padding: '3px 8px', borderRadius: '8px', border: `1px solid ${'color-mix(in srgb, ' + (C.red) + ' 25%, transparent)'}`, fontSize: '12px', fontWeight: 700, color: C.red, background: 'color-mix(in srgb, ' + C.red + ' 5%, transparent)', fontFamily: 'inherit', cursor: 'pointer', outline: 'none' }}>
                             <option value="" disabled>No record</option>
                             {ALL_STATUSES.map(s => <option key={s} value={s}>{STATUS_LABEL[s]}</option>)}
                           </select>
                         ) : (
                           <select value={r.status} onChange={e => updateStatus(r, e.target.value)}
-                            style={{ padding: '3px 8px', borderRadius: '8px', border: `1px solid ${sc}40`, fontSize: '12px', fontWeight: 700, color: sc, background: sc + '15', fontFamily: 'inherit', cursor: 'pointer', outline: 'none' }}>
+                            style={{ padding: '3px 8px', borderRadius: '8px', border: `1px solid ${'color-mix(in srgb, ' + (sc) + ' 25%, transparent)'}`, fontSize: '12px', fontWeight: 700, color: sc, background: `color-mix(in srgb, ${sc} 15%, transparent)`, fontFamily: 'inherit', cursor: 'pointer', outline: 'none' }}>
                             {ALL_STATUSES.map(s => <option key={s} value={s}>{STATUS_LABEL[s]}</option>)}
                           </select>
                         )}

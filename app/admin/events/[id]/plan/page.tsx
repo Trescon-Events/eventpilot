@@ -40,36 +40,38 @@ type AIAnalysis = {
 }
 
 // ── Design ────────────────────────────────────────────────────────────────────
-const BG      = '#E8EEF4'
-const SURFACE = '#FFFFFF'
-const ACCENT  = '#C0F43C'
-const DARK    = '#0F1923'
-const MUTED   = '#5B7080'
-const BORDER  = '#DDE8EE'
+const BG      = 'var(--surface)'
+const SURFACE = 'var(--card)'
+const ACCENT  = 'var(--lime)'
+const DARK    = 'var(--ink)'
+const MUTED   = 'var(--ink3)'
+const BORDER  = 'var(--border)'
 
 const PRIORITY_COLOR: Record<string, string> = {
-  critical: '#DC2626',
-  high:     '#D97706',
-  normal:   '#2D3E50',
-  low:      '#94A3B8',
+  critical: 'var(--red)',
+  high:     '#F5B94D', // brightened-amber literal (design-system rule: D97706 always maps to this literal, never a var)
+  normal:   'var(--ink2)',
+  low:      'var(--ink3)',
 }
 const PRIORITY_BG: Record<string, string> = {
-  critical: 'rgba(220,38,38,0.1)',
-  high:     'rgba(217,119,6,0.1)',
-  normal:   'rgba(45,62,80,0.06)',
+  critical: 'rgba(241,102,122,0.1)',
+  high:     'rgba(245,185,77,0.1)',
+  normal:   'rgba(255,255,255,0.06)',
   low:      'rgba(148,163,184,0.1)',
 }
+// Literal hex (not var()) below — STATUS_COLOR values get concatenated with a
+// runtime alpha suffix further down (`${STATUS_COLOR[...]}40`), which var() can't do.
 const STATUS_COLOR: Record<string, string> = {
-  not_started: '#94A3B8',
-  in_progress: '#D97706',
-  done:        '#16A34A',
-  overdue:     '#DC2626',
+  not_started: '#7E93A1', // ink3 literal (orig #94A3B8 read as ink4-tier, bumped up since it's real label text)
+  in_progress: '#F5B94D', // amber family literal
+  done:        '#34D399', // success family literal
+  overdue:     '#F1667A', // red family literal
 }
 const STATUS_BG: Record<string, string> = {
   not_started: 'rgba(148,163,184,0.1)',
-  in_progress: 'rgba(217,119,6,0.1)',
-  done:        'rgba(22,163,74,0.1)',
-  overdue:     'rgba(220,38,38,0.1)',
+  in_progress: 'rgba(245,185,77,0.1)',
+  done:        'rgba(52,211,153,0.1)',
+  overdue:     'rgba(241,102,122,0.1)',
 }
 const STATUS_LABEL: Record<string, string> = {
   not_started: 'Not Started',
@@ -78,22 +80,28 @@ const STATUS_LABEL: Record<string, string> = {
   overdue:     'Overdue',
 }
 
+// Literal hex (not var()) below — DEPT_COLORS values get concatenated with runtime
+// alpha suffixes (`col + '18'`, `col + '20'`, `col + '10'`) throughout this file, which
+// var() can't do. Values are brightened/remapped to each color family's literal where the
+// original failed ~4.5:1 contrast against the new dark card (#142330); left as-is where
+// the original already cleared it (kept distinct per-department, rather than collapsing
+// multiple departments onto one shared family token).
 const DEPT_COLORS: Record<string, string> = {
-  'Production':        '#6366F1',
-  'Marketing':         '#EC4899',
-  'Branding':          '#8B5CF6',
-  'Sales':             '#0EA5E9',
-  'Customer Success':  '#10B981',
-  'Operations':        '#F59E0B',
-  'Partnerships':      '#14B8A6',
-  'Tech/Data':         '#6366F1',
-  'Finance':           '#22C55E',
-  'Legal':             '#94A3B8',
-  'HR':                '#F97316',
-  'Program Director':  '#C0F43C',
+  'Production':        '#818CF8', // indigo family literal (orig #6366F1 was 3.58:1, failed)
+  'Marketing':         '#F472B6', // brightened-pink literal (design-system rule for EC4899/BE185D)
+  'Branding':          '#A78BFA', // purple family literal (orig #8B5CF6 was 3.78:1, failed)
+  'Sales':             '#0EA5E9', // 5.77:1, passes as-is
+  'Customer Success':  '#10B981', // 6.31:1, passes as-is
+  'Operations':        '#F5B94D', // amber family literal (design-system rule for D97706/F59E0B)
+  'Partnerships':      '#14B8A6', // 6.43:1, passes as-is
+  'Tech/Data':         '#818CF8', // indigo family literal (orig #6366F1 was 3.58:1, failed)
+  'Finance':           '#22C55E', // 7.02:1, passes as-is
+  'Legal':             '#7E93A1', // ink3 literal (orig #94A3B8 was ink4-tier, only 4.01:1; bumped up as real label text)
+  'HR':                '#F97316', // 5.71:1, passes as-is
+  'Program Director':  '#C0F43C', // lime family literal, 12.38:1
 }
 
-function deptColor(dept: string) { return DEPT_COLORS[dept] ?? '#64748B' }
+function deptColor(dept: string) { return DEPT_COLORS[dept] ?? '#678EC5' } // brightened slate-blue literal fallback (orig #64748B was 3.36:1, failed)
 
 const ALL_STATUSES = ['not_started', 'in_progress', 'done', 'overdue'] as const
 
@@ -133,7 +141,7 @@ function KanbanCard({ task, blocked, onEdit }: { task: Task; blocked: boolean; o
       onClick={() => onEdit(task)}
       style={{
         background: SURFACE, borderRadius: '12px', padding: '14px',
-        border: `1px solid ${blocked ? 'rgba(220,38,38,0.3)' : BORDER}`,
+        border: `1px solid ${blocked ? 'rgba(241,102,122,0.3)' : BORDER}`,
         borderLeft: `3px solid ${col}`,
         cursor: 'pointer', transition: 'transform 0.1s, box-shadow 0.1s',
         opacity: blocked ? 0.8 : 1,
@@ -145,7 +153,7 @@ function KanbanCard({ task, blocked, onEdit }: { task: Task; blocked: boolean; o
     >
       {/* Blocked banner */}
       {blocked && (
-        <div style={{ fontSize: '10px', fontWeight: 700, color: '#DC2626', background: 'rgba(220,38,38,0.08)', borderRadius: '6px', padding: '3px 8px', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '4px' }}>
+        <div style={{ fontSize: '10px', fontWeight: 700, color: 'var(--red)', background: 'rgba(241,102,122,0.08)', borderRadius: '6px', padding: '3px 8px', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '4px' }}>
           🔒 Blocked — waiting on: <em style={{ fontStyle: 'normal', fontWeight: 800 }}>{task.depends_on}</em>
         </div>
       )}
@@ -173,7 +181,7 @@ function KanbanCard({ task, blocked, onEdit }: { task: Task; blocked: boolean; o
         </span>
         <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
           {task.due_date && (
-            <span style={{ fontSize: '11px', fontWeight: 700, color: overdue ? '#DC2626' : MUTED }}>
+            <span style={{ fontSize: '11px', fontWeight: 700, color: overdue ? 'var(--red)' : MUTED }}>
               {overdue ? '⚠ ' : ''}{fmtDate(task.due_date)}
             </span>
           )}
@@ -224,7 +232,7 @@ function EditModal({ task, staff, onClose, onSave, onStatusChange }: {
 
         {/* Dependency info */}
         {task.depends_on && (
-          <div style={{ background: 'rgba(217,119,6,0.08)', border: '1px solid rgba(217,119,6,0.2)', borderRadius: '8px', padding: '8px 12px', marginBottom: '16px', fontSize: '12px', color: '#D97706' }}>
+          <div style={{ background: 'var(--amber-light)', border: '1px solid var(--amber-border)', borderRadius: '8px', padding: '8px 12px', marginBottom: '16px', fontSize: '12px', color: 'var(--amber)' }}>
             Depends on: <strong>{task.depends_on}</strong>
           </div>
         )}
@@ -280,7 +288,7 @@ function EditModal({ task, staff, onClose, onSave, onStatusChange }: {
 
         <div style={{ display: 'flex', gap: '10px', marginTop: '20px' }}>
           <button onClick={onClose} style={{ flex: 1, padding: '10px', borderRadius: '10px', border: `1px solid ${BORDER}`, background: SURFACE, color: MUTED, fontSize: '13px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>Cancel</button>
-          <button onClick={save} disabled={saving} style={{ flex: 2, padding: '10px', borderRadius: '10px', background: ACCENT, color: DARK, fontSize: '13px', fontWeight: 800, border: 'none', cursor: 'pointer', fontFamily: 'inherit', opacity: saving ? 0.7 : 1 }}>
+          <button onClick={save} disabled={saving} style={{ flex: 2, padding: '10px', borderRadius: '10px', background: ACCENT, color: 'var(--lime-dark)', fontSize: '13px', fontWeight: 800, border: 'none', cursor: 'pointer', fontFamily: 'inherit', opacity: saving ? 0.7 : 1 }}>
             {saving ? 'Saving…' : 'Save Changes'}
           </button>
         </div>
@@ -291,8 +299,9 @@ function EditModal({ task, staff, onClose, onSave, onStatusChange }: {
 
 // ── AI Panel ──────────────────────────────────────────────────────────────────
 function AIPanel({ analysis, onClose }: { analysis: AIAnalysis; onClose: () => void }) {
-  const healthColor = { on_track: '#16A34A', at_risk: '#D97706', critical: '#DC2626' }[analysis.health]
-  const healthBg    = { on_track: 'rgba(22,163,74,0.08)', at_risk: 'rgba(217,119,6,0.08)', critical: 'rgba(220,38,38,0.08)' }[analysis.health]
+  // Literal hex (not var()) — concatenated with a runtime alpha suffix below (`${healthColor}30`)
+  const healthColor = { on_track: '#34D399', at_risk: '#F5B94D', critical: '#F1667A' }[analysis.health]
+  const healthBg    = { on_track: 'rgba(52,211,153,0.08)', at_risk: 'rgba(245,185,77,0.08)', critical: 'rgba(241,102,122,0.08)' }[analysis.health]
 
   return (
     <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 300, display: 'flex', alignItems: 'flex-start', justifyContent: 'flex-end', padding: '0' }}>
@@ -315,9 +324,9 @@ function AIPanel({ analysis, onClose }: { analysis: AIAnalysis; onClose: () => v
           {/* Quick stats */}
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '8px', marginTop: '12px' }}>
             {[
-              { label: 'Done', val: `${analysis.stats.pct}%`, color: '#16A34A' },
-              { label: 'Blocked', val: analysis.stats.blocked, color: '#DC2626' },
-              { label: 'Overdue', val: analysis.stats.overdue, color: '#D97706' },
+              { label: 'Done', val: `${analysis.stats.pct}%`, color: 'var(--success)' },
+              { label: 'Blocked', val: analysis.stats.blocked, color: 'var(--red)' },
+              { label: 'Overdue', val: analysis.stats.overdue, color: '#F5B94D' },
             ].map(s => (
               <div key={s.label} style={{ background: BG, borderRadius: '8px', padding: '8px', textAlign: 'center' }}>
                 <div style={{ fontSize: '20px', fontWeight: 900, color: s.color }}>{s.val}</div>
@@ -354,13 +363,13 @@ function AIPanel({ analysis, onClose }: { analysis: AIAnalysis; onClose: () => v
               <div style={{ fontSize: '11px', fontWeight: 800, letterSpacing: '1.5px', textTransform: 'uppercase', color: MUTED, marginBottom: '10px' }}>Risk Flags</div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                 {analysis.risk_flags.map((r, i) => (
-                  <div key={i} style={{ background: 'rgba(220,38,38,0.05)', border: '1px solid rgba(220,38,38,0.15)', borderRadius: '10px', padding: '12px 14px' }}>
-                    <div style={{ fontSize: '11px', fontWeight: 800, color: '#DC2626', textTransform: 'uppercase', letterSpacing: '0.8px', marginBottom: '4px' }}>
+                  <div key={i} style={{ background: 'rgba(241,102,122,0.05)', border: '1px solid rgba(241,102,122,0.15)', borderRadius: '10px', padding: '12px 14px' }}>
+                    <div style={{ fontSize: '11px', fontWeight: 800, color: 'var(--red)', textTransform: 'uppercase', letterSpacing: '0.8px', marginBottom: '4px' }}>
                       {r.type.replace('_', ' ')} · {r.department}
                     </div>
                     <div style={{ fontSize: '13px', fontWeight: 700, color: DARK, marginBottom: '4px' }}>{r.title}</div>
-                    <div style={{ fontSize: '11px', color: '#DC2626', marginBottom: '6px' }}>Impact: {r.impact}</div>
-                    <div style={{ fontSize: '11px', fontWeight: 700, color: '#D97706' }}>→ {r.action}</div>
+                    <div style={{ fontSize: '11px', color: 'var(--red)', marginBottom: '6px' }}>Impact: {r.impact}</div>
+                    <div style={{ fontSize: '11px', fontWeight: 700, color: '#F5B94D' }}>→ {r.action}</div>
                   </div>
                 ))}
               </div>
@@ -373,7 +382,7 @@ function AIPanel({ analysis, onClose }: { analysis: AIAnalysis; onClose: () => v
               <div style={{ fontSize: '11px', fontWeight: 800, letterSpacing: '1.5px', textTransform: 'uppercase', color: MUTED, marginBottom: '10px' }}>By Department</div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
                 {analysis.department_insights.map((d, i) => {
-                  const sc = { on_track: '#16A34A', at_risk: '#D97706', critical: '#DC2626' }[d.status] ?? MUTED
+                  const sc = { on_track: '#34D399', at_risk: '#F5B94D', critical: '#F1667A' }[d.status] ?? MUTED
                   return (
                     <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: '10px', padding: '10px 12px', background: BG, borderRadius: '8px' }}>
                       <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: sc, flexShrink: 0, marginTop: '4px' }} />
@@ -390,7 +399,7 @@ function AIPanel({ analysis, onClose }: { analysis: AIAnalysis; onClose: () => v
 
           {/* AI recommendation */}
           <div style={{ background: 'rgba(192,244,60,0.08)', border: '1px solid rgba(192,244,60,0.25)', borderRadius: '12px', padding: '16px' }}>
-            <div style={{ fontSize: '11px', fontWeight: 800, letterSpacing: '1.5px', textTransform: 'uppercase', color: '#3D6B00', marginBottom: '8px' }}>AI Recommendation</div>
+            <div style={{ fontSize: '11px', fontWeight: 800, letterSpacing: '1.5px', textTransform: 'uppercase', color: 'var(--lime)', marginBottom: '8px' }}>AI Recommendation</div>
             <div style={{ fontSize: '13px', color: DARK, lineHeight: 1.5 }}>{analysis.ai_recommendation}</div>
           </div>
 
@@ -536,8 +545,8 @@ export default function EventPlanPage({ params }: { params: Promise<{ id: string
         <span style={{ fontSize: '13px', fontWeight: 800 }}>Planning Board</span>
         <div style={{ flex: 1 }} />
 
-        {msg && <span style={{ fontSize: '12px', color: '#DC2626' }}>{msg}</span>}
-        {seedMsg && <span style={{ fontSize: '12px', color: '#16A34A' }}>{seedMsg}</span>}
+        {msg && <span style={{ fontSize: '12px', color: 'var(--red)' }}>{msg}</span>}
+        {seedMsg && <span style={{ fontSize: '12px', color: 'var(--success)' }}>{seedMsg}</span>}
 
         {/* View toggle */}
         <div style={{ display: 'flex', gap: '2px', background: BG, borderRadius: '8px', padding: '3px' }}>
@@ -558,7 +567,7 @@ export default function EventPlanPage({ params }: { params: Promise<{ id: string
           padding: '8px 16px', borderRadius: '8px',
           background: seeding ? BG : 'rgba(192,244,60,0.15)',
           border: `1px solid ${seeding ? BORDER : 'rgba(192,244,60,0.4)'}`,
-          color: seeding ? MUTED : '#3D6B00',
+          color: seeding ? MUTED : 'var(--lime)',
           fontSize: '12px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit',
         }}>
           {seeding ? 'Loading…' : tasks.length > 0 ? '↺ Reload Template' : '+ Load from Template'}
@@ -580,7 +589,7 @@ export default function EventPlanPage({ params }: { params: Promise<{ id: string
 
         {/* ── Header ── */}
         <div style={{ marginBottom: '24px' }}>
-          <div style={{ fontSize: '11px', fontWeight: 800, letterSpacing: '2px', textTransform: 'uppercase', color: '#00695C', marginBottom: '4px' }}>Event Planning Board</div>
+          <div style={{ fontSize: '11px', fontWeight: 800, letterSpacing: '2px', textTransform: 'uppercase', color: 'var(--teal)', marginBottom: '4px' }}>Event Planning Board</div>
           <h1 style={{ fontSize: '32px', fontWeight: 900, color: DARK, margin: '0 0 8px', letterSpacing: '-0.5px' }}>{event?.name}</h1>
           <div style={{ display: 'flex', gap: '16px', flexWrap: 'wrap' }}>
             {event?.city && <span style={{ fontSize: '13px', color: MUTED }}>{event.city}</span>}
@@ -599,16 +608,16 @@ export default function EventPlanPage({ params }: { params: Promise<{ id: string
               </div>
               <div style={{ flex: 1, minWidth: '200px' }}>
                 <div style={{ height: '8px', background: BG, borderRadius: '4px', overflow: 'hidden' }}>
-                  <div style={{ height: '100%', width: `${pct}%`, background: pct >= 80 ? '#16A34A' : pct >= 50 ? '#D97706' : ACCENT, borderRadius: '4px', transition: 'width 0.5s' }} />
+                  <div style={{ height: '100%', width: `${pct}%`, background: pct >= 80 ? 'var(--success)' : pct >= 50 ? '#F5B94D' : ACCENT, borderRadius: '4px', transition: 'width 0.5s' }} />
                 </div>
                 <div style={{ fontSize: '11px', color: MUTED, marginTop: '6px' }}>{done} of {total} tasks done</div>
               </div>
               <div style={{ display: 'flex', gap: '16px', flexWrap: 'wrap' }}>
                 {[
-                  { label: 'In Progress', val: tasks.filter(t => t.status === 'in_progress').length, color: '#D97706' },
-                  { label: 'Blocked',     val: blocked, color: '#DC2626' },
-                  { label: 'Overdue',     val: overdue, color: '#DC2626' },
-                  { label: 'Critical',    val: tasks.filter(t => t.priority === 'critical' && t.status !== 'done').length, color: '#DC2626' },
+                  { label: 'In Progress', val: tasks.filter(t => t.status === 'in_progress').length, color: '#F5B94D' },
+                  { label: 'Blocked',     val: blocked, color: 'var(--red)' },
+                  { label: 'Overdue',     val: overdue, color: 'var(--red)' },
+                  { label: 'Critical',    val: tasks.filter(t => t.priority === 'critical' && t.status !== 'done').length, color: 'var(--red)' },
                 ].map(s => (
                   <div key={s.label} style={{ textAlign: 'center' }}>
                     <div style={{ fontSize: '22px', fontWeight: 900, color: s.val > 0 ? s.color : BORDER }}>{s.val}</div>
@@ -652,7 +661,7 @@ export default function EventPlanPage({ params }: { params: Promise<{ id: string
             <div style={{ fontSize: '13px', color: MUTED, marginBottom: '24px' }}>Load the master template to get all 61 tasks across 12 departments instantly.</div>
             <button onClick={seedFromTemplate} disabled={seeding} style={{
               padding: '14px 32px', borderRadius: '12px', background: ACCENT,
-              border: 'none', color: DARK, fontSize: '14px', fontWeight: 800,
+              border: 'none', color: 'var(--lime-dark)', fontSize: '14px', fontWeight: 800,
               cursor: 'pointer', fontFamily: 'inherit',
             }}>
               {seeding ? 'Loading…' : '+ Load from Template (61 tasks)'}
@@ -669,7 +678,7 @@ export default function EventPlanPage({ params }: { params: Promise<{ id: string
                 style={{ padding: '8px 12px 8px 28px', borderRadius: '8px', border: `1px solid ${BORDER}`, fontSize: '13px', fontFamily: 'inherit', outline: 'none', background: SURFACE, color: DARK, width: '100%', boxSizing: 'border-box' as const }} />
             </div>
             <select value={deptFilter} onChange={e => setDeptFilter(e.target.value)}
-              style={{ padding: '8px 12px', borderRadius: '8px', border: `1px solid ${deptFilter ? '#6366F1' : BORDER}`, fontSize: '13px', fontFamily: 'inherit', outline: 'none', background: SURFACE, color: DARK }}>
+              style={{ padding: '8px 12px', borderRadius: '8px', border: `1px solid ${deptFilter ? 'var(--indigo)' : BORDER}`, fontSize: '13px', fontFamily: 'inherit', outline: 'none', background: SURFACE, color: DARK }}>
               <option value="">All Departments</option>
               {departments.map(d => <option key={d} value={d}>{d}</option>)}
             </select>
@@ -746,7 +755,7 @@ export default function EventPlanPage({ params }: { params: Promise<{ id: string
                   return (
                     <tr key={t.id} style={{
                       borderBottom: i < filtered.length - 1 ? `1px solid ${BORDER}` : 'none',
-                      background: blocked ? 'rgba(220,38,38,0.03)' : i % 2 === 0 ? SURFACE : BG,
+                      background: blocked ? 'rgba(241,102,122,0.03)' : i % 2 === 0 ? SURFACE : BG,
                     }}>
                       <td style={{ padding: '10px 14px' }}>
                         <span style={{ fontSize: '11px', fontWeight: 700, padding: '3px 8px', borderRadius: '6px', background: deptColor(t.department) + '18', color: deptColor(t.department), whiteSpace: 'nowrap' }}>
@@ -756,7 +765,7 @@ export default function EventPlanPage({ params }: { params: Promise<{ id: string
                       <td style={{ padding: '10px 14px', fontSize: '12px', color: MUTED }}>{t.workstream ?? '—'}</td>
                       <td style={{ padding: '10px 14px' }}>
                         <div style={{ fontSize: '13px', fontWeight: 700, color: DARK }}>{t.title}</div>
-                        {blocked && <div style={{ fontSize: '11px', color: '#DC2626', marginTop: '2px' }}>🔒 Blocked by: {t.depends_on}</div>}
+                        {blocked && <div style={{ fontSize: '11px', color: 'var(--red)', marginTop: '2px' }}>🔒 Blocked by: {t.depends_on}</div>}
                       </td>
                       <td style={{ padding: '10px 14px' }}><PriorityBadge p={t.priority} /></td>
                       <td style={{ padding: '10px 14px' }}>
@@ -767,11 +776,11 @@ export default function EventPlanPage({ params }: { params: Promise<{ id: string
                         </select>
                       </td>
                       <td style={{ padding: '10px 14px', fontSize: '12px', color: MUTED }}>{t.owner?.name ?? '—'}</td>
-                      <td style={{ padding: '10px 14px', fontSize: '12px', fontWeight: 700, color: overdue ? '#DC2626' : MUTED, whiteSpace: 'nowrap' }}>
+                      <td style={{ padding: '10px 14px', fontSize: '12px', fontWeight: 700, color: overdue ? 'var(--red)' : MUTED, whiteSpace: 'nowrap' }}>
                         {t.due_date ? (overdue ? '⚠ ' : '') + fmtDate(t.due_date) : '—'}
                       </td>
                       <td style={{ padding: '10px 14px', fontSize: '11px', color: MUTED, maxWidth: '160px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                        {t.depends_on ? <span style={{ color: blocked ? '#DC2626' : MUTED }}>{blocked ? '🔒 ' : '✓ '}{t.depends_on}</span> : '—'}
+                        {t.depends_on ? <span style={{ color: blocked ? 'var(--red)' : MUTED }}>{blocked ? '🔒 ' : '✓ '}{t.depends_on}</span> : '—'}
                       </td>
                       <td style={{ padding: '10px 14px' }}>
                         <button onClick={() => setEditTask(t)}

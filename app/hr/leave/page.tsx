@@ -5,15 +5,15 @@ import Link from 'next/link'
 import PageHeader from '@/app/components/PageHeader'
 
 const C = {
-  bg:      '#F6F8FB',
-  surface: '#FFFFFF',
-  border:  '#DDE8EE',
-  text:    '#0F1923',
-  muted:   '#5B7080',
-  green:   '#00897B',
-  amber:   '#D97706',
-  red:     '#8B1A1A',
-  purple:  '#6C54B5',
+  bg:      'var(--surface)',
+  surface: 'var(--card)',
+  border:  'var(--border)',
+  text:    'var(--ink)',
+  muted:   'var(--ink3)',
+  green:   'var(--teal-mid)', // NOTE: named "green" historically, this is brand teal
+  amber:   '#F5B94D',
+  red:     'var(--red)',
+  purple:  'var(--purple)',
 }
 
 type LeaveRequest = {
@@ -64,7 +64,7 @@ function Avatar({ name }: { name: string }) {
     : name.slice(0, 2).toUpperCase()
   return (
     <div style={{ width: '40px', height: '40px', borderRadius: '50%', background: C.green, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-      <span style={{ fontSize: '14px', fontWeight: 800, color: '#fff' }}>{initials}</span>
+      <span style={{ fontSize: '14px', fontWeight: 800, color: 'var(--teal-light)' }}>{initials}</span>
     </div>
   )
 }
@@ -134,7 +134,7 @@ export default function LeaveManagerPage() {
 
         {/* Amber banner: pending count alert */}
         {!loading && filter === 'pending' && requests.length > 0 && (
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', background: C.amber + '12', border: `1px solid ${C.amber}40`, borderRadius: '12px', padding: '14px 18px', marginBottom: '20px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', background: 'color-mix(in srgb, ' + C.amber + ' 7%, transparent)', border: `1px solid ${'color-mix(in srgb, ' + (C.amber) + ' 25%, transparent)'}`, borderRadius: '12px', padding: '14px 18px', marginBottom: '20px' }}>
             <span style={{ fontSize: '18px', lineHeight: 1 }}>●</span>
             <span style={{ fontSize: '14px', fontWeight: 700, color: C.amber }}>
               {requests.length} {requests.length === 1 ? 'request is' : 'requests are'} waiting for your review
@@ -221,7 +221,7 @@ export default function LeaveManagerPage() {
                     <button
                       disabled={busy === req.id}
                       onClick={() => decide(req.id, 'approved')}
-                      style={{ padding: '9px 22px', borderRadius: '8px', background: C.green, color: '#fff', fontSize: '13px', fontWeight: 700, border: 'none', cursor: 'pointer', opacity: busy === req.id ? 0.5 : 1, fontFamily: 'inherit', flexShrink: 0 }}>
+                      style={{ padding: '9px 22px', borderRadius: '8px', background: C.green, color: 'var(--teal-light)', fontSize: '13px', fontWeight: 700, border: 'none', cursor: 'pointer', opacity: busy === req.id ? 0.5 : 1, fontFamily: 'inherit', flexShrink: 0 }}>
                       Approve
                     </button>
                     <button
@@ -292,7 +292,7 @@ export default function LeaveManagerPage() {
                   <span style={{ fontSize: '11px', color: C.text, fontWeight: 600 }}>{lt.name}</span>
                   <span style={{ fontSize: '10px', color: C.muted }}>{lt.default_days_per_year}d/yr</span>
                   {lt.is_paid && (
-                    <span style={{ fontSize: '10px', fontWeight: 700, color: C.green, background: C.green + '15', borderRadius: '8px', padding: '1px 6px' }}>paid</span>
+                    <span style={{ fontSize: '10px', fontWeight: 700, color: C.green, background: 'color-mix(in srgb, ' + C.green + ' 8%, transparent)', borderRadius: '8px', padding: '1px 6px' }}>paid</span>
                   )}
                 </div>
               ))}

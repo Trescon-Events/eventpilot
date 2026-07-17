@@ -22,19 +22,19 @@ const TYPES = [
 ]
 
 const SEVERITIES = [
-  { key: 'critical', label: 'Critical', color: '#DC2626', desc: 'Blocks me from working'        },
-  { key: 'high',     label: 'High',     color: '#EA580C', desc: 'Significant impact on my work'  },
-  { key: 'medium',   label: 'Medium',   color: '#D97706', desc: 'Annoying but workable'          },
-  { key: 'low',      label: 'Low',      color: '#059669', desc: 'Minor issue or nice-to-have'    },
+  { key: 'critical', label: 'Critical', color: 'var(--red)',     desc: 'Blocks me from working'        },
+  { key: 'high',     label: 'High',     color: 'var(--orange)',  desc: 'Significant impact on my work'  },
+  { key: 'medium',   label: 'Medium',   color: 'var(--amber)',   desc: 'Annoying but workable'          },
+  { key: 'low',      label: 'Low',      color: 'var(--success)', desc: 'Minor issue or nice-to-have'    },
 ]
 
 const C = {
-  bg:      '#F6F8FB',
-  surface: '#FFFFFF',
-  border:  '#DDE8EE',
-  text:    '#0F1923',
-  muted:   '#5B7080',
-  teal:    '#00897B',
+  bg:      'var(--surface)',
+  surface: 'var(--card)',
+  border:  'var(--border)',
+  text:    'var(--ink)',
+  muted:   'var(--ink3)',
+  teal:    'var(--teal-mid)',
 }
 
 export default function ReviewWidget() {
@@ -206,7 +206,7 @@ export default function ReviewWidget() {
             <div style={{ padding: '20px 24px 24px' }}>
               {done ? (
                 <div style={{ textAlign: 'center', padding: '32px 0' }}>
-                  <div style={{ width: '56px', height: '56px', borderRadius: '50%', background: C.teal + '15', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px' }}>
+                  <div style={{ width: '56px', height: '56px', borderRadius: '50%', background: 'color-mix(in srgb, ' + C.teal + ' 8%, transparent)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px' }}>
                     <svg width="26" height="26" fill="none" stroke={C.teal} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24">
                       <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
                       <polyline points="22 4 12 14.01 9 11.01"/>
@@ -216,7 +216,7 @@ export default function ReviewWidget() {
                   <div style={{ fontSize: '14px', color: C.muted, lineHeight: 1.6, marginBottom: '24px' }}>
                     Thank you. We'll review this and make updates as needed.
                   </div>
-                  <button onClick={closeModal} style={{ background: C.teal, color: '#fff', border: 'none', borderRadius: '10px', padding: '10px 24px', fontSize: '14px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
+                  <button onClick={closeModal} style={{ background: C.teal, color: 'var(--teal-light)', border: 'none', borderRadius: '10px', padding: '10px 24px', fontSize: '14px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
                     Close
                   </button>
                 </div>
@@ -225,7 +225,7 @@ export default function ReviewWidget() {
 
                   {/* Tool */}
                   <div style={{ marginBottom: '18px' }}>
-                    <label style={labelStyle}>Which tool? <span style={{ color: '#DC2626' }}>*</span></label>
+                    <label style={labelStyle}>Which tool? <span style={{ color: 'var(--red)' }}>*</span></label>
                     <select required value={tool} onChange={e => setTool(e.target.value)}
                       style={{ ...inputStyle, cursor: 'pointer' }}>
                       <option value="">Select tool…</option>
@@ -235,7 +235,7 @@ export default function ReviewWidget() {
 
                   {/* Type */}
                   <div style={{ marginBottom: '18px' }}>
-                    <label style={labelStyle}>Type of review <span style={{ color: '#DC2626' }}>*</span></label>
+                    <label style={labelStyle}>Type of review <span style={{ color: 'var(--red)' }}>*</span></label>
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
                       {TYPES.map(t => (
                         <button
@@ -243,7 +243,7 @@ export default function ReviewWidget() {
                           onClick={() => setReviewType(t.key)}
                           style={{
                             padding: '10px 12px', borderRadius: '10px', cursor: 'pointer', textAlign: 'left',
-                            background: reviewType === t.key ? C.teal + '12' : C.bg,
+                            background: reviewType === t.key ? 'color-mix(in srgb, ' + C.teal + ' 7%, transparent)' : C.bg,
                             border: `1px solid ${reviewType === t.key ? C.teal : C.border}`,
                             transition: 'all 0.15s', fontFamily: 'inherit',
                           }}
@@ -266,7 +266,7 @@ export default function ReviewWidget() {
                           style={{
                             padding: '6px 14px', borderRadius: '100px', cursor: 'pointer', fontFamily: 'inherit',
                             fontSize: '12px', fontWeight: 700,
-                            background: severity === sv.key ? sv.color + '15' : C.bg,
+                            background: severity === sv.key ? `color-mix(in srgb, ${sv.color} 15%, transparent)` : C.bg,
                             border: `1px solid ${severity === sv.key ? sv.color : C.border}`,
                             color: severity === sv.key ? sv.color : C.muted,
                             transition: 'all 0.15s',
@@ -285,7 +285,7 @@ export default function ReviewWidget() {
 
                   {/* Title */}
                   <div style={{ marginBottom: '18px' }}>
-                    <label style={labelStyle}>Title <span style={{ color: '#DC2626' }}>*</span></label>
+                    <label style={labelStyle}>Title <span style={{ color: 'var(--red)' }}>*</span></label>
                     <input
                       required type="text" value={title}
                       onChange={e => setTitle(e.target.value)}
@@ -296,7 +296,7 @@ export default function ReviewWidget() {
 
                   {/* Description */}
                   <div style={{ marginBottom: '18px' }}>
-                    <label style={labelStyle}>Describe the issue <span style={{ color: '#DC2626' }}>*</span></label>
+                    <label style={labelStyle}>Describe the issue <span style={{ color: 'var(--red)' }}>*</span></label>
                     <textarea
                       required rows={4} value={description}
                       onChange={e => setDescription(e.target.value)}
@@ -360,7 +360,7 @@ export default function ReviewWidget() {
                   </div>
 
                   {error && (
-                    <div style={{ background: '#FEF2F2', border: '1px solid #FECACA', borderRadius: '10px', padding: '10px 14px', fontSize: '13px', color: '#DC2626', marginBottom: '16px' }}>
+                    <div style={{ background: 'var(--red-light)', border: '1px solid var(--red-border)', borderRadius: '10px', padding: '10px 14px', fontSize: '13px', color: 'var(--red)', marginBottom: '16px' }}>
                       {error}
                     </div>
                   )}
@@ -370,7 +370,7 @@ export default function ReviewWidget() {
                     style={{
                       width: '100%', padding: '12px', borderRadius: '12px',
                       background: submitting ? C.bg : C.teal,
-                      color: submitting ? C.muted : '#fff',
+                      color: submitting ? C.muted : 'var(--teal-light)',
                       border: `1px solid ${submitting ? C.border : C.teal}`,
                       fontSize: '15px', fontWeight: 700,
                       cursor: submitting ? 'not-allowed' : 'pointer', fontFamily: 'inherit',

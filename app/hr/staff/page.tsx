@@ -5,21 +5,20 @@ import Link from 'next/link'
 import PageHeader from '@/app/components/PageHeader'
 
 const C = {
-  bg:      '#F6F8FB',
-  surface: '#FFFFFF',
-  border:  '#DDE8EE',
-  text:    '#0F1923',
-  muted:   '#5B7080',
-  teal:    '#00897B',
-  amber:   '#D97706',
-  red:     '#DC2626',
-  purple:  '#6C54B5',
-  blue:    '#1565C0',
+  bg:      'var(--surface)',
+  surface: 'var(--card)',
+  border:  'var(--border)',
+  text:    'var(--ink)',
+  muted:   'var(--ink3)',
+  teal:    'var(--teal-mid)',
+  amber:   '#F5B94D',
+  purple:  'var(--purple)',
+  blue:    'var(--info)',
 }
 
 const LEVEL_COLOR: Record<string, string> = {
-  super_admin: '#7C3AED', office_head: '#DC2626',
-  dept_head: '#D97706', team_lead: '#1565C0', staff: '#5B7080',
+  super_admin: 'var(--purple)', office_head: 'var(--red)',
+  dept_head: 'var(--amber)', team_lead: 'var(--info)', staff: 'var(--ink3)',
 }
 const LEVEL_LABEL: Record<string, string> = {
   super_admin: 'Super Admin', office_head: 'Office Head',
@@ -113,7 +112,7 @@ export default function StaffDirectoryPage() {
       <PageHeader eyebrow="HR" title="Staff Directory" actions={
         <Link href="/hr/staff/new?from=/hr/staff" style={{
           display: 'inline-flex', alignItems: 'center', gap: '6px',
-          padding: '8px 16px', borderRadius: '8px', background: C.teal, color: '#fff',
+          padding: '8px 16px', borderRadius: '8px', background: C.teal, color: 'var(--teal-light)',
           textDecoration: 'none', fontSize: '13px', fontWeight: 700,
         }}>
           <svg width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
@@ -189,7 +188,7 @@ export default function StaffDirectoryPage() {
           <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: '12px', overflow: 'hidden' }}>
             <table style={{ width: '100%', borderCollapse: 'collapse' }}>
               <thead>
-                <tr style={{ background: '#F0F4F8' }}>
+                <tr style={{ background: 'var(--surface)' }}>
                   {['Name', 'Role / Department', 'Level', 'Office', 'Manager', 'Joined', 'Status'].map(h => (
                     <th key={h} style={{ fontSize: '10px', fontWeight: 700, color: C.muted, textAlign: 'left', padding: '9px 14px', textTransform: 'uppercase', letterSpacing: '0.5px', borderBottom: `1px solid ${C.border}` }}>{h}</th>
                   ))}
@@ -200,9 +199,9 @@ export default function StaffDirectoryPage() {
                   const lc = LEVEL_COLOR[s.job_level] ?? C.muted
                   const oc = OFFICE_COLOR[s.office_id ?? ''] ?? C.muted
                   return (
-                    <tr key={s.id} style={{ borderTop: `1px solid ${C.border}`, background: i % 2 === 0 ? C.surface : '#FAFBFC', transition: 'background 0.1s' }}
-                      onMouseEnter={e => (e.currentTarget.style.background = '#F0F9F7')}
-                      onMouseLeave={e => (e.currentTarget.style.background = i % 2 === 0 ? C.surface : '#FAFBFC')}
+                    <tr key={s.id} style={{ borderTop: `1px solid ${C.border}`, background: i % 2 === 0 ? C.surface : 'var(--card)', transition: 'background 0.1s' }}
+                      onMouseEnter={e => (e.currentTarget.style.background = 'var(--card-hi)')}
+                      onMouseLeave={e => (e.currentTarget.style.background = i % 2 === 0 ? C.surface : 'var(--card)')}
                     >
                       <td style={{ padding: '10px 14px', verticalAlign: 'middle' }}>
                         <Link href={`/hr/staff/${s.id}`} style={{ textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '10px' }}>
@@ -246,8 +245,8 @@ export default function StaffDirectoryPage() {
                       <td style={{ padding: '10px 14px', verticalAlign: 'middle' }}>
                         <span style={{
                           fontSize: '10px', fontWeight: 700, padding: '2px 8px', borderRadius: '6px',
-                          background: s.access_enabled ? '#D1FAE5' : '#F0F4F8',
-                          color: s.access_enabled ? '#065F46' : C.muted,
+                          background: s.access_enabled ? 'var(--teal-light)' : 'var(--surface)',
+                          color: s.access_enabled ? 'var(--teal)' : C.muted,
                         }}>
                           {s.access_enabled ? 'Active' : 'Inactive'}
                         </span>

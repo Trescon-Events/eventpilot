@@ -5,15 +5,15 @@ import Link from 'next/link'
 import PageHeader from '@/app/components/PageHeader'
 
 const C = {
-  bg:      '#F6F8FB',
-  surface: '#FFFFFF',
-  border:  '#DDE8EE',
-  text:    '#0F1923',
-  muted:   '#5B7080',
-  green:   '#00897B',
-  amber:   '#D97706',
-  red:     '#8B1A1A',
-  purple:  '#6C54B5',
+  bg:      'var(--surface)',
+  surface: 'var(--card)',
+  border:  'var(--border)',
+  text:    'var(--ink)',
+  muted:   'var(--ink3)',
+  green:   'var(--teal-mid)', // NOTE: named "green" historically, this is brand teal
+  amber:   '#F5B94D',
+  red:     'var(--red)',
+  purple:  'var(--purple)',
 }
 
 type OnboardingRecord = {
@@ -102,7 +102,7 @@ export default function OnboardingTrackerPage() {
       <PageHeader eyebrow="HR" title="Onboarding Tracker" actions={
         <Link href="/hr/staff/new?from=/hr/onboarding" style={{
           display: 'inline-flex', alignItems: 'center', gap: '6px',
-          padding: '8px 16px', borderRadius: '8px', background: C.green, color: '#fff',
+          padding: '8px 16px', borderRadius: '8px', background: C.green, color: 'var(--teal-light)',
           textDecoration: 'none', fontSize: '13px', fontWeight: 700,
         }}>
           <svg width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
@@ -190,7 +190,7 @@ export default function OnboardingTrackerPage() {
                               <button
                                 disabled={busy === task.id}
                                 onClick={() => updateTaskStatus(task.id, 'completed')}
-                                style={{ padding: '5px 12px', borderRadius: '6px', background: C.green, color: '#fff', fontSize: '11px', fontWeight: 700, border: 'none', cursor: 'pointer', opacity: busy === task.id ? 0.5 : 1, fontFamily: 'inherit' }}>
+                                style={{ padding: '5px 12px', borderRadius: '6px', background: C.green, color: 'var(--teal-light)', fontSize: '11px', fontWeight: 700, border: 'none', cursor: 'pointer', opacity: busy === task.id ? 0.5 : 1, fontFamily: 'inherit' }}>
                                 Done
                               </button>
                               <button

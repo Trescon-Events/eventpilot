@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import PageHeader from '@/app/components/PageHeader'
+import { ROLE_PRESETS, TOOL_GRANT_OPTIONS } from '@/app/lib/constants'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -21,26 +22,10 @@ type MemberDraft = {
 }
 
 // ── Constants ─────────────────────────────────────────────────────────────────
-
-const ROLE_PRESETS = [
-  { key: 'pilot',       label: 'Pilot',       color: '#1d4ed8', note: 'You are the Pilot for this project — you own the scope decisions, drive the PRD, and coordinate the build with Durga.' },
-  { key: 'co_pilot',    label: 'Co-Pilot',    color: '#be185d', note: 'You are the Co-Pilot — you support the Pilot on every scope decision and share responsibility for driving the PRD with Durga.' },
-  { key: 'consulting',  label: 'Consulting',  color: '#92400e', note: 'You are a Consulting member — your domain expertise will shape the requirements. The Pilot will bring you in for your specific inputs.' },
-  { key: 'tracking',    label: 'Tracking',    color: '#166534', note: 'You are the Project Tracker — your job is to maintain visibility across all Pilot Projects, escalate blockers to Durga, and keep things moving.' },
-  { key: 'collaborator',label: 'Collaborator',color: '#0e7490', note: 'You are a Collaborator on this project — you\'ll be looped in on relevant decisions and asked for input as it progresses.' },
-  { key: 'builder',     label: 'Builder',     color: '#6d28d9', note: 'You are the Builder for this project — you code it, and Build Requests submitted for this project are routed to you.' },
-]
-
-const TOOL_GRANT_OPTIONS = [
-  { key: 'website_builder', label: 'Website Builder' },
-  { key: 'brand_studio',    label: 'Brand Studio' },
-  { key: 'content',         label: 'Content' },
-  { key: 'intelligence',    label: 'Intelligence' },
-  { key: 'smart_data',      label: 'Smart Data' },
-  { key: 'hr_portal',       label: 'HR Portal' },
-  { key: 'finance',         label: 'Finance' },
-  { key: 'events',          label: 'Events' },
-]
+// ROLE_PRESETS / TOOL_GRANT_OPTIONS now live in app/lib/constants.ts — shared
+// with app/admin/pilots/page.tsx's Manage Members section and the
+// app/api/admin/pilots/[id]/members/* routes, so create-time and edit-time
+// stay in sync.
 
 const CATEGORY_OPTIONS = [
   { key: 'prerequisite',   label: 'Prerequisite' },
@@ -54,8 +39,8 @@ function emptyMember(): MemberDraft {
   return { staff_id: '', role: preset.key, role_label: preset.label, role_color: preset.color, role_note: preset.note, tool_grants: [], checklist: [] }
 }
 
-const inputStyle: React.CSSProperties = { width: '100%', padding: '9px 12px', borderRadius: 8, border: '1px solid #d1d5db', fontSize: 14, boxSizing: 'border-box', outline: 'none', fontFamily: 'inherit' }
-const labelStyle: React.CSSProperties = { fontSize: 12, fontWeight: 700, color: '#374151', display: 'block', marginBottom: 4 }
+const inputStyle: React.CSSProperties = { width: '100%', padding: '9px 12px', borderRadius: 8, border: '1px solid var(--border)', fontSize: 14, boxSizing: 'border-box', outline: 'none', fontFamily: 'inherit' }
+const labelStyle: React.CSSProperties = { fontSize: 12, fontWeight: 700, color: 'var(--ink2)', display: 'block', marginBottom: 4 }
 
 export default function NewPilotProjectPage() {
   const router = useRouter()
@@ -84,7 +69,7 @@ export default function NewPilotProjectPage() {
   const setRolePreset = (idx: number, key: string) => {
     const preset = ROLE_PRESETS.find(p => p.key === key)
     if (preset) updateMember(idx, { role: preset.key, role_label: preset.label, role_color: preset.color, role_note: preset.note })
-    else updateMember(idx, { role: '', role_label: '', role_color: '#374151', role_note: '' })
+    else updateMember(idx, { role: '', role_label: '', role_color: '#B7C6D1', role_note: '' })
   }
 
   const toggleGrant = (idx: number, key: string) => {
@@ -149,7 +134,7 @@ export default function NewPilotProjectPage() {
   }
 
   return (
-    <div style={{ minHeight: '100vh', background: '#f8fafc' }}>
+    <div style={{ minHeight: '100vh', background: 'var(--surface)' }}>
       <PageHeader
         title="New Pilot Project"
         description="Works whether or not the tool exists yet — leave the tool link blank if it hasn't been built."
@@ -157,23 +142,23 @@ export default function NewPilotProjectPage() {
       <div style={{ maxWidth: 780, margin: '0 auto', padding: '40px 24px 80px' }}>
 
         {result ? (
-          <div style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: 14, padding: 28 }}>
+          <div style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 14, padding: 28 }}>
             <div style={{ fontSize: 32, marginBottom: 8 }}>✅</div>
-            <h2 style={{ fontSize: 18, fontWeight: 700, color: '#111827', margin: '0 0 12px' }}>Project created and members notified</h2>
-            <div style={{ background: '#f9fafb', border: '1px solid #e5e7eb', borderRadius: 8, padding: '12px 16px', fontSize: 13, color: '#374151', fontFamily: 'monospace', whiteSpace: 'pre-wrap', marginBottom: result.errors.length ? 12 : 0 }}>
+            <h2 style={{ fontSize: 18, fontWeight: 700, color: 'var(--ink)', margin: '0 0 12px' }}>Project created and members notified</h2>
+            <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 8, padding: '12px 16px', fontSize: 13, color: 'var(--ink2)', fontFamily: 'monospace', whiteSpace: 'pre-wrap', marginBottom: result.errors.length ? 12 : 0 }}>
               {result.log.join('\n')}
             </div>
             {result.errors.length > 0 && (
-              <div style={{ background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 8, padding: '12px 16px', fontSize: 13, color: '#991b1b', fontFamily: 'monospace', whiteSpace: 'pre-wrap' }}>
+              <div style={{ background: 'var(--red-light)', border: '1px solid var(--red-border)', borderRadius: 8, padding: '12px 16px', fontSize: 13, color: 'var(--red)', fontFamily: 'monospace', whiteSpace: 'pre-wrap' }}>
                 {result.errors.join('\n')}
               </div>
             )}
             <div style={{ display: 'flex', gap: 10, marginTop: 20 }}>
-              <button onClick={() => router.push('/admin/pilots')} style={{ background: '#0d9488', color: '#fff', border: 'none', borderRadius: 8, padding: '10px 20px', fontSize: 14, fontWeight: 700, cursor: 'pointer' }}>
+              <button onClick={() => router.push('/admin/pilots')} style={{ background: 'var(--teal-mid)', color: 'var(--teal-light)', border: 'none', borderRadius: 8, padding: '10px 20px', fontSize: 14, fontWeight: 700, cursor: 'pointer' }}>
                 View Pilot Projects
               </button>
               <button onClick={() => { setResult(null); setName(''); setDescription(''); setToolLabel(''); setToolHref(''); setBuilderId(''); setMembers([emptyMember()]) }}
-                style={{ background: '#fff', color: '#6b7280', border: '1px solid #e5e7eb', borderRadius: 8, padding: '10px 16px', fontSize: 14, cursor: 'pointer' }}>
+                style={{ background: 'var(--card)', color: 'var(--ink3)', border: '1px solid var(--border)', borderRadius: 8, padding: '10px 16px', fontSize: 14, cursor: 'pointer' }}>
                 Create Another
               </button>
             </div>
@@ -181,8 +166,8 @@ export default function NewPilotProjectPage() {
         ) : (
           <>
             {/* Project details */}
-            <div style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: 14, padding: 24, marginBottom: 20 }}>
-              <h3 style={{ fontSize: 15, fontWeight: 700, color: '#111827', margin: '0 0 16px' }}>Project Details</h3>
+            <div style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 14, padding: 24, marginBottom: 20 }}>
+              <h3 style={{ fontSize: 15, fontWeight: 700, color: 'var(--ink)', margin: '0 0 16px' }}>Project Details</h3>
               <div style={{ marginBottom: 14 }}>
                 <label style={labelStyle}>PROJECT NAME *</label>
                 <input value={name} onChange={e => setName(e.target.value)} placeholder="e.g. Website Builder & Brand Studio Module" style={inputStyle} />
@@ -204,7 +189,7 @@ export default function NewPilotProjectPage() {
                   </select>
                 </div>
                 <div style={{ flex: 1 }}>
-                  <label style={labelStyle}>PROJECT BUILDER <span style={{ fontWeight: 400, color: '#9ca3af' }}>(optional — who Build Requests route to)</span></label>
+                  <label style={labelStyle}>PROJECT BUILDER <span style={{ fontWeight: 400, color: 'var(--ink3)' }}>(optional — who Build Requests route to)</span></label>
                   <select value={builderId} onChange={e => setBuilderId(e.target.value)} style={inputStyle}>
                     <option value="">— Unset (falls back to Durga) —</option>
                     {staffList.slice().sort((a, b) => a.name.localeCompare(b.name)).map(s => (
@@ -215,11 +200,11 @@ export default function NewPilotProjectPage() {
               </div>
               <div style={{ display: 'flex', gap: 14 }}>
                 <div style={{ flex: 1 }}>
-                  <label style={labelStyle}>TOOL LINK LABEL <span style={{ fontWeight: 400, color: '#9ca3af' }}>(optional)</span></label>
+                  <label style={labelStyle}>TOOL LINK LABEL <span style={{ fontWeight: 400, color: 'var(--ink3)' }}>(optional)</span></label>
                   <input value={toolLabel} onChange={e => setToolLabel(e.target.value)} placeholder="e.g. Open Toolkit" style={inputStyle} />
                 </div>
                 <div style={{ flex: 1 }}>
-                  <label style={labelStyle}>TOOL LINK HREF <span style={{ fontWeight: 400, color: '#9ca3af' }}>(optional)</span></label>
+                  <label style={labelStyle}>TOOL LINK HREF <span style={{ fontWeight: 400, color: 'var(--ink3)' }}>(optional)</span></label>
                   <input value={toolHref} onChange={e => setToolHref(e.target.value)} placeholder="/admin/toolkit — leave blank if not built yet" style={inputStyle} />
                 </div>
               </div>
@@ -228,18 +213,18 @@ export default function NewPilotProjectPage() {
             {/* Members */}
             <div style={{ marginBottom: 20 }}>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
-                <h3 style={{ fontSize: 15, fontWeight: 700, color: '#111827', margin: 0 }}>Members</h3>
+                <h3 style={{ fontSize: 15, fontWeight: 700, color: 'var(--ink)', margin: 0 }}>Members</h3>
                 <button onClick={draftChecklists} disabled={drafting} style={{
-                  background: '#7c3aed', color: '#fff', border: 'none', borderRadius: 8, padding: '8px 16px',
+                  background: 'var(--purple)', color: 'var(--purple-light)', border: 'none', borderRadius: 8, padding: '8px 16px',
                   fontSize: 13, fontWeight: 700, cursor: drafting ? 'not-allowed' : 'pointer', opacity: drafting ? 0.6 : 1,
                 }}>
                   {drafting ? 'Drafting…' : '✨ AI-draft checklists for all members'}
                 </button>
               </div>
-              {draftError && <p style={{ color: '#dc2626', fontSize: 13, margin: '0 0 12px' }}>{draftError}</p>}
+              {draftError && <p style={{ color: 'var(--red)', fontSize: 13, margin: '0 0 12px' }}>{draftError}</p>}
 
               {members.map((m, idx) => (
-                <div key={idx} style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: 14, padding: 20, marginBottom: 14 }}>
+                <div key={idx} style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 14, padding: 20, marginBottom: 14 }}>
                   <div style={{ display: 'flex', gap: 12, marginBottom: 12 }}>
                     <div style={{ flex: 2 }}>
                       <label style={labelStyle}>STAFF MEMBER *</label>
@@ -257,39 +242,39 @@ export default function NewPilotProjectPage() {
                         <option value="custom">Custom…</option>
                       </select>
                     </div>
-                    <button onClick={() => removeMember(idx)} title="Remove member" style={{ alignSelf: 'flex-end', background: 'none', border: 'none', color: '#dc2626', cursor: 'pointer', fontSize: 18, padding: '9px 6px' }}>✕</button>
+                    <button onClick={() => removeMember(idx)} title="Remove member" style={{ alignSelf: 'flex-end', background: 'none', border: 'none', color: 'var(--red)', cursor: 'pointer', fontSize: 18, padding: '9px 6px' }}>✕</button>
                   </div>
 
                   {!ROLE_PRESETS.some(p => p.key === m.role) && (
                     <div style={{ display: 'flex', gap: 12, marginBottom: 12 }}>
                       <div style={{ flex: 1 }}>
-                        <label style={labelStyle}>ROLE KEY <span style={{ fontWeight: 400, color: '#9ca3af' }}>(e.g. designer)</span></label>
+                        <label style={labelStyle}>ROLE KEY <span style={{ fontWeight: 400, color: 'var(--ink3)' }}>(e.g. designer)</span></label>
                         <input value={m.role} onChange={e => updateMember(idx, { role: e.target.value })} style={inputStyle} />
                       </div>
                       <div style={{ flex: 1 }}>
-                        <label style={labelStyle}>ROLE LABEL <span style={{ fontWeight: 400, color: '#9ca3af' }}>(e.g. Designer)</span></label>
+                        <label style={labelStyle}>ROLE LABEL <span style={{ fontWeight: 400, color: 'var(--ink3)' }}>(e.g. Designer)</span></label>
                         <input value={m.role_label} onChange={e => updateMember(idx, { role_label: e.target.value })} style={inputStyle} />
                       </div>
                       <div>
                         <label style={labelStyle}>COLOR</label>
-                        <input type="color" value={m.role_color} onChange={e => updateMember(idx, { role_color: e.target.value })} style={{ width: 44, height: 38, padding: 0, border: '1px solid #d1d5db', borderRadius: 8, cursor: 'pointer' }} />
+                        <input type="color" value={m.role_color} onChange={e => updateMember(idx, { role_color: e.target.value })} style={{ width: 44, height: 38, padding: 0, border: '1px solid var(--border)', borderRadius: 8, cursor: 'pointer' }} />
                       </div>
                     </div>
                   )}
 
                   <div style={{ marginBottom: 12 }}>
-                    <label style={labelStyle}>ASSIGNMENT EMAIL NOTE <span style={{ fontWeight: 400, color: '#9ca3af' }}>(shown in the email they receive)</span></label>
+                    <label style={labelStyle}>ASSIGNMENT EMAIL NOTE <span style={{ fontWeight: 400, color: 'var(--ink3)' }}>(shown in the email they receive)</span></label>
                     <textarea value={m.role_note} onChange={e => updateMember(idx, { role_note: e.target.value })} rows={2} style={{ ...inputStyle, resize: 'vertical' }} />
                   </div>
 
                   <div style={{ marginBottom: 12 }}>
-                    <label style={labelStyle}>TOOL ACCESS TO GRANT <span style={{ fontWeight: 400, color: '#9ca3af' }}>(optional)</span></label>
+                    <label style={labelStyle}>TOOL ACCESS TO GRANT <span style={{ fontWeight: 400, color: 'var(--ink3)' }}>(optional)</span></label>
                     <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                       {TOOL_GRANT_OPTIONS.map(g => (
                         <label key={g.key} style={{
                           display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, padding: '5px 10px', borderRadius: 999,
-                          border: `1px solid ${m.tool_grants.includes(g.key) ? '#0d9488' : '#e5e7eb'}`,
-                          background: m.tool_grants.includes(g.key) ? '#f0fdfa' : '#fff', color: m.tool_grants.includes(g.key) ? '#0d9488' : '#6b7280',
+                          border: `1px solid ${m.tool_grants.includes(g.key) ? 'var(--teal-mid)' : 'var(--border)'}`,
+                          background: m.tool_grants.includes(g.key) ? 'var(--teal-light)' : 'var(--card)', color: m.tool_grants.includes(g.key) ? 'var(--teal-mid)' : 'var(--ink3)',
                           cursor: 'pointer', fontWeight: 600,
                         }}>
                           <input type="checkbox" checked={m.tool_grants.includes(g.key)} onChange={() => toggleGrant(idx, g.key)} style={{ margin: 0 }} />
@@ -302,33 +287,33 @@ export default function NewPilotProjectPage() {
                   <div>
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
                       <label style={{ ...labelStyle, marginBottom: 0 }}>CHECKLIST ({m.checklist.length})</label>
-                      <button onClick={() => addChecklistItem(idx)} style={{ background: 'none', border: 'none', color: '#0d9488', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>+ Add item</button>
+                      <button onClick={() => addChecklistItem(idx)} style={{ background: 'none', border: 'none', color: 'var(--teal-mid)', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>+ Add item</button>
                     </div>
                     {m.checklist.map((item, itemIdx) => (
-                      <div key={itemIdx} style={{ background: '#fafafa', border: '1px solid #e5e7eb', borderRadius: 8, padding: 10, marginBottom: 8 }}>
+                      <div key={itemIdx} style={{ background: 'var(--card-hi)', border: '1px solid var(--border)', borderRadius: 8, padding: 10, marginBottom: 8 }}>
                         <div style={{ display: 'flex', gap: 8, marginBottom: 6 }}>
                           <input value={item.title} onChange={e => updateChecklistItem(idx, itemIdx, { title: e.target.value })} placeholder="Title" style={{ ...inputStyle, flex: 2, fontSize: 13, padding: '7px 10px' }} />
                           <select value={item.category} onChange={e => updateChecklistItem(idx, itemIdx, { category: e.target.value })} style={{ ...inputStyle, flex: 1, fontSize: 13, padding: '7px 10px' }}>
                             {CATEGORY_OPTIONS.map(c => <option key={c.key} value={c.key}>{c.label}</option>)}
                           </select>
-                          <button onClick={() => removeChecklistItem(idx, itemIdx)} style={{ background: 'none', border: 'none', color: '#9ca3af', cursor: 'pointer', fontSize: 14 }}>✕</button>
+                          <button onClick={() => removeChecklistItem(idx, itemIdx)} style={{ background: 'none', border: 'none', color: 'var(--ink4)', cursor: 'pointer', fontSize: 14 }}>✕</button>
                         </div>
                         <textarea value={item.description} onChange={e => updateChecklistItem(idx, itemIdx, { description: e.target.value })} placeholder="Description" rows={2} style={{ ...inputStyle, fontSize: 13, padding: '7px 10px', resize: 'vertical' }} />
                       </div>
                     ))}
-                    {m.checklist.length === 0 && <p style={{ fontSize: 12, color: '#9ca3af', margin: 0 }}>No checklist items yet — add manually or use AI-draft above.</p>}
+                    {m.checklist.length === 0 && <p style={{ fontSize: 12, color: 'var(--ink3)', margin: 0 }}>No checklist items yet — add manually or use AI-draft above.</p>}
                   </div>
                 </div>
               ))}
 
-              <button onClick={addMember} style={{ background: '#fff', border: '1px dashed #d1d5db', borderRadius: 10, padding: '12px', width: '100%', color: '#6b7280', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>
+              <button onClick={addMember} style={{ background: 'var(--card)', border: '1px dashed var(--border)', borderRadius: 10, padding: '12px', width: '100%', color: 'var(--ink3)', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>
                 + Add Member
               </button>
             </div>
 
-            {submitError && <p style={{ color: '#dc2626', fontSize: 13, marginBottom: 12 }}>{submitError}</p>}
+            {submitError && <p style={{ color: 'var(--red)', fontSize: 13, marginBottom: 12 }}>{submitError}</p>}
             <button onClick={handleSubmit} disabled={submitting} style={{
-              background: '#0d9488', color: '#fff', border: 'none', borderRadius: 10, padding: '13px 24px',
+              background: 'var(--teal-mid)', color: 'var(--teal-light)', border: 'none', borderRadius: 10, padding: '13px 24px',
               fontSize: 15, fontWeight: 700, cursor: submitting ? 'not-allowed' : 'pointer', opacity: submitting ? 0.6 : 1, width: '100%',
             }}>
               {submitting ? 'Creating…' : 'Create Project & Notify Members'}

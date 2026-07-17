@@ -36,10 +36,13 @@ interface Assignment {
   course:     { id: string; title: string; is_mandatory: boolean; duration_hours: number | null }
 }
 
+// Distinct family per tier — 'foundation' maps to the info (cyan) accent,
+// 'adoption' to purple (direct match to the old #7C3AED), 'advanced' to
+// success (the old #166534 was a dark green signalling mastery/completion).
 const TIER_CONFIG = {
-  foundation: { color: '#0E7490', bg: '#0E749015', border: '#0E749040', label: 'Foundation' },
-  adoption:   { color: '#7C3AED', bg: '#7C3AED15', border: '#7C3AED40', label: 'Adoption'   },
-  advanced:   { color: '#166534', bg: '#16653415', border: '#16653440', label: 'Advanced'   },
+  foundation: { color: 'var(--info)',    bg: 'color-mix(in srgb, var(--info) 8%, transparent)',    border: 'color-mix(in srgb, var(--info) 25%, transparent)',    label: 'Foundation' },
+  adoption:   { color: 'var(--purple)',  bg: 'color-mix(in srgb, var(--purple) 8%, transparent)',  border: 'color-mix(in srgb, var(--purple) 25%, transparent)',  label: 'Adoption'   },
+  advanced:   { color: 'var(--success)', bg: 'color-mix(in srgb, var(--success) 8%, transparent)', border: 'color-mix(in srgb, var(--success) 25%, transparent)', label: 'Advanced'   },
 }
 
 const DEPTS = ['All Departments', 'Marketing', 'Sales & Sponsorship', 'Events', 'Content & Design', 'IT', 'Finance', 'HR & Recruitment', 'Operations', 'DemandifyMedia', 'Leadership']
@@ -123,20 +126,20 @@ function LibraryContent() {
         description={`${courses.length} total · ${completedCount} completed by you`}
         actions={myDept !== 'All Departments' ? (
           <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-            <span style={{ fontSize: '12px', fontWeight: 700, color: '#00897B', background: 'rgba(0,165,163,0.1)', border: '1px solid rgba(0,165,163,0.25)', padding: '3px 10px', borderRadius: '16px' }}>
+            <span style={{ fontSize: '12px', fontWeight: 700, color: 'var(--teal-mid)', background: 'rgba(0,165,163,0.1)', border: '1px solid rgba(0,165,163,0.25)', padding: '3px 10px', borderRadius: '16px' }}>
               {myDept}
             </span>
             {deptFilter === myDept ? (
               <button
                 onClick={() => setDeptFilter('All Departments')}
-                style={{ fontSize: '12px', color: '#9CA3AF', background: 'none', border: 'none', cursor: 'pointer', padding: '2px 6px', fontFamily: 'inherit' }}
+                style={{ fontSize: '12px', color: 'var(--ink4)', background: 'none', border: 'none', cursor: 'pointer', padding: '2px 6px', fontFamily: 'inherit' }}
               >
                 Show all depts
               </button>
             ) : (
               <button
                 onClick={() => setDeptFilter(myDept)}
-                style={{ fontSize: '12px', color: '#00897B', background: 'none', border: 'none', cursor: 'pointer', padding: '2px 6px', fontFamily: 'inherit', fontWeight: 700 }}
+                style={{ fontSize: '12px', color: 'var(--teal-mid)', background: 'none', border: 'none', cursor: 'pointer', padding: '2px 6px', fontFamily: 'inherit', fontWeight: 700 }}
               >
                 Back to {myDept}
               </button>
@@ -159,16 +162,16 @@ function LibraryContent() {
                 onClick={() => setTierFilter(tierFilter === tier ? 'all' : tier)}
                 style={{
                   padding: '20px 22px', borderRadius: '14px', textAlign: 'left', cursor: 'pointer', fontFamily: 'inherit',
-                  background: tierFilter === tier ? cfg.bg : '#FFFFFF',
-                  border: `1px solid ${tierFilter === tier ? cfg.border : '#DDE8EE'}`,
+                  background: tierFilter === tier ? cfg.bg : 'var(--card)',
+                  border: `1px solid ${tierFilter === tier ? cfg.border : 'var(--border)'}`,
                   borderTop: `4px solid ${cfg.color}`,
-                  boxShadow: tierFilter === tier ? `0 4px 14px ${cfg.color}22` : '0 2px 8px rgba(15,25,35,0.06)',
+                  boxShadow: tierFilter === tier ? `0 4px 14px color-mix(in srgb, ${cfg.color} 13%, transparent)` : '0 2px 8px rgba(15,25,35,0.06)',
                   transition: 'all 0.15s ease',
                 }}
               >
                 <div style={{ fontSize: '11px', fontWeight: 800, color: cfg.color, textTransform: 'uppercase', letterSpacing: '1.5px', marginBottom: '10px' }}>{cfg.label}</div>
-                <div style={{ fontSize: '40px', fontWeight: 900, color: '#0F1923', lineHeight: 1, marginBottom: '6px' }}>{count}</div>
-                <div style={{ fontSize: '12px', color: '#2D3E50', fontWeight: 600 }}>{done} completed by you</div>
+                <div style={{ fontSize: '40px', fontWeight: 900, color: 'var(--ink)', lineHeight: 1, marginBottom: '6px' }}>{count}</div>
+                <div style={{ fontSize: '12px', color: 'var(--ink2)', fontWeight: 600 }}>{done} completed by you</div>
               </button>
             )
           })}
@@ -178,8 +181,8 @@ function LibraryContent() {
         {pendingAssignments.length > 0 && tierFilter === 'all' && sourceFilter === 'all' && (
           <div style={{ marginBottom: '32px' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '14px' }}>
-              <div style={{ width: '7px', height: '7px', borderRadius: '50%', background: '#7C3AED', flexShrink: 0 }} />
-              <span style={{ fontSize: '13px', fontWeight: 800, color: '#7C3AED', textTransform: 'uppercase', letterSpacing: '2px' }}>
+              <div style={{ width: '7px', height: '7px', borderRadius: '50%', background: 'var(--purple)', flexShrink: 0 }} />
+              <span style={{ fontSize: '13px', fontWeight: 800, color: 'var(--purple)', textTransform: 'uppercase', letterSpacing: '2px' }}>
                 Assigned to You — {pendingAssignments.length} pending
               </span>
             </div>
@@ -196,16 +199,16 @@ function LibraryContent() {
                     style={{ display: 'flex', flexDirection: 'column', background: 'rgba(124,58,237,0.05)', border: '1px solid rgba(124,58,237,0.25)', borderRadius: '16px', padding: '20px', textDecoration: 'none' }}
                   >
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '10px' }}>
-                      <span style={{ fontSize: '12px', fontWeight: 800, color: '#7C3AED', background: 'rgba(124,58,237,0.12)', border: '1px solid rgba(124,58,237,0.25)', padding: '3px 9px', borderRadius: '16px' }}>Assigned</span>
+                      <span style={{ fontSize: '12px', fontWeight: 800, color: 'var(--purple)', background: 'rgba(124,58,237,0.12)', border: '1px solid rgba(124,58,237,0.25)', padding: '3px 9px', borderRadius: '16px' }}>Assigned</span>
                       <span style={{ fontSize: '12px', fontWeight: 800, color: cfg.color, background: cfg.bg, padding: '3px 9px', borderRadius: '16px', textTransform: 'uppercase', letterSpacing: '1px' }}>{cfg.label}</span>
                     </div>
-                    <div style={{ fontSize: '13px', fontWeight: 800, color: '#0F1923', marginBottom: '6px', lineHeight: 1.3, flex: 1 }}>{course.title}</div>
-                    <div style={{ fontSize: '13px', color: '#2D3E50', marginBottom: '14px', lineHeight: 1.65 }}>{course.subtitle}</div>
+                    <div style={{ fontSize: '13px', fontWeight: 800, color: 'var(--ink)', marginBottom: '6px', lineHeight: 1.3, flex: 1 }}>{course.title}</div>
+                    <div style={{ fontSize: '13px', color: 'var(--ink2)', marginBottom: '14px', lineHeight: 1.65 }}>{course.subtitle}</div>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: '1px solid rgba(124,58,237,0.15)', paddingTop: '10px' }}>
-                      <span style={{ fontSize: '12px', color: overdue ? '#8B1A1A' : '#6B7280', fontWeight: 600 }}>
+                      <span style={{ fontSize: '12px', color: overdue ? 'var(--red)' : 'var(--ink3)', fontWeight: 600 }}>
                         {a.due_date ? (overdue ? `Overdue — ${a.due_date}` : `Due ${a.due_date}`) : 'No deadline'}
                       </span>
-                      <span style={{ fontSize: '13px', fontWeight: 800, color: '#7C3AED' }}>Start</span>
+                      <span style={{ fontSize: '13px', fontWeight: 800, color: 'var(--purple)' }}>Start</span>
                     </div>
                   </Link>
                 )
@@ -218,8 +221,8 @@ function LibraryContent() {
         {mandatoryUncompleted.length > 0 && tierFilter === 'all' && sourceFilter === 'all' && (
           <div style={{ marginBottom: '32px' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '14px' }}>
-              <div style={{ width: '7px', height: '7px', borderRadius: '50%', background: '#8B1A1A', flexShrink: 0 }} />
-              <span style={{ fontSize: '13px', fontWeight: 800, color: '#8B1A1A', textTransform: 'uppercase', letterSpacing: '2px' }}>
+              <div style={{ width: '7px', height: '7px', borderRadius: '50%', background: 'var(--red)', flexShrink: 0 }} />
+              <span style={{ fontSize: '13px', fontWeight: 800, color: 'var(--red)', textTransform: 'uppercase', letterSpacing: '2px' }}>
                 Mandatory — {mandatoryUncompleted.length} remaining
               </span>
             </div>
@@ -233,14 +236,14 @@ function LibraryContent() {
                     style={{ display: 'flex', flexDirection: 'column', background: 'rgba(139,26,26,0.06)', border: '1px solid rgba(139,26,26,0.3)', borderRadius: '16px', padding: '20px', textDecoration: 'none' }}
                   >
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '10px' }}>
-                      <span style={{ fontSize: '13px', fontWeight: 800, color: '#8B1A1A', background: 'rgba(139,26,26,0.15)', border: '1px solid rgba(139,26,26,0.35)', padding: '3px 9px', borderRadius: '16px' }}>Mandatory</span>
+                      <span style={{ fontSize: '13px', fontWeight: 800, color: 'var(--red)', background: 'rgba(139,26,26,0.15)', border: '1px solid rgba(139,26,26,0.35)', padding: '3px 9px', borderRadius: '16px' }}>Mandatory</span>
                       <span style={{ fontSize: '13px', fontWeight: 800, color: cfg.color, background: cfg.bg, padding: '3px 9px', borderRadius: '16px', textTransform: 'uppercase', letterSpacing: '1px' }}>{cfg.label}</span>
                     </div>
-                    <div style={{ fontSize: '13px', fontWeight: 800, color: '#0F1923', marginBottom: '6px', lineHeight: 1.3, flex: 1 }}>{course.title}</div>
-                    <div style={{ fontSize: '13px', color: '#2D3E50', marginBottom: '14px', lineHeight: 1.65 }}>{course.subtitle}</div>
+                    <div style={{ fontSize: '13px', fontWeight: 800, color: 'var(--ink)', marginBottom: '6px', lineHeight: 1.3, flex: 1 }}>{course.title}</div>
+                    <div style={{ fontSize: '13px', color: 'var(--ink2)', marginBottom: '14px', lineHeight: 1.65 }}>{course.subtitle}</div>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: '1px solid rgba(139,26,26,0.15)', paddingTop: '10px' }}>
-                      <span style={{ fontSize: '13px', color: '#2D3E50', fontWeight: 600 }}>{course.estimated_minutes} min</span>
-                      <span style={{ fontSize: '13px', fontWeight: 800, color: '#8B1A1A' }}>Start Now</span>
+                      <span style={{ fontSize: '13px', color: 'var(--ink2)', fontWeight: 600 }}>{course.estimated_minutes} min</span>
+                      <span style={{ fontSize: '13px', fontWeight: 800, color: 'var(--red)' }}>Start Now</span>
                     </div>
                   </Link>
                 )
@@ -251,8 +254,8 @@ function LibraryContent() {
 
         {/* All Courses — section header + filters */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '16px' }}>
-          <div style={{ width: '7px', height: '7px', borderRadius: '50%', background: '#00897B', flexShrink: 0 }} />
-          <span style={{ fontSize: '13px', fontWeight: 800, color: '#0F1923', textTransform: 'uppercase', letterSpacing: '2px' }}>All Courses</span>
+          <div style={{ width: '7px', height: '7px', borderRadius: '50%', background: 'var(--teal-mid)', flexShrink: 0 }} />
+          <span style={{ fontSize: '13px', fontWeight: 800, color: 'var(--ink)', textTransform: 'uppercase', letterSpacing: '2px' }}>All Courses</span>
         </div>
 
         {/* Filters */}
@@ -264,7 +267,7 @@ function LibraryContent() {
               { val: 'manual', label: 'Event Pilot Curated' },
               { val: 'gemini', label: 'AI Generated' },
             ].map(({ val, label }) => (
-              <button key={val} onClick={() => setSourceFilter(val)} style={{ padding: '7px 14px', borderRadius: '16px', border: `1px solid ${sourceFilter === val ? '#00897B' : '#DDE8EE'}`, background: sourceFilter === val ? '#00A5A315' : '#FFFFFF', color: sourceFilter === val ? '#00897B' : '#2D3E50', fontSize: '13px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
+              <button key={val} onClick={() => setSourceFilter(val)} style={{ padding: '7px 14px', borderRadius: '16px', border: `1px solid ${sourceFilter === val ? 'var(--teal-mid)' : 'var(--border)'}`, background: sourceFilter === val ? 'color-mix(in srgb, var(--teal-mid) 8%, transparent)' : 'var(--card)', color: sourceFilter === val ? 'var(--teal-mid)' : 'var(--ink2)', fontSize: '13px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
                 {label}
               </button>
             ))}
@@ -274,12 +277,12 @@ function LibraryContent() {
           <select
             value={deptFilter}
             onChange={e => setDeptFilter(e.target.value)}
-            style={{ padding: '7px 14px', borderRadius: '16px', border: '1px solid #DDE8EE', background: '#FFFFFF', color: '#2D3E50', fontSize: '13px', fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', outline: 'none' }}
+            style={{ padding: '7px 14px', borderRadius: '16px', border: '1px solid var(--border)', background: 'var(--card)', color: 'var(--ink2)', fontSize: '13px', fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', outline: 'none' }}
           >
             {DEPTS.map(d => <option key={d} value={d}>{d}</option>)}
           </select>
 
-          <div style={{ fontSize: '13px', color: '#2D3E50', marginLeft: 'auto' }}>
+          <div style={{ fontSize: '13px', color: 'var(--ink2)', marginLeft: 'auto' }}>
             {filtered.length} course{filtered.length !== 1 ? 's' : ''} shown
           </div>
         </div>
@@ -287,11 +290,11 @@ function LibraryContent() {
         {/* Course grid */}
         {loading ? (
           <div style={{ textAlign: 'center', padding: '60px 0' }}>
-            <div style={{ width: '36px', height: '36px', border: '3px solid #DDE8EE', borderTopColor: '#00897B', borderRadius: '50%', animation: 'spin 0.8s linear infinite', margin: '0 auto 14px' }} />
-            <div style={{ color: '#0F1923', fontSize: '13px' }}>Loading library…</div>
+            <div style={{ width: '36px', height: '36px', border: '3px solid var(--border)', borderTopColor: 'var(--teal-mid)', borderRadius: '50%', animation: 'spin 0.8s linear infinite', margin: '0 auto 14px' }} />
+            <div style={{ color: 'var(--ink)', fontSize: '13px' }}>Loading library…</div>
           </div>
         ) : filtered.length === 0 ? (
-          <div style={{ textAlign: 'center', padding: '60px 0', color: '#2D3E50', fontSize: '13px' }}>
+          <div style={{ textAlign: 'center', padding: '60px 0', color: 'var(--ink2)', fontSize: '13px' }}>
             No courses match the current filters.
           </div>
         ) : (
@@ -308,8 +311,8 @@ function LibraryContent() {
                   href={`/dashboard/course/${course.id}${staffId ? `?staff_id=${staffId}` : ''}`}
                   style={{
                     display: 'flex', flexDirection: 'column',
-                    background: done ? 'rgba(192,244,60,0.04)' : '#FFFFFF',
-                    border: `1px solid ${done ? 'rgba(192,244,60,0.2)' : '#DDE8EE'}`,
+                    background: done ? 'rgba(192,244,60,0.04)' : 'var(--card)',
+                    border: `1px solid ${done ? 'rgba(192,244,60,0.2)' : 'var(--border)'}`,
                     boxShadow: '0 1px 4px rgba(0,165,163,0.06), 0 1px 2px rgba(0,0,0,0.04)',
                     borderRadius: '16px', padding: '22px', textDecoration: 'none',
                     transition: 'border-color 0.15s ease, transform 0.15s ease',
@@ -323,23 +326,23 @@ function LibraryContent() {
                         {cfg.label}
                       </span>
                       {course.is_mandatory && (
-                        <span style={{ fontSize: '13px', fontWeight: 700, color: '#8B1A1A', background: '#8B1A1A12', padding: '3px 9px', borderRadius: '16px' }}>Mandatory</span>
+                        <span style={{ fontSize: '13px', fontWeight: 700, color: 'var(--red)', background: 'color-mix(in srgb, var(--red) 7%, transparent)', padding: '3px 9px', borderRadius: '16px' }}>Mandatory</span>
                       )}
                       {course.source === 'gemini' && (
-                        <span style={{ fontSize: '13px', fontWeight: 700, color: '#A78BFA', background: '#A78BFA12', padding: '3px 9px', borderRadius: '16px' }}>AI</span>
+                        <span style={{ fontSize: '13px', fontWeight: 700, color: 'var(--purple)', background: 'color-mix(in srgb, var(--purple) 7%, transparent)', padding: '3px 9px', borderRadius: '16px' }}>AI</span>
                       )}
                     </div>
                     {done && (
-                      <div style={{ width: '22px', height: '22px', borderRadius: '50%', background: 'rgba(0,137,123,0.12)', border: '1.5px solid #00897B', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                        <svg width="10" height="10" fill="none" stroke="#00695C" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>
+                      <div style={{ width: '22px', height: '22px', borderRadius: '50%', background: 'rgba(0,137,123,0.12)', border: '1.5px solid var(--teal-mid)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                        <svg width="10" height="10" fill="none" stroke="var(--teal)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>
                       </div>
                     )}
                   </div>
 
-                  <div style={{ fontSize: '13px', fontWeight: 800, color: '#0F172A', marginBottom: '6px', lineHeight: 1.3, flex: 1 }}>
+                  <div style={{ fontSize: '13px', fontWeight: 800, color: 'var(--ink)', marginBottom: '6px', lineHeight: 1.3, flex: 1 }}>
                     {course.title}
                   </div>
-                  <div style={{ fontSize: '13px', color: '#0F1923', marginBottom: '16px', lineHeight: 1.5 }}>
+                  <div style={{ fontSize: '13px', color: 'var(--ink)', marginBottom: '16px', lineHeight: 1.5 }}>
                     {course.subtitle}
                   </div>
 
@@ -347,22 +350,22 @@ function LibraryContent() {
                   {course.suggested_by_name && (
                     <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '10px', padding: '6px 10px', background: 'rgba(164,120,255,0.07)', border: '1px solid rgba(164,120,255,0.15)', borderRadius: '8px' }}>
                       <div style={{ width: '18px', height: '18px', borderRadius: '5px', background: 'rgba(164,120,255,0.25)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                        <span style={{ fontSize: '13px', fontWeight: 900, color: '#A478FF' }}>{course.suggested_by_name.charAt(0)}</span>
+                        <span style={{ fontSize: '13px', fontWeight: 900, color: 'var(--purple)' }}>{course.suggested_by_name.charAt(0)}</span>
                       </div>
-                      <span style={{ fontSize: '13px', color: '#2D3E50' }}>
-                        Suggested by <strong style={{ color: '#A478FF', fontWeight: 700 }}>{course.suggested_by_name}</strong>
+                      <span style={{ fontSize: '13px', color: 'var(--ink2)' }}>
+                        Suggested by <strong style={{ color: 'var(--purple)', fontWeight: 700 }}>{course.suggested_by_name}</strong>
                         {course.suggested_by_role && <span> · {course.suggested_by_role}</span>}
                       </span>
                     </div>
                   )}
 
                   {/* Footer */}
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: '1px solid #DDE8EE', paddingTop: '12px' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: '1px solid var(--border)', paddingTop: '12px' }}>
                     <div style={{ display: 'flex', gap: '12px' }}>
-                      <span style={{ fontSize: '13px', color: '#2D3E50', fontWeight: 600 }}>{course.estimated_minutes} min</span>
-                      {course.tool_name && <span style={{ fontSize: '13px', color: '#2D3E50', fontWeight: 600 }}>{course.tool_name}</span>}
+                      <span style={{ fontSize: '13px', color: 'var(--ink2)', fontWeight: 600 }}>{course.estimated_minutes} min</span>
+                      {course.tool_name && <span style={{ fontSize: '13px', color: 'var(--ink2)', fontWeight: 600 }}>{course.tool_name}</span>}
                     </div>
-                    <div style={{ fontSize: '13px', fontWeight: 700, color: done ? '#3D6B00' : attempted ? '#8B1A1A' : '#0F1923' }}>
+                    <div style={{ fontSize: '13px', fontWeight: 700, color: done ? 'var(--lime)' : attempted ? 'var(--red)' : 'var(--ink)' }}>
                       {done ? 'Passed' : attempted ? `Score: ${completion?.test_score ?? 0}%` : 'Not started'}
                     </div>
                   </div>
@@ -381,13 +384,13 @@ function LibraryContent() {
 const S = {
   page: {
     fontFamily: 'var(--font-manrope), Manrope, sans-serif',
-    background: '#E8EEF4',
+    background: 'var(--surface)',
     minHeight:  '100vh',
-    color:      '#0F1923',
+    color:      'var(--ink)',
   },
   nav: {
-    background:   '#FFFFFF',
-    borderBottom: '1px solid #DDE8EE',
+    background:   'var(--card)',
+    borderBottom: '1px solid var(--border)',
     padding:      '0 32px',
     height:       '64px',
     display:      'flex',

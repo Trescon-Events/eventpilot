@@ -52,8 +52,8 @@ interface AppShellNavProps {
 }
 
 const quickLinkStyle: React.CSSProperties = {
-  padding: '8px 14px', borderRadius: '9px', border: '1px solid #DDE8EE', background: '#FFFFFF',
-  color: '#5B7080', fontSize: '13px', fontWeight: 700, textDecoration: 'none', whiteSpace: 'nowrap',
+  padding: '8px 14px', borderRadius: '9px', border: '1px solid var(--border)', background: 'var(--card)',
+  color: 'var(--ink3)', fontSize: '13px', fontWeight: 700, textDecoration: 'none', whiteSpace: 'nowrap',
 }
 
 export function AppShellNav({ moduleKey, moduleHref, subtitle, homeHref, liveIndicator, rightSlot, centerSlot, profileName }: AppShellNavProps) {

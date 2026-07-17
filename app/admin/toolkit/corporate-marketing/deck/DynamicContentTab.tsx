@@ -45,7 +45,7 @@ export default function DynamicContentTab() {
   return (
     <div style={{ display: 'grid', gap: '20px', maxWidth: '980px' }}>
       {/* Sub-tab strip */}
-      <div style={{ display: 'flex', gap: '4px', background: '#fff', border: '1px solid #DDE8EE', borderRadius: '14px', padding: '4px', width: 'fit-content' }}>
+      <div style={{ display: 'flex', gap: '4px', background: 'var(--card)', border: '1px solid var(--border)', borderRadius: '14px', padding: '4px', width: 'fit-content' }}>
         {([
           { id: 'company',    label: 'Company Content' },
           { id: 'stats',      label: 'Statistics' },
@@ -60,7 +60,7 @@ export default function DynamicContentTab() {
               style={{
                 border: 'none',
                 background: active ? BRAND : 'transparent',
-                color: active ? '#fff' : '#5B7080',
+                color: active ? 'var(--red-light)' : 'var(--ink3)',
                 padding: '9px 16px',
                 fontSize: '12px',
                 fontWeight: 800,
@@ -133,7 +133,7 @@ function CompanyContentPanel() {
     <Card>
       <SectionLabel>Company Content</SectionLabel>
       <H2 style={{ marginBottom: '6px' }}>Long-form corporate copy</H2>
-      <div style={{ fontSize: '13px', color: '#5B7080', lineHeight: 1.6, marginBottom: '18px' }}>
+      <div style={{ fontSize: '13px', color: 'var(--ink3)', lineHeight: 1.6, marginBottom: '18px' }}>
         Prose fields used across the deck. Edit, click <strong>Save</strong> — the last-saved time appears next to each field.
       </div>
 
@@ -145,11 +145,11 @@ function CompanyContentPanel() {
           return (
             <div key={key}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '6px' }}>
-                <label style={{ fontSize: '12px', fontWeight: 800, color: '#0F1923', letterSpacing: '0.3px' }}>
+                <label style={{ fontSize: '12px', fontWeight: 800, color: 'var(--ink)', letterSpacing: '0.3px' }}>
                   {label}
                 </label>
                 {meta?.updated_at && (
-                  <span style={{ fontSize: '11px', color: '#94A3B8', fontWeight: 600 }}>
+                  <span style={{ fontSize: '11px', color: 'var(--ink4)', fontWeight: 600 }}>
                     Updated {fmtDate(meta.updated_at)}
                   </span>
                 )}
@@ -180,7 +180,7 @@ function CompanyContentPanel() {
         })}
       </div>
 
-      {savedNote && <div style={{ marginTop: '14px', fontSize: '12px', color: '#00897B', fontWeight: 700 }}>{savedNote}</div>}
+      {savedNote && <div style={{ marginTop: '14px', fontSize: '12px', color: 'var(--teal-mid)', fontWeight: 700 }}>{savedNote}</div>}
       {err && <ErrorBox>{err}</ErrorBox>}
     </Card>
   )
@@ -257,7 +257,7 @@ function StatsPanel() {
     <Card>
       <SectionLabel>Statistics</SectionLabel>
       <H2 style={{ marginBottom: '6px' }}>Numbers that anchor the deck</H2>
-      <div style={{ fontSize: '13px', color: '#5B7080', lineHeight: 1.6, marginBottom: '18px' }}>
+      <div style={{ fontSize: '13px', color: 'var(--ink3)', lineHeight: 1.6, marginBottom: '18px' }}>
         Each stat is a label + value pair. Examples: <em>&ldquo;Years in business&rdquo; → &ldquo;17&rdquo;</em>, <em>&ldquo;Countries&rdquo; → &ldquo;50+&rdquo;</em>.
       </div>
 
@@ -268,11 +268,11 @@ function StatsPanel() {
           return (
             <div key={key}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '10px' }}>
-                <label style={{ fontSize: '12px', fontWeight: 800, color: '#0F1923', letterSpacing: '0.3px' }}>
+                <label style={{ fontSize: '12px', fontWeight: 800, color: 'var(--ink)', letterSpacing: '0.3px' }}>
                   {STAT_LABELS[key] ?? key}
                 </label>
                 {meta?.updated_at && (
-                  <span style={{ fontSize: '11px', color: '#94A3B8', fontWeight: 600 }}>
+                  <span style={{ fontSize: '11px', color: 'var(--ink4)', fontWeight: 600 }}>
                     Updated {fmtDate(meta.updated_at)}
                   </span>
                 )}
@@ -280,7 +280,7 @@ function StatsPanel() {
 
               <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                 {list.length === 0 && (
-                  <div style={{ fontSize: '12px', color: '#94A3B8', fontStyle: 'italic', padding: '10px 0' }}>
+                  <div style={{ fontSize: '12px', color: 'var(--ink3)', fontStyle: 'italic', padding: '10px 0' }}>
                     No stats yet — click Add stat below.
                   </div>
                 )}
@@ -301,7 +301,7 @@ function StatsPanel() {
                     <button
                       onClick={() => removeStat(key, i)}
                       title="Remove"
-                      style={{ background: 'transparent', border: 'none', color: '#94A3B8', cursor: 'pointer', padding: '8px', fontSize: '18px', lineHeight: 1 }}
+                      style={{ background: 'transparent', border: 'none', color: 'var(--ink4)', cursor: 'pointer', padding: '8px', fontSize: '18px', lineHeight: 1 }}
                     >
                       ×
                     </button>
@@ -318,7 +318,7 @@ function StatsPanel() {
         })}
       </div>
 
-      {savedNote && <div style={{ marginTop: '14px', fontSize: '12px', color: '#00897B', fontWeight: 700 }}>{savedNote}</div>}
+      {savedNote && <div style={{ marginTop: '14px', fontSize: '12px', color: 'var(--teal-mid)', fontWeight: 700 }}>{savedNote}</div>}
       {err && <ErrorBox>{err}</ErrorBox>}
     </Card>
   )
@@ -340,14 +340,14 @@ function EventsPanel() {
       .finally(() => setLoading(false))
   }, [])
 
-  if (loading) return <Card><div style={{ fontSize: '13px', color: '#5B7080' }}>Loading events…</div></Card>
+  if (loading) return <Card><div style={{ fontSize: '13px', color: 'var(--ink3)' }}>Loading events…</div></Card>
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '18px' }}>
       <Card>
         <SectionLabel>Upcoming events</SectionLabel>
         <H2 style={{ marginBottom: '6px' }}>Deck reflects the live Events module</H2>
-        <div style={{ fontSize: '13px', color: '#5B7080', lineHeight: 1.6, marginBottom: '18px' }}>
+        <div style={{ fontSize: '13px', color: 'var(--ink3)', lineHeight: 1.6, marginBottom: '18px' }}>
           This is a preview of what the deck will pull. Edit events in the <a href="/admin/events" style={{ color: BRAND, fontWeight: 700 }}>Events module</a> — changes appear here automatically. No duplication.
         </div>
         <EventList rows={upcoming} emptyText="No upcoming events." />
@@ -356,7 +356,7 @@ function EventsPanel() {
       <Card>
         <SectionLabel>Past events</SectionLabel>
         <H2 style={{ marginBottom: '6px' }}>Most recent 24 completed events</H2>
-        <div style={{ fontSize: '13px', color: '#5B7080', lineHeight: 1.6, marginBottom: '18px' }}>
+        <div style={{ fontSize: '13px', color: 'var(--ink3)', lineHeight: 1.6, marginBottom: '18px' }}>
           Same source as above. Ordered by date, most recent first.
         </div>
         <EventList rows={past} emptyText="No past events yet." />
@@ -366,21 +366,21 @@ function EventsPanel() {
 }
 
 function EventList({ rows, emptyText }: { rows: EventRow[]; emptyText: string }) {
-  if (rows.length === 0) return <div style={{ fontSize: '12px', color: '#94A3B8', fontStyle: 'italic' }}>{emptyText}</div>
+  if (rows.length === 0) return <div style={{ fontSize: '12px', color: 'var(--ink3)', fontStyle: 'italic' }}>{emptyText}</div>
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
       {rows.map(e => (
-        <div key={e.id} style={{ display: 'flex', gap: '14px', padding: '12px 14px', border: '1px solid #EEF3F7', borderRadius: '12px', background: '#FAFBFC', alignItems: 'center' }}>
+        <div key={e.id} style={{ display: 'flex', gap: '14px', padding: '12px 14px', border: '1px solid var(--border-light)', borderRadius: '12px', background: 'var(--border-light)', alignItems: 'center' }}>
           <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ fontSize: '13px', fontWeight: 800, color: '#0F1923' }}>{e.name}</div>
-            <div style={{ fontSize: '11px', color: '#5B7080', marginTop: '3px', display: 'flex', gap: '10px' }}>
+            <div style={{ fontSize: '13px', fontWeight: 800, color: 'var(--ink)' }}>{e.name}</div>
+            <div style={{ fontSize: '11px', color: 'var(--ink3)', marginTop: '3px', display: 'flex', gap: '10px' }}>
               {e.event_date && <span>{fmtDate(e.event_date)}</span>}
               {e.city && <span>{e.city}</span>}
               {e.venue && <span>{e.venue}</span>}
               {e.type && <span>{e.type}</span>}
             </div>
           </div>
-          <span style={{ fontSize: '10px', fontWeight: 800, letterSpacing: '0.5px', textTransform: 'uppercase', color: '#5B7080', background: '#EEF3F7', padding: '3px 10px', borderRadius: '10px' }}>{e.status}</span>
+          <span style={{ fontSize: '10px', fontWeight: 800, letterSpacing: '0.5px', textTransform: 'uppercase', color: 'var(--ink3)', background: 'var(--border-light)', padding: '3px 10px', borderRadius: '10px' }}>{e.status}</span>
         </div>
       ))}
     </div>
@@ -442,7 +442,7 @@ function LeadershipPanel() {
     }
   }
 
-  if (loading) return <Card><div style={{ fontSize: '13px', color: '#5B7080' }}>Loading leadership…</div></Card>
+  if (loading) return <Card><div style={{ fontSize: '13px', color: 'var(--ink3)' }}>Loading leadership…</div></Card>
 
   const included = rows.filter(r => r.include_in_deck)
   const others   = rows.filter(r => !r.include_in_deck)
@@ -451,7 +451,7 @@ function LeadershipPanel() {
     <Card>
       <SectionLabel>Leadership</SectionLabel>
       <H2 style={{ marginBottom: '6px' }}>Who appears in the deck</H2>
-      <div style={{ fontSize: '13px', color: '#5B7080', lineHeight: 1.6, marginBottom: '18px' }}>
+      <div style={{ fontSize: '13px', color: 'var(--ink3)', lineHeight: 1.6, marginBottom: '18px' }}>
         People come from <strong>staff_members</strong> (single source of truth — do not duplicate). You control who&apos;s included, in what order, and can add an optional corporate bio just for the deck.
       </div>
 
@@ -467,10 +467,10 @@ function LeadershipPanel() {
       )}
 
       <div>
-        <div style={{ fontSize: '11px', fontWeight: 800, color: '#94A3B8', letterSpacing: '1.5px', textTransform: 'uppercase', marginBottom: '10px' }}>
+        <div style={{ fontSize: '11px', fontWeight: 800, color: 'var(--ink4)', letterSpacing: '1.5px', textTransform: 'uppercase', marginBottom: '10px' }}>
           Available ({others.length})
         </div>
-        {others.length === 0 && <div style={{ fontSize: '12px', color: '#94A3B8', fontStyle: 'italic' }}>Everyone is included.</div>}
+        {others.length === 0 && <div style={{ fontSize: '12px', color: 'var(--ink3)', fontStyle: 'italic' }}>Everyone is included.</div>}
         <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
           {others.map(r => <LeaderRowCard key={r.id} row={r} onChange={p => updateRow(r.id, p)} included={false} />)}
         </div>
@@ -480,7 +480,7 @@ function LeadershipPanel() {
         <PrimaryButton onClick={saveAll} disabled={saving || !dirty}>
           {saving ? 'Saving…' : dirty ? 'Save changes' : 'Saved'}
         </PrimaryButton>
-        {dirty && <span style={{ fontSize: '12px', color: '#94A3B8' }}>Unsaved changes</span>}
+        {dirty && <span style={{ fontSize: '12px', color: 'var(--ink3)' }}>Unsaved changes</span>}
       </div>
 
       {err && <ErrorBox>{err}</ErrorBox>}
@@ -491,7 +491,7 @@ function LeadershipPanel() {
 function LeaderRowCard({ row, onChange, included }: { row: LeaderRow; onChange: (patch: Partial<LeaderRow>) => void; included: boolean }) {
   const [expanded, setExpanded] = useState(false)
   return (
-    <div style={{ border: '1px solid #DDE8EE', borderRadius: '12px', padding: '12px 14px', background: included ? '#fff' : '#FAFBFC' }}>
+    <div style={{ border: '1px solid var(--border)', borderRadius: '12px', padding: '12px 14px', background: included ? 'var(--card)' : 'var(--border-light)' }}>
       <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
         <label style={{ display: 'flex', alignItems: 'center', cursor: 'pointer' }}>
           <input
@@ -505,25 +505,25 @@ function LeaderRowCard({ row, onChange, included }: { row: LeaderRow; onChange: 
           {initials(row.name)}
         </div>
         <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ fontSize: '13px', fontWeight: 800, color: '#0F1923' }}>{row.name}</div>
-          <div style={{ fontSize: '11px', color: '#5B7080', marginTop: '2px' }}>
+          <div style={{ fontSize: '13px', fontWeight: 800, color: 'var(--ink)' }}>{row.name}</div>
+          <div style={{ fontSize: '11px', color: 'var(--ink3)', marginTop: '2px' }}>
             {[row.role, row.department].filter(Boolean).join(' · ') || row.email}
           </div>
         </div>
         {included && (
           <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-            <span style={{ fontSize: '10px', fontWeight: 700, color: '#94A3B8', letterSpacing: '0.5px', textTransform: 'uppercase' }}>Order</span>
+            <span style={{ fontSize: '10px', fontWeight: 700, color: 'var(--ink4)', letterSpacing: '0.5px', textTransform: 'uppercase' }}>Order</span>
             <input
               type="number"
               value={row.display_order ?? 0}
               onChange={e => onChange({ display_order: Number.parseInt(e.target.value || '0', 10) })}
-              style={{ width: '60px', padding: '5px 8px', borderRadius: '8px', border: '1px solid #DDE8EE', fontSize: '12px', fontFamily: 'inherit', textAlign: 'center' }}
+              style={{ width: '60px', padding: '5px 8px', borderRadius: '8px', border: '1px solid var(--border)', fontSize: '12px', fontFamily: 'inherit', textAlign: 'center' }}
             />
           </div>
         )}
         <button
           onClick={() => setExpanded(x => !x)}
-          style={{ background: 'transparent', border: '1px solid #DDE8EE', borderRadius: '8px', padding: '5px 10px', fontSize: '11px', fontWeight: 700, color: '#5B7080', cursor: 'pointer', fontFamily: 'inherit' }}
+          style={{ background: 'transparent', border: '1px solid var(--border)', borderRadius: '8px', padding: '5px 10px', fontSize: '11px', fontWeight: 700, color: 'var(--ink3)', cursor: 'pointer', fontFamily: 'inherit' }}
         >
           {expanded ? 'Hide bio' : row.corporate_bio ? 'Edit bio' : 'Add bio'}
         </button>

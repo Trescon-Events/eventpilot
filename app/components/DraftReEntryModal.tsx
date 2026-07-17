@@ -35,25 +35,25 @@ export default function DraftReEntryModal({
       padding: '20px', fontFamily: 'var(--font-manrope), sans-serif',
     }}>
       <div style={{
-        background: '#FFFFFF', borderRadius: '18px', padding: '32px 32px 28px',
+        background: 'var(--card)', borderRadius: '18px', padding: '32px 32px 28px',
         maxWidth: '460px', width: '100%',
         boxShadow: '0 30px 60px rgba(0, 0, 0, 0.25)',
       }}>
-        <div style={{ fontSize: '11px', fontWeight: 800, color: '#00695C', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '10px' }}>
+        <div style={{ fontSize: '11px', fontWeight: 800, color: 'var(--teal)', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '10px' }}>
           You have a draft
         </div>
 
-        <div style={{ fontSize: '22px', fontWeight: 800, color: '#0F1923', letterSpacing: '-0.3px', lineHeight: 1.25, marginBottom: '6px' }}>
+        <div style={{ fontSize: '22px', fontWeight: 800, color: 'var(--ink)', letterSpacing: '-0.3px', lineHeight: 1.25, marginBottom: '6px' }}>
           {displayLabel}
         </div>
 
         {statusText && (
-          <div style={{ fontSize: '14px', fontWeight: 600, color: '#5B7080', marginBottom: '4px' }}>
+          <div style={{ fontSize: '14px', fontWeight: 600, color: 'var(--ink3)', marginBottom: '4px' }}>
             {statusText}
           </div>
         )}
 
-        <div style={{ fontSize: '13px', color: '#8CA0B3', marginBottom: '28px' }}>
+        <div style={{ fontSize: '13px', color: 'var(--ink4)', marginBottom: '28px' }}>
           Last edited {relativeTime(lastUpdated)}.
         </div>
 
@@ -62,7 +62,7 @@ export default function DraftReEntryModal({
             onClick={onResume}
             style={{
               flex: 1, padding: '13px 20px', borderRadius: '11px',
-              background: '#00695C', color: '#FFFFFF', border: 'none',
+              background: 'var(--teal)', color: 'var(--teal-light)', border: 'none',
               fontSize: '14px', fontWeight: 800, cursor: 'pointer',
               fontFamily: 'inherit', transition: 'opacity 0.15s',
             }}
@@ -75,18 +75,18 @@ export default function DraftReEntryModal({
             onClick={onStartNew}
             style={{
               flex: 1, padding: '13px 20px', borderRadius: '11px',
-              background: '#FFFFFF', color: '#5B7080', border: '1px solid #DDE8EE',
+              background: 'var(--card)', color: 'var(--ink3)', border: '1px solid var(--border)',
               fontSize: '14px', fontWeight: 800, cursor: 'pointer',
               fontFamily: 'inherit', transition: 'all 0.15s',
             }}
-            onMouseEnter={e => { e.currentTarget.style.background = '#F0F4F8'; e.currentTarget.style.color = '#0F1923' }}
-            onMouseLeave={e => { e.currentTarget.style.background = '#FFFFFF'; e.currentTarget.style.color = '#5B7080' }}
+            onMouseEnter={e => { e.currentTarget.style.background = 'var(--card-hi)'; e.currentTarget.style.color = 'var(--ink)' }}
+            onMouseLeave={e => { e.currentTarget.style.background = 'var(--card)'; e.currentTarget.style.color = 'var(--ink3)' }}
           >
             Start new
           </button>
         </div>
 
-        <div style={{ fontSize: '11px', color: '#B8CDD8', textAlign: 'center', marginTop: '18px', lineHeight: 1.5 }}>
+        <div style={{ fontSize: '11px', color: 'var(--ink4)', textAlign: 'center', marginTop: '18px', lineHeight: 1.5 }}>
           Starting new will remove this draft. If you want to keep it, click Resume first, then save under a new name.
         </div>
       </div>

@@ -4,9 +4,11 @@ import { useState, useEffect, useCallback } from 'react'
 import PageHeader from '@/app/components/PageHeader'
 
 const C = {
-  bg: '#F6F8FB', surface: '#FFFFFF', border: '#DDE8EE', text: '#0F1923',
-  muted: '#5B7080', green: '#00897B', amber: '#D97706', red: '#8B1A1A',
-  blue: '#0284C7', purple: '#7C3AED',
+  bg: 'var(--surface)', surface: 'var(--card)', border: 'var(--border)', text: 'var(--ink)',
+  muted: 'var(--ink3)',
+  green: 'var(--teal-mid)', // NOTE: named "green" historically, this is brand teal
+  amber: '#F5B94D', red: 'var(--red)',
+  blue: 'var(--info)', purple: 'var(--purple)',
 }
 
 type Session = { sid: string; adm: boolean }
@@ -198,7 +200,7 @@ export default function SalaryPage() {
         {/* Detail panel */}
         {selected && (
           <div>
-            {msg && <div style={{ padding: '10px 16px', borderRadius: 8, marginBottom: 16, background: msg.ok ? `${C.green}12` : `${C.red}12`, border: `1px solid ${msg.ok ? C.green : C.red}30`, color: msg.ok ? C.green : C.red, fontSize: 13, fontWeight: 600 }}>{msg.text}</div>}
+            {msg && <div style={{ padding: '10px 16px', borderRadius: 8, marginBottom: 16, background: msg.ok ? `${'color-mix(in srgb, ' + (C.green) + ' 7%, transparent)'}` : `${'color-mix(in srgb, ' + (C.red) + ' 7%, transparent)'}`, border: `1px solid ${'color-mix(in srgb, ' + (msg.ok ? C.green : C.red) + ' 19%, transparent)'}`, color: msg.ok ? C.green : C.red, fontSize: 13, fontWeight: 600 }}>{msg.text}</div>}
 
             {/* Current salary card */}
             <div style={{ background: C.surface, borderRadius: 12, border: `1px solid ${C.border}`, padding: 24, marginBottom: 20 }}>
@@ -208,7 +210,7 @@ export default function SalaryPage() {
                   <div style={{ fontSize: 13, color: C.muted }}>{selected.department ?? '—'} · {selected.role ?? selected.job_level}</div>
                 </div>
                 <button onClick={() => { setShowForm(true); setFBasic(currentRecord ? String(currentRecord.basic_salary) : ''); setFAllow(currentRecord ? String(currentRecord.allowances) : '0'); setFDeduct(currentRecord ? String(currentRecord.deductions) : '0'); setFGrade(currentRecord?.grade_id ?? ''); setFCurrency(currentRecord?.currency ?? getCurrencyForOffice(selected.office_id)); setFNotes(''); setFDate(new Date().toISOString().slice(0, 10)) }}
-                  style={{ padding: '8px 18px', borderRadius: 8, border: 'none', background: C.purple, color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
+                  style={{ padding: '8px 18px', borderRadius: 8, border: 'none', background: C.purple, color: 'var(--purple-light)', fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
                   {currentRecord ? 'Revise Salary' : '+ Add Salary'}
                 </button>
               </div>
@@ -222,14 +224,14 @@ export default function SalaryPage() {
                       { label: 'Deductions', value: `- ${fmt(currentRecord.deductions)}`, color: C.red },
                       { label: 'Net Salary', value: `${currencySymbol(currentRecord.currency)} ${fmt(currentRecord.net_salary)}`, color: C.purple },
                     ].map(c => (
-                      <div key={c.label} style={{ padding: '14px 16px', borderRadius: 10, background: `${c.color}08`, border: `1px solid ${c.color}20` }}>
+                      <div key={c.label} style={{ padding: '14px 16px', borderRadius: 10, background: `${'color-mix(in srgb, ' + (c.color) + ' 3%, transparent)'}`, border: `1px solid ${'color-mix(in srgb, ' + (c.color) + ' 13%, transparent)'}` }}>
                         <div style={{ fontSize: 11, fontWeight: 700, color: C.muted, marginBottom: 4 }}>{c.label}</div>
                         <div style={{ fontSize: 16, fontWeight: 800, color: c.color }}>{c.value}</div>
                       </div>
                     ))}
                   </div>
                   {/* USD equivalent + office context */}
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 14px', borderRadius: 8, background: '#F8FAFB', border: `1px solid ${C.border}` }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 14px', borderRadius: 8, background: 'var(--surface)', border: `1px solid ${C.border}` }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                       <span style={{ fontSize: 12, color: C.muted }}>Office: <strong style={{ color: C.text }}>{selected.office_id ? selected.office_id.charAt(0).toUpperCase() + selected.office_id.slice(1) : '—'}</strong></span>
                       <span style={{ color: C.border }}>|</span>
@@ -238,7 +240,7 @@ export default function SalaryPage() {
                     {currentRecord.currency !== 'USD' && (
                       <div style={{ fontSize: 12, color: C.muted }}>
                         USD equivalent: <strong style={{ color: C.blue }}>$ {fmt(toUSD(currentRecord.net_salary, currentRecord.currency))}</strong>
-                        <span style={{ fontSize: 10, color: '#B8CDD8', marginLeft: 4 }}>@ {USD_RATES[currentRecord.currency]}</span>
+                        <span style={{ fontSize: 10, color: 'var(--ink4)', marginLeft: 4 }}>@ {USD_RATES[currentRecord.currency]}</span>
                       </div>
                     )}
                   </div>
@@ -252,17 +254,17 @@ export default function SalaryPage() {
                       { label: 'Deductions', value: '—', color: C.muted },
                       { label: 'Net Salary', value: '—', color: C.muted },
                     ].map(c => (
-                      <div key={c.label} style={{ padding: '14px 16px', background: '#F8FAFB', borderRight: `1px solid ${C.border}` }}>
+                      <div key={c.label} style={{ padding: '14px 16px', background: 'var(--surface)', borderRight: `1px solid ${C.border}` }}>
                         <div style={{ fontSize: 11, fontWeight: 700, color: C.muted, marginBottom: 4 }}>{c.label}</div>
-                        <div style={{ fontSize: 16, fontWeight: 800, color: '#B8CDD8' }}>{c.value}</div>
+                        <div style={{ fontSize: 16, fontWeight: 800, color: 'var(--ink3)' }}>{c.value}</div>
                       </div>
                     ))}
                   </div>
-                  <div style={{ padding: '16px', textAlign: 'center', background: '#FAFBFC' }}>
+                  <div style={{ padding: '16px', textAlign: 'center', background: 'var(--surface)' }}>
                     <div style={{ fontSize: 13, color: C.muted, marginBottom: 8 }}>No salary record for {selected.name}. Set up their compensation to start tracking payroll.</div>
-                    <div style={{ fontSize: 11, color: '#B8CDD8', marginBottom: 12 }}>e.g. Basic: AED 8,000 + Allowances: AED 1,500 - Deductions: AED 500 = Net: AED 9,000 | Grade: M1 | Effective: 2026-07-01</div>
+                    <div style={{ fontSize: 11, color: 'var(--ink4)', marginBottom: 12 }}>e.g. Basic: AED 8,000 + Allowances: AED 1,500 - Deductions: AED 500 = Net: AED 9,000 | Grade: M1 | Effective: 2026-07-01</div>
                     <button onClick={() => { setShowForm(true); setFBasic(''); setFAllow('0'); setFDeduct('0'); setFGrade(''); setFCurrency(selected.department === 'Dubai' ? 'AED' : 'INR'); setFNotes(''); setFDate(new Date().toISOString().slice(0, 10)) }}
-                      style={{ padding: '8px 20px', borderRadius: 8, border: 'none', background: C.purple, color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>+ Add Salary Record</button>
+                      style={{ padding: '8px 20px', borderRadius: 8, border: 'none', background: C.purple, color: 'var(--purple-light)', fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>+ Add Salary Record</button>
                   </div>
                 </div>
               )}
@@ -280,7 +282,7 @@ export default function SalaryPage() {
                 </div>
                 <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                   <thead>
-                    <tr style={{ background: '#F8FAFB' }}>
+                    <tr style={{ background: 'var(--surface)' }}>
                       {['Effective From', 'Effective To', 'Grade', 'Basic', 'Gross', 'Net', 'USD Equiv.', 'Notes'].map(h => (
                         <th key={h} style={{ padding: '10px 14px', fontSize: 11, fontWeight: 700, color: C.muted, textAlign: 'left', borderBottom: `1px solid ${C.border}` }}>{h}</th>
                       ))}
@@ -288,7 +290,7 @@ export default function SalaryPage() {
                   </thead>
                   <tbody>
                     {records.map(r => (
-                      <tr key={r.id} style={{ borderBottom: `1px solid ${C.border}08`, background: !r.effective_to ? `${C.purple}04` : 'transparent' }}>
+                      <tr key={r.id} style={{ borderBottom: `1px solid ${'color-mix(in srgb, ' + (C.border) + ' 3%, transparent)'}`, background: !r.effective_to ? `${'color-mix(in srgb, ' + (C.purple) + ' 2%, transparent)'}` : 'transparent' }}>
                         <td style={{ padding: '10px 14px', fontSize: 13, fontWeight: 600, color: C.text }}>{r.effective_from}</td>
                         <td style={{ padding: '10px 14px', fontSize: 13, color: r.effective_to ? C.muted : C.green }}>{r.effective_to ?? 'Current'}</td>
                         <td style={{ padding: '10px 14px', fontSize: 12, color: C.muted }}>{r.grade?.code ?? '—'}</td>
@@ -321,9 +323,9 @@ export default function SalaryPage() {
                 ))}
               </div>
             </div>
-            <div style={{ background: '#F8FAFB', borderRadius: 10, border: `1px dashed ${C.border}`, padding: '14px 18px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <div style={{ background: 'var(--surface)', borderRadius: 10, border: `1px dashed ${C.border}`, padding: '14px 18px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
               <div style={{ fontSize: 13, color: C.muted }}>Have salary data in a spreadsheet? Upload it all at once.</div>
-              <button onClick={() => setShowBulk(true)} style={{ padding: '7px 16px', borderRadius: 8, border: `1px solid ${C.purple}30`, background: `${C.purple}08`, color: C.purple, fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>Bulk CSV Import</button>
+              <button onClick={() => setShowBulk(true)} style={{ padding: '7px 16px', borderRadius: 8, border: `1px solid ${'color-mix(in srgb, ' + (C.purple) + ' 19%, transparent)'}`, background: `${'color-mix(in srgb, ' + (C.purple) + ' 3%, transparent)'}`, color: C.purple, fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>Bulk CSV Import</button>
             </div>
           </div>
         )}
@@ -385,14 +387,14 @@ export default function SalaryPage() {
             {fBasic && (() => {
               const net = Number(fBasic) + Number(fAllow || 0) - Number(fDeduct || 0)
               return (
-                <div style={{ padding: '10px 14px', borderRadius: 8, background: `${C.purple}08`, border: `1px solid ${C.purple}20`, marginBottom: 14, fontSize: 13 }}>
+                <div style={{ padding: '10px 14px', borderRadius: 8, background: `${'color-mix(in srgb, ' + (C.purple) + ' 3%, transparent)'}`, border: `1px solid ${'color-mix(in srgb, ' + (C.purple) + ' 13%, transparent)'}`, marginBottom: 14, fontSize: 13 }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: fCurrency !== 'USD' ? 4 : 0 }}>
                     <span style={{ fontWeight: 700, color: C.muted }}>Net Salary</span>
                     <span style={{ fontWeight: 800, color: C.purple }}>{currencySymbol(fCurrency)} {fmt(net)}</span>
                   </div>
                   {fCurrency !== 'USD' && (
                     <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                      <span style={{ fontSize: 11, color: '#B8CDD8' }}>USD equivalent (for P&L)</span>
+                      <span style={{ fontSize: 11, color: 'var(--ink4)' }}>USD equivalent (for P&L)</span>
                       <span style={{ fontSize: 12, fontWeight: 700, color: C.blue }}>$ {fmt(toUSD(net, fCurrency))}</span>
                     </div>
                   )}
@@ -409,7 +411,7 @@ export default function SalaryPage() {
             <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
               <button onClick={() => setShowForm(false)} style={{ padding: '9px 18px', borderRadius: 8, border: `1px solid ${C.border}`, background: C.surface, color: C.muted, fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>Cancel</button>
               <button onClick={submitSalary} disabled={saving}
-                style={{ padding: '9px 24px', borderRadius: 8, border: 'none', background: saving ? C.muted : C.purple, color: '#fff', fontSize: 13, fontWeight: 700, cursor: saving ? 'wait' : 'pointer', fontFamily: 'inherit' }}>
+                style={{ padding: '9px 24px', borderRadius: 8, border: 'none', background: saving ? C.muted : C.purple, color: 'var(--purple-light)', fontSize: 13, fontWeight: 700, cursor: saving ? 'wait' : 'pointer', fontFamily: 'inherit' }}>
                 {saving ? 'Saving...' : 'Save Salary'}
               </button>
             </div>
@@ -424,7 +426,7 @@ export default function SalaryPage() {
             <div style={{ fontSize: 16, fontWeight: 800, color: C.text, marginBottom: 6 }}>Bulk Salary Import</div>
             <div style={{ fontSize: 13, color: C.muted, marginBottom: 16 }}>Upload a CSV file with salary data for multiple staff members at once.</div>
 
-            <div style={{ padding: 16, borderRadius: 10, background: '#F8FAFB', border: `1px solid ${C.border}`, marginBottom: 16 }}>
+            <div style={{ padding: 16, borderRadius: 10, background: 'var(--surface)', border: `1px solid ${C.border}`, marginBottom: 16 }}>
               <div style={{ fontSize: 12, fontWeight: 700, color: C.text, marginBottom: 8 }}>Required CSV format:</div>
               <code style={{ fontSize: 11, color: C.muted, display: 'block', lineHeight: 1.8 }}>
                 email, basic_salary, allowances, deductions, currency, grade_code, effective_from, notes<br />
@@ -437,7 +439,7 @@ export default function SalaryPage() {
               </div>
             </div>
 
-            <label style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px 16px', borderRadius: 10, border: `2px dashed ${bulkUploading ? C.muted : C.purple}`, background: `${C.purple}04`, cursor: bulkUploading ? 'wait' : 'pointer', marginBottom: 16 }}>
+            <label style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px 16px', borderRadius: 10, border: `2px dashed ${bulkUploading ? C.muted : C.purple}`, background: `${'color-mix(in srgb, ' + (C.purple) + ' 2%, transparent)'}`, cursor: bulkUploading ? 'wait' : 'pointer', marginBottom: 16 }}>
               <input type="file" accept=".csv" style={{ display: 'none' }} onChange={e => { const f = e.target.files?.[0]; if (f) handleBulkCSV(f); e.target.value = '' }} disabled={bulkUploading} />
               <div style={{ textAlign: 'center' }}>
                 <svg width="24" height="24" fill="none" stroke={bulkUploading ? C.muted : C.purple} strokeWidth="2" strokeLinecap="round" viewBox="0 0 24 24" style={{ marginBottom: 6 }}><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
@@ -448,15 +450,15 @@ export default function SalaryPage() {
             {bulkResult && (
               <div style={{ marginBottom: 16 }}>
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8, marginBottom: 12 }}>
-                  <div style={{ padding: '10px 12px', borderRadius: 8, background: `${C.green}10`, textAlign: 'center' }}>
+                  <div style={{ padding: '10px 12px', borderRadius: 8, background: `${'color-mix(in srgb, ' + (C.green) + ' 6%, transparent)'}`, textAlign: 'center' }}>
                     <div style={{ fontSize: 18, fontWeight: 800, color: C.green }}>{bulkResult.created}</div>
                     <div style={{ fontSize: 11, fontWeight: 600, color: C.muted }}>Created</div>
                   </div>
-                  <div style={{ padding: '10px 12px', borderRadius: 8, background: `${C.amber}10`, textAlign: 'center' }}>
+                  <div style={{ padding: '10px 12px', borderRadius: 8, background: `${'color-mix(in srgb, ' + (C.amber) + ' 6%, transparent)'}`, textAlign: 'center' }}>
                     <div style={{ fontSize: 18, fontWeight: 800, color: C.amber }}>{bulkResult.skipped}</div>
                     <div style={{ fontSize: 11, fontWeight: 600, color: C.muted }}>Skipped</div>
                   </div>
-                  <div style={{ padding: '10px 12px', borderRadius: 8, background: `${C.red}10`, textAlign: 'center' }}>
+                  <div style={{ padding: '10px 12px', borderRadius: 8, background: `${'color-mix(in srgb, ' + (C.red) + ' 6%, transparent)'}`, textAlign: 'center' }}>
                     <div style={{ fontSize: 18, fontWeight: 800, color: C.red }}>{bulkResult.error_count}</div>
                     <div style={{ fontSize: 11, fontWeight: 600, color: C.muted }}>Errors</div>
                   </div>

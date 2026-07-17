@@ -80,20 +80,20 @@ const PHASES = [
 const PHASE_NUM_MAP: Record<string, number> = { initiation: 1, campaign: 2, live: 3, closure: 4, completed: 4 }
 
 const ROLE_COLORS: Record<string, { bg: string; fg: string }> = {
-  commercial: { bg: '#FFF8E1', fg: '#B45309' },
-  marketing: { bg: '#E3F2FD', fg: '#1565C0' },
-  delegate: { bg: '#E8F5E9', fg: '#2E7D32' },
-  operations: { bg: '#F3E5F5', fg: '#7B1FA2' },
-  design: { bg: '#FCE4EC', fg: '#C62828' },
-  production: { bg: '#ECEFF1', fg: '#546E7A' },
+  commercial: { bg: 'var(--amber-light)', fg: 'var(--amber)' },
+  marketing: { bg: 'var(--info-light)', fg: 'var(--info)' },
+  delegate: { bg: 'var(--success-light)', fg: 'var(--success)' },
+  operations: { bg: 'var(--purple-light)', fg: 'var(--purple)' },
+  design: { bg: 'var(--red-light)', fg: 'var(--red)' },
+  production: { bg: 'rgba(255,255,255,0.06)', fg: 'var(--ink3)' },
 }
 
 const STATUS_CYCLE: Record<string, string> = { pending: 'in_progress', in_progress: 'done', done: 'pending' }
 const STATUS_LABELS: Record<string, string> = { pending: 'Pending', in_progress: 'In Progress', done: 'Done' }
 const STATUS_COLORS: Record<string, { bg: string; fg: string }> = {
-  pending: { bg: '#F0F4F8', fg: '#5B7080' },
-  in_progress: { bg: '#E0F2F1', fg: '#00695C' },
-  done: { bg: '#E8F5E9', fg: '#2E7D32' },
+  pending: { bg: 'var(--surface)', fg: 'var(--ink3)' },
+  in_progress: { bg: 'var(--teal-light)', fg: 'var(--teal)' },
+  done: { bg: 'var(--success-light)', fg: 'var(--success)' },
 }
 
 const DELEGATE_STAGES = ['sourced', 'contacted', 'interested', 'registered', 'confirmed', 'attended']
@@ -102,8 +102,8 @@ const STAGE_LABELS: Record<string, string> = {
   registered: 'Registered', confirmed: 'Confirmed', attended: 'Attended',
 }
 const STAGE_COLORS: Record<string, string> = {
-  sourced: '#5B7080', contacted: '#1565C0', interested: '#B45309',
-  registered: '#00695C', confirmed: '#2E7D32', attended: '#166534',
+  sourced: 'var(--ink3)', contacted: 'var(--info)', interested: 'var(--amber)',
+  registered: 'var(--teal)', confirmed: 'var(--success)', attended: 'var(--success)',
 }
 
 const SOURCE_LABELS: Record<string, string> = {
@@ -112,9 +112,9 @@ const SOURCE_LABELS: Record<string, string> = {
 }
 
 const FORMAT_COLORS: Record<string, { bg: string; fg: string }> = {
-  physical: { bg: '#E8F5E9', fg: '#2E7D32' },
-  virtual: { bg: '#E3F2FD', fg: '#1565C0' },
-  hybrid: { bg: '#F3E5F5', fg: '#7B1FA2' },
+  physical: { bg: 'var(--success-light)', fg: 'var(--success)' },
+  virtual: { bg: 'var(--info-light)', fg: 'var(--info)' },
+  hybrid: { bg: 'var(--purple-light)', fg: 'var(--purple)' },
 }
 
 const TABS = ['Overview', 'Brief', 'Tasks', 'Pipeline', 'Assets'] as const
@@ -176,14 +176,14 @@ function PlusIcon() {
 
 function CheckIcon({ checked }: { checked: boolean }) {
   if (!checked) return (
-    <svg width="18" height="18" fill="none" stroke="#B8CDD8" strokeWidth="2" viewBox="0 0 24 24">
+    <svg width="18" height="18" fill="none" stroke="var(--ink4)" strokeWidth="2" viewBox="0 0 24 24">
       <rect x="3" y="3" width="18" height="18" rx="4" />
     </svg>
   )
   return (
     <svg width="18" height="18" fill="none" viewBox="0 0 24 24">
-      <rect x="3" y="3" width="18" height="18" rx="4" fill="#00695C" />
-      <path d="M7 12.5l3 3 7-7" stroke="#FFFFFF" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
+      <rect x="3" y="3" width="18" height="18" rx="4" fill="var(--teal)" />
+      <path d="M7 12.5l3 3 7-7" stroke="var(--teal-light)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
   )
 }
@@ -194,8 +194,8 @@ function CheckIcon({ checked }: { checked: boolean }) {
 function ProgressBar({ value, max, height = 8, color }: { value: number; max: number; height?: number; color?: string }) {
   const pct = max > 0 ? Math.min((value / max) * 100, 100) : 0
   return (
-    <div style={{ height, background: '#E8EEF4', borderRadius: height / 2, overflow: 'hidden', width: '100%' }}>
-      <div style={{ height: '100%', width: `${pct}%`, background: color || (pct >= 80 ? '#2E7D32' : pct >= 50 ? '#00695C' : '#B45309'), borderRadius: height / 2, transition: 'width 0.4s ease' }} />
+    <div style={{ height, background: 'var(--surface)', borderRadius: height / 2, overflow: 'hidden', width: '100%' }}>
+      <div style={{ height: '100%', width: `${pct}%`, background: color || (pct >= 80 ? 'var(--success)' : pct >= 50 ? 'var(--teal)' : '#F5B94D'), borderRadius: height / 2, transition: 'width 0.4s ease' }} />
     </div>
   )
 }
@@ -613,17 +613,17 @@ export default function BespokeWorkspacePage({ params }: { params: Promise<{ id:
   /* ── Loading state ────────────────────────────────────────────── */
   if (loading) {
     return (
-      <div style={{ minHeight: '100vh', background: '#E8EEF4', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-        <div style={{ fontSize: '15px', color: '#5B7080', fontFamily: 'var(--font-manrope)', fontWeight: 600 }}>Loading project...</div>
+      <div style={{ minHeight: '100vh', background: 'var(--surface)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <div style={{ fontSize: '15px', color: 'var(--ink3)', fontFamily: 'var(--font-manrope)', fontWeight: 600 }}>Loading project...</div>
       </div>
     )
   }
 
   if (!project) {
     return (
-      <div style={{ minHeight: '100vh', background: '#E8EEF4', display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: '16px' }}>
-        <div style={{ fontSize: '17px', color: '#0F1923', fontFamily: 'var(--font-manrope)', fontWeight: 700 }}>Project not found</div>
-        <Link href="/admin/bespoke" style={{ fontSize: '14px', fontWeight: 600, color: '#00695C', textDecoration: 'none' }}>Back to Bespoke Tracker</Link>
+      <div style={{ minHeight: '100vh', background: 'var(--surface)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: '16px' }}>
+        <div style={{ fontSize: '17px', color: 'var(--ink)', fontFamily: 'var(--font-manrope)', fontWeight: 700 }}>Project not found</div>
+        <Link href="/admin/bespoke" style={{ fontSize: '14px', fontWeight: 600, color: 'var(--teal)', textDecoration: 'none' }}>Back to Bespoke Tracker</Link>
       </div>
     )
   }
@@ -640,19 +640,19 @@ export default function BespokeWorkspacePage({ params }: { params: Promise<{ id:
   const recentTasks = [...tasks].filter(t => t.status !== 'pending').sort((a, b) => (b.sort_order || 0) - (a.sort_order || 0)).slice(0, 5)
 
   const INPUT_STYLE: React.CSSProperties = {
-    width: '100%', padding: '8px 12px', borderRadius: '8px', border: '1px solid #B8CDD8',
-    fontSize: '14px', fontFamily: 'var(--font-manrope)', color: '#0F1923', background: '#FFFFFF', outline: 'none',
+    width: '100%', padding: '8px 12px', borderRadius: '8px', border: '1px solid var(--ink4)',
+    fontSize: '14px', fontFamily: 'var(--font-manrope)', color: 'var(--ink)', background: 'var(--card)', outline: 'none',
   }
 
   return (
-    <div style={{ minHeight: '100vh', background: '#E8EEF4', fontFamily: 'var(--font-manrope)' }}>
+    <div style={{ minHeight: '100vh', background: 'var(--surface)', fontFamily: 'var(--font-manrope)' }}>
       <PageHeader
         title={project.title}
         description={
           <>
             {project.client_company} · {fmtDate(project.event_date)}{project.city ? ` · ${project.city}` : ''}
             {days !== null && (
-              <> · <span style={{ fontWeight: 700, color: days <= 7 ? '#EF4444' : days <= 14 ? '#B45309' : 'inherit' }}>
+              <> · <span style={{ fontWeight: 700, color: days <= 7 ? 'var(--red)' : days <= 14 ? '#F5B94D' : 'inherit' }}>
                 {days > 0 ? `${days} days left` : days === 0 ? 'Event Day' : `${Math.abs(days)} days ago`}
               </span></>
             )}
@@ -666,39 +666,39 @@ export default function BespokeWorkspacePage({ params }: { params: Promise<{ id:
       {/* ═══ KPI Strip ══════════════════════════════════════════════ */}
       <div style={{ padding: '20px 32px 0', display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '16px' }}>
         {/* Days Left */}
-        <div style={{ background: '#FFFFFF', borderRadius: '10px', padding: '16px 20px', border: '1px solid #DDE8EE' }}>
-          <div style={{ fontSize: '12px', fontWeight: 700, color: '#5B7080', marginBottom: '4px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Days Left</div>
-          <div style={{ fontSize: '28px', fontWeight: 800, color: days !== null && days <= 7 ? '#DC2626' : '#0F1923' }}>{days ?? '--'}</div>
+        <div style={{ background: 'var(--card)', borderRadius: '10px', padding: '16px 20px', border: '1px solid var(--border)' }}>
+          <div style={{ fontSize: '12px', fontWeight: 700, color: 'var(--ink3)', marginBottom: '4px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Days Left</div>
+          <div style={{ fontSize: '28px', fontWeight: 800, color: days !== null && days <= 7 ? 'var(--red)' : 'var(--ink)' }}>{days ?? '--'}</div>
         </div>
         {/* Registrations */}
-        <div style={{ background: '#FFFFFF', borderRadius: '10px', padding: '16px 20px', border: '1px solid #DDE8EE' }}>
-          <div style={{ fontSize: '12px', fontWeight: 700, color: '#5B7080', marginBottom: '4px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Registrations</div>
-          <div style={{ fontSize: '28px', fontWeight: 800, color: '#0F1923' }}>
-            {project.delegate_stats.registered} <span style={{ fontSize: '16px', fontWeight: 600, color: '#5B7080' }}>/ {project.target_delegate_count}</span>
+        <div style={{ background: 'var(--card)', borderRadius: '10px', padding: '16px 20px', border: '1px solid var(--border)' }}>
+          <div style={{ fontSize: '12px', fontWeight: 700, color: 'var(--ink3)', marginBottom: '4px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Registrations</div>
+          <div style={{ fontSize: '28px', fontWeight: 800, color: 'var(--ink)' }}>
+            {project.delegate_stats.registered} <span style={{ fontSize: '16px', fontWeight: 600, color: 'var(--ink3)' }}>/ {project.target_delegate_count}</span>
           </div>
           <ProgressBar value={project.delegate_stats.registered} max={project.target_delegate_count} height={4} />
         </div>
         {/* Contract Value */}
-        <div style={{ background: '#FFFFFF', borderRadius: '10px', padding: '16px 20px', border: '1px solid #DDE8EE' }}>
-          <div style={{ fontSize: '12px', fontWeight: 700, color: '#5B7080', marginBottom: '4px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Contract Value</div>
-          <div style={{ fontSize: '28px', fontWeight: 800, color: '#0F1923' }}>{fmtCurrency(project.contract_value)}</div>
+        <div style={{ background: 'var(--card)', borderRadius: '10px', padding: '16px 20px', border: '1px solid var(--border)' }}>
+          <div style={{ fontSize: '12px', fontWeight: 700, color: 'var(--ink3)', marginBottom: '4px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Contract Value</div>
+          <div style={{ fontSize: '28px', fontWeight: 800, color: 'var(--ink)' }}>{fmtCurrency(project.contract_value)}</div>
         </div>
         {/* Phase */}
-        <div style={{ background: '#FFFFFF', borderRadius: '10px', padding: '16px 20px', border: '1px solid #DDE8EE' }}>
-          <div style={{ fontSize: '12px', fontWeight: 700, color: '#5B7080', marginBottom: '4px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Phase</div>
-          <div style={{ fontSize: '20px', fontWeight: 800, color: '#B45309', textTransform: 'capitalize' }}>{project.phase}</div>
+        <div style={{ background: 'var(--card)', borderRadius: '10px', padding: '16px 20px', border: '1px solid var(--border)' }}>
+          <div style={{ fontSize: '12px', fontWeight: 700, color: 'var(--ink3)', marginBottom: '4px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Phase</div>
+          <div style={{ fontSize: '20px', fontWeight: 800, color: '#F5B94D', textTransform: 'capitalize' }}>{project.phase}</div>
         </div>
       </div>
 
       {/* ═══ Tab Bar ═════════════════════════════════════════════════ */}
-      <div style={{ padding: '20px 32px 0', display: 'flex', gap: '4px', borderBottom: '1px solid #DDE8EE' }}>
+      <div style={{ padding: '20px 32px 0', display: 'flex', gap: '4px', borderBottom: '1px solid var(--border)' }}>
         {TABS.map(t => (
           <button key={t} onClick={() => setTab(t)} style={{
             padding: '10px 20px', border: 'none', borderRadius: '8px 8px 0 0', cursor: 'pointer',
             fontSize: '14px', fontWeight: 700, fontFamily: 'var(--font-manrope)',
-            background: tab === t ? '#FFFFFF' : 'transparent',
-            color: tab === t ? '#B45309' : '#5B7080',
-            borderBottom: tab === t ? '2px solid #B45309' : '2px solid transparent',
+            background: tab === t ? 'var(--card)' : 'transparent',
+            color: tab === t ? '#F5B94D' : 'var(--ink3)',
+            borderBottom: tab === t ? '2px solid #F5B94D' : '2px solid transparent',
           }}>{t}</button>
         ))}
       </div>
@@ -724,8 +724,8 @@ export default function BespokeWorkspacePage({ params }: { params: Promise<{ id:
           return (
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
             {/* Phase Progress */}
-            <div style={{ background: '#FFFFFF', borderRadius: '12px', border: '1px solid #DDE8EE', padding: '24px', gridColumn: '1 / -1' }}>
-              <h3 style={{ margin: '0 0 16px', fontSize: '15px', fontWeight: 800, color: '#0F1923' }}>Phase Progress</h3>
+            <div style={{ background: 'var(--card)', borderRadius: '12px', border: '1px solid var(--border)', padding: '24px', gridColumn: '1 / -1' }}>
+              <h3 style={{ margin: '0 0 16px', fontSize: '15px', fontWeight: 800, color: 'var(--ink)' }}>Phase Progress</h3>
               <div style={{ display: 'flex', gap: '4px' }}>
                 {PHASES.map(p => {
                   const isActive = phaseInfo ? p.num === phaseInfo.activePhase : false
@@ -733,16 +733,16 @@ export default function BespokeWorkspacePage({ params }: { params: Promise<{ id:
                     <div key={p.key} style={{ flex: 1, textAlign: 'center' }}>
                       <div style={{
                         height: '8px', borderRadius: '4px', marginBottom: '8px',
-                        background: isActive ? '#B45309' : '#E8EEF4',
+                        background: isActive ? '#F5B94D' : 'var(--surface)',
                         transition: 'background 0.3s',
                       }} />
                       <div style={{
                         fontSize: '12px',
                         fontWeight: isActive ? 800 : 600,
-                        color: isActive ? '#B45309' : '#5B7080',
+                        color: isActive ? '#F5B94D' : 'var(--ink3)',
                         padding: isActive ? '2px 8px' : '2px 0',
                         borderRadius: '6px',
-                        background: isActive ? '#FFF8E1' : 'transparent',
+                        background: isActive ? 'var(--amber-light)' : 'transparent',
                         display: 'inline-block',
                       }}>
                         {p.label}
@@ -751,7 +751,7 @@ export default function BespokeWorkspacePage({ params }: { params: Promise<{ id:
                   )
                 })}
               </div>
-              <div style={{ marginTop: '12px', fontSize: '13px', color: '#5B7080', fontWeight: 600 }}>
+              <div style={{ marginTop: '12px', fontSize: '13px', color: 'var(--ink3)', fontWeight: 600 }}>
                 {phaseInfo
                   ? `Day ${phaseInfo.dayOf} of ${phaseInfo.totalRunway} — ${phaseInfo.daysRemaining} days remaining`
                   : 'Set contract signed + event dates to enable phase timeline'}
@@ -759,8 +759,8 @@ export default function BespokeWorkspacePage({ params }: { params: Promise<{ id:
             </div>
 
             {/* Team Leads */}
-            <div style={{ background: '#FFFFFF', borderRadius: '12px', border: '1px solid #DDE8EE', padding: '24px' }}>
-              <h3 style={{ margin: '0 0 16px', fontSize: '15px', fontWeight: 800, color: '#0F1923' }}>Team Leads</h3>
+            <div style={{ background: 'var(--card)', borderRadius: '12px', border: '1px solid var(--border)', padding: '24px' }}>
+              <h3 style={{ margin: '0 0 16px', fontSize: '15px', fontWeight: 800, color: 'var(--ink)' }}>Team Leads</h3>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
                 {[
                   { role: 'Commercial',    label: leadLabel(project.commercial_lead, project.commercial_lead_manual) },
@@ -770,60 +770,60 @@ export default function BespokeWorkspacePage({ params }: { params: Promise<{ id:
                   { role: 'Design',        label: leadLabel(project.design_lead,     null) },
                 ].map(({ role, label }) => (
                   <div key={role} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <span style={{ fontSize: '13px', fontWeight: 600, color: '#5B7080' }}>{role}</span>
-                    <span style={{ fontSize: '14px', fontWeight: 700, color: label === 'Unassigned' ? '#B8CDD8' : '#0F1923' }}>{label}</span>
+                    <span style={{ fontSize: '13px', fontWeight: 600, color: 'var(--ink3)' }}>{role}</span>
+                    <span style={{ fontSize: '14px', fontWeight: 700, color: label === 'Unassigned' ? 'var(--ink4)' : 'var(--ink)' }}>{label}</span>
                   </div>
                 ))}
               </div>
             </div>
 
             {/* Quick Stats */}
-            <div style={{ background: '#FFFFFF', borderRadius: '12px', border: '1px solid #DDE8EE', padding: '24px' }}>
-              <h3 style={{ margin: '0 0 16px', fontSize: '15px', fontWeight: 800, color: '#0F1923' }}>Quick Stats</h3>
+            <div style={{ background: 'var(--card)', borderRadius: '12px', border: '1px solid var(--border)', padding: '24px' }}>
+              <h3 style={{ margin: '0 0 16px', fontSize: '15px', fontWeight: 800, color: 'var(--ink)' }}>Quick Stats</h3>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                  <span style={{ fontSize: '13px', color: '#5B7080' }}>Client</span>
+                  <span style={{ fontSize: '13px', color: 'var(--ink3)' }}>Client</span>
                   <span style={{
                     fontSize: '14px',
                     fontWeight: project.client_company ? 700 : 500,
-                    color: project.client_company ? '#0F1923' : '#B8CDD8',
+                    color: project.client_company ? 'var(--ink)' : 'var(--ink4)',
                   }}>{project.client_company || '—'}</span>
                 </div>
                 <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                  <span style={{ fontSize: '13px', color: '#5B7080' }}>Total Tasks</span>
-                  <span style={{ fontSize: '14px', fontWeight: 700, color: '#0F1923' }}>{tasks.length}</span>
+                  <span style={{ fontSize: '13px', color: 'var(--ink3)' }}>Total Tasks</span>
+                  <span style={{ fontSize: '14px', fontWeight: 700, color: 'var(--ink)' }}>{tasks.length}</span>
                 </div>
                 <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                  <span style={{ fontSize: '13px', color: '#5B7080' }}>Completed Tasks</span>
-                  <span style={{ fontSize: '14px', fontWeight: 700, color: '#2E7D32' }}>{tasks.filter(t => t.status === 'done').length}</span>
+                  <span style={{ fontSize: '13px', color: 'var(--ink3)' }}>Completed Tasks</span>
+                  <span style={{ fontSize: '14px', fontWeight: 700, color: 'var(--success)' }}>{tasks.filter(t => t.status === 'done').length}</span>
                 </div>
                 <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                  <span style={{ fontSize: '13px', color: '#5B7080' }}>Overdue Tasks</span>
-                  <span style={{ fontSize: '14px', fontWeight: 700, color: '#DC2626' }}>{tasks.filter(t => isOverdue(t.due_date, t.status)).length}</span>
+                  <span style={{ fontSize: '13px', color: 'var(--ink3)' }}>Overdue Tasks</span>
+                  <span style={{ fontSize: '14px', fontWeight: 700, color: 'var(--red)' }}>{tasks.filter(t => isOverdue(t.due_date, t.status)).length}</span>
                 </div>
                 <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                  <span style={{ fontSize: '13px', color: '#5B7080' }}>Pipeline Delegates</span>
-                  <span style={{ fontSize: '14px', fontWeight: 700, color: '#0F1923' }}>{delegates.length}</span>
+                  <span style={{ fontSize: '13px', color: 'var(--ink3)' }}>Pipeline Delegates</span>
+                  <span style={{ fontSize: '14px', fontWeight: 700, color: 'var(--ink)' }}>{delegates.length}</span>
                 </div>
 
                 {/* Venue row — format-conditional */}
                 {project.format === 'virtual' ? (
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                    <span style={{ fontSize: '13px', color: '#5B7080' }}>Venue</span>
+                    <span style={{ fontSize: '13px', color: 'var(--ink3)' }}>Venue</span>
                     <div style={{ textAlign: 'right' }}>
-                      <div style={{ fontSize: '14px', fontWeight: 700, color: '#0F1923' }}>Webinar</div>
+                      <div style={{ fontSize: '14px', fontWeight: 700, color: 'var(--ink)' }}>Webinar</div>
                       {project.webinar_platform && (
-                        <div style={{ fontSize: '12px', color: '#5B7080', marginTop: '2px' }}>{project.webinar_platform}</div>
+                        <div style={{ fontSize: '12px', color: 'var(--ink3)', marginTop: '2px' }}>{project.webinar_platform}</div>
                       )}
                     </div>
                   </div>
                 ) : (
                   <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                    <span style={{ fontSize: '13px', color: '#5B7080' }}>Venue</span>
+                    <span style={{ fontSize: '13px', color: 'var(--ink3)' }}>Venue</span>
                     <span style={{
                       fontSize: '14px',
                       fontWeight: 700,
-                      color: (project.venue || project.city) ? '#0F1923' : '#B8CDD8',
+                      color: (project.venue || project.city) ? 'var(--ink)' : 'var(--ink4)',
                     }}>
                       {`${project.venue ?? 'TBD'}, ${project.city ?? '—'}`}
                     </span>
@@ -833,8 +833,8 @@ export default function BespokeWorkspacePage({ params }: { params: Promise<{ id:
                 {/* Registration Target */}
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                    <span style={{ fontSize: '13px', color: '#5B7080' }}>Registration Target</span>
-                    <span style={{ fontSize: '14px', fontWeight: 700, color: '#0F1923' }}>
+                    <span style={{ fontSize: '13px', color: 'var(--ink3)' }}>Registration Target</span>
+                    <span style={{ fontSize: '14px', fontWeight: 700, color: 'var(--ink)' }}>
                       {project.delegate_stats.registered} / {project.target_delegate_count}
                     </span>
                   </div>
@@ -848,19 +848,19 @@ export default function BespokeWorkspacePage({ params }: { params: Promise<{ id:
             </div>
 
             {/* Recent Activity */}
-            <div style={{ background: '#FFFFFF', borderRadius: '12px', border: '1px solid #DDE8EE', padding: '24px', gridColumn: '1 / -1' }}>
-              <h3 style={{ margin: '0 0 16px', fontSize: '15px', fontWeight: 800, color: '#0F1923' }}>Recent Activity</h3>
+            <div style={{ background: 'var(--card)', borderRadius: '12px', border: '1px solid var(--border)', padding: '24px', gridColumn: '1 / -1' }}>
+              <h3 style={{ margin: '0 0 16px', fontSize: '15px', fontWeight: 800, color: 'var(--ink)' }}>Recent Activity</h3>
               {recentTasks.length === 0 ? (
-                <div style={{ fontSize: '14px', color: '#5B7080' }}>No task updates yet.</div>
+                <div style={{ fontSize: '14px', color: 'var(--ink3)' }}>No task updates yet.</div>
               ) : (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                   {recentTasks.map(t => {
                     const sc = STATUS_COLORS[t.status] || STATUS_COLORS.pending
                     return (
-                      <div key={t.id} style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '8px 0', borderBottom: '1px solid #F0F4F8' }}>
+                      <div key={t.id} style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '8px 0', borderBottom: '1px solid var(--surface)' }}>
                         <span style={{ fontSize: '11px', fontWeight: 700, padding: '2px 8px', borderRadius: '6px', background: sc.bg, color: sc.fg }}>{STATUS_LABELS[t.status]}</span>
-                        <span style={{ fontSize: '14px', color: '#0F1923', flex: 1 }}>{t.title}</span>
-                        <span style={{ fontSize: '12px', color: '#5B7080' }}>Phase {t.phase}</span>
+                        <span style={{ fontSize: '14px', color: 'var(--ink)', flex: 1 }}>{t.title}</span>
+                        <span style={{ fontSize: '12px', color: 'var(--ink3)' }}>Phase {t.phase}</span>
                       </div>
                     )
                   })}
@@ -869,25 +869,25 @@ export default function BespokeWorkspacePage({ params }: { params: Promise<{ id:
             </div>
 
             {/* Suggested Tasks */}
-            <div style={{ background: '#FFFFFF', borderRadius: '12px', border: '1px solid #DDE8EE', padding: '24px', gridColumn: '1 / -1' }}>
-              <h3 style={{ margin: '0 0 16px', fontSize: '15px', fontWeight: 800, color: '#0F1923' }}>Suggested Tasks</h3>
+            <div style={{ background: 'var(--card)', borderRadius: '12px', border: '1px solid var(--border)', padding: '24px', gridColumn: '1 / -1' }}>
+              <h3 style={{ margin: '0 0 16px', fontSize: '15px', fontWeight: 800, color: 'var(--ink)' }}>Suggested Tasks</h3>
               {!phaseInfo ? (
-                <div style={{ fontSize: '14px', color: '#5B7080' }}>Set project timeline to see suggested tasks.</div>
+                <div style={{ fontSize: '14px', color: 'var(--ink3)' }}>Set project timeline to see suggested tasks.</div>
               ) : suggestedTasks.length === 0 ? (
-                <div style={{ fontSize: '14px', color: '#5B7080' }}>All tasks in the active phase are complete.</div>
+                <div style={{ fontSize: '14px', color: 'var(--ink3)' }}>All tasks in the active phase are complete.</div>
               ) : (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                   {suggestedTasks.map(t => {
                     const roleColor = ROLE_COLORS[t.assigned_role] || ROLE_COLORS.commercial
                     const overdue = isOverdue(t.due_date, t.status)
                     return (
-                      <div key={t.id} style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '8px 0', borderBottom: '1px solid #F0F4F8' }}>
-                        <span style={{ fontSize: '14px', fontWeight: 600, color: '#0F1923', flex: 1 }}>{t.title}</span>
+                      <div key={t.id} style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '8px 0', borderBottom: '1px solid var(--surface)' }}>
+                        <span style={{ fontSize: '14px', fontWeight: 600, color: 'var(--ink)', flex: 1 }}>{t.title}</span>
                         <span style={{
                           fontSize: '11px', fontWeight: 700, padding: '2px 8px', borderRadius: '6px',
                           background: roleColor.bg, color: roleColor.fg, textTransform: 'capitalize',
                         }}>{t.assigned_role}</span>
-                        <span style={{ fontSize: '12px', fontWeight: 600, color: overdue ? '#DC2626' : '#5B7080', minWidth: '90px', textAlign: 'right' }}>
+                        <span style={{ fontSize: '12px', fontWeight: 600, color: overdue ? 'var(--red)' : 'var(--ink3)', minWidth: '90px', textAlign: 'right' }}>
                           {fmtDate(t.due_date)}
                         </span>
                       </div>
@@ -918,7 +918,7 @@ export default function BespokeWorkspacePage({ params }: { params: Promise<{ id:
             {/* Briefing incomplete banner — only when not yet locked */}
             {!project.brief_is_locked && (
               <div style={{
-                background: '#FFF7ED', borderLeft: '4px solid #EA580C', color: '#7C2D12',
+                background: 'var(--orange-light)', borderLeft: '4px solid var(--orange)', color: 'var(--orange)',
                 padding: '16px', borderRadius: '8px', marginBottom: '20px',
                 fontSize: '14px', fontWeight: 600, fontFamily: 'var(--font-manrope)',
                 lineHeight: 1.5,
@@ -931,7 +931,7 @@ export default function BespokeWorkspacePage({ params }: { params: Promise<{ id:
 
             {lockSuccess && (
               <div style={{
-                background: '#DCFCE7', borderLeft: '4px solid #16A34A', color: '#166534',
+                background: 'var(--success-light)', borderLeft: '4px solid var(--success)', color: 'var(--success)',
                 padding: '14px 16px', borderRadius: '8px', marginBottom: '20px',
                 fontSize: '14px', fontWeight: 700, fontFamily: 'var(--font-manrope)',
               }}>
@@ -942,8 +942,8 @@ export default function BespokeWorkspacePage({ params }: { params: Promise<{ id:
             <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
 
               {/* ── Drag-and-drop uploader ─────────────────────────── */}
-              <div style={{ background: '#FFFFFF', borderRadius: '12px', border: '1px solid #DDE8EE', padding: '24px' }}>
-                <h3 style={{ margin: '0 0 12px', fontSize: '15px', fontWeight: 800, color: '#B45309' }}>Upload Brief Document</h3>
+              <div style={{ background: 'var(--card)', borderRadius: '12px', border: '1px solid var(--border)', padding: '24px' }}>
+                <h3 style={{ margin: '0 0 12px', fontSize: '15px', fontWeight: 800, color: '#F5B94D' }}>Upload Brief Document</h3>
                 <div
                   onDragOver={e => { e.preventDefault(); setBriefDragOver(true) }}
                   onDragLeave={() => setBriefDragOver(false)}
@@ -964,27 +964,27 @@ export default function BespokeWorkspacePage({ params }: { params: Promise<{ id:
                     input.click()
                   }}
                   style={{
-                    border: `2px dashed ${briefDragOver ? '#B45309' : '#B8CDD8'}`,
-                    background: briefDragOver ? '#FFF7ED' : '#F8FAFC',
+                    border: `2px dashed ${briefDragOver ? '#F5B94D' : 'var(--ink4)'}`,
+                    background: briefDragOver ? 'var(--orange-light)' : 'var(--border-light)',
                     borderRadius: '10px', padding: '32px', textAlign: 'center',
                     cursor: briefUploading || briefParsing ? 'wait' : 'pointer',
                     transition: 'border-color 0.2s, background 0.2s',
                   }}
                 >
                   {briefUploading ? (
-                    <div style={{ fontSize: '14px', fontWeight: 700, color: '#B45309' }}>Uploading…</div>
+                    <div style={{ fontSize: '14px', fontWeight: 700, color: '#F5B94D' }}>Uploading…</div>
                   ) : briefParsing ? (
-                    <div style={{ fontSize: '14px', fontWeight: 700, color: '#B45309' }}>Parsing… extracting fields from your brief</div>
+                    <div style={{ fontSize: '14px', fontWeight: 700, color: '#F5B94D' }}>Parsing… extracting fields from your brief</div>
                   ) : (
                     <>
-                      <div style={{ fontSize: '14px', fontWeight: 700, color: '#0F1923', marginBottom: '4px' }}>
+                      <div style={{ fontSize: '14px', fontWeight: 700, color: 'var(--ink)', marginBottom: '4px' }}>
                         Drop a PDF or DOCX brief here, or click to browse
                       </div>
-                      <div style={{ fontSize: '12px', color: '#5B7080' }}>
+                      <div style={{ fontSize: '12px', color: 'var(--ink3)' }}>
                         We&rsquo;ll auto-fill the fields below with what we can extract. Max 20 MB.
                       </div>
                       {project.brief_file_url && (
-                        <div style={{ fontSize: '12px', color: '#2E7D32', marginTop: '8px', fontWeight: 600 }}>
+                        <div style={{ fontSize: '12px', color: 'var(--success)', marginTop: '8px', fontWeight: 600 }}>
                           Current brief: {project.brief_file_url.split('/').pop()}
                         </div>
                       )}
@@ -994,7 +994,7 @@ export default function BespokeWorkspacePage({ params }: { params: Promise<{ id:
                 {briefUploadError && (
                   <div style={{
                     marginTop: '10px', padding: '8px 12px', borderRadius: '8px',
-                    background: '#FEE2E2', color: '#991B1B', fontSize: '13px', fontWeight: 600,
+                    background: 'var(--red-light)', color: 'var(--red)', fontSize: '13px', fontWeight: 600,
                   }}>
                     {briefUploadError}
                   </div>
@@ -1002,8 +1002,8 @@ export default function BespokeWorkspacePage({ params }: { params: Promise<{ id:
               </div>
 
               {/* ── Event Objectives ─────────────────────────────── */}
-              <div style={{ background: '#FFFFFF', borderRadius: '12px', border: '1px solid #DDE8EE', padding: '24px' }}>
-                <h3 style={{ margin: '0 0 16px', fontSize: '15px', fontWeight: 800, color: '#B45309' }}>Event Objectives</h3>
+              <div style={{ background: 'var(--card)', borderRadius: '12px', border: '1px solid var(--border)', padding: '24px' }}>
+                <h3 style={{ margin: '0 0 16px', fontSize: '15px', fontWeight: 800, color: '#F5B94D' }}>Event Objectives</h3>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
                   {([
                     ['primary_goal',     'Primary Goal *'],
@@ -1012,7 +1012,7 @@ export default function BespokeWorkspacePage({ params }: { params: Promise<{ id:
                     ['desired_outcome',  'Desired Outcome'],
                   ] as const).map(([field, label]) => (
                     <div key={field}>
-                      <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#2D3E50', marginBottom: '4px' }}>{label}</label>
+                      <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: 'var(--ink2)', marginBottom: '4px' }}>{label}</label>
                       <textarea
                         style={{ ...INPUT_STYLE, minHeight: '60px', resize: 'vertical' }}
                         value={briefFields[field]}
@@ -1024,9 +1024,9 @@ export default function BespokeWorkspacePage({ params }: { params: Promise<{ id:
               </div>
 
               {/* ── ICP ──────────────────────────────────────────── */}
-              <div style={{ background: '#FFFFFF', borderRadius: '12px', border: '1px solid #DDE8EE', padding: '24px' }}>
-                <h3 style={{ margin: '0 0 16px', fontSize: '15px', fontWeight: 800, color: '#B45309' }}>Ideal Customer Profile (ICP)</h3>
-                <div style={{ fontSize: '12px', color: '#5B7080', marginBottom: '12px' }}>
+              <div style={{ background: 'var(--card)', borderRadius: '12px', border: '1px solid var(--border)', padding: '24px' }}>
+                <h3 style={{ margin: '0 0 16px', fontSize: '15px', fontWeight: 800, color: '#F5B94D' }}>Ideal Customer Profile (ICP)</h3>
+                <div style={{ fontSize: '12px', color: 'var(--ink3)', marginBottom: '12px' }}>
                   One entry per line. At least one section is required to lock the brief.
                 </div>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '12px' }}>
@@ -1036,7 +1036,7 @@ export default function BespokeWorkspacePage({ params }: { params: Promise<{ id:
                     ['icp_geographies', 'Geographies', 'UAE\nSaudi Arabia\n…'],
                   ] as const).map(([field, label, placeholder]) => (
                     <div key={field}>
-                      <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#2D3E50', marginBottom: '4px' }}>{label}</label>
+                      <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: 'var(--ink2)', marginBottom: '4px' }}>{label}</label>
                       <textarea
                         style={{ ...INPUT_STYLE, minHeight: '110px', resize: 'vertical' }}
                         placeholder={placeholder}
@@ -1049,8 +1049,8 @@ export default function BespokeWorkspacePage({ params }: { params: Promise<{ id:
               </div>
 
               {/* ── Target Accounts ──────────────────────────────── */}
-              <div style={{ background: '#FFFFFF', borderRadius: '12px', border: '1px solid #DDE8EE', padding: '24px' }}>
-                <h3 style={{ margin: '0 0 16px', fontSize: '15px', fontWeight: 800, color: '#B45309' }}>Target Accounts</h3>
+              <div style={{ background: 'var(--card)', borderRadius: '12px', border: '1px solid var(--border)', padding: '24px' }}>
+                <h3 style={{ margin: '0 0 16px', fontSize: '15px', fontWeight: 800, color: '#F5B94D' }}>Target Accounts</h3>
                 <textarea
                   style={{ ...INPUT_STYLE, minHeight: '100px', resize: 'vertical' }}
                   placeholder="Paste target accounts here — one per line or CSV."
@@ -1060,11 +1060,11 @@ export default function BespokeWorkspacePage({ params }: { params: Promise<{ id:
               </div>
 
               {/* ── Client Approver ──────────────────────────────── */}
-              <div style={{ background: '#FFFFFF', borderRadius: '12px', border: '1px solid #DDE8EE', padding: '24px' }}>
-                <h3 style={{ margin: '0 0 16px', fontSize: '15px', fontWeight: 800, color: '#B45309' }}>Client Approver</h3>
+              <div style={{ background: 'var(--card)', borderRadius: '12px', border: '1px solid var(--border)', padding: '24px' }}>
+                <h3 style={{ margin: '0 0 16px', fontSize: '15px', fontWeight: 800, color: '#F5B94D' }}>Client Approver</h3>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
                   <div>
-                    <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#2D3E50', marginBottom: '4px' }}>Name *</label>
+                    <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: 'var(--ink2)', marginBottom: '4px' }}>Name *</label>
                     <input
                       style={INPUT_STYLE}
                       placeholder="Approver full name"
@@ -1073,7 +1073,7 @@ export default function BespokeWorkspacePage({ params }: { params: Promise<{ id:
                     />
                   </div>
                   <div>
-                    <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#2D3E50', marginBottom: '4px' }}>Email</label>
+                    <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: 'var(--ink2)', marginBottom: '4px' }}>Email</label>
                     <input
                       type="email"
                       style={INPUT_STYLE}
@@ -1086,11 +1086,11 @@ export default function BespokeWorkspacePage({ params }: { params: Promise<{ id:
               </div>
 
               {/* ── Logistics & Brand Notes ──────────────────────── */}
-              <div style={{ background: '#FFFFFF', borderRadius: '12px', border: '1px solid #DDE8EE', padding: '24px' }}>
-                <h3 style={{ margin: '0 0 16px', fontSize: '15px', fontWeight: 800, color: '#B45309' }}>Logistics &amp; Brand Notes</h3>
+              <div style={{ background: 'var(--card)', borderRadius: '12px', border: '1px solid var(--border)', padding: '24px' }}>
+                <h3 style={{ margin: '0 0 16px', fontSize: '15px', fontWeight: 800, color: '#F5B94D' }}>Logistics &amp; Brand Notes</h3>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
                   <div>
-                    <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#2D3E50', marginBottom: '4px' }}>
+                    <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: 'var(--ink2)', marginBottom: '4px' }}>
                       Client Brand Assets Folder Link (URL)
                     </label>
                     <input
@@ -1101,7 +1101,7 @@ export default function BespokeWorkspacePage({ params }: { params: Promise<{ id:
                     />
                   </div>
                   <div>
-                    <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#2D3E50', marginBottom: '4px' }}>Logistics Notes</label>
+                    <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: 'var(--ink2)', marginBottom: '4px' }}>Logistics Notes</label>
                     <textarea
                       style={{ ...INPUT_STYLE, minHeight: '80px', resize: 'vertical' }}
                       placeholder={project.format === 'virtual'
@@ -1112,7 +1112,7 @@ export default function BespokeWorkspacePage({ params }: { params: Promise<{ id:
                     />
                   </div>
                   <div>
-                    <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#2D3E50', marginBottom: '4px' }}>Branding Notes</label>
+                    <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: 'var(--ink2)', marginBottom: '4px' }}>Branding Notes</label>
                     <textarea
                       style={{ ...INPUT_STYLE, minHeight: '80px', resize: 'vertical' }}
                       placeholder="Client branding guidelines, color schemes, tone of voice…"
@@ -1124,28 +1124,28 @@ export default function BespokeWorkspacePage({ params }: { params: Promise<{ id:
               </div>
 
               {/* ── Speakers ─────────────────────────────────────── */}
-              <div style={{ background: '#FFFFFF', borderRadius: '12px', border: '1px solid #DDE8EE', padding: '24px' }}>
+              <div style={{ background: 'var(--card)', borderRadius: '12px', border: '1px solid var(--border)', padding: '24px' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-                  <h3 style={{ margin: 0, fontSize: '15px', fontWeight: 800, color: '#B45309' }}>Speakers</h3>
+                  <h3 style={{ margin: 0, fontSize: '15px', fontWeight: 800, color: '#F5B94D' }}>Speakers</h3>
                   <button onClick={() => setSpeakers(prev => [...prev, { name: '', title: '', company: '', bio: '' }])} style={{
                     display: 'flex', alignItems: 'center', gap: '4px', padding: '4px 12px', borderRadius: '6px',
-                    border: '1px solid #B8CDD8', background: '#FFFFFF', fontSize: '12px', fontWeight: 700,
-                    color: '#5B7080', cursor: 'pointer', fontFamily: 'var(--font-manrope)',
+                    border: '1px solid var(--ink4)', background: 'var(--card)', fontSize: '12px', fontWeight: 700,
+                    color: 'var(--ink3)', cursor: 'pointer', fontFamily: 'var(--font-manrope)',
                   }}>
                     <PlusIcon /> Add Speaker
                   </button>
                 </div>
                 {speakers.length === 0 ? (
-                  <div style={{ fontSize: '13px', color: '#5B7080', padding: '8px 0' }}>No speakers yet. Click &ldquo;Add Speaker&rdquo; to start.</div>
+                  <div style={{ fontSize: '13px', color: 'var(--ink3)', padding: '8px 0' }}>No speakers yet. Click &ldquo;Add Speaker&rdquo; to start.</div>
                 ) : (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
                     {speakers.map((s, idx) => (
-                      <div key={idx} style={{ border: '1px solid #F0F4F8', borderRadius: '8px', padding: '12px', background: '#F8FAFC' }}>
+                      <div key={idx} style={{ border: '1px solid var(--surface)', borderRadius: '8px', padding: '12px', background: 'var(--border-light)' }}>
                         <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '8px' }}>
                           <button
                             aria-label="Remove speaker"
                             onClick={() => setSpeakers(prev => prev.filter((_, i) => i !== idx))}
-                            style={{ border: 'none', background: 'none', cursor: 'pointer', fontSize: '18px', color: '#5B7080', lineHeight: 1 }}
+                            style={{ border: 'none', background: 'none', cursor: 'pointer', fontSize: '18px', color: 'var(--ink3)', lineHeight: 1 }}
                           >×</button>
                         </div>
                         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '10px', marginBottom: '10px' }}>
@@ -1169,28 +1169,28 @@ export default function BespokeWorkspacePage({ params }: { params: Promise<{ id:
               </div>
 
               {/* ── Agenda ───────────────────────────────────────── */}
-              <div style={{ background: '#FFFFFF', borderRadius: '12px', border: '1px solid #DDE8EE', padding: '24px' }}>
+              <div style={{ background: 'var(--card)', borderRadius: '12px', border: '1px solid var(--border)', padding: '24px' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-                  <h3 style={{ margin: 0, fontSize: '15px', fontWeight: 800, color: '#B45309' }}>Agenda</h3>
+                  <h3 style={{ margin: 0, fontSize: '15px', fontWeight: 800, color: '#F5B94D' }}>Agenda</h3>
                   <button onClick={() => setAgenda(prev => [...prev, { time: '', title: '', description: '' }])} style={{
                     display: 'flex', alignItems: 'center', gap: '4px', padding: '4px 12px', borderRadius: '6px',
-                    border: '1px solid #B8CDD8', background: '#FFFFFF', fontSize: '12px', fontWeight: 700,
-                    color: '#5B7080', cursor: 'pointer', fontFamily: 'var(--font-manrope)',
+                    border: '1px solid var(--ink4)', background: 'var(--card)', fontSize: '12px', fontWeight: 700,
+                    color: 'var(--ink3)', cursor: 'pointer', fontFamily: 'var(--font-manrope)',
                   }}>
                     <PlusIcon /> Add Agenda Item
                   </button>
                 </div>
                 {agenda.length === 0 ? (
-                  <div style={{ fontSize: '13px', color: '#5B7080', padding: '8px 0' }}>No agenda items yet.</div>
+                  <div style={{ fontSize: '13px', color: 'var(--ink3)', padding: '8px 0' }}>No agenda items yet.</div>
                 ) : (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
                     {agenda.map((a, idx) => (
-                      <div key={idx} style={{ border: '1px solid #F0F4F8', borderRadius: '8px', padding: '12px', background: '#F8FAFC' }}>
+                      <div key={idx} style={{ border: '1px solid var(--surface)', borderRadius: '8px', padding: '12px', background: 'var(--border-light)' }}>
                         <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '6px' }}>
                           <button
                             aria-label="Remove agenda item"
                             onClick={() => setAgenda(prev => prev.filter((_, i) => i !== idx))}
-                            style={{ border: 'none', background: 'none', cursor: 'pointer', fontSize: '18px', color: '#5B7080', lineHeight: 1 }}
+                            style={{ border: 'none', background: 'none', cursor: 'pointer', fontSize: '18px', color: 'var(--ink3)', lineHeight: 1 }}
                           >×</button>
                         </div>
                         <div style={{ display: 'grid', gridTemplateColumns: '140px 1fr', gap: '10px', marginBottom: '10px' }}>
@@ -1212,38 +1212,38 @@ export default function BespokeWorkspacePage({ params }: { params: Promise<{ id:
               </div>
 
               {/* ── Registration Questions ───────────────────────── */}
-              <div style={{ background: '#FFFFFF', borderRadius: '12px', border: '1px solid #DDE8EE', padding: '24px' }}>
+              <div style={{ background: 'var(--card)', borderRadius: '12px', border: '1px solid var(--border)', padding: '24px' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-                  <h3 style={{ margin: 0, fontSize: '15px', fontWeight: 800, color: '#B45309' }}>Registration Questions</h3>
+                  <h3 style={{ margin: 0, fontSize: '15px', fontWeight: 800, color: '#F5B94D' }}>Registration Questions</h3>
                   <button onClick={() => setRegQuestions(prev => [...prev, { question: '', options: [] }])} style={{
                     display: 'flex', alignItems: 'center', gap: '4px', padding: '4px 12px', borderRadius: '6px',
-                    border: '1px solid #B8CDD8', background: '#FFFFFF', fontSize: '12px', fontWeight: 700,
-                    color: '#5B7080', cursor: 'pointer', fontFamily: 'var(--font-manrope)',
+                    border: '1px solid var(--ink4)', background: 'var(--card)', fontSize: '12px', fontWeight: 700,
+                    color: 'var(--ink3)', cursor: 'pointer', fontFamily: 'var(--font-manrope)',
                   }}>
                     <PlusIcon /> Add Question
                   </button>
                 </div>
                 {regQuestions.length === 0 ? (
-                  <div style={{ fontSize: '13px', color: '#5B7080', padding: '8px 0' }}>No custom registration questions yet.</div>
+                  <div style={{ fontSize: '13px', color: 'var(--ink3)', padding: '8px 0' }}>No custom registration questions yet.</div>
                 ) : (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
                     {regQuestions.map((q, idx) => (
-                      <div key={idx} style={{ border: '1px solid #F0F4F8', borderRadius: '8px', padding: '12px', background: '#F8FAFC' }}>
+                      <div key={idx} style={{ border: '1px solid var(--surface)', borderRadius: '8px', padding: '12px', background: 'var(--border-light)' }}>
                         <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '6px' }}>
                           <button
                             aria-label="Remove question"
                             onClick={() => setRegQuestions(prev => prev.filter((_, i) => i !== idx))}
-                            style={{ border: 'none', background: 'none', cursor: 'pointer', fontSize: '18px', color: '#5B7080', lineHeight: 1 }}
+                            style={{ border: 'none', background: 'none', cursor: 'pointer', fontSize: '18px', color: 'var(--ink3)', lineHeight: 1 }}
                           >×</button>
                         </div>
-                        <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#2D3E50', marginBottom: '4px' }}>Question</label>
+                        <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: 'var(--ink2)', marginBottom: '4px' }}>Question</label>
                         <input
                           style={{ ...INPUT_STYLE, marginBottom: '8px' }}
                           placeholder="e.g. What is your primary interest?"
                           value={q.question}
                           onChange={e => setRegQuestions(prev => prev.map((x, i) => i === idx ? { ...x, question: e.target.value } : x))}
                         />
-                        <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#2D3E50', marginBottom: '4px' }}>Options (one per line — leave blank for free text)</label>
+                        <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: 'var(--ink2)', marginBottom: '4px' }}>Options (one per line — leave blank for free text)</label>
                         <textarea
                           style={{ ...INPUT_STYLE, minHeight: '50px', resize: 'vertical' }}
                           placeholder={'Option A\nOption B'}
@@ -1261,7 +1261,7 @@ export default function BespokeWorkspacePage({ params }: { params: Promise<{ id:
               {/* ── Lock error / warning banners ─────────────────── */}
               {lockError && (
                 <div style={{
-                  background: '#FEE2E2', borderLeft: '4px solid #DC2626', color: '#991B1B',
+                  background: 'var(--red-light)', borderLeft: '4px solid var(--red)', color: 'var(--red)',
                   padding: '14px 16px', borderRadius: '8px',
                   fontSize: '13px', fontWeight: 600, fontFamily: 'var(--font-manrope)',
                 }}>
@@ -1273,7 +1273,7 @@ export default function BespokeWorkspacePage({ params }: { params: Promise<{ id:
               )}
               {lockWarning && (
                 <div style={{
-                  background: '#FFF7ED', borderLeft: '4px solid #EA580C', color: '#7C2D12',
+                  background: 'var(--orange-light)', borderLeft: '4px solid var(--orange)', color: 'var(--orange)',
                   padding: '14px 16px', borderRadius: '8px',
                   fontSize: '13px', fontWeight: 600, fontFamily: 'var(--font-manrope)',
                 }}>
@@ -1285,12 +1285,12 @@ export default function BespokeWorkspacePage({ params }: { params: Promise<{ id:
                   </ul>
                   <div style={{ display: 'flex', gap: '8px' }}>
                     <button onClick={lockBrief} disabled={lockBusy} style={{
-                      padding: '8px 16px', borderRadius: '8px', border: 'none', background: '#EA580C', color: '#FFFFFF',
+                      padding: '8px 16px', borderRadius: '8px', border: 'none', background: 'var(--orange)', color: 'var(--orange-light)',
                       fontSize: '13px', fontWeight: 700, cursor: lockBusy ? 'wait' : 'pointer', fontFamily: 'var(--font-manrope)',
                     }}>{lockBusy ? 'Locking…' : 'Lock Anyway'}</button>
                     <button onClick={() => setLockWarning(null)} style={{
-                      padding: '8px 12px', borderRadius: '8px', border: '1px solid #B8CDD8', background: '#FFFFFF',
-                      fontSize: '13px', fontWeight: 600, color: '#5B7080', cursor: 'pointer', fontFamily: 'var(--font-manrope)',
+                      padding: '8px 12px', borderRadius: '8px', border: '1px solid var(--ink4)', background: 'var(--card)',
+                      fontSize: '13px', fontWeight: 600, color: 'var(--ink3)', cursor: 'pointer', fontFamily: 'var(--font-manrope)',
                     }}>Cancel</button>
                   </div>
                 </div>
@@ -1299,8 +1299,8 @@ export default function BespokeWorkspacePage({ params }: { params: Promise<{ id:
               {/* ── Action row ───────────────────────────────────── */}
               <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
                 <button onClick={saveBrief} disabled={briefSaving} style={{
-                  padding: '10px 28px', borderRadius: '8px', border: 'none', background: briefSaving ? '#B8CDD8' : '#B45309',
-                  color: '#FFFFFF', fontSize: '14px', fontWeight: 700, cursor: briefSaving ? 'not-allowed' : 'pointer',
+                  padding: '10px 28px', borderRadius: '8px', border: 'none', background: briefSaving ? 'var(--ink4)' : '#F5B94D',
+                  color: briefSaving ? 'var(--surface)' : 'var(--amber-light)', fontSize: '14px', fontWeight: 700, cursor: briefSaving ? 'not-allowed' : 'pointer',
                   fontFamily: 'var(--font-manrope)',
                 }}>
                   {briefSaving ? 'Saving…' : 'Save Brief'}
@@ -1308,8 +1308,8 @@ export default function BespokeWorkspacePage({ params }: { params: Promise<{ id:
 
                 {!project.brief_is_locked && (
                   <button onClick={verifyAndLockBrief} disabled={lockBusy} style={{
-                    padding: '10px 28px', borderRadius: '8px', border: '1px solid #B45309', background: '#FFFFFF',
-                    color: '#B45309', fontSize: '14px', fontWeight: 700, cursor: lockBusy ? 'wait' : 'pointer',
+                    padding: '10px 28px', borderRadius: '8px', border: '1px solid #F5B94D', background: 'var(--card)',
+                    color: '#F5B94D', fontSize: '14px', fontWeight: 700, cursor: lockBusy ? 'wait' : 'pointer',
                     fontFamily: 'var(--font-manrope)',
                   }}>
                     {lockBusy ? 'Working…' : 'Verify and Lock Brief'}
@@ -1318,8 +1318,8 @@ export default function BespokeWorkspacePage({ params }: { params: Promise<{ id:
 
                 {project.brief_is_locked && (
                   <button onClick={unlockBrief} disabled={lockBusy} style={{
-                    padding: '10px 28px', borderRadius: '8px', border: '1px solid #5B7080', background: '#FFFFFF',
-                    color: '#5B7080', fontSize: '14px', fontWeight: 700, cursor: lockBusy ? 'wait' : 'pointer',
+                    padding: '10px 28px', borderRadius: '8px', border: '1px solid var(--ink3)', background: 'var(--card)',
+                    color: 'var(--ink3)', fontSize: '14px', fontWeight: 700, cursor: lockBusy ? 'wait' : 'pointer',
                     fontFamily: 'var(--font-manrope)',
                   }}>
                     {lockBusy ? 'Working…' : 'Unlock Brief'}
@@ -1330,7 +1330,7 @@ export default function BespokeWorkspacePage({ params }: { params: Promise<{ id:
                   <span style={{
                     display: 'inline-flex', alignItems: 'center', gap: '6px',
                     padding: '6px 12px', borderRadius: '999px',
-                    background: '#DCFCE7', color: '#166534',
+                    background: 'var(--success-light)', color: 'var(--success)',
                     fontSize: '12px', fontWeight: 700, fontFamily: 'var(--font-manrope)',
                   }}>
                     ✓ Saved
@@ -1340,7 +1340,7 @@ export default function BespokeWorkspacePage({ params }: { params: Promise<{ id:
                   <span style={{
                     display: 'inline-flex', alignItems: 'center', gap: '6px',
                     padding: '6px 12px', borderRadius: '999px',
-                    background: '#FEE2E2', color: '#991B1B',
+                    background: 'var(--red-light)', color: 'var(--red)',
                     fontSize: '12px', fontWeight: 700, fontFamily: 'var(--font-manrope)',
                   }}>
                     Couldn&rsquo;t save. Please retry.
@@ -1351,7 +1351,7 @@ export default function BespokeWorkspacePage({ params }: { params: Promise<{ id:
                   <span style={{
                     display: 'inline-flex', alignItems: 'center', gap: '6px',
                     padding: '6px 12px', borderRadius: '999px',
-                    background: '#DCFCE7', color: '#166534',
+                    background: 'var(--success-light)', color: 'var(--success)',
                     fontSize: '12px', fontWeight: 700, fontFamily: 'var(--font-manrope)',
                   }}>
                     🔒 Brief Locked
@@ -1370,7 +1370,7 @@ export default function BespokeWorkspacePage({ params }: { params: Promise<{ id:
               {!project.brief_is_locked && (
                 <div style={{
                   flex: 1, minWidth: '260px',
-                  background: '#EFF6FF', borderLeft: '4px solid #2563EB', color: '#1E3A8A',
+                  background: 'var(--info-light)', borderLeft: '4px solid var(--info)', color: 'var(--info)',
                   padding: '12px 16px', borderRadius: '8px',
                   fontSize: '13px', fontWeight: 600, fontFamily: 'var(--font-manrope)',
                 }}>
@@ -1380,8 +1380,8 @@ export default function BespokeWorkspacePage({ params }: { params: Promise<{ id:
               <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '8px' }}>
                 {recalcState === 'done' && (
                   <span style={{
-                    fontSize: '12px', fontWeight: 700, color: '#2E7D32',
-                    background: '#E8F5E9', padding: '4px 10px', borderRadius: '10px',
+                    fontSize: '12px', fontWeight: 700, color: 'var(--success)',
+                    background: 'var(--success-light)', padding: '4px 10px', borderRadius: '10px',
                     fontFamily: 'var(--font-manrope)',
                   }}>
                     ✓ Updated
@@ -1392,11 +1392,11 @@ export default function BespokeWorkspacePage({ params }: { params: Promise<{ id:
                   disabled={recalcState === 'pending'}
                   style={{
                     padding: '6px 12px',
-                    border: '1px solid #DDE8EE',
-                    background: '#FFF',
+                    border: '1px solid var(--border)',
+                    background: 'var(--card)',
                     fontSize: '12px',
                     fontWeight: 600,
-                    color: '#5B7080',
+                    color: 'var(--ink3)',
                     borderRadius: '6px',
                     cursor: recalcState === 'pending' ? 'wait' : 'pointer',
                     fontFamily: 'var(--font-manrope)',
@@ -1412,16 +1412,16 @@ export default function BespokeWorkspacePage({ params }: { params: Promise<{ id:
               // Phase 1 is always interactive. 2/3/4 lock until the brief is locked.
               const phaseLocked = !project.brief_is_locked && phase !== 1
               return (
-                <div key={phase} style={{ background: '#FFFFFF', borderRadius: '12px', border: '1px solid #DDE8EE', overflow: 'hidden' }}>
+                <div key={phase} style={{ background: 'var(--card)', borderRadius: '12px', border: '1px solid var(--border)', overflow: 'hidden' }}>
                   {/* Phase header */}
-                  <div style={{ padding: '16px 20px', background: '#F8FAFC', borderBottom: '1px solid #DDE8EE', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <div style={{ padding: '16px 20px', background: 'var(--border-light)', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                      <span style={{ fontSize: '14px', fontWeight: 800, color: '#0F1923' }}>Phase {phase}: {PHASES[phase - 1]?.label}</span>
-                      <span style={{ fontSize: '12px', fontWeight: 700, color: '#5B7080', background: '#E8EEF4', padding: '2px 8px', borderRadius: '10px' }}>
+                      <span style={{ fontSize: '14px', fontWeight: 800, color: 'var(--ink)' }}>Phase {phase}: {PHASES[phase - 1]?.label}</span>
+                      <span style={{ fontSize: '12px', fontWeight: 700, color: 'var(--ink3)', background: 'var(--surface)', padding: '2px 8px', borderRadius: '10px' }}>
                         {doneCount}/{phaseTasks.length}
                       </span>
                       {phaseLocked && (
-                        <span style={{ fontSize: '11px', fontWeight: 700, color: '#7C2D12', background: '#FFF7ED', padding: '2px 8px', borderRadius: '10px' }}>
+                        <span style={{ fontSize: '11px', fontWeight: 700, color: 'var(--orange)', background: 'var(--orange-light)', padding: '2px 8px', borderRadius: '10px' }}>
                           🔒 Locked
                         </span>
                       )}
@@ -1431,8 +1431,8 @@ export default function BespokeWorkspacePage({ params }: { params: Promise<{ id:
                       disabled={phaseLocked}
                       style={{
                         display: 'flex', alignItems: 'center', gap: '4px', padding: '4px 12px', borderRadius: '6px',
-                        border: '1px solid #B8CDD8', background: '#FFFFFF', fontSize: '12px', fontWeight: 700,
-                        color: '#5B7080', cursor: phaseLocked ? 'not-allowed' : 'pointer', fontFamily: 'var(--font-manrope)',
+                        border: '1px solid var(--ink4)', background: 'var(--card)', fontSize: '12px', fontWeight: 700,
+                        color: 'var(--ink3)', cursor: phaseLocked ? 'not-allowed' : 'pointer', fontFamily: 'var(--font-manrope)',
                         opacity: phaseLocked ? 0.5 : 1,
                       }}>
                       <PlusIcon /> Add Task
@@ -1447,8 +1447,8 @@ export default function BespokeWorkspacePage({ params }: { params: Promise<{ id:
                       return (
                         <div key={t.id} style={{
                           display: 'flex', alignItems: 'center', gap: '12px', padding: '12px 20px',
-                          borderBottom: '1px solid #F0F4F8',
-                          background: flashTaskId === t.id ? '#FEF3C7' : (overdue ? '#FEF2F2' : 'transparent'),
+                          borderBottom: '1px solid var(--surface)',
+                          background: flashTaskId === t.id ? 'var(--amber-light)' : (overdue ? 'var(--red-light)' : 'transparent'),
                           transition: 'background 0.4s ease',
                         }}>
                           {/* Checkbox */}
@@ -1460,12 +1460,12 @@ export default function BespokeWorkspacePage({ params }: { params: Promise<{ id:
                           </button>
                           {/* Title */}
                           <span style={{
-                            flex: 1, fontSize: '14px', color: t.status === 'done' ? '#5B7080' : '#0F1923',
+                            flex: 1, fontSize: '14px', color: t.status === 'done' ? 'var(--ink3)' : 'var(--ink)',
                             textDecoration: t.status === 'done' ? 'line-through' : 'none', fontWeight: 500,
                           }}>{t.title}</span>
                           {/* Assignee name (shown between title and role badge when set) */}
                           {t.assigned_staff?.name && (
-                            <span style={{ fontSize: '11px', color: '#5B7080', marginLeft: 'auto', marginRight: '8px' }}>
+                            <span style={{ fontSize: '11px', color: 'var(--ink3)', marginLeft: 'auto', marginRight: '8px' }}>
                               {t.assigned_staff.name}
                             </span>
                           )}
@@ -1475,7 +1475,7 @@ export default function BespokeWorkspacePage({ params }: { params: Promise<{ id:
                           </span>
                           {/* Due date */}
                           {t.due_date && (
-                            <span style={{ fontSize: '12px', fontWeight: 600, color: overdue ? '#DC2626' : '#5B7080', whiteSpace: 'nowrap' }}>
+                            <span style={{ fontSize: '12px', fontWeight: 600, color: overdue ? 'var(--red)' : 'var(--ink3)', whiteSpace: 'nowrap' }}>
                               {fmtDate(t.due_date)}
                             </span>
                           )}
@@ -1495,27 +1495,27 @@ export default function BespokeWorkspacePage({ params }: { params: Promise<{ id:
                       )
                     })}
                     {phaseTasks.length === 0 && (
-                      <div style={{ padding: '20px', textAlign: 'center', fontSize: '14px', color: '#B8CDD8' }}>No tasks in this phase</div>
+                      <div style={{ padding: '20px', textAlign: 'center', fontSize: '14px', color: 'var(--ink4)' }}>No tasks in this phase</div>
                     )}
                   </div>
 
                   {/* Add task inline form */}
                   {addTaskPhase === phase && !phaseLocked && (
-                    <div style={{ padding: '12px 20px', borderTop: '1px solid #DDE8EE', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                    <div style={{ padding: '12px 20px', borderTop: '1px solid var(--border)', display: 'flex', flexDirection: 'column', gap: '8px' }}>
                       <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
                         <input style={{ ...INPUT_STYLE, flex: 1 }} placeholder="New task title..." value={newTaskTitle} onChange={e => setNewTaskTitle(e.target.value)}
                           onKeyDown={e => { if (e.key === 'Enter') addTask(phase) }} autoFocus />
                         <button onClick={() => addTask(phase)} style={{
-                          padding: '8px 16px', borderRadius: '8px', border: 'none', background: '#B45309', color: '#FFFFFF',
+                          padding: '8px 16px', borderRadius: '8px', border: 'none', background: '#F5B94D', color: 'var(--amber-light)',
                           fontSize: '13px', fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--font-manrope)', whiteSpace: 'nowrap',
                         }}>Add</button>
                         <button onClick={() => { setAddTaskPhase(null); setTaskError(null) }} style={{
-                          padding: '8px 12px', borderRadius: '8px', border: '1px solid #B8CDD8', background: '#FFFFFF',
-                          fontSize: '13px', fontWeight: 600, color: '#5B7080', cursor: 'pointer', fontFamily: 'var(--font-manrope)',
+                          padding: '8px 12px', borderRadius: '8px', border: '1px solid var(--ink4)', background: 'var(--card)',
+                          fontSize: '13px', fontWeight: 600, color: 'var(--ink3)', cursor: 'pointer', fontFamily: 'var(--font-manrope)',
                         }}>Cancel</button>
                       </div>
                       {taskError && (
-                        <div style={{ fontSize: '12px', fontWeight: 600, color: '#DC2626', padding: '4px 2px' }}>
+                        <div style={{ fontSize: '12px', fontWeight: 600, color: 'var(--red)', padding: '4px 2px' }}>
                           {taskError}
                         </div>
                       )}
@@ -1531,19 +1531,19 @@ export default function BespokeWorkspacePage({ params }: { params: Promise<{ id:
         {tab === 'Pipeline' && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
             {/* Progress bar */}
-            <div style={{ background: '#FFFFFF', borderRadius: '12px', border: '1px solid #DDE8EE', padding: '20px 24px' }}>
+            <div style={{ background: 'var(--card)', borderRadius: '12px', border: '1px solid var(--border)', padding: '20px 24px' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
-                <span style={{ fontSize: '14px', fontWeight: 700, color: '#0F1923' }}>Registration Progress</span>
-                <span style={{ fontSize: '14px', fontWeight: 800, color: '#B45309' }}>
+                <span style={{ fontSize: '14px', fontWeight: 700, color: 'var(--ink)' }}>Registration Progress</span>
+                <span style={{ fontSize: '14px', fontWeight: 800, color: '#F5B94D' }}>
                   {project.delegate_stats.registered} / {project.target_delegate_count}
                 </span>
               </div>
-              <ProgressBar value={project.delegate_stats.registered} max={project.target_delegate_count} height={10} color="#B45309" />
+              <ProgressBar value={project.delegate_stats.registered} max={project.target_delegate_count} height={10} color="#F5B94D" />
             </div>
 
             {/* Funnel */}
-            <div style={{ background: '#FFFFFF', borderRadius: '12px', border: '1px solid #DDE8EE', padding: '20px 24px' }}>
-              <h3 style={{ margin: '0 0 16px', fontSize: '15px', fontWeight: 800, color: '#0F1923' }}>Pipeline Funnel</h3>
+            <div style={{ background: 'var(--card)', borderRadius: '12px', border: '1px solid var(--border)', padding: '20px 24px' }}>
+              <h3 style={{ margin: '0 0 16px', fontSize: '15px', fontWeight: 800, color: 'var(--ink)' }}>Pipeline Funnel</h3>
               <div style={{ display: 'flex', gap: '8px', alignItems: 'flex-end' }}>
                 {DELEGATE_STAGES.map(stage => {
                   const count = funnelCounts[stage] || 0
@@ -1551,12 +1551,12 @@ export default function BespokeWorkspacePage({ params }: { params: Promise<{ id:
                   const barH = Math.max((count / maxCount) * 120, 4)
                   return (
                     <div key={stage} style={{ flex: 1, textAlign: 'center' }}>
-                      <div style={{ fontSize: '18px', fontWeight: 800, color: '#0F1923', marginBottom: '6px' }}>{count}</div>
+                      <div style={{ fontSize: '18px', fontWeight: 800, color: 'var(--ink)', marginBottom: '6px' }}>{count}</div>
                       <div style={{
-                        height: `${barH}px`, background: STAGE_COLORS[stage] || '#5B7080', borderRadius: '4px 4px 0 0',
+                        height: `${barH}px`, background: STAGE_COLORS[stage] || 'var(--ink3)', borderRadius: '4px 4px 0 0',
                         transition: 'height 0.3s ease', margin: '0 auto', width: '80%',
                       }} />
-                      <div style={{ fontSize: '11px', fontWeight: 700, color: '#5B7080', marginTop: '8px' }}>{STAGE_LABELS[stage]}</div>
+                      <div style={{ fontSize: '11px', fontWeight: 700, color: 'var(--ink3)', marginTop: '8px' }}>{STAGE_LABELS[stage]}</div>
                     </div>
                   )
                 })}
@@ -1567,7 +1567,7 @@ export default function BespokeWorkspacePage({ params }: { params: Promise<{ id:
             <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
               <button onClick={() => setShowAddDelegate(!showAddDelegate)} style={{
                 display: 'flex', alignItems: 'center', gap: '6px', padding: '8px 18px', borderRadius: '8px',
-                border: 'none', background: '#B45309', color: '#FFFFFF', fontSize: '13px', fontWeight: 700,
+                border: 'none', background: '#F5B94D', color: 'var(--amber-light)', fontSize: '13px', fontWeight: 700,
                 cursor: 'pointer', fontFamily: 'var(--font-manrope)',
               }}>
                 <PlusIcon /> Add Delegate
@@ -1576,27 +1576,27 @@ export default function BespokeWorkspacePage({ params }: { params: Promise<{ id:
 
             {/* Add Delegate inline form */}
             {showAddDelegate && (
-              <div style={{ background: '#FFFFFF', borderRadius: '12px', border: '2px solid #B45309', padding: '20px 24px' }}>
-                <h3 style={{ margin: '0 0 16px', fontSize: '15px', fontWeight: 800, color: '#B45309' }}>New Delegate</h3>
+              <div style={{ background: 'var(--card)', borderRadius: '12px', border: '2px solid #F5B94D', padding: '20px 24px' }}>
+                <h3 style={{ margin: '0 0 16px', fontSize: '15px', fontWeight: 800, color: '#F5B94D' }}>New Delegate</h3>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '12px' }}>
                   <div>
-                    <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#2D3E50', marginBottom: '4px' }}>Name *</label>
+                    <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: 'var(--ink2)', marginBottom: '4px' }}>Name *</label>
                     <input style={INPUT_STYLE} value={newDelegate.name} onChange={e => setNewDelegate(p => ({ ...p, name: e.target.value }))} placeholder="Full name" />
                   </div>
                   <div>
-                    <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#2D3E50', marginBottom: '4px' }}>Company</label>
+                    <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: 'var(--ink2)', marginBottom: '4px' }}>Company</label>
                     <input style={INPUT_STYLE} value={newDelegate.company} onChange={e => setNewDelegate(p => ({ ...p, company: e.target.value }))} placeholder="Company" />
                   </div>
                   <div>
-                    <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#2D3E50', marginBottom: '4px' }}>Title</label>
+                    <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: 'var(--ink2)', marginBottom: '4px' }}>Title</label>
                     <input style={INPUT_STYLE} value={newDelegate.title} onChange={e => setNewDelegate(p => ({ ...p, title: e.target.value }))} placeholder="Job title" />
                   </div>
                   <div>
-                    <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#2D3E50', marginBottom: '4px' }}>Email</label>
+                    <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: 'var(--ink2)', marginBottom: '4px' }}>Email</label>
                     <input style={INPUT_STYLE} type="email" value={newDelegate.email} onChange={e => setNewDelegate(p => ({ ...p, email: e.target.value }))} placeholder="email@company.com" />
                   </div>
                   <div>
-                    <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#2D3E50', marginBottom: '4px' }}>Source</label>
+                    <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: 'var(--ink2)', marginBottom: '4px' }}>Source</label>
                     <select style={INPUT_STYLE} value={newDelegate.source} onChange={e => setNewDelegate(p => ({ ...p, source: e.target.value }))}>
                       <option value="client_wishlist">Client Wishlist</option>
                       <option value="internal_db">Internal DB</option>
@@ -1607,56 +1607,56 @@ export default function BespokeWorkspacePage({ params }: { params: Promise<{ id:
                     </select>
                   </div>
                   <div>
-                    <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#2D3E50', marginBottom: '4px' }}>Notes</label>
+                    <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: 'var(--ink2)', marginBottom: '4px' }}>Notes</label>
                     <input style={INPUT_STYLE} value={newDelegate.notes} onChange={e => setNewDelegate(p => ({ ...p, notes: e.target.value }))} placeholder="Any notes..." />
                   </div>
                 </div>
                 <div style={{ display: 'flex', gap: '8px', marginTop: '16px' }}>
                   <button onClick={addDelegate} style={{
-                    padding: '8px 20px', borderRadius: '8px', border: 'none', background: '#B45309', color: '#FFFFFF',
+                    padding: '8px 20px', borderRadius: '8px', border: 'none', background: '#F5B94D', color: 'var(--amber-light)',
                     fontSize: '13px', fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--font-manrope)',
                   }}>Add Delegate</button>
                   <button onClick={() => setShowAddDelegate(false)} style={{
-                    padding: '8px 16px', borderRadius: '8px', border: '1px solid #B8CDD8', background: '#FFFFFF',
-                    fontSize: '13px', fontWeight: 600, color: '#5B7080', cursor: 'pointer', fontFamily: 'var(--font-manrope)',
+                    padding: '8px 16px', borderRadius: '8px', border: '1px solid var(--ink4)', background: 'var(--card)',
+                    fontSize: '13px', fontWeight: 600, color: 'var(--ink3)', cursor: 'pointer', fontFamily: 'var(--font-manrope)',
                   }}>Cancel</button>
                 </div>
               </div>
             )}
 
             {/* Delegate Table */}
-            <div style={{ background: '#FFFFFF', borderRadius: '12px', border: '1px solid #DDE8EE', overflow: 'hidden' }}>
+            <div style={{ background: 'var(--card)', borderRadius: '12px', border: '1px solid var(--border)', overflow: 'hidden' }}>
               {delegates.length === 0 ? (
-                <div style={{ padding: '40px', textAlign: 'center', fontSize: '15px', color: '#5B7080' }}>
+                <div style={{ padding: '40px', textAlign: 'center', fontSize: '15px', color: 'var(--ink3)' }}>
                   No delegates in pipeline yet. Add your first delegate above.
                 </div>
               ) : (
                 <table style={{ width: '100%', borderCollapse: 'collapse', fontFamily: 'var(--font-manrope)' }}>
                   <thead>
-                    <tr style={{ background: '#F8FAFC' }}>
-                      <th style={{ padding: '10px 14px', textAlign: 'left', fontSize: '12px', fontWeight: 700, color: '#5B7080', borderBottom: '1px solid #DDE8EE' }}>Name</th>
-                      <th style={{ padding: '10px 14px', textAlign: 'left', fontSize: '12px', fontWeight: 700, color: '#5B7080', borderBottom: '1px solid #DDE8EE' }}>Company</th>
-                      <th style={{ padding: '10px 14px', textAlign: 'left', fontSize: '12px', fontWeight: 700, color: '#5B7080', borderBottom: '1px solid #DDE8EE' }}>Title</th>
-                      <th style={{ padding: '10px 14px', textAlign: 'left', fontSize: '12px', fontWeight: 700, color: '#5B7080', borderBottom: '1px solid #DDE8EE' }}>Stage</th>
-                      <th style={{ padding: '10px 14px', textAlign: 'left', fontSize: '12px', fontWeight: 700, color: '#5B7080', borderBottom: '1px solid #DDE8EE' }}>Source</th>
-                      <th style={{ padding: '10px 14px', textAlign: 'left', fontSize: '12px', fontWeight: 700, color: '#5B7080', borderBottom: '1px solid #DDE8EE' }}>Last Contact</th>
-                      <th style={{ padding: '10px 14px', textAlign: 'left', fontSize: '12px', fontWeight: 700, color: '#5B7080', borderBottom: '1px solid #DDE8EE' }}>Notes</th>
+                    <tr style={{ background: 'var(--border-light)' }}>
+                      <th style={{ padding: '10px 14px', textAlign: 'left', fontSize: '12px', fontWeight: 700, color: 'var(--ink3)', borderBottom: '1px solid var(--border)' }}>Name</th>
+                      <th style={{ padding: '10px 14px', textAlign: 'left', fontSize: '12px', fontWeight: 700, color: 'var(--ink3)', borderBottom: '1px solid var(--border)' }}>Company</th>
+                      <th style={{ padding: '10px 14px', textAlign: 'left', fontSize: '12px', fontWeight: 700, color: 'var(--ink3)', borderBottom: '1px solid var(--border)' }}>Title</th>
+                      <th style={{ padding: '10px 14px', textAlign: 'left', fontSize: '12px', fontWeight: 700, color: 'var(--ink3)', borderBottom: '1px solid var(--border)' }}>Stage</th>
+                      <th style={{ padding: '10px 14px', textAlign: 'left', fontSize: '12px', fontWeight: 700, color: 'var(--ink3)', borderBottom: '1px solid var(--border)' }}>Source</th>
+                      <th style={{ padding: '10px 14px', textAlign: 'left', fontSize: '12px', fontWeight: 700, color: 'var(--ink3)', borderBottom: '1px solid var(--border)' }}>Last Contact</th>
+                      <th style={{ padding: '10px 14px', textAlign: 'left', fontSize: '12px', fontWeight: 700, color: 'var(--ink3)', borderBottom: '1px solid var(--border)' }}>Notes</th>
                     </tr>
                   </thead>
                   <tbody>
                     {delegates.map(d => (
-                      <tr key={d.id} style={{ borderBottom: '1px solid #F0F4F8' }}>
-                        <td style={{ padding: '10px 14px', fontSize: '14px', fontWeight: 700, color: '#0F1923' }}>{d.name}</td>
-                        <td style={{ padding: '10px 14px', fontSize: '14px', color: '#2D3E50' }}>{d.company || '--'}</td>
-                        <td style={{ padding: '10px 14px', fontSize: '13px', color: '#5B7080' }}>{d.title || '--'}</td>
+                      <tr key={d.id} style={{ borderBottom: '1px solid var(--surface)' }}>
+                        <td style={{ padding: '10px 14px', fontSize: '14px', fontWeight: 700, color: 'var(--ink)' }}>{d.name}</td>
+                        <td style={{ padding: '10px 14px', fontSize: '14px', color: 'var(--ink2)' }}>{d.company || '--'}</td>
+                        <td style={{ padding: '10px 14px', fontSize: '13px', color: 'var(--ink3)' }}>{d.title || '--'}</td>
                         <td style={{ padding: '10px 14px' }}>
                           <select
                             value={d.stage}
                             onChange={e => updateDelegateStage(d.id, e.target.value)}
                             style={{
-                              padding: '4px 8px', borderRadius: '6px', border: '1px solid #DDE8EE', fontSize: '12px',
+                              padding: '4px 8px', borderRadius: '6px', border: '1px solid var(--border)', fontSize: '12px',
                               fontWeight: 700, fontFamily: 'var(--font-manrope)', cursor: 'pointer',
-                              color: STAGE_COLORS[d.stage] || '#5B7080', background: '#FFFFFF',
+                              color: STAGE_COLORS[d.stage] || 'var(--ink3)', background: 'var(--card)',
                             }}
                           >
                             {DELEGATE_STAGES.map(s => (
@@ -1665,12 +1665,12 @@ export default function BespokeWorkspacePage({ params }: { params: Promise<{ id:
                           </select>
                         </td>
                         <td style={{ padding: '10px 14px' }}>
-                          <span style={{ fontSize: '11px', fontWeight: 700, padding: '2px 8px', borderRadius: '6px', background: '#F0F4F8', color: '#5B7080' }}>
+                          <span style={{ fontSize: '11px', fontWeight: 700, padding: '2px 8px', borderRadius: '6px', background: 'var(--surface)', color: 'var(--ink3)' }}>
                             {SOURCE_LABELS[d.source] || d.source}
                           </span>
                         </td>
-                        <td style={{ padding: '10px 14px', fontSize: '12px', color: '#5B7080' }}>{fmtDate(d.last_contact_date)}</td>
-                        <td style={{ padding: '10px 14px', fontSize: '12px', color: '#5B7080', maxWidth: '200px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{d.notes || '--'}</td>
+                        <td style={{ padding: '10px 14px', fontSize: '12px', color: 'var(--ink3)' }}>{fmtDate(d.last_contact_date)}</td>
+                        <td style={{ padding: '10px 14px', fontSize: '12px', color: 'var(--ink3)', maxWidth: '200px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{d.notes || '--'}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -1683,45 +1683,45 @@ export default function BespokeWorkspacePage({ params }: { params: Promise<{ id:
         {/* ── ASSETS TAB (Placeholder) ─────────────────────────────── */}
         {tab === 'Assets' && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', maxWidth: '600px' }}>
-            <div style={{ background: '#FFFFFF', borderRadius: '12px', border: '1px solid #DDE8EE', padding: '24px' }}>
-              <h3 style={{ margin: '0 0 16px', fontSize: '15px', fontWeight: 800, color: '#0F1923' }}>Quick Links</h3>
+            <div style={{ background: 'var(--card)', borderRadius: '12px', border: '1px solid var(--border)', padding: '24px' }}>
+              <h3 style={{ margin: '0 0 16px', fontSize: '15px', fontWeight: 800, color: 'var(--ink)' }}>Quick Links</h3>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
                 <Link href="/admin/sites" style={{
                   display: 'flex', alignItems: 'center', gap: '10px', padding: '12px 16px', borderRadius: '8px',
-                  border: '1px solid #DDE8EE', textDecoration: 'none', color: '#0F1923', transition: 'border-color 0.2s',
+                  border: '1px solid var(--border)', textDecoration: 'none', color: 'var(--ink)', transition: 'border-color 0.2s',
                 }}
-                  onMouseEnter={e => (e.currentTarget.style.borderColor = '#B45309')}
-                  onMouseLeave={e => (e.currentTarget.style.borderColor = '#DDE8EE')}
+                  onMouseEnter={e => (e.currentTarget.style.borderColor = '#F5B94D')}
+                  onMouseLeave={e => (e.currentTarget.style.borderColor = 'var(--border)')}
                 >
-                  <svg width="18" height="18" fill="none" stroke="#B45309" strokeWidth="2" viewBox="0 0 24 24">
+                  <svg width="18" height="18" fill="none" stroke="#F5B94D" strokeWidth="2" viewBox="0 0 24 24">
                     <circle cx="12" cy="12" r="10" /><line x1="2" y1="12" x2="22" y2="12" /><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" />
                   </svg>
                   <div>
                     <div style={{ fontSize: '14px', fontWeight: 700 }}>Landing Page</div>
-                    <div style={{ fontSize: '12px', color: '#5B7080' }}>Open Website Builder to create event landing page</div>
+                    <div style={{ fontSize: '12px', color: 'var(--ink3)' }}>Open Website Builder to create event landing page</div>
                   </div>
                 </Link>
                 <div style={{
                   display: 'flex', alignItems: 'center', gap: '10px', padding: '12px 16px', borderRadius: '8px',
-                  border: '1px solid #DDE8EE', color: '#0F1923',
+                  border: '1px solid var(--border)', color: 'var(--ink)',
                 }}>
-                  <svg width="18" height="18" fill="none" stroke="#B45309" strokeWidth="2" viewBox="0 0 24 24">
+                  <svg width="18" height="18" fill="none" stroke="#F5B94D" strokeWidth="2" viewBox="0 0 24 24">
                     <path d="M12 20h9" /><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z" />
                   </svg>
                   <div>
                     <div style={{ fontSize: '14px', fontWeight: 700 }}>Content Campaign</div>
-                    <div style={{ fontSize: '12px', color: '#5B7080' }}>Open Content Engine for social and email campaigns</div>
+                    <div style={{ fontSize: '12px', color: 'var(--ink3)' }}>Open Content Engine for social and email campaigns</div>
                   </div>
                 </div>
               </div>
             </div>
 
             <div style={{
-              background: '#F8FAFC', borderRadius: '12px', border: '1px dashed #B8CDD8', padding: '32px',
+              background: 'var(--border-light)', borderRadius: '12px', border: '1px dashed var(--ink4)', padding: '32px',
               textAlign: 'center',
             }}>
-              <div style={{ fontSize: '15px', fontWeight: 700, color: '#5B7080', marginBottom: '4px' }}>Coming soon</div>
-              <div style={{ fontSize: '14px', color: '#B8CDD8' }}>Asset management -- file uploads, creative assets, and deliverables tracking.</div>
+              <div style={{ fontSize: '15px', fontWeight: 700, color: 'var(--ink3)', marginBottom: '4px' }}>Coming soon</div>
+              <div style={{ fontSize: '14px', color: 'var(--ink4)' }}>Asset management -- file uploads, creative assets, and deliverables tracking.</div>
             </div>
           </div>
         )}

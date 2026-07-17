@@ -719,11 +719,11 @@ export default function KnowledgeBaseManagePage() {
     const id = setInterval(() => setIngestStage(s => (s + 1) % INGEST_STAGES.length), 2200)
     return () => clearInterval(id)
   }, [ingesting])
-          const TYPE_COLOR: Record<string,string> = { policy:'#8B1A1A', event_brief:'#00897B', staff_doc:'#3D6B00', onboarding:'#A78BFA', event_report:'#60A5FA', other:'#0F1923' }
+          const TYPE_COLOR: Record<string,string> = { policy:'#F1667A', event_brief:'#12C9BD', staff_doc:'#C0F43C', onboarding:'#A78BFA', event_report:'#5AA9F2', other:'#F2F6F8' }
           const LAYER_CFG: Record<string,{label:string;color:string;bg:string}> = {
-            knowledge_base: { label:'Knowledge Base', color:'#00897B', bg:'rgba(0,165,163,0.12)' },
-            general:        { label:'General',        color:'#60A5FA', bg:'rgba(96,165,250,0.12)' },
-            specific:       { label:'Specific',       color:'#F59E0B', bg:'rgba(245,158,11,0.12)' },
+            knowledge_base: { label:'Knowledge Base', color:'var(--teal-mid)', bg:'var(--teal-light)' },
+            general:        { label:'General',        color:'var(--info)',    bg:'var(--info-light)' },
+            specific:       { label:'Specific',       color:'var(--amber)',   bg:'var(--amber-light)' },
           }
           const typeLabel = (t: string) => t.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())
           const matchesCategoryFilter = (d: DocRow) => {
@@ -751,17 +751,17 @@ export default function KnowledgeBaseManagePage() {
           // its own file picker/submit button — those are unified into the
           // single Ingest form now.
           const generalDocFields = (
-            <div style={{ marginBottom: '14px', paddingTop: '4px', borderTop: '1px solid #E8EEF4' }}>
+            <div style={{ marginBottom: '14px', paddingTop: '4px', borderTop: '1px solid var(--surface)' }}>
               <div style={{ marginBottom: '12px' }}>
-                <label style={{ fontSize: '13px', fontWeight: 700, color: '#5B7080', letterSpacing: '0.8px', textTransform: 'uppercase', display: 'block', marginBottom: '5px' }}>Document Title</label>
+                <label style={{ fontSize: '13px', fontWeight: 700, color: 'var(--ink3)', letterSpacing: '0.8px', textTransform: 'uppercase', display: 'block', marginBottom: '5px' }}>Document Title</label>
                 <input value={docForm.title} onChange={e => setDocForm(p => ({ ...p, title: e.target.value }))} placeholder="e.g. HR Policy Handbook 2026"
-                  style={{ width: '100%', padding: '9px 12px', borderRadius: '9px', border: '1px solid #DDE8EE', background: '#FFFFFF', color: '#0F1923', fontSize: '13px', fontFamily: 'inherit', boxSizing: 'border-box' }} />
+                  style={{ width: '100%', padding: '9px 12px', borderRadius: '9px', border: '1px solid var(--border)', background: 'var(--card)', color: 'var(--ink)', fontSize: '13px', fontFamily: 'inherit', boxSizing: 'border-box' }} />
               </div>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginBottom: '12px' }}>
                 <div>
-                  <label style={{ fontSize: '13px', fontWeight: 700, color: '#5B7080', letterSpacing: '0.8px', textTransform: 'uppercase', display: 'block', marginBottom: '5px' }}>Type</label>
+                  <label style={{ fontSize: '13px', fontWeight: 700, color: 'var(--ink3)', letterSpacing: '0.8px', textTransform: 'uppercase', display: 'block', marginBottom: '5px' }}>Type</label>
                   <select value={docForm.type} onChange={e => { setDocForm(p => ({ ...p, type: e.target.value })); setOtherTypeLabel(''); setSaveAsNewType(false) }}
-                    style={{ width: '100%', padding: '9px 10px', borderRadius: '9px', border: '1px solid #DDE8EE', background: '#FFFFFF', color: '#0F1923', fontSize: '13px', fontFamily: 'inherit' }}>
+                    style={{ width: '100%', padding: '9px 10px', borderRadius: '9px', border: '1px solid var(--border)', background: 'var(--card)', color: 'var(--ink)', fontSize: '13px', fontFamily: 'inherit' }}>
                     <option value="policy">Policy</option>
                     <option value="event_brief">Event Brief</option>
                     <option value="staff_doc">Staff Document</option>
@@ -771,18 +771,18 @@ export default function KnowledgeBaseManagePage() {
                   </select>
                 </div>
                 <div>
-                  <label style={{ fontSize: '13px', fontWeight: 700, color: '#5B7080', letterSpacing: '0.8px', textTransform: 'uppercase', display: 'block', marginBottom: '5px' }}>Visible To</label>
+                  <label style={{ fontSize: '13px', fontWeight: 700, color: 'var(--ink3)', letterSpacing: '0.8px', textTransform: 'uppercase', display: 'block', marginBottom: '5px' }}>Visible To</label>
                   <select value={docForm.visibility} onChange={e => setDocForm(p => ({ ...p, visibility: e.target.value }))}
-                    style={{ width: '100%', padding: '9px 10px', borderRadius: '9px', border: '1px solid #DDE8EE', background: '#FFFFFF', color: '#0F1923', fontSize: '13px', fontFamily: 'inherit' }}>
+                    style={{ width: '100%', padding: '9px 10px', borderRadius: '9px', border: '1px solid var(--border)', background: 'var(--card)', color: 'var(--ink)', fontSize: '13px', fontFamily: 'inherit' }}>
                     <option value="all">All Staff</option>
                     <option value="event_only">Event Staff Only</option>
                   </select>
                 </div>
               </div>
               <div style={{ marginBottom: '12px' }}>
-                <label style={{ fontSize: '13px', fontWeight: 700, color: '#5B7080', letterSpacing: '0.8px', textTransform: 'uppercase', display: 'block', marginBottom: '5px' }}>Category</label>
+                <label style={{ fontSize: '13px', fontWeight: 700, color: 'var(--ink3)', letterSpacing: '0.8px', textTransform: 'uppercase', display: 'block', marginBottom: '5px' }}>Category</label>
                 <select value={docForm.doc_category} onChange={e => setDocForm(p => ({ ...p, doc_category: e.target.value }))}
-                  style={{ width: '100%', padding: '9px 10px', borderRadius: '9px', border: '1px solid #DDE8EE', background: '#FFFFFF', color: '#0F1923', fontSize: '13px', fontFamily: 'inherit' }}>
+                  style={{ width: '100%', padding: '9px 10px', borderRadius: '9px', border: '1px solid var(--border)', background: 'var(--card)', color: 'var(--ink)', fontSize: '13px', fontFamily: 'inherit' }}>
                   <option value="">Select category…</option>
                   <option value="event_intelligence">Event Intelligence</option>
                   <option value="business_development">Business Development</option>
@@ -793,37 +793,37 @@ export default function KnowledgeBaseManagePage() {
               </div>
               {docForm.type === 'other' && (
                 <div style={{ marginBottom: '12px', padding: '12px', background: 'rgba(192,244,60,0.04)', border: '1px solid rgba(192,244,60,0.12)', borderRadius: '9px' }}>
-                  <label style={{ fontSize: '13px', fontWeight: 700, color: '#0F1923', letterSpacing: '0.8px', textTransform: 'uppercase', display: 'block', marginBottom: '6px' }}>What type is this?</label>
+                  <label style={{ fontSize: '13px', fontWeight: 700, color: 'var(--ink)', letterSpacing: '0.8px', textTransform: 'uppercase', display: 'block', marginBottom: '6px' }}>What type is this?</label>
                   <input value={otherTypeLabel} onChange={e => setOtherTypeLabel(e.target.value)} placeholder="e.g. SOP, Vendor Contract"
-                    style={{ width: '100%', padding: '8px 10px', borderRadius: '8px', border: '1px solid #DDE8EE', background: '#FFFFFF', color: '#0F1923', fontSize: '13px', fontFamily: 'inherit', boxSizing: 'border-box' }} />
+                    style={{ width: '100%', padding: '8px 10px', borderRadius: '8px', border: '1px solid var(--border)', background: 'var(--card)', color: 'var(--ink)', fontSize: '13px', fontFamily: 'inherit', boxSizing: 'border-box' }} />
                   {otherTypeLabel.trim().length > 1 && (
                     <label style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '8px', cursor: 'pointer' }}>
-                      <input type="checkbox" checked={saveAsNewType} onChange={e => setSaveAsNewType(e.target.checked)} style={{ accentColor: '#C0F43C', width: '13px', height: '13px' }} />
-                      <span style={{ fontSize: '13px', color: '#5B7080', fontWeight: 600 }}>Save &ldquo;{otherTypeLabel.trim()}&rdquo; as a permanent type</span>
+                      <input type="checkbox" checked={saveAsNewType} onChange={e => setSaveAsNewType(e.target.checked)} style={{ accentColor: 'var(--lime)', width: '13px', height: '13px' }} />
+                      <span style={{ fontSize: '13px', color: 'var(--ink3)', fontWeight: 600 }}>Save &ldquo;{otherTypeLabel.trim()}&rdquo; as a permanent type</span>
                     </label>
                   )}
                 </div>
               )}
               {docForm.visibility === 'event_only' && (
                 <div style={{ marginBottom: '12px' }}>
-                  <label style={{ fontSize: '13px', fontWeight: 700, color: '#5B7080', letterSpacing: '0.8px', textTransform: 'uppercase', display: 'block', marginBottom: '5px' }}>Link to Event</label>
+                  <label style={{ fontSize: '13px', fontWeight: 700, color: 'var(--ink3)', letterSpacing: '0.8px', textTransform: 'uppercase', display: 'block', marginBottom: '5px' }}>Link to Event</label>
                   <select value={docForm.event_id} onChange={e => setDocForm(p => ({ ...p, event_id: e.target.value }))}
-                    style={{ width: '100%', padding: '9px 10px', borderRadius: '9px', border: '1px solid #DDE8EE', background: '#FFFFFF', color: '#0F1923', fontSize: '13px', fontFamily: 'inherit' }}>
+                    style={{ width: '100%', padding: '9px 10px', borderRadius: '9px', border: '1px solid var(--border)', background: 'var(--card)', color: 'var(--ink)', fontSize: '13px', fontFamily: 'inherit' }}>
                     <option value="">Select event…</option>
                     {events.map(ev => <option key={ev.id} value={ev.id}>{ev.name}</option>)}
                   </select>
                 </div>
               )}
               <div style={{ marginBottom: '12px' }}>
-                <label style={{ fontSize: '13px', fontWeight: 700, color: '#5B7080', letterSpacing: '0.8px', textTransform: 'uppercase', display: 'block', marginBottom: '5px' }}>External Link <span style={{ textTransform: 'none', fontWeight: 500 }}>(optional — leave blank to store the original automatically)</span></label>
+                <label style={{ fontSize: '13px', fontWeight: 700, color: 'var(--ink3)', letterSpacing: '0.8px', textTransform: 'uppercase', display: 'block', marginBottom: '5px' }}>External Link <span style={{ textTransform: 'none', fontWeight: 500 }}>(optional — leave blank to store the original automatically)</span></label>
                 <input value={docForm.source_url} onChange={e => setDocForm(p => ({ ...p, source_url: e.target.value }))} placeholder="Only needed if the original lives elsewhere — SharePoint, Drive…"
-                  style={{ width: '100%', padding: '9px 12px', borderRadius: '9px', border: '1px solid #DDE8EE', background: '#FFFFFF', color: '#0F1923', fontSize: '13px', fontFamily: 'inherit', boxSizing: 'border-box' }} />
+                  style={{ width: '100%', padding: '9px 12px', borderRadius: '9px', border: '1px solid var(--border)', background: 'var(--card)', color: 'var(--ink)', fontSize: '13px', fontFamily: 'inherit', boxSizing: 'border-box' }} />
               </div>
               {(docForm.type === 'proposal' || docForm.type === 'tender') && (
                 <div style={{ marginBottom: '12px' }}>
-                  <label style={{ fontSize: '13px', fontWeight: 700, color: '#5B7080', letterSpacing: '0.8px', textTransform: 'uppercase', display: 'block', marginBottom: '5px' }}>BD Workspace <span style={{ textTransform: 'none', fontWeight: 500 }}>(optional)</span></label>
+                  <label style={{ fontSize: '13px', fontWeight: 700, color: 'var(--ink3)', letterSpacing: '0.8px', textTransform: 'uppercase', display: 'block', marginBottom: '5px' }}>BD Workspace <span style={{ textTransform: 'none', fontWeight: 500 }}>(optional)</span></label>
                   <select value={docForm.workspace_id} onChange={e => setDocForm(p => ({ ...p, workspace_id: e.target.value }))}
-                    style={{ width: '100%', padding: '9px 10px', borderRadius: '9px', border: '1px solid #DDE8EE', background: '#FFFFFF', color: '#0F1923', fontSize: '13px', fontFamily: 'inherit' }}>
+                    style={{ width: '100%', padding: '9px 10px', borderRadius: '9px', border: '1px solid var(--border)', background: 'var(--card)', color: 'var(--ink)', fontSize: '13px', fontFamily: 'inherit' }}>
                     <option value="">Not linked to a workspace</option>
                     {workspaces.map(ws => <option key={ws.id} value={ws.id}>{ws.name}</option>)}
                   </select>
@@ -832,12 +832,12 @@ export default function KnowledgeBaseManagePage() {
               {supersedesDoc && (
                 <div style={{ marginBottom: '12px', padding: '12px', background: 'rgba(96,165,250,0.06)', border: '1px solid rgba(96,165,250,0.25)', borderRadius: '9px' }}>
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
-                    <span style={{ fontSize: '13px', fontWeight: 800, color: '#1D4ED8' }}>Uploading a new version of &ldquo;{supersedesDoc.title}&rdquo; (v{supersedesDoc.version} → v{supersedesDoc.version + 1})</span>
+                    <span style={{ fontSize: '13px', fontWeight: 800, color: 'var(--info)' }}>Uploading a new version of &ldquo;{supersedesDoc.title}&rdquo; (v{supersedesDoc.version} → v{supersedesDoc.version + 1})</span>
                     <button onClick={() => { setSupersedesDoc(null); setVersionNote('') }}
-                      style={{ fontSize: '13px', fontWeight: 700, color: '#5B7080', background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'inherit' }}>Cancel</button>
+                      style={{ fontSize: '13px', fontWeight: 700, color: 'var(--ink3)', background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'inherit' }}>Cancel</button>
                   </div>
                   <input value={versionNote} onChange={e => setVersionNote(e.target.value)} placeholder="What changed in this version? (optional)"
-                    style={{ width: '100%', padding: '8px 10px', borderRadius: '8px', border: '1px solid #DDE8EE', background: '#FFFFFF', color: '#0F1923', fontSize: '13px', fontFamily: 'inherit', boxSizing: 'border-box' }} />
+                    style={{ width: '100%', padding: '8px 10px', borderRadius: '8px', border: '1px solid var(--border)', background: 'var(--card)', color: 'var(--ink)', fontSize: '13px', fontFamily: 'inherit', boxSizing: 'border-box' }} />
                 </div>
               )}
             </div>
@@ -854,7 +854,7 @@ export default function KnowledgeBaseManagePage() {
                 // Review mode auto-submits as soon as the (single) gap is actioned — this state is
                 // only visible for the instant between that submit firing and the session closing.
                 return (
-                  <div style={{ background: '#F0FAFA', border: '1px solid rgba(0,165,163,0.2)', borderRadius: '10px', padding: '14px', marginBottom: '14px', fontSize: '13px', color: '#5B7080' }}>
+                  <div style={{ background: 'var(--teal-light)', border: '1px solid rgba(0,165,163,0.2)', borderRadius: '10px', padding: '14px', marginBottom: '14px', fontSize: '13px', color: 'var(--ink3)' }}>
                     Saving…
                   </div>
                 )
@@ -863,38 +863,38 @@ export default function KnowledgeBaseManagePage() {
               const added = gapWizard.resolutions.filter(r => r.action === 'add_to_processor')
               const other = gapWizard.resolutions.filter(r => r.action !== 'add_to_processor')
               return (
-                <div style={{ background: '#F0FAFA', border: '1px solid rgba(0,165,163,0.2)', borderRadius: '10px', padding: '18px', marginBottom: '14px' }}>
-                  <div style={{ fontSize: '13px', fontWeight: 800, color: '#00695C', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '10px' }}>All gaps resolved</div>
-                  <div style={{ fontSize: '13px', fontWeight: 700, color: '#5B7080', textTransform: 'uppercase', letterSpacing: '0.8px', marginBottom: '8px' }}>What I learned from this document</div>
+                <div style={{ background: 'var(--teal-light)', border: '1px solid rgba(0,165,163,0.2)', borderRadius: '10px', padding: '18px', marginBottom: '14px' }}>
+                  <div style={{ fontSize: '13px', fontWeight: 800, color: 'var(--teal)', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '10px' }}>All gaps resolved</div>
+                  <div style={{ fontSize: '13px', fontWeight: 700, color: 'var(--ink3)', textTransform: 'uppercase', letterSpacing: '0.8px', marginBottom: '8px' }}>What I learned from this document</div>
                   {added.length > 0 && (
                     <div style={{ marginBottom: '10px' }}>
-                      <div style={{ fontSize: '13px', color: '#5B7080', marginBottom: '4px' }}>Added to {typeName} processor:</div>
+                      <div style={{ fontSize: '13px', color: 'var(--ink3)', marginBottom: '4px' }}>Added to {typeName} processor:</div>
                       {added.map(r => (
-                        <div key={r.gap_id} style={{ fontSize: '13px', color: '#3D6B00', fontWeight: 700 }}>✓ {typeLabel(r.field_name ?? '')}{r.is_required ? '' : ' (optional)'}</div>
+                        <div key={r.gap_id} style={{ fontSize: '13px', color: 'var(--lime)', fontWeight: 700 }}>✓ {typeLabel(r.field_name ?? '')}{r.is_required ? '' : ' (optional)'}</div>
                       ))}
                     </div>
                   )}
                   {other.length > 0 && (
                     <div style={{ marginBottom: '10px' }}>
-                      <div style={{ fontSize: '13px', color: '#5B7080', marginBottom: '4px' }}>{gapWizard.mode === 'ingest' ? 'Skipped:' : 'Deferred:'}</div>
+                      <div style={{ fontSize: '13px', color: 'var(--ink3)', marginBottom: '4px' }}>{gapWizard.mode === 'ingest' ? 'Skipped:' : 'Deferred:'}</div>
                       {other.map(r => {
                         const gap = session.gaps.find(g => g.id === r.gap_id)
-                        return <div key={r.gap_id} style={{ fontSize: '13px', color: '#5B7080', fontWeight: 700 }}>✗ {gap ? typeLabel(gap.suggested_field_name || gap.description) : r.gap_id}</div>
+                        return <div key={r.gap_id} style={{ fontSize: '13px', color: 'var(--ink3)', fontWeight: 700 }}>✗ {gap ? typeLabel(gap.suggested_field_name || gap.description) : r.gap_id}</div>
                       })}
                     </div>
                   )}
                   {added.length > 0 && (
-                    <p style={{ fontSize: '13px', color: '#5B7080', lineHeight: 1.6, margin: '0 0 14px' }}>
+                    <p style={{ fontSize: '13px', color: 'var(--ink3)', lineHeight: 1.6, margin: '0 0 14px' }}>
                       These new fields will be captured automatically in all future {typeName.toLowerCase()} uploads.
                     </p>
                   )}
                   {gapWizard.msg && (
-                    <div style={{ fontSize: '13px', padding: '9px 12px', borderRadius: '8px', background: 'rgba(255,107,107,0.07)', border: '1px solid rgba(255,107,107,0.2)', color: '#FF6B6B', marginBottom: '10px' }}>
+                    <div style={{ fontSize: '13px', padding: '9px 12px', borderRadius: '8px', background: 'rgba(255,107,107,0.07)', border: '1px solid rgba(255,107,107,0.2)', color: 'var(--red)', marginBottom: '10px' }}>
                       {gapWizard.msg}
                     </div>
                   )}
                   <button onClick={() => submitGapResolutions(session.id, session.document_id, gapWizard.resolutions, gapWizard.mode)} disabled={gapWizard.submitting}
-                    style={{ padding: '9px 18px', borderRadius: '9px', border: 'none', background: gapWizard.submitting ? '#DDE8EE' : '#C0F43C', color: '#0F1923', fontSize: '13px', fontWeight: 800, cursor: gapWizard.submitting ? 'not-allowed' : 'pointer', fontFamily: 'inherit' }}>
+                    style={{ padding: '9px 18px', borderRadius: '9px', border: 'none', background: gapWizard.submitting ? 'var(--border)' : 'var(--lime)', color: gapWizard.submitting ? 'var(--ink4)' : 'var(--lime-dark)', fontSize: '13px', fontWeight: 800, cursor: gapWizard.submitting ? 'not-allowed' : 'pointer', fontFamily: 'inherit' }}>
                     {gapWizard.submitting ? 'Publishing…' : 'Publish to Knowledge Base →'}
                   </button>
                 </div>
@@ -908,29 +908,29 @@ export default function KnowledgeBaseManagePage() {
             const gapNum = gapWizard.cursor + 1
             const step1Ready = !!gapWizard.selectedOption && (gapWizard.selectedOption !== '__other__' || !!gapWizard.otherText.trim())
             const step3Ready = gapWizard.fieldChoice === 'suggested' || !!gapWizard.customFieldName.trim()
-            const radioStyle = (active: boolean) => ({ display: 'flex', alignItems: 'center', gap: '8px', padding: '9px 12px', borderRadius: '9px', border: `1px solid ${active ? '#00A5A3' : '#DDE8EE'}`, background: active ? 'rgba(0,165,163,0.08)' : '#FFFFFF', cursor: 'pointer', fontSize: '13px', color: '#0F1923' } as const)
-            const inputStyle = { width: '100%', padding: '9px 12px', borderRadius: '9px', border: '1px solid #DDE8EE', background: '#FFFFFF', color: '#0F1923', fontSize: '13px', fontFamily: 'inherit', boxSizing: 'border-box' as const }
+            const radioStyle = (active: boolean) => ({ display: 'flex', alignItems: 'center', gap: '8px', padding: '9px 12px', borderRadius: '9px', border: `1px solid ${active ? 'var(--teal-mid)' : 'var(--border)'}`, background: active ? 'rgba(0,165,163,0.08)' : 'var(--card)', cursor: 'pointer', fontSize: '13px', color: 'var(--ink)' } as const)
+            const inputStyle = { width: '100%', padding: '9px 12px', borderRadius: '9px', border: '1px solid var(--border)', background: 'var(--card)', color: 'var(--ink)', fontSize: '13px', fontFamily: 'inherit', boxSizing: 'border-box' as const }
 
             return (
-              <div style={{ background: '#FFFFFF', border: '1px solid #DDE8EE', borderRadius: '12px', padding: '18px', marginBottom: '14px' }}>
+              <div style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: '12px', padding: '18px', marginBottom: '14px' }}>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
-                  <span style={{ fontSize: '11px', fontWeight: 800, color: '#5B7080', letterSpacing: '1.5px', textTransform: 'uppercase' }}>Gap {gapNum} of {total}</span>
+                  <span style={{ fontSize: '11px', fontWeight: 800, color: 'var(--ink3)', letterSpacing: '1.5px', textTransform: 'uppercase' }}>Gap {gapNum} of {total}</span>
                   <div style={{ display: 'flex', gap: '4px' }}>
-                    {[1, 2, 3].map(n => <span key={n} style={{ width: '8px', height: '8px', borderRadius: '50%', background: n <= step ? '#00A5A3' : '#DDE8EE' }} />)}
+                    {[1, 2, 3].map(n => <span key={n} style={{ width: '8px', height: '8px', borderRadius: '50%', background: n <= step ? 'var(--teal-mid)' : 'var(--border)' }} />)}
                   </div>
                 </div>
 
-                <div style={{ background: '#F0FAFA', border: '1px solid rgba(0,165,163,0.15)', borderRadius: '10px', padding: '12px', marginBottom: '16px' }}>
-                  <div style={{ fontSize: '13px', color: '#0F1923', fontWeight: 700, marginBottom: '4px' }}>I found:</div>
-                  <div style={{ fontSize: '13px', color: '#2D3E50' }}>{gap.description}</div>
-                  {gap.location && <div style={{ fontSize: '13px', color: '#5B7080', marginTop: '4px' }}>Location: {gap.location}</div>}
+                <div style={{ background: 'var(--teal-light)', border: '1px solid rgba(0,165,163,0.15)', borderRadius: '10px', padding: '12px', marginBottom: '16px' }}>
+                  <div style={{ fontSize: '13px', color: 'var(--ink)', fontWeight: 700, marginBottom: '4px' }}>I found:</div>
+                  <div style={{ fontSize: '13px', color: 'var(--ink2)' }}>{gap.description}</div>
+                  {gap.location && <div style={{ fontSize: '13px', color: 'var(--ink3)', marginTop: '4px' }}>Location: {gap.location}</div>}
                 </div>
 
-                <div style={{ fontSize: '11px', fontWeight: 800, color: '#00695C', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '8px' }}>Step {step} of 3</div>
+                <div style={{ fontSize: '11px', fontWeight: 800, color: 'var(--teal)', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '8px' }}>Step {step} of 3</div>
 
                 {step === 1 && (
                   <div style={{ marginBottom: '16px' }}>
-                    <div style={{ fontSize: '13px', fontWeight: 700, color: '#0F1923', marginBottom: '10px' }}>
+                    <div style={{ fontSize: '13px', fontWeight: 700, color: 'var(--ink)', marginBottom: '10px' }}>
                       {isXlsx ? `What does column "${gap.example_value}" contain?` : 'What type of information is this?'}
                     </div>
                     {gap.suggested_options.length > 0 && (
@@ -957,7 +957,7 @@ export default function KnowledgeBaseManagePage() {
 
                 {step === 2 && (
                   <div style={{ marginBottom: '16px' }}>
-                    <div style={{ fontSize: '13px', fontWeight: 700, color: '#0F1923', marginBottom: '10px' }}>
+                    <div style={{ fontSize: '13px', fontWeight: 700, color: 'var(--ink)', marginBottom: '10px' }}>
                       Should I capture this for all future {typeName.toLowerCase()}s?
                     </div>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
@@ -977,7 +977,7 @@ export default function KnowledgeBaseManagePage() {
 
                 {step === 3 && (
                   <div style={{ marginBottom: '16px' }}>
-                    <div style={{ fontSize: '13px', fontWeight: 700, color: '#0F1923', marginBottom: '10px' }}>
+                    <div style={{ fontSize: '13px', fontWeight: 700, color: 'var(--ink)', marginBottom: '10px' }}>
                       {isXlsx ? 'What should I map this column to?' : 'What should I call this field in the knowledge base?'}
                     </div>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: '10px' }}>
@@ -998,7 +998,7 @@ export default function KnowledgeBaseManagePage() {
                 )}
 
                 {gapWizard.msg && (
-                  <div style={{ fontSize: '13px', padding: '9px 12px', borderRadius: '8px', background: 'rgba(255,107,107,0.07)', border: '1px solid rgba(255,107,107,0.2)', color: '#FF6B6B', marginBottom: '10px' }}>
+                  <div style={{ fontSize: '13px', padding: '9px 12px', borderRadius: '8px', background: 'rgba(255,107,107,0.07)', border: '1px solid rgba(255,107,107,0.2)', color: 'var(--red)', marginBottom: '10px' }}>
                     {gapWizard.msg}
                   </div>
                 )}
@@ -1006,24 +1006,24 @@ export default function KnowledgeBaseManagePage() {
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                   <div style={{ display: 'flex', gap: '8px' }}>
                     <button onClick={gapWizardBack} disabled={step === 1}
-                      style={{ padding: '9px 16px', borderRadius: '9px', border: '1px solid #B8CDD8', background: '#FFFFFF', color: step === 1 ? '#B8CDD8' : '#5B7080', fontSize: '13px', fontWeight: 600, cursor: step === 1 ? 'not-allowed' : 'pointer', fontFamily: 'inherit' }}>
+                      style={{ padding: '9px 16px', borderRadius: '9px', border: '1px solid var(--ink4)', background: 'var(--card)', color: step === 1 ? 'var(--ink4)' : 'var(--ink3)', fontSize: '13px', fontWeight: 600, cursor: step === 1 ? 'not-allowed' : 'pointer', fontFamily: 'inherit' }}>
                       ← Back
                     </button>
                     {step === 1 && (
                       <button onClick={() => setGapWizard({ ...gapWizard, step: 2 })} disabled={!step1Ready}
-                        style={{ padding: '9px 16px', borderRadius: '9px', border: 'none', background: step1Ready ? '#00A5A3' : '#DDE8EE', color: '#FFFFFF', fontSize: '13px', fontWeight: 800, cursor: step1Ready ? 'pointer' : 'not-allowed', fontFamily: 'inherit' }}>
+                        style={{ padding: '9px 16px', borderRadius: '9px', border: 'none', background: step1Ready ? 'var(--teal-mid)' : 'var(--border)', color: step1Ready ? 'var(--teal-light)' : 'var(--ink4)', fontSize: '13px', fontWeight: 800, cursor: step1Ready ? 'pointer' : 'not-allowed', fontFamily: 'inherit' }}>
                         Next →
                       </button>
                     )}
                     {step === 3 && (
                       <button onClick={() => gapWizardConfirmField(gap)} disabled={!step3Ready}
-                        style={{ padding: '9px 16px', borderRadius: '9px', border: 'none', background: step3Ready ? '#00A5A3' : '#DDE8EE', color: '#FFFFFF', fontSize: '13px', fontWeight: 800, cursor: step3Ready ? 'pointer' : 'not-allowed', fontFamily: 'inherit' }}>
+                        style={{ padding: '9px 16px', borderRadius: '9px', border: 'none', background: step3Ready ? 'var(--teal-mid)' : 'var(--border)', color: step3Ready ? 'var(--teal-light)' : 'var(--ink4)', fontSize: '13px', fontWeight: 800, cursor: step3Ready ? 'pointer' : 'not-allowed', fontFamily: 'inherit' }}>
                         Confirm
                       </button>
                     )}
                   </div>
                   <button onClick={() => gapWizardSkipGap(gap)}
-                    style={{ fontSize: '13px', color: '#5B7080', background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'inherit' }}>
+                    style={{ fontSize: '13px', color: 'var(--ink3)', background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'inherit' }}>
                     Skip this gap ›
                   </button>
                 </div>
@@ -1039,33 +1039,33 @@ export default function KnowledgeBaseManagePage() {
             const wizardActive = !!gapWizard && gapWizard.sessionId === session?.id
 
             return (
-              <div key={doc.id} style={{ background: '#FFFFFF', border: '1px solid rgba(124,58,237,0.25)', borderRadius: '16px', padding: '20px', marginBottom: '16px' }}>
+              <div key={doc.id} style={{ background: 'var(--card)', border: '1px solid rgba(124,58,237,0.25)', borderRadius: '16px', padding: '20px', marginBottom: '16px' }}>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px', flexWrap: 'wrap', gap: '8px' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <span style={{ fontSize: '13px', fontWeight: 700, padding: '2px 8px', borderRadius: '16px', background: 'rgba(124,58,237,0.12)', color: '#7C3AED' }}>
+                    <span style={{ fontSize: '13px', fontWeight: 700, padding: '2px 8px', borderRadius: '16px', background: 'rgba(124,58,237,0.12)', color: 'var(--purple)' }}>
                       {typeLabel(detectedType ?? doc.type)}
                     </span>
-                    <span style={{ fontSize: '13px', fontWeight: 800, color: '#0F1923' }}>{doc.title}</span>
+                    <span style={{ fontSize: '13px', fontWeight: 800, color: 'var(--ink)' }}>{doc.title}</span>
                   </div>
-                  <span style={{ fontSize: '13px', color: '#5B7080' }}>{doc.word_count?.toLocaleString()} words</span>
+                  <span style={{ fontSize: '13px', color: 'var(--ink3)' }}>{doc.word_count?.toLocaleString()} words</span>
                 </div>
-                <div style={{ maxHeight: '320px', overflowY: 'auto', padding: '14px', background: '#E8EEF4', borderRadius: '10px', marginBottom: '14px', fontSize: '13px', color: '#2D3E50', whiteSpace: 'pre-wrap', lineHeight: 1.6 }}>
+                <div style={{ maxHeight: '320px', overflowY: 'auto', padding: '14px', background: 'var(--surface)', borderRadius: '10px', marginBottom: '14px', fontSize: '13px', color: 'var(--ink2)', whiteSpace: 'pre-wrap', lineHeight: 1.6 }}>
                   {summary}
                 </div>
 
                 {hasUnresolvedGaps && !wizardActive && session && (
-                  <div style={{ background: '#F0FAFA', border: '1px solid rgba(0,165,163,0.2)', borderRadius: '10px', padding: '14px', marginBottom: '14px' }}>
-                    <div style={{ fontSize: '13px', fontWeight: 800, color: '#00695C', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '6px' }}>Before you publish</div>
-                    <p style={{ fontSize: '13px', color: '#2D3E50', margin: '0 0 10px', lineHeight: 1.6 }}>
+                  <div style={{ background: 'var(--teal-light)', border: '1px solid rgba(0,165,163,0.2)', borderRadius: '10px', padding: '14px', marginBottom: '14px' }}>
+                    <div style={{ fontSize: '13px', fontWeight: 800, color: 'var(--teal)', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '6px' }}>Before you publish</div>
+                    <p style={{ fontSize: '13px', color: 'var(--ink2)', margin: '0 0 10px', lineHeight: 1.6 }}>
                       I found {unresolvedGaps.length} piece{unresolvedGaps.length === 1 ? '' : 's'} of new information in this document that I haven&apos;t seen before. Help me understand {unresolvedGaps.length === 1 ? 'it' : 'them'} so I can learn from this.
                     </p>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
                       <button onClick={() => startGapWizard('ingest', doc.id, session.id, unresolvedGaps.map(g => g.id))} disabled={isReviewing}
-                        style={{ padding: '9px 18px', borderRadius: '9px', border: 'none', background: '#00A5A3', color: '#FFFFFF', fontSize: '13px', fontWeight: 800, cursor: isReviewing ? 'not-allowed' : 'pointer', fontFamily: 'inherit' }}>
+                        style={{ padding: '9px 18px', borderRadius: '9px', border: 'none', background: 'var(--teal-mid)', color: 'var(--teal-light)', fontSize: '13px', fontWeight: 800, cursor: isReviewing ? 'not-allowed' : 'pointer', fontFamily: 'inherit' }}>
                         Review {unresolvedGaps.length} gap{unresolvedGaps.length === 1 ? '' : 's'} →
                       </button>
                       <button onClick={() => rejectPendingDoc(doc.id)} disabled={isReviewing}
-                        style={{ fontSize: '13px', color: '#5B7080', background: 'none', border: 'none', cursor: isReviewing ? 'not-allowed' : 'pointer', fontFamily: 'inherit', fontWeight: 600 }}>
+                        style={{ fontSize: '13px', color: 'var(--ink3)', background: 'none', border: 'none', cursor: isReviewing ? 'not-allowed' : 'pointer', fontFamily: 'inherit', fontWeight: 600 }}>
                         Discard this job
                       </button>
                     </div>
@@ -1077,11 +1077,11 @@ export default function KnowledgeBaseManagePage() {
                 {!hasUnresolvedGaps && (
                   <div style={{ display: 'flex', gap: '10px' }}>
                     <button onClick={() => publishPendingDoc(doc.id)} disabled={isReviewing}
-                      style={{ padding: '9px 18px', borderRadius: '9px', border: 'none', background: isReviewing ? '#DDE8EE' : '#C0F43C', color: '#0F1923', fontSize: '13px', fontWeight: 800, cursor: isReviewing ? 'not-allowed' : 'pointer', fontFamily: 'inherit' }}>
+                      style={{ padding: '9px 18px', borderRadius: '9px', border: 'none', background: isReviewing ? 'var(--border)' : 'var(--lime)', color: isReviewing ? 'var(--ink4)' : 'var(--lime-dark)', fontSize: '13px', fontWeight: 800, cursor: isReviewing ? 'not-allowed' : 'pointer', fontFamily: 'inherit' }}>
                       {isReviewing ? 'Working…' : 'Publish to KB'}
                     </button>
                     <button onClick={() => rejectPendingDoc(doc.id)} disabled={isReviewing}
-                      style={{ padding: '9px 18px', borderRadius: '9px', border: '1px solid rgba(255,107,107,0.3)', background: 'rgba(255,107,107,0.08)', color: '#FF6B6B', fontSize: '13px', fontWeight: 700, cursor: isReviewing ? 'not-allowed' : 'pointer', fontFamily: 'inherit' }}>
+                      style={{ padding: '9px 18px', borderRadius: '9px', border: '1px solid rgba(255,107,107,0.3)', background: 'rgba(255,107,107,0.08)', color: 'var(--red)', fontSize: '13px', fontWeight: 700, cursor: isReviewing ? 'not-allowed' : 'pointer', fontFamily: 'inherit' }}>
                       Reject
                     </button>
                   </div>
@@ -1096,25 +1096,25 @@ export default function KnowledgeBaseManagePage() {
           // recompute an isKbAdmin flag here just to hide the Intelligence/Gaps
           // pills or the Settings link; they're simply always shown.
           return (
-            <div style={{ fontFamily: 'var(--font-manrope), Manrope, sans-serif', background: '#E8EEF4', minHeight: '100vh', color: '#0F1923' }}>
+            <div style={{ fontFamily: 'var(--font-manrope), Manrope, sans-serif', background: 'var(--surface)', minHeight: '100vh', color: 'var(--ink)' }}>
               <PageHeader
                 eyebrow="Knowledge Base"
                 title="Manage"
                 actions={<>
                   {docSubTab === 'documents' && (<>
                     <Link href="/admin/tools/per-creator"
-                      style={{ display: 'flex', alignItems: 'center', gap: '7px', padding: '10px 18px', borderRadius: '10px', border: '1px solid rgba(96,165,250,0.35)', background: 'rgba(96,165,250,0.08)', color: '#1D4ED8', fontSize: '13px', fontWeight: 800, textDecoration: 'none' }}>
+                      style={{ display: 'flex', alignItems: 'center', gap: '7px', padding: '10px 18px', borderRadius: '10px', border: '1px solid rgba(96,165,250,0.35)', background: 'rgba(96,165,250,0.08)', color: 'var(--info)', fontSize: '13px', fontWeight: 800, textDecoration: 'none' }}>
                       <svg width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
                       PER Creator
                     </Link>
                     <Link href="/admin/toolkit/knowledge-assistant"
-                      style={{ display: 'flex', alignItems: 'center', gap: '7px', padding: '10px 18px', borderRadius: '10px', border: '1px solid rgba(0,165,163,0.35)', background: 'rgba(0,165,163,0.08)', color: '#00695C', fontSize: '13px', fontWeight: 800, textDecoration: 'none' }}>
+                      style={{ display: 'flex', alignItems: 'center', gap: '7px', padding: '10px 18px', borderRadius: '10px', border: '1px solid rgba(0,165,163,0.35)', background: 'rgba(0,165,163,0.08)', color: 'var(--teal)', fontSize: '13px', fontWeight: 800, textDecoration: 'none' }}>
                       <svg width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
                       Knowledge Assistant
                     </Link>
                     {!showIngestForm && (
                       <button onClick={() => setShowIngestForm(true)}
-                        style={{ display: 'flex', alignItems: 'center', gap: '7px', padding: '10px 18px', borderRadius: '10px', border: '1px solid rgba(164,120,255,0.35)', background: 'rgba(164,120,255,0.08)', color: '#7C3AED', fontSize: '13px', fontWeight: 800, cursor: 'pointer', fontFamily: 'inherit' }}>
+                        style={{ display: 'flex', alignItems: 'center', gap: '7px', padding: '10px 18px', borderRadius: '10px', border: '1px solid rgba(164,120,255,0.35)', background: 'rgba(164,120,255,0.08)', color: 'var(--purple)', fontSize: '13px', fontWeight: 800, cursor: 'pointer', fontFamily: 'inherit' }}>
                         <svg width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
                         Ingest Document
                       </button>
@@ -1122,13 +1122,13 @@ export default function KnowledgeBaseManagePage() {
                   </>)}
                   {docSubTab === 'workspaces' && (<>
                     <Link href="/admin/tools/proposal-creator"
-                      style={{ display: 'flex', alignItems: 'center', gap: '7px', padding: '10px 18px', borderRadius: '10px', border: '1px solid rgba(124,58,237,0.35)', background: 'rgba(124,58,237,0.08)', color: '#7C3AED', fontSize: '13px', fontWeight: 800, textDecoration: 'none' }}>
+                      style={{ display: 'flex', alignItems: 'center', gap: '7px', padding: '10px 18px', borderRadius: '10px', border: '1px solid rgba(124,58,237,0.35)', background: 'rgba(124,58,237,0.08)', color: 'var(--purple)', fontSize: '13px', fontWeight: 800, textDecoration: 'none' }}>
                       <svg width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
                       Proposal Creator
                     </Link>
                     {!showWorkspaceForm && (
                       <button onClick={() => setShowWorkspaceForm(true)}
-                        style={{ display: 'flex', alignItems: 'center', gap: '7px', padding: '10px 18px', borderRadius: '10px', border: 'none', background: '#C0F43C', color: '#0F1923', fontSize: '13px', fontWeight: 800, cursor: 'pointer', fontFamily: 'inherit' }}>
+                        style={{ display: 'flex', alignItems: 'center', gap: '7px', padding: '10px 18px', borderRadius: '10px', border: 'none', background: 'var(--lime)', color: 'var(--lime-dark)', fontSize: '13px', fontWeight: 800, cursor: 'pointer', fontFamily: 'inherit' }}>
                         <svg width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
                         New Workspace
                       </button>
@@ -1147,7 +1147,7 @@ export default function KnowledgeBaseManagePage() {
                   { key: 'gaps', label: `Pending Gaps (${pendingGapSessions.length})` },
                 ] as { key: typeof docSubTab; label: string }[]).map(s => (
                   <button key={s.key} onClick={() => { setDocSubTab(s.key); syncManageUrl(s.key) }}
-                    style={{ padding: '8px 18px', borderRadius: '10px', border: `1px solid ${docSubTab === s.key ? 'rgba(0,165,163,0.4)' : '#DDE8EE'}`, background: docSubTab === s.key ? 'rgba(0,165,163,0.08)' : '#FFFFFF', color: docSubTab === s.key ? '#00695C' : '#5B7080', fontSize: '13px', fontWeight: 800, cursor: 'pointer', fontFamily: 'inherit' }}>
+                    style={{ padding: '8px 18px', borderRadius: '10px', border: `1px solid ${docSubTab === s.key ? 'rgba(0,165,163,0.4)' : 'var(--border)'}`, background: docSubTab === s.key ? 'rgba(0,165,163,0.08)' : 'var(--card)', color: docSubTab === s.key ? 'var(--teal)' : 'var(--ink3)', fontSize: '13px', fontWeight: 800, cursor: 'pointer', fontFamily: 'inherit' }}>
                     {s.label}
                   </button>
                 ))}
@@ -1156,7 +1156,7 @@ export default function KnowledgeBaseManagePage() {
               {docSubTab === 'documents' && docActionMsg && (() => {
                 const isSuccess = docActionMsg.startsWith('✓')
                 return (
-                  <div style={{ fontSize: '13px', fontWeight: 700, padding: '11px 16px', borderRadius: '10px', background: isSuccess ? 'rgba(192,244,60,0.1)' : 'rgba(255,107,107,0.08)', border: `1px solid ${isSuccess ? 'rgba(192,244,60,0.3)' : 'rgba(255,107,107,0.25)'}`, color: isSuccess ? '#3D6B00' : '#8B1A1A', marginBottom: '16px' }}>
+                  <div style={{ fontSize: '13px', fontWeight: 700, padding: '11px 16px', borderRadius: '10px', background: isSuccess ? 'rgba(192,244,60,0.1)' : 'rgba(255,107,107,0.08)', border: `1px solid ${isSuccess ? 'rgba(192,244,60,0.3)' : 'rgba(255,107,107,0.25)'}`, color: isSuccess ? 'var(--lime)' : 'var(--red)', marginBottom: '16px' }}>
                     {docActionMsg}
                   </div>
                 )
@@ -1179,37 +1179,37 @@ export default function KnowledgeBaseManagePage() {
                   { key: 'verbatim', title: 'Upload as-is', desc: 'Original wording is kept exactly as uploaded, no rewriting. You still review the AI\'s access-level decision before it goes live.' },
                 ]
                 return (
-                  <div style={{ background: '#FFFFFF', border: '1px solid rgba(164,120,255,0.25)', borderRadius: '16px', padding: '24px', marginBottom: '20px', maxWidth: '560px' }}>
-                    <div style={{ fontSize: '13px', fontWeight: 800, color: '#7C3AED', letterSpacing: '1px', textTransform: 'uppercase', marginBottom: '6px' }}>Ingest Document</div>
+                  <div style={{ background: 'var(--card)', border: '1px solid rgba(164,120,255,0.25)', borderRadius: '16px', padding: '24px', marginBottom: '20px', maxWidth: '560px' }}>
+                    <div style={{ fontSize: '13px', fontWeight: 800, color: 'var(--purple)', letterSpacing: '1px', textTransform: 'uppercase', marginBottom: '6px' }}>Ingest Document</div>
 
                     {ingesting ? (
                       <div style={{ padding: '10px 0 4px' }}>
-                        <div style={{ fontSize: '13px', fontWeight: 700, color: '#0F1923', marginBottom: '18px' }}>{ingestFile?.name}</div>
-                        <div style={{ position: 'relative', height: '8px', borderRadius: '999px', background: '#EDE9FE', overflow: 'hidden', marginBottom: '14px' }}>
-                          <div style={{ position: 'absolute', left: '-40%', top: 0, bottom: 0, width: '40%', borderRadius: '999px', background: 'linear-gradient(90deg, #A478FF, #7C3AED)', animation: 'ingestBarSlide 1.3s ease-in-out infinite' }} />
+                        <div style={{ fontSize: '13px', fontWeight: 700, color: 'var(--ink)', marginBottom: '18px' }}>{ingestFile?.name}</div>
+                        <div style={{ position: 'relative', height: '8px', borderRadius: '999px', background: 'var(--purple-light)', overflow: 'hidden', marginBottom: '14px' }}>
+                          <div style={{ position: 'absolute', left: '-40%', top: 0, bottom: 0, width: '40%', borderRadius: '999px', background: 'linear-gradient(90deg, var(--indigo), var(--purple))', animation: 'ingestBarSlide 1.3s ease-in-out infinite' }} />
                         </div>
-                        <div key={ingestStage} style={{ fontSize: '13px', fontWeight: 700, color: '#7C3AED', animation: 'tourPop 0.3s ease' }}>
+                        <div key={ingestStage} style={{ fontSize: '13px', fontWeight: 700, color: 'var(--purple)', animation: 'tourPop 0.3s ease' }}>
                           {INGEST_STAGES[ingestStage]}
                         </div>
-                        <div style={{ fontSize: '13px', color: '#5B7080', marginTop: '4px' }}>Large files can take a little longer.</div>
+                        <div style={{ fontSize: '13px', color: 'var(--ink3)', marginTop: '4px' }}>Large files can take a little longer.</div>
                       </div>
                     ) : (
                       <>
-                        <p style={{ fontSize: '13px', color: '#5B7080', margin: '0 0 16px', lineHeight: 1.6 }}>
+                        <p style={{ fontSize: '13px', color: 'var(--ink3)', margin: '0 0 16px', lineHeight: 1.6 }}>
                           Upload a file, choose how it should be processed, then review before it publishes.
                         </p>
-                        <label style={{ display: 'block', padding: '18px', border: `1.5px dashed ${ingestFile ? 'rgba(124,58,237,0.4)' : '#DDE8EE'}`, borderRadius: '10px', textAlign: 'center', cursor: 'pointer', background: ingestFile ? 'rgba(124,58,237,0.04)' : 'transparent', marginBottom: '14px' }}>
+                        <label style={{ display: 'block', padding: '18px', border: `1.5px dashed ${ingestFile ? 'rgba(124,58,237,0.4)' : 'var(--border)'}`, borderRadius: '10px', textAlign: 'center', cursor: 'pointer', background: ingestFile ? 'rgba(124,58,237,0.04)' : 'transparent', marginBottom: '14px' }}>
                           <input type="file" accept=".pdf,.xlsx,.xls,.txt,.md" style={{ display: 'none' }} onChange={e => { setIngestFile(e.target.files?.[0] ?? null); setIngestTypeChoice(null); setIngestIntent(null) }} />
                           {ingestFile ? (
-                            <div style={{ fontSize: '13px', fontWeight: 700, color: '#7C3AED' }}>{ingestFile.name}</div>
+                            <div style={{ fontSize: '13px', fontWeight: 700, color: 'var(--purple)' }}>{ingestFile.name}</div>
                           ) : (
-                            <div style={{ fontSize: '13px', color: '#0F1923' }}>Click to select a file — PDF, XLSX, TXT, or MD (max 100 MB)</div>
+                            <div style={{ fontSize: '13px', color: 'var(--ink)' }}>Click to select a file — PDF, XLSX, TXT, or MD (max 100 MB)</div>
                           )}
                         </label>
 
                         {ingestFile && (
                           <div style={{ marginBottom: '14px' }}>
-                            <label style={{ fontSize: '13px', fontWeight: 700, color: '#5B7080', letterSpacing: '0.8px', textTransform: 'uppercase', display: 'block', marginBottom: '6px' }}>
+                            <label style={{ fontSize: '13px', fontWeight: 700, color: 'var(--ink3)', letterSpacing: '0.8px', textTransform: 'uppercase', display: 'block', marginBottom: '6px' }}>
                               What should happen with this document?
                             </label>
                             <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
@@ -1217,9 +1217,9 @@ export default function KnowledgeBaseManagePage() {
                                 const active = effectiveIntent === opt.key
                                 return (
                                   <button key={opt.key} onClick={() => { setIngestIntent(opt.key); setIngestTypeChoice(null) }}
-                                    style={{ textAlign: 'left', padding: '12px 14px', borderRadius: '10px', border: `1.5px solid ${active ? 'rgba(124,58,237,0.4)' : '#DDE8EE'}`, background: active ? 'rgba(124,58,237,0.06)' : '#FFFFFF', cursor: 'pointer', fontFamily: 'inherit' }}>
-                                    <div style={{ fontSize: '13px', fontWeight: 800, color: active ? '#7C3AED' : '#0F1923', marginBottom: '3px' }}>{opt.title}</div>
-                                    <div style={{ fontSize: '13px', color: '#5B7080', lineHeight: 1.5 }}>{opt.desc}</div>
+                                    style={{ textAlign: 'left', padding: '12px 14px', borderRadius: '10px', border: `1.5px solid ${active ? 'rgba(124,58,237,0.4)' : 'var(--border)'}`, background: active ? 'rgba(124,58,237,0.06)' : 'var(--card)', cursor: 'pointer', fontFamily: 'inherit' }}>
+                                    <div style={{ fontSize: '13px', fontWeight: 800, color: active ? 'var(--purple)' : 'var(--ink)', marginBottom: '3px' }}>{opt.title}</div>
+                                    <div style={{ fontSize: '13px', color: 'var(--ink3)', lineHeight: 1.5 }}>{opt.desc}</div>
                                   </button>
                                 )
                               })}
@@ -1229,13 +1229,13 @@ export default function KnowledgeBaseManagePage() {
 
                         {ingestFile && !isGeneral && (
                           <div style={{ marginBottom: '14px' }}>
-                            <label style={{ fontSize: '13px', fontWeight: 700, color: '#5B7080', letterSpacing: '0.8px', textTransform: 'uppercase', display: 'block', marginBottom: '6px' }}>
+                            <label style={{ fontSize: '13px', fontWeight: 700, color: 'var(--ink3)', letterSpacing: '0.8px', textTransform: 'uppercase', display: 'block', marginBottom: '6px' }}>
                               {ingestTypeChoice ? 'Type' : 'Detected type'}
                             </label>
                             <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
                               {STRUCTURED_TYPE_OPTIONS.map(opt => (
                                 <button key={opt.key} onClick={() => setIngestTypeChoice(opt.key)}
-                                  style={{ padding: '6px 12px', borderRadius: '16px', border: `1px solid ${effectiveType === opt.key ? 'rgba(124,58,237,0.4)' : '#DDE8EE'}`, background: effectiveType === opt.key ? 'rgba(124,58,237,0.08)' : '#FFFFFF', color: effectiveType === opt.key ? '#7C3AED' : '#5B7080', fontSize: '13px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
+                                  style={{ padding: '6px 12px', borderRadius: '16px', border: `1px solid ${effectiveType === opt.key ? 'rgba(124,58,237,0.4)' : 'var(--border)'}`, background: effectiveType === opt.key ? 'rgba(124,58,237,0.08)' : 'var(--card)', color: effectiveType === opt.key ? 'var(--purple)' : 'var(--ink3)', fontSize: '13px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
                                   {opt.label}
                                 </button>
                               ))}
@@ -1246,17 +1246,17 @@ export default function KnowledgeBaseManagePage() {
                         {isGeneral && generalDocFields}
 
                         {ingestMsg && (
-                          <div style={{ fontSize: '13px', padding: '9px 12px', borderRadius: '8px', background: 'rgba(255,107,107,0.07)', border: '1px solid rgba(255,107,107,0.2)', color: '#FF6B6B', marginBottom: '10px', lineHeight: 1.5 }}>
+                          <div style={{ fontSize: '13px', padding: '9px 12px', borderRadius: '8px', background: 'rgba(255,107,107,0.07)', border: '1px solid rgba(255,107,107,0.2)', color: 'var(--red)', marginBottom: '10px', lineHeight: 1.5 }}>
                             {ingestMsg}
                           </div>
                         )}
                         <div style={{ display: 'flex', gap: '8px' }}>
                           <button onClick={ingestDocument} disabled={!canSubmit}
-                            style={{ flex: 1, padding: '11px', borderRadius: '9px', border: 'none', background: !canSubmit ? '#DDE8EE' : '#7C3AED', color: '#FFFFFF', fontSize: '13px', fontWeight: 800, cursor: !canSubmit ? 'not-allowed' : 'pointer', fontFamily: 'inherit' }}>
+                            style={{ flex: 1, padding: '11px', borderRadius: '9px', border: 'none', background: !canSubmit ? 'var(--border)' : 'var(--purple)', color: !canSubmit ? 'var(--ink4)' : 'var(--purple-light)', fontSize: '13px', fontWeight: 800, cursor: !canSubmit ? 'not-allowed' : 'pointer', fontFamily: 'inherit' }}>
                             Start Ingestion
                           </button>
                           <button onClick={() => { setShowIngestForm(false); setIngestFile(null); setIngestMsg(''); resetGeneralDocForm() }}
-                            style={{ padding: '11px 16px', borderRadius: '9px', border: '1px solid #B8CDD8', background: '#FFFFFF', color: '#5B7080', fontSize: '13px', fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>
+                            style={{ padding: '11px 16px', borderRadius: '9px', border: '1px solid var(--ink4)', background: 'var(--card)', color: 'var(--ink3)', fontSize: '13px', fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>
                             Cancel
                           </button>
                         </div>
@@ -1267,37 +1267,37 @@ export default function KnowledgeBaseManagePage() {
               })()}
 
               {docSubTab === 'documents' && ingestResult && ingestResult.detected_type === 'general' && ingestResult.analysis && (
-                <div style={{ background: '#FFFFFF', border: '1px solid rgba(192,244,60,0.25)', borderRadius: '16px', padding: '20px', marginBottom: '16px' }}>
+                <div style={{ background: 'var(--card)', border: '1px solid rgba(192,244,60,0.25)', borderRadius: '16px', padding: '20px', marginBottom: '16px' }}>
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
-                    <span style={{ fontSize: '13px', fontWeight: 800, color: '#0F1923' }}>{ingestResult.document.title}</span>
-                    <span style={{ fontSize: '13px', color: '#5B7080' }}>{ingestResult.document.word_count?.toLocaleString()} words</span>
+                    <span style={{ fontSize: '13px', fontWeight: 800, color: 'var(--ink)' }}>{ingestResult.document.title}</span>
+                    <span style={{ fontSize: '13px', color: 'var(--ink3)' }}>{ingestResult.document.word_count?.toLocaleString()} words</span>
                   </div>
                   <div style={{ padding: '14px', background: ingestResult.analysis.flagged ? 'rgba(139,26,26,0.06)' : 'rgba(0,165,163,0.06)', border: `1px solid ${ingestResult.analysis.flagged ? 'rgba(139,26,26,0.2)' : 'rgba(0,165,163,0.2)'}`, borderRadius: '12px' }}>
                     <div style={{ display: 'flex', alignItems: 'center', marginBottom: '10px' }}>
-                      <span style={{ fontSize: '13px', fontWeight: 800, color: ingestResult.analysis.flagged ? '#8B1A1A' : '#00897B', textTransform: 'uppercase', letterSpacing: '0.5px' }}>{ingestResult.analysis.flagged ? 'Low Confidence — Needs Review' : 'Ready to Publish'}</span>
-                      <span style={{ marginLeft: 'auto', fontSize: '13px', fontWeight: 800, color: ingestResult.analysis.confidence >= 75 ? '#3D6B00' : '#8B1A1A' }}>{ingestResult.analysis.confidence}%</span>
+                      <span style={{ fontSize: '13px', fontWeight: 800, color: ingestResult.analysis.flagged ? 'var(--red)' : 'var(--teal-mid)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>{ingestResult.analysis.flagged ? 'Low Confidence — Needs Review' : 'Ready to Publish'}</span>
+                      <span style={{ marginLeft: 'auto', fontSize: '13px', fontWeight: 800, color: ingestResult.analysis.confidence >= 75 ? 'var(--lime)' : 'var(--red)' }}>{ingestResult.analysis.confidence}%</span>
                     </div>
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '6px', marginBottom: '10px' }}>
                       {[{ l: 'Layer', v: ingestResult.analysis.layer.replace('_', ' ') }, { l: 'Department', v: ingestResult.analysis.department }, { l: 'Min Level', v: ingestResult.analysis.min_level }].map(({ l, v }) => (
-                        <div key={l} style={{ background: '#FFFFFF', borderRadius: '7px', padding: '7px 9px' }}>
-                          <div style={{ fontSize: '9px', color: '#5B7080', fontWeight: 700, textTransform: 'uppercase', marginBottom: '2px' }}>{l}</div>
-                          <div style={{ fontSize: '13px', color: '#0F1923', fontWeight: 700, textTransform: 'capitalize' }}>{v}</div>
+                        <div key={l} style={{ background: 'var(--card)', borderRadius: '7px', padding: '7px 9px' }}>
+                          <div style={{ fontSize: '9px', color: 'var(--ink3)', fontWeight: 700, textTransform: 'uppercase', marginBottom: '2px' }}>{l}</div>
+                          <div style={{ fontSize: '13px', color: 'var(--ink)', fontWeight: 700, textTransform: 'capitalize' }}>{v}</div>
                         </div>
                       ))}
                     </div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '5px', marginBottom: '6px' }}>
-                      <div style={{ width: '5px', height: '5px', borderRadius: '50%', background: ingestResult.analysis.pilot_use ? '#3D6B00' : '#DDE8EE', flexShrink: 0 }} />
-                      <span style={{ fontSize: '13px', color: ingestResult.analysis.pilot_use ? '#3D6B00' : '#0F1923', fontWeight: 600 }}>{ingestResult.analysis.pilot_use ? 'Pilot will use this document' : 'Not indexed by Pilot'}</span>
+                      <div style={{ width: '5px', height: '5px', borderRadius: '50%', background: ingestResult.analysis.pilot_use ? 'var(--lime)' : 'var(--border)', flexShrink: 0 }} />
+                      <span style={{ fontSize: '13px', color: ingestResult.analysis.pilot_use ? 'var(--lime)' : 'var(--ink)', fontWeight: 600 }}>{ingestResult.analysis.pilot_use ? 'Pilot will use this document' : 'Not indexed by Pilot'}</span>
                     </div>
-                    <p style={{ fontSize: '13px', color: '#5B7080', lineHeight: 1.6, margin: 0 }}>{ingestResult.analysis.ai_reasoning}</p>
+                    <p style={{ fontSize: '13px', color: 'var(--ink3)', lineHeight: 1.6, margin: 0 }}>{ingestResult.analysis.ai_reasoning}</p>
                   </div>
                   <div style={{ display: 'flex', gap: '10px', marginTop: '14px' }}>
                     <button onClick={() => publishPendingDoc(ingestResult.document.id)} disabled={reviewingId === ingestResult.document.id}
-                      style={{ padding: '9px 18px', borderRadius: '9px', border: 'none', background: reviewingId === ingestResult.document.id ? '#DDE8EE' : '#C0F43C', color: '#0F1923', fontSize: '13px', fontWeight: 800, cursor: reviewingId === ingestResult.document.id ? 'not-allowed' : 'pointer', fontFamily: 'inherit' }}>
+                      style={{ padding: '9px 18px', borderRadius: '9px', border: 'none', background: reviewingId === ingestResult.document.id ? 'var(--border)' : 'var(--lime)', color: reviewingId === ingestResult.document.id ? 'var(--ink4)' : 'var(--lime-dark)', fontSize: '13px', fontWeight: 800, cursor: reviewingId === ingestResult.document.id ? 'not-allowed' : 'pointer', fontFamily: 'inherit' }}>
                       {reviewingId === ingestResult.document.id ? 'Working…' : 'Publish to KB'}
                     </button>
                     <button onClick={() => rejectPendingDoc(ingestResult.document.id)} disabled={reviewingId === ingestResult.document.id}
-                      style={{ padding: '9px 18px', borderRadius: '9px', border: '1px solid rgba(255,107,107,0.3)', background: 'rgba(255,107,107,0.08)', color: '#FF6B6B', fontSize: '13px', fontWeight: 700, cursor: reviewingId === ingestResult.document.id ? 'not-allowed' : 'pointer', fontFamily: 'inherit' }}>
+                      style={{ padding: '9px 18px', borderRadius: '9px', border: '1px solid rgba(255,107,107,0.3)', background: 'rgba(255,107,107,0.08)', color: 'var(--red)', fontSize: '13px', fontWeight: 700, cursor: reviewingId === ingestResult.document.id ? 'not-allowed' : 'pointer', fontFamily: 'inherit' }}>
                       Reject
                     </button>
                   </div>
@@ -1311,19 +1311,19 @@ export default function KnowledgeBaseManagePage() {
                 if (pendingLoading || others.length === 0) return null
                 return (
                   <div style={{ marginBottom: '24px' }}>
-                    <div style={{ fontSize: '13px', fontWeight: 800, color: '#7C3AED', textTransform: 'uppercase', letterSpacing: '2px', marginBottom: '12px' }}>
+                    <div style={{ fontSize: '13px', fontWeight: 800, color: 'var(--purple)', textTransform: 'uppercase', letterSpacing: '2px', marginBottom: '12px' }}>
                       Pending Review ({others.length})
                     </div>
                     {others.map(d => expandedPendingId === d.id
                       ? renderReviewCard(d, d.extracted_text)
                       : (
-                        <div key={d.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 16px', background: '#FFFFFF', border: '1px solid #DDE8EE', borderRadius: '12px', marginBottom: '8px' }}>
+                        <div key={d.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 16px', background: 'var(--card)', border: '1px solid var(--border)', borderRadius: '12px', marginBottom: '8px' }}>
                           <div>
-                            <span style={{ fontSize: '13px', fontWeight: 700, color: '#0F1923' }}>{d.title}</span>
-                            <span style={{ fontSize: '13px', color: '#5B7080', marginLeft: '8px' }}>{typeLabel(d.type)}</span>
+                            <span style={{ fontSize: '13px', fontWeight: 700, color: 'var(--ink)' }}>{d.title}</span>
+                            <span style={{ fontSize: '13px', color: 'var(--ink3)', marginLeft: '8px' }}>{typeLabel(d.type)}</span>
                           </div>
                           <button onClick={() => { setExpandedPendingId(d.id); if (!gapSessions[d.id]) fetchGapSession(d.id) }}
-                            style={{ fontSize: '13px', fontWeight: 700, color: '#7C3AED', background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'inherit' }}>
+                            style={{ fontSize: '13px', fontWeight: 700, color: 'var(--purple)', background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'inherit' }}>
                             Review →
                           </button>
                         </div>
@@ -1336,35 +1336,35 @@ export default function KnowledgeBaseManagePage() {
               {docSubTab === 'workspaces' ? (
                 <div>
                   {showWorkspaceForm && (
-                    <div style={{ background: '#FFFFFF', border: '1px solid rgba(192,244,60,0.2)', borderRadius: '16px', padding: '24px', marginBottom: '24px', maxWidth: '520px' }}>
-                      <div style={{ fontSize: '13px', fontWeight: 800, color: '#00695C', letterSpacing: '1px', textTransform: 'uppercase', marginBottom: '16px' }}>New BD Workspace</div>
+                    <div style={{ background: 'var(--card)', border: '1px solid rgba(192,244,60,0.2)', borderRadius: '16px', padding: '24px', marginBottom: '24px', maxWidth: '520px' }}>
+                      <div style={{ fontSize: '13px', fontWeight: 800, color: 'var(--teal)', letterSpacing: '1px', textTransform: 'uppercase', marginBottom: '16px' }}>New BD Workspace</div>
                       <div style={{ marginBottom: '12px' }}>
-                        <label style={{ fontSize: '13px', fontWeight: 700, color: '#5B7080', letterSpacing: '0.8px', textTransform: 'uppercase', display: 'block', marginBottom: '5px' }}>Workspace Name</label>
+                        <label style={{ fontSize: '13px', fontWeight: 700, color: 'var(--ink3)', letterSpacing: '0.8px', textTransform: 'uppercase', display: 'block', marginBottom: '5px' }}>Workspace Name</label>
                         <input value={workspaceForm.name} onChange={e => setWorkspaceForm(p => ({ ...p, name: e.target.value }))} placeholder="e.g. DLD LivingSphere Summit"
-                          style={{ width: '100%', padding: '9px 12px', borderRadius: '9px', border: '1px solid #DDE8EE', background: '#FFFFFF', color: '#0F1923', fontSize: '13px', fontFamily: 'inherit', boxSizing: 'border-box' }} />
+                          style={{ width: '100%', padding: '9px 12px', borderRadius: '9px', border: '1px solid var(--border)', background: 'var(--card)', color: 'var(--ink)', fontSize: '13px', fontFamily: 'inherit', boxSizing: 'border-box' }} />
                       </div>
                       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginBottom: '12px' }}>
                         <div>
-                          <label style={{ fontSize: '13px', fontWeight: 700, color: '#5B7080', letterSpacing: '0.8px', textTransform: 'uppercase', display: 'block', marginBottom: '5px' }}>Client Name</label>
+                          <label style={{ fontSize: '13px', fontWeight: 700, color: 'var(--ink3)', letterSpacing: '0.8px', textTransform: 'uppercase', display: 'block', marginBottom: '5px' }}>Client Name</label>
                           <input value={workspaceForm.client_name} onChange={e => setWorkspaceForm(p => ({ ...p, client_name: e.target.value }))} placeholder="e.g. Dubai Land Department"
-                            style={{ width: '100%', padding: '9px 10px', borderRadius: '9px', border: '1px solid #DDE8EE', background: '#FFFFFF', color: '#0F1923', fontSize: '13px', fontFamily: 'inherit', boxSizing: 'border-box' }} />
+                            style={{ width: '100%', padding: '9px 10px', borderRadius: '9px', border: '1px solid var(--border)', background: 'var(--card)', color: 'var(--ink)', fontSize: '13px', fontFamily: 'inherit', boxSizing: 'border-box' }} />
                         </div>
                         <div>
-                          <label style={{ fontSize: '13px', fontWeight: 700, color: '#5B7080', letterSpacing: '0.8px', textTransform: 'uppercase', display: 'block', marginBottom: '5px' }}>Client Country</label>
+                          <label style={{ fontSize: '13px', fontWeight: 700, color: 'var(--ink3)', letterSpacing: '0.8px', textTransform: 'uppercase', display: 'block', marginBottom: '5px' }}>Client Country</label>
                           <input value={workspaceForm.client_country} onChange={e => setWorkspaceForm(p => ({ ...p, client_country: e.target.value }))} placeholder="e.g. UAE"
-                            style={{ width: '100%', padding: '9px 10px', borderRadius: '9px', border: '1px solid #DDE8EE', background: '#FFFFFF', color: '#0F1923', fontSize: '13px', fontFamily: 'inherit', boxSizing: 'border-box' }} />
+                            style={{ width: '100%', padding: '9px 10px', borderRadius: '9px', border: '1px solid var(--border)', background: 'var(--card)', color: 'var(--ink)', fontSize: '13px', fontFamily: 'inherit', boxSizing: 'border-box' }} />
                         </div>
                       </div>
                       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginBottom: '14px' }}>
                         <div>
-                          <label style={{ fontSize: '13px', fontWeight: 700, color: '#5B7080', letterSpacing: '0.8px', textTransform: 'uppercase', display: 'block', marginBottom: '5px' }}>Event Name</label>
+                          <label style={{ fontSize: '13px', fontWeight: 700, color: 'var(--ink3)', letterSpacing: '0.8px', textTransform: 'uppercase', display: 'block', marginBottom: '5px' }}>Event Name</label>
                           <input value={workspaceForm.event_name} onChange={e => setWorkspaceForm(p => ({ ...p, event_name: e.target.value }))} placeholder="e.g. LivingSphere Summit"
-                            style={{ width: '100%', padding: '9px 10px', borderRadius: '9px', border: '1px solid #DDE8EE', background: '#FFFFFF', color: '#0F1923', fontSize: '13px', fontFamily: 'inherit', boxSizing: 'border-box' }} />
+                            style={{ width: '100%', padding: '9px 10px', borderRadius: '9px', border: '1px solid var(--border)', background: 'var(--card)', color: 'var(--ink)', fontSize: '13px', fontFamily: 'inherit', boxSizing: 'border-box' }} />
                         </div>
                         <div>
-                          <label style={{ fontSize: '13px', fontWeight: 700, color: '#5B7080', letterSpacing: '0.8px', textTransform: 'uppercase', display: 'block', marginBottom: '5px' }}>Event Type</label>
+                          <label style={{ fontSize: '13px', fontWeight: 700, color: 'var(--ink3)', letterSpacing: '0.8px', textTransform: 'uppercase', display: 'block', marginBottom: '5px' }}>Event Type</label>
                           <select value={workspaceForm.event_type} onChange={e => setWorkspaceForm(p => ({ ...p, event_type: e.target.value }))}
-                            style={{ width: '100%', padding: '9px 10px', borderRadius: '9px', border: '1px solid #DDE8EE', background: '#FFFFFF', color: '#0F1923', fontSize: '13px', fontFamily: 'inherit' }}>
+                            style={{ width: '100%', padding: '9px 10px', borderRadius: '9px', border: '1px solid var(--border)', background: 'var(--card)', color: 'var(--ink)', fontSize: '13px', fontFamily: 'inherit' }}>
                             <option value="managed">Managed</option>
                             <option value="bespoke">Bespoke</option>
                             <option value="tender">Tender</option>
@@ -1372,22 +1372,22 @@ export default function KnowledgeBaseManagePage() {
                           </select>
                         </div>
                       </div>
-                      {workspaceMsg && <div style={{ fontSize: '13px', padding: '9px 12px', borderRadius: '8px', background: workspaceMsg.includes('created') ? 'rgba(192,244,60,0.07)' : 'rgba(255,107,107,0.07)', border: `1px solid ${workspaceMsg.includes('created') ? 'rgba(192,244,60,0.2)' : 'rgba(255,107,107,0.2)'}`, color: workspaceMsg.includes('created') ? '#3D6B00' : '#FF6B6B', marginBottom: '10px' }}>{workspaceMsg}</div>}
+                      {workspaceMsg && <div style={{ fontSize: '13px', padding: '9px 12px', borderRadius: '8px', background: workspaceMsg.includes('created') ? 'rgba(192,244,60,0.07)' : 'rgba(255,107,107,0.07)', border: `1px solid ${workspaceMsg.includes('created') ? 'rgba(192,244,60,0.2)' : 'rgba(255,107,107,0.2)'}`, color: workspaceMsg.includes('created') ? 'var(--lime)' : 'var(--red)', marginBottom: '10px' }}>{workspaceMsg}</div>}
                       <div style={{ display: 'flex', gap: '8px' }}>
                         <button onClick={createWorkspace} disabled={workspaceSaving}
-                          style={{ flex: 1, padding: '11px', borderRadius: '9px', border: 'none', background: workspaceSaving ? '#DDE8EE' : '#C0F43C', color: '#0F1923', fontSize: '13px', fontWeight: 800, cursor: workspaceSaving ? 'not-allowed' : 'pointer', fontFamily: 'inherit' }}>
+                          style={{ flex: 1, padding: '11px', borderRadius: '9px', border: 'none', background: workspaceSaving ? 'var(--border)' : 'var(--lime)', color: workspaceSaving ? 'var(--ink4)' : 'var(--lime-dark)', fontSize: '13px', fontWeight: 800, cursor: workspaceSaving ? 'not-allowed' : 'pointer', fontFamily: 'inherit' }}>
                           {workspaceSaving ? 'Creating…' : 'Create Workspace'}
                         </button>
                         <button onClick={() => setShowWorkspaceForm(false)}
-                          style={{ padding: '11px 16px', borderRadius: '9px', border: '1px solid #B8CDD8', background: '#FFFFFF', color: '#5B7080', fontSize: '13px', fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>Cancel</button>
+                          style={{ padding: '11px 16px', borderRadius: '9px', border: '1px solid var(--ink4)', background: 'var(--card)', color: 'var(--ink3)', fontSize: '13px', fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>Cancel</button>
                       </div>
                     </div>
                   )}
 
-                  {workspacesLoading && <div style={{ color: '#0F1923', fontSize: '13px', padding: '40px 0', textAlign: 'center' }}>Loading workspaces…</div>}
+                  {workspacesLoading && <div style={{ color: 'var(--ink)', fontSize: '13px', padding: '40px 0', textAlign: 'center' }}>Loading workspaces…</div>}
 
                   {!workspacesLoading && workspaces.length === 0 && (
-                    <div style={{ padding: '40px', textAlign: 'center', color: '#0F1923', fontSize: '13px', background: '#FFFFFF', border: '1px solid #DDE8EE', borderRadius: '16px' }}>
+                    <div style={{ padding: '40px', textAlign: 'center', color: 'var(--ink)', fontSize: '13px', background: 'var(--card)', border: '1px solid var(--border)', borderRadius: '16px' }}>
                       No BD workspaces yet. Create one to track a proposal or bid, its team, and its linked documents together.
                     </div>
                   )}
@@ -1398,25 +1398,25 @@ export default function KnowledgeBaseManagePage() {
                         const memberCount = ws.bd_workspace_members?.[0]?.count ?? 0
                         const docCount    = ws.documents?.[0]?.count ?? 0
                         const STATUS_CFG: Record<string, { color: string; bg: string }> = {
-                          active:    { color: '#00897B', bg: 'rgba(0,165,163,0.12)' },
-                          won:       { color: '#3D6B00', bg: 'rgba(192,244,60,0.12)' },
-                          lost:      { color: '#8B1A1A', bg: 'rgba(139,26,26,0.1)' },
-                          pending:   { color: '#F59E0B', bg: 'rgba(245,158,11,0.12)' },
-                          withdrawn: { color: '#5B7080', bg: '#E8EEF4' },
+                          active:    { color: 'var(--teal-mid)', bg: 'rgba(0,165,163,0.12)' },
+                          won:       { color: 'var(--lime)', bg: 'rgba(192,244,60,0.12)' },
+                          lost:      { color: 'var(--red)', bg: 'rgba(139,26,26,0.1)' },
+                          pending:   { color: 'var(--amber)', bg: 'rgba(245,158,11,0.12)' },
+                          withdrawn: { color: 'var(--ink3)', bg: 'var(--surface)' },
                         }
                         const sc = STATUS_CFG[ws.status] ?? STATUS_CFG.active
                         return (
                           <button key={ws.id} onClick={() => openWorkspace(ws.id)}
-                            style={{ textAlign: 'left', background: '#FFFFFF', border: `1px solid ${selectedWorkspaceId === ws.id ? 'rgba(0,165,163,0.4)' : '#DDE8EE'}`, borderRadius: '14px', padding: '16px', cursor: 'pointer', fontFamily: 'inherit', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                            style={{ textAlign: 'left', background: 'var(--card)', border: `1px solid ${selectedWorkspaceId === ws.id ? 'rgba(0,165,163,0.4)' : 'var(--border)'}`, borderRadius: '14px', padding: '16px', cursor: 'pointer', fontFamily: 'inherit', display: 'flex', flexDirection: 'column', gap: '8px' }}>
                             <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
                               <span style={{ fontSize: '13px', fontWeight: 700, padding: '2px 8px', borderRadius: '16px', background: sc.bg, color: sc.color, textTransform: 'capitalize' }}>{ws.status}</span>
-                              {ws.event_type && <span style={{ fontSize: '13px', fontWeight: 700, color: '#5B7080', textTransform: 'capitalize' }}>{ws.event_type}</span>}
+                              {ws.event_type && <span style={{ fontSize: '13px', fontWeight: 700, color: 'var(--ink3)', textTransform: 'capitalize' }}>{ws.event_type}</span>}
                             </div>
-                            <div style={{ fontSize: '13px', fontWeight: 800, color: '#0F1923' }}>{ws.name}</div>
+                            <div style={{ fontSize: '13px', fontWeight: 800, color: 'var(--ink)' }}>{ws.name}</div>
                             {(ws.client_name || ws.client_country) && (
-                              <div style={{ fontSize: '13px', color: '#5B7080' }}>{[ws.client_name, ws.client_country].filter(Boolean).join(' · ')}</div>
+                              <div style={{ fontSize: '13px', color: 'var(--ink3)' }}>{[ws.client_name, ws.client_country].filter(Boolean).join(' · ')}</div>
                             )}
-                            <div style={{ display: 'flex', gap: '14px', marginTop: 'auto', paddingTop: '8px', borderTop: '1px solid #DDE8EE', fontSize: '13px', color: '#0F1923' }}>
+                            <div style={{ display: 'flex', gap: '14px', marginTop: 'auto', paddingTop: '8px', borderTop: '1px solid var(--border)', fontSize: '13px', color: 'var(--ink)' }}>
                               <span>{memberCount} member{memberCount !== 1 ? 's' : ''}</span>
                               <span>{docCount} document{docCount !== 1 ? 's' : ''}</span>
                             </div>
@@ -1432,43 +1432,43 @@ export default function KnowledgeBaseManagePage() {
                     const wsDocs = docs.filter(d => d.workspace_id === selectedWorkspaceId)
                     const memberIds = new Set(workspaceMembers.map(m => m.staff_members.id))
                     return (
-                      <div style={{ marginTop: '20px', background: '#FFFFFF', border: '1px solid #DDE8EE', borderRadius: '16px', padding: '20px' }}>
+                      <div style={{ marginTop: '20px', background: 'var(--card)', border: '1px solid var(--border)', borderRadius: '16px', padding: '20px' }}>
                         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
-                          <div style={{ fontSize: '13px', fontWeight: 800, color: '#0F1923' }}>{ws.name} — Team</div>
+                          <div style={{ fontSize: '13px', fontWeight: 800, color: 'var(--ink)' }}>{ws.name} — Team</div>
                           <button onClick={() => setSelectedWorkspaceId(null)}
-                            style={{ fontSize: '13px', fontWeight: 700, color: '#5B7080', background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'inherit' }}>Close</button>
+                            style={{ fontSize: '13px', fontWeight: 700, color: 'var(--ink3)', background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'inherit' }}>Close</button>
                         </div>
 
                         <div style={{ display: 'flex', gap: '8px', marginBottom: '16px', flexWrap: 'wrap' }}>
                           {workspaceMembers.map(m => (
-                            <span key={m.id} style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', fontSize: '13px', fontWeight: 700, padding: '4px 6px 4px 10px', borderRadius: '16px', background: '#E8EEF4', color: '#0F1923' }}>
+                            <span key={m.id} style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', fontSize: '13px', fontWeight: 700, padding: '4px 6px 4px 10px', borderRadius: '16px', background: 'var(--surface)', color: 'var(--ink)' }}>
                               {m.staff_members.name}
                               <button onClick={() => removeWorkspaceMember(m.staff_members.id)}
-                                style={{ width: '16px', height: '16px', borderRadius: '50%', border: 'none', background: 'rgba(255,107,107,0.15)', color: '#FF6B6B', cursor: 'pointer', fontSize: '13px', lineHeight: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0 }}>×</button>
+                                style={{ width: '16px', height: '16px', borderRadius: '50%', border: 'none', background: 'rgba(255,107,107,0.15)', color: 'var(--red)', cursor: 'pointer', fontSize: '13px', lineHeight: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0 }}>×</button>
                             </span>
                           ))}
-                          {workspaceMembers.length === 0 && <span style={{ fontSize: '13px', color: '#5B7080' }}>No members yet.</span>}
+                          {workspaceMembers.length === 0 && <span style={{ fontSize: '13px', color: 'var(--ink3)' }}>No members yet.</span>}
                         </div>
 
                         <div style={{ display: 'flex', gap: '8px', marginBottom: '20px' }}>
                           <select value={addMemberStaffId} onChange={e => setAddMemberStaffId(e.target.value)}
-                            style={{ flex: 1, padding: '9px 10px', borderRadius: '9px', border: '1px solid #DDE8EE', background: '#FFFFFF', color: '#0F1923', fontSize: '13px', fontFamily: 'inherit' }}>
+                            style={{ flex: 1, padding: '9px 10px', borderRadius: '9px', border: '1px solid var(--border)', background: 'var(--card)', color: 'var(--ink)', fontSize: '13px', fontFamily: 'inherit' }}>
                             <option value="">Add a team member…</option>
                             {staffList.filter(s => !memberIds.has(s.id)).map(s => <option key={s.id} value={s.id}>{s.name} — {s.department}</option>)}
                           </select>
                           <button onClick={addWorkspaceMember} disabled={!addMemberStaffId}
-                            style={{ padding: '9px 18px', borderRadius: '9px', border: 'none', background: addMemberStaffId ? '#C0F43C' : '#DDE8EE', color: '#0F1923', fontSize: '13px', fontWeight: 800, cursor: addMemberStaffId ? 'pointer' : 'not-allowed', fontFamily: 'inherit' }}>Add</button>
+                            style={{ padding: '9px 18px', borderRadius: '9px', border: 'none', background: addMemberStaffId ? 'var(--lime)' : 'var(--border)', color: addMemberStaffId ? 'var(--lime-dark)' : 'var(--ink4)', fontSize: '13px', fontWeight: 800, cursor: addMemberStaffId ? 'pointer' : 'not-allowed', fontFamily: 'inherit' }}>Add</button>
                         </div>
 
-                        <div style={{ fontSize: '13px', fontWeight: 800, color: '#0F1923', marginBottom: '10px' }}>Linked Documents ({wsDocs.length})</div>
+                        <div style={{ fontSize: '13px', fontWeight: 800, color: 'var(--ink)', marginBottom: '10px' }}>Linked Documents ({wsDocs.length})</div>
                         {wsDocs.length === 0 ? (
-                          <div style={{ fontSize: '13px', color: '#5B7080' }}>No documents linked yet. Set &ldquo;BD Workspace&rdquo; when uploading a proposal or tender document to link it here.</div>
+                          <div style={{ fontSize: '13px', color: 'var(--ink3)' }}>No documents linked yet. Set &ldquo;BD Workspace&rdquo; when uploading a proposal or tender document to link it here.</div>
                         ) : (
                           <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                             {wsDocs.map(d => (
-                              <div key={d.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 12px', background: '#E8EEF4', borderRadius: '9px' }}>
-                                <span style={{ fontSize: '13px', fontWeight: 700, color: '#0F1923' }}>{d.title}</span>
-                                {kbDownloadHref(d.source_url, d.id) && <a href={kbDownloadHref(d.source_url, d.id)!} target="_blank" rel="noopener noreferrer" style={{ fontSize: '13px', fontWeight: 700, color: '#00897B', textDecoration: 'none' }}>Download</a>}
+                              <div key={d.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 12px', background: 'var(--surface)', borderRadius: '9px' }}>
+                                <span style={{ fontSize: '13px', fontWeight: 700, color: 'var(--ink)' }}>{d.title}</span>
+                                {kbDownloadHref(d.source_url, d.id) && <a href={kbDownloadHref(d.source_url, d.id)!} target="_blank" rel="noopener noreferrer" style={{ fontSize: '13px', fontWeight: 700, color: 'var(--teal-mid)', textDecoration: 'none' }}>Download</a>}
                               </div>
                             ))}
                           </div>
@@ -1479,39 +1479,39 @@ export default function KnowledgeBaseManagePage() {
                 </div>
               ) : docSubTab === 'intelligence' ? (() => {
                 function scoreBadge(score: number | null) {
-                  if (score == null) return { color: '#5B7080', background: '#5B708015' }
-                  if (score >= 75) return { color: '#3D6B00', background: 'rgba(61,107,0,0.1)' }
-                  if (score >= 40) return { color: '#92400E', background: 'rgba(139,26,26,0.1)' }
-                  return { color: '#5B7080', background: '#5B708015' }
+                  if (score == null) return { color: 'var(--ink3)', background: '#7E93A115' }
+                  if (score >= 75) return { color: 'var(--lime)', background: 'rgba(61,107,0,0.1)' }
+                  if (score >= 40) return { color: 'var(--amber)', background: 'rgba(139,26,26,0.1)' }
+                  return { color: 'var(--ink3)', background: '#7E93A115' }
                 }
 
                 function renderIntelReviewCard(item: IntelItem) {
                   const badge = scoreBadge(item.gemini_score)
                   const isExpanded = expandedIntelItemId === item.id
                   return (
-                    <div key={item.id} style={{ background: '#FFFFFF', border: '1px solid #DDE8EE', borderRadius: '16px', padding: '20px', marginBottom: '14px' }}>
+                    <div key={item.id} style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: '16px', padding: '20px', marginBottom: '14px' }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px', flexWrap: 'wrap' }}>
-                        <span style={{ fontSize: '13px', fontWeight: 700, color: '#5B7080' }}>{item.kb_intel_sources?.name ?? 'Unknown source'}</span>
-                        <span style={{ fontSize: '13px', color: '#5B7080' }}>·</span>
-                        <span style={{ fontSize: '13px', color: '#5B7080' }}>{new Date(item.discovered_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}</span>
+                        <span style={{ fontSize: '13px', fontWeight: 700, color: 'var(--ink3)' }}>{item.kb_intel_sources?.name ?? 'Unknown source'}</span>
+                        <span style={{ fontSize: '13px', color: 'var(--ink3)' }}>·</span>
+                        <span style={{ fontSize: '13px', color: 'var(--ink3)' }}>{new Date(item.discovered_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}</span>
                         <span style={{ marginLeft: 'auto', fontSize: '13px', fontWeight: 800, padding: '2px 10px', borderRadius: '10px', color: badge.color, background: badge.background }}>Score: {item.gemini_score ?? '—'}</span>
                       </div>
-                      <a href={item.url} target="_blank" rel="noopener noreferrer" style={{ fontSize: '13px', fontWeight: 800, color: '#0F1923', textDecoration: 'none', display: 'block', marginBottom: '8px' }}>
+                      <a href={item.url} target="_blank" rel="noopener noreferrer" style={{ fontSize: '13px', fontWeight: 800, color: 'var(--ink)', textDecoration: 'none', display: 'block', marginBottom: '8px' }}>
                         {item.title ?? item.url}
                       </a>
                       <div style={{ display: 'flex', gap: '6px', marginBottom: '8px', flexWrap: 'wrap' }}>
-                        {item.event_mentioned && <span style={{ fontSize: '13px', fontWeight: 700, color: '#00695C', background: 'rgba(0,165,163,0.1)', padding: '2px 8px', borderRadius: '10px' }}>{item.event_mentioned}</span>}
-                        {item.article_type && <span style={{ fontSize: '13px', fontWeight: 700, color: '#5B7080', background: '#E8EEF4', padding: '2px 8px', borderRadius: '10px', textTransform: 'capitalize' }}>{item.article_type.replace(/_/g, ' ')}</span>}
+                        {item.event_mentioned && <span style={{ fontSize: '13px', fontWeight: 700, color: 'var(--teal)', background: 'rgba(0,165,163,0.1)', padding: '2px 8px', borderRadius: '10px' }}>{item.event_mentioned}</span>}
+                        {item.article_type && <span style={{ fontSize: '13px', fontWeight: 700, color: 'var(--ink3)', background: 'var(--surface)', padding: '2px 8px', borderRadius: '10px', textTransform: 'capitalize' }}>{item.article_type.replace(/_/g, ' ')}</span>}
                       </div>
-                      {item.gemini_reasoning && <p style={{ fontSize: '13px', color: '#5B7080', fontStyle: 'italic', margin: '0 0 10px', lineHeight: 1.6 }}>{item.gemini_reasoning}</p>}
+                      {item.gemini_reasoning && <p style={{ fontSize: '13px', color: 'var(--ink3)', fontStyle: 'italic', margin: '0 0 10px', lineHeight: 1.6 }}>{item.gemini_reasoning}</p>}
                       {item.gemini_summary && (
                         <div style={{ marginBottom: '10px' }}>
                           <button onClick={() => setExpandedIntelItemId(isExpanded ? null : item.id)}
-                            style={{ fontSize: '13px', fontWeight: 700, color: '#7C3AED', background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'inherit', padding: 0 }}>
+                            style={{ fontSize: '13px', fontWeight: 700, color: 'var(--purple)', background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'inherit', padding: 0 }}>
                             {isExpanded ? 'Hide Summary ▲' : 'Preview Summary ▼'}
                           </button>
                           {isExpanded && (
-                            <div style={{ marginTop: '8px', padding: '14px', background: '#E8EEF4', borderRadius: '10px', fontSize: '13px', color: '#2D3E50', whiteSpace: 'pre-wrap', lineHeight: 1.6, maxHeight: '320px', overflowY: 'auto' }}>
+                            <div style={{ marginTop: '8px', padding: '14px', background: 'var(--surface)', borderRadius: '10px', fontSize: '13px', color: 'var(--ink2)', whiteSpace: 'pre-wrap', lineHeight: 1.6, maxHeight: '320px', overflowY: 'auto' }}>
                               {item.gemini_summary}
                             </div>
                           )}
@@ -1519,11 +1519,11 @@ export default function KnowledgeBaseManagePage() {
                       )}
                       <div style={{ display: 'flex', gap: '10px' }}>
                         <button onClick={() => approveIntelItem(item.id)}
-                          style={{ padding: '9px 18px', borderRadius: '9px', border: 'none', background: '#C0F43C', color: '#0F1923', fontSize: '13px', fontWeight: 800, cursor: 'pointer', fontFamily: 'inherit' }}>
+                          style={{ padding: '9px 18px', borderRadius: '9px', border: 'none', background: 'var(--lime)', color: 'var(--lime-dark)', fontSize: '13px', fontWeight: 800, cursor: 'pointer', fontFamily: 'inherit' }}>
                           Add to KB ✓
                         </button>
                         <button onClick={() => rejectIntelItem(item.id)}
-                          style={{ padding: '9px 18px', borderRadius: '9px', border: '1px solid rgba(255,107,107,0.3)', background: 'rgba(255,107,107,0.08)', color: '#FF6B6B', fontSize: '13px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
+                          style={{ padding: '9px 18px', borderRadius: '9px', border: '1px solid rgba(255,107,107,0.3)', background: 'rgba(255,107,107,0.08)', color: 'var(--red)', fontSize: '13px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
                           Reject ✗
                         </button>
                       </div>
@@ -1542,44 +1542,44 @@ export default function KnowledgeBaseManagePage() {
                       { key: 'items',    label: 'All Items' },
                     ] as { key: typeof intelSubTab; label: string }[]).map(s => (
                       <button key={s.key} onClick={() => { setIntelSubTab(s.key); if (s.key === 'items') fetchIntelItems(0) }}
-                        style={{ padding: '8px 16px', borderRadius: '10px', border: `1px solid ${intelSubTab === s.key ? 'rgba(124,58,237,0.4)' : '#DDE8EE'}`, background: intelSubTab === s.key ? 'rgba(124,58,237,0.08)' : '#FFFFFF', color: intelSubTab === s.key ? '#7C3AED' : '#5B7080', fontSize: '13px', fontWeight: 800, cursor: 'pointer', fontFamily: 'inherit' }}>
+                        style={{ padding: '8px 16px', borderRadius: '10px', border: `1px solid ${intelSubTab === s.key ? 'rgba(124,58,237,0.4)' : 'var(--border)'}`, background: intelSubTab === s.key ? 'rgba(124,58,237,0.08)' : 'var(--card)', color: intelSubTab === s.key ? 'var(--purple)' : 'var(--ink3)', fontSize: '13px', fontWeight: 800, cursor: 'pointer', fontFamily: 'inherit' }}>
                         {s.label}
                       </button>
                     ))}
                   </div>
 
-                  {intelLoading && <div style={{ fontSize: '13px', color: '#5B7080', marginBottom: '16px' }}>Loading…</div>}
+                  {intelLoading && <div style={{ fontSize: '13px', color: 'var(--ink3)', marginBottom: '16px' }}>Loading…</div>}
 
                   {intelSubTab === 'overview' && (
                     <div>
                       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '20px' }}>
-                        <div style={{ fontSize: '13px', fontWeight: 800, color: '#0F1923' }}>Press Intelligence</div>
+                        <div style={{ fontSize: '13px', fontWeight: 800, color: 'var(--ink)' }}>Press Intelligence</div>
                         <button onClick={runIntelNow} disabled={intelRunning}
-                          style={{ padding: '10px 18px', borderRadius: '10px', border: 'none', background: intelRunning ? '#DDE8EE' : '#C0F43C', color: '#0F1923', fontSize: '13px', fontWeight: 800, cursor: intelRunning ? 'not-allowed' : 'pointer', fontFamily: 'inherit' }}>
+                          style={{ padding: '10px 18px', borderRadius: '10px', border: 'none', background: intelRunning ? 'var(--border)' : 'var(--lime)', color: intelRunning ? 'var(--ink4)' : 'var(--lime-dark)', fontSize: '13px', fontWeight: 800, cursor: intelRunning ? 'not-allowed' : 'pointer', fontFamily: 'inherit' }}>
                           {intelRunning ? 'Running…' : 'Run Now ▶'}
                         </button>
                       </div>
 
-                      {intelMsg && <div style={{ fontSize: '13px', padding: '9px 12px', borderRadius: '8px', background: 'rgba(0,165,163,0.06)', border: '1px solid rgba(0,165,163,0.2)', color: '#00695C', marginBottom: '16px' }}>{intelMsg}</div>}
+                      {intelMsg && <div style={{ fontSize: '13px', padding: '9px 12px', borderRadius: '8px', background: 'rgba(0,165,163,0.06)', border: '1px solid rgba(0,165,163,0.2)', color: 'var(--teal)', marginBottom: '16px' }}>{intelMsg}</div>}
 
                       <div style={{ display: 'flex', gap: '10px', marginBottom: '20px', flexWrap: 'wrap' }}>
-                        <div style={{ background: '#FFFFFF', border: '1px solid #DDE8EE', borderRadius: '12px', padding: '12px 16px' }}>
-                          <div style={{ fontSize: '13px', color: '#5B7080', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.6px', marginBottom: '4px' }}>Last Run</div>
-                          <div style={{ fontSize: '13px', fontWeight: 800, color: '#0F1923' }}>
+                        <div style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: '12px', padding: '12px 16px' }}>
+                          <div style={{ fontSize: '13px', color: 'var(--ink3)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.6px', marginBottom: '4px' }}>Last Run</div>
+                          <div style={{ fontSize: '13px', fontWeight: 800, color: 'var(--ink)' }}>
                             {intelRuns[0] ? new Date(intelRuns[0].started_at).toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : 'Never run'}
                           </div>
                         </div>
-                        <div style={{ background: '#FFFFFF', border: '1px solid #DDE8EE', borderRadius: '12px', padding: '12px 16px' }}>
-                          <div style={{ fontSize: '13px', color: '#5B7080', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.6px', marginBottom: '4px' }}>Next Run</div>
-                          <div style={{ fontSize: '13px', fontWeight: 800, color: '#0F1923' }}>{intelConfig?.cron_schedule_display ?? '—'}</div>
+                        <div style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: '12px', padding: '12px 16px' }}>
+                          <div style={{ fontSize: '13px', color: 'var(--ink3)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.6px', marginBottom: '4px' }}>Next Run</div>
+                          <div style={{ fontSize: '13px', fontWeight: 800, color: 'var(--ink)' }}>{intelConfig?.cron_schedule_display ?? '—'}</div>
                         </div>
-                        <div style={{ background: '#FFFFFF', border: '1px solid #DDE8EE', borderRadius: '12px', padding: '12px 16px', display: 'flex', alignItems: 'center', gap: '10px' }}>
+                        <div style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: '12px', padding: '12px 16px', display: 'flex', alignItems: 'center', gap: '10px' }}>
                           <div>
-                            <div style={{ fontSize: '13px', color: '#5B7080', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.6px', marginBottom: '4px' }}>Pipeline</div>
-                            <div style={{ fontSize: '13px', fontWeight: 800, color: intelConfig?.is_enabled ? '#3D6B00' : '#8B1A1A' }}>{intelConfig?.is_enabled ? 'Enabled' : 'Disabled'}</div>
+                            <div style={{ fontSize: '13px', color: 'var(--ink3)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.6px', marginBottom: '4px' }}>Pipeline</div>
+                            <div style={{ fontSize: '13px', fontWeight: 800, color: intelConfig?.is_enabled ? 'var(--lime)' : 'var(--red)' }}>{intelConfig?.is_enabled ? 'Enabled' : 'Disabled'}</div>
                           </div>
                           <button onClick={toggleIntelEnabled}
-                            style={{ padding: '6px 12px', borderRadius: '8px', border: '1px solid #DDE8EE', background: '#FFFFFF', color: '#5B7080', fontSize: '13px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
+                            style={{ padding: '6px 12px', borderRadius: '8px', border: '1px solid var(--border)', background: 'var(--card)', color: 'var(--ink3)', fontSize: '13px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
                             {intelConfig?.is_enabled ? 'Disable' : 'Enable'}
                           </button>
                         </div>
@@ -1587,42 +1587,42 @@ export default function KnowledgeBaseManagePage() {
 
                       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '12px', marginBottom: '24px' }}>
                         {[
-                          { label: 'Auto-Published', value: intelRuns[0]?.items_auto_published ?? 0, color: '#3D6B00' },
-                          { label: 'Needs Review',   value: intelRuns[0]?.items_queued ?? 0,          color: '#92400E' },
-                          { label: 'Skipped',        value: intelRuns[0]?.items_skipped ?? 0,         color: '#5B7080' },
+                          { label: 'Auto-Published', value: intelRuns[0]?.items_auto_published ?? 0, color: 'var(--lime)' },
+                          { label: 'Needs Review',   value: intelRuns[0]?.items_queued ?? 0,          color: 'var(--amber)' },
+                          { label: 'Skipped',        value: intelRuns[0]?.items_skipped ?? 0,         color: 'var(--ink3)' },
                         ].map(stat => (
-                          <div key={stat.label} style={{ background: '#FFFFFF', border: '1px solid #DDE8EE', borderRadius: '12px', padding: '16px' }}>
-                            <div style={{ fontSize: '13px', color: '#5B7080', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.6px', marginBottom: '6px' }}>{stat.label}</div>
+                          <div key={stat.label} style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: '12px', padding: '16px' }}>
+                            <div style={{ fontSize: '13px', color: 'var(--ink3)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.6px', marginBottom: '6px' }}>{stat.label}</div>
                             <div style={{ fontSize: '24px', fontWeight: 800, color: stat.color }}>{stat.value}</div>
                           </div>
                         ))}
                       </div>
 
-                      <div style={{ background: '#FFFFFF', border: '1px solid #DDE8EE', borderRadius: '16px', padding: '20px', marginBottom: '24px' }}>
+                      <div style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: '16px', padding: '20px', marginBottom: '24px' }}>
                         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '10px' }}>
-                          <div style={{ fontSize: '13px', fontWeight: 800, color: '#0F1923' }}>Event Registry — Powers Relevance Scoring</div>
-                          <span style={{ fontSize: '13px', color: '#5B7080' }}>Source: {intelConfig?.event_registry_source === 'eventpilot_internal' ? 'EventPilot Internal' : 'tresconglobal.com'}</span>
+                          <div style={{ fontSize: '13px', fontWeight: 800, color: 'var(--ink)' }}>Event Registry — Powers Relevance Scoring</div>
+                          <span style={{ fontSize: '13px', color: 'var(--ink3)' }}>Source: {intelConfig?.event_registry_source === 'eventpilot_internal' ? 'EventPilot Internal' : 'tresconglobal.com'}</span>
                         </div>
-                        <div style={{ fontSize: '13px', color: '#5B7080', marginBottom: '12px' }}>
+                        <div style={{ fontSize: '13px', color: 'var(--ink3)', marginBottom: '12px' }}>
                           Last refreshed: {intelConfig?.event_registry_last_updated ? new Date(intelConfig.event_registry_last_updated).toLocaleString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : 'Never'} · {intelConfig?.event_registry_data?.length ?? 0} events found
                         </div>
                         {(intelConfig?.event_registry_data?.length ?? 0) > 0 && (
                           <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
                             {intelConfig!.event_registry_data!.map((ev, i) => (
-                              <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '8px 12px', background: '#E8EEF4', borderRadius: '8px' }}>
-                                <span style={{ fontSize: '13px', fontWeight: 700, color: '#0F1923', flex: 1 }}>{ev.name}</span>
-                                {ev.status && <span style={{ fontSize: '13px', color: '#5B7080' }}>{ev.status}</span>}
-                                {ev.website && <a href={ev.website} target="_blank" rel="noopener noreferrer" style={{ fontSize: '13px', color: '#00897B', textDecoration: 'none' }}>Visit ↗</a>}
+                              <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '8px 12px', background: 'var(--surface)', borderRadius: '8px' }}>
+                                <span style={{ fontSize: '13px', fontWeight: 700, color: 'var(--ink)', flex: 1 }}>{ev.name}</span>
+                                {ev.status && <span style={{ fontSize: '13px', color: 'var(--ink3)' }}>{ev.status}</span>}
+                                {ev.website && <a href={ev.website} target="_blank" rel="noopener noreferrer" style={{ fontSize: '13px', color: 'var(--teal-mid)', textDecoration: 'none' }}>Visit ↗</a>}
                               </div>
                             ))}
                           </div>
                         )}
                       </div>
 
-                      <div style={{ background: '#FFFFFF', border: '1px solid #DDE8EE', borderRadius: '16px', padding: '20px', marginBottom: '24px' }}>
-                        <div style={{ fontSize: '13px', fontWeight: 800, color: '#0F1923', marginBottom: '12px' }}>Run History</div>
+                      <div style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: '16px', padding: '20px', marginBottom: '24px' }}>
+                        <div style={{ fontSize: '13px', fontWeight: 800, color: 'var(--ink)', marginBottom: '12px' }}>Run History</div>
                         {intelRuns.length === 0 ? (
-                          <div style={{ fontSize: '13px', color: '#5B7080' }}>No runs yet.</div>
+                          <div style={{ fontSize: '13px', color: 'var(--ink3)' }}>No runs yet.</div>
                         ) : (
                           <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
                             {intelRuns.map(run => {
@@ -1630,18 +1630,18 @@ export default function KnowledgeBaseManagePage() {
                               return (
                                 <div key={run.id}>
                                   <button onClick={() => setExpandedIntelRunId(isExp ? null : run.id)}
-                                    style={{ width: '100%', display: 'flex', alignItems: 'center', gap: '12px', padding: '10px 12px', background: '#E8EEF4', border: 'none', borderRadius: '8px', cursor: 'pointer', fontFamily: 'inherit', textAlign: 'left' }}>
-                                    <span style={{ fontSize: '13px', fontWeight: 700, color: '#0F1923' }}>{new Date(run.started_at).toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}</span>
-                                    <span style={{ fontSize: '13px', color: '#5B7080', textTransform: 'capitalize' }}>{run.triggered_by}</span>
-                                    <span style={{ fontSize: '13px', color: '#5B7080' }}>{run.sources_checked} sources</span>
-                                    <span style={{ fontSize: '13px', color: '#5B7080' }}>{run.urls_discovered} found</span>
-                                    <span style={{ fontSize: '13px', color: '#3D6B00' }}>{run.items_auto_published} published</span>
-                                    <span style={{ fontSize: '13px', color: '#92400E' }}>{run.items_queued} queued</span>
-                                    <span style={{ fontSize: '13px', color: '#5B7080' }}>{run.items_skipped} skipped</span>
-                                    <span style={{ marginLeft: 'auto', fontSize: '13px', fontWeight: 700, padding: '2px 8px', borderRadius: '10px', color: run.status === 'completed' ? '#3D6B00' : run.status === 'failed' ? '#8B1A1A' : '#5B7080', background: run.status === 'completed' ? 'rgba(61,107,0,0.1)' : run.status === 'failed' ? 'rgba(139,26,26,0.1)' : '#5B708015' }}>{run.status}</span>
+                                    style={{ width: '100%', display: 'flex', alignItems: 'center', gap: '12px', padding: '10px 12px', background: 'var(--surface)', border: 'none', borderRadius: '8px', cursor: 'pointer', fontFamily: 'inherit', textAlign: 'left' }}>
+                                    <span style={{ fontSize: '13px', fontWeight: 700, color: 'var(--ink)' }}>{new Date(run.started_at).toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}</span>
+                                    <span style={{ fontSize: '13px', color: 'var(--ink3)', textTransform: 'capitalize' }}>{run.triggered_by}</span>
+                                    <span style={{ fontSize: '13px', color: 'var(--ink3)' }}>{run.sources_checked} sources</span>
+                                    <span style={{ fontSize: '13px', color: 'var(--ink3)' }}>{run.urls_discovered} found</span>
+                                    <span style={{ fontSize: '13px', color: 'var(--lime)' }}>{run.items_auto_published} published</span>
+                                    <span style={{ fontSize: '13px', color: 'var(--amber)' }}>{run.items_queued} queued</span>
+                                    <span style={{ fontSize: '13px', color: 'var(--ink3)' }}>{run.items_skipped} skipped</span>
+                                    <span style={{ marginLeft: 'auto', fontSize: '13px', fontWeight: 700, padding: '2px 8px', borderRadius: '10px', color: run.status === 'completed' ? 'var(--lime)' : run.status === 'failed' ? 'var(--red)' : 'var(--ink3)', background: run.status === 'completed' ? 'rgba(61,107,0,0.1)' : run.status === 'failed' ? 'rgba(139,26,26,0.1)' : '#7E93A115' }}>{run.status}</span>
                                   </button>
                                   {isExp && run.error_message && (
-                                    <div style={{ padding: '10px 12px', fontSize: '13px', color: '#8B1A1A', background: 'rgba(255,107,107,0.06)', borderRadius: '8px', marginTop: '4px' }}>{run.error_message}</div>
+                                    <div style={{ padding: '10px 12px', fontSize: '13px', color: 'var(--red)', background: 'rgba(255,107,107,0.06)', borderRadius: '8px', marginTop: '4px' }}>{run.error_message}</div>
                                   )}
                                 </div>
                               )
@@ -1650,26 +1650,26 @@ export default function KnowledgeBaseManagePage() {
                         )}
                       </div>
 
-                      <div style={{ background: '#FFFFFF', border: '1px solid #DDE8EE', borderRadius: '16px', padding: '20px' }}>
-                        <div style={{ fontSize: '13px', fontWeight: 800, color: '#0F1923', marginBottom: '12px' }}>Thresholds</div>
+                      <div style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: '16px', padding: '20px' }}>
+                        <div style={{ fontSize: '13px', fontWeight: 800, color: 'var(--ink)', marginBottom: '12px' }}>Thresholds</div>
                         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px', marginBottom: '14px' }}>
                           <div>
-                            <label style={{ fontSize: '13px', fontWeight: 700, color: '#5B7080', letterSpacing: '0.8px', textTransform: 'uppercase', display: 'block', marginBottom: '5px' }}>Auto-Publish Threshold</label>
+                            <label style={{ fontSize: '13px', fontWeight: 700, color: 'var(--ink3)', letterSpacing: '0.8px', textTransform: 'uppercase', display: 'block', marginBottom: '5px' }}>Auto-Publish Threshold</label>
                             <input type="number" min={0} max={100} value={intelThresholds.auto_publish_threshold}
                               onChange={e => setIntelThresholds(p => ({ ...p, auto_publish_threshold: Number(e.target.value) }))}
-                              style={{ width: '100%', padding: '9px 12px', borderRadius: '9px', border: '1px solid #DDE8EE', background: '#FFFFFF', color: '#0F1923', fontSize: '13px', fontFamily: 'inherit', boxSizing: 'border-box' }} />
-                            <div style={{ fontSize: '13px', color: '#5B7080', marginTop: '4px' }}>Articles scoring above this are published automatically</div>
+                              style={{ width: '100%', padding: '9px 12px', borderRadius: '9px', border: '1px solid var(--border)', background: 'var(--card)', color: 'var(--ink)', fontSize: '13px', fontFamily: 'inherit', boxSizing: 'border-box' }} />
+                            <div style={{ fontSize: '13px', color: 'var(--ink3)', marginTop: '4px' }}>Articles scoring above this are published automatically</div>
                           </div>
                           <div>
-                            <label style={{ fontSize: '13px', fontWeight: 700, color: '#5B7080', letterSpacing: '0.8px', textTransform: 'uppercase', display: 'block', marginBottom: '5px' }}>Review Threshold</label>
+                            <label style={{ fontSize: '13px', fontWeight: 700, color: 'var(--ink3)', letterSpacing: '0.8px', textTransform: 'uppercase', display: 'block', marginBottom: '5px' }}>Review Threshold</label>
                             <input type="number" min={0} max={100} value={intelThresholds.review_threshold}
                               onChange={e => setIntelThresholds(p => ({ ...p, review_threshold: Number(e.target.value) }))}
-                              style={{ width: '100%', padding: '9px 12px', borderRadius: '9px', border: '1px solid #DDE8EE', background: '#FFFFFF', color: '#0F1923', fontSize: '13px', fontFamily: 'inherit', boxSizing: 'border-box' }} />
-                            <div style={{ fontSize: '13px', color: '#5B7080', marginTop: '4px' }}>Articles scoring above this but below auto-publish appear in the Review Queue</div>
+                              style={{ width: '100%', padding: '9px 12px', borderRadius: '9px', border: '1px solid var(--border)', background: 'var(--card)', color: 'var(--ink)', fontSize: '13px', fontFamily: 'inherit', boxSizing: 'border-box' }} />
+                            <div style={{ fontSize: '13px', color: 'var(--ink3)', marginTop: '4px' }}>Articles scoring above this but below auto-publish appear in the Review Queue</div>
                           </div>
                         </div>
                         <button onClick={saveIntelThresholds}
-                          style={{ padding: '9px 18px', borderRadius: '9px', border: 'none', background: '#C0F43C', color: '#0F1923', fontSize: '13px', fontWeight: 800, cursor: 'pointer', fontFamily: 'inherit' }}>
+                          style={{ padding: '9px 18px', borderRadius: '9px', border: 'none', background: 'var(--lime)', color: 'var(--lime-dark)', fontSize: '13px', fontWeight: 800, cursor: 'pointer', fontFamily: 'inherit' }}>
                           Save Changes
                         </button>
                       </div>
@@ -1678,9 +1678,9 @@ export default function KnowledgeBaseManagePage() {
 
                   {intelSubTab === 'review' && (
                     <div>
-                      <div style={{ fontSize: '13px', fontWeight: 800, color: '#0F1923', marginBottom: '16px' }}>Needs Review ({intelPendingItems.length})</div>
+                      <div style={{ fontSize: '13px', fontWeight: 800, color: 'var(--ink)', marginBottom: '16px' }}>Needs Review ({intelPendingItems.length})</div>
                       {intelPendingItems.length === 0 ? (
-                        <div style={{ fontSize: '13px', color: '#5B7080' }}>No items awaiting review.</div>
+                        <div style={{ fontSize: '13px', color: 'var(--ink3)' }}>No items awaiting review.</div>
                       ) : (
                         intelPendingItems.map(item => renderIntelReviewCard(item))
                       )}
@@ -1689,9 +1689,9 @@ export default function KnowledgeBaseManagePage() {
 
                   {intelSubTab === 'sources' && (
                     <div>
-                      <div style={{ background: '#FFFFFF', border: '1px solid #DDE8EE', borderRadius: '12px', padding: '14px 16px', marginBottom: '16px' }}>
-                        <div style={{ fontSize: '13px', fontWeight: 800, color: '#0F1923', marginBottom: '4px' }}>Event Registry (special — not editable)</div>
-                        <div style={{ fontSize: '13px', color: '#5B7080' }}>tresconglobal.com/events · weekly · event_extraction</div>
+                      <div style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: '12px', padding: '14px 16px', marginBottom: '16px' }}>
+                        <div style={{ fontSize: '13px', fontWeight: 800, color: 'var(--ink)', marginBottom: '4px' }}>Event Registry (special — not editable)</div>
+                        <div style={{ fontSize: '13px', color: 'var(--ink3)' }}>tresconglobal.com/events · weekly · event_extraction</div>
                       </div>
 
                       {([
@@ -1706,45 +1706,45 @@ export default function KnowledgeBaseManagePage() {
                             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '10px' }}>
                               <button onClick={() => setCollapsedIntelSections(p => ({ ...p, [section.category]: !isCollapsed }))}
                                 style={{ display: 'flex', alignItems: 'center', gap: '6px', background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'inherit', padding: 0 }}>
-                                <span style={{ fontSize: '11px', color: '#5B7080', transform: isCollapsed ? 'rotate(-90deg)' : 'none', transition: 'transform 0.15s' }}>▼</span>
-                                <span style={{ fontSize: '13px', fontWeight: 800, color: '#0F1923' }}>{section.label} ({sectionSources.length})</span>
+                                <span style={{ fontSize: '11px', color: 'var(--ink3)', transform: isCollapsed ? 'rotate(-90deg)' : 'none', transition: 'transform 0.15s' }}>▼</span>
+                                <span style={{ fontSize: '13px', fontWeight: 800, color: 'var(--ink)' }}>{section.label} ({sectionSources.length})</span>
                               </button>
                               <button onClick={() => { setEditingIntelSourceId(null); setShowIntelSourceForm(section.category); setIntelSourceForm({ name: '', url: '', query: '', crawl_behaviour: 'article_discovery', crawl_frequency: 'weekly' }); setIntelSourceMsg('') }}
-                                style={{ padding: '6px 14px', borderRadius: '8px', border: '1px solid rgba(0,165,163,0.35)', background: 'rgba(0,165,163,0.08)', color: '#00695C', fontSize: '13px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
+                                style={{ padding: '6px 14px', borderRadius: '8px', border: '1px solid rgba(0,165,163,0.35)', background: 'rgba(0,165,163,0.08)', color: 'var(--teal)', fontSize: '13px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
                                 + Add {section.category === 'press_media' ? 'Search Query' : 'Source'}
                               </button>
                             </div>
 
                             {!isCollapsed && showIntelSourceForm === section.category && (
-                              <div style={{ background: '#FFFFFF', border: '1px solid rgba(0,165,163,0.25)', borderRadius: '12px', padding: '16px', marginBottom: '10px' }}>
-                                <div style={{ fontSize: '13px', fontWeight: 800, color: '#00695C', marginBottom: '10px', textTransform: 'uppercase', letterSpacing: '0.8px' }}>{editingIntelSourceId ? 'Edit Source' : 'New Source'}</div>
+                              <div style={{ background: 'var(--card)', border: '1px solid rgba(0,165,163,0.25)', borderRadius: '12px', padding: '16px', marginBottom: '10px' }}>
+                                <div style={{ fontSize: '13px', fontWeight: 800, color: 'var(--teal)', marginBottom: '10px', textTransform: 'uppercase', letterSpacing: '0.8px' }}>{editingIntelSourceId ? 'Edit Source' : 'New Source'}</div>
                                 <div style={{ marginBottom: '10px' }}>
-                                  <label style={{ fontSize: '13px', fontWeight: 700, color: '#5B7080', letterSpacing: '0.8px', textTransform: 'uppercase', display: 'block', marginBottom: '5px' }}>Name</label>
+                                  <label style={{ fontSize: '13px', fontWeight: 700, color: 'var(--ink3)', letterSpacing: '0.8px', textTransform: 'uppercase', display: 'block', marginBottom: '5px' }}>Name</label>
                                   <input value={intelSourceForm.name} onChange={e => setIntelSourceForm(p => ({ ...p, name: e.target.value }))}
-                                    style={{ width: '100%', padding: '9px 12px', borderRadius: '9px', border: '1px solid #DDE8EE', fontSize: '13px', fontFamily: 'inherit', boxSizing: 'border-box' }} />
+                                    style={{ width: '100%', padding: '9px 12px', borderRadius: '9px', border: '1px solid var(--border)', fontSize: '13px', fontFamily: 'inherit', boxSizing: 'border-box' }} />
                                 </div>
                                 {section.category === 'press_media' ? (
                                   <div style={{ marginBottom: '10px' }}>
-                                    <label style={{ fontSize: '13px', fontWeight: 700, color: '#5B7080', letterSpacing: '0.8px', textTransform: 'uppercase', display: 'block', marginBottom: '5px' }}>Search Query</label>
+                                    <label style={{ fontSize: '13px', fontWeight: 700, color: 'var(--ink3)', letterSpacing: '0.8px', textTransform: 'uppercase', display: 'block', marginBottom: '5px' }}>Search Query</label>
                                     <input value={intelSourceForm.query} onChange={e => setIntelSourceForm(p => ({ ...p, query: e.target.value }))} placeholder="e.g. Trescon site:arabianbusiness.com"
-                                      style={{ width: '100%', padding: '9px 12px', borderRadius: '9px', border: '1px solid #DDE8EE', fontSize: '13px', fontFamily: 'inherit', boxSizing: 'border-box' }} />
-                                    <div style={{ fontSize: '13px', color: '#5B7080', marginTop: '4px' }}>Google search query. Use site: to restrict to a domain.</div>
+                                      style={{ width: '100%', padding: '9px 12px', borderRadius: '9px', border: '1px solid var(--border)', fontSize: '13px', fontFamily: 'inherit', boxSizing: 'border-box' }} />
+                                    <div style={{ fontSize: '13px', color: 'var(--ink3)', marginTop: '4px' }}>Google search query. Use site: to restrict to a domain.</div>
                                   </div>
                                 ) : (
                                   <>
                                     <div style={{ marginBottom: '10px' }}>
-                                      <label style={{ fontSize: '13px', fontWeight: 700, color: '#5B7080', letterSpacing: '0.8px', textTransform: 'uppercase', display: 'block', marginBottom: '5px' }}>URL</label>
+                                      <label style={{ fontSize: '13px', fontWeight: 700, color: 'var(--ink3)', letterSpacing: '0.8px', textTransform: 'uppercase', display: 'block', marginBottom: '5px' }}>URL</label>
                                       <input value={intelSourceForm.url} onChange={e => setIntelSourceForm(p => ({ ...p, url: e.target.value }))} placeholder="https://difc.ae/newsroom"
-                                        style={{ width: '100%', padding: '9px 12px', borderRadius: '9px', border: '1px solid #DDE8EE', fontSize: '13px', fontFamily: 'inherit', boxSizing: 'border-box' }} />
+                                        style={{ width: '100%', padding: '9px 12px', borderRadius: '9px', border: '1px solid var(--border)', fontSize: '13px', fontFamily: 'inherit', boxSizing: 'border-box' }} />
                                     </div>
                                     <div style={{ marginBottom: '10px' }}>
-                                      <label style={{ fontSize: '13px', fontWeight: 700, color: '#5B7080', letterSpacing: '0.8px', textTransform: 'uppercase', display: 'block', marginBottom: '5px' }}>Crawl Behaviour</label>
+                                      <label style={{ fontSize: '13px', fontWeight: 700, color: 'var(--ink3)', letterSpacing: '0.8px', textTransform: 'uppercase', display: 'block', marginBottom: '5px' }}>Crawl Behaviour</label>
                                       <div style={{ display: 'flex', gap: '14px' }}>
-                                        <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px', color: '#0F1923', cursor: 'pointer' }}>
+                                        <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px', color: 'var(--ink)', cursor: 'pointer' }}>
                                           <input type="radio" checked={intelSourceForm.crawl_behaviour === 'article_discovery'} onChange={() => setIntelSourceForm(p => ({ ...p, crawl_behaviour: 'article_discovery' }))} />
                                           Article Discovery
                                         </label>
-                                        <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px', color: '#0F1923', cursor: 'pointer' }}>
+                                        <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px', color: 'var(--ink)', cursor: 'pointer' }}>
                                           <input type="radio" checked={intelSourceForm.crawl_behaviour === 'fact_extraction'} onChange={() => setIntelSourceForm(p => ({ ...p, crawl_behaviour: 'fact_extraction' }))} />
                                           Fact Extraction
                                         </label>
@@ -1753,26 +1753,26 @@ export default function KnowledgeBaseManagePage() {
                                   </>
                                 )}
                                 <div style={{ marginBottom: '10px' }}>
-                                  <label style={{ fontSize: '13px', fontWeight: 700, color: '#5B7080', letterSpacing: '0.8px', textTransform: 'uppercase', display: 'block', marginBottom: '5px' }}>Frequency</label>
+                                  <label style={{ fontSize: '13px', fontWeight: 700, color: 'var(--ink3)', letterSpacing: '0.8px', textTransform: 'uppercase', display: 'block', marginBottom: '5px' }}>Frequency</label>
                                   <div style={{ display: 'flex', gap: '14px' }}>
-                                    <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px', color: '#0F1923', cursor: 'pointer' }}>
+                                    <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px', color: 'var(--ink)', cursor: 'pointer' }}>
                                       <input type="radio" checked={intelSourceForm.crawl_frequency === 'weekly'} onChange={() => setIntelSourceForm(p => ({ ...p, crawl_frequency: 'weekly' }))} />
                                       Weekly
                                     </label>
-                                    <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px', color: '#0F1923', cursor: 'pointer' }}>
+                                    <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px', color: 'var(--ink)', cursor: 'pointer' }}>
                                       <input type="radio" checked={intelSourceForm.crawl_frequency === 'monthly'} onChange={() => setIntelSourceForm(p => ({ ...p, crawl_frequency: 'monthly' }))} />
                                       Monthly
                                     </label>
                                   </div>
                                 </div>
-                                {intelSourceMsg && <div style={{ fontSize: '13px', color: '#FF6B6B', marginBottom: '10px' }}>{intelSourceMsg}</div>}
+                                {intelSourceMsg && <div style={{ fontSize: '13px', color: 'var(--red)', marginBottom: '10px' }}>{intelSourceMsg}</div>}
                                 <div style={{ display: 'flex', gap: '8px' }}>
                                   <button onClick={saveIntelSource}
-                                    style={{ padding: '9px 18px', borderRadius: '9px', border: 'none', background: '#C0F43C', color: '#0F1923', fontSize: '13px', fontWeight: 800, cursor: 'pointer', fontFamily: 'inherit' }}>
+                                    style={{ padding: '9px 18px', borderRadius: '9px', border: 'none', background: 'var(--lime)', color: 'var(--lime-dark)', fontSize: '13px', fontWeight: 800, cursor: 'pointer', fontFamily: 'inherit' }}>
                                     Save Source
                                   </button>
                                   <button onClick={() => { setShowIntelSourceForm(false); setEditingIntelSourceId(null); setIntelSourceMsg('') }}
-                                    style={{ padding: '9px 16px', borderRadius: '9px', border: '1px solid #B8CDD8', background: '#FFFFFF', color: '#5B7080', fontSize: '13px', fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>
+                                    style={{ padding: '9px 16px', borderRadius: '9px', border: '1px solid var(--ink4)', background: 'var(--card)', color: 'var(--ink3)', fontSize: '13px', fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>
                                     Cancel
                                   </button>
                                 </div>
@@ -1780,23 +1780,23 @@ export default function KnowledgeBaseManagePage() {
                             )}
 
                             {!isCollapsed && (sectionSources.length === 0 ? (
-                              <div style={{ fontSize: '13px', color: '#5B7080' }}>No sources yet.</div>
+                              <div style={{ fontSize: '13px', color: 'var(--ink3)' }}>No sources yet.</div>
                             ) : (
                               <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
                                 {sectionSources.map(source => (
-                                  <div key={source.id} style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '10px 14px', background: '#FFFFFF', border: '1px solid #DDE8EE', borderRadius: '10px' }}>
+                                  <div key={source.id} style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '10px 14px', background: 'var(--card)', border: '1px solid var(--border)', borderRadius: '10px' }}>
                                     <button onClick={() => toggleIntelSourceActive(source)} title={source.is_active ? 'Active — click to pause' : 'Paused — click to activate'}
-                                      style={{ width: '10px', height: '10px', borderRadius: '50%', border: 'none', background: source.is_active ? '#3D6B00' : '#DDE8EE', cursor: 'pointer', flexShrink: 0, padding: 0 }} />
-                                    <span style={{ fontSize: '13px', fontWeight: 700, color: '#0F1923' }}>{source.name}</span>
-                                    <span style={{ fontSize: '13px', color: '#5B7080', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{source.config.url ?? source.config.query}</span>
-                                    <span style={{ fontSize: '13px', color: '#5B7080', textTransform: 'capitalize' }}>{source.crawl_frequency}</span>
-                                    <span style={{ fontSize: '13px', color: '#5B7080' }}>Last found: {source.last_found_count}</span>
+                                      style={{ width: '10px', height: '10px', borderRadius: '50%', border: 'none', background: source.is_active ? 'var(--lime)' : 'var(--border)', cursor: 'pointer', flexShrink: 0, padding: 0 }} />
+                                    <span style={{ fontSize: '13px', fontWeight: 700, color: 'var(--ink)' }}>{source.name}</span>
+                                    <span style={{ fontSize: '13px', color: 'var(--ink3)', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{source.config.url ?? source.config.query}</span>
+                                    <span style={{ fontSize: '13px', color: 'var(--ink3)', textTransform: 'capitalize' }}>{source.crawl_frequency}</span>
+                                    <span style={{ fontSize: '13px', color: 'var(--ink3)' }}>Last found: {source.last_found_count}</span>
                                     <button onClick={() => startEditIntelSource(source)}
-                                      style={{ fontSize: '13px', fontWeight: 700, color: '#7C3AED', background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'inherit' }}>
+                                      style={{ fontSize: '13px', fontWeight: 700, color: 'var(--purple)', background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'inherit' }}>
                                       Edit
                                     </button>
                                     <button onClick={() => deleteIntelSource(source.id)}
-                                      style={{ fontSize: '13px', fontWeight: 700, color: '#FF6B6B', background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'inherit' }}>
+                                      style={{ fontSize: '13px', fontWeight: 700, color: 'var(--red)', background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'inherit' }}>
                                       Delete
                                     </button>
                                   </div>
@@ -1815,9 +1815,9 @@ export default function KnowledgeBaseManagePage() {
                         <input value={intelItemsFilter.search} onChange={e => setIntelItemsFilter(p => ({ ...p, search: e.target.value }))}
                           onKeyDown={e => { if (e.key === 'Enter') fetchIntelItems(0) }}
                           placeholder="Search title or URL…"
-                          style={{ padding: '8px 12px', borderRadius: '9px', border: '1px solid #DDE8EE', fontSize: '13px', fontFamily: 'inherit', minWidth: '220px' }} />
+                          style={{ padding: '8px 12px', borderRadius: '9px', border: '1px solid var(--border)', fontSize: '13px', fontFamily: 'inherit', minWidth: '220px' }} />
                         <select value={intelItemsFilter.status} onChange={e => setIntelItemsFilter(p => ({ ...p, status: e.target.value }))}
-                          style={{ padding: '8px 12px', borderRadius: '9px', border: '1px solid #DDE8EE', fontSize: '13px', fontFamily: 'inherit' }}>
+                          style={{ padding: '8px 12px', borderRadius: '9px', border: '1px solid var(--border)', fontSize: '13px', fontFamily: 'inherit' }}>
                           <option value="all">All Statuses</option>
                           <option value="auto_published">Auto-published</option>
                           <option value="pending">Needs review</option>
@@ -1826,41 +1826,41 @@ export default function KnowledgeBaseManagePage() {
                           <option value="skipped">Skipped</option>
                         </select>
                         <select value={intelItemsFilter.source_id} onChange={e => setIntelItemsFilter(p => ({ ...p, source_id: e.target.value }))}
-                          style={{ padding: '8px 12px', borderRadius: '9px', border: '1px solid #DDE8EE', fontSize: '13px', fontFamily: 'inherit' }}>
+                          style={{ padding: '8px 12px', borderRadius: '9px', border: '1px solid var(--border)', fontSize: '13px', fontFamily: 'inherit' }}>
                           <option value="">All Sources</option>
                           {intelSources.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
                         </select>
                         <button onClick={() => fetchIntelItems(0)}
-                          style={{ padding: '8px 16px', borderRadius: '9px', border: 'none', background: '#C0F43C', color: '#0F1923', fontSize: '13px', fontWeight: 800, cursor: 'pointer', fontFamily: 'inherit' }}>
+                          style={{ padding: '8px 16px', borderRadius: '9px', border: 'none', background: 'var(--lime)', color: 'var(--lime-dark)', fontSize: '13px', fontWeight: 800, cursor: 'pointer', fontFamily: 'inherit' }}>
                           Apply
                         </button>
                       </div>
 
                       {intelItems.length === 0 ? (
-                        <div style={{ fontSize: '13px', color: '#5B7080' }}>No items match these filters.</div>
+                        <div style={{ fontSize: '13px', color: 'var(--ink3)' }}>No items match these filters.</div>
                       ) : (
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
                           {intelItems.map(item => {
                             const isExp = expandedIntelItemId === item.id
                             const badge = scoreBadge(item.gemini_score)
                             return (
-                              <div key={item.id} style={{ background: '#FFFFFF', border: '1px solid #DDE8EE', borderRadius: '10px', padding: '12px 14px' }}>
+                              <div key={item.id} style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: '10px', padding: '12px 14px' }}>
                                 <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
                                   <button onClick={() => setExpandedIntelItemId(isExp ? null : item.id)}
-                                    style={{ fontSize: '13px', fontWeight: 700, color: '#0F1923', background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'inherit', textAlign: 'left', flex: 1 }}>
+                                    style={{ fontSize: '13px', fontWeight: 700, color: 'var(--ink)', background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'inherit', textAlign: 'left', flex: 1 }}>
                                     {item.title ?? item.url}
                                   </button>
-                                  <span style={{ fontSize: '13px', color: '#5B7080' }}>{item.kb_intel_sources?.name ?? '—'}</span>
-                                  <span style={{ fontSize: '13px', color: '#5B7080' }}>{new Date(item.discovered_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}</span>
+                                  <span style={{ fontSize: '13px', color: 'var(--ink3)' }}>{item.kb_intel_sources?.name ?? '—'}</span>
+                                  <span style={{ fontSize: '13px', color: 'var(--ink3)' }}>{new Date(item.discovered_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}</span>
                                   <span style={{ fontSize: '13px', fontWeight: 800, padding: '2px 8px', borderRadius: '10px', color: badge.color, background: badge.background }}>{item.gemini_score ?? '—'}</span>
-                                  <span style={{ fontSize: '13px', fontWeight: 700, color: '#5B7080', textTransform: 'capitalize' }}>{item.status.replace(/_/g, ' ')}</span>
-                                  <a href={item.url} target="_blank" rel="noopener noreferrer" style={{ fontSize: '13px', color: '#00897B', textDecoration: 'none' }}>View original ↗</a>
-                                  {item.document_id && <Link href="/admin/toolkit/knowledge-base" style={{ fontSize: '13px', color: '#7C3AED', textDecoration: 'none' }}>View in KB</Link>}
+                                  <span style={{ fontSize: '13px', fontWeight: 700, color: 'var(--ink3)', textTransform: 'capitalize' }}>{item.status.replace(/_/g, ' ')}</span>
+                                  <a href={item.url} target="_blank" rel="noopener noreferrer" style={{ fontSize: '13px', color: 'var(--teal-mid)', textDecoration: 'none' }}>View original ↗</a>
+                                  {item.document_id && <Link href="/admin/toolkit/knowledge-base" style={{ fontSize: '13px', color: 'var(--purple)', textDecoration: 'none' }}>View in KB</Link>}
                                 </div>
                                 {isExp && (
-                                  <div style={{ marginTop: '10px', padding: '12px', background: '#E8EEF4', borderRadius: '8px' }}>
-                                    {item.gemini_reasoning && <p style={{ fontSize: '13px', color: '#5B7080', fontStyle: 'italic', margin: '0 0 8px' }}>{item.gemini_reasoning}</p>}
-                                    {item.gemini_summary && <div style={{ fontSize: '13px', color: '#2D3E50', whiteSpace: 'pre-wrap', lineHeight: 1.6, maxHeight: '260px', overflowY: 'auto' }}>{item.gemini_summary}</div>}
+                                  <div style={{ marginTop: '10px', padding: '12px', background: 'var(--surface)', borderRadius: '8px' }}>
+                                    {item.gemini_reasoning && <p style={{ fontSize: '13px', color: 'var(--ink3)', fontStyle: 'italic', margin: '0 0 8px' }}>{item.gemini_reasoning}</p>}
+                                    {item.gemini_summary && <div style={{ fontSize: '13px', color: 'var(--ink2)', whiteSpace: 'pre-wrap', lineHeight: 1.6, maxHeight: '260px', overflowY: 'auto' }}>{item.gemini_summary}</div>}
                                   </div>
                                 )}
                               </div>
@@ -1871,12 +1871,12 @@ export default function KnowledgeBaseManagePage() {
 
                       <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginTop: '16px' }}>
                         <button onClick={() => fetchIntelItems(Math.max(0, intelItemsPage - 1))} disabled={intelItemsPage === 0}
-                          style={{ padding: '7px 14px', borderRadius: '8px', border: '1px solid #DDE8EE', background: '#FFFFFF', color: '#5B7080', fontSize: '13px', fontWeight: 700, cursor: intelItemsPage === 0 ? 'not-allowed' : 'pointer', fontFamily: 'inherit' }}>
+                          style={{ padding: '7px 14px', borderRadius: '8px', border: '1px solid var(--border)', background: 'var(--card)', color: 'var(--ink3)', fontSize: '13px', fontWeight: 700, cursor: intelItemsPage === 0 ? 'not-allowed' : 'pointer', fontFamily: 'inherit' }}>
                           ← Previous
                         </button>
-                        <span style={{ fontSize: '13px', color: '#5B7080' }}>Page {intelItemsPage + 1} of {Math.max(1, Math.ceil(intelItemsTotal / 20))}</span>
+                        <span style={{ fontSize: '13px', color: 'var(--ink3)' }}>Page {intelItemsPage + 1} of {Math.max(1, Math.ceil(intelItemsTotal / 20))}</span>
                         <button onClick={() => fetchIntelItems(intelItemsPage + 1)} disabled={(intelItemsPage + 1) * 20 >= intelItemsTotal}
-                          style={{ padding: '7px 14px', borderRadius: '8px', border: '1px solid #DDE8EE', background: '#FFFFFF', color: '#5B7080', fontSize: '13px', fontWeight: 700, cursor: (intelItemsPage + 1) * 20 >= intelItemsTotal ? 'not-allowed' : 'pointer', fontFamily: 'inherit' }}>
+                          style={{ padding: '7px 14px', borderRadius: '8px', border: '1px solid var(--border)', background: 'var(--card)', color: 'var(--ink3)', fontSize: '13px', fontWeight: 700, cursor: (intelItemsPage + 1) * 20 >= intelItemsTotal ? 'not-allowed' : 'pointer', fontFamily: 'inherit' }}>
                           Next →
                         </button>
                       </div>
@@ -1888,43 +1888,43 @@ export default function KnowledgeBaseManagePage() {
                 const actionable = (s: GapSession) => s.gaps.filter(g => g.status === 'pending' || g.status === 'unresolved')
                 return (
                   <div>
-                    <p style={{ fontSize: '13px', color: '#5B7080', margin: '0 0 16px', lineHeight: 1.6 }}>
+                    <p style={{ fontSize: '13px', color: 'var(--ink3)', margin: '0 0 16px', lineHeight: 1.6 }}>
                       Gaps an uploader deferred with &quot;Skip this gap&quot;, or left unresolved. Action each one using the same 3-step flow they saw at ingest.
                     </p>
                     {pendingGapsLoading && (
-                      <div style={{ color: '#5B7080', fontSize: '13px', padding: '40px 0', textAlign: 'center' }}>Loading…</div>
+                      <div style={{ color: 'var(--ink3)', fontSize: '13px', padding: '40px 0', textAlign: 'center' }}>Loading…</div>
                     )}
                     {!pendingGapsLoading && pendingGapSessions.every(s => actionable(s).length === 0) && (
-                      <div style={{ color: '#5B7080', fontSize: '13px', padding: '40px 0', textAlign: 'center' }}>No pending gaps — every uploader has fully resolved their documents.</div>
+                      <div style={{ color: 'var(--ink3)', fontSize: '13px', padding: '40px 0', textAlign: 'center' }}>No pending gaps — every uploader has fully resolved their documents.</div>
                     )}
                     {!pendingGapsLoading && pendingGapSessions.map(session => {
                       const gaps = actionable(session)
                       if (gaps.length === 0) return null
                       const wizardActive = gapWizard?.sessionId === session.id
                       return (
-                        <div key={session.id} style={{ background: '#FFFFFF', border: '1px solid #DDE8EE', borderRadius: '16px', padding: '20px', marginBottom: '16px' }}>
+                        <div key={session.id} style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: '16px', padding: '20px', marginBottom: '16px' }}>
                           <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '14px' }}>
-                            <span style={{ fontSize: '13px', fontWeight: 700, padding: '2px 8px', borderRadius: '16px', background: 'rgba(124,58,237,0.12)', color: '#7C3AED' }}>
+                            <span style={{ fontSize: '13px', fontWeight: 700, padding: '2px 8px', borderRadius: '16px', background: 'rgba(124,58,237,0.12)', color: 'var(--purple)' }}>
                               {typeLabel(session.processor_type)}
                             </span>
-                            <span style={{ fontSize: '13px', fontWeight: 800, color: '#0F1923' }}>{session.documents?.title ?? session.document_id}</span>
+                            <span style={{ fontSize: '13px', fontWeight: 800, color: 'var(--ink)' }}>{session.documents?.title ?? session.document_id}</span>
                           </div>
 
                           {wizardActive ? renderGapWizard(session) : (
                             <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
                               {gaps.map(gap => (
-                                <div key={gap.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px', padding: '12px 14px', background: '#F0FAFA', border: '1px solid rgba(0,165,163,0.15)', borderRadius: '10px' }}>
+                                <div key={gap.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px', padding: '12px 14px', background: 'var(--teal-light)', border: '1px solid rgba(0,165,163,0.15)', borderRadius: '10px' }}>
                                   <div style={{ flex: 1, minWidth: 0 }}>
-                                    <div style={{ fontSize: '13px', color: '#0F1923' }}>{gap.description}</div>
-                                    {gap.location && <div style={{ fontSize: '13px', color: '#5B7080', marginTop: '2px' }}>Location: {gap.location}</div>}
+                                    <div style={{ fontSize: '13px', color: 'var(--ink)' }}>{gap.description}</div>
+                                    {gap.location && <div style={{ fontSize: '13px', color: 'var(--ink3)', marginTop: '2px' }}>Location: {gap.location}</div>}
                                   </div>
                                   <div style={{ display: 'flex', gap: '8px', flexShrink: 0 }}>
                                     <button onClick={() => startGapWizard('review', session.document_id, session.id, [gap.id])}
-                                      style={{ padding: '7px 14px', borderRadius: '8px', border: 'none', background: '#00A5A3', color: '#FFFFFF', fontSize: '13px', fontWeight: 800, cursor: 'pointer', fontFamily: 'inherit' }}>
+                                      style={{ padding: '7px 14px', borderRadius: '8px', border: 'none', background: 'var(--teal-mid)', color: 'var(--teal-light)', fontSize: '13px', fontWeight: 800, cursor: 'pointer', fontFamily: 'inherit' }}>
                                       Resolve ✓
                                     </button>
                                     <button onClick={() => dismissPendingGap(session, gap)}
-                                      style={{ padding: '7px 14px', borderRadius: '8px', border: '1px solid rgba(255,107,107,0.3)', background: 'rgba(255,107,107,0.08)', color: '#FF6B6B', fontSize: '13px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
+                                      style={{ padding: '7px 14px', borderRadius: '8px', border: '1px solid rgba(255,107,107,0.3)', background: 'rgba(255,107,107,0.08)', color: 'var(--red)', fontSize: '13px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
                                       Dismiss ✗
                                     </button>
                                   </div>
@@ -1942,55 +1942,55 @@ export default function KnowledgeBaseManagePage() {
               {/* EMPTY STATE */}
               {!docsLoading && docs.length === 0 && (
                 <>
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', marginBottom: '32px', background: '#FFFFFF', border: '1px solid #DDE8EE', borderRadius: '14px', overflow: 'hidden', boxShadow: '0 2px 8px rgba(0,0,0,0.05)' }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', marginBottom: '32px', background: 'var(--card)', border: '1px solid var(--border)', borderRadius: '14px', overflow: 'hidden', boxShadow: '0 2px 8px rgba(0,0,0,0.05)' }}>
                     {[
                       { n:'1', label:'Upload a document', sub:'PDF or text — policy, brief, report, anything' },
                       { n:'2', label:'AI classifies it', sub:'Decides who sees it, what it is for, confidence score' },
                       { n:'3', label:'Goes live or flagged', sub:'High confidence = auto-live. Low = you review first' },
                       { n:'4', label:'Pilot answers from it', sub:'Staff ask questions — Pilot reads docs to reply' },
                     ].map((s, i) => (
-                      <div key={s.n} style={{ padding: '18px 16px', borderRight: i < 3 ? '1px solid #DDE8EE' : 'none' }}>
-                        <div style={{ width: '24px', height: '24px', borderRadius: '50%', background: '#00897B', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '10px' }}>
-                          <span style={{ fontSize: '11px', fontWeight: 900, color: '#FFFFFF' }}>{s.n}</span>
+                      <div key={s.n} style={{ padding: '18px 16px', borderRight: i < 3 ? '1px solid var(--border)' : 'none' }}>
+                        <div style={{ width: '24px', height: '24px', borderRadius: '50%', background: 'var(--teal-mid)', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '10px' }}>
+                          <span style={{ fontSize: '11px', fontWeight: 900, color: 'var(--teal-light)' }}>{s.n}</span>
                         </div>
-                        <div style={{ fontSize: '13px', fontWeight: 800, color: '#0F1923', marginBottom: '4px' }}>{s.label}</div>
-                        <div style={{ fontSize: '13px', color: '#5B7080', lineHeight: 1.4 }}>{s.sub}</div>
+                        <div style={{ fontSize: '13px', fontWeight: 800, color: 'var(--ink)', marginBottom: '4px' }}>{s.label}</div>
+                        <div style={{ fontSize: '13px', color: 'var(--ink3)', lineHeight: 1.4 }}>{s.sub}</div>
                       </div>
                     ))}
                   </div>
                   <div style={{ maxWidth: '520px', margin: '0 auto', textAlign: 'center' }}>
                     <button onClick={() => setShowIngestForm(true)}
-                      style={{ padding: '11px 24px', borderRadius: '9px', border: 'none', background: '#7C3AED', color: '#FFFFFF', fontSize: '13px', fontWeight: 800, cursor: 'pointer', fontFamily: 'inherit' }}>
+                      style={{ padding: '11px 24px', borderRadius: '9px', border: 'none', background: 'var(--purple)', color: 'var(--purple-light)', fontSize: '13px', fontWeight: 800, cursor: 'pointer', fontFamily: 'inherit' }}>
                       Ingest Document
                     </button>
                   </div>
                 </>
               )}
 
-              {docsLoading && <div style={{ color: '#0F1923', fontSize: '13px', padding: '40px 0', textAlign: 'center' }}>Loading documents…</div>}
+              {docsLoading && <div style={{ color: 'var(--ink)', fontSize: '13px', padding: '40px 0', textAlign: 'center' }}>Loading documents…</div>}
 
               {/* POPULATED STATE */}
               {!docsLoading && docs.length > 0 && (
                 <>
                   {/* Collapsible guide */}
                   <details style={{ marginBottom: '20px' }}>
-                    <summary style={{ fontSize: '13px', fontWeight: 700, color: '#5B7080', cursor: 'pointer', userSelect: 'none', listStyle: 'none', display: 'inline-flex', alignItems: 'center', gap: '5px' }}>
+                    <summary style={{ fontSize: '13px', fontWeight: 700, color: 'var(--ink3)', cursor: 'pointer', userSelect: 'none', listStyle: 'none', display: 'inline-flex', alignItems: 'center', gap: '5px' }}>
                       <svg width="11" height="11" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
                       How this section works
                     </summary>
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', marginTop: '12px', background: '#FFFFFF', border: '1px solid #DDE8EE', borderRadius: '12px', overflow: 'hidden' }}>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', marginTop: '12px', background: 'var(--card)', border: '1px solid var(--border)', borderRadius: '12px', overflow: 'hidden' }}>
                       {[
                         { n:'1', label:'Upload a document', sub:'PDF or text — policy, brief, report' },
                         { n:'2', label:'AI classifies it', sub:'Layer, department, audience, confidence' },
                         { n:'3', label:'Goes live or flagged', sub:'High confidence = auto-live, low = review' },
                         { n:'4', label:'Pilot answers from it', sub:'Staff questions answered from your docs' },
                       ].map((s, i) => (
-                        <div key={s.n} style={{ padding: '12px 14px', borderRight: i < 3 ? '1px solid #DDE8EE' : 'none' }}>
-                          <div style={{ width: '20px', height: '20px', borderRadius: '50%', background: '#00897B', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '7px' }}>
-                            <span style={{ fontSize: '9px', fontWeight: 900, color: '#FFFFFF' }}>{s.n}</span>
+                        <div key={s.n} style={{ padding: '12px 14px', borderRight: i < 3 ? '1px solid var(--border)' : 'none' }}>
+                          <div style={{ width: '20px', height: '20px', borderRadius: '50%', background: 'var(--teal-mid)', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '7px' }}>
+                            <span style={{ fontSize: '9px', fontWeight: 900, color: 'var(--teal-light)' }}>{s.n}</span>
                           </div>
-                          <div style={{ fontSize: '13px', fontWeight: 800, color: '#0F1923', marginBottom: '2px' }}>{s.label}</div>
-                          <div style={{ fontSize: '13px', color: '#5B7080', lineHeight: 1.4 }}>{s.sub}</div>
+                          <div style={{ fontSize: '13px', fontWeight: 800, color: 'var(--ink)', marginBottom: '2px' }}>{s.label}</div>
+                          <div style={{ fontSize: '13px', color: 'var(--ink3)', lineHeight: 1.4 }}>{s.sub}</div>
                         </div>
                       ))}
                     </div>
@@ -2008,7 +2008,7 @@ export default function KnowledgeBaseManagePage() {
                       { key:'external',                label:`External (${categoryCount('external')})` },
                     ] as {key:typeof docCategoryFilter;label:string}[]).map(f => (
                       <button key={f.key} onClick={() => setDocCategoryFilter(f.key)}
-                        style={{ padding: '6px 14px', borderRadius: '16px', border: `1px solid ${docCategoryFilter === f.key ? 'rgba(0,165,163,0.4)' : '#DDE8EE'}`, background: docCategoryFilter === f.key ? 'rgba(0,165,163,0.08)' : 'transparent', color: docCategoryFilter === f.key ? '#00695C' : '#5B7080', fontSize: '13px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
+                        style={{ padding: '6px 14px', borderRadius: '16px', border: `1px solid ${docCategoryFilter === f.key ? 'rgba(0,165,163,0.4)' : 'var(--border)'}`, background: docCategoryFilter === f.key ? 'rgba(0,165,163,0.08)' : 'transparent', color: docCategoryFilter === f.key ? 'var(--teal)' : 'var(--ink3)', fontSize: '13px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
                         {f.label}
                       </button>
                     ))}
@@ -2024,7 +2024,7 @@ export default function KnowledgeBaseManagePage() {
                       ...(flaggedCount > 0 ? [{ key:'flagged', label:`Flagged (${flaggedCount})` }] : []),
                     ] as {key:string;label:string}[]).map(f => (
                       <button key={f.key} onClick={() => setDocFilter(f.key as typeof docFilter)}
-                        style={{ padding: '6px 14px', borderRadius: '16px', border: `1px solid ${docFilter === f.key ? (f.key === 'flagged' ? 'rgba(139,26,26,0.5)' : 'rgba(192,244,60,0.4)') : '#DDE8EE'}`, background: docFilter === f.key ? (f.key === 'flagged' ? 'rgba(139,26,26,0.1)' : 'rgba(192,244,60,0.08)') : 'transparent', color: docFilter === f.key ? (f.key === 'flagged' ? '#8B1A1A' : '#3D6B00') : '#5B7080', fontSize: '13px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
+                        style={{ padding: '6px 14px', borderRadius: '16px', border: `1px solid ${docFilter === f.key ? (f.key === 'flagged' ? 'rgba(139,26,26,0.5)' : 'rgba(192,244,60,0.4)') : 'var(--border)'}`, background: docFilter === f.key ? (f.key === 'flagged' ? 'rgba(139,26,26,0.1)' : 'rgba(192,244,60,0.08)') : 'transparent', color: docFilter === f.key ? (f.key === 'flagged' ? 'var(--red)' : 'var(--lime)') : 'var(--ink3)', fontSize: '13px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
                         {f.label}
                       </button>
                     ))}
@@ -2032,14 +2032,14 @@ export default function KnowledgeBaseManagePage() {
 
                   {/* Document grid */}
                   {filteredDocs.length === 0 ? (
-                    <div style={{ padding: '40px', textAlign: 'center', color: '#0F1923', fontSize: '13px' }}>No documents match this filter.</div>
+                    <div style={{ padding: '40px', textAlign: 'center', color: 'var(--ink)', fontSize: '13px' }}>No documents match this filter.</div>
                   ) : (
                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '14px' }}>
                       {filteredDocs.map(doc => {
-                        const tc   = TYPE_COLOR[doc.type] ?? '#5B7080'
-                        const lCfg = LAYER_CFG[doc.layer] ?? { label: doc.layer, color: '#0F1923', bg: '#DDE8EE' }
+                        const tc   = TYPE_COLOR[doc.type] ?? '#7E93A1'
+                        const lCfg = LAYER_CFG[doc.layer] ?? { label: doc.layer, color: 'var(--ink)', bg: 'var(--border)' }
                         return (
-                          <div key={doc.id} style={{ background: '#FFFFFF', border: `1px solid ${doc.flagged ? 'rgba(139,26,26,0.25)' : '#DDE8EE'}`, borderRadius: '14px', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+                          <div key={doc.id} style={{ background: 'var(--card)', border: `1px solid ${doc.flagged ? 'rgba(139,26,26,0.25)' : 'var(--border)'}`, borderRadius: '14px', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
                             {/* Top colour strip */}
                             <div style={{ height: '3px', background: tc, opacity: 0.8 }} />
                             <div style={{ padding: '16px', flex: 1, display: 'flex', flexDirection: 'column', gap: '10px' }}>
@@ -2052,31 +2052,31 @@ export default function KnowledgeBaseManagePage() {
                                   {lCfg.label}
                                 </span>
                                 {doc.flagged && (
-                                  <span style={{ fontSize: '13px', fontWeight: 700, padding: '2px 8px', borderRadius: '16px', background: 'rgba(139,26,26,0.12)', color: '#8B1A1A' }}>Flagged</span>
+                                  <span style={{ fontSize: '13px', fontWeight: 700, padding: '2px 8px', borderRadius: '16px', background: 'rgba(139,26,26,0.12)', color: 'var(--red)' }}>Flagged</span>
                                 )}
                                 {doc.version > 1 && (
                                   <button onClick={() => openVersionHistory(doc.document_group_id ?? doc.id)}
-                                    style={{ fontSize: '13px', fontWeight: 700, padding: '2px 8px', borderRadius: '16px', background: 'rgba(96,165,250,0.12)', color: '#1D4ED8', border: 'none', cursor: 'pointer', fontFamily: 'inherit' }}>
+                                    style={{ fontSize: '13px', fontWeight: 700, padding: '2px 8px', borderRadius: '16px', background: 'rgba(96,165,250,0.12)', color: 'var(--info)', border: 'none', cursor: 'pointer', fontFamily: 'inherit' }}>
                                     v{doc.version} · History
                                   </button>
                                 )}
                               </div>
 
                               {/* Title */}
-                              <div style={{ fontSize: '13px', fontWeight: 800, color: '#0F1923', lineHeight: 1.4 }}>{doc.title}</div>
+                              <div style={{ fontSize: '13px', fontWeight: 800, color: 'var(--ink)', lineHeight: 1.4 }}>{doc.title}</div>
 
                               {/* Source link + workspace tag */}
                               {(doc.source_url || doc.workspace_id) && (
                                 <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
                                   {kbDownloadHref(doc.source_url, doc.id) && (
                                     <a href={kbDownloadHref(doc.source_url, doc.id)!} target="_blank" rel="noopener noreferrer"
-                                      style={{ fontSize: '13px', fontWeight: 700, color: '#00897B', textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                                      style={{ fontSize: '13px', fontWeight: 700, color: 'var(--teal-mid)', textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
                                       <svg width="11" height="11" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
                                       Download original
                                     </a>
                                   )}
                                   {doc.workspace_id && (
-                                    <span style={{ fontSize: '13px', fontWeight: 700, color: '#5B7080' }}>
+                                    <span style={{ fontSize: '13px', fontWeight: 700, color: 'var(--ink3)' }}>
                                       {workspaces.find(w => w.id === doc.workspace_id)?.name ?? 'BD Workspace'}
                                     </span>
                                   )}
@@ -2085,9 +2085,9 @@ export default function KnowledgeBaseManagePage() {
 
                               {/* Department + level (if specific) */}
                               {doc.layer === 'specific' && (
-                                <div style={{ fontSize: '13px', color: '#0F1923', display: 'flex', gap: '8px' }}>
+                                <div style={{ fontSize: '13px', color: 'var(--ink)', display: 'flex', gap: '8px' }}>
                                   <span>{doc.department}</span>
-                                  <span style={{ color: '#5B7080' }}>·</span>
+                                  <span style={{ color: 'var(--ink3)' }}>·</span>
                                   <span>{doc.min_level}</span>
                                 </div>
                               )}
@@ -2095,24 +2095,24 @@ export default function KnowledgeBaseManagePage() {
                               {/* Pilot indicator + confidence */}
                               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                                 <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
-                                  <div style={{ width: '6px', height: '6px', borderRadius: '50%', background: doc.pilot_use ? '#C0F43C' : '#DDE8EE', flexShrink: 0 }} />
-                                  <span style={{ fontSize: '13px', fontWeight: 600, color: doc.pilot_use ? '#3D6B00' : '#5B7080' }}>
+                                  <div style={{ width: '6px', height: '6px', borderRadius: '50%', background: doc.pilot_use ? 'var(--lime)' : 'var(--border)', flexShrink: 0 }} />
+                                  <span style={{ fontSize: '13px', fontWeight: 600, color: doc.pilot_use ? 'var(--lime)' : 'var(--ink3)' }}>
                                     {doc.pilot_use ? 'Used by Pilot' : 'Not indexed'}
                                   </span>
                                 </div>
-                                <span style={{ fontSize: '13px', fontWeight: 700, color: doc.confidence >= 75 ? '#0F1923' : '#8B1A1A' }}>
+                                <span style={{ fontSize: '13px', fontWeight: 700, color: doc.confidence >= 75 ? 'var(--ink)' : 'var(--red)' }}>
                                   {doc.confidence}% AI confidence
                                 </span>
                               </div>
 
                               {/* Footer: word count + date + actions */}
-                              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 'auto', paddingTop: '8px', borderTop: '1px solid #DDE8EE' }}>
-                                <span style={{ fontSize: '13px', color: '#0F1923' }}>
+                              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 'auto', paddingTop: '8px', borderTop: '1px solid var(--border)' }}>
+                                <span style={{ fontSize: '13px', color: 'var(--ink)' }}>
                                   {doc.word_count?.toLocaleString()} words · {new Date(doc.created_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}
                                 </span>
                                 <div style={{ display: 'flex', gap: '10px' }}>
                                   <button onClick={() => { setSupersedesDoc(doc); setDocForm(p => ({ ...p, title: doc.title, type: doc.type, workspace_id: doc.workspace_id ?? '', doc_category: doc.doc_category ?? '' })); setIngestIntent('verbatim'); setShowIngestForm(true); window.scrollTo({ top: 0, behavior: 'smooth' }) }}
-                                    style={{ fontSize: '13px', fontWeight: 700, color: '#00897B', background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'inherit', padding: '2px 4px' }}>
+                                    style={{ fontSize: '13px', fontWeight: 700, color: 'var(--teal-mid)', background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'inherit', padding: '2px 4px' }}>
                                     New Version
                                   </button>
                                   <button onClick={() => setDeletingDoc(doc)}
@@ -2137,30 +2137,30 @@ export default function KnowledgeBaseManagePage() {
                 <div onClick={() => setVersionModalGroupId(null)}
                   style={{ position: 'fixed', inset: 0, background: 'rgba(15,25,35,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100 }}>
                   <div onClick={e => e.stopPropagation()}
-                    style={{ background: '#FFFFFF', borderRadius: '16px', padding: '24px', width: '520px', maxWidth: '90vw', maxHeight: '80vh', overflowY: 'auto' }}>
+                    style={{ background: 'var(--card)', borderRadius: '16px', padding: '24px', width: '520px', maxWidth: '90vw', maxHeight: '80vh', overflowY: 'auto' }}>
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
-                      <div style={{ fontSize: '13px', fontWeight: 800, color: '#0F1923' }}>Version History</div>
+                      <div style={{ fontSize: '13px', fontWeight: 800, color: 'var(--ink)' }}>Version History</div>
                       <button onClick={() => setVersionModalGroupId(null)}
-                        style={{ fontSize: '13px', fontWeight: 700, color: '#5B7080', background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'inherit' }}>Close</button>
+                        style={{ fontSize: '13px', fontWeight: 700, color: 'var(--ink3)', background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'inherit' }}>Close</button>
                     </div>
                     {versionHistoryLoading ? (
-                      <div style={{ fontSize: '13px', color: '#5B7080', padding: '20px 0', textAlign: 'center' }}>Loading…</div>
+                      <div style={{ fontSize: '13px', color: 'var(--ink3)', padding: '20px 0', textAlign: 'center' }}>Loading…</div>
                     ) : (
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
                         {versionHistory.map(v => {
                           const uploader = Array.isArray(v.staff_members) ? v.staff_members[0] : v.staff_members
                           const isCurrent = !v.superseded_by
                           return (
-                            <div key={v.id} style={{ padding: '12px 14px', background: isCurrent ? 'rgba(192,244,60,0.06)' : '#E8EEF4', border: `1px solid ${isCurrent ? 'rgba(192,244,60,0.25)' : '#DDE8EE'}`, borderRadius: '10px' }}>
+                            <div key={v.id} style={{ padding: '12px 14px', background: isCurrent ? 'rgba(192,244,60,0.06)' : 'var(--surface)', border: `1px solid ${isCurrent ? 'rgba(192,244,60,0.25)' : 'var(--border)'}`, borderRadius: '10px' }}>
                               <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
-                                <span style={{ fontSize: '13px', fontWeight: 800, color: '#0F1923' }}>v{v.version}</span>
-                                {isCurrent && <span style={{ fontSize: '13px', fontWeight: 700, color: '#3D6B00', background: 'rgba(192,244,60,0.15)', padding: '1px 8px', borderRadius: '10px' }}>Current</span>}
-                                <span style={{ fontSize: '13px', color: '#5B7080', marginLeft: 'auto' }}>{new Date(v.created_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}</span>
+                                <span style={{ fontSize: '13px', fontWeight: 800, color: 'var(--ink)' }}>v{v.version}</span>
+                                {isCurrent && <span style={{ fontSize: '13px', fontWeight: 700, color: 'var(--lime)', background: 'rgba(192,244,60,0.15)', padding: '1px 8px', borderRadius: '10px' }}>Current</span>}
+                                <span style={{ fontSize: '13px', color: 'var(--ink3)', marginLeft: 'auto' }}>{new Date(v.created_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}</span>
                               </div>
-                              {v.version_note && <div style={{ fontSize: '13px', color: '#0F1923', marginBottom: '4px' }}>{v.version_note}</div>}
+                              {v.version_note && <div style={{ fontSize: '13px', color: 'var(--ink)', marginBottom: '4px' }}>{v.version_note}</div>}
                               <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                                {uploader?.name && <span style={{ fontSize: '13px', color: '#5B7080' }}>Uploaded by {uploader.name}</span>}
-                                {kbDownloadHref(v.source_url, v.id) && <a href={kbDownloadHref(v.source_url, v.id)!} target="_blank" rel="noopener noreferrer" style={{ fontSize: '13px', fontWeight: 700, color: '#00897B', textDecoration: 'none' }}>Download</a>}
+                                {uploader?.name && <span style={{ fontSize: '13px', color: 'var(--ink3)' }}>Uploaded by {uploader.name}</span>}
+                                {kbDownloadHref(v.source_url, v.id) && <a href={kbDownloadHref(v.source_url, v.id)!} target="_blank" rel="noopener noreferrer" style={{ fontSize: '13px', fontWeight: 700, color: 'var(--teal-mid)', textDecoration: 'none' }}>Download</a>}
                               </div>
                             </div>
                           )
@@ -2175,25 +2175,25 @@ export default function KnowledgeBaseManagePage() {
                 <div onClick={() => { setDeletingDoc(null); setDeleteConfirmText('') }}
                   style={{ position: 'fixed', inset: 0, background: 'rgba(15,25,35,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100, padding: '20px' }}>
                   <div onClick={e => e.stopPropagation()}
-                    style={{ background: '#FFFFFF', borderRadius: '16px', padding: '28px', maxWidth: '440px', width: '100%' }}>
-                    <div style={{ fontSize: '16px', fontWeight: 800, color: '#0F1923', marginBottom: '10px' }}>Remove this document?</div>
-                    <div style={{ fontSize: '13px', color: '#5B7080', lineHeight: 1.6, marginBottom: '16px' }}>
+                    style={{ background: 'var(--card)', borderRadius: '16px', padding: '28px', maxWidth: '440px', width: '100%' }}>
+                    <div style={{ fontSize: '16px', fontWeight: 800, color: 'var(--ink)', marginBottom: '10px' }}>Remove this document?</div>
+                    <div style={{ fontSize: '13px', color: 'var(--ink3)', lineHeight: 1.6, marginBottom: '16px' }}>
                       This removes <strong>&ldquo;{deletingDoc.title}&rdquo;</strong> from the Knowledge Base — it will no longer be visible to staff or Pilot. Type <strong>DELETE</strong> below to confirm.
                     </div>
                     <input
                       value={deleteConfirmText}
                       onChange={e => setDeleteConfirmText(e.target.value)}
                       placeholder="Type DELETE to confirm"
-                      style={{ width: '100%', padding: '10px 12px', borderRadius: '9px', border: '1px solid #DDE8EE', fontSize: '13px', fontFamily: 'inherit', boxSizing: 'border-box', marginBottom: '16px' }}
+                      style={{ width: '100%', padding: '10px 12px', borderRadius: '9px', border: '1px solid var(--border)', fontSize: '13px', fontFamily: 'inherit', boxSizing: 'border-box', marginBottom: '16px' }}
                       autoFocus
                     />
                     <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
                       <button onClick={() => { setDeletingDoc(null); setDeleteConfirmText('') }}
-                        style={{ padding: '10px 16px', borderRadius: '9px', border: '1px solid #DDE8EE', background: '#FFFFFF', color: '#5B7080', fontSize: '13px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
+                        style={{ padding: '10px 16px', borderRadius: '9px', border: '1px solid var(--border)', background: 'var(--card)', color: 'var(--ink3)', fontSize: '13px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
                         Cancel
                       </button>
                       <button onClick={confirmDeleteDoc} disabled={deleteConfirmText !== 'DELETE' || deleting}
-                        style={{ padding: '10px 16px', borderRadius: '9px', border: 'none', background: deleteConfirmText !== 'DELETE' || deleting ? '#F3B8B8' : '#FF6B6B', color: '#FFFFFF', fontSize: '13px', fontWeight: 800, cursor: deleteConfirmText !== 'DELETE' || deleting ? 'not-allowed' : 'pointer', fontFamily: 'inherit' }}>
+                        style={{ padding: '10px 16px', borderRadius: '9px', border: 'none', background: 'var(--red)', color: 'var(--red-light)', opacity: deleteConfirmText !== 'DELETE' || deleting ? 0.5 : 1, fontSize: '13px', fontWeight: 800, cursor: deleteConfirmText !== 'DELETE' || deleting ? 'not-allowed' : 'pointer', fontFamily: 'inherit' }}>
                         {deleting ? 'Removing…' : 'Remove permanently'}
                       </button>
                     </div>

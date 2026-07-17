@@ -27,9 +27,14 @@ export async function GET(req: NextRequest) {
     .from('pilot_project_members')
     .select('*')
 
+  // tool_grants is only ever included in the response when the caller is an
+  // admin (stripped below for non-admins) — it's needed by the admin Manage
+  // Members UI to show/edit each member's current per-project grant state,
+  // but non-admins already only see their own project memberships, so there's
+  // no separate access check needed here beyond the existing admin/member gate.
   const { data: staffRows } = await supabaseAdmin
     .from('staff_members')
-    .select('id, name, email, role, department')
+    .select('id, name, email, role, department, tool_grants')
 
   const staffMap = Object.fromEntries((staffRows ?? []).map(s => [s.id, s]))
 
@@ -41,7 +46,14 @@ export async function GET(req: NextRequest) {
   const result = (projects ?? []).map(p => {
     const projectMembers = (members ?? [])
       .filter(m => m.project_id === p.id)
-      .map(m => ({ ...m, staff: staffMap[m.staff_id] ?? null }))
+      .map(m => {
+        const staff = staffMap[m.staff_id] ?? null
+        if (staff && !session.adm) {
+          const { tool_grants: _tool_grants, ...staffWithoutGrants } = staff
+          return { ...m, staff: staffWithoutGrants }
+        }
+        return { ...m, staff }
+      })
 
     const isMember = projectMembers.some(m => m.staff_id === session.sid)
     if (!session.adm && !isMember) return null

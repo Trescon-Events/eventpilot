@@ -71,23 +71,23 @@ export default function InsightsPage() {
   /* ── Auth gate ── */
   if (!authed) {
     return (
-      <div style={{ fontFamily: 'var(--font-manrope), Manrope, sans-serif', background: '#E8EEF4', minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '24px' }}>
-        <div style={{ background: '#FFFFFF', border: '1.5px solid #DDE8EE', borderRadius: '16px', padding: '48px 40px', maxWidth: '400px', width: '100%', textAlign: 'center' }}>
-          <div style={{ width: '56px', height: '56px', background: '#C0F43C20', border: '2px solid #C0F43C', borderRadius: '16px', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 24px' }}>
-            <svg width="24" height="24" fill="none" stroke="#007A6E" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+      <div style={{ fontFamily: 'var(--font-manrope), Manrope, sans-serif', background: 'var(--surface)', minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '24px' }}>
+        <div style={{ background: 'var(--card)', border: '1.5px solid var(--border)', borderRadius: '16px', padding: '48px 40px', maxWidth: '400px', width: '100%', textAlign: 'center' }}>
+          <div style={{ width: '56px', height: '56px', background: 'color-mix(in srgb, var(--lime) 13%, transparent)', border: '2px solid var(--lime)', borderRadius: '16px', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 24px' }}>
+            <svg width="24" height="24" fill="none" stroke="var(--teal-dark)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
           </div>
-          <h1 style={{ fontSize: '36px', fontWeight: 800, color: '#0F1923', marginBottom: '8px' }}>Event Pilot Intelligence</h1>
-          <p style={{ fontSize: '13px', color: '#2D3E50', marginBottom: '32px' }}>Management-ready insights from all staff submissions</p>
+          <h1 style={{ fontSize: '36px', fontWeight: 800, color: 'var(--ink)', marginBottom: '8px' }}>Event Pilot Intelligence</h1>
+          <p style={{ fontSize: '13px', color: 'var(--ink2)', marginBottom: '32px' }}>Management-ready insights from all staff submissions</p>
           <form onSubmit={handleAuth}>
             <input type="password" value={code} onChange={e => { setCode(e.target.value); setCodeError('') }}
               placeholder="Access code" autoFocus
-              style={{ width: '100%', padding: '14px 16px', borderRadius: '12px', border: `1px solid ${codeError ? '#FF6B6B' : '#DDE8EE'}`, background: '#FFFFFF', color: '#0F1923', fontSize: '13px', outline: 'none', fontFamily: 'inherit', textAlign: 'center', letterSpacing: '3px', marginBottom: '12px', boxSizing: 'border-box' }} />
-            {codeError && <p style={{ fontSize: '13px', color: '#FF6B6B', marginBottom: '12px' }}>{codeError}</p>}
-            <button type="submit" style={{ width: '100%', padding: '14px', borderRadius: '12px', border: 'none', background: '#C0F43C', color: '#0F1923', fontSize: '13px', fontWeight: 800, cursor: 'pointer', fontFamily: 'inherit' }}>
+              style={{ width: '100%', padding: '14px 16px', borderRadius: '12px', border: `1px solid ${codeError ? 'var(--red)' : 'var(--border)'}`, background: 'var(--card)', color: 'var(--ink)', fontSize: '13px', outline: 'none', fontFamily: 'inherit', textAlign: 'center', letterSpacing: '3px', marginBottom: '12px', boxSizing: 'border-box' }} />
+            {codeError && <p style={{ fontSize: '13px', color: 'var(--red)', marginBottom: '12px' }}>{codeError}</p>}
+            <button type="submit" style={{ width: '100%', padding: '14px', borderRadius: '12px', border: 'none', background: 'var(--lime)', color: 'var(--lime-dark)', fontSize: '13px', fontWeight: 800, cursor: 'pointer', fontFamily: 'inherit' }}>
               Enter Intelligence Hub
             </button>
           </form>
-          <Link href="/admin" style={{ display: 'block', marginTop: '20px', fontSize: '13px', color: '#2D3E50', textDecoration: 'none' }}>Back to admin</Link>
+          <Link href="/admin" style={{ display: 'block', marginTop: '20px', fontSize: '13px', color: 'var(--ink2)', textDecoration: 'none' }}>Back to admin</Link>
         </div>
       </div>
     )
@@ -95,7 +95,7 @@ export default function InsightsPage() {
 
   /* ── Main ── */
   return (
-    <div style={{ fontFamily: 'var(--font-manrope), Manrope, sans-serif', background: '#E8EEF4', minHeight: '100vh', color: '#0F1923' }}>
+    <div style={{ fontFamily: 'var(--font-manrope), Manrope, sans-serif', background: 'var(--surface)', minHeight: '100vh', color: 'var(--ink)' }}>
 
       {/* Page header */}
       <PageHeader
@@ -112,8 +112,8 @@ export default function InsightsPage() {
             disabled={generating || taskCount === 0}
             style={{
               padding: '12px 24px', borderRadius: '12px', border: 'none',
-              background: generating || taskCount === 0 ? '#FFFFFF' : '#C0F43C',
-              color: generating || taskCount === 0 ? '#0F1923' : '#0F1923',
+              background: generating || taskCount === 0 ? 'var(--card)' : 'var(--lime)',
+              color: generating || taskCount === 0 ? 'var(--ink3)' : 'var(--lime-dark)',
               fontSize: '13px', fontWeight: 800, cursor: generating || taskCount === 0 ? 'not-allowed' : 'pointer',
               fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0,
             }}>
@@ -135,7 +135,7 @@ export default function InsightsPage() {
       <div style={{ padding: '40px', maxWidth: '1000px', margin: '0 auto' }}>
 
         {error && (
-          <div style={{ background: '#FF6B6B15', border: '1px solid #FF6B6B40', borderRadius: '12px', padding: '18px 20px', marginBottom: '24px', fontSize: '13px', color: '#FF6B6B' }}>
+          <div style={{ background: 'color-mix(in srgb, var(--red) 8%, transparent)', border: '1px solid color-mix(in srgb, var(--red) 25%, transparent)', borderRadius: '12px', padding: '18px 20px', marginBottom: '24px', fontSize: '13px', color: 'var(--red)' }}>
             {error}
           </div>
         )}
@@ -143,18 +143,18 @@ export default function InsightsPage() {
         {/* Report history switcher */}
         {savedReports.length > 0 && (
           <div style={{ marginBottom: '28px' }}>
-            <div style={{ fontSize: '13px', fontWeight: 700, letterSpacing: '2px', textTransform: 'uppercase', color: '#0F1923', marginBottom: '10px' }}>Report History</div>
+            <div style={{ fontSize: '13px', fontWeight: 700, letterSpacing: '2px', textTransform: 'uppercase', color: 'var(--ink)', marginBottom: '10px' }}>Report History</div>
             <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
               {savedReports.map(r => {
                 const isActive = activeReport?.id === r.id
                 return (
                   <button key={r.id} onClick={() => setActiveReport(r)}
-                    style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 14px', borderRadius: '16px', border: `1px solid ${isActive ? 'rgba(192,244,60,0.4)' : '#DDE8EE'}`, background: isActive ? 'rgba(192,244,60,0.1)' : 'transparent', cursor: 'pointer', fontFamily: 'inherit' }}>
-                    <span style={{ fontSize: '13px', fontWeight: 700, color: isActive ? '#00695C' : '#2D3E50' }}>{formatDate(r.generated_at)}</span>
-                    <span style={{ fontSize: '13px', fontWeight: 700, padding: '2px 6px', borderRadius: '4px', background: r.trigger_type === 'cron' ? 'rgba(0,122,110,0.12)' : '#FFFFFF', color: r.trigger_type === 'cron' ? '#00695C' : '#2D3E50' }}>
+                    style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 14px', borderRadius: '16px', border: `1px solid ${isActive ? 'rgba(192,244,60,0.4)' : 'var(--border)'}`, background: isActive ? 'rgba(192,244,60,0.1)' : 'transparent', cursor: 'pointer', fontFamily: 'inherit' }}>
+                    <span style={{ fontSize: '13px', fontWeight: 700, color: isActive ? 'var(--teal)' : 'var(--ink2)' }}>{formatDate(r.generated_at)}</span>
+                    <span style={{ fontSize: '13px', fontWeight: 700, padding: '2px 6px', borderRadius: '4px', background: r.trigger_type === 'cron' ? 'rgba(0,122,110,0.12)' : 'var(--card)', color: r.trigger_type === 'cron' ? 'var(--teal)' : 'var(--ink2)' }}>
                       {r.trigger_type === 'cron' ? 'Auto' : 'Manual'}
                     </span>
-                    <span style={{ fontSize: '13px', color: '#0F1923' }}>{r.total_submissions} profiles</span>
+                    <span style={{ fontSize: '13px', color: 'var(--ink)' }}>{r.total_submissions} profiles</span>
                   </button>
                 )
               })}
@@ -164,12 +164,12 @@ export default function InsightsPage() {
 
         {/* No reports yet */}
         {!loading && savedReports.length === 0 && (
-          <div style={{ background: '#FFFFFF', border: '1.5px solid #DDE8EE', borderRadius: '16px', padding: '64px', textAlign: 'center' }}>
-            <div style={{ width: '64px', height: '64px', background: '#C0F43C15', border: '2px solid #C0F43C30', borderRadius: '16px', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 20px' }}>
-              <svg width="28" height="28" fill="none" stroke="#007A6E" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+          <div style={{ background: 'var(--card)', border: '1.5px solid var(--border)', borderRadius: '16px', padding: '64px', textAlign: 'center' }}>
+            <div style={{ width: '64px', height: '64px', background: 'color-mix(in srgb, var(--lime) 8%, transparent)', border: '2px solid color-mix(in srgb, var(--lime) 19%, transparent)', borderRadius: '16px', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 20px' }}>
+              <svg width="28" height="28" fill="none" stroke="var(--teal-dark)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
             </div>
-            <h3 style={{ fontSize: '36px', fontWeight: 800, color: '#0F1923', marginBottom: '10px' }}>No reports yet</h3>
-            <p style={{ fontSize: '13px', color: '#2D3E50', lineHeight: 1.65, maxWidth: '440px', margin: '0 auto' }}>
+            <h3 style={{ fontSize: '36px', fontWeight: 800, color: 'var(--ink)', marginBottom: '10px' }}>No reports yet</h3>
+            <p style={{ fontSize: '13px', color: 'var(--ink2)', lineHeight: 1.65, maxWidth: '440px', margin: '0 auto' }}>
               {taskCount === 0
                 ? 'Waiting for staff to submit their work profiles. Share the /join link to get started.'
                 : `${taskCount} profiles are ready. The weekly auto-report runs every Sunday at 8 PM IST. Click Generate Now to run it immediately.`}
@@ -183,32 +183,32 @@ export default function InsightsPage() {
 
             {/* Report header */}
             <div style={{ background: 'rgba(192,244,60,0.06)', border: '1px solid rgba(192,244,60,0.2)', borderRadius: '16px', padding: '20px 24px', display: 'flex', alignItems: 'center', gap: '16px', flexWrap: 'wrap' }}>
-              <div style={{ width: '40px', height: '40px', background: '#C0F43C20', borderRadius: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                <svg width="18" height="18" fill="none" stroke="#007A6E" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+              <div style={{ width: '40px', height: '40px', background: 'color-mix(in srgb, var(--lime) 13%, transparent)', borderRadius: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                <svg width="18" height="18" fill="none" stroke="var(--teal-dark)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
               </div>
               <div style={{ flex: 1 }}>
-                <div style={{ fontSize: '13px', fontWeight: 800, color: '#3D6B00', marginBottom: '2px' }}>
+                <div style={{ fontSize: '13px', fontWeight: 800, color: 'var(--lime)', marginBottom: '2px' }}>
                   Gemini analysis — {report.total_submissions} profiles · {activeReport.trigger_type === 'cron' ? 'Auto-generated' : 'Manually generated'}
                 </div>
-                <div style={{ fontSize: '13px', color: '#2D3E50' }}>{formatDateFull(activeReport.generated_at)}</div>
+                <div style={{ fontSize: '13px', color: 'var(--ink2)' }}>{formatDateFull(activeReport.generated_at)}</div>
               </div>
             </div>
 
             {/* Pain clusters */}
             {report.pain_clusters?.length > 0 && (
-              <div style={{ background: '#FFFFFF', border: '1.5px solid #DDE8EE', borderRadius: '16px', padding: '24px' }}>
-                <div style={{ fontSize: '13px', fontWeight: 700, letterSpacing: '2px', textTransform: 'uppercase', color: '#0F1923', marginBottom: '20px' }}>Pain Clusters — Shared Problems Across the Team</div>
+              <div style={{ background: 'var(--card)', border: '1.5px solid var(--border)', borderRadius: '16px', padding: '24px' }}>
+                <div style={{ fontSize: '13px', fontWeight: 700, letterSpacing: '2px', textTransform: 'uppercase', color: 'var(--ink)', marginBottom: '20px' }}>Pain Clusters — Shared Problems Across the Team</div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
                   {report.pain_clusters.map((c, i) => (
                     <div key={i} style={{ background: 'rgba(255,107,107,0.06)', border: '1px solid rgba(255,107,107,0.15)', borderRadius: '14px', padding: '18px 20px' }}>
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '12px', marginBottom: '8px' }}>
-                        <div style={{ fontSize: '13px', fontWeight: 700, color: '#0F1923' }}>{c.theme}</div>
-                        <div style={{ fontSize: '13px', fontWeight: 800, color: '#FF6B6B', background: '#FF6B6B15', padding: '3px 10px', borderRadius: '16px', flexShrink: 0 }}>{c.count} staff</div>
+                        <div style={{ fontSize: '13px', fontWeight: 700, color: 'var(--ink)' }}>{c.theme}</div>
+                        <div style={{ fontSize: '13px', fontWeight: 800, color: 'var(--red)', background: 'color-mix(in srgb, var(--red) 8%, transparent)', padding: '3px 10px', borderRadius: '16px', flexShrink: 0 }}>{c.count} staff</div>
                       </div>
-                      <div style={{ fontSize: '13px', color: '#2D3E50', marginBottom: '8px' }}>Offices: {c.office_spread.join(' · ')}</div>
+                      <div style={{ fontSize: '13px', color: 'var(--ink2)', marginBottom: '8px' }}>Offices: {c.office_spread.join(' · ')}</div>
                       <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
                         {c.examples.map((ex, j) => (
-                          <span key={j} style={{ fontSize: '13px', color: '#2D3E50', background: '#FFFFFF', padding: '3px 8px', borderRadius: '6px' }}>{ex}</span>
+                          <span key={j} style={{ fontSize: '13px', color: 'var(--ink2)', background: 'var(--card)', padding: '3px 8px', borderRadius: '6px' }}>{ex}</span>
                         ))}
                       </div>
                     </div>
@@ -219,18 +219,18 @@ export default function InsightsPage() {
 
             {/* Build priority */}
             {report.build_priority?.length > 0 && (
-              <div style={{ background: '#FFFFFF', border: '1.5px solid #DDE8EE', borderRadius: '16px', padding: '24px' }}>
-                <div style={{ fontSize: '13px', fontWeight: 700, letterSpacing: '2px', textTransform: 'uppercase', color: '#0F1923', marginBottom: '20px' }}>Build Priority — What to Ship First</div>
+              <div style={{ background: 'var(--card)', border: '1.5px solid var(--border)', borderRadius: '16px', padding: '24px' }}>
+                <div style={{ fontSize: '13px', fontWeight: 700, letterSpacing: '2px', textTransform: 'uppercase', color: 'var(--ink)', marginBottom: '20px' }}>Build Priority — What to Ship First</div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
                   {report.build_priority.map((b) => (
-                    <div key={b.rank} style={{ display: 'flex', gap: '16px', padding: '18px 20px', background: b.rank === 1 ? 'rgba(192,244,60,0.06)' : '#FFFFFF', border: `1px solid ${b.rank === 1 ? 'rgba(192,244,60,0.2)' : '#DDE8EE'}`, borderRadius: '14px' }}>
-                      <div style={{ width: '32px', height: '32px', borderRadius: '10px', background: b.rank === 1 ? '#00695C' : '#DDE8EE', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                        <span style={{ fontSize: '13px', fontWeight: 800, color: b.rank === 1 ? 'white' : '#2D3E50' }}>{b.rank}</span>
+                    <div key={b.rank} style={{ display: 'flex', gap: '16px', padding: '18px 20px', background: b.rank === 1 ? 'rgba(192,244,60,0.06)' : 'var(--card)', border: `1px solid ${b.rank === 1 ? 'rgba(192,244,60,0.2)' : 'var(--border)'}`, borderRadius: '14px' }}>
+                      <div style={{ width: '32px', height: '32px', borderRadius: '10px', background: b.rank === 1 ? 'var(--teal)' : 'var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                        <span style={{ fontSize: '13px', fontWeight: 800, color: b.rank === 1 ? 'var(--teal-light)' : 'var(--ink2)' }}>{b.rank}</span>
                       </div>
                       <div style={{ flex: 1 }}>
-                        <div style={{ fontSize: '13px', fontWeight: 700, color: '#0F1923', marginBottom: '4px' }}>{b.title}</div>
-                        <div style={{ fontSize: '13px', color: '#2D3E50', lineHeight: 1.65, marginBottom: '6px' }}>{b.rationale}</div>
-                        <div style={{ fontSize: '13px', fontWeight: 700, color: '#3D6B00' }}>{b.impact}</div>
+                        <div style={{ fontSize: '13px', fontWeight: 700, color: 'var(--ink)', marginBottom: '4px' }}>{b.title}</div>
+                        <div style={{ fontSize: '13px', color: 'var(--ink2)', lineHeight: 1.65, marginBottom: '6px' }}>{b.rationale}</div>
+                        <div style={{ fontSize: '13px', fontWeight: 700, color: 'var(--lime)' }}>{b.impact}</div>
                       </div>
                     </div>
                   ))}
@@ -242,18 +242,18 @@ export default function InsightsPage() {
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
 
               {report.time_savings?.length > 0 && (
-                <div style={{ background: '#FFFFFF', border: '1.5px solid #DDE8EE', borderRadius: '16px', padding: '24px' }}>
-                  <div style={{ fontSize: '13px', fontWeight: 700, letterSpacing: '2px', textTransform: 'uppercase', color: '#0F1923', marginBottom: '20px' }}>Time Savings — Before vs. After AI</div>
+                <div style={{ background: 'var(--card)', border: '1.5px solid var(--border)', borderRadius: '16px', padding: '24px' }}>
+                  <div style={{ fontSize: '13px', fontWeight: 700, letterSpacing: '2px', textTransform: 'uppercase', color: 'var(--ink)', marginBottom: '20px' }}>Time Savings — Before vs. After AI</div>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
                     {report.time_savings.slice(0, 6).map((t, i) => (
                       <div key={i} style={{ padding: '12px 14px', background: 'rgba(0,165,163,0.06)', border: '1px solid rgba(0,165,163,0.15)', borderRadius: '12px' }}>
-                        <div style={{ fontSize: '13px', fontWeight: 700, color: '#0F1923', marginBottom: '6px' }}>{t.task}</div>
+                        <div style={{ fontSize: '13px', fontWeight: 700, color: 'var(--ink)', marginBottom: '6px' }}>{t.task}</div>
                         <div style={{ display: 'flex', gap: '12px', fontSize: '13px' }}>
-                          <span style={{ color: '#FF6B6B' }}>Now: {t.today}</span>
-                          <span style={{ color: '#0F1923' }}>→</span>
-                          <span style={{ color: '#3D6B00' }}>With AI: {t.with_ai}</span>
+                          <span style={{ color: 'var(--red)' }}>Now: {t.today}</span>
+                          <span style={{ color: 'var(--ink)' }}>→</span>
+                          <span style={{ color: 'var(--lime)' }}>With AI: {t.with_ai}</span>
                         </div>
-                        <div style={{ fontSize: '13px', color: '#00695C', marginTop: '4px', fontWeight: 600 }}>{t.saving}</div>
+                        <div style={{ fontSize: '13px', color: 'var(--teal)', marginTop: '4px', fontWeight: 600 }}>{t.saving}</div>
                       </div>
                     ))}
                   </div>
@@ -261,13 +261,13 @@ export default function InsightsPage() {
               )}
 
               {report.skills_needed?.length > 0 && (
-                <div style={{ background: '#FFFFFF', border: '1.5px solid #DDE8EE', borderRadius: '16px', padding: '24px' }}>
-                  <div style={{ fontSize: '13px', fontWeight: 700, letterSpacing: '2px', textTransform: 'uppercase', color: '#0F1923', marginBottom: '20px' }}>Training Needs — Skills Gaps Identified</div>
+                <div style={{ background: 'var(--card)', border: '1.5px solid var(--border)', borderRadius: '16px', padding: '24px' }}>
+                  <div style={{ fontSize: '13px', fontWeight: 700, letterSpacing: '2px', textTransform: 'uppercase', color: 'var(--ink)', marginBottom: '20px' }}>Training Needs — Skills Gaps Identified</div>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
                     {report.skills_needed.map((s, i) => (
                       <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                        <div style={{ flex: 1, fontSize: '13px', fontWeight: 600, color: '#0F1923' }}>{s.skill}</div>
-                        <div style={{ fontSize: '13px', color: '#8B1A1A', fontWeight: 700, background: '#8B1A1A15', padding: '2px 8px', borderRadius: '6px' }}>{s.count} staff</div>
+                        <div style={{ flex: 1, fontSize: '13px', fontWeight: 600, color: 'var(--ink)' }}>{s.skill}</div>
+                        <div style={{ fontSize: '13px', color: 'var(--red)', fontWeight: 700, background: 'color-mix(in srgb, var(--red) 8%, transparent)', padding: '2px 8px', borderRadius: '6px' }}>{s.count} staff</div>
                       </div>
                     ))}
                   </div>
@@ -277,19 +277,20 @@ export default function InsightsPage() {
 
             {/* Readiness summary */}
             {report.readiness_summary && (
-              <div style={{ background: '#FFFFFF', border: '1.5px solid #DDE8EE', borderRadius: '16px', padding: '24px' }}>
-                <div style={{ fontSize: '13px', fontWeight: 700, letterSpacing: '2px', textTransform: 'uppercase', color: '#0F1923', marginBottom: '20px' }}>AI Readiness Summary</div>
+              <div style={{ background: 'var(--card)', border: '1.5px solid var(--border)', borderRadius: '16px', padding: '24px' }}>
+                <div style={{ fontSize: '13px', fontWeight: 700, letterSpacing: '2px', textTransform: 'uppercase', color: 'var(--ink)', marginBottom: '20px' }}>AI Readiness Summary</div>
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '12px' }}>
                   {[
-                    { label: 'Avg Readiness', value: report.readiness_summary.average?.toFixed(1), sub: 'out of 5', color: '#00695C' },
-                    { label: 'Not Ready',     value: report.readiness_summary.low,                  sub: 'scored 1–2', color: '#FF6B6B' },
-                    { label: 'Developing',    value: report.readiness_summary.medium,               sub: 'scored 3',   color: '#8B1A1A' },
-                    { label: 'AI-Ready',      value: report.readiness_summary.high,                 sub: 'scored 4–5', color: '#3D6B00' },
+                    { label: 'Avg Readiness', value: report.readiness_summary.average?.toFixed(1), sub: 'out of 5', color: 'var(--teal)' },
+                    { label: 'Not Ready',     value: report.readiness_summary.low,                  sub: 'scored 1–2', color: 'var(--red)' },
+                    // 'Developing' uses amber (was 8B1A1A, same red-family hex as 'Not Ready' below) so the two tiers stay visually distinct
+                    { label: 'Developing',    value: report.readiness_summary.medium,               sub: 'scored 3',   color: 'var(--amber)' },
+                    { label: 'AI-Ready',      value: report.readiness_summary.high,                 sub: 'scored 4–5', color: 'var(--lime)' },
                   ].map((k, i) => (
-                    <div key={i} style={{ textAlign: 'center', padding: '16px', background: '#FFFFFF', borderRadius: '12px', border: `1px solid ${k.color}25` }}>
+                    <div key={i} style={{ textAlign: 'center', padding: '16px', background: 'var(--card)', borderRadius: '12px', border: `1px solid color-mix(in srgb, ${k.color} 15%, transparent)` }}>
                       <div style={{ fontSize: '36px', fontWeight: 800, color: k.color, lineHeight: 1 }}>{k.value}</div>
-                      <div style={{ fontSize: '13px', color: '#2D3E50', marginTop: '4px' }}>{k.label}</div>
-                      <div style={{ fontSize: '13px', color: '#0F1923', marginTop: '2px' }}>{k.sub}</div>
+                      <div style={{ fontSize: '13px', color: 'var(--ink2)', marginTop: '4px' }}>{k.label}</div>
+                      <div style={{ fontSize: '13px', color: 'var(--ink)', marginTop: '2px' }}>{k.sub}</div>
                     </div>
                   ))}
                 </div>
@@ -297,11 +298,11 @@ export default function InsightsPage() {
             )}
 
             {/* Raw analysis */}
-            <div style={{ background: '#FFFFFF', border: '1.5px solid #DDE8EE', borderRadius: '16px', overflow: 'hidden' }}>
-              <div style={{ padding: '20px 24px', borderBottom: '1px solid #DDE8EE' }}>
-                <div style={{ fontSize: '13px', fontWeight: 700, letterSpacing: '2px', textTransform: 'uppercase', color: '#0F1923' }}>Full Gemini Analysis</div>
+            <div style={{ background: 'var(--card)', border: '1.5px solid var(--border)', borderRadius: '16px', overflow: 'hidden' }}>
+              <div style={{ padding: '20px 24px', borderBottom: '1px solid var(--border)' }}>
+                <div style={{ fontSize: '13px', fontWeight: 700, letterSpacing: '2px', textTransform: 'uppercase', color: 'var(--ink)' }}>Full Gemini Analysis</div>
               </div>
-              <div style={{ padding: '24px', fontSize: '13px', color: '#2D3E50', lineHeight: 1.65, whiteSpace: 'pre-wrap' }}>
+              <div style={{ padding: '24px', fontSize: '13px', color: 'var(--ink2)', lineHeight: 1.65, whiteSpace: 'pre-wrap' }}>
                 {report.raw_analysis}
               </div>
             </div>

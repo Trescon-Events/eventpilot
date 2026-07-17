@@ -116,18 +116,17 @@ type HistoryFilter = 'all' | 'hire' | 'promotion' | 'departure'
 
 /* ── Palette ─────────────────────────────────────────────────────────── */
 const C = {
-  bg:       '#F6F8FB',
-  surface:  '#FFFFFF',
-  border:   '#DDE8EE',
-  text:     '#0F1923',
-  muted:    '#5B7080',
-  teal:     '#00897B',
-  tealAcc:  '#00A5A3',
-  lime:     '#C0F43C',
-  red:      '#8B1A1A',
-  purple:   '#6C54B5',
-  amber:    '#D97706',
-  blue:     '#1565C0',
+  bg:       'var(--surface)',
+  surface:  'var(--card)',
+  border:   'var(--border)',
+  text:     'var(--ink)',
+  muted:    'var(--ink3)',
+  teal:     'var(--teal-mid)',
+  tealAcc:  'var(--teal-mid)',
+  red:      'var(--red)',
+  purple:   'var(--purple)',
+  amber:    'var(--amber)',
+  blue:     'var(--info)',
 }
 
 /* ── Helpers ─────────────────────────────────────────────────────────── */
@@ -139,7 +138,7 @@ function Pill({ color, text }: { color: string; text: string }) {
       borderRadius: '12px',
       fontSize: '12px',
       fontWeight: 700,
-      background: color + '20',
+      background: `color-mix(in srgb, ${color} 20%, transparent)`,
       color,
       letterSpacing: '0.3px',
       whiteSpace: 'nowrap',
@@ -179,7 +178,7 @@ function EmptyState({ message }: { message: string }) {
 function Shimmer() {
   return (
     <div style={{
-      background: 'linear-gradient(90deg, #e8edf2 25%, #f0f4f7 50%, #e8edf2 75%)',
+      background: 'linear-gradient(90deg, var(--card) 25%, var(--card-hi) 50%, var(--card) 75%)',
       backgroundSize: '400% 100%',
       borderRadius: '12px',
       animation: 'shimmer 1.4s ease-in-out infinite',
@@ -325,13 +324,13 @@ export default function HRDashboard() {
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
           <button
             onClick={runAlertChecks}
-            style={{ padding: '8px 14px', borderRadius: '8px', background: C.surface, color: C.teal, fontSize: '13px', fontWeight: 700, border: `1px solid ${C.teal}40`, cursor: 'pointer', fontFamily: 'inherit' }}>
+            style={{ padding: '8px 14px', borderRadius: '8px', background: C.surface, color: C.teal, fontSize: '13px', fontWeight: 700, border: `1px solid ${'color-mix(in srgb, ' + (C.teal) + ' 25%, transparent)'}`, cursor: 'pointer', fontFamily: 'inherit' }}>
             Run Alert Checks
           </button>
           <button
             onClick={syncHRMS}
             disabled={syncing}
-            style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '8px 14px', borderRadius: '8px', background: syncing ? C.bg : C.teal, color: syncing ? C.muted : '#fff', fontSize: '13px', fontWeight: 700, border: `1px solid ${syncing ? C.border : C.teal}`, cursor: syncing ? 'not-allowed' : 'pointer', fontFamily: 'inherit', transition: 'all 0.15s' }}>
+            style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '8px 14px', borderRadius: '8px', background: syncing ? C.bg : C.teal, color: syncing ? C.muted : 'var(--teal-light)', fontSize: '13px', fontWeight: 700, border: `1px solid ${syncing ? C.border : C.teal}`, cursor: syncing ? 'not-allowed' : 'pointer', fontFamily: 'inherit', transition: 'all 0.15s' }}>
             {syncing ? (
               <>
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" style={{ animation: 'spin 0.8s linear infinite' }}>
@@ -360,12 +359,12 @@ export default function HRDashboard() {
               {[...Array(6)].map((_, i) => (
                 <div key={i} style={{ flex: 1 }}>
                   <Shimmer />
-                  <div style={{ height: '88px', background: 'linear-gradient(90deg, #e8edf2 25%, #f0f4f7 50%, #e8edf2 75%)', backgroundSize: '400% 100%', borderRadius: '12px', animation: 'shimmer 1.4s ease-in-out infinite' }} />
+                  <div style={{ height: '88px', background: 'linear-gradient(90deg, var(--card) 25%, var(--card-hi) 50%, var(--card) 75%)', backgroundSize: '400% 100%', borderRadius: '12px', animation: 'shimmer 1.4s ease-in-out infinite' }} />
                 </div>
               ))}
             </div>
-            <div style={{ height: '320px', background: 'linear-gradient(90deg, #e8edf2 25%, #f0f4f7 50%, #e8edf2 75%)', backgroundSize: '400% 100%', borderRadius: '16px', animation: 'shimmer 1.4s ease-in-out infinite' }} />
-            <div style={{ height: '220px', background: 'linear-gradient(90deg, #e8edf2 25%, #f0f4f7 50%, #e8edf2 75%)', backgroundSize: '400% 100%', borderRadius: '16px', animation: 'shimmer 1.4s ease-in-out infinite' }} />
+            <div style={{ height: '320px', background: 'linear-gradient(90deg, var(--card) 25%, var(--card-hi) 50%, var(--card) 75%)', backgroundSize: '400% 100%', borderRadius: '16px', animation: 'shimmer 1.4s ease-in-out infinite' }} />
+            <div style={{ height: '220px', background: 'linear-gradient(90deg, var(--card) 25%, var(--card-hi) 50%, var(--card) 75%)', backgroundSize: '400% 100%', borderRadius: '16px', animation: 'shimmer 1.4s ease-in-out infinite' }} />
           </div>
         )}
 
@@ -378,25 +377,25 @@ export default function HRDashboard() {
         {/* ── HRMS Init Banner (compact) ── */}
         {!loading && data && !initBannerDismissed && initState === 'idle' &&
           data.headcount.total > 0 && data.onboarding.active_count === 0 && data.contracts.expiring_soon_count === 0 && (
-          <div style={{ background: `${C.amber}08`, border: `1px solid ${C.amber}25`, borderRadius: '8px', padding: '10px 16px', marginBottom: '16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px' }}>
+          <div style={{ background: `${'color-mix(in srgb, ' + (C.amber) + ' 3%, transparent)'}`, border: `1px solid ${'color-mix(in srgb, ' + (C.amber) + ' 15%, transparent)'}`, borderRadius: '8px', padding: '10px 16px', marginBottom: '16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
               <svg width="14" height="14" fill="none" stroke={C.amber} strokeWidth="2" strokeLinecap="round" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
               <span style={{ fontSize: '12px', color: C.muted }}>First-time setup available — create contracts, leave balances, and employment history for all staff.</span>
             </div>
             <div style={{ display: 'flex', gap: '6px', flexShrink: 0 }}>
               <button onClick={dismissInitBanner} style={{ padding: '5px 10px', borderRadius: '6px', background: 'transparent', color: C.muted, fontSize: '11px', fontWeight: 600, border: `1px solid ${C.border}`, cursor: 'pointer', fontFamily: 'inherit' }}>Dismiss</button>
-              <button onClick={runInit} style={{ padding: '5px 14px', borderRadius: '6px', background: C.amber, color: '#fff', fontSize: '11px', fontWeight: 700, border: 'none', cursor: 'pointer', fontFamily: 'inherit' }}>Initialise</button>
+              <button onClick={runInit} style={{ padding: '5px 14px', borderRadius: '6px', background: C.amber, color: 'var(--surface)', fontSize: '11px', fontWeight: 700, border: 'none', cursor: 'pointer', fontFamily: 'inherit' }}>Initialise</button>
             </div>
           </div>
         )}
 
         {initState === 'running' && (
-          <div style={{ background: C.teal + '12', border: `1px solid ${C.teal}30`, borderRadius: '12px', padding: '14px 20px', marginBottom: '20px', fontSize: '13px', color: C.teal, fontWeight: 700 }}>
+          <div style={{ background: 'color-mix(in srgb, ' + C.teal + ' 7%, transparent)', border: `1px solid ${'color-mix(in srgb, ' + (C.teal) + ' 19%, transparent)'}`, borderRadius: '12px', padding: '14px 20px', marginBottom: '20px', fontSize: '13px', color: C.teal, fontWeight: 700 }}>
             Setting up HRMS records for all staff...
           </div>
         )}
         {initState === 'done' && initResult && (
-          <div style={{ background: C.teal + '12', border: `1px solid ${C.teal}30`, borderRadius: '12px', padding: '14px 20px', marginBottom: '20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <div style={{ background: 'color-mix(in srgb, ' + C.teal + ' 7%, transparent)', border: `1px solid ${'color-mix(in srgb, ' + (C.teal) + ' 19%, transparent)'}`, borderRadius: '12px', padding: '14px 20px', marginBottom: '20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
             <div>
               <div style={{ fontSize: '13px', fontWeight: 800, color: C.teal, marginBottom: '2px' }}>HRMS initialised successfully</div>
               <div style={{ fontSize: '13px', color: C.muted }}>
@@ -407,7 +406,7 @@ export default function HRDashboard() {
           </div>
         )}
         {initState === 'error' && (
-          <div style={{ background: C.red + '12', border: `1px solid ${C.red}30`, borderRadius: '12px', padding: '14px 20px', marginBottom: '20px', fontSize: '13px', color: C.red, fontWeight: 700 }}>
+          <div style={{ background: 'color-mix(in srgb, ' + C.red + ' 7%, transparent)', border: `1px solid ${'color-mix(in srgb, ' + (C.red) + ' 19%, transparent)'}`, borderRadius: '12px', padding: '14px 20px', marginBottom: '20px', fontSize: '13px', color: C.red, fontWeight: 700 }}>
             Initialisation failed — check the console and try again.
           </div>
         )}
@@ -473,7 +472,7 @@ export default function HRDashboard() {
                       </svg>
                       <span style={{ fontSize: '15px', fontWeight: 800, color: C.text }}>Leave Requests</span>
                       {data.leave.pending_count > 0 && (
-                        <span style={{ background: C.amber, color: '#fff', borderRadius: '10px', fontSize: '12px', fontWeight: 800, padding: '2px 8px' }}>
+                        <span style={{ background: C.amber, color: 'var(--surface)', borderRadius: '10px', fontSize: '12px', fontWeight: 800, padding: '2px 8px' }}>
                           {data.leave.pending_count}
                         </span>
                       )}
@@ -506,7 +505,7 @@ export default function HRDashboard() {
                       </svg>
                       <span style={{ fontSize: '15px', fontWeight: 800, color: C.text }}>HR Alerts</span>
                       {data.alerts.open_count > 0 && (
-                        <span style={{ background: C.red, color: '#fff', borderRadius: '10px', fontSize: '12px', fontWeight: 800, padding: '2px 8px' }}>
+                        <span style={{ background: C.red, color: 'var(--red-light)', borderRadius: '10px', fontSize: '12px', fontWeight: 800, padding: '2px 8px' }}>
                           {data.alerts.open_count}
                         </span>
                       )}
@@ -543,7 +542,7 @@ export default function HRDashboard() {
                     </svg>
                     <span style={{ fontSize: '15px', fontWeight: 800, color: C.text }}>Overdue Training</span>
                     {data.training.overdue_count > 0 && (
-                      <span style={{ background: C.red, color: '#fff', borderRadius: '10px', fontSize: '12px', fontWeight: 800, padding: '2px 8px' }}>
+                      <span style={{ background: C.red, color: 'var(--red-light)', borderRadius: '10px', fontSize: '12px', fontWeight: 800, padding: '2px 8px' }}>
                         {data.training.overdue_count}
                       </span>
                     )}
@@ -616,7 +615,7 @@ export default function HRDashboard() {
                       {data.onboarding.records.length > 3 && (
                         <Link href="/hr/onboarding" style={{ fontSize: '12px', fontWeight: 700, color: C.teal, textDecoration: 'none' }}>View All</Link>
                       )}
-                      <Link href="/hr/staff/new?from=/hr" style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', padding: '4px 10px', borderRadius: '6px', background: C.teal, color: '#fff', textDecoration: 'none', fontSize: '11px', fontWeight: 700 }}>
+                      <Link href="/hr/staff/new?from=/hr" style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', padding: '4px 10px', borderRadius: '6px', background: C.teal, color: 'var(--teal-light)', textDecoration: 'none', fontSize: '11px', fontWeight: 700 }}>
                         <svg width="10" height="10" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
                         Add Staff
                       </Link>
@@ -731,7 +730,7 @@ export default function HRDashboard() {
                         fontSize: '13px',
                         fontWeight: 700,
                         border: `1px solid ${historyFilter === f ? C.teal : C.border}`,
-                        background: historyFilter === f ? C.teal + '15' : 'transparent',
+                        background: historyFilter === f ? 'color-mix(in srgb, ' + C.teal + ' 8%, transparent)' : 'transparent',
                         color: historyFilter === f ? C.teal : C.muted,
                         cursor: 'pointer',
                         fontFamily: 'inherit',
@@ -808,8 +807,8 @@ function StatTile({
     <div
       onClick={onClick}
       style={{
-        background: isAlert ? `${accent}08` : '#FFFFFF',
-        border: `1px solid ${isAlert ? `${accent}30` : '#DDE8EE'}`,
+        background: isAlert ? `${'color-mix(in srgb, ' + (accent) + ' 3%, transparent)'}` : 'var(--card)',
+        border: `1px solid ${isAlert ? `${'color-mix(in srgb, ' + (accent) + ' 19%, transparent)'}` : 'var(--border)'}`,
         borderRadius: '12px',
         padding: '16px 18px',
         flex: 1,
@@ -819,15 +818,15 @@ function StatTile({
         position: 'relative',
         overflow: 'hidden',
       }}
-      onMouseEnter={e => { if (onClick) (e.currentTarget as HTMLDivElement).style.boxShadow = `0 4px 16px ${accent}20` }}
+      onMouseEnter={e => { if (onClick) (e.currentTarget as HTMLDivElement).style.boxShadow = `0 4px 16px ${'color-mix(in srgb, ' + (accent) + ' 13%, transparent)'}` }}
       onMouseLeave={e => { (e.currentTarget as HTMLDivElement).style.boxShadow = 'none' }}
     >
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '6px' }}>
-        <div style={{ fontSize: '11px', fontWeight: 700, letterSpacing: '0.8px', textTransform: 'uppercase', color: '#5B7080' }}>{label}</div>
+        <div style={{ fontSize: '11px', fontWeight: 700, letterSpacing: '0.8px', textTransform: 'uppercase', color: 'var(--ink3)' }}>{label}</div>
         {isAlert && value > 0 && <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: accent, animation: 'pulse 2s infinite' }} />}
       </div>
-      <div style={{ fontSize: '26px', fontWeight: 900, color: value > 0 ? accent : '#B8CDD8', lineHeight: 1 }}>{value}</div>
-      <div style={{ fontSize: '11px', color: '#8CA0B3', marginTop: '4px' }}>{sub}</div>
+      <div style={{ fontSize: '26px', fontWeight: 900, color: value > 0 ? accent : 'var(--ink4)', lineHeight: 1 }}>{value}</div>
+      <div style={{ fontSize: '11px', color: 'var(--ink4)', marginTop: '4px' }}>{sub}</div>
     </div>
   )
 }
@@ -873,7 +872,7 @@ function LeaveApprovalCard({
   }
 
   return (
-    <div style={{ border: `1px solid ${C.border}`, borderRadius: '12px', padding: '18px 20px', background: '#FFFFFF' }}>
+    <div style={{ border: `1px solid ${C.border}`, borderRadius: '12px', padding: '18px 20px', background: 'var(--card)' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '16px' }}>
         <div style={{ flex: 1 }}>
           {/* Top row */}
@@ -904,13 +903,13 @@ function LeaveApprovalCard({
           <button
             disabled={busy}
             onClick={() => decide('approved')}
-            style={{ padding: '9px 18px', borderRadius: '8px', background: C.teal, color: '#fff', fontSize: '13px', fontWeight: 700, border: 'none', cursor: 'pointer', opacity: busy ? 0.5 : 1, fontFamily: 'inherit' }}>
+            style={{ padding: '9px 18px', borderRadius: '8px', background: C.teal, color: 'var(--teal-light)', fontSize: '13px', fontWeight: 700, border: 'none', cursor: 'pointer', opacity: busy ? 0.5 : 1, fontFamily: 'inherit' }}>
             Approve
           </button>
           <button
             disabled={busy}
             onClick={() => decide('rejected')}
-            style={{ padding: '9px 18px', borderRadius: '8px', background: '#fff', color: C.red, fontSize: '13px', fontWeight: 700, border: `1px solid ${C.red}50`, cursor: 'pointer', opacity: busy ? 0.5 : 1, fontFamily: 'inherit' }}>
+            style={{ padding: '9px 18px', borderRadius: '8px', background: 'var(--card)', color: C.red, fontSize: '13px', fontWeight: 700, border: `1px solid ${'color-mix(in srgb, ' + (C.red) + ' 31%, transparent)'}`, cursor: 'pointer', opacity: busy ? 0.5 : 1, fontFamily: 'inherit' }}>
             Reject
           </button>
         </div>
@@ -947,7 +946,7 @@ function AlertCard({
 
   return (
     <div style={{
-      background: '#FFFFFF',
+      background: 'var(--card)',
       border: `1px solid ${C.border}`,
       borderLeft: `3px solid ${color}`,
       borderRadius: '10px',
@@ -985,7 +984,7 @@ function AlertCard({
         <button
           disabled={busy}
           onClick={() => act('resolved')}
-          style={{ padding: '6px 12px', borderRadius: '7px', border: `1px solid ${color}50`, background: color + '14', fontSize: '12px', fontWeight: 700, color, cursor: 'pointer', fontFamily: 'inherit' }}>
+          style={{ padding: '6px 12px', borderRadius: '7px', border: `1px solid ${'color-mix(in srgb, ' + (color) + ' 31%, transparent)'}`, background: `color-mix(in srgb, ${color} 14%, transparent)`, fontSize: '12px', fontWeight: 700, color, cursor: 'pointer', fontFamily: 'inherit' }}>
           Resolve
         </button>
       </div>

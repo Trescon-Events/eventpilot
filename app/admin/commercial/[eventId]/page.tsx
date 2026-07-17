@@ -68,10 +68,10 @@ const TABS: { key: Tab; label: string }[] = [
 ]
 
 const HEALTH_CONFIG: Record<string, { label: string; color: string; bg: string }> = {
-  profitable: { label: 'Profitable', color: '#2E7D32', bg: 'rgba(46,125,50,0.08)' },
-  on_track: { label: 'On Track', color: '#1565C0', bg: 'rgba(21,101,192,0.08)' },
-  at_risk: { label: 'At Risk', color: '#E65100', bg: 'rgba(230,81,0,0.08)' },
-  loss: { label: 'Loss', color: '#C62828', bg: 'rgba(198,40,40,0.08)' },
+  profitable: { label: 'Profitable', color: 'var(--success)', bg: 'var(--success-light)' },
+  on_track: { label: 'On Track', color: 'var(--info)', bg: 'var(--info-light)' },
+  at_risk: { label: 'At Risk', color: 'var(--amber)', bg: 'var(--amber-light)' },
+  loss: { label: 'Loss', color: 'var(--red)', bg: 'var(--red-light)' },
 }
 
 const DEAL_TYPES = ['sponsorship','exhibition','delegate_package','media_partner','ticket_sales','government_partnership','strategic_partner','awards','workshop','addon','other']
@@ -122,8 +122,8 @@ export default function CommercialWorkspace() {
   }, [eventId, tab])
 
   if (loading) return (
-    <div style={{ background: '#E8EEF4', minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-      <div style={{ width: '28px', height: '28px', border: '3px solid #D8EAEB', borderTopColor: '#00A5A3', borderRadius: '50%', animation: 'spin .7s linear infinite' }} />
+    <div style={{ background: 'var(--surface)', minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+      <div style={{ width: '28px', height: '28px', border: '3px solid var(--border)', borderTopColor: 'var(--teal-mid)', borderRadius: '50%', animation: 'spin .7s linear infinite' }} />
       <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
     </div>
   )
@@ -131,13 +131,13 @@ export default function CommercialWorkspace() {
   const h = HEALTH_CONFIG[summary?.health || 'loss']
 
   return (
-    <div style={{ background: '#E8EEF4', minHeight: '100vh' }}>
+    <div style={{ background: 'var(--surface)', minHeight: '100vh' }}>
       <PageHeader
         title={summary?.event_name || 'Event Workspace'}
         actions={
           <>
             {summary && <span style={{ fontSize: '11px', fontWeight: 700, padding: '3px 10px', borderRadius: '6px', background: h.bg, color: h.color }}>{h.label}</span>}
-            <Link href={`/admin/events/${eventId}`} style={{ fontSize: '12px', fontWeight: 700, color: '#5B7080', textDecoration: 'none', padding: '6px 14px', border: '1px solid #D8EAEB', borderRadius: '8px', background: '#fff', display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+            <Link href={`/admin/events/${eventId}`} style={{ fontSize: '12px', fontWeight: 700, color: 'var(--ink3)', textDecoration: 'none', padding: '6px 14px', border: '1px solid var(--border)', borderRadius: '8px', background: 'var(--card)', display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
               <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/></svg>
               Event Operations
             </Link>
@@ -153,13 +153,13 @@ export default function CommercialWorkspace() {
         {summary && (
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: '10px', marginBottom: '16px' }}>
             {[
-              { l: 'Revenue Target', v: fc(summary.revenue_target), c: '#0E7490' },
-              { l: 'Confirmed', v: fc(summary.revenue_confirmed), c: '#00897B' },
-              { l: 'Pipeline', v: fc(summary.revenue_pending), c: '#D97706' },
-              { l: 'Gap to Target', v: fc(summary.revenue_gap), c: summary.revenue_gap > 0 ? '#C62828' : '#2E7D32' },
-              { l: 'Total Costs', v: fc(summary.total_costs), c: '#C62828' },
-              { l: 'Net Profit', v: fc(summary.net_profit), c: summary.net_profit >= 0 ? '#2E7D32' : '#C62828' },
-              { l: 'Achievement', v: `${summary.revenue_achievement}%`, c: summary.revenue_achievement >= 80 ? '#2E7D32' : '#D97706' },
+              { l: 'Revenue Target', v: fc(summary.revenue_target), c: 'var(--info)' },
+              { l: 'Confirmed', v: fc(summary.revenue_confirmed), c: 'var(--teal-mid)' },
+              { l: 'Pipeline', v: fc(summary.revenue_pending), c: '#F5B94D' },
+              { l: 'Gap to Target', v: fc(summary.revenue_gap), c: summary.revenue_gap > 0 ? 'var(--red)' : 'var(--success)' },
+              { l: 'Total Costs', v: fc(summary.total_costs), c: 'var(--red)' },
+              { l: 'Net Profit', v: fc(summary.net_profit), c: summary.net_profit >= 0 ? 'var(--success)' : 'var(--red)' },
+              { l: 'Achievement', v: `${summary.revenue_achievement}%`, c: summary.revenue_achievement >= 80 ? 'var(--success)' : '#F5B94D' },
             ].map((k, i) => (
               <div key={i} style={{ ...card, padding: '14px 16px' }}>
                 <p style={{ ...kpiLabel }}>{k.l}</p>
@@ -170,12 +170,12 @@ export default function CommercialWorkspace() {
         )}
 
         {/* ── TAB BAR ── */}
-        <div style={{ display: 'flex', gap: '2px', borderBottom: '1px solid #D8EAEB', marginBottom: '20px', overflowX: 'auto' }}>
+        <div style={{ display: 'flex', gap: '2px', borderBottom: '1px solid var(--border)', marginBottom: '20px', overflowX: 'auto' }}>
           {TABS.map(t => (
             <button key={t.key} onClick={() => setTab(t.key)} style={{
               padding: '9px 18px', fontSize: '12px', fontWeight: tab === t.key ? 800 : 600,
-              color: tab === t.key ? '#0F1923' : '#8CA0B3', background: tab === t.key ? '#fff' : 'transparent',
-              border: 'none', borderBottom: tab === t.key ? '2px solid #00A5A3' : '2px solid transparent',
+              color: tab === t.key ? 'var(--ink)' : 'var(--ink3)', background: tab === t.key ? 'var(--card)' : 'transparent',
+              border: 'none', borderBottom: tab === t.key ? '2px solid var(--teal-mid)' : '2px solid transparent',
               borderRadius: tab === t.key ? '8px 8px 0 0' : '0', cursor: 'pointer', whiteSpace: 'nowrap' as const,
               marginBottom: '-1px', fontFamily: 'inherit',
             }}>{t.label}</button>
@@ -211,8 +211,8 @@ function SummaryTab({ s, fmt }: { s: SummaryData | null; fmt: (n: number) => str
     <div>
       {/* Info note */}
       <div style={{ ...infoBox, marginBottom: '16px' }}>
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#1565C0" strokeWidth="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
-        <p style={{ fontSize: '12px', color: '#1565C0', margin: 0 }}>
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--info)" strokeWidth="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+        <p style={{ fontSize: '12px', color: 'var(--info)', margin: 0 }}>
           <strong>Target</strong> = revenue target from commercial inventory. <strong>Adjusted</strong> = revised forecast by finance. <strong>Current</strong> = live actuals. <strong>Difference</strong> = Current - Adjusted.
         </p>
       </div>
@@ -220,12 +220,12 @@ function SummaryTab({ s, fmt }: { s: SummaryData | null; fmt: (n: number) => str
       {/* 6 Key Metrics — BRD Section 11 */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: '10px', marginBottom: '18px' }}>
         {[
-          { l: 'Gross Margin', v: `${s.metrics.gross_margin}%`, c: s.metrics.gross_margin >= 20 ? '#2E7D32' : '#D97706' },
-          { l: 'Net Margin', v: `${s.metrics.net_margin}%`, c: s.metrics.net_margin >= 15 ? '#2E7D32' : s.metrics.net_margin >= 0 ? '#D97706' : '#C62828' },
-          { l: 'Rev Achievement', v: `${s.metrics.revenue_achievement}%`, c: s.metrics.revenue_achievement >= 80 ? '#2E7D32' : '#D97706' },
-          { l: 'Budget Variance', v: `${s.metrics.budget_variance}%`, c: s.metrics.budget_variance >= 0 ? '#2E7D32' : '#C62828' },
-          { l: 'Cost Variance', v: `${s.metrics.cost_variance}%`, c: s.metrics.cost_variance <= 0 ? '#2E7D32' : '#C62828' },
-          { l: 'ROI', v: `${s.metrics.roi}%`, c: s.metrics.roi >= 0 ? '#2E7D32' : '#C62828' },
+          { l: 'Gross Margin', v: `${s.metrics.gross_margin}%`, c: s.metrics.gross_margin >= 20 ? 'var(--success)' : '#F5B94D' },
+          { l: 'Net Margin', v: `${s.metrics.net_margin}%`, c: s.metrics.net_margin >= 15 ? 'var(--success)' : s.metrics.net_margin >= 0 ? '#F5B94D' : 'var(--red)' },
+          { l: 'Rev Achievement', v: `${s.metrics.revenue_achievement}%`, c: s.metrics.revenue_achievement >= 80 ? 'var(--success)' : '#F5B94D' },
+          { l: 'Budget Variance', v: `${s.metrics.budget_variance}%`, c: s.metrics.budget_variance >= 0 ? 'var(--success)' : 'var(--red)' },
+          { l: 'Cost Variance', v: `${s.metrics.cost_variance}%`, c: s.metrics.cost_variance <= 0 ? 'var(--success)' : 'var(--red)' },
+          { l: 'ROI', v: `${s.metrics.roi}%`, c: s.metrics.roi >= 0 ? 'var(--success)' : 'var(--red)' },
         ].map((m, i) => (
           <div key={i} style={{ ...card, padding: '14px 16px', textAlign: 'center' as const }}>
             <p style={{ ...kpiLabel }}>{m.l}</p>
@@ -238,7 +238,7 @@ function SummaryTab({ s, fmt }: { s: SummaryData | null; fmt: (n: number) => str
       <div style={{ ...card, overflow: 'hidden' }}>
         <table style={{ width: '100%', borderCollapse: 'collapse' }}>
           <thead>
-            <tr style={{ background: '#F8FAFB' }}>
+            <tr style={{ background: 'var(--surface)' }}>
               <th style={{ ...th, textAlign: 'left' as const, width: '180px' }}>Metric</th>
               <th style={{ ...th, textAlign: 'right' as const }}>Target</th>
               <th style={{ ...th, textAlign: 'right' as const }}>Adjusted</th>
@@ -252,15 +252,15 @@ function SummaryTab({ s, fmt }: { s: SummaryData | null; fmt: (n: number) => str
               const isProfit = row.label.includes('Profit')
               const isSep = row.label === 'Gross Profit' || row.label === 'Net Profit'
               return (
-                <tr key={i} style={{ borderBottom: '1px solid #F0F4F8', background: isProfit ? '#F8FAFB' : 'transparent', borderTop: isSep ? '2px solid #D8EAEB' : undefined }}>
-                  <td style={{ padding: '12px 14px', fontSize: '13px', fontWeight: isProfit ? 800 : 600, color: '#0F1923' }}>{row.label}</td>
-                  <td style={{ padding: '12px 14px', fontSize: '13px', fontWeight: 600, color: '#8CA0B3', textAlign: 'right' as const }}>{isPercent ? `${row.budgeted}%` : fmt(row.budgeted)}</td>
-                  <td style={{ padding: '12px 14px', fontSize: '13px', fontWeight: 600, color: '#5B7080', textAlign: 'right' as const }}>{isPercent ? `${row.adjusted}%` : fmt(row.adjusted)}</td>
+                <tr key={i} style={{ borderBottom: '1px solid var(--surface)', background: isProfit ? 'var(--surface)' : 'transparent', borderTop: isSep ? '2px solid var(--border)' : undefined }}>
+                  <td style={{ padding: '12px 14px', fontSize: '13px', fontWeight: isProfit ? 800 : 600, color: 'var(--ink)' }}>{row.label}</td>
+                  <td style={{ padding: '12px 14px', fontSize: '13px', fontWeight: 600, color: 'var(--ink3)', textAlign: 'right' as const }}>{isPercent ? `${row.budgeted}%` : fmt(row.budgeted)}</td>
+                  <td style={{ padding: '12px 14px', fontSize: '13px', fontWeight: 600, color: 'var(--ink3)', textAlign: 'right' as const }}>{isPercent ? `${row.adjusted}%` : fmt(row.adjusted)}</td>
                   <td style={{ padding: '12px 14px', fontSize: '14px', fontWeight: 800, textAlign: 'right' as const,
-                    color: isProfit ? (row.current >= 0 ? '#2E7D32' : '#C62828') : row.label === 'Revenue' ? '#00897B' : '#0F1923' }}>
+                    color: isProfit ? (row.current >= 0 ? 'var(--success)' : 'var(--red)') : row.label === 'Revenue' ? 'var(--teal-mid)' : 'var(--ink)' }}>
                     {isPercent ? `${row.current}%` : fmt(row.current)}
                   </td>
-                  <td style={{ padding: '12px 14px', fontSize: '13px', fontWeight: 700, textAlign: 'right' as const, color: row.status === 'good' ? '#2E7D32' : '#C62828' }}>
+                  <td style={{ padding: '12px 14px', fontSize: '13px', fontWeight: 700, textAlign: 'right' as const, color: row.status === 'good' ? 'var(--success)' : 'var(--red)' }}>
                     {row.difference > 0 ? '+' : ''}{isPercent ? `${row.difference}%` : fmt(row.difference)}
                   </td>
                 </tr>
@@ -300,10 +300,10 @@ function RevenueTab({ inventory, deals, summary, eventId, fmt, fc, onRefresh }: 
       {/* Revenue pipeline KPIs */}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: '10px', marginBottom: '18px' }}>
         {[
-          { l: 'Revenue Target', v: fc(totalTarget), c: '#0E7490' },
-          { l: 'Confirmed (Sold)', v: fc(totalSold), c: '#2E7D32' },
-          { l: 'Pipeline (Reserved)', v: fc(totalPipeline), c: '#D97706' },
-          { l: 'Available', v: fc(totalTarget - totalSold - totalPipeline), c: '#5B7080' },
+          { l: 'Revenue Target', v: fc(totalTarget), c: 'var(--info)' },
+          { l: 'Confirmed (Sold)', v: fc(totalSold), c: 'var(--success)' },
+          { l: 'Pipeline (Reserved)', v: fc(totalPipeline), c: '#F5B94D' },
+          { l: 'Available', v: fc(totalTarget - totalSold - totalPipeline), c: 'var(--ink3)' },
         ].map((k, i) => (
           <div key={i} style={{ ...card, padding: '16px 18px', textAlign: 'center' as const }}>
             <p style={{ ...kpiLabel }}>{k.l}</p>
@@ -314,7 +314,7 @@ function RevenueTab({ inventory, deals, summary, eventId, fmt, fc, onRefresh }: 
 
       {/* Add inventory button */}
       <div style={{ marginBottom: '12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <h3 style={{ fontSize: '14px', fontWeight: 800, color: '#0F1923', margin: 0 }}>Commercial Inventory</h3>
+        <h3 style={{ fontSize: '14px', fontWeight: 800, color: 'var(--ink)', margin: 0 }}>Commercial Inventory</h3>
         <button onClick={() => setShowForm(!showForm)} style={{ ...btnLime }}>{showForm ? 'Cancel' : '+ Add Item'}</button>
       </div>
 
@@ -339,7 +339,7 @@ function RevenueTab({ inventory, deals, summary, eventId, fmt, fc, onRefresh }: 
       {/* Inventory table — BRD: Item, Qty, Unit Price, Budgeted, Adjusted, Current, Difference */}
       <div style={{ ...card, overflow: 'hidden', marginBottom: '24px' }}>
         <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-          <thead><tr style={{ background: '#F8FAFB' }}>
+          <thead><tr style={{ background: 'var(--surface)' }}>
             {['Item', 'Category', 'Qty', 'Unit Price', 'Budgeted', 'Adjusted', 'Sold', 'Pipeline', 'Difference'].map(h => (
               <TH key={h} left={h === 'Item'}>{h}</TH>
             ))}
@@ -353,19 +353,19 @@ function RevenueTab({ inventory, deals, summary, eventId, fmt, fc, onRefresh }: 
               const current = Number(item.total_sold_value)
               const diff = current - adjusted
               return (
-                <tr key={item.id} style={{ borderBottom: '1px solid #F0F4F8' }}>
+                <tr key={item.id} style={{ borderBottom: '1px solid var(--surface)' }}>
                   <td style={{ padding: '10px 14px' }}>
-                    <p style={{ fontSize: '13px', fontWeight: 700, color: '#0F1923', margin: 0 }}>{item.name}</p>
-                    {item.subcategory && <p style={{ fontSize: '10px', color: '#8CA0B3', margin: '1px 0 0' }}>{item.subcategory}</p>}
+                    <p style={{ fontSize: '13px', fontWeight: 700, color: 'var(--ink)', margin: 0 }}>{item.name}</p>
+                    {item.subcategory && <p style={{ fontSize: '10px', color: 'var(--ink3)', margin: '1px 0 0' }}>{item.subcategory}</p>}
                   </td>
-                  <td style={{ ...tdR, fontSize: '11px', color: '#5B7080', textTransform: 'capitalize' as const }}>{item.category.replace(/_/g, ' ')}</td>
+                  <td style={{ ...tdR, fontSize: '11px', color: 'var(--ink3)', textTransform: 'capitalize' as const }}>{item.category.replace(/_/g, ' ')}</td>
                   <td style={tdR}>{item.quantity}</td>
                   <td style={tdR}>{fmt(item.unit_price)}</td>
-                  <td style={{ ...tdR, color: '#0E7490' }}>{fmt(budgeted)}</td>
-                  <td style={{ ...tdR, color: '#5B7080' }}>{fmt(adjusted)}</td>
-                  <td style={{ ...tdR, fontWeight: 700, color: '#2E7D32' }}>{fmt(current)}</td>
-                  <td style={{ ...tdR, color: '#D97706' }}>{fmt(Number(item.total_pipeline))}</td>
-                  <td style={{ ...tdR, fontWeight: 700, color: diff >= 0 ? '#2E7D32' : '#C62828' }}>{diff > 0 ? '+' : ''}{fmt(diff)}</td>
+                  <td style={{ ...tdR, color: 'var(--info)' }}>{fmt(budgeted)}</td>
+                  <td style={{ ...tdR, color: 'var(--ink3)' }}>{fmt(adjusted)}</td>
+                  <td style={{ ...tdR, fontWeight: 700, color: 'var(--success)' }}>{fmt(current)}</td>
+                  <td style={{ ...tdR, color: '#F5B94D' }}>{fmt(Number(item.total_pipeline))}</td>
+                  <td style={{ ...tdR, fontWeight: 700, color: diff >= 0 ? 'var(--success)' : 'var(--red)' }}>{diff > 0 ? '+' : ''}{fmt(diff)}</td>
                 </tr>
               )
             })}
@@ -375,32 +375,32 @@ function RevenueTab({ inventory, deals, summary, eventId, fmt, fc, onRefresh }: 
       </div>
 
       {/* Logged Deals */}
-      <h3 style={{ fontSize: '14px', fontWeight: 800, color: '#0F1923', margin: '0 0 12px' }}>Logged Deals ({deals.length})</h3>
+      <h3 style={{ fontSize: '14px', fontWeight: 800, color: 'var(--ink)', margin: '0 0 12px' }}>Logged Deals ({deals.length})</h3>
       <div style={{ ...card, overflow: 'hidden' }}>
         <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-          <thead><tr style={{ background: '#F8FAFB' }}>
+          <thead><tr style={{ background: 'var(--surface)' }}>
             {['Company', 'Type', 'Amount', 'Status', 'Date'].map(h => <TH key={h} left={h === 'Company'}>{h}</TH>)}
           </tr></thead>
           <tbody>
             {deals.map(d => (
-              <tr key={d.id} style={{ borderBottom: '1px solid #F0F4F8' }}>
+              <tr key={d.id} style={{ borderBottom: '1px solid var(--surface)' }}>
                 <td style={{ padding: '10px 14px' }}>
-                  <p style={{ fontSize: '13px', fontWeight: 700, color: '#0F1923', margin: 0 }}>{d.company_name}</p>
-                  {d.contact_name && <p style={{ fontSize: '10px', color: '#8CA0B3', margin: '1px 0 0' }}>{d.contact_name}</p>}
+                  <p style={{ fontSize: '13px', fontWeight: 700, color: 'var(--ink)', margin: 0 }}>{d.company_name}</p>
+                  {d.contact_name && <p style={{ fontSize: '10px', color: 'var(--ink3)', margin: '1px 0 0' }}>{d.contact_name}</p>}
                 </td>
-                <td style={{ ...tdR, fontSize: '11px', textTransform: 'capitalize' as const, color: '#5B7080' }}>{d.deal_type.replace(/_/g, ' ')}</td>
-                <td style={{ ...tdR, fontWeight: 700, color: '#00897B' }}>{fmt(d.converted_amount || d.amount)}</td>
+                <td style={{ ...tdR, fontSize: '11px', textTransform: 'capitalize' as const, color: 'var(--ink3)' }}>{d.deal_type.replace(/_/g, ' ')}</td>
+                <td style={{ ...tdR, fontWeight: 700, color: 'var(--teal-mid)' }}>{fmt(d.converted_amount || d.amount)}</td>
                 <td style={tdR}><StatusBadge status={d.status} /></td>
-                <td style={{ ...tdR, color: '#5B7080', fontSize: '12px' }}>{d.deal_date || '-'}</td>
+                <td style={{ ...tdR, color: 'var(--ink3)', fontSize: '12px' }}>{d.deal_date || '-'}</td>
               </tr>
             ))}
             {deals.length === 0 && <tr><td colSpan={5} style={emptyTd}>No deals logged. Add deals from Event Workspace.</td></tr>}
           </tbody>
         </table>
         {deals.length > 0 && (
-          <div style={{ padding: '12px 14px', borderTop: '2px solid #D8EAEB', display: 'flex', justifyContent: 'space-between' }}>
-            <span style={{ fontSize: '12px', fontWeight: 700, color: '#5B7080' }}>{deals.filter(d => d.status === 'confirmed').length} confirmed, {deals.filter(d => d.status === 'pending').length} pending</span>
-            <span style={{ fontSize: '14px', fontWeight: 800, color: '#2E7D32' }}>Confirmed: {fmt(deals.filter(d => d.status === 'confirmed').reduce((s, d) => s + Number(d.converted_amount || d.amount || 0), 0))}</span>
+          <div style={{ padding: '12px 14px', borderTop: '2px solid var(--border)', display: 'flex', justifyContent: 'space-between' }}>
+            <span style={{ fontSize: '12px', fontWeight: 700, color: 'var(--ink3)' }}>{deals.filter(d => d.status === 'confirmed').length} confirmed, {deals.filter(d => d.status === 'pending').length} pending</span>
+            <span style={{ fontSize: '14px', fontWeight: 800, color: 'var(--success)' }}>Confirmed: {fmt(deals.filter(d => d.status === 'confirmed').reduce((s, d) => s + Number(d.converted_amount || d.amount || 0), 0))}</span>
           </div>
         )}
       </div>
@@ -420,8 +420,8 @@ function StaffTab({ data, fmt }: { data: StaffCostData | null; fmt: (n: number) 
     <div>
       {missing > 0 && (
         <div style={{ ...warnBox, marginBottom: '14px' }}>
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#E65100" strokeWidth="2"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
-          <p style={{ fontSize: '12px', fontWeight: 600, color: '#E65100', margin: 0 }}>{missing} staff member{missing > 1 ? 's have' : ' has'} no salary record. Cost shows as $0. Add salary records in HR.</p>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--amber)" strokeWidth="2"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+          <p style={{ fontSize: '12px', fontWeight: 600, color: 'var(--amber)', margin: 0 }}>{missing} staff member{missing > 1 ? 's have' : ' has'} no salary record. Cost shows as $0. Add salary records in HR.</p>
         </div>
       )}
 
@@ -429,11 +429,11 @@ function StaffTab({ data, fmt }: { data: StaffCostData | null; fmt: (n: number) 
       <div style={{ ...card, padding: '18px 20px', marginBottom: '14px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <div>
           <p style={kpiLabel}>Total Staff Cost Allocation</p>
-          <p style={{ fontSize: '24px', fontWeight: 900, color: '#C62828', margin: '4px 0 0' }}>{fmt(data.total_cost)}</p>
+          <p style={{ fontSize: '24px', fontWeight: 900, color: 'var(--red)', margin: '4px 0 0' }}>{fmt(data.total_cost)}</p>
         </div>
         <div style={{ textAlign: 'right' as const }}>
-          <p style={{ fontSize: '11px', color: '#5B7080', margin: 0 }}>{data.total_staff} staff, {data.total_hours}h logged</p>
-          <p style={{ fontSize: '10px', color: '#8CA0B3', margin: '2px 0 0' }}>Formula: (Salary x Days) / Working Days</p>
+          <p style={{ fontSize: '11px', color: 'var(--ink3)', margin: 0 }}>{data.total_staff} staff, {data.total_hours}h logged</p>
+          <p style={{ fontSize: '10px', color: 'var(--ink3)', margin: '2px 0 0' }}>Formula: (Salary x Days) / Working Days</p>
         </div>
       </div>
 
@@ -441,9 +441,9 @@ function StaffTab({ data, fmt }: { data: StaffCostData | null; fmt: (n: number) 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: '10px', marginBottom: '16px' }}>
         {Object.entries(data.by_department).map(([dept, info]) => (
           <div key={dept} style={{ ...card, padding: '14px 16px' }}>
-            <p style={{ fontSize: '11px', fontWeight: 700, color: '#5B7080', margin: '0 0 2px' }}>{dept}</p>
-            <p style={{ fontSize: '16px', fontWeight: 900, color: '#0F1923', margin: 0 }}>{fmt(info.cost)}</p>
-            <p style={{ fontSize: '10px', color: '#8CA0B3', margin: '2px 0 0' }}>{info.count} staff, {info.hours}h</p>
+            <p style={{ fontSize: '11px', fontWeight: 700, color: 'var(--ink3)', margin: '0 0 2px' }}>{dept}</p>
+            <p style={{ fontSize: '16px', fontWeight: 900, color: 'var(--ink)', margin: 0 }}>{fmt(info.cost)}</p>
+            <p style={{ fontSize: '10px', color: 'var(--ink3)', margin: '2px 0 0' }}>{info.count} staff, {info.hours}h</p>
           </div>
         ))}
       </div>
@@ -451,21 +451,21 @@ function StaffTab({ data, fmt }: { data: StaffCostData | null; fmt: (n: number) 
       {/* Staff table — BRD: Employee, Department, Days Worked, Allocated Salary, Budgeted, Current, Difference */}
       <div style={{ ...card, overflow: 'hidden' }}>
         <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-          <thead><tr style={{ background: '#F8FAFB' }}>
+          <thead><tr style={{ background: 'var(--surface)' }}>
             {['Employee', 'Department', 'Hours', 'Days', 'Monthly Salary', 'Allocated Cost'].map(h => <TH key={h} left={h === 'Employee'}>{h}</TH>)}
           </tr></thead>
           <tbody>
             {data.staff.map(s => (
-              <tr key={s.staff_id} style={{ borderBottom: '1px solid #F0F4F8', background: s.salary_missing ? '#FFF8E1' : 'transparent' }}>
+              <tr key={s.staff_id} style={{ borderBottom: '1px solid var(--surface)', background: s.salary_missing ? 'var(--amber-light)' : 'transparent' }}>
                 <td style={{ padding: '10px 14px' }}>
-                  <span style={{ fontSize: '13px', fontWeight: 700, color: '#0F1923' }}>{s.name}</span>
-                  {s.salary_missing && <span style={{ fontSize: '10px', fontWeight: 700, color: '#E65100', marginLeft: '6px' }}>No salary</span>}
+                  <span style={{ fontSize: '13px', fontWeight: 700, color: 'var(--ink)' }}>{s.name}</span>
+                  {s.salary_missing && <span style={{ fontSize: '10px', fontWeight: 700, color: 'var(--amber)', marginLeft: '6px' }}>No salary</span>}
                 </td>
-                <td style={{ ...tdR, color: '#5B7080', fontSize: '12px' }}>{s.department}</td>
+                <td style={{ ...tdR, color: 'var(--ink3)', fontSize: '12px' }}>{s.department}</td>
                 <td style={tdR}>{s.total_hours}h</td>
                 <td style={tdR}>{s.days_worked}</td>
-                <td style={{ ...tdR, color: s.salary_missing ? '#E65100' : '#5B7080' }}>{s.salary_missing ? 'Missing' : fmt(s.monthly_salary)}</td>
-                <td style={{ ...tdR, fontWeight: 800, color: s.salary_missing ? '#E65100' : '#C62828' }}>{s.salary_missing ? '$0' : fmt(s.allocated_cost)}</td>
+                <td style={{ ...tdR, color: s.salary_missing ? 'var(--amber)' : 'var(--ink3)' }}>{s.salary_missing ? 'Missing' : fmt(s.monthly_salary)}</td>
+                <td style={{ ...tdR, fontWeight: 800, color: s.salary_missing ? 'var(--amber)' : 'var(--red)' }}>{s.salary_missing ? '$0' : fmt(s.allocated_cost)}</td>
               </tr>
             ))}
           </tbody>
@@ -517,28 +517,28 @@ function CostsTab({ eventId, fmt }: { eventId: string; fmt: (n: number) => strin
       <div style={{ ...card, padding: '18px 20px', marginBottom: '14px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <div>
           <p style={kpiLabel}>Total Direct Costs</p>
-          <p style={{ fontSize: '24px', fontWeight: 900, color: '#C62828', margin: '4px 0 0' }}>{fmt(total)}</p>
+          <p style={{ fontSize: '24px', fontWeight: 900, color: 'var(--red)', margin: '4px 0 0' }}>{fmt(total)}</p>
         </div>
-        <p style={{ fontSize: '12px', color: '#5B7080' }}>{expenses.length} line items across {Object.keys(grouped).length} categories</p>
+        <p style={{ fontSize: '12px', color: 'var(--ink3)' }}>{expenses.length} line items across {Object.keys(grouped).length} categories</p>
       </div>
 
       {/* Category breakdown — BRD: Category, Item, Budgeted, Adjusted, Current, Difference */}
       {Object.entries(grouped).map(([catId, group]) => (
         <div key={catId} style={{ ...card, marginBottom: '10px', overflow: 'hidden' }}>
-          <div style={{ padding: '12px 14px', background: '#F8FAFB', borderBottom: '1px solid #E8EEF4', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <span style={{ fontSize: '13px', fontWeight: 800, color: '#0F1923' }}>{group.name}</span>
-            <span style={{ fontSize: '14px', fontWeight: 800, color: '#C62828' }}>{fmt(group.total)}</span>
+          <div style={{ padding: '12px 14px', background: 'var(--surface)', borderBottom: '1px solid var(--surface)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <span style={{ fontSize: '13px', fontWeight: 800, color: 'var(--ink)' }}>{group.name}</span>
+            <span style={{ fontSize: '14px', fontWeight: 800, color: 'var(--red)' }}>{fmt(group.total)}</span>
           </div>
           <table style={{ width: '100%', borderCollapse: 'collapse' }}>
             <tbody>
               {group.items.map(exp => (
-                <tr key={exp.id} style={{ borderBottom: '1px solid #F0F4F8' }}>
-                  <td style={{ padding: '9px 14px', fontSize: '13px', color: '#0F1923' }}>{exp.description}</td>
-                  <td style={{ ...tdR, fontSize: '11px', color: '#5B7080' }}>{exp.vendor_name || '-'}</td>
-                  <td style={{ ...tdR, fontSize: '11px', color: '#8CA0B3' }}>{exp.po_number ? `PO: ${exp.po_number}` : ''}{exp.invoice_number ? ` INV: ${exp.invoice_number}` : ''}</td>
+                <tr key={exp.id} style={{ borderBottom: '1px solid var(--surface)' }}>
+                  <td style={{ padding: '9px 14px', fontSize: '13px', color: 'var(--ink)' }}>{exp.description}</td>
+                  <td style={{ ...tdR, fontSize: '11px', color: 'var(--ink3)' }}>{exp.vendor_name || '-'}</td>
+                  <td style={{ ...tdR, fontSize: '11px', color: 'var(--ink3)' }}>{exp.po_number ? `PO: ${exp.po_number}` : ''}{exp.invoice_number ? ` INV: ${exp.invoice_number}` : ''}</td>
                   <td style={tdR}><StatusBadge status={exp.payment_status} /></td>
-                  <td style={{ ...tdR, fontSize: '12px', color: '#5B7080' }}>{exp.expense_date || '-'}</td>
-                  <td style={{ ...tdR, fontWeight: 700, color: '#C62828' }}>{fmt(Number(exp.converted_amount))}</td>
+                  <td style={{ ...tdR, fontSize: '12px', color: 'var(--ink3)' }}>{exp.expense_date || '-'}</td>
+                  <td style={{ ...tdR, fontWeight: 700, color: 'var(--red)' }}>{fmt(Number(exp.converted_amount))}</td>
                 </tr>
               ))}
             </tbody>
@@ -559,38 +559,38 @@ function OverheadsTab({ summary, fmt }: { summary: SummaryData | null; fmt: (n: 
     <div>
       <div style={{ ...card, padding: '18px 20px', marginBottom: '14px' }}>
         <p style={kpiLabel}>Total Overhead Allocation</p>
-        <p style={{ fontSize: '24px', fontWeight: 900, color: '#C62828', margin: '4px 0 0' }}>{fmt(summary.overhead_costs)}</p>
+        <p style={{ fontSize: '24px', fontWeight: 900, color: 'var(--red)', margin: '4px 0 0' }}>{fmt(summary.overhead_costs)}</p>
         <div style={{ display: 'flex', gap: '20px', marginTop: '8px' }}>
-          <span style={{ fontSize: '12px', color: '#5B7080' }}>Finance: {fmt(summary.overhead_finance)}</span>
-          <span style={{ fontSize: '12px', color: '#5B7080' }}>HR: {fmt(summary.overhead_hr)}</span>
-          <span style={{ fontSize: '12px', color: '#5B7080' }}>Custom: {fmt(summary.overhead_costs - summary.overhead_finance - summary.overhead_hr)}</span>
+          <span style={{ fontSize: '12px', color: 'var(--ink3)' }}>Finance: {fmt(summary.overhead_finance)}</span>
+          <span style={{ fontSize: '12px', color: 'var(--ink3)' }}>HR: {fmt(summary.overhead_hr)}</span>
+          <span style={{ fontSize: '12px', color: 'var(--ink3)' }}>Custom: {fmt(summary.overhead_costs - summary.overhead_finance - summary.overhead_hr)}</span>
         </div>
       </div>
 
       <div style={{ ...card, overflow: 'hidden' }}>
         <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-          <thead><tr style={{ background: '#F8FAFB' }}>
+          <thead><tr style={{ background: 'var(--surface)' }}>
             {['Component', 'Model', 'Rate', 'Pool', 'Allocated'].map(h => <TH key={h} left={h === 'Component'}>{h}</TH>)}
           </tr></thead>
           <tbody>
-            <tr style={{ borderBottom: '1px solid #F0F4F8', background: '#F8FAFB' }}>
-              <td style={{ padding: '10px 14px', fontSize: '13px', fontWeight: 700, color: '#0F1923' }}>Finance Department</td>
-              <td style={{ ...tdR, fontSize: '11px', color: '#5B7080' }}>Proportional (hours)</td>
+            <tr style={{ borderBottom: '1px solid var(--surface)', background: 'var(--surface)' }}>
+              <td style={{ padding: '10px 14px', fontSize: '13px', fontWeight: 700, color: 'var(--ink)' }}>Finance Department</td>
+              <td style={{ ...tdR, fontSize: '11px', color: 'var(--ink3)' }}>Proportional (hours)</td>
               <td style={tdR}>-</td><td style={tdR}>-</td>
               <td style={{ ...tdR, fontWeight: 700 }}>{fmt(summary.overhead_finance)}</td>
             </tr>
-            <tr style={{ borderBottom: '1px solid #F0F4F8', background: '#F8FAFB' }}>
-              <td style={{ padding: '10px 14px', fontSize: '13px', fontWeight: 700, color: '#0F1923' }}>HR Department</td>
-              <td style={{ ...tdR, fontSize: '11px', color: '#5B7080' }}>Proportional (hours)</td>
+            <tr style={{ borderBottom: '1px solid var(--surface)', background: 'var(--surface)' }}>
+              <td style={{ padding: '10px 14px', fontSize: '13px', fontWeight: 700, color: 'var(--ink)' }}>HR Department</td>
+              <td style={{ ...tdR, fontSize: '11px', color: 'var(--ink3)' }}>Proportional (hours)</td>
               <td style={tdR}>-</td><td style={tdR}>-</td>
               <td style={{ ...tdR, fontWeight: 700 }}>{fmt(summary.overhead_hr)}</td>
             </tr>
             {summary.overhead_components.map((c, i) => (
-              <tr key={i} style={{ borderBottom: '1px solid #F0F4F8' }}>
-                <td style={{ padding: '10px 14px', fontSize: '13px', fontWeight: 700, color: '#0F1923', textTransform: 'capitalize' as const }}>{c.component.replace(/_/g, ' ')}</td>
-                <td style={{ ...tdR, fontSize: '11px', color: '#5B7080', textTransform: 'capitalize' as const }}>{c.model.replace(/_/g, ' ')}</td>
+              <tr key={i} style={{ borderBottom: '1px solid var(--surface)' }}>
+                <td style={{ padding: '10px 14px', fontSize: '13px', fontWeight: 700, color: 'var(--ink)', textTransform: 'capitalize' as const }}>{c.component.replace(/_/g, ' ')}</td>
+                <td style={{ ...tdR, fontSize: '11px', color: 'var(--ink3)', textTransform: 'capitalize' as const }}>{c.model.replace(/_/g, ' ')}</td>
                 <td style={tdR}>{c.rate}%</td>
-                <td style={{ ...tdR, color: '#5B7080' }}>{fmt(c.monthly_pool)}</td>
+                <td style={{ ...tdR, color: 'var(--ink3)' }}>{fmt(c.monthly_pool)}</td>
                 <td style={{ ...tdR, fontWeight: 700 }}>{fmt(c.allocated)}</td>
               </tr>
             ))}
@@ -608,13 +608,13 @@ function PnLTab({ s, fmt, fc }: { s: SummaryData | null; fmt: (n: number) => str
   if (!s) return <Empty msg="No P&L data." />
 
   const pnlRows = [
-    { label: 'Revenue', value: s.revenue_confirmed, color: '#00897B', indent: 0, bold: true },
-    { label: 'Less: Direct Costs', value: -s.direct_costs, color: '#C62828', indent: 1, bold: false },
-    { label: 'Less: Staff Costs', value: -s.staff_costs, color: '#C62828', indent: 1, bold: false },
-    { label: 'Less: Overheads', value: -s.overhead_costs, color: '#C62828', indent: 1, bold: false },
-    { label: 'Gross Profit', value: s.gross_profit, color: s.gross_profit >= 0 ? '#2E7D32' : '#C62828', indent: 0, bold: true, sep: true },
-    { label: 'Less: Corporate Allocations', value: -s.corporate_allocation, color: '#C62828', indent: 1, bold: false },
-    { label: 'Net Profit', value: s.net_profit, color: s.net_profit >= 0 ? '#2E7D32' : '#C62828', indent: 0, bold: true, sep: true },
+    { label: 'Revenue', value: s.revenue_confirmed, color: 'var(--teal-mid)', indent: 0, bold: true },
+    { label: 'Less: Direct Costs', value: -s.direct_costs, color: 'var(--red)', indent: 1, bold: false },
+    { label: 'Less: Staff Costs', value: -s.staff_costs, color: 'var(--red)', indent: 1, bold: false },
+    { label: 'Less: Overheads', value: -s.overhead_costs, color: 'var(--red)', indent: 1, bold: false },
+    { label: 'Gross Profit', value: s.gross_profit, color: s.gross_profit >= 0 ? 'var(--success)' : 'var(--red)', indent: 0, bold: true, sep: true },
+    { label: 'Less: Corporate Allocations', value: -s.corporate_allocation, color: 'var(--red)', indent: 1, bold: false },
+    { label: 'Net Profit', value: s.net_profit, color: s.net_profit >= 0 ? 'var(--success)' : 'var(--red)', indent: 0, bold: true, sep: true },
   ]
 
   return (
@@ -622,9 +622,9 @@ function PnLTab({ s, fmt, fc }: { s: SummaryData | null; fmt: (n: number) => str
       {/* Headline cards */}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '12px', marginBottom: '20px' }}>
         {[
-          { l: 'Revenue', v: s.revenue_confirmed, c: '#00897B' },
-          { l: 'Gross Profit', v: s.gross_profit, c: s.gross_profit >= 0 ? '#2E7D32' : '#C62828' },
-          { l: 'Net Profit', v: s.net_profit, c: s.net_profit >= 0 ? '#2E7D32' : '#C62828' },
+          { l: 'Revenue', v: s.revenue_confirmed, c: 'var(--teal-mid)' },
+          { l: 'Gross Profit', v: s.gross_profit, c: s.gross_profit >= 0 ? 'var(--success)' : 'var(--red)' },
+          { l: 'Net Profit', v: s.net_profit, c: s.net_profit >= 0 ? 'var(--success)' : 'var(--red)' },
         ].map((k, i) => (
           <div key={i} style={{ ...card, padding: '20px', textAlign: 'center' as const }}>
             <p style={kpiLabel}>{k.l}</p>
@@ -635,20 +635,20 @@ function PnLTab({ s, fmt, fc }: { s: SummaryData | null; fmt: (n: number) => str
 
       {/* P&L statement — BRD Section 11 structure */}
       <div style={{ ...card, padding: '24px' }}>
-        <h3 style={{ fontSize: '14px', fontWeight: 800, color: '#0F1923', margin: '0 0 16px' }}>Profit & Loss Statement</h3>
+        <h3 style={{ fontSize: '14px', fontWeight: 800, color: 'var(--ink)', margin: '0 0 16px' }}>Profit & Loss Statement</h3>
         {pnlRows.map((row, i) => (
           <div key={i} style={{
             display: 'flex', justifyContent: 'space-between', alignItems: 'center',
             padding: row.bold ? '14px 0' : '8px 0', paddingLeft: row.indent ? '24px' : '0',
-            borderTop: row.sep ? '2px solid #D8EAEB' : i > 0 ? '1px solid #F0F4F8' : 'none',
+            borderTop: row.sep ? '2px solid var(--border)' : i > 0 ? '1px solid var(--surface)' : 'none',
           }}>
-            <span style={{ fontSize: row.bold ? '14px' : '13px', fontWeight: row.bold ? 800 : 500, color: '#0F1923' }}>{row.label}</span>
+            <span style={{ fontSize: row.bold ? '14px' : '13px', fontWeight: row.bold ? 800 : 500, color: 'var(--ink)' }}>{row.label}</span>
             <span style={{ fontSize: row.bold ? '16px' : '14px', fontWeight: 800, color: row.color, fontFamily: 'Manrope, system-ui' }}>{fmt(Math.abs(row.value))}</span>
           </div>
         ))}
 
         {/* Metrics footer */}
-        <div style={{ display: 'flex', gap: '24px', marginTop: '20px', paddingTop: '16px', borderTop: '2px solid #D8EAEB' }}>
+        <div style={{ display: 'flex', gap: '24px', marginTop: '20px', paddingTop: '16px', borderTop: '2px solid var(--border)' }}>
           {[
             { l: 'Gross Margin', v: `${s.metrics.gross_margin}%` },
             { l: 'Net Margin', v: `${s.metrics.net_margin}%` },
@@ -656,8 +656,8 @@ function PnLTab({ s, fmt, fc }: { s: SummaryData | null; fmt: (n: number) => str
             { l: 'Cost Burn', v: `${s.cost_burn}%` },
           ].map((m, i) => (
             <div key={i}>
-              <p style={{ fontSize: '10px', fontWeight: 700, color: '#8CA0B3', textTransform: 'uppercase' as const, letterSpacing: '1px', margin: '0 0 2px' }}>{m.l}</p>
-              <p style={{ fontSize: '16px', fontWeight: 800, color: '#0F1923', margin: 0 }}>{m.v}</p>
+              <p style={{ fontSize: '10px', fontWeight: 700, color: 'var(--ink3)', textTransform: 'uppercase' as const, letterSpacing: '1px', margin: '0 0 2px' }}>{m.l}</p>
+              <p style={{ fontSize: '16px', fontWeight: 800, color: 'var(--ink)', margin: 0 }}>{m.v}</p>
             </div>
           ))}
         </div>
@@ -684,13 +684,13 @@ function ScenariosTab({ scenarios, eventId, fmt, fc }: { scenarios: Scenario[]; 
 
   if (scenarios.length === 0) return (
     <div style={{ ...card, padding: '40px', textAlign: 'center' as const }}>
-      <p style={{ fontSize: '14px', color: '#5B7080', marginBottom: '16px' }}>No scenarios created. Generate default scenarios to see what-if analysis.</p>
+      <p style={{ fontSize: '14px', color: 'var(--ink3)', marginBottom: '16px' }}>No scenarios created. Generate default scenarios to see what-if analysis.</p>
       <div style={{ display: 'flex', gap: '10px', justifyContent: 'center' }}>
         {(['best', 'expected', 'worst'] as const).map(t => (
           <button key={t} onClick={() => create(t)} disabled={creating} style={{
             padding: '10px 20px', borderRadius: '8px', border: 'none', cursor: 'pointer', fontFamily: 'inherit',
-            background: t === 'best' ? '#E8F5E9' : t === 'expected' ? '#E3F2FD' : '#FFEBEE',
-            color: t === 'best' ? '#2E7D32' : t === 'expected' ? '#1565C0' : '#C62828',
+            background: t === 'best' ? 'var(--success-light)' : t === 'expected' ? 'var(--info-light)' : 'var(--red-light)',
+            color: t === 'best' ? 'var(--success)' : t === 'expected' ? 'var(--info)' : 'var(--red)',
             fontSize: '13px', fontWeight: 700, textTransform: 'capitalize' as const, opacity: creating ? 0.5 : 1,
           }}>{t} Case</button>
         ))}
@@ -701,19 +701,19 @@ function ScenariosTab({ scenarios, eventId, fmt, fc }: { scenarios: Scenario[]; 
   return (
     <div style={{ display: 'grid', gridTemplateColumns: `repeat(${Math.min(scenarios.length, 3)}, 1fr)`, gap: '14px' }}>
       {scenarios.map(sc => (
-        <div key={sc.id} style={{ ...card, padding: '20px', borderTop: `3px solid ${sc.scenario_type === 'best' ? '#4CAF50' : sc.scenario_type === 'worst' ? '#F44336' : '#2196F3'}` }}>
-          <h4 style={{ fontSize: '15px', fontWeight: 800, color: '#0F1923', margin: '0 0 16px' }}>{sc.name}</h4>
+        <div key={sc.id} style={{ ...card, padding: '20px', borderTop: `3px solid ${sc.scenario_type === 'best' ? 'var(--success)' : sc.scenario_type === 'worst' ? 'var(--red)' : 'var(--info)'}` }}>
+          <h4 style={{ fontSize: '15px', fontWeight: 800, color: 'var(--ink)', margin: '0 0 16px' }}>{sc.name}</h4>
           {sc.revenue_adjustments?.[0]?.pct !== undefined && (
-            <p style={{ fontSize: '11px', color: '#5B7080', margin: '0 0 12px' }}>Revenue {sc.revenue_adjustments[0].pct >= 0 ? '+' : ''}{sc.revenue_adjustments[0].pct}% adjustment</p>
+            <p style={{ fontSize: '11px', color: 'var(--ink3)', margin: '0 0 12px' }}>Revenue {sc.revenue_adjustments[0].pct >= 0 ? '+' : ''}{sc.revenue_adjustments[0].pct}% adjustment</p>
           )}
           {[
-            { l: 'Revenue', v: fc(sc.total_revenue || 0), c: '#00897B' },
-            { l: 'Total Cost', v: fc(sc.total_cost || 0), c: '#C62828' },
-            { l: 'Net Profit', v: fc(sc.net_profit || 0), c: (sc.net_profit || 0) >= 0 ? '#2E7D32' : '#C62828' },
-            { l: 'Margin', v: `${sc.margin_pct || 0}%`, c: (sc.margin_pct || 0) >= 20 ? '#2E7D32' : '#D97706' },
+            { l: 'Revenue', v: fc(sc.total_revenue || 0), c: 'var(--teal-mid)' },
+            { l: 'Total Cost', v: fc(sc.total_cost || 0), c: 'var(--red)' },
+            { l: 'Net Profit', v: fc(sc.net_profit || 0), c: (sc.net_profit || 0) >= 0 ? 'var(--success)' : 'var(--red)' },
+            { l: 'Margin', v: `${sc.margin_pct || 0}%`, c: (sc.margin_pct || 0) >= 20 ? 'var(--success)' : '#F5B94D' },
           ].map((r, i) => (
-            <div key={i} style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', borderTop: i > 0 ? '1px solid #F0F4F8' : 'none' }}>
-              <span style={{ fontSize: '12px', color: '#5B7080' }}>{r.l}</span>
+            <div key={i} style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', borderTop: i > 0 ? '1px solid var(--surface)' : 'none' }}>
+              <span style={{ fontSize: '12px', color: 'var(--ink3)' }}>{r.l}</span>
               <span style={{ fontSize: '14px', fontWeight: 800, color: r.c }}>{r.v}</span>
             </div>
           ))}
@@ -728,16 +728,16 @@ function ScenariosTab({ scenarios, eventId, fmt, fc }: { scenarios: Scenario[]; 
 // ═══════════════════════════════════════
 function ApprovalsTab({ approvals, eventId }: { approvals: Approval[]; eventId: string }) {
   const stepColors: Record<string, { bg: string; fg: string }> = {
-    pending: { bg: '#FFF8E1', fg: '#F57F17' },
-    approved: { bg: '#E8F5E9', fg: '#2E7D32' },
-    rejected: { bg: '#FFEBEE', fg: '#C62828' },
-    skipped: { bg: '#ECEFF1', fg: '#546E7A' },
+    pending: { bg: 'var(--amber-light)', fg: 'var(--amber)' },
+    approved: { bg: 'var(--success-light)', fg: 'var(--success)' },
+    rejected: { bg: 'var(--red-light)', fg: 'var(--red)' },
+    skipped: { bg: 'rgba(255,255,255,0.06)', fg: 'var(--ink3)' },
   }
 
   if (approvals.length === 0) return (
     <div style={{ ...card, padding: '40px', textAlign: 'center' as const }}>
-      <p style={{ fontSize: '14px', color: '#5B7080' }}>No approval requests yet. Budget approvals and cost change requests will appear here.</p>
-      <p style={{ fontSize: '12px', color: '#8CA0B3', marginTop: '8px' }}>Approval chain: BU Head, Commercial Director, Finance, CEO</p>
+      <p style={{ fontSize: '14px', color: 'var(--ink3)' }}>No approval requests yet. Budget approvals and cost change requests will appear here.</p>
+      <p style={{ fontSize: '12px', color: 'var(--ink3)', marginTop: '8px' }}>Approval chain: BU Head, Commercial Director, Finance, CEO</p>
     </div>
   )
 
@@ -747,8 +747,8 @@ function ApprovalsTab({ approvals, eventId }: { approvals: Approval[]; eventId: 
         <div key={a.id} style={{ ...card, padding: '18px 20px', marginBottom: '10px' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
             <div>
-              <span style={{ fontSize: '12px', fontWeight: 700, color: '#0F1923', textTransform: 'capitalize' as const }}>{a.approval_type.replace(/_/g, ' ')}</span>
-              <span style={{ fontSize: '11px', color: '#8CA0B3', marginLeft: '8px' }}>by {a.requested_by_staff?.name || 'Unknown'}</span>
+              <span style={{ fontSize: '12px', fontWeight: 700, color: 'var(--ink)', textTransform: 'capitalize' as const }}>{a.approval_type.replace(/_/g, ' ')}</span>
+              <span style={{ fontSize: '11px', color: 'var(--ink3)', marginLeft: '8px' }}>by {a.requested_by_staff?.name || 'Unknown'}</span>
             </div>
             <StatusBadge status={a.overall_status} />
           </div>
@@ -761,7 +761,7 @@ function ApprovalsTab({ approvals, eventId }: { approvals: Approval[]; eventId: 
               const sc = stepColors[status] || stepColors.pending
               return (
                 <div key={step} style={{ flex: 1, background: sc.bg, borderRadius: '8px', padding: '10px 12px', textAlign: 'center' as const }}>
-                  <p style={{ fontSize: '9px', fontWeight: 800, letterSpacing: '1px', textTransform: 'uppercase' as const, color: '#8CA0B3', margin: '0 0 4px' }}>Step {step}</p>
+                  <p style={{ fontSize: '9px', fontWeight: 800, letterSpacing: '1px', textTransform: 'uppercase' as const, color: 'var(--ink3)', margin: '0 0 4px' }}>Step {step}</p>
                   <p style={{ fontSize: '12px', fontWeight: 700, color: sc.fg, margin: '0 0 2px', textTransform: 'capitalize' as const }}>{role.replace(/_/g, ' ')}</p>
                   <p style={{ fontSize: '10px', fontWeight: 700, color: sc.fg, margin: 0, textTransform: 'capitalize' as const }}>{status}</p>
                 </div>
@@ -783,26 +783,28 @@ function TH({ children, left }: { children: React.ReactNode; left?: boolean }) {
 
 function StatusBadge({ status }: { status: string }) {
   const colors: Record<string, { bg: string; fg: string }> = {
-    confirmed: { bg: '#E8F5E9', fg: '#2E7D32' }, approved: { bg: '#E8F5E9', fg: '#2E7D32' }, paid: { bg: '#E8F5E9', fg: '#2E7D32' },
-    pending: { bg: '#FFF8E1', fg: '#F57F17' }, in_progress: { bg: '#FFF8E1', fg: '#F57F17' }, unpaid: { bg: '#FFF8E1', fg: '#F57F17' },
-    cancelled: { bg: '#FFEBEE', fg: '#C62828' }, rejected: { bg: '#FFEBEE', fg: '#C62828' }, overdue: { bg: '#FFEBEE', fg: '#C62828' },
-    partially_paid: { bg: '#E3F2FD', fg: '#1565C0' },
+    confirmed: { bg: 'var(--success-light)', fg: 'var(--success)' }, approved: { bg: 'var(--success-light)', fg: 'var(--success)' }, paid: { bg: 'var(--success-light)', fg: 'var(--success)' },
+    pending: { bg: 'var(--amber-light)', fg: 'var(--amber)' }, in_progress: { bg: 'var(--amber-light)', fg: 'var(--amber)' }, unpaid: { bg: 'var(--amber-light)', fg: 'var(--amber)' },
+    cancelled: { bg: 'var(--red-light)', fg: 'var(--red)' }, rejected: { bg: 'var(--red-light)', fg: 'var(--red)' }, overdue: { bg: 'var(--red-light)', fg: 'var(--red)' },
+    partially_paid: { bg: 'var(--info-light)', fg: 'var(--info)' },
   }
   const c = colors[status] || colors.pending
   return <span style={{ fontSize: '10px', fontWeight: 700, padding: '2px 7px', borderRadius: '5px', background: c.bg, color: c.fg, textTransform: 'capitalize' as const }}>{status.replace(/_/g, ' ')}</span>
 }
 
 function Empty({ msg }: { msg: string }) {
-  return <div style={{ ...card, padding: '40px', textAlign: 'center' as const, color: '#5B7080', fontSize: '14px' }}>{msg}</div>
+  return <div style={{ ...card, padding: '40px', textAlign: 'center' as const, color: 'var(--ink3)', fontSize: '14px' }}>{msg}</div>
 }
 
-const card: React.CSSProperties = { background: '#FFFFFF', border: '1px solid #D8EAEB', borderRadius: '12px', boxShadow: '0 1px 3px rgba(0,0,0,0.04)' }
-const th: React.CSSProperties = { padding: '10px 14px', fontSize: '10px', fontWeight: 800, letterSpacing: '1.5px', textTransform: 'uppercase', color: '#8CA0B3', borderBottom: '1px solid #E8EEF4' }
-const tdR: React.CSSProperties = { padding: '10px 14px', fontSize: '13px', fontWeight: 600, color: '#0F1923', textAlign: 'right' }
-const emptyTd: React.CSSProperties = { padding: '30px', textAlign: 'center', color: '#8CA0B3', fontSize: '13px' }
-const kpiLabel: React.CSSProperties = { fontSize: '10px', fontWeight: 800, letterSpacing: '1.5px', textTransform: 'uppercase', color: '#8CA0B3', margin: 0 }
-const labelSt: React.CSSProperties = { display: 'block', fontSize: '10px', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '1.5px', color: '#8CA0B3', marginBottom: '4px' }
-const inputSt: React.CSSProperties = { width: '100%', padding: '8px 10px', borderRadius: '7px', border: '1px solid #D8EAEB', fontSize: '13px', color: '#0F1923', fontFamily: 'Manrope, system-ui, sans-serif' }
-const btnLime: React.CSSProperties = { padding: '8px 20px', borderRadius: '8px', border: 'none', cursor: 'pointer', background: '#C0F43C', color: '#0F1923', fontSize: '12px', fontWeight: 700, fontFamily: 'inherit' }
-const infoBox: React.CSSProperties = { background: '#F0F7FF', border: '1px solid #90CAF9', borderRadius: '8px', padding: '10px 14px', display: 'flex', alignItems: 'center', gap: '8px' }
-const warnBox: React.CSSProperties = { background: '#FFF3E0', border: '1px solid #FFB74D', borderRadius: '8px', padding: '10px 14px', display: 'flex', alignItems: 'center', gap: '8px' }
+const card: React.CSSProperties = { background: 'var(--card)', border: '1px solid var(--border)', borderRadius: '12px', boxShadow: '0 1px 3px rgba(0,0,0,0.04)' }
+const th: React.CSSProperties = { padding: '10px 14px', fontSize: '10px', fontWeight: 800, letterSpacing: '1.5px', textTransform: 'uppercase', color: 'var(--ink3)', borderBottom: '1px solid var(--surface)' }
+const tdR: React.CSSProperties = { padding: '10px 14px', fontSize: '13px', fontWeight: 600, color: 'var(--ink)', textAlign: 'right' }
+const emptyTd: React.CSSProperties = { padding: '30px', textAlign: 'center', color: 'var(--ink3)', fontSize: '13px' }
+const kpiLabel: React.CSSProperties = { fontSize: '10px', fontWeight: 800, letterSpacing: '1.5px', textTransform: 'uppercase', color: 'var(--ink3)', margin: 0 }
+const labelSt: React.CSSProperties = { display: 'block', fontSize: '10px', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '1.5px', color: 'var(--ink3)', marginBottom: '4px' }
+const inputSt: React.CSSProperties = { width: '100%', padding: '8px 10px', borderRadius: '7px', border: '1px solid var(--border)', fontSize: '13px', color: 'var(--ink)', fontFamily: 'Manrope, system-ui, sans-serif' }
+// Solid-fill lime button — text uses --lime-dark (rule 3: text on a solid saturated
+// family background must use that family's -light/-dark token, never --ink).
+const btnLime: React.CSSProperties = { padding: '8px 20px', borderRadius: '8px', border: 'none', cursor: 'pointer', background: 'var(--lime)', color: 'var(--lime-dark)', fontSize: '12px', fontWeight: 700, fontFamily: 'inherit' }
+const infoBox: React.CSSProperties = { background: 'var(--info-light)', border: '1px solid color-mix(in srgb, var(--info) 35%, transparent)', borderRadius: '8px', padding: '10px 14px', display: 'flex', alignItems: 'center', gap: '8px' }
+const warnBox: React.CSSProperties = { background: 'var(--amber-light)', border: '1px solid var(--amber-border)', borderRadius: '8px', padding: '10px 14px', display: 'flex', alignItems: 'center', gap: '8px' }

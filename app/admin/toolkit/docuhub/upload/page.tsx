@@ -131,15 +131,15 @@ export default function DocuHubUploadPage() {
   if (resultLink) {
     const link = `https://${docuhubDomain(resultLink.visibility)}/${resultLink.prefix}/${resultLink.slug}`
     return (
-      <div style={{ minHeight: '100vh', background: '#E8EEF4', fontFamily: 'var(--font-manrope), sans-serif' }}>
+      <div style={{ minHeight: '100vh', background: 'var(--surface)', fontFamily: 'var(--font-manrope), sans-serif' }}>
         <PageHeader eyebrow="DocuHub" title="Upload" />
-        <div style={{ maxWidth: '560px', margin: '80px auto', padding: '32px', background: '#FFFFFF', borderRadius: '16px', border: '1px solid #DDE8EE', textAlign: 'center' }}>
-          <div style={{ fontSize: '18px', fontWeight: 800, color: '#0F1923', marginBottom: '10px' }}>Document published</div>
-          <div style={{ fontSize: '13px', color: '#5B7080', marginBottom: '16px' }}>This is its permanent link — it stays the same even if you replace the file later.</div>
-          <div style={{ padding: '12px', background: '#E8EEF4', borderRadius: '10px', fontFamily: 'monospace', fontSize: '13px', color: '#B45309', marginBottom: '20px', wordBreak: 'break-all' }}>{link}</div>
+        <div style={{ maxWidth: '560px', margin: '80px auto', padding: '32px', background: 'var(--card)', borderRadius: '16px', border: '1px solid var(--border)', textAlign: 'center' }}>
+          <div style={{ fontSize: '18px', fontWeight: 800, color: 'var(--ink)', marginBottom: '10px' }}>Document published</div>
+          <div style={{ fontSize: '13px', color: 'var(--ink3)', marginBottom: '16px' }}>This is its permanent link — it stays the same even if you replace the file later.</div>
+          <div style={{ padding: '12px', background: 'var(--surface)', borderRadius: '10px', fontFamily: 'monospace', fontSize: '13px', color: 'var(--amber)', marginBottom: '20px', wordBreak: 'break-all' }}>{link}</div>
           <div style={{ display: 'flex', gap: '10px', justifyContent: 'center' }}>
-            <button onClick={() => { navigator.clipboard.writeText(link) }} style={{ padding: '10px 18px', borderRadius: '9px', border: 'none', background: '#C0F43C', color: '#0F1923', fontSize: '13px', fontWeight: 800, cursor: 'pointer', fontFamily: 'inherit' }}>Copy Link</button>
-            <button onClick={() => router.push('/admin/toolkit/docuhub')} style={{ padding: '10px 18px', borderRadius: '9px', border: '1px solid #DDE8EE', background: '#FFFFFF', color: '#5B7080', fontSize: '13px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>Back to DocuHub</button>
+            <button onClick={() => { navigator.clipboard.writeText(link) }} style={{ padding: '10px 18px', borderRadius: '9px', border: 'none', background: 'var(--lime)', color: 'var(--lime-dark)', fontSize: '13px', fontWeight: 800, cursor: 'pointer', fontFamily: 'inherit' }}>Copy Link</button>
+            <button onClick={() => router.push('/admin/toolkit/docuhub')} style={{ padding: '10px 18px', borderRadius: '9px', border: '1px solid var(--border)', background: 'var(--card)', color: 'var(--ink3)', fontSize: '13px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>Back to DocuHub</button>
           </div>
         </div>
       </div>
@@ -147,39 +147,39 @@ export default function DocuHubUploadPage() {
   }
 
   return (
-    <div style={{ minHeight: '100vh', background: '#E8EEF4', fontFamily: 'var(--font-manrope), sans-serif' }}>
+    <div style={{ minHeight: '100vh', background: 'var(--surface)', fontFamily: 'var(--font-manrope), sans-serif' }}>
       <PageHeader eyebrow="DocuHub" title="Upload a Document" />
       <div style={{ maxWidth: '640px', margin: '0 auto', padding: '24px' }}>
         {!selectedType ? (
           <div>
-            <div style={{ fontSize: '13px', fontWeight: 700, color: '#5B7080', marginBottom: '12px' }}>What are you uploading?</div>
+            <div style={{ fontSize: '13px', fontWeight: 700, color: 'var(--ink3)', marginBottom: '12px' }}>What are you uploading?</div>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
               {docTypes.map(t => (
                 <button key={t.id} onClick={() => pickType(t)}
-                  style={{ padding: '18px', borderRadius: '12px', border: '1px solid #DDE8EE', background: '#FFFFFF', cursor: 'pointer', textAlign: 'left', fontFamily: 'inherit' }}>
-                  <div style={{ fontSize: '14px', fontWeight: 800, color: '#0F1923', marginBottom: '4px' }}>{t.label}</div>
-                  <div style={{ fontSize: '13px', color: '#5B7080' }}>{t.default_visibility === 'public' ? 'Usually public' : 'Internal only'}{t.supports_expiry ? ' · can expire' : ''}</div>
+                  style={{ padding: '18px', borderRadius: '12px', border: '1px solid var(--border)', background: 'var(--card)', cursor: 'pointer', textAlign: 'left', fontFamily: 'inherit' }}>
+                  <div style={{ fontSize: '14px', fontWeight: 800, color: 'var(--ink)', marginBottom: '4px' }}>{t.label}</div>
+                  <div style={{ fontSize: '13px', color: 'var(--ink3)' }}>{t.default_visibility === 'public' ? 'Usually public' : 'Internal only'}{t.supports_expiry ? ' · can expire' : ''}</div>
                 </button>
               ))}
             </div>
           </div>
         ) : (
-          <div style={{ background: '#FFFFFF', border: '1px solid #DDE8EE', borderRadius: '16px', padding: '24px' }}>
+          <div style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: '16px', padding: '24px' }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
-              <div style={{ fontSize: '13px', fontWeight: 800, color: '#B45309', textTransform: 'uppercase', letterSpacing: '0.8px' }}>{selectedType.label}</div>
-              <button onClick={() => setSelectedType(null)} style={{ fontSize: '13px', color: '#5B7080', background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'inherit' }}>Change type</button>
+              <div style={{ fontSize: '13px', fontWeight: 800, color: 'var(--amber)', textTransform: 'uppercase', letterSpacing: '0.8px' }}>{selectedType.label}</div>
+              <button onClick={() => setSelectedType(null)} style={{ fontSize: '13px', color: 'var(--ink3)', background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'inherit' }}>Change type</button>
             </div>
 
             <div style={{ marginBottom: '12px' }}>
-              <label style={{ fontSize: '13px', fontWeight: 700, color: '#5B7080', display: 'block', marginBottom: '5px' }}>Title</label>
+              <label style={{ fontSize: '13px', fontWeight: 700, color: 'var(--ink3)', display: 'block', marginBottom: '5px' }}>Title</label>
               <input value={title} onChange={e => setTitle(e.target.value)} placeholder="e.g. Dubai FinTech Summit 2026 — Post-Event Report"
-                style={{ width: '100%', padding: '9px 12px', borderRadius: '9px', border: '1px solid #DDE8EE', fontSize: '13px', fontFamily: 'inherit', boxSizing: 'border-box' }} />
+                style={{ width: '100%', padding: '9px 12px', borderRadius: '9px', border: '1px solid var(--border)', fontSize: '13px', fontFamily: 'inherit', boxSizing: 'border-box' }} />
             </div>
 
             {selectedType.allowed_formats.length > 1 && (
               <div style={{ marginBottom: '12px', display: 'flex', gap: '14px' }}>
                 {selectedType.allowed_formats.map(f => (
-                  <label key={f} style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px', color: '#0F1923', cursor: 'pointer' }}>
+                  <label key={f} style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px', color: 'var(--ink)', cursor: 'pointer' }}>
                     <input type="radio" checked={format === f} onChange={() => setFormat(f as 'file' | 'link')} />
                     {f === 'file' ? 'File' : 'Link'}
                   </label>
@@ -189,46 +189,46 @@ export default function DocuHubUploadPage() {
 
             {format === 'file' ? (
               <div style={{ marginBottom: '12px' }}>
-                <label style={{ display: 'block', padding: '18px', border: `1.5px dashed ${file ? 'rgba(217,119,6,0.4)' : '#DDE8EE'}`, borderRadius: '10px', textAlign: 'center', cursor: 'pointer' }}>
+                <label style={{ display: 'block', padding: '18px', border: `1.5px dashed ${file ? 'var(--amber-border)' : 'var(--border)'}`, borderRadius: '10px', textAlign: 'center', cursor: 'pointer' }}>
                   <input type="file" style={{ display: 'none' }} onChange={e => setFile(e.target.files?.[0] ?? null)} />
-                  {file ? <span style={{ fontSize: '13px', fontWeight: 700, color: '#B45309' }}>{file.name}</span> : <span style={{ fontSize: '13px', color: '#5B7080' }}>Click to select a file</span>}
+                  {file ? <span style={{ fontSize: '13px', fontWeight: 700, color: 'var(--amber)' }}>{file.name}</span> : <span style={{ fontSize: '13px', color: 'var(--ink3)' }}>Click to select a file</span>}
                 </label>
               </div>
             ) : (
               <div style={{ marginBottom: '12px' }}>
-                <label style={{ fontSize: '13px', fontWeight: 700, color: '#5B7080', display: 'block', marginBottom: '5px' }}>Link</label>
+                <label style={{ fontSize: '13px', fontWeight: 700, color: 'var(--ink3)', display: 'block', marginBottom: '5px' }}>Link</label>
                 <input value={externalUrl} onChange={e => setExternalUrl(e.target.value)} placeholder="https://..."
-                  style={{ width: '100%', padding: '9px 12px', borderRadius: '9px', border: '1px solid #DDE8EE', fontSize: '13px', fontFamily: 'inherit', boxSizing: 'border-box' }} />
+                  style={{ width: '100%', padding: '9px 12px', borderRadius: '9px', border: '1px solid var(--border)', fontSize: '13px', fontFamily: 'inherit', boxSizing: 'border-box' }} />
               </div>
             )}
 
             {selectedType.requires_event_attribution && (
-              <div style={{ marginBottom: '12px', padding: '12px', background: '#E8EEF4', borderRadius: '10px' }}>
-                <label style={{ fontSize: '13px', fontWeight: 700, color: '#5B7080', display: 'block', marginBottom: '5px' }}>Event (if it already exists in EventPilot)</label>
+              <div style={{ marginBottom: '12px', padding: '12px', background: 'var(--surface)', borderRadius: '10px' }}>
+                <label style={{ fontSize: '13px', fontWeight: 700, color: 'var(--ink3)', display: 'block', marginBottom: '5px' }}>Event (if it already exists in EventPilot)</label>
                 <select value={eventId} onChange={e => pickEvent(e.target.value)}
-                  style={{ width: '100%', padding: '9px 10px', borderRadius: '9px', border: '1px solid #DDE8EE', fontSize: '13px', fontFamily: 'inherit', marginBottom: '10px' }}>
+                  style={{ width: '100%', padding: '9px 10px', borderRadius: '9px', border: '1px solid var(--border)', fontSize: '13px', fontFamily: 'inherit', marginBottom: '10px' }}>
                   <option value="">Not in EventPilot / historical — type it below</option>
                   {events.map(ev => <option key={ev.id} value={ev.id}>{ev.name}</option>)}
                 </select>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', marginBottom: '8px' }}>
                   <input value={eventLabel} onChange={e => setEventLabel(e.target.value)} placeholder="Event name"
-                    style={{ padding: '8px 10px', borderRadius: '8px', border: '1px solid #DDE8EE', fontSize: '13px', fontFamily: 'inherit' }} />
+                    style={{ padding: '8px 10px', borderRadius: '8px', border: '1px solid var(--border)', fontSize: '13px', fontFamily: 'inherit' }} />
                   <select value={eventType} onChange={e => setEventType(e.target.value)}
-                    style={{ padding: '8px 10px', borderRadius: '8px', border: '1px solid #DDE8EE', fontSize: '13px', fontFamily: 'inherit' }}>
+                    style={{ padding: '8px 10px', borderRadius: '8px', border: '1px solid var(--border)', fontSize: '13px', fontFamily: 'inherit' }}>
                     <option value="">Event type…</option>
                     {EVENT_TYPES.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
                   </select>
                 </div>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', marginBottom: '8px' }}>
                   <div>
-                    <label style={{ fontSize: '12px', color: '#5B7080', display: 'block', marginBottom: '3px' }}>Start date</label>
+                    <label style={{ fontSize: '12px', color: 'var(--ink3)', display: 'block', marginBottom: '3px' }}>Start date</label>
                     <input type="date" value={eventStartDate} onChange={e => setEventStartDate(e.target.value)}
-                      style={{ width: '100%', padding: '8px 10px', borderRadius: '8px', border: '1px solid #DDE8EE', fontSize: '13px', fontFamily: 'inherit', boxSizing: 'border-box' }} />
+                      style={{ width: '100%', padding: '8px 10px', borderRadius: '8px', border: '1px solid var(--border)', fontSize: '13px', fontFamily: 'inherit', boxSizing: 'border-box' }} />
                   </div>
                   <div>
-                    <label style={{ fontSize: '12px', color: '#5B7080', display: 'block', marginBottom: '3px' }}>End date</label>
+                    <label style={{ fontSize: '12px', color: 'var(--ink3)', display: 'block', marginBottom: '3px' }}>End date</label>
                     <input type="date" value={eventEndDate} onChange={e => setEventEndDate(e.target.value)}
-                      style={{ width: '100%', padding: '8px 10px', borderRadius: '8px', border: '1px solid #DDE8EE', fontSize: '13px', fontFamily: 'inherit', boxSizing: 'border-box' }} />
+                      style={{ width: '100%', padding: '8px 10px', borderRadius: '8px', border: '1px solid var(--border)', fontSize: '13px', fontFamily: 'inherit', boxSizing: 'border-box' }} />
                   </div>
                 </div>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', marginBottom: '8px' }}>
@@ -237,35 +237,35 @@ export default function DocuHubUploadPage() {
                 </div>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', marginBottom: '8px' }}>
                   <input value={eventVenue} onChange={e => setEventVenue(e.target.value)} placeholder="Venue (optional)"
-                    style={{ padding: '8px 10px', borderRadius: '8px', border: '1px solid #DDE8EE', fontSize: '13px', fontFamily: 'inherit' }} />
+                    style={{ padding: '8px 10px', borderRadius: '8px', border: '1px solid var(--border)', fontSize: '13px', fontFamily: 'inherit' }} />
                   <input value={series} onChange={e => setSeries(e.target.value)} placeholder="Series (only if multi-edition)"
-                    style={{ padding: '8px 10px', borderRadius: '8px', border: '1px solid #DDE8EE', fontSize: '13px', fontFamily: 'inherit' }} />
+                    style={{ padding: '8px 10px', borderRadius: '8px', border: '1px solid var(--border)', fontSize: '13px', fontFamily: 'inherit' }} />
                 </div>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
                   <select value={eventFormat} onChange={e => setEventFormat(e.target.value)}
-                    style={{ padding: '8px 10px', borderRadius: '8px', border: '1px solid #DDE8EE', fontSize: '13px', fontFamily: 'inherit' }}>
+                    style={{ padding: '8px 10px', borderRadius: '8px', border: '1px solid var(--border)', fontSize: '13px', fontFamily: 'inherit' }}>
                     <option value="">Format…</option>
                     {EVENT_FORMATS.map(f => <option key={f.value} value={f.value}>{f.label}</option>)}
                   </select>
                   <input value={eventRegion} onChange={e => setEventRegion(e.target.value)} placeholder="Region (e.g. ASEAN, if no single city)"
-                    style={{ padding: '8px 10px', borderRadius: '8px', border: '1px solid #DDE8EE', fontSize: '13px', fontFamily: 'inherit' }} />
+                    style={{ padding: '8px 10px', borderRadius: '8px', border: '1px solid var(--border)', fontSize: '13px', fontFamily: 'inherit' }} />
                 </div>
               </div>
             )}
 
             {selectedType.requires_client_attribution && (
-              <div style={{ marginBottom: '12px', padding: '12px', background: '#E8EEF4', borderRadius: '10px' }}>
+              <div style={{ marginBottom: '12px', padding: '12px', background: 'var(--surface)', borderRadius: '10px' }}>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', marginBottom: '8px' }}>
                   <input value={clientName} onChange={e => setClientName(e.target.value)} placeholder="Client (organisation name)"
-                    style={{ padding: '8px 10px', borderRadius: '8px', border: '1px solid #DDE8EE', fontSize: '13px', fontFamily: 'inherit' }} />
+                    style={{ padding: '8px 10px', borderRadius: '8px', border: '1px solid var(--border)', fontSize: '13px', fontFamily: 'inherit' }} />
                   <select value={ownerStaffId} onChange={e => setOwnerStaffId(e.target.value)}
-                    style={{ padding: '8px 10px', borderRadius: '8px', border: '1px solid #DDE8EE', fontSize: '13px', fontFamily: 'inherit' }}>
+                    style={{ padding: '8px 10px', borderRadius: '8px', border: '1px solid var(--border)', fontSize: '13px', fontFamily: 'inherit' }}>
                     <option value="">Owner…</option>
                     {staffOptions.map(s => <option key={s.id} value={s.id}>{s.name} — {s.email}</option>)}
                   </select>
                 </div>
                 <select value={eventType} onChange={e => setEventType(e.target.value)}
-                  style={{ width: '100%', padding: '8px 10px', borderRadius: '8px', border: '1px solid #DDE8EE', fontSize: '13px', fontFamily: 'inherit' }}>
+                  style={{ width: '100%', padding: '8px 10px', borderRadius: '8px', border: '1px solid var(--border)', fontSize: '13px', fontFamily: 'inherit' }}>
                   <option value="">Event type…</option>
                   {EVENT_TYPES.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
                 </select>
@@ -274,32 +274,32 @@ export default function DocuHubUploadPage() {
 
             <div style={{ display: 'grid', gridTemplateColumns: selectedType.supports_expiry ? '1fr 1fr' : '1fr', gap: '10px', marginBottom: '12px' }}>
               <div>
-                <label style={{ fontSize: '13px', fontWeight: 700, color: '#5B7080', display: 'block', marginBottom: '5px' }}>Visibility</label>
+                <label style={{ fontSize: '13px', fontWeight: 700, color: 'var(--ink3)', display: 'block', marginBottom: '5px' }}>Visibility</label>
                 <select value={visibility} onChange={e => setVisibility(e.target.value)}
-                  style={{ width: '100%', padding: '9px 10px', borderRadius: '9px', border: '1px solid #DDE8EE', fontSize: '13px', fontFamily: 'inherit' }}>
+                  style={{ width: '100%', padding: '9px 10px', borderRadius: '9px', border: '1px solid var(--border)', fontSize: '13px', fontFamily: 'inherit' }}>
                   <option value="public">Public</option>
                   <option value="internal">Internal (Trescon staff only)</option>
                 </select>
               </div>
               {selectedType.supports_expiry && (
                 <div>
-                  <label style={{ fontSize: '13px', fontWeight: 700, color: '#5B7080', display: 'block', marginBottom: '5px' }}>Link expires (optional)</label>
+                  <label style={{ fontSize: '13px', fontWeight: 700, color: 'var(--ink3)', display: 'block', marginBottom: '5px' }}>Link expires (optional)</label>
                   <input type="date" value={expiresAt} onChange={e => setExpiresAt(e.target.value)}
-                    style={{ width: '100%', padding: '9px 10px', borderRadius: '9px', border: '1px solid #DDE8EE', fontSize: '13px', fontFamily: 'inherit', boxSizing: 'border-box' }} />
+                    style={{ width: '100%', padding: '9px 10px', borderRadius: '9px', border: '1px solid var(--border)', fontSize: '13px', fontFamily: 'inherit', boxSizing: 'border-box' }} />
                 </div>
               )}
             </div>
 
             <div style={{ marginBottom: '16px' }}>
-              <label style={{ fontSize: '13px', fontWeight: 700, color: '#5B7080', display: 'block', marginBottom: '5px' }}>Description (optional)</label>
+              <label style={{ fontSize: '13px', fontWeight: 700, color: 'var(--ink3)', display: 'block', marginBottom: '5px' }}>Description (optional)</label>
               <textarea value={description} onChange={e => setDescription(e.target.value)} rows={2}
-                style={{ width: '100%', padding: '9px 12px', borderRadius: '9px', border: '1px solid #DDE8EE', fontSize: '13px', fontFamily: 'inherit', boxSizing: 'border-box', resize: 'vertical' }} />
+                style={{ width: '100%', padding: '9px 12px', borderRadius: '9px', border: '1px solid var(--border)', fontSize: '13px', fontFamily: 'inherit', boxSizing: 'border-box', resize: 'vertical' }} />
             </div>
 
-            {msg && <div style={{ fontSize: '13px', padding: '9px 12px', borderRadius: '8px', background: 'rgba(255,107,107,0.07)', border: '1px solid rgba(255,107,107,0.2)', color: '#FF6B6B', marginBottom: '12px' }}>{msg}</div>}
+            {msg && <div style={{ fontSize: '13px', padding: '9px 12px', borderRadius: '8px', background: 'var(--red-light)', border: '1px solid var(--red-border)', color: 'var(--red)', marginBottom: '12px' }}>{msg}</div>}
 
             <button onClick={submit} disabled={uploading}
-              style={{ width: '100%', padding: '12px', borderRadius: '10px', border: 'none', background: uploading ? '#DDE8EE' : '#D97706', color: '#FFFFFF', fontSize: '13px', fontWeight: 800, cursor: uploading ? 'not-allowed' : 'pointer', fontFamily: 'inherit' }}>
+              style={{ width: '100%', padding: '12px', borderRadius: '10px', border: 'none', background: uploading ? 'var(--border)' : 'var(--amber)', color: uploading ? 'var(--ink4)' : 'var(--amber-light)', fontSize: '13px', fontWeight: 800, cursor: uploading ? 'not-allowed' : 'pointer', fontFamily: 'inherit' }}>
               {uploading ? 'Publishing…' : 'Publish to DocuHub'}
             </button>
           </div>

@@ -4,7 +4,11 @@ import { useState, useEffect, useCallback } from 'react'
 import Link from 'next/link'
 import PageHeader from '@/app/components/PageHeader'
 
-const C = { bg: '#F6F8FB', surface: '#FFFFFF', border: '#DDE8EE', text: '#0F1923', muted: '#5B7080', green: '#00897B', amber: '#D97706', red: '#8B1A1A', blue: '#0284C7', purple: '#6C54B5' }
+const C = {
+  bg: 'var(--surface)', surface: 'var(--card)', border: 'var(--border)', text: 'var(--ink)', muted: 'var(--ink3)',
+  green: 'var(--teal-mid)', // NOTE: named "green" historically, this is brand teal
+  amber: '#F5B94D', red: 'var(--red)', blue: 'var(--info)', purple: 'var(--purple)',
+}
 
 type DeptRow = { department: string; count: number; gross: number; net: number; expenses: number; total: number }
 type StaffRow = { staff_id: string; name: string; department: string; basic_salary: number; allowances: number; deductions: number; gross_salary: number; net_salary: number; expenses: number; total: number; currency: string }
@@ -78,14 +82,14 @@ export default function PayrollPage() {
             {view === 'department' && data.by_department.length > 0 && (
               <div style={{ background: C.surface, borderRadius: 12, border: `1px solid ${C.border}`, overflow: 'hidden' }}>
                 <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-                  <thead><tr style={{ background: '#F8FAFB' }}>
+                  <thead><tr style={{ background: 'var(--surface)' }}>
                     {['Department', 'Headcount', 'Gross Salary', 'Net Salary', 'Expenses', 'Total Cost'].map(h => (
                       <th key={h} style={{ padding: '10px 14px', fontSize: 11, fontWeight: 700, color: C.muted, textAlign: 'left', borderBottom: `1px solid ${C.border}` }}>{h}</th>
                     ))}
                   </tr></thead>
                   <tbody>
                     {data.by_department.map(d => (
-                      <tr key={d.department} style={{ borderBottom: `1px solid ${C.border}08` }}>
+                      <tr key={d.department} style={{ borderBottom: `1px solid ${'color-mix(in srgb, ' + (C.border) + ' 3%, transparent)'}` }}>
                         <td style={{ padding: '10px 14px', fontSize: 13, fontWeight: 700, color: C.text }}>{d.department}</td>
                         <td style={{ padding: '10px 14px', fontSize: 13, color: C.text }}>{d.count}</td>
                         <td style={{ padding: '10px 14px', fontSize: 13, color: C.text }}>${fmt(d.gross)}</td>
@@ -94,7 +98,7 @@ export default function PayrollPage() {
                         <td style={{ padding: '10px 14px', fontSize: 13, fontWeight: 800, color: C.purple }}>${fmt(d.total)}</td>
                       </tr>
                     ))}
-                    <tr style={{ background: '#F8FAFB' }}>
+                    <tr style={{ background: 'var(--surface)' }}>
                       <td style={{ padding: '10px 14px', fontSize: 13, fontWeight: 800, color: C.text }}>TOTAL</td>
                       <td style={{ padding: '10px 14px', fontSize: 13, fontWeight: 800, color: C.text }}>{data.staff_count}</td>
                       <td style={{ padding: '10px 14px', fontSize: 13, fontWeight: 800, color: C.text }}>${fmt(data.total_gross)}</td>
@@ -111,14 +115,14 @@ export default function PayrollPage() {
             {view === 'staff' && data.staff.length > 0 && (
               <div style={{ background: C.surface, borderRadius: 12, border: `1px solid ${C.border}`, overflow: 'hidden' }}>
                 <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-                  <thead><tr style={{ background: '#F8FAFB' }}>
+                  <thead><tr style={{ background: 'var(--surface)' }}>
                     {['Name', 'Department', 'Basic', 'Allowances', 'Deductions', 'Net Salary', 'Expenses', 'Total'].map(h => (
                       <th key={h} style={{ padding: '10px 14px', fontSize: 11, fontWeight: 700, color: C.muted, textAlign: 'left', borderBottom: `1px solid ${C.border}` }}>{h}</th>
                     ))}
                   </tr></thead>
                   <tbody>
                     {data.staff.map(s => (
-                      <tr key={s.staff_id} style={{ borderBottom: `1px solid ${C.border}08` }}>
+                      <tr key={s.staff_id} style={{ borderBottom: `1px solid ${'color-mix(in srgb, ' + (C.border) + ' 3%, transparent)'}` }}>
                         <td style={{ padding: '10px 14px', fontSize: 13, fontWeight: 700, color: C.text }}>{s.name}</td>
                         <td style={{ padding: '10px 14px', fontSize: 12, color: C.muted }}>{s.department}</td>
                         <td style={{ padding: '10px 14px', fontSize: 13, color: C.text }}>${fmt(s.basic_salary)}</td>
@@ -141,17 +145,17 @@ export default function PayrollPage() {
                   <button onClick={() => setView('staff')} style={{ padding: '6px 14px', borderRadius: 8, border: view === 'staff' ? `1.5px solid ${C.blue}` : `1px solid ${C.border}`, background: view === 'staff' ? C.blue : C.surface, color: view === 'staff' ? '#fff' : C.muted, fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>By Staff</button>
                 </div>
                 <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-                  <thead><tr style={{ background: '#F8FAFB' }}>
+                  <thead><tr style={{ background: 'var(--surface)' }}>
                     {(view === 'department' ? ['Department', 'Headcount', 'Gross Salary', 'Net Salary', 'Expenses', 'Total Cost'] : ['Name', 'Department', 'Basic', 'Allowances', 'Deductions', 'Net Salary', 'Expenses', 'Total']).map(h => (
                       <th key={h} style={{ padding: '10px 14px', fontSize: 11, fontWeight: 700, color: C.muted, textAlign: 'left', borderBottom: `1px solid ${C.border}` }}>{h}</th>
                     ))}
                   </tr></thead>
                   <tbody>
-                    <tr style={{ background: '#FAFBFC' }}>
+                    <tr style={{ background: 'var(--surface)' }}>
                       <td colSpan={view === 'department' ? 6 : 8} style={{ padding: '24px 14px', textAlign: 'center' }}>
                         <div style={{ fontSize: 14, fontWeight: 700, color: C.text, marginBottom: 4 }}>No salary data for {month}</div>
                         <div style={{ fontSize: 13, color: C.muted, marginBottom: 12 }}>Upload salary records for your staff to see the monthly payroll breakdown.</div>
-                        <Link href="/finance/salary" style={{ display: 'inline-block', padding: '8px 20px', borderRadius: 8, background: C.purple, color: '#fff', fontSize: 13, fontWeight: 700, textDecoration: 'none' }}>Go to Salary & Compensation</Link>
+                        <Link href="/finance/salary" style={{ display: 'inline-block', padding: '8px 20px', borderRadius: 8, background: C.purple, color: 'var(--purple-light)', fontSize: 13, fontWeight: 700, textDecoration: 'none' }}>Go to Salary & Compensation</Link>
                       </td>
                     </tr>
                     <tr style={{ opacity: 0.4 }}>

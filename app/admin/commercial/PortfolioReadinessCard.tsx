@@ -29,10 +29,13 @@ interface PortfolioReadiness {
   updated_at: string
 }
 
-const BUCKET_COLOR: Record<Bucket, { bg: string; fg: string; label: string }> = {
-  ready:     { bg: 'rgba(46,125,50,0.10)',  fg: '#2E7D32', label: 'Ready' },
-  partial:   { bg: 'rgba(245,127,23,0.10)', fg: '#F57F17', label: 'Partial' },
-  high_risk: { bg: 'rgba(198,40,40,0.10)',  fg: '#C62828', label: 'High risk' },
+const BUCKET_COLOR: Record<Bucket, { bg: string; fg: string; border: string; label: string }> = {
+  // `border` is the tile's inactive-state outline (~20% tint of `fg`). success has no
+  // dedicated --success-border token, so it's computed via color-mix; amber/red reuse
+  // their existing family border tokens.
+  ready:     { bg: 'var(--success-light)', fg: 'var(--success)', border: 'color-mix(in srgb, var(--success) 33%, transparent)', label: 'Ready' },
+  partial:   { bg: 'var(--amber-light)',   fg: 'var(--amber)',   border: 'var(--amber-border)', label: 'Partial' },
+  high_risk: { bg: 'var(--red-light)',     fg: 'var(--red)',     border: 'var(--red-border)',   label: 'High risk' },
 }
 
 function statusBucketForScore(pct: number): Bucket {
@@ -62,8 +65,8 @@ export default function PortfolioReadinessCard({
   useEffect(() => { load() }, [load])
 
   const cardStyle: React.CSSProperties = {
-    background: '#FFFFFF',
-    border: '1px solid #DDE8EE',
+    background: 'var(--card)',
+    border: '1px solid var(--border)',
     borderRadius: '12px',
     padding: '20px 24px',
     marginBottom: '20px',
@@ -74,12 +77,12 @@ export default function PortfolioReadinessCard({
     return (
       <div style={cardStyle}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
-          <span style={{ fontSize: '17px', fontWeight: 800, color: '#0F1923' }}>Portfolio P&amp;L Readiness</span>
-          <span style={{ fontSize: '11px', color: '#5B7080' }}>Loading&hellip;</span>
+          <span style={{ fontSize: '17px', fontWeight: 800, color: 'var(--ink)' }}>Portfolio P&amp;L Readiness</span>
+          <span style={{ fontSize: '11px', color: 'var(--ink3)' }}>Loading&hellip;</span>
         </div>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '10px' }}>
           {[0, 1, 2].map(i => (
-            <div key={i} style={{ height: '52px', background: '#F0F4F8', borderRadius: '8px' }} />
+            <div key={i} style={{ height: '52px', background: 'var(--surface)', borderRadius: '8px' }} />
           ))}
         </div>
       </div>
@@ -88,6 +91,7 @@ export default function PortfolioReadinessCard({
 
   const scoreBucket = statusBucketForScore(data.overall_score_pct)
   const scoreColor = BUCKET_COLOR[scoreBucket].fg
+  const scoreBg = BUCKET_COLOR[scoreBucket].bg
 
   const buckets: Array<{ key: Bucket; count: number }> = [
     { key: 'ready',     count: data.buckets.ready.count     },
@@ -105,11 +109,11 @@ export default function PortfolioReadinessCard({
       {/* ── Header ── */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
         <div style={{ display: 'flex', alignItems: 'baseline', gap: '10px' }}>
-          <span style={{ fontSize: '17px', fontWeight: 700, color: '#0F1923' }}>Portfolio P&amp;L Readiness</span>
+          <span style={{ fontSize: '17px', fontWeight: 700, color: 'var(--ink)' }}>Portfolio P&amp;L Readiness</span>
           <span style={{
             fontSize: '14px', fontWeight: 800, color: scoreColor,
             padding: '2px 10px', borderRadius: '10px',
-            background: `${scoreColor}14`,
+            background: scoreBg,
           }}>
             {data.overall_score_pct}% &middot; {data.event_count} event{data.event_count === 1 ? '' : 's'}
           </span>
@@ -117,8 +121,8 @@ export default function PortfolioReadinessCard({
         <button
           onClick={load}
           style={{
-            fontSize: '11px', fontWeight: 700, color: '#00695C', background: 'transparent',
-            border: '1px solid #DDE8EE', padding: '5px 12px', borderRadius: '7px', cursor: 'pointer',
+            fontSize: '11px', fontWeight: 700, color: 'var(--teal)', background: 'transparent',
+            border: '1px solid var(--border)', padding: '5px 12px', borderRadius: '7px', cursor: 'pointer',
             fontFamily: 'inherit',
           }}
         >
@@ -128,7 +132,7 @@ export default function PortfolioReadinessCard({
 
       {/* ── Progress bar ── */}
       <div style={{
-        height: '6px', background: '#E8EEF4', borderRadius: '3px',
+        height: '6px', background: 'var(--surface)', borderRadius: '3px',
         overflow: 'hidden', marginBottom: '16px',
       }}>
         <div style={{
@@ -150,7 +154,7 @@ export default function PortfolioReadinessCard({
                 active ? [] : data.buckets[b.key].event_ids,
               )}
               style={{
-                background: c.bg, color: c.fg, border: active ? `2px solid ${c.fg}` : `1px solid ${c.fg}33`,
+                background: c.bg, color: c.fg, border: active ? `2px solid ${c.fg}` : `1px solid ${c.border}`,
                 padding: '12px 14px', borderRadius: '10px', cursor: onBucketFilter ? 'pointer' : 'default',
                 textAlign: 'left', fontFamily: 'inherit',
                 display: 'flex', alignItems: 'center', justifyContent: 'space-between',
@@ -172,7 +176,7 @@ export default function PortfolioReadinessCard({
         <div style={{ marginBottom: '18px' }}>
           <p style={{
             fontSize: '10px', fontWeight: 800, letterSpacing: '1.5px', textTransform: 'uppercase',
-            color: '#5B7080', margin: '0 0 8px',
+            color: 'var(--ink3)', margin: '0 0 8px',
           }}>
             Gaps by owner
           </p>
@@ -180,10 +184,10 @@ export default function PortfolioReadinessCard({
             {ownerRows.map((r, i) => (
               <div key={r.owner} style={{
                 display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-                padding: '7px 0', borderBottom: i < ownerRows.length - 1 ? '1px solid #F0F4F8' : 'none',
+                padding: '7px 0', borderBottom: i < ownerRows.length - 1 ? '1px solid var(--surface)' : 'none',
               }}>
-                <span style={{ fontSize: '13px', color: '#0F1923', fontWeight: 600 }}>{r.owner}</span>
-                <span style={{ fontSize: '13px', color: '#5B7080' }}>
+                <span style={{ fontSize: '13px', color: 'var(--ink)', fontWeight: 600 }}>{r.owner}</span>
+                <span style={{ fontSize: '13px', color: 'var(--ink3)' }}>
                   {r.count} open item{r.count === 1 ? '' : 's'}
                 </span>
               </div>
@@ -197,7 +201,7 @@ export default function PortfolioReadinessCard({
         <div>
           <p style={{
             fontSize: '10px', fontWeight: 800, letterSpacing: '1.5px', textTransform: 'uppercase',
-            color: '#5B7080', margin: '0 0 8px',
+            color: 'var(--ink3)', margin: '0 0 8px',
           }}>
             Worst {data.top_5_worst.length} event{data.top_5_worst.length === 1 ? '' : 's'} dragging the portfolio
           </p>
@@ -208,12 +212,12 @@ export default function PortfolioReadinessCard({
               return (
                 <div key={e.event_id} style={{
                   display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-                  padding: '7px 0', borderBottom: i < data.top_5_worst.length - 1 ? '1px solid #F0F4F8' : 'none',
+                  padding: '7px 0', borderBottom: i < data.top_5_worst.length - 1 ? '1px solid var(--surface)' : 'none',
                 }}>
                   <a
                     href={`/admin/commercial/${e.event_id}`}
                     style={{
-                      fontSize: '13px', color: '#0F1923', fontWeight: 600, textDecoration: 'none',
+                      fontSize: '13px', color: 'var(--ink)', fontWeight: 600, textDecoration: 'none',
                       flex: 1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
                     }}
                   >

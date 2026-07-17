@@ -29,6 +29,7 @@ const TOOL_LABEL: Record<string, string> = {
   knowledge_base:      'Knowledge Base',
   docuhub:             'DocuHub',
   knowledge_assistant: 'Knowledge Assistant',
+  commercial:          'Commercial P&L',
 }
 
 // Next 16 requires useSearchParams() to be inside a Suspense boundary
@@ -37,7 +38,7 @@ const TOOL_LABEL: Record<string, string> = {
 // popup landed).
 export default function NoAccessPage() {
   return (
-    <Suspense fallback={<div style={{ minHeight: '100vh', background: '#E8EEF4' }} />}>
+    <Suspense fallback={<div style={{ minHeight: '100vh', background: 'var(--surface)' }} />}>
       <NoAccessInner />
     </Suspense>
   )
@@ -77,7 +78,7 @@ function NoAccessInner() {
   return (
     <main style={{
       minHeight: '100vh',
-      background: '#E8EEF4',
+      background: 'var(--surface)',
       display: 'flex',
       alignItems: 'center',
       justifyContent: 'center',
@@ -87,31 +88,31 @@ function NoAccessInner() {
       <div style={{
         maxWidth: '460px',
         width:    '100%',
-        background: '#ffffff',
+        background: 'var(--card)',
         borderRadius: '20px',
         padding: '40px 36px',
-        boxShadow: '0 24px 60px rgba(15,25,35,0.10), 0 2px 4px rgba(15,25,35,0.04)',
+        boxShadow: 'var(--shadow-md)',
       }}>
         {/* Icon */}
         <div style={{
           width: '64px',
           height: '64px',
           borderRadius: '18px',
-          background: 'linear-gradient(155deg,#F8FFFE 0%,#C6ECE8 100%)',
+          background: 'var(--teal-light)',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
           margin: '0 auto 22px',
         }}>
           <svg width="28" height="28" viewBox="0 0 24 24" fill="none">
-            <path d="M12 15v2m6-8V7a6 6 0 10-12 0v2m-2 0h16a2 2 0 012 2v9a2 2 0 01-2 2H4a2 2 0 01-2-2v-9a2 2 0 012-2z" stroke="#00A5A3" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
+            <path d="M12 15v2m6-8V7a6 6 0 10-12 0v2m-2 0h16a2 2 0 012 2v9a2 2 0 01-2 2H4a2 2 0 01-2-2v-9a2 2 0 012-2z" stroke="var(--teal-mid)" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
           </svg>
         </div>
 
         <h1 style={{
           fontSize: '22px',
           fontWeight: 900,
-          color: '#080A0B',
+          color: 'var(--ink)',
           textAlign: 'center',
           margin: '0 0 8px',
           letterSpacing: '-0.3px',
@@ -122,20 +123,20 @@ function NoAccessInner() {
         <p style={{
           fontSize: '14px',
           lineHeight: 1.6,
-          color: '#5B7080',
+          color: 'var(--ink3)',
           textAlign: 'center',
           margin: '0 0 6px',
         }}>
-          You don&apos;t have access to <strong style={{ color: '#080A0B' }}>{label}</strong>.
+          You don&apos;t have access to <strong style={{ color: 'var(--ink)' }}>{label}</strong>.
         </p>
         <p style={{
           fontSize: '13px',
           lineHeight: 1.6,
-          color: '#94A3B8',
+          color: 'var(--ink3)',
           textAlign: 'center',
           margin: '0 0 26px',
         }}>
-          Click <strong style={{ color: '#00A5A3' }}>Request access</strong> and your admin will get an email to enable it for you.
+          Click <strong style={{ color: 'var(--teal-mid)' }}>Request access</strong> and your admin will get an email to enable it for you.
         </p>
 
         {/* Action */}
@@ -145,8 +146,8 @@ function NoAccessInner() {
             onClick={requestAccess}
             style={{
               width: '100%',
-              background: '#C0F43C',
-              color: '#080A0B',
+              background: 'var(--lime)',
+              color: 'var(--lime-dark)',
               border: 'none',
               borderRadius: '50px',
               padding: '14px 22px',
@@ -167,8 +168,8 @@ function NoAccessInner() {
             disabled
             style={{
               width: '100%',
-              background: '#EEF3F7',
-              color: '#5B7080',
+              background: 'var(--card-hi)',
+              color: 'var(--ink2)',
               border: 'none',
               borderRadius: '50px',
               padding: '14px 22px',
@@ -184,17 +185,17 @@ function NoAccessInner() {
 
         {state === 'sent' && (
           <div style={{
-            background: '#F8FFFE',
-            border: '1px solid #C6ECE8',
+            background: 'var(--teal-light)',
+            border: '1px solid var(--teal-border)',
             borderRadius: '14px',
             padding: '14px 18px',
             marginBottom: '14px',
             textAlign: 'center',
           }}>
-            <p style={{ fontSize: '13px', color: '#00A5A3', fontWeight: 800, margin: '0 0 4px' }}>
+            <p style={{ fontSize: '13px', color: 'var(--teal-mid)', fontWeight: 800, margin: '0 0 4px' }}>
               Request sent to admin
             </p>
-            <p style={{ fontSize: '12px', color: '#5B7080', margin: 0 }}>
+            <p style={{ fontSize: '12px', color: 'var(--ink2)', margin: 0 }}>
               You&apos;ll be notified when access is granted.
             </p>
           </div>
@@ -202,17 +203,17 @@ function NoAccessInner() {
 
         {state === 'error' && (
           <div style={{
-            background: '#FFF4F4',
-            border: '1px solid #FBCACA',
+            background: 'var(--red-light)',
+            border: '1px solid var(--red-border)',
             borderRadius: '14px',
             padding: '14px 18px',
             marginBottom: '14px',
             textAlign: 'center',
           }}>
-            <p style={{ fontSize: '13px', color: '#C2410C', fontWeight: 700, margin: '0 0 4px' }}>
+            <p style={{ fontSize: '13px', color: 'var(--red)', fontWeight: 700, margin: '0 0 4px' }}>
               Couldn&apos;t send request
             </p>
-            <p style={{ fontSize: '12px', color: '#5B7080', margin: 0 }}>
+            <p style={{ fontSize: '12px', color: 'var(--ink2)', margin: 0 }}>
               {errText ?? 'Please try again in a moment.'}
             </p>
             <button
@@ -221,8 +222,8 @@ function NoAccessInner() {
               style={{
                 marginTop: '10px',
                 background: 'transparent',
-                border: '1px solid #C2410C',
-                color: '#C2410C',
+                border: '1px solid var(--red-border)',
+                color: 'var(--red)',
                 padding: '6px 16px',
                 borderRadius: '30px',
                 fontSize: '12px',
@@ -241,7 +242,7 @@ function NoAccessInner() {
             display: 'block',
             textAlign: 'center',
             fontSize: '13px',
-            color: '#5B7080',
+            color: 'var(--ink3)',
             textDecoration: 'none',
             fontWeight: 600,
             padding: '10px',

@@ -6,23 +6,23 @@ import { useRouter } from 'next/navigation'
 import PageHeader from '@/app/components/PageHeader'
 
 const INPUT_STYLE: React.CSSProperties = {
-  width: '100%', padding: '10px 14px', borderRadius: '8px', border: '1px solid #B8CDD8',
-  fontSize: '15px', fontFamily: 'var(--font-manrope)', color: '#0F1923', background: '#FFFFFF',
+  width: '100%', padding: '10px 14px', borderRadius: '8px', border: '1px solid var(--ink4)',
+  fontSize: '15px', fontFamily: 'var(--font-manrope)', color: 'var(--ink)', background: 'var(--card)',
   outline: 'none', transition: 'border-color 0.2s',
 }
 
 const LABEL_STYLE: React.CSSProperties = {
-  display: 'block', fontSize: '13px', fontWeight: 700, color: '#2D3E50', marginBottom: '6px',
+  display: 'block', fontSize: '13px', fontWeight: 700, color: 'var(--ink2)', marginBottom: '6px',
   fontFamily: 'var(--font-manrope)',
 }
 
 const SECTION_STYLE: React.CSSProperties = {
-  background: '#FFFFFF', borderRadius: '12px', border: '1px solid #DDE8EE', padding: '28px',
+  background: 'var(--card)', borderRadius: '12px', border: '1px solid var(--border)', padding: '28px',
   marginBottom: '20px',
 }
 
 const ERROR_TEXT_STYLE: React.CSSProperties = {
-  marginTop: '6px', fontSize: '12px', fontWeight: 600, color: '#DC2626',
+  marginTop: '6px', fontSize: '12px', fontWeight: 600, color: 'var(--red)',
   fontFamily: 'var(--font-manrope)',
 }
 
@@ -30,7 +30,7 @@ function Field({ label, required, children, error }: { label: string; required?:
   return (
     <div>
       <label style={LABEL_STYLE}>
-        {label} {required && <span style={{ color: '#DC2626' }}>*</span>}
+        {label} {required && <span style={{ color: 'var(--red)' }}>*</span>}
       </label>
       {children}
       {error && <div style={ERROR_TEXT_STYLE}>{error}</div>}
@@ -145,8 +145,8 @@ function StaffComboBox({
         {open && suggestions.length > 0 && (
           <div style={{
             position: 'absolute', top: 'calc(100% + 4px)', left: 0, right: 0, zIndex: 40,
-            background: '#FFFFFF', border: '1px solid #DDE8EE', borderRadius: '8px',
-            boxShadow: '0 4px 12px rgba(0,0,0,0.08)', maxHeight: '220px', overflowY: 'auto',
+            background: 'var(--card)', border: '1px solid var(--border)', borderRadius: '8px',
+            boxShadow: 'var(--shadow-md)', maxHeight: '220px', overflowY: 'auto',
           }}>
             {suggestions.map(s => (
               <div
@@ -161,15 +161,15 @@ function StaffComboBox({
                 }}
                 style={{
                   padding: '10px 14px', cursor: 'pointer', fontSize: '14px',
-                  fontFamily: 'var(--font-manrope)', color: '#0F1923',
-                  borderBottom: '1px solid #F1F5F9',
+                  fontFamily: 'var(--font-manrope)', color: 'var(--ink)',
+                  borderBottom: '1px solid var(--border-light)',
                 }}
-                onMouseEnter={e => { e.currentTarget.style.background = '#F8FAFC' }}
-                onMouseLeave={e => { e.currentTarget.style.background = '#FFFFFF' }}
+                onMouseEnter={e => { e.currentTarget.style.background = 'var(--border-light)' }}
+                onMouseLeave={e => { e.currentTarget.style.background = 'var(--card)' }}
               >
                 <div style={{ fontWeight: 600 }}>{s.name}</div>
                 {(s.department || s.email) && (
-                  <div style={{ fontSize: '12px', color: '#5B7080', marginTop: '2px' }}>
+                  <div style={{ fontSize: '12px', color: 'var(--ink3)', marginTop: '2px' }}>
                     {[s.department, s.email].filter(Boolean).join(' • ')}
                   </div>
                 )}
@@ -178,7 +178,7 @@ function StaffComboBox({
           </div>
         )}
       </div>
-      <div style={{ marginTop: '6px', fontSize: '12px', color: '#5B7080', fontFamily: 'var(--font-manrope)' }}>
+      <div style={{ marginTop: '6px', fontSize: '12px', color: 'var(--ink3)', fontFamily: 'var(--font-manrope)' }}>
         Type a name — pick from suggestions, or type a new name if the person isn&apos;t in the system.
       </div>
     </Field>
@@ -364,9 +364,9 @@ export default function NewBespokeProjectPage() {
         onClick={() => setFormat(value)}
         style={{
           flex: 1, padding: '10px 14px', borderRadius: '8px',
-          border: active ? '1px solid #B45309' : '1px solid #B8CDD8',
-          background: active ? '#B45309' : '#FFFFFF',
-          color: active ? '#FFFFFF' : '#0F1923',
+          border: active ? '1px solid #F5B94D' : '1px solid var(--ink4)',
+          background: active ? '#F5B94D' : 'var(--card)',
+          color: active ? 'var(--amber-light)' : 'var(--ink)',
           fontSize: '15px', fontWeight: 700, fontFamily: 'var(--font-manrope)',
           cursor: 'pointer', transition: 'all 0.15s',
         }}
@@ -377,15 +377,15 @@ export default function NewBespokeProjectPage() {
   }
 
   return (
-    <div style={{ minHeight: '100vh', background: '#E8EEF4', fontFamily: 'var(--font-manrope)' }}>
+    <div style={{ minHeight: '100vh', background: 'var(--surface)', fontFamily: 'var(--font-manrope)' }}>
       <PageHeader
         title="New Bespoke Project"
         description={`Step ${step} of 3 — ${stepLabel}`}
       />
 
       {/* ── Progress Bar ────────────────────────────────────────── */}
-      <div style={{ height: '4px', background: '#DDE8EE', width: '100%' }}>
-        <div style={{ height: '100%', background: '#B45309', width: `${progressPct}%`, transition: 'width 0.25s' }} />
+      <div style={{ height: '4px', background: 'var(--border)', width: '100%' }}>
+        <div style={{ height: '100%', background: '#F5B94D', width: `${progressPct}%`, transition: 'width 0.25s' }} />
       </div>
 
       {/* ── Form ────────────────────────────────────────────────── */}
@@ -394,7 +394,7 @@ export default function NewBespokeProjectPage() {
           {/* ── Step 1: Event Basics ─────────────────────────────── */}
           {step === 1 && (
             <div style={SECTION_STYLE}>
-              <h2 style={{ margin: '0 0 20px', fontSize: '17px', fontWeight: 800, color: '#B45309' }}>Event Basics</h2>
+              <h2 style={{ margin: '0 0 20px', fontSize: '17px', fontWeight: 800, color: '#F5B94D' }}>Event Basics</h2>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
                 <div style={{ gridColumn: '1 / -1' }}>
                   <Field label="Event Title" required error={stepErrors.title}>
@@ -460,7 +460,7 @@ export default function NewBespokeProjectPage() {
           {/* ── Step 2: Client Information + Runway ──────────────── */}
           {step === 2 && (
             <div style={SECTION_STYLE}>
-              <h2 style={{ margin: '0 0 20px', fontSize: '17px', fontWeight: 800, color: '#B45309' }}>Client Information</h2>
+              <h2 style={{ margin: '0 0 20px', fontSize: '17px', fontWeight: 800, color: '#F5B94D' }}>Client Information</h2>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
                 <div style={{ gridColumn: '1 / -1' }}>
                   <Field label="Client Company" required error={stepErrors.clientCompany}>
@@ -478,7 +478,7 @@ export default function NewBespokeProjectPage() {
                 </Field>
                 <Field label="Contract Value ($)">
                   <div style={{ position: 'relative' }}>
-                    <span style={{ position: 'absolute', left: '14px', top: '50%', transform: 'translateY(-50%)', fontSize: '15px', color: '#5B7080', fontWeight: 700 }}>$</span>
+                    <span style={{ position: 'absolute', left: '14px', top: '50%', transform: 'translateY(-50%)', fontSize: '15px', color: 'var(--ink3)', fontWeight: 700 }}>$</span>
                     <input style={{ ...INPUT_STYLE, paddingLeft: '28px' }} type="number" value={contractValue} onChange={e => setContractValue(e.target.value)} placeholder="0" />
                   </div>
                 </Field>
@@ -501,20 +501,20 @@ export default function NewBespokeProjectPage() {
                 {runwayDays !== null && (
                   <div style={{ gridColumn: '1 / -1' }}>
                     <div style={{
-                      background: '#EFF6FF',
-                      border: '1px solid #BFDBFE',
+                      background: 'var(--info-light)',
+                      border: '1px solid color-mix(in srgb, var(--info) 35%, transparent)',
                       padding: '12px 16px',
                       borderRadius: '8px',
                     }}>
-                      <div style={{ fontSize: '12px', fontWeight: 700, color: '#5B7080', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                      <div style={{ fontSize: '12px', fontWeight: 700, color: 'var(--info)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
                         Outreach Runway
                       </div>
                       {runwayDays > 0 ? (
-                        <div style={{ marginTop: '4px', fontSize: '22px', fontWeight: 800, color: '#1E3A8A' }}>
+                        <div style={{ marginTop: '4px', fontSize: '22px', fontWeight: 800, color: 'var(--info)' }}>
                           {runwayDays} days
                         </div>
                       ) : (
-                        <div style={{ marginTop: '4px', fontSize: '14px', fontWeight: 700, color: '#B45309' }}>
+                        <div style={{ marginTop: '4px', fontSize: '14px', fontWeight: 700, color: '#F5B94D' }}>
                           Event date must be after contract signed date
                         </div>
                       )}
@@ -528,8 +528,8 @@ export default function NewBespokeProjectPage() {
           {/* ── Step 3: Team Assignments ─────────────────────────── */}
           {step === 3 && (
             <div style={SECTION_STYLE}>
-              <h2 style={{ margin: '0 0 4px', fontSize: '17px', fontWeight: 800, color: '#B45309' }}>Team Assignments</h2>
-              <p style={{ margin: '0 0 20px', fontSize: '13px', color: '#5B7080' }}>
+              <h2 style={{ margin: '0 0 4px', fontSize: '17px', fontWeight: 800, color: '#F5B94D' }}>Team Assignments</h2>
+              <p style={{ margin: '0 0 20px', fontSize: '13px', color: 'var(--ink3)' }}>
                 {staffLoading ? 'Loading staff directory...' : 'Pick a team member from suggestions, or type a new name if they aren’t in the system.'}
               </p>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
@@ -568,8 +568,8 @@ export default function NewBespokeProjectPage() {
               </div>
 
               {/* ── Additional (optional) ─────────────────────── */}
-              <div style={{ marginTop: '28px', paddingTop: '20px', borderTop: '1px solid #DDE8EE' }}>
-                <h3 style={{ margin: '0 0 16px', fontSize: '14px', fontWeight: 800, color: '#5B7080', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+              <div style={{ marginTop: '28px', paddingTop: '20px', borderTop: '1px solid var(--border)' }}>
+                <h3 style={{ margin: '0 0 16px', fontSize: '14px', fontWeight: 800, color: 'var(--ink3)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
                   Additional (optional)
                 </h3>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
@@ -586,7 +586,7 @@ export default function NewBespokeProjectPage() {
 
           {/* ── Error ───────────────────────────────────────────── */}
           {error && (
-            <div style={{ padding: '12px 16px', borderRadius: '8px', background: '#FEF2F2', border: '1px solid #FECACA', color: '#DC2626', fontSize: '14px', fontWeight: 600, marginBottom: '16px' }}>
+            <div style={{ padding: '12px 16px', borderRadius: '8px', background: 'var(--red-light)', border: '1px solid color-mix(in srgb, var(--red) 35%, transparent)', color: 'var(--red)', fontSize: '14px', fontWeight: 600, marginBottom: '16px' }}>
               {error}
             </div>
           )}
@@ -598,9 +598,9 @@ export default function NewBespokeProjectPage() {
               onClick={goBack}
               disabled={step === 1}
               style={{
-                padding: '12px 24px', borderRadius: '8px', border: '1px solid #B8CDD8',
-                background: step === 1 ? '#F1F5F9' : '#FFFFFF',
-                color: step === 1 ? '#B8CDD8' : '#5B7080',
+                padding: '12px 24px', borderRadius: '8px', border: '1px solid var(--ink4)',
+                background: step === 1 ? 'var(--border-light)' : 'var(--card)',
+                color: step === 1 ? 'var(--ink4)' : 'var(--ink3)',
                 fontSize: '15px', fontWeight: 700, fontFamily: 'var(--font-manrope)',
                 cursor: step === 1 ? 'not-allowed' : 'pointer', transition: 'background 0.2s',
               }}
@@ -614,11 +614,11 @@ export default function NewBespokeProjectPage() {
                 onClick={goNext}
                 style={{
                   padding: '12px 32px', borderRadius: '8px', border: 'none',
-                  fontSize: '15px', fontWeight: 700, background: '#B45309', color: '#FFFFFF',
+                  fontSize: '15px', fontWeight: 700, background: '#F5B94D', color: 'var(--amber-light)',
                   cursor: 'pointer', fontFamily: 'var(--font-manrope)', transition: 'background 0.2s',
                 }}
-                onMouseEnter={e => { e.currentTarget.style.background = '#92400E' }}
-                onMouseLeave={e => { e.currentTarget.style.background = '#B45309' }}
+                onMouseEnter={e => { e.currentTarget.style.background = 'var(--amber-border)' }}
+                onMouseLeave={e => { e.currentTarget.style.background = '#F5B94D' }}
               >
                 Next
               </button>
@@ -630,18 +630,18 @@ export default function NewBespokeProjectPage() {
                 disabled={saving}
                 style={{
                   padding: '12px 32px', borderRadius: '8px', border: 'none', fontSize: '15px', fontWeight: 700,
-                  background: saving ? '#B8CDD8' : '#B45309', color: '#FFFFFF',
+                  background: saving ? 'var(--ink4)' : '#F5B94D', color: saving ? 'var(--surface)' : 'var(--amber-light)',
                   cursor: saving ? 'not-allowed' : 'pointer',
                   fontFamily: 'var(--font-manrope)', transition: 'background 0.2s',
                 }}
-                onMouseEnter={e => { if (!saving) e.currentTarget.style.background = '#92400E' }}
-                onMouseLeave={e => { if (!saving) e.currentTarget.style.background = '#B45309' }}
+                onMouseEnter={e => { if (!saving) e.currentTarget.style.background = 'var(--amber-border)' }}
+                onMouseLeave={e => { if (!saving) e.currentTarget.style.background = '#F5B94D' }}
               >
                 {saving ? 'Creating...' : 'Create Project'}
               </button>
             )}
 
-            <Link href="/admin/bespoke" style={{ fontSize: '14px', fontWeight: 600, color: '#5B7080', textDecoration: 'none', marginLeft: 'auto' }}>
+            <Link href="/admin/bespoke" style={{ fontSize: '14px', fontWeight: 600, color: 'var(--ink3)', textDecoration: 'none', marginLeft: 'auto' }}>
               Cancel
             </Link>
           </div>

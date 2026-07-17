@@ -111,13 +111,42 @@ change):
 | Timesheets | `timesheets` |
 | Finance Portal | `finance` |
 | Commercial P&L | `commercial` |
+| Knowledge Base | `knowledge_base` |
+| DocuHub | `docuhub` |
+| Knowledge Assistant | `knowledge_assistant` |
 | SmartExcel | `smart_excel` (base access) / `smart_excel_admin` (admin tier within the tool) |
+| Corporate Marketing | `corporate_marketing` (grantable only via the Access Requests flow today — not yet in the `/hr/staff/new`/`/admin/org-chart` toggle lists below) |
 | Course Builder | admin-only (no grant key) |
 | AI Course Generator | admin-only (no grant key) |
 
 Grants are toggled from `/hr/staff/new` (new staff), `/admin/org-chart`, or
 `/admin` → People → staff → Access & Tools. All three keep their own
 hand-maintained lists — add a new key to all three when a new tool ships.
+
+**Two-tier access (17 Jul 2026):** some tools additionally have their own
+"Settings → Access" page (e.g. `/admin/toolkit/knowledge-base/settings`) where
+a tool admin can grant a `user` or `admin` tier directly, without going
+through the People module at all — backed by a separate table, `module_access`
+(`staff_id` + `module_key` + `tier`), via a generic, reusable
+`app/api/module-access/[moduleKey]/*` route trio + a shared
+`<AccessTab moduleKey="..." moduleLabel="..." />` component
+(`app/components/AccessTab.tsx`). A `module_access` grant (either tier) is
+independently sufficient to open the tool — it does not require also being
+toggled on in the People module. Every module using the `tool_grant` access
+kind can opt into this by adding a `moduleAccessKey` to its entry in
+`app/lib/registry/modules.tsx` (see `checkAccess()` in
+`app/lib/registry/access.ts`). As of this session: **Knowledge Base,
+DocuHub, Knowledge Assistant, Bespoke Tracker, Website Builder, Market
+Intelligence, Brand Studio, Commercial P&L** all have this. **HR, Finance,
+Content, Smart Data** have the Settings→Access UI too, but — deliberately,
+for now — a grant there only controls whether the tool's tile shows in the
+Toolkit hub, not real route access (those four are gated in `middleware.ts`
+by role/department read straight from the session cookie, with no DB call by
+design; making a grant there open the real route needs a follow-up decision,
+not yet made — see HANDOFF.md "What's Next"). SmartExcel and Corporate
+Marketing intentionally do **not** use this system — they predate it and have
+their own working, independently-verified auth (see `app/lib/smartexcel/auth.ts`
+and `app/lib/corporate-marketing/auth.ts`).
 
 ### Departments (current list)
 
@@ -246,33 +275,40 @@ if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 
 
 Describing these precisely will help your AI tool generate prompts that produce consistent, on-brand results.
 
-### Color Palette (most-used)
+### Color Palette — dark navy/teal theme (17 Jul 2026 — full replacement of the previous light theme)
 
-| Color | Hex | Used for |
+**Never hardcode a hex color for ink/surface/border/family purposes.** Every internal page now uses CSS custom properties defined once in `app/globals.css`'s `:root` block — even though components still write plain inline `style={{}}` objects (there's still no Tailwind/CSS framework), the *values* inside those objects should be `var(--token)` strings, not literal hex. This is the single centralization point for the whole app's branding — a future rebrand changes `globals.css` only.
+
+| Token | Value | Used for |
 |---|---|---|
-| Teal / primary | `#0d9488` | Primary buttons, CTAs, active states |
-| Dark teal | `#0f766e` | Hover on primary buttons |
-| Slate dark | `#0f172a` | Page backgrounds, sidebar |
-| Slate mid | `#1e293b` | Card backgrounds in dark sections |
-| Light background | `#f8fafc` | Content area backgrounds |
-| White | `#ffffff` | Cards, panels |
-| Red / danger | `#dc2626` | Delete, error, critical |
-| Amber / warning | `#d97706` | Warnings, pending states |
-| Green / success | `#16a34a` | Confirmed, complete |
-| Gray text | `#6b7280` | Secondary text, labels |
-| Dark text | `#111827` | Primary body text |
+| `--surface` | `#0A121A` | Page background |
+| `--card` | `#142330` | Card/panel background |
+| `--card-hi` | `#1B2C3B` | Hovered/active card state |
+| `--sidebar-bg` | `#101C27` | Persistent sidebar background (one step lighter than page bg) |
+| `--ink` / `--ink2` / `--ink3` / `--ink4` | near-white → muted | Body text by importance (`--ink` = primary/headings, `--ink4` = de-emphasized icons/badges only — never body text, it fails contrast) |
+| `--border` / `--border-light` | translucent white | Card/input borders |
+| `--teal` / `--teal-mid` / `--teal-dark` | `#0EA79D` / `#12C9BD` / `#0B8079` | Primary brand color, buttons, active states |
+| `--lime` | `#C0F43C` | Secondary accent — success/positive/CTA highlight |
+| `--indigo` / `--purple` / `--amber` / `--red` / `--orange` | brand family colors | Categorical/status colors |
+| `--success` / `--warning` / `--danger` / `--info` | semantic aliases | `--warning` = `--amber`, `--danger` = `--red` |
+
+Every family also has a `-light` variant (e.g. `--teal-light`, `--red-light`) and most have a `-border` variant — these exist for **one specific purpose each**, documented as a 3-rule convention directly in `globals.css` (read that comment block before styling anything new):
+1. Body/UI text on a plain surface → the ink scale, by importance.
+2. Text on a family's own `-light` tint (badges, alerts) → that family's bright/main value, never `--ink`.
+3. Text on a SOLID saturated brand button/badge fill → that family's `-light` token (or `-dark` for lime) — **never white**. White-on-brand-color fails WCAG AA across this entire palette (measured 2–3:1 uniformly); each `-light`/`-dark` value was specifically chosen to double as legible button text.
 
 ### Common UI Patterns
 
-- **Split layouts**: Left sidebar (dark, `#0f172a`) + right content area (light, `#f8fafc`)
-- **Cards**: White `#ffffff`, `borderRadius: 12`, `boxShadow: '0 1px 3px rgba(0,0,0,0.1)'`, padding 24px
-- **Tables**: Striped rows, header in `#f8fafc`, `border: '1px solid #e2e8f0'`
-- **Buttons (primary)**: `backgroundColor: '#0d9488'`, `color: '#fff'`, `borderRadius: 8`, `padding: '10px 20px'`
-- **Buttons (outline)**: `border: '1px solid #e2e8f0'`, `background: 'white'`, `color: '#374151'`
-- **Status badges**: Pill-shaped spans, e.g. `{ background: '#dcfce7', color: '#16a34a', borderRadius: 999, padding: '2px 10px', fontSize: 12 }`
-- **Forms**: Labels above inputs, `border: '1px solid #e2e8f0'`, `borderRadius: 8`, `padding: '10px 14px'`
-- **Section headers**: `fontSize: 18, fontWeight: 600, color: '#111827'` with a line separator below
+- **Cards**: `background: 'var(--card)'`, `border: '1px solid var(--border)'`, `borderRadius: 12`, padding 24px — no drop shadow on plain cards (dark-on-dark), use `var(--shadow-sm)`/`var(--shadow-md)` only where real elevation is needed
+- **Tables**: header row in `var(--card-hi)`, `border: '1px solid var(--border)'`
+- **Buttons (primary)**: `background: 'var(--teal-mid)'`, `color: 'var(--teal-light)'` (per rule 3 above — not white), `borderRadius: 8`, `padding: '10px 20px'`
+- **Buttons (outline)**: `border: '1px solid var(--border)'`, `background: 'var(--card)'`, `color: 'var(--ink3)'`
+- **Status badges**: pill-shaped, tint background + bright text of the same family, e.g. `{ background: 'var(--success-light)', color: 'var(--success)', borderRadius: 999, padding: '2px 10px', fontSize: 12 }`
+- **Forms**: labels above inputs, `border: '1px solid var(--border)'`, `borderRadius: 8`, `padding: '10px 14px'`, placeholder text `var(--ink3)`
+- **Section headers**: `fontSize: 18, fontWeight: 600, color: 'var(--ink)'` with a `var(--border)` separator below
 - **No modals for primary flows** — prefer inline panels or separate pages
+
+**Explicitly out of this theme** (still their own separate styling, don't migrate): `app/smartexcel/**` (Tailwind arbitrary-value classes, ported independently), `app/events/[slug]/**` (public event microsites — tenant/data-driven themed via `event.theme_primary` etc., not this app's own chrome).
 
 ### Existing Shared Components
 

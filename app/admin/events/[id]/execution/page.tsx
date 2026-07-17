@@ -49,33 +49,55 @@ type Event = {
 }
 
 // ── Design ────────────────────────────────────────────────────────────────────
-const BG      = '#E8EEF4'
-const SURFACE = '#FFFFFF'
-const DARK    = '#0F1923'
-const MUTED   = '#5B7080'
-const BORDER  = '#DDE8EE'
-const ACCENT  = '#C0F43C'
+// Dark navy/teal theme tokens (see app/globals.css). Plain design constants map
+// straight to CSS vars since none of them are concatenated with a hex alpha
+// suffix at runtime.
+const BG      = 'var(--surface)'
+const SURFACE = 'var(--card)'
+const DARK    = 'var(--ink)'
+const MUTED   = 'var(--ink3)'
+const BORDER  = 'var(--border)'
+const ACCENT  = 'var(--lime)'
 
-const PHASE_COLORS = ['#6366F1','#0EA5E9','#EC4899','#F59E0B','#10B981']
+// Phase colors are never concatenated with an alpha suffix in this file, so
+// they can be real CSS vars. `solidText` is the family's "-light" pairing for
+// when the color is used as a SOLID tab background (rule 3 in globals.css) —
+// Assets/pink has no dedicated family token, so it falls back to var(--surface).
+const PHASE_COLORS = [
+  { color: 'var(--indigo)',  solidText: 'var(--indigo-light)' },  // 1 Concept
+  { color: 'var(--info)',    solidText: 'var(--info-light)' },    // 2 Planning
+  { color: '#F472B6',        solidText: 'var(--surface)' },       // 3 Assets — brightened pink, no token exists
+  { color: 'var(--amber)',   solidText: 'var(--amber-light)' },   // 4 Cycle Tracks
+  { color: 'var(--success)', solidText: 'var(--success-light)' }, // 5 Pre-Event Lock
+]
 
+// Track colors ARE concatenated with a hex alpha suffix at runtime
+// (`meta.color + '60'` in CycleTrackCard below), so they must stay literal hex
+// rather than var() — each value below matches its corresponding
+// var(--family) hex exactly so it still reads as on-theme.
 const TRACK_META: Record<string, { label: string; color: string }> = {
-  speaker_acquisition: { label: 'Speaker Acquisition',     color: '#6366F1' },
-  sponsorship_sales:   { label: 'Sponsorship / Exhibitor Sales', color: '#0EA5E9' },
-  delegate_sales:      { label: 'Delegate Sales',           color: '#EC4899' },
-  marketing:           { label: 'Marketing Campaign',       color: '#F59E0B' },
-  operations:          { label: 'Operations / Logistics',   color: '#10B981' },
-  partnerships:        { label: 'Partnerships Cycle',       color: '#8B5CF6' },
-  media_partners:      { label: 'Media Partners Cycle',     color: '#14B8A6' },
+  speaker_acquisition: { label: 'Speaker Acquisition',     color: '#818CF8' }, // var(--indigo)
+  sponsorship_sales:   { label: 'Sponsorship / Exhibitor Sales', color: '#5AA9F2' }, // var(--info)
+  delegate_sales:      { label: 'Delegate Sales',           color: '#F472B6' }, // brightened pink, no token
+  marketing:           { label: 'Marketing Campaign',       color: '#F5B94D' }, // var(--amber)
+  operations:          { label: 'Operations / Logistics',   color: '#34D399' }, // var(--success)
+  partnerships:        { label: 'Partnerships Cycle',       color: '#A78BFA' }, // var(--purple)
+  media_partners:      { label: 'Media Partners Cycle',     color: '#12C9BD' }, // var(--teal-mid)
 }
 
+// Status colors are concatenated with a hex alpha suffix at runtime
+// (`c + '20'` in StatusBadge below), so they stay literal hex, matching the
+// corresponding var(--family) value. Chosen per family: teal=approved/done,
+// success=complete, red=rejected/overdue, amber=in-progress, purple=pending
+// approval, ink3=not-started (neutral/grey, kept legible over ink4).
 const STATUS_COLOR: Record<string, string> = {
-  not_started:      '#94A3B8',
-  in_progress:      '#D97706',
-  complete:         '#16A34A',
-  pending_approval: '#7C3AED',
-  approved:         '#059669',
-  rejected:         '#DC2626',
-  overdue:          '#DC2626',
+  not_started:      '#7E93A1', // var(--ink3)
+  in_progress:      '#F5B94D', // var(--amber)
+  complete:         '#34D399', // var(--success)
+  pending_approval: '#A78BFA', // var(--purple)
+  approved:         '#0EA79D', // var(--teal)
+  rejected:         '#F1667A', // var(--red)
+  overdue:          '#F1667A', // var(--red)
 }
 const STATUS_LABEL: Record<string, string> = {
   not_started:      'Not Started',
@@ -87,10 +109,12 @@ const STATUS_LABEL: Record<string, string> = {
   overdue:          'Overdue',
 }
 
+// Concatenated with a hex alpha suffix at runtime (`tl.color + '18'` below) —
+// literal hex matching var(--indigo) / var(--amber) / var(--info).
 const TIMELINE_BADGE: Record<string, { label: string; color: string }> = {
-  fixed_duration:   { label: 'Fixed Duration',    color: '#6366F1' },
-  fixed_pre_event:  { label: 'Pre-Event Deadline', color: '#D97706' },
-  cycle_dependent:  { label: 'Cycle Dependent',   color: '#0EA5E9' },
+  fixed_duration:   { label: 'Fixed Duration',    color: '#818CF8' },
+  fixed_pre_event:  { label: 'Pre-Event Deadline', color: '#F5B94D' },
+  cycle_dependent:  { label: 'Cycle Dependent',   color: '#5AA9F2' },
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -110,10 +134,15 @@ function isRedFlag(cp: Checkpoint): boolean {
 
 // ── Role Pill ─────────────────────────────────────────────────────────────────
 function RolePill({ role, type }: { role: string; type: 'R' | 'A' | 'C' | 'I' }) {
-  const colors = { R: '#DC2626', A: '#D97706', C: '#2563EB', I: '#94A3B8' }
+  // colors[type] is concatenated with a hex alpha suffix below ('18'), so it
+  // must stay literal hex — matches var(--red)/var(--amber)/var(--info)/var(--ink4).
+  const colors = { R: '#F1667A', A: '#F5B94D', C: '#5AA9F2', I: '#6B8296' }
+  // Text-on-solid pairing for the small type square (rule 3): each family's
+  // "-light" token; ink4 (I) has no "-light" counterpart so falls back to var(--surface).
+  const solidText = { R: 'var(--red-light)', A: 'var(--amber-light)', C: 'var(--info-light)', I: 'var(--surface)' }
   return (
     <span style={{ display: 'inline-flex', alignItems: 'center', gap: '3px', fontSize: '10px', fontWeight: 700, padding: '2px 7px', borderRadius: '6px', background: colors[type] + '18', color: colors[type], whiteSpace: 'nowrap', marginRight: '3px', marginBottom: '3px' }}>
-      <span style={{ fontSize: '9px', background: colors[type], color: '#fff', borderRadius: '3px', padding: '0 3px', fontWeight: 800 }}>{type}</span>
+      <span style={{ fontSize: '9px', background: colors[type], color: solidText[type], borderRadius: '3px', padding: '0 3px', fontWeight: 800 }}>{type}</span>
       {role}
     </span>
   )
@@ -121,7 +150,9 @@ function RolePill({ role, type }: { role: string; type: 'R' | 'A' | 'C' | 'I' })
 
 // ── Status badge ──────────────────────────────────────────────────────────────
 function StatusBadge({ s }: { s: string }) {
-  const c = STATUS_COLOR[s] ?? MUTED
+  // Fallback must stay literal (not the MUTED var) since `c` is concatenated
+  // with a hex alpha suffix below — matches var(--ink3).
+  const c = STATUS_COLOR[s] ?? '#7E93A1'
   return (
     <span style={{ fontSize: '11px', fontWeight: 700, padding: '3px 9px', borderRadius: '8px', background: c + '20', color: c, whiteSpace: 'nowrap' }}>
       {STATUS_LABEL[s] ?? s}
@@ -148,8 +179,8 @@ function CheckpointRow({
   return (
     <div style={{
       background: SURFACE,
-      border: `1px solid ${flag ? '#DC262640' : BORDER}`,
-      borderLeft: `3px solid ${flag ? '#DC2626' : isApproved ? '#059669' : phaseColor}`,
+      border: `1px solid ${flag ? '#F1667A40' : BORDER}`, // literal — hex+alpha can't be a var(); matches var(--red)
+      borderLeft: `3px solid ${flag ? 'var(--red)' : isApproved ? 'var(--teal)' : phaseColor}`,
       borderRadius: '10px',
       marginBottom: '8px',
       overflow: 'hidden',
@@ -166,17 +197,17 @@ function CheckpointRow({
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap', marginBottom: '6px' }}>
             {flag && (
-              <span style={{ fontSize: '10px', fontWeight: 800, color: '#DC2626', background: '#DC262618', padding: '2px 6px', borderRadius: '5px' }}>
+              <span style={{ fontSize: '10px', fontWeight: 800, color: 'var(--red)', background: 'var(--red-light)', padding: '2px 6px', borderRadius: '5px' }}>
                 RED FLAG
               </span>
             )}
             {blocked && !['approved','complete'].includes(cp.status) && (
-              <span style={{ fontSize: '10px', fontWeight: 700, color: '#7C3AED', background: '#7C3AED15', padding: '2px 6px', borderRadius: '5px' }}>
+              <span style={{ fontSize: '10px', fontWeight: 700, color: 'var(--purple)', background: 'var(--purple-light)', padding: '2px 6px', borderRadius: '5px' }}>
                 BLOCKED
               </span>
             )}
             {cp.approval_required && (
-              <span style={{ fontSize: '9px', fontWeight: 800, color: '#7C3AED', background: '#7C3AED18', padding: '2px 6px', borderRadius: '5px', letterSpacing: '0.5px' }}>
+              <span style={{ fontSize: '9px', fontWeight: 800, color: 'var(--purple)', background: 'var(--purple-light)', padding: '2px 6px', borderRadius: '5px', letterSpacing: '0.5px' }}>
                 APPROVAL REQUIRED
               </span>
             )}
@@ -201,8 +232,8 @@ function CheckpointRow({
         <div style={{ textAlign: 'right', flexShrink: 0 }}>
           {cp.due_date ? (
             <>
-              <div style={{ fontSize: '12px', fontWeight: 700, color: flag ? '#DC2626' : DARK }}>{fmtDate(cp.due_date)}</div>
-              <div style={{ fontSize: '10px', color: daysLeft !== null && daysLeft < 0 ? '#DC2626' : MUTED, fontWeight: 600 }}>
+              <div style={{ fontSize: '12px', fontWeight: 700, color: flag ? 'var(--red)' : DARK }}>{fmtDate(cp.due_date)}</div>
+              <div style={{ fontSize: '10px', color: daysLeft !== null && daysLeft < 0 ? 'var(--red)' : MUTED, fontWeight: 600 }}>
                 {daysLeft !== null ? (daysLeft < 0 ? `${Math.abs(daysLeft)}d overdue` : daysLeft === 0 ? 'Today' : `${daysLeft}d left`) : ''}
               </div>
             </>
@@ -210,7 +241,9 @@ function CheckpointRow({
             <div style={{ fontSize: '11px', color: MUTED }}>No date set</div>
           )}
           {cp.overrides.length > 0 && (
-            <div style={{ fontSize: '9px', color: '#D97706', fontWeight: 700, marginTop: '2px' }}>OVERRIDDEN</div>
+            // '#F5B94D' below (and everywhere else in this file) is the documented brightened-amber
+            // literal — used instead of var(--amber) per the migration convention for this exact hex.
+            <div style={{ fontSize: '9px', color: '#F5B94D', fontWeight: 700, marginTop: '2px' }}>OVERRIDDEN</div>
           )}
         </div>
 
@@ -240,7 +273,7 @@ function CheckpointRow({
               <div style={{ fontSize: '10px', fontWeight: 800, color: MUTED, letterSpacing: '1px', textTransform: 'uppercase', marginBottom: '6px' }}>Approvers</div>
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px' }}>
                 {cp.approver_roles.map(r => (
-                  <span key={r} style={{ fontSize: '10px', fontWeight: 700, padding: '2px 8px', borderRadius: '6px', background: '#7C3AED18', color: '#7C3AED' }}>{r}</span>
+                  <span key={r} style={{ fontSize: '10px', fontWeight: 700, padding: '2px 8px', borderRadius: '6px', background: 'var(--purple-light)', color: 'var(--purple)' }}>{r}</span>
                 ))}
               </div>
             </div>
@@ -252,7 +285,7 @@ function CheckpointRow({
               <div style={{ fontSize: '10px', fontWeight: 800, color: MUTED, letterSpacing: '1px', textTransform: 'uppercase', marginBottom: '6px' }}>Depends On</div>
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px' }}>
                 {cp.depends_on_names.map(n => (
-                  <span key={n} style={{ fontSize: '10px', fontWeight: 600, padding: '2px 8px', borderRadius: '6px', background: doneNames.has(n) ? '#05996918' : '#DC262618', color: doneNames.has(n) ? '#059669' : '#DC2626' }}>
+                  <span key={n} style={{ fontSize: '10px', fontWeight: 600, padding: '2px 8px', borderRadius: '6px', background: doneNames.has(n) ? 'var(--teal-light)' : 'var(--red-light)', color: doneNames.has(n) ? 'var(--teal)' : 'var(--red)' }}>
                     {doneNames.has(n) ? '✓ ' : '⏳ '}{n}
                   </span>
                 ))}
@@ -276,10 +309,10 @@ function CheckpointRow({
           {/* Override history */}
           {cp.overrides.length > 0 && (
             <div style={{ marginTop: '10px' }}>
-              <div style={{ fontSize: '10px', fontWeight: 800, color: '#D97706', letterSpacing: '1px', textTransform: 'uppercase', marginBottom: '6px' }}>Override History</div>
+              <div style={{ fontSize: '10px', fontWeight: 800, color: '#F5B94D', letterSpacing: '1px', textTransform: 'uppercase', marginBottom: '6px' }}>Override History</div>
               {cp.overrides.map(o => (
                 <div key={o.id} style={{ fontSize: '11px', color: MUTED, marginBottom: '4px' }}>
-                  <strong style={{ color: DARK }}>{o.field_overridden}</strong>: {o.default_value ?? 'none'} → <strong style={{ color: '#D97706' }}>{o.overridden_value}</strong> — "{o.override_reason}" ({fmtDate(o.overridden_at.slice(0,10))})
+                  <strong style={{ color: DARK }}>{o.field_overridden}</strong>: {o.default_value ?? 'none'} → <strong style={{ color: '#F5B94D' }}>{o.overridden_value}</strong> — "{o.override_reason}" ({fmtDate(o.overridden_at.slice(0,10))})
                 </div>
               ))}
             </div>
@@ -295,34 +328,34 @@ function CheckpointRow({
             {!['approved'].includes(cp.status) && (
               <button
                 onClick={e => { e.stopPropagation(); onAction('update', cp) }}
-                style={{ padding: '7px 16px', borderRadius: '8px', background: ACCENT, color: DARK, fontSize: '12px', fontWeight: 700, border: 'none', cursor: 'pointer', fontFamily: 'inherit' }}>
+                style={{ padding: '7px 16px', borderRadius: '8px', background: ACCENT, color: 'var(--lime-dark)', fontSize: '12px', fontWeight: 700, border: 'none', cursor: 'pointer', fontFamily: 'inherit' }}>
                 Update Status
               </button>
             )}
             {cp.approval_required && ['complete','rejected'].includes(cp.status) && (
               <button
                 onClick={e => { e.stopPropagation(); onAction('approve', cp) }}
-                style={{ padding: '7px 16px', borderRadius: '8px', background: '#7C3AED', color: '#fff', fontSize: '12px', fontWeight: 700, border: 'none', cursor: 'pointer', fontFamily: 'inherit' }}>
+                style={{ padding: '7px 16px', borderRadius: '8px', background: 'var(--purple)', color: 'var(--purple-light)', fontSize: '12px', fontWeight: 700, border: 'none', cursor: 'pointer', fontFamily: 'inherit' }}>
                 {cp.status === 'rejected' ? 'Re-submit for Approval' : 'Submit for Approval'}
               </button>
             )}
             {cp.approval_required && cp.status === 'pending_approval' && (
               <button
                 onClick={e => { e.stopPropagation(); onAction('approve', cp) }}
-                style={{ padding: '7px 16px', borderRadius: '8px', background: '#059669', color: '#fff', fontSize: '12px', fontWeight: 700, border: 'none', cursor: 'pointer', fontFamily: 'inherit' }}>
+                style={{ padding: '7px 16px', borderRadius: '8px', background: 'var(--teal)', color: 'var(--teal-light)', fontSize: '12px', fontWeight: 700, border: 'none', cursor: 'pointer', fontFamily: 'inherit' }}>
                 Review & Decide
               </button>
             )}
             <button
               onClick={e => { e.stopPropagation(); onAction('override', cp) }}
-              style={{ padding: '7px 16px', borderRadius: '8px', background: 'transparent', color: '#D97706', fontSize: '12px', fontWeight: 700, border: `1px solid #D97706`, cursor: 'pointer', fontFamily: 'inherit' }}>
+              style={{ padding: '7px 16px', borderRadius: '8px', background: 'transparent', color: '#F5B94D', fontSize: '12px', fontWeight: 700, border: `1px solid #F5B94D`, cursor: 'pointer', fontFamily: 'inherit' }}>
               COO Override
             </button>
             {/* Market Intel tool — shown on Marketing Brief checkpoint */}
             {cp.name.toLowerCase().includes('marketing brief') && (
               <a href={`/admin/events/${cp.event_id}/market-intel`}
                 onClick={e => e.stopPropagation()}
-                style={{ padding: '7px 14px', borderRadius: '8px', background: '#6366F1', color: '#fff', fontSize: '12px', fontWeight: 700, border: 'none', cursor: 'pointer', fontFamily: 'inherit', textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: '5px' }}>
+                style={{ padding: '7px 14px', borderRadius: '8px', background: 'var(--indigo)', color: 'var(--indigo-light)', fontSize: '12px', fontWeight: 700, border: 'none', cursor: 'pointer', fontFamily: 'inherit', textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: '5px' }}>
                 🔭 Market Intel
               </a>
             )}
@@ -342,7 +375,7 @@ function CycleTrackCard({
   doneNames: Set<string>
   onAction: (action: 'update' | 'approve' | 'override', cp: Checkpoint) => void
 }) {
-  const meta  = TRACK_META[track] ?? { label: track, color: '#64748B' }
+  const meta  = TRACK_META[track] ?? { label: track, color: '#7E93A1' } // literal, matches var(--ink3) — fallback for an unrecognized track
   const total = checkpoints.length
   const done  = checkpoints.filter(c => ['complete','approved'].includes(c.status)).length
   const pct   = total > 0 ? Math.round((done / total) * 100) : 0
@@ -359,7 +392,7 @@ function CycleTrackCard({
         <div style={{ flex: 1 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '8px' }}>
             <span style={{ fontSize: '14px', fontWeight: 800, color: DARK }}>{meta.label}</span>
-            {flags > 0 && <span style={{ fontSize: '10px', fontWeight: 800, color: '#DC2626', background: '#DC262618', padding: '2px 6px', borderRadius: '5px' }}>{flags} RED FLAG{flags > 1 ? 'S' : ''}</span>}
+            {flags > 0 && <span style={{ fontSize: '10px', fontWeight: 800, color: 'var(--red)', background: 'var(--red-light)', padding: '2px 6px', borderRadius: '5px' }}>{flags} RED FLAG{flags > 1 ? 'S' : ''}</span>}
             <span style={{ fontSize: '11px', fontWeight: 700, color: MUTED }}>{done}/{total}</span>
           </div>
           <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
@@ -370,7 +403,7 @@ function CycleTrackCard({
               return (
                 <div key={cp.id} style={{
                   flex: 1, height: '8px', borderRadius: '4px',
-                  background: isFlag ? '#DC2626' : isDone ? meta.color : isCurr ? meta.color + '60' : BORDER,
+                  background: isFlag ? 'var(--red)' : isDone ? meta.color : isCurr ? meta.color + '60' : BORDER, // meta.color literal here (see TRACK_META comment) for the '60' alpha concat
                   transition: 'background 0.2s',
                 }} title={cp.name} />
               )
@@ -458,7 +491,8 @@ export default function ExecutionPage({ params }: { params: Promise<{ id: string
     total: checkpoints.filter(c => c.phase === p).length,
     done:  checkpoints.filter(c => c.phase === p && ['complete','approved'].includes(c.status)).length,
     flags: checkpoints.filter(c => c.phase === p && isRedFlag(c)).length,
-    color: PHASE_COLORS[p-1],
+    color: PHASE_COLORS[p-1].color,
+    solidText: PHASE_COLORS[p-1].solidText,
   }))
 
   // Phase 4 — group by cycle track
@@ -608,7 +642,7 @@ export default function ExecutionPage({ params }: { params: Promise<{ id: string
           </div>
           <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
             {redFlags > 0 && (
-              <div style={{ fontSize: '12px', fontWeight: 800, color: '#DC2626', background: '#DC262618', padding: '6px 14px', borderRadius: '8px' }}>
+              <div style={{ fontSize: '12px', fontWeight: 800, color: 'var(--red)', background: 'var(--red-light)', padding: '6px 14px', borderRadius: '8px' }}>
                 ⚠ {redFlags} Red Flag{redFlags > 1 ? 's' : ''}
               </div>
             )}
@@ -625,7 +659,7 @@ export default function ExecutionPage({ params }: { params: Promise<{ id: string
                 setBulkReason('')
                 setConfigModal(true)
               }}
-              style={{ padding: '8px 16px', borderRadius: '10px', background: config ? SURFACE : ACCENT, color: config ? DARK : DARK, fontSize: '12px', fontWeight: 700, border: `1px solid ${BORDER}`, cursor: 'pointer', fontFamily: 'inherit' }}>
+              style={{ padding: '8px 16px', borderRadius: '10px', background: config ? SURFACE : ACCENT, color: config ? DARK : 'var(--lime-dark)', fontSize: '12px', fontWeight: 700, border: `1px solid ${BORDER}`, cursor: 'pointer', fontFamily: 'inherit' }}>
               {config ? 'Edit Timelines' : 'Set Up Execution'}
             </button>
           </div>
@@ -636,14 +670,14 @@ export default function ExecutionPage({ params }: { params: Promise<{ id: string
 
         {/* COO Config Banner — shown when not yet configured */}
         {!config && (
-          <div style={{ background: '#7C3AED18', border: `1px solid #7C3AED40`, borderRadius: '12px', padding: '20px 24px', marginBottom: '24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '16px' }}>
+          <div style={{ background: 'var(--purple-light)', border: `1.5px solid var(--purple-border)`, borderRadius: '12px', padding: '20px 24px', marginBottom: '24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '16px' }}>
             <div>
-              <div style={{ fontSize: '14px', fontWeight: 800, color: '#7C3AED', marginBottom: '4px' }}>COO Execution Setup Required</div>
+              <div style={{ fontSize: '14px', fontWeight: 800, color: 'var(--purple)', marginBottom: '4px' }}>COO Execution Setup Required</div>
               <div style={{ fontSize: '13px', color: MUTED }}>Set the total event cycle duration and start date. This calculates all milestone and deadline dates across the 5 phases. All fixed-duration, cycle-dependent, and pre-event deadline items will be dated automatically.</div>
             </div>
             <button
               onClick={() => setConfigModal(true)}
-              style={{ padding: '10px 22px', borderRadius: '10px', background: '#7C3AED', color: '#fff', fontSize: '13px', fontWeight: 700, border: 'none', cursor: 'pointer', whiteSpace: 'nowrap', fontFamily: 'inherit' }}>
+              style={{ padding: '10px 22px', borderRadius: '10px', background: 'var(--purple)', color: 'var(--purple-light)', fontSize: '13px', fontWeight: 700, border: 'none', cursor: 'pointer', whiteSpace: 'nowrap', fontFamily: 'inherit' }}>
               Configure Now
             </button>
           </div>
@@ -653,18 +687,23 @@ export default function ExecutionPage({ params }: { params: Promise<{ id: string
         {config && (
           <div style={{ background: SURFACE, border: `1px solid ${BORDER}`, borderRadius: '10px', padding: '12px 20px', marginBottom: '20px', display: 'flex', gap: '24px', flexWrap: 'wrap', alignItems: 'center' }}>
             <div style={{ fontSize: '11px', color: MUTED, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '1px' }}>Execution Config</div>
-            <div style={{ fontSize: '13px', fontWeight: 700, color: DARK }}>Cycle Start: <span style={{ color: '#6366F1' }}>{fmtDate(config.cycle_start_date)}</span></div>
-            <div style={{ fontSize: '13px', fontWeight: 700, color: DARK }}>Cycle Duration: <span style={{ color: '#6366F1' }}>{config.total_cycle_days} days</span></div>
-            {event?.event_date && <div style={{ fontSize: '13px', fontWeight: 700, color: DARK }}>Event Date: <span style={{ color: '#10B981' }}>{fmtDate(event.event_date)}</span></div>}
+            <div style={{ fontSize: '13px', fontWeight: 700, color: DARK }}>Cycle Start: <span style={{ color: 'var(--indigo)' }}>{fmtDate(config.cycle_start_date)}</span></div>
+            <div style={{ fontSize: '13px', fontWeight: 700, color: DARK }}>Cycle Duration: <span style={{ color: 'var(--indigo)' }}>{config.total_cycle_days} days</span></div>
+            {event?.event_date && <div style={{ fontSize: '13px', fontWeight: 700, color: DARK }}>Event Date: <span style={{ color: 'var(--success)' }}>{fmtDate(event.event_date)}</span></div>}
             <div style={{ fontSize: '11px', color: MUTED }}>Configured {fmtDate(config.configured_at.slice(0,10))}</div>
           </div>
         )}
 
         {/* RACI Legend */}
         <div style={{ display: 'flex', gap: '12px', marginBottom: '20px', flexWrap: 'wrap', alignItems: 'center' }}>
-          {[['R','#DC2626','Responsible'],['A','#D97706','Accountable'],['C','#2563EB','Consulted'],['I','#94A3B8','Informed']].map(([t,c,l]) => (
+          {[
+            { t: 'R', bg: 'var(--red)',   text: 'var(--red-light)',   l: 'Responsible' },
+            { t: 'A', bg: 'var(--amber)', text: 'var(--amber-light)', l: 'Accountable' },
+            { t: 'C', bg: 'var(--info)',  text: 'var(--info-light)',  l: 'Consulted' },
+            { t: 'I', bg: 'var(--ink4)',  text: 'var(--surface)',     l: 'Informed' }, // ink4 has no "-light" pairing; falls back to var(--surface)
+          ].map(({ t, bg, text, l }) => (
             <div key={t} style={{ display: 'flex', alignItems: 'center', gap: '5px', fontSize: '11px', color: MUTED, fontWeight: 600 }}>
-              <span style={{ width: '18px', height: '18px', borderRadius: '4px', background: c as string, color: '#fff', fontSize: '10px', fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{t}</span>
+              <span style={{ width: '18px', height: '18px', borderRadius: '4px', background: bg, color: text, fontSize: '10px', fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{t}</span>
               {l}
             </div>
           ))}
@@ -682,7 +721,7 @@ export default function ExecutionPage({ params }: { params: Promise<{ id: string
                 display: 'flex', alignItems: 'center', gap: '8px',
                 padding: '10px 18px', borderRadius: '10px',
                 background: phase === pt.id ? pt.color : SURFACE,
-                color: phase === pt.id ? '#fff' : DARK,
+                color: phase === pt.id ? pt.solidText : DARK,
                 border: `2px solid ${phase === pt.id ? pt.color : BORDER}`,
                 fontSize: '13px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit',
                 transition: 'all 0.15s',
@@ -690,12 +729,12 @@ export default function ExecutionPage({ params }: { params: Promise<{ id: string
               <span style={{ fontSize: '10px', fontWeight: 800, opacity: 0.7 }}>Phase {pt.id}</span>
               {pt.label}
               {pt.flags > 0 && (
-                <span style={{ background: '#DC2626', color: '#fff', borderRadius: '8px', fontSize: '10px', fontWeight: 800, padding: '1px 5px' }}>{pt.flags}</span>
+                <span style={{ background: 'var(--red)', color: 'var(--red-light)', borderRadius: '8px', fontSize: '10px', fontWeight: 800, padding: '1px 5px' }}>{pt.flags}</span>
               )}
               <span style={{
                 fontSize: '10px', fontWeight: 700,
                 background: phase === pt.id ? 'rgba(255,255,255,0.3)' : BG,
-                color: phase === pt.id ? '#fff' : MUTED,
+                color: phase === pt.id ? pt.solidText : MUTED,
                 borderRadius: '6px', padding: '1px 6px'
               }}>{pt.done}/{pt.total}</span>
             </button>
@@ -729,7 +768,7 @@ export default function ExecutionPage({ params }: { params: Promise<{ id: string
               </div>
             )}
             {phaseCheckpoints.map(cp => (
-              <CheckpointRow key={cp.id} cp={cp} doneNames={doneNames} onAction={handleAction} phaseColor={PHASE_COLORS[phase-1]} />
+              <CheckpointRow key={cp.id} cp={cp} doneNames={doneNames} onAction={handleAction} phaseColor={PHASE_COLORS[phase-1].color} />
             ))}
           </>
         )}
@@ -758,13 +797,13 @@ export default function ExecutionPage({ params }: { params: Promise<{ id: string
                   placeholder="Add notes about this completion…"
                   style={{ width: '100%', padding: '10px 12px', borderRadius: '8px', border: `1px solid ${BORDER}`, fontSize: '13px', fontFamily: 'inherit', outline: 'none', resize: 'vertical', boxSizing: 'border-box' }} />
                 {updateModal.approval_required && newStatus === 'complete' && (
-                  <div style={{ marginTop: '12px', padding: '10px 14px', borderRadius: '8px', background: '#7C3AED18', border: '1px solid #7C3AED30', fontSize: '12px', color: '#7C3AED', fontWeight: 600 }}>
+                  <div style={{ marginTop: '12px', padding: '10px 14px', borderRadius: '8px', background: 'var(--purple-light)', border: '1px solid var(--purple-border)', fontSize: '12px', color: 'var(--purple)', fontWeight: 600 }}>
                     This checkpoint requires formal approval. After saving, use "Submit for Approval" to trigger the approval workflow.
                   </div>
                 )}
                 <div style={{ display: 'flex', gap: '10px', marginTop: '20px' }}>
                   <button onClick={submitUpdate} disabled={saving}
-                    style={{ flex: 1, padding: '11px', borderRadius: '10px', background: ACCENT, color: DARK, fontSize: '13px', fontWeight: 700, border: 'none', cursor: 'pointer', fontFamily: 'inherit', opacity: saving ? 0.6 : 1 }}>
+                    style={{ flex: 1, padding: '11px', borderRadius: '10px', background: ACCENT, color: 'var(--lime-dark)', fontSize: '13px', fontWeight: 700, border: 'none', cursor: 'pointer', fontFamily: 'inherit', opacity: saving ? 0.6 : 1 }}>
                     {saving ? 'Saving…' : 'Save'}
                   </button>
                   <button onClick={() => setUpdateModal(null)}
@@ -793,7 +832,7 @@ export default function ExecutionPage({ params }: { params: Promise<{ id: string
                     <div style={{ display: 'flex', gap: '8px', marginBottom: '16px' }}>
                       {(['approved','rejected'] as const).map(d => (
                         <button key={d} onClick={() => setAprDecision(d)}
-                          style={{ flex: 1, padding: '10px', borderRadius: '8px', background: aprDecision === d ? (d === 'approved' ? '#059669' : '#DC2626') : BG, color: aprDecision === d ? '#fff' : MUTED, fontSize: '13px', fontWeight: 700, border: `1px solid ${BORDER}`, cursor: 'pointer', fontFamily: 'inherit' }}>
+                          style={{ flex: 1, padding: '10px', borderRadius: '8px', background: aprDecision === d ? (d === 'approved' ? 'var(--teal)' : 'var(--red)') : BG, color: aprDecision === d ? (d === 'approved' ? 'var(--teal-light)' : 'var(--red-light)') : MUTED, fontSize: '13px', fontWeight: 700, border: `1px solid ${BORDER}`, cursor: 'pointer', fontFamily: 'inherit' }}>
                           {d === 'approved' ? 'Approve' : 'Reject'}
                         </button>
                       ))}
@@ -811,13 +850,13 @@ export default function ExecutionPage({ params }: { params: Promise<{ id: string
                   </>
                 )}
                 {approveModal.status !== 'pending_approval' && (
-                  <div style={{ padding: '14px', borderRadius: '10px', background: '#7C3AED10', border: '1px solid #7C3AED30', fontSize: '13px', color: MUTED, marginBottom: '16px' }}>
+                  <div style={{ padding: '14px', borderRadius: '10px', background: 'var(--purple-light)', border: '1px solid var(--purple-border)', fontSize: '13px', color: MUTED, marginBottom: '16px' }}>
                     This will submit the checkpoint to the approval queue. Approvers: <strong>{approveModal.approver_roles.join(', ')}</strong>.
                   </div>
                 )}
                 <div style={{ display: 'flex', gap: '10px', marginTop: '20px' }}>
                   <button onClick={submitApproval} disabled={saving}
-                    style={{ flex: 1, padding: '11px', borderRadius: '10px', background: '#7C3AED', color: '#fff', fontSize: '13px', fontWeight: 700, border: 'none', cursor: 'pointer', fontFamily: 'inherit', opacity: saving ? 0.6 : 1 }}>
+                    style={{ flex: 1, padding: '11px', borderRadius: '10px', background: 'var(--purple)', color: 'var(--purple-light)', fontSize: '13px', fontWeight: 700, border: 'none', cursor: 'pointer', fontFamily: 'inherit', opacity: saving ? 0.6 : 1 }}>
                     {saving ? 'Saving…' : approveModal.status === 'pending_approval' ? 'Submit Decision' : 'Submit for Approval'}
                   </button>
                   <button onClick={() => setApproveModal(null)}
@@ -833,7 +872,7 @@ export default function ExecutionPage({ params }: { params: Promise<{ id: string
               <>
                 <div style={{ fontSize: '16px', fontWeight: 800, color: DARK, marginBottom: '4px' }}>COO Override</div>
                 <div style={{ fontSize: '13px', color: MUTED, marginBottom: '4px' }}>{overrideModal.name}</div>
-                <div style={{ fontSize: '12px', color: '#D97706', marginBottom: '20px', fontWeight: 600 }}>All overrides are logged with a mandatory reason for audit purposes.</div>
+                <div style={{ fontSize: '12px', color: '#F5B94D', marginBottom: '20px', fontWeight: 600 }}>All overrides are logged with a mandatory reason for audit purposes.</div>
                 <label style={{ fontSize: '11px', fontWeight: 700, color: MUTED, textTransform: 'uppercase', letterSpacing: '1px', display: 'block', marginBottom: '6px' }}>Override Field</label>
                 <select value={ovrField} onChange={e => setOvrField(e.target.value)}
                   style={{ width: '100%', padding: '10px 12px', borderRadius: '8px', border: `1px solid ${BORDER}`, fontSize: '13px', marginBottom: '16px', fontFamily: 'inherit', outline: 'none' }}>
@@ -842,13 +881,13 @@ export default function ExecutionPage({ params }: { params: Promise<{ id: string
                 <label style={{ fontSize: '11px', fontWeight: 700, color: MUTED, textTransform: 'uppercase', letterSpacing: '1px', display: 'block', marginBottom: '6px' }}>New Value</label>
                 <input type="date" value={ovrValue} onChange={e => setOvrValue(e.target.value)}
                   style={{ width: '100%', padding: '10px 12px', borderRadius: '8px', border: `1px solid ${BORDER}`, fontSize: '13px', marginBottom: '16px', fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box' }} />
-                <label style={{ fontSize: '11px', fontWeight: 700, color: '#D97706', textTransform: 'uppercase', letterSpacing: '1px', display: 'block', marginBottom: '6px' }}>Reason * (required)</label>
+                <label style={{ fontSize: '11px', fontWeight: 700, color: '#F5B94D', textTransform: 'uppercase', letterSpacing: '1px', display: 'block', marginBottom: '6px' }}>Reason * (required)</label>
                 <textarea value={ovrReason} onChange={e => setOvrReason(e.target.value)} rows={3}
                   placeholder="Explain why this override is necessary…"
-                  style={{ width: '100%', padding: '10px 12px', borderRadius: '8px', border: `1px solid ${ovrReason.trim() ? BORDER : '#D97706'}`, fontSize: '13px', fontFamily: 'inherit', outline: 'none', resize: 'vertical', boxSizing: 'border-box' }} />
+                  style={{ width: '100%', padding: '10px 12px', borderRadius: '8px', border: `1px solid ${ovrReason.trim() ? BORDER : '#F5B94D'}`, fontSize: '13px', fontFamily: 'inherit', outline: 'none', resize: 'vertical', boxSizing: 'border-box' }} />
                 <div style={{ display: 'flex', gap: '10px', marginTop: '20px' }}>
                   <button onClick={submitOverride} disabled={saving || !ovrReason.trim()}
-                    style={{ flex: 1, padding: '11px', borderRadius: '10px', background: '#D97706', color: '#fff', fontSize: '13px', fontWeight: 700, border: 'none', cursor: ovrReason.trim() ? 'pointer' : 'not-allowed', fontFamily: 'inherit', opacity: (saving || !ovrReason.trim()) ? 0.6 : 1 }}>
+                    style={{ flex: 1, padding: '11px', borderRadius: '10px', background: '#F5B94D', color: 'var(--amber-light)', fontSize: '13px', fontWeight: 700, border: 'none', cursor: ovrReason.trim() ? 'pointer' : 'not-allowed', fontFamily: 'inherit', opacity: (saving || !ovrReason.trim()) ? 0.6 : 1 }}>
                     {saving ? 'Saving…' : 'Apply Override'}
                   </button>
                   <button onClick={() => setOverrideModal(null)}
@@ -865,7 +904,7 @@ export default function ExecutionPage({ params }: { params: Promise<{ id: string
               const byPhase = [1,2,3,4,5].map(p => ({
                 phase: p,
                 label: phaseLabels[p-1],
-                color: PHASE_COLORS[p-1],
+                color: PHASE_COLORS[p-1].color,
                 items: checkpoints.filter(c => c.phase === p).sort((a,b) => a.sort_order - b.sort_order),
               })).filter(g => g.items.length > 0)
               const changedCount = checkpoints.filter(cp =>
@@ -882,8 +921,8 @@ export default function ExecutionPage({ params }: { params: Promise<{ id: string
                   </div>
 
                   {/* ── Section 1: Cycle Config ── */}
-                  <div style={{ background: '#6366F108', border: '1px solid #6366F130', borderRadius: '12px', padding: '16px 20px', marginBottom: '24px' }}>
-                    <div style={{ fontSize: '11px', fontWeight: 800, color: '#6366F1', letterSpacing: '1.5px', textTransform: 'uppercase', marginBottom: '14px' }}>Cycle Configuration</div>
+                  <div style={{ background: 'var(--indigo-light)', border: '1px solid var(--indigo-border)', borderRadius: '12px', padding: '16px 20px', marginBottom: '24px' }}>
+                    <div style={{ fontSize: '11px', fontWeight: 800, color: 'var(--indigo)', letterSpacing: '1.5px', textTransform: 'uppercase', marginBottom: '14px' }}>Cycle Configuration</div>
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px' }}>
                       <div>
                         <label style={{ fontSize: '11px', fontWeight: 700, color: MUTED, textTransform: 'uppercase', letterSpacing: '1px', display: 'block', marginBottom: '6px' }}>Cycle Start Date</label>
@@ -898,7 +937,7 @@ export default function ExecutionPage({ params }: { params: Promise<{ id: string
                       </div>
                     </div>
                     {config && (
-                      <div style={{ marginTop: '10px', fontSize: '11px', color: '#D97706', fontWeight: 600 }}>
+                      <div style={{ marginTop: '10px', fontSize: '11px', color: '#F5B94D', fontWeight: 600 }}>
                         Updating cycle config recalculates all un-overridden dates. Manual overrides below are preserved.
                       </div>
                     )}
@@ -906,7 +945,7 @@ export default function ExecutionPage({ params }: { params: Promise<{ id: string
 
                   {/* ── Section 2: All checkpoint due dates ── */}
                   <div style={{ fontSize: '11px', fontWeight: 800, color: MUTED, letterSpacing: '1.5px', textTransform: 'uppercase', marginBottom: '12px' }}>
-                    Due Dates — All Checkpoints {changedCount > 0 && <span style={{ color: '#D97706', marginLeft: '8px' }}>{changedCount} changed</span>}
+                    Due Dates — All Checkpoints {changedCount > 0 && <span style={{ color: '#F5B94D', marginLeft: '8px' }}>{changedCount} changed</span>}
                   </div>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', marginBottom: '24px' }}>
                     {byPhase.map(grp => (
@@ -927,17 +966,17 @@ export default function ExecutionPage({ params }: { params: Promise<{ id: string
                               ? `${cp.cycle_milestone_pct}% into cycle`
                               : null
                             return (
-                              <div key={cp.id} style={{ display: 'grid', gridTemplateColumns: '1fr 160px', gap: '10px', alignItems: 'center', padding: '7px 10px', borderRadius: '8px', background: edited ? '#D9770608' : 'transparent', border: `1px solid ${edited ? '#D9770630' : 'transparent'}` }}>
+                              <div key={cp.id} style={{ display: 'grid', gridTemplateColumns: '1fr 160px', gap: '10px', alignItems: 'center', padding: '7px 10px', borderRadius: '8px', background: edited ? 'var(--amber-light)' : 'transparent', border: `1px solid ${edited ? 'var(--amber-border)' : 'transparent'}` }}>
                                 <div style={{ lineHeight: 1.4 }}>
                                   <div style={{ fontSize: '12px', color: DARK, fontWeight: edited ? 700 : 500 }}>
                                     {cp.name}
-                                    {edited && <span style={{ marginLeft: '6px', fontSize: '10px', color: '#D97706', fontWeight: 800 }}>edited</span>}
+                                    {edited && <span style={{ marginLeft: '6px', fontSize: '10px', color: '#F5B94D', fontWeight: 800 }}>edited</span>}
                                   </div>
                                   {durationLabel && <div style={{ fontSize: '10px', color: MUTED, marginTop: '2px' }}>{durationLabel}</div>}
                                 </div>
                                 <input type="date" value={timelineEdits[cp.id] ?? cp.due_date ?? ''}
                                   onChange={e => setTimelineEdits(prev => ({ ...prev, [cp.id]: e.target.value }))}
-                                  style={{ padding: '6px 8px', borderRadius: '7px', border: `1px solid ${edited ? '#D97706' : BORDER}`, fontSize: '12px', fontFamily: 'inherit', outline: 'none', color: DARK, background: SURFACE }} />
+                                  style={{ padding: '6px 8px', borderRadius: '7px', border: `1px solid ${edited ? '#F5B94D' : BORDER}`, fontSize: '12px', fontFamily: 'inherit', outline: 'none', color: DARK, background: SURFACE }} />
                               </div>
                             )
                           })}
@@ -949,18 +988,18 @@ export default function ExecutionPage({ params }: { params: Promise<{ id: string
                   {/* Reason — required if any dates changed */}
                   {changedCount > 0 && (
                     <div style={{ marginBottom: '16px' }}>
-                      <label style={{ fontSize: '11px', fontWeight: 700, color: '#D97706', textTransform: 'uppercase', letterSpacing: '1px', display: 'block', marginBottom: '6px' }}>
+                      <label style={{ fontSize: '11px', fontWeight: 700, color: '#F5B94D', textTransform: 'uppercase', letterSpacing: '1px', display: 'block', marginBottom: '6px' }}>
                         Reason for changes * (required)
                       </label>
                       <textarea value={bulkReason} onChange={e => setBulkReason(e.target.value)} rows={2}
                         placeholder="Why are these dates being adjusted? This is logged against each override for audit."
-                        style={{ width: '100%', padding: '9px 12px', borderRadius: '8px', border: `1px solid ${bulkReason.trim() ? BORDER : '#D97706'}`, fontSize: '13px', fontFamily: 'inherit', outline: 'none', resize: 'vertical', boxSizing: 'border-box' }} />
+                        style={{ width: '100%', padding: '9px 12px', borderRadius: '8px', border: `1px solid ${bulkReason.trim() ? BORDER : '#F5B94D'}`, fontSize: '13px', fontFamily: 'inherit', outline: 'none', resize: 'vertical', boxSizing: 'border-box' }} />
                     </div>
                   )}
 
                   <div style={{ display: 'flex', gap: '10px' }}>
                     <button onClick={submitConfig} disabled={saving || !cfgDays || !cfgStart || (changedCount > 0 && !bulkReason.trim())}
-                      style={{ flex: 1, padding: '11px', borderRadius: '10px', background: ACCENT, color: DARK, fontSize: '13px', fontWeight: 700, border: 'none', cursor: (saving || !cfgDays || !cfgStart || (changedCount > 0 && !bulkReason.trim())) ? 'not-allowed' : 'pointer', fontFamily: 'inherit', opacity: (saving || !cfgDays || !cfgStart || (changedCount > 0 && !bulkReason.trim())) ? 0.6 : 1 }}>
+                      style={{ flex: 1, padding: '11px', borderRadius: '10px', background: ACCENT, color: 'var(--lime-dark)', fontSize: '13px', fontWeight: 700, border: 'none', cursor: (saving || !cfgDays || !cfgStart || (changedCount > 0 && !bulkReason.trim())) ? 'not-allowed' : 'pointer', fontFamily: 'inherit', opacity: (saving || !cfgDays || !cfgStart || (changedCount > 0 && !bulkReason.trim())) ? 0.6 : 1 }}>
                       {saving ? 'Saving…' : `Save${changedCount > 0 ? ` (${changedCount} date change${changedCount !== 1 ? 's' : ''})` : ''}`}
                     </button>
                     <button onClick={() => setConfigModal(false)}

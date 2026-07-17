@@ -50,6 +50,11 @@ function buildToolsFromRegistry(): Tool[] {
     })
 }
 
+// The 3 event-scoped tools whose "who can use this at all" access is managed
+// globally, not per-event — see app/admin/toolkit/settings/event-tools/page.tsx.
+// Shown as a small settings-gear link in the detail panel header below.
+const EVENT_TOOL_SETTINGS_IDS = new Set(['website-builder', 'market-intel', 'brand-studio'])
+
 const CATEGORIES = [
   { id: 'Knowledge',  label: 'Knowledge' },
   { id: 'Events',     label: 'Event Tools' },
@@ -108,24 +113,24 @@ function EventPicker({ tool, events, onClose }: { tool: Tool; events: Event[]; o
 
   return (
     <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '24px' }} onClick={onClose}>
-      <div style={{ background: '#fff', borderRadius: '20px', padding: '32px', width: '100%', maxWidth: '480px', maxHeight: '80vh', display: 'flex', flexDirection: 'column', boxShadow: '0 24px 64px rgba(0,0,0,0.18)' }} onClick={e => e.stopPropagation()}>
+      <div style={{ background: 'var(--card)', borderRadius: '20px', padding: '32px', width: '100%', maxWidth: '480px', maxHeight: '80vh', display: 'flex', flexDirection: 'column', boxShadow: '0 24px 64px rgba(0,0,0,0.18)' }} onClick={e => e.stopPropagation()}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
           <div>
-            <div style={{ fontSize: '16px', fontWeight: 900, color: '#0F1923' }}>Select an event</div>
-            <div style={{ fontSize: '13px', color: '#5B7080', marginTop: '3px' }}>Opening: {tool.label}</div>
+            <div style={{ fontSize: '16px', fontWeight: 900, color: 'var(--ink)' }}>Select an event</div>
+            <div style={{ fontSize: '13px', color: 'var(--ink3)', marginTop: '3px' }}>Opening: {tool.label}</div>
           </div>
-          <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#5B7080', fontSize: '20px', lineHeight: 1 }}>×</button>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--ink3)', fontSize: '20px', lineHeight: 1 }}>×</button>
         </div>
         <div style={{ position: 'relative', marginBottom: '16px' }}>
-          <svg width="14" height="14" fill="none" stroke="#5B7080" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24" style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none' }}><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+          <svg width="14" height="14" fill="none" stroke="var(--ink3)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24" style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none' }}><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
           <input autoFocus value={query} onChange={e => setQuery(e.target.value)} placeholder="Search events…"
-            style={{ width: '100%', padding: '10px 12px 10px 34px', borderRadius: '10px', border: '1px solid #DDE8EE', fontSize: '13px', fontFamily: 'inherit', color: '#0F1923', boxSizing: 'border-box', outline: 'none' }} />
+            style={{ width: '100%', padding: '10px 12px 10px 34px', borderRadius: '10px', border: '1px solid var(--border)', fontSize: '13px', fontFamily: 'inherit', color: 'var(--ink)', boxSizing: 'border-box', outline: 'none' }} />
         </div>
         <div style={{ overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '8px' }}>
           {/* Recent / In-Progress Projects */}
           {recentEvents.length > 0 && !query.trim() && (
             <>
-              <div style={{ fontSize: '10px', fontWeight: 800, letterSpacing: '1.5px', textTransform: 'uppercase', color: '#00A5A3', padding: '4px 4px 0' }}>
+              <div style={{ fontSize: '10px', fontWeight: 800, letterSpacing: '1.5px', textTransform: 'uppercase', color: 'var(--teal-mid)', padding: '4px 4px 0' }}>
                 Your Recent Projects
               </div>
               {recentEvents.map(ev => (
@@ -133,17 +138,17 @@ function EventPicker({ tool, events, onClose }: { tool: Tool; events: Event[]; o
                   onMouseEnter={e => { (e.currentTarget as HTMLElement).style.borderColor = tool.accent; (e.currentTarget as HTMLElement).style.background = `${tool.accent}12` }}
                   onMouseLeave={e => { (e.currentTarget as HTMLElement).style.borderColor = `${tool.accent}30`; (e.currentTarget as HTMLElement).style.background = `${tool.accent}06` }}>
                   <div>
-                    <div style={{ fontSize: '14px', fontWeight: 700, color: '#0F1923', marginBottom: '3px' }}>{ev.name}</div>
-                    <div style={{ fontSize: '12px', color: '#5B7080', display: 'flex', gap: '10px' }}>
+                    <div style={{ fontSize: '14px', fontWeight: 700, color: 'var(--ink)', marginBottom: '3px' }}>{ev.name}</div>
+                    <div style={{ fontSize: '12px', color: 'var(--ink3)', display: 'flex', gap: '10px' }}>
                       {ev.city && <span>{ev.city}</span>}
-                      <span style={{ padding: '1px 7px', borderRadius: '8px', background: 'rgba(0,165,163,0.12)', color: '#00897B', fontWeight: 700 }}>In Progress</span>
+                      <span style={{ padding: '1px 7px', borderRadius: '8px', background: 'color-mix(in srgb, var(--teal-mid) 12%, transparent)', color: 'var(--teal-mid)', fontWeight: 700 }}>In Progress</span>
                     </div>
                   </div>
                   <svg width="14" height="14" fill="none" stroke={tool.accent} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg>
                 </Link>
               ))}
               {otherEvents.length > 0 && (
-                <div style={{ fontSize: '10px', fontWeight: 800, letterSpacing: '1.5px', textTransform: 'uppercase', color: '#8CA0B3', padding: '8px 4px 0' }}>
+                <div style={{ fontSize: '10px', fontWeight: 800, letterSpacing: '1.5px', textTransform: 'uppercase', color: 'var(--ink4)', padding: '8px 4px 0' }}>
                   All Events
                 </div>
               )}
@@ -152,24 +157,24 @@ function EventPicker({ tool, events, onClose }: { tool: Tool; events: Event[]; o
           {tool.id === 'market-intel' && (
             <Link href={tool.route!('__general__')} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 16px', borderRadius: '12px', border: `1.5px solid ${tool.accent}40`, background: `${tool.accent}08`, textDecoration: 'none', marginBottom: '4px' }}>
               <div>
-                <div style={{ fontSize: '14px', fontWeight: 800, color: '#0F1923', marginBottom: '3px' }}>General Research</div>
-                <div style={{ fontSize: '12px', color: '#5B7080' }}>Research without linking to a specific event</div>
+                <div style={{ fontSize: '14px', fontWeight: 800, color: 'var(--ink)', marginBottom: '3px' }}>General Research</div>
+                <div style={{ fontSize: '12px', color: 'var(--ink3)' }}>Research without linking to a specific event</div>
               </div>
               <svg width="14" height="14" fill="none" stroke={tool.accent} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg>
             </Link>
           )}
           {(query.trim() ? filtered : otherEvents).length === 0 && recentEvents.length === 0
-            ? <div style={{ padding: '32px', textAlign: 'center', color: '#5B7080', fontSize: '14px' }}>No events match &ldquo;{query}&rdquo;.</div>
+            ? <div style={{ padding: '32px', textAlign: 'center', color: 'var(--ink3)', fontSize: '14px' }}>No events match &ldquo;{query}&rdquo;.</div>
             : (query.trim() ? filtered : otherEvents).map(ev => (
-              <Link key={ev.id} href={tool.route!(ev.id)} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 16px', borderRadius: '12px', border: '1px solid #DDE8EE', background: '#FAFBFC', textDecoration: 'none', transition: 'all 0.15s' }}
+              <Link key={ev.id} href={tool.route!(ev.id)} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 16px', borderRadius: '12px', border: '1px solid var(--border)', background: 'var(--card-hi)', textDecoration: 'none', transition: 'all 0.15s' }}
                 onMouseEnter={e => { (e.currentTarget as HTMLElement).style.borderColor = tool.accent; (e.currentTarget as HTMLElement).style.background = `${tool.accent}08` }}
-                onMouseLeave={e => { (e.currentTarget as HTMLElement).style.borderColor = '#DDE8EE'; (e.currentTarget as HTMLElement).style.background = '#FAFBFC' }}>
+                onMouseLeave={e => { (e.currentTarget as HTMLElement).style.borderColor = 'var(--border)'; (e.currentTarget as HTMLElement).style.background = 'var(--card-hi)' }}>
                 <div>
-                  <div style={{ fontSize: '14px', fontWeight: 700, color: '#0F1923', marginBottom: '3px' }}>{ev.name}</div>
-                  <div style={{ fontSize: '12px', color: '#5B7080', display: 'flex', gap: '10px' }}>
+                  <div style={{ fontSize: '14px', fontWeight: 700, color: 'var(--ink)', marginBottom: '3px' }}>{ev.name}</div>
+                  <div style={{ fontSize: '12px', color: 'var(--ink3)', display: 'flex', gap: '10px' }}>
                     {ev.city && <span>{ev.city}</span>}
                     {ev.event_date && <span>{new Date(ev.event_date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}</span>}
-                    <span style={{ padding: '1px 7px', borderRadius: '8px', background: ev.status === 'active' ? 'rgba(192,244,60,0.15)' : '#E8EEF4', color: ev.status === 'active' ? '#3D6B00' : '#5B7080', fontWeight: 700 }}>{ev.status}</span>
+                    <span style={{ padding: '1px 7px', borderRadius: '8px', background: ev.status === 'active' ? 'color-mix(in srgb, var(--lime) 15%, transparent)' : 'var(--surface)', color: ev.status === 'active' ? 'var(--lime-dark)' : 'var(--ink3)', fontWeight: 700 }}>{ev.status}</span>
                   </div>
                 </div>
                 <svg width="14" height="14" fill="none" stroke={tool.accent} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg>
@@ -208,26 +213,26 @@ export default function ToolkitPage() {
   const tool = visibleTools.find(t => t.id === activeId) ?? visibleTools[0] ?? allTools[0]
 
   if (checking) return (
-    <div style={{ height: '100vh', background: '#E8EEF4', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'var(--font-manrope), Manrope, sans-serif' }}>
-      <span style={{ fontSize: '14px', color: '#5B7080' }}>Checking access…</span>
+    <div style={{ height: '100vh', background: 'var(--surface)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'var(--font-manrope), Manrope, sans-serif' }}>
+      <span style={{ fontSize: '14px', color: 'var(--ink3)' }}>Checking access…</span>
     </div>
   )
 
   if (!allowed) return (
-    <div style={{ height: '100vh', background: '#E8EEF4', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'var(--font-manrope), Manrope, sans-serif', padding: '24px' }}>
+    <div style={{ height: '100vh', background: 'var(--surface)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'var(--font-manrope), Manrope, sans-serif', padding: '24px' }}>
       <div style={{ maxWidth: '400px', textAlign: 'center' }}>
-        <div style={{ width: '52px', height: '52px', borderRadius: '14px', background: '#FFF1F2', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 20px' }}>
-          <svg width="22" height="22" fill="none" stroke="#DC2626" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+        <div style={{ width: '52px', height: '52px', borderRadius: '14px', background: 'var(--red-light)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 20px' }}>
+          <svg width="22" height="22" fill="none" stroke="var(--danger)" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
         </div>
-        <div style={{ fontSize: '20px', fontWeight: 800, color: '#0F1923', marginBottom: '10px' }}>Access Restricted</div>
-        <div style={{ fontSize: '15px', color: '#5B7080', lineHeight: 1.6, marginBottom: '28px' }}>The Toolkit is available to authorised team members only.</div>
-        <Link href="/admin" style={{ display: 'inline-block', padding: '12px 28px', borderRadius: '10px', background: '#00897B', color: '#fff', fontSize: '14px', fontWeight: 700, textDecoration: 'none' }}>Back to Admin</Link>
+        <div style={{ fontSize: '20px', fontWeight: 800, color: 'var(--ink)', marginBottom: '10px' }}>Access Restricted</div>
+        <div style={{ fontSize: '15px', color: 'var(--ink3)', lineHeight: 1.6, marginBottom: '28px' }}>The Toolkit is available to authorised team members only.</div>
+        <Link href="/admin" style={{ display: 'inline-block', padding: '12px 28px', borderRadius: '10px', background: 'var(--teal-mid)', color: 'var(--teal-light)', fontSize: '14px', fontWeight: 700, textDecoration: 'none' }}>Back to Admin</Link>
       </div>
     </div>
   )
 
   return (
-    <div style={{ height: '100vh', display: 'flex', fontFamily: 'var(--font-manrope), Manrope, sans-serif', background: '#E8EEF4', overflow: 'hidden' }}>
+    <div style={{ height: '100vh', display: 'flex', fontFamily: 'var(--font-manrope), Manrope, sans-serif', background: 'var(--surface)', overflow: 'hidden' }}>
 
       {/* ── Left sidebar ─────────────────────────────────────────────── */}
       <div style={{ width: '260px', flexShrink: 0, background: 'var(--sidebar-bg)', borderRight: '1px solid var(--border-light)', display: 'flex', flexDirection: 'column', overflowY: 'auto' }}>
@@ -238,7 +243,7 @@ export default function ToolkitPage() {
             const catTools = visibleTools.filter(t => t.category === cat.id)
             if (catTools.length === 0) return null
             const expanded = expandedCats.has(cat.id)
-            const catAccent = catTools[0]?.accent ?? '#5B7080'
+            const catAccent = catTools[0]?.accent ?? 'var(--ink3)'
             const hasActive = catTools.some(t => t.id === activeId)
             return (
               <div key={cat.id} style={{ marginBottom: '2px' }}>
@@ -293,10 +298,10 @@ export default function ToolkitPage() {
 
         {/* ── Right detail panel ────────────────────────────────────────── */}
         <div style={{ flex: 1, overflow: 'hidden', padding: '32px 40px', display: 'flex', alignItems: 'stretch' }}>
-          <div style={{ flex: 1, background: '#fff', borderRadius: '20px', border: '1px solid #DDE8EE', display: 'flex', flexDirection: 'column', overflow: 'hidden', boxShadow: '0 2px 16px rgba(0,0,0,0.04)' }}>
+          <div style={{ flex: 1, background: 'var(--card)', borderRadius: '20px', border: '1px solid var(--border)', display: 'flex', flexDirection: 'column', overflow: 'hidden', boxShadow: '0 2px 16px rgba(0,0,0,0.04)' }}>
 
             {/* Panel header */}
-            <div style={{ padding: '32px 36px 24px', borderBottom: '1px solid #EEF3F7' }}>
+            <div style={{ padding: '32px 36px 24px', borderBottom: '1px solid var(--border-light)' }}>
               <div style={{ display: 'flex', alignItems: 'flex-start', gap: '20px' }}>
                 <div style={{ width: '56px', height: '56px', borderRadius: '16px', background: `${tool.accent}15`, display: 'flex', alignItems: 'center', justifyContent: 'center', color: tool.accent, flexShrink: 0 }}>
                   <svg width="26" height="26" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24">
@@ -305,26 +310,34 @@ export default function ToolkitPage() {
                 </div>
                 <div style={{ flex: 1 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '8px' }}>
-                    <span style={{ fontSize: '22px', fontWeight: 900, color: '#0F1923', letterSpacing: '-0.3px' }}>{tool.label}</span>
+                    <span style={{ fontSize: '22px', fontWeight: 900, color: 'var(--ink)', letterSpacing: '-0.3px' }}>{tool.label}</span>
                     <span style={{ fontSize: '10px', fontWeight: 800, letterSpacing: '1.5px', textTransform: 'uppercase', color: tool.accent, background: `${tool.accent}12`, padding: '3px 10px', borderRadius: '14px' }}>{tool.badge}</span>
                   </div>
-                  <p style={{ fontSize: '15px', color: '#5B7080', lineHeight: 1.7, margin: 0, maxWidth: '680px' }}>{tool.description}</p>
+                  <p style={{ fontSize: '15px', color: 'var(--ink3)', lineHeight: 1.7, margin: 0, maxWidth: '680px' }}>{tool.description}</p>
                 </div>
+                {EVENT_TOOL_SETTINGS_IDS.has(tool.id) && (
+                  <Link href={`/admin/toolkit/settings/event-tools?tab=${tool.id}`} title="Manage who can use this tool"
+                    style={{ marginLeft: 'auto', flexShrink: 0, width: '36px', height: '36px', borderRadius: '10px', border: '1px solid var(--border)', background: 'var(--card-hi)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--ink3)', textDecoration: 'none', transition: 'all 0.15s' }}
+                    onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = tool.accent; (e.currentTarget as HTMLElement).style.borderColor = tool.accent }}
+                    onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = 'var(--ink3)'; (e.currentTarget as HTMLElement).style.borderColor = 'var(--border)' }}>
+                    <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3" /><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" /></svg>
+                  </Link>
+                )}
               </div>
             </div>
 
             {/* Features */}
             <div style={{ flex: 1, padding: '28px 36px', overflowY: 'auto' }}>
-              <div style={{ fontSize: '10px', fontWeight: 800, color: '#B8CDD8', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '20px' }}>What&apos;s included</div>
+              <div style={{ fontSize: '10px', fontWeight: 800, color: 'var(--ink4)', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '20px' }}>What&apos;s included</div>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px' }}>
                 {tool.features.map((f, i) => (
-                  <div key={i} style={{ display: 'flex', gap: '14px', padding: '16px 18px', borderRadius: '12px', border: '1px solid #EEF3F7', background: '#FAFBFC', alignItems: 'flex-start' }}>
+                  <div key={i} style={{ display: 'flex', gap: '14px', padding: '16px 18px', borderRadius: '12px', border: '1px solid var(--border-light)', background: 'var(--card-hi)', alignItems: 'flex-start' }}>
                     <div style={{ width: '32px', height: '32px', borderRadius: '8px', background: `${tool.accent}12`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
                       <svg width="14" height="14" fill="none" stroke={tool.accent} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>
                     </div>
                     <div>
-                      <div style={{ fontSize: '13px', fontWeight: 800, color: '#0F1923', marginBottom: '3px' }}>{f.label}</div>
-                      <div style={{ fontSize: '12px', color: '#7A8FA0', lineHeight: 1.5 }}>{f.detail}</div>
+                      <div style={{ fontSize: '13px', fontWeight: 800, color: 'var(--ink)', marginBottom: '3px' }}>{f.label}</div>
+                      <div style={{ fontSize: '12px', color: 'var(--ink3)', lineHeight: 1.5 }}>{f.detail}</div>
                     </div>
                   </div>
                 ))}
@@ -332,10 +345,10 @@ export default function ToolkitPage() {
             </div>
 
             {/* CTA bar */}
-            <div style={{ padding: '20px 36px', borderTop: '1px solid #EEF3F7', display: 'flex', alignItems: 'center', gap: '12px', background: '#FAFBFC' }}>
+            <div style={{ padding: '20px 36px', borderTop: '1px solid var(--border-light)', display: 'flex', alignItems: 'center', gap: '12px', background: 'var(--card-hi)' }}>
               {tool.needsEvent ? (
                 <button onClick={() => setPicking(true)}
-                  style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', padding: '12px 28px', borderRadius: '11px', background: tool.accent, color: '#fff', fontSize: '14px', fontWeight: 800, border: 'none', cursor: 'pointer', fontFamily: 'inherit', transition: 'opacity 0.15s' }}
+                  style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', padding: '12px 28px', borderRadius: '11px', background: tool.accent, color: 'var(--surface)', fontSize: '14px', fontWeight: 800, border: 'none', cursor: 'pointer', fontFamily: 'inherit', transition: 'opacity 0.15s' }}
                   onMouseEnter={e => (e.currentTarget.style.opacity = '0.88')}
                   onMouseLeave={e => (e.currentTarget.style.opacity = '1')}>
                   Select Event to Open
@@ -343,7 +356,7 @@ export default function ToolkitPage() {
                 </button>
               ) : (tool.href as string).startsWith('http') ? (
                 <a href={tool.href!} target="_blank" rel="noreferrer"
-                  style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', padding: '12px 28px', borderRadius: '11px', background: tool.accent, color: '#fff', fontSize: '14px', fontWeight: 800, textDecoration: 'none', transition: 'opacity 0.15s' }}
+                  style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', padding: '12px 28px', borderRadius: '11px', background: tool.accent, color: 'var(--surface)', fontSize: '14px', fontWeight: 800, textDecoration: 'none', transition: 'opacity 0.15s' }}
                   onMouseEnter={e => ((e.currentTarget as HTMLElement).style.opacity = '0.88')}
                   onMouseLeave={e => ((e.currentTarget as HTMLElement).style.opacity = '1')}>
                   Open {tool.label}
@@ -351,14 +364,14 @@ export default function ToolkitPage() {
                 </a>
               ) : (
                 <Link href={tool.href!}
-                  style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', padding: '12px 28px', borderRadius: '11px', background: tool.accent, color: '#fff', fontSize: '14px', fontWeight: 800, textDecoration: 'none', transition: 'opacity 0.15s' }}
+                  style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', padding: '12px 28px', borderRadius: '11px', background: tool.accent, color: 'var(--surface)', fontSize: '14px', fontWeight: 800, textDecoration: 'none', transition: 'opacity 0.15s' }}
                   onMouseEnter={e => ((e.currentTarget as HTMLElement).style.opacity = '0.88')}
                   onMouseLeave={e => ((e.currentTarget as HTMLElement).style.opacity = '1')}>
                   Open {tool.label}
                   <svg width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg>
                 </Link>
               )}
-              <span style={{ fontSize: '12px', color: '#B8CDD8', fontWeight: 600 }}>
+              <span style={{ fontSize: '12px', color: 'var(--ink4)', fontWeight: 600 }}>
                 {tool.needsEvent ? 'Choose an event first — then the tool opens for that event.' : 'Opens directly — no event selection needed.'}
               </span>
             </div>

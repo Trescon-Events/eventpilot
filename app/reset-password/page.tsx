@@ -53,34 +53,34 @@ function ResetPasswordForm() {
   }
 
   return (
-    <div style={{ minHeight: '100vh', background: '#F0F4F8', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'var(--font-manrope), Manrope, sans-serif', padding: '24px' }}>
+    <div style={{ minHeight: '100vh', background: 'var(--surface)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'var(--font-manrope), Manrope, sans-serif', padding: '24px' }}>
       <div style={{ width: '100%', maxWidth: '420px' }}>
 
         {/* Logo */}
         <div style={{ textAlign: 'center', marginBottom: '32px' }}>
-          <div style={{ fontSize: '22px', fontWeight: 900, color: '#00A5A3', letterSpacing: '-0.5px' }}>Event Pilot</div>
-          <div style={{ fontSize: '12px', color: '#5B7080', marginTop: '4px' }}>by Trescon</div>
+          <div style={{ fontSize: '22px', fontWeight: 900, color: 'var(--teal-mid)', letterSpacing: '-0.5px' }}>Event Pilot</div>
+          <div style={{ fontSize: '12px', color: 'var(--ink3)', marginTop: '4px' }}>by Trescon</div>
         </div>
 
-        <div style={{ background: '#FFFFFF', borderRadius: '20px', padding: '36px 32px', boxShadow: '0 4px 24px rgba(0,0,0,0.08)' }}>
+        <div style={{ background: 'var(--card)', borderRadius: '20px', padding: '36px 32px', boxShadow: 'var(--shadow-md)' }}>
 
           {validating && (
-            <div style={{ textAlign: 'center', padding: '32px 0', color: '#5B7080', fontSize: '14px' }}>
+            <div style={{ textAlign: 'center', padding: '32px 0', color: 'var(--ink3)', fontSize: '14px' }}>
               Verifying link…
             </div>
           )}
 
           {!validating && tokenError && (
             <div style={{ textAlign: 'center' }}>
-              <div style={{ width: 44, height: 44, borderRadius: '12px', background: '#FFF1F2', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px' }}>
+              <div style={{ width: 44, height: 44, borderRadius: '12px', background: 'var(--red-light)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px' }}>
                 <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
-                  <circle cx="10" cy="10" r="8" stroke="#DC2626" strokeWidth="1.5"/>
-                  <path d="M10 6v4M10 14h.01" stroke="#DC2626" strokeWidth="1.5" strokeLinecap="round"/>
+                  <circle cx="10" cy="10" r="8" stroke="var(--red)" strokeWidth="1.5"/>
+                  <path d="M10 6v4M10 14h.01" stroke="var(--red)" strokeWidth="1.5" strokeLinecap="round"/>
                 </svg>
               </div>
-              <div style={{ fontSize: '18px', fontWeight: 800, color: '#0F1923', marginBottom: '10px' }}>Link expired</div>
-              <div style={{ fontSize: '14px', color: '#5B7080', lineHeight: 1.55, marginBottom: '24px' }}>{tokenError}</div>
-              <a href="/login" style={{ display: 'inline-block', padding: '12px 28px', borderRadius: '10px', background: '#00A5A3', color: '#FFFFFF', fontSize: '14px', fontWeight: 700, textDecoration: 'none' }}>
+              <div style={{ fontSize: '18px', fontWeight: 800, color: 'var(--ink)', marginBottom: '10px' }}>Link expired</div>
+              <div style={{ fontSize: '14px', color: 'var(--ink3)', lineHeight: 1.55, marginBottom: '24px' }}>{tokenError}</div>
+              <a href="/login" style={{ display: 'inline-block', padding: '12px 28px', borderRadius: '10px', background: 'var(--teal-mid)', color: 'var(--teal-light)', fontSize: '14px', fontWeight: 700, textDecoration: 'none' }}>
                 Back to login
               </a>
             </div>
@@ -89,23 +89,23 @@ function ResetPasswordForm() {
           {!validating && valid && !done && (
             <>
               <div style={{ marginBottom: '24px' }}>
-                <div style={{ width: 44, height: 44, borderRadius: '12px', background: '#E0F7F6', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '16px' }}>
+                <div style={{ width: 44, height: 44, borderRadius: '12px', background: 'var(--teal-light)', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '16px' }}>
                   <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
-                    <rect x="3" y="9" width="14" height="10" rx="2" stroke="#00A5A3" strokeWidth="1.5"/>
-                    <path d="M6 9V6a4 4 0 0 1 8 0v3" stroke="#00A5A3" strokeWidth="1.5" strokeLinecap="round"/>
-                    <circle cx="10" cy="14" r="1.5" fill="#00A5A3"/>
+                    <rect x="3" y="9" width="14" height="10" rx="2" stroke="var(--teal-mid)" strokeWidth="1.5"/>
+                    <path d="M6 9V6a4 4 0 0 1 8 0v3" stroke="var(--teal-mid)" strokeWidth="1.5" strokeLinecap="round"/>
+                    <circle cx="10" cy="14" r="1.5" fill="var(--teal-mid)"/>
                   </svg>
                 </div>
-                <div style={{ fontSize: '20px', fontWeight: 800, color: '#080A0B', marginBottom: '6px' }}>
+                <div style={{ fontSize: '20px', fontWeight: 800, color: 'var(--ink)', marginBottom: '6px' }}>
                   Set a new password{firstName ? `, ${firstName}` : ''}
                 </div>
-                <div style={{ fontSize: '14px', color: '#5B7080', lineHeight: 1.5 }}>
+                <div style={{ fontSize: '14px', color: 'var(--ink3)', lineHeight: 1.5 }}>
                   Choose a strong password for your account.
                 </div>
               </div>
 
               {error && (
-                <div style={{ background: '#FFF1F2', border: '1px solid #FCA5A5', borderRadius: '10px', padding: '10px 14px', marginBottom: '16px', fontSize: '13px', color: '#DC2626' }}>
+                <div style={{ background: 'var(--red-light)', border: '1px solid var(--red-border)', borderRadius: '10px', padding: '10px 14px', marginBottom: '16px', fontSize: '13px', color: 'var(--red)' }}>
                   {error}
                 </div>
               )}
@@ -113,8 +113,8 @@ function ResetPasswordForm() {
               <form onSubmit={handleSubmit}>
                 {/* New password */}
                 <div style={{ marginBottom: '16px' }}>
-                  <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#0F1923', marginBottom: '6px' }}>
-                    New password <span style={{ color: '#94A3B8', fontWeight: 500 }}>(min 8 characters)</span>
+                  <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: 'var(--ink)', marginBottom: '6px' }}>
+                    New password <span style={{ color: 'var(--ink3)', fontWeight: 500 }}>(min 8 characters)</span>
                   </label>
                   <div style={{ position: 'relative' }}>
                     <input
@@ -122,12 +122,12 @@ function ResetPasswordForm() {
                       value={newPass}
                       onChange={e => { setNewPass(e.target.value); setError('') }}
                       placeholder="Choose a strong password"
-                      style={{ width: '100%', padding: '11px 40px 11px 14px', borderRadius: '10px', border: '1.5px solid #DDE8EE', fontSize: '14px', outline: 'none', boxSizing: 'border-box', color: '#0F1923', fontFamily: 'inherit' }}
-                      onFocus={e => (e.target.style.borderColor = '#00A5A3')}
-                      onBlur={e  => (e.target.style.borderColor = '#DDE8EE')}
+                      style={{ width: '100%', padding: '11px 40px 11px 14px', borderRadius: '10px', border: '1.5px solid var(--border)', fontSize: '14px', outline: 'none', boxSizing: 'border-box', color: 'var(--ink)', fontFamily: 'inherit' }}
+                      onFocus={e => (e.target.style.borderColor = 'var(--teal-mid)')}
+                      onBlur={e  => (e.target.style.borderColor = 'var(--border)')}
                     />
                     <button type="button" onClick={() => setShowN(v => !v)}
-                      style={{ position: 'absolute', right: '12px', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', color: '#5B7080', padding: 0 }}>
+                      style={{ position: 'absolute', right: '12px', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--ink3)', padding: 0 }}>
                       {showN ? <EyeOff /> : <Eye />}
                     </button>
                   </div>
@@ -135,9 +135,9 @@ function ResetPasswordForm() {
                   {newPass.length > 0 && (
                     <div style={{ marginTop: '6px', display: 'flex', gap: '4px', alignItems: 'center' }}>
                       {[newPass.length >= 8, /[A-Z]/.test(newPass), /[0-9]/.test(newPass), /[^A-Za-z0-9]/.test(newPass)].map((met, i) => (
-                        <div key={i} style={{ height: '3px', flex: 1, borderRadius: '2px', background: met ? '#00A5A3' : '#DDE8EE', transition: 'background 0.2s' }} />
+                        <div key={i} style={{ height: '3px', flex: 1, borderRadius: '2px', background: met ? 'var(--teal-mid)' : 'var(--border)', transition: 'background 0.2s' }} />
                       ))}
-                      <span style={{ fontSize: '10px', color: '#5B7080', marginLeft: '4px', whiteSpace: 'nowrap' }}>
+                      <span style={{ fontSize: '10px', color: 'var(--ink3)', marginLeft: '4px', whiteSpace: 'nowrap' }}>
                         {newPass.length < 8 ? 'Too short' : !/[A-Z]/.test(newPass) ? 'Add uppercase' : !/[0-9]/.test(newPass) ? 'Add number' : !/[^A-Za-z0-9]/.test(newPass) ? 'Add symbol' : 'Strong'}
                       </span>
                     </div>
@@ -146,7 +146,7 @@ function ResetPasswordForm() {
 
                 {/* Confirm */}
                 <div style={{ marginBottom: '24px' }}>
-                  <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#0F1923', marginBottom: '6px' }}>
+                  <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: 'var(--ink)', marginBottom: '6px' }}>
                     Confirm new password
                   </label>
                   <input
@@ -154,17 +154,17 @@ function ResetPasswordForm() {
                     value={confirm}
                     onChange={e => { setConfirm(e.target.value); setError('') }}
                     placeholder="Re-enter new password"
-                    style={{ width: '100%', padding: '11px 14px', borderRadius: '10px', border: `1.5px solid ${confirm && confirm !== newPass ? '#FCA5A5' : '#DDE8EE'}`, fontSize: '14px', outline: 'none', boxSizing: 'border-box', color: '#0F1923', fontFamily: 'inherit' }}
-                    onFocus={e => (e.target.style.borderColor = '#00A5A3')}
-                    onBlur={e  => (e.target.style.borderColor = confirm && confirm !== newPass ? '#FCA5A5' : '#DDE8EE')}
+                    style={{ width: '100%', padding: '11px 14px', borderRadius: '10px', border: `1.5px solid ${confirm && confirm !== newPass ? 'var(--red-border)' : 'var(--border)'}`, fontSize: '14px', outline: 'none', boxSizing: 'border-box', color: 'var(--ink)', fontFamily: 'inherit' }}
+                    onFocus={e => (e.target.style.borderColor = 'var(--teal-mid)')}
+                    onBlur={e  => (e.target.style.borderColor = confirm && confirm !== newPass ? 'var(--red-border)' : 'var(--border)')}
                   />
                   {confirm && confirm !== newPass && (
-                    <div style={{ fontSize: '11px', color: '#DC2626', marginTop: '4px' }}>Passwords do not match</div>
+                    <div style={{ fontSize: '11px', color: 'var(--red)', marginTop: '4px' }}>Passwords do not match</div>
                   )}
                 </div>
 
                 <button type="submit" disabled={loading}
-                  style={{ width: '100%', padding: '13px', borderRadius: '11px', background: loading ? '#94A3B8' : '#00A5A3', color: '#FFFFFF', fontSize: '15px', fontWeight: 700, border: 'none', cursor: loading ? 'not-allowed' : 'pointer', fontFamily: 'inherit', transition: 'background 0.15s' }}>
+                  style={{ width: '100%', padding: '13px', borderRadius: '11px', background: loading ? 'var(--card-hi)' : 'var(--teal-mid)', color: loading ? 'var(--ink3)' : 'var(--teal-light)', fontSize: '15px', fontWeight: 700, border: 'none', cursor: loading ? 'not-allowed' : 'pointer', fontFamily: 'inherit', transition: 'background 0.15s' }}>
                   {loading ? 'Saving…' : 'Set new password'}
                 </button>
               </form>
@@ -173,17 +173,17 @@ function ResetPasswordForm() {
 
           {done && (
             <div style={{ textAlign: 'center' }}>
-              <div style={{ width: 44, height: 44, borderRadius: '12px', background: '#E0F7F6', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px' }}>
+              <div style={{ width: 44, height: 44, borderRadius: '12px', background: 'var(--teal-light)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px' }}>
                 <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
-                  <circle cx="10" cy="10" r="8" stroke="#00A5A3" strokeWidth="1.5"/>
-                  <path d="M6.5 10l2.5 2.5 4.5-5" stroke="#00A5A3" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                  <circle cx="10" cy="10" r="8" stroke="var(--teal-mid)" strokeWidth="1.5"/>
+                  <path d="M6.5 10l2.5 2.5 4.5-5" stroke="var(--teal-mid)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
                 </svg>
               </div>
-              <div style={{ fontSize: '20px', fontWeight: 800, color: '#080A0B', marginBottom: '8px' }}>Password updated</div>
-              <div style={{ fontSize: '14px', color: '#5B7080', marginBottom: '24px', lineHeight: 1.55 }}>
+              <div style={{ fontSize: '20px', fontWeight: 800, color: 'var(--ink)', marginBottom: '8px' }}>Password updated</div>
+              <div style={{ fontSize: '14px', color: 'var(--ink3)', marginBottom: '24px', lineHeight: 1.55 }}>
                 Your password has been set. You can now log in with your new credentials.
               </div>
-              <a href="/login" style={{ display: 'inline-block', width: '100%', padding: '13px', borderRadius: '11px', background: '#00A5A3', color: '#FFFFFF', fontSize: '15px', fontWeight: 700, textDecoration: 'none', textAlign: 'center', boxSizing: 'border-box' }}>
+              <a href="/login" style={{ display: 'inline-block', width: '100%', padding: '13px', borderRadius: '11px', background: 'var(--teal-mid)', color: 'var(--teal-light)', fontSize: '15px', fontWeight: 700, textDecoration: 'none', textAlign: 'center', boxSizing: 'border-box' }}>
                 Go to login
               </a>
             </div>

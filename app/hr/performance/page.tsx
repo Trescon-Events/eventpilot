@@ -4,9 +4,9 @@ import { useState, useEffect, useCallback } from 'react'
 import PageHeader from '@/app/components/PageHeader'
 
 const C = {
-  bg: '#F6F8FB', surface: '#FFFFFF', border: '#DDE8EE', text: '#0F1923',
-  muted: '#5B7080', green: '#00897B', amber: '#D97706', red: '#8B1A1A',
-  blue: '#0284C7', purple: '#6C54B5',
+  bg: 'var(--surface)', surface: 'var(--card)', border: 'var(--border)', text: 'var(--ink)',
+  muted: 'var(--ink3)', green: 'var(--teal-mid)', amber: '#F5B94D', red: 'var(--red)', // NOTE: "green" is brand teal
+  blue: 'var(--info)', purple: 'var(--purple)',
 }
 
 const RATING_LABELS = ['', 'Needs Improvement', 'Below Expectations', 'Meets Expectations', 'Exceeds Expectations', 'Outstanding']
@@ -136,12 +136,12 @@ export default function PerformancePage() {
       <PageHeader eyebrow="HR" title="Performance Reviews" actions={
         <div style={{ display: 'flex', gap: 6 }}>
           <button onClick={() => setTab('overview')}
-            style={{ padding: '7px 18px', borderRadius: 8, border: tab === 'overview' ? `1.5px solid ${C.purple}` : `1px solid ${C.border}`, background: tab === 'overview' ? C.purple : C.surface, color: tab === 'overview' ? '#fff' : C.muted, fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
+            style={{ padding: '7px 18px', borderRadius: 8, border: tab === 'overview' ? `1.5px solid ${C.purple}` : `1px solid ${C.border}`, background: tab === 'overview' ? C.purple : C.surface, color: tab === 'overview' ? 'var(--purple-light)' : C.muted, fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
             All Reviews
           </button>
           {isManager && (
             <button onClick={() => setTab('create')}
-              style={{ padding: '7px 18px', borderRadius: 8, border: tab === 'create' ? `1.5px solid ${C.green}` : `1px solid ${C.border}`, background: tab === 'create' ? C.green : C.surface, color: tab === 'create' ? '#fff' : C.muted, fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
+              style={{ padding: '7px 18px', borderRadius: 8, border: tab === 'create' ? `1.5px solid ${C.green}` : `1px solid ${C.border}`, background: tab === 'create' ? C.green : C.surface, color: tab === 'create' ? 'var(--teal-light)' : C.muted, fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
               + New Review
             </button>
           )}
@@ -149,7 +149,7 @@ export default function PerformancePage() {
       } />
 
       <div style={{ maxWidth: 1100, margin: '0 auto', padding: '24px 32px' }}>
-        {msg && <div style={{ padding: '10px 16px', borderRadius: 8, marginBottom: 16, background: msg.ok ? `${C.green}12` : `${C.red}12`, border: `1px solid ${msg.ok ? C.green : C.red}30`, color: msg.ok ? C.green : C.red, fontSize: 13, fontWeight: 600 }}>{msg.text}</div>}
+        {msg && <div style={{ padding: '10px 16px', borderRadius: 8, marginBottom: 16, background: msg.ok ? `${'color-mix(in srgb, ' + (C.green) + ' 7%, transparent)'}` : `${'color-mix(in srgb, ' + (C.red) + ' 7%, transparent)'}`, border: `1px solid ${'color-mix(in srgb, ' + (msg.ok ? C.green : C.red) + ' 19%, transparent)'}`, color: msg.ok ? C.green : C.red, fontSize: 13, fontWeight: 600 }}>{msg.text}</div>}
 
         {/* ══════════ OVERVIEW TAB ══════════ */}
         {tab === 'overview' && (
@@ -194,7 +194,7 @@ export default function PerformancePage() {
               <div style={{ background: C.surface, borderRadius: 12, border: `1px solid ${C.border}`, overflow: 'hidden' }}>
                 <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                   <thead>
-                    <tr style={{ background: '#F8FAFB' }}>
+                    <tr style={{ background: 'var(--surface)' }}>
                       {['Staff', 'Department', 'Period', 'Rating', 'KPI %', 'Status', 'Date', ''].map(h => (
                         <th key={h} style={{ padding: '10px 14px', fontSize: 11, fontWeight: 700, color: C.muted, textAlign: 'left', borderBottom: `1px solid ${C.border}` }}>{h}</th>
                       ))}
@@ -204,7 +204,7 @@ export default function PerformancePage() {
                     {filtered.map(r => {
                       const s = STATUS_MAP[r.status] ?? STATUS_MAP.draft
                       return (
-                        <tr key={r.id} style={{ borderBottom: `1px solid ${C.border}08`, cursor: 'pointer' }} onClick={() => setSelectedReview(r)}>
+                        <tr key={r.id} style={{ borderBottom: `1px solid ${'color-mix(in srgb, ' + (C.border) + ' 3%, transparent)'}`, cursor: 'pointer' }} onClick={() => setSelectedReview(r)}>
                           <td style={{ padding: '10px 14px', fontSize: 13, fontWeight: 700, color: C.text }}>{r.staff?.name ?? '—'}</td>
                           <td style={{ padding: '10px 14px', fontSize: 12, color: C.muted }}>{r.staff?.department ?? '—'}</td>
                           <td style={{ padding: '10px 14px', fontSize: 13, fontWeight: 600, color: C.text }}>{r.review_period}</td>
@@ -218,7 +218,7 @@ export default function PerformancePage() {
                           </td>
                           <td style={{ padding: '10px 14px', fontSize: 13, fontWeight: 700, color: r.kpi_score ? (r.kpi_score >= 80 ? C.green : r.kpi_score >= 50 ? C.amber : C.red) : C.border }}>{r.kpi_score ? `${r.kpi_score}%` : '—'}</td>
                           <td style={{ padding: '10px 14px' }}>
-                            <span style={{ fontSize: 11, fontWeight: 700, padding: '3px 8px', borderRadius: 6, background: `${s.color}12`, color: s.color }}>{s.label}</span>
+                            <span style={{ fontSize: 11, fontWeight: 700, padding: '3px 8px', borderRadius: 6, background: `${'color-mix(in srgb, ' + (s.color) + ' 7%, transparent)'}`, color: s.color }}>{s.label}</span>
                           </td>
                           <td style={{ padding: '10px 14px', fontSize: 12, color: C.muted }}>{r.review_date ?? '—'}</td>
                           <td style={{ padding: '10px 14px' }}>
@@ -281,7 +281,7 @@ export default function PerformancePage() {
             <div style={{ display: 'flex', gap: 6, marginBottom: 20 }}>
               {[1, 2, 3, 4, 5].map(n => (
                 <button key={n} onClick={() => setFRating(n)}
-                  style={{ flex: 1, padding: '10px 0', borderRadius: 8, border: fRating === n ? `2px solid ${RATING_COLORS[n]}` : `1px solid ${C.border}`, background: fRating === n ? `${RATING_COLORS[n]}10` : C.surface, cursor: 'pointer', fontFamily: 'inherit', textAlign: 'center' }}>
+                  style={{ flex: 1, padding: '10px 0', borderRadius: 8, border: fRating === n ? `2px solid ${RATING_COLORS[n]}` : `1px solid ${C.border}`, background: fRating === n ? `${'color-mix(in srgb, ' + (RATING_COLORS[n]) + ' 6%, transparent)'}` : C.surface, cursor: 'pointer', fontFamily: 'inherit', textAlign: 'center' }}>
                   <div style={{ fontSize: 18, fontWeight: 800, color: RATING_COLORS[n] }}>{n}</div>
                   <div style={{ fontSize: 10, fontWeight: 600, color: fRating === n ? RATING_COLORS[n] : C.muted, marginTop: 2 }}>{RATING_LABELS[n]}</div>
                 </button>
@@ -308,7 +308,7 @@ export default function PerformancePage() {
                 Save as Draft
               </button>
               <button onClick={async () => { await createReview(); /* status is draft by default */ }} disabled={saving}
-                style={{ padding: '9px 24px', borderRadius: 8, border: 'none', background: saving ? C.muted : C.purple, color: '#fff', fontSize: 13, fontWeight: 700, cursor: saving ? 'wait' : 'pointer', fontFamily: 'inherit' }}>
+                style={{ padding: '9px 24px', borderRadius: 8, border: 'none', background: saving ? C.muted : C.purple, color: saving ? '#fff' : 'var(--purple-light)', fontSize: 13, fontWeight: 700, cursor: saving ? 'wait' : 'pointer', fontFamily: 'inherit' }}>
                 {saving ? 'Saving...' : 'Submit Review'}
               </button>
             </div>
@@ -325,18 +325,18 @@ export default function PerformancePage() {
                 <div style={{ fontSize: 18, fontWeight: 800, color: C.text }}>{selectedReview.staff?.name ?? 'Staff'}</div>
                 <div style={{ fontSize: 13, color: C.muted }}>{selectedReview.staff?.department ?? '—'} · {selectedReview.review_period}</div>
               </div>
-              <span style={{ fontSize: 12, fontWeight: 700, padding: '4px 10px', borderRadius: 6, background: `${(STATUS_MAP[selectedReview.status] ?? STATUS_MAP.draft).color}12`, color: (STATUS_MAP[selectedReview.status] ?? STATUS_MAP.draft).color }}>
+              <span style={{ fontSize: 12, fontWeight: 700, padding: '4px 10px', borderRadius: 6, background: `${'color-mix(in srgb, ' + ((STATUS_MAP[selectedReview.status] ?? STATUS_MAP.draft).color) + ' 7%, transparent)'}`, color: (STATUS_MAP[selectedReview.status] ?? STATUS_MAP.draft).color }}>
                 {(STATUS_MAP[selectedReview.status] ?? STATUS_MAP.draft).label}
               </span>
             </div>
 
             {/* Rating + KPI */}
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14, marginBottom: 20 }}>
-              <div style={{ padding: 16, borderRadius: 10, background: `${RATING_COLORS[selectedReview.overall_rating ?? 0] ?? C.muted}08`, border: `1px solid ${RATING_COLORS[selectedReview.overall_rating ?? 0] ?? C.border}20`, textAlign: 'center' }}>
+              <div style={{ padding: 16, borderRadius: 10, background: `${'color-mix(in srgb, ' + (RATING_COLORS[selectedReview.overall_rating ?? 0] ?? C.muted) + ' 3%, transparent)'}`, border: `1px solid ${'color-mix(in srgb, ' + (RATING_COLORS[selectedReview.overall_rating ?? 0] ?? C.border) + ' 13%, transparent)'}`, textAlign: 'center' }}>
                 <div style={{ fontSize: 28, fontWeight: 800, color: RATING_COLORS[selectedReview.overall_rating ?? 0] ?? C.muted }}>{selectedReview.overall_rating ?? '—'}<span style={{ fontSize: 14, fontWeight: 600 }}>/5</span></div>
                 <div style={{ fontSize: 12, fontWeight: 700, color: C.muted, marginTop: 4 }}>{RATING_LABELS[selectedReview.overall_rating ?? 0] || 'Not rated'}</div>
               </div>
-              <div style={{ padding: 16, borderRadius: 10, background: '#F8FAFB', border: `1px solid ${C.border}`, textAlign: 'center' }}>
+              <div style={{ padding: 16, borderRadius: 10, background: 'var(--surface)', border: `1px solid ${C.border}`, textAlign: 'center' }}>
                 <div style={{ fontSize: 28, fontWeight: 800, color: selectedReview.kpi_score ? (selectedReview.kpi_score >= 80 ? C.green : C.amber) : C.muted }}>{selectedReview.kpi_score ? `${selectedReview.kpi_score}%` : '—'}</div>
                 <div style={{ fontSize: 12, fontWeight: 700, color: C.muted, marginTop: 4 }}>KPI Achievement</div>
               </div>
@@ -352,7 +352,7 @@ export default function PerformancePage() {
             ].filter(s => s.value).map(s => (
               <div key={s.label} style={{ marginBottom: 14 }}>
                 <div style={{ fontSize: 12, fontWeight: 700, color: s.color, marginBottom: 4 }}>{s.label}</div>
-                <div style={{ fontSize: 13, color: C.text, lineHeight: 1.6, padding: '10px 14px', borderRadius: 8, background: '#F8FAFB', border: `1px solid ${C.border}` }}>{s.value}</div>
+                <div style={{ fontSize: 13, color: C.text, lineHeight: 1.6, padding: '10px 14px', borderRadius: 8, background: 'var(--surface)', border: `1px solid ${C.border}` }}>{s.value}</div>
               </div>
             ))}
 
@@ -360,13 +360,13 @@ export default function PerformancePage() {
             <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 20, borderTop: `1px solid ${C.border}`, paddingTop: 16 }}>
               <button onClick={() => setSelectedReview(null)} style={{ padding: '8px 16px', borderRadius: 8, border: `1px solid ${C.border}`, background: C.surface, color: C.muted, fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>Close</button>
               {selectedReview.status === 'draft' && (
-                <button onClick={() => updateStatus(selectedReview.id, 'submitted')} style={{ padding: '8px 16px', borderRadius: 8, border: 'none', background: C.blue, color: '#fff', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>Submit</button>
+                <button onClick={() => updateStatus(selectedReview.id, 'submitted')} style={{ padding: '8px 16px', borderRadius: 8, border: 'none', background: C.blue, color: 'var(--info-light)', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>Submit</button>
               )}
               {selectedReview.status === 'submitted' && (
-                <button onClick={() => updateStatus(selectedReview.id, 'acknowledged')} style={{ padding: '8px 16px', borderRadius: 8, border: 'none', background: C.amber, color: '#fff', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>Acknowledge</button>
+                <button onClick={() => updateStatus(selectedReview.id, 'acknowledged')} style={{ padding: '8px 16px', borderRadius: 8, border: 'none', background: C.amber, color: 'var(--amber-light)', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>Acknowledge</button>
               )}
               {selectedReview.status === 'acknowledged' && (
-                <button onClick={() => updateStatus(selectedReview.id, 'completed')} style={{ padding: '8px 16px', borderRadius: 8, border: 'none', background: C.green, color: '#fff', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>Mark Complete</button>
+                <button onClick={() => updateStatus(selectedReview.id, 'completed')} style={{ padding: '8px 16px', borderRadius: 8, border: 'none', background: C.green, color: 'var(--teal-light)', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>Mark Complete</button>
               )}
             </div>
           </div>

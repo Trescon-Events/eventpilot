@@ -49,7 +49,7 @@ export default async function KnowledgeBaseLayout({ children }: { children: Reac
 
   return (
     <div style={{ display: 'flex', minHeight: '100vh' }}>
-      <ModuleSidebar moduleLabel="Knowledge Base" moduleIcon={MODULE_ICON} moduleColor="#0E7490" groups={groups} />
+      <ModuleSidebar moduleLabel="Knowledge Base" moduleIcon={MODULE_ICON} moduleColor="#1296BA" groups={groups} />
       <div style={{ flex: 1, minWidth: 0 }}>{children}</div>
     </div>
   )

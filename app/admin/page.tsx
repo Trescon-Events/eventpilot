@@ -10,13 +10,17 @@ import { computeAIRS } from '@/app/lib/airs'
 import { getModuleRegistry } from '@/app/lib/registry/modules'
 import PageHeader from '@/app/components/PageHeader'
 
+// Colors here are literal (not CSS vars) on purpose — several are reused
+// as `${meta.color}NN` alpha-suffixed strings elsewhere (badges, borders),
+// which only works with a real hex value. Brightened for dark-card contrast
+// where the original light-theme hex didn't already clear 4.5:1 on #142330.
 const ROLE_META: Record<string, { label: string; color: string; bg: string; desc: string }> = {
-  standard:        { label: 'Standard',        color: '#5B7080', bg: '#5B708015', desc: 'Default — basic platform access' },
-  hr:              { label: 'HR',              color: '#92400E', bg: '#92400E15', desc: 'Access to HR portal and leave management' },
-  project_manager: { label: 'Project Mgr',    color: '#1565C0', bg: '#1565C015', desc: 'Can create and manage events' },
-  project_director:{ label: 'Project Dir',    color: '#6B21A8', bg: '#6B21A815', desc: 'Project oversight across events' },
-  admin:           { label: 'Admin',           color: '#166534', bg: '#16653415', desc: 'Platform admin — People, Events, Knowledge' },
-  super_admin:     { label: 'Super Admin',     color: '#00697B', bg: '#00697B15', desc: 'Full platform access, no restrictions' },
+  standard:        { label: 'Standard',        color: '#7E93A1', bg: '#7E93A115', desc: 'Default — basic platform access' },
+  hr:              { label: 'HR',              color: '#F5B94D', bg: '#F5B94D15', desc: 'Access to HR portal and leave management' },
+  project_manager: { label: 'Project Mgr',    color: '#5AA9F2', bg: '#5AA9F215', desc: 'Can create and manage events' },
+  project_director:{ label: 'Project Dir',    color: '#AF70E3', bg: '#AF70E315', desc: 'Project oversight across events' },
+  admin:           { label: 'Admin',           color: '#34D399', bg: '#34D39915', desc: 'Platform admin — People, Events, Knowledge' },
+  super_admin:     { label: 'Super Admin',     color: '#0099B3', bg: '#0099B315', desc: 'Full platform access, no restrictions' },
 }
 
 // Derived from the module registry (app/lib/registry/modules.tsx) instead of
@@ -41,11 +45,12 @@ const PLATFORM_TOOLS: PlatformTool[] = getModuleRegistry().reduce<PlatformTool[]
   return acc
 }, [])
 
+// Literal hex (not vars) — reused as `${o.color}NN` alpha strings throughout.
 const OFFICES = [
-  { id: 'dubai',     label: 'Dubai',     total: 0, color: '#00897B' },
+  { id: 'dubai',     label: 'Dubai',     total: 0, color: '#12C9BD' },
   { id: 'bangalore', label: 'Bangalore', total: 0, color: '#A478FF' },
-  { id: 'mangalore', label: 'Mangalore', total: 0, color: '#8B1A1A' },
-  { id: 'manipal',   label: 'Manipal',   total: 0, color: '#3730A3' },
+  { id: 'mangalore', label: 'Mangalore', total: 0, color: '#F1667A' },
+  { id: 'manipal',   label: 'Manipal',   total: 0, color: '#8882DA' },
 ]
 // TOTAL is no longer hardcoded — derived from actual staff count in DB
 
@@ -94,18 +99,20 @@ function QuestionnaireView({ qDept, setQDept }: { qDept: string; setQDept: (d: s
     text:     'Short text',
   }
   const typeBadgeColor: Record<string, string> = {
-    textarea: '#00897B',
-    chips:    '#C0F43C',
-    scale:    '#8B1A1A',
-    select:   '#8B1A1A',
-    text:     '#00897B',
+    textarea: 'var(--teal-mid)',
+    chips:    'var(--lime)',
+    scale:    'var(--red)',
+    select:   'var(--red)',
+    text:     'var(--teal-mid)',
   }
+  // Text on a solid saturated badge fill uses that family's "-light"/"-dark"
+  // token, never white/ink (globals.css pairing rule #3).
   const typeBadgeText: Record<string, string> = {
-    textarea: 'white',
-    chips:    '#0F1923',
-    scale:    '#0F1923',
-    select:   '#0F1923',
-    text:     '#0F1923',
+    textarea: 'var(--teal-light)',
+    chips:    'var(--lime-dark)',
+    scale:    'var(--red-light)',
+    select:   'var(--red-light)',
+    text:     'var(--teal-light)',
   }
 
   return (
@@ -114,7 +121,7 @@ function QuestionnaireView({ qDept, setQDept }: { qDept: string; setQDept: (d: s
       <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginBottom: '28px' }}>
         {ALL_DEPARTMENTS.map(d => (
           <button key={d} onClick={() => setQDept(d)}
-            style={{ padding: '7px 16px', borderRadius: '16px', border: `1px solid ${qDept === d ? '#00695C' : '#DDE8EE'}`, background: qDept === d ? 'rgba(0,122,110,0.1)' : 'transparent', color: qDept === d ? '#00695C' : '#2D3E50', fontSize: '13px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap' }}>
+            style={{ padding: '7px 16px', borderRadius: '16px', border: `1px solid ${qDept === d ? 'var(--teal)' : 'var(--border)'}`, background: qDept === d ? 'rgba(0,122,110,0.1)' : 'transparent', color: qDept === d ? 'var(--teal)' : 'var(--ink2)', fontSize: '13px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap' }}>
             {d}
           </button>
         ))}
@@ -123,34 +130,34 @@ function QuestionnaireView({ qDept, setQDept }: { qDept: string; setQDept: (d: s
       {/* Header */}
       <div style={{ background: 'rgba(0,165,163,0.08)', border: '1px solid rgba(0,165,163,0.2)', borderRadius: '16px', padding: '20px 24px', marginBottom: '24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <div>
-          <div style={{ fontSize: '13px', fontWeight: 700, letterSpacing: '2px', textTransform: 'uppercase', color: '#5B7080', marginBottom: '4px' }}>Questionnaire Preview</div>
-          <div style={{ fontSize: '13px', fontWeight: 800, color: '#0F1923' }}>{qDept} Department</div>
-          <div style={{ fontSize: '13px', color: '#5B7080', marginTop: '2px' }}>{questions.length} questions total · Read-only view</div>
+          <div style={{ fontSize: '13px', fontWeight: 700, letterSpacing: '2px', textTransform: 'uppercase', color: 'var(--ink3)', marginBottom: '4px' }}>Questionnaire Preview</div>
+          <div style={{ fontSize: '13px', fontWeight: 800, color: 'var(--ink)' }}>{qDept} Department</div>
+          <div style={{ fontSize: '13px', color: 'var(--ink3)', marginTop: '2px' }}>{questions.length} questions total · Read-only view</div>
         </div>
-        <div style={{ fontSize: '36px', fontWeight: 800, color: '#00897B', lineHeight: 1 }}>{questions.length}</div>
+        <div style={{ fontSize: '36px', fontWeight: 800, color: 'var(--teal-mid)', lineHeight: 1 }}>{questions.length}</div>
       </div>
 
       {/* Question cards */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
         {questions.map((q, idx) => (
-          <div key={q.id} style={{ background: '#FFFFFF', border: '1px solid #DDE8EE', borderRadius: '16px', padding: '24px' }}>
+          <div key={q.id} style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: '16px', padding: '24px' }}>
             {/* Step + type row */}
             <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '12px' }}>
-              <div style={{ width: '26px', height: '26px', borderRadius: '50%', background: '#FFFFFF', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '13px', fontWeight: 800, color: '#5B7080', flexShrink: 0 }}>
+              <div style={{ width: '26px', height: '26px', borderRadius: '50%', background: 'var(--card)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '13px', fontWeight: 800, color: 'var(--ink3)', flexShrink: 0 }}>
                 {idx + 1}
               </div>
-              <span style={{ fontSize: '13px', fontWeight: 700, padding: '3px 9px', borderRadius: '6px', background: typeBadgeColor[q.type] ?? '#555', color: typeBadgeText[q.type] ?? 'white', letterSpacing: '0.5px', textTransform: 'uppercase' }}>
+              <span style={{ fontSize: '13px', fontWeight: 700, padding: '3px 9px', borderRadius: '6px', background: typeBadgeColor[q.type] ?? 'var(--card-hi)', color: typeBadgeText[q.type] ?? 'var(--ink)', letterSpacing: '0.5px', textTransform: 'uppercase' }}>
                 {typeLabel[q.type] ?? q.type}
               </span>
-              <span style={{ fontSize: '13px', color: '#5B7080', fontFamily: 'monospace' }}>{q.id}</span>
+              <span style={{ fontSize: '13px', color: 'var(--ink3)', fontFamily: 'monospace' }}>{q.id}</span>
             </div>
 
             {/* Question text */}
-            <div style={{ fontSize: '13px', fontWeight: 700, color: '#0F1923', lineHeight: 1.5, marginBottom: q.subtext ? '6px' : '0' }}>
+            <div style={{ fontSize: '13px', fontWeight: 700, color: 'var(--ink)', lineHeight: 1.5, marginBottom: q.subtext ? '6px' : '0' }}>
               {q.question}
             </div>
             {q.subtext && (
-              <div style={{ fontSize: '13px', color: '#5B7080', lineHeight: 1.5, marginBottom: '0' }}>
+              <div style={{ fontSize: '13px', color: 'var(--ink3)', lineHeight: 1.5, marginBottom: '0' }}>
                 {q.subtext}
               </div>
             )}
@@ -159,7 +166,7 @@ function QuestionnaireView({ qDept, setQDept }: { qDept: string; setQDept: (d: s
             {q.type === 'chips' && q.options && q.options.length > 0 && (
               <div style={{ marginTop: '14px', display: 'flex', flexWrap: 'wrap', gap: '7px' }}>
                 {q.options.map(opt => (
-                  <span key={opt} style={{ padding: '5px 12px', borderRadius: '16px', border: '1px solid #DDE8EE', fontSize: '13px', color: '#5B7080', background: '#FFFFFF' }}>
+                  <span key={opt} style={{ padding: '5px 12px', borderRadius: '16px', border: '1px solid var(--border)', fontSize: '13px', color: 'var(--ink3)', background: 'var(--card)' }}>
                     {opt}
                   </span>
                 ))}
@@ -169,9 +176,9 @@ function QuestionnaireView({ qDept, setQDept }: { qDept: string; setQDept: (d: s
             {q.type === 'select' && q.options && q.options.length > 0 && (
               <div style={{ marginTop: '14px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
                 {q.options.map((opt, oi) => (
-                  <div key={opt} style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '8px 14px', borderRadius: '8px', border: '1px solid #DDE8EE', background: '#FFFFFF' }}>
-                    <div style={{ width: '16px', height: '16px', borderRadius: '50%', border: '1.5px solid #DDE8EE', flexShrink: 0 }} />
-                    <span style={{ fontSize: '13px', color: '#5B7080' }}>{opt}</span>
+                  <div key={opt} style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '8px 14px', borderRadius: '8px', border: '1px solid var(--border)', background: 'var(--card)' }}>
+                    <div style={{ width: '16px', height: '16px', borderRadius: '50%', border: '1.5px solid var(--border)', flexShrink: 0 }} />
+                    <span style={{ fontSize: '13px', color: 'var(--ink3)' }}>{opt}</span>
                   </div>
                 ))}
               </div>
@@ -180,19 +187,19 @@ function QuestionnaireView({ qDept, setQDept }: { qDept: string; setQDept: (d: s
             {q.type === 'scale' && q.options && q.options.length > 0 && (
               <div style={{ marginTop: '14px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
                 {q.options.map((opt, oi) => (
-                  <div key={opt} style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '9px 14px', borderRadius: '10px', border: '1px solid #DDE8EE', background: '#FFFFFF' }}>
-                    <div style={{ width: '22px', height: '22px', borderRadius: '50%', border: '1.5px solid #DDE8EE', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                      <span style={{ fontSize: '9px', fontWeight: 800, color: '#5B7080' }}>{oi + 1}</span>
+                  <div key={opt} style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '9px 14px', borderRadius: '10px', border: '1px solid var(--border)', background: 'var(--card)' }}>
+                    <div style={{ width: '22px', height: '22px', borderRadius: '50%', border: '1.5px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                      <span style={{ fontSize: '9px', fontWeight: 800, color: 'var(--ink3)' }}>{oi + 1}</span>
                     </div>
-                    <span style={{ fontSize: '13px', color: '#5B7080' }}>{opt}</span>
+                    <span style={{ fontSize: '13px', color: 'var(--ink3)' }}>{opt}</span>
                   </div>
                 ))}
               </div>
             )}
 
             {q.type === 'textarea' && q.placeholder && (
-              <div style={{ marginTop: '14px', padding: '12px 14px', borderRadius: '10px', border: '1px dashed #DDE8EE', background: '#FFFFFF' }}>
-                <span style={{ fontSize: '13px', color: '#5B7080', fontStyle: 'italic', lineHeight: 1.5 }}>{q.placeholder}</span>
+              <div style={{ marginTop: '14px', padding: '12px 14px', borderRadius: '10px', border: '1px dashed var(--border)', background: 'var(--card)' }}>
+                <span style={{ fontSize: '13px', color: 'var(--ink3)', fontStyle: 'italic', lineHeight: 1.5 }}>{q.placeholder}</span>
               </div>
             )}
           </div>
@@ -202,12 +209,16 @@ function QuestionnaireView({ qDept, setQDept }: { qDept: string; setQDept: (d: s
   )
 }
 
+// Tier colors are literal (not vars) — reused as `${tier.color}NN` alpha
+// strings across the Intelligence/Overview tabs; brightened for 4.5:1+ on
+// the dark card background (#142330). Same 5 colors are duplicated in
+// airsTier() and a couple of local consts below — kept in sync by value.
 const PLAYBOOK_TIERS = [
-  { tier: 'AI-Forward',  range: '75–100', color: '#166534', action: 'Assign as AI Pilot Leads. They run the first automation sprint for their department.', owner: 'AI Lead + Dept Head', by: 'This sprint' },
-  { tier: 'AI-Ready',    range: '55–74',  color: '#0E7490', action: 'Pair with an AI-Forward colleague. Start a 30-day tool adoption plan with one specific workflow to automate.', owner: 'Event Pilot Training', by: '30 days' },
-  { tier: 'AI-Aware',    range: '35–54',  color: '#92400E', action: 'Foundation workshop (half day). Pick one tool for their role and commit to using it daily for 2 weeks.', owner: 'Event Pilot Training + HR', by: '60 days' },
-  { tier: 'AI-Curious',  range: '15–34',  color: '#C2410C', action: "Awareness session first — why AI matters for their specific role. Then intro to ChatGPT basics.", owner: 'HR + Event Pilot', by: '90 days' },
-  { tier: 'AI-Unaware',  range: '0–14',   color: '#991B1B', action: 'Digital literacy assessment first. Build a personalised catch-up plan before any AI training.', owner: 'HR', by: '120 days' },
+  { tier: 'AI-Forward',  range: '75–100', color: '#34D399', action: 'Assign as AI Pilot Leads. They run the first automation sprint for their department.', owner: 'AI Lead + Dept Head', by: 'This sprint' },
+  { tier: 'AI-Ready',    range: '55–74',  color: '#1296BA', action: 'Pair with an AI-Forward colleague. Start a 30-day tool adoption plan with one specific workflow to automate.', owner: 'Event Pilot Training', by: '30 days' },
+  { tier: 'AI-Aware',    range: '35–54',  color: '#F5B94D', action: 'Foundation workshop (half day). Pick one tool for their role and commit to using it daily for 2 weeks.', owner: 'Event Pilot Training + HR', by: '60 days' },
+  { tier: 'AI-Curious',  range: '15–34',  color: '#FB923C', action: "Awareness session first — why AI matters for their specific role. Then intro to ChatGPT basics.", owner: 'HR + Event Pilot', by: '90 days' },
+  { tier: 'AI-Unaware',  range: '0–14',   color: '#F1667A', action: 'Digital literacy assessment first. Build a personalised catch-up plan before any AI training.', owner: 'HR', by: '120 days' },
 ]
 
 export default function AdminPage() {
@@ -876,7 +887,8 @@ export default function AdminPage() {
     4: 'Use AI most days',
     5: 'Build AI workflows',
   }
-  const readinessColors = ['#FF6B6B', '#8B1A1A', '#8B1A1A', '#00897B', '#3D6B00']
+  // Literal (not vars) — indexed and reused as `${readinessColors[n]}NN` alpha strings.
+  const readinessColors = ['#F1667A', '#F1667A', '#F1667A', '#12C9BD', '#C0F43C']
 
   /* ── Most common tools (filtered by readinessDeptFilter) ── */
   const toolCount: Record<string, number> = {}
@@ -917,19 +929,20 @@ export default function AdminPage() {
     'Terminal/CLI', 'ATS Software'])
 
   // Department AI impact priority for Trescon (HIGH = where AI helps most)
+  // Literal (not vars) — color is reused as `${impact.color}NN` alpha strings.
   const DEPT_IMPACT: Record<string, { priority: string; color: string; why: string }> = {
-    'Events':               { priority: 'Critical', color: '#FF6B6B', why: 'Massive manual coordination overhead — vendor, logistics, reporting' },
-    'Sales & Sponsorship':  { priority: 'Critical', color: '#FF6B6B', why: 'Prospecting, proposal writing, follow-ups — all AI-automatable' },
-    'Finance':              { priority: 'Critical', color: '#FF6B6B', why: 'Reconciliation, reporting, approval chasing — high automation value' },
-    'Marketing':            { priority: 'High',     color: '#8B1A1A', why: 'Content creation and campaign analysis — most mature AI tools exist' },
-    'DemandifyMedia':       { priority: 'High',     color: '#8B1A1A', why: 'Ad optimisation and reporting — AI tools are industry standard now' },
-    'HR & Recruitment':     { priority: 'High',     color: '#8B1A1A', why: 'CV screening and scheduling are solved problems with AI' },
-    'Content & Design':     { priority: 'High',     color: '#8B1A1A', why: 'Generative AI for content/design is fastest-moving category' },
-    'Leadership':           { priority: 'High',     color: '#8B1A1A', why: 'Decision intelligence and real-time visibility gaps' },
-    'IT':                   { priority: 'Medium',   color: '#8B1A1A', why: 'Already closest — focus on enabling others, not self-training' },
-    'Operations':           { priority: 'Medium',   color: '#8B1A1A', why: 'Process automation needs depends on current tool stack' },
-    'Government Relations': { priority: 'Medium',   color: '#8B1A1A', why: 'Document automation + status tracking — achievable in 6 months' },
-    'Other':                { priority: 'Medium',   color: '#8B1A1A', why: 'Assess after more data' },
+    'Events':               { priority: 'Critical', color: '#F1667A', why: 'Massive manual coordination overhead — vendor, logistics, reporting' },
+    'Sales & Sponsorship':  { priority: 'Critical', color: '#F1667A', why: 'Prospecting, proposal writing, follow-ups — all AI-automatable' },
+    'Finance':              { priority: 'Critical', color: '#F1667A', why: 'Reconciliation, reporting, approval chasing — high automation value' },
+    'Marketing':            { priority: 'High',     color: '#F1667A', why: 'Content creation and campaign analysis — most mature AI tools exist' },
+    'DemandifyMedia':       { priority: 'High',     color: '#F1667A', why: 'Ad optimisation and reporting — AI tools are industry standard now' },
+    'HR & Recruitment':     { priority: 'High',     color: '#F1667A', why: 'CV screening and scheduling are solved problems with AI' },
+    'Content & Design':     { priority: 'High',     color: '#F1667A', why: 'Generative AI for content/design is fastest-moving category' },
+    'Leadership':           { priority: 'High',     color: '#F1667A', why: 'Decision intelligence and real-time visibility gaps' },
+    'IT':                   { priority: 'Medium',   color: '#F1667A', why: 'Already closest — focus on enabling others, not self-training' },
+    'Operations':           { priority: 'Medium',   color: '#F1667A', why: 'Process automation needs depends on current tool stack' },
+    'Government Relations': { priority: 'Medium',   color: '#F1667A', why: 'Document automation + status tracking — achievable in 6 months' },
+    'Other':                { priority: 'Medium',   color: '#F1667A', why: 'Assess after more data' },
   }
 
   // AIRS calculation per entity (dept/office/person)
@@ -970,11 +983,11 @@ export default function AdminPage() {
 
   // AIRS tier label + color
   function airsTier(score: number) {
-    if (score >= 75) return { label: 'AI-Forward',  color: '#166534', desc: 'Deploy automations now' }
-    if (score >= 55) return { label: 'AI-Ready',    color: '#0E7490', desc: 'Train + deploy in parallel' }
-    if (score >= 35) return { label: 'AI-Aware',    color: '#92400E', desc: '90-day foundation plan' }
-    if (score >= 15) return { label: 'AI-Curious',  color: '#C2410C', desc: 'Awareness + pilot needed' }
-    return               { label: 'AI-Unaware',   color: '#991B1B', desc: 'Start from literacy basics' }
+    if (score >= 75) return { label: 'AI-Forward',  color: '#34D399', desc: 'Deploy automations now' }
+    if (score >= 55) return { label: 'AI-Ready',    color: '#1296BA', desc: 'Train + deploy in parallel' }
+    if (score >= 35) return { label: 'AI-Aware',    color: '#F5B94D', desc: '90-day foundation plan' }
+    if (score >= 15) return { label: 'AI-Curious',  color: '#FB923C', desc: 'Awareness + pilot needed' }
+    return               { label: 'AI-Unaware',   color: '#F1667A', desc: 'Start from literacy basics' }
   }
 
   // ── Individual AIRS scores using shared computeAIRS (single source of truth) ──
@@ -1134,26 +1147,26 @@ export default function AdminPage() {
   /* ── Login screen ── */
   if (!authed) {
     return (
-      <div style={{ fontFamily: 'var(--font-manrope), Manrope, sans-serif', background: '#E8EEF4', minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '24px' }}>
-        <div style={{ background: '#FFFFFF', border: '1px solid #DDE8EE', borderRadius: '16px', padding: '48px 40px', maxWidth: '400px', width: '100%', textAlign: 'center', boxShadow: '0 1px 3px rgba(0,0,0,0.08)' }}>
-          <div style={{ width: '56px', height: '56px', background: '#00A5A320', border: '2px solid #00A5A3', borderRadius: '16px', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 24px' }}>
-            <svg width="24" height="24" fill="none" stroke="#00A5A3" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+      <div style={{ fontFamily: 'var(--font-manrope), Manrope, sans-serif', background: 'var(--surface)', minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '24px' }}>
+        <div style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: '16px', padding: '48px 40px', maxWidth: '400px', width: '100%', textAlign: 'center', boxShadow: '0 1px 3px rgba(0,0,0,0.08)' }}>
+          <div style={{ width: '56px', height: '56px', background: '#00A5A320', border: '2px solid var(--teal-mid)', borderRadius: '16px', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 24px' }}>
+            <svg width="24" height="24" fill="none" stroke="var(--teal-mid)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
           </div>
-          <h1 style={{ fontSize: '36px', fontWeight: 800, color: '#0F1923', marginBottom: '8px' }}>Admin Access</h1>
-          <p style={{ fontSize: '13px', color: '#5B7080', marginBottom: '32px' }}>Event Pilot — Leadership Dashboard</p>
+          <h1 style={{ fontSize: '36px', fontWeight: 800, color: 'var(--ink)', marginBottom: '8px' }}>Admin Access</h1>
+          <p style={{ fontSize: '13px', color: 'var(--ink3)', marginBottom: '32px' }}>Event Pilot — Leadership Dashboard</p>
           <form onSubmit={handleAuth}>
             <input type="email" value={adminEmail} onChange={e => { setAdminEmail(e.target.value); setCodeError('') }}
               placeholder="Your work email" autoFocus
-              style={{ width: '100%', padding: '14px 16px', borderRadius: '12px', border: `1px solid ${codeError ? '#FF6B6B' : '#DDE8EE'}`, background: '#FFFFFF', color: '#0F1923', fontSize: '13px', outline: 'none', fontFamily: 'inherit', marginBottom: '10px', boxSizing: 'border-box' }} />
+              style={{ width: '100%', padding: '14px 16px', borderRadius: '12px', border: `1px solid ${codeError ? 'var(--red)' : 'var(--border)'}`, background: 'var(--card)', color: 'var(--ink)', fontSize: '13px', outline: 'none', fontFamily: 'inherit', marginBottom: '10px', boxSizing: 'border-box' }} />
             <input type="password" value={code} onChange={e => { setCode(e.target.value); setCodeError('') }}
               placeholder="Password"
-              style={{ width: '100%', padding: '14px 16px', borderRadius: '12px', border: `1px solid ${codeError ? '#FF6B6B' : '#DDE8EE'}`, background: '#FFFFFF', color: '#0F1923', fontSize: '13px', outline: 'none', fontFamily: 'inherit', marginBottom: '12px', boxSizing: 'border-box' }} />
-            {codeError && <p style={{ fontSize: '13px', color: '#FF6B6B', marginBottom: '12px' }}>{codeError}</p>}
-            <button type="submit" style={{ width: '100%', padding: '14px', borderRadius: '12px', border: 'none', background: '#00897B', color: 'white', fontSize: '13px', fontWeight: 800, cursor: 'pointer', fontFamily: 'inherit' }}>
+              style={{ width: '100%', padding: '14px 16px', borderRadius: '12px', border: `1px solid ${codeError ? 'var(--red)' : 'var(--border)'}`, background: 'var(--card)', color: 'var(--ink)', fontSize: '13px', outline: 'none', fontFamily: 'inherit', marginBottom: '12px', boxSizing: 'border-box' }} />
+            {codeError && <p style={{ fontSize: '13px', color: 'var(--red)', marginBottom: '12px' }}>{codeError}</p>}
+            <button type="submit" style={{ width: '100%', padding: '14px', borderRadius: '12px', border: 'none', background: 'var(--teal-mid)', color: 'var(--teal-light)', fontSize: '13px', fontWeight: 800, cursor: 'pointer', fontFamily: 'inherit' }}>
               Enter Dashboard
             </button>
           </form>
-          <Link href="/dashboard" style={{ display: 'block', marginTop: '20px', fontSize: '13px', color: '#5B7080', textDecoration: 'none' }}>Back to dashboard</Link>
+          <Link href="/dashboard" style={{ display: 'block', marginTop: '20px', fontSize: '13px', color: 'var(--ink3)', textDecoration: 'none' }}>Back to dashboard</Link>
         </div>
       </div>
     )
@@ -1161,30 +1174,30 @@ export default function AdminPage() {
 
   /* ═══════════ DASHBOARD ═══════════ */
   return (
-    <div style={{ fontFamily: 'var(--font-manrope), Manrope, sans-serif', background: '#E8EEF4', minHeight: '100vh', color: '#0F1923' }}>
+    <div style={{ fontFamily: 'var(--font-manrope), Manrope, sans-serif', background: 'var(--surface)', minHeight: '100vh', color: 'var(--ink)' }}>
 
       {/* ── Welcome Modal (first login only) ── */}
       {showWelcome && (
         <div style={{ position: 'fixed', inset: 0, zIndex: 1000, background: 'rgba(0,0,0,0.92)', backdropFilter: 'blur(6px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}>
-          <div style={{ background: '#FFFFFF', border: '1px solid rgba(0,165,163,0.35)', borderRadius: '16px', maxWidth: '640px', width: '100%', overflow: 'hidden', boxShadow: '0 32px 80px rgba(0,0,0,0.7), 0 0 0 1px rgba(0,165,163,0.08)' }}>
+          <div style={{ background: 'var(--card)', border: '1px solid rgba(0,165,163,0.35)', borderRadius: '16px', maxWidth: '640px', width: '100%', overflow: 'hidden', boxShadow: '0 32px 80px rgba(0,0,0,0.7), 0 0 0 1px rgba(0,165,163,0.08)' }}>
 
             {/* Top colour bar */}
-            <div style={{ height: '4px', background: 'linear-gradient(90deg, #00A5A3 0%, #C0F43C 60%, #A478FF 100%)' }} />
+            <div style={{ height: '4px', background: 'linear-gradient(90deg, var(--teal-mid) 0%, var(--lime) 60%, #A478FF 100%)' }} />
 
             <div style={{ padding: '36px 40px 32px' }}>
 
               {/* Header row */}
               <div style={{ display: 'flex', alignItems: 'center', gap: '16px', marginBottom: '20px' }}>
-                <div style={{ width: '52px', height: '52px', background: 'linear-gradient(135deg, #00A5A3 0%, #005F7A 100%)', borderRadius: '16px', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                  <svg width="22" height="22" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+                <div style={{ width: '52px', height: '52px', background: 'linear-gradient(135deg, #12C9BD 0%, #0B8079 100%)', borderRadius: '16px', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                  <svg width="22" height="22" fill="none" stroke="var(--teal-light)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
                 </div>
                 <div>
-                  <div style={{ fontSize: '13px', fontWeight: 800, letterSpacing: '2px', textTransform: 'uppercase', color: '#00897B', marginBottom: '3px' }}>First time here?</div>
-                  <div style={{ fontSize: '36px', fontWeight: 900, color: '#0F1923', letterSpacing: '-0.4px', lineHeight: 1.1 }}>Welcome to Event Pilot</div>
+                  <div style={{ fontSize: '13px', fontWeight: 800, letterSpacing: '2px', textTransform: 'uppercase', color: 'var(--teal-mid)', marginBottom: '3px' }}>First time here?</div>
+                  <div style={{ fontSize: '36px', fontWeight: 900, color: 'var(--ink)', letterSpacing: '-0.4px', lineHeight: 1.1 }}>Welcome to Event Pilot</div>
                 </div>
               </div>
 
-              <p style={{ fontSize: '13px', color: '#5B7080', lineHeight: 1.75, margin: '0 0 28px' }}>
+              <p style={{ fontSize: '13px', color: 'var(--ink3)', lineHeight: 1.75, margin: '0 0 28px' }}>
                 Event Pilot is Trescon&apos;s internal AI readiness platform — measuring where every employee stands today and moving them forward through structured, role-specific learning.
               </p>
 
@@ -1192,18 +1205,18 @@ export default function AdminPage() {
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '10px', marginBottom: '28px' }}>
                 {[
                   {
-                    color: '#00897B',
+                    color: 'var(--teal-mid)',
                     bg: 'rgba(0,165,163,0.1)',
                     border: 'rgba(0,165,163,0.25)',
-                    icon: <svg width="18" height="18" fill="none" stroke="#00A5A3" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>,
+                    icon: <svg width="18" height="18" fill="none" stroke="var(--teal-mid)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>,
                     title: 'AI Readiness Score',
                     desc: 'Live AI readiness score (0–100) per staff member',
                   },
                   {
-                    color: '#00695C',
+                    color: 'var(--teal)',
                     bg: 'rgba(192,244,60,0.08)',
                     border: 'rgba(192,244,60,0.22)',
-                    icon: <svg width="18" height="18" fill="none" stroke="#3D6B00" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>,
+                    icon: <svg width="18" height="18" fill="none" stroke="var(--lime)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>,
                     title: 'AI Courses',
                     desc: 'Role-based learning paths, generated and tracked',
                   },
@@ -1222,7 +1235,7 @@ export default function AdminPage() {
                     </div>
                     <div>
                       <div style={{ fontSize: '13px', fontWeight: 800, color: item.color, marginBottom: '4px' }}>{item.title}</div>
-                      <div style={{ fontSize: '11.5px', color: '#5B7080', lineHeight: 1.55 }}>{item.desc}</div>
+                      <div style={{ fontSize: '11.5px', color: 'var(--ink3)', lineHeight: 1.55 }}>{item.desc}</div>
                     </div>
                   </div>
                 ))}
@@ -1231,13 +1244,13 @@ export default function AdminPage() {
               {/* CTA */}
               <button
                 onClick={dismissWelcome}
-                style={{ width: '100%', padding: '16px', borderRadius: '14px', border: 'none', background: 'linear-gradient(135deg, #00A5A3 0%, #00C9C7 100%)', color: 'white', fontSize: '13px', fontWeight: 800, cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}
+                style={{ width: '100%', padding: '16px', borderRadius: '14px', border: 'none', background: 'linear-gradient(135deg, #12C9BD 0%, #0EA79D 100%)', color: 'var(--teal-light)', fontSize: '13px', fontWeight: 800, cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}
               >
                 Take me to the dashboard
                 <svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg>
               </button>
 
-              <div style={{ textAlign: 'center', marginTop: '12px', fontSize: '13px', color: '#5B7080' }}>
+              <div style={{ textAlign: 'center', marginTop: '12px', fontSize: '13px', color: 'var(--ink3)' }}>
                 This screen only appears on first login
               </div>
 
@@ -1257,16 +1270,16 @@ export default function AdminPage() {
         title="Admin Dashboard"
         description="Live org intelligence — AI readiness, learning progress, and staff development across all offices."
         actions={<>
-          {loading && <span style={{ fontSize: '12px', color: '#00897B', whiteSpace: 'nowrap' }}>Updating...</span>}
-          <Link href="/admin/org-chart" style={{ background: '#FFFFFF', border: '1px solid #DDE8EE', color: '#374151', fontSize: '12px', fontWeight: 700, padding: '7px 11px', borderRadius: '10px', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '5px', whiteSpace: 'nowrap' }}>
-            <svg width="12" height="12" fill="none" stroke="#00A5A3" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><rect x="8" y="2" width="8" height="4" rx="1"/><rect x="1" y="14" width="6" height="4" rx="1"/><rect x="9" y="14" width="6" height="4" rx="1"/><rect x="17" y="14" width="6" height="4" rx="1"/><line x1="4" y1="14" x2="4" y2="11"/><line x1="12" y1="14" x2="12" y2="6"/><line x1="20" y1="14" x2="20" y2="11"/><line x1="4" y1="11" x2="20" y2="11"/></svg>
+          {loading && <span style={{ fontSize: '12px', color: 'var(--teal-mid)', whiteSpace: 'nowrap' }}>Updating...</span>}
+          <Link href="/admin/org-chart" style={{ background: 'var(--card)', border: '1px solid var(--border)', color: 'var(--ink2)', fontSize: '12px', fontWeight: 700, padding: '7px 11px', borderRadius: '10px', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '5px', whiteSpace: 'nowrap' }}>
+            <svg width="12" height="12" fill="none" stroke="var(--teal-mid)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><rect x="8" y="2" width="8" height="4" rx="1"/><rect x="1" y="14" width="6" height="4" rx="1"/><rect x="9" y="14" width="6" height="4" rx="1"/><rect x="17" y="14" width="6" height="4" rx="1"/><line x1="4" y1="14" x2="4" y2="11"/><line x1="12" y1="14" x2="12" y2="6"/><line x1="20" y1="14" x2="20" y2="11"/><line x1="4" y1="11" x2="20" y2="11"/></svg>
             Org Chart
           </Link>
           <button
             onClick={() => { setShowRoadmap(true); setSuggSent(false); setSuggText(''); fetch('/api/build-log').then(r => r.json()).then(data => { if (Array.isArray(data)) setBuildLog(data) }).catch(() => {}) }}
             title="Platform Updates — what shipped and when"
-            style={{ width: '34px', height: '34px', borderRadius: '50%', border: '1px solid #DDE8EE', background: '#FFFFFF', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <svg width="16" height="16" fill="none" stroke="#5B7080" strokeWidth="2" strokeLinecap="round" viewBox="0 0 24 24"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+            style={{ width: '34px', height: '34px', borderRadius: '50%', border: '1px solid var(--border)', background: 'var(--card)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <svg width="16" height="16" fill="none" stroke="var(--ink3)" strokeWidth="2" strokeLinecap="round" viewBox="0 0 24 24"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
           </button>
         </>}
       />
@@ -1274,9 +1287,9 @@ export default function AdminPage() {
       {/* ── Demo mode banner — auto-hides once real staff data is imported ── */}
       {isDemo && (
         <div style={{ background: 'rgba(139,26,26,0.08)', borderBottom: '1px solid rgba(139,26,26,0.25)', padding: '10px 40px', display: 'flex', alignItems: 'center', gap: '10px' }}>
-          <svg width="14" height="14" fill="none" stroke="#8B1A1A" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
-          <span style={{ fontSize: '13px', fontWeight: 700, color: '#8B1A1A', animation: 'demoGlow 3s linear infinite' }}>Demo Mode</span>
-          <span style={{ fontSize: '13px', color: '#5B7080' }}>The data shown on this dashboard is sample data for demonstration purposes only. It does not represent any real individual or organisation.</span>
+          <svg width="14" height="14" fill="none" stroke="var(--red)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+          <span style={{ fontSize: '13px', fontWeight: 700, color: 'var(--red)', animation: 'demoGlow 3s linear infinite' }}>Demo Mode</span>
+          <span style={{ fontSize: '13px', color: 'var(--ink3)' }}>The data shown on this dashboard is sample data for demonstration purposes only. It does not represent any real individual or organisation.</span>
         </div>
       )}
 
@@ -1284,18 +1297,19 @@ export default function AdminPage() {
 
         {/* ── Tabs ── */}
         {(() => {
+          // Literal (not vars) — reused as `${accent}NN` alpha strings below.
           const TAB_ACCENT: Record<string, string> = {
-            overview:     '#00897B',
-            people:       '#0E7490',
+            overview:     '#12C9BD',
+            people:       '#1296BA',
             intelligence: '#A478FF',
-            learning:     '#00897B',
+            learning:     '#12C9BD',
             suggest:      '#A478FF',
-            events:       '#00897B',
-            review:       '#991B1B',
-            security:     '#1D4ED8',
-            toolkit:      '#00695C',
-            finance:      '#1565C0',
-            hr:           '#7C3AED',
+            events:       '#12C9BD',
+            review:       '#F1667A',
+            security:     '#6285EA',
+            toolkit:      '#0EA79D',
+            finance:      '#5AA9F2',
+            hr:           '#A78BFA',
           }
           // Tabs that don't render inline content in this tab bar — they're
           // pure navigation links to a separate module (with its own
@@ -1324,7 +1338,7 @@ export default function AdminPage() {
                 ...(isSuperAdmin ? [['review', 'Review Queue']] : []),
                 ...(isSuperAdmin ? [['security', 'Security']] : []),
               ] as [typeof tab, string][]).map(([t, label]) => {
-                const accent  = TAB_ACCENT[t] ?? '#00897B'
+                const accent  = TAB_ACCENT[t] ?? '#12C9BD'
                 const active  = tab === t
                 return (
                   <button key={t}
@@ -1333,13 +1347,13 @@ export default function AdminPage() {
                     style={{
                       padding:         active ? '9px 22px' : '9px 20px',
                       borderRadius:    '10px',
-                      border:          active ? `1.5px solid ${accent}` : '1px solid #DDE8EE',
+                      border:          active ? `1.5px solid ${accent}` : '1px solid var(--border)',
                       cursor:          'pointer',
                       fontFamily:      'inherit',
                       fontSize:        '13px',
                       fontWeight:      active ? 800 : 600,
-                      background:      active ? accent : '#FFFFFF',
-                      color:           active ? '#FFFFFF' : '#5B7080',
+                      background:      active ? accent : 'var(--card)',
+                      color:           active ? 'var(--surface)' : 'var(--ink3)',
                       boxShadow:       active ? `0 4px 14px ${accent}50` : '0 1px 2px rgba(15,25,35,0.04)',
                       transition:      'all 0.15s ease',
                       letterSpacing:   active ? '0.1px' : 'normal',
@@ -1359,10 +1373,10 @@ export default function AdminPage() {
           <div id="tour-started" style={{ marginBottom: '28px', background: 'rgba(0,165,163,0.06)', border: '1px solid rgba(0,165,163,0.2)', borderRadius: '16px', padding: '24px 28px' }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '18px' }}>
               <div>
-                <div style={{ fontSize: '13px', fontWeight: 800, letterSpacing: '2px', textTransform: 'uppercase', color: '#00897B', marginBottom: '4px' }}>Getting Started</div>
-                <div style={{ fontSize: '13px', fontWeight: 800, color: '#0F1923' }}>Three things to explore first</div>
+                <div style={{ fontSize: '13px', fontWeight: 800, letterSpacing: '2px', textTransform: 'uppercase', color: 'var(--teal-mid)', marginBottom: '4px' }}>Getting Started</div>
+                <div style={{ fontSize: '13px', fontWeight: 800, color: 'var(--ink)' }}>Three things to explore first</div>
               </div>
-              <div style={{ fontSize: '13px', color: '#0F1923' }}>
+              <div style={{ fontSize: '13px', color: 'var(--ink)' }}>
                 {[gettingStarted.staff, gettingStarted.brief, gettingStarted.course].filter(Boolean).length} / 3 done
               </div>
             </div>
@@ -1374,16 +1388,16 @@ export default function AdminPage() {
               ].map(step => {
                 const done = gettingStarted[step.key as keyof typeof gettingStarted]
                 return (
-                  <div key={step.key} style={{ display: 'flex', alignItems: 'center', gap: '14px', padding: '12px 16px', background: done ? 'rgba(0,137,123,0.04)' : '#FFFFFF', border: `1px solid ${done ? 'rgba(0,137,123,0.2)' : '#DDE8EE'}`, borderRadius: '12px' }}>
-                    <div style={{ width: '24px', height: '24px', borderRadius: '50%', background: done ? 'rgba(0,137,123,0.12)' : '#DDE8EE', border: `2px solid ${done ? '#00897B' : '#DDE8EE'}`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                  <div key={step.key} style={{ display: 'flex', alignItems: 'center', gap: '14px', padding: '12px 16px', background: done ? 'rgba(0,137,123,0.04)' : 'var(--card)', border: `1px solid ${done ? 'rgba(0,137,123,0.2)' : 'var(--border)'}`, borderRadius: '12px' }}>
+                    <div style={{ width: '24px', height: '24px', borderRadius: '50%', background: done ? 'rgba(0,137,123,0.12)' : 'var(--border)', border: `2px solid ${done ? 'var(--teal-mid)' : 'var(--border)'}`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
                       {done
-                        ? <svg width="10" height="10" fill="none" stroke="#00697B" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>
-                        : <div style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#0F1923' }} />
+                        ? <svg width="10" height="10" fill="none" stroke="#0099B3" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>
+                        : <div style={{ width: '6px', height: '6px', borderRadius: '50%', background: 'var(--ink4)' }} />
                       }
                     </div>
-                    <div style={{ flex: 1, fontSize: '13px', color: done ? '#0F1923' : '#5B7080', fontWeight: 600, textDecoration: done ? 'line-through' : 'none' }}>{step.label}</div>
+                    <div style={{ flex: 1, fontSize: '13px', color: done ? 'var(--ink)' : 'var(--ink3)', fontWeight: 600, textDecoration: done ? 'line-through' : 'none' }}>{step.label}</div>
                     {!done && (
-                      <button onClick={step.action} style={{ padding: '6px 14px', borderRadius: '8px', border: '1px solid rgba(0,165,163,0.3)', background: 'rgba(0,165,163,0.1)', color: '#00897B', fontSize: '13px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', flexShrink: 0 }}>
+                      <button onClick={step.action} style={{ padding: '6px 14px', borderRadius: '8px', border: '1px solid rgba(0,165,163,0.3)', background: 'rgba(0,165,163,0.1)', color: 'var(--teal-mid)', fontSize: '13px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', flexShrink: 0 }}>
                         Go to {step.tab}
                       </button>
                     )}
@@ -1396,53 +1410,53 @@ export default function AdminPage() {
 
         {/* ── Zone 1: Participation Banner ── */}
         <div id="tour-stats" style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '16px', marginBottom: '28px' }}>
-          <div style={{ background: '#FFFFFF', border: '1px solid #DDE8EE', borderTop: '4px solid #00897B', borderRadius: '14px', padding: '24px', boxShadow: '0 2px 8px rgba(15,25,35,0.06)' }}>
-            <div style={{ fontSize: '11px', fontWeight: 800, letterSpacing: '1.5px', textTransform: 'uppercase', color: '#5B7080', marginBottom: '12px' }}>Staff in System</div>
+          <div style={{ background: 'var(--card)', border: '1px solid var(--border)', borderTop: '4px solid var(--teal-mid)', borderRadius: '14px', padding: '24px', boxShadow: '0 2px 8px rgba(15,25,35,0.06)' }}>
+            <div style={{ fontSize: '11px', fontWeight: 800, letterSpacing: '1.5px', textTransform: 'uppercase', color: 'var(--ink3)', marginBottom: '12px' }}>Staff in System</div>
             <div style={{ display: 'flex', alignItems: 'baseline', gap: '8px', marginBottom: '14px' }}>
-              <span style={{ fontSize: '48px', fontWeight: 900, color: '#00897B', lineHeight: 1 }}>{totalJoined}</span>
-              <span style={{ fontSize: '13px', color: '#2D3E50', fontWeight: 700 }}>total</span>
+              <span style={{ fontSize: '48px', fontWeight: 900, color: 'var(--teal-mid)', lineHeight: 1 }}>{totalJoined}</span>
+              <span style={{ fontSize: '13px', color: 'var(--ink2)', fontWeight: 700 }}>total</span>
             </div>
-            <div style={{ height: '6px', background: '#E0F2F1', borderRadius: '3px', overflow: 'hidden', marginBottom: '8px' }}>
-              <div style={{ height: '100%', width: `${totalJoined > 0 ? Math.min(100, Math.round(profilesComplete / totalJoined * 100)) : 0}%`, background: '#00897B', borderRadius: '3px', transition: 'width 0.6s' }} />
+            <div style={{ height: '6px', background: 'var(--border-light)', borderRadius: '3px', overflow: 'hidden', marginBottom: '8px' }}>
+              <div style={{ height: '100%', width: `${totalJoined > 0 ? Math.min(100, Math.round(profilesComplete / totalJoined * 100)) : 0}%`, background: 'var(--teal-mid)', borderRadius: '3px', transition: 'width 0.6s' }} />
             </div>
-            <div style={{ fontSize: '12px', color: '#2D3E50', fontWeight: 600 }}>{totalJoined > 0 ? Math.round(profilesComplete / totalJoined * 100) : 0}% profiles complete · <span style={{ color: '#D97706' }}>{profilePending} pending</span></div>
+            <div style={{ fontSize: '12px', color: 'var(--ink2)', fontWeight: 600 }}>{totalJoined > 0 ? Math.round(profilesComplete / totalJoined * 100) : 0}% profiles complete · <span style={{ color: '#F5B94D' }}>{profilePending} pending</span></div>
           </div>
-          <div style={{ background: '#FFFFFF', border: '1px solid #DDE8EE', borderTop: '4px solid #7DC520', borderRadius: '14px', padding: '24px', boxShadow: '0 2px 8px rgba(15,25,35,0.06)' }}>
-            <div style={{ fontSize: '11px', fontWeight: 800, letterSpacing: '1.5px', textTransform: 'uppercase', color: '#5B7080', marginBottom: '12px' }}>Profiles Complete</div>
+          <div style={{ background: 'var(--card)', border: '1px solid var(--border)', borderTop: '4px solid #7DC520', borderRadius: '14px', padding: '24px', boxShadow: '0 2px 8px rgba(15,25,35,0.06)' }}>
+            <div style={{ fontSize: '11px', fontWeight: 800, letterSpacing: '1.5px', textTransform: 'uppercase', color: 'var(--ink3)', marginBottom: '12px' }}>Profiles Complete</div>
             <div style={{ display: 'flex', alignItems: 'baseline', gap: '8px', marginBottom: '14px' }}>
-              <span style={{ fontSize: '48px', fontWeight: 900, color: '#00695C', lineHeight: 1 }}>{profilesComplete}</span>
-              <span style={{ fontSize: '13px', color: '#2D3E50', fontWeight: 700 }}>/ {totalJoined}</span>
+              <span style={{ fontSize: '48px', fontWeight: 900, color: 'var(--teal)', lineHeight: 1 }}>{profilesComplete}</span>
+              <span style={{ fontSize: '13px', color: 'var(--ink2)', fontWeight: 700 }}>/ {totalJoined}</span>
             </div>
-            <div style={{ height: '6px', background: '#F1F8E9', borderRadius: '3px', overflow: 'hidden', marginBottom: '8px' }}>
+            <div style={{ height: '6px', background: 'var(--border-light)', borderRadius: '3px', overflow: 'hidden', marginBottom: '8px' }}>
               <div style={{ height: '100%', width: `${totalJoined > 0 ? Math.round(profilesComplete / totalJoined * 100) : 0}%`, background: '#7DC520', borderRadius: '3px', transition: 'width 0.6s' }} />
             </div>
-            <div style={{ fontSize: '12px', color: '#2D3E50', fontWeight: 600 }}>{totalJoined > 0 ? Math.round(profilesComplete / totalJoined * 100) : 0}% completion rate · {totalTasks} entries captured</div>
+            <div style={{ fontSize: '12px', color: 'var(--ink2)', fontWeight: 600 }}>{totalJoined > 0 ? Math.round(profilesComplete / totalJoined * 100) : 0}% completion rate · {totalTasks} entries captured</div>
           </div>
-          <div style={{ background: '#FFFFFF', border: '1px solid #DDE8EE', borderTop: `4px solid ${assessedAvg > 0 ? assessedTier.color : '#5B7080'}`, borderRadius: '14px', padding: '24px', boxShadow: '0 2px 8px rgba(15,25,35,0.06)' }}>
+          <div style={{ background: 'var(--card)', border: '1px solid var(--border)', borderTop: `4px solid ${assessedAvg > 0 ? assessedTier.color : 'var(--ink3)'}`, borderRadius: '14px', padding: '24px', boxShadow: '0 2px 8px rgba(15,25,35,0.06)' }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
-              <div style={{ fontSize: '11px', fontWeight: 800, letterSpacing: '1.5px', textTransform: 'uppercase', color: '#5B7080' }}>AI Readiness Score</div>
-              <Link href="/docs" style={{ fontSize: '11px', color: '#00897B', textDecoration: 'none', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '4px' }}>
+              <div style={{ fontSize: '11px', fontWeight: 800, letterSpacing: '1.5px', textTransform: 'uppercase', color: 'var(--ink3)' }}>AI Readiness Score</div>
+              <Link href="/docs" style={{ fontSize: '11px', color: 'var(--teal-mid)', textDecoration: 'none', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '4px' }}>
                 How it works
                 <svg width="9" height="9" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg>
               </Link>
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '14px', marginBottom: '6px' }}>
-              <span style={{ fontSize: '48px', fontWeight: 900, color: assessedAvg > 0 ? assessedTier.color : '#B8CDD8', lineHeight: 1 }}>{assessedAvg > 0 ? assessedAvg : '—'}</span>
+              <span style={{ fontSize: '48px', fontWeight: 900, color: assessedAvg > 0 ? assessedTier.color : 'var(--ink4)', lineHeight: 1 }}>{assessedAvg > 0 ? assessedAvg : '—'}</span>
               {assessedAvg > 0 && (
                 <div>
                   <div style={{ fontSize: '14px', fontWeight: 800, color: assessedTier.color, lineHeight: 1.2 }}>{assessedTier.label}</div>
-                  <div style={{ fontSize: '12px', color: '#2D3E50', fontWeight: 600, marginTop: '4px' }}>{assessedTier.desc}</div>
+                  <div style={{ fontSize: '12px', color: 'var(--ink2)', fontWeight: 600, marginTop: '4px' }}>{assessedTier.desc}</div>
                 </div>
               )}
             </div>
-            <div style={{ fontSize: '11px', color: '#5B7080', fontWeight: 600, marginBottom: '6px' }}>
+            <div style={{ fontSize: '11px', color: 'var(--ink3)', fontWeight: 600, marginBottom: '6px' }}>
               {assessedAvg > 0 ? `Avg of ${profilesComplete} assessed · Target 60+ · out of 100` : 'No assessments completed yet'}
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-              <div style={{ flex: 1, height: '5px', background: '#E8EEF4', borderRadius: '3px', overflow: 'hidden' }}>
-                <div style={{ height: '100%', width: `${participationPct}%`, background: participationPct >= 50 ? '#00897B' : participationPct >= 20 ? '#D97706' : '#DC2626', borderRadius: '3px', transition: 'width 0.6s' }} />
+              <div style={{ flex: 1, height: '5px', background: 'var(--surface)', borderRadius: '3px', overflow: 'hidden' }}>
+                <div style={{ height: '100%', width: `${participationPct}%`, background: participationPct >= 50 ? 'var(--teal-mid)' : participationPct >= 20 ? '#F5B94D' : 'var(--red)', borderRadius: '3px', transition: 'width 0.6s' }} />
               </div>
-              <span style={{ fontSize: '11px', fontWeight: 700, color: participationPct >= 50 ? '#00897B' : participationPct >= 20 ? '#D97706' : '#DC2626', whiteSpace: 'nowrap' }}>{participationPct}% assessed</span>
+              <span style={{ fontSize: '11px', fontWeight: 700, color: participationPct >= 50 ? 'var(--teal-mid)' : participationPct >= 20 ? '#F5B94D' : 'var(--red)', whiteSpace: 'nowrap' }}>{participationPct}% assessed</span>
             </div>
           </div>
         </div>
@@ -1457,11 +1471,11 @@ export default function AdminPage() {
             {/* Tier Summary Strip — who is where right now */}
             {(() => {
               const TIERS = [
-                { label: 'AI-Forward', color: '#166534', range: '75–100', desc: 'Building AI workflows' },
-                { label: 'AI-Ready',   color: '#0E7490', range: '55–74',  desc: 'Using AI regularly' },
-                { label: 'AI-Aware',   color: '#92400E', range: '35–54',  desc: 'Tried it, not a habit' },
-                { label: 'AI-Curious', color: '#C2410C', range: '15–34',  desc: 'Knows AI exists' },
-                { label: 'AI-Unaware', color: '#991B1B', range: '0–14',   desc: 'Needs foundations first' },
+                { label: 'AI-Forward', color: '#34D399', range: '75–100', desc: 'Building AI workflows' },
+                { label: 'AI-Ready',   color: '#1296BA', range: '55–74',  desc: 'Using AI regularly' },
+                { label: 'AI-Aware',   color: '#F5B94D', range: '35–54',  desc: 'Tried it, not a habit' },
+                { label: 'AI-Curious', color: '#FB923C', range: '15–34',  desc: 'Knows AI exists' },
+                { label: 'AI-Unaware', color: '#F1667A', range: '0–14',   desc: 'Needs foundations first' },
               ]
               const tierCounts: Record<string, number> = Object.fromEntries(TIERS.map(t => [t.label, 0]))
               members.filter(m => m.profile_complete).forEach(m => {
@@ -1475,15 +1489,15 @@ export default function AdminPage() {
                     const count = tierCounts[t.label] ?? 0
                     const pct   = Math.round(count / total * 100)
                     return (
-                      <div key={t.label} style={{ background: '#FFFFFF', border: '1px solid #DDE8EE', borderTop: `4px solid ${t.color}`, borderRadius: '14px', padding: '18px', display: 'flex', flexDirection: 'column', gap: '6px', boxShadow: '0 2px 8px rgba(15,25,35,0.05)' }}>
+                      <div key={t.label} style={{ background: 'var(--card)', border: '1px solid var(--border)', borderTop: `4px solid ${t.color}`, borderRadius: '14px', padding: '18px', display: 'flex', flexDirection: 'column', gap: '6px', boxShadow: '0 2px 8px rgba(15,25,35,0.05)' }}>
                         <div style={{ fontSize: '11px', fontWeight: 800, letterSpacing: '0.5px', color: t.color, textTransform: 'uppercase' }}>{t.range}</div>
                         <div style={{ display: 'flex', alignItems: 'baseline', gap: '6px' }}>
-                          <span style={{ fontSize: '36px', fontWeight: 900, color: count > 0 ? t.color : '#B8CDD8', lineHeight: 1 }}>{count}</span>
-                          {count > 0 && <span style={{ fontSize: '12px', color: '#2D3E50', fontWeight: 700 }}>{count === 1 ? 'person' : 'people'}</span>}
+                          <span style={{ fontSize: '36px', fontWeight: 900, color: count > 0 ? t.color : 'var(--ink4)', lineHeight: 1 }}>{count}</span>
+                          {count > 0 && <span style={{ fontSize: '12px', color: 'var(--ink2)', fontWeight: 700 }}>{count === 1 ? 'person' : 'people'}</span>}
                         </div>
-                        <div style={{ fontSize: '12px', fontWeight: 800, color: count > 0 ? '#0F1923' : '#5B7080' }}>{t.label}</div>
-                        <div style={{ fontSize: '11px', color: '#5B7080', lineHeight: 1.4, fontWeight: 600 }}>{t.desc}</div>
-                        <div style={{ height: '4px', background: '#E8EEF4', borderRadius: '2px', overflow: 'hidden', marginTop: '4px' }}>
+                        <div style={{ fontSize: '12px', fontWeight: 800, color: count > 0 ? 'var(--ink)' : 'var(--ink3)' }}>{t.label}</div>
+                        <div style={{ fontSize: '11px', color: 'var(--ink3)', lineHeight: 1.4, fontWeight: 600 }}>{t.desc}</div>
+                        <div style={{ height: '4px', background: 'var(--surface)', borderRadius: '2px', overflow: 'hidden', marginTop: '4px' }}>
                           <div style={{ height: '100%', width: `${pct}%`, background: t.color, borderRadius: '2px', transition: 'width 0.5s' }} />
                         </div>
                       </div>
@@ -1499,17 +1513,17 @@ export default function AdminPage() {
               {/* Left: Department Readiness Table */}
               {(() => {
                 const TIER_FILTERS = [
-                  { id: 'all',          label: 'All',          color: '#5B7080' },
-                  { id: 'AI-Forward',   label: 'AI-Forward',   color: '#166534' },
-                  { id: 'AI-Ready',     label: 'AI-Ready',     color: '#0E7490' },
-                  { id: 'AI-Aware',     label: 'AI-Aware',     color: '#92400E' },
-                  { id: 'AI-Curious',   label: 'AI-Curious',   color: '#C2410C' },
-                  { id: 'AI-Unaware',   label: 'AI-Unaware',   color: '#991B1B' },
+                  { id: 'all',          label: 'All',          color: '#7E93A1' },
+                  { id: 'AI-Forward',   label: 'AI-Forward',   color: '#34D399' },
+                  { id: 'AI-Ready',     label: 'AI-Ready',     color: '#1296BA' },
+                  { id: 'AI-Aware',     label: 'AI-Aware',     color: '#F5B94D' },
+                  { id: 'AI-Curious',   label: 'AI-Curious',   color: '#FB923C' },
+                  { id: 'AI-Unaware',   label: 'AI-Unaware',   color: '#F1667A' },
                 ]
                 const PRIORITY_FILTERS = [
-                  { id: 'Critical', color: '#FF6B6B' },
-                  { id: 'High',     color: '#8B1A1A' },
-                  { id: 'Medium',   color: '#8B1A1A' },
+                  { id: 'Critical', color: '#F1667A' },
+                  { id: 'High',     color: '#F1667A' },
+                  { id: 'Medium',   color: '#F1667A' },
                 ]
                 const visibleDepts = sortedDeptAirs.filter(d => {
                   if (deptTierFilter === 'all') return true
@@ -1527,15 +1541,15 @@ export default function AdminPage() {
                   'AI-Unaware':  'Digital literacy first · personal plan via HR',
                 }
                 return (
-                  <div style={{ background: '#FFFFFF', border: '1px solid #DDE8EE', borderRadius: '16px', overflow: 'hidden' }}>
+                  <div style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: '16px', overflow: 'hidden' }}>
                     {/* Header + filters */}
-                    <div style={{ padding: '18px 20px', borderBottom: '1px solid #DDE8EE' }}>
+                    <div style={{ padding: '18px 20px', borderBottom: '1px solid var(--border)' }}>
                       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
                         <div>
-                          <div style={{ fontSize: '13px', fontWeight: 700, letterSpacing: '1.5px', textTransform: 'uppercase', color: '#5B7080' }}>Department Readiness</div>
-                          <div style={{ fontSize: '13px', color: '#5B7080', marginTop: '2px' }}>
+                          <div style={{ fontSize: '13px', fontWeight: 700, letterSpacing: '1.5px', textTransform: 'uppercase', color: 'var(--ink3)' }}>Department Readiness</div>
+                          <div style={{ fontSize: '13px', color: 'var(--ink3)', marginTop: '2px' }}>
                             {visibleDepts.length} of {sortedDeptAirs.length} departments
-                            {deptTierFilter !== 'all' && <span style={{ color: '#5B7080' }}> · filtered by <strong style={{ color: '#0F1923' }}>{deptTierFilter}</strong></span>}
+                            {deptTierFilter !== 'all' && <span style={{ color: 'var(--ink3)' }}> · filtered by <strong style={{ color: 'var(--ink)' }}>{deptTierFilter}</strong></span>}
                           </div>
                         </div>
                       </div>
@@ -1546,20 +1560,20 @@ export default function AdminPage() {
                           const count  = f.id === 'all' ? sortedDeptAirs.length : sortedDeptAirs.filter(d => airsTier(d.score).label === f.id).length
                           return (
                             <button key={f.id} onClick={() => setDeptTierFilter(f.id)}
-                              style={{ padding: '4px 10px', borderRadius: '16px', border: `1px solid ${active ? f.color : '#DDE8EE'}`, background: active ? `${f.color}18` : 'transparent', color: active ? f.color : '#5B7080', fontSize: '13px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: '4px', transition: 'all 0.15s' }}>
+                              style={{ padding: '4px 10px', borderRadius: '16px', border: `1px solid ${active ? f.color : 'var(--border)'}`, background: active ? `${f.color}18` : 'transparent', color: active ? f.color : 'var(--ink3)', fontSize: '13px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: '4px', transition: 'all 0.15s' }}>
                               {f.label}
                               {f.id !== 'all' && count > 0 && <span style={{ fontSize: '9px', opacity: 0.7 }}>{count}</span>}
                             </button>
                           )
                         })}
-                        <div style={{ width: '1px', background: '#DDE8EE', margin: '0 2px' }} />
+                        <div style={{ width: '1px', background: 'var(--border)', margin: '0 2px' }} />
                         {PRIORITY_FILTERS.map(f => {
                           const active = deptTierFilter === f.id
                           const count  = sortedDeptAirs.filter(d => d.impact.priority === f.id).length
                           if (count === 0) return null
                           return (
                             <button key={f.id} onClick={() => setDeptTierFilter(f.id)}
-                              style={{ padding: '4px 10px', borderRadius: '16px', border: `1px solid ${active ? f.color : '#DDE8EE'}`, background: active ? `${f.color}18` : 'transparent', color: active ? f.color : '#5B7080', fontSize: '13px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: '4px', transition: 'all 0.15s' }}>
+                              style={{ padding: '4px 10px', borderRadius: '16px', border: `1px solid ${active ? f.color : 'var(--border)'}`, background: active ? `${f.color}18` : 'transparent', color: active ? f.color : 'var(--ink3)', fontSize: '13px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: '4px', transition: 'all 0.15s' }}>
                               {f.id}
                               <span style={{ fontSize: '9px', opacity: 0.7 }}>{count}</span>
                             </button>
@@ -1568,7 +1582,7 @@ export default function AdminPage() {
                       </div>
                     </div>
                     {visibleDepts.length === 0 ? (
-                      <div style={{ padding: '40px', textAlign: 'center', fontSize: '13px', color: '#5B7080' }}>No departments match this filter</div>
+                      <div style={{ padding: '40px', textAlign: 'center', fontSize: '13px', color: 'var(--ink3)' }}>No departments match this filter</div>
                     ) : (
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '0' }}>
                         {visibleDepts.map((d, i) => {
@@ -1578,8 +1592,8 @@ export default function AdminPage() {
                           const isTop       = i === 0 && deptTierFilter === 'all'
                           return (
                             <div key={d.dept} style={{
-                              borderBottom: i < visibleDepts.length - 1 ? '1px solid #E8EEF4' : 'none',
-                              background: isTop ? `${tier.color}05` : '#FFFFFF',
+                              borderBottom: i < visibleDepts.length - 1 ? '1px solid var(--surface)' : 'none',
+                              background: isTop ? `${tier.color}05` : 'var(--card)',
                               borderLeft: `4px solid ${tier.color}`,
                               padding: '16px 20px',
                             }}>
@@ -1598,27 +1612,27 @@ export default function AdminPage() {
                                 {/* Dept info */}
                                 <div style={{ flex: 1, minWidth: 0 }}>
                                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap', marginBottom: '4px' }}>
-                                    <span style={{ fontSize: '14px', fontWeight: 800, color: '#0F1923' }}>{d.dept}</span>
+                                    <span style={{ fontSize: '14px', fontWeight: 800, color: 'var(--ink)' }}>{d.dept}</span>
                                     <span style={{ fontSize: '9px', fontWeight: 800, color: tier.color, background: `${tier.color}15`, padding: '2px 8px', borderRadius: '5px', border: `1px solid ${tier.color}25`, whiteSpace: 'nowrap' }}>{tier.label}</span>
                                     <span style={{ fontSize: '11px', fontWeight: 800, color: impact.color, background: `${impact.color}12`, padding: '2px 8px', borderRadius: '5px', border: `1px solid ${impact.color}25`, whiteSpace: 'nowrap' }}>{impact.priority} Priority</span>
                                   </div>
-                                  <div style={{ fontSize: '12px', color: '#5B7080' }}>{d.joined} enrolled · {d.interviewed} assessed</div>
+                                  <div style={{ fontSize: '12px', color: 'var(--ink3)' }}>{d.joined} enrolled · {d.interviewed} assessed</div>
                                 </div>
                                 {/* Coverage */}
                                 <div style={{ flexShrink: 0, textAlign: 'right' }}>
-                                  <div style={{ fontSize: '11px', fontWeight: 700, letterSpacing: '0.5px', textTransform: 'uppercase', color: '#5B7080', marginBottom: '4px' }}>Coverage</div>
+                                  <div style={{ fontSize: '11px', fontWeight: 700, letterSpacing: '0.5px', textTransform: 'uppercase', color: 'var(--ink3)', marginBottom: '4px' }}>Coverage</div>
                                   <div style={{ display: 'flex', alignItems: 'center', gap: '6px', justifyContent: 'flex-end' }}>
-                                    <div style={{ width: '60px', height: '5px', background: '#E8EEF4', borderRadius: '3px', overflow: 'hidden' }}>
-                                      <div style={{ height: '100%', width: `${completePct}%`, background: completePct === 100 ? '#00897B' : tier.color, borderRadius: '3px' }} />
+                                    <div style={{ width: '60px', height: '5px', background: 'var(--surface)', borderRadius: '3px', overflow: 'hidden' }}>
+                                      <div style={{ height: '100%', width: `${completePct}%`, background: completePct === 100 ? 'var(--teal-mid)' : tier.color, borderRadius: '3px' }} />
                                     </div>
-                                    <span style={{ fontSize: '13px', fontWeight: 800, color: completePct === 100 ? '#3D6B00' : '#2D3E50' }}>{completePct}%</span>
+                                    <span style={{ fontSize: '13px', fontWeight: 800, color: completePct === 100 ? 'var(--lime)' : 'var(--ink2)' }}>{completePct}%</span>
                                   </div>
                                 </div>
                               </div>
                               {/* Action row */}
                               <div style={{ display: 'flex', alignItems: 'flex-start', gap: '8px', paddingLeft: '64px' }}>
                                 <svg width="13" height="13" fill="none" stroke={tier.color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24" style={{ flexShrink: 0, marginTop: '1px' }}><polyline points="9 18 15 12 9 6"/></svg>
-                                <span style={{ fontSize: '13px', color: '#2D3E50', lineHeight: 1.55, fontWeight: 500 }}>{ACTIONS[tier.label] ?? '—'}</span>
+                                <span style={{ fontSize: '13px', color: 'var(--ink2)', lineHeight: 1.55, fontWeight: 500 }}>{ACTIONS[tier.label] ?? '—'}</span>
                               </div>
                             </div>
                           )
@@ -1639,17 +1653,17 @@ export default function AdminPage() {
                     const joined = officeMap[o.id]?.count ?? 0
                     const tier   = oData ? airsTier(oData.score) : null
                     return (
-                      <div key={o.id} style={{ background: '#FFFFFF', border: `1px solid ${o.color}25`, borderRadius: '16px', padding: '16px 18px' }}>
+                      <div key={o.id} style={{ background: 'var(--card)', border: `1px solid ${o.color}25`, borderRadius: '16px', padding: '16px 18px' }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '7px', marginBottom: '10px' }}>
                           <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: o.color, flexShrink: 0 }} />
-                          <span style={{ fontSize: '13px', fontWeight: 800, color: '#0F1923' }}>{o.label}</span>
+                          <span style={{ fontSize: '13px', fontWeight: 800, color: 'var(--ink)' }}>{o.label}</span>
                         </div>
                         <div style={{ display: 'flex', alignItems: 'baseline', gap: '4px', marginBottom: '10px' }}>
                           <span style={{ fontSize: '36px', fontWeight: 900, color: o.color, lineHeight: 1 }}>{joined}</span>
-                          <span style={{ fontSize: '13px', color: '#0F1923', marginLeft: '4px' }}>staff</span>
+                          <span style={{ fontSize: '13px', color: 'var(--ink)', marginLeft: '4px' }}>staff</span>
                         </div>
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                          <span style={{ fontSize: '13px', color: '#5B7080' }}>{members.filter(m => m.office_id === o.id && m.profile_complete).length} profiles complete</span>
+                          <span style={{ fontSize: '13px', color: 'var(--ink3)' }}>{members.filter(m => m.office_id === o.id && m.profile_complete).length} profiles complete</span>
                           {tier && oData && (
                             <span style={{ fontSize: '13px', fontWeight: 800, color: tier.color }}>AIRS {oData.score}</span>
                           )}
@@ -1660,10 +1674,10 @@ export default function AdminPage() {
                 </div>
 
                 {/* AI Champions */}
-                <div style={{ background: '#FFFFFF', border: '1px solid #DDE8EE', borderRadius: '16px', padding: '20px', flex: 1 }}>
-                  <div style={{ fontSize: '13px', fontWeight: 700, letterSpacing: '1.5px', textTransform: 'uppercase', color: '#5B7080', marginBottom: '14px' }}>AI Champions</div>
+                <div style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: '16px', padding: '20px', flex: 1 }}>
+                  <div style={{ fontSize: '13px', fontWeight: 700, letterSpacing: '1.5px', textTransform: 'uppercase', color: 'var(--ink3)', marginBottom: '14px' }}>AI Champions</div>
                   {topIndividuals.length === 0 ? (
-                    <div style={{ fontSize: '13px', color: '#5B7080' }}>No interview data yet</div>
+                    <div style={{ fontSize: '13px', color: 'var(--ink3)' }}>No interview data yet</div>
                   ) : (
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                       {topIndividuals.slice(0, 6).map((person, i) => {
@@ -1671,13 +1685,13 @@ export default function AdminPage() {
                         const off  = getOffice(person.office_id)
                         return (
                           <div key={person.id} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '7px 10px', background: i < 3 ? `${tier.color}08` : 'transparent', borderRadius: '10px', border: i < 3 ? `1px solid ${tier.color}18` : '1px solid transparent' }}>
-                            <span style={{ fontSize: '13px', fontWeight: 800, color: '#5B7080', minWidth: '18px' }}>#{i+1}</span>
-                            <div style={{ width: '26px', height: '26px', borderRadius: '7px', background: `${off?.color ?? '#00897B'}20`, border: `1px solid ${off?.color ?? '#00897B'}35`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                              <span style={{ fontSize: '13px', fontWeight: 800, color: off?.color ?? '#00695C' }}>{person.name.charAt(0)}</span>
+                            <span style={{ fontSize: '13px', fontWeight: 800, color: 'var(--ink3)', minWidth: '18px' }}>#{i+1}</span>
+                            <div style={{ width: '26px', height: '26px', borderRadius: '7px', background: `${off?.color ?? 'var(--teal-mid)'}20`, border: `1px solid ${off?.color ?? 'var(--teal-mid)'}35`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                              <span style={{ fontSize: '13px', fontWeight: 800, color: off?.color ?? 'var(--teal)' }}>{person.name.charAt(0)}</span>
                             </div>
                             <div style={{ flex: 1, minWidth: 0 }}>
-                              <div style={{ fontSize: '13px', fontWeight: 700, color: '#0F1923', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{person.name}</div>
-                              <div style={{ fontSize: '13px', color: '#5B7080' }}>{person.department ?? '—'}</div>
+                              <div style={{ fontSize: '13px', fontWeight: 700, color: 'var(--ink)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{person.name}</div>
+                              <div style={{ fontSize: '13px', color: 'var(--ink3)' }}>{person.department ?? '—'}</div>
                             </div>
                             <div style={{ textAlign: 'right', flexShrink: 0 }}>
                               <div style={{ fontSize: '13px', fontWeight: 800, color: tier.color, lineHeight: 1 }}>{person.toars}</div>
@@ -1698,33 +1712,33 @@ export default function AdminPage() {
         {/* ── AI Readiness Distribution + Top Tools ── */}
         <div style={{ marginBottom: '28px' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px', flexWrap: 'wrap' }}>
-            <span style={{ fontSize: '13px', fontWeight: 700, letterSpacing: '1.5px', textTransform: 'uppercase', color: '#5B7080', marginRight: '4px', flexShrink: 0 }}>View by department:</span>
+            <span style={{ fontSize: '13px', fontWeight: 700, letterSpacing: '1.5px', textTransform: 'uppercase', color: 'var(--ink3)', marginRight: '4px', flexShrink: 0 }}>View by department:</span>
             {['all', ...DEPT_ORDER.filter(d => deptMap[d])].map(d => {
               const active = readinessDeptFilter === d
               const deptData = d !== 'all' ? deptMap[d] : null
               return (
                 <button key={d} onClick={() => setReadinessDeptFilter(d)}
-                  style={{ padding: '4px 12px', borderRadius: '16px', border: `1px solid ${active ? '#00695C' : '#DDE8EE'}`, background: active ? 'rgba(0,122,110,0.1)' : 'transparent', color: active ? '#00695C' : '#2D3E50', fontSize: '13px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: '5px', transition: 'all 0.15s' }}>
+                  style={{ padding: '4px 12px', borderRadius: '16px', border: `1px solid ${active ? 'var(--teal)' : 'var(--border)'}`, background: active ? 'rgba(0,122,110,0.1)' : 'transparent', color: active ? 'var(--teal)' : 'var(--ink2)', fontSize: '13px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: '5px', transition: 'all 0.15s' }}>
                   {d === 'all' ? 'All Departments' : d}
-                  {deptData && <span style={{ fontSize: '13px', color: active ? '#00695C' : '#2D3E50', fontWeight: 400 }}>({deptData.complete})</span>}
+                  {deptData && <span style={{ fontSize: '13px', color: active ? 'var(--teal)' : 'var(--ink2)', fontWeight: 400 }}>({deptData.complete})</span>}
                 </button>
               )
             })}
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
             {/* Readiness distribution */}
-            <div style={{ background: '#FFFFFF', border: '1px solid #DDE8EE', borderRadius: '16px', padding: '24px' }}>
+            <div style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: '16px', padding: '24px' }}>
               <div style={{ display: 'flex', alignItems: 'baseline', gap: '8px', marginBottom: '4px' }}>
-                <div style={{ fontSize: '13px', fontWeight: 700, letterSpacing: '2px', textTransform: 'uppercase', color: '#5B7080' }}>Self-Reported Readiness</div>
+                <div style={{ fontSize: '13px', fontWeight: 700, letterSpacing: '2px', textTransform: 'uppercase', color: 'var(--ink3)' }}>Self-Reported Readiness</div>
                 {readinessDeptFilter !== 'all' && (
-                  <div style={{ fontSize: '13px', fontWeight: 700, color: '#00897B', background: 'rgba(0,165,163,0.12)', border: '1px solid rgba(0,165,163,0.25)', padding: '1px 7px', borderRadius: '10px' }}>{readinessDeptFilter}</div>
+                  <div style={{ fontSize: '13px', fontWeight: 700, color: 'var(--teal-mid)', background: 'rgba(0,165,163,0.12)', border: '1px solid rgba(0,165,163,0.25)', padding: '1px 7px', borderRadius: '10px' }}>{readinessDeptFilter}</div>
                 )}
               </div>
-              <div style={{ fontSize: '13px', color: '#5B7080', marginBottom: '20px' }}>
+              <div style={{ fontSize: '13px', color: 'var(--ink3)', marginBottom: '20px' }}>
                 {readinessDeptFilter === 'all' ? 'How staff describe their own AI usage in daily work' : `${deptReadinessList.length} interview${deptReadinessList.length !== 1 ? 's' : ''} from this department`}
               </div>
               {deptReadinessList.length === 0 ? (
-                <div style={{ fontSize: '13px', color: '#5B7080' }}>No interview data{readinessDeptFilter !== 'all' ? ' for this department' : ' yet'}</div>
+                <div style={{ fontSize: '13px', color: 'var(--ink3)' }}>No interview data{readinessDeptFilter !== 'all' ? ' for this department' : ' yet'}</div>
               ) : (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
                   {[1, 2, 3, 4, 5].map(n => {
@@ -1737,19 +1751,19 @@ export default function AdminPage() {
                         </div>
                         <div style={{ flex: 1 }}>
                           <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '3px' }}>
-                            <span style={{ fontSize: '13px', color: '#5B7080' }}>{readinessLabels[n]}</span>
-                            <span style={{ fontSize: '13px', color: count > 0 ? readinessColors[n-1] : '#5B7080', fontWeight: 700 }}>{pct > 0 ? `${pct}%` : ''}</span>
+                            <span style={{ fontSize: '13px', color: 'var(--ink3)' }}>{readinessLabels[n]}</span>
+                            <span style={{ fontSize: '13px', color: count > 0 ? readinessColors[n-1] : 'var(--ink3)', fontWeight: 700 }}>{pct > 0 ? `${pct}%` : ''}</span>
                           </div>
-                          <div style={{ height: '5px', background: '#E8EEF4', borderRadius: '3px', overflow: 'hidden' }}>
+                          <div style={{ height: '5px', background: 'var(--surface)', borderRadius: '3px', overflow: 'hidden' }}>
                             <div style={{ height: '100%', width: `${pct}%`, background: readinessColors[n-1], borderRadius: '3px', transition: 'width 0.4s' }} />
                           </div>
                         </div>
-                        <div style={{ fontSize: '13px', fontWeight: 800, color: count > 0 ? readinessColors[n-1] : '#DDE8EE', minWidth: '24px', textAlign: 'right' }}>{count}</div>
+                        <div style={{ fontSize: '13px', fontWeight: 800, color: count > 0 ? readinessColors[n-1] : 'var(--border)', minWidth: '24px', textAlign: 'right' }}>{count}</div>
                       </div>
                     )
                   })}
-                  <div style={{ paddingTop: '10px', borderTop: '1px solid #DDE8EE', display: 'flex', justifyContent: 'space-between', fontSize: '13px' }}>
-                    <span style={{ color: '#5B7080' }}>Avg readiness</span>
+                  <div style={{ paddingTop: '10px', borderTop: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', fontSize: '13px' }}>
+                    <span style={{ color: 'var(--ink3)' }}>Avg readiness</span>
                     <span style={{ fontWeight: 800, color: readinessColors[Math.round(deptReadinessList.reduce((a,b)=>a+b,0)/deptReadinessList.length)-1] }}>
                       {(deptReadinessList.reduce((a,b)=>a+b,0)/deptReadinessList.length).toFixed(1)} / 5
                     </span>
@@ -1758,36 +1772,36 @@ export default function AdminPage() {
               )}
             </div>
             {/* Top tools */}
-            <div style={{ background: '#FFFFFF', border: '1px solid #DDE8EE', borderRadius: '16px', padding: '24px' }}>
+            <div style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: '16px', padding: '24px' }}>
               <div style={{ display: 'flex', alignItems: 'baseline', gap: '8px', marginBottom: '4px' }}>
-                <div style={{ fontSize: '13px', fontWeight: 700, letterSpacing: '2px', textTransform: 'uppercase', color: '#5B7080' }}>Top Tools Used</div>
+                <div style={{ fontSize: '13px', fontWeight: 700, letterSpacing: '2px', textTransform: 'uppercase', color: 'var(--ink3)' }}>Top Tools Used</div>
                 {readinessDeptFilter !== 'all' && (
-                  <div style={{ fontSize: '13px', fontWeight: 700, color: '#00897B', background: 'rgba(0,165,163,0.12)', border: '1px solid rgba(0,165,163,0.25)', padding: '1px 7px', borderRadius: '10px' }}>{readinessDeptFilter}</div>
+                  <div style={{ fontSize: '13px', fontWeight: 700, color: 'var(--teal-mid)', background: 'rgba(0,165,163,0.12)', border: '1px solid rgba(0,165,163,0.25)', padding: '1px 7px', borderRadius: '10px' }}>{readinessDeptFilter}</div>
                 )}
               </div>
-              <div style={{ fontSize: '13px', color: '#5B7080', marginBottom: '20px' }}>
+              <div style={{ fontSize: '13px', color: 'var(--ink3)', marginBottom: '20px' }}>
                 {readinessDeptFilter === 'all' ? "What the whole team actually uses" : `Tools mentioned by ${readinessDeptFilter} team`}
               </div>
               {topTools.length === 0 ? (
-                <div style={{ fontSize: '13px', color: '#5B7080' }}>No interview data{readinessDeptFilter !== 'all' ? ' for this department' : ' yet'}</div>
+                <div style={{ fontSize: '13px', color: 'var(--ink3)' }}>No interview data{readinessDeptFilter !== 'all' ? ' for this department' : ' yet'}</div>
               ) : (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '9px' }}>
                   {topTools.map(([tool, count], i) => {
                     const pct      = Math.round(count / topTools[0][1] * 100)
                     const isAI     = AI_TOOLS.has(tool)
                     const isSaaS   = MODERN_SAAS.has(tool)
-                    const barColor = isAI ? '#C0F43C' : isSaaS ? '#00897B' : '#5B7080'
-                    const tagColor = isAI ? '#3D6B00' : isSaaS ? '#00897B' : '#5B7080'
+                    const barColor = isAI ? 'var(--lime)' : isSaaS ? 'var(--teal-mid)' : 'var(--ink3)'
+                    const tagColor = isAI ? 'var(--lime)' : isSaaS ? 'var(--teal-mid)' : 'var(--ink3)'
                     return (
                       <div key={tool} style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                        <div style={{ fontSize: '13px', fontWeight: 700, color: '#5B7080', minWidth: '18px' }}>#{i + 1}</div>
+                        <div style={{ fontSize: '13px', fontWeight: 700, color: 'var(--ink3)', minWidth: '18px' }}>#{i + 1}</div>
                         <div style={{ flex: 1 }}>
                           <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '3px' }}>
-                            <span style={{ fontSize: '13px', fontWeight: 700, color: '#0F1923' }}>{tool}</span>
-                            {isAI && <span style={{ fontSize: '9px', fontWeight: 800, color: '#00695C', background: 'rgba(0,122,110,0.1)', padding: '1px 5px', borderRadius: '4px' }}>AI</span>}
-                            {isSaaS && !isAI && <span style={{ fontSize: '9px', fontWeight: 700, color: '#00897B', background: 'rgba(0,165,163,0.12)', padding: '1px 5px', borderRadius: '4px' }}>SaaS</span>}
+                            <span style={{ fontSize: '13px', fontWeight: 700, color: 'var(--ink)' }}>{tool}</span>
+                            {isAI && <span style={{ fontSize: '9px', fontWeight: 800, color: 'var(--teal)', background: 'rgba(0,122,110,0.1)', padding: '1px 5px', borderRadius: '4px' }}>AI</span>}
+                            {isSaaS && !isAI && <span style={{ fontSize: '9px', fontWeight: 700, color: 'var(--teal-mid)', background: 'rgba(0,165,163,0.12)', padding: '1px 5px', borderRadius: '4px' }}>SaaS</span>}
                           </div>
-                          <div style={{ height: '4px', background: '#E8EEF4', borderRadius: '3px', overflow: 'hidden' }}>
+                          <div style={{ height: '4px', background: 'var(--surface)', borderRadius: '3px', overflow: 'hidden' }}>
                             <div style={{ height: '100%', width: `${pct}%`, background: barColor, borderRadius: '3px', transition: 'width 0.4s' }} />
                           </div>
                         </div>
@@ -1795,10 +1809,10 @@ export default function AdminPage() {
                       </div>
                     )
                   })}
-                  <div style={{ paddingTop: '10px', borderTop: '1px solid #DDE8EE', display: 'flex', gap: '14px', fontSize: '13px' }}>
-                    <span style={{ color: '#00695C' }}>■ AI tool</span>
-                    <span style={{ color: '#00897B' }}>■ Modern SaaS</span>
-                    <span style={{ color: '#5B7080' }}>■ Basic / Other</span>
+                  <div style={{ paddingTop: '10px', borderTop: '1px solid var(--border)', display: 'flex', gap: '14px', fontSize: '13px' }}>
+                    <span style={{ color: 'var(--teal)' }}>■ AI tool</span>
+                    <span style={{ color: 'var(--teal-mid)' }}>■ Modern SaaS</span>
+                    <span style={{ color: 'var(--ink3)' }}>■ Basic / Other</span>
                   </div>
                 </div>
               )}
@@ -1813,22 +1827,22 @@ export default function AdminPage() {
             {/* Row 1: Search + interview status */}
             <div style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
               <div style={{ position: 'relative', flex: '0 0 240px' }}>
-                <svg width="13" height="13" fill="none" stroke="#0F1923" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24" style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none' }}><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+                <svg width="13" height="13" fill="none" stroke="var(--ink)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24" style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none' }}><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
                 <input
                   value={memberSearch}
                   onChange={e => setMemberSearch(e.target.value)}
                   placeholder="Search name, email, dept…"
-                  style={{ width: '100%', paddingLeft: '34px', paddingRight: '12px', paddingTop: '7px', paddingBottom: '7px', borderRadius: '16px', border: '1px solid #DDE8EE', background: '#FFFFFF', color: '#0F1923', fontSize: '13px', fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box' }}
+                  style={{ width: '100%', paddingLeft: '34px', paddingRight: '12px', paddingTop: '7px', paddingBottom: '7px', borderRadius: '16px', border: '1px solid var(--border)', background: 'var(--card)', color: 'var(--ink)', fontSize: '13px', fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box' }}
                 />
               </div>
-              <div style={{ width: '1px', height: '24px', background: '#DDE8EE' }} />
+              <div style={{ width: '1px', height: '24px', background: 'var(--border)' }} />
               {([['all', 'All'], ['done', 'Assessed'], ['pending', 'Pending']] as const).map(([val, label]) => (
                 <button key={val} onClick={() => setInterviewFilter(val)}
-                  style={{ padding: '5px 14px', borderRadius: '16px', border: `1px solid ${interviewFilter === val ? '#00897B' : '#DDE8EE'}`, background: interviewFilter === val ? 'rgba(0,137,123,0.1)' : 'transparent', color: interviewFilter === val ? '#00695C' : '#5B7080', fontSize: '13px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
+                  style={{ padding: '5px 14px', borderRadius: '16px', border: `1px solid ${interviewFilter === val ? 'var(--teal-mid)' : 'var(--border)'}`, background: interviewFilter === val ? 'rgba(0,137,123,0.1)' : 'transparent', color: interviewFilter === val ? 'var(--teal)' : 'var(--ink3)', fontSize: '13px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
                   {label}
                 </button>
               ))}
-              <div style={{ marginLeft: 'auto', fontSize: '13px', color: '#5B7080', fontWeight: 600 }}>
+              <div style={{ marginLeft: 'auto', fontSize: '13px', color: 'var(--ink3)', fontWeight: 600 }}>
                 {filteredMembers.length} of {members.length}
               </div>
             </div>
@@ -1836,7 +1850,7 @@ export default function AdminPage() {
             <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', alignItems: 'center' }}>
               {/* All Offices */}
               <button onClick={() => setOfficeFilter('all')}
-                style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '5px 12px', borderRadius: '10px', border: `1.5px solid ${officeFilter === 'all' ? '#5B7080' : '#DDE8EE'}`, background: officeFilter === 'all' ? '#5B708015' : '#FFFFFF', color: officeFilter === 'all' ? '#2D3E50' : '#5B7080', fontSize: '13px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', transition: 'all 0.15s' }}>
+                style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '5px 12px', borderRadius: '10px', border: `1.5px solid ${officeFilter === 'all' ? 'var(--ink3)' : 'var(--border)'}`, background: officeFilter === 'all' ? '#5B708015' : 'var(--card)', color: officeFilter === 'all' ? 'var(--ink2)' : 'var(--ink3)', fontSize: '13px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', transition: 'all 0.15s' }}>
                 All Offices
               </button>
               {/* Per-office — colored dot + name, matching Overview style */}
@@ -1844,16 +1858,16 @@ export default function AdminPage() {
                 const active = officeFilter === o.id
                 return (
                   <button key={o.id} onClick={() => setOfficeFilter(o.id)}
-                    style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '5px 12px 5px 10px', borderRadius: '10px', border: `1.5px solid ${active ? o.color : '#DDE8EE'}`, background: active ? `${o.color}18` : '#FFFFFF', color: active ? o.color : '#5B7080', fontSize: '13px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', transition: 'all 0.15s' }}>
-                    <div style={{ width: '7px', height: '7px', borderRadius: '50%', background: active ? o.color : '#B8CDD8', flexShrink: 0 }} />
+                    style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '5px 12px 5px 10px', borderRadius: '10px', border: `1.5px solid ${active ? o.color : 'var(--border)'}`, background: active ? `${o.color}18` : 'var(--card)', color: active ? o.color : 'var(--ink3)', fontSize: '13px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', transition: 'all 0.15s' }}>
+                    <div style={{ width: '7px', height: '7px', borderRadius: '50%', background: active ? o.color : 'var(--ink4)', flexShrink: 0 }} />
                     {o.label}
                   </button>
                 )
               })}
-              <div style={{ width: '1px', height: '24px', background: '#DDE8EE', flexShrink: 0 }} />
+              <div style={{ width: '1px', height: '24px', background: 'var(--border)', flexShrink: 0 }} />
               {['all', ...allDepts].map(d => (
                 <button key={d} onClick={() => setDeptFilter(d)}
-                  style={{ padding: '5px 12px', borderRadius: '10px', border: `1.5px solid ${deptFilter === d ? '#00695C' : '#DDE8EE'}`, background: deptFilter === d ? 'rgba(0,107,92,0.1)' : '#FFFFFF', color: deptFilter === d ? '#00695C' : '#5B7080', fontSize: '13px', fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', transition: 'all 0.15s' }}>
+                  style={{ padding: '5px 12px', borderRadius: '10px', border: `1.5px solid ${deptFilter === d ? 'var(--teal)' : 'var(--border)'}`, background: deptFilter === d ? 'rgba(0,107,92,0.1)' : 'var(--card)', color: deptFilter === d ? 'var(--teal)' : 'var(--ink3)', fontSize: '13px', fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', transition: 'all 0.15s' }}>
                   {d === 'all' ? 'All Depts' : d}
                 </button>
               ))}
@@ -1863,45 +1877,45 @@ export default function AdminPage() {
 
         {/* ── Overview tab ── */}
         {tab === 'overview' && (
-          <div style={{ background: '#FFFFFF', border: '1px solid #DDE8EE', borderRadius: '16px', overflow: 'hidden' }}>
+          <div style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: '16px', overflow: 'hidden' }}>
             {/* Header */}
-            <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr 120px 100px', gap: '0', padding: '10px 24px', borderBottom: '1px solid #DDE8EE', background: '#FFFFFF' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr 120px 100px', gap: '0', padding: '10px 24px', borderBottom: '1px solid var(--border)', background: 'var(--card)' }}>
               {['Name', 'Office', 'Department', 'Interview', 'Joined'].map(h => (
-                <div key={h} style={{ fontSize: '9px', fontWeight: 700, letterSpacing: '1.5px', textTransform: 'uppercase', color: '#5B7080' }}>{h}</div>
+                <div key={h} style={{ fontSize: '9px', fontWeight: 700, letterSpacing: '1.5px', textTransform: 'uppercase', color: 'var(--ink3)' }}>{h}</div>
               ))}
             </div>
             {[...filteredMembers].sort((a, b) => new Date(b.joined_at).getTime() - new Date(a.joined_at).getTime()).map((m, i, arr) => {
               const off = getOffice(m.office_id)
               return (
-                <div key={m.id} style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr 120px 100px', gap: '0', alignItems: 'center', padding: '11px 24px', borderBottom: i < arr.length - 1 ? '1px solid #E8EEF4' : 'none' }}>
+                <div key={m.id} style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr 120px 100px', gap: '0', alignItems: 'center', padding: '11px 24px', borderBottom: i < arr.length - 1 ? '1px solid var(--surface)' : 'none' }}>
                   {/* Name + email */}
                   <div style={{ display: 'flex', alignItems: 'center', gap: '10px', minWidth: 0, paddingRight: '12px' }}>
-                    <div style={{ width: '32px', height: '32px', borderRadius: '9px', background: `${off?.color ?? '#00897B'}18`, border: `1px solid ${off?.color ?? '#00897B'}35`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                      <span style={{ fontSize: '13px', fontWeight: 800, color: off?.color ?? '#00695C' }}>{m.name.charAt(0)}</span>
+                    <div style={{ width: '32px', height: '32px', borderRadius: '9px', background: `${off?.color ?? 'var(--teal-mid)'}18`, border: `1px solid ${off?.color ?? 'var(--teal-mid)'}35`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                      <span style={{ fontSize: '13px', fontWeight: 800, color: off?.color ?? 'var(--teal)' }}>{m.name.charAt(0)}</span>
                     </div>
                     <div style={{ minWidth: 0 }}>
-                      <div style={{ fontSize: '13px', fontWeight: 700, color: '#0F1923', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{m.name}</div>
-                      <div style={{ fontSize: '13px', color: '#5B7080', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{m.email}</div>
+                      <div style={{ fontSize: '13px', fontWeight: 700, color: 'var(--ink)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{m.name}</div>
+                      <div style={{ fontSize: '13px', color: 'var(--ink3)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{m.email}</div>
                     </div>
                   </div>
                   {/* Office */}
                   <div style={{ paddingRight: '12px' }}>
-                    <span style={{ fontSize: '13px', fontWeight: 700, color: off?.color ?? '#00695C' }}>{off?.label ?? '—'}</span>
+                    <span style={{ fontSize: '13px', fontWeight: 700, color: off?.color ?? 'var(--teal)' }}>{off?.label ?? '—'}</span>
                   </div>
                   {/* Department */}
                   <div style={{ paddingRight: '12px' }}>
-                    <span style={{ fontSize: '13px', color: '#5B7080', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', display: 'block' }}>{m.department ?? '—'}</span>
+                    <span style={{ fontSize: '13px', color: 'var(--ink3)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', display: 'block' }}>{m.department ?? '—'}</span>
                   </div>
                   {/* Interview status */}
                   <div>
-                    <span style={{ fontSize: '13px', fontWeight: 700, color: m.profile_complete ? '#3D6B00' : '#5B7080', background: m.profile_complete ? 'rgba(61,107,0,0.1)' : '#FFFFFF', padding: '3px 9px', borderRadius: '6px', border: `1px solid ${m.profile_complete ? 'rgba(61,107,0,0.25)' : '#DDE8EE'}` }}>
+                    <span style={{ fontSize: '13px', fontWeight: 700, color: m.profile_complete ? 'var(--lime)' : 'var(--ink3)', background: m.profile_complete ? 'rgba(61,107,0,0.1)' : 'var(--card)', padding: '3px 9px', borderRadius: '6px', border: `1px solid ${m.profile_complete ? 'rgba(61,107,0,0.25)' : 'var(--border)'}` }}>
                       {m.profile_complete ? 'Assessed' : 'Pending'}
                     </span>
                   </div>
                   {/* Date */}
-                  <div style={{ fontSize: '13px', color: '#5B7080', textAlign: 'right' }}>
+                  <div style={{ fontSize: '13px', color: 'var(--ink3)', textAlign: 'right' }}>
                     {new Date(m.joined_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}
-                    <div style={{ fontSize: '13px', color: '#5B7080' }}>
+                    <div style={{ fontSize: '13px', color: 'var(--ink3)' }}>
                       {new Date(m.joined_at).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}
                     </div>
                   </div>
@@ -1909,7 +1923,7 @@ export default function AdminPage() {
               )
             })}
             {filteredMembers.length === 0 && (
-              <div style={{ padding: '48px', textAlign: 'center', color: '#5B7080', fontSize: '13px' }}>{members.length === 0 ? 'No staff have joined yet' : 'No results match the current filters'}</div>
+              <div style={{ padding: '48px', textAlign: 'center', color: 'var(--ink3)', fontSize: '13px' }}>{members.length === 0 ? 'No staff have joined yet' : 'No results match the current filters'}</div>
             )}
           </div>
         )}
@@ -1922,7 +1936,7 @@ export default function AdminPage() {
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
               <div>
                 <div style={{ fontSize: '13px', fontWeight: 800, letterSpacing: '2px', textTransform: 'uppercase', color: '#A478FF' }}>Staff Feedback</div>
-                <div style={{ fontSize: '13px', color: '#0F1923', marginTop: '2px' }}>{feedbackItems.length} submission{feedbackItems.length !== 1 ? 's' : ''} — what the team wants built next</div>
+                <div style={{ fontSize: '13px', color: 'var(--ink)', marginTop: '2px' }}>{feedbackItems.length} submission{feedbackItems.length !== 1 ? 's' : ''} — what the team wants built next</div>
               </div>
               {feedbackItems.length > 0 && (
                 <button
@@ -1934,7 +1948,7 @@ export default function AdminPage() {
                     setReportLoading(false)
                   }}
                   disabled={reportLoading}
-                  style={{ padding: '9px 20px', borderRadius: '10px', border: 'none', background: '#A478FF', color: '#0F1923', fontSize: '13px', fontWeight: 800, cursor: reportLoading ? 'not-allowed' : 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: '8px', opacity: reportLoading ? 0.7 : 1 }}>
+                  style={{ padding: '9px 20px', borderRadius: '10px', border: 'none', background: 'var(--purple)', color: 'var(--purple-light)', fontSize: '13px', fontWeight: 800, cursor: reportLoading ? 'not-allowed' : 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: '8px', opacity: reportLoading ? 0.7 : 1 }}>
                   <svg width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
                   {reportLoading ? 'Analysing...' : 'Generate AI Report'}
                 </button>
@@ -1942,7 +1956,7 @@ export default function AdminPage() {
             </div>
 
             {/* AI Report */}
-            {reportError && <div style={{ marginBottom: '16px', padding: '12px 16px', background: 'rgba(255,107,107,0.08)', border: '1px solid rgba(255,107,107,0.2)', borderRadius: '10px', fontSize: '13px', color: '#FF6B6B' }}>{reportError}</div>}
+            {reportError && <div style={{ marginBottom: '16px', padding: '12px 16px', background: 'rgba(255,107,107,0.08)', border: '1px solid rgba(255,107,107,0.2)', borderRadius: '10px', fontSize: '13px', color: 'var(--red)' }}>{reportError}</div>}
 
             {feedbackReport && (() => {
               const r = feedbackReport as {
@@ -1953,39 +1967,39 @@ export default function AdminPage() {
                 recommended_build_order: {rank:number;item:string;reason:string}[];
                 departments_most_engaged: string[];
               }
-              const PRIORITY_COLOR: Record<string,string> = { high: '#FF6B6B', medium: '#8B1A1A', low: '#3D6B00' }
+              const PRIORITY_COLOR: Record<string,string> = { high: '#F1667A', medium: '#F1667A', low: '#C0F43C' }
               return (
                 <div style={{ background: 'rgba(164,120,255,0.06)', border: '1px solid rgba(164,120,255,0.2)', borderRadius: '16px', padding: '24px', marginBottom: '20px' }}>
                   <div style={{ fontSize: '13px', fontWeight: 800, letterSpacing: '2px', textTransform: 'uppercase', color: '#A478FF', marginBottom: '12px' }}>AI Feedback Analysis</div>
 
                   {/* Summary */}
-                  <p style={{ fontSize: '13px', color: '#5B7080', lineHeight: 1.7, margin: '0 0 20px', fontStyle: 'italic' }}>{r.summary}</p>
+                  <p style={{ fontSize: '13px', color: 'var(--ink3)', lineHeight: 1.7, margin: '0 0 20px', fontStyle: 'italic' }}>{r.summary}</p>
 
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '20px' }}>
 
                     {/* Top Themes */}
-                    <div style={{ background: '#FFFFFF', borderRadius: '14px', padding: '16px' }}>
-                      <div style={{ fontSize: '13px', fontWeight: 800, letterSpacing: '1.5px', textTransform: 'uppercase', color: '#5B7080', marginBottom: '12px' }}>Key Themes</div>
+                    <div style={{ background: 'var(--card)', borderRadius: '14px', padding: '16px' }}>
+                      <div style={{ fontSize: '13px', fontWeight: 800, letterSpacing: '1.5px', textTransform: 'uppercase', color: 'var(--ink3)', marginBottom: '12px' }}>Key Themes</div>
                       {r.top_themes?.map((t, i) => (
                         <div key={i} style={{ marginBottom: '10px' }}>
                           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2px' }}>
-                            <span style={{ fontSize: '13px', fontWeight: 700, color: '#0F1923' }}>{t.theme}</span>
+                            <span style={{ fontSize: '13px', fontWeight: 700, color: 'var(--ink)' }}>{t.theme}</span>
                             <span style={{ fontSize: '13px', fontWeight: 700, color: '#A478FF' }}>{t.count}</span>
                           </div>
-                          <div style={{ fontSize: '13px', color: '#0F1923', lineHeight: 1.5 }}>{t.description}</div>
+                          <div style={{ fontSize: '13px', color: 'var(--ink)', lineHeight: 1.5 }}>{t.description}</div>
                         </div>
                       ))}
                     </div>
 
                     {/* Build Order */}
-                    <div style={{ background: '#FFFFFF', borderRadius: '14px', padding: '16px' }}>
-                      <div style={{ fontSize: '13px', fontWeight: 800, letterSpacing: '1.5px', textTransform: 'uppercase', color: '#5B7080', marginBottom: '12px' }}>Recommended Build Order</div>
+                    <div style={{ background: 'var(--card)', borderRadius: '14px', padding: '16px' }}>
+                      <div style={{ fontSize: '13px', fontWeight: 800, letterSpacing: '1.5px', textTransform: 'uppercase', color: 'var(--ink3)', marginBottom: '12px' }}>Recommended Build Order</div>
                       {r.recommended_build_order?.map(b => (
                         <div key={b.rank} style={{ display: 'flex', gap: '12px', marginBottom: '12px', alignItems: 'flex-start' }}>
-                          <div style={{ width: '24px', height: '24px', borderRadius: '50%', background: '#A478FF', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '13px', fontWeight: 900, color: '#0F1923', flexShrink: 0 }}>{b.rank}</div>
+                          <div style={{ width: '24px', height: '24px', borderRadius: '50%', background: 'var(--purple)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '13px', fontWeight: 900, color: 'var(--purple-light)', flexShrink: 0 }}>{b.rank}</div>
                           <div>
-                            <div style={{ fontSize: '13px', fontWeight: 700, color: '#0F1923', marginBottom: '2px' }}>{b.item}</div>
-                            <div style={{ fontSize: '13px', color: '#0F1923', lineHeight: 1.5 }}>{b.reason}</div>
+                            <div style={{ fontSize: '13px', fontWeight: 700, color: 'var(--ink)', marginBottom: '2px' }}>{b.item}</div>
+                            <div style={{ fontSize: '13px', color: 'var(--ink)', lineHeight: 1.5 }}>{b.reason}</div>
                           </div>
                         </div>
                       ))}
@@ -1993,15 +2007,15 @@ export default function AdminPage() {
                   </div>
 
                   {/* Top Requests */}
-                  <div style={{ background: '#FFFFFF', borderRadius: '14px', padding: '16px', marginBottom: '16px' }}>
-                    <div style={{ fontSize: '13px', fontWeight: 800, letterSpacing: '1.5px', textTransform: 'uppercase', color: '#5B7080', marginBottom: '12px' }}>Top Feature Requests</div>
+                  <div style={{ background: 'var(--card)', borderRadius: '14px', padding: '16px', marginBottom: '16px' }}>
+                    <div style={{ fontSize: '13px', fontWeight: 800, letterSpacing: '1.5px', textTransform: 'uppercase', color: 'var(--ink3)', marginBottom: '12px' }}>Top Feature Requests</div>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
                       {r.top_requests?.map((req, i) => (
                         <div key={i} style={{ display: 'flex', gap: '12px', alignItems: 'flex-start' }}>
                           <span style={{ fontSize: '13px', fontWeight: 800, color: PRIORITY_COLOR[req.priority] ?? '#A478FF', background: `${PRIORITY_COLOR[req.priority] ?? '#A478FF'}15`, padding: '3px 8px', borderRadius: '6px', flexShrink: 0, marginTop: '1px' }}>{req.priority}</span>
                           <div>
-                            <div style={{ fontSize: '13px', fontWeight: 700, color: '#0F1923', marginBottom: '2px' }}>{req.feature}</div>
-                            <div style={{ fontSize: '13px', color: '#0F1923', lineHeight: 1.5 }}>{req.rationale}</div>
+                            <div style={{ fontSize: '13px', fontWeight: 700, color: 'var(--ink)', marginBottom: '2px' }}>{req.feature}</div>
+                            <div style={{ fontSize: '13px', color: 'var(--ink)', lineHeight: 1.5 }}>{req.rationale}</div>
                           </div>
                         </div>
                       ))}
@@ -2009,35 +2023,35 @@ export default function AdminPage() {
                   </div>
 
                   {/* Sentiment */}
-                  <div style={{ background: '#FFFFFF', borderRadius: '14px', padding: '16px' }}>
-                    <div style={{ fontSize: '13px', fontWeight: 800, letterSpacing: '1.5px', textTransform: 'uppercase', color: '#5B7080', marginBottom: '12px' }}>Sentiment Overview</div>
+                  <div style={{ background: 'var(--card)', borderRadius: '14px', padding: '16px' }}>
+                    <div style={{ fontSize: '13px', fontWeight: 800, letterSpacing: '1.5px', textTransform: 'uppercase', color: 'var(--ink3)', marginBottom: '12px' }}>Sentiment Overview</div>
                     <div style={{ display: 'flex', gap: '20px', marginBottom: '10px' }}>
-                      {[['Positive', r.sentiment?.positive, '#3D6B00'], ['Constructive', r.sentiment?.constructive, '#8B1A1A'], ['Critical', r.sentiment?.critical, '#FF6B6B']].map(([label, val, color]) => (
+                      {[['Positive', r.sentiment?.positive, 'var(--lime)'], ['Constructive', r.sentiment?.constructive, 'var(--red)'], ['Critical', r.sentiment?.critical, 'var(--red)']].map(([label, val, color]) => (
                         <div key={label as string} style={{ textAlign: 'center' }}>
                           <div style={{ fontSize: '36px', fontWeight: 900, color: color as string }}>{val}%</div>
-                          <div style={{ fontSize: '13px', color: '#0F1923' }}>{label}</div>
+                          <div style={{ fontSize: '13px', color: 'var(--ink)' }}>{label}</div>
                         </div>
                       ))}
                     </div>
-                    <div style={{ fontSize: '13px', color: '#5B7080', fontStyle: 'italic' }}>{r.sentiment?.overview}</div>
+                    <div style={{ fontSize: '13px', color: 'var(--ink3)', fontStyle: 'italic' }}>{r.sentiment?.overview}</div>
                   </div>
                 </div>
               )
             })()}
 
             {/* Raw submissions */}
-            <div style={{ background: '#FFFFFF', border: '1px solid #DDE8EE', borderRadius: '16px', overflow: 'hidden' }}>
-              <div style={{ padding: '14px 24px', borderBottom: '1px solid #DDE8EE' }}>
-                <div style={{ fontSize: '13px', fontWeight: 700, color: '#5B7080', letterSpacing: '1px', textTransform: 'uppercase' }}>All Submissions</div>
+            <div style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: '16px', overflow: 'hidden' }}>
+              <div style={{ padding: '14px 24px', borderBottom: '1px solid var(--border)' }}>
+                <div style={{ fontSize: '13px', fontWeight: 700, color: 'var(--ink3)', letterSpacing: '1px', textTransform: 'uppercase' }}>All Submissions</div>
               </div>
               {feedbackItems.length === 0 ? (
-                <div style={{ padding: '32px', textAlign: 'center', fontSize: '13px', color: '#0F1923' }}>No feedback yet. The form appears at the bottom of every staff dashboard.</div>
+                <div style={{ padding: '32px', textAlign: 'center', fontSize: '13px', color: 'var(--ink)' }}>No feedback yet. The form appears at the bottom of every staff dashboard.</div>
               ) : (
                 <div style={{ display: 'flex', flexDirection: 'column' }}>
                   {feedbackItems.map((f, i) => (
-                    <div key={f.id} style={{ padding: '14px 24px', borderBottom: i < feedbackItems.length - 1 ? '1px solid #DDE8EE' : 'none' }}>
-                      <div style={{ fontSize: '13px', color: '#5B7080', lineHeight: 1.6, marginBottom: '5px' }}>{f.message}</div>
-                      <div style={{ fontSize: '13px', color: '#0F1923' }}>
+                    <div key={f.id} style={{ padding: '14px 24px', borderBottom: i < feedbackItems.length - 1 ? '1px solid var(--border)' : 'none' }}>
+                      <div style={{ fontSize: '13px', color: 'var(--ink3)', lineHeight: 1.6, marginBottom: '5px' }}>{f.message}</div>
+                      <div style={{ fontSize: '13px', color: 'var(--ink)' }}>
                         {f.name}{f.department ? ` · ${f.department}` : ''} · {new Date(f.created_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}
                       </div>
                     </div>
@@ -2052,20 +2066,20 @@ export default function AdminPage() {
         {tab === 'overview' && (
           <div style={{ marginBottom: '28px' }}>
             <Link href="/admin/toolkit"
-              style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: '#0F1923', borderRadius: '16px', padding: '22px 28px', textDecoration: 'none', gap: '20px' }}>
+              style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'var(--card-hi)', borderRadius: '16px', padding: '22px 28px', textDecoration: 'none', gap: '20px' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
                 <div style={{ width: '44px', height: '44px', borderRadius: '12px', background: 'rgba(192,244,60,0.12)', border: '1px solid rgba(192,244,60,0.25)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                  <svg width="20" height="20" fill="none" stroke="#C0F43C" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24">
+                  <svg width="20" height="20" fill="none" stroke="var(--lime)" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24">
                     <path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/>
                   </svg>
                 </div>
                 <div>
-                  <div style={{ fontSize: '11px', fontWeight: 800, letterSpacing: '2px', textTransform: 'uppercase', color: '#C0F43C', marginBottom: '4px' }}>Internal Tools</div>
-                  <div style={{ fontSize: '16px', fontWeight: 900, color: '#FFFFFF' }}>The Toolkit</div>
+                  <div style={{ fontSize: '11px', fontWeight: 800, letterSpacing: '2px', textTransform: 'uppercase', color: 'var(--lime)', marginBottom: '4px' }}>Internal Tools</div>
+                  <div style={{ fontSize: '16px', fontWeight: 900, color: 'var(--ink)' }}>The Toolkit</div>
                   <div style={{ fontSize: '13px', color: 'rgba(255,255,255,0.5)', marginTop: '2px' }}>Website Builder · DRT · Outreach · Smart Data — authorised team members only</div>
                 </div>
               </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#C0F43C', fontSize: '13px', fontWeight: 800, flexShrink: 0 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: 'var(--lime)', fontSize: '13px', fontWeight: 800, flexShrink: 0 }}>
                 Open Toolkit
                 <svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg>
               </div>
@@ -2077,7 +2091,7 @@ export default function AdminPage() {
         {tab === 'people' && (() => {
           const memberById: Record<string, Member> = Object.fromEntries(members.map(m => [m.id, m]))
           const LEVEL_LABEL: Record<string,string> = { super_admin:'Super Admin', office_head:'Office Head', dept_head:'Dept Head', team_lead:'Team Lead', staff:'Staff' }
-          const LEVEL_COLOR: Record<string,string> = { super_admin:'#166534', office_head:'#0E7490', dept_head:'#7C3AED', team_lead:'#92400E', staff:'#5B7080' }
+          const LEVEL_COLOR: Record<string,string> = { super_admin:'#34D399', office_head:'#1296BA', dept_head:'#A78BFA', team_lead:'#F5B94D', staff:'#7E93A1' }
 
           const allPeople = staffList.map(s => {
             const member  = memberById[s.id]
@@ -2108,21 +2122,21 @@ export default function AdminPage() {
           return (
             <div>
               {/* HRMS sync bar */}
-              <div style={{ background: '#FFFFFF', border: '1px solid #DDE8EE', borderRadius: '12px', padding: '16px 20px', marginBottom: '20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '16px' }}>
+              <div style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: '12px', padding: '16px 20px', marginBottom: '20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '16px' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
                   <div style={{ width: '36px', height: '36px', borderRadius: '9px', background: 'rgba(0,137,123,0.08)', border: '1px solid rgba(0,137,123,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                    <svg width="16" height="16" fill="none" stroke="#00897B" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
+                    <svg width="16" height="16" fill="none" stroke="var(--teal-mid)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
                   </div>
                   <div>
-                    <div style={{ fontSize: '13px', fontWeight: 800, color: '#0F1923' }}>HRMS Sync</div>
+                    <div style={{ fontSize: '13px', fontWeight: 800, color: 'var(--ink)' }}>HRMS Sync</div>
                     {hrmsSyncState === 'done' && hrmsSyncResult ? (
-                      <div style={{ fontSize: '12px', color: '#166534', lineHeight: 1.4 }}>
+                      <div style={{ fontSize: '12px', color: 'var(--success)', lineHeight: 1.4 }}>
                         {hrmsSyncResult.message}
                       </div>
                     ) : hrmsSyncState === 'error' ? (
-                      <div style={{ fontSize: '12px', color: '#8B1A1A', lineHeight: 1.4 }}>Sync failed — check console for details</div>
+                      <div style={{ fontSize: '12px', color: 'var(--red)', lineHeight: 1.4 }}>Sync failed — check console for details</div>
                     ) : (
-                      <div style={{ fontSize: '12px', color: '#5B7080', lineHeight: 1.4 }}>Pull active staff from HRMS (trescon-resource-planner)</div>
+                      <div style={{ fontSize: '12px', color: 'var(--ink3)', lineHeight: 1.4 }}>Pull active staff from HRMS (trescon-resource-planner)</div>
                     )}
                   </div>
                 </div>
@@ -2130,11 +2144,11 @@ export default function AdminPage() {
                   <button
                     onClick={syncFromHRMS}
                     disabled={hrmsSyncState === 'loading'}
-                    style={{ display: 'flex', alignItems: 'center', gap: '7px', padding: '8px 18px', borderRadius: '8px', border: 'none', background: hrmsSyncState === 'loading' ? '#DDE8EE' : '#00897B', color: hrmsSyncState === 'loading' ? '#5B7080' : '#FFFFFF', fontSize: '13px', fontWeight: 800, cursor: hrmsSyncState === 'loading' ? 'not-allowed' : 'pointer', fontFamily: 'inherit' }}
+                    style={{ display: 'flex', alignItems: 'center', gap: '7px', padding: '8px 18px', borderRadius: '8px', border: 'none', background: hrmsSyncState === 'loading' ? 'var(--border)' : 'var(--teal-mid)', color: hrmsSyncState === 'loading' ? 'var(--ink3)' : 'var(--teal-light)', fontSize: '13px', fontWeight: 800, cursor: hrmsSyncState === 'loading' ? 'not-allowed' : 'pointer', fontFamily: 'inherit' }}
                   >
                     {hrmsSyncState === 'loading' ? (
                       <>
-                        <div style={{ width: '12px', height: '12px', border: '2px solid rgba(255,255,255,0.3)', borderTopColor: '#fff', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />
+                        <div style={{ width: '12px', height: '12px', border: '2px solid rgba(255,255,255,0.3)', borderTopColor: 'var(--card)', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />
                         Syncing…
                       </>
                     ) : (
@@ -2147,14 +2161,14 @@ export default function AdminPage() {
                 </div>
                 <div style={{ display: 'flex', gap: '28px', flexWrap: 'wrap' }}>
                   {[
-                    { label: 'Total', value: staffList.length, color: '#0F1923' },
-                    { label: 'Enabled', value: totalEnabled, color: '#166534' },
-                    { label: 'Active Profiles', value: totalProfileDone, color: '#0E7490' },
-                    { label: 'Not Yet Enabled', value: totalNotEnabled, color: '#5B7080' },
+                    { label: 'Total', value: staffList.length, color: 'var(--ink)' },
+                    { label: 'Enabled', value: totalEnabled, color: 'var(--success)' },
+                    { label: 'Active Profiles', value: totalProfileDone, color: '#1296BA' },
+                    { label: 'Not Yet Enabled', value: totalNotEnabled, color: 'var(--ink3)' },
                   ].map(stat => (
                     <div key={stat.label} style={{ textAlign: 'center' }}>
                       <div style={{ fontSize: '22px', fontWeight: 900, color: stat.color, lineHeight: 1 }}>{stat.value}</div>
-                      <div style={{ fontSize: '10px', color: '#5B7080', fontWeight: 700, marginTop: '3px', textTransform: 'uppercase', letterSpacing: '0.8px' }}>{stat.label}</div>
+                      <div style={{ fontSize: '10px', color: 'var(--ink3)', fontWeight: 700, marginTop: '3px', textTransform: 'uppercase', letterSpacing: '0.8px' }}>{stat.label}</div>
                     </div>
                   ))}
                 </div>
@@ -2170,18 +2184,18 @@ export default function AdminPage() {
                   ['profile-pending', `Awaiting Profile (${totalProfilePending})`],
                 ] as const).map(([key, label]) => (
                   <button key={key} onClick={() => setPeopleFilter(key)}
-                    style={{ padding: '6px 14px', borderRadius: '20px', border: `1.5px solid ${peopleFilter === key ? '#00897B' : '#DDE8EE'}`, background: peopleFilter === key ? '#00897B' : '#FFFFFF', color: peopleFilter === key ? '#FFFFFF' : '#5B7080', fontSize: '12px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap' }}>
+                    style={{ padding: '6px 14px', borderRadius: '20px', border: `1.5px solid ${peopleFilter === key ? 'var(--teal-mid)' : 'var(--border)'}`, background: peopleFilter === key ? 'var(--teal-mid)' : 'var(--card)', color: peopleFilter === key ? 'var(--teal-light)' : 'var(--ink3)', fontSize: '12px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap' }}>
                     {label}
                   </button>
                 ))}
                 <div style={{ marginLeft: 'auto', display: 'flex', gap: '8px', alignItems: 'center' }}>
                   <div style={{ position: 'relative' }}>
-                    <svg width="12" height="12" fill="none" stroke="#5B7080" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24" style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none' }}><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+                    <svg width="12" height="12" fill="none" stroke="var(--ink3)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24" style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none' }}><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
                     <input value={staffSearch} onChange={e => setStaffSearch(e.target.value)} placeholder="Search name, email, department…"
-                      style={{ paddingLeft: '30px', paddingRight: '12px', paddingTop: '7px', paddingBottom: '7px', borderRadius: '8px', border: '1px solid #DDE8EE', background: '#FFFFFF', color: '#0F1923', fontSize: '13px', fontFamily: 'inherit', outline: 'none', width: '230px' }} />
+                      style={{ paddingLeft: '30px', paddingRight: '12px', paddingTop: '7px', paddingBottom: '7px', borderRadius: '8px', border: '1px solid var(--border)', background: 'var(--card)', color: 'var(--ink)', fontSize: '13px', fontFamily: 'inherit', outline: 'none', width: '230px' }} />
                   </div>
                   <button onClick={fetchStaffList} disabled={staffLoading}
-                    style={{ padding: '7px 14px', borderRadius: '8px', border: '1px solid #B8CDD8', background: '#FFFFFF', color: '#5B7080', fontSize: '13px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: '5px' }}>
+                    style={{ padding: '7px 14px', borderRadius: '8px', border: '1px solid var(--ink4)', background: 'var(--card)', color: 'var(--ink3)', fontSize: '13px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: '5px' }}>
                     <svg width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
                     Refresh
                   </button>
@@ -2190,7 +2204,7 @@ export default function AdminPage() {
                       if (!confirm(`Enable platform access for all ${totalNotEnabled} staff? They will be able to log in immediately.`)) return
                       await fetch('/api/staff-access', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ enable_all: true, enabled: true }) })
                       fetchStaffList()
-                    }} style={{ padding: '7px 14px', borderRadius: '8px', border: '1px solid rgba(22,101,52,0.3)', background: 'rgba(22,101,52,0.07)', color: '#166534', fontSize: '13px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: '5px' }}>
+                    }} style={{ padding: '7px 14px', borderRadius: '8px', border: '1px solid rgba(52,211,153,0.3)', background: 'var(--success-light)', color: 'var(--success)', fontSize: '13px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: '5px' }}>
                       <svg width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>
                       Enable All ({totalNotEnabled})
                     </button>
@@ -2200,52 +2214,52 @@ export default function AdminPage() {
 
               {/* Table */}
               {staffLoading ? (
-                <div style={{ background: '#FFFFFF', border: '1px solid #DDE8EE', borderRadius: '16px', padding: '60px', textAlign: 'center', color: '#5B7080', fontSize: '13px' }}>Loading staff records…</div>
+                <div style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: '16px', padding: '60px', textAlign: 'center', color: 'var(--ink3)', fontSize: '13px' }}>Loading staff records…</div>
               ) : staffList.length === 0 ? (
-                <div style={{ background: '#FFFFFF', border: '1px solid #DDE8EE', borderRadius: '16px', padding: '60px', textAlign: 'center' }}>
-                  <svg width="36" height="36" fill="none" stroke="#B8CDD8" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24" style={{ marginBottom: '16px' }}><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
-                  <div style={{ fontSize: '14px', fontWeight: 700, color: '#0F1923', marginBottom: '6px' }}>No staff records yet</div>
-                  <div style={{ fontSize: '13px', color: '#5B7080', maxWidth: '340px', margin: '0 auto' }}>Staff records will appear here once your HRMS is connected and synced.</div>
+                <div style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: '16px', padding: '60px', textAlign: 'center' }}>
+                  <svg width="36" height="36" fill="none" stroke="var(--ink4)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24" style={{ marginBottom: '16px' }}><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+                  <div style={{ fontSize: '14px', fontWeight: 700, color: 'var(--ink)', marginBottom: '6px' }}>No staff records yet</div>
+                  <div style={{ fontSize: '13px', color: 'var(--ink3)', maxWidth: '340px', margin: '0 auto' }}>Staff records will appear here once your HRMS is connected and synced.</div>
                 </div>
               ) : (
-                <div style={{ background: '#FFFFFF', border: '1px solid #DDE8EE', borderRadius: '16px', overflow: 'hidden' }}>
+                <div style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: '16px', overflow: 'hidden' }}>
                   {/* Header */}
-                  <div style={{ display: 'grid', gridTemplateColumns: '2.5fr 1.8fr 1fr 1fr 1.2fr 1.1fr 180px', padding: '10px 20px', background: '#E8EEF4', borderBottom: '1px solid #DDE8EE' }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: '2.5fr 1.8fr 1fr 1fr 1.2fr 1.1fr 180px', padding: '10px 20px', background: 'var(--surface)', borderBottom: '1px solid var(--border)' }}>
                     {['Name', 'Department / Role', 'Office', 'Level', 'Platform Status', 'AI Score', ''].map(h => (
-                      <div key={h} style={{ fontSize: '9px', fontWeight: 700, letterSpacing: '1.5px', textTransform: 'uppercase', color: '#5B7080' }}>{h}</div>
+                      <div key={h} style={{ fontSize: '9px', fontWeight: 700, letterSpacing: '1.5px', textTransform: 'uppercase', color: 'var(--ink3)' }}>{h}</div>
                     ))}
                   </div>
                   {filtered.length === 0 ? (
-                    <div style={{ padding: '40px', textAlign: 'center', color: '#5B7080', fontSize: '13px' }}>No staff match this filter.</div>
+                    <div style={{ padding: '40px', textAlign: 'center', color: 'var(--ink3)', fontSize: '13px' }}>No staff match this filter.</div>
                   ) : filtered.map((p, idx) => {
                     const off        = getOffice(p.office_id ?? '')
-                    const levelColor = LEVEL_COLOR[p.job_level] ?? '#5B7080'
+                    const levelColor = LEVEL_COLOR[p.job_level] ?? '#7E93A1'
                     const levelLabel = LEVEL_LABEL[p.job_level] ?? p.job_level
                     let statusLabel: string, statusColor: string, statusBg: string
-                    if (!p.access_enabled)   { statusLabel = 'Not Enabled';      statusColor = '#5B7080'; statusBg = '#5B708015' }
-                    else if (!p.profile_complete) { statusLabel = 'Awaiting Profile'; statusColor = '#92400E'; statusBg = '#92400E15' }
-                    else                     { statusLabel = 'Active';           statusColor = '#166534'; statusBg = '#16653415' }
+                    if (!p.access_enabled)   { statusLabel = 'Not Enabled';      statusColor = 'var(--ink3)'; statusBg = 'var(--border-light)' }
+                    else if (!p.profile_complete) { statusLabel = 'Awaiting Profile'; statusColor = 'var(--amber)'; statusBg = 'var(--amber-light)' }
+                    else                     { statusLabel = 'Active';           statusColor = 'var(--success)'; statusBg = 'var(--success-light)' }
                     return (
-                      <div key={p.id} style={{ display: 'grid', gridTemplateColumns: '2.5fr 1.8fr 1fr 1fr 1.2fr 1.1fr 180px', alignItems: 'center', padding: '12px 20px', borderBottom: idx < filtered.length - 1 ? '1px solid #E8EEF4' : 'none' }}>
+                      <div key={p.id} style={{ display: 'grid', gridTemplateColumns: '2.5fr 1.8fr 1fr 1fr 1.2fr 1.1fr 180px', alignItems: 'center', padding: '12px 20px', borderBottom: idx < filtered.length - 1 ? '1px solid var(--surface)' : 'none' }}>
                         {/* Name + email */}
                         <div style={{ display: 'flex', alignItems: 'center', gap: '10px', minWidth: 0 }}>
-                          <div style={{ width: '30px', height: '30px', borderRadius: '8px', background: `${off?.color ?? '#00897B'}18`, border: `1px solid ${off?.color ?? '#00897B'}30`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                            <span style={{ fontSize: '12px', fontWeight: 800, color: off?.color ?? '#00897B' }}>{p.name.charAt(0)}</span>
+                          <div style={{ width: '30px', height: '30px', borderRadius: '8px', background: `${off?.color ?? 'var(--teal-mid)'}18`, border: `1px solid ${off?.color ?? 'var(--teal-mid)'}30`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                            <span style={{ fontSize: '12px', fontWeight: 800, color: off?.color ?? 'var(--teal-mid)' }}>{p.name.charAt(0)}</span>
                           </div>
                           <div style={{ minWidth: 0 }}>
-                            <div style={{ fontSize: '13px', fontWeight: 700, color: '#0F1923', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.name}</div>
-                            <div style={{ fontSize: '11px', color: '#5B7080', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.email}</div>
+                            <div style={{ fontSize: '13px', fontWeight: 700, color: 'var(--ink)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.name}</div>
+                            <div style={{ fontSize: '11px', color: 'var(--ink3)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.email}</div>
                           </div>
                         </div>
                         {/* Dept / Role */}
                         <div style={{ minWidth: 0 }}>
-                          <div style={{ fontSize: '13px', fontWeight: 600, color: '#0F1923', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.department ?? '—'}</div>
-                          <div style={{ fontSize: '11px', color: '#5B7080', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.role ?? '—'}</div>
+                          <div style={{ fontSize: '13px', fontWeight: 600, color: 'var(--ink)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.department ?? '—'}</div>
+                          <div style={{ fontSize: '11px', color: 'var(--ink3)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.role ?? '—'}</div>
                         </div>
                         {/* Office */}
                         <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
-                          <div style={{ width: '6px', height: '6px', borderRadius: '50%', background: off?.color ?? '#B8CDD8', flexShrink: 0 }} />
-                          <span style={{ fontSize: '12px', fontWeight: 700, color: off?.color ?? '#5B7080' }}>{off?.label ?? '—'}</span>
+                          <div style={{ width: '6px', height: '6px', borderRadius: '50%', background: off?.color ?? 'var(--ink4)', flexShrink: 0 }} />
+                          <span style={{ fontSize: '12px', fontWeight: 700, color: off?.color ?? 'var(--ink3)' }}>{off?.label ?? '—'}</span>
                         </div>
                         {/* Level */}
                         <div>
@@ -2254,7 +2268,7 @@ export default function AdminPage() {
                         {/* Platform Status + Access Roles */}
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
                           <span style={{ fontSize: '11px', fontWeight: 700, color: statusColor, background: statusBg, padding: '3px 8px', borderRadius: '6px', width: 'fit-content' }}>{statusLabel}</span>
-                          {p.joined_at && <div style={{ fontSize: '10px', color: '#B8CDD8', fontWeight: 600 }}>Joined {new Date(p.joined_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}</div>}
+                          {p.joined_at && <div style={{ fontSize: '10px', color: 'var(--ink4)', fontWeight: 600 }}>Joined {new Date(p.joined_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}</div>}
                           <div style={{ display: 'flex', flexWrap: 'wrap', gap: '3px', marginTop: '1px' }}>
                             {(p.access_roles ?? ['standard']).map(r => {
                               const rc = ROLE_META[r] ?? ROLE_META.standard
@@ -2270,7 +2284,7 @@ export default function AdminPage() {
                               <span style={{ fontSize: '9px', fontWeight: 700, color: p.tier_color.color, background: p.tier_color.bg, padding: '2px 5px', borderRadius: '4px' }}>{p.tier_label}</span>
                             </div>
                           ) : (
-                            <span style={{ fontSize: '12px', color: '#B8CDD8' }}>—</span>
+                            <span style={{ fontSize: '12px', color: 'var(--ink4)' }}>—</span>
                           )}
                         </div>
                         {/* Actions */}
@@ -2278,14 +2292,14 @@ export default function AdminPage() {
                           <button onClick={async () => {
                             await fetch('/api/staff-access', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: p.id, enabled: !p.access_enabled }) })
                             fetchStaffList()
-                          }} style={{ padding: '4px 10px', borderRadius: '6px', border: `1px solid ${p.access_enabled ? '#DDE8EE' : 'rgba(22,101,52,0.3)'}`, background: p.access_enabled ? '#FFFFFF' : 'rgba(22,101,52,0.07)', color: p.access_enabled ? '#5B7080' : '#166534', fontSize: '11px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap' }}>
+                          }} style={{ padding: '4px 10px', borderRadius: '6px', border: `1px solid ${p.access_enabled ? 'var(--border)' : 'rgba(52,211,153,0.3)'}`, background: p.access_enabled ? 'var(--card)' : 'rgba(52,211,153,0.08)', color: p.access_enabled ? 'var(--ink3)' : 'var(--success)', fontSize: '11px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap' }}>
                             {p.access_enabled ? 'Disable' : 'Enable'}
                           </button>
                           <button onClick={() => {
                             setRolesStaff(p)
                             setRolesEdit(p.access_roles ?? ['standard'])
                             setRolesOpen(true)
-                          }} title="Edit access roles" style={{ padding: '4px 10px', borderRadius: '6px', border: '1px solid #DDE8EE', background: '#FFFFFF', color: '#5B7080', fontSize: '11px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap' }}>
+                          }} title="Edit access roles" style={{ padding: '4px 10px', borderRadius: '6px', border: '1px solid var(--border)', background: 'var(--card)', color: 'var(--ink3)', fontSize: '11px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap' }}>
                             Roles
                           </button>
                           <button onClick={() => {
@@ -2296,14 +2310,14 @@ export default function AdminPage() {
                             setBulkSel(new Set())
                             setBulkDone(null)
                             setPermOpen(true)
-                          }} title="Manage tool permissions" style={{ display: 'flex', alignItems: 'center', gap: '3px', padding: '5px 8px', borderRadius: '6px', border: '1px solid #DDE8EE', background: '#FFFFFF', cursor: 'pointer' }}>
+                          }} title="Manage tool permissions" style={{ display: 'flex', alignItems: 'center', gap: '3px', padding: '5px 8px', borderRadius: '6px', border: '1px solid var(--border)', background: 'var(--card)', cursor: 'pointer' }}>
                             {PLATFORM_TOOLS.map(tool => {
                               const g: Record<string,boolean> = { ...(p.tool_grants ?? {}), smart_data: p.toolkit_access ?? false }
                               const granted = p.job_level === 'super_admin' || (g[tool.key] ?? false)
-                              return <div key={tool.key} style={{ width: '7px', height: '7px', borderRadius: '50%', background: granted ? tool.color : '#E2E8F0', flexShrink: 0 }} />
+                              return <div key={tool.key} style={{ width: '7px', height: '7px', borderRadius: '50%', background: granted ? tool.color : 'var(--border-light)', flexShrink: 0 }} />
                             })}
                           </button>
-                          <Link href={`/dashboard?id=${p.id}`} style={{ display: 'inline-flex', alignItems: 'center', gap: '3px', padding: '4px 10px', borderRadius: '6px', border: '1px solid #DDE8EE', background: '#FFFFFF', color: '#00897B', fontSize: '11px', fontWeight: 700, textDecoration: 'none', whiteSpace: 'nowrap' }}>
+                          <Link href={`/dashboard?id=${p.id}`} style={{ display: 'inline-flex', alignItems: 'center', gap: '3px', padding: '4px 10px', borderRadius: '6px', border: '1px solid var(--border)', background: 'var(--card)', color: 'var(--teal-mid)', fontSize: '11px', fontWeight: 700, textDecoration: 'none', whiteSpace: 'nowrap' }}>
                             <svg width="10" height="10" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg>
                             View
                           </Link>
@@ -2318,8 +2332,8 @@ export default function AdminPage() {
               {activeUsers.length > 0 && (
                 <div style={{ marginTop: '24px', background: 'linear-gradient(135deg, rgba(0,137,123,0.06) 0%, rgba(14,116,144,0.06) 100%)', border: '1px solid rgba(0,137,123,0.2)', borderRadius: '14px', padding: '14px 20px' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '12px' }}>
-                    <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#00897B', boxShadow: '0 0 0 3px rgba(0,137,123,0.25)', animation: 'pulse 2s ease-in-out infinite' }} />
-                    <span style={{ fontSize: '12px', fontWeight: 800, color: '#00697B', textTransform: 'uppercase', letterSpacing: '1px' }}>Live Now — {activeUsers.length} {activeUsers.length === 1 ? 'person' : 'people'} on the platform</span>
+                    <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: 'var(--teal-mid)', boxShadow: '0 0 0 3px rgba(0,137,123,0.25)', animation: 'pulse 2s ease-in-out infinite' }} />
+                    <span style={{ fontSize: '12px', fontWeight: 800, color: '#0099B3', textTransform: 'uppercase', letterSpacing: '1px' }}>Live Now — {activeUsers.length} {activeUsers.length === 1 ? 'person' : 'people'} on the platform</span>
                   </div>
                   <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
                     {activeUsers.map(u => {
@@ -2327,13 +2341,13 @@ export default function AdminPage() {
                       const off = getOffice(m.office_id ?? '')
                       const mins = Math.floor((Date.now() - new Date(u.last_seen_at).getTime()) / 60000)
                       return (
-                        <div key={u.staff_id} style={{ display: 'flex', alignItems: 'center', gap: '7px', padding: '6px 12px 6px 8px', borderRadius: '20px', background: '#FFFFFF', border: '1px solid rgba(0,137,123,0.25)' }}>
-                          <div style={{ width: '24px', height: '24px', borderRadius: '6px', background: `${off?.color ?? '#00897B'}18`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                            <span style={{ fontSize: '10px', fontWeight: 800, color: off?.color ?? '#00897B' }}>{m.name.charAt(0)}</span>
+                        <div key={u.staff_id} style={{ display: 'flex', alignItems: 'center', gap: '7px', padding: '6px 12px 6px 8px', borderRadius: '20px', background: 'var(--card)', border: '1px solid rgba(0,137,123,0.25)' }}>
+                          <div style={{ width: '24px', height: '24px', borderRadius: '6px', background: `${off?.color ?? 'var(--teal-mid)'}18`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                            <span style={{ fontSize: '10px', fontWeight: 800, color: off?.color ?? 'var(--teal-mid)' }}>{m.name.charAt(0)}</span>
                           </div>
                           <div>
-                            <div style={{ fontSize: '12px', fontWeight: 700, color: '#0F1923', lineHeight: 1.2 }}>{m.name}</div>
-                            <div style={{ fontSize: '10px', color: '#5B7080' }}>{mins === 0 ? 'just now' : `${mins}m ago`}</div>
+                            <div style={{ fontSize: '12px', fontWeight: 700, color: 'var(--ink)', lineHeight: 1.2 }}>{m.name}</div>
+                            <div style={{ fontSize: '10px', color: 'var(--ink3)' }}>{mins === 0 ? 'just now' : `${mins}m ago`}</div>
                           </div>
                         </div>
                       )
@@ -2343,15 +2357,15 @@ export default function AdminPage() {
               )}
 
               {/* ── Login Activity ───────────────────────────────────────── */}
-              <div style={{ marginTop: '24px', background: '#FFFFFF', border: '1px solid #DDE8EE', borderRadius: '16px', overflow: 'hidden' }}>
-                <div style={{ padding: '16px 20px', borderBottom: '1px solid #E8EEF4', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '10px' }}>
+              <div style={{ marginTop: '24px', background: 'var(--card)', border: '1px solid var(--border)', borderRadius: '16px', overflow: 'hidden' }}>
+                <div style={{ padding: '16px 20px', borderBottom: '1px solid var(--surface)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '10px' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                     <div style={{ width: '32px', height: '32px', borderRadius: '8px', background: 'rgba(14,116,144,0.08)', border: '1px solid rgba(14,116,144,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                      <svg width="15" height="15" fill="none" stroke="#0E7490" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><polyline points="10 17 15 12 10 7"/><line x1="15" y1="12" x2="3" y2="12"/></svg>
+                      <svg width="15" height="15" fill="none" stroke="#1296BA" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><polyline points="10 17 15 12 10 7"/><line x1="15" y1="12" x2="3" y2="12"/></svg>
                     </div>
                     <div>
-                      <div style={{ fontSize: '13px', fontWeight: 800, color: '#0F1923' }}>Login Activity</div>
-                      <div style={{ fontSize: '11px', color: '#5B7080' }}>
+                      <div style={{ fontSize: '13px', fontWeight: 800, color: 'var(--ink)' }}>Login Activity</div>
+                      <div style={{ fontSize: '11px', color: 'var(--ink3)' }}>
                         {(() => {
                           const enabled   = allPeople.filter(p => p.access_enabled)
                           const loggedIn  = enabled.filter(p => p.last_login_at)
@@ -2361,14 +2375,14 @@ export default function AdminPage() {
                       </div>
                     </div>
                   </div>
-                  <button onClick={fetchActiveUsers} style={{ padding: '5px 12px', borderRadius: '8px', border: '1px solid #DDE8EE', background: '#FFFFFF', color: '#5B7080', fontSize: '11px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: '5px' }}>
+                  <button onClick={fetchActiveUsers} style={{ padding: '5px 12px', borderRadius: '8px', border: '1px solid var(--border)', background: 'var(--card)', color: 'var(--ink3)', fontSize: '11px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: '5px' }}>
                     <svg width="10" height="10" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
                     Refresh
                   </button>
                 </div>
-                <div style={{ display: 'grid', gridTemplateColumns: '2.5fr 1.8fr 1fr 1.4fr 90px 80px', padding: '8px 20px', background: '#E8EEF4', borderBottom: '1px solid #DDE8EE' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: '2.5fr 1.8fr 1fr 1.4fr 90px 80px', padding: '8px 20px', background: 'var(--surface)', borderBottom: '1px solid var(--border)' }}>
                   {['Name', 'Department / Role', 'Office', 'Last Login (Dubai)', 'Sessions', ''].map(h => (
-                    <div key={h} style={{ fontSize: '9px', fontWeight: 700, letterSpacing: '1.5px', textTransform: 'uppercase', color: '#5B7080' }}>{h}</div>
+                    <div key={h} style={{ fontSize: '9px', fontWeight: 700, letterSpacing: '1.5px', textTransform: 'uppercase', color: 'var(--ink3)' }}>{h}</div>
                   ))}
                 </div>
                 {(() => {
@@ -2396,42 +2410,42 @@ export default function AdminPage() {
                           : null
                         const count = loginCounts[p.id] ?? 0
                         return (
-                          <div key={p.id} style={{ display: 'grid', gridTemplateColumns: '2.5fr 1.8fr 1fr 1.4fr 90px 80px', alignItems: 'center', padding: '10px 20px', borderBottom: idx < showRows.length - 1 ? '1px solid #E8EEF4' : 'none', background: isLive ? 'rgba(0,137,123,0.03)' : !loginAt ? 'rgba(220,38,38,0.02)' : 'transparent' }}>
+                          <div key={p.id} style={{ display: 'grid', gridTemplateColumns: '2.5fr 1.8fr 1fr 1.4fr 90px 80px', alignItems: 'center', padding: '10px 20px', borderBottom: idx < showRows.length - 1 ? '1px solid var(--surface)' : 'none', background: isLive ? 'rgba(0,137,123,0.03)' : !loginAt ? 'rgba(220,38,38,0.02)' : 'transparent' }}>
                             <div style={{ display: 'flex', alignItems: 'center', gap: '9px', minWidth: 0 }}>
                               <div style={{ position: 'relative' }}>
-                                <div style={{ width: '28px', height: '28px', borderRadius: '7px', background: `${off?.color ?? '#00897B'}18`, border: `1px solid ${off?.color ?? '#00897B'}30`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                                  <span style={{ fontSize: '11px', fontWeight: 800, color: off?.color ?? '#00897B' }}>{p.name.charAt(0)}</span>
+                                <div style={{ width: '28px', height: '28px', borderRadius: '7px', background: `${off?.color ?? 'var(--teal-mid)'}18`, border: `1px solid ${off?.color ?? 'var(--teal-mid)'}30`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                                  <span style={{ fontSize: '11px', fontWeight: 800, color: off?.color ?? 'var(--teal-mid)' }}>{p.name.charAt(0)}</span>
                                 </div>
-                                {isLive && <div style={{ position: 'absolute', bottom: '-2px', right: '-2px', width: '8px', height: '8px', borderRadius: '50%', background: '#00897B', border: '1.5px solid #FFFFFF' }} />}
+                                {isLive && <div style={{ position: 'absolute', bottom: '-2px', right: '-2px', width: '8px', height: '8px', borderRadius: '50%', background: 'var(--teal-mid)', border: '1.5px solid var(--card)' }} />}
                               </div>
                               <div style={{ minWidth: 0 }}>
-                                <div style={{ fontSize: '13px', fontWeight: 700, color: '#0F1923', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.name}</div>
-                                <div style={{ fontSize: '11px', color: '#5B7080', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.email}</div>
+                                <div style={{ fontSize: '13px', fontWeight: 700, color: 'var(--ink)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.name}</div>
+                                <div style={{ fontSize: '11px', color: 'var(--ink3)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.email}</div>
                               </div>
                             </div>
                             <div style={{ minWidth: 0 }}>
-                              <div style={{ fontSize: '13px', fontWeight: 600, color: '#0F1923', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.department ?? '—'}</div>
-                              <div style={{ fontSize: '11px', color: '#5B7080', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.role ?? '—'}</div>
+                              <div style={{ fontSize: '13px', fontWeight: 600, color: 'var(--ink)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.department ?? '—'}</div>
+                              <div style={{ fontSize: '11px', color: 'var(--ink3)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.role ?? '—'}</div>
                             </div>
                             <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
-                              <div style={{ width: '6px', height: '6px', borderRadius: '50%', background: off?.color ?? '#B8CDD8', flexShrink: 0 }} />
-                              <span style={{ fontSize: '12px', fontWeight: 700, color: off?.color ?? '#5B7080' }}>{off?.label ?? '—'}</span>
+                              <div style={{ width: '6px', height: '6px', borderRadius: '50%', background: off?.color ?? 'var(--ink4)', flexShrink: 0 }} />
+                              <span style={{ fontSize: '12px', fontWeight: 700, color: off?.color ?? 'var(--ink3)' }}>{off?.label ?? '—'}</span>
                             </div>
                             <div>
                               {isLive ? (
-                                <span style={{ fontSize: '11px', fontWeight: 700, color: '#00697B', background: 'rgba(0,137,123,0.1)', padding: '2px 8px', borderRadius: '5px' }}>Live now</span>
+                                <span style={{ fontSize: '11px', fontWeight: 700, color: '#0099B3', background: 'rgba(0,137,123,0.1)', padding: '2px 8px', borderRadius: '5px' }}>Live now</span>
                               ) : loginStr ? (
-                                <span style={{ fontSize: '12px', fontWeight: 600, color: '#0E7490' }}>{loginStr}</span>
+                                <span style={{ fontSize: '12px', fontWeight: 600, color: '#1296BA' }}>{loginStr}</span>
                               ) : (
-                                <span style={{ fontSize: '11px', fontWeight: 700, color: '#DC2626', background: 'rgba(220,38,38,0.08)', padding: '2px 8px', borderRadius: '5px' }}>Never</span>
+                                <span style={{ fontSize: '11px', fontWeight: 700, color: 'var(--red)', background: 'rgba(220,38,38,0.08)', padding: '2px 8px', borderRadius: '5px' }}>Never</span>
                               )}
                             </div>
-                            <div style={{ fontSize: '12px', fontWeight: count > 0 ? 700 : 400, color: count > 0 ? '#0F1923' : '#B8CDD8' }}>
+                            <div style={{ fontSize: '12px', fontWeight: count > 0 ? 700 : 400, color: count > 0 ? 'var(--ink)' : 'var(--ink4)' }}>
                               {count > 0 ? `${count}×` : '—'}
                             </div>
                             <div>
                               <button onClick={() => openLoginHistory({ id: p.id, name: p.name, email: p.email })}
-                                style={{ padding: '3px 10px', borderRadius: '6px', border: '1px solid #DDE8EE', background: '#FFFFFF', color: '#5B7080', fontSize: '11px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
+                                style={{ padding: '3px 10px', borderRadius: '6px', border: '1px solid var(--border)', background: 'var(--card)', color: 'var(--ink3)', fontSize: '11px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
                                 History
                               </button>
                             </div>
@@ -2439,7 +2453,7 @@ export default function AdminPage() {
                         )
                       })}
                       {loginRows.length > 50 && (
-                        <div style={{ padding: '10px 20px', borderTop: '1px solid #E8EEF4', fontSize: '12px', color: '#5B7080', textAlign: 'center' }}>
+                        <div style={{ padding: '10px 20px', borderTop: '1px solid var(--surface)', fontSize: '12px', color: 'var(--ink3)', textAlign: 'center' }}>
                           Showing 50 of {loginRows.length} enabled staff
                         </div>
                       )}
@@ -2474,10 +2488,10 @@ export default function AdminPage() {
             <div>
               {/* Header bar */}
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px', flexWrap: 'wrap', gap: '12px' }}>
-                <div style={{ fontSize: '13px', color: '#5B7080' }}>
-                  <span style={{ color: '#0F1923', fontWeight: 700 }}>{peopleWithTasks.length}</span> assessed · sorted by AI Readiness Score (highest first) · click any row to read full answers
+                <div style={{ fontSize: '13px', color: 'var(--ink3)' }}>
+                  <span style={{ color: 'var(--ink)', fontWeight: 700 }}>{peopleWithTasks.length}</span> assessed · sorted by AI Readiness Score (highest first) · click any row to read full answers
                 </div>
-                <Link href="/insights" style={{ background: '#00897B', color: '#FFFFFF', fontSize: '13px', fontWeight: 700, padding: '8px 18px', borderRadius: '9px', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0 }}>
+                <Link href="/insights" style={{ background: 'var(--teal-mid)', color: 'var(--teal-light)', fontSize: '13px', fontWeight: 700, padding: '8px 18px', borderRadius: '9px', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0 }}>
                   <svg width="11" height="11" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
                   Generate AI Insights
                 </Link>
@@ -2487,7 +2501,7 @@ export default function AdminPage() {
               {peopleWithTasks.length > 0 && (
                 <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr 1.6fr 80px 36px', gap: '0', padding: '7px 20px', marginBottom: '4px' }}>
                   {['Employee', 'Readiness', 'AI Score', 'Tools used', 'Track', ''].map(h => (
-                    <div key={h} style={{ fontSize: '9px', fontWeight: 700, letterSpacing: '1.5px', textTransform: 'uppercase', color: '#5B7080' }}>{h}</div>
+                    <div key={h} style={{ fontSize: '9px', fontWeight: 700, letterSpacing: '1.5px', textTransform: 'uppercase', color: 'var(--ink3)' }}>{h}</div>
                   ))}
                 </div>
               )}
@@ -2497,10 +2511,10 @@ export default function AdminPage() {
                 {peopleWithTasks.map(({ member: m, personTasks, aiProofEntry, allTools, mainAnswer, score, tier, readiness }) => {
                   const off    = getOffice(m.office_id)
                   const isOpen = expandedTask === m.id
-                  const readinessColor = readiness ? readinessColors[readiness - 1] : '#5B7080'
+                  const readinessColor = readiness ? readinessColors[readiness - 1] : 'var(--ink3)'
 
                   return (
-                    <div key={m.id} style={{ background: isOpen ? 'rgba(0,165,163,0.05)' : '#FFFFFF', border: `1px solid ${isOpen ? 'rgba(0,165,163,0.25)' : '#DDE8EE'}`, borderRadius: '12px', overflow: 'hidden', transition: 'all 0.15s' }}>
+                    <div key={m.id} style={{ background: isOpen ? 'rgba(0,165,163,0.05)' : 'var(--card)', border: `1px solid ${isOpen ? 'rgba(0,165,163,0.25)' : 'var(--border)'}`, borderRadius: '12px', overflow: 'hidden', transition: 'all 0.15s' }}>
 
                       {/* Row — always visible */}
                       <button
@@ -2509,13 +2523,13 @@ export default function AdminPage() {
                       >
                         {/* Col 1: Employee */}
                         <div style={{ display: 'flex', alignItems: 'center', gap: '10px', minWidth: 0, paddingRight: '12px' }}>
-                          <div style={{ width: '32px', height: '32px', borderRadius: '9px', background: `${off?.color ?? '#00897B'}18`, border: `1px solid ${off?.color ?? '#00897B'}30`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                            <span style={{ fontSize: '13px', fontWeight: 800, color: off?.color ?? '#00695C' }}>{m.name.charAt(0)}</span>
+                          <div style={{ width: '32px', height: '32px', borderRadius: '9px', background: `${off?.color ?? 'var(--teal-mid)'}18`, border: `1px solid ${off?.color ?? 'var(--teal-mid)'}30`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                            <span style={{ fontSize: '13px', fontWeight: 800, color: off?.color ?? 'var(--teal)' }}>{m.name.charAt(0)}</span>
                           </div>
                           <div style={{ minWidth: 0 }}>
-                            <div style={{ fontSize: '13px', fontWeight: 700, color: '#0F1923', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{m.name}</div>
-                            <div style={{ fontSize: '13px', color: '#5B7080', marginTop: '1px' }}>
-                              <span style={{ color: off?.color ?? '#00695C' }}>{off?.label}</span>
+                            <div style={{ fontSize: '13px', fontWeight: 700, color: 'var(--ink)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{m.name}</div>
+                            <div style={{ fontSize: '13px', color: 'var(--ink3)', marginTop: '1px' }}>
+                              <span style={{ color: off?.color ?? 'var(--teal)' }}>{off?.label}</span>
                               {m.department ? ` · ${m.department}` : ''}
                             </div>
                           </div>
@@ -2529,12 +2543,12 @@ export default function AdminPage() {
                                 <div style={{ width: '24px', height: '24px', borderRadius: '6px', background: `${readinessColor}20`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
                                   <span style={{ fontSize: '13px', fontWeight: 900, color: readinessColor }}>{readiness}</span>
                                 </div>
-                                <span style={{ fontSize: '9px', color: '#5B7080' }}>/5</span>
+                                <span style={{ fontSize: '9px', color: 'var(--ink3)' }}>/5</span>
                               </div>
                               <div style={{ fontSize: '13px', color: readinessColor, lineHeight: 1.3 }}>{readinessLabels[readiness]}</div>
                             </div>
                           ) : (
-                            <span style={{ fontSize: '13px', color: '#5B7080' }}>—</span>
+                            <span style={{ fontSize: '13px', color: 'var(--ink3)' }}>—</span>
                           )}
                         </div>
 
@@ -2546,7 +2560,7 @@ export default function AdminPage() {
                               <div style={{ fontSize: '9px', fontWeight: 700, color: tier.color, marginTop: '2px' }}>{tier.label}</div>
                             </div>
                           ) : (
-                            <span style={{ fontSize: '13px', color: '#5B7080' }}>—</span>
+                            <span style={{ fontSize: '13px', color: 'var(--ink3)' }}>—</span>
                           )}
                         </div>
 
@@ -2555,24 +2569,24 @@ export default function AdminPage() {
                           {allTools.slice(0, 4).map((tool, j) => {
                             const isAI = AI_TOOLS.has(tool)
                             return (
-                              <span key={j} style={{ fontSize: '13px', color: isAI ? '#3D6B00' : '#5B7080', background: isAI ? 'rgba(192,244,60,0.1)' : '#DDE8EE', padding: '2px 7px', borderRadius: '5px', whiteSpace: 'nowrap' }}>{tool}</span>
+                              <span key={j} style={{ fontSize: '13px', color: isAI ? 'var(--lime)' : 'var(--ink3)', background: isAI ? 'rgba(192,244,60,0.1)' : 'var(--border)', padding: '2px 7px', borderRadius: '5px', whiteSpace: 'nowrap' }}>{tool}</span>
                             )
                           })}
-                          {allTools.length > 4 && <span style={{ fontSize: '13px', color: '#5B7080' }}>+{allTools.length - 4}</span>}
+                          {allTools.length > 4 && <span style={{ fontSize: '13px', color: 'var(--ink3)' }}>+{allTools.length - 4}</span>}
                         </div>
 
                         {/* Col 5: Track badge */}
                         <div>
                           {aiProofEntry?.ai_proof ? (
-                            <span style={{ fontSize: '9px', fontWeight: 800, color: '#00695C', background: 'rgba(0,122,110,0.1)', border: '1px solid rgba(192,244,60,0.25)', padding: '3px 7px', borderRadius: '5px', whiteSpace: 'nowrap' }}>Advanced</span>
+                            <span style={{ fontSize: '9px', fontWeight: 800, color: 'var(--teal)', background: 'rgba(0,122,110,0.1)', border: '1px solid rgba(192,244,60,0.25)', padding: '3px 7px', borderRadius: '5px', whiteSpace: 'nowrap' }}>Advanced</span>
                           ) : (
-                            <span style={{ fontSize: '9px', fontWeight: 700, color: '#5B7080', background: '#FFFFFF', padding: '3px 7px', borderRadius: '5px', whiteSpace: 'nowrap' }}>Standard</span>
+                            <span style={{ fontSize: '9px', fontWeight: 700, color: 'var(--ink3)', background: 'var(--card)', padding: '3px 7px', borderRadius: '5px', whiteSpace: 'nowrap' }}>Standard</span>
                           )}
                         </div>
 
                         {/* Col 6: Chevron */}
                         <div style={{ display: 'flex', justifyContent: 'center' }}>
-                          <svg width="14" height="14" fill="none" stroke="#0F1923" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24" style={{ transform: isOpen ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }}>
+                          <svg width="14" height="14" fill="none" stroke="var(--ink)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24" style={{ transform: isOpen ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }}>
                             <polyline points="6 9 12 15 18 9"/>
                           </svg>
                         </div>
@@ -2580,18 +2594,18 @@ export default function AdminPage() {
 
                       {/* Expanded: all their task answers */}
                       {isOpen && (
-                        <div style={{ borderTop: '1px solid #DDE8EE', padding: '20px' }}>
+                        <div style={{ borderTop: '1px solid var(--border)', padding: '20px' }}>
                           <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
                             {personTasks.map((t, ti) => {
                               const hasContent = t.task_description || t.ai_proof || ((t.tools_used?.length ?? 0) > 0)
                               if (!hasContent) return null
                               const detection = t.task_description ? detectAIWriting(t.task_description) : { score: 0, flags: [], verdict: '' }
-                              const flagColor = detection.score >= 65 ? '#FF6B6B' : detection.score >= 45 ? '#8B1A1A' : detection.score >= 25 ? '#8B1A1A' : '#00897B'
+                              const flagColor = detection.score >= 65 ? '#F1667A' : detection.score >= 45 ? '#F1667A' : detection.score >= 25 ? '#F1667A' : '#12C9BD'
                               return (
-                                <div key={ti} style={{ background: '#F8FAFB', border: '1px solid #DDE8EE', borderRadius: '10px', padding: '16px' }}>
+                                <div key={ti} style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '10px', padding: '16px' }}>
                                   {/* Task label */}
                                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '10px', flexWrap: 'wrap', gap: '8px' }}>
-                                    <div style={{ fontSize: '13px', fontWeight: 700, letterSpacing: '1.5px', textTransform: 'uppercase', color: '#5B7080' }}>
+                                    <div style={{ fontSize: '13px', fontWeight: 700, letterSpacing: '1.5px', textTransform: 'uppercase', color: 'var(--ink3)' }}>
                                       Entry {ti + 1}{t.task_name ? ` — ${t.task_name}` : ''}
                                     </div>
                                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
@@ -2604,7 +2618,7 @@ export default function AdminPage() {
                                         <div style={{ display: 'flex', alignItems: 'center', gap: '6px', background: `${flagColor}12`, border: `1px solid ${flagColor}35`, borderRadius: '6px', padding: '2px 8px' }}>
                                           <svg width="10" height="10" fill="none" stroke={flagColor} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
                                           <span style={{ fontSize: '13px', fontWeight: 700, color: flagColor }}>{detection.verdict}</span>
-                                          <span style={{ fontSize: '9px', color: '#5B7080' }}>{detection.score}/100</span>
+                                          <span style={{ fontSize: '9px', color: 'var(--ink3)' }}>{detection.score}/100</span>
                                         </div>
                                       )}
                                     </div>
@@ -2612,7 +2626,7 @@ export default function AdminPage() {
 
                                   {/* Answer text */}
                                   {t.task_description && (
-                                    <div style={{ fontSize: '13px', color: '#5B7080', lineHeight: 1.7, whiteSpace: 'pre-wrap', marginBottom: (t.ai_proof || (t.tools_used?.length ?? 0) > 0) ? '12px' : '0' }}>
+                                    <div style={{ fontSize: '13px', color: 'var(--ink3)', lineHeight: 1.7, whiteSpace: 'pre-wrap', marginBottom: (t.ai_proof || (t.tools_used?.length ?? 0) > 0) ? '12px' : '0' }}>
                                       {t.task_description}
                                     </div>
                                   )}
@@ -2620,8 +2634,8 @@ export default function AdminPage() {
                                   {/* AI Proof */}
                                   {t.ai_proof && (
                                     <div style={{ background: 'rgba(192,244,60,0.05)', border: '1px solid rgba(192,244,60,0.18)', borderRadius: '8px', padding: '12px 14px', marginBottom: (t.tools_used?.length ?? 0) > 0 ? '10px' : '0' }}>
-                                      <div style={{ fontSize: '9px', fontWeight: 700, letterSpacing: '1px', textTransform: 'uppercase', color: '#00695C', marginBottom: '6px' }}>Advanced Track — Workflow Proof</div>
-                                      <div style={{ fontSize: '13px', color: '#5B7080', lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>{t.ai_proof}</div>
+                                      <div style={{ fontSize: '9px', fontWeight: 700, letterSpacing: '1px', textTransform: 'uppercase', color: 'var(--teal)', marginBottom: '6px' }}>Advanced Track — Workflow Proof</div>
+                                      <div style={{ fontSize: '13px', color: 'var(--ink3)', lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>{t.ai_proof}</div>
                                     </div>
                                   )}
 
@@ -2629,7 +2643,7 @@ export default function AdminPage() {
                                   {(t.tools_used?.length ?? 0) > 0 && (
                                     <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', marginTop: t.task_description || t.ai_proof ? '10px' : '0' }}>
                                       {(t.tools_used ?? []).map((tool, j) => (
-                                        <span key={j} style={{ fontSize: '13px', color: AI_TOOLS.has(tool) ? '#3D6B00' : '#00897B', background: AI_TOOLS.has(tool) ? 'rgba(192,244,60,0.1)' : 'rgba(0,165,163,0.12)', border: `1px solid ${AI_TOOLS.has(tool) ? 'rgba(192,244,60,0.2)' : 'rgba(0,165,163,0.2)'}`, padding: '2px 9px', borderRadius: '5px' }}>{tool}</span>
+                                        <span key={j} style={{ fontSize: '13px', color: AI_TOOLS.has(tool) ? 'var(--lime)' : 'var(--teal-mid)', background: AI_TOOLS.has(tool) ? 'rgba(192,244,60,0.1)' : 'rgba(0,165,163,0.12)', border: `1px solid ${AI_TOOLS.has(tool) ? 'rgba(192,244,60,0.2)' : 'rgba(0,165,163,0.2)'}`, padding: '2px 9px', borderRadius: '5px' }}>{tool}</span>
                                       ))}
                                     </div>
                                   )}
@@ -2643,27 +2657,27 @@ export default function AdminPage() {
                   )
                 })}
                 {peopleWithTasks.length === 0 && (
-                  <div style={{ background: '#FFFFFF', border: '1px solid #DDE8EE', borderRadius: '14px', padding: '48px', textAlign: 'center', color: '#5B7080', fontSize: '13px' }}>
+                  <div style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: '14px', padding: '48px', textAlign: 'center', color: 'var(--ink3)', fontSize: '13px' }}>
                     No interview data yet{officeFilter !== 'all' || deptFilter !== 'all' ? ' for this filter' : ''}.
                   </div>
                 )}
               </div>
 
               {/* Live Department Action Matrix */}
-              <div style={{ background: '#FFFFFF', border: '1px solid #DDE8EE', borderRadius: '16px', overflow: 'hidden', marginBottom: '24px' }}>
-                <div style={{ padding: '18px 24px', borderBottom: '1px solid #DDE8EE' }}>
-                  <div style={{ fontSize: '13px', fontWeight: 700, letterSpacing: '2px', textTransform: 'uppercase', color: '#5B7080', marginBottom: '3px' }}>Department Action Matrix — Live</div>
-                  <div style={{ fontSize: '13px', color: '#5B7080' }}>Each department mapped to its current tier and the recommended action to take now. Updates as more staff complete interviews.</div>
+              <div style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: '16px', overflow: 'hidden', marginBottom: '24px' }}>
+                <div style={{ padding: '18px 24px', borderBottom: '1px solid var(--border)' }}>
+                  <div style={{ fontSize: '13px', fontWeight: 700, letterSpacing: '2px', textTransform: 'uppercase', color: 'var(--ink3)', marginBottom: '3px' }}>Department Action Matrix — Live</div>
+                  <div style={{ fontSize: '13px', color: 'var(--ink3)' }}>Each department mapped to its current tier and the recommended action to take now. Updates as more staff complete interviews.</div>
                 </div>
                 {sortedDeptAirs.length === 0 ? (
-                  <div style={{ padding: '48px', textAlign: 'center', fontSize: '13px', color: '#5B7080' }}>No interview data yet. Seed demo data or wait for staff to complete interviews.</div>
+                  <div style={{ padding: '48px', textAlign: 'center', fontSize: '13px', color: 'var(--ink3)' }}>No interview data yet. Seed demo data or wait for staff to complete interviews.</div>
                 ) : (
                   <div style={{ overflowX: 'auto' }}>
                     <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                       <thead>
-                        <tr style={{ background: '#FFFFFF' }}>
+                        <tr style={{ background: 'var(--card)' }}>
                           {['Department', 'AIRS', 'Tier', 'People', 'Coverage', 'AI Priority', 'AI Action', 'Owner', 'By'].map(h => (
-                            <th key={h} style={{ padding: '9px 14px', textAlign: 'left', fontSize: '9px', fontWeight: 700, letterSpacing: '1px', textTransform: 'uppercase', color: '#5B7080', borderBottom: '1px solid #DDE8EE', whiteSpace: 'nowrap' }}>{h}</th>
+                            <th key={h} style={{ padding: '9px 14px', textAlign: 'left', fontSize: '9px', fontWeight: 700, letterSpacing: '1px', textTransform: 'uppercase', color: 'var(--ink3)', borderBottom: '1px solid var(--border)', whiteSpace: 'nowrap' }}>{h}</th>
                           ))}
                         </tr>
                       </thead>
@@ -2674,9 +2688,9 @@ export default function AdminPage() {
                           const impact  = d.impact
                           const covPct  = d.joined > 0 ? Math.round(d.interviewed / d.joined * 100) : 0
                           return (
-                            <tr key={d.dept} style={{ borderBottom: i < sortedDeptAirs.length - 1 ? '1px solid #E8EEF4' : 'none', background: i === 0 ? `${tier.color}04` : 'transparent' }}>
+                            <tr key={d.dept} style={{ borderBottom: i < sortedDeptAirs.length - 1 ? '1px solid var(--surface)' : 'none', background: i === 0 ? `${tier.color}04` : 'transparent' }}>
                               <td style={{ padding: '13px 14px' }}>
-                                <div style={{ fontSize: '13px', fontWeight: 700, color: '#0F1923' }}>{d.dept}</div>
+                                <div style={{ fontSize: '13px', fontWeight: 700, color: 'var(--ink)' }}>{d.dept}</div>
                               </td>
                               <td style={{ padding: '13px 14px', textAlign: 'center' }}>
                                 <span style={{ fontSize: '13px', fontWeight: 900, color: tier.color }}>{d.score}</span>
@@ -2684,19 +2698,19 @@ export default function AdminPage() {
                               <td style={{ padding: '13px 10px', whiteSpace: 'nowrap' }}>
                                 <span style={{ fontSize: '9px', fontWeight: 800, color: tier.color, background: `${tier.color}15`, padding: '2px 7px', borderRadius: '5px', border: `1px solid ${tier.color}25` }}>{tier.label}</span>
                               </td>
-                              <td style={{ padding: '13px 14px', fontSize: '13px', color: '#5B7080', textAlign: 'center' }}>{d.joined}</td>
+                              <td style={{ padding: '13px 14px', fontSize: '13px', color: 'var(--ink3)', textAlign: 'center' }}>{d.joined}</td>
                               <td style={{ padding: '13px 14px' }}>
                                 <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                                  <div style={{ width: '44px', height: '4px', background: '#E8EEF4', borderRadius: '2px', overflow: 'hidden' }}>
-                                    <div style={{ height: '100%', width: `${covPct}%`, background: covPct === 100 ? '#C0F43C' : '#00897B', borderRadius: '2px' }} />
+                                  <div style={{ width: '44px', height: '4px', background: 'var(--surface)', borderRadius: '2px', overflow: 'hidden' }}>
+                                    <div style={{ height: '100%', width: `${covPct}%`, background: covPct === 100 ? 'var(--lime)' : 'var(--teal-mid)', borderRadius: '2px' }} />
                                   </div>
-                                  <span style={{ fontSize: '13px', color: '#5B7080', fontWeight: 700 }}>{covPct}%</span>
+                                  <span style={{ fontSize: '13px', color: 'var(--ink3)', fontWeight: 700 }}>{covPct}%</span>
                                 </div>
                               </td>
                               <td style={{ padding: '13px 10px', whiteSpace: 'nowrap' }}>
                                 <span style={{ fontSize: '9px', fontWeight: 800, color: impact.color, background: `${impact.color}15`, padding: '2px 7px', borderRadius: '5px' }}>{impact.priority}</span>
                               </td>
-                              <td style={{ padding: '13px 14px', fontSize: '13px', color: '#0F1923', fontWeight: 600, maxWidth: '200px', lineHeight: 1.5 }}>{play.action}</td>
+                              <td style={{ padding: '13px 14px', fontSize: '13px', color: 'var(--ink)', fontWeight: 600, maxWidth: '200px', lineHeight: 1.5 }}>{play.action}</td>
                               <td style={{ padding: '13px 14px', fontSize: '13px', color: tier.color, fontWeight: 700, whiteSpace: 'nowrap' }}>{play.owner}</td>
                               <td style={{ padding: '13px 14px', whiteSpace: 'nowrap' }}>
                                 <span style={{ fontSize: '11px', fontWeight: 800, color: tier.color, background: `${tier.color}18`, border: `1px solid ${tier.color}40`, padding: '3px 8px', borderRadius: '5px' }}>{play.by}</span>
@@ -2718,12 +2732,12 @@ export default function AdminPage() {
         {tab === 'learning' && (() => {
           if (learningLoading) return (
             <div style={{ padding: '60px', textAlign: 'center' }}>
-              <div style={{ width: '32px', height: '32px', border: '3px solid #DDE8EE', borderTopColor: '#00897B', borderRadius: '50%', animation: 'spin 0.8s linear infinite', margin: '0 auto 14px' }} />
-              <div style={{ color: '#5B7080', fontSize: '13px' }}>Loading learning data…</div>
+              <div style={{ width: '32px', height: '32px', border: '3px solid var(--border)', borderTopColor: 'var(--teal-mid)', borderRadius: '50%', animation: 'spin 0.8s linear infinite', margin: '0 auto 14px' }} />
+              <div style={{ color: 'var(--ink3)', fontSize: '13px' }}>Loading learning data…</div>
             </div>
           )
           if (!learningData) return (
-            <div style={{ padding: '60px', textAlign: 'center', color: '#5B7080', fontSize: '13px' }}>
+            <div style={{ padding: '60px', textAlign: 'center', color: 'var(--ink3)', fontSize: '13px' }}>
               No learning data yet. Staff need to complete courses first.
             </div>
           )
@@ -2774,23 +2788,23 @@ export default function AdminPage() {
           }
           const topLearners = Object.entries(learnerMap).map(([id, v]) => ({ id, ...v })).sort((a, b) => b.completed - a.completed || b.avgScore - a.avgScore).slice(0, 10)
 
-          const TIER_COLOR: Record<string, string> = { foundation: '#8B1A1A', adoption: '#00695C', advanced: '#3D6B00' }
+          const TIER_COLOR: Record<string, string> = { foundation: '#F1667A', adoption: '#0EA79D', advanced: '#C0F43C' }
 
           return (
             <div>
               {/* Summary strip */}
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: '10px', marginBottom: '24px' }}>
                 {[
-                  { label: 'Courses Available',   value: courses.length,         sub: 'in library',          accent: '#00897B' },
+                  { label: 'Courses Available',   value: courses.length,         sub: 'in library',          accent: 'var(--teal-mid)' },
                   { label: 'Total Completions',    value: totalPassed,            sub: 'passes recorded',     accent: '#7DC520' },
-                  { label: 'This Week',            value: completionsThisWeek,    sub: 'completed',           accent: '#6B21A8' },
-                  { label: 'Avg Passing Score',    value: avgScore ? `${avgScore}%` : '—', sub: 'across all passes', accent: '#D97706' },
-                  { label: 'Active Learners',      value: activeStaff,            sub: 'attempted a course',  accent: '#DC2626' },
+                  { label: 'This Week',            value: completionsThisWeek,    sub: 'completed',           accent: '#AF70E3' },
+                  { label: 'Avg Passing Score',    value: avgScore ? `${avgScore}%` : '—', sub: 'across all passes', accent: '#F5B94D' },
+                  { label: 'Active Learners',      value: activeStaff,            sub: 'attempted a course',  accent: 'var(--red)' },
                 ].map(({ label, value, sub, accent }) => (
-                  <div key={label} style={{ background: '#FFFFFF', border: '1px solid #DDE8EE', borderTop: `4px solid ${accent}`, borderRadius: '14px', padding: '20px', boxShadow: '0 2px 8px rgba(15,25,35,0.05)' }}>
-                    <div style={{ fontSize: '11px', fontWeight: 800, letterSpacing: '1.5px', textTransform: 'uppercase', color: '#5B7080', marginBottom: '10px' }}>{label}</div>
+                  <div key={label} style={{ background: 'var(--card)', border: '1px solid var(--border)', borderTop: `4px solid ${accent}`, borderRadius: '14px', padding: '20px', boxShadow: '0 2px 8px rgba(15,25,35,0.05)' }}>
+                    <div style={{ fontSize: '11px', fontWeight: 800, letterSpacing: '1.5px', textTransform: 'uppercase', color: 'var(--ink3)', marginBottom: '10px' }}>{label}</div>
                     <div style={{ fontSize: '36px', fontWeight: 900, color: accent, marginBottom: '4px', lineHeight: 1 }}>{value}</div>
-                    <div style={{ fontSize: '12px', color: '#5B7080', fontWeight: 600 }}>{sub}</div>
+                    <div style={{ fontSize: '12px', color: 'var(--ink3)', fontWeight: 600 }}>{sub}</div>
                   </div>
                 ))}
               </div>
@@ -2798,29 +2812,29 @@ export default function AdminPage() {
               <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: '16px', marginBottom: '20px' }}>
 
                 {/* Course completion table */}
-                <div style={{ background: '#FFFFFF', border: '1px solid #DDE8EE', borderRadius: '16px', overflow: 'hidden' }}>
-                  <div style={{ padding: '18px 20px', borderBottom: '1px solid #DDE8EE' }}>
-                    <div style={{ fontSize: '13px', fontWeight: 700, letterSpacing: '1.5px', textTransform: 'uppercase', color: '#5B7080' }}>Course Performance</div>
-                    <div style={{ fontSize: '13px', color: '#0F1923', marginTop: '2px' }}>Completions and avg score per course</div>
+                <div style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: '16px', overflow: 'hidden' }}>
+                  <div style={{ padding: '18px 20px', borderBottom: '1px solid var(--border)' }}>
+                    <div style={{ fontSize: '13px', fontWeight: 700, letterSpacing: '1.5px', textTransform: 'uppercase', color: 'var(--ink3)' }}>Course Performance</div>
+                    <div style={{ fontSize: '13px', color: 'var(--ink)', marginTop: '2px' }}>Completions and avg score per course</div>
                   </div>
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 90px 48px 56px', padding: '8px 20px', borderBottom: '1px solid #DDE8EE', gap: '8px' }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 90px 48px 56px', padding: '8px 20px', borderBottom: '1px solid var(--border)', gap: '8px' }}>
                     {['Course', 'Track', 'Done', 'Avg'].map(h => (
-                      <div key={h} style={{ fontSize: '9px', fontWeight: 700, letterSpacing: '1.5px', textTransform: 'uppercase', color: '#5B7080' }}>{h}</div>
+                      <div key={h} style={{ fontSize: '9px', fontWeight: 700, letterSpacing: '1.5px', textTransform: 'uppercase', color: 'var(--ink3)' }}>{h}</div>
                     ))}
                   </div>
                   {courseStats.map((c, i) => (
-                    <div key={c.id} style={{ display: 'grid', gridTemplateColumns: '1fr 90px 48px 56px', padding: '12px 20px', borderBottom: i < courseStats.length - 1 ? '1px solid #E8EEF4' : 'none', gap: '8px', alignItems: 'center' }}>
+                    <div key={c.id} style={{ display: 'grid', gridTemplateColumns: '1fr 90px 48px 56px', padding: '12px 20px', borderBottom: i < courseStats.length - 1 ? '1px solid var(--surface)' : 'none', gap: '8px', alignItems: 'center' }}>
                       <div>
-                        <div style={{ fontSize: '13px', fontWeight: 600, color: '#0F1923', lineHeight: 1.3 }}>{c.title}</div>
-                        {c.is_mandatory && <div style={{ fontSize: '13px', color: '#8B1A1A', marginTop: '2px' }}>Mandatory</div>}
+                        <div style={{ fontSize: '13px', fontWeight: 600, color: 'var(--ink)', lineHeight: 1.3 }}>{c.title}</div>
+                        {c.is_mandatory && <div style={{ fontSize: '13px', color: 'var(--red)', marginTop: '2px' }}>Mandatory</div>}
                       </div>
-                      <div><span style={{ fontSize: '13px', fontWeight: 700, color: TIER_COLOR[c.tier_level] ?? '#00695C', background: `${TIER_COLOR[c.tier_level] ?? '#00695C'}15`, padding: '2px 7px', borderRadius: '5px', textTransform: 'capitalize' }}>{c.tier_level}</span></div>
-                      <div style={{ fontSize: '13px', fontWeight: 800, color: c.completions > 0 ? '#0F1923' : '#DDE8EE' }}>{c.completions}</div>
-                      <div style={{ fontSize: '13px', fontWeight: 700, color: c.avgScore ? (c.avgScore >= 80 ? '#3D6B00' : c.avgScore >= 70 ? '#00695C' : '#8B1A1A') : '#DDE8EE' }}>{c.avgScore ? `${c.avgScore}%` : '—'}</div>
+                      <div><span style={{ fontSize: '13px', fontWeight: 700, color: TIER_COLOR[c.tier_level] ?? '#0EA79D', background: `${TIER_COLOR[c.tier_level] ?? '#0EA79D'}15`, padding: '2px 7px', borderRadius: '5px', textTransform: 'capitalize' }}>{c.tier_level}</span></div>
+                      <div style={{ fontSize: '13px', fontWeight: 800, color: c.completions > 0 ? 'var(--ink)' : 'var(--border)' }}>{c.completions}</div>
+                      <div style={{ fontSize: '13px', fontWeight: 700, color: c.avgScore ? (c.avgScore >= 80 ? 'var(--lime)' : c.avgScore >= 70 ? 'var(--teal)' : 'var(--red)') : 'var(--border)' }}>{c.avgScore ? `${c.avgScore}%` : '—'}</div>
                     </div>
                   ))}
                   {courseStats.length === 0 && (
-                    <div style={{ padding: '40px', textAlign: 'center', color: '#5B7080', fontSize: '13px' }}>No courses yet. Seed courses first.</div>
+                    <div style={{ padding: '40px', textAlign: 'center', color: 'var(--ink3)', fontSize: '13px' }}>No courses yet. Seed courses first.</div>
                   )}
                 </div>
 
@@ -2828,40 +2842,40 @@ export default function AdminPage() {
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
 
                   {/* Dept completion */}
-                  <div style={{ background: '#FFFFFF', border: '1px solid #DDE8EE', borderRadius: '16px', overflow: 'hidden' }}>
-                    <div style={{ padding: '14px 18px', borderBottom: '1px solid #DDE8EE' }}>
-                      <div style={{ fontSize: '13px', fontWeight: 700, letterSpacing: '1.5px', textTransform: 'uppercase', color: '#5B7080' }}>By Department</div>
+                  <div style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: '16px', overflow: 'hidden' }}>
+                    <div style={{ padding: '14px 18px', borderBottom: '1px solid var(--border)' }}>
+                      <div style={{ fontSize: '13px', fontWeight: 700, letterSpacing: '1.5px', textTransform: 'uppercase', color: 'var(--ink3)' }}>By Department</div>
                     </div>
                     {deptStatsList.length === 0 ? (
-                      <div style={{ padding: '24px', textAlign: 'center', color: '#0F1923', fontSize: '13px' }}>No completions yet</div>
+                      <div style={{ padding: '24px', textAlign: 'center', color: 'var(--ink)', fontSize: '13px' }}>No completions yet</div>
                     ) : (
                       deptStatsList.map((d, i) => (
-                        <div key={d.name} style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '10px 18px', borderBottom: i < deptStatsList.length - 1 ? '1px solid #E8EEF4' : 'none' }}>
-                          <div style={{ flex: 1, fontSize: '13px', fontWeight: 600, color: '#0F1923' }}>{d.name}</div>
-                          <div style={{ fontSize: '13px', fontWeight: 800, color: '#0F1923', minWidth: '24px', textAlign: 'right' }}>{d.completed}</div>
-                          <div style={{ fontSize: '13px', color: d.avgScore >= 80 ? '#3D6B00' : '#00695C', fontWeight: 700, minWidth: '40px', textAlign: 'right' }}>{d.avgScore}%</div>
+                        <div key={d.name} style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '10px 18px', borderBottom: i < deptStatsList.length - 1 ? '1px solid var(--surface)' : 'none' }}>
+                          <div style={{ flex: 1, fontSize: '13px', fontWeight: 600, color: 'var(--ink)' }}>{d.name}</div>
+                          <div style={{ fontSize: '13px', fontWeight: 800, color: 'var(--ink)', minWidth: '24px', textAlign: 'right' }}>{d.completed}</div>
+                          <div style={{ fontSize: '13px', color: d.avgScore >= 80 ? 'var(--lime)' : 'var(--teal)', fontWeight: 700, minWidth: '40px', textAlign: 'right' }}>{d.avgScore}%</div>
                         </div>
                       ))
                     )}
                   </div>
 
                   {/* Top learners */}
-                  <div style={{ background: '#FFFFFF', border: '1px solid #DDE8EE', borderRadius: '16px', overflow: 'hidden' }}>
-                    <div style={{ padding: '14px 18px', borderBottom: '1px solid #DDE8EE' }}>
-                      <div style={{ fontSize: '13px', fontWeight: 700, letterSpacing: '1.5px', textTransform: 'uppercase', color: '#5B7080' }}>Top Learners</div>
+                  <div style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: '16px', overflow: 'hidden' }}>
+                    <div style={{ padding: '14px 18px', borderBottom: '1px solid var(--border)' }}>
+                      <div style={{ fontSize: '13px', fontWeight: 700, letterSpacing: '1.5px', textTransform: 'uppercase', color: 'var(--ink3)' }}>Top Learners</div>
                     </div>
                     {topLearners.length === 0 ? (
-                      <div style={{ padding: '24px', textAlign: 'center', color: '#0F1923', fontSize: '13px' }}>No completions yet</div>
+                      <div style={{ padding: '24px', textAlign: 'center', color: 'var(--ink)', fontSize: '13px' }}>No completions yet</div>
                     ) : (
                       topLearners.map((l, i) => (
-                        <div key={l.id} style={{ display: 'grid', gridTemplateColumns: '20px 1fr 36px 44px', alignItems: 'center', gap: '10px', padding: '10px 18px', borderBottom: i < topLearners.length - 1 ? '1px solid #E8EEF4' : 'none' }}>
-                          <div style={{ fontSize: '13px', fontWeight: 700, color: i < 3 ? '#3D6B00' : '#5B7080' }}>#{i + 1}</div>
+                        <div key={l.id} style={{ display: 'grid', gridTemplateColumns: '20px 1fr 36px 44px', alignItems: 'center', gap: '10px', padding: '10px 18px', borderBottom: i < topLearners.length - 1 ? '1px solid var(--surface)' : 'none' }}>
+                          <div style={{ fontSize: '13px', fontWeight: 700, color: i < 3 ? 'var(--lime)' : 'var(--ink3)' }}>#{i + 1}</div>
                           <div>
-                            <div style={{ fontSize: '13px', fontWeight: 600, color: '#0F1923' }}>{l.name}</div>
-                            <div style={{ fontSize: '13px', color: '#0F1923' }}>{l.dept}</div>
+                            <div style={{ fontSize: '13px', fontWeight: 600, color: 'var(--ink)' }}>{l.name}</div>
+                            <div style={{ fontSize: '13px', color: 'var(--ink)' }}>{l.dept}</div>
                           </div>
-                          <div style={{ fontSize: '13px', fontWeight: 800, color: '#0F1923', textAlign: 'right' }}>{l.completed}</div>
-                          <div style={{ fontSize: '13px', fontWeight: 700, color: l.avgScore >= 80 ? '#3D6B00' : '#00695C', textAlign: 'right' }}>{l.avgScore}%</div>
+                          <div style={{ fontSize: '13px', fontWeight: 800, color: 'var(--ink)', textAlign: 'right' }}>{l.completed}</div>
+                          <div style={{ fontSize: '13px', fontWeight: 700, color: l.avgScore >= 80 ? 'var(--lime)' : 'var(--teal)', textAlign: 'right' }}>{l.avgScore}%</div>
                         </div>
                       ))
                     )}
@@ -2870,18 +2884,18 @@ export default function AdminPage() {
               </div>
 
               {/* Pass rate strip */}
-              <div style={{ background: '#FFFFFF', border: '1px solid #DDE8EE', borderRadius: '14px', padding: '16px 22px', display: 'flex', gap: '32px', alignItems: 'center', flexWrap: 'wrap', marginBottom: '20px' }}>
+              <div style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: '14px', padding: '16px 22px', display: 'flex', gap: '32px', alignItems: 'center', flexWrap: 'wrap', marginBottom: '20px' }}>
                 <div>
-                  <div style={{ fontSize: '13px', fontWeight: 700, letterSpacing: '1.5px', textTransform: 'uppercase', color: '#5B7080', marginBottom: '4px' }}>Overall Pass Rate</div>
-                  <div style={{ fontSize: '36px', fontWeight: 900, color: passRate >= 70 ? '#3D6B00' : passRate >= 50 ? '#8B1A1A' : '#FF6B6B' }}>{passRate}%</div>
+                  <div style={{ fontSize: '13px', fontWeight: 700, letterSpacing: '1.5px', textTransform: 'uppercase', color: 'var(--ink3)', marginBottom: '4px' }}>Overall Pass Rate</div>
+                  <div style={{ fontSize: '36px', fontWeight: 900, color: passRate >= 70 ? 'var(--lime)' : passRate >= 50 ? 'var(--red)' : 'var(--red)' }}>{passRate}%</div>
                 </div>
                 <div style={{ flex: 1, maxWidth: '400px' }}>
-                  <div style={{ height: '8px', background: '#E8EEF4', borderRadius: '4px', overflow: 'hidden' }}>
-                    <div style={{ height: '100%', width: `${passRate}%`, background: passRate >= 70 ? '#7DC520' : passRate >= 50 ? '#8B1A1A' : '#FF6B6B', borderRadius: '4px', transition: 'width 0.6s' }} />
+                  <div style={{ height: '8px', background: 'var(--surface)', borderRadius: '4px', overflow: 'hidden' }}>
+                    <div style={{ height: '100%', width: `${passRate}%`, background: passRate >= 70 ? '#7DC520' : passRate >= 50 ? 'var(--red)' : 'var(--red)', borderRadius: '4px', transition: 'width 0.6s' }} />
                   </div>
-                  <div style={{ fontSize: '13px', color: '#0F1923', marginTop: '5px' }}>{totalPassed} passes out of {totalAttempts} total attempts</div>
+                  <div style={{ fontSize: '13px', color: 'var(--ink)', marginTop: '5px' }}>{totalPassed} passes out of {totalAttempts} total attempts</div>
                 </div>
-                <div style={{ fontSize: '13px', color: '#5B7080', lineHeight: 1.6 }}>
+                <div style={{ fontSize: '13px', color: 'var(--ink3)', lineHeight: 1.6 }}>
                   Target: 70%+ pass rate across all courses.<br/>Below 70% on any course = content or prompt difficulty issue.
                 </div>
               </div>
@@ -2890,24 +2904,24 @@ export default function AdminPage() {
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '20px' }}>
 
                 {/* Department participation rates */}
-                <div style={{ background: '#FFFFFF', border: '1px solid #DDE8EE', borderRadius: '16px', overflow: 'hidden' }}>
-                  <div style={{ padding: '16px 20px', borderBottom: '1px solid #DDE8EE' }}>
-                    <div style={{ fontSize: '13px', fontWeight: 700, letterSpacing: '1.5px', textTransform: 'uppercase', color: '#5B7080' }}>Participation by Department</div>
-                    <div style={{ fontSize: '13px', color: '#0F1923', marginTop: '2px' }}>% of staff who have attempted at least one course</div>
+                <div style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: '16px', overflow: 'hidden' }}>
+                  <div style={{ padding: '16px 20px', borderBottom: '1px solid var(--border)' }}>
+                    <div style={{ fontSize: '13px', fontWeight: 700, letterSpacing: '1.5px', textTransform: 'uppercase', color: 'var(--ink3)' }}>Participation by Department</div>
+                    <div style={{ fontSize: '13px', color: 'var(--ink)', marginTop: '2px' }}>% of staff who have attempted at least one course</div>
                   </div>
                   {(participation_by_dept ?? []).length === 0 ? (
-                    <div style={{ padding: '28px', textAlign: 'center', color: '#5B7080', fontSize: '13px' }}>No data yet</div>
+                    <div style={{ padding: '28px', textAlign: 'center', color: 'var(--ink3)', fontSize: '13px' }}>No data yet</div>
                   ) : (
                     (participation_by_dept ?? []).map((d, i) => {
                       const rate = d.total > 0 ? Math.round((d.active / d.total) * 100) : 0
                       return (
-                        <div key={d.dept} style={{ padding: '12px 20px', borderBottom: i < (participation_by_dept ?? []).length - 1 ? '1px solid #E8EEF4' : 'none' }}>
+                        <div key={d.dept} style={{ padding: '12px 20px', borderBottom: i < (participation_by_dept ?? []).length - 1 ? '1px solid var(--surface)' : 'none' }}>
                           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
-                            <div style={{ fontSize: '13px', fontWeight: 600, color: '#0F1923' }}>{d.dept}</div>
-                            <div style={{ fontSize: '13px', fontWeight: 700, color: rate >= 70 ? '#3D6B00' : rate >= 40 ? '#D97706' : '#DC2626' }}>{rate}% <span style={{ fontWeight: 400, color: '#5B7080' }}>({d.active}/{d.total})</span></div>
+                            <div style={{ fontSize: '13px', fontWeight: 600, color: 'var(--ink)' }}>{d.dept}</div>
+                            <div style={{ fontSize: '13px', fontWeight: 700, color: rate >= 70 ? 'var(--lime)' : rate >= 40 ? '#F5B94D' : 'var(--red)' }}>{rate}% <span style={{ fontWeight: 400, color: 'var(--ink3)' }}>({d.active}/{d.total})</span></div>
                           </div>
-                          <div style={{ height: '5px', background: '#E8EEF4', borderRadius: '3px', overflow: 'hidden' }}>
-                            <div style={{ height: '100%', width: `${rate}%`, background: rate >= 70 ? '#7DC520' : rate >= 40 ? '#F59E0B' : '#EF4444', borderRadius: '3px', transition: 'width 0.5s' }} />
+                          <div style={{ height: '5px', background: 'var(--surface)', borderRadius: '3px', overflow: 'hidden' }}>
+                            <div style={{ height: '100%', width: `${rate}%`, background: rate >= 70 ? '#7DC520' : rate >= 40 ? 'var(--amber)' : 'var(--red)', borderRadius: '3px', transition: 'width 0.5s' }} />
                           </div>
                         </div>
                       )
@@ -2916,29 +2930,29 @@ export default function AdminPage() {
                 </div>
 
                 {/* Never-started summary */}
-                <div style={{ background: '#FFFFFF', border: '1px solid #DDE8EE', borderRadius: '16px', overflow: 'hidden' }}>
-                  <div style={{ padding: '16px 20px', borderBottom: '1px solid #DDE8EE', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: '16px', overflow: 'hidden' }}>
+                  <div style={{ padding: '16px 20px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <div>
-                      <div style={{ fontSize: '13px', fontWeight: 700, letterSpacing: '1.5px', textTransform: 'uppercase', color: '#5B7080' }}>Never Started</div>
-                      <div style={{ fontSize: '13px', color: '#0F1923', marginTop: '2px' }}>Staff who have not attempted any course</div>
+                      <div style={{ fontSize: '13px', fontWeight: 700, letterSpacing: '1.5px', textTransform: 'uppercase', color: 'var(--ink3)' }}>Never Started</div>
+                      <div style={{ fontSize: '13px', color: 'var(--ink)', marginTop: '2px' }}>Staff who have not attempted any course</div>
                     </div>
-                    <div style={{ fontSize: '28px', fontWeight: 900, color: (never_started ?? []).length > 0 ? '#DC2626' : '#3D6B00' }}>{(never_started ?? []).length}</div>
+                    <div style={{ fontSize: '28px', fontWeight: 900, color: (never_started ?? []).length > 0 ? 'var(--red)' : 'var(--lime)' }}>{(never_started ?? []).length}</div>
                   </div>
                   {(never_started ?? []).length === 0 ? (
-                    <div style={{ padding: '28px', textAlign: 'center', color: '#3D6B00', fontSize: '13px', fontWeight: 600 }}>All active staff have started at least one course.</div>
+                    <div style={{ padding: '28px', textAlign: 'center', color: 'var(--lime)', fontSize: '13px', fontWeight: 600 }}>All active staff have started at least one course.</div>
                   ) : (
                     <div style={{ maxHeight: '300px', overflowY: 'auto' }}>
                       {(never_started ?? []).slice(0, 25).map((s, i) => (
-                        <div key={s.id} style={{ display: 'grid', gridTemplateColumns: '1fr auto', alignItems: 'center', gap: '12px', padding: '10px 20px', borderBottom: i < Math.min((never_started ?? []).length, 25) - 1 ? '1px solid #E8EEF4' : 'none' }}>
+                        <div key={s.id} style={{ display: 'grid', gridTemplateColumns: '1fr auto', alignItems: 'center', gap: '12px', padding: '10px 20px', borderBottom: i < Math.min((never_started ?? []).length, 25) - 1 ? '1px solid var(--surface)' : 'none' }}>
                           <div>
-                            <div style={{ fontSize: '13px', fontWeight: 600, color: '#0F1923' }}>{s.name}</div>
-                            <div style={{ fontSize: '12px', color: '#5B7080' }}>{s.role ?? '—'} · {s.department ?? '—'}</div>
+                            <div style={{ fontSize: '13px', fontWeight: 600, color: 'var(--ink)' }}>{s.name}</div>
+                            <div style={{ fontSize: '12px', color: 'var(--ink3)' }}>{s.role ?? '—'} · {s.department ?? '—'}</div>
                           </div>
-                          <div style={{ fontSize: '12px', fontWeight: 600, color: '#8B6914', background: '#FEF3C7', padding: '3px 8px', borderRadius: '5px', whiteSpace: 'nowrap' }}>{s.office_id}</div>
+                          <div style={{ fontSize: '12px', fontWeight: 600, color: 'var(--amber)', background: 'var(--amber-light)', padding: '3px 8px', borderRadius: '5px', whiteSpace: 'nowrap' }}>{s.office_id}</div>
                         </div>
                       ))}
                       {(never_started ?? []).length > 25 && (
-                        <div style={{ padding: '10px 20px', fontSize: '12px', color: '#5B7080', textAlign: 'center' }}>+{(never_started ?? []).length - 25} more staff not shown</div>
+                        <div style={{ padding: '10px 20px', fontSize: '12px', color: 'var(--ink3)', textAlign: 'center' }}>+{(never_started ?? []).length - 25} more staff not shown</div>
                       )}
                     </div>
                   )}
@@ -2946,19 +2960,19 @@ export default function AdminPage() {
               </div>
 
               {/* ── Assign a Course ── */}
-              <div style={{ marginTop: '16px', background: '#FFFFFF', border: '1px solid #DDE8EE', borderRadius: '16px', overflow: 'hidden' }}>
-                <div style={{ padding: '20px 24px', borderBottom: '1px solid #E8EEF4', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <div style={{ marginTop: '16px', background: 'var(--card)', border: '1px solid var(--border)', borderRadius: '16px', overflow: 'hidden' }}>
+                <div style={{ padding: '20px 24px', borderBottom: '1px solid var(--surface)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                   <div>
-                    <div style={{ fontSize: '11px', fontWeight: 800, letterSpacing: '1.8px', textTransform: 'uppercase', color: '#1565C0', marginBottom: '4px' }}>Course Assignment</div>
-                    <div style={{ fontSize: '15px', fontWeight: 800, color: '#0F1923' }}>Assign a course to staff</div>
+                    <div style={{ fontSize: '11px', fontWeight: 800, letterSpacing: '1.8px', textTransform: 'uppercase', color: 'var(--info)', marginBottom: '4px' }}>Course Assignment</div>
+                    <div style={{ fontSize: '15px', fontWeight: 800, color: 'var(--ink)' }}>Assign a course to staff</div>
                   </div>
-                  <svg width="18" height="18" fill="none" stroke="#1565C0" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 013 3L7 19l-4 1 1-4 12.5-12.5z"/></svg>
+                  <svg width="18" height="18" fill="none" stroke="var(--info)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 013 3L7 19l-4 1 1-4 12.5-12.5z"/></svg>
                 </div>
                 <div style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '18px' }}>
                   <div>
-                    <label style={{ display: 'block', fontSize: '11px', fontWeight: 800, letterSpacing: '1.5px', textTransform: 'uppercase', color: '#5B7080', marginBottom: '8px' }}>Course</label>
+                    <label style={{ display: 'block', fontSize: '11px', fontWeight: 800, letterSpacing: '1.5px', textTransform: 'uppercase', color: 'var(--ink3)', marginBottom: '8px' }}>Course</label>
                     <select value={assignCourseId} onChange={e => setAssignCourseId(e.target.value)}
-                      style={{ width: '100%', padding: '10px 13px', borderRadius: '10px', border: '1px solid #DDE8EE', background: '#FAFBFC', fontSize: '13px', color: '#0F1923', fontFamily: 'inherit', outline: 'none' }}>
+                      style={{ width: '100%', padding: '10px 13px', borderRadius: '10px', border: '1px solid var(--border)', background: 'var(--border-light)', fontSize: '13px', color: 'var(--ink)', fontFamily: 'inherit', outline: 'none' }}>
                       <option value="">Select a course…</option>
                       {courses.map(c => (
                         <option key={c.id} value={c.id}>{c.title} ({c.tier_level})</option>
@@ -2966,11 +2980,11 @@ export default function AdminPage() {
                     </select>
                   </div>
                   <div>
-                    <label style={{ display: 'block', fontSize: '11px', fontWeight: 800, letterSpacing: '1.5px', textTransform: 'uppercase', color: '#5B7080', marginBottom: '8px' }}>Assign to</label>
+                    <label style={{ display: 'block', fontSize: '11px', fontWeight: 800, letterSpacing: '1.5px', textTransform: 'uppercase', color: 'var(--ink3)', marginBottom: '8px' }}>Assign to</label>
                     <div style={{ display: 'flex', gap: '8px' }}>
                       {(['dept', 'individual', 'all'] as const).map(t => (
                         <button key={t} onClick={() => setAssignTarget(t)}
-                          style={{ padding: '8px 16px', borderRadius: '8px', border: `1px solid ${assignTarget === t ? '#1565C0' : '#DDE8EE'}`, background: assignTarget === t ? 'rgba(21,101,192,0.08)' : '#FAFBFC', color: assignTarget === t ? '#1565C0' : '#5B7080', fontSize: '13px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
+                          style={{ padding: '8px 16px', borderRadius: '8px', border: `1px solid ${assignTarget === t ? 'var(--info)' : 'var(--border)'}`, background: assignTarget === t ? 'rgba(21,101,192,0.08)' : 'var(--border-light)', color: assignTarget === t ? 'var(--info)' : 'var(--ink3)', fontSize: '13px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
                           {t === 'dept' ? 'Department' : t === 'individual' ? 'Individual' : 'All Staff'}
                         </button>
                       ))}
@@ -2978,9 +2992,9 @@ export default function AdminPage() {
                   </div>
                   {assignTarget === 'dept' && (
                     <div>
-                      <label style={{ display: 'block', fontSize: '11px', fontWeight: 800, letterSpacing: '1.5px', textTransform: 'uppercase', color: '#5B7080', marginBottom: '8px' }}>Department</label>
+                      <label style={{ display: 'block', fontSize: '11px', fontWeight: 800, letterSpacing: '1.5px', textTransform: 'uppercase', color: 'var(--ink3)', marginBottom: '8px' }}>Department</label>
                       <select value={assignCourseDept} onChange={e => setAssignCourseDept(e.target.value)}
-                        style={{ width: '100%', padding: '10px 13px', borderRadius: '10px', border: '1px solid #DDE8EE', background: '#FAFBFC', fontSize: '13px', color: '#0F1923', fontFamily: 'inherit', outline: 'none' }}>
+                        style={{ width: '100%', padding: '10px 13px', borderRadius: '10px', border: '1px solid var(--border)', background: 'var(--border-light)', fontSize: '13px', color: 'var(--ink)', fontFamily: 'inherit', outline: 'none' }}>
                         <option value="">Select department…</option>
                         {Array.from(new Set(ldStaff.map(s => s.department).filter(Boolean))).sort().map(d => (
                           <option key={d} value={d!}>{d}</option>
@@ -2990,9 +3004,9 @@ export default function AdminPage() {
                   )}
                   {assignTarget === 'individual' && (
                     <div>
-                      <label style={{ display: 'block', fontSize: '11px', fontWeight: 800, letterSpacing: '1.5px', textTransform: 'uppercase', color: '#5B7080', marginBottom: '8px' }}>Staff Member</label>
+                      <label style={{ display: 'block', fontSize: '11px', fontWeight: 800, letterSpacing: '1.5px', textTransform: 'uppercase', color: 'var(--ink3)', marginBottom: '8px' }}>Staff Member</label>
                       <select value={assignCourseStaff} onChange={e => setAssignCourseStaff(e.target.value)}
-                        style={{ width: '100%', padding: '10px 13px', borderRadius: '10px', border: '1px solid #DDE8EE', background: '#FAFBFC', fontSize: '13px', color: '#0F1923', fontFamily: 'inherit', outline: 'none' }}>
+                        style={{ width: '100%', padding: '10px 13px', borderRadius: '10px', border: '1px solid var(--border)', background: 'var(--border-light)', fontSize: '13px', color: 'var(--ink)', fontFamily: 'inherit', outline: 'none' }}>
                         <option value="">Select staff member…</option>
                         {ldStaff.slice().sort((a, b) => a.name.localeCompare(b.name)).map(s => (
                           <option key={s.id} value={s.id}>{s.name} — {s.department ?? '—'} ({s.role})</option>
@@ -3001,14 +3015,14 @@ export default function AdminPage() {
                     </div>
                   )}
                   {assignTarget === 'all' && (
-                    <div style={{ padding: '12px 16px', background: 'rgba(21,101,192,0.05)', border: '1px solid rgba(21,101,192,0.15)', borderRadius: '10px', fontSize: '13px', color: '#1565C0' }}>
+                    <div style={{ padding: '12px 16px', background: 'rgba(21,101,192,0.05)', border: '1px solid rgba(21,101,192,0.15)', borderRadius: '10px', fontSize: '13px', color: 'var(--info)' }}>
                       This will assign the course to all {ldStaff.length} active staff members.
                     </div>
                   )}
                   <div>
-                    <label style={{ display: 'block', fontSize: '11px', fontWeight: 800, letterSpacing: '1.5px', textTransform: 'uppercase', color: '#5B7080', marginBottom: '8px' }}>Due Date (optional)</label>
+                    <label style={{ display: 'block', fontSize: '11px', fontWeight: 800, letterSpacing: '1.5px', textTransform: 'uppercase', color: 'var(--ink3)', marginBottom: '8px' }}>Due Date (optional)</label>
                     <input type="date" value={assignDueDate} onChange={e => setAssignDueDate(e.target.value)}
-                      style={{ padding: '10px 13px', borderRadius: '10px', border: '1px solid #DDE8EE', background: '#FAFBFC', fontSize: '13px', color: '#0F1923', fontFamily: 'inherit', outline: 'none' }} />
+                      style={{ padding: '10px 13px', borderRadius: '10px', border: '1px solid var(--border)', background: 'var(--border-light)', fontSize: '13px', color: 'var(--ink)', fontFamily: 'inherit', outline: 'none' }} />
                   </div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
                     <button
@@ -3040,11 +3054,11 @@ export default function AdminPage() {
                           }
                         } finally { setAssigning(false) }
                       }}
-                      style={{ padding: '11px 24px', borderRadius: '10px', border: 'none', background: assigning || !assignCourseId ? '#DDE8EE' : '#1565C0', color: assigning || !assignCourseId ? '#5B7080' : '#FFFFFF', fontSize: '13px', fontWeight: 800, cursor: assigning || !assignCourseId ? 'not-allowed' : 'pointer', fontFamily: 'inherit' }}>
+                      style={{ padding: '11px 24px', borderRadius: '10px', border: 'none', background: assigning || !assignCourseId ? 'var(--border)' : 'var(--info)', color: assigning || !assignCourseId ? 'var(--ink3)' : 'var(--info-light)', fontSize: '13px', fontWeight: 800, cursor: assigning || !assignCourseId ? 'not-allowed' : 'pointer', fontFamily: 'inherit' }}>
                       {assigning ? 'Assigning…' : 'Assign Course'}
                     </button>
                     {assignMsg && (
-                      <div style={{ fontSize: '13px', color: assignMsg.ok ? '#3D6B00' : '#DC2626', fontWeight: 600 }}>{assignMsg.text}</div>
+                      <div style={{ fontSize: '13px', color: assignMsg.ok ? 'var(--lime)' : 'var(--red)', fontWeight: 600 }}>{assignMsg.text}</div>
                     )}
                   </div>
                 </div>
@@ -3058,38 +3072,38 @@ export default function AdminPage() {
           <div style={{ maxWidth: '720px' }}>
             <div style={{ marginBottom: '28px' }}>
               <div style={{ fontSize: '13px', fontWeight: 800, letterSpacing: '2px', textTransform: 'uppercase', color: '#A478FF', marginBottom: '6px' }}>Learning Lab</div>
-              <h2 style={{ fontSize: '36px', fontWeight: 900, color: '#0F1923', margin: '0 0 6px' }}>Build a Course</h2>
-              <p style={{ fontSize: '13px', color: '#5B7080', margin: 0, lineHeight: 1.6 }}>Describe the gap you have spotted. Gemini will design a full course — overview, tasks, and 10 quiz questions — ready to review and publish. The person who suggested it gets credited on the course card and receives a notification on their dashboard when it goes live.</p>
+              <h2 style={{ fontSize: '36px', fontWeight: 900, color: 'var(--ink)', margin: '0 0 6px' }}>Build a Course</h2>
+              <p style={{ fontSize: '13px', color: 'var(--ink3)', margin: 0, lineHeight: 1.6 }}>Describe the gap you have spotted. Gemini will design a full course — overview, tasks, and 10 quiz questions — ready to review and publish. The person who suggested it gets credited on the course card and receives a notification on their dashboard when it goes live.</p>
             </div>
 
             {/* Input panel */}
             {(suggestState === 'idle' || suggestState === 'thinking') && (
               <div style={{ background: 'rgba(164,120,255,0.06)', border: '1px solid rgba(164,120,255,0.2)', borderRadius: '16px', padding: '28px' }}>
                 <div style={{ marginBottom: '18px' }}>
-                  <label style={{ display: 'block', fontSize: '13px', fontWeight: 800, letterSpacing: '1.5px', textTransform: 'uppercase', color: '#5B7080', marginBottom: '8px' }}>Your Suggestion</label>
+                  <label style={{ display: 'block', fontSize: '13px', fontWeight: 800, letterSpacing: '1.5px', textTransform: 'uppercase', color: 'var(--ink3)', marginBottom: '8px' }}>Your Suggestion</label>
                   <textarea
                     value={suggestion}
                     onChange={e => setSuggestion(e.target.value)}
                     placeholder="e.g. Create a course for the Events team on using AI to build run-of-show documents and vendor briefing packs"
                     rows={4}
                     disabled={suggestState === 'thinking'}
-                    style={{ width: '100%', boxSizing: 'border-box', padding: '14px 16px', borderRadius: '12px', border: '1px solid rgba(164,120,255,0.25)', background: '#FFFFFF', color: '#0F1923', fontSize: '13px', fontFamily: 'inherit', lineHeight: 1.6, outline: 'none', resize: 'vertical', opacity: suggestState === 'thinking' ? 0.6 : 1 }}
+                    style={{ width: '100%', boxSizing: 'border-box', padding: '14px 16px', borderRadius: '12px', border: '1px solid rgba(164,120,255,0.25)', background: 'var(--card)', color: 'var(--ink)', fontSize: '13px', fontFamily: 'inherit', lineHeight: 1.6, outline: 'none', resize: 'vertical', opacity: suggestState === 'thinking' ? 0.6 : 1 }}
                   />
                 </div>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px', marginBottom: '22px' }}>
                   <div>
-                    <label style={{ display: 'block', fontSize: '13px', fontWeight: 800, letterSpacing: '1.5px', textTransform: 'uppercase', color: '#5B7080', marginBottom: '8px' }}>Department</label>
+                    <label style={{ display: 'block', fontSize: '13px', fontWeight: 800, letterSpacing: '1.5px', textTransform: 'uppercase', color: 'var(--ink3)', marginBottom: '8px' }}>Department</label>
                     <select value={suggestDept} onChange={e => setSuggestDept(e.target.value)} disabled={suggestState === 'thinking'}
-                      style={{ width: '100%', padding: '12px 14px', borderRadius: '10px', border: '1px solid #DDE8EE', background: '#FFFFFF', color: '#0F1923', fontSize: '13px', fontFamily: 'inherit', outline: 'none', cursor: 'pointer' }}>
+                      style={{ width: '100%', padding: '12px 14px', borderRadius: '10px', border: '1px solid var(--border)', background: 'var(--card)', color: 'var(--ink)', fontSize: '13px', fontFamily: 'inherit', outline: 'none', cursor: 'pointer' }}>
                       {['Events', 'Sales & Sponsorship', 'Marketing', 'Finance', 'Operations', 'IT', 'HR & Recruitment', 'Content & Design', 'Government Relations', 'DemandifyMedia', 'Leadership'].map(d => (
                         <option key={d} value={d}>{d}</option>
                       ))}
                     </select>
                   </div>
                   <div>
-                    <label style={{ display: 'block', fontSize: '13px', fontWeight: 800, letterSpacing: '1.5px', textTransform: 'uppercase', color: '#5B7080', marginBottom: '8px' }}>Tier Level</label>
+                    <label style={{ display: 'block', fontSize: '13px', fontWeight: 800, letterSpacing: '1.5px', textTransform: 'uppercase', color: 'var(--ink3)', marginBottom: '8px' }}>Tier Level</label>
                     <select value={suggestTier} onChange={e => setSuggestTier(e.target.value as 'foundation' | 'adoption' | 'advanced')} disabled={suggestState === 'thinking'}
-                      style={{ width: '100%', padding: '12px 14px', borderRadius: '10px', border: '1px solid #DDE8EE', background: '#FFFFFF', color: '#0F1923', fontSize: '13px', fontFamily: 'inherit', outline: 'none', cursor: 'pointer' }}>
+                      style={{ width: '100%', padding: '12px 14px', borderRadius: '10px', border: '1px solid var(--border)', background: 'var(--card)', color: 'var(--ink)', fontSize: '13px', fontFamily: 'inherit', outline: 'none', cursor: 'pointer' }}>
                       <option value="foundation">Foundation — AI basics for this role</option>
                       <option value="adoption">Adoption — Intermediate workflows</option>
                       <option value="advanced">Advanced — Strategy and leadership</option>
@@ -3099,35 +3113,35 @@ export default function AdminPage() {
                 {/* Credit to field */}
                 <div style={{ marginBottom: '22px', background: 'rgba(164,120,255,0.05)', border: '1px solid rgba(164,120,255,0.15)', borderRadius: '12px', padding: '16px 18px' }}>
                   <div style={{ fontSize: '13px', fontWeight: 800, letterSpacing: '2px', textTransform: 'uppercase', color: '#A478FF', marginBottom: '12px' }}>Course Credit</div>
-                  <p style={{ fontSize: '13px', color: '#5B7080', margin: '0 0 12px', lineHeight: 1.55 }}>
+                  <p style={{ fontSize: '13px', color: 'var(--ink3)', margin: '0 0 12px', lineHeight: 1.55 }}>
                     Who identified this gap and requested this course? They will be credited on the course card and notified on their dashboard when it goes live.
                   </p>
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
                     <div>
-                      <label style={{ display: 'block', fontSize: '13px', fontWeight: 700, color: '#5B7080', marginBottom: '6px' }}>Full Name</label>
+                      <label style={{ display: 'block', fontSize: '13px', fontWeight: 700, color: 'var(--ink3)', marginBottom: '6px' }}>Full Name</label>
                       <input
                         value={creditName}
                         onChange={e => setCreditName(e.target.value)}
                         placeholder="e.g. Priya Menon"
                         disabled={suggestState === 'thinking'}
-                        style={{ width: '100%', boxSizing: 'border-box', padding: '10px 12px', borderRadius: '8px', border: '1px solid #DDE8EE', background: '#FFFFFF', color: '#0F1923', fontSize: '13px', fontFamily: 'inherit', outline: 'none' }}
+                        style={{ width: '100%', boxSizing: 'border-box', padding: '10px 12px', borderRadius: '8px', border: '1px solid var(--border)', background: 'var(--card)', color: 'var(--ink)', fontSize: '13px', fontFamily: 'inherit', outline: 'none' }}
                       />
                     </div>
                     <div>
-                      <label style={{ display: 'block', fontSize: '13px', fontWeight: 700, color: '#5B7080', marginBottom: '6px' }}>Role / Department</label>
+                      <label style={{ display: 'block', fontSize: '13px', fontWeight: 700, color: 'var(--ink3)', marginBottom: '6px' }}>Role / Department</label>
                       <input
                         value={creditRole}
                         onChange={e => setCreditRole(e.target.value)}
                         placeholder="e.g. Head of Events"
                         disabled={suggestState === 'thinking'}
-                        style={{ width: '100%', boxSizing: 'border-box', padding: '10px 12px', borderRadius: '8px', border: '1px solid #DDE8EE', background: '#FFFFFF', color: '#0F1923', fontSize: '13px', fontFamily: 'inherit', outline: 'none' }}
+                        style={{ width: '100%', boxSizing: 'border-box', padding: '10px 12px', borderRadius: '8px', border: '1px solid var(--border)', background: 'var(--card)', color: 'var(--ink)', fontSize: '13px', fontFamily: 'inherit', outline: 'none' }}
                       />
                     </div>
                   </div>
                 </div>
 
                 <button onClick={submitSuggestion} disabled={!suggestion.trim() || suggestState === 'thinking'}
-                  style={{ padding: '13px 28px', borderRadius: '12px', border: 'none', background: suggestion.trim() && suggestState !== 'thinking' ? '#A478FF' : '#DDE8EE', color: suggestion.trim() && suggestState !== 'thinking' ? 'white' : '#0F1923', fontSize: '13px', fontWeight: 800, cursor: suggestion.trim() && suggestState !== 'thinking' ? 'pointer' : 'not-allowed', fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  style={{ padding: '13px 28px', borderRadius: '12px', border: 'none', background: suggestion.trim() && suggestState !== 'thinking' ? 'var(--purple)' : 'var(--border)', color: suggestion.trim() && suggestState !== 'thinking' ? 'var(--purple-light)' : 'var(--ink)', fontSize: '13px', fontWeight: 800, cursor: suggestion.trim() && suggestState !== 'thinking' ? 'pointer' : 'not-allowed', fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: '8px' }}>
                   <svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
                   {suggestState === 'thinking' ? 'Designing your course...' : 'Generate Course'}
                 </button>
@@ -3142,8 +3156,8 @@ export default function AdminPage() {
                 </div>
                 <div>
                   <div style={{ fontSize: '13px', fontWeight: 800, color: '#A478FF', marginBottom: '4px' }}>Course Designer</div>
-                  <div style={{ fontSize: '13px', color: '#5B7080', lineHeight: 1.6 }}>
-                    I have received your suggestion for a <strong style={{ color: '#0F1923' }}>{suggestTier}</strong> course for the <strong style={{ color: '#0F1923' }}>{suggestDept}</strong> team. I am preparing a course just right — with full reading content, personalised tasks, and a 10-question bank. Sending it for your approval shortly...
+                  <div style={{ fontSize: '13px', color: 'var(--ink3)', lineHeight: 1.6 }}>
+                    I have received your suggestion for a <strong style={{ color: 'var(--ink)' }}>{suggestTier}</strong> course for the <strong style={{ color: 'var(--ink)' }}>{suggestDept}</strong> team. I am preparing a course just right — with full reading content, personalised tasks, and a 10-question bank. Sending it for your approval shortly...
                   </div>
                   <div style={{ marginTop: '12px', display: 'flex', gap: '5px' }}>
                     {[0, 1, 2].map(i => (
@@ -3163,43 +3177,43 @@ export default function AdminPage() {
                   </div>
                   <div>
                     <div style={{ fontSize: '13px', fontWeight: 800, color: '#A478FF', marginBottom: '4px' }}>Course Designer</div>
-                    <div style={{ fontSize: '13px', color: '#5B7080', lineHeight: 1.6 }}>
-                      Your course is ready for review. I have built a complete <strong style={{ color: '#0F1923' }}>{suggestTier}</strong> course for <strong style={{ color: '#0F1923' }}>{suggestDept}</strong> with full reading content, 4 personalised task steps, and a 10-question bank. Review it below — edit anything you like — then approve to publish.
+                    <div style={{ fontSize: '13px', color: 'var(--ink3)', lineHeight: 1.6 }}>
+                      Your course is ready for review. I have built a complete <strong style={{ color: 'var(--ink)' }}>{suggestTier}</strong> course for <strong style={{ color: 'var(--ink)' }}>{suggestDept}</strong> with full reading content, 4 personalised task steps, and a 10-question bank. Review it below — edit anything you like — then approve to publish.
                     </div>
                   </div>
                 </div>
 
                 {/* Course preview */}
-                <div style={{ background: '#FFFFFF', border: '1px solid #DDE8EE', borderRadius: '16px', overflow: 'hidden', marginBottom: '20px' }}>
-                  <div style={{ padding: '20px 24px', borderBottom: '1px solid #DDE8EE' }}>
+                <div style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: '16px', overflow: 'hidden', marginBottom: '20px' }}>
+                  <div style={{ padding: '20px 24px', borderBottom: '1px solid var(--border)' }}>
                     <div style={{ fontSize: '13px', fontWeight: 800, color: '#A478FF', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '6px' }}>{(generatedCourse.tier_level as string)} · {suggestDept}</div>
-                    <div style={{ fontSize: '13px', fontWeight: 900, color: '#0F1923', marginBottom: '4px' }}>{generatedCourse.title as string}</div>
-                    <div style={{ fontSize: '13px', color: '#5B7080' }}>{generatedCourse.subtitle as string}</div>
+                    <div style={{ fontSize: '13px', fontWeight: 900, color: 'var(--ink)', marginBottom: '4px' }}>{generatedCourse.title as string}</div>
+                    <div style={{ fontSize: '13px', color: 'var(--ink3)' }}>{generatedCourse.subtitle as string}</div>
                   </div>
-                  <div style={{ padding: '20px 24px', borderBottom: '1px solid #DDE8EE' }}>
-                    <div style={{ fontSize: '13px', fontWeight: 800, color: '#0F1923', letterSpacing: '1.5px', textTransform: 'uppercase', marginBottom: '10px' }}>Overview</div>
-                    <div style={{ fontSize: '13px', color: '#5B7080', lineHeight: 1.7 }}>{generatedCourse.overview as string}</div>
+                  <div style={{ padding: '20px 24px', borderBottom: '1px solid var(--border)' }}>
+                    <div style={{ fontSize: '13px', fontWeight: 800, color: 'var(--ink)', letterSpacing: '1.5px', textTransform: 'uppercase', marginBottom: '10px' }}>Overview</div>
+                    <div style={{ fontSize: '13px', color: 'var(--ink3)', lineHeight: 1.7 }}>{generatedCourse.overview as string}</div>
                   </div>
-                  <div style={{ padding: '20px 24px', borderBottom: '1px solid #DDE8EE' }}>
-                    <div style={{ fontSize: '13px', fontWeight: 800, color: '#0F1923', letterSpacing: '1.5px', textTransform: 'uppercase', marginBottom: '12px' }}>Task Steps ({(generatedCourse.task_steps as unknown[]).length})</div>
+                  <div style={{ padding: '20px 24px', borderBottom: '1px solid var(--border)' }}>
+                    <div style={{ fontSize: '13px', fontWeight: 800, color: 'var(--ink)', letterSpacing: '1.5px', textTransform: 'uppercase', marginBottom: '12px' }}>Task Steps ({(generatedCourse.task_steps as unknown[]).length})</div>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                       {(generatedCourse.task_steps as Array<{step: number; instruction: string; tip: string}>).map((ts) => (
-                        <div key={ts.step} style={{ padding: '12px 16px', background: '#FFFFFF', borderRadius: '10px', border: '1px solid #DDE8EE' }}>
+                        <div key={ts.step} style={{ padding: '12px 16px', background: 'var(--card)', borderRadius: '10px', border: '1px solid var(--border)' }}>
                           <div style={{ fontSize: '13px', fontWeight: 700, color: '#A478FF', marginBottom: '4px' }}>Step {ts.step}</div>
-                          <div style={{ fontSize: '13px', color: '#5B7080', lineHeight: 1.55 }}>{ts.instruction}</div>
+                          <div style={{ fontSize: '13px', color: 'var(--ink3)', lineHeight: 1.55 }}>{ts.instruction}</div>
                         </div>
                       ))}
                     </div>
                   </div>
                   <div style={{ padding: '20px 24px' }}>
-                    <div style={{ fontSize: '13px', fontWeight: 800, color: '#0F1923', letterSpacing: '1.5px', textTransform: 'uppercase', marginBottom: '10px' }}>
+                    <div style={{ fontSize: '13px', fontWeight: 800, color: 'var(--ink)', letterSpacing: '1.5px', textTransform: 'uppercase', marginBottom: '10px' }}>
                       Question Bank ({(generatedCourse.question_bank as unknown[]).length} questions · 5 served randomly per attempt)
                     </div>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                       {(generatedCourse.question_bank as Array<{question: string; correct_index: number; options: string[]}>).map((q, i) => (
-                        <div key={i} style={{ padding: '12px 16px', background: '#FFFFFF', borderRadius: '10px', border: '1px solid #DDE8EE' }}>
-                          <div style={{ fontSize: '13px', color: '#0F1923', fontWeight: 600, marginBottom: '4px' }}>Q{i + 1}: {q.question}</div>
-                          <div style={{ fontSize: '13px', color: '#00695C' }}>Correct: {q.options[q.correct_index]}</div>
+                        <div key={i} style={{ padding: '12px 16px', background: 'var(--card)', borderRadius: '10px', border: '1px solid var(--border)' }}>
+                          <div style={{ fontSize: '13px', color: 'var(--ink)', fontWeight: 600, marginBottom: '4px' }}>Q{i + 1}: {q.question}</div>
+                          <div style={{ fontSize: '13px', color: 'var(--teal)' }}>Correct: {q.options[q.correct_index]}</div>
                         </div>
                       ))}
                     </div>
@@ -3208,33 +3222,33 @@ export default function AdminPage() {
 
                 {/* Credit preview */}
                 {creditName && (
-                  <div style={{ padding: '12px 16px', background: 'rgba(164,120,255,0.07)', border: '1px solid rgba(164,120,255,0.2)', borderRadius: '10px', fontSize: '13px', color: '#5B7080', marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '10px' }}>
+                  <div style={{ padding: '12px 16px', background: 'rgba(164,120,255,0.07)', border: '1px solid rgba(164,120,255,0.2)', borderRadius: '10px', fontSize: '13px', color: 'var(--ink3)', marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '10px' }}>
                     <div style={{ width: '28px', height: '28px', borderRadius: '8px', background: 'rgba(164,120,255,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
                       <span style={{ fontSize: '13px', fontWeight: 800, color: '#A478FF' }}>{creditName.charAt(0)}</span>
                     </div>
                     <div>
-                      <span style={{ color: '#5B7080' }}>Suggested by </span>
-                      <strong style={{ color: '#0F1923' }}>{creditName}</strong>
-                      {creditRole && <span style={{ color: '#5B7080' }}> · {creditRole}</span>}
-                      <span style={{ color: '#0F1923', fontSize: '13px', display: 'block', marginTop: '1px' }}>Will be credited on the course card. Email notification sent on publish.</span>
+                      <span style={{ color: 'var(--ink3)' }}>Suggested by </span>
+                      <strong style={{ color: 'var(--ink)' }}>{creditName}</strong>
+                      {creditRole && <span style={{ color: 'var(--ink3)' }}> · {creditRole}</span>}
+                      <span style={{ color: 'var(--ink)', fontSize: '13px', display: 'block', marginTop: '1px' }}>Will be credited on the course card. Email notification sent on publish.</span>
                     </div>
                   </div>
                 )}
 
                 {publishMsg && (
-                  <div style={{ padding: '12px 16px', background: publishMsg.includes('live') ? 'rgba(192,244,60,0.1)' : 'rgba(255,107,107,0.1)', border: `1px solid ${publishMsg.includes('live') ? 'rgba(192,244,60,0.3)' : 'rgba(255,107,107,0.3)'}`, borderRadius: '10px', fontSize: '13px', color: publishMsg.includes('live') ? '#3D6B00' : '#FF6B6B', fontWeight: 700, marginBottom: '16px' }}>
+                  <div style={{ padding: '12px 16px', background: publishMsg.includes('live') ? 'rgba(192,244,60,0.1)' : 'rgba(255,107,107,0.1)', border: `1px solid ${publishMsg.includes('live') ? 'rgba(192,244,60,0.3)' : 'rgba(255,107,107,0.3)'}`, borderRadius: '10px', fontSize: '13px', color: publishMsg.includes('live') ? 'var(--lime)' : 'var(--red)', fontWeight: 700, marginBottom: '16px' }}>
                     {publishMsg}
                   </div>
                 )}
 
                 <div style={{ display: 'flex', gap: '12px' }}>
                   <button onClick={submitForReview} disabled={suggestState === 'publishing'}
-                    style={{ padding: '13px 28px', borderRadius: '12px', border: 'none', background: '#A478FF', color: '#0F1923', fontSize: '13px', fontWeight: 800, cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: '8px', opacity: suggestState === 'publishing' ? 0.7 : 1 }}>
+                    style={{ padding: '13px 28px', borderRadius: '12px', border: 'none', background: 'var(--purple)', color: 'var(--purple-light)', fontSize: '13px', fontWeight: 800, cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: '8px', opacity: suggestState === 'publishing' ? 0.7 : 1 }}>
                     <svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M22 2L11 13"/><path d="M22 2L15 22 11 13 2 9l20-7z"/></svg>
                     {suggestState === 'publishing' ? 'Submitting...' : 'Submit for Review'}
                   </button>
                   <button onClick={() => { setSuggestState('idle'); setGeneratedCourse(null); setPublishMsg('') }}
-                    style={{ padding: '13px 20px', borderRadius: '12px', border: '1px solid #B8CDD8', background: '#FFFFFF', color: '#5B7080', fontSize: '13px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
+                    style={{ padding: '13px 20px', borderRadius: '12px', border: '1px solid var(--ink4)', background: 'var(--card)', color: 'var(--ink3)', fontSize: '13px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
                     Start Over
                   </button>
                 </div>
@@ -3242,37 +3256,37 @@ export default function AdminPage() {
             )}
 
             {/* ── Dept Course Seeding ── */}
-            <div style={{ marginTop: '40px', paddingTop: '32px', borderTop: '1px solid #E8EEF4' }}>
+            <div style={{ marginTop: '40px', paddingTop: '32px', borderTop: '1px solid var(--surface)' }}>
               <div style={{ marginBottom: '20px' }}>
-                <div style={{ fontSize: '13px', fontWeight: 800, letterSpacing: '2px', textTransform: 'uppercase', color: '#00A5A3', marginBottom: '6px' }}>Dept Seeding</div>
-                <h3 style={{ fontSize: '22px', fontWeight: 900, color: '#0F1923', margin: '0 0 6px' }}>Seed Department Courses</h3>
-                <p style={{ fontSize: '15px', color: '#5B7080', margin: 0, lineHeight: 1.6 }}>Generate multiple draft courses for a specific department in one go. Pilot AI builds them from Trescon context — saved as drafts for your review before publishing.</p>
+                <div style={{ fontSize: '13px', fontWeight: 800, letterSpacing: '2px', textTransform: 'uppercase', color: 'var(--teal-mid)', marginBottom: '6px' }}>Dept Seeding</div>
+                <h3 style={{ fontSize: '22px', fontWeight: 900, color: 'var(--ink)', margin: '0 0 6px' }}>Seed Department Courses</h3>
+                <p style={{ fontSize: '15px', color: 'var(--ink3)', margin: 0, lineHeight: 1.6 }}>Generate multiple draft courses for a specific department in one go. Pilot AI builds them from Trescon context — saved as drafts for your review before publishing.</p>
               </div>
 
               <div style={{ background: 'rgba(0,165,163,0.05)', border: '1px solid rgba(0,165,163,0.18)', borderRadius: '16px', padding: '24px' }}>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 120px', gap: '14px', marginBottom: '20px' }}>
                   <div>
-                    <label style={{ display: 'block', fontSize: '13px', fontWeight: 800, letterSpacing: '1.5px', textTransform: 'uppercase', color: '#5B7080', marginBottom: '8px' }}>Department</label>
+                    <label style={{ display: 'block', fontSize: '13px', fontWeight: 800, letterSpacing: '1.5px', textTransform: 'uppercase', color: 'var(--ink3)', marginBottom: '8px' }}>Department</label>
                     <select value={deptSeedDept} onChange={e => setDeptSeedDept(e.target.value)} disabled={deptSeedState === 'generating'}
-                      style={{ width: '100%', padding: '12px 14px', borderRadius: '10px', border: '1px solid #DDE8EE', background: '#FFFFFF', color: '#0F1923', fontSize: '13px', fontFamily: 'inherit', outline: 'none', cursor: 'pointer' }}>
+                      style={{ width: '100%', padding: '12px 14px', borderRadius: '10px', border: '1px solid var(--border)', background: 'var(--card)', color: 'var(--ink)', fontSize: '13px', fontFamily: 'inherit', outline: 'none', cursor: 'pointer' }}>
                       {['Events', 'Sales & Sponsorship', 'Marketing', 'Finance', 'Operations', 'HR', 'Content & Design', 'Data & Intelligence', 'Leadership'].map(d => (
                         <option key={d} value={d}>{d}</option>
                       ))}
                     </select>
                   </div>
                   <div>
-                    <label style={{ display: 'block', fontSize: '13px', fontWeight: 800, letterSpacing: '1.5px', textTransform: 'uppercase', color: '#5B7080', marginBottom: '8px' }}>Tier Level</label>
+                    <label style={{ display: 'block', fontSize: '13px', fontWeight: 800, letterSpacing: '1.5px', textTransform: 'uppercase', color: 'var(--ink3)', marginBottom: '8px' }}>Tier Level</label>
                     <select value={deptSeedTier} onChange={e => setDeptSeedTier(e.target.value as 'foundation' | 'adoption' | 'advanced')} disabled={deptSeedState === 'generating'}
-                      style={{ width: '100%', padding: '12px 14px', borderRadius: '10px', border: '1px solid #DDE8EE', background: '#FFFFFF', color: '#0F1923', fontSize: '13px', fontFamily: 'inherit', outline: 'none', cursor: 'pointer' }}>
+                      style={{ width: '100%', padding: '12px 14px', borderRadius: '10px', border: '1px solid var(--border)', background: 'var(--card)', color: 'var(--ink)', fontSize: '13px', fontFamily: 'inherit', outline: 'none', cursor: 'pointer' }}>
                       <option value="foundation">Foundation</option>
                       <option value="adoption">Adoption</option>
                       <option value="advanced">Advanced</option>
                     </select>
                   </div>
                   <div>
-                    <label style={{ display: 'block', fontSize: '13px', fontWeight: 800, letterSpacing: '1.5px', textTransform: 'uppercase', color: '#5B7080', marginBottom: '8px' }}>Count</label>
+                    <label style={{ display: 'block', fontSize: '13px', fontWeight: 800, letterSpacing: '1.5px', textTransform: 'uppercase', color: 'var(--ink3)', marginBottom: '8px' }}>Count</label>
                     <select value={deptSeedCount} onChange={e => setDeptSeedCount(Number(e.target.value))} disabled={deptSeedState === 'generating'}
-                      style={{ width: '100%', padding: '12px 14px', borderRadius: '10px', border: '1px solid #DDE8EE', background: '#FFFFFF', color: '#0F1923', fontSize: '13px', fontFamily: 'inherit', outline: 'none', cursor: 'pointer' }}>
+                      style={{ width: '100%', padding: '12px 14px', borderRadius: '10px', border: '1px solid var(--border)', background: 'var(--card)', color: 'var(--ink)', fontSize: '13px', fontFamily: 'inherit', outline: 'none', cursor: 'pointer' }}>
                       <option value={1}>1</option>
                       <option value={2}>2</option>
                       <option value={3}>3</option>
@@ -3300,7 +3314,7 @@ export default function AdminPage() {
                       setDeptSeedState('error')
                     }
                   }}
-                  style={{ padding: '13px 28px', borderRadius: '12px', border: 'none', background: deptSeedState === 'generating' ? '#DDE8EE' : '#00A5A3', color: deptSeedState === 'generating' ? '#5B7080' : '#ffffff', fontSize: '13px', fontWeight: 800, cursor: deptSeedState === 'generating' ? 'not-allowed' : 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  style={{ padding: '13px 28px', borderRadius: '12px', border: 'none', background: deptSeedState === 'generating' ? 'var(--border)' : 'var(--teal-mid)', color: deptSeedState === 'generating' ? 'var(--ink3)' : 'var(--teal-light)', fontSize: '13px', fontWeight: 800, cursor: deptSeedState === 'generating' ? 'not-allowed' : 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: '8px' }}>
                   <svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
                   {deptSeedState === 'generating' ? `Generating ${deptSeedCount} course${deptSeedCount > 1 ? 's' : ''}...` : `Generate ${deptSeedCount} Draft Course${deptSeedCount > 1 ? 's' : ''}`}
                 </button>
@@ -3310,24 +3324,24 @@ export default function AdminPage() {
                 <div style={{ marginTop: '16px' }}>
                   {deptSeedResult.courses.length > 0 && (
                     <div style={{ background: 'rgba(192,244,60,0.08)', border: '1px solid rgba(192,244,60,0.3)', borderRadius: '12px', padding: '16px 18px', marginBottom: '12px' }}>
-                      <div style={{ fontSize: '13px', fontWeight: 800, color: '#3D6B00', marginBottom: '10px' }}>{deptSeedResult.courses.length} draft course{deptSeedResult.courses.length > 1 ? 's' : ''} saved — ready for review in the Review Queue</div>
+                      <div style={{ fontSize: '13px', fontWeight: 800, color: 'var(--lime)', marginBottom: '10px' }}>{deptSeedResult.courses.length} draft course{deptSeedResult.courses.length > 1 ? 's' : ''} saved — ready for review in the Review Queue</div>
                       {deptSeedResult.courses.map(c => (
-                        <div key={c.id} style={{ fontSize: '13px', color: '#5B7080', padding: '6px 0', borderTop: '1px solid rgba(192,244,60,0.2)', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                          <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#00A5A3', flexShrink: 0, display: 'inline-block' }} />
-                          <span style={{ color: '#0F1923', fontWeight: 700 }}>{c.title}</span>
-                          <span style={{ color: '#B8CDD8' }}>·</span>
+                        <div key={c.id} style={{ fontSize: '13px', color: 'var(--ink3)', padding: '6px 0', borderTop: '1px solid rgba(192,244,60,0.2)', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                          <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: 'var(--teal-mid)', flexShrink: 0, display: 'inline-block' }} />
+                          <span style={{ color: 'var(--ink)', fontWeight: 700 }}>{c.title}</span>
+                          <span style={{ color: 'var(--ink4)' }}>·</span>
                           <span style={{ textTransform: 'capitalize' }}>{c.tier_level}</span>
                         </div>
                       ))}
                     </div>
                   )}
                   {deptSeedResult.errors && deptSeedResult.errors.length > 0 && (
-                    <div style={{ background: 'rgba(255,107,107,0.08)', border: '1px solid rgba(255,107,107,0.3)', borderRadius: '12px', padding: '14px 16px', fontSize: '13px', color: '#B91C1C' }}>
+                    <div style={{ background: 'var(--red-light)', border: '1px solid var(--red-border)', borderRadius: '12px', padding: '14px 16px', fontSize: '13px', color: 'var(--red)' }}>
                       {deptSeedResult.errors.map((e, i) => <div key={i}>{e}</div>)}
                     </div>
                   )}
                   <button onClick={() => { setDeptSeedState('idle'); setDeptSeedResult(null) }}
-                    style={{ marginTop: '10px', padding: '8px 16px', borderRadius: '8px', border: '1px solid #DDE8EE', background: '#FFFFFF', color: '#5B7080', fontSize: '13px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
+                    style={{ marginTop: '10px', padding: '8px 16px', borderRadius: '8px', border: '1px solid var(--border)', background: 'var(--card)', color: 'var(--ink3)', fontSize: '13px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
                     Generate More
                   </button>
                 </div>
@@ -3339,13 +3353,13 @@ export default function AdminPage() {
 
         {/* ── Events tab ── */}
         {tab === 'events' && (() => {
-          const TYPE_COLOR: Record<string,string> = { conference:'#00897B', summit:'#A78BFA', forum:'#60A5FA', awards:'#F59E0B', workshop:'#34D399', flagship:'#8B1A1A', managed:'#3730A3', bespoke:'#B45309', corporate:'#0F1923', others:'#B8CDD8', other:'#0F1923' }
+          const TYPE_COLOR: Record<string,string> = { conference:'#12C9BD', summit:'#A78BFA', forum:'#5AA9F2', awards:'#F5B94D', workshop:'#34D399', flagship:'#F1667A', managed:'#8882DA', bespoke:'#E0670B', corporate:'#F2F6F8', others:'#6B8296', other:'#F2F6F8' }
           const STATUS_CFG: Record<string,{color:string;bg:string}> = {
-            planning:  { color:'#5B7080',  bg:'#DDE8EE' },
-            upcoming:  { color:'#3730A3',  bg:'rgba(55,48,163,0.1)' },
-            active:    { color:'#3D6B00',  bg:'rgba(61,107,0,0.1)'  },
-            completed: { color:'#00897B',  bg:'rgba(0,165,163,0.12)' },
-            cancelled: { color:'#FF6B6B',  bg:'rgba(255,107,107,0.12)' },
+            planning:  { color:'#7E93A1',  bg: 'rgba(255,255,255,0.08)' },
+            upcoming:  { color:'#8882DA',  bg: 'rgba(136,130,218,0.15)' },
+            active:    { color:'var(--lime)',  bg: 'rgba(192,244,60,0.15)'  },
+            completed: { color:'#12C9BD',  bg: 'rgba(18,201,189,0.14)' },
+            cancelled: { color:'#F1667A',  bg: 'rgba(241,102,122,0.14)' },
           }
 
           const today    = new Date()
@@ -3374,8 +3388,8 @@ export default function AdminPage() {
           const totalStaff = events.reduce((s,e) => s + ((e.event_staff as {count:number}[]|null)?.[0]?.count ?? 0), 0)
 
           const createForm = (
-            <div style={{ background: '#FFFFFF', border: '1px solid rgba(0,165,163,0.2)', borderRadius: '16px', padding: '24px' }}>
-              <div style={{ fontSize: '13px', fontWeight: 800, color: '#00897B', letterSpacing: '1px', textTransform: 'uppercase', marginBottom: '16px' }}>New Event</div>
+            <div style={{ background: 'var(--card)', border: '1px solid rgba(0,165,163,0.2)', borderRadius: '16px', padding: '24px' }}>
+              <div style={{ fontSize: '13px', fontWeight: 800, color: 'var(--teal-mid)', letterSpacing: '1px', textTransform: 'uppercase', marginBottom: '16px' }}>New Event</div>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '12px' }}>
                 {[
                   { label: 'Event Name', key: 'name', placeholder: 'World AI Show Dubai 2026', full: true },
@@ -3384,44 +3398,44 @@ export default function AdminPage() {
                   { label: 'Venue', key: 'venue', placeholder: 'Dubai World Trade Centre', full: false },
                 ].map(f => (
                   <div key={f.key} style={f.full ? { gridColumn: '1/-1' } : {}}>
-                    <label style={{ fontSize: '13px', fontWeight: 700, color: '#5B7080', letterSpacing: '0.8px', textTransform: 'uppercase', display: 'block', marginBottom: '5px' }}>{f.label}</label>
+                    <label style={{ fontSize: '13px', fontWeight: 700, color: 'var(--ink3)', letterSpacing: '0.8px', textTransform: 'uppercase', display: 'block', marginBottom: '5px' }}>{f.label}</label>
                     <input value={eventForm[f.key as keyof typeof eventForm]} onChange={e => setEventForm(p => ({ ...p, [f.key]: e.target.value }))}
                       placeholder={f.placeholder}
-                      style={{ width: '100%', padding: '9px 12px', borderRadius: '9px', border: '1px solid #DDE8EE', background: '#FFFFFF', color: '#0F1923', fontSize: '13px', fontFamily: 'inherit', boxSizing: 'border-box' }} />
+                      style={{ width: '100%', padding: '9px 12px', borderRadius: '9px', border: '1px solid var(--border)', background: 'var(--card)', color: 'var(--ink)', fontSize: '13px', fontFamily: 'inherit', boxSizing: 'border-box' }} />
                   </div>
                 ))}
               </div>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '12px' }}>
                 <div>
-                  <label style={{ fontSize: '13px', fontWeight: 700, color: '#5B7080', letterSpacing: '0.8px', textTransform: 'uppercase', display: 'block', marginBottom: '5px' }}>Type</label>
+                  <label style={{ fontSize: '13px', fontWeight: 700, color: 'var(--ink3)', letterSpacing: '0.8px', textTransform: 'uppercase', display: 'block', marginBottom: '5px' }}>Type</label>
                   <select value={eventForm.type} onChange={e => setEventForm(p => ({ ...p, type: e.target.value }))}
-                    style={{ width: '100%', padding: '9px 12px', borderRadius: '9px', border: '1px solid #DDE8EE', background: '#FFFFFF', color: '#0F1923', fontSize: '13px', fontFamily: 'inherit' }}>
+                    style={{ width: '100%', padding: '9px 12px', borderRadius: '9px', border: '1px solid var(--border)', background: 'var(--card)', color: 'var(--ink)', fontSize: '13px', fontFamily: 'inherit' }}>
                     {['conference','summit','forum','awards','workshop','other'].map(t => <option key={t} value={t}>{t.charAt(0).toUpperCase()+t.slice(1)}</option>)}
                   </select>
                 </div>
                 <div>
-                  <label style={{ fontSize: '13px', fontWeight: 700, color: '#5B7080', letterSpacing: '0.8px', textTransform: 'uppercase', display: 'block', marginBottom: '5px' }}>Start Date</label>
+                  <label style={{ fontSize: '13px', fontWeight: 700, color: 'var(--ink3)', letterSpacing: '0.8px', textTransform: 'uppercase', display: 'block', marginBottom: '5px' }}>Start Date</label>
                   <input type="date" value={eventForm.event_date} onChange={e => setEventForm(p => ({ ...p, event_date: e.target.value }))}
-                    style={{ width: '100%', padding: '9px 12px', borderRadius: '9px', border: '1px solid #DDE8EE', background: '#FFFFFF', color: '#0F1923', fontSize: '13px', fontFamily: 'inherit', boxSizing: 'border-box' }} />
+                    style={{ width: '100%', padding: '9px 12px', borderRadius: '9px', border: '1px solid var(--border)', background: 'var(--card)', color: 'var(--ink)', fontSize: '13px', fontFamily: 'inherit', boxSizing: 'border-box' }} />
                 </div>
                 <div>
-                  <label style={{ fontSize: '13px', fontWeight: 700, color: '#5B7080', letterSpacing: '0.8px', textTransform: 'uppercase', display: 'block', marginBottom: '5px' }}>End Date</label>
+                  <label style={{ fontSize: '13px', fontWeight: 700, color: 'var(--ink3)', letterSpacing: '0.8px', textTransform: 'uppercase', display: 'block', marginBottom: '5px' }}>End Date</label>
                   <input type="date" value={eventForm.end_date} onChange={e => setEventForm(p => ({ ...p, end_date: e.target.value }))}
-                    style={{ width: '100%', padding: '9px 12px', borderRadius: '9px', border: '1px solid #DDE8EE', background: '#FFFFFF', color: '#0F1923', fontSize: '13px', fontFamily: 'inherit', boxSizing: 'border-box' }} />
+                    style={{ width: '100%', padding: '9px 12px', borderRadius: '9px', border: '1px solid var(--border)', background: 'var(--card)', color: 'var(--ink)', fontSize: '13px', fontFamily: 'inherit', boxSizing: 'border-box' }} />
                 </div>
               </div>
               <textarea value={eventForm.description} onChange={e => setEventForm(p => ({ ...p, description: e.target.value }))}
                 placeholder="Brief description of this event…" rows={2}
-                style={{ width: '100%', padding: '9px 12px', borderRadius: '9px', border: '1px solid #DDE8EE', background: '#FFFFFF', color: '#0F1923', fontSize: '13px', fontFamily: 'inherit', boxSizing: 'border-box', resize: 'none', marginBottom: '12px' }} />
-              {eventMsg && <div style={{ fontSize: '13px', color: eventMsg.includes('created') ? '#3D6B00' : '#FF6B6B', marginBottom: '10px' }}>{eventMsg}</div>}
+                style={{ width: '100%', padding: '9px 12px', borderRadius: '9px', border: '1px solid var(--border)', background: 'var(--card)', color: 'var(--ink)', fontSize: '13px', fontFamily: 'inherit', boxSizing: 'border-box', resize: 'none', marginBottom: '12px' }} />
+              {eventMsg && <div style={{ fontSize: '13px', color: eventMsg.includes('created') ? 'var(--lime)' : 'var(--red)', marginBottom: '10px' }}>{eventMsg}</div>}
               <div style={{ display: 'flex', gap: '8px' }}>
                 <button onClick={async () => { await createEvent(); if (events.length > 0) setShowCreateEvent(false) }} disabled={eventSaving}
-                  style={{ padding: '10px 22px', borderRadius: '9px', border: 'none', background: '#00897B', color: '#FFFFFF', fontSize: '13px', fontWeight: 700, cursor: eventSaving ? 'not-allowed' : 'pointer', fontFamily: 'inherit', opacity: eventSaving ? 0.6 : 1 }}>
+                  style={{ padding: '10px 22px', borderRadius: '9px', border: 'none', background: 'var(--teal-mid)', color: 'var(--teal-light)', fontSize: '13px', fontWeight: 700, cursor: eventSaving ? 'not-allowed' : 'pointer', fontFamily: 'inherit', opacity: eventSaving ? 0.6 : 1 }}>
                   {eventSaving ? 'Creating…' : 'Create Event'}
                 </button>
                 {events.length > 0 && (
                   <button onClick={() => setShowCreateEvent(false)}
-                    style={{ padding: '10px 18px', borderRadius: '9px', border: '1px solid #B8CDD8', background: '#FFFFFF', color: '#5B7080', fontSize: '13px', cursor: 'pointer', fontFamily: 'inherit' }}>Cancel</button>
+                    style={{ padding: '10px 18px', borderRadius: '9px', border: '1px solid var(--ink4)', background: 'var(--card)', color: 'var(--ink3)', fontSize: '13px', cursor: 'pointer', fontFamily: 'inherit' }}>Cancel</button>
                 )}
               </div>
             </div>
@@ -3454,16 +3468,16 @@ export default function AdminPage() {
                 <div style={{ marginBottom: '24px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
                   {/* Execution gap callout */}
                   {executionGap.length > 0 && (
-                    <div style={{ background: 'rgba(139,26,26,0.04)', border: '1px solid rgba(139,26,26,0.2)', borderLeft: '4px solid #8B1A1A', borderRadius: '12px', padding: '14px 18px', display: 'flex', alignItems: 'center', gap: '16px' }}>
+                    <div style={{ background: 'rgba(139,26,26,0.04)', border: '1px solid rgba(139,26,26,0.2)', borderLeft: '4px solid var(--red)', borderRadius: '12px', padding: '14px 18px', display: 'flex', alignItems: 'center', gap: '16px' }}>
                       <div style={{ flexShrink: 0 }}>
-                        <div style={{ fontSize: '28px', fontWeight: 900, color: '#8B1A1A', lineHeight: 1 }}>{executionGap.length}</div>
-                        <div style={{ fontSize: '10px', fontWeight: 800, color: '#8B1A1A', textTransform: 'uppercase', letterSpacing: '1px', marginTop: '2px' }}>Never executed</div>
+                        <div style={{ fontSize: '28px', fontWeight: 900, color: 'var(--red)', lineHeight: 1 }}>{executionGap.length}</div>
+                        <div style={{ fontSize: '10px', fontWeight: 800, color: 'var(--red)', textTransform: 'uppercase', letterSpacing: '1px', marginTop: '2px' }}>Never executed</div>
                       </div>
                       <div style={{ width: '1px', height: '40px', background: 'rgba(139,26,26,0.15)', flexShrink: 0 }} />
                       <div>
-                        <div style={{ fontSize: '13px', fontWeight: 700, color: '#8B1A1A', marginBottom: '3px' }}>Planning without execution</div>
-                        <div style={{ fontSize: '13px', color: '#5B7080', lineHeight: 1.5 }}>
-                          {executionGap.length} event{executionGap.length !== 1 ? 's were' : ' was'} planned and dated, but no task was ever started. Execution rate across all events: <strong style={{ color: executionRate < 30 ? '#8B1A1A' : '#D97706' }}>{executionRate}%</strong>. Planning is not delivery.
+                        <div style={{ fontSize: '13px', fontWeight: 700, color: 'var(--red)', marginBottom: '3px' }}>Planning without execution</div>
+                        <div style={{ fontSize: '13px', color: 'var(--ink3)', lineHeight: 1.5 }}>
+                          {executionGap.length} event{executionGap.length !== 1 ? 's were' : ' was'} planned and dated, but no task was ever started. Execution rate across all events: <strong style={{ color: executionRate < 30 ? 'var(--red)' : '#F5B94D' }}>{executionRate}%</strong>. Planning is not delivery.
                         </div>
                       </div>
                     </div>
@@ -3471,31 +3485,31 @@ export default function AdminPage() {
                   {/* Stats row */}
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: '10px' }}>
                     <div style={{ background: needsAttnEvents.length > 0 ? 'rgba(217,119,6,0.05)' : 'rgba(61,107,0,0.05)', border: `1px solid ${needsAttnEvents.length > 0 ? 'rgba(217,119,6,0.3)' : 'rgba(61,107,0,0.2)'}`, borderRadius: '12px', padding: '14px 16px' }}>
-                      <div style={{ fontSize: '10px', fontWeight: 700, color: needsAttnEvents.length > 0 ? '#92400E' : '#3D6B00', letterSpacing: '0.5px', textTransform: 'uppercase', marginBottom: '6px' }}>Upcoming gaps</div>
-                      <div style={{ fontSize: '28px', fontWeight: 900, color: needsAttnEvents.length > 0 ? '#D97706' : '#3D6B00', lineHeight: 1 }}>{needsAttnEvents.length}</div>
-                      <div style={{ fontSize: '11px', color: '#8A9BAB', marginTop: '4px' }}>{needsAttnEvents.length === 0 ? 'All upcoming events staffed' : 'upcoming events with gaps'}</div>
+                      <div style={{ fontSize: '10px', fontWeight: 700, color: needsAttnEvents.length > 0 ? 'var(--amber)' : 'var(--lime)', letterSpacing: '0.5px', textTransform: 'uppercase', marginBottom: '6px' }}>Upcoming gaps</div>
+                      <div style={{ fontSize: '28px', fontWeight: 900, color: needsAttnEvents.length > 0 ? '#F5B94D' : 'var(--lime)', lineHeight: 1 }}>{needsAttnEvents.length}</div>
+                      <div style={{ fontSize: '11px', color: 'var(--ink3)', marginTop: '4px' }}>{needsAttnEvents.length === 0 ? 'All upcoming events staffed' : 'upcoming events with gaps'}</div>
                     </div>
-                    <div style={{ background: '#FFFFFF', border: '1px solid #DDE8EE', borderRadius: '12px', padding: '14px 16px' }}>
-                      <div style={{ fontSize: '10px', fontWeight: 700, color: '#8A9BAB', letterSpacing: '0.5px', textTransform: 'uppercase', marginBottom: '6px' }}>Next 30 days</div>
-                      <div style={{ fontSize: '28px', fontWeight: 900, color: '#3730A3', lineHeight: 1 }}>{next30Count}</div>
-                      <div style={{ fontSize: '11px', color: '#8A9BAB', marginTop: '4px' }}>events coming up</div>
+                    <div style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: '12px', padding: '14px 16px' }}>
+                      <div style={{ fontSize: '10px', fontWeight: 700, color: 'var(--ink3)', letterSpacing: '0.5px', textTransform: 'uppercase', marginBottom: '6px' }}>Next 30 days</div>
+                      <div style={{ fontSize: '28px', fontWeight: 900, color: '#8882DA', lineHeight: 1 }}>{next30Count}</div>
+                      <div style={{ fontSize: '11px', color: 'var(--ink3)', marginTop: '4px' }}>events coming up</div>
                     </div>
-                    <div style={{ background: '#FFFFFF', border: '1px solid #DDE8EE', borderRadius: '12px', padding: '14px 16px' }}>
-                      <div style={{ fontSize: '10px', fontWeight: 700, color: '#8A9BAB', letterSpacing: '0.5px', textTransform: 'uppercase', marginBottom: '6px' }}>Staff deployed</div>
-                      <div style={{ fontSize: '28px', fontWeight: 900, color: '#0F1923', lineHeight: 1 }}>{totalStaff}</div>
-                      <div style={{ fontSize: '11px', color: '#8A9BAB', marginTop: '4px' }}>across active events</div>
+                    <div style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: '12px', padding: '14px 16px' }}>
+                      <div style={{ fontSize: '10px', fontWeight: 700, color: 'var(--ink3)', letterSpacing: '0.5px', textTransform: 'uppercase', marginBottom: '6px' }}>Staff deployed</div>
+                      <div style={{ fontSize: '28px', fontWeight: 900, color: 'var(--ink)', lineHeight: 1 }}>{totalStaff}</div>
+                      <div style={{ fontSize: '11px', color: 'var(--ink3)', marginTop: '4px' }}>across active events</div>
                     </div>
-                    <div style={{ background: '#FFFFFF', border: '1px solid #DDE8EE', borderRadius: '12px', padding: '14px 16px' }}>
-                      <div style={{ fontSize: '10px', fontWeight: 700, color: '#8A9BAB', letterSpacing: '0.5px', textTransform: 'uppercase', marginBottom: '6px' }}>Execution rate</div>
-                      <div style={{ fontSize: '28px', fontWeight: 900, color: executionRate < 30 ? '#8B1A1A' : executionRate < 60 ? '#D97706' : '#3D6B00', lineHeight: 1 }}>{executionRate}%</div>
-                      <div style={{ fontSize: '11px', color: '#8A9BAB', marginTop: '4px' }}>{past.filter(e=>e.status==='completed').length} of {totalPlanned} events completed</div>
+                    <div style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: '12px', padding: '14px 16px' }}>
+                      <div style={{ fontSize: '10px', fontWeight: 700, color: 'var(--ink3)', letterSpacing: '0.5px', textTransform: 'uppercase', marginBottom: '6px' }}>Execution rate</div>
+                      <div style={{ fontSize: '28px', fontWeight: 900, color: executionRate < 30 ? 'var(--red)' : executionRate < 60 ? '#F5B94D' : 'var(--lime)', lineHeight: 1 }}>{executionRate}%</div>
+                      <div style={{ fontSize: '11px', color: 'var(--ink3)', marginTop: '4px' }}>{past.filter(e=>e.status==='completed').length} of {totalPlanned} events completed</div>
                     </div>
                   </div>
                 </div>
               )}
 
               {/* Loading */}
-              {eventsLoading && <div style={{ textAlign: 'center', padding: '60px 0', color: '#5B7080', fontSize: '13px' }}>Loading events…</div>}
+              {eventsLoading && <div style={{ textAlign: 'center', padding: '60px 0', color: 'var(--ink3)', fontSize: '13px' }}>Loading events…</div>}
 
               {/* Empty state */}
               {!eventsLoading && events.length === 0 && (
@@ -3512,13 +3526,13 @@ export default function AdminPage() {
                         setEventView(v)
                         if (v === 'past' && Object.keys(eventSummaries).length === 0) fetchEventSummaries()
                       }}
-                        style={{ padding: '8px 18px', borderRadius: '8px', border: `1px solid ${eventView===v ? '#00897B' : '#DDE8EE'}`, background: eventView===v ? '#00897B' : '#FFFFFF', color: eventView===v ? '#FFFFFF' : '#5B7080', fontSize: '13px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
+                        style={{ padding: '8px 18px', borderRadius: '8px', border: `1px solid ${eventView===v ? 'var(--teal-mid)' : 'var(--border)'}`, background: eventView===v ? 'var(--teal-mid)' : 'var(--card)', color: eventView===v ? 'var(--teal-light)' : 'var(--ink3)', fontSize: '13px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
                         {v === 'upcoming' ? `Active & Upcoming (${upcoming.length})` : `Past Events (${past.length})`}
                       </button>
                     ))}
                     <div style={{ flex: 1 }} />
                     <button onClick={() => setShowCreateEvent(s => !s)}
-                      style={{ padding: '8px 16px', borderRadius: '8px', border: 'none', background: showCreateEvent ? '#DDE8EE' : '#00897B', color: showCreateEvent ? '#5B7080' : '#FFFFFF', fontSize: '13px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
+                      style={{ padding: '8px 16px', borderRadius: '8px', border: 'none', background: showCreateEvent ? 'var(--border)' : 'var(--teal-mid)', color: showCreateEvent ? 'var(--ink3)' : 'var(--teal-light)', fontSize: '13px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
                       {showCreateEvent ? 'Cancel' : '+ New Event'}
                     </button>
                   </div>
@@ -3549,34 +3563,34 @@ export default function AdminPage() {
 
                     const groups = [
                       // Upcoming events with critical gaps (within 45d no staff, within 30d no checklist)
-                      { key: 'attn',  label: 'Needs attention', color: '#D97706', items: annotated.filter(x => x.isUrgent) },
+                      { key: 'attn',  label: 'Needs attention', color: '#F5B94D', items: annotated.filter(x => x.isUrgent) },
                       // Next 30 days, no critical gap
-                      { key: 'month', label: 'Next 30 days',    color: '#3730A3', items: annotated.filter(x => !x.isUrgent && x.days !== null && x.days >= 0 && x.days <= 30) },
+                      { key: 'month', label: 'Next 30 days',    color: '#8882DA', items: annotated.filter(x => !x.isUrgent && x.days !== null && x.days >= 0 && x.days <= 30) },
                       // 31–90 days out
-                      { key: 'soon',  label: 'Coming up',       color: '#1565C0', items: annotated.filter(x => !x.isUrgent && x.days !== null && x.days > 30 && x.days <= 90) },
+                      { key: 'soon',  label: 'Coming up',       color: 'var(--info)', items: annotated.filter(x => !x.isUrgent && x.days !== null && x.days > 30 && x.days <= 90) },
                       // No date or 90+ days
-                      { key: 'later', label: 'Later',           color: '#3D6B00', items: annotated.filter(x => !x.isUrgent && (x.days === null || x.days > 90)) },
+                      { key: 'later', label: 'Later',           color: 'var(--lime)', items: annotated.filter(x => !x.isUrgent && (x.days === null || x.days > 90)) },
                     ]
 
                     return (
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '28px' }}>
-                        {upcoming.length === 0 && <div style={{ padding: '40px', textAlign: 'center', color: '#8A9BAB', fontSize: '13px' }}>No upcoming or active events.</div>}
+                        {upcoming.length === 0 && <div style={{ padding: '40px', textAlign: 'center', color: 'var(--ink3)', fontSize: '13px' }}>No upcoming or active events.</div>}
                         {groups.map(grp => grp.items.length === 0 ? null : (
                           <div key={grp.key}>
                             {/* Group header */}
                             <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '12px' }}>
                               <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: grp.color, flexShrink: 0 }} />
                               <div style={{ fontSize: '11px', fontWeight: 800, letterSpacing: '1.5px', textTransform: 'uppercase', color: grp.color }}>{grp.label}</div>
-                              <div style={{ flex: 1, height: '1px', background: '#E8EEF4' }} />
-                              <div style={{ fontSize: '11px', fontWeight: 700, color: '#8A9BAB' }}>{grp.items.length} event{grp.items.length !== 1 ? 's' : ''}</div>
+                              <div style={{ flex: 1, height: '1px', background: 'var(--surface)' }} />
+                              <div style={{ fontSize: '11px', fontWeight: 700, color: 'var(--ink3)' }}>{grp.items.length} event{grp.items.length !== 1 ? 's' : ''}</div>
                             </div>
                             {/* Cards grid */}
                             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2,1fr)', gap: '10px' }}>
                               {grp.items.map(({ ev, days, staffCount, taskTotal, taskDone, taskPct, alerts, s }) => {
                                 const sc = STATUS_CFG[ev.status] ?? STATUS_CFG.planning
-                                const tc = TYPE_COLOR[ev.type]   ?? '#5B7080'
-                                const urgencyColor  = days === null ? '#8A9BAB' : days < 0 ? '#8B1A1A' : days <= 14 ? '#D97706' : days <= 30 ? '#3730A3' : days <= 90 ? '#1565C0' : '#3D6B00'
-                                const borderColor   = days === null ? '#DDE8EE' : days < 0 ? 'rgba(139,26,26,0.2)' : days <= 14 ? 'rgba(217,119,6,0.3)' : days <= 30 ? 'rgba(55,48,163,0.2)' : '#DDE8EE'
+                                const tc = TYPE_COLOR[ev.type]   ?? '#7E93A1'
+                                const urgencyColor  = days === null ? 'var(--ink3)' : days < 0 ? 'var(--red)' : days <= 14 ? '#F5B94D' : days <= 30 ? '#8882DA' : days <= 90 ? 'var(--info)' : 'var(--lime-dark)'
+                                const borderColor   = days === null ? 'var(--border)' : days < 0 ? 'rgba(139,26,26,0.2)' : days <= 14 ? 'rgba(217,119,6,0.3)' : days <= 30 ? 'rgba(55,48,163,0.2)' : 'var(--border)'
                                 // Date display — always include year; range if end_date set
                                 const fmtFull  = (iso: string) => new Date(iso + 'T00:00:00').toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
                                 const fmtShort = (iso: string) => new Date(iso + 'T00:00:00').toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })
@@ -3596,61 +3610,61 @@ export default function AdminPage() {
                                 const primaryLabel   = isPast ? dateLabel : days === 0 ? 'Today' : days === 1 ? 'Tomorrow' : days !== null ? `In ${days}d` : dateLabel
                                 const secondaryLabel = isPast ? '' : (days === 0 || days === 1) ? dateLabel : days !== null ? dateLabel : ''
                                 return (
-                                  <div key={ev.id} style={{ background: '#FFFFFF', border: `1px solid ${borderColor}`, borderLeft: `4px solid ${urgencyColor}`, borderRadius: '12px', padding: '16px 18px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                                  <div key={ev.id} style={{ background: 'var(--card)', border: `1px solid ${borderColor}`, borderLeft: `4px solid ${urgencyColor}`, borderRadius: '12px', padding: '16px 18px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
                                     {/* Alert pills */}
                                     {alerts.length > 0 && (
                                       <div style={{ display: 'flex', flexWrap: 'wrap', gap: '5px' }}>
                                         {alerts.map((a, ai) => (
-                                          <span key={ai} style={{ fontSize: '10px', fontWeight: 700, padding: '2px 7px', borderRadius: '5px', background: 'rgba(217,119,6,0.1)', color: '#92400E', border: '1px solid rgba(217,119,6,0.2)' }}>⚠ {a}</span>
+                                          <span key={ai} style={{ fontSize: '10px', fontWeight: 700, padding: '2px 7px', borderRadius: '5px', background: 'var(--amber-light)', color: 'var(--amber)', border: '1px solid var(--amber-border)' }}>⚠ {a}</span>
                                         ))}
                                       </div>
                                     )}
                                     {/* Name + date */}
                                     <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '10px' }}>
-                                      <div style={{ fontSize: '14px', fontWeight: 800, color: '#0F1923', lineHeight: 1.3 }}>{ev.name}</div>
+                                      <div style={{ fontSize: '14px', fontWeight: 800, color: 'var(--ink)', lineHeight: 1.3 }}>{ev.name}</div>
                                       <div style={{ textAlign: 'right', flexShrink: 0 }}>
                                         <div style={{ fontSize: '13px', fontWeight: 900, color: urgencyColor, whiteSpace: 'nowrap' }}>{primaryLabel}</div>
-                                        {secondaryLabel && <div style={{ fontSize: '11px', color: '#8A9BAB', whiteSpace: 'nowrap', marginTop: '2px' }}>{secondaryLabel}</div>}
+                                        {secondaryLabel && <div style={{ fontSize: '11px', color: 'var(--ink3)', whiteSpace: 'nowrap', marginTop: '2px' }}>{secondaryLabel}</div>}
                                       </div>
                                     </div>
                                     {/* Meta row */}
                                     <div style={{ display: 'flex', gap: '5px', alignItems: 'center', flexWrap: 'wrap' }}>
                                       <span style={{ fontSize: '10px', fontWeight: 700, padding: '2px 6px', borderRadius: '5px', background: `${tc}18`, color: tc, textTransform: 'capitalize' }}>{ev.type}</span>
                                       <span style={{ fontSize: '10px', fontWeight: 700, padding: '2px 6px', borderRadius: '5px', background: sc.bg, color: sc.color, textTransform: 'capitalize' }}>{ev.status}</span>
-                                      {ev.city && <span style={{ fontSize: '11px', color: '#8A9BAB' }}>{ev.city}</span>}
-                                      {ev.client_name && <span style={{ fontSize: '11px', color: '#8A9BAB' }}>· {ev.client_name}</span>}
+                                      {ev.city && <span style={{ fontSize: '11px', color: 'var(--ink3)' }}>{ev.city}</span>}
+                                      {ev.client_name && <span style={{ fontSize: '11px', color: 'var(--ink3)' }}>· {ev.client_name}</span>}
                                     </div>
                                     {/* Staff + tasks */}
                                     <div style={{ display: 'flex', gap: '16px', alignItems: 'center' }}>
                                       <div style={{ display: 'flex', gap: '5px', alignItems: 'center', flexShrink: 0 }}>
-                                        <svg width="12" height="12" fill="none" stroke={staffCount === 0 ? '#D97706' : '#8A9BAB'} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
-                                        <span style={{ fontSize: '13px', fontWeight: 700, color: staffCount === 0 ? '#D97706' : '#2D3E50' }}>{staffCount || '—'}</span>
-                                        <span style={{ fontSize: '11px', color: '#8A9BAB' }}>staff</span>
+                                        <svg width="12" height="12" fill="none" stroke={staffCount === 0 ? '#F5B94D' : 'var(--ink3)'} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+                                        <span style={{ fontSize: '13px', fontWeight: 700, color: staffCount === 0 ? '#F5B94D' : 'var(--ink2)' }}>{staffCount || '—'}</span>
+                                        <span style={{ fontSize: '11px', color: 'var(--ink3)' }}>staff</span>
                                       </div>
                                       <div style={{ flex: 1 }}>
                                         {taskTotal > 0 ? (
                                           <div style={{ display: 'flex', alignItems: 'center', gap: '7px' }}>
-                                            <div style={{ flex: 1, height: '5px', background: '#E8EEF4', borderRadius: '3px', overflow: 'hidden' }}>
-                                              <div style={{ height: '100%', width: `${taskPct}%`, background: taskPct >= 80 ? '#3D6B00' : taskPct >= 40 ? '#D97706' : '#8B1A1A', borderRadius: '3px' }} />
+                                            <div style={{ flex: 1, height: '5px', background: 'var(--surface)', borderRadius: '3px', overflow: 'hidden' }}>
+                                              <div style={{ height: '100%', width: `${taskPct}%`, background: taskPct >= 80 ? 'var(--lime)' : taskPct >= 40 ? '#F5B94D' : 'var(--red)', borderRadius: '3px' }} />
                                             </div>
-                                            <span style={{ fontSize: '10px', fontWeight: 700, color: '#8A9BAB', whiteSpace: 'nowrap' }}>{taskDone}/{taskTotal}</span>
+                                            <span style={{ fontSize: '10px', fontWeight: 700, color: 'var(--ink3)', whiteSpace: 'nowrap' }}>{taskDone}/{taskTotal}</span>
                                           </div>
                                         ) : (
-                                          <span style={{ fontSize: '11px', color: '#C0C8D0' }}>No checklist</span>
+                                          <span style={{ fontSize: '11px', color: 'var(--ink4)' }}>No checklist</span>
                                         )}
                                       </div>
                                     </div>
                                     {/* Revenue if available */}
                                     {s?.confirmed_revenue ? (
-                                      <div style={{ fontSize: '11px', color: '#3D6B00', fontWeight: 700 }}>{fmt(s.confirmed_revenue, s.currency)} confirmed revenue</div>
+                                      <div style={{ fontSize: '11px', color: 'var(--lime)', fontWeight: 700 }}>{fmt(s.confirmed_revenue, s.currency)} confirmed revenue</div>
                                     ) : null}
                                     {/* Actions */}
                                     <div style={{ display: 'flex', gap: '5px', paddingTop: '2px' }}>
-                                      <Link href={`/admin/events/${ev.id}`} style={{ flex: 1, textAlign: 'center', padding: '7px 8px', borderRadius: '7px', background: '#00897B', color: '#FFFFFF', fontSize: '11px', fontWeight: 700, textDecoration: 'none' }}>Workspace</Link>
-                                      <Link href={`/admin/events/${ev.id}/plan`} style={{ padding: '7px 9px', borderRadius: '7px', border: '1px solid rgba(192,244,60,0.5)', background: 'rgba(192,244,60,0.07)', color: '#3D6B00', fontSize: '11px', fontWeight: 700, textDecoration: 'none' }}>Plan</Link>
-                                      <Link href={`/admin/events/${ev.id}/execution`} style={{ padding: '7px 9px', borderRadius: '7px', border: '1px solid rgba(124,58,237,0.4)', background: 'rgba(124,58,237,0.07)', color: '#7C3AED', fontSize: '11px', fontWeight: 700, textDecoration: 'none' }}>RACI</Link>
+                                      <Link href={`/admin/events/${ev.id}`} style={{ flex: 1, textAlign: 'center', padding: '7px 8px', borderRadius: '7px', background: 'var(--teal-mid)', color: 'var(--teal-light)', fontSize: '11px', fontWeight: 700, textDecoration: 'none' }}>Workspace</Link>
+                                      <Link href={`/admin/events/${ev.id}/plan`} style={{ padding: '7px 9px', borderRadius: '7px', border: '1px solid rgba(192,244,60,0.5)', background: 'rgba(192,244,60,0.07)', color: 'var(--lime)', fontSize: '11px', fontWeight: 700, textDecoration: 'none' }}>Plan</Link>
+                                      <Link href={`/admin/events/${ev.id}/execution`} style={{ padding: '7px 9px', borderRadius: '7px', border: '1px solid var(--purple-border)', background: 'var(--purple-light)', color: 'var(--purple)', fontSize: '11px', fontWeight: 700, textDecoration: 'none' }}>RACI</Link>
                                       <button onClick={() => { setSelectedEvent(ev === selectedEvent ? null : ev); if (ev !== selectedEvent) { fetchEventStaff(ev.id); fetchEventSummaries() } }}
-                                        style={{ padding: '7px 9px', borderRadius: '7px', border: `1px solid ${selectedEvent?.id===ev.id ? 'rgba(0,165,163,0.4)' : '#DDE8EE'}`, background: selectedEvent?.id===ev.id ? 'rgba(0,165,163,0.08)' : 'transparent', color: selectedEvent?.id===ev.id ? '#00695C' : '#5B7080', fontSize: '11px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
+                                        style={{ padding: '7px 9px', borderRadius: '7px', border: `1px solid ${selectedEvent?.id===ev.id ? 'rgba(0,165,163,0.4)' : 'var(--border)'}`, background: selectedEvent?.id===ev.id ? 'rgba(0,165,163,0.08)' : 'transparent', color: selectedEvent?.id===ev.id ? 'var(--teal)' : 'var(--ink3)', fontSize: '11px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
                                         Staff
                                       </button>
                                     </div>
@@ -3667,24 +3681,24 @@ export default function AdminPage() {
                   {/* ══ PAST EVENTS P&L VIEW ══ */}
                   {eventView === 'past' && (
                     summariesLoading
-                      ? <div style={{ textAlign: 'center', padding: '60px 0', color: '#5B7080', fontSize: '13px' }}>Loading P&L data…</div>
+                      ? <div style={{ textAlign: 'center', padding: '60px 0', color: 'var(--ink3)', fontSize: '13px' }}>Loading P&L data…</div>
                       : (() => {
                           const gapEvents       = past.filter(e => e.status !== 'completed' && e.status !== 'cancelled')
                           const deliveredEvents = past.filter(e => e.status === 'completed' || e.status === 'cancelled')
                           const pastGroups = [
-                            { key: 'gap',       label: 'Execution gap — dated & active, never marked complete', color: '#8B1A1A', items: gapEvents },
-                            { key: 'delivered', label: 'Delivered',                                             color: '#3D6B00', items: deliveredEvents },
+                            { key: 'gap',       label: 'Execution gap — dated & active, never marked complete', color: 'var(--red)', items: gapEvents },
+                            { key: 'delivered', label: 'Delivered',                                             color: 'var(--lime)', items: deliveredEvents },
                           ]
                           return (
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '28px' }}>
-                          {past.length === 0 && <div style={{ textAlign: 'center', padding: '40px', color: '#8A9BAB', fontSize: '13px' }}>No past events yet.</div>}
+                          {past.length === 0 && <div style={{ textAlign: 'center', padding: '40px', color: 'var(--ink3)', fontSize: '13px' }}>No past events yet.</div>}
                           {pastGroups.map(grp => grp.items.length === 0 ? null : (
                             <div key={grp.key}>
                               <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '14px' }}>
                                 <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: grp.color, flexShrink: 0 }} />
                                 <div style={{ fontSize: '11px', fontWeight: 800, letterSpacing: '1.5px', textTransform: 'uppercase', color: grp.color }}>{grp.label}</div>
-                                <div style={{ flex: 1, height: '1px', background: '#E8EEF4' }} />
-                                <div style={{ fontSize: '11px', fontWeight: 700, color: '#8A9BAB' }}>{grp.items.length} event{grp.items.length !== 1 ? 's' : ''}</div>
+                                <div style={{ flex: 1, height: '1px', background: 'var(--surface)' }} />
+                                <div style={{ fontSize: '11px', fontWeight: 700, color: 'var(--ink3)' }}>{grp.items.length} event{grp.items.length !== 1 ? 's' : ''}</div>
                               </div>
                               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: '14px' }}>
                           {grp.items.map(ev => {
@@ -3696,54 +3710,54 @@ export default function AdminPage() {
                             if (!s?.has_expenses) missing.push('expense records')
                             const hasAny = s && (s.has_budget || s.has_revenue || s.has_expenses)
                             return (
-                              <div key={ev.id} style={{ background: '#FFFFFF', border: '1px solid #DDE8EE', borderRadius: '14px', overflow: 'hidden' }}>
-                                <div style={{ height: '3px', background: ev.status==='cancelled' ? '#FF6B6B' : netPnl !== null && netPnl >= 0 ? '#3D6B00' : netPnl !== null ? '#FF6B6B' : '#DDE8EE' }} />
+                              <div key={ev.id} style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: '14px', overflow: 'hidden' }}>
+                                <div style={{ height: '3px', background: ev.status==='cancelled' ? 'var(--red)' : netPnl !== null && netPnl >= 0 ? 'var(--lime)' : netPnl !== null ? 'var(--red)' : 'var(--border)' }} />
                                 <div style={{ padding: '16px 18px' }}>
-                                  <div style={{ fontSize: '13px', fontWeight: 800, color: '#0F1923', lineHeight: 1.3, marginBottom: '3px' }}>{ev.name}</div>
-                                  <div style={{ fontSize: '11px', color: '#8A9BAB', marginBottom: '14px' }}>
+                                  <div style={{ fontSize: '13px', fontWeight: 800, color: 'var(--ink)', lineHeight: 1.3, marginBottom: '3px' }}>{ev.name}</div>
+                                  <div style={{ fontSize: '11px', color: 'var(--ink3)', marginBottom: '14px' }}>
                                     {ev.event_date ? new Date(ev.event_date).toLocaleDateString('en-GB',{day:'numeric',month:'short',year:'numeric'}) : ''}
                                     {ev.city ? ` · ${ev.city}` : ''}
                                     {' · '}
-                                    <span style={{ textTransform: 'capitalize', color: ev.status==='completed' ? '#00897B' : '#FF6B6B', fontWeight: 700 }}>{ev.status}</span>
+                                    <span style={{ textTransform: 'capitalize', color: ev.status==='completed' ? 'var(--teal-mid)' : 'var(--red)', fontWeight: 700 }}>{ev.status}</span>
                                   </div>
 
                                   {hasAny ? (
                                     <>
                                       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', marginBottom: '10px' }}>
-                                        <div style={{ padding: '10px 12px', background: '#F8FAFC', borderRadius: '8px' }}>
-                                          <div style={{ fontSize: '10px', fontWeight: 700, color: '#8A9BAB', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '3px' }}>Revenue</div>
-                                          <div style={{ fontSize: '14px', fontWeight: 900, color: '#3D6B00' }}>{s.has_revenue ? fmt(s.confirmed_revenue, s.currency) : <span style={{ color: '#C0C8D0' }}>—</span>}</div>
-                                          {s.pending_revenue > 0 && <div style={{ fontSize: '10px', color: '#F59E0B', marginTop: '2px' }}>+{fmt(s.pending_revenue, s.currency)} pending</div>}
+                                        <div style={{ padding: '10px 12px', background: 'var(--border-light)', borderRadius: '8px' }}>
+                                          <div style={{ fontSize: '10px', fontWeight: 700, color: 'var(--ink3)', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '3px' }}>Revenue</div>
+                                          <div style={{ fontSize: '14px', fontWeight: 900, color: 'var(--lime)' }}>{s.has_revenue ? fmt(s.confirmed_revenue, s.currency) : <span style={{ color: 'var(--ink4)' }}>—</span>}</div>
+                                          {s.pending_revenue > 0 && <div style={{ fontSize: '10px', color: 'var(--amber)', marginTop: '2px' }}>+{fmt(s.pending_revenue, s.currency)} pending</div>}
                                         </div>
-                                        <div style={{ padding: '10px 12px', background: '#F8FAFC', borderRadius: '8px' }}>
-                                          <div style={{ fontSize: '10px', fontWeight: 700, color: '#8A9BAB', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '3px' }}>Expenses</div>
-                                          <div style={{ fontSize: '14px', fontWeight: 900, color: '#0F1923' }}>{s.has_expenses ? fmt(s.total_expenses, s.currency) : <span style={{ color: '#C0C8D0' }}>—</span>}</div>
-                                          {s.has_budget && <div style={{ fontSize: '10px', color: '#8A9BAB', marginTop: '2px' }}>Budget: {fmt(s.approved_budget, s.currency)}</div>}
+                                        <div style={{ padding: '10px 12px', background: 'var(--border-light)', borderRadius: '8px' }}>
+                                          <div style={{ fontSize: '10px', fontWeight: 700, color: 'var(--ink3)', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '3px' }}>Expenses</div>
+                                          <div style={{ fontSize: '14px', fontWeight: 900, color: 'var(--ink)' }}>{s.has_expenses ? fmt(s.total_expenses, s.currency) : <span style={{ color: 'var(--ink4)' }}>—</span>}</div>
+                                          {s.has_budget && <div style={{ fontSize: '10px', color: 'var(--ink3)', marginTop: '2px' }}>Budget: {fmt(s.approved_budget, s.currency)}</div>}
                                         </div>
                                       </div>
                                       {netPnl !== null && s.has_revenue && s.has_expenses && (
                                         <div style={{ padding: '10px 14px', borderRadius: '8px', background: netPnl >= 0 ? 'rgba(61,107,0,0.07)' : 'rgba(255,107,107,0.07)', border: `1px solid ${netPnl >= 0 ? 'rgba(61,107,0,0.18)' : 'rgba(255,107,107,0.18)'}`, marginBottom: '10px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                          <span style={{ fontSize: '11px', fontWeight: 800, color: '#8A9BAB', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Net P&L</span>
+                                          <span style={{ fontSize: '11px', fontWeight: 800, color: 'var(--ink3)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Net P&L</span>
                                           <div style={{ textAlign: 'right' }}>
-                                            <div style={{ fontSize: '15px', fontWeight: 900, color: netPnl >= 0 ? '#3D6B00' : '#FF6B6B' }}>{netPnl >= 0 ? '+' : ''}{fmt(netPnl, s.currency)}</div>
-                                            {s.margin_pct !== null && <div style={{ fontSize: '10px', fontWeight: 700, color: netPnl >= 0 ? '#3D6B00' : '#FF6B6B' }}>{s.margin_pct.toFixed(1)}% margin</div>}
+                                            <div style={{ fontSize: '15px', fontWeight: 900, color: netPnl >= 0 ? 'var(--lime)' : 'var(--red)' }}>{netPnl >= 0 ? '+' : ''}{fmt(netPnl, s.currency)}</div>
+                                            {s.margin_pct !== null && <div style={{ fontSize: '10px', fontWeight: 700, color: netPnl >= 0 ? 'var(--lime)' : 'var(--red)' }}>{s.margin_pct.toFixed(1)}% margin</div>}
                                           </div>
                                         </div>
                                       )}
                                       {missing.length > 0 && (
-                                        <div style={{ fontSize: '11px', color: '#F59E0B', background: 'rgba(245,158,11,0.07)', border: '1px solid rgba(245,158,11,0.18)', borderRadius: '7px', padding: '8px 10px', marginBottom: '10px', lineHeight: 1.5 }}>
+                                        <div style={{ fontSize: '11px', color: 'var(--amber)', background: 'var(--amber-light)', border: '1px solid var(--amber-border)', borderRadius: '7px', padding: '8px 10px', marginBottom: '10px', lineHeight: 1.5 }}>
                                           Partial P&L — missing {missing.join(', ')}
                                         </div>
                                       )}
                                     </>
                                   ) : (
-                                    <div style={{ padding: '13px 14px', background: '#F8FAFC', borderRadius: '10px', border: '1px dashed #DDE8EE', marginBottom: '10px' }}>
-                                      <div style={{ fontSize: '11px', fontWeight: 800, color: '#8A9BAB', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '5px' }}>P&L unavailable</div>
-                                      <div style={{ fontSize: '12px', color: '#8A9BAB', lineHeight: 1.5 }}>I can give you a complete overview once the budget, deal revenue, and expenses are added in the workspace.</div>
+                                    <div style={{ padding: '13px 14px', background: 'var(--border-light)', borderRadius: '10px', border: '1px dashed var(--border)', marginBottom: '10px' }}>
+                                      <div style={{ fontSize: '11px', fontWeight: 800, color: 'var(--ink3)', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '5px' }}>P&L unavailable</div>
+                                      <div style={{ fontSize: '12px', color: 'var(--ink3)', lineHeight: 1.5 }}>I can give you a complete overview once the budget, deal revenue, and expenses are added in the workspace.</div>
                                     </div>
                                   )}
 
-                                  <Link href={`/admin/events/${ev.id}`} style={{ display: 'block', textAlign: 'center', padding: '7px', borderRadius: '8px', border: '1px solid #DDE8EE', color: '#00897B', fontSize: '12px', fontWeight: 700, textDecoration: 'none' }}>
+                                  <Link href={`/admin/events/${ev.id}`} style={{ display: 'block', textAlign: 'center', padding: '7px', borderRadius: '8px', border: '1px solid var(--border)', color: 'var(--teal-mid)', fontSize: '12px', fontWeight: 700, textDecoration: 'none' }}>
                                     Open Workspace
                                   </Link>
                                 </div>
@@ -3760,34 +3774,34 @@ export default function AdminPage() {
 
                   {/* ── Staff assignment panel ── */}
                   {selectedEvent && (
-                    <div style={{ marginTop: '20px', background: '#FFFFFF', border: '1px solid rgba(0,165,163,0.2)', borderRadius: '16px', padding: '20px' }}>
-                      <div style={{ fontSize: '12px', fontWeight: 800, color: '#00897B', letterSpacing: '1px', textTransform: 'uppercase', marginBottom: '14px' }}>Staff on {selectedEvent.name}</div>
+                    <div style={{ marginTop: '20px', background: 'var(--card)', border: '1px solid rgba(0,165,163,0.2)', borderRadius: '16px', padding: '20px' }}>
+                      <div style={{ fontSize: '12px', fontWeight: 800, color: 'var(--teal-mid)', letterSpacing: '1px', textTransform: 'uppercase', marginBottom: '14px' }}>Staff on {selectedEvent.name}</div>
                       {eventStaff.length === 0
-                        ? <div style={{ fontSize: '13px', color: '#8A9BAB', marginBottom: '14px' }}>No staff assigned yet.</div>
+                        ? <div style={{ fontSize: '13px', color: 'var(--ink3)', marginBottom: '14px' }}>No staff assigned yet.</div>
                         : (
                           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(220px,1fr))', gap: '8px', marginBottom: '14px' }}>
                             {eventStaff.map(es => (
-                              <div key={es.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 12px', background: '#FFFFFF', borderRadius: '8px', border: '1px solid #DDE8EE' }}>
+                              <div key={es.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 12px', background: 'var(--card)', borderRadius: '8px', border: '1px solid var(--border)' }}>
                                 <div>
-                                  <div style={{ fontSize: '13px', fontWeight: 700, color: '#0F1923' }}>{es.staff_members?.name}</div>
-                                  <div style={{ fontSize: '12px', color: '#5B7080' }}>{es.role || es.staff_members?.department}</div>
+                                  <div style={{ fontSize: '13px', fontWeight: 700, color: 'var(--ink)' }}>{es.staff_members?.name}</div>
+                                  <div style={{ fontSize: '12px', color: 'var(--ink3)' }}>{es.role || es.staff_members?.department}</div>
                                 </div>
                                 <button onClick={() => removeEventStaff(es.staff_members?.id)}
-                                  style={{ fontSize: '12px', color: '#FF6B6B', background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'inherit', fontWeight: 700 }}>Remove</button>
+                                  style={{ fontSize: '12px', color: 'var(--red)', background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'inherit', fontWeight: 700 }}>Remove</button>
                               </div>
                             ))}
                           </div>
                         )}
                       <div style={{ display: 'flex', gap: '8px' }}>
                         <select value={assignStaffId} onChange={e => setAssignStaffId(e.target.value)}
-                          style={{ flex: 1, padding: '9px 12px', borderRadius: '8px', border: '1px solid #DDE8EE', background: '#FFFFFF', color: '#0F1923', fontSize: '13px', fontFamily: 'inherit' }}>
+                          style={{ flex: 1, padding: '9px 12px', borderRadius: '8px', border: '1px solid var(--border)', background: 'var(--card)', color: 'var(--ink)', fontSize: '13px', fontFamily: 'inherit' }}>
                           <option value="">Select staff…</option>
                           {staffList.map(s => <option key={s.id} value={s.id}>{s.name} — {s.department}</option>)}
                         </select>
                         <input value={assignRole} onChange={e => setAssignRole(e.target.value)} placeholder="Role (optional)"
-                          style={{ width: '130px', padding: '9px 12px', borderRadius: '8px', border: '1px solid #DDE8EE', background: '#FFFFFF', color: '#0F1923', fontSize: '13px', fontFamily: 'inherit' }} />
+                          style={{ width: '130px', padding: '9px 12px', borderRadius: '8px', border: '1px solid var(--border)', background: 'var(--card)', color: 'var(--ink)', fontSize: '13px', fontFamily: 'inherit' }} />
                         <button onClick={assignStaff}
-                          style={{ padding: '9px 16px', borderRadius: '8px', border: 'none', background: '#00897B', color: '#FFFFFF', fontSize: '13px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>Add</button>
+                          style={{ padding: '9px 16px', borderRadius: '8px', border: 'none', background: 'var(--teal-mid)', color: 'var(--teal-light)', fontSize: '13px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>Add</button>
                       </div>
                     </div>
                   )}
@@ -3801,58 +3815,58 @@ export default function AdminPage() {
         {tab === 'review' && isSuperAdmin && (
           <div>
             <div style={{ marginBottom: '28px' }}>
-              <div style={{ fontSize: '13px', fontWeight: 800, letterSpacing: '2px', textTransform: 'uppercase', color: '#FF6B6B', marginBottom: '6px' }}>Review Queue</div>
-              <h2 style={{ fontSize: '36px', fontWeight: 900, color: '#0F1923', margin: '0 0 6px' }}>Courses Pending Approval</h2>
-              <p style={{ fontSize: '13px', color: '#5B7080', margin: 0, lineHeight: 1.6 }}>These courses were generated via Learning Lab and are waiting for your review. Approve to publish them to the library, or reject to remove them.</p>
+              <div style={{ fontSize: '13px', fontWeight: 800, letterSpacing: '2px', textTransform: 'uppercase', color: 'var(--red)', marginBottom: '6px' }}>Review Queue</div>
+              <h2 style={{ fontSize: '36px', fontWeight: 900, color: 'var(--ink)', margin: '0 0 6px' }}>Courses Pending Approval</h2>
+              <p style={{ fontSize: '13px', color: 'var(--ink3)', margin: 0, lineHeight: 1.6 }}>These courses were generated via Learning Lab and are waiting for your review. Approve to publish them to the library, or reject to remove them.</p>
             </div>
 
             {reviewMsg && (
-              <div style={{ marginBottom: '20px', padding: '12px 16px', background: reviewMsg.includes('approved') ? 'rgba(192,244,60,0.08)' : 'rgba(0,165,163,0.08)', border: `1px solid ${reviewMsg.includes('approved') ? 'rgba(192,244,60,0.25)' : 'rgba(0,165,163,0.25)'}`, borderRadius: '10px', fontSize: '13px', color: reviewMsg.includes('approved') ? '#3D6B00' : '#00897B', fontWeight: 600 }}>
+              <div style={{ marginBottom: '20px', padding: '12px 16px', background: reviewMsg.includes('approved') ? 'rgba(192,244,60,0.08)' : 'rgba(0,165,163,0.08)', border: `1px solid ${reviewMsg.includes('approved') ? 'rgba(192,244,60,0.25)' : 'rgba(0,165,163,0.25)'}`, borderRadius: '10px', fontSize: '13px', color: reviewMsg.includes('approved') ? 'var(--lime)' : 'var(--teal-mid)', fontWeight: 600 }}>
                 {reviewMsg}
               </div>
             )}
 
             {draftsLoading ? (
-              <div style={{ padding: '60px', textAlign: 'center', color: '#0F1923', fontSize: '13px' }}>Loading drafts...</div>
+              <div style={{ padding: '60px', textAlign: 'center', color: 'var(--ink)', fontSize: '13px' }}>Loading drafts...</div>
             ) : draftCourses.length === 0 ? (
-              <div style={{ padding: '60px', textAlign: 'center', background: '#FFFFFF', border: '1px solid #DDE8EE', borderRadius: '16px' }}>
-                <div style={{ fontSize: '13px', color: '#5B7080' }}>No courses pending review. When someone submits a course via Learning Lab it will appear here.</div>
+              <div style={{ padding: '60px', textAlign: 'center', background: 'var(--card)', border: '1px solid var(--border)', borderRadius: '16px' }}>
+                <div style={{ fontSize: '13px', color: 'var(--ink3)' }}>No courses pending review. When someone submits a course via Learning Lab it will appear here.</div>
               </div>
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
                 {draftCourses.map(course => {
-                  const TIER_COLOR: Record<string, string> = { foundation: '#00695C', adoption: '#3D6B00', advanced: '#A478FF' }
-                  const tierColor = TIER_COLOR[course.tier_level] ?? '#00695C'
+                  const TIER_COLOR: Record<string, string> = { foundation: '#0EA79D', adoption: '#C0F43C', advanced: '#A478FF' }
+                  const tierColor = TIER_COLOR[course.tier_level] ?? '#0EA79D'
                   const isExpanded = expandedDraftId === course.id
                   return (
-                    <div key={course.id} style={{ background: '#FFFFFF', border: '1px solid rgba(255,107,107,0.15)', borderRadius: '16px', overflow: 'hidden' }}>
+                    <div key={course.id} style={{ background: 'var(--card)', border: '1px solid rgba(255,107,107,0.15)', borderRadius: '16px', overflow: 'hidden' }}>
                       {/* Header row */}
                       <div style={{ display: 'flex', alignItems: 'center', gap: '14px', padding: '18px 20px' }}>
                         <div style={{ flex: 1, minWidth: 0 }}>
                           <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px', flexWrap: 'wrap' }}>
                             <span style={{ fontSize: '13px', fontWeight: 700, color: tierColor, background: `${tierColor}15`, padding: '2px 8px', borderRadius: '5px', textTransform: 'capitalize' }}>{course.tier_level}</span>
                             {course.dept_tags?.map(d => (
-                              <span key={d} style={{ fontSize: '13px', fontWeight: 700, color: '#5B7080', background: '#E8EEF4', border: '1px solid #DDE8EE', padding: '2px 8px', borderRadius: '5px' }}>{d}</span>
+                              <span key={d} style={{ fontSize: '13px', fontWeight: 700, color: 'var(--ink3)', background: 'var(--surface)', border: '1px solid var(--border)', padding: '2px 8px', borderRadius: '5px' }}>{d}</span>
                             ))}
                             <span style={{ fontSize: '13px', color: 'rgba(255,107,107,0.8)', background: 'rgba(255,107,107,0.08)', border: '1px solid rgba(255,107,107,0.2)', padding: '2px 8px', borderRadius: '5px', fontWeight: 700 }}>Pending Review</span>
                           </div>
-                          <div style={{ fontSize: '13px', fontWeight: 800, color: '#0F1923', lineHeight: 1.3 }}>{course.title}</div>
-                          <div style={{ fontSize: '13px', color: '#5B7080', marginTop: '2px' }}>{course.subtitle}</div>
+                          <div style={{ fontSize: '13px', fontWeight: 800, color: 'var(--ink)', lineHeight: 1.3 }}>{course.title}</div>
+                          <div style={{ fontSize: '13px', color: 'var(--ink3)', marginTop: '2px' }}>{course.subtitle}</div>
                           {course.suggested_by_name && (
-                            <div style={{ fontSize: '13px', color: '#5B7080', marginTop: '4px' }}>Suggested by {course.suggested_by_name}{course.suggested_by_role ? ` · ${course.suggested_by_role}` : ''}</div>
+                            <div style={{ fontSize: '13px', color: 'var(--ink3)', marginTop: '4px' }}>Suggested by {course.suggested_by_name}{course.suggested_by_role ? ` · ${course.suggested_by_role}` : ''}</div>
                           )}
                         </div>
                         <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexShrink: 0 }}>
                           <button onClick={() => setExpandedDraftId(isExpanded ? null : course.id)}
-                            style={{ padding: '7px 14px', borderRadius: '8px', border: '1px solid #DDE8EE', background: '#FFFFFF', color: '#5B7080', fontSize: '13px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
+                            style={{ padding: '7px 14px', borderRadius: '8px', border: '1px solid var(--border)', background: 'var(--card)', color: 'var(--ink3)', fontSize: '13px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
                             {isExpanded ? 'Collapse' : 'Preview'}
                           </button>
                           <button onClick={() => rejectCourse(course.id)}
-                            style={{ padding: '7px 14px', borderRadius: '8px', border: '1px solid rgba(255,107,107,0.3)', background: 'rgba(255,107,107,0.08)', color: '#FF6B6B', fontSize: '13px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
+                            style={{ padding: '7px 14px', borderRadius: '8px', border: '1px solid var(--red-border)', background: 'var(--red-light)', color: 'var(--red)', fontSize: '13px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
                             Reject
                           </button>
                           <button onClick={() => approveCourse(course.id)}
-                            style={{ padding: '7px 18px', borderRadius: '8px', border: 'none', background: '#C0F43C', color: '#0F1923', fontSize: '13px', fontWeight: 800, cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                            style={{ padding: '7px 18px', borderRadius: '8px', border: 'none', background: 'var(--lime)', color: 'var(--lime-dark)', fontSize: '13px', fontWeight: 800, cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: '6px' }}>
                             <svg width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>
                             Approve & Publish
                           </button>
@@ -3860,10 +3874,10 @@ export default function AdminPage() {
                       </div>
                       {/* Expanded preview */}
                       {isExpanded && (
-                        <div style={{ borderTop: '1px solid #DDE8EE', padding: '20px', background: '#FFFFFF' }}>
-                          <div style={{ fontSize: '13px', fontWeight: 700, letterSpacing: '1.5px', textTransform: 'uppercase', color: '#5B7080', marginBottom: '8px' }}>Overview</div>
-                          <p style={{ fontSize: '13px', color: '#5B7080', lineHeight: 1.7, margin: 0 }}>{course.overview}</p>
-                          <div style={{ marginTop: '12px', fontSize: '13px', color: '#0F1923' }}>{course.estimated_minutes} min · {course.is_mandatory ? 'Mandatory' : 'Optional'}</div>
+                        <div style={{ borderTop: '1px solid var(--border)', padding: '20px', background: 'var(--card)' }}>
+                          <div style={{ fontSize: '13px', fontWeight: 700, letterSpacing: '1.5px', textTransform: 'uppercase', color: 'var(--ink3)', marginBottom: '8px' }}>Overview</div>
+                          <p style={{ fontSize: '13px', color: 'var(--ink3)', lineHeight: 1.7, margin: 0 }}>{course.overview}</p>
+                          <div style={{ marginTop: '12px', fontSize: '13px', color: 'var(--ink)' }}>{course.estimated_minutes} min · {course.is_mandatory ? 'Mandatory' : 'Optional'}</div>
                         </div>
                       )}
                     </div>
@@ -3879,21 +3893,21 @@ export default function AdminPage() {
           <div>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '24px' }}>
               <div>
-                <div style={{ fontSize: '11px', fontWeight: 800, letterSpacing: '2px', textTransform: 'uppercase', color: '#1D4ED8', marginBottom: '4px' }}>Security</div>
-                <div style={{ fontSize: '22px', fontWeight: 900, color: '#0F1923', letterSpacing: '-0.4px' }}>Login Audit &amp; Access Control</div>
+                <div style={{ fontSize: '11px', fontWeight: 800, letterSpacing: '2px', textTransform: 'uppercase', color: '#6285EA', marginBottom: '4px' }}>Security</div>
+                <div style={{ fontSize: '22px', fontWeight: 900, color: 'var(--ink)', letterSpacing: '-0.4px' }}>Login Audit &amp; Access Control</div>
               </div>
-              <button onClick={fetchSecurity} style={{ padding: '8px 18px', borderRadius: '10px', border: '1px solid #DDE8EE', background: '#FFFFFF', color: '#1D4ED8', fontSize: '13px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <button onClick={fetchSecurity} style={{ padding: '8px 18px', borderRadius: '10px', border: '1px solid var(--border)', background: 'var(--card)', color: '#6285EA', fontSize: '13px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: '6px' }}>
                 <svg width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-3.82"/></svg>
                 Refresh
               </button>
             </div>
 
             {securityLoading && (
-              <div style={{ textAlign: 'center', padding: '60px', color: '#5B7080', fontSize: '13px' }}>Loading security data…</div>
+              <div style={{ textAlign: 'center', padding: '60px', color: 'var(--ink3)', fontSize: '13px' }}>Loading security data…</div>
             )}
 
             {!securityLoading && !securityData && (
-              <div style={{ textAlign: 'center', padding: '60px', color: '#5B7080', fontSize: '13px' }}>Click Refresh to load security data.</div>
+              <div style={{ textAlign: 'center', padding: '60px', color: 'var(--ink3)', fontSize: '13px' }}>Click Refresh to load security data.</div>
             )}
 
             {securityData && (
@@ -3901,9 +3915,9 @@ export default function AdminPage() {
                 {/* Stats row */}
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '16px', marginBottom: '28px' }}>
                   {[
-                    { label: 'Logins Today',    value: securityData.today_logins,   color: '#166534', bg: 'rgba(22,101,52,0.06)' },
-                    { label: 'Failed Today',     value: securityData.today_failures, color: '#991B1B', bg: 'rgba(153,27,27,0.06)' },
-                    { label: 'Locked Right Now', value: securityData.locked_now.length, color: '#92400E', bg: 'rgba(146,64,14,0.06)' },
+                    { label: 'Logins Today',    value: securityData.today_logins,   color: '#34D399', bg: 'rgba(52,211,153,0.08)' },
+                    { label: 'Failed Today',     value: securityData.today_failures, color: '#F1667A', bg: 'rgba(241,102,122,0.08)' },
+                    { label: 'Locked Right Now', value: securityData.locked_now.length, color: '#F5B94D', bg: 'rgba(245,185,77,0.08)' },
                   ].map(s => (
                     <div key={s.label} style={{ background: s.bg, border: `1px solid ${s.color}22`, borderRadius: '14px', padding: '20px 24px' }}>
                       <div style={{ fontSize: '28px', fontWeight: 900, color: s.color, letterSpacing: '-1px' }}>{s.value}</div>
@@ -3914,29 +3928,29 @@ export default function AdminPage() {
 
                 {/* Locked accounts */}
                 {securityData.locked_now.length > 0 && (
-                  <div style={{ background: 'rgba(153,27,27,0.04)', border: '1px solid rgba(153,27,27,0.2)', borderRadius: '14px', padding: '20px 24px', marginBottom: '24px' }}>
-                    <div style={{ fontSize: '11px', fontWeight: 800, letterSpacing: '1.8px', textTransform: 'uppercase', color: '#991B1B', marginBottom: '12px' }}>Locked Now (5+ failures in last 15 min)</div>
+                  <div style={{ background: 'var(--red-light)', border: '1px solid var(--red-border)', borderRadius: '14px', padding: '20px 24px', marginBottom: '24px' }}>
+                    <div style={{ fontSize: '11px', fontWeight: 800, letterSpacing: '1.8px', textTransform: 'uppercase', color: 'var(--red)', marginBottom: '12px' }}>Locked Now (5+ failures in last 15 min)</div>
                     <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
                       {securityData.locked_now.map(email => (
-                        <span key={email} style={{ background: 'rgba(153,27,27,0.08)', border: '1px solid rgba(153,27,27,0.25)', borderRadius: '8px', padding: '4px 12px', fontSize: '13px', fontWeight: 700, color: '#991B1B' }}>{email}</span>
+                        <span key={email} style={{ background: 'var(--red-light)', border: '1px solid var(--red-border)', borderRadius: '8px', padding: '4px 12px', fontSize: '13px', fontWeight: 700, color: 'var(--red)' }}>{email}</span>
                       ))}
                     </div>
                   </div>
                 )}
 
                 {/* Login activity feed */}
-                <div style={{ background: '#FFFFFF', border: '1px solid #DDE8EE', borderRadius: '14px', overflow: 'hidden' }}>
-                  <div style={{ padding: '18px 24px', borderBottom: '1px solid #DDE8EE', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <svg width="14" height="14" fill="none" stroke="#1D4ED8" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
-                    <div style={{ fontSize: '13px', fontWeight: 800, color: '#0F1923' }}>Recent Login Activity</div>
-                    <span style={{ fontSize: '11px', color: '#5B7080', marginLeft: 'auto' }}>Last {securityData.recent.length} attempts</span>
+                <div style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: '14px', overflow: 'hidden' }}>
+                  <div style={{ padding: '18px 24px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <svg width="14" height="14" fill="none" stroke="#6285EA" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+                    <div style={{ fontSize: '13px', fontWeight: 800, color: 'var(--ink)' }}>Recent Login Activity</div>
+                    <span style={{ fontSize: '11px', color: 'var(--ink3)', marginLeft: 'auto' }}>Last {securityData.recent.length} attempts</span>
                   </div>
                   <div style={{ overflowX: 'auto' }}>
                     <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
                       <thead>
-                        <tr style={{ background: '#F8FAFC' }}>
+                        <tr style={{ background: 'var(--border-light)' }}>
                           {['Time', 'Email', 'IP Address', 'Result', 'Reason'].map(h => (
-                            <th key={h} style={{ padding: '10px 16px', textAlign: 'left', fontSize: '11px', fontWeight: 800, letterSpacing: '1.2px', textTransform: 'uppercase', color: '#5B7080', borderBottom: '1px solid #DDE8EE', whiteSpace: 'nowrap' }}>{h}</th>
+                            <th key={h} style={{ padding: '10px 16px', textAlign: 'left', fontSize: '11px', fontWeight: 800, letterSpacing: '1.2px', textTransform: 'uppercase', color: 'var(--ink3)', borderBottom: '1px solid var(--border)', whiteSpace: 'nowrap' }}>{h}</th>
                           ))}
                         </tr>
                       </thead>
@@ -3950,16 +3964,16 @@ export default function AdminPage() {
                             rate_limited: 'Rate Limited', ip_blocked: 'IP Blocked',
                           }
                           return (
-                            <tr key={row.id} style={{ borderBottom: '1px solid #F0F4F8' }}>
-                              <td style={{ padding: '10px 16px', color: '#5B7080', whiteSpace: 'nowrap' }}>{timeStr}</td>
-                              <td style={{ padding: '10px 16px', color: '#0F1923', fontWeight: 600, maxWidth: '200px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{row.email}</td>
-                              <td style={{ padding: '10px 16px', color: '#5B7080', fontFamily: 'monospace', fontSize: '12px' }}>{row.ip ?? '—'}</td>
+                            <tr key={row.id} style={{ borderBottom: '1px solid var(--surface)' }}>
+                              <td style={{ padding: '10px 16px', color: 'var(--ink3)', whiteSpace: 'nowrap' }}>{timeStr}</td>
+                              <td style={{ padding: '10px 16px', color: 'var(--ink)', fontWeight: 600, maxWidth: '200px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{row.email}</td>
+                              <td style={{ padding: '10px 16px', color: 'var(--ink3)', fontFamily: 'monospace', fontSize: '12px' }}>{row.ip ?? '—'}</td>
                               <td style={{ padding: '10px 16px' }}>
-                                <span style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', padding: '2px 10px', borderRadius: '6px', fontSize: '11px', fontWeight: 800, background: row.success ? 'rgba(22,101,52,0.08)' : 'rgba(153,27,27,0.08)', color: row.success ? '#166534' : '#991B1B' }}>
+                                <span style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', padding: '2px 10px', borderRadius: '6px', fontSize: '11px', fontWeight: 800, background: row.success ? 'var(--success-light)' : 'var(--red-light)', color: row.success ? 'var(--success)' : 'var(--red)' }}>
                                   {row.success ? 'Success' : 'Failed'}
                                 </span>
                               </td>
-                              <td style={{ padding: '10px 16px', color: '#5B7080' }}>{REASON_LABEL[row.reason ?? ''] ?? row.reason ?? '—'}</td>
+                              <td style={{ padding: '10px 16px', color: 'var(--ink3)' }}>{REASON_LABEL[row.reason ?? ''] ?? row.reason ?? '—'}</td>
                             </tr>
                           )
                         })}
@@ -3970,10 +3984,10 @@ export default function AdminPage() {
 
                 {/* IP Allowlist config note */}
                 <div style={{ marginTop: '24px', background: 'rgba(29,78,216,0.04)', border: '1px solid rgba(29,78,216,0.15)', borderRadius: '14px', padding: '20px 24px' }}>
-                  <div style={{ fontSize: '12px', fontWeight: 800, letterSpacing: '1.5px', textTransform: 'uppercase', color: '#1D4ED8', marginBottom: '8px' }}>IP Allowlist</div>
-                  <div style={{ fontSize: '13px', color: '#2D3E50', lineHeight: 1.7 }}>
+                  <div style={{ fontSize: '12px', fontWeight: 800, letterSpacing: '1.5px', textTransform: 'uppercase', color: '#6285EA', marginBottom: '8px' }}>IP Allowlist</div>
+                  <div style={{ fontSize: '13px', color: 'var(--ink2)', lineHeight: 1.7 }}>
                     To restrict staff logins to office networks only, add the <strong>OFFICE_IPS</strong> environment variable in Vercel with a comma-separated list of your office public IPs.<br/>
-                    Example: <span style={{ fontFamily: 'monospace', background: '#F0F4F8', padding: '1px 6px', borderRadius: '4px', fontSize: '12px' }}>203.0.113.10,198.51.100.42</span><br/>
+                    Example: <span style={{ fontFamily: 'monospace', background: 'var(--surface)', padding: '1px 6px', borderRadius: '4px', fontSize: '12px' }}>203.0.113.10,198.51.100.42</span><br/>
                     Admins (dept_head and above) are always exempt from IP restrictions.
                   </div>
                 </div>
@@ -3983,7 +3997,7 @@ export default function AdminPage() {
         )}
 
       </div>
-      <style>{`@keyframes pulse{0%,100%{opacity:1}50%{opacity:0.4}} @keyframes spin{to{transform:rotate(360deg)}} @keyframes demoGlow{0%{color:#8B1A1A}20%{color:#FF6B6B}40%{color:#C0F43C}60%{color:#00A5A3}80%{color:#8B1A1A}100%{color:#FFD08A}} @keyframes tourPop{0%{opacity:0;transform:scale(0.95) translateY(6px)}100%{opacity:1;transform:scale(1) translateY(0)}} @keyframes slideInRight{0%{transform:translateX(100%);opacity:0}100%{transform:translateX(0);opacity:1}} @keyframes ingestBarSlide{0%{left:-40%}100%{left:100%}}`}</style>
+      <style>{`@keyframes pulse{0%,100%{opacity:1}50%{opacity:0.4}} @keyframes spin{to{transform:rotate(360deg)}} @keyframes demoGlow{0%{color:#F1667A}20%{color:#F1667A}40%{color:var(--lime)}60%{color:#12C9BD}80%{color:#F1667A}100%{color:#F5B94D}} @keyframes tourPop{0%{opacity:0;transform:scale(0.95) translateY(6px)}100%{opacity:1;transform:scale(1) translateY(0)}} @keyframes slideInRight{0%{transform:translateX(100%);opacity:0}100%{transform:translateX(0);opacity:1}} @keyframes ingestBarSlide{0%{left:-40%}100%{left:100%}}`}</style>
 
       {/* ── What's Next — Roadmap Panel ── */}
       {showRoadmap && (
@@ -3992,17 +4006,17 @@ export default function AdminPage() {
           <div style={{ flex: 1, background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)' }} onClick={() => setShowRoadmap(false)} />
 
           {/* Drawer */}
-          <div style={{ width: '560px', background: '#FFFFFF', borderLeft: '1px solid rgba(164,120,255,0.25)', height: '100%', overflowY: 'auto', animation: 'slideInRight 0.25s ease', display: 'flex', flexDirection: 'column' }}>
+          <div style={{ width: '560px', background: 'var(--card)', borderLeft: '1px solid rgba(164,120,255,0.25)', height: '100%', overflowY: 'auto', animation: 'slideInRight 0.25s ease', display: 'flex', flexDirection: 'column' }}>
 
             {/* Header */}
-            <div style={{ padding: '28px 32px 24px', borderBottom: '1px solid #DDE8EE', position: 'sticky', top: 0, background: '#FFFFFF', zIndex: 1 }}>
+            <div style={{ padding: '28px 32px 24px', borderBottom: '1px solid var(--border)', position: 'sticky', top: 0, background: 'var(--card)', zIndex: 1 }}>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                 <div>
                   <div style={{ fontSize: '11px', fontWeight: 800, letterSpacing: '2px', textTransform: 'uppercase', color: '#A478FF', marginBottom: '4px' }}>Platform Roadmap</div>
-                  <div style={{ fontSize: '18px', fontWeight: 900, color: '#0F1923', letterSpacing: '-0.3px' }}>What&apos;s next for Event Pilot</div>
+                  <div style={{ fontSize: '18px', fontWeight: 900, color: 'var(--ink)', letterSpacing: '-0.3px' }}>What&apos;s next for Event Pilot</div>
                 </div>
-                <button onClick={() => setShowRoadmap(false)} style={{ width: '36px', height: '36px', borderRadius: '10px', border: '1px solid #DDE8EE', background: '#FFFFFF', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                  <svg width="14" height="14" fill="none" stroke="#5B7080" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                <button onClick={() => setShowRoadmap(false)} style={{ width: '36px', height: '36px', borderRadius: '10px', border: '1px solid var(--border)', background: 'var(--card)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <svg width="14" height="14" fill="none" stroke="var(--ink3)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
                 </button>
               </div>
             </div>
@@ -4012,17 +4026,17 @@ export default function AdminPage() {
               {/* ── Build Log — live from GitHub commits ── */}
               <div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '16px' }}>
-                  <svg width="14" height="14" fill="none" stroke="#1565C0" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
-                  <div style={{ fontSize: '11px', fontWeight: 800, letterSpacing: '1.8px', textTransform: 'uppercase', color: '#1565C0' }}>Build Log — what shipped &amp; when</div>
-                  <div style={{ fontSize: '10px', color: '#94A3B8', fontWeight: 600 }}>live · auto-updates on every commit</div>
+                  <svg width="14" height="14" fill="none" stroke="var(--info)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+                  <div style={{ fontSize: '11px', fontWeight: 800, letterSpacing: '1.8px', textTransform: 'uppercase', color: 'var(--info)' }}>Build Log — what shipped &amp; when</div>
+                  <div style={{ fontSize: '10px', color: 'var(--ink4)', fontWeight: 600 }}>live · auto-updates on every commit</div>
                 </div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
                   {buildLog.length === 0 && (
-                    <div style={{ fontSize: '13px', color: '#94A3B8', padding: '8px 0' }}>Loading build log…</div>
+                    <div style={{ fontSize: '13px', color: 'var(--ink4)', padding: '8px 0' }}>Loading build log…</div>
                   )}
                   {buildLog.map((day, di) => {
                     const isMadhu     = day.author === 'Madhu'
-                    const badgeColor  = isMadhu ? '#00695C' : '#1565C0'
+                    const badgeColor  = isMadhu ? 'var(--teal)' : 'var(--info)'
                     const badgeBg     = isMadhu ? 'rgba(0,105,92,0.08)' : 'rgba(21,101,192,0.08)'
                     const badgeBorder = isMadhu ? 'rgba(0,105,92,0.2)'  : 'rgba(21,101,192,0.2)'
                     return (
@@ -4031,21 +4045,21 @@ export default function AdminPage() {
                           <div style={{ fontSize: '11px', fontWeight: 800, color: badgeColor, background: badgeBg, border: `1px solid ${badgeBorder}`, borderRadius: '6px', padding: '2px 8px', whiteSpace: 'nowrap' as const }}>
                             {day.date}{day.time ? ` · ${day.time}` : ''} — {day.author}
                           </div>
-                          <div style={{ flex: 1, height: '1px', background: '#DDE8EE' }} />
+                          <div style={{ flex: 1, height: '1px', background: 'var(--border)' }} />
                         </div>
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', paddingLeft: '4px' }}>
                           {day.items.map((item, ii) => (
                             <div key={ii}>
                               <div style={{ display: 'flex', gap: '8px', alignItems: 'flex-start' }}>
-                                <div style={{ width: '5px', height: '5px', borderRadius: '50%', background: isMadhu ? 'rgba(0,105,92,0.4)' : '#93C5FD', marginTop: '6px', flexShrink: 0 }} />
-                                <span style={{ fontSize: '13px', color: '#0F1923', fontWeight: 600, lineHeight: 1.4 }}>{item.title}</span>
+                                <div style={{ width: '5px', height: '5px', borderRadius: '50%', background: isMadhu ? 'rgba(14,167,157,0.4)' : 'var(--info)', marginTop: '6px', flexShrink: 0 }} />
+                                <span style={{ fontSize: '13px', color: 'var(--ink)', fontWeight: 600, lineHeight: 1.4 }}>{item.title}</span>
                               </div>
                               {item.bullets.length > 0 && (
                                 <div style={{ paddingLeft: '13px', marginTop: '3px', display: 'flex', flexDirection: 'column', gap: '2px' }}>
                                   {item.bullets.map((b, bi) => (
                                     <div key={bi} style={{ display: 'flex', gap: '8px', alignItems: 'flex-start' }}>
-                                      <div style={{ width: '3px', height: '3px', borderRadius: '50%', background: '#CBD5E1', marginTop: '7px', flexShrink: 0 }} />
-                                      <span style={{ fontSize: '12px', color: '#5B7080', lineHeight: 1.5 }}>{b}</span>
+                                      <div style={{ width: '3px', height: '3px', borderRadius: '50%', background: 'var(--card-hi)', marginTop: '7px', flexShrink: 0 }} />
+                                      <span style={{ fontSize: '12px', color: 'var(--ink3)', lineHeight: 1.5 }}>{b}</span>
                                     </div>
                                   ))}
                                 </div>
@@ -4062,8 +4076,8 @@ export default function AdminPage() {
               {/* ── What's live ── */}
               <div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '16px' }}>
-                  <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#C0F43C' }} />
-                  <div style={{ fontSize: '11px', fontWeight: 800, letterSpacing: '1.8px', textTransform: 'uppercase', color: '#00695C' }}>Live now</div>
+                  <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: 'var(--lime)' }} />
+                  <div style={{ fontSize: '11px', fontWeight: 800, letterSpacing: '1.8px', textTransform: 'uppercase', color: 'var(--teal)' }}>Live now</div>
                 </div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                   {[
@@ -4112,8 +4126,8 @@ export default function AdminPage() {
                   ].map((item, i) => (
                     <div key={i} style={{ display: 'flex', gap: '10px', alignItems: 'flex-start', padding: '10px 14px', background: 'rgba(192,244,60,0.05)', border: '1px solid rgba(192,244,60,0.18)', borderRadius: '10px' }}>
 
-                      <svg width="13" height="13" style={{ flexShrink: 0, marginTop: '2px' }} fill="none" stroke="#3D6B00" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>
-                      <span style={{ fontSize: '13px', color: '#5B7080', lineHeight: 1.5 }}>{item}</span>
+                      <svg width="13" height="13" style={{ flexShrink: 0, marginTop: '2px' }} fill="none" stroke="var(--lime)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>
+                      <span style={{ fontSize: '13px', color: 'var(--ink3)', lineHeight: 1.5 }}>{item}</span>
                     </div>
                   ))}
                 </div>
@@ -4122,8 +4136,8 @@ export default function AdminPage() {
               {/* ── Phase 2 — complete ── */}
               <div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '16px' }}>
-                  <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#3D6B00' }} />
-                  <div style={{ fontSize: '11px', fontWeight: 800, letterSpacing: '1.8px', textTransform: 'uppercase', color: '#3D6B00' }}>Phase 2 — Complete</div>
+                  <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: 'var(--lime)' }} />
+                  <div style={{ fontSize: '11px', fontWeight: 800, letterSpacing: '1.8px', textTransform: 'uppercase', color: 'var(--lime)' }}>Phase 2 — Complete</div>
                 </div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                   {[
@@ -4136,10 +4150,10 @@ export default function AdminPage() {
                     { title: 'Brand PDF export ✓', desc: 'Brand Studio generates a self-contained HTML brand book: cover, identity, logo variants, color palette, typography, patterns, voice & tone, asset gallery. Export PDF button in Brand Studio nav.' },
                   ].map((item, i) => (
                     <div key={i} style={{ padding: '12px 14px', background: 'rgba(61,107,0,0.04)', border: '1px solid rgba(61,107,0,0.15)', borderRadius: '10px', display: 'flex', gap: '10px', alignItems: 'flex-start' }}>
-                      <svg width="13" height="13" style={{ flexShrink: 0, marginTop: '2px' }} fill="none" stroke="#3D6B00" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>
+                      <svg width="13" height="13" style={{ flexShrink: 0, marginTop: '2px' }} fill="none" stroke="var(--lime)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>
                       <div>
-                        <div style={{ fontSize: '13px', fontWeight: 700, color: '#3D6B00', marginBottom: '3px' }}>{item.title}</div>
-                        <div style={{ fontSize: '13px', color: '#5B7080', lineHeight: 1.6 }}>{item.desc}</div>
+                        <div style={{ fontSize: '13px', fontWeight: 700, color: 'var(--lime)', marginBottom: '3px' }}>{item.title}</div>
+                        <div style={{ fontSize: '13px', color: 'var(--ink3)', lineHeight: 1.6 }}>{item.desc}</div>
                       </div>
                     </div>
                   ))}
@@ -4149,8 +4163,8 @@ export default function AdminPage() {
               {/* ── Pre-Phase 3 Checklist ── */}
               <div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '16px' }}>
-                  <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#00897B' }} />
-                  <div style={{ fontSize: '11px', fontWeight: 800, letterSpacing: '1.8px', textTransform: 'uppercase', color: '#00897B' }}>Pre-Phase 3 — Current Sprint</div>
+                  <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: 'var(--teal-mid)' }} />
+                  <div style={{ fontSize: '11px', fontWeight: 800, letterSpacing: '1.8px', textTransform: 'uppercase', color: 'var(--teal-mid)' }}>Pre-Phase 3 — Current Sprint</div>
                 </div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                   {[
@@ -4163,13 +4177,13 @@ export default function AdminPage() {
                     { done: false, title: 'Website Builder test — AI2047',       desc: 'Prashant + Khalifa to fully test the website builder for AI2047 event. Prashant has WB + Market Intel + Outreach access.' },
                     { done: false, title: 'Social publishing — Content Hub',     desc: 'Content Hub social publishing for AI2047. Approval workflow fully built. Needs Meta API tokens from Madhu to wire LinkedIn, Instagram, Facebook.' },
                   ].map((item, i) => (
-                    <div key={i} style={{ padding: '12px 14px', background: item.done ? 'rgba(0,137,123,0.04)' : 'rgba(0,137,123,0.02)', border: `1px solid ${item.done ? 'rgba(0,137,123,0.2)' : '#DDE8EE'}`, borderRadius: '10px', display: 'flex', gap: '10px', alignItems: 'flex-start' }}>
-                      <div style={{ width: '18px', height: '18px', borderRadius: '50%', background: item.done ? '#00897B' : '#E8EEF4', border: item.done ? 'none' : '2px solid #B8CDD8', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, marginTop: '1px' }}>
-                        {item.done && <svg width="10" height="10" fill="none" stroke="#fff" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>}
+                    <div key={i} style={{ padding: '12px 14px', background: item.done ? 'rgba(0,137,123,0.04)' : 'rgba(0,137,123,0.02)', border: `1px solid ${item.done ? 'rgba(0,137,123,0.2)' : 'var(--border)'}`, borderRadius: '10px', display: 'flex', gap: '10px', alignItems: 'flex-start' }}>
+                      <div style={{ width: '18px', height: '18px', borderRadius: '50%', background: item.done ? 'var(--teal-mid)' : 'var(--surface)', border: item.done ? 'none' : '2px solid var(--ink4)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, marginTop: '1px' }}>
+                        {item.done && <svg width="10" height="10" fill="none" stroke="var(--card)" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>}
                       </div>
                       <div>
-                        <div style={{ fontSize: '13px', fontWeight: 700, color: item.done ? '#00897B' : '#0F1923', marginBottom: '3px' }}>{item.title}{item.done ? ' ✓' : ''}</div>
-                        <div style={{ fontSize: '13px', color: '#5B7080', lineHeight: 1.6 }}>{item.desc}</div>
+                        <div style={{ fontSize: '13px', fontWeight: 700, color: item.done ? 'var(--teal-mid)' : 'var(--ink)', marginBottom: '3px' }}>{item.title}{item.done ? ' ✓' : ''}</div>
+                        <div style={{ fontSize: '13px', color: 'var(--ink3)', lineHeight: 1.6 }}>{item.desc}</div>
                       </div>
                     </div>
                   ))}
@@ -4179,8 +4193,8 @@ export default function AdminPage() {
               {/* ── Blocked / Waiting ── */}
               <div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '16px' }}>
-                  <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#D97706' }} />
-                  <div style={{ fontSize: '11px', fontWeight: 800, letterSpacing: '1.8px', textTransform: 'uppercase', color: '#D97706' }}>Blocked — waiting on external input</div>
+                  <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#F5B94D' }} />
+                  <div style={{ fontSize: '11px', fontWeight: 800, letterSpacing: '1.8px', textTransform: 'uppercase', color: '#F5B94D' }}>Blocked — waiting on external input</div>
                 </div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                   {[
@@ -4188,10 +4202,10 @@ export default function AdminPage() {
                   ].map((item, i) => (
                     <div key={i} style={{ padding: '12px 14px', background: 'rgba(217,119,6,0.05)', border: '1px solid rgba(217,119,6,0.2)', borderRadius: '10px' }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '5px' }}>
-                        <div style={{ fontSize: '13px', fontWeight: 700, color: '#92400E' }}>{item.title}</div>
-                        <div style={{ fontSize: '11px', fontWeight: 700, color: '#D97706', background: 'rgba(217,119,6,0.1)', border: '1px solid rgba(217,119,6,0.25)', borderRadius: '20px', padding: '2px 8px', whiteSpace: 'nowrap' }}>{item.blocker}</div>
+                        <div style={{ fontSize: '13px', fontWeight: 700, color: 'var(--amber)' }}>{item.title}</div>
+                        <div style={{ fontSize: '11px', fontWeight: 700, color: '#F5B94D', background: 'rgba(217,119,6,0.1)', border: '1px solid rgba(217,119,6,0.25)', borderRadius: '20px', padding: '2px 8px', whiteSpace: 'nowrap' }}>{item.blocker}</div>
                       </div>
-                      <div style={{ fontSize: '13px', color: '#5B7080', lineHeight: 1.6 }}>{item.desc}</div>
+                      <div style={{ fontSize: '13px', color: 'var(--ink3)', lineHeight: 1.6 }}>{item.desc}</div>
                     </div>
                   ))}
                 </div>
@@ -4213,7 +4227,7 @@ export default function AdminPage() {
                   ].map((item, i) => (
                     <div key={i} style={{ padding: '12px 14px', background: 'rgba(164,120,255,0.05)', border: '1px solid rgba(164,120,255,0.12)', borderRadius: '10px' }}>
                       <div style={{ fontSize: '13px', fontWeight: 700, color: '#A478FF', marginBottom: '4px' }}>{item.title}</div>
-                      <div style={{ fontSize: '13px', color: '#5B7080', lineHeight: 1.6 }}>{item.desc}</div>
+                      <div style={{ fontSize: '13px', color: 'var(--ink3)', lineHeight: 1.6 }}>{item.desc}</div>
                     </div>
                   ))}
                 </div>
@@ -4221,14 +4235,14 @@ export default function AdminPage() {
 
               {/* ── Suggestion Box ── */}
               <div style={{ background: 'rgba(0,137,123,0.05)', border: '1px solid rgba(0,137,123,0.2)', borderRadius: '16px', padding: '24px' }}>
-                <div style={{ fontSize: '11px', fontWeight: 800, letterSpacing: '1.8px', textTransform: 'uppercase', color: '#00897B', marginBottom: '6px' }}>Suggest something</div>
-                <div style={{ fontSize: '13px', color: '#5B7080', lineHeight: 1.6, marginBottom: '16px' }}>
+                <div style={{ fontSize: '11px', fontWeight: 800, letterSpacing: '1.8px', textTransform: 'uppercase', color: 'var(--teal-mid)', marginBottom: '6px' }}>Suggest something</div>
+                <div style={{ fontSize: '13px', color: 'var(--ink3)', lineHeight: 1.6, marginBottom: '16px' }}>
                   What should we build next? Flag a gap, request a feature, or share what&apos;s not working. Every submission is reviewed.
                 </div>
                 {suggSent ? (
                   <div style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '14px 16px', background: 'rgba(0,137,123,0.08)', borderRadius: '10px', border: '1px solid rgba(0,137,123,0.2)' }}>
-                    <svg width="16" height="16" fill="none" stroke="#00897B" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>
-                    <span style={{ fontSize: '13px', fontWeight: 700, color: '#00897B' }}>Received — thank you. We&apos;ll review it before the next build cycle.</span>
+                    <svg width="16" height="16" fill="none" stroke="var(--teal-mid)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>
+                    <span style={{ fontSize: '13px', fontWeight: 700, color: 'var(--teal-mid)' }}>Received — thank you. We&apos;ll review it before the next build cycle.</span>
                   </div>
                 ) : (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
@@ -4237,7 +4251,7 @@ export default function AdminPage() {
                       onChange={e => setSuggText(e.target.value)}
                       placeholder="Describe the feature, gap, or issue…"
                       rows={4}
-                      style={{ width: '100%', padding: '12px 14px', borderRadius: '10px', border: '1px solid #DDE8EE', background: '#FFFFFF', fontSize: '13px', color: '#0F1923', lineHeight: 1.6, fontFamily: 'inherit', resize: 'vertical', outline: 'none', boxSizing: 'border-box' }}
+                      style={{ width: '100%', padding: '12px 14px', borderRadius: '10px', border: '1px solid var(--border)', background: 'var(--card)', fontSize: '13px', color: 'var(--ink)', lineHeight: 1.6, fontFamily: 'inherit', resize: 'vertical', outline: 'none', boxSizing: 'border-box' }}
                     />
                     <button
                       disabled={!suggText.trim() || suggSending}
@@ -4256,7 +4270,7 @@ export default function AdminPage() {
                           setSuggSending(false)
                         }
                       }}
-                      style={{ alignSelf: 'flex-end', padding: '10px 22px', borderRadius: '10px', border: 'none', background: suggText.trim() && !suggSending ? '#00897B' : '#DDE8EE', color: suggText.trim() && !suggSending ? '#FFFFFF' : '#5B7080', fontSize: '13px', fontWeight: 700, cursor: suggText.trim() && !suggSending ? 'pointer' : 'not-allowed', fontFamily: 'inherit', transition: 'background 0.15s' }}>
+                      style={{ alignSelf: 'flex-end', padding: '10px 22px', borderRadius: '10px', border: 'none', background: suggText.trim() && !suggSending ? 'var(--teal-mid)' : 'var(--border)', color: suggText.trim() && !suggSending ? 'var(--teal-light)' : 'var(--ink3)', fontSize: '13px', fontWeight: 700, cursor: suggText.trim() && !suggSending ? 'pointer' : 'not-allowed', fontFamily: 'inherit', transition: 'background 0.15s' }}>
                       {suggSending ? 'Sending…' : 'Submit suggestion'}
                     </button>
                   </div>
@@ -4264,7 +4278,7 @@ export default function AdminPage() {
               </div>
 
               {/* ── Footer note ── */}
-              <div style={{ textAlign: 'center', fontSize: '13px', color: '#5B7080', lineHeight: 1.7, paddingBottom: '8px' }}>
+              <div style={{ textAlign: 'center', fontSize: '13px', color: 'var(--ink3)', lineHeight: 1.7, paddingBottom: '8px' }}>
                 This roadmap updates as the platform learns.<br />Your suggestions shape every build decision.
               </div>
 
@@ -4299,37 +4313,37 @@ export default function AdminPage() {
                 <rect x="0" y="0" width="100%" height="100%" fill="rgba(0,0,0,0.72)" mask="url(#tourmask)" />
               </svg>
               {/* Highlight ring */}
-              <div style={{ position: 'absolute', left: hl.left, top: hl.top, width: hl.width, height: hl.height, borderRadius: '12px', border: '2px solid #00A5A3', boxShadow: '0 0 0 4px rgba(0,165,163,0.18), 0 0 28px rgba(0,165,163,0.25)' }} />
+              <div style={{ position: 'absolute', left: hl.left, top: hl.top, width: hl.width, height: hl.height, borderRadius: '12px', border: '2px solid var(--teal-mid)', boxShadow: '0 0 0 4px rgba(0,165,163,0.18), 0 0 28px rgba(0,165,163,0.25)' }} />
             </div>
 
             {/* Click absorber (keeps page non-interactive during tour) */}
             <div style={{ position: 'fixed', inset: 0, zIndex: 1099, cursor: 'default' }} onClick={e => e.stopPropagation()} />
 
             {/* Tooltip card */}
-            <div style={{ position: 'fixed', zIndex: 1110, left: tipLeft, top: tipTop, width: tipW, background: '#FFFFFF', border: '1px solid rgba(0,165,163,0.4)', borderRadius: '16px', padding: '24px', boxShadow: '0 20px 60px rgba(0,0,0,0.65)', animation: 'tourPop 0.2s ease' }}>
+            <div style={{ position: 'fixed', zIndex: 1110, left: tipLeft, top: tipTop, width: tipW, background: 'var(--card)', border: '1px solid rgba(0,165,163,0.4)', borderRadius: '16px', padding: '24px', boxShadow: '0 20px 60px rgba(0,0,0,0.65)', animation: 'tourPop 0.2s ease' }}>
               {/* Step indicator */}
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '10px' }}>
                 <div style={{ display: 'flex', gap: '5px' }}>
                   {TOUR_STEPS.map((_, i) => (
-                    <div key={i} style={{ width: i === tourStep ? '18px' : '6px', height: '6px', borderRadius: '3px', background: i === tourStep ? '#00897B' : '#DDE8EE', transition: 'all 0.2s' }} />
+                    <div key={i} style={{ width: i === tourStep ? '18px' : '6px', height: '6px', borderRadius: '3px', background: i === tourStep ? 'var(--teal-mid)' : 'var(--border)', transition: 'all 0.2s' }} />
                   ))}
                 </div>
-                <button onClick={endTour} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#0F1923', fontSize: '13px', fontFamily: 'inherit', padding: '0' }}>Skip tour</button>
+                <button onClick={endTour} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--ink)', fontSize: '13px', fontFamily: 'inherit', padding: '0' }}>Skip tour</button>
               </div>
 
-              <div style={{ fontSize: '13px', fontWeight: 800, color: '#0F1923', marginBottom: '7px' }}>{step.title}</div>
-              <div style={{ fontSize: '13px', color: '#5B7080', lineHeight: 1.65, marginBottom: '18px' }}>{step.desc}</div>
+              <div style={{ fontSize: '13px', fontWeight: 800, color: 'var(--ink)', marginBottom: '7px' }}>{step.title}</div>
+              <div style={{ fontSize: '13px', color: 'var(--ink3)', lineHeight: 1.65, marginBottom: '18px' }}>{step.desc}</div>
 
               <div style={{ display: 'flex', gap: '8px' }}>
                 {tourStep > 0 && (
                   <button
                     onClick={() => setTourStep(s => s! - 1)}
-                    style={{ padding: '10px 18px', borderRadius: '10px', border: '1px solid #B8CDD8', background: '#FFFFFF', color: '#5B7080', fontSize: '13px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}
+                    style={{ padding: '10px 18px', borderRadius: '10px', border: '1px solid var(--ink4)', background: 'var(--card)', color: 'var(--ink3)', fontSize: '13px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}
                   >Back</button>
                 )}
                 <button
                   onClick={() => tourStep < TOUR_STEPS.length - 1 ? setTourStep(s => s! + 1) : endTour()}
-                  style={{ flex: 1, padding: '10px 18px', borderRadius: '10px', border: 'none', background: 'linear-gradient(135deg, #00A5A3, #00C9C7)', color: 'white', fontSize: '13px', fontWeight: 800, cursor: 'pointer', fontFamily: 'inherit' }}
+                  style={{ flex: 1, padding: '10px 18px', borderRadius: '10px', border: 'none', background: 'linear-gradient(135deg, #12C9BD, #0EA79D)', color: 'var(--teal-light)', fontSize: '13px', fontWeight: 800, cursor: 'pointer', fontFamily: 'inherit' }}
                 >
                   {tourStep < TOUR_STEPS.length - 1 ? 'Next →' : 'Done'}
                 </button>
@@ -4343,25 +4357,25 @@ export default function AdminPage() {
       {loginHistoryStaff && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 2000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}
           onClick={() => setLoginHistoryStaff(null)}>
-          <div style={{ background: '#FFFFFF', borderRadius: '16px', width: '100%', maxWidth: '560px', maxHeight: '80vh', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}
+          <div style={{ background: 'var(--card)', borderRadius: '16px', width: '100%', maxWidth: '560px', maxHeight: '80vh', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}
             onClick={e => e.stopPropagation()}>
             {/* Header */}
-            <div style={{ padding: '20px 24px', borderBottom: '1px solid #E8EEF4', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <div style={{ padding: '20px 24px', borderBottom: '1px solid var(--surface)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
               <div>
-                <div style={{ fontSize: '14px', fontWeight: 800, color: '#0F1923' }}>{loginHistoryStaff.name}</div>
-                <div style={{ fontSize: '11px', color: '#5B7080' }}>{loginHistoryStaff.email} · Login history</div>
+                <div style={{ fontSize: '14px', fontWeight: 800, color: 'var(--ink)' }}>{loginHistoryStaff.name}</div>
+                <div style={{ fontSize: '11px', color: 'var(--ink3)' }}>{loginHistoryStaff.email} · Login history</div>
               </div>
               <button onClick={() => setLoginHistoryStaff(null)}
-                style={{ width: '28px', height: '28px', borderRadius: '7px', border: '1px solid #DDE8EE', background: '#FFFFFF', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                <svg width="12" height="12" fill="none" stroke="#5B7080" strokeWidth="2.5" strokeLinecap="round" viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                style={{ width: '28px', height: '28px', borderRadius: '7px', border: '1px solid var(--border)', background: 'var(--card)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <svg width="12" height="12" fill="none" stroke="var(--ink3)" strokeWidth="2.5" strokeLinecap="round" viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
               </button>
             </div>
             {/* Body */}
             <div style={{ overflowY: 'auto', flex: 1 }}>
               {loginHistoryLoading ? (
-                <div style={{ padding: '40px', textAlign: 'center', color: '#5B7080', fontSize: '13px' }}>Loading history…</div>
+                <div style={{ padding: '40px', textAlign: 'center', color: 'var(--ink3)', fontSize: '13px' }}>Loading history…</div>
               ) : loginHistory.length === 0 ? (
-                <div style={{ padding: '40px', textAlign: 'center', color: '#5B7080', fontSize: '13px' }}>No login records found yet.</div>
+                <div style={{ padding: '40px', textAlign: 'center', color: 'var(--ink3)', fontSize: '13px' }}>No login records found yet.</div>
               ) : (
                 <>
                   {/* Stats bar */}
@@ -4370,15 +4384,15 @@ export default function AdminPage() {
                     const failed     = loginHistory.filter(r => !r.success)
                     const lastOk     = successful[0]
                     return (
-                      <div style={{ display: 'flex', gap: '20px', padding: '14px 24px', background: '#F8FAFC', borderBottom: '1px solid #E8EEF4' }}>
+                      <div style={{ display: 'flex', gap: '20px', padding: '14px 24px', background: 'var(--border-light)', borderBottom: '1px solid var(--surface)' }}>
                         {[
-                          { label: 'Total logins', value: successful.length, color: '#00897B' },
-                          { label: 'Failed attempts', value: failed.length, color: failed.length > 0 ? '#DC2626' : '#B8CDD8' },
-                          { label: 'Last seen', value: lastOk ? new Date(lastOk.attempted_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', timeZone: 'Asia/Dubai' }) : '—', color: '#0E7490' },
+                          { label: 'Total logins', value: successful.length, color: 'var(--teal-mid)' },
+                          { label: 'Failed attempts', value: failed.length, color: failed.length > 0 ? 'var(--red)' : 'var(--ink4)' },
+                          { label: 'Last seen', value: lastOk ? new Date(lastOk.attempted_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', timeZone: 'Asia/Dubai' }) : '—', color: '#1296BA' },
                         ].map(s => (
                           <div key={s.label}>
                             <div style={{ fontSize: '18px', fontWeight: 900, color: s.color, lineHeight: 1 }}>{s.value}</div>
-                            <div style={{ fontSize: '10px', fontWeight: 700, color: '#5B7080', marginTop: '2px', textTransform: 'uppercase', letterSpacing: '0.7px' }}>{s.label}</div>
+                            <div style={{ fontSize: '10px', fontWeight: 700, color: 'var(--ink3)', marginTop: '2px', textTransform: 'uppercase', letterSpacing: '0.7px' }}>{s.label}</div>
                           </div>
                         ))}
                       </div>
@@ -4386,9 +4400,9 @@ export default function AdminPage() {
                   })()}
                   {/* Table */}
                   <div style={{ padding: '0' }}>
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.6fr 1fr', padding: '8px 24px', background: '#E8EEF4' }}>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.6fr 1fr', padding: '8px 24px', background: 'var(--surface)' }}>
                       {['Result', 'Date & Time (Dubai)', 'IP'].map(h => (
-                        <div key={h} style={{ fontSize: '9px', fontWeight: 700, letterSpacing: '1.5px', textTransform: 'uppercase', color: '#5B7080' }}>{h}</div>
+                        <div key={h} style={{ fontSize: '9px', fontWeight: 700, letterSpacing: '1.5px', textTransform: 'uppercase', color: 'var(--ink3)' }}>{h}</div>
                       ))}
                     </div>
                     {loginHistory.map((row, idx) => {
@@ -4400,16 +4414,16 @@ export default function AdminPage() {
                       }
                       const label = REASON_LABEL[row.reason ?? ''] ?? (row.success ? 'Signed in' : 'Failed')
                       return (
-                        <div key={row.id} style={{ display: 'grid', gridTemplateColumns: '1fr 1.6fr 1fr', alignItems: 'center', padding: '9px 24px', borderBottom: idx < loginHistory.length - 1 ? '1px solid #E8EEF4' : 'none' }}>
+                        <div key={row.id} style={{ display: 'grid', gridTemplateColumns: '1fr 1.6fr 1fr', alignItems: 'center', padding: '9px 24px', borderBottom: idx < loginHistory.length - 1 ? '1px solid var(--surface)' : 'none' }}>
                           <div>
-                            <span style={{ fontSize: '11px', fontWeight: 700, color: row.success ? '#166534' : '#DC2626', background: row.success ? 'rgba(22,101,52,0.08)' : 'rgba(220,38,38,0.08)', padding: '2px 8px', borderRadius: '5px' }}>
+                            <span style={{ fontSize: '11px', fontWeight: 700, color: row.success ? 'var(--success)' : 'var(--red)', background: row.success ? 'var(--success-light)' : 'var(--red-light)', padding: '2px 8px', borderRadius: '5px' }}>
                               {label}
                             </span>
                           </div>
-                          <div style={{ fontSize: '12px', fontWeight: 600, color: '#0F1923' }}>
+                          <div style={{ fontSize: '12px', fontWeight: 600, color: 'var(--ink)' }}>
                             {new Date(row.attempted_at).toLocaleString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Dubai' })}
                           </div>
-                          <div style={{ fontSize: '11px', color: '#5B7080', fontFamily: 'monospace' }}>{row.ip ?? '—'}</div>
+                          <div style={{ fontSize: '11px', color: 'var(--ink3)', fontFamily: 'monospace' }}>{row.ip ?? '—'}</div>
                         </div>
                       )
                     })}
@@ -4446,43 +4460,43 @@ export default function AdminPage() {
         return (
           <>
             <div onClick={() => setRolesOpen(false)} style={{ position: 'fixed', inset: 0, background: 'rgba(15,25,35,0.55)', zIndex: 1200, backdropFilter: 'blur(2px)' }} />
-            <div style={{ position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%,-50%)', zIndex: 1300, background: '#FFFFFF', borderRadius: '20px', padding: '32px', width: '420px', maxWidth: '90vw', boxShadow: '0 24px 64px rgba(0,0,0,0.18)' }}>
+            <div style={{ position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%,-50%)', zIndex: 1300, background: 'var(--card)', borderRadius: '20px', padding: '32px', width: '420px', maxWidth: '90vw', boxShadow: '0 24px 64px rgba(0,0,0,0.18)' }}>
               {/* Header */}
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '24px' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                  <div style={{ width: '40px', height: '40px', borderRadius: '10px', background: `${off?.color ?? '#00897B'}18`, border: `1px solid ${off?.color ?? '#00897B'}30`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                    <span style={{ fontSize: '16px', fontWeight: 800, color: off?.color ?? '#00897B' }}>{rolesStaff.name.charAt(0)}</span>
+                  <div style={{ width: '40px', height: '40px', borderRadius: '10px', background: `${off?.color ?? 'var(--teal-mid)'}18`, border: `1px solid ${off?.color ?? 'var(--teal-mid)'}30`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                    <span style={{ fontSize: '16px', fontWeight: 800, color: off?.color ?? 'var(--teal-mid)' }}>{rolesStaff.name.charAt(0)}</span>
                   </div>
                   <div>
-                    <div style={{ fontSize: '15px', fontWeight: 800, color: '#0F1923' }}>{rolesStaff.name}</div>
-                    <div style={{ fontSize: '11px', color: '#5B7080' }}>{rolesStaff.email}</div>
+                    <div style={{ fontSize: '15px', fontWeight: 800, color: 'var(--ink)' }}>{rolesStaff.name}</div>
+                    <div style={{ fontSize: '11px', color: 'var(--ink3)' }}>{rolesStaff.email}</div>
                   </div>
                 </div>
-                <button onClick={() => setRolesOpen(false)} style={{ background: 'none', border: '1px solid #DDE8EE', borderRadius: '8px', padding: '6px 10px', cursor: 'pointer', color: '#5B7080', fontSize: '12px', fontWeight: 700, fontFamily: 'inherit' }}>Close</button>
+                <button onClick={() => setRolesOpen(false)} style={{ background: 'none', border: '1px solid var(--border)', borderRadius: '8px', padding: '6px 10px', cursor: 'pointer', color: 'var(--ink3)', fontSize: '12px', fontWeight: 700, fontFamily: 'inherit' }}>Close</button>
               </div>
-              <div style={{ fontSize: '11px', fontWeight: 700, color: '#5B7080', letterSpacing: '1.2px', textTransform: 'uppercase', marginBottom: '12px' }}>Platform Access Roles</div>
+              <div style={{ fontSize: '11px', fontWeight: 700, color: 'var(--ink3)', letterSpacing: '1.2px', textTransform: 'uppercase', marginBottom: '12px' }}>Platform Access Roles</div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: '24px' }}>
                 {ALL_ROLES.map(r => {
                   const meta    = ROLE_META[r]
                   const checked = rolesEdit.includes(r) || (r === 'standard' && rolesEdit.length === 0)
                   const isOnly  = r === 'standard'
                   return (
-                    <label key={r} onClick={() => !isOnly && toggle(r)} style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '12px 14px', borderRadius: '10px', border: `1.5px solid ${checked ? meta.color + '50' : '#DDE8EE'}`, background: checked ? meta.bg : '#FAFBFC', cursor: isOnly ? 'default' : 'pointer', transition: 'all 0.15s' }}>
-                      <div style={{ width: '18px', height: '18px', borderRadius: '5px', border: `2px solid ${checked ? meta.color : '#DDE8EE'}`, background: checked ? meta.color : '#FFFFFF', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, transition: 'all 0.15s' }}>
-                        {checked && <svg width="10" height="10" viewBox="0 0 12 12" fill="white"><polyline points="2,6 5,9 10,3" strokeWidth="2" stroke="white" fill="none" strokeLinecap="round" strokeLinejoin="round"/></svg>}
+                    <label key={r} onClick={() => !isOnly && toggle(r)} style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '12px 14px', borderRadius: '10px', border: `1.5px solid ${checked ? meta.color + '50' : 'var(--border)'}`, background: checked ? meta.bg : 'var(--border-light)', cursor: isOnly ? 'default' : 'pointer', transition: 'all 0.15s' }}>
+                      <div style={{ width: '18px', height: '18px', borderRadius: '5px', border: `2px solid ${checked ? meta.color : 'var(--border)'}`, background: checked ? meta.color : 'var(--card)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, transition: 'all 0.15s' }}>
+                        {checked && <svg width="10" height="10" viewBox="0 0 12 12" fill="var(--surface)"><polyline points="2,6 5,9 10,3" strokeWidth="2" stroke="var(--surface)" fill="none" strokeLinecap="round" strokeLinejoin="round"/></svg>}
                       </div>
                       <div style={{ flex: 1 }}>
-                        <div style={{ fontSize: '13px', fontWeight: 700, color: checked ? meta.color : '#0F1923' }}>{meta.label}</div>
-                        <div style={{ fontSize: '11px', color: '#5B7080', marginTop: '1px' }}>{meta.desc}</div>
+                        <div style={{ fontSize: '13px', fontWeight: 700, color: checked ? meta.color : 'var(--ink)' }}>{meta.label}</div>
+                        <div style={{ fontSize: '11px', color: 'var(--ink3)', marginTop: '1px' }}>{meta.desc}</div>
                       </div>
                     </label>
                   )
                 })}
               </div>
-              <div style={{ padding: '10px 14px', background: '#E8EEF4', borderRadius: '8px', fontSize: '11px', color: '#5B7080', marginBottom: '20px', lineHeight: 1.5 }}>
+              <div style={{ padding: '10px 14px', background: 'var(--surface)', borderRadius: '8px', fontSize: '11px', color: 'var(--ink3)', marginBottom: '20px', lineHeight: 1.5 }}>
                 Changes override HRMS sync until the next full sync. HRMS roles will re-apply on next sync unless you want them locked.
               </div>
-              <button onClick={save} disabled={rolesSaving} style={{ width: '100%', padding: '13px', borderRadius: '10px', border: 'none', background: rolesSaving ? '#B8CDD8' : 'linear-gradient(135deg, #00897B 0%, #00695C 100%)', color: rolesSaving ? '#5B7080' : 'white', fontSize: '14px', fontWeight: 800, cursor: rolesSaving ? 'not-allowed' : 'pointer', fontFamily: 'inherit' }}>
+              <button onClick={save} disabled={rolesSaving} style={{ width: '100%', padding: '13px', borderRadius: '10px', border: 'none', background: rolesSaving ? 'var(--ink4)' : 'linear-gradient(135deg, var(--teal-mid) 0%, var(--teal) 100%)', color: rolesSaving ? 'var(--ink3)' : 'var(--teal-light)', fontSize: '14px', fontWeight: 800, cursor: rolesSaving ? 'not-allowed' : 'pointer', fontFamily: 'inherit' }}>
                 {rolesSaving ? 'Saving…' : 'Save Roles'}
               </button>
             </div>
@@ -4494,7 +4508,7 @@ export default function AdminPage() {
       {permOpen && permStaff && (() => {
         const off          = OFFICES.find(o => o.id === permStaff.office_id)
         const isSuperAdmin = permStaff.job_level === 'super_admin'
-        const LEVEL_COLOR_D: Record<string,string> = { super_admin:'#7C3AED', office_head:'#DC2626', dept_head:'#D97706', team_lead:'#1565C0', staff:'#5B7080' }
+        const LEVEL_COLOR_D: Record<string,string> = { super_admin:'#A78BFA', office_head:'#F1667A', dept_head:'#F5B94D', team_lead:'#5AA9F2', staff:'#7E93A1' }
         const LEVEL_LABEL_D: Record<string,string> = { super_admin:'Super Admin', office_head:'Office Head', dept_head:'Dept Head', team_lead:'Team Lead', staff:'Staff' }
         const bulkToolDef  = PLATFORM_TOOLS.find(t => t.key === bulkTool) ?? PLATFORM_TOOLS[0]
         const bulkFiltered = staffList.filter(s => {
@@ -4532,30 +4546,30 @@ export default function AdminPage() {
             {/* Backdrop */}
             <div onClick={() => setPermOpen(false)} style={{ position: 'fixed', inset: 0, background: 'rgba(15,25,35,0.55)', zIndex: 1200, backdropFilter: 'blur(2px)' }} />
             {/* Drawer */}
-            <div style={{ position: 'fixed', right: 0, top: 0, bottom: 0, width: '520px', background: '#FFFFFF', boxShadow: '-8px 0 40px rgba(0,0,0,0.18)', zIndex: 1201, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+            <div style={{ position: 'fixed', right: 0, top: 0, bottom: 0, width: '520px', background: 'var(--card)', boxShadow: '-8px 0 40px rgba(0,0,0,0.18)', zIndex: 1201, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
 
               {/* Header */}
-              <div style={{ padding: '24px 24px 0', borderBottom: '1px solid #DDE8EE', flexShrink: 0 }}>
+              <div style={{ padding: '24px 24px 0', borderBottom: '1px solid var(--border)', flexShrink: 0 }}>
                 <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: '16px' }}>
                   <div>
-                    <div style={{ fontSize: '11px', fontWeight: 700, letterSpacing: '2px', textTransform: 'uppercase', color: '#00897B', marginBottom: '4px' }}>Platform Access</div>
-                    <div style={{ fontSize: '18px', fontWeight: 800, color: '#0F1923' }}>Tool Permissions</div>
+                    <div style={{ fontSize: '11px', fontWeight: 700, letterSpacing: '2px', textTransform: 'uppercase', color: 'var(--teal-mid)', marginBottom: '4px' }}>Platform Access</div>
+                    <div style={{ fontSize: '18px', fontWeight: 800, color: 'var(--ink)' }}>Tool Permissions</div>
                   </div>
-                  <button onClick={() => setPermOpen(false)} style={{ background: 'none', border: '1px solid #DDE8EE', borderRadius: '8px', padding: '6px 10px', cursor: 'pointer', color: '#5B7080', display: 'flex', alignItems: 'center' }}>
+                  <button onClick={() => setPermOpen(false)} style={{ background: 'none', border: '1px solid var(--border)', borderRadius: '8px', padding: '6px 10px', cursor: 'pointer', color: 'var(--ink3)', display: 'flex', alignItems: 'center' }}>
                     <svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
                   </button>
                 </div>
 
                 {/* Person card */}
-                <div style={{ display: 'flex', alignItems: 'center', gap: '12px', background: '#F6F8FB', borderRadius: '12px', padding: '12px 14px', marginBottom: '16px' }}>
-                  <div style={{ width: '40px', height: '40px', borderRadius: '10px', background: `${off?.color ?? '#00897B'}18`, border: `1.5px solid ${off?.color ?? '#00897B'}30`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                    <span style={{ fontSize: '15px', fontWeight: 800, color: off?.color ?? '#00897B' }}>{permStaff.name.charAt(0)}</span>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '12px', background: 'var(--surface)', borderRadius: '12px', padding: '12px 14px', marginBottom: '16px' }}>
+                  <div style={{ width: '40px', height: '40px', borderRadius: '10px', background: `${off?.color ?? 'var(--teal-mid)'}18`, border: `1.5px solid ${off?.color ?? 'var(--teal-mid)'}30`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                    <span style={{ fontSize: '15px', fontWeight: 800, color: off?.color ?? 'var(--teal-mid)' }}>{permStaff.name.charAt(0)}</span>
                   </div>
                   <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontSize: '14px', fontWeight: 800, color: '#0F1923', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{permStaff.name}</div>
-                    <div style={{ fontSize: '11px', color: '#5B7080', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{permStaff.email}</div>
+                    <div style={{ fontSize: '14px', fontWeight: 800, color: 'var(--ink)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{permStaff.name}</div>
+                    <div style={{ fontSize: '11px', color: 'var(--ink3)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{permStaff.email}</div>
                   </div>
-                  <span style={{ fontSize: '10px', fontWeight: 700, padding: '3px 8px', borderRadius: '6px', background: `${LEVEL_COLOR_D[permStaff.job_level] ?? '#5B7080'}15`, color: LEVEL_COLOR_D[permStaff.job_level] ?? '#5B7080', flexShrink: 0 }}>
+                  <span style={{ fontSize: '10px', fontWeight: 700, padding: '3px 8px', borderRadius: '6px', background: `${LEVEL_COLOR_D[permStaff.job_level] ?? '#7E93A1'}15`, color: LEVEL_COLOR_D[permStaff.job_level] ?? '#7E93A1', flexShrink: 0 }}>
                     {LEVEL_LABEL_D[permStaff.job_level] ?? permStaff.job_level}
                   </span>
                 </div>
@@ -4563,7 +4577,7 @@ export default function AdminPage() {
                 {/* Tabs */}
                 <div style={{ display: 'flex', gap: '4px' }}>
                   {(['person', 'bulk'] as const).map(t => (
-                    <button key={t} onClick={() => setPermTab(t)} style={{ padding: '10px 20px', background: 'none', border: 'none', borderBottom: permTab === t ? '2px solid #00897B' : '2px solid transparent', color: permTab === t ? '#00897B' : '#5B7080', fontSize: '13px', fontWeight: permTab === t ? 800 : 600, cursor: 'pointer', fontFamily: 'inherit' }}>
+                    <button key={t} onClick={() => setPermTab(t)} style={{ padding: '10px 20px', background: 'none', border: 'none', borderBottom: permTab === t ? '2px solid var(--teal-mid)' : '2px solid transparent', color: permTab === t ? 'var(--teal-mid)' : 'var(--ink3)', fontSize: '13px', fontWeight: permTab === t ? 800 : 600, cursor: 'pointer', fontFamily: 'inherit' }}>
                       {t === 'person' ? 'This Person' : 'Bulk Grant'}
                     </button>
                   ))}
@@ -4577,7 +4591,7 @@ export default function AdminPage() {
                 {permTab === 'person' && (
                   <>
                     {isSuperAdmin && (
-                      <div style={{ marginBottom: '16px', background: 'rgba(124,58,237,0.06)', border: '1px solid rgba(124,58,237,0.2)', borderRadius: '10px', padding: '10px 14px', fontSize: '12px', color: '#7C3AED', fontWeight: 600, display: 'flex', gap: '8px', alignItems: 'flex-start' }}>
+                      <div style={{ marginBottom: '16px', background: 'var(--purple-light)', border: '1px solid var(--purple-border)', borderRadius: '10px', padding: '10px 14px', fontSize: '12px', color: 'var(--purple)', fontWeight: 600, display: 'flex', gap: '8px', alignItems: 'flex-start' }}>
                         <svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24" style={{ flexShrink: 0, marginTop: '1px' }}><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
                         Super Admins have unrestricted access to all platform tools.
                       </div>
@@ -4609,27 +4623,27 @@ export default function AdminPage() {
                                 }
                               }).finally(() => setPermSaving(null))
                             }}
-                            style={{ background: granted ? `${tool.color}07` : '#FAFBFC', border: granted ? `1.5px solid ${tool.color}35` : '1.5px solid #E8EEF4', borderRadius: '12px', padding: '14px', cursor: isSuperAdmin ? 'default' : 'pointer', display: 'flex', flexDirection: 'column', gap: '8px', opacity: saving ? 0.65 : 1, transition: 'all 0.15s' }}
+                            style={{ background: granted ? `${tool.color}07` : 'var(--border-light)', border: granted ? `1.5px solid ${tool.color}35` : '1.5px solid var(--surface)', borderRadius: '12px', padding: '14px', cursor: isSuperAdmin ? 'default' : 'pointer', display: 'flex', flexDirection: 'column', gap: '8px', opacity: saving ? 0.65 : 1, transition: 'all 0.15s' }}
                           >
                             {/* Icon + toggle row */}
                             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                              <div style={{ width: '32px', height: '32px', borderRadius: '8px', background: granted ? `${tool.color}18` : '#EAEEF2', display: 'flex', alignItems: 'center', justifyContent: 'center', color: granted ? tool.color : '#B8CDD8', transition: 'all 0.15s' }}>
+                              <div style={{ width: '32px', height: '32px', borderRadius: '8px', background: granted ? `${tool.color}18` : 'var(--border-light)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: granted ? tool.color : 'var(--ink4)', transition: 'all 0.15s' }}>
                                 {tool.icon}
                               </div>
                               {/* Toggle */}
-                              <div style={{ width: '34px', height: '19px', borderRadius: '10px', background: saving ? '#DDE8EE' : (granted ? tool.color : '#DDE8EE'), position: 'relative', flexShrink: 0, transition: 'background 0.2s' }}>
-                                <div style={{ position: 'absolute', top: '2px', left: granted ? '17px' : '2px', width: '15px', height: '15px', borderRadius: '50%', background: saving ? '#B8CDD8' : '#FFFFFF', boxShadow: '0 1px 3px rgba(0,0,0,0.18)', transition: 'left 0.15s' }} />
+                              <div style={{ width: '34px', height: '19px', borderRadius: '10px', background: saving ? 'var(--border)' : (granted ? tool.color : 'var(--border)'), position: 'relative', flexShrink: 0, transition: 'background 0.2s' }}>
+                                <div style={{ position: 'absolute', top: '2px', left: granted ? '17px' : '2px', width: '15px', height: '15px', borderRadius: '50%', background: saving ? 'var(--ink4)' : 'var(--card)', boxShadow: '0 1px 3px rgba(0,0,0,0.18)', transition: 'left 0.15s' }} />
                               </div>
                             </div>
                             {/* Name */}
-                            <div style={{ fontSize: '12px', fontWeight: 800, color: granted ? '#0F1923' : '#8899A8', lineHeight: 1.2 }}>{tool.label}</div>
+                            <div style={{ fontSize: '12px', fontWeight: 800, color: granted ? 'var(--ink)' : 'var(--ink3)', lineHeight: 1.2 }}>{tool.label}</div>
                             {/* Desc */}
-                            <div style={{ fontSize: '11px', color: '#A0B0BB', lineHeight: 1.45 }}>{tool.desc}</div>
+                            <div style={{ fontSize: '11px', color: 'var(--ink3)', lineHeight: 1.45 }}>{tool.desc}</div>
                           </div>
                         )
                       })}
                     </div>
-                    <div style={{ marginTop: '14px', fontSize: '12px', color: '#B8CDD8', fontWeight: 600, textAlign: 'center' }}>
+                    <div style={{ marginTop: '14px', fontSize: '12px', color: 'var(--ink4)', fontWeight: 600, textAlign: 'center' }}>
                       {isSuperAdmin ? 'All tools — unrestricted' : `${Object.values(permGrants).filter(Boolean).length} of ${PLATFORM_TOOLS.length} tools granted`}
                     </div>
                   </>
@@ -4638,18 +4652,18 @@ export default function AdminPage() {
                 {/* ── Bulk Grant tab ── */}
                 {permTab === 'bulk' && (
                   <div>
-                    <div style={{ fontSize: '13px', color: '#5B7080', marginBottom: '18px', lineHeight: 1.6 }}>
+                    <div style={{ fontSize: '13px', color: 'var(--ink3)', marginBottom: '18px', lineHeight: 1.6 }}>
                       Pick a tool, select staff members, then grant access to all at once.
                     </div>
 
                     {/* Tool picker */}
                     <div style={{ marginBottom: '18px' }}>
-                      <div style={{ fontSize: '11px', fontWeight: 700, letterSpacing: '1.5px', textTransform: 'uppercase', color: '#B8CDD8', marginBottom: '8px' }}>Tool to Grant</div>
+                      <div style={{ fontSize: '11px', fontWeight: 700, letterSpacing: '1.5px', textTransform: 'uppercase', color: 'var(--ink4)', marginBottom: '8px' }}>Tool to Grant</div>
                       <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
                         {PLATFORM_TOOLS.map(tool => (
                           <button key={tool.key} onClick={() => { setBulkTool(tool.key); setBulkSel(new Set()); setBulkDone(null) }}
-                            style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '7px 12px', borderRadius: '8px', border: bulkTool === tool.key ? `1.5px solid ${tool.color}` : '1.5px solid #DDE8EE', background: bulkTool === tool.key ? `${tool.color}10` : '#FFFFFF', color: bulkTool === tool.key ? tool.color : '#5B7080', fontSize: '12px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap' }}>
-                            <div style={{ width: '6px', height: '6px', borderRadius: '50%', background: bulkTool === tool.key ? tool.color : '#B8CDD8', flexShrink: 0 }} />
+                            style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '7px 12px', borderRadius: '8px', border: bulkTool === tool.key ? `1.5px solid ${tool.color}` : '1.5px solid var(--border)', background: bulkTool === tool.key ? `${tool.color}10` : 'var(--card)', color: bulkTool === tool.key ? tool.color : 'var(--ink3)', fontSize: '12px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap' }}>
+                            <div style={{ width: '6px', height: '6px', borderRadius: '50%', background: bulkTool === tool.key ? tool.color : 'var(--ink4)', flexShrink: 0 }} />
                             {tool.label}
                           </button>
                         ))}
@@ -4657,30 +4671,30 @@ export default function AdminPage() {
                     </div>
 
                     {/* Staff list header */}
-                    <div style={{ fontSize: '11px', fontWeight: 700, letterSpacing: '1.5px', textTransform: 'uppercase', color: '#B8CDD8', marginBottom: '8px' }}>Select Staff</div>
+                    <div style={{ fontSize: '11px', fontWeight: 700, letterSpacing: '1.5px', textTransform: 'uppercase', color: 'var(--ink4)', marginBottom: '8px' }}>Select Staff</div>
                     <div style={{ position: 'relative', marginBottom: '6px' }}>
-                      <svg width="12" height="12" fill="none" stroke="#5B7080" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24" style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none' }}><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+                      <svg width="12" height="12" fill="none" stroke="var(--ink3)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24" style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none' }}><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
                       <input value={bulkSearch} onChange={e => setBulkSearch(e.target.value)} placeholder="Search name, email, department…"
-                        style={{ width: '100%', boxSizing: 'border-box', paddingLeft: '30px', paddingRight: '12px', paddingTop: '8px', paddingBottom: '8px', borderRadius: '8px', border: '1px solid #DDE8EE', background: '#FFFFFF', color: '#0F1923', fontSize: '13px', fontFamily: 'inherit', outline: 'none' }} />
+                        style={{ width: '100%', boxSizing: 'border-box', paddingLeft: '30px', paddingRight: '12px', paddingTop: '8px', paddingBottom: '8px', borderRadius: '8px', border: '1px solid var(--border)', background: 'var(--card)', color: 'var(--ink)', fontSize: '13px', fontFamily: 'inherit', outline: 'none' }} />
                     </div>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
                       <button onClick={() => {
                         const noAccess = bulkFiltered.filter(s => !(s.tool_grants?.[bulkTool] ?? (bulkTool === 'smart_data' && (s.toolkit_access ?? false))))
                         setBulkSel(new Set(noAccess.map(s => s.id)))
-                      }} style={{ background: 'none', border: 'none', color: '#00897B', fontSize: '11px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', padding: 0 }}>
+                      }} style={{ background: 'none', border: 'none', color: 'var(--teal-mid)', fontSize: '11px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', padding: 0 }}>
                         Select without access
                       </button>
                       {bulkSel.size > 0 && (
-                        <button onClick={() => setBulkSel(new Set())} style={{ background: 'none', border: 'none', color: '#5B7080', fontSize: '11px', fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', padding: 0 }}>
+                        <button onClick={() => setBulkSel(new Set())} style={{ background: 'none', border: 'none', color: 'var(--ink3)', fontSize: '11px', fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', padding: 0 }}>
                           Clear ({bulkSel.size} selected)
                         </button>
                       )}
                     </div>
 
                     {/* Staff rows */}
-                    <div style={{ background: '#FAFBFC', border: '1px solid #E8EEF4', borderRadius: '10px', overflow: 'hidden', maxHeight: '260px', overflowY: 'auto' }}>
+                    <div style={{ background: 'var(--border-light)', border: '1px solid var(--surface)', borderRadius: '10px', overflow: 'hidden', maxHeight: '260px', overflowY: 'auto' }}>
                       {bulkFiltered.length === 0 ? (
-                        <div style={{ padding: '24px', textAlign: 'center', color: '#5B7080', fontSize: '13px' }}>No staff match your search.</div>
+                        <div style={{ padding: '24px', textAlign: 'center', color: 'var(--ink3)', fontSize: '13px' }}>No staff match your search.</div>
                       ) : bulkFiltered.map((s, idx) => {
                         const hasAccess = s.tool_grants?.[bulkTool] ?? (bulkTool === 'smart_data' && (s.toolkit_access ?? false))
                         const isSel     = bulkSel.has(s.id)
@@ -4688,20 +4702,20 @@ export default function AdminPage() {
                         return (
                           <div key={s.id}
                             onClick={() => setBulkSel(prev => { const n = new Set(prev); if (n.has(s.id)) n.delete(s.id); else n.add(s.id); return n })}
-                            style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '10px 12px', borderBottom: idx < bulkFiltered.length - 1 ? '1px solid #E8EEF4' : 'none', cursor: 'pointer', background: isSel ? 'rgba(0,137,123,0.05)' : 'transparent' }}
+                            style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '10px 12px', borderBottom: idx < bulkFiltered.length - 1 ? '1px solid var(--surface)' : 'none', cursor: 'pointer', background: isSel ? 'rgba(0,137,123,0.05)' : 'transparent' }}
                           >
                             {/* Checkbox */}
-                            <div style={{ width: '16px', height: '16px', borderRadius: '4px', border: `2px solid ${isSel ? '#00897B' : '#C8D8E0'}`, background: isSel ? '#00897B' : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, transition: 'all 0.12s' }}>
-                              {isSel && <svg width="9" height="9" fill="none" stroke="#FFFFFF" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>}
+                            <div style={{ width: '16px', height: '16px', borderRadius: '4px', border: `2px solid ${isSel ? 'var(--teal-mid)' : 'var(--border)'}`, background: isSel ? 'var(--teal-mid)' : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, transition: 'all 0.12s' }}>
+                              {isSel && <svg width="9" height="9" fill="none" stroke="var(--card)" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>}
                             </div>
                             {/* Avatar */}
-                            <div style={{ width: '28px', height: '28px', borderRadius: '7px', background: `${offS?.color ?? '#00897B'}18`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                              <span style={{ fontSize: '11px', fontWeight: 800, color: offS?.color ?? '#00897B' }}>{s.name.charAt(0)}</span>
+                            <div style={{ width: '28px', height: '28px', borderRadius: '7px', background: `${offS?.color ?? 'var(--teal-mid)'}18`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                              <span style={{ fontSize: '11px', fontWeight: 800, color: offS?.color ?? 'var(--teal-mid)' }}>{s.name.charAt(0)}</span>
                             </div>
                             {/* Name + dept */}
                             <div style={{ flex: 1, minWidth: 0 }}>
-                              <div style={{ fontSize: '12px', fontWeight: 700, color: '#0F1923', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.name}</div>
-                              <div style={{ fontSize: '10px', color: '#5B7080', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.department ?? '—'}</div>
+                              <div style={{ fontSize: '12px', fontWeight: 700, color: 'var(--ink)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.name}</div>
+                              <div style={{ fontSize: '10px', color: 'var(--ink3)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.department ?? '—'}</div>
                             </div>
                             {/* Access status */}
                             {hasAccess ? (
@@ -4710,7 +4724,7 @@ export default function AdminPage() {
                                 <span style={{ fontSize: '10px', fontWeight: 700, color: bulkToolDef.color }}>Access</span>
                               </div>
                             ) : (
-                              <span style={{ fontSize: '10px', fontWeight: 600, color: '#C8D8E0', flexShrink: 0 }}>No access</span>
+                              <span style={{ fontSize: '10px', fontWeight: 600, color: 'var(--ink3)', flexShrink: 0 }}>No access</span>
                             )}
                           </div>
                         )
@@ -4719,7 +4733,7 @@ export default function AdminPage() {
 
                     {/* Success banner */}
                     {bulkDone && (
-                      <div style={{ marginTop: '10px', background: 'rgba(22,101,52,0.08)', border: '1px solid rgba(22,101,52,0.2)', borderRadius: '8px', padding: '10px 12px', fontSize: '12px', color: '#166534', fontWeight: 600 }}>
+                      <div style={{ marginTop: '10px', background: 'var(--success-light)', border: '1px solid rgba(52,211,153,0.3)', borderRadius: '8px', padding: '10px 12px', fontSize: '12px', color: 'var(--success)', fontWeight: 600 }}>
                         {bulkDone}
                       </div>
                     )}
@@ -4728,11 +4742,11 @@ export default function AdminPage() {
                     <button
                       disabled={bulkSel.size === 0 || bulkSaving}
                       onClick={handleBulkGrant}
-                      style={{ marginTop: '12px', width: '100%', padding: '12px', borderRadius: '10px', border: 'none', background: bulkSel.size === 0 || bulkSaving ? '#DDE8EE' : bulkToolDef.color, color: bulkSel.size === 0 || bulkSaving ? '#B8CDD8' : '#FFFFFF', fontSize: '14px', fontWeight: 800, cursor: bulkSel.size === 0 || bulkSaving ? 'not-allowed' : 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}
+                      style={{ marginTop: '12px', width: '100%', padding: '12px', borderRadius: '10px', border: 'none', background: bulkSel.size === 0 || bulkSaving ? 'var(--border)' : bulkToolDef.color, color: bulkSel.size === 0 || bulkSaving ? 'var(--ink4)' : 'var(--card)', fontSize: '14px', fontWeight: 800, cursor: bulkSel.size === 0 || bulkSaving ? 'not-allowed' : 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}
                     >
                       {bulkSaving ? (
                         <>
-                          <div style={{ width: '14px', height: '14px', border: '2px solid rgba(255,255,255,0.3)', borderTopColor: '#FFFFFF', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />
+                          <div style={{ width: '14px', height: '14px', border: '2px solid rgba(255,255,255,0.3)', borderTopColor: 'var(--card)', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />
                           Granting…
                         </>
                       ) : bulkSel.size > 0 ? (
@@ -4747,8 +4761,8 @@ export default function AdminPage() {
 
               {/* Footer — This Person tab only */}
               {permTab === 'person' && (
-                <div style={{ padding: '16px 24px', borderTop: '1px solid #DDE8EE', flexShrink: 0 }}>
-                  <button onClick={() => setPermOpen(false)} style={{ width: '100%', padding: '12px', borderRadius: '10px', border: 'none', background: '#00897B', color: '#FFFFFF', fontSize: '14px', fontWeight: 800, cursor: 'pointer', fontFamily: 'inherit' }}>
+                <div style={{ padding: '16px 24px', borderTop: '1px solid var(--border)', flexShrink: 0 }}>
+                  <button onClick={() => setPermOpen(false)} style={{ width: '100%', padding: '12px', borderRadius: '10px', border: 'none', background: 'var(--teal-mid)', color: 'var(--teal-light)', fontSize: '14px', fontWeight: 800, cursor: 'pointer', fontFamily: 'inherit' }}>
                     Done
                   </button>
                 </div>

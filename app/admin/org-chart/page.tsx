@@ -4,16 +4,15 @@ import { useState, useEffect, useMemo, useCallback } from 'react'
 import Link from 'next/link'
 
 const C = {
-  bg:      '#F6F8FB',
-  surface: '#FFFFFF',
-  border:  '#DDE8EE',
-  text:    '#0F1923',
-  muted:   '#5B7080',
-  teal:    '#00897B',
-  amber:   '#D97706',
-  red:     '#DC2626',
-  purple:  '#6C54B5',
-  blue:    '#1565C0',
+  bg:      'var(--surface)',
+  surface: 'var(--card)',
+  border:  'var(--border)',
+  text:    'var(--ink)',
+  muted:   'var(--ink3)',
+  teal:    'var(--teal-mid)',
+  amber:   'var(--amber)',
+  purple:  'var(--purple)',
+  blue:    'var(--info)',
 }
 
 const OFFICE_COLOR: Record<string, string> = {
@@ -25,12 +24,14 @@ const OFFICE_COLOR: Record<string, string> = {
 const OFFICE_LABEL: Record<string, string> = {
   dubai: 'Dubai', bangalore: 'Bangalore', mangalore: 'Mangalore', manipal: 'Manipal',
 }
+// NOTE: brightened vs. the original light-theme hexes to clear 4.5:1 contrast
+// against the dark card background (#142330) — see contrast pass, Jul 2026.
 const LEVEL_COLOR: Record<string, string> = {
-  super_admin: '#7C3AED',
-  office_head: '#DC2626',
+  super_admin: '#A172F2',
+  office_head: '#E55F5F',
   dept_head:   '#D97706',
-  team_lead:   '#1565C0',
-  staff:       '#5B7080',
+  team_lead:   '#3D8EEA',
+  staff:       '#5591BE',
 }
 const LEVEL_LABEL: Record<string, string> = {
   super_admin: 'Super Admin',
@@ -213,7 +214,7 @@ function DetailPanel({
         <LevelBadge level={person.job_level} />
         <OfficeBadge office={person.office_id} />
         {person.department && (
-          <span style={{ fontSize: '10px', fontWeight: 600, padding: '2px 7px', borderRadius: '6px', background: '#F0F4F8', color: C.muted }}>
+          <span style={{ fontSize: '10px', fontWeight: 600, padding: '2px 7px', borderRadius: '6px', background: 'var(--border-light)', color: C.muted }}>
             {person.department}
           </span>
         )}
@@ -250,9 +251,9 @@ function DetailPanel({
           display: 'flex', alignItems: 'center', gap: '8px',
           paddingLeft: chain.length * 12,
           padding: '6px 10px',
-          background: C.teal + '10',
+          background: 'color-mix(in srgb, ' + C.teal + ' 6%, transparent)',
           borderRadius: '8px',
-          border: `1.5px solid ${C.teal}30`,
+          border: `1.5px solid ${'color-mix(in srgb, ' + (C.teal) + ' 19%, transparent)'}`,
           marginTop: chain.length > 0 ? '0' : '0',
           marginBottom: reports.length > 0 ? '0' : '0',
         }}>
@@ -262,7 +263,7 @@ function DetailPanel({
             <div style={{ fontSize: '10px', color: C.muted }}>{person.role ?? LEVEL_LABEL[person.job_level]}</div>
           </div>
           {reports.length > 0 && (
-            <span style={{ fontSize: '10px', fontWeight: 700, color: C.teal, background: C.teal + '15', padding: '2px 6px', borderRadius: '6px' }}>
+            <span style={{ fontSize: '10px', fontWeight: 700, color: C.teal, background: 'color-mix(in srgb, ' + C.teal + ' 8%, transparent)', padding: '2px 6px', borderRadius: '6px' }}>
               {reports.length} reports
             </span>
           )}
@@ -274,7 +275,7 @@ function DetailPanel({
             <div style={{ width: '2px', height: '12px', background: C.border, marginLeft: chain.length * 12 + 9 + 13 }} />
             <div style={{ paddingLeft: (chain.length + 1) * 12 + 4, display: 'flex', flexDirection: 'column', gap: '4px' }}>
               {reports.map(r => (
-                <div key={r.id} style={{ display: 'flex', alignItems: 'center', gap: '7px', padding: '5px 8px', borderRadius: '7px', background: '#FAFBFC', border: `1px solid ${C.border}` }}>
+                <div key={r.id} style={{ display: 'flex', alignItems: 'center', gap: '7px', padding: '5px 8px', borderRadius: '7px', background: 'var(--surface)', border: `1px solid ${C.border}` }}>
                   <Avatar name={r.name} level={r.job_level} size={22} />
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ fontSize: '11px', fontWeight: 700, color: C.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.name}</div>
@@ -304,7 +305,7 @@ function DetailPanel({
                 <div key={t.key} style={{
                   display: 'flex', alignItems: 'center', gap: '10px',
                   padding: '8px 10px', borderRadius: '8px',
-                  background: on ? t.color + '08' : '#FAFBFC',
+                  background: on ? t.color + '08' : 'var(--surface)',
                   border: `1px solid ${on ? t.color + '30' : C.border}`,
                   transition: 'all 0.12s',
                 }}>
@@ -431,7 +432,7 @@ function DirectoryView({
             <div key={dept} style={{ marginTop: '16px', border: `1px solid ${C.border}`, borderRadius: '10px', overflow: 'hidden', background: C.surface }}>
               <button onClick={() => toggleDept(dept)} style={{
                 width: '100%', textAlign: 'left', padding: '10px 16px',
-                background: '#F0F4F8', border: 'none', borderBottom: isCollapsed ? 'none' : `1px solid ${C.border}`,
+                background: 'var(--surface)', border: 'none', borderBottom: isCollapsed ? 'none' : `1px solid ${C.border}`,
                 cursor: 'pointer', fontFamily: 'inherit',
                 display: 'flex', alignItems: 'center', gap: '8px',
               }}>
@@ -446,7 +447,7 @@ function DirectoryView({
               {!isCollapsed && (
                 <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                   <thead>
-                    <tr style={{ background: '#FAFBFC' }}>
+                    <tr style={{ background: 'var(--surface)' }}>
                       <th style={thStyle}>Name</th>
                       <th style={thStyle}>Role</th>
                       <th style={thStyle}>Level</th>
@@ -465,9 +466,9 @@ function DirectoryView({
                           onClick={() => onSelect(s)}
                           style={{
                             borderTop: `1px solid ${C.border}`,
-                            background: isSelected ? C.teal + '08' : i % 2 === 0 ? C.surface : '#FAFBFC',
+                            background: isSelected ? 'color-mix(in srgb, ' + C.teal + ' 3%, transparent)' : i % 2 === 0 ? C.surface : 'var(--surface)',
                             cursor: 'pointer',
-                            outline: isSelected ? `2px solid ${C.teal}40` : 'none',
+                            outline: isSelected ? `2px solid ${'color-mix(in srgb, ' + (C.teal) + ' 25%, transparent)'}` : 'none',
                             outlineOffset: '-1px',
                             transition: 'background 0.1s',
                           }}
@@ -646,7 +647,7 @@ function HierarchyView({
                 paddingTop: 5, paddingBottom: 5, paddingRight: 12,
                 paddingLeft: indent + 4,
                 borderRadius: '7px',
-                background:   isSelected ? C.teal + '10' : 'transparent',
+                background:   isSelected ? 'color-mix(in srgb, ' + C.teal + ' 6%, transparent)' : 'transparent',
                 borderLeft:   isSelected ? `2px solid ${C.teal}` : '2px solid transparent',
                 marginBottom: '1px',
                 cursor: 'pointer',
@@ -769,7 +770,7 @@ export default function OrgChartPage() {
           <div style={{ flex: 1 }} />
 
           {/* View toggle */}
-          <div style={{ display: 'flex', gap: '2px', background: '#F0F4F8', borderRadius: '8px', padding: '3px' }}>
+          <div style={{ display: 'flex', gap: '2px', background: 'var(--surface)', borderRadius: '8px', padding: '3px' }}>
             {(['directory', 'hierarchy'] as const).map(v => (
               <button key={v} onClick={() => setView(v)} style={{
                 padding: '4px 12px', borderRadius: '6px', border: 'none', cursor: 'pointer',
@@ -783,7 +784,7 @@ export default function OrgChartPage() {
             ))}
           </div>
 
-          <div style={{ display: 'flex', alignItems: 'center', gap: '5px', padding: '4px 10px', background: C.teal + '12', borderRadius: '8px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '5px', padding: '4px 10px', background: 'color-mix(in srgb, ' + C.teal + ' 7%, transparent)', borderRadius: '8px' }}>
             <svg width="12" height="12" fill="none" stroke={C.teal} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24">
               <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/>
               <path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>

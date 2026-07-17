@@ -1,7 +1,10 @@
 'use client'
 
 // Shared styles + tiny components used across the deck-management tabs.
-export const BRAND = '#8B1A1A'
+// Kept as a literal hex (not var(--red)) because several consumers
+// concatenate an alpha suffix at runtime (e.g. `${BRAND}12`) — that only
+// works against a raw hex string. Value mirrors var(--red) exactly.
+export const BRAND = '#F1667A'
 
 export function Badge({ color, bg, children }: { color: string; bg: string; children: React.ReactNode }) {
   return (
@@ -14,11 +17,11 @@ export function Badge({ color, bg, children }: { color: string; bg: string; chil
 export function Card({ children, style }: { children: React.ReactNode; style?: React.CSSProperties }) {
   return (
     <section style={{
-      background: '#fff',
-      border: '1px solid #DDE8EE',
+      background: 'var(--card)',
+      border: '1px solid var(--border)',
       borderRadius: '20px',
       padding: '28px',
-      boxShadow: '0 2px 16px rgba(0,0,0,0.04)',
+      boxShadow: 'var(--shadow-sm)',
       ...style,
     }}>
       {children}
@@ -28,7 +31,7 @@ export function Card({ children, style }: { children: React.ReactNode; style?: R
 
 export function SectionLabel({ children }: { children: React.ReactNode }) {
   return (
-    <div style={{ fontSize: '11px', fontWeight: 800, color: '#B8CDD8', letterSpacing: '2px', textTransform: 'uppercase' }}>
+    <div style={{ fontSize: '11px', fontWeight: 800, color: 'var(--ink4)', letterSpacing: '2px', textTransform: 'uppercase' }}>
       {children}
     </div>
   )
@@ -36,7 +39,7 @@ export function SectionLabel({ children }: { children: React.ReactNode }) {
 
 export function H2({ children, style }: { children: React.ReactNode; style?: React.CSSProperties }) {
   return (
-    <div style={{ fontSize: '18px', fontWeight: 900, color: '#0F1923', marginTop: '4px', ...style }}>
+    <div style={{ fontSize: '18px', fontWeight: 900, color: 'var(--ink)', marginTop: '4px', ...style }}>
       {children}
     </div>
   )
@@ -44,7 +47,7 @@ export function H2({ children, style }: { children: React.ReactNode; style?: Rea
 
 export function ErrorBox({ children }: { children: React.ReactNode }) {
   return (
-    <div style={{ marginTop: '14px', padding: '10px 14px', borderRadius: '10px', background: '#FFF4F4', border: '1px solid #FBCACA', color: '#C2410C', fontSize: '12px', fontWeight: 700 }}>
+    <div style={{ marginTop: '14px', padding: '10px 14px', borderRadius: '10px', background: 'var(--red-light)', border: '1px solid var(--red-border)', color: 'var(--red)', fontSize: '12px', fontWeight: 700 }}>
       {children}
     </div>
   )
@@ -61,8 +64,8 @@ export function PrimaryButton({ children, onClick, disabled, style }: {
       onClick={onClick}
       disabled={disabled}
       style={{
-        background: disabled ? '#EEF3F7' : BRAND,
-        color: disabled ? '#94A3B8' : '#fff',
+        background: disabled ? 'var(--border-light)' : BRAND,
+        color: disabled ? 'var(--ink4)' : 'var(--red-light)',
         border: 'none',
         borderRadius: '10px',
         padding: '11px 22px',
@@ -88,8 +91,8 @@ export function GhostButton({ children, onClick, style }: {
       onClick={onClick}
       style={{
         background: 'transparent',
-        color: '#0F1923',
-        border: '1px solid #DDE8EE',
+        color: 'var(--ink)',
+        border: '1px solid var(--border)',
         borderRadius: '10px',
         padding: '10px 18px',
         fontSize: '12px',
@@ -108,10 +111,10 @@ export const inputStyle: React.CSSProperties = {
   width: '100%',
   padding: '11px 14px',
   borderRadius: '10px',
-  border: '1px solid #DDE8EE',
+  border: '1px solid var(--border)',
   fontSize: '13px',
   fontFamily: 'inherit',
-  color: '#0F1923',
+  color: 'var(--ink)',
   outline: 'none',
   boxSizing: 'border-box',
 }

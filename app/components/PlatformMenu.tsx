@@ -83,16 +83,16 @@ export default function PlatformMenu({ staffId }: PlatformMenuProps) {
         title="Platform menu"
         style={{
           width: '36px', height: '36px', borderRadius: '9px',
-          background: '#FFFFFF', border: '1px solid #DDE8EE',
+          background: 'var(--card)', border: '1px solid var(--border)',
           display: 'flex', alignItems: 'center', justifyContent: 'center',
           cursor: 'pointer', flexShrink: 0,
         }}
       >
         <svg width="15" height="15" viewBox="0 0 15 15" fill="none">
-          <rect x="1" y="1" width="5" height="5" rx="1" fill="#00A5A3"/>
-          <rect x="9" y="1" width="5" height="5" rx="1" fill="#00A5A3"/>
-          <rect x="1" y="9" width="5" height="5" rx="1" fill="#00A5A3"/>
-          <rect x="9" y="9" width="5" height="5" rx="1" fill="#00A5A3"/>
+          <rect x="1" y="1" width="5" height="5" rx="1" fill="var(--teal-mid)"/>
+          <rect x="9" y="1" width="5" height="5" rx="1" fill="var(--teal-mid)"/>
+          <rect x="1" y="9" width="5" height="5" rx="1" fill="var(--teal-mid)"/>
+          <rect x="9" y="9" width="5" height="5" rx="1" fill="var(--teal-mid)"/>
         </svg>
       </button>
 
@@ -112,22 +112,22 @@ export default function PlatformMenu({ staffId }: PlatformMenuProps) {
             onClick={e => e.stopPropagation()}
             style={{
               width: '100%', maxWidth: '860px', margin: '0 16px',
-              background: '#FFFFFF', border: '1px solid #DDE8EE',
+              background: 'var(--card)', border: '1px solid var(--border)',
               borderRadius: '16px', overflow: 'hidden',
               maxHeight: 'calc(100vh - 120px)', overflowY: 'auto',
             }}
           >
             {/* Header */}
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '20px 24px', borderBottom: '1px solid #DDE8EE' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '20px 24px', borderBottom: '1px solid var(--border)' }}>
               <div>
-                <div style={{ fontSize: '13px', fontWeight: 800, color: '#0F1923' }}>Event Pilot Platform</div>
-                <div style={{ fontSize: '13px', color: '#5B7080', marginTop: '2px' }}>Your workspace — everything you have access to</div>
+                <div style={{ fontSize: '13px', fontWeight: 800, color: 'var(--ink)' }}>Event Pilot Platform</div>
+                <div style={{ fontSize: '13px', color: 'var(--ink3)', marginTop: '2px' }}>Your workspace — everything you have access to</div>
               </div>
               <button
                 onClick={close}
-                style={{ width: '32px', height: '32px', borderRadius: '8px', background: '#FFFFFF', border: '1px solid #DDE8EE', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}
+                style={{ width: '32px', height: '32px', borderRadius: '8px', background: 'var(--card)', border: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}
               >
-                <svg width="14" height="14" fill="none" stroke="#2A3038" strokeWidth="2.5" strokeLinecap="round" viewBox="0 0 24 24">
+                <svg width="14" height="14" fill="none" stroke="var(--ink)" strokeWidth="2.5" strokeLinecap="round" viewBox="0 0 24 24">
                   <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
                 </svg>
               </button>
@@ -136,10 +136,10 @@ export default function PlatformMenu({ staffId }: PlatformMenuProps) {
             {/* Sections */}
             <div style={{ padding: '20px 24px 28px' }}>
               {!loaded ? (
-                <div style={{ textAlign: 'center', padding: '40px', color: '#9CA3AF', fontSize: '14px' }}>Loading…</div>
+                <div style={{ textAlign: 'center', padding: '40px', color: 'var(--ink4)', fontSize: '14px' }}>Loading…</div>
               ) : sections.map(section => (
                 <div key={section.heading} style={{ marginBottom: '28px' }}>
-                  <div style={{ fontSize: '11px', fontWeight: 800, letterSpacing: '2px', textTransform: 'uppercase', color: '#9CA3AF', marginBottom: '12px' }}>
+                  <div style={{ fontSize: '11px', fontWeight: 800, letterSpacing: '2px', textTransform: 'uppercase', color: 'var(--ink4)', marginBottom: '12px' }}>
                     {section.heading}
                   </div>
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '10px' }}>
@@ -174,8 +174,8 @@ export default function PlatformMenu({ staffId }: PlatformMenuProps) {
                           }}
                         >
                           <div style={{ color: item.color, marginBottom: '10px' }}>{item.icon}</div>
-                          <div style={{ fontSize: '13px', fontWeight: 700, color: '#0F1923', marginBottom: '4px' }}>{item.title}</div>
-                          <div style={{ fontSize: '12px', color: '#6B7280', lineHeight: 1.6 }}>{item.description}</div>
+                          <div style={{ fontSize: '13px', fontWeight: 700, color: 'var(--ink)', marginBottom: '4px' }}>{item.title}</div>
+                          <div style={{ fontSize: '12px', color: 'var(--ink3)', lineHeight: 1.6 }}>{item.description}</div>
                         </div>
                       </Link>
                     ))}

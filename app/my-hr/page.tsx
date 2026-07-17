@@ -4,18 +4,25 @@ import { useState, useEffect } from 'react'
 import { NotificationBell } from '@/app/components/NavBar'
 import PageHeader from '@/app/components/PageHeader'
 
-/* ── Design tokens ─────────────────────────────────────────── */
-const BG     = '#F8FAFB'
-const DARK   = '#0F1923'
-const MUTED  = '#6B7280'
-const SUB    = '#5B7080'
-const BORDER = '#DDE8EE'
-const TEAL   = '#00A5A3'
-const PURPLE = '#7C3AED'
-const AMBER  = '#D97706'
-const GREEN  = '#059669'
-const RED    = '#DC2626'
-const INDIGO = '#6366F1'
+/* ── Design tokens ─────────────────────────────────────────────────────
+   DARK/SUB/BORDER/BG/PURPLE are never alpha-suffixed and never flow into
+   Badge()'s `${color}NN` concatenation below, so they hold var() strings
+   directly. TEAL/GREEN/RED/AMBER/INDIGO/MUTED all do get alpha-suffixed
+   (directly, or indirectly via statusColor()/Badge()'s generic `color`
+   prop), so they stay literal hex — kept in sync with their matching
+   token's value by hand. GREEN here means "status positive" (present/
+   approved), distinct from the brand TEAL used for tabs/buttons/icons. */
+const BG     = 'var(--surface)'
+const DARK   = 'var(--ink)'
+const MUTED  = '#7E93A1'   // == var(--ink3)
+const SUB    = 'var(--ink3)'
+const BORDER = 'var(--border)'
+const TEAL   = '#12C9BD'   // == var(--teal-mid)
+const PURPLE = 'var(--purple)'
+const AMBER  = '#F5B94D'   // == var(--amber)
+const GREEN  = '#34D399'   // == var(--success)
+const RED    = '#F1667A'   // == var(--red)
+const INDIGO = '#818CF8'   // == var(--indigo)
 
 /* ── Types ─────────────────────────────────────────────────── */
 type LeaveBalance = {
@@ -47,7 +54,7 @@ function statusColor(s: string) {
   if (s === 'approved' || s === 'present') return GREEN
   if (s === 'rejected' || s === 'absent')  return RED
   if (s === 'pending')                     return AMBER
-  if (s === 'late')                        return '#F59E0B'
+  if (s === 'late')                        return AMBER
   if (s === 'leave')                       return INDIGO
   return MUTED
 }
@@ -63,7 +70,7 @@ function Badge({ label, color }: { label: string; color: string }) {
 }
 function Card({ children, style }: { children: React.ReactNode; style?: React.CSSProperties }) {
   return (
-    <div style={{ background: '#FFFFFF', border: `1px solid ${BORDER}`, borderRadius: '14px', ...style }}>
+    <div style={{ background: 'var(--card)', border: `1px solid ${BORDER}`, borderRadius: '14px', ...style }}>
       {children}
     </div>
   )
@@ -82,12 +89,12 @@ function BalanceCard({ b }: { b: LeaveBalance }) {
   const pct = b.entitled_days > 0 ? Math.round((b.used_days / b.entitled_days) * 100) : 0
   const color = available <= 2 ? RED : available <= 5 ? AMBER : TEAL
   return (
-    <div style={{ background: '#FFFFFF', border: `1.5px solid ${color}25`, borderRadius: '12px', borderTop: `3px solid ${color}`, padding: '16px 18px' }}>
+    <div style={{ background: 'var(--card)', border: `1.5px solid ${color}25`, borderRadius: '12px', borderTop: `3px solid ${color}`, padding: '16px 18px' }}>
       <div style={{ fontSize: '13px', fontWeight: 800, color: DARK, marginBottom: '2px' }}>{b.leave_type?.name ?? 'Leave'}</div>
       <div style={{ fontSize: '11px', color: MUTED, marginBottom: '14px' }}>{b.leave_type?.is_paid ? 'Paid' : 'Unpaid'} · {b.year}</div>
       <div style={{ fontSize: '32px', fontWeight: 900, color, lineHeight: 1, marginBottom: '4px' }}>{available}</div>
       <div style={{ fontSize: '12px', color: MUTED, marginBottom: '12px' }}>days available</div>
-      <div style={{ height: '4px', borderRadius: '4px', background: '#F3F4F6', overflow: 'hidden' }}>
+      <div style={{ height: '4px', borderRadius: '4px', background: 'var(--border-light)', overflow: 'hidden' }}>
         <div style={{ height: '100%', width: `${Math.min(pct, 100)}%`, background: color, borderRadius: '4px', transition: 'width 0.5s' }} />
       </div>
       <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '6px' }}>
@@ -219,7 +226,7 @@ export default function MyHRPage() {
       <PageHeader title="My HR" actions={<NotificationBell />} />
 
       {/* Page header */}
-      <div style={{ background: '#FFFFFF', borderBottom: `1px solid ${BORDER}`, padding: '20px 32px' }}>
+      <div style={{ background: 'var(--card)', borderBottom: `1px solid ${BORDER}`, padding: '20px 32px' }}>
         <div style={{ maxWidth: '960px', margin: '0 auto' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '14px', marginBottom: '16px' }}>
             <div style={{ width: '44px', height: '44px', borderRadius: '12px', background: `${TEAL}12`, border: `1.5px solid ${TEAL}30`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -240,15 +247,15 @@ export default function MyHRPage() {
                 style={{ padding: '8px 16px', borderRadius: '8px', border: 'none', cursor: 'pointer', fontFamily: 'inherit',
                   fontSize: '13px', fontWeight: tab === t.id ? 700 : 500,
                   background: tab === t.id ? TEAL : 'transparent',
-                  color: tab === t.id ? '#FFFFFF' : MUTED,
+                  color: tab === t.id ? 'var(--teal-light)' : MUTED,
                   transition: 'all 0.12s',
                 }}>
                 {t.label}
                 {t.id === 'leave' && pendingRequests > 0 && (
-                  <span style={{ marginLeft: '6px', fontSize: '10px', fontWeight: 800, background: AMBER, color: '#FFFFFF', padding: '1px 5px', borderRadius: '10px' }}>{pendingRequests}</span>
+                  <span style={{ marginLeft: '6px', fontSize: '10px', fontWeight: 800, background: AMBER, color: 'var(--amber-light)', padding: '1px 5px', borderRadius: '10px' }}>{pendingRequests}</span>
                 )}
                 {t.id === 'events' && openTasks > 0 && (
-                  <span style={{ marginLeft: '6px', fontSize: '10px', fontWeight: 800, background: INDIGO, color: '#FFFFFF', padding: '1px 5px', borderRadius: '10px' }}>{openTasks}</span>
+                  <span style={{ marginLeft: '6px', fontSize: '10px', fontWeight: 800, background: INDIGO, color: 'var(--indigo-light)', padding: '1px 5px', borderRadius: '10px' }}>{openTasks}</span>
                 )}
               </button>
             ))}
@@ -269,7 +276,7 @@ export default function MyHRPage() {
                 { label: 'Open Event Tasks',     value: openTasks,       sub: 'across your events',     color: INDIGO, icon: <svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" viewBox="0 0 24 24"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg> },
                 { label: 'Events Assigned',      value: eventGroups.length, sub: 'you are working on',  color: PURPLE, icon: <svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/></svg> },
               ].map(s => (
-                <div key={s.label} style={{ background: '#FFFFFF', border: `1px solid ${BORDER}`, borderRadius: '12px', borderLeft: `4px solid ${s.color}`, padding: '16px 18px' }}>
+                <div key={s.label} style={{ background: 'var(--card)', border: `1px solid ${BORDER}`, borderRadius: '12px', borderLeft: `4px solid ${s.color}`, padding: '16px 18px' }}>
                   <div style={{ color: s.color, marginBottom: '10px' }}>{s.icon}</div>
                   <div style={{ fontSize: '32px', fontWeight: 900, color: DARK, lineHeight: 1 }}>{s.value}</div>
                   <div style={{ fontSize: '13px', fontWeight: 700, color: DARK, marginTop: '4px' }}>{s.label}</div>
@@ -369,7 +376,7 @@ export default function MyHRPage() {
             {/* Submit request */}
             <div style={{ marginBottom: '28px' }}>
               {!showForm ? (
-                <button onClick={() => setShowForm(true)} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '11px 20px', background: TEAL, color: '#FFFFFF', border: 'none', borderRadius: '10px', fontSize: '13px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
+                <button onClick={() => setShowForm(true)} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '11px 20px', background: TEAL, color: 'var(--teal-light)', border: 'none', borderRadius: '10px', fontSize: '13px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
                   <svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
                   Request Leave
                 </button>
@@ -397,10 +404,10 @@ export default function MyHRPage() {
                     <textarea value={reason} onChange={e => setReason(e.target.value)} rows={2} placeholder="Briefly describe your reason…" style={{ width: '100%', padding: '9px 12px', borderRadius: '8px', border: `1px solid ${BORDER}`, fontSize: '13px', fontFamily: 'inherit', color: DARK, resize: 'vertical', boxSizing: 'border-box' as const }} />
                   </div>
                   <div style={{ display: 'flex', gap: '10px' }}>
-                    <button onClick={submitLeave} disabled={submitting} style={{ padding: '10px 20px', background: TEAL, color: '#FFFFFF', border: 'none', borderRadius: '9px', fontSize: '13px', fontWeight: 700, cursor: submitting ? 'not-allowed' : 'pointer', fontFamily: 'inherit', opacity: submitting ? 0.7 : 1 }}>
+                    <button onClick={submitLeave} disabled={submitting} style={{ padding: '10px 20px', background: TEAL, color: 'var(--teal-light)', border: 'none', borderRadius: '9px', fontSize: '13px', fontWeight: 700, cursor: submitting ? 'not-allowed' : 'pointer', fontFamily: 'inherit', opacity: submitting ? 0.7 : 1 }}>
                       {submitting ? 'Submitting…' : 'Submit Request'}
                     </button>
-                    <button onClick={() => setShowForm(false)} style={{ padding: '10px 20px', background: '#F3F4F6', color: MUTED, border: 'none', borderRadius: '9px', fontSize: '13px', fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>
+                    <button onClick={() => setShowForm(false)} style={{ padding: '10px 20px', background: 'var(--card-hi)', color: MUTED, border: 'none', borderRadius: '9px', fontSize: '13px', fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>
                       Cancel
                     </button>
                   </div>
@@ -417,7 +424,7 @@ export default function MyHRPage() {
                 <div style={{ overflowX: 'auto' }}>
                   <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                     <thead>
-                      <tr style={{ background: '#F8FAFB', borderBottom: `1px solid ${BORDER}` }}>
+                      <tr style={{ background: 'var(--border-light)', borderBottom: `1px solid ${BORDER}` }}>
                         {['Type', 'Dates', 'Days', 'Reason', 'Status', 'Note'].map(h => (
                           <th key={h} style={{ padding: '10px 16px', textAlign: 'left', fontSize: '10px', fontWeight: 700, letterSpacing: '1px', textTransform: 'uppercase', color: MUTED, whiteSpace: 'nowrap' }}>{h}</th>
                         ))}
@@ -425,7 +432,7 @@ export default function MyHRPage() {
                     </thead>
                     <tbody>
                       {requests.map((r, i) => (
-                        <tr key={r.id} style={{ borderBottom: i < requests.length - 1 ? `1px solid #F3F4F6` : 'none' }}>
+                        <tr key={r.id} style={{ borderBottom: i < requests.length - 1 ? `1px solid var(--border-light)` : 'none' }}>
                           <td style={{ padding: '12px 16px', fontSize: '13px', fontWeight: 600, color: DARK, whiteSpace: 'nowrap' }}>{r.leave_type?.name ?? '—'}</td>
                           <td style={{ padding: '12px 16px', fontSize: '13px', color: SUB, whiteSpace: 'nowrap' }}>{fmt(r.start_date)} – {fmt(r.end_date)}</td>
                           <td style={{ padding: '12px 16px', fontSize: '13px', color: DARK, fontWeight: 700 }}>{r.total_days}d</td>
@@ -473,7 +480,7 @@ export default function MyHRPage() {
                         <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexShrink: 0 }}>
                           <div style={{ textAlign: 'right' }}>
                             <div style={{ fontSize: '11px', color: MUTED, marginBottom: '4px' }}>{done}/{total} tasks done</div>
-                            <div style={{ width: '100px', height: '4px', borderRadius: '4px', background: '#F3F4F6' }}>
+                            <div style={{ width: '100px', height: '4px', borderRadius: '4px', background: 'var(--border-light)' }}>
                               <div style={{ height: '100%', width: `${pct}%`, background: pct === 100 ? GREEN : TEAL, borderRadius: '4px', transition: 'width 0.4s' }} />
                             </div>
                           </div>
@@ -483,7 +490,7 @@ export default function MyHRPage() {
                       {/* Tasks */}
                       <div style={{ padding: '6px 0' }}>
                         {items.map((item, i) => (
-                          <div key={item.id} style={{ display: 'flex', alignItems: 'center', gap: '14px', padding: '11px 22px', borderBottom: i < items.length - 1 ? `1px solid #F9FAFB` : 'none' }}>
+                          <div key={item.id} style={{ display: 'flex', alignItems: 'center', gap: '14px', padding: '11px 22px', borderBottom: i < items.length - 1 ? `1px solid var(--border-light)` : 'none' }}>
                             <div style={{ width: '18px', height: '18px', borderRadius: '50%', border: `2px solid ${item.status === 'completed' ? GREEN : BORDER}`, background: item.status === 'completed' ? `${GREEN}15` : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
                               {item.status === 'completed' && (
                                 <svg width="9" height="9" fill="none" stroke={GREEN} strokeWidth="2.5" strokeLinecap="round" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>
@@ -573,7 +580,7 @@ export default function MyHRPage() {
                     { label: 'On Leave',    value: onLeave,           color: INDIGO },
                     { label: 'Total Hours', value: `${totalHrs.toFixed(1)}h`, color: TEAL },
                   ].map(s => (
-                    <div key={s.label} style={{ background: '#FFFFFF', border: `1px solid ${BORDER}`, borderRadius: '10px', padding: '14px 16px', textAlign: 'center' }}>
+                    <div key={s.label} style={{ background: 'var(--card)', border: `1px solid ${BORDER}`, borderRadius: '10px', padding: '14px 16px', textAlign: 'center' }}>
                       <div style={{ fontSize: '24px', fontWeight: 900, color: s.color, lineHeight: 1 }}>{s.value}</div>
                       <div style={{ fontSize: '11px', color: MUTED, marginTop: '4px', fontWeight: 600 }}>{s.label}</div>
                     </div>
@@ -591,7 +598,7 @@ export default function MyHRPage() {
                 <div style={{ overflowX: 'auto' }}>
                   <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                     <thead>
-                      <tr style={{ background: '#F8FAFB', borderBottom: `1px solid ${BORDER}` }}>
+                      <tr style={{ background: 'var(--border-light)', borderBottom: `1px solid ${BORDER}` }}>
                         {['Date', 'Status', 'Clock In', 'Clock Out', 'Hours', 'Notes'].map(h => (
                           <th key={h} style={{ padding: '9px 16px', textAlign: 'left', fontSize: '10px', fontWeight: 700, letterSpacing: '1px', textTransform: 'uppercase', color: MUTED, whiteSpace: 'nowrap' }}>{h}</th>
                         ))}
@@ -599,7 +606,7 @@ export default function MyHRPage() {
                     </thead>
                     <tbody>
                       {attendance.slice().sort((a, b) => b.date.localeCompare(a.date)).map((a, i) => (
-                        <tr key={a.id} style={{ borderBottom: i < attendance.length - 1 ? `1px solid #F3F4F6` : 'none' }}>
+                        <tr key={a.id} style={{ borderBottom: i < attendance.length - 1 ? `1px solid var(--border-light)` : 'none' }}>
                           <td style={{ padding: '11px 16px', fontSize: '13px', color: DARK, fontWeight: 500, whiteSpace: 'nowrap' }}>{fmt(a.date)}</td>
                           <td style={{ padding: '11px 16px', whiteSpace: 'nowrap' }}><Badge label={statusLabel(a.status)} color={statusColor(a.status)} /></td>
                           <td style={{ padding: '11px 16px', fontSize: '13px', color: SUB }}>{a.clock_in ?? '—'}</td>

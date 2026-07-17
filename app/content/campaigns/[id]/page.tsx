@@ -16,15 +16,21 @@ type Campaign = {
   events: { id: string; name: string; city: string; event_date: string | null } | null
 }
 
+// Literal hex (not var) -- platform brand colors, concatenated with alpha
+// suffixes at runtime everywhere they're consumed (`${pc}18`, `${pc}40`,
+// etc.), which a CSS var can't support. Brightened vs. the old light-theme
+// brand hexes so each still clears ~4:1+ as text against the new dark card
+// (#142330). The '#888' fallback below is likewise kept literal for the
+// same reason.
 const PLATFORM_COLOR: Record<string, string> = {
-  LinkedIn: '#0A66C2', Instagram: '#E1306C', Facebook: '#1877F2',
-  Twitter: '#1D9BF0', YouTube: '#FF0000',
+  LinkedIn: '#258CF4', Instagram: '#E75888', Facebook: '#3A8BF4',
+  Twitter: '#1D9BF0', YouTube: '#FF4242',
 }
 const STATUS_CFG: Record<string, { label: string; color: string; bg: string }> = {
-  planned:   { label: 'Planned',   color: '#2D3E50', bg: '#FFFFFF' },
-  generated: { label: 'Generated', color: '#92400E',               bg: 'rgba(245,158,11,0.12)'  },
-  approved:  { label: 'Approved',  color: '#3D6B00',               bg: 'rgba(192,244,60,0.12)'  },
-  posted:    { label: 'Posted',    color: '#00695C',               bg: 'rgba(0,165,163,0.12)'   },
+  planned:   { label: 'Planned',   color: 'var(--ink3)', bg: 'var(--border-light)' },
+  generated: { label: 'Generated', color: 'var(--amber)',               bg: 'rgba(245,158,11,0.12)'  },
+  approved:  { label: 'Approved',  color: 'var(--lime)',               bg: 'rgba(192,244,60,0.12)'  },
+  posted:    { label: 'Posted',    color: 'var(--teal)',               bg: 'rgba(0,165,163,0.12)'   },
 }
 const NARRATIVE_ROLES = ['Awareness', 'Speaker', 'Sponsor', 'Countdown', 'Live', 'Testimonial', 'Recap', 'CTA']
 
@@ -230,15 +236,15 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
   }
 
   if (loading) return (
-    <div style={{ minHeight: '100vh', background: '#E8EEF4', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#0F1923', fontSize: '13px' }}>
+    <div style={{ minHeight: '100vh', background: 'var(--surface)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--ink)', fontSize: '13px' }}>
       Loading campaign…
     </div>
   )
 
   if (!campaign) return (
-    <div style={{ minHeight: '100vh', background: '#E8EEF4', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '12px' }}>
-      <div style={{ color: '#0F1923', fontSize: '13px' }}>Campaign not found.</div>
-      <Link href="/content" style={{ color: '#00695C', fontSize: '13px' }}>Back to Content Hub</Link>
+    <div style={{ minHeight: '100vh', background: 'var(--surface)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '12px' }}>
+      <div style={{ color: 'var(--ink)', fontSize: '13px' }}>Campaign not found.</div>
+      <Link href="/content" style={{ color: 'var(--teal)', fontSize: '13px' }}>Back to Content Hub</Link>
     </div>
   )
 
@@ -248,27 +254,27 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
   const postedCount     = posts.filter(p => p.status === 'posted').length
 
   return (
-    <div style={{ minHeight: '100vh', background: '#E8EEF4', color: '#0F1923', fontFamily: 'inherit' }}>
+    <div style={{ minHeight: '100vh', background: 'var(--surface)', color: 'var(--ink)', fontFamily: 'inherit' }}>
       <style>{`
         .cp-btn { padding: 10px 18px; border-radius: 8px; font-size: 20px; font-weight: 700; cursor: pointer; border: none; font-family: inherit; transition: all 0.15s; }
-        .cp-btn-teal { background: #00A5A3; color: white; }
-        .cp-btn-teal:hover { background: #00C4C2; }
-        .cp-btn-lime { background: rgba(192,244,60,0.15); color: #C0F43C; border: 1px solid rgba(192,244,60,0.3) !important; }
-        .cp-btn-red  { background: rgba(255,107,107,0.12); color: #FF6B6B; border: 1px solid rgba(255,107,107,0.25) !important; }
-        .cp-btn-ghost { background: transparent; border: 1px solid #C8DFE0 !important; color: #2A3038; }
-        .cp-btn-ghost:hover { border-color: rgba(0,165,163,0.3) !important; color: #1E2124; }
+        .cp-btn-teal { background: var(--teal-mid); color: var(--teal-light); }
+        .cp-btn-teal:hover { background: var(--teal-mid); }
+        .cp-btn-lime { background: rgba(192,244,60,0.15); color: var(--lime); border: 1px solid rgba(192,244,60,0.3) !important; }
+        .cp-btn-red  { background: rgba(255,107,107,0.12); color: var(--red); border: 1px solid rgba(255,107,107,0.25) !important; }
+        .cp-btn-ghost { background: transparent; border: 1px solid var(--border) !important; color: var(--ink2); }
+        .cp-btn-ghost:hover { border-color: rgba(0,165,163,0.3) !important; color: var(--ink); }
         .cp-btn:disabled { opacity: 0.4; cursor: not-allowed; }
-        .cp-tab { padding: 8px 18px; border-radius: 8px; font-size: 20px; font-weight: 700; cursor: pointer; border: 1px solid transparent; background: transparent; color: #2A3038; font-family: inherit; transition: all 0.15s; }
-        .cp-tab.active { background: rgba(0,165,163,0.12); color: #00A5A3; border-color: rgba(0,165,163,0.25); }
-        .post-card { background: #FFFFFF; border: 1px solid #C8DFE0; border-radius: 12px; overflow: hidden; transition: border-color 0.15s; cursor: pointer; box-shadow: 0 1px 4px rgba(0,165,163,0.06), 0 1px 2px rgba(0,0,0,0.04); }
+        .cp-tab { padding: 8px 18px; border-radius: 8px; font-size: 20px; font-weight: 700; cursor: pointer; border: 1px solid transparent; background: transparent; color: var(--ink2); font-family: inherit; transition: all 0.15s; }
+        .cp-tab.active { background: rgba(0,165,163,0.12); color: var(--teal-mid); border-color: rgba(0,165,163,0.25); }
+        .post-card { background: var(--card); border: 1px solid var(--border); border-radius: 12px; overflow: hidden; transition: border-color 0.15s; cursor: pointer; box-shadow: 0 1px 4px rgba(0,165,163,0.06), 0 1px 2px rgba(0,0,0,0.04); }
         .post-card:hover { border-color: rgba(0,165,163,0.25); }
         .spin { animation: spin 0.8s linear infinite; }
         @keyframes spin { to { transform: rotate(360deg); } }
         @keyframes shimmer { 0% { background-position: -200% 0; } 100% { background-position: 200% 0; } }
-        .inp { width: 100%; padding: 9px 12px; border-radius: 9px; border: 1px solid #C8DFE0; background: #FFFFFF; color: #1E2124; font-size: 17px; font-family: inherit; box-sizing: border-box; outline: none; }
+        .inp { width: 100%; padding: 9px 12px; border-radius: 9px; border: 1px solid var(--border); background: var(--card); color: var(--ink); font-size: 17px; font-family: inherit; box-sizing: border-box; outline: none; }
         .inp:focus { border-color: rgba(0,165,163,0.4); }
         .modal-bg { position: fixed; inset: 0; background: rgba(0,0,0,0.8); z-index: 100; display: flex; align-items: center; justify-content: center; padding: 24px; }
-        .modal-box { background: #FFFFFF; border: 1px solid #C8DFE0; border-radius: 18px; width: 100%; max-width: 680px; max-height: 90vh; overflow-y: auto; }
+        .modal-box { background: var(--card); border: 1px solid var(--border); border-radius: 18px; width: 100%; max-width: 680px; max-height: 90vh; overflow-y: auto; }
       `}</style>
 
       <PageHeader
@@ -277,14 +283,14 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
         actions={<>
           <div style={{ display: 'flex', gap: '16px' }}>
             {[
-              { label: 'Posts', val: posts.length, color: '#2D3E50' },
-              { label: 'Pending', val: pendingApproval.length, color: '#92400E' },
-              { label: 'Approved', val: approvedCount, color: '#3D6B00' },
-              { label: 'Posted', val: postedCount, color: '#00695C' },
+              { label: 'Posts', val: posts.length, color: 'var(--ink2)' },
+              { label: 'Pending', val: pendingApproval.length, color: 'var(--amber)' },
+              { label: 'Approved', val: approvedCount, color: 'var(--lime)' },
+              { label: 'Posted', val: postedCount, color: 'var(--teal)' },
             ].map(s => (
               <div key={s.label} style={{ textAlign: 'center' }}>
                 <div style={{ fontSize: '20px', fontWeight: 900, color: s.color, lineHeight: 1 }}>{s.val}</div>
-                <div style={{ fontSize: '11px', color: '#0F1923', letterSpacing: '0.8px', textTransform: 'uppercase' }}>{s.label}</div>
+                <div style={{ fontSize: '11px', color: 'var(--ink)', letterSpacing: '0.8px', textTransform: 'uppercase' }}>{s.label}</div>
               </div>
             ))}
           </div>
@@ -302,7 +308,7 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
       />
 
       {/* Tabs */}
-      <div style={{ padding: '16px 40px', borderBottom: '1px solid #C8DFE0', display: 'flex', gap: '6px' }}>
+      <div style={{ padding: '16px 40px', borderBottom: '1px solid var(--border)', display: 'flex', gap: '6px' }}>
         {([
           { key: 'weeks',     label: 'Campaign Weeks' },
           { key: 'calendar',  label: 'Calendar' },
@@ -318,17 +324,17 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
         {/* ── SCAFFOLD POSTS CTA (no posts yet) ─────────────────────────── */}
         {posts.length === 0 && planReady && (
           <div style={{ background: 'rgba(0,165,163,0.05)', border: '1px solid rgba(0,165,163,0.2)', borderRadius: '16px', padding: '28px', marginBottom: '28px' }}>
-            <div style={{ fontSize: '13px', fontWeight: 800, color: '#00695C', marginBottom: '8px' }}>Ready to build your post schedule?</div>
-            <div style={{ fontSize: '13px', color: '#2D3E50', marginBottom: '20px' }}>
+            <div style={{ fontSize: '13px', fontWeight: 800, color: 'var(--teal)', marginBottom: '8px' }}>Ready to build your post schedule?</div>
+            <div style={{ fontSize: '13px', color: 'var(--ink2)', marginBottom: '20px' }}>
               {campaign.duration_weeks} weeks · {campaign.platforms.join(', ')} · {planWeeks.reduce((acc, w) => acc + w.roles.length * campaign.platforms.length, 0)} posts planned
             </div>
             {planWeeks.map(wk => (
               <div key={wk.week} style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '8px' }}>
-                <div style={{ width: 24, height: 24, borderRadius: '50%', background: 'rgba(0,165,163,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '13px', fontWeight: 800, color: '#00695C', flexShrink: 0 }}>{wk.week}</div>
-                <div style={{ fontSize: '13px', fontWeight: 700, color: '#2D3E50', minWidth: 160 }}>{wk.theme}</div>
+                <div style={{ width: 24, height: 24, borderRadius: '50%', background: 'rgba(0,165,163,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '13px', fontWeight: 800, color: 'var(--teal)', flexShrink: 0 }}>{wk.week}</div>
+                <div style={{ fontSize: '13px', fontWeight: 700, color: 'var(--ink2)', minWidth: 160 }}>{wk.theme}</div>
                 <div style={{ display: 'flex', gap: '4px' }}>
                   {wk.roles.map((r, i) => (
-                    <span key={i} style={{ fontSize: '13px', padding: '2px 7px', borderRadius: '4px', background: '#FFFFFF', color: '#2D3E50' }}>{r}</span>
+                    <span key={i} style={{ fontSize: '13px', padding: '2px 7px', borderRadius: '4px', background: 'var(--card)', color: 'var(--ink2)' }}>{r}</span>
                   ))}
                 </div>
               </div>
@@ -341,9 +347,9 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
         )}
 
         {posts.length === 0 && !planReady && !campaign.start_date && (
-          <div style={{ textAlign: 'center', padding: '60px 40px', background: '#FFFFFF', border: '1px dashed #C8DFE0', borderRadius: '16px' }}>
-            <div style={{ fontSize: '13px', fontWeight: 700, color: '#2D3E50', marginBottom: '8px' }}>Set a start date to build the post schedule</div>
-            <div style={{ fontSize: '13px', color: '#0F1923' }}>Edit the campaign to add a start date, then return here to scaffold posts.</div>
+          <div style={{ textAlign: 'center', padding: '60px 40px', background: 'var(--card)', border: '1px dashed var(--border)', borderRadius: '16px' }}>
+            <div style={{ fontSize: '13px', fontWeight: 700, color: 'var(--ink2)', marginBottom: '8px' }}>Set a start date to build the post schedule</div>
+            <div style={{ fontSize: '13px', color: 'var(--ink)' }}>Edit the campaign to add a start date, then return here to scaffold posts.</div>
           </div>
         )}
 
@@ -357,13 +363,13 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
               const anyGen   = wkPosts.some(p => generating[p.id])
 
               return (
-                <div key={wkNum} style={{ background: '#FFFFFF', border: '1px solid #9EC8C8', borderRadius: '14px', overflow: 'hidden' }}>
+                <div key={wkNum} style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: '14px', overflow: 'hidden' }}>
                   {/* Week header */}
-                  <div style={{ padding: '18px 20px', borderBottom: '1px solid #C8DFE0', display: 'flex', alignItems: 'center', gap: '14px' }}>
-                    <div style={{ width: 34, height: 34, borderRadius: '50%', background: 'rgba(0,165,163,0.15)', border: '1.5px solid rgba(0,165,163,0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '13px', fontWeight: 800, color: '#00695C', flexShrink: 0 }}>{wkNum}</div>
+                  <div style={{ padding: '18px 20px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: '14px' }}>
+                    <div style={{ width: 34, height: 34, borderRadius: '50%', background: 'rgba(0,165,163,0.15)', border: '1.5px solid rgba(0,165,163,0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '13px', fontWeight: 800, color: 'var(--teal)', flexShrink: 0 }}>{wkNum}</div>
                     <div style={{ flex: 1 }}>
-                      <div style={{ fontSize: '13px', fontWeight: 800, color: '#0F1923', marginBottom: '2px' }}>{wkTheme}</div>
-                      <div style={{ fontSize: '13px', color: '#0F1923' }}>
+                      <div style={{ fontSize: '13px', fontWeight: 800, color: 'var(--ink)', marginBottom: '2px' }}>{wkTheme}</div>
+                      <div style={{ fontSize: '13px', color: 'var(--ink)' }}>
                         {wkPosts.length} posts · {genCount} generated
                       </div>
                     </div>
@@ -407,7 +413,7 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
                             )}
                             {isg && (
                               <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                                <svg className="spin" width="20" height="20" fill="none" stroke="#00A5A3" strokeWidth="2" viewBox="0 0 24 24"><path d="M21 12a9 9 0 1 1-9-9"/></svg>
+                                <svg className="spin" width="20" height="20" fill="none" stroke="var(--teal-mid)" strokeWidth="2" viewBox="0 0 24 24"><path d="M21 12a9 9 0 1 1-9-9"/></svg>
                               </div>
                             )}
                           </div>
@@ -416,13 +422,13 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
                               <span style={{ fontSize: '13px', fontWeight: 700, color: pc }}>{post.platform}</span>
                               <span style={{ fontSize: '13px', fontWeight: 700, padding: '2px 7px', borderRadius: '10px', background: sc.bg, color: sc.color }}>{sc.label}</span>
                             </div>
-                            <div style={{ fontSize: '13px', color: '#0F1923', marginBottom: '4px' }}>{post.narrative_role}</div>
+                            <div style={{ fontSize: '13px', color: 'var(--ink)', marginBottom: '4px' }}>{post.narrative_role}</div>
                             {post.text ? (
-                              <div style={{ fontSize: '13px', color: '#2D3E50', lineHeight: 1.5, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
+                              <div style={{ fontSize: '13px', color: 'var(--ink2)', lineHeight: 1.5, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
                                 {post.text}
                               </div>
                             ) : (
-                              <div style={{ fontSize: '13px', color: '#0F1923', fontStyle: 'italic' }}>No copy yet</div>
+                              <div style={{ fontSize: '13px', color: 'var(--ink)', fontStyle: 'italic' }}>No copy yet</div>
                             )}
                             <div style={{ marginTop: '8px', display: 'flex', gap: '6px' }} onClick={e => e.stopPropagation()}>
                               {post.status === 'planned' && (
@@ -461,11 +467,11 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
 
         {/* ── LIST TAB ──────────────────────────────────────────────────── */}
         {tab === 'list' && (
-          <div style={{ background: '#FFFFFF', border: '1px solid #9EC8C8', borderRadius: '14px', overflow: 'hidden' }}>
+          <div style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: '14px', overflow: 'hidden' }}>
             {/* Header row */}
-            <div style={{ display: 'grid', gridTemplateColumns: '60px 1fr 100px 90px 100px 120px', padding: '10px 16px', borderBottom: '1px solid #C8DFE0', background: 'rgba(0,165,163,0.06)' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: '60px 1fr 100px 90px 100px 120px', padding: '10px 16px', borderBottom: '1px solid var(--border)', background: 'rgba(0,165,163,0.06)' }}>
               {['Wk', 'Copy', 'Platform', 'Status', 'Role', 'Date'].map(h => (
-                <div key={h} style={{ fontSize: '13px', fontWeight: 700, color: '#0F1923', letterSpacing: '0.8px', textTransform: 'uppercase' }}>{h}</div>
+                <div key={h} style={{ fontSize: '13px', fontWeight: 700, color: 'var(--ink)', letterSpacing: '0.8px', textTransform: 'uppercase' }}>{h}</div>
               ))}
             </div>
             {posts.map(post => {
@@ -473,17 +479,17 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
               const sc = STATUS_CFG[post.status] ?? STATUS_CFG.planned
               return (
                 <div key={post.id} onClick={() => setActivePost(post)}
-                  style={{ display: 'grid', gridTemplateColumns: '60px 1fr 100px 90px 100px 120px', padding: '12px 16px', borderBottom: '1px solid #C8DFE0', cursor: 'pointer', transition: 'background 0.1s' }}
+                  style={{ display: 'grid', gridTemplateColumns: '60px 1fr 100px 90px 100px 120px', padding: '12px 16px', borderBottom: '1px solid var(--border)', cursor: 'pointer', transition: 'background 0.1s' }}
                   onMouseEnter={e => (e.currentTarget.style.background = 'rgba(0,165,163,0.04)')}
                   onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}>
-                  <div style={{ fontSize: '13px', color: '#0F1923', fontWeight: 700 }}>W{post.week_number}</div>
-                  <div style={{ fontSize: '13px', color: '#2D3E50', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', paddingRight: '12px' }}>
-                    {post.text || <span style={{ color: '#0F1923', fontStyle: 'italic' }}>No copy yet</span>}
+                  <div style={{ fontSize: '13px', color: 'var(--ink)', fontWeight: 700 }}>W{post.week_number}</div>
+                  <div style={{ fontSize: '13px', color: 'var(--ink2)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', paddingRight: '12px' }}>
+                    {post.text || <span style={{ color: 'var(--ink)', fontStyle: 'italic' }}>No copy yet</span>}
                   </div>
                   <div style={{ fontSize: '13px', fontWeight: 700, color: pc }}>{post.platform}</div>
                   <span style={{ fontSize: '13px', fontWeight: 700, padding: '2px 8px', borderRadius: '10px', background: sc.bg, color: sc.color, alignSelf: 'center', textAlign: 'center' }}>{sc.label}</span>
-                  <div style={{ fontSize: '13px', color: '#2D3E50' }}>{post.narrative_role}</div>
-                  <div style={{ fontSize: '13px', color: '#2D3E50' }}>{fmtDate(post.scheduled_date)}</div>
+                  <div style={{ fontSize: '13px', color: 'var(--ink2)' }}>{post.narrative_role}</div>
+                  <div style={{ fontSize: '13px', color: 'var(--ink2)' }}>{fmtDate(post.scheduled_date)}</div>
                 </div>
               )
             })}
@@ -493,8 +499,8 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
         {/* ── CALENDAR TAB ──────────────────────────────────────────────── */}
         {tab === 'calendar' && (() => {
           if (!posts.length) return (
-            <div style={{ textAlign: 'center', padding: '60px', background: '#FFFFFF', border: '1px dashed #C8DFE0', borderRadius: '16px' }}>
-              <div style={{ fontSize: '13px', color: '#0F1923' }}>No posts scheduled yet.</div>
+            <div style={{ textAlign: 'center', padding: '60px', background: 'var(--card)', border: '1px dashed var(--border)', borderRadius: '16px' }}>
+              <div style={{ fontSize: '13px', color: 'var(--ink)' }}>No posts scheduled yet.</div>
             </div>
           )
 
@@ -538,34 +544,34 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
               {/* Month navigation */}
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '14px' }}>
                 <button onClick={() => { if (calMonth === 0) { setCalMonth(11); setCalYear(y => y - 1) } else setCalMonth(m => m - 1) }}
-                  style={{ padding: '8px 16px', borderRadius: '8px', border: '1px solid #C8DFE0', background: '#fff', cursor: 'pointer', fontFamily: 'inherit', fontSize: '13px', fontWeight: 700, color: '#0F1923' }}>
+                  style={{ padding: '8px 16px', borderRadius: '8px', border: '1px solid var(--border)', background: 'var(--card)', cursor: 'pointer', fontFamily: 'inherit', fontSize: '13px', fontWeight: 700, color: 'var(--ink)' }}>
                   Prev
                 </button>
-                <span style={{ fontSize: '15px', fontWeight: 800, color: '#0F1923', letterSpacing: '0.5px', textTransform: 'uppercase' }}>
+                <span style={{ fontSize: '15px', fontWeight: 800, color: 'var(--ink)', letterSpacing: '0.5px', textTransform: 'uppercase' }}>
                   {MONTH_NAMES[calMonth]} {calYear}
                 </span>
                 <button onClick={() => { if (calMonth === 11) { setCalMonth(0); setCalYear(y => y + 1) } else setCalMonth(m => m + 1) }}
-                  style={{ padding: '8px 16px', borderRadius: '8px', border: '1px solid #C8DFE0', background: '#fff', cursor: 'pointer', fontFamily: 'inherit', fontSize: '13px', fontWeight: 700, color: '#0F1923' }}>
+                  style={{ padding: '8px 16px', borderRadius: '8px', border: '1px solid var(--border)', background: 'var(--card)', cursor: 'pointer', fontFamily: 'inherit', fontSize: '13px', fontWeight: 700, color: 'var(--ink)' }}>
                   Next
                 </button>
               </div>
 
-              <div style={{ fontSize: '11px', color: '#5B7080', marginBottom: '10px', textAlign: 'center' }}>
+              <div style={{ fontSize: '11px', color: 'var(--ink3)', marginBottom: '10px', textAlign: 'center' }}>
                 Drag a post to a different day to reschedule it
               </div>
 
-              <div style={{ background: '#FFFFFF', border: '1px solid #9EC8C8', borderRadius: '14px', overflow: 'hidden' }}>
+              <div style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: '14px', overflow: 'hidden' }}>
                 {/* Day headers */}
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', borderBottom: '1px solid #C8DFE0' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', borderBottom: '1px solid var(--border)' }}>
                   {DAYS.map(d => (
-                    <div key={d} style={{ padding: '10px', textAlign: 'center', fontSize: '11px', fontWeight: 800, color: '#5B7080', letterSpacing: '1px', textTransform: 'uppercase', borderRight: '1px solid #C8DFE0' }}>{d}</div>
+                    <div key={d} style={{ padding: '10px', textAlign: 'center', fontSize: '11px', fontWeight: 800, color: 'var(--ink3)', letterSpacing: '1px', textTransform: 'uppercase', borderRight: '1px solid var(--border)' }}>{d}</div>
                   ))}
                 </div>
 
                 {/* Calendar grid */}
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)' }}>
                   {cells.map((day, ci) => {
-                    if (!day) return <div key={`e-${ci}`} style={{ minHeight: 90, borderRight: '1px solid #E8EEF4', borderBottom: '1px solid #E8EEF4', background: '#FAFBFC' }} />
+                    if (!day) return <div key={`e-${ci}`} style={{ minHeight: 90, borderRight: '1px solid var(--surface)', borderBottom: '1px solid var(--surface)', background: 'var(--border-light)' }} />
                     const dateKey = `${calYear}-${String(calMonth + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`
                     const dayPosts = byDate[dateKey] ?? []
                     const isToday = dateKey === today
@@ -575,11 +581,11 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
                         onDragOver={handleDragOver}
                         onDrop={e => handleDrop(e, dateKey)}
                         style={{
-                          minHeight: 90, borderRight: '1px solid #E8EEF4', borderBottom: '1px solid #E8EEF4',
+                          minHeight: 90, borderRight: '1px solid var(--surface)', borderBottom: '1px solid var(--surface)',
                           padding: '6px', background: isToday ? 'rgba(0,165,163,0.05)' : 'transparent',
                           transition: 'background 0.15s',
                         }}>
-                        <div style={{ fontSize: '12px', fontWeight: isToday ? 800 : 600, color: isToday ? '#00A5A3' : '#0F1923', marginBottom: '4px' }}>{day}</div>
+                        <div style={{ fontSize: '12px', fontWeight: isToday ? 800 : 600, color: isToday ? 'var(--teal-mid)' : 'var(--ink)', marginBottom: '4px' }}>{day}</div>
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
                           {dayPosts.map(p => {
                             const pc = PLATFORM_COLOR[p.platform] ?? '#888'
@@ -591,7 +597,7 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
                                 onClick={() => setActivePost(p)}
                                 style={{
                                   fontSize: '10px', padding: '3px 6px', borderRadius: '5px',
-                                  background: sc.bg || '#F0F4F8', color: pc, fontWeight: 700,
+                                  background: sc.bg || 'var(--surface)', color: pc, fontWeight: 700,
                                   cursor: 'grab', overflow: 'hidden', textOverflow: 'ellipsis',
                                   whiteSpace: 'nowrap', border: `1px solid ${pc}25`,
                                   display: 'flex', alignItems: 'center', gap: '3px',
@@ -620,20 +626,20 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
 
               {/* Pending approval section */}
               <div>
-                <div style={{ fontSize: '13px', fontWeight: 800, color: '#92400E', letterSpacing: '1px', textTransform: 'uppercase', marginBottom: '12px' }}>
+                <div style={{ fontSize: '13px', fontWeight: 800, color: 'var(--amber)', letterSpacing: '1px', textTransform: 'uppercase', marginBottom: '12px' }}>
                   Awaiting Approval{pendingApproval.length ? ` — ${pendingApproval.length}` : ''}
                 </div>
                 {pendingApproval.length === 0 ? (
-                  <div style={{ textAlign: 'center', padding: '40px', background: '#FFFFFF', border: '1px dashed #C8DFE0', borderRadius: '16px' }}>
-                    <div style={{ fontSize: '13px', fontWeight: 700, color: '#3D6B00', marginBottom: '6px' }}>All clear</div>
-                    <div style={{ fontSize: '13px', color: '#0F1923' }}>No posts awaiting approval.</div>
+                  <div style={{ textAlign: 'center', padding: '40px', background: 'var(--card)', border: '1px dashed var(--border)', borderRadius: '16px' }}>
+                    <div style={{ fontSize: '13px', fontWeight: 700, color: 'var(--lime)', marginBottom: '6px' }}>All clear</div>
+                    <div style={{ fontSize: '13px', color: 'var(--ink)' }}>No posts awaiting approval.</div>
                   </div>
                 ) : (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
                     {pendingApproval.map(post => {
                       const pc = PLATFORM_COLOR[post.platform] ?? '#888'
                       return (
-                        <div key={post.id} style={{ background: '#FFFFFF', border: '1px solid #9EC8C8', borderRadius: '14px', overflow: 'hidden', display: 'flex' }}>
+                        <div key={post.id} style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: '14px', overflow: 'hidden', display: 'flex' }}>
                           <div style={{ width: 4, background: pc, flexShrink: 0 }} />
                           <div style={{ padding: '20px', flex: 1, display: 'flex', gap: '16px', alignItems: 'flex-start' }}>
                             {post.image_url && (
@@ -643,14 +649,14 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
                             <div style={{ flex: 1, minWidth: 0 }}>
                               <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px', flexWrap: 'wrap' }}>
                                 <span style={{ fontSize: '13px', fontWeight: 700, color: pc }}>{post.platform}</span>
-                                <span style={{ fontSize: '13px', color: '#0F1923' }}>Week {post.week_number} · {post.narrative_role}</span>
-                                <span style={{ fontSize: '13px', color: '#0F1923', marginLeft: 'auto' }}>{fmtDate(post.scheduled_date)}</span>
+                                <span style={{ fontSize: '13px', color: 'var(--ink)' }}>Week {post.week_number} · {post.narrative_role}</span>
+                                <span style={{ fontSize: '13px', color: 'var(--ink)', marginLeft: 'auto' }}>{fmtDate(post.scheduled_date)}</span>
                               </div>
-                              <div style={{ fontSize: '15px', color: '#2D3E50', lineHeight: 1.65, marginBottom: '12px', whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
+                              <div style={{ fontSize: '15px', color: 'var(--ink2)', lineHeight: 1.65, marginBottom: '12px', whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
                                 {post.text}
                               </div>
                               {post.revision_note && (
-                                <div style={{ background: 'rgba(255,107,107,0.08)', borderLeft: '3px solid #FF6B6B', padding: '8px 12px', borderRadius: '0 6px 6px 0', fontSize: '13px', color: '#FF6B6B', marginBottom: '10px' }}>
+                                <div style={{ background: 'rgba(255,107,107,0.08)', borderLeft: '3px solid var(--red)', padding: '8px 12px', borderRadius: '0 6px 6px 0', fontSize: '13px', color: 'var(--red)', marginBottom: '10px' }}>
                                   Revision note: {post.revision_note}
                                 </div>
                               )}
@@ -674,15 +680,15 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
               {/* Approved — ready to publish */}
               {approvedPosts.length > 0 && (
                 <div>
-                  <div style={{ fontSize: '13px', fontWeight: 800, color: '#3D6B00', letterSpacing: '1px', textTransform: 'uppercase', marginBottom: '12px' }}>
+                  <div style={{ fontSize: '13px', fontWeight: 800, color: 'var(--lime)', letterSpacing: '1px', textTransform: 'uppercase', marginBottom: '12px' }}>
                     Approved — Ready to Publish ({approvedPosts.length})
                   </div>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
                     {approvedPosts.map(post => {
                       const pc = PLATFORM_COLOR[post.platform] ?? '#888'
                       return (
-                        <div key={post.id} style={{ background: '#FFFFFF', border: '1px solid #9EC8C8', borderRadius: '14px', overflow: 'hidden', display: 'flex' }}>
-                          <div style={{ width: 4, background: '#3D6B00', flexShrink: 0 }} />
+                        <div key={post.id} style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: '14px', overflow: 'hidden', display: 'flex' }}>
+                          <div style={{ width: 4, background: 'var(--lime)', flexShrink: 0 }} />
                           <div style={{ padding: '20px', flex: 1, display: 'flex', gap: '16px', alignItems: 'flex-start' }}>
                             {post.image_url && (
                               // eslint-disable-next-line @next/next/no-img-element
@@ -691,11 +697,11 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
                             <div style={{ flex: 1, minWidth: 0 }}>
                               <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px', flexWrap: 'wrap' }}>
                                 <span style={{ fontSize: '13px', fontWeight: 700, color: pc }}>{post.platform}</span>
-                                <span style={{ fontSize: '13px', color: '#0F1923' }}>Week {post.week_number} · {post.narrative_role}</span>
-                                <span style={{ fontSize: '13px', padding: '2px 8px', borderRadius: '10px', background: 'rgba(192,244,60,0.12)', color: '#3D6B00', fontWeight: 700 }}>Approved</span>
-                                <span style={{ fontSize: '13px', color: '#0F1923', marginLeft: 'auto' }}>{fmtDate(post.scheduled_date)}</span>
+                                <span style={{ fontSize: '13px', color: 'var(--ink)' }}>Week {post.week_number} · {post.narrative_role}</span>
+                                <span style={{ fontSize: '13px', padding: '2px 8px', borderRadius: '10px', background: 'rgba(192,244,60,0.12)', color: 'var(--lime)', fontWeight: 700 }}>Approved</span>
+                                <span style={{ fontSize: '13px', color: 'var(--ink)', marginLeft: 'auto' }}>{fmtDate(post.scheduled_date)}</span>
                               </div>
-                              <div style={{ fontSize: '15px', color: '#2D3E50', lineHeight: 1.65, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
+                              <div style={{ fontSize: '15px', color: 'var(--ink2)', lineHeight: 1.65, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
                                 {post.text}
                               </div>
                             </div>
@@ -731,13 +737,13 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
           <div className="modal-bg" onClick={() => setActivePost(null)}>
             <div className="modal-box" onClick={e => e.stopPropagation()}>
               {/* Modal header */}
-              <div style={{ padding: '20px 24px', borderBottom: '1px solid #C8DFE0', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <div style={{ padding: '20px 24px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                   <span style={{ fontSize: '13px', fontWeight: 700, color: pc }}>{post.platform}</span>
                   <span style={{ fontSize: '13px', fontWeight: 700, padding: '2px 8px', borderRadius: '10px', background: sc.bg, color: sc.color }}>{sc.label}</span>
-                  <span style={{ fontSize: '13px', color: '#0F1923' }}>Wk {post.week_number} · {post.narrative_role}</span>
+                  <span style={{ fontSize: '13px', color: 'var(--ink)' }}>Wk {post.week_number} · {post.narrative_role}</span>
                 </div>
-                <button onClick={() => setActivePost(null)} style={{ background: 'none', border: 'none', color: '#2D3E50', cursor: 'pointer', padding: '4px' }}>
+                <button onClick={() => setActivePost(null)} style={{ background: 'none', border: 'none', color: 'var(--ink2)', cursor: 'pointer', padding: '4px' }}>
                   <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
                 </button>
               </div>
@@ -785,7 +791,7 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
                             }
                           } catch (e) { alert('Canva error: ' + (e instanceof Error ? e.message : 'Unknown')) }
                         }}
-                        style={{ flex: 1, padding: '8px 12px', fontSize: '12px', fontWeight: 700, color: '#00C4CC', background: 'rgba(0,196,204,0.08)', border: '1px solid rgba(0,196,204,0.2)', borderRadius: '8px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}
+                        style={{ flex: 1, padding: '8px 12px', fontSize: '12px', fontWeight: 700, color: 'var(--teal-mid)', background: 'rgba(0,196,204,0.08)', border: '1px solid rgba(0,196,204,0.2)', borderRadius: '8px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}
                       >
                         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
                         Edit in Canva
@@ -832,7 +838,7 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
                             }, 3000)
                           } catch (e) { alert('Export error: ' + (e instanceof Error ? e.message : 'Unknown')) }
                         }}
-                        style={{ padding: '8px 12px', fontSize: '12px', fontWeight: 700, color: '#00897B', background: 'rgba(0,137,123,0.08)', border: '1px solid rgba(0,137,123,0.2)', borderRadius: '8px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}
+                        style={{ padding: '8px 12px', fontSize: '12px', fontWeight: 700, color: 'var(--teal-mid)', background: 'rgba(0,137,123,0.08)', border: '1px solid rgba(0,137,123,0.2)', borderRadius: '8px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}
                       >
                         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
                         Import
@@ -842,17 +848,17 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
                 )}
 
                 {/* Copy — editable */}
-                <label style={{ fontSize: '13px', fontWeight: 700, color: '#0F1923', letterSpacing: '0.8px', textTransform: 'uppercase', display: 'block', marginBottom: '6px' }}>Copy</label>
+                <label style={{ fontSize: '13px', fontWeight: 700, color: 'var(--ink)', letterSpacing: '0.8px', textTransform: 'uppercase', display: 'block', marginBottom: '6px' }}>Copy</label>
                 <textarea
                   value={post.text}
                   onChange={e => updatePostText(post.id, e.target.value)}
                   rows={8}
                   placeholder="No copy yet — click Generate below."
-                  style={{ width: '100%', padding: '12px', background: '#FFFFFF', border: '1px solid #9EC8C8', borderRadius: '10px', color: '#0F1923', fontSize: '13px', fontFamily: 'inherit', resize: 'vertical', lineHeight: 1.65, outline: 'none', boxSizing: 'border-box' }}
+                  style={{ width: '100%', padding: '12px', background: 'var(--card)', border: '1px solid var(--border)', borderRadius: '10px', color: 'var(--ink)', fontSize: '13px', fontFamily: 'inherit', resize: 'vertical', lineHeight: 1.65, outline: 'none', boxSizing: 'border-box' }}
                 />
 
                 {post.revision_note && (
-                  <div style={{ background: 'rgba(255,107,107,0.08)', borderLeft: '3px solid #FF6B6B', padding: '10px 14px', borderRadius: '0 8px 8px 0', fontSize: '13px', color: '#FF6B6B', marginTop: '10px' }}>
+                  <div style={{ background: 'rgba(255,107,107,0.08)', borderLeft: '3px solid var(--red)', padding: '10px 14px', borderRadius: '0 8px 8px 0', fontSize: '13px', color: 'var(--red)', marginTop: '10px' }}>
                     <strong>Revision requested:</strong> {post.revision_note}
                   </div>
                 )}
@@ -896,16 +902,16 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
         <div className="modal-bg" onClick={() => setRejectId(null)}>
           <div className="modal-box" style={{ maxWidth: '460px' }} onClick={e => e.stopPropagation()}>
             <div style={{ padding: '24px' }}>
-              <div style={{ fontSize: '13px', fontWeight: 800, color: '#0F1923', marginBottom: '6px' }}>Request Revision</div>
-              <div style={{ fontSize: '13px', color: '#0F1923', marginBottom: '18px' }}>Describe what needs to change. The post goes back to Generated status.</div>
+              <div style={{ fontSize: '13px', fontWeight: 800, color: 'var(--ink)', marginBottom: '6px' }}>Request Revision</div>
+              <div style={{ fontSize: '13px', color: 'var(--ink)', marginBottom: '18px' }}>Describe what needs to change. The post goes back to Generated status.</div>
               <textarea value={rejectNote} onChange={e => setRejectNote(e.target.value)}
                 placeholder="e.g. Too generic. Mention the AI in Banking theme specifically. Add a CTA to register."
                 rows={4}
-                style={{ width: '100%', padding: '11px 14px', background: '#FFFFFF', border: '1px solid #9EC8C8', borderRadius: '10px', color: '#0F1923', fontSize: '13px', fontFamily: 'inherit', resize: 'none', lineHeight: 1.65, outline: 'none', boxSizing: 'border-box' }} />
+                style={{ width: '100%', padding: '11px 14px', background: 'var(--card)', border: '1px solid var(--border)', borderRadius: '10px', color: 'var(--ink)', fontSize: '13px', fontFamily: 'inherit', resize: 'none', lineHeight: 1.65, outline: 'none', boxSizing: 'border-box' }} />
               <div style={{ display: 'flex', gap: '10px', marginTop: '16px' }}>
                 <button onClick={() => setRejectId(null)} className="cp-btn cp-btn-ghost" style={{ flex: 1 }}>Cancel</button>
                 <button onClick={rejectPost} disabled={!rejectNote.trim() || busyId === rejectId}
-                  style={{ flex: 1, padding: '10px', borderRadius: '9px', background: '#DC2626', border: 'none', color: 'white', fontWeight: 700, fontSize: '13px', cursor: 'pointer', opacity: rejectNote.trim() ? 1 : 0.4 }}>
+                  style={{ flex: 1, padding: '10px', borderRadius: '9px', background: 'var(--red)', border: 'none', color: 'var(--red-light)', fontWeight: 700, fontSize: '13px', cursor: 'pointer', opacity: rejectNote.trim() ? 1 : 0.4 }}>
                   Send for Revision
                 </button>
               </div>

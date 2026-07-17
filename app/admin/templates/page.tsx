@@ -3,15 +3,13 @@
 import { useState, useEffect } from 'react'
 
 const C = {
-  bg:      '#E8EEF4',
-  surface: '#FFFFFF',
-  border:  '#DDE8EE',
-  text:    '#0F1923',
-  muted:   '#5B7080',
-  teal:    '#00695C',
-  green:   '#C0F43C',
-  red:     '#FF6B6B',
-  amber:   '#F59E0B',
+  bg:      'var(--surface)',
+  surface: 'var(--card)',
+  border:  'var(--border)',
+  text:    'var(--ink)',
+  muted:   'var(--ink3)',
+  teal:    'var(--teal)',
+  red:     'var(--red)',
 }
 
 type Template = {
@@ -104,7 +102,7 @@ export default function TemplatesPage() {
           <div style={{ fontSize: 13, color: C.muted, marginTop: 4 }}>Manage the event site templates available in the website builder. Super admins only.</div>
         </div>
         <button onClick={() => { setShowForm(true); setForm(BLANK) }}
-          style={{ padding: '10px 20px', background: C.teal, color: '#fff', border: 'none', borderRadius: 10, fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
+          style={{ padding: '10px 20px', background: C.teal, color: 'var(--teal-light)', border: 'none', borderRadius: 10, fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
           + Add Template
         </button>
       </div>
@@ -119,7 +117,7 @@ export default function TemplatesPage() {
             { step: '3', label: 'Generate a new event site', cmd: 'node ~/ep-templates/generate-site.mjs --template template-2-vault2047 --name my-event --event-id <id> --api-url https://eventpilot.tresconglobal.com' },
           ].map(item => (
             <div key={item.step} style={{ display: 'flex', gap: 12, alignItems: 'flex-start' }}>
-              <div style={{ width: 22, height: 22, borderRadius: '50%', background: C.teal, color: '#fff', fontSize: 11, fontWeight: 900, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, marginTop: 1 }}>{item.step}</div>
+              <div style={{ width: 22, height: 22, borderRadius: '50%', background: C.teal, color: 'var(--teal-light)', fontSize: 11, fontWeight: 900, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, marginTop: 1 }}>{item.step}</div>
               <div>
                 <div style={{ fontSize: 12, color: C.muted, marginBottom: 3 }}>{item.label}</div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -136,7 +134,7 @@ export default function TemplatesPage() {
       </div>
 
       {/* How to add a new template */}
-      <div style={{ background: `${C.teal}0A`, border: `1px solid ${C.teal}30`, borderRadius: 14, padding: 20, marginBottom: 24 }}>
+      <div style={{ background: `${'color-mix(in srgb, ' + (C.teal) + ' 4%, transparent)'}`, border: `1px solid ${'color-mix(in srgb, ' + (C.teal) + ' 19%, transparent)'}`, borderRadius: 14, padding: 20, marginBottom: 24 }}>
         <div style={{ fontSize: 13, fontWeight: 800, color: C.teal, marginBottom: 8 }}>Adding a new template</div>
         <div style={{ fontSize: 12, color: C.muted, lineHeight: 1.7 }}>
           When you build a new standalone event website, register it here so it appears in the Template Gallery for all events.
@@ -191,7 +189,7 @@ export default function TemplatesPage() {
           </div>
           <div style={{ display: 'flex', gap: 10 }}>
             <button onClick={save} disabled={saving}
-              style={{ padding: '10px 24px', background: C.teal, color: '#fff', border: 'none', borderRadius: 10, fontSize: 13, fontWeight: 700, cursor: saving ? 'not-allowed' : 'pointer', opacity: saving ? 0.6 : 1, fontFamily: 'inherit' }}>
+              style={{ padding: '10px 24px', background: C.teal, color: 'var(--teal-light)', border: 'none', borderRadius: 10, fontSize: 13, fontWeight: 700, cursor: saving ? 'not-allowed' : 'pointer', opacity: saving ? 0.6 : 1, fontFamily: 'inherit' }}>
               {saving ? 'Saving…' : 'Save Template'}
             </button>
             <button onClick={() => { setShowForm(false); setForm(BLANK) }}
@@ -222,7 +220,7 @@ export default function TemplatesPage() {
                   <span style={{ fontSize: 14, fontWeight: 800, color: C.text }}>{t.label}</span>
                   <span style={{ fontSize: 11, color: C.muted }}>{t.event_name}</span>
                   {t.style_tags.slice(0, 3).map(tag => (
-                    <span key={tag} style={{ fontSize: 10, fontWeight: 700, padding: '2px 7px', borderRadius: 20, background: `${C.teal}18`, color: C.teal }}>{tag}</span>
+                    <span key={tag} style={{ fontSize: 10, fontWeight: 700, padding: '2px 7px', borderRadius: 20, background: `${'color-mix(in srgb, ' + (C.teal) + ' 9%, transparent)'}`, color: C.teal }}>{tag}</span>
                   ))}
                 </div>
                 <div style={{ fontSize: 12, color: C.muted, marginBottom: 8, lineHeight: 1.5 }}>{t.description}</div>
@@ -240,7 +238,7 @@ export default function TemplatesPage() {
               <div style={{ display: 'flex', gap: 8, flexShrink: 0 }}>
                 {t.live_preview_url && (
                   <a href={t.live_preview_url} target="_blank" rel="noopener noreferrer"
-                    style={{ padding: '6px 14px', background: C.teal, color: '#fff', border: 'none', borderRadius: 8, fontSize: 12, fontWeight: 700, cursor: 'pointer', textDecoration: 'none', display: 'flex', alignItems: 'center' }}>
+                    style={{ padding: '6px 14px', background: C.teal, color: 'var(--teal-light)', border: 'none', borderRadius: 8, fontSize: 12, fontWeight: 700, cursor: 'pointer', textDecoration: 'none', display: 'flex', alignItems: 'center' }}>
                     Preview
                   </a>
                 )}

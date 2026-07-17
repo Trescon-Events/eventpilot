@@ -4,15 +4,14 @@ import { useState, useEffect } from 'react'
 import Link from 'next/link'
 
 const C = {
-  bg:      '#E8EEF4',
-  surface: '#FFFFFF',
-  border:  '#DDE8EE',
-  text:    '#0F1923',
-  muted:   '#5B7080',
-  teal:    '#00695C',
-  green:   '#C0F43C',
-  amber:   '#F59E0B',
-  red:     '#FF6B6B',
+  bg:      'var(--surface)',
+  surface: 'var(--card)',
+  border:  'var(--border)',
+  text:    'var(--ink)',
+  muted:   'var(--ink3)',
+  teal:    'var(--teal)',
+  amber:   'var(--amber)',
+  red:     'var(--red)',
 }
 
 type EventRow = { id: string; name: string; city: string | null; status: string; event_date: string | null }
@@ -100,7 +99,7 @@ export default function SiteBuilderPage() {
           <div style={{ width: '1px', height: '20px', background: C.border }} />
           <div style={{ fontSize: '13px', fontWeight: 800, color: C.text }}>Site Builder</div>
         </div>
-        <Link href="/admin/templates" style={{ fontSize: '12px', fontWeight: 700, color: C.teal, textDecoration: 'none', padding: '6px 14px', border: `1px solid ${C.teal}40`, borderRadius: '8px' }}>
+        <Link href="/admin/templates" style={{ fontSize: '12px', fontWeight: 700, color: C.teal, textDecoration: 'none', padding: '6px 14px', border: `1px solid ${'color-mix(in srgb, ' + (C.teal) + ' 25%, transparent)'}`, borderRadius: '8px' }}>
           Manage Templates
         </Link>
       </div>
@@ -116,7 +115,7 @@ export default function SiteBuilderPage() {
         {/* Step 1 — Pick Event */}
         <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: '16px', padding: '24px' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '16px' }}>
-            <div style={{ width: '26px', height: '26px', borderRadius: '50%', background: selectedEvent ? C.teal : C.border, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '12px', fontWeight: 900, color: selectedEvent ? '#fff' : C.muted, flexShrink: 0 }}>1</div>
+            <div style={{ width: '26px', height: '26px', borderRadius: '50%', background: selectedEvent ? C.teal : C.border, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '12px', fontWeight: 900, color: selectedEvent ? 'var(--teal-light)' : C.muted, flexShrink: 0 }}>1</div>
             <div style={{ fontSize: '14px', fontWeight: 800, color: C.text }}>Select Event</div>
           </div>
 
@@ -139,7 +138,7 @@ export default function SiteBuilderPage() {
 
           {/* Existing site banner */}
           {existingSite && !deployResult && (
-            <div style={{ marginTop: '14px', background: `${C.teal}10`, border: `1px solid ${C.teal}30`, borderRadius: '10px', padding: '12px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '10px' }}>
+            <div style={{ marginTop: '14px', background: `${'color-mix(in srgb, ' + (C.teal) + ' 6%, transparent)'}`, border: `1px solid ${'color-mix(in srgb, ' + (C.teal) + ' 19%, transparent)'}`, borderRadius: '10px', padding: '12px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '10px' }}>
               <div>
                 <div style={{ fontSize: '12px', fontWeight: 800, color: C.teal }}>Site already deployed</div>
                 <div style={{ fontSize: '11px', color: C.muted, marginTop: '2px' }}>Template: {templates.find(t => t.id === existingSite.template_id)?.label ?? existingSite.template_id}</div>
@@ -147,7 +146,7 @@ export default function SiteBuilderPage() {
               <div style={{ display: 'flex', gap: '8px' }}>
                 {existingSite.site_url && (
                   <a href={existingSite.site_url} target="_blank" rel="noreferrer"
-                    style={{ fontSize: '11px', fontWeight: 700, color: '#fff', background: C.teal, padding: '5px 12px', borderRadius: '7px', textDecoration: 'none' }}>
+                    style={{ fontSize: '11px', fontWeight: 700, color: 'var(--teal-light)', background: C.teal, padding: '5px 12px', borderRadius: '7px', textDecoration: 'none' }}>
                     Visit Site
                   </a>
                 )}
@@ -163,7 +162,7 @@ export default function SiteBuilderPage() {
         {/* Step 2 — Pick Template */}
         <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: '16px', padding: '24px' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '16px' }}>
-            <div style={{ width: '26px', height: '26px', borderRadius: '50%', background: selectedTemplate ? C.teal : C.border, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '12px', fontWeight: 900, color: selectedTemplate ? '#fff' : C.muted, flexShrink: 0 }}>2</div>
+            <div style={{ width: '26px', height: '26px', borderRadius: '50%', background: selectedTemplate ? C.teal : C.border, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '12px', fontWeight: 900, color: selectedTemplate ? 'var(--teal-light)' : C.muted, flexShrink: 0 }}>2</div>
             <div style={{ fontSize: '14px', fontWeight: 800, color: C.text }}>Choose Template</div>
           </div>
 
@@ -179,7 +178,7 @@ export default function SiteBuilderPage() {
                     <div style={{ height: '72px', background: t.color_scheme.bg, position: 'relative', display: 'flex', alignItems: 'flex-end', padding: '10px 12px', gap: '6px' }}>
                       <div style={{ width: '20px', height: '20px', borderRadius: '50%', background: t.color_scheme.accent, border: '2px solid rgba(255,255,255,0.2)' }} />
                       <div style={{ width: '20px', height: '20px', borderRadius: '50%', background: t.color_scheme.highlight, border: '2px solid rgba(255,255,255,0.2)' }} />
-                      {sel && <div style={{ position: 'absolute', top: '8px', right: '8px', background: C.teal, color: '#fff', fontSize: '10px', fontWeight: 800, padding: '2px 8px', borderRadius: '20px' }}>SELECTED</div>}
+                      {sel && <div style={{ position: 'absolute', top: '8px', right: '8px', background: C.teal, color: 'var(--teal-light)', fontSize: '10px', fontWeight: 800, padding: '2px 8px', borderRadius: '20px' }}>SELECTED</div>}
                       <div style={{ position: 'absolute', top: '8px', left: '12px', background: 'rgba(0,0,0,0.5)', color: 'rgba(255,255,255,0.85)', fontSize: '9px', fontWeight: 700, padding: '2px 7px', borderRadius: '20px' }}>{t.event_name}</div>
                     </div>
                     <div style={{ padding: '12px 14px' }}>
@@ -187,7 +186,7 @@ export default function SiteBuilderPage() {
                       <div style={{ fontSize: '11px', color: C.muted, lineHeight: 1.5, marginBottom: '8px' }}>{t.description}</div>
                       <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px' }}>
                         {t.style_tags.map(tag => (
-                          <span key={tag} style={{ fontSize: '10px', fontWeight: 700, padding: '2px 6px', borderRadius: '20px', background: `${C.teal}18`, color: C.teal }}>{tag}</span>
+                          <span key={tag} style={{ fontSize: '10px', fontWeight: 700, padding: '2px 6px', borderRadius: '20px', background: `${'color-mix(in srgb, ' + (C.teal) + ' 9%, transparent)'}`, color: C.teal }}>{tag}</span>
                         ))}
                       </div>
                     </div>
@@ -202,7 +201,7 @@ export default function SiteBuilderPage() {
         {!deployResult && (
           <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: '16px', padding: '24px' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '16px' }}>
-              <div style={{ width: '26px', height: '26px', borderRadius: '50%', background: readyToDeploy ? C.teal : C.border, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '12px', fontWeight: 900, color: readyToDeploy ? '#fff' : C.muted, flexShrink: 0 }}>3</div>
+              <div style={{ width: '26px', height: '26px', borderRadius: '50%', background: readyToDeploy ? C.teal : C.border, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '12px', fontWeight: 900, color: readyToDeploy ? 'var(--teal-light)' : C.muted, flexShrink: 0 }}>3</div>
               <div style={{ fontSize: '14px', fontWeight: 800, color: C.text }}>Deploy</div>
             </div>
 
@@ -232,7 +231,7 @@ export default function SiteBuilderPage() {
             <button
               disabled={!readyToDeploy}
               onClick={deploy}
-              style={{ padding: '12px 28px', background: readyToDeploy ? C.teal : C.border, color: readyToDeploy ? '#fff' : C.muted, border: 'none', borderRadius: '10px', fontSize: '13px', fontWeight: 700, cursor: readyToDeploy ? 'pointer' : 'not-allowed', fontFamily: 'inherit', display: 'inline-flex', alignItems: 'center', gap: '8px' }}>
+              style={{ padding: '12px 28px', background: readyToDeploy ? C.teal : C.border, color: readyToDeploy ? 'var(--teal-light)' : C.muted, border: 'none', borderRadius: '10px', fontSize: '13px', fontWeight: 700, cursor: readyToDeploy ? 'pointer' : 'not-allowed', fontFamily: 'inherit', display: 'inline-flex', alignItems: 'center', gap: '8px' }}>
               {deploying
                 ? <><svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" viewBox="0 0 24 24" className="spin"><line x1="12" y1="2" x2="12" y2="6"/><line x1="12" y1="18" x2="12" y2="22"/><line x1="4.93" y1="4.93" x2="7.76" y2="7.76"/><line x1="16.24" y1="16.24" x2="19.07" y2="19.07"/><line x1="2" y1="12" x2="6" y2="12"/><line x1="18" y1="12" x2="22" y2="12"/></svg>Creating site…</>
                 : <><svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" viewBox="0 0 24 24"><polyline points="16 16 12 12 8 16"/><line x1="12" y1="12" x2="12" y2="21"/><path d="M20.39 18.39A5 5 0 0018 9h-1.26A8 8 0 103 16.3"/></svg>
@@ -244,9 +243,9 @@ export default function SiteBuilderPage() {
 
         {/* Result */}
         {deployResult && (
-          <div style={{ background: `${C.teal}08`, border: `2px solid ${C.teal}40`, borderRadius: '16px', padding: '28px', display: 'grid', gap: '20px' }}>
+          <div style={{ background: `${'color-mix(in srgb, ' + (C.teal) + ' 3%, transparent)'}`, border: `2px solid ${'color-mix(in srgb, ' + (C.teal) + ' 25%, transparent)'}`, borderRadius: '16px', padding: '28px', display: 'grid', gap: '20px' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
-              <div style={{ width: '44px', height: '44px', borderRadius: '50%', background: `${C.teal}20`, border: `2px solid ${C.teal}`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+              <div style={{ width: '44px', height: '44px', borderRadius: '50%', background: `${'color-mix(in srgb, ' + (C.teal) + ' 13%, transparent)'}`, border: `2px solid ${C.teal}`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
                 <svg width="20" height="20" fill="none" stroke={C.teal} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>
               </div>
               <div>

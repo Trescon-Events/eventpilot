@@ -31,19 +31,30 @@ export async function checkAccess(access: ModuleAccess, session: TcsSession): Pr
   switch (access.kind) {
     case 'always':
       return true
-    case 'admin_only':
-      return isAdmin
+    case 'admin_only': {
+      if (isAdmin) return true
+      if (access.grantKey && (await hasToolGrant(session.sid, access.grantKey))) return true
+      if (access.moduleAccessKey && (await hasModuleAccess(session.sid, access.moduleAccessKey, 'user'))) return true
+      return false
+    }
     case 'module_access':
       return hasModuleAccess(session.sid, access.moduleKey, access.minTier)
-    case 'tool_grant':
+    case 'tool_grant': {
       if (access.grantKey === null) return isAdmin
-      return isAdmin || hasToolGrant(session.sid, access.grantKey)
+      if (isAdmin) return true
+      if (await hasToolGrant(session.sid, access.grantKey)) return true
+      // A tool's own Settings→Access grant (any tier) is also sufficient for
+      // entry — otherwise granting someone there looks like it worked but
+      // doesn't, since that write goes to a different table than tool_grants.
+      if (access.moduleAccessKey) return hasModuleAccess(session.sid, access.moduleAccessKey, 'user')
+      return false
+    }
     case 'role_or_admin':
       return isAdmin || access.roles.some(r => roles.includes(r))
     case 'dept_or_admin':
-      return isAdmin || session.dept === access.dept
+      return isAdmin || session.dept === access.dept || (!!access.grantKey && (await hasToolGrant(session.sid, access.grantKey)))
     case 'role_or_dept_or_admin':
-      return isAdmin || session.dept === access.dept || access.roles.some(r => roles.includes(r))
+      return isAdmin || session.dept === access.dept || access.roles.some(r => roles.includes(r)) || (!!access.grantKey && (await hasToolGrant(session.sid, access.grantKey)))
     case 'role_or_dept_not_admin':
       return !isAdmin && (session.dept === access.dept || access.roles.some(r => roles.includes(r)))
     case 'has_reports_or_admin':
@@ -83,6 +94,23 @@ export async function getAccessibleModuleKeys(session: TcsSession | null, surfac
   return results.filter(r => r.ok).map(r => r.key)
 }
 
+/**
+ * Every module_access.module_key value the registry knows about, derived from
+ * each module's own moduleAccessKey (never hand-maintained separately, so it
+ * can't drift from what checkAccess() actually honors). Used by the generic
+ * /api/module-access/[moduleKey] routes to reject unknown/typo'd keys before
+ * touching the database.
+ */
+export function getValidModuleAccessKeys(): string[] {
+  const keys = new Set<string>()
+  for (const mod of getModuleRegistry()) {
+    for (const access of [mod.access, mod.platformMenu?.access, mod.toolkitHub?.access]) {
+      if (access?.kind === 'tool_grant' && access.moduleAccessKey) keys.add(access.moduleAccessKey)
+    }
+  }
+  return [...keys]
+}
+
 /** Server-side route/layout guard — redirects to /login or /no-access if the session can't access moduleKey. */
 export async function requireModuleAccess(moduleKey: string, redirectTo?: string): Promise<TcsSession> {
   const session = await getServerSession()
@@ -97,7 +125,10 @@ export async function requireModuleAccess(moduleKey: string, redirectTo?: string
     // notifies Durga) key off the underscored tool_grants-style name, not
     // this registry's hyphenated key — use the module's own grantKey when
     // it has one so the page shows the right label and request-access works.
-    const toolParam = mod.access.kind === 'tool_grant' && mod.access.grantKey ? mod.access.grantKey : moduleKey
+    const toolParam =
+      (mod.access.kind === 'tool_grant' || mod.access.kind === 'admin_only') && mod.access.grantKey
+        ? mod.access.grantKey
+        : moduleKey
     redirect(redirectTo ?? `/no-access?tool=${toolParam}`)
   }
 

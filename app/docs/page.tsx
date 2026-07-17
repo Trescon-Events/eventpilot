@@ -42,13 +42,20 @@ const SECTION_DESC: Record<string, string> = {
   'Technical Reference':   'API endpoints, data structure, and platform architecture',
 }
 
+// Distinct family token per section. Colour is used both as plain text/icon
+// colour AND (via color-mix, see the category badge below) as a translucent
+// background, so each section needs its own family — 'User Guide' and
+// 'Operations Reference' were both purple-family hexes in the old light
+// theme; Operations is remapped to indigo here so the two stay visually
+// distinct. Same for 'Platform Reference' vs 'Technical Reference' (both
+// were red-family hexes) — Technical is remapped to orange.
 const SECTION_COLOR: Record<string, string> = {
-  'Platform Reference':    '#FF6B6B',
-  'Platform Overview':     '#00897B',
-  'How the Platform Works': '#C0F43C',
-  'User Guide':            '#A478FF',
-  'Operations Reference':  '#7C3AED',
-  'Technical Reference':   '#8B1A1A',
+  'Platform Reference':    'var(--red)',
+  'Platform Overview':     'var(--teal-mid)',
+  'How the Platform Works': 'var(--lime)',
+  'User Guide':            'var(--purple)',
+  'Operations Reference':  'var(--indigo)',
+  'Technical Reference':   'var(--orange)',
 }
 
 const SECTION_ICON: Record<string, React.ReactNode> = {
@@ -69,24 +76,24 @@ function formatContent(text: string) {
       elements.push(<div key={key++} style={{ height: '10px' }} />)
     } else if (/^[A-Z][A-Z\s&:]+$/.test(line.trim()) && line.trim().length > 3) {
       elements.push(
-        <div key={key++} style={{ fontSize: '13px', fontWeight: 800, letterSpacing: '1.5px', color: '#00695C', textTransform: 'uppercase', marginTop: '20px', marginBottom: '6px' }}>
+        <div key={key++} style={{ fontSize: '13px', fontWeight: 800, letterSpacing: '1.5px', color: 'var(--teal)', textTransform: 'uppercase', marginTop: '20px', marginBottom: '6px' }}>
           {line.trim()}
         </div>
       )
     } else if (line.startsWith('- ') || line.startsWith('• ')) {
       elements.push(
         <div key={key++} style={{ display: 'flex', gap: '10px', marginBottom: '5px', paddingLeft: '4px' }}>
-          <div style={{ width: '5px', height: '5px', borderRadius: '50%', background: '#00897B', marginTop: '8px', flexShrink: 0 }} />
-          <span style={{ fontSize: '13px', color: '#2D3E50', lineHeight: 1.65 }}>{line.replace(/^[-•]\s/, '')}</span>
+          <div style={{ width: '5px', height: '5px', borderRadius: '50%', background: 'var(--teal-mid)', marginTop: '8px', flexShrink: 0 }} />
+          <span style={{ fontSize: '13px', color: 'var(--ink2)', lineHeight: 1.65 }}>{line.replace(/^[-•]\s/, '')}</span>
         </div>
       )
     } else {
       const parts = line.split(/(\*\*[^*]+\*\*)/g)
       elements.push(
-        <p key={key++} style={{ fontSize: '13px', color: '#2D3E50', lineHeight: 1.72, margin: '0 0 4px' }}>
+        <p key={key++} style={{ fontSize: '13px', color: 'var(--ink2)', lineHeight: 1.72, margin: '0 0 4px' }}>
           {parts.map((part, i) =>
             part.startsWith('**') && part.endsWith('**')
-              ? <strong key={i} style={{ color: '#0F1923', fontWeight: 700 }}>{part.slice(2, -2)}</strong>
+              ? <strong key={i} style={{ color: 'var(--ink)', fontWeight: 700 }}>{part.slice(2, -2)}</strong>
               : part
           )}
         </p>
@@ -161,7 +168,7 @@ export default function DocsPage() {
     : []
 
   return (
-    <div style={{ fontFamily: 'var(--font-manrope), Manrope, sans-serif', background: '#E8EEF4', minHeight: '100vh', color: '#0F1923' }}>
+    <div style={{ fontFamily: 'var(--font-manrope), Manrope, sans-serif', background: 'var(--surface)', minHeight: '100vh', color: 'var(--ink)' }}>
 
       {/* Page header */}
       <PageHeader title="Platform Docs" />
@@ -169,30 +176,30 @@ export default function DocsPage() {
       <div style={{ display: 'grid', gridTemplateColumns: '256px 1fr', minHeight: 'calc(100vh - 56px)' }}>
 
         {/* ── Sidebar ── */}
-        <aside style={{ borderRight: '1px solid #C8DFE0', padding: '20px 12px', position: 'sticky', top: '64px', height: 'calc(100vh - 64px)', overflowY: 'auto' }}>
+        <aside style={{ borderRight: '1px solid var(--border)', padding: '20px 12px', position: 'sticky', top: '64px', height: 'calc(100vh - 64px)', overflowY: 'auto' }}>
 
           {/* Search */}
           <div style={{ marginBottom: '16px', padding: '0 4px' }}>
             <input type="text" placeholder="Search docs..." value={search}
               onChange={e => setSearch(e.target.value)}
-              style={{ width: '100%', padding: '8px 12px', borderRadius: '9px', border: '1px solid #9EC8C8', background: '#FFFFFF', color: '#0F1923', fontSize: '13px', fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box' }}
+              style={{ width: '100%', padding: '8px 12px', borderRadius: '9px', border: '1px solid var(--border)', background: 'var(--card)', color: 'var(--ink)', fontSize: '13px', fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box' }}
             />
           </div>
 
           {/* Search results */}
           {search.trim() ? (
             <div>
-              <div style={{ fontSize: '13px', fontWeight: 700, letterSpacing: '1.5px', textTransform: 'uppercase', color: '#0F1923', padding: '0 8px', marginBottom: '6px' }}>
+              <div style={{ fontSize: '13px', fontWeight: 700, letterSpacing: '1.5px', textTransform: 'uppercase', color: 'var(--ink)', padding: '0 8px', marginBottom: '6px' }}>
                 {searchResults.length} result{searchResults.length !== 1 ? 's' : ''}
               </div>
               {searchResults.length === 0 ? (
-                <div style={{ fontSize: '13px', color: '#2D3E50', padding: '12px 8px' }}>No matches found.</div>
+                <div style={{ fontSize: '13px', color: 'var(--ink2)', padding: '12px 8px' }}>No matches found.</div>
               ) : (
                 searchResults.map(item => (
                   <button key={item.slug} onClick={() => selectDoc(item.slug, item.category)}
-                    style={{ width: '100%', textAlign: 'left', padding: '8px 12px', borderRadius: '8px', border: 'none', background: activeSlug === item.slug ? '#FFFFFF' : 'transparent', color: activeSlug === item.slug ? '#1E2124' : '#2A3038', fontSize: '13px', fontWeight: activeSlug === item.slug ? 700 : 500, cursor: 'pointer', fontFamily: 'inherit', marginBottom: '2px', borderLeft: activeSlug === item.slug ? `2px solid ${SECTION_COLOR[item.category] ?? '#00897B'}` : '2px solid transparent' }}>
+                    style={{ width: '100%', textAlign: 'left', padding: '8px 12px', borderRadius: '8px', border: 'none', background: activeSlug === item.slug ? 'var(--card-hi)' : 'transparent', color: activeSlug === item.slug ? 'var(--ink)' : 'var(--ink2)', fontSize: '13px', fontWeight: activeSlug === item.slug ? 700 : 500, cursor: 'pointer', fontFamily: 'inherit', marginBottom: '2px', borderLeft: activeSlug === item.slug ? `2px solid ${SECTION_COLOR[item.category] ?? 'var(--teal-mid)'}` : '2px solid transparent' }}>
                     {item.title}
-                    <div style={{ fontSize: '13px', color: '#0F1923', marginTop: '2px' }}>{item.category}</div>
+                    <div style={{ fontSize: '13px', color: 'var(--ink)', marginTop: '2px' }}>{item.category}</div>
                   </button>
                 ))
               )}
@@ -200,7 +207,7 @@ export default function DocsPage() {
           ) : (
             /* Collapsible sections */
             orderedSections.map(sectionName => {
-              const color   = SECTION_COLOR[sectionName] ?? '#00897B'
+              const color   = SECTION_COLOR[sectionName] ?? 'var(--teal-mid)'
               const icon    = SECTION_ICON[sectionName]
               const isOpen  = openSections.has(sectionName)
               const items   = sectionName === 'Platform Reference'
@@ -224,7 +231,7 @@ export default function DocsPage() {
 
                   {/* Description — shown when collapsed */}
                   {!isOpen && SECTION_DESC[sectionName] && (
-                    <div style={{ fontSize: '13px', color: '#0F1923', padding: '0 8px 8px 27px', lineHeight: 1.5 }}>
+                    <div style={{ fontSize: '13px', color: 'var(--ink)', padding: '0 8px 8px 27px', lineHeight: 1.5 }}>
                       {SECTION_DESC[sectionName]}
                     </div>
                   )}
@@ -236,7 +243,7 @@ export default function DocsPage() {
                         const active = activeSlug === item.slug
                         return (
                           <button key={item.slug} onClick={() => selectDoc(item.slug, sectionName)}
-                            style={{ width: '100%', textAlign: 'left', padding: '7px 12px', borderRadius: '8px', border: 'none', background: active ? '#FFFFFF' : 'transparent', color: active ? '#1E2124' : '#2A3038', fontSize: '13px', fontWeight: active ? 700 : 500, cursor: 'pointer', fontFamily: 'inherit', marginBottom: '1px', borderLeft: active ? `2px solid ${color}` : '2px solid transparent', lineHeight: 1.4 }}>
+                            style={{ width: '100%', textAlign: 'left', padding: '7px 12px', borderRadius: '8px', border: 'none', background: active ? 'var(--card-hi)' : 'transparent', color: active ? 'var(--ink)' : 'var(--ink2)', fontSize: '13px', fontWeight: active ? 700 : 500, cursor: 'pointer', fontFamily: 'inherit', marginBottom: '1px', borderLeft: active ? `2px solid ${color}` : '2px solid transparent', lineHeight: 1.4 }}>
                             {item.title}
                           </button>
                         )
@@ -249,7 +256,7 @@ export default function DocsPage() {
           )}
 
           {loading && !search && (
-            <div style={{ fontSize: '13px', color: '#0F1923', textAlign: 'center', paddingTop: '12px' }}>Loading…</div>
+            <div style={{ fontSize: '13px', color: 'var(--ink)', textAlign: 'center', paddingTop: '12px' }}>Loading…</div>
           )}
         </aside>
 
@@ -258,14 +265,14 @@ export default function DocsPage() {
           {/* Category badge */}
           {activeCategory && (
             <div style={{ marginBottom: '16px' }}>
-              <span style={{ fontSize: '13px', fontWeight: 700, color: SECTION_COLOR[activeCategory] ?? '#00897B', background: `${SECTION_COLOR[activeCategory] ?? '#00897B'}15`, padding: '3px 10px', borderRadius: '6px' }}>
+              <span style={{ fontSize: '13px', fontWeight: 700, color: SECTION_COLOR[activeCategory] ?? 'var(--teal-mid)', background: `color-mix(in srgb, ${SECTION_COLOR[activeCategory] ?? 'var(--teal-mid)'} 8%, transparent)`, padding: '3px 10px', borderRadius: '6px' }}>
                 {activeCategory}
               </span>
             </div>
           )}
 
           {/* Title + subtitle */}
-          <h1 style={{ fontSize: '36px', fontWeight: 900, color: '#0F1923', margin: '0 0 10px', letterSpacing: '-0.5px', lineHeight: 1.2 }}>
+          <h1 style={{ fontSize: '36px', fontWeight: 900, color: 'var(--ink)', margin: '0 0 10px', letterSpacing: '-0.5px', lineHeight: 1.2 }}>
             {activeSlug === '__scoring'       ? 'How AI Readiness Is Measured'
            : activeSlug === '__questionnaire' ? 'Event Pilot Discovery Questionnaire'
            : activeSlug === '__playbook'      ? 'AI Readiness Playbook'
@@ -281,36 +288,36 @@ export default function DocsPage() {
             }
             const subtitle = subtitles[activeSlug] ?? (activeDoc ? `Part of ${activeDoc.category} — for reference.` : '')
             return subtitle ? (
-              <p style={{ fontSize: '13px', color: '#2D3E50', lineHeight: 1.65, margin: '0 0 28px', maxWidth: '600px' }}>
+              <p style={{ fontSize: '13px', color: 'var(--ink2)', lineHeight: 1.65, margin: '0 0 28px', maxWidth: '600px' }}>
                 {subtitle}
               </p>
             ) : null
           })()}
 
           {/* Content */}
-          <div style={{ borderTop: '1px solid #C8DFE0', paddingTop: '28px' }}>
+          <div style={{ borderTop: '1px solid var(--border)', paddingTop: '28px' }}>
             {activeSlug === '__scoring'       && <ScoringGuideContent />}
             {activeSlug === '__questionnaire' && <QuestionnaireContent />}
             {activeSlug === '__playbook'      && <PlaybookContent />}
             {!isBuiltIn && activeDoc         && formatContent(activeDoc.content)}
             {!isBuiltIn && !activeDoc && loading && (
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '300px' }}>
-                <div style={{ width: '32px', height: '32px', border: '3px solid rgba(0,165,163,0.15)', borderTopColor: '#00897B', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />
+                <div style={{ width: '32px', height: '32px', border: '3px solid rgba(0,165,163,0.15)', borderTopColor: 'var(--teal-mid)', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />
               </div>
             )}
             {!isBuiltIn && !activeDoc && !loading && (
-              <div style={{ color: '#0F1923', fontSize: '13px' }}>Select a document from the sidebar.</div>
+              <div style={{ color: 'var(--ink)', fontSize: '13px' }}>Select a document from the sidebar.</div>
             )}
           </div>
 
           {/* Footer for DB docs */}
           {!isBuiltIn && activeDoc && (
-            <div style={{ marginTop: '48px', paddingTop: '20px', borderTop: '1px solid #C8DFE0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <span style={{ fontSize: '13px', color: '#0F1923' }}>
+            <div style={{ marginTop: '48px', paddingTop: '20px', borderTop: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span style={{ fontSize: '13px', color: 'var(--ink)' }}>
                 Last updated: {new Date(activeDoc.updated_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}
               </span>
               <a href={`/api/platform-docs?slug=${activeDoc.slug}`} target="_blank" rel="noreferrer"
-                style={{ fontSize: '13px', color: '#00695C', textDecoration: 'none', fontWeight: 600 }}>
+                style={{ fontSize: '13px', color: 'var(--teal)', textDecoration: 'none', fontWeight: 600 }}>
                 Raw JSON
               </a>
             </div>
@@ -320,8 +327,8 @@ export default function DocsPage() {
 
       <style>{`
         @keyframes spin { to { transform: rotate(360deg); } }
-        input::placeholder { color: #9CA3AF; }
-        input:focus { border-color: rgba(0,165,163,0.4) !important; background: #FFFFFF !important; }
+        input::placeholder { color: var(--ink4); }
+        input:focus { border-color: rgba(0,165,163,0.4) !important; background: var(--card) !important; }
         aside::-webkit-scrollbar { width: 4px; }
         aside::-webkit-scrollbar-track { background: transparent; }
         aside::-webkit-scrollbar-thumb { background: rgba(0,165,163,0.15); border-radius: 4px; }

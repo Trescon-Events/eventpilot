@@ -4,16 +4,16 @@ import { useState, useEffect } from 'react'
 import PageHeader from '@/app/components/PageHeader'
 
 const C = {
-  bg:      '#F6F8FB',
-  surface: '#FFFFFF',
-  border:  '#DDE8EE',
-  text:    '#0F1923',
-  muted:   '#5B7080',
-  green:   '#00897B',
-  amber:   '#D97706',
-  red:     '#8B1A1A',
-  purple:  '#6C54B5',
-  blue:    '#1D4ED8',
+  bg:      'var(--surface)',
+  surface: 'var(--card)',
+  border:  'var(--border)',
+  text:    'var(--ink)',
+  muted:   'var(--ink3)',
+  green:   'var(--teal-mid)', // NOTE: named "green" historically, this is brand teal
+  amber:   '#F5B94D',
+  red:     'var(--red)',
+  purple:  'var(--purple)',
+  blue:    'var(--info)',
 }
 
 /* ── Types ───────────────────────────────────────────────────────────── */
@@ -102,7 +102,7 @@ function CandidateCard({ app, onMove, onScreen, onView }: {
     >
       {/* Name + avatar + source */}
       <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '8px' }}>
-        <div style={{ width: '32px', height: '32px', borderRadius: '50%', background: `${stage?.color ?? C.muted}15`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '12px', fontWeight: 800, color: stage?.color ?? C.muted, flexShrink: 0 }}>
+        <div style={{ width: '32px', height: '32px', borderRadius: '50%', background: `${'color-mix(in srgb, ' + (stage?.color ?? C.muted) + ' 8%, transparent)'}`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '12px', fontWeight: 800, color: stage?.color ?? C.muted, flexShrink: 0 }}>
           {(app.candidate?.full_name ?? 'X').split(' ').map(w => w[0]).join('').slice(0, 2)}
         </div>
         <div style={{ flex: 1, minWidth: 0 }}>
@@ -153,7 +153,7 @@ function CandidateCard({ app, onMove, onScreen, onView }: {
           <button
             disabled={acting}
             onClick={async () => { setActing(true); await onScreen(app.id); setActing(false) }}
-            style={{ padding: '5px 12px', borderRadius: '6px', background: C.amber, color: '#fff', fontSize: '11px', fontWeight: 700, border: 'none', cursor: 'pointer', fontFamily: 'inherit', flexShrink: 0 }}>
+            style={{ padding: '5px 12px', borderRadius: '6px', background: C.amber, color: 'var(--amber-light)', fontSize: '11px', fontWeight: 700, border: 'none', cursor: 'pointer', fontFamily: 'inherit', flexShrink: 0 }}>
             Screen now
           </button>
         )}
@@ -162,7 +162,7 @@ function CandidateCard({ app, onMove, onScreen, onView }: {
           <button
             disabled={acting}
             onClick={async () => { setActing(true); await onScreen(app.id); setActing(false) }}
-            style={{ padding: '4px 10px', borderRadius: '6px', background: C.purple + '15', color: C.purple, fontSize: '11px', fontWeight: 700, border: `1px solid ${C.purple}30`, cursor: 'pointer', fontFamily: 'inherit' }}>
+            style={{ padding: '4px 10px', borderRadius: '6px', background: 'color-mix(in srgb, ' + C.purple + ' 8%, transparent)', color: C.purple, fontSize: '11px', fontWeight: 700, border: `1px solid ${'color-mix(in srgb, ' + (C.purple) + ' 19%, transparent)'}`, cursor: 'pointer', fontFamily: 'inherit' }}>
             AI Screen
           </button>
         )}
@@ -170,7 +170,7 @@ function CandidateCard({ app, onMove, onScreen, onView }: {
           <button
             disabled={acting}
             onClick={async () => { setActing(true); await onMove(app.id, 'interview_r1'); setActing(false) }}
-            style={{ padding: '4px 10px', borderRadius: '6px', background: C.amber + '15', color: C.amber, fontSize: '11px', fontWeight: 700, border: `1px solid ${C.amber}30`, cursor: 'pointer', fontFamily: 'inherit' }}>
+            style={{ padding: '4px 10px', borderRadius: '6px', background: 'color-mix(in srgb, ' + C.amber + ' 8%, transparent)', color: C.amber, fontSize: '11px', fontWeight: 700, border: `1px solid ${'color-mix(in srgb, ' + (C.amber) + ' 19%, transparent)'}`, cursor: 'pointer', fontFamily: 'inherit' }}>
             Schedule R1
           </button>
         )}
@@ -183,7 +183,7 @@ function CandidateCard({ app, onMove, onScreen, onView }: {
               await onMove(app.id, next)
               setActing(false)
             }}
-            style={{ padding: '4px 10px', borderRadius: '6px', background: C.amber + '15', color: C.amber, fontSize: '11px', fontWeight: 700, border: `1px solid ${C.amber}30`, cursor: 'pointer', fontFamily: 'inherit' }}>
+            style={{ padding: '4px 10px', borderRadius: '6px', background: 'color-mix(in srgb, ' + C.amber + ' 8%, transparent)', color: C.amber, fontSize: '11px', fontWeight: 700, border: `1px solid ${'color-mix(in srgb, ' + (C.amber) + ' 19%, transparent)'}`, cursor: 'pointer', fontFamily: 'inherit' }}>
             Next Round
           </button>
         )}
@@ -191,14 +191,14 @@ function CandidateCard({ app, onMove, onScreen, onView }: {
           <button
             disabled={acting}
             onClick={async () => { setActing(true); await onMove(app.id, 'offer'); setActing(false) }}
-            style={{ padding: '4px 10px', borderRadius: '6px', background: C.green + '15', color: C.green, fontSize: '11px', fontWeight: 700, border: `1px solid ${C.green}30`, cursor: 'pointer', fontFamily: 'inherit' }}>
+            style={{ padding: '4px 10px', borderRadius: '6px', background: 'color-mix(in srgb, ' + C.green + ' 8%, transparent)', color: C.green, fontSize: '11px', fontWeight: 700, border: `1px solid ${'color-mix(in srgb, ' + (C.green) + ' 19%, transparent)'}`, cursor: 'pointer', fontFamily: 'inherit' }}>
             Send Offer
           </button>
         )}
         <button
           disabled={acting}
           onClick={async () => { setActing(true); await onMove(app.id, 'rejected'); setActing(false) }}
-          style={{ padding: '4px 10px', borderRadius: '6px', background: C.red + '10', color: C.red, fontSize: '11px', fontWeight: 700, border: `1px solid ${C.red}20`, cursor: 'pointer', fontFamily: 'inherit' }}>
+          style={{ padding: '4px 10px', borderRadius: '6px', background: 'color-mix(in srgb, ' + C.red + ' 6%, transparent)', color: C.red, fontSize: '11px', fontWeight: 700, border: `1px solid ${'color-mix(in srgb, ' + (C.red) + ' 13%, transparent)'}`, cursor: 'pointer', fontFamily: 'inherit' }}>
           Reject
         </button>
       </div>
@@ -282,7 +282,7 @@ function AppDrawer({ app, staffList, onClose, onHire, onAddInterview, onRefresh 
 
                   {round.status !== 'completed' && (
                     <button onClick={() => setFeedbackOpen(feedbackOpen === round.id ? null : round.id)}
-                      style={{ marginTop: '8px', padding: '4px 10px', borderRadius: '6px', background: C.green + '15', color: C.green, fontSize: '11px', fontWeight: 700, border: `1px solid ${C.green}30`, cursor: 'pointer', fontFamily: 'inherit' }}>
+                      style={{ marginTop: '8px', padding: '4px 10px', borderRadius: '6px', background: 'color-mix(in srgb, ' + C.green + ' 8%, transparent)', color: C.green, fontSize: '11px', fontWeight: 700, border: `1px solid ${'color-mix(in srgb, ' + (C.green) + ' 19%, transparent)'}`, cursor: 'pointer', fontFamily: 'inherit' }}>
                       Add Feedback
                     </button>
                   )}
@@ -301,7 +301,7 @@ function AppDrawer({ app, staffList, onClose, onHire, onAddInterview, onRefresh 
                           <div style={{ display: 'flex', gap: '4px' }}>
                             {[1,2,3,4,5].map(n => (
                               <button key={n} onClick={() => setFeedbackForm(f => ({ ...f, [key as string]: n }))}
-                                style={{ width: '28px', height: '28px', borderRadius: '6px', border: `1px solid ${(val as number) >= n ? C.amber : C.border}`, background: (val as number) >= n ? C.amber : C.surface, color: (val as number) >= n ? '#fff' : C.muted, fontSize: '12px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
+                                style={{ width: '28px', height: '28px', borderRadius: '6px', border: `1px solid ${(val as number) >= n ? C.amber : C.border}`, background: (val as number) >= n ? C.amber : C.surface, color: (val as number) >= n ? 'var(--amber-light)' : C.muted, fontSize: '12px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
                                 {n}
                               </button>
                             ))}
@@ -340,7 +340,7 @@ function AppDrawer({ app, staffList, onClose, onHire, onAddInterview, onRefresh 
                           setBusy(false)
                           onRefresh()
                         }}
-                        style={{ padding: '8px 16px', borderRadius: '8px', background: C.green, color: '#fff', fontSize: '12px', fontWeight: 700, border: 'none', cursor: 'pointer', fontFamily: 'inherit', opacity: busy ? 0.6 : 1 }}>
+                        style={{ padding: '8px 16px', borderRadius: '8px', background: C.green, color: 'var(--teal-light)', fontSize: '12px', fontWeight: 700, border: 'none', cursor: 'pointer', fontFamily: 'inherit', opacity: busy ? 0.6 : 1 }}>
                         Submit Feedback
                       </button>
                     </div>
@@ -386,7 +386,7 @@ function AppDrawer({ app, staffList, onClose, onHire, onAddInterview, onRefresh 
                   setBusy(false)
                   onRefresh()
                 }}
-                style={{ padding: '8px 16px', borderRadius: '8px', background: C.amber, color: '#fff', fontSize: '12px', fontWeight: 700, border: 'none', cursor: 'pointer', fontFamily: 'inherit', opacity: busy ? 0.6 : 1 }}>
+                style={{ padding: '8px 16px', borderRadius: '8px', background: C.amber, color: 'var(--amber-light)', fontSize: '12px', fontWeight: 700, border: 'none', cursor: 'pointer', fontFamily: 'inherit', opacity: busy ? 0.6 : 1 }}>
                 Schedule
               </button>
             </div>
@@ -404,7 +404,7 @@ function AppDrawer({ app, staffList, onClose, onHire, onAddInterview, onRefresh 
           {(app.stage === 'offer' || app.stage === 'interview_final') && (
             <button disabled={busy}
               onClick={async () => { setBusy(true); await onHire(app.id); setBusy(false) }}
-              style={{ width: '100%', padding: '14px', borderRadius: '10px', background: C.green, color: '#fff', fontSize: '14px', fontWeight: 800, border: 'none', cursor: 'pointer', fontFamily: 'inherit', opacity: busy ? 0.6 : 1 }}>
+              style={{ width: '100%', padding: '14px', borderRadius: '10px', background: C.green, color: 'var(--teal-light)', fontSize: '14px', fontWeight: 800, border: 'none', cursor: 'pointer', fontFamily: 'inherit', opacity: busy ? 0.6 : 1 }}>
               Mark as Hired — Create Staff Record
             </button>
           )}
@@ -469,7 +469,7 @@ function AddCandidateModal({ requisitionId, onClose, onSave }: {
         <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
           <button onClick={onClose} style={{ padding: '10px 20px', borderRadius: '10px', background: C.bg, border: `1px solid ${C.border}`, fontSize: '13px', fontWeight: 700, color: C.muted, cursor: 'pointer', fontFamily: 'inherit' }}>Cancel</button>
           <button disabled={saving || !form.full_name || !form.email} onClick={submit}
-            style={{ padding: '10px 20px', borderRadius: '10px', background: C.green, color: '#fff', fontSize: '13px', fontWeight: 700, border: 'none', cursor: 'pointer', fontFamily: 'inherit', opacity: saving ? 0.6 : 1 }}>
+            style={{ padding: '10px 20px', borderRadius: '10px', background: C.green, color: 'var(--teal-light)', fontSize: '13px', fontWeight: 700, border: 'none', cursor: 'pointer', fontFamily: 'inherit', opacity: saving ? 0.6 : 1 }}>
             {saving ? 'Adding…' : 'Add Candidate'}
           </button>
         </div>
@@ -568,7 +568,7 @@ function NewRequisitionModal({ staffList, onClose, onSave }: {
         <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end', marginTop: '20px' }}>
           <button onClick={onClose} style={{ padding: '10px 20px', borderRadius: '10px', background: C.bg, border: `1px solid ${C.border}`, fontSize: '13px', fontWeight: 700, color: C.muted, cursor: 'pointer', fontFamily: 'inherit' }}>Cancel</button>
           <button disabled={saving || !form.title} onClick={submit}
-            style={{ padding: '10px 20px', borderRadius: '10px', background: C.green, color: '#fff', fontSize: '13px', fontWeight: 700, border: 'none', cursor: 'pointer', fontFamily: 'inherit', opacity: saving ? 0.6 : 1 }}>
+            style={{ padding: '10px 20px', borderRadius: '10px', background: C.green, color: 'var(--teal-light)', fontSize: '13px', fontWeight: 700, border: 'none', cursor: 'pointer', fontFamily: 'inherit', opacity: saving ? 0.6 : 1 }}>
             {saving ? 'Creating…' : 'Open Position'}
           </button>
         </div>
@@ -705,7 +705,7 @@ export default function RecruitmentPage() {
             </button>
           )}
           <button onClick={() => setShowNewReq(true)}
-            style={{ padding: '8px 16px', borderRadius: '10px', background: C.green, color: '#fff', fontSize: '13px', fontWeight: 700, border: 'none', cursor: 'pointer', fontFamily: 'inherit' }}>
+            style={{ padding: '8px 16px', borderRadius: '10px', background: C.green, color: 'var(--teal-light)', fontSize: '13px', fontWeight: 700, border: 'none', cursor: 'pointer', fontFamily: 'inherit' }}>
             + Open Position
           </button>
         </div>
@@ -740,7 +740,7 @@ export default function RecruitmentPage() {
                     padding: '14px 16px',
                     borderBottom: `1px solid ${C.border}`,
                     cursor: 'pointer',
-                    background: isActive ? C.green + '08' : 'transparent',
+                    background: isActive ? 'color-mix(in srgb, ' + C.green + ' 3%, transparent)' : 'transparent',
                     borderLeft: isActive ? `3px solid ${C.green}` : '3px solid transparent',
                   }}>
                   <div style={{ fontSize: '13px', fontWeight: 800, color: C.text, marginBottom: '3px' }}>{req.title}</div>
@@ -750,7 +750,7 @@ export default function RecruitmentPage() {
 
                   {/* Status + headcount pills */}
                   <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', marginBottom: pipelineStages ? '10px' : '0' }}>
-                    <span style={{ fontSize: '11px', fontWeight: 700, padding: '2px 7px', borderRadius: '8px', background: req.status === 'open' ? C.green + '15' : C.muted + '15', color: req.status === 'open' ? C.green : C.muted }}>
+                    <span style={{ fontSize: '11px', fontWeight: 700, padding: '2px 7px', borderRadius: '8px', background: req.status === 'open' ? 'color-mix(in srgb, ' + C.green + ' 8%, transparent)' : 'color-mix(in srgb, ' + C.muted + ' 8%, transparent)', color: req.status === 'open' ? C.green : C.muted }}>
                       {req.status}
                     </span>
                     <span style={{ fontSize: '11px', color: C.muted }}>×{req.headcount}</span>
@@ -813,9 +813,9 @@ export default function RecruitmentPage() {
 
               {/* Sample data banner */}
               {activeReq && (activeReq.title === 'Senior Event Producer' || activeReq.title === 'Digital Marketing Executive') && (
-                <div style={{ padding: '8px 24px', background: '#FFF8E1', borderBottom: `1px solid #FFE082`, display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
-                  <svg width="14" height="14" fill="none" stroke="#D97706" strokeWidth="2" strokeLinecap="round" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
-                  <span style={{ fontSize: '12px', fontWeight: 700, color: '#92400E' }}>Sample Data — This is a demonstration of the recruitment pipeline. These are not real candidates.</span>
+                <div style={{ padding: '8px 24px', background: 'var(--amber-light)', borderBottom: `1px solid var(--amber-border)`, display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
+                  <svg width="14" height="14" fill="none" stroke="var(--amber)" strokeWidth="2" strokeLinecap="round" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+                  <span style={{ fontSize: '12px', fontWeight: 700, color: 'var(--amber)' }}>Sample Data — This is a demonstration of the recruitment pipeline. These are not real candidates.</span>
                 </div>
               )}
 
@@ -868,7 +868,7 @@ export default function RecruitmentPage() {
                               <div onClick={() => setSelectedApp(app)}
                                 style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: '10px', padding: '10px 12px', cursor: 'pointer' }}>
                                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                  <div style={{ width: '28px', height: '28px', borderRadius: '50%', background: `${cfg.color}15`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '11px', fontWeight: 800, color: cfg.color, flexShrink: 0 }}>
+                                  <div style={{ width: '28px', height: '28px', borderRadius: '50%', background: `${'color-mix(in srgb, ' + (cfg.color) + ' 8%, transparent)'}`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '11px', fontWeight: 800, color: cfg.color, flexShrink: 0 }}>
                                     {(app.candidate?.full_name ?? 'X').split(' ').map(w => w[0]).join('').slice(0, 2)}
                                   </div>
                                   <div>

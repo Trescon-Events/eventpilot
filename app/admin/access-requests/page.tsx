@@ -40,17 +40,23 @@ type Request = {
 
 type Counts = { pending: number; granted: number; denied: number; expired: number; revoked: number }
 
-const BRAND = '#00A5A3'
-const LIME  = '#C0F43C'
-const DARK  = '#080A0B'
-const MUTED = '#5B7080'
+// BRAND is alpha-suffixed at runtime (`${BRAND}20` etc.) so it must stay a literal
+// hex rather than var(--teal-mid) — kept in sync with that token's value by hand.
+// LIME/DARK/MUTED are never alpha-suffixed, so they hold var() strings directly —
+// every consumer below picks up the token through the constant with no per-line edits.
+const BRAND = '#12C9BD'
+const LIME  = 'var(--lime)'
+const DARK  = 'var(--ink)'
+const MUTED = 'var(--ink3)'
 
+// Categorical status→color map. Bg/text pairs reuse the theme's family -light/bright
+// tokens (rule: text-on-family's-own-light-tint) so each clears 5:1+ on the dark card.
 const STATUS_STYLES: Record<Exclude<Status, 'all'>, { color: string; bg: string; label: string }> = {
-  pending:  { color: '#B45309', bg: '#FEF3C7', label: 'Pending' },
-  granted:  { color: '#00695C', bg: '#D1FAE5', label: 'Granted' },
-  denied:   { color: '#B91C1C', bg: '#FEE2E2', label: 'Denied' },
-  expired:  { color: '#5B7080', bg: '#EEF3F7', label: 'Expired' },
-  revoked:  { color: '#5B7080', bg: '#EEF3F7', label: 'Revoked' },
+  pending:  { color: 'var(--amber)',   bg: 'var(--amber-light)',   label: 'Pending' },
+  granted:  { color: 'var(--success)', bg: 'var(--success-light)', label: 'Granted' },
+  denied:   { color: 'var(--red)',     bg: 'var(--red-light)',     label: 'Denied' },
+  expired:  { color: 'var(--ink3)',    bg: 'rgba(255,255,255,0.06)', label: 'Expired' },
+  revoked:  { color: 'var(--ink3)',    bg: 'rgba(255,255,255,0.06)', label: 'Revoked' },
 }
 
 const DURATION_OPTIONS: { label: string; hours: number | null }[] = [
@@ -119,14 +125,14 @@ export default function AccessRequestsPage() {
   return (
     <div style={{
       minHeight: '100vh',
-      background: '#F5F7FA',
+      background: 'var(--surface)',
       fontFamily: 'var(--font-manrope), Manrope, sans-serif',
       color: DARK,
     }}>
       {/* Breadcrumb */}
       <div style={{
-        background: '#fff',
-        borderBottom: '1px solid #DDE8EE',
+        background: 'var(--card)',
+        borderBottom: '1px solid var(--border)',
         padding: '0 32px',
         height: '52px',
         display: 'flex',
@@ -137,12 +143,12 @@ export default function AccessRequestsPage() {
           <svg width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg>
           Admin
         </Link>
-        <span style={{ color: '#DDE8EE', fontSize: '13px' }}>/</span>
+        <span style={{ color: 'var(--border)', fontSize: '13px' }}>/</span>
         <span style={{ fontSize: '13px', fontWeight: 800, color: DARK }}>Access Requests</span>
       </div>
 
       {/* Header */}
-      <div style={{ padding: '28px 40px 20px', background: '#fff', borderBottom: '1px solid #EEF3F7' }}>
+      <div style={{ padding: '28px 40px 20px', background: 'var(--card)', borderBottom: '1px solid var(--border-light)' }}>
         <div style={{ fontSize: '24px', fontWeight: 900, letterSpacing: '-0.3px', marginBottom: '6px' }}>
           Access Requests
         </div>
@@ -153,7 +159,7 @@ export default function AccessRequestsPage() {
 
       {/* Tabs */}
       <div style={{
-        background: '#fff', borderBottom: '1px solid #EEF3F7',
+        background: 'var(--card)', borderBottom: '1px solid var(--border-light)',
         padding: '0 40px', display: 'flex', gap: '4px', overflowX: 'auto',
       }}>
         {(['pending','granted','denied','expired','revoked','all'] as Status[]).map(s => {
@@ -173,7 +179,7 @@ export default function AccessRequestsPage() {
               }}>
               {s}
               <span style={{
-                background: active ? `${BRAND}20` : '#EEF3F7',
+                background: active ? `${BRAND}20` : 'var(--border-light)',
                 color: active ? BRAND : MUTED,
                 padding: '1px 8px',
                 borderRadius: '10px',
@@ -193,9 +199,9 @@ export default function AccessRequestsPage() {
           style={{
             width: '100%', maxWidth: '440px',
             padding: '10px 14px',
-            borderRadius: '10px', border: '1px solid #DDE8EE',
+            borderRadius: '10px', border: '1px solid var(--border)',
             fontSize: '13px', fontFamily: 'inherit', color: DARK,
-            outline: 'none', background: '#fff',
+            outline: 'none', background: 'var(--card)',
           }}
         />
       </div>
@@ -241,7 +247,7 @@ export default function AccessRequestsPage() {
 function Card({ children }: { children: React.ReactNode }) {
   return (
     <div style={{
-      background: '#fff', border: '1px solid #DDE8EE',
+      background: 'var(--card)', border: '1px solid var(--border)',
       borderRadius: '14px', padding: '20px 22px',
       boxShadow: '0 2px 12px rgba(0,0,0,0.03)',
     }}>{children}</div>
@@ -276,7 +282,7 @@ function RequestCard({ r, onGrant, onDeny, onRevoke }: {
               padding: '3px 10px', borderRadius: '10px',
             }}>{style.label}</span>
             {r.manual_grant && r.status === 'pending' && (
-              <span style={{ fontSize: '10px', fontWeight: 800, color: '#B45309', background: '#FEF3C7', padding: '3px 10px', borderRadius: '10px' }}>
+              <span style={{ fontSize: '10px', fontWeight: 800, color: 'var(--amber)', background: 'var(--amber-light)', padding: '3px 10px', borderRadius: '10px' }}>
                 Manual escalation
               </span>
             )}
@@ -294,7 +300,7 @@ function RequestCard({ r, onGrant, onDeny, onRevoke }: {
           </div>
           {r.from_path && (
             <div style={{
-              fontSize: '12px', color: DARK, background: '#F5F7FA',
+              fontSize: '12px', color: DARK, background: 'var(--card-hi)',
               padding: '6px 10px', borderRadius: '8px',
               fontFamily: 'ui-monospace, monospace', display: 'inline-block',
               marginBottom: '10px', maxWidth: '100%', overflow: 'hidden', textOverflow: 'ellipsis',
@@ -307,12 +313,12 @@ function RequestCard({ r, onGrant, onDeny, onRevoke }: {
           </div>
 
           {r.status === 'granted' && r.granted_until && r.expires_in_ms !== null && (
-            <div style={{ marginTop: '8px', fontSize: '12px', fontWeight: 700, color: r.expires_in_ms > 0 ? '#B45309' : '#B91C1C' }}>
+            <div style={{ marginTop: '8px', fontSize: '12px', fontWeight: 700, color: r.expires_in_ms > 0 ? 'var(--amber)' : 'var(--red)' }}>
               {r.expires_in_ms > 0 ? `Expires ${fmtRelative(r.expires_in_ms)} (${fmtDate(r.granted_until)})` : `Expired ${fmtRelative(r.expires_in_ms)}`}
             </div>
           )}
           {r.status === 'granted' && !r.granted_until && (
-            <div style={{ marginTop: '8px', fontSize: '12px', fontWeight: 700, color: '#00695C' }}>
+            <div style={{ marginTop: '8px', fontSize: '12px', fontWeight: 700, color: 'var(--success)' }}>
               Permanent grant
             </div>
           )}
@@ -327,11 +333,11 @@ function RequestCard({ r, onGrant, onDeny, onRevoke }: {
         {r.status === 'pending' && (
           <div style={{ display: 'flex', gap: '8px', flexShrink: 0 }}>
             <button onClick={onGrant}
-              style={{ background: BRAND, color: '#fff', border: 'none', borderRadius: '10px', padding: '9px 18px', fontSize: '12px', fontWeight: 800, cursor: 'pointer', fontFamily: 'inherit' }}>
+              style={{ background: BRAND, color: 'var(--teal-light)', border: 'none', borderRadius: '10px', padding: '9px 18px', fontSize: '12px', fontWeight: 800, cursor: 'pointer', fontFamily: 'inherit' }}>
               Grant
             </button>
             <button onClick={onDeny}
-              style={{ background: 'transparent', color: '#B91C1C', border: '1px solid #FBCACA', borderRadius: '10px', padding: '9px 16px', fontSize: '12px', fontWeight: 800, cursor: 'pointer', fontFamily: 'inherit' }}>
+              style={{ background: 'transparent', color: 'var(--red)', border: '1px solid var(--red-border)', borderRadius: '10px', padding: '9px 16px', fontSize: '12px', fontWeight: 800, cursor: 'pointer', fontFamily: 'inherit' }}>
               Deny
             </button>
           </div>
@@ -339,7 +345,7 @@ function RequestCard({ r, onGrant, onDeny, onRevoke }: {
         {r.status === 'granted' && (
           <div style={{ display: 'flex', gap: '8px', flexShrink: 0 }}>
             <button onClick={onRevoke}
-              style={{ background: 'transparent', color: '#B91C1C', border: '1px solid #FBCACA', borderRadius: '10px', padding: '9px 16px', fontSize: '12px', fontWeight: 800, cursor: 'pointer', fontFamily: 'inherit' }}>
+              style={{ background: 'transparent', color: 'var(--red)', border: '1px solid var(--red-border)', borderRadius: '10px', padding: '9px 16px', fontSize: '12px', fontWeight: 800, cursor: 'pointer', fontFamily: 'inherit' }}>
               Revoke now
             </button>
           </div>
@@ -402,7 +408,7 @@ function GrantModal({ request, onClose, onDone }: {
       </div>
 
       {request.manual_grant && (
-        <div style={{ background: '#FEF3C7', border: '1px solid #FDE68A', color: '#78350F', padding: '10px 14px', borderRadius: '10px', fontSize: '12px', fontWeight: 700, marginBottom: '18px' }}>
+        <div style={{ background: 'var(--amber-light)', border: '1px solid var(--amber-border)', color: 'var(--amber)', padding: '10px 14px', borderRadius: '10px', fontSize: '12px', fontWeight: 700, marginBottom: '18px' }}>
           Manual escalation — this tool ({request.tool_key}) requires a super-admin decision. Granting here confirms the escalation but doesn&apos;t auto-apply the role; adjust in the admin panel afterwards.
         </div>
       )}
@@ -415,8 +421,8 @@ function GrantModal({ request, onClose, onDone }: {
             <button key={i}
               onClick={() => { setSelectedIdx(i); setDurationHours(opt.hours); setCustomMode(false) }}
               style={{
-                border: active ? `2px solid ${BRAND}` : '1px solid #DDE8EE',
-                background: active ? `${BRAND}0a` : '#fff',
+                border: active ? `2px solid ${BRAND}` : '1px solid var(--border)',
+                background: active ? `${BRAND}0a` : 'var(--card)',
                 color: active ? BRAND : DARK,
                 padding: '10px 12px', borderRadius: '10px',
                 fontSize: '12px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit',
@@ -427,8 +433,8 @@ function GrantModal({ request, onClose, onDone }: {
         })}
         <button onClick={() => setCustomMode(true)}
           style={{
-            border: customMode ? `2px solid ${BRAND}` : '1px solid #DDE8EE',
-            background: customMode ? `${BRAND}0a` : '#fff',
+            border: customMode ? `2px solid ${BRAND}` : '1px solid var(--border)',
+            background: customMode ? `${BRAND}0a` : 'var(--card)',
             color: customMode ? BRAND : DARK,
             padding: '10px 12px', borderRadius: '10px',
             fontSize: '12px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit',
@@ -442,7 +448,7 @@ function GrantModal({ request, onClose, onDone }: {
             value={customHours} onChange={e => setCustomHours(e.target.value)}
             style={{
               width: '100%', padding: '10px 14px', borderRadius: '10px',
-              border: '1px solid #DDE8EE', fontSize: '13px', fontFamily: 'inherit', outline: 'none',
+              border: '1px solid var(--border)', fontSize: '13px', fontFamily: 'inherit', outline: 'none',
             }} />
         </div>
       )}
@@ -452,23 +458,23 @@ function GrantModal({ request, onClose, onDone }: {
         placeholder="e.g. Q3 payroll review — needs Finance Portal until Friday"
         style={{
           width: '100%', padding: '10px 14px', borderRadius: '10px',
-          border: '1px solid #DDE8EE', fontSize: '13px', fontFamily: 'inherit',
+          border: '1px solid var(--border)', fontSize: '13px', fontFamily: 'inherit',
           minHeight: '68px', resize: 'vertical', outline: 'none', boxSizing: 'border-box',
         }} />
 
       {err && (
-        <div style={{ marginTop: '12px', padding: '10px 14px', borderRadius: '10px', background: '#FFF4F4', border: '1px solid #FBCACA', color: '#C2410C', fontSize: '12px', fontWeight: 700 }}>
+        <div style={{ marginTop: '12px', padding: '10px 14px', borderRadius: '10px', background: 'var(--red-light)', border: '1px solid var(--red-border)', color: 'var(--red)', fontSize: '12px', fontWeight: 700 }}>
           {err}
         </div>
       )}
 
       <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '22px' }}>
         <button onClick={saving ? undefined : onClose}
-          style={{ background: 'transparent', border: '1px solid #DDE8EE', color: DARK, borderRadius: '10px', padding: '10px 20px', fontSize: '12px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
+          style={{ background: 'transparent', border: '1px solid var(--border)', color: DARK, borderRadius: '10px', padding: '10px 20px', fontSize: '12px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
           Cancel
         </button>
         <button onClick={submit} disabled={saving}
-          style={{ background: LIME, color: DARK, border: 'none', borderRadius: '10px', padding: '10px 22px', fontSize: '13px', fontWeight: 800, cursor: saving ? 'default' : 'pointer', opacity: saving ? 0.7 : 1, fontFamily: 'inherit' }}>
+          style={{ background: LIME, color: 'var(--lime-dark)', border: 'none', borderRadius: '10px', padding: '10px 22px', fontSize: '13px', fontWeight: 800, cursor: saving ? 'default' : 'pointer', opacity: saving ? 0.7 : 1, fontFamily: 'inherit' }}>
           {saving ? 'Granting…' : 'Grant access'}
         </button>
       </div>
@@ -510,7 +516,7 @@ function DenyModal({ request, onClose, onDone }: {
 
   return (
     <ModalShell onClose={saving ? () => {} : onClose}>
-      <div style={{ fontSize: '11px', fontWeight: 800, color: '#B91C1C', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '6px' }}>Deny access</div>
+      <div style={{ fontSize: '11px', fontWeight: 800, color: 'var(--red)', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '6px' }}>Deny access</div>
       <div style={{ fontSize: '20px', fontWeight: 900, color: DARK, marginBottom: '4px', letterSpacing: '-0.3px' }}>
         {request.requester_name} → {request.tool_label}
       </div>
@@ -523,23 +529,23 @@ function DenyModal({ request, onClose, onDone }: {
         placeholder="e.g. Not their department — talk to your manager"
         style={{
           width: '100%', padding: '10px 14px', borderRadius: '10px',
-          border: '1px solid #DDE8EE', fontSize: '13px', fontFamily: 'inherit',
+          border: '1px solid var(--border)', fontSize: '13px', fontFamily: 'inherit',
           minHeight: '68px', resize: 'vertical', outline: 'none', boxSizing: 'border-box',
         }} />
 
       {err && (
-        <div style={{ marginTop: '12px', padding: '10px 14px', borderRadius: '10px', background: '#FFF4F4', border: '1px solid #FBCACA', color: '#C2410C', fontSize: '12px', fontWeight: 700 }}>
+        <div style={{ marginTop: '12px', padding: '10px 14px', borderRadius: '10px', background: 'var(--red-light)', border: '1px solid var(--red-border)', color: 'var(--red)', fontSize: '12px', fontWeight: 700 }}>
           {err}
         </div>
       )}
 
       <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '22px' }}>
         <button onClick={saving ? undefined : onClose}
-          style={{ background: 'transparent', border: '1px solid #DDE8EE', color: DARK, borderRadius: '10px', padding: '10px 20px', fontSize: '12px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
+          style={{ background: 'transparent', border: '1px solid var(--border)', color: DARK, borderRadius: '10px', padding: '10px 20px', fontSize: '12px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
           Cancel
         </button>
         <button onClick={submit} disabled={saving}
-          style={{ background: '#B91C1C', color: '#fff', border: 'none', borderRadius: '10px', padding: '10px 22px', fontSize: '13px', fontWeight: 800, cursor: saving ? 'default' : 'pointer', opacity: saving ? 0.7 : 1, fontFamily: 'inherit' }}>
+          style={{ background: 'var(--red)', color: 'var(--red-light)', border: 'none', borderRadius: '10px', padding: '10px 22px', fontSize: '13px', fontWeight: 800, cursor: saving ? 'default' : 'pointer', opacity: saving ? 0.7 : 1, fontFamily: 'inherit' }}>
           {saving ? 'Denying…' : 'Deny request'}
         </button>
       </div>
@@ -558,7 +564,7 @@ function ModalShell({ children, onClose }: { children: React.ReactNode; onClose:
       padding: '20px', zIndex: 1000,
     }}>
       <div onClick={e => e.stopPropagation()} style={{
-        background: '#fff', borderRadius: '18px',
+        background: 'var(--card)', borderRadius: '18px',
         padding: '28px 32px', width: '100%', maxWidth: '480px',
         boxShadow: '0 24px 64px rgba(0,0,0,0.2)',
       }}>
