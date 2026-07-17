@@ -550,7 +550,7 @@ export default function NewBespokeProjectPage() {
                   onManualChange={setMarketingLeadManual}
                 />
                 <StaffComboBox
-                  label="Delegacy Owner"
+                  label="Delegate Team Owner"
                   staff={staff}
                   selectedId={delegateLeadId}
                   manualValue={delegateLeadManual}

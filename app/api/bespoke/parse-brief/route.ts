@@ -14,6 +14,7 @@
  */
 import { NextRequest, NextResponse } from 'next/server'
 import { GoogleGenerativeAI } from '@google/generative-ai'
+import { PDFParse } from 'pdf-parse'
 import { supabaseAdmin } from '@/app/lib/supabase'
 
 export const runtime = 'nodejs'
@@ -39,11 +40,18 @@ type ParsedBrief = {
 }
 
 async function extractPdfText(buffer: Buffer): Promise<string> {
-  const mod = await import('pdf-parse')
-  const parse = (mod as unknown as { default?: (b: Buffer) => Promise<{ text?: string }> }).default
-              ?? (mod as unknown as (b: Buffer) => Promise<{ text?: string }>)
-  const result = await parse(buffer)
-  return (result?.text ?? '').trim()
+  // pdf-parse v2 replaced the old v1 "call a function, get {text}" API with
+  // a class (`new PDFParse({ data }).getText()`) — the installed version
+  // (package.json pins ^2.4.5) has no `lib/pdf-parse.js` internal module at
+  // all, that path only existed in v1. Constructor accepts a Node Buffer
+  // directly (it converts to Uint8Array internally).
+  const parser = new PDFParse({ data: buffer })
+  try {
+    const result = await parser.getText()
+    return (result?.text ?? '').trim()
+  } finally {
+    await parser.destroy()
+  }
 }
 
 export async function POST(req: NextRequest) {
