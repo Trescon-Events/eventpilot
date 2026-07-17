@@ -11,9 +11,9 @@
 | Field | Value |
 |---|---|
 | Who | Madhu + Claude Code (Sonnet 5) — 17 Jul 2026 |
-| Latest push | pending — this session's commit, merges in Durga's parallel session below, see below once pushed |
+| Latest push | 2026-07-17 — commit `ff0a1a0` (dark theme + access-control unification, merged with Durga's parallel bespoke pipeline session) |
 | Handed off to | Durga |
-| Deployed | pending verification this session |
+| Deployed | ✅ Yes — confirmed live on Railway: `/login` and `/welcome` render the new dark theme correctly (screenshot-verified against the public production URL), `/login` (200) and `/api/auth/microsoft` (307) healthy throughout the deploy window with no downtime observed. **Not yet verified:** any authenticated page — production disables password sign-in entirely (Microsoft SSO only), so the local super-admin bypass used for all of this session's testing can't reach production; Madhu/Durga's own SSO login is the only way to confirm the dark theme and new Settings→Access pages look right once actually inside the app. |
 
 **Session highlight (17 Jul 2026):** two large, mostly-independent threads. **(1) Complete dark navy/teal color-theme overhaul** — full replacement of the light theme across essentially every internal page (~100 files), centralized via `app/globals.css` CSS custom properties, with a formal "text-on-surface pairing rules" convention (3 numbered rules) written directly into `globals.css` so future pages don't need to re-derive contrast logic. **(2) Tool access-control unification** — Madhu reported 6 staff (Imran, Nicholas, Shadi, Thulasi, Hussain, Fouzan) granted KB/DocuHub/Knowledge Assistant access who still couldn't get in, and several Pilot Projects' "Open Tool" buttons not working. Root cause: two disconnected grant systems (`staff_members.tool_grants` — the only thing checked for page entry — vs. `module_access` — used by KB/DocuHub's own Settings→Access tab for tool-specific admin tier, never consulted for entry). Fixed at the root, then generalized and rolled out to every gated tool, plus new Pilot Projects member/grant management. Also found and fixed a real, separate production bug: DocuHub file uploads were failing on Railway (missing `Content-Length` header on R2 storage writes — the same bug already fixed in KB's storage code weeks ago, never ported to DocuHub's separate copy).
 
