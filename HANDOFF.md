@@ -10,10 +10,46 @@
 
 | Field | Value |
 |---|---|
-| Who | Madhu + Claude Code (Sonnet 5) — 15–16 Jul 2026 |
-| Latest push | 2026-07-16 — commit `95d18c3` (persistent global shell, module sidebars, breadcrumbs — full nav architecture overhaul) |
-| Handed off to | Durga |
-| Deployed | ✅ Yes — commit `95d18c3` live on Railway, confirmed via `/login` (200) and `/admin/toolkit` (307, unauthenticated redirect) on both the Railway URL and `eventpilot.tresconglobal.com` |
+| Who | Durga + Claude Code (Opus 4.7) — 17 Jul 2026 |
+| Latest push | 2026-07-17 — commit `df32892` (bespoke pipeline: bulk delegate import + Kanban view + Delegate Team rename) |
+| Handed off to | Next session |
+| Deployed | ✅ Yes — commits `6fdf8cf` (Nic bug fixes) and `df32892` (Pipeline overhaul) live on Railway, 307 healthy at `eventpilot.tresconglobal.com` |
+
+**Session highlight (17 Jul 2026):** Cleared 3 of Nic's 4 open build_requests. 2 bugs fixed and closed; 1 feature (Pipeline PRD) partially shipped (3 of 4 pieces); 1 feature (Task overhaul) blocked on Nic sending a definitive 43-task SOP list.
+
+**1. Bug — PDF brief upload crash (`4c467b8b`).** Screenshot showed "PDF parse failed: n is not a function" — classic minified error on production only. Root cause: `pdf-parse` CJS module wrapping in Next 16 production build (`{ default: { default: fn } }`), while dev sees `{ default: fn }` directly. Fix in `app/api/bespoke/parse-brief/route.ts`: import from `pdf-parse/lib/pdf-parse.js` (skips the buggy `index.js` self-test) + walk `mod.default → mod.default.default → mod` picking the first callable + explicit thrown error if nothing is callable. Ticket closed.
+
+**2. Bug — Silent SOP task seed failure (`c6dd1cf0`).** Nic reported "0/0 tasks" after project creation on a project ID that no longer exists. Verified the current AJMS project has all 55 SOP tasks seeded correctly, so no data corruption today, but the code path was silently swallowing insert errors: `taskErr` only `console.error`'d, response returned 201 with `tasks_created: tasks.length` (INTENDED count, not actual inserted count). Same class of silent-failure bug as sort_order/save-brief closed 13 Jul. Fix in `app/api/bespoke/route.ts`: `.insert(tasks).select('id')` so we know the actual insert count; on error return HTTP 207 with `task_seed_error` + `warning` fields so the client surfaces a real message instead of a false success. Ticket closed.
+
+**3. Feature — Pipeline overhaul (`621cac61`), 3 of 4 shipped.** Nic's PRD bundled bulk delegate import + dual layout (Table | Kanban) + live Check-In Mode + "Delegacy" → "Delegate Team" rename.
+- **Bulk import (new)** — `app/api/bespoke/delegates/import/route.ts` + `app/admin/bespoke/[id]/ImportDelegatesModal.tsx`. Client-side CSV/XLSX parse via `xlsx` (already installed), auto-guess column→field mapping from header names, 3-step UI (file picker → mapping + preview → import), dedupe by email against existing project delegates AND within the incoming batch, enum validation on source/priority/stage with fallback to defaults, 5000 row cap. Returns `{ imported, skipped_duplicates, skipped_no_name, errors, duplicate_emails }`.
+- **Kanban view (new)** — `app/admin/bespoke/[id]/DelegateKanban.tsx` using `@dnd-kit/core` (already installed). 6 columns matching `DELEGATE_STAGES`, drag-drop cards, drop → same `updateDelegateStage` handler the Table view's dropdown uses.
+- **Pipeline tab wiring** — view toggle pill (Table | Kanban Board) + Import CSV/XLSX button next to Add Delegate in `app/admin/bespoke/[id]/page.tsx`.
+- **Delegacy → Delegate Team rename** — one occurrence in `app/admin/bespoke/new/page.tsx` ("Delegacy Owner" → "Delegate Team Owner").
+- **Check-In Mode deferred** — noted in reply and email to Nic. Event-day mobile UX (QR + offline) is a different scope; will get its own ticket with a proper PRD once Nic sends specific requirements (badge printing? offline sync window? scanner hardware?).
+- Every new UI element reuses the existing card language, colors, borders, and radii per Nic's "Functional Changes Only" rule.
+
+**4. Feature — Task section overhaul (`2f002c2e`), blocked.** Nic's PRD asks for a "43-task SOP template" but ticket #2 referenced "53 SOP tasks" — need his definitive list before I code the template. Emailed him (Resend id `d2182082…`, subject "Task tab PRD — need your 43-task SOP list before I code") explaining that everything else in the PRD (dynamic company/venue interpolation, edit/delete perms restricted to event creator, team tagging on new tasks, role badges, phase-level timeline headers) is ready to build the moment he replies. Ticket still `submitted`.
+
+**Batched notifications sent (per rule):** 3 Resend emails total covering 4 tickets — bugs #1+#2 batched in one email (`3a646940…`), Task blocker in one email (`d2182082…`), Pipeline shipment in one email (`d7136904…`). Bypassed the PATCH auto-email via direct DB writes (status updates + reply inserts through `supabaseAdmin`).
+
+**Verification this session:** `npx tsc --noEmit` clean after both fix rounds (only pre-existing `.next/*` KB-module stale artifacts remain, unrelated). Site 307 healthy at `eventpilot.tresconglobal.com` post-deploy. No authenticated browser click-through — Nic will exercise the new import + Kanban when he re-tests his tickets.
+
+**Still to do:**
+1. **Task section overhaul (Nic `2f002c2e`)** — blocked on his 43-task list. When it lands, wrap: dynamic company+venue interpolation into task titles, edit/delete restricted to event creator, team tagging on new tasks, role badges, phase-level timeline headers with dates calculated from `contract_signed_date` + `event_date`.
+2. **Check-In Mode** — needs Nic to send requirements (badge printing / offline sync window / scanner hardware). Then build a proper PRD before touching code. New ticket to be created; not yet in the tracker.
+3. **Post-deploy visual check** on the Pipeline tab: header auto-mapping accuracy on Nic's typical wishlist CSVs, drag-drop responsiveness of Kanban with 20+ delegates. Nic will surface any issues via new build_requests.
+
+**Carried forward from prior sessions (unchanged, not touched this session):**
+- `staff_members.last_login_at` never written — blocks never-logged-in filters
+- Khalifat alignment reply drafted 06 Jul, still awaiting founder send
+- Corporate Deck manager Phase 2 shape decision (framing email drafted for Thulasi)
+- `CRON_SECRET` on Railway out of sync — blocks auto-revoke + weekly leaderboard cron
+- Thulasi 66 MB deck retest (needs her hard-refresh)
+- Charan Kaverappa sign-out/in for Finance Portal
+- KB module click-through (Madhu's build)
+- `workspace_id` auto-linking fix (Madhu recommended next)
+- Madhu's 15–16 Jul nav overhaul — still awaiting Madhu's authenticated browser click-through to confirm shell persistence, sidebar active-states, breadcrumb text on deep pages
 
 **Session highlight (15–16 Jul 2026):** Madhu asked to grant KB/DocuHub/Knowledge Assistant module access to 5 people — which surfaced that Knowledge Base and DocuHub were still sitting inside the Admin Dashboard rather than as real Toolkit-gated tools. That escalated (with Madhu's explicit go-ahead to "do everything at once") into a full navigation architecture overhaul once he noticed the top bar remounting on every navigation, module sub-nav crammed into the top bar instead of a sidebar, a duplicate "My Dashboard" button, and no breadcrumbs anywhere.
 
