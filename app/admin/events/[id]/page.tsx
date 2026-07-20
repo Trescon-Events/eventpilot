@@ -27,6 +27,20 @@ type Event = {
   client_name: string | null
   description: string | null
   expected_attendance: number | null
+  // Digital presence (Stakeholder Announcement Engine)
+  event_format: string | null
+  country: string | null
+  website_url: string | null
+  event_hashtag: string | null
+  registration_url: string | null
+  social_linkedin: string | null
+  social_x: string | null
+  social_instagram: string | null
+  social_facebook: string | null
+  social_youtube: string | null
+  venue_map_link: string | null
+  venue_map_place_id: string | null
+  ayrshare_profile_key: string | null
 }
 
 type StaffMember = { id: string; name: string; department: string }
@@ -140,8 +154,25 @@ export default function EventWorkspacePage({ params }: { params: Promise<{ id: s
 
   // Event editing
   const [editing,        setEditing]        = useState(false)
-  const [editForm,       setEditForm]       = useState({ name: '', type: '', status: '', event_date: '', end_date: '', venue: '', city: '', client_name: '', description: '', expected_attendance: '' })
+  const [editForm,       setEditForm]       = useState({
+    name: '', type: '', status: '', event_date: '', end_date: '', venue: '', city: '', client_name: '', description: '', expected_attendance: '',
+    event_format: '', country: '', website_url: '', event_hashtag: '', registration_url: '',
+    social_linkedin: '', social_x: '', social_instagram: '', social_facebook: '', social_youtube: '',
+    venue_map_link: '', venue_map_place_id: '', ayrshare_profile_key: '',
+  })
   const [savingEdit,     setSavingEdit]     = useState(false)
+  const [venueQuery,     setVenueQuery]     = useState('')
+  const [venueResults,   setVenueResults]   = useState<{ place_id: string; name: string; address: string; maps_url: string }[]>([])
+  const [venueSearching, setVenueSearching] = useState(false)
+
+  // Topline Messaging Doc
+  type MessagingDoc = {
+    id: string; version: number; title: string; source_url: string | null
+    structured_json: Record<string, unknown> | null; status: string; updated_at: string
+  }
+  const [messagingDoc,       setMessagingDoc]       = useState<MessagingDoc | null>(null)
+  const [messagingUploading, setMessagingUploading] = useState(false)
+  const [messagingExpanded,  setMessagingExpanded]  = useState(false)
 
   // Team tab
   const [eventStaff,     setEventStaff]     = useState<EventStaffMember[]>([])
@@ -204,7 +235,24 @@ export default function EventWorkspacePage({ params }: { params: Promise<{ id: s
     fetchPnlData()
     fetchFinanceLogs()
     fetchEventStaff()
+    fetchMessagingDoc()
   }, [eventId])
+
+  async function fetchMessagingDoc() {
+    const res  = await fetch(`/api/events/stakeholders/messaging?event_id=${eventId}`)
+    const data = await res.json().catch(() => null)
+    setMessagingDoc(data ?? null)
+  }
+
+  async function uploadMessagingDoc(file: File) {
+    setMessagingUploading(true)
+    const form = new FormData()
+    form.append('event_id', eventId)
+    form.append('file', file)
+    const res = await fetch('/api/events/stakeholders/messaging', { method: 'POST', body: form })
+    if (res.ok) await fetchMessagingDoc()
+    setMessagingUploading(false)
+  }
 
   async function fetchEventStaff() {
     const res  = await fetch(`/api/events/staff?event_id=${eventId}`)
@@ -225,10 +273,39 @@ export default function EventWorkspacePage({ params }: { params: Promise<{ id: s
       client_name: editForm.client_name || null,
       description: editForm.description || null,
       expected_attendance: editForm.expected_attendance ? Number(editForm.expected_attendance) : null,
+      event_format:      editForm.event_format || null,
+      country:           editForm.country || null,
+      website_url:       editForm.website_url || null,
+      event_hashtag:     editForm.event_hashtag || null,
+      registration_url:  editForm.registration_url || null,
+      social_linkedin:   editForm.social_linkedin || null,
+      social_x:          editForm.social_x || null,
+      social_instagram:  editForm.social_instagram || null,
+      social_facebook:   editForm.social_facebook || null,
+      social_youtube:    editForm.social_youtube || null,
+      venue_map_link:      editForm.venue_map_link || null,
+      venue_map_place_id:  editForm.venue_map_place_id || null,
+      ayrshare_profile_key: editForm.ayrshare_profile_key || null,
     }
     const res  = await fetch(`/api/events?id=${eventId}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
     if (res.ok) { setEditing(false); fetchAll() }
     setSavingEdit(false)
+  }
+
+  async function searchVenue(query: string) {
+    setVenueQuery(query)
+    if (query.trim().length < 3) { setVenueResults([]); return }
+    setVenueSearching(true)
+    const res  = await fetch(`/api/events/stakeholders/venue-map?query=${encodeURIComponent(query)}`)
+    const data = await res.json().catch(() => ({ results: [] }))
+    setVenueResults(Array.isArray(data.results) ? data.results : [])
+    setVenueSearching(false)
+  }
+
+  function selectVenue(place: { place_id: string; name: string; maps_url: string }) {
+    setEditForm(f => ({ ...f, venue_map_link: place.maps_url, venue_map_place_id: place.place_id }))
+    setVenueQuery(place.name)
+    setVenueResults([])
   }
 
   async function assignStaff(staffId: string) {
@@ -273,6 +350,19 @@ export default function EventWorkspacePage({ params }: { params: Promise<{ id: s
         client_name:         ev.client_name ?? '',
         description:         ev.description ?? '',
         expected_attendance: ev.expected_attendance ? String(ev.expected_attendance) : '',
+        event_format:        ev.event_format ?? '',
+        country:             ev.country ?? '',
+        website_url:         ev.website_url ?? '',
+        event_hashtag:       ev.event_hashtag ?? '',
+        registration_url:    ev.registration_url ?? '',
+        social_linkedin:     ev.social_linkedin ?? '',
+        social_x:            ev.social_x ?? '',
+        social_instagram:    ev.social_instagram ?? '',
+        social_facebook:     ev.social_facebook ?? '',
+        social_youtube:      ev.social_youtube ?? '',
+        venue_map_link:      ev.venue_map_link ?? '',
+        venue_map_place_id:  ev.venue_map_place_id ?? '',
+        ayrshare_profile_key: ev.ayrshare_profile_key ?? '',
       })
     }
     setChecklist(Array.isArray(clData) ? clData : [])
@@ -632,6 +722,80 @@ export default function EventWorkspacePage({ params }: { params: Promise<{ id: s
                         style={{ width: '100%', padding: '9px 12px', borderRadius: '8px', border: '1px solid var(--border)', fontSize: '13px', fontFamily: 'inherit', color: 'var(--ink)', resize: 'vertical', boxSizing: 'border-box' }} />
                     </div>
                   </div>
+
+                  {/* ── Digital Presence (Stakeholder Announcement Engine) ── */}
+                  <div style={{ fontSize: '11px', fontWeight: 800, letterSpacing: '0.8px', color: 'var(--teal-mid)', margin: '20px 0 10px', textTransform: 'uppercase' }}>Digital Presence</div>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                    {([
+                      ['EVENT FORMAT', 'event_format', null, ['physical', 'virtual', 'hybrid']],
+                      ['COUNTRY', 'country', null, null],
+                      ['EVENT WEBSITE URL', 'website_url', 'url', null],
+                      ['REGISTRATION URL', 'registration_url', 'url', null],
+                      ['EVENT HASHTAG', 'event_hashtag', null, null],
+                    ] as [string, string, string | null, string[] | null][]).map(([label, key, type, opts]) => (
+                      <div key={key}>
+                        <label style={{ fontSize: '11px', fontWeight: 700, color: 'var(--ink3)', display: 'block', marginBottom: '4px' }}>{label}</label>
+                        {opts ? (
+                          <select value={editForm[key as keyof typeof editForm]} onChange={e => setEditForm(f => ({ ...f, [key]: e.target.value }))}
+                            style={{ width: '100%', padding: '9px 12px', borderRadius: '8px', border: '1px solid var(--border)', fontSize: '13px', fontFamily: 'inherit', color: 'var(--ink)' }}>
+                            <option value="">—</option>
+                            {opts.map(o => <option key={o} value={o}>{o}</option>)}
+                          </select>
+                        ) : (
+                          <input type={type ?? 'text'} value={editForm[key as keyof typeof editForm]} onChange={e => setEditForm(f => ({ ...f, [key]: e.target.value }))}
+                            style={{ width: '100%', padding: '9px 12px', borderRadius: '8px', border: '1px solid var(--border)', fontSize: '13px', fontFamily: 'inherit', color: 'var(--ink)', boxSizing: 'border-box' }} />
+                        )}
+                      </div>
+                    ))}
+                  </div>
+
+                  <div style={{ fontSize: '11px', fontWeight: 800, letterSpacing: '0.8px', color: 'var(--teal-mid)', margin: '20px 0 10px', textTransform: 'uppercase' }}>Social Channels</div>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                    {([
+                      ['LINKEDIN', 'social_linkedin'],
+                      ['X', 'social_x'],
+                      ['INSTAGRAM', 'social_instagram'],
+                      ['FACEBOOK', 'social_facebook'],
+                      ['YOUTUBE', 'social_youtube'],
+                    ] as [string, string][]).map(([label, key]) => (
+                      <div key={key}>
+                        <label style={{ fontSize: '11px', fontWeight: 700, color: 'var(--ink3)', display: 'block', marginBottom: '4px' }}>{label}</label>
+                        <input type="url" value={editForm[key as keyof typeof editForm]} onChange={e => setEditForm(f => ({ ...f, [key]: e.target.value }))}
+                          style={{ width: '100%', padding: '9px 12px', borderRadius: '8px', border: '1px solid var(--border)', fontSize: '13px', fontFamily: 'inherit', color: 'var(--ink)', boxSizing: 'border-box' }} />
+                      </div>
+                    ))}
+                  </div>
+
+                  <div style={{ fontSize: '11px', fontWeight: 800, letterSpacing: '0.8px', color: 'var(--teal-mid)', margin: '20px 0 10px', textTransform: 'uppercase' }}>Venue Map &amp; Ayrshare</div>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                    <div style={{ position: 'relative' }}>
+                      <label style={{ fontSize: '11px', fontWeight: 700, color: 'var(--ink3)', display: 'block', marginBottom: '4px' }}>VENUE MAP</label>
+                      <input type="text" placeholder="Search venue name…" value={venueQuery || editForm.venue_map_link}
+                        onChange={e => searchVenue(e.target.value)}
+                        style={{ width: '100%', padding: '9px 12px', borderRadius: '8px', border: '1px solid var(--border)', fontSize: '13px', fontFamily: 'inherit', color: 'var(--ink)', boxSizing: 'border-box' }} />
+                      {venueSearching && <div style={{ fontSize: '11px', color: 'var(--ink3)', marginTop: '4px' }}>Searching…</div>}
+                      {venueResults.length > 0 && (
+                        <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 10, background: 'var(--card)', border: '1px solid var(--border)', borderRadius: '8px', marginTop: '4px', boxShadow: 'var(--shadow-sm)', maxHeight: '220px', overflowY: 'auto' }}>
+                          {venueResults.map(r => (
+                            <div key={r.place_id} onClick={() => selectVenue(r)}
+                              style={{ padding: '9px 12px', cursor: 'pointer', borderBottom: '1px solid var(--border-light)', fontSize: '12px' }}>
+                              <div style={{ fontWeight: 700, color: 'var(--ink)' }}>{r.name}</div>
+                              <div style={{ color: 'var(--ink3)', fontSize: '11px' }}>{r.address}</div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                      {editForm.venue_map_link && !venueResults.length && (
+                        <a href={editForm.venue_map_link} target="_blank" rel="noopener noreferrer" style={{ fontSize: '11px', color: 'var(--teal-mid)', marginTop: '4px', display: 'inline-block' }}>View selected map ↗</a>
+                      )}
+                    </div>
+                    <div>
+                      <label style={{ fontSize: '11px', fontWeight: 700, color: 'var(--ink3)', display: 'block', marginBottom: '4px' }}>AYRSHARE PROFILE KEY</label>
+                      <input type="password" value={editForm.ayrshare_profile_key} onChange={e => setEditForm(f => ({ ...f, ayrshare_profile_key: e.target.value }))}
+                        style={{ width: '100%', padding: '9px 12px', borderRadius: '8px', border: '1px solid var(--border)', fontSize: '13px', fontFamily: 'inherit', color: 'var(--ink)', boxSizing: 'border-box' }} />
+                    </div>
+                  </div>
+
                   <div style={{ display: 'flex', gap: '8px', marginTop: '14px' }}>
                     <button onClick={saveEventEdit} disabled={savingEdit || !editForm.name}
                       style={{ padding: '10px 22px', borderRadius: '8px', border: 'none', background: 'var(--lime)', color: 'var(--lime-dark)', fontSize: '13px', fontWeight: 800, cursor: 'pointer', fontFamily: 'inherit', opacity: savingEdit ? 0.6 : 1 }}>
@@ -718,7 +882,7 @@ export default function EventWorkspacePage({ params }: { params: Promise<{ id: s
               <span style={{ fontSize: '13px', fontWeight: 800, color: 'var(--teal)' }}>Public-Facing Assets</span>
               <div style={{ flex: 1, height: '1px', background: 'var(--border)' }} />
             </div>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', paddingLeft: '34px' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '10px', paddingLeft: '34px' }}>
               <Link href={`/admin/events/${eventId}/website`} style={{ textDecoration: 'none', padding: '14px 16px', borderRadius: '10px', background: 'rgba(14,167,157,0.04)', border: '1px solid rgba(14,167,157,0.2)', display: 'flex', alignItems: 'center', gap: '12px' }}>
                 <svg width="18" height="18" fill="none" stroke="var(--teal)" strokeWidth="2" strokeLinecap="round" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="3"/><path d="M3 9h18M9 21V9"/></svg>
                 <div><div style={{ fontSize: '13px', fontWeight: 700, color: 'var(--ink)' }}>Website Builder</div><div style={{ fontSize: '11px', color: 'var(--ink3)', marginTop: '2px' }}>Template, sync brand, build, publish</div></div>
@@ -726,6 +890,10 @@ export default function EventWorkspacePage({ params }: { params: Promise<{ id: s
               <Link href={`/content?event_id=${eventId}`} style={{ textDecoration: 'none', padding: '14px 16px', borderRadius: '10px', background: 'rgba(167,139,250,0.04)', border: '1px solid rgba(167,139,250,0.18)', display: 'flex', alignItems: 'center', gap: '12px' }}>
                 <svg width="18" height="18" fill="none" stroke="var(--purple)" strokeWidth="2" strokeLinecap="round" viewBox="0 0 24 24"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
                 <div><div style={{ fontSize: '13px', fontWeight: 700, color: 'var(--ink)' }}>Content Campaigns</div><div style={{ fontSize: '11px', color: 'var(--ink3)', marginTop: '2px' }}>Social media posts for this event</div></div>
+              </Link>
+              <Link href={`/admin/events/${eventId}/stakeholders`} style={{ textDecoration: 'none', padding: '14px 16px', borderRadius: '10px', background: 'rgba(240,171,60,0.05)', border: '1px solid rgba(240,171,60,0.22)', display: 'flex', alignItems: 'center', gap: '12px' }}>
+                <svg width="18" height="18" fill="none" stroke="var(--amber)" strokeWidth="2" strokeLinecap="round" viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+                <div><div style={{ fontSize: '13px', fontWeight: 700, color: 'var(--ink)' }}>Stakeholder Hub</div><div style={{ fontSize: '11px', color: 'var(--ink3)', marginTop: '2px' }}>Speakers, sponsors, announcements</div></div>
               </Link>
             </div>
           </div>
@@ -752,6 +920,47 @@ export default function EventWorkspacePage({ params }: { params: Promise<{ id: s
               </div>
             </div>
           </div>
+        </div>
+
+        {/* Topline Messaging Doc */}
+        <div style={{ marginBottom: '16px', background: 'var(--card)', border: '1px solid var(--border)', borderRadius: '16px', padding: '18px 24px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '10px' }}>
+            <div>
+              <div style={{ fontSize: '11px', fontWeight: 800, color: 'var(--teal-mid)', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '4px' }}>Topline Messaging Doc</div>
+              {messagingDoc ? (
+                <div style={{ fontSize: '12px', color: 'var(--ink3)' }}>
+                  v{messagingDoc.version} · Last updated: {new Date(messagingDoc.updated_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}
+                </div>
+              ) : (
+                <div style={{ fontSize: '12px', color: 'var(--ink3)' }}>No messaging doc uploaded yet — Gemini will extract a structured summary from the PDF.</div>
+              )}
+            </div>
+            <div style={{ display: 'flex', gap: '8px' }}>
+              {messagingDoc && (
+                <button onClick={() => setMessagingExpanded(v => !v)}
+                  style={{ padding: '7px 14px', borderRadius: '8px', border: '1px solid var(--border)', background: 'transparent', color: 'var(--ink2)', fontSize: '12px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
+                  {messagingExpanded ? 'Hide' : 'View'}
+                </button>
+              )}
+              <label style={{ padding: '7px 14px', borderRadius: '8px', border: 'none', background: 'var(--lime)', color: 'var(--lime-dark)', fontSize: '12px', fontWeight: 800, cursor: 'pointer', fontFamily: 'inherit', opacity: messagingUploading ? 0.6 : 1 }}>
+                {messagingUploading ? 'Uploading…' : 'Upload ▲'}
+                <input type="file" accept="application/pdf" disabled={messagingUploading} style={{ display: 'none' }}
+                  onChange={e => { const f = e.target.files?.[0]; if (f) uploadMessagingDoc(f); e.target.value = '' }} />
+              </label>
+            </div>
+          </div>
+          {messagingExpanded && messagingDoc?.structured_json && (
+            <div style={{ marginTop: '14px', paddingTop: '14px', borderTop: '1px solid var(--border-light)', display: 'grid', gap: '10px' }}>
+              {Object.entries(messagingDoc.structured_json).map(([key, value]) => (
+                <div key={key}>
+                  <div style={{ fontSize: '10px', fontWeight: 800, color: 'var(--ink3)', textTransform: 'uppercase', letterSpacing: '0.6px', marginBottom: '2px' }}>{key.replace(/_/g, ' ')}</div>
+                  <div style={{ fontSize: '12.5px', color: 'var(--ink2)', lineHeight: 1.55 }}>
+                    {Array.isArray(value) ? value.join(', ') : String(value)}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
 
         {/* Website Production Flow */}

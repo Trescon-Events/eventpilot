@@ -14,6 +14,9 @@ export async function GET(req: NextRequest) {
         .select(`
           id, name, type, status, event_date, end_date, venue, city, client_name,
           description, expected_attendance, created_at,
+          event_format, country, website_url, event_hashtag, registration_url,
+          social_linkedin, social_x, social_instagram, social_facebook, social_youtube,
+          venue_map_link, venue_map_place_id, ayrshare_profile_key, canva_template_config,
           event_staff(count),
           documents(count)
         `)
