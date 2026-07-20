@@ -37,7 +37,7 @@ function titleCase(segment: string): string {
   return segment.replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase())
 }
 
-function basePathOf(mod: ModuleDef): string | null {
+export function basePathOf(mod: ModuleDef): string | null {
   if (mod.breadcrumbPattern) return null // handled by pattern matching instead
   if (typeof mod.href === 'string') return mod.href
   try {
@@ -47,7 +47,7 @@ function basePathOf(mod: ModuleDef): string | null {
   }
 }
 
-function matchesPattern(pattern: string, pathname: string): boolean {
+export function matchesPattern(pattern: string, pathname: string): boolean {
   const patternSegs = pattern.split('/').filter(Boolean)
   const pathSegs = pathname.split('/').filter(Boolean)
   if (patternSegs.length !== pathSegs.length) return false

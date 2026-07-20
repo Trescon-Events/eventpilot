@@ -1,0 +1,58 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+# Status-check only — does NOT touch deploy. Railway's own webhook-triggered
+# auto-deploy off pushes to main is untouched (see CLAUDE.md's "BUILD & PUSH
+# FLOW — the only flow, do not deviate"). This just reports pass/fail via
+# GitHub's check API in parallel.
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      NODE_OPTIONS: --max-old-space-size=6144
+      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+      GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # full history — needed to diff against the base/before SHA
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+
+      - run: npm ci
+
+      - name: Determine diff base
+        id: base
+        run: |
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            echo "sha=${{ github.event.pull_request.base.sha }}" >> "$GITHUB_OUTPUT"
+          elif [ -n "${{ github.event.before }}" ] && [ "${{ github.event.before }}" != "0000000000000000000000000000000000000000" ]; then
+            echo "sha=${{ github.event.before }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "sha=$(git rev-parse HEAD~1)" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Lint (changed files only)
+        run: npm run lint:changed -- "${{ steps.base.outputs.sha }}"
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Nav + branding registry completeness
+        run: npm run check:nav
+
+      - name: Build
+        run: npm run build
