@@ -40,15 +40,15 @@ Tracks execution of `docs/EventPilot-SAE-PRD-v1.0.md` (currently v1.2). Update c
 
 ---
 
-## Phase C — Canva Autofill
+## Phase C — Canva Autofill ✅ C1–C2 committed
 
-- [ ] C1: Add `action: 'autofill'` to `app/api/canva/design/route.ts`, fitting its existing `if (action === ...)` dispatch pattern, reusing `getAccessToken(staffId)`
-- [ ] C2: `app/api/events/stakeholders/announcements/generate/route.ts` — Gemini post-copy generation (reuse `app/api/content/generate/route.ts`'s call pattern) + Canva autofill + creative export + Supabase Storage upload
-- [ ] C2: `app/api/events/stakeholders/announcements/[id]/regenerate-copy/route.ts`
-- [ ] C2: `app/api/events/stakeholders/announcements/[id]/regenerate-creative/route.ts`
-- [ ] C3: Manual test — one real Canva template + one real (test) speaker record end to end
+- [x] C1: Added `'autofill'` to `app/api/canva/design/route.ts`. Extracted token resolution + the full autofill pipeline (upload asset → autofill → export, each step properly polled) into `app/lib/canva.ts`, shared with C2's routes rather than a self-referential HTTP call.
+- [x] C2: `app/api/events/stakeholders/announcements/generate/route.ts` — Gemini post-copy (grounded in the live messaging doc + real event/stakeholder fields only — no fabricated data like the PRD's "edition number," which doesn't exist as a real column) + Canva autofill via `events.canva_template_config` + creative re-uploaded to Supabase Storage (Canva's own export URL is temporary) + draft `stakeholder_announcements` row.
+- [x] C2: `regenerate-copy`/`regenerate-creative` routes, sharing `app/lib/events/announcements.ts` (`generatePostCopy`/`buildAutofillFields`) rather than duplicating the generate route's logic.
+- [x] Wired "Generate Announcement" in the Stakeholder Hub to a real `canva_staff_id`, resolved from the current session (`/api/auth/session`'s `sid` — the established client-side pattern used elsewhere, e.g. `RealtimeNotifications.tsx`).
+- [ ] C3: Manual test — one real Canva template + one real (test) speaker record end to end. **Blocked** until Madhu provides real Canva template design IDs and confirms `CANVA_CLIENT_ID`/`CANVA_CLIENT_SECRET` are actually set (code exists, was unconfirmed as configured) — code is written and typechecks/builds clean, but has not been exercised against the real Canva API.
 
-**Blocked on:** `CANVA_CLIENT_ID`/`CANVA_CLIENT_SECRET` (verify actually set — code exists but was unconfirmed as configured), real Canva template design IDs from Madhu for `canva_template_config` (per PRD §12 item 6).
+**`canva_template_config` field-mapping convention** (not explicit in the PRD, decided while building C2): the JSONB's `fields` object maps a semantic key (`speaker_name`, `job_title`, `company`, `speaker_photo`, `company_logo` for speakers; `company_logo`, `tier_label` for partners) to the *actual* Canva template's field name, e.g. `{ "speaker_name": "Speaker Name" }`. This is what Madhu needs to fill in per template when supplying design IDs.
 
 ---
 

@@ -82,8 +82,13 @@ export default function StakeholderHubPage({ params }: { params: Promise<{ id: s
   const [draft, setDraft] = useState<EditDraft>(EMPTY_DRAFT)
   const [saving, setSaving] = useState(false)
   const [uploadingId, setUploadingId] = useState<string | null>(null)
+  const [staffId, setStaffId] = useState<string | null>(null)
 
   const category = CATEGORIES.find(c => c.key === activeTab)!
+
+  useEffect(() => {
+    fetch('/api/auth/session').then(r => r.json()).then(s => setStaffId(s?.sid ?? null))
+  }, [])
 
   async function fetchAll() {
     setLoading(true)
@@ -173,15 +178,21 @@ export default function StakeholderHubPage({ params }: { params: Promise<{ id: s
   }
 
   async function generateAnnouncement(item: Speaker | Partner) {
+    if (!staffId) { setMsg('Could not determine your staff account — try refreshing the page.'); return }
     const res = await fetch('/api/events/stakeholders/announcements/generate', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         event_id: eventId,
         stakeholder_type: category.kind === 'speaker' ? 'speaker' : 'partner',
+        canva_staff_id: staffId,
         ...(category.kind === 'speaker' ? { speaker_id: item.id } : { partner_id: item.id }),
       }),
     })
-    if (!res.ok) setMsg('Announcement generation isn’t built yet — coming in Phase C.')
+    const data = await res.json().catch(() => ({}))
+    if (!res.ok) setMsg(data.error || 'Announcement generation failed.')
+    // The review/approval UI (generator slide-over, Phase F) isn't built yet —
+    // for now this just confirms the announcement row + creative were created.
+    else setMsg(`Announcement generated (id: ${data.announcement_id}). Review UI is coming in Phase F.`)
   }
 
   const items: (Speaker | Partner)[] = category.kind === 'speaker' ? speakers : visiblePartners
