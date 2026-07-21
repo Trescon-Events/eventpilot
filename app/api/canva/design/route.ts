@@ -6,55 +6,14 @@
  *   action: 'create'   — create a design from uploaded asset
  *   action: 'export'   — export finished design back as image URL
  *   action: 'status'   — check export job status
+ *   action: 'autofill' — populate a locked Brand Template with text/image
+ *                         fields and export the result (Stakeholder
+ *                         Announcement Engine — see PRD SS7.2)
  */
 import { NextRequest, NextResponse } from 'next/server'
-import { supabaseAdmin } from '@/app/lib/supabase'
+import { getCanvaAccessToken, runCanvaAutofill, type CanvaAutofillField } from '@/app/lib/canva'
 
 const CANVA_API = 'https://api.canva.com/rest/v1'
-
-// Get valid access token for a staff member (auto-refresh if expired)
-async function getAccessToken(staffId: string): Promise<string | null> {
-  const { data } = await supabaseAdmin
-    .from('canva_tokens')
-    .select('access_token, refresh_token, expires_at')
-    .eq('staff_id', staffId)
-    .single()
-
-  if (!data) return null
-
-  // Check if token is expired
-  if (new Date(data.expires_at) < new Date()) {
-    // Refresh token
-    const res = await fetch('https://api.canva.com/rest/v1/oauth/token', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/x-www-form-urlencoded',
-        'Authorization': 'Basic ' + Buffer.from(`${process.env.CANVA_CLIENT_ID}:${process.env.CANVA_CLIENT_SECRET}`).toString('base64'),
-      },
-      body: new URLSearchParams({
-        grant_type: 'refresh_token',
-        refresh_token: data.refresh_token,
-      }),
-    })
-
-    if (!res.ok) return null
-
-    const tokens = await res.json()
-    await supabaseAdmin
-      .from('canva_tokens')
-      .update({
-        access_token: tokens.access_token,
-        refresh_token: tokens.refresh_token || data.refresh_token,
-        expires_at: new Date(Date.now() + tokens.expires_in * 1000).toISOString(),
-        updated_at: new Date().toISOString(),
-      })
-      .eq('staff_id', staffId)
-
-    return tokens.access_token
-  }
-
-  return data.access_token
-}
 
 export async function POST(req: NextRequest) {
   const body = await req.json()
@@ -62,7 +21,7 @@ export async function POST(req: NextRequest) {
 
   if (!staff_id) return NextResponse.json({ error: 'staff_id required' }, { status: 400 })
 
-  const token = await getAccessToken(staff_id)
+  const token = await getCanvaAccessToken(staff_id)
   if (!token) return NextResponse.json({ error: 'Canva not connected. Please connect your Canva account first.' }, { status: 401 })
 
   const headers = {
@@ -174,9 +133,30 @@ export async function POST(req: NextRequest) {
 
   // ── CHECK: Check if staff has Canva connected ──────────────
   if (action === 'check') {
-    const t = await getAccessToken(staff_id)
+    const t = await getCanvaAccessToken(staff_id)
     return NextResponse.json({ connected: !!t })
   }
 
-  return NextResponse.json({ error: 'Invalid action. Use: upload, create, export, status, check' }, { status: 400 })
+  // ── AUTOFILL: Populate a locked Brand Template, export as PNG ──────────
+  // Body: { action: 'autofill', staff_id, template_design_id,
+  //         fields: { [name]: { type: 'text'|'image', value?, asset_url? } } }
+  if (action === 'autofill') {
+    const { template_design_id, fields } = body as {
+      template_design_id?: string
+      fields?: Record<string, CanvaAutofillField>
+    }
+    if (!template_design_id || !fields) {
+      return NextResponse.json({ error: 'template_design_id and fields required' }, { status: 400 })
+    }
+
+    try {
+      const { designId, downloadUrl } = await runCanvaAutofill(token, template_design_id, fields)
+      return NextResponse.json({ design_id: designId, download_url: downloadUrl })
+    } catch (e) {
+      const message = e instanceof Error ? e.message : 'Autofill pipeline failed'
+      return NextResponse.json({ error: message }, { status: 502 })
+    }
+  }
+
+  return NextResponse.json({ error: 'Invalid action. Use: upload, create, export, status, check, autofill' }, { status: 400 })
 }
