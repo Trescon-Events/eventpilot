@@ -70,14 +70,17 @@ Tracks execution of `docs/EventPilot-SAE-PRD-v1.0.md` (currently v1.3). Update c
 
 ---
 
-## Phase E — Postiz Cloud Integration
+## Phase E — Postiz Cloud Integration ✅ code committed, blocked on Postiz account for live testing
 
 **PRD v1.3 correction (2026-07-21): self-hosted Postiz → Postiz Cloud (platform.postiz.com, Team plan $39/mo).** No Railway deployment, ever — this whole phase was never started, so there was no code to fix, only this checklist's now-obsolete deployment items (removed below). Postiz Cloud's Meta/Google apps are pre-approved, so Instagram/YouTube connect immediately — no Meta App Review wait.
 
-- [ ] E1: `app/api/events/stakeholders/announcements/[id]/schedule/route.ts` — `POST ${POSTIZ_API_URL}/api/v1/posts`, `Authorization: Bearer ${POSTIZ_API_KEY}`, `X-Profile-Key: event.postiz_profile_key`
-- [ ] E2: `app/api/events/stakeholders/announcements/[id]/publish-now/route.ts` — same, omits `date` (immediate publish)
-- [ ] E3: `app/api/cron/announcements/sync-status/route.ts` — polls Postiz every 15 min via cron-job.org (`Authorization: Bearer` + `CRON_SECRET`, this repo's existing cron convention, not Railway cron)
-- [ ] E4: Social calendar view (tab within Stakeholder Hub) — month grid, coloured dots per stakeholder type, click for detail, next-available-day scheduling suggestion
+- [x] `app/lib/postiz.ts` — shared client (`schedulePostizPost`/`getPostizPostStatus`), used by all three routes below.
+- [x] E1: `app/api/events/stakeholders/announcements/[id]/schedule/route.ts` — validates `approved`/`approved_with_comments` status + a configured `postiz_profile_key` before calling Postiz; stores `postiz_post_id`, sets `status: 'scheduled'`.
+- [x] E2: `app/api/events/stakeholders/announcements/[id]/publish-now/route.ts` — same validation, omits `date`. Deliberately still lands on `status: 'scheduled'` (with `scheduled_for = now`), not `'published'` directly — Postiz accepting the request confirms it was queued, not that it's actually live on every platform; the sync-status cron confirms real publication for both paths uniformly.
+- [x] E3: `app/api/cron/announcements/sync-status/route.ts` — polls every `scheduled` announcement past its `scheduled_for` with a `postiz_post_id`, marks `published`/`failed`, emails the MM on failure. `Authorization: Bearer CRON_SECRET`, matching the existing cron convention.
+- [x] E4: `app/api/events/stakeholders/announcements/route.ts` (list/calendar query, not in the PRD's file list but required by E4's UI — same gap pattern as the earlier `submissions` list route) + `CalendarView.tsx`, wired into the Stakeholder Hub as a Registry/Calendar toggle. Month grid, coloured dots (speaker=indigo, partner=amber), click for detail, next-available-day suggestion.
+
+**Verification**: `npx tsc --noEmit`, `npm run build`, `npm run check:nav`, eslint all clean. Route-level auth guards (staff-only, not public) confirmed via curl (307 to `/login` unauthenticated, correct). Could not exercise the real Postiz call path or the schedule/publish-now success path — blocked on Madhu's Postiz Cloud account existing at all (see below). Validation-branch logic (`422` for wrong status / missing profile key) is simple and deterministic, verified by reading rather than live-testing.
 
 **[MADHU — manual, in parallel with E1–E4]:**
 - [ ] Sign up at platform.postiz.com, Team plan ($39/month)

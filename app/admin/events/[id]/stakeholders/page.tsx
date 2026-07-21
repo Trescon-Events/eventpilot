@@ -3,6 +3,7 @@
 import { useState, useEffect, use } from 'react'
 import PageHeader from '@/app/components/PageHeader'
 import { Button, Card, Badge, Input, Select, Textarea } from '@/app/components/ui'
+import CalendarView from './CalendarView'
 
 type Speaker = {
   id: string; event_id: string
@@ -71,6 +72,7 @@ export default function StakeholderHubPage({ params }: { params: Promise<{ id: s
   const { id: eventId } = use(params)
 
   const [activeTab, setActiveTab] = useState(CATEGORIES[0].key)
+  const [viewMode, setViewMode] = useState<'registry' | 'calendar'>('registry')
   const [speakers, setSpeakers] = useState<Speaker[]>([])
   const [partners, setPartners] = useState<Partner[]>([])
   const [submissions, setSubmissions] = useState<Submission[]>([])
@@ -234,10 +236,30 @@ export default function StakeholderHubPage({ params }: { params: Promise<{ id: s
         {/* Main content */}
         <div>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
-            <div style={{ fontSize: '18px', fontWeight: 900, color: 'var(--ink)' }}>{category.label}</div>
-            <Button variant="lime" onClick={openAdd}>+ Add {category.kind === 'speaker' ? 'Speaker' : 'Partner'}</Button>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+              <div style={{ fontSize: '18px', fontWeight: 900, color: 'var(--ink)' }}>{viewMode === 'registry' ? category.label : 'Social Calendar'}</div>
+              <div style={{ display: 'flex', borderRadius: '8px', border: '1px solid var(--border)', overflow: 'hidden' }}>
+                {(['registry', 'calendar'] as const).map(v => (
+                  <button key={v} onClick={() => setViewMode(v)}
+                    style={{
+                      padding: '5px 12px', border: 'none', cursor: 'pointer', fontFamily: 'inherit', fontSize: '11px', fontWeight: 700,
+                      background: viewMode === v ? 'var(--card)' : 'transparent',
+                      color: viewMode === v ? 'var(--ink)' : 'var(--ink3)',
+                    }}>
+                    {v === 'registry' ? 'Registry' : 'Calendar'}
+                  </button>
+                ))}
+              </div>
+            </div>
+            {viewMode === 'registry' && (
+              <Button variant="lime" onClick={openAdd}>+ Add {category.kind === 'speaker' ? 'Speaker' : 'Partner'}</Button>
+            )}
           </div>
 
+          {viewMode === 'calendar' ? (
+            <CalendarView eventId={eventId} />
+          ) : (
+          <>
           {msg && (
             <div style={{ padding: '10px 14px', borderRadius: '8px', background: 'var(--red-light)', border: '1px solid var(--red-border)', color: 'var(--red)', fontSize: '12.5px', marginBottom: '14px' }}>
               {msg} <button onClick={() => setMsg(null)} style={{ background: 'none', border: 'none', color: 'inherit', cursor: 'pointer', fontWeight: 700, marginLeft: '8px' }}>×</button>
@@ -328,6 +350,8 @@ export default function StakeholderHubPage({ params }: { params: Promise<{ id: s
                 )
               })}
             </div>
+          )}
+          </>
           )}
         </div>
       </div>
