@@ -24,19 +24,19 @@ Tracks execution of `docs/EventPilot-SAE-PRD-v1.0.md` (currently v1.2). Update c
 
 ---
 
-## Phase B — Stakeholder Registry
+## Phase B — Stakeholder Registry ✅ B1–B4 committed
 
-- [ ] B1: `app/api/events/stakeholders/speakers/route.ts` (GET/POST on `event_speakers`, using existing columns `name`/`role`/`company` — not `full_name`/`job_title`/`company_name`)
-- [ ] B1: `app/api/events/stakeholders/speakers/[id]/route.ts` (PATCH/DELETE — DELETE sets `announcement_status`, never touches `status`/`active`, which drive the existing KonfHub flow)
-- [ ] B1: `app/api/events/stakeholders/partners/route.ts` (GET/POST on `event_sponsors`)
-- [ ] B1: `app/api/events/stakeholders/partners/[id]/route.ts`
-- [ ] B2: `app/api/events/stakeholders/speakers/[id]/upload-asset/route.ts` — photo/logo upload to Supabase Storage, PhotoRoom call for photos (`PHOTOROOM_API_KEY`, `POST https://sdk.photoroom.com/v1/segment`, binary PNG response, no polling)
-- [ ] B3: `app/api/events/stakeholders/partners/[id]/upload-asset/route.ts` — logo upload, accepts PNG/JPG/SVG/PDF/AI
-- [ ] B1/B2/B3: `from-submission` routes for both speakers and partners (`app/api/events/stakeholders/{speakers,partners}/from-submission/route.ts`)
-- [ ] B4: `app/admin/events/[id]/stakeholders/page.tsx` — Stakeholder Hub (left nav tabs, registry cards, status badges, form-submission inbox). **Must satisfy the repo's CI nav/branding gate**: render `<PageHeader/>` + add a registry entry in `app/lib/registry/modules.tsx` (`breadcrumbPattern: '/admin/events/:eventId/stakeholders'`, `breadcrumbParent: 'toolkit'`, matching `website-builder`/`market-intel`/`brand-studio`)
-- [ ] B5: `app/public/forms/[event_id]/[form_type]/page.tsx` + `app/api/public/forms/[event_id]/[form_type]/route.ts` — public, unauthenticated. Server-side file type/size validation (not just client-side). Add a basic abuse guard (honeypot field, since there's no auth wall). Must be added to `app/components/AuthedShellGate.tsx`'s public-path exclusion list (same treatment as `/events/`) so it doesn't render the internal admin shell.
+- [x] B1: `app/api/events/stakeholders/speakers/route.ts` + `[id]/route.ts` (GET/POST/PATCH/DELETE on `event_speakers`, field-name mapping full_name/job_title/company_name ↔ name/role/company)
+- [x] B1: `app/api/events/stakeholders/partners/route.ts` + `[id]/route.ts` (same, on `event_sponsors`)
+- [x] B2: `app/api/events/stakeholders/speakers/[id]/upload-asset/route.ts` — photo/logo upload to Supabase Storage, PhotoRoom call for photos
+- [x] B3: `app/api/events/stakeholders/partners/[id]/upload-asset/route.ts` — logo upload, PNG/JPG/SVG/PDF/AI
+- [x] `from-submission` routes for both speakers and partners
+- [x] Added: `app/api/events/stakeholders/submissions/{route,[id]/route}.ts` — list + reject, not in the PRD's original file list but required by its own §9.4 spec
+- [x] Added: `'archived'` to both tables' `announcement_status` CHECK — PRD's own spec (§6.4) asks for it, never defined it
+- [x] B4: `app/admin/events/[id]/stakeholders/page.tsx` — Stakeholder Hub. Registered in `app/lib/registry/modules.tsx` (`admin-event-stakeholders`, matching `admin-event-brief`'s pattern — `breadcrumbPattern` only, no `breadcrumbParent`, since this is a page-badge-only event-scoped entry like Plan/Execution/Brief, not a separately toolkit-gated tool like Website Builder/Market Intel). Renders `PageHeader`. `npm run check:nav` passes.
+- [x] B5: `app/public/forms/[event_id]/[form_type]/page.tsx` + `app/api/public/forms/[event_id]/[form_type]/route.ts` — public, unauthenticated. Server-side required-field + file-size validation, honeypot field. Added `/public` to `middleware.ts`'s `PUBLIC_PREFIXES` (the page route wasn't covered by the existing `/api/public` entry — real gap, would have redirected every external submitter to `/login`) and to `AuthedShellGate.tsx`'s `PREFIX_NO_SHELL`. **Verified end-to-end for real**: unauthenticated `curl` submission with a real JPEG landed correctly in `stakeholder_form_submissions` with a working public photo URL (test row cleaned up after).
 
-**Env var needed before B2 is testable:** `PHOTOROOM_API_KEY` (Madhu to get from photoroom.com/api).
+**Env var still needed to actually test B2/B3's PhotoRoom call:** `PHOTOROOM_API_KEY` (Madhu to get from photoroom.com/api) — code no-ops gracefully (stores the original photo, skips background removal) if unset, doesn't error.
 
 ---
 

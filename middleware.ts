@@ -27,6 +27,7 @@ const PUBLIC_PREFIXES = [
   '/api/worker-callback',        // SmartExcel Python worker callback, auth checked inside via bearer token
   '/profile',             // AIRS assessment — staff arrive here before they have a session
   '/events',              // public event websites
+  '/public',              // public stakeholder onboarding forms (SAE) — no session, external submitters
   '/welcome',
   '/_next',
   '/favicon',

@@ -23,7 +23,7 @@ const EXACT_NO_SHELL = new Set([
   '/', '/login', '/join', '/welcome', '/set-password', '/reset-password',
   '/access-pending', '/no-access', '/profile',
 ])
-const PREFIX_NO_SHELL = ['/events/']
+const PREFIX_NO_SHELL = ['/events/', '/public/']
 
 function shouldHideShell(pathname: string): boolean {
   if (EXACT_NO_SHELL.has(pathname)) return true
