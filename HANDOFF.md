@@ -6,6 +6,12 @@
 
 ---
 
+## ⚠️ Durga — action needed: check your pushes from 17–21 Jul
+
+Railway's auto-deploy silently stopped working from **2026-07-17 to 2026-07-21** due to a lapsed billing payment (found + fixed by Claude Code on 2026-07-21, mid-way through unrelated SAE work — payment cleared, a fresh deploy was force-triggered via `railway redeploy --from-source`). Every push to `main` in that window sat undeployed until then, including some of Claude Code's own work. **If you pushed anything to `main` in that window, please double check it's actually live now** — Railway's deploy history only shows what got deployed once the fix landed, not whether your specific commit's effects are what you expect to see in production. Once confirmed, this note can be deleted.
+
+---
+
 ## Last Session
 
 | Field | Value |
