@@ -7,7 +7,11 @@ import crypto from 'crypto'
 
 const CANVA_CLIENT_ID = process.env.CANVA_CLIENT_ID!
 const REDIRECT_URI = `${process.env.NEXT_PUBLIC_SITE_URL || 'https://eventpilot.tresconglobal.com'}/api/canva/callback`
-const SCOPES = 'design:content:read design:content:write design:meta:read asset:read asset:write profile:read'
+// brandtemplate:meta:read / brandtemplate:content:read added for the
+// Stakeholder Announcement Engine's Canva Autofill pipeline — lists Brand
+// Templates and reads their fillable-field "dataset". Read-only; we never
+// create or edit Brand Templates themselves, only consume existing ones.
+const SCOPES = 'design:content:read design:content:write design:meta:read asset:read asset:write profile:read brandtemplate:meta:read brandtemplate:content:read'
 
 // Generate PKCE code verifier and challenge
 function generatePKCE() {
