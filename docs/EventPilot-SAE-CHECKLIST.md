@@ -1,12 +1,13 @@
 # Stakeholder Announcement Engine — Build Checklist
 
-Tracks execution of `docs/EventPilot-SAE-PRD-v1.0.md` (currently v1.2). Update checkboxes as items land — this is the source of truth for "what's done" across sessions, alongside `HANDOFF.md`.
+Tracks execution of `docs/EventPilot-SAE-PRD-v1.0.md` (currently v1.3). Update checkboxes as items land — this is the source of truth for "what's done" across sessions, alongside `HANDOFF.md`.
 
 **Architecture decisions locked in (differ from the PRD document's literal text — see Context in the plan file, `~/.claude/plans/magical-singing-rossum.md`):**
 - Extend existing `event_speakers`/`event_sponsors` additively — do **not** create separate `event_partners`/`stakeholder_speakers` tables. `event_speakers`/`event_sponsors` already exist for Website Builder + KonfHub; confirmed live-but-empty (0 rows) before this decision.
 - New API routes live under `app/api/events/stakeholders/*`, not flat under `app/api/events/*` — avoids colliding with the existing `app/api/events/speakers`/`sponsors` routes.
 - Public assets (creatives, photos, logos, messaging PDFs) go in a public Supabase Storage bucket (`event-stakeholder-assets`, `app/lib/events/storage.ts`), not R2 — matches Website Builder's existing pattern, gives stable non-expiring URLs.
-- Postiz (not Ayrshare), PhotoRoom (not remove.bg), plain pasted URL (not Google Maps API) — per PRD v1.1/v1.2.
+- PhotoRoom (not remove.bg), plain pasted URL (not Google Maps API) — per PRD v1.2, unchanged since.
+- **Postiz Cloud** (platform.postiz.com, managed SaaS, $39/mo Team plan) — not self-hosted. PRD v1.1/v1.2 originally called for self-hosted Postiz on Railway; v1.3 (2026-07-21) replaced that with the Cloud plan before Phase E was ever started, so no Railway deployment work happens for this module at all. `POSTIZ_API_URL=https://api.postiz.com` + `POSTIZ_API_KEY` (global) + per-event `postiz_profile_key` (workspace key).
 
 ---
 
@@ -69,24 +70,21 @@ Tracks execution of `docs/EventPilot-SAE-PRD-v1.0.md` (currently v1.2). Update c
 
 ---
 
-## Phase E — Postiz Deployment and Publishing
+## Phase E — Postiz Cloud Integration
 
-- [ ] E1a: **[Claude Code]** Add Postiz Docker service to the Railway project (`ghcr.io/gitroomhq/postiz-app:latest`, service name `postiz`)
-- [ ] E1b: **[Claude Code]** Add `postiz-db` PostgreSQL service in Railway
-- [ ] E1c: **[Claude Code]** Add Redis service in Railway (or configure Upstash free-tier URL)
-- [ ] E1d: **[Claude Code]** Set all Postiz env vars per PRD §5b (DATABASE_URL, MAIN_URL/FRONTEND_URL/NEXT_PUBLIC_BACKEND_URL, JWT_SECRET, CLOUDFLARE_* reusing `KB_R2_*` values, REDIS_URL, EMAIL_PROVIDER/RESEND_API_KEY, DISABLE_REGISTRATION=true)
-- [ ] E1e: **[Claude Code]** Enable Railway private networking between `eventpilot` ↔ `postiz` services
-- [ ] E2: **[MADHU — manual]** Visit the Postiz URL, create the initial admin account (only step that can't be automated)
-- [ ] E2: **[MADHU — manual]** Generate Postiz API key (Settings → API Keys)
-- [ ] E3: Add `POSTIZ_INTERNAL_URL` and `POSTIZ_API_KEY` to EventPilot's Railway env vars (Claude Code sets these once Madhu supplies the key — do not touch Railway env vars without Madhu's explicit go-ahead per this project's standing rule)
-- [ ] E4: `app/api/events/stakeholders/announcements/[id]/schedule/route.ts` — calls Postiz `POST /api/v1/posts` with `X-Profile-Key: event.postiz_profile_key`
-- [ ] E4: `app/api/events/stakeholders/announcements/[id]/publish-now/route.ts` — same, omits `date`
-- [ ] E5: `app/api/cron/announcements/sync-status/route.ts` — polls Postiz every 15 min via cron-job.org (`Authorization: Bearer` + `CRON_SECRET`, matching this repo's existing cron convention, not Railway cron)
-- [ ] E6: **[MADHU — manual]** Create a "World AI Show Malaysia 2026" workspace in Postiz, connect LinkedIn + X via OAuth (Instagram blocked on Meta App Review, see below)
-- [ ] E7: Social calendar view (tab within Stakeholder Hub) — month grid, coloured dots per stakeholder type, click for detail, next-available-day scheduling suggestion
+**PRD v1.3 correction (2026-07-21): self-hosted Postiz → Postiz Cloud (platform.postiz.com, Team plan $39/mo).** No Railway deployment, ever — this whole phase was never started, so there was no code to fix, only this checklist's now-obsolete deployment items (removed below). Postiz Cloud's Meta/Google apps are pre-approved, so Instagram/YouTube connect immediately — no Meta App Review wait.
 
-**Separately, not blocking Phase E code:**
-- [ ] **[MADHU — manual]** Submit Meta App Review for Instagram publishing (`instagram_basic`, `instagram_content_publish`, `pages_manage_posts`) — 2–4 week process, start this early since it's the long pole
+- [ ] E1: `app/api/events/stakeholders/announcements/[id]/schedule/route.ts` — `POST ${POSTIZ_API_URL}/api/v1/posts`, `Authorization: Bearer ${POSTIZ_API_KEY}`, `X-Profile-Key: event.postiz_profile_key`
+- [ ] E2: `app/api/events/stakeholders/announcements/[id]/publish-now/route.ts` — same, omits `date` (immediate publish)
+- [ ] E3: `app/api/cron/announcements/sync-status/route.ts` — polls Postiz every 15 min via cron-job.org (`Authorization: Bearer` + `CRON_SECRET`, this repo's existing cron convention, not Railway cron)
+- [ ] E4: Social calendar view (tab within Stakeholder Hub) — month grid, coloured dots per stakeholder type, click for detail, next-available-day scheduling suggestion
+
+**[MADHU — manual, in parallel with E1–E4]:**
+- [ ] Sign up at platform.postiz.com, Team plan ($39/month)
+- [ ] Generate a global API key (Settings → API Keys) → `POSTIZ_API_KEY`
+- [ ] Create a "World AI Show Malaysia 2026" workspace, connect LinkedIn/X/Instagram/YouTube via OAuth (all connect immediately on the Cloud plan, no approval wait)
+- [ ] Generate a workspace API key → paste into the event's "Postiz Profile Key" field in EventPilot
+- [ ] Give Claude Code `POSTIZ_API_URL=https://api.postiz.com` and the global `POSTIZ_API_KEY` to add to `.env.local` + Railway (Railway env var changes still need your explicit go-ahead in the moment, same as the Canva credentials)
 
 ---
 
@@ -110,10 +108,12 @@ Tracks execution of `docs/EventPilot-SAE-PRD-v1.0.md` (currently v1.2). Update c
 
 ## Manual action items — full list (for Madhu)
 
-1. `PHOTOROOM_API_KEY` — get from photoroom.com/api, add to `.env.local` + Railway
-2. Verify `CANVA_CLIENT_ID`/`CANVA_CLIENT_SECRET` are actually set (code exists, unconfirmed as configured)
-3. Canva template design IDs for speaker + each partner-type template, for `canva_template_config`
-4. Create Postiz admin account after Claude Code deploys it (Phase E2)
-5. Generate Postiz API key, hand to Claude Code for env var setup
-6. Connect social accounts in Postiz per event (OAuth login, LinkedIn/X first)
-7. Submit Meta App Review for Instagram (start early — 2–4 weeks)
+1. `PHOTOROOM_API_KEY` — get from photoroom.com/api, add to `.env.local` + Railway. **Still open.**
+2. ~~Verify `CANVA_CLIENT_ID`/`CANVA_CLIENT_SECRET`~~ — **done 2026-07-21.** Existing "Event Pilot" Canva Integration found, scopes extended (`brandtemplate:meta:read`, `brandtemplate:content:read`), credentials set in `.env.local` + Railway, staff OAuth connection verified live (`canva_tokens` row confirmed).
+3. **Canva Brand Templates exist and are correctly published** ("Speaker Announcement" `EAHP--AjjpQ`, "Sponsor-Partner Announcement" `EAHP-3_f4DM`, both Instagram Post 4:5 = 1080×1350px) — confirmed live via `GET /v1/brand-templates`. **Blocked**: `GET /v1/brand-templates/{id}/dataset` returns `{}` for both — neither template has any element marked as an autofill-able **data field** yet. Madhu needs to open each in Canva's editor and add data fields for: speaker photo, speaker name, job title, company (Speaker Announcement); logo, tier label (Sponsor-Partner Announcement). Exact click path in Canva's UI not yet confirmed — in progress.
+4. ~~Deploy/create Postiz admin account~~ — **not applicable**, PRD v1.3 moved to Postiz Cloud (platform.postiz.com), no self-hosting.
+5. Sign up at platform.postiz.com (Team plan, $39/mo), generate global `POSTIZ_API_KEY` + per-workspace key for WAIS Malaysia, hand both to Claude Code.
+6. Connect LinkedIn/X/Instagram/YouTube in the Postiz Cloud workspace (all connect immediately on the Cloud plan — pre-approved Meta/Google apps, no review wait).
+7. ~~Submit Meta App Review~~ — **not needed**, Postiz Cloud's own Meta app is pre-approved.
+
+**Note on Railway billing (found + resolved 2026-07-21):** Railway auto-deploy had silently stopped since 2026-07-17 due to a payment lapse — every push to `main` since then (including this morning's CI/nav-branding work) sat undeployed until Madhu cleared the payment and Claude Code force-triggered a fresh deploy (`railway redeploy --from-source`). Worth a quick sanity check that nothing else was expected to be live from that window.
