@@ -38,9 +38,8 @@ type Event = {
   social_instagram: string | null
   social_facebook: string | null
   social_youtube: string | null
-  venue_map_link: string | null
-  venue_map_place_id: string | null
-  ayrshare_profile_key: string | null
+  venue_map_url: string | null
+  postiz_profile_key: string | null
 }
 
 type StaffMember = { id: string; name: string; department: string }
@@ -158,12 +157,9 @@ export default function EventWorkspacePage({ params }: { params: Promise<{ id: s
     name: '', type: '', status: '', event_date: '', end_date: '', venue: '', city: '', client_name: '', description: '', expected_attendance: '',
     event_format: '', country: '', website_url: '', event_hashtag: '', registration_url: '',
     social_linkedin: '', social_x: '', social_instagram: '', social_facebook: '', social_youtube: '',
-    venue_map_link: '', venue_map_place_id: '', ayrshare_profile_key: '',
+    venue_map_url: '', postiz_profile_key: '',
   })
   const [savingEdit,     setSavingEdit]     = useState(false)
-  const [venueQuery,     setVenueQuery]     = useState('')
-  const [venueResults,   setVenueResults]   = useState<{ place_id: string; name: string; address: string; maps_url: string }[]>([])
-  const [venueSearching, setVenueSearching] = useState(false)
 
   // Topline Messaging Doc
   type MessagingDoc = {
@@ -283,29 +279,12 @@ export default function EventWorkspacePage({ params }: { params: Promise<{ id: s
       social_instagram:  editForm.social_instagram || null,
       social_facebook:   editForm.social_facebook || null,
       social_youtube:    editForm.social_youtube || null,
-      venue_map_link:      editForm.venue_map_link || null,
-      venue_map_place_id:  editForm.venue_map_place_id || null,
-      ayrshare_profile_key: editForm.ayrshare_profile_key || null,
+      venue_map_url:      editForm.venue_map_url || null,
+      postiz_profile_key: editForm.postiz_profile_key || null,
     }
     const res  = await fetch(`/api/events?id=${eventId}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
     if (res.ok) { setEditing(false); fetchAll() }
     setSavingEdit(false)
-  }
-
-  async function searchVenue(query: string) {
-    setVenueQuery(query)
-    if (query.trim().length < 3) { setVenueResults([]); return }
-    setVenueSearching(true)
-    const res  = await fetch(`/api/events/stakeholders/venue-map?query=${encodeURIComponent(query)}`)
-    const data = await res.json().catch(() => ({ results: [] }))
-    setVenueResults(Array.isArray(data.results) ? data.results : [])
-    setVenueSearching(false)
-  }
-
-  function selectVenue(place: { place_id: string; name: string; maps_url: string }) {
-    setEditForm(f => ({ ...f, venue_map_link: place.maps_url, venue_map_place_id: place.place_id }))
-    setVenueQuery(place.name)
-    setVenueResults([])
   }
 
   async function assignStaff(staffId: string) {
@@ -360,9 +339,8 @@ export default function EventWorkspacePage({ params }: { params: Promise<{ id: s
         social_instagram:    ev.social_instagram ?? '',
         social_facebook:     ev.social_facebook ?? '',
         social_youtube:      ev.social_youtube ?? '',
-        venue_map_link:      ev.venue_map_link ?? '',
-        venue_map_place_id:  ev.venue_map_place_id ?? '',
-        ayrshare_profile_key: ev.ayrshare_profile_key ?? '',
+        venue_map_url:       ev.venue_map_url ?? '',
+        postiz_profile_key:  ev.postiz_profile_key ?? '',
       })
     }
     setChecklist(Array.isArray(clData) ? clData : [])
@@ -766,33 +744,29 @@ export default function EventWorkspacePage({ params }: { params: Promise<{ id: s
                     ))}
                   </div>
 
-                  <div style={{ fontSize: '11px', fontWeight: 800, letterSpacing: '0.8px', color: 'var(--teal-mid)', margin: '20px 0 10px', textTransform: 'uppercase' }}>Venue Map &amp; Ayrshare</div>
+                  <div style={{ fontSize: '11px', fontWeight: 800, letterSpacing: '0.8px', color: 'var(--teal-mid)', margin: '20px 0 10px', textTransform: 'uppercase' }}>Venue Map &amp; Social Publishing</div>
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
-                    <div style={{ position: 'relative' }}>
-                      <label style={{ fontSize: '11px', fontWeight: 700, color: 'var(--ink3)', display: 'block', marginBottom: '4px' }}>VENUE MAP</label>
-                      <input type="text" placeholder="Search venue name…" value={venueQuery || editForm.venue_map_link}
-                        onChange={e => searchVenue(e.target.value)}
-                        style={{ width: '100%', padding: '9px 12px', borderRadius: '8px', border: '1px solid var(--border)', fontSize: '13px', fontFamily: 'inherit', color: 'var(--ink)', boxSizing: 'border-box' }} />
-                      {venueSearching && <div style={{ fontSize: '11px', color: 'var(--ink3)', marginTop: '4px' }}>Searching…</div>}
-                      {venueResults.length > 0 && (
-                        <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 10, background: 'var(--card)', border: '1px solid var(--border)', borderRadius: '8px', marginTop: '4px', boxShadow: 'var(--shadow-sm)', maxHeight: '220px', overflowY: 'auto' }}>
-                          {venueResults.map(r => (
-                            <div key={r.place_id} onClick={() => selectVenue(r)}
-                              style={{ padding: '9px 12px', cursor: 'pointer', borderBottom: '1px solid var(--border-light)', fontSize: '12px' }}>
-                              <div style={{ fontWeight: 700, color: 'var(--ink)' }}>{r.name}</div>
-                              <div style={{ color: 'var(--ink3)', fontSize: '11px' }}>{r.address}</div>
-                            </div>
-                          ))}
-                        </div>
-                      )}
-                      {editForm.venue_map_link && !venueResults.length && (
-                        <a href={editForm.venue_map_link} target="_blank" rel="noopener noreferrer" style={{ fontSize: '11px', color: 'var(--teal-mid)', marginTop: '4px', display: 'inline-block' }}>View selected map ↗</a>
-                      )}
+                    <div>
+                      <label style={{ fontSize: '11px', fontWeight: 700, color: 'var(--ink3)', display: 'block', marginBottom: '4px' }}>VENUE MAP LINK</label>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <input type="url" placeholder="Paste Google Maps URL" value={editForm.venue_map_url}
+                          onChange={e => setEditForm(f => ({ ...f, venue_map_url: e.target.value }))}
+                          style={{ flex: 1, padding: '9px 12px', borderRadius: '8px', border: '1px solid var(--border)', fontSize: '13px', fontFamily: 'inherit', color: 'var(--ink)', boxSizing: 'border-box' }} />
+                        {editForm.venue_map_url && (
+                          <a href={editForm.venue_map_url} target="_blank" rel="noopener noreferrer" style={{ fontSize: '11px', color: 'var(--teal-mid)', whiteSpace: 'nowrap', flexShrink: 0 }}>View Map ↗</a>
+                        )}
+                      </div>
+                      <div style={{ fontSize: '10.5px', color: 'var(--ink3)', marginTop: '4px', lineHeight: 1.4 }}>
+                        Search the venue in Google Maps, click Share → Copy Link, and paste it here.
+                      </div>
                     </div>
                     <div>
-                      <label style={{ fontSize: '11px', fontWeight: 700, color: 'var(--ink3)', display: 'block', marginBottom: '4px' }}>AYRSHARE PROFILE KEY</label>
-                      <input type="password" value={editForm.ayrshare_profile_key} onChange={e => setEditForm(f => ({ ...f, ayrshare_profile_key: e.target.value }))}
+                      <label style={{ fontSize: '11px', fontWeight: 700, color: 'var(--ink3)', display: 'block', marginBottom: '4px' }}>POSTIZ PROFILE KEY</label>
+                      <input type="password" value={editForm.postiz_profile_key} onChange={e => setEditForm(f => ({ ...f, postiz_profile_key: e.target.value }))}
                         style={{ width: '100%', padding: '9px 12px', borderRadius: '8px', border: '1px solid var(--border)', fontSize: '13px', fontFamily: 'inherit', color: 'var(--ink)', boxSizing: 'border-box' }} />
+                      <div style={{ fontSize: '10.5px', color: 'var(--ink3)', marginTop: '4px', lineHeight: 1.4 }}>
+                        Paste the workspace API key from Postiz for this event&apos;s connected social accounts.
+                      </div>
                     </div>
                   </div>
 

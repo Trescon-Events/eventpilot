@@ -4,7 +4,7 @@
 // by Website Builder (app/api/events/website/upload-url/route.ts's
 // 'event-website-assets' bucket) rather than the private-R2-with-presigned-
 // URL pattern used by KB/DocuHub/SmartExcel — SAE's URLs need to stay valid
-// indefinitely (Ayrshare mediaUrls, approval-email inline images, public
+// indefinitely (Postiz media URLs, approval-email inline images, public
 // form display), not expire after a few minutes.
 import { supabaseAdmin } from '@/app/lib/supabase'
 

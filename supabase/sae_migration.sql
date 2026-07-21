@@ -3,7 +3,19 @@
 -- Deliberately does NOT touch: event_speakers.status/tier CHECK constraints,
 -- event_sponsors.tier CHECK constraint, event_social_accounts (any column or
 -- constraint), app/api/events/speakers or /sponsors routes' existing behavior.
--- See docs/EventPilot-SAE-PRD-v1.0.md and the implementation plan for why.
+-- See docs/EventPilot-SAE-PRD-v1.0.md (now v1.2) and the implementation plan for why.
+--
+-- PRD v1.1/v1.2 correction (2026-07-21): originally shipped with
+-- ayrshare_profile_key / venue_map_link / venue_map_place_id (Ayrshare +
+-- Google Places, both since scrapped — see PRD changelog). Already-migrated
+-- environments need the follow-up rename/drop run once by hand (not IF NOT
+-- EXISTS-safe, since these are renames, not additions):
+--   ALTER TABLE events RENAME COLUMN ayrshare_profile_key TO postiz_profile_key;
+--   ALTER TABLE events RENAME COLUMN venue_map_link TO venue_map_url;
+--   ALTER TABLE events DROP COLUMN IF EXISTS venue_map_place_id;
+-- (Applied directly to the live Supabase project the same day.) This file
+-- below reflects the corrected, current schema — a fresh run on a new
+-- database produces the right columns directly.
 
 -- ── 1. Extend events table ──────────────────────────────────────────────────
 -- Note: end_date and country already exist on events (core_schema.sql /
@@ -18,9 +30,8 @@ ALTER TABLE events
   ADD COLUMN IF NOT EXISTS social_instagram TEXT,
   ADD COLUMN IF NOT EXISTS social_facebook  TEXT,
   ADD COLUMN IF NOT EXISTS social_youtube   TEXT,
-  ADD COLUMN IF NOT EXISTS venue_map_link   TEXT,   -- Google Maps short link
-  ADD COLUMN IF NOT EXISTS venue_map_place_id TEXT, -- Google Places ID for map embed
-  ADD COLUMN IF NOT EXISTS ayrshare_profile_key TEXT, -- Ayrshare profile key for this event's social channels
+  ADD COLUMN IF NOT EXISTS venue_map_url    TEXT,   -- Google Maps URL, pasted by the user — no API
+  ADD COLUMN IF NOT EXISTS postiz_profile_key TEXT, -- self-hosted Postiz workspace key for this event's social channels
   ADD COLUMN IF NOT EXISTS canva_template_config JSONB; -- { speaker: {...}, partner: { sponsor: {...}, ... } }
 
 -- ── 2. Topline Messaging Documents (version-controlled, per event) ─────────
@@ -49,7 +60,7 @@ CREATE INDEX IF NOT EXISTS idx_messaging_docs_event ON event_messaging_docs(even
 -- KonfHub-push-on-approve logic in app/api/events/speakers/route.ts.
 -- announcement_status is a separate, SAE-only column with its own lifecycle.
 ALTER TABLE event_speakers
-  ADD COLUMN IF NOT EXISTS photo_processed_url TEXT,       -- background-removed version (via remove.bg)
+  ADD COLUMN IF NOT EXISTS photo_processed_url TEXT,       -- background-removed version (via PhotoRoom API)
   ADD COLUMN IF NOT EXISTS company_logo_url    TEXT,
   ADD COLUMN IF NOT EXISTS website_card_url    TEXT,        -- generated speaker card (future use)
   ADD COLUMN IF NOT EXISTS announcement_status TEXT NOT NULL DEFAULT 'pending_review'
