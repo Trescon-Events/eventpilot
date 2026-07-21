@@ -158,7 +158,14 @@ export async function middleware(req: NextRequest) {
     pathname.startsWith('/api/docuhub/resolve') ||  // public permanent-link resolver; visibility (public/internal) is checked inside the route itself, not here
     pathname.startsWith('/api/seed-platform-docs') ||
     pathname.startsWith('/api/seed-courses') ||
-    pathname.startsWith('/api/seed-demo')
+    pathname.startsWith('/api/seed-demo') ||
+    // SAE approval review: reachable via a signed approval_token with no
+    // EventPilot session (external approvers). Auth is checked inside the
+    // route/page via the token, not here. Scoped tightly with a regex so
+    // this doesn't accidentally open up the rest of the announcements tree.
+    /^\/api\/events\/stakeholders\/announcements\/[^/]+\/approve$/.test(pathname) ||
+    /^\/api\/events\/stakeholders\/announcements\/[^/]+\/review-data$/.test(pathname) ||
+    /^\/admin\/events\/[^/]+\/announcements\/[^/]+\/review$/.test(pathname)
   ) {
     return NextResponse.next()
   }

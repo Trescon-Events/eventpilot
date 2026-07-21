@@ -24,10 +24,18 @@ const EXACT_NO_SHELL = new Set([
   '/access-pending', '/no-access', '/profile',
 ])
 const PREFIX_NO_SHELL = ['/events/', '/public/']
+// Standalone-layout pages with two dynamic path segments — a prefix/exact
+// match can't express these, so a small explicit regex list sits alongside
+// the two above. SAE's approval review page renders its own dedicated
+// layout (PRD SS9.6) for both token-based external approvers (no session)
+// and staff who click through — same treatment either way, so it's excluded
+// here unconditionally rather than branching on session/query-string state.
+const REGEX_NO_SHELL = [/^\/admin\/events\/[^/]+\/announcements\/[^/]+\/review$/]
 
 function shouldHideShell(pathname: string): boolean {
   if (EXACT_NO_SHELL.has(pathname)) return true
-  return PREFIX_NO_SHELL.some(p => pathname.startsWith(p))
+  if (PREFIX_NO_SHELL.some(p => pathname.startsWith(p))) return true
+  return REGEX_NO_SHELL.some(r => r.test(pathname))
 }
 
 export default function AuthedShellGate({ children }: { children: React.ReactNode }) {

@@ -54,9 +54,18 @@ Tracks execution of `docs/EventPilot-SAE-PRD-v1.0.md` (currently v1.2). Update c
 
 ## Phase D — Approval Workflow
 
-- [ ] D1: `app/api/events/stakeholders/announcements/[id]/send-for-approval/route.ts` — creates `announcement_approvals` rows with `approval_token`/`token_expires_at` (7-day expiry, mirrors `staff_members.reset_token` pattern from `app/api/reset-password/route.ts`), sends Resend email (use the `RESEND_FROM`-based ad-hoc pattern from `app/api/content/posts/[id]/approve/route.ts`, not the broken `app/lib/email.ts`)
-- [ ] D2: `app/admin/events/[id]/announcements/[id]/review/page.tsx` — must work with **no EventPilot session**, via `?token=`. Check `middleware.ts`'s protected-route matcher and add this path as a public exception (same treatment as `/events/[slug]`)
-- [ ] D3: `app/api/events/stakeholders/announcements/[id]/approve/route.ts` — accepts staff session OR valid token; status-aggregation logic per PRD §6.9; MM notification email on completion
+## Phase D — Approval Workflow ✅ committed, verified end-to-end
+
+- [x] D1: `send-for-approval/route.ts` — `announcement_approvals` rows with `approval_token`/`token_expires_at` (7-day, mirrors `staff_members.reset_token`), Resend email via the `RESEND_FROM` pattern.
+- [x] D2: `app/admin/events/[id]/announcements/[announcementId]/review/page.tsx` — note the path uses `[announcementId]`, not `[id]` as the PRD literally wrote it (`app/admin/events/[id]/announcements/[id]/review` reuses the same dynamic-segment name twice, which Next.js flatly disallows — real bug in the PRD's own file list, not a style choice). Reads `?token=` via the codebase's established `window.location.search` pattern (not `useSearchParams()`, which would need a Suspense boundary this codebase avoids elsewhere).
+- [x] `review-data/route.ts` — dedicated read-only GET for the review page, not in the PRD's file list. Kept deliberately separate from the (still unbuilt) general announcement CRUD route so a token only ever unlocks exactly what an approver needs to see, not a wider surface.
+- [x] D3: `approve/route.ts` — accepts `token` OR `approver_id`; status-aggregation (all approved/approved_with_comments → announcement approved; any changes_requested → changes_requested); MM notification email (to `stakeholder_announcements.created_by`).
+- [x] `middleware.ts`: added regex exceptions (not simple prefixes — both routes have dynamic `[id]` segments) for `.../approve`, `.../review-data`, and the review page itself.
+- [x] `AuthedShellGate.tsx`: extended with a small `REGEX_NO_SHELL` list (prefix/exact matching can't express a two-dynamic-segment path) so the review page never shows the internal admin chrome, for external approvers or staff alike.
+- [x] `app/lib/registry/nav-exclusions.ts`: added the review page to `PAGEHEADER_EXEMPT` — it's a standalone layout like the public forms, just placed under `app/admin/**` by the PRD.
+- [x] **Verified fully end-to-end against the live database**, not just typecheck: seeded a real test announcement + approval row, hit `review-data` unauthenticated (200, correct data), loaded the review page itself unauthenticated (200, not a redirect), POSTed a real approval decision unauthenticated (200, `announcement_status: "approved"`), confirmed both `stakeholder_announcements.status` and `announcement_approvals.status` updated correctly in the DB, then deleted all test rows.
+
+**Note**: the PRD's own text (§6.9) mentions the token being "HMAC-signed with JWT_SECRET" — the actual implementation uses a random opaque token stored in the DB (mirroring `reset_token`), per the plan decision made before Phase A ("reuse the existing pattern... rather than pulling in JWT/signing libraries"). No `JWT_SECRET` env var needed.
 
 ---
 

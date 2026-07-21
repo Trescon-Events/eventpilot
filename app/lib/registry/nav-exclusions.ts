@@ -27,7 +27,12 @@ export type NavExclusionPrefix = { prefix: string; reason: string }
 export const REGISTRY_EXEMPT: NavExclusion[] = []
 export const REGISTRY_EXEMPT_PREFIXES: NavExclusionPrefix[] = []
 
-export const PAGEHEADER_EXEMPT: NavExclusion[] = []
+export const PAGEHEADER_EXEMPT: NavExclusion[] = [
+  {
+    path: '/admin/events/[id]/announcements/[announcementId]/review',
+    reason: 'Stakeholder Announcement Engine approval review page — a standalone layout reachable by external approvers with no EventPilot session via a signed token (see middleware.ts + AuthedShellGate.tsx), same treatment as the public onboarding forms under app/public/*. Lives under app/admin/** only because the PRD placed it there; it never renders the internal admin chrome.',
+  },
+]
 export const PAGEHEADER_EXEMPT_PREFIXES: NavExclusionPrefix[] = []
 
 function matches(pathname: string, exact: NavExclusion[], prefixes: NavExclusionPrefix[]): boolean {
