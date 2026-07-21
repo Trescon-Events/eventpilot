@@ -24,6 +24,20 @@
 --   ALTER TABLE event_speakers ADD CONSTRAINT event_speakers_announcement_status_check
 --     CHECK (announcement_status IN ('pending_review','approved','assets_missing','ready','archived'));
 --   (same for event_sponsors)
+--
+-- PRD v1.4 correction (2026-07-21): Canva Autofill API dropped entirely —
+-- hands-on investigation confirmed Canva's "Connect data" field-marking
+-- option doesn't appear on Brand Template elements in the standard Canva
+-- for Teams editor (verified both in the editor and via a real
+-- GET /v1/brand-templates/{id}/dataset call returning {} for both WAIS
+-- Malaysia templates). Replaced with Sharp server-side compositing —
+-- Canva stays the design tool for background PNGs, EventPilot composites
+-- photo/logo + text onto them at generation time. Already-migrated
+-- environments need:
+--   ALTER TABLE events RENAME COLUMN canva_template_config TO creative_template_config;
+--   ALTER TABLE stakeholder_announcements DROP COLUMN IF EXISTS creative_canva_id;
+-- (Applied directly to the live Supabase project the same day.)
+--
 -- This file below reflects the corrected, current schema — a fresh run on a new
 -- database produces the right columns directly.
 
@@ -41,8 +55,8 @@ ALTER TABLE events
   ADD COLUMN IF NOT EXISTS social_facebook  TEXT,
   ADD COLUMN IF NOT EXISTS social_youtube   TEXT,
   ADD COLUMN IF NOT EXISTS venue_map_url    TEXT,   -- Google Maps URL, pasted by the user — no API
-  ADD COLUMN IF NOT EXISTS postiz_profile_key TEXT, -- self-hosted Postiz workspace key for this event's social channels
-  ADD COLUMN IF NOT EXISTS canva_template_config JSONB; -- { speaker: {...}, partner: { sponsor: {...}, ... } }
+  ADD COLUMN IF NOT EXISTS postiz_profile_key TEXT, -- Postiz Cloud workspace key for this event's social channels
+  ADD COLUMN IF NOT EXISTS creative_template_config JSONB; -- background PNG URLs + pixel-coordinate zones/text layers for Sharp compositing — see app/lib/announcements/composite.ts
 
 -- ── 2. Topline Messaging Documents (version-controlled, per event) ─────────
 CREATE TABLE IF NOT EXISTS event_messaging_docs (
@@ -146,8 +160,7 @@ CREATE TABLE IF NOT EXISTS stakeholder_announcements (
   partner_id       UUID REFERENCES event_sponsors(id) ON DELETE SET NULL,
   -- Generated content
   post_copy        TEXT,             -- AI-generated post text
-  creative_url     TEXT,             -- R2 URL of the final 1080×1350 creative
-  creative_canva_id TEXT,            -- Canva design ID (for re-editing)
+  creative_url     TEXT,             -- public storage URL of the final 1080×1350 Sharp-composited PNG
   -- Approval
   status           TEXT NOT NULL DEFAULT 'draft'
                      CHECK (status IN (

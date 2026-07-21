@@ -40,6 +40,7 @@ type Event = {
   social_youtube: string | null
   venue_map_url: string | null
   postiz_profile_key: string | null
+  creative_template_config: Record<string, unknown> | null
 }
 
 type StaffMember = { id: string; name: string; department: string }
@@ -157,9 +158,11 @@ export default function EventWorkspacePage({ params }: { params: Promise<{ id: s
     name: '', type: '', status: '', event_date: '', end_date: '', venue: '', city: '', client_name: '', description: '', expected_attendance: '',
     event_format: '', country: '', website_url: '', event_hashtag: '', registration_url: '',
     social_linkedin: '', social_x: '', social_instagram: '', social_facebook: '', social_youtube: '',
-    venue_map_url: '', postiz_profile_key: '',
+    venue_map_url: '', postiz_profile_key: '', creative_template_config: '',
   })
   const [savingEdit,     setSavingEdit]     = useState(false)
+  const [templateUploading, setTemplateUploading] = useState<'speaker' | 'partner' | null>(null)
+  const [templateConfigError, setTemplateConfigError] = useState<string | null>(null)
 
   // Topline Messaging Doc
   type MessagingDoc = {
@@ -257,8 +260,18 @@ export default function EventWorkspacePage({ params }: { params: Promise<{ id: s
   }
 
   async function saveEventEdit() {
+    let parsedTemplateConfig: Record<string, unknown> | null = null
+    if (editForm.creative_template_config.trim()) {
+      try {
+        parsedTemplateConfig = JSON.parse(editForm.creative_template_config)
+      } catch {
+        setTemplateConfigError('Layout Config is not valid JSON — fix it before saving.')
+        return
+      }
+    }
+    setTemplateConfigError(null)
     setSavingEdit(true)
-    const body: Record<string, string | number | null> = {
+    const body: Record<string, string | number | null | Record<string, unknown>> = {
       name:        editForm.name,
       type:        editForm.type,
       status:      editForm.status,
@@ -281,10 +294,44 @@ export default function EventWorkspacePage({ params }: { params: Promise<{ id: s
       social_youtube:    editForm.social_youtube || null,
       venue_map_url:      editForm.venue_map_url || null,
       postiz_profile_key: editForm.postiz_profile_key || null,
+      creative_template_config: parsedTemplateConfig,
     }
     const res  = await fetch(`/api/events?id=${eventId}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
     if (res.ok) { setEditing(false); fetchAll() }
     setSavingEdit(false)
+  }
+
+  // Uploads a blank background PNG and merges its URL into the local (not
+  // yet saved) creative_template_config draft — 'Save Changes' persists it,
+  // same two-step pattern as every other edit-form field. Partner uploads
+  // go to a '_default' key covering every partner_type unless the MM
+  // hand-edits the JSON to add a genuinely different per-tier entry.
+  async function uploadTemplateBackground(templateType: 'speaker' | 'partner', file: File) {
+    setTemplateUploading(templateType)
+    const form = new FormData()
+    form.append('file', file)
+    form.append('event_id', eventId)
+    form.append('template_type', templateType)
+    const res  = await fetch('/api/events/templates/upload', { method: 'POST', body: form })
+    const data = await res.json().catch(() => ({}))
+    if (res.ok && data.r2_url) {
+      setEditForm(f => {
+        let config: Record<string, Record<string, unknown>> = {}
+        try { config = f.creative_template_config ? JSON.parse(f.creative_template_config) : {} } catch { config = {} }
+        if (templateType === 'speaker') {
+          config.speaker = { canvas_width: 1080, canvas_height: 1350, ...(config.speaker ?? {}), background_url: data.r2_url }
+        } else {
+          const partner = (config.partner ?? {}) as Record<string, Record<string, unknown>>
+          partner._default = { canvas_width: 1080, canvas_height: 1350, ...(partner._default ?? {}), background_url: data.r2_url }
+          config.partner = partner
+        }
+        return { ...f, creative_template_config: JSON.stringify(config, null, 2) }
+      })
+      setTemplateConfigError(null)
+    } else {
+      setTemplateConfigError(data.error || 'Template upload failed.')
+    }
+    setTemplateUploading(null)
   }
 
   async function assignStaff(staffId: string) {
@@ -341,6 +388,7 @@ export default function EventWorkspacePage({ params }: { params: Promise<{ id: s
         social_youtube:      ev.social_youtube ?? '',
         venue_map_url:       ev.venue_map_url ?? '',
         postiz_profile_key:  ev.postiz_profile_key ?? '',
+        creative_template_config: ev.creative_template_config ? JSON.stringify(ev.creative_template_config, null, 2) : '',
       })
     }
     setChecklist(Array.isArray(clData) ? clData : [])
@@ -767,6 +815,53 @@ export default function EventWorkspacePage({ params }: { params: Promise<{ id: s
                       <div style={{ fontSize: '10.5px', color: 'var(--ink3)', marginTop: '4px', lineHeight: 1.4 }}>
                         Paste the workspace API key from Postiz for this event&apos;s connected social accounts.
                       </div>
+                    </div>
+                  </div>
+
+                  {/* ── Creative Templates (Sharp compositing, PRD v1.4) ── */}
+                  <div style={{ fontSize: '11px', fontWeight: 800, letterSpacing: '0.8px', color: 'var(--teal-mid)', margin: '20px 0 10px', textTransform: 'uppercase' }}>Creative Templates</div>
+                  {(() => {
+                    let parsedConfig: { speaker?: { background_url?: string }; partner?: { _default?: { background_url?: string } } } = {}
+                    try { parsedConfig = editForm.creative_template_config ? JSON.parse(editForm.creative_template_config) : {} } catch { /* shown via templateConfigError on save attempt */ }
+                    const speakerBg = parsedConfig.speaker?.background_url
+                    const partnerBg = parsedConfig.partner?._default?.background_url
+                    return (
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                        <div>
+                          <label style={{ fontSize: '11px', fontWeight: 700, color: 'var(--ink3)', display: 'block', marginBottom: '4px' }}>SPEAKER BACKGROUND</label>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                            {speakerBg && <img src={speakerBg} alt="Speaker background preview" style={{ width: '44px', height: '55px', objectFit: 'cover', borderRadius: '6px', border: '1px solid var(--border-light)' }} />}
+                            <label style={{ padding: '7px 14px', borderRadius: '8px', border: '1.5px solid var(--border)', background: 'transparent', color: 'var(--ink2)', fontSize: '12px', fontWeight: 700, cursor: 'pointer' }}>
+                              {templateUploading === 'speaker' ? 'Uploading…' : speakerBg ? 'Replace PNG ▲' : 'Upload PNG ▲'}
+                              <input type="file" accept="image/png" style={{ display: 'none' }} disabled={templateUploading !== null}
+                                onChange={e => { const f = e.target.files?.[0]; if (f) uploadTemplateBackground('speaker', f); e.target.value = '' }} />
+                            </label>
+                          </div>
+                        </div>
+                        <div>
+                          <label style={{ fontSize: '11px', fontWeight: 700, color: 'var(--ink3)', display: 'block', marginBottom: '4px' }}>PARTNER BACKGROUND</label>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                            {partnerBg && <img src={partnerBg} alt="Partner background preview" style={{ width: '44px', height: '55px', objectFit: 'cover', borderRadius: '6px', border: '1px solid var(--border-light)' }} />}
+                            <label style={{ padding: '7px 14px', borderRadius: '8px', border: '1.5px solid var(--border)', background: 'transparent', color: 'var(--ink2)', fontSize: '12px', fontWeight: 700, cursor: 'pointer' }}>
+                              {templateUploading === 'partner' ? 'Uploading…' : partnerBg ? 'Replace PNG ▲' : 'Upload PNG ▲'}
+                              <input type="file" accept="image/png" style={{ display: 'none' }} disabled={templateUploading !== null}
+                                onChange={e => { const f = e.target.files?.[0]; if (f) uploadTemplateBackground('partner', f); e.target.value = '' }} />
+                            </label>
+                          </div>
+                          <div style={{ fontSize: '10.5px', color: 'var(--ink3)', marginTop: '4px' }}>Covers every partner tier by default — add a per-tier entry in Layout Config below for a different background per tier.</div>
+                        </div>
+                      </div>
+                    )
+                  })()}
+                  <div style={{ marginTop: '12px' }}>
+                    <label style={{ fontSize: '11px', fontWeight: 700, color: 'var(--ink3)', display: 'block', marginBottom: '4px' }}>LAYOUT CONFIG (ADVANCED)</label>
+                    <textarea rows={8} value={editForm.creative_template_config}
+                      onChange={e => setEditForm(f => ({ ...f, creative_template_config: e.target.value }))}
+                      placeholder='{ "speaker": { "background_url": "...", "photo_zone": { "x": 0, "y": 0, "width": 1080, "height": 900 }, ... } }'
+                      style={{ width: '100%', padding: '9px 12px', borderRadius: '8px', border: `1px solid ${templateConfigError ? 'var(--red-border)' : 'var(--border)'}`, fontSize: '12px', fontFamily: 'monospace', color: 'var(--ink)', resize: 'vertical', boxSizing: 'border-box' }} />
+                    {templateConfigError && <div style={{ fontSize: '11px', color: 'var(--red)', marginTop: '4px' }}>{templateConfigError}</div>}
+                    <div style={{ fontSize: '10.5px', color: 'var(--ink3)', marginTop: '4px', lineHeight: 1.4 }}>
+                      Pixel coordinates for photo/logo placement and text layers on the 1080×1350 canvas — see the compositing engine at app/lib/announcements/composite.ts for the exact shape.
                     </div>
                   </div>
 

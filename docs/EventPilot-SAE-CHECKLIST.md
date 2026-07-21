@@ -1,6 +1,6 @@
 # Stakeholder Announcement Engine — Build Checklist
 
-Tracks execution of `docs/EventPilot-SAE-PRD-v1.0.md` (currently v1.3). Update checkboxes as items land — this is the source of truth for "what's done" across sessions, alongside `HANDOFF.md`.
+Tracks execution of `docs/EventPilot-SAE-PRD-v1.0.md` (currently v1.4). Update checkboxes as items land — this is the source of truth for "what's done" across sessions, alongside `HANDOFF.md`.
 
 **Architecture decisions locked in (differ from the PRD document's literal text — see Context in the plan file, `~/.claude/plans/magical-singing-rossum.md`):**
 - Extend existing `event_speakers`/`event_sponsors` additively — do **not** create separate `event_partners`/`stakeholder_speakers` tables. `event_speakers`/`event_sponsors` already exist for Website Builder + KonfHub; confirmed live-but-empty (0 rows) before this decision.
@@ -8,6 +8,7 @@ Tracks execution of `docs/EventPilot-SAE-PRD-v1.0.md` (currently v1.3). Update c
 - Public assets (creatives, photos, logos, messaging PDFs) go in a public Supabase Storage bucket (`event-stakeholder-assets`, `app/lib/events/storage.ts`), not R2 — matches Website Builder's existing pattern, gives stable non-expiring URLs.
 - PhotoRoom (not remove.bg), plain pasted URL (not Google Maps API) — per PRD v1.2, unchanged since.
 - **Postiz Cloud** (platform.postiz.com, managed SaaS, $39/mo Team plan) — not self-hosted. PRD v1.1/v1.2 originally called for self-hosted Postiz on Railway; v1.3 (2026-07-21) replaced that with the Cloud plan before Phase E was ever started, so no Railway deployment work happens for this module at all. `POSTIZ_API_URL=https://api.postiz.com` + `POSTIZ_API_KEY` (global) + per-event `postiz_profile_key` (workspace key).
+- **Sharp compositing, not Canva Autofill** (PRD v1.4, 2026-07-21) — see the superseded Phase C section below for why. Canva OAuth stays in the codebase for future use, just not called during creative generation.
 
 ---
 
@@ -41,15 +42,35 @@ Tracks execution of `docs/EventPilot-SAE-PRD-v1.0.md` (currently v1.3). Update c
 
 ---
 
-## Phase C — Canva Autofill ✅ C1–C2 committed
+## Phase C v1 — Canva Autofill ❌ ABANDONED 2026-07-21, superseded by Sharp (below)
 
-- [x] C1: Added `'autofill'` to `app/api/canva/design/route.ts`. Extracted token resolution + the full autofill pipeline (upload asset → autofill → export, each step properly polled) into `app/lib/canva.ts`, shared with C2's routes rather than a self-referential HTTP call.
-- [x] C2: `app/api/events/stakeholders/announcements/generate/route.ts` — Gemini post-copy (grounded in the live messaging doc + real event/stakeholder fields only — no fabricated data like the PRD's "edition number," which doesn't exist as a real column) + Canva autofill via `events.canva_template_config` + creative re-uploaded to Supabase Storage (Canva's own export URL is temporary) + draft `stakeholder_announcements` row.
-- [x] C2: `regenerate-copy`/`regenerate-creative` routes, sharing `app/lib/events/announcements.ts` (`generatePostCopy`/`buildAutofillFields`) rather than duplicating the generate route's logic.
-- [x] Wired "Generate Announcement" in the Stakeholder Hub to a real `canva_staff_id`, resolved from the current session (`/api/auth/session`'s `sid` — the established client-side pattern used elsewhere, e.g. `RealtimeNotifications.tsx`).
-- [ ] C3: Manual test — one real Canva template + one real (test) speaker record end to end. **Blocked** until Madhu provides real Canva template design IDs and confirms `CANVA_CLIENT_ID`/`CANVA_CLIENT_SECRET` are actually set (code exists, was unconfirmed as configured) — code is written and typechecks/builds clean, but has not been exercised against the real Canva API.
+Built and committed (C1/C2 below), then **investigated live with Madhu and confirmed non-viable**: the "Connect data" option needed to mark a Brand Template's elements as fillable does not appear on image or text elements in the standard Canva for Teams editor, even on genuinely-published Brand Templates. Confirmed two ways: (1) hands-on in Canva's editor, no such option found; (2) programmatically — got a real OAuth connection working end-to-end (scopes fixed, credentials verified, `GET /v1/brand-templates` returned both real WAIS Malaysia templates correctly), then `GET /v1/brand-templates/{id}/dataset` returned `{}` for both — zero fillable fields exist on either template. Canva's Autofill API requires a specific enterprise developer workflow to set up data fields that isn't reachable from the standard editor. This work is **not deleted from history** — kept here for the record — but the actual code has been removed from the branch (see Phase C v2).
 
-**`canva_template_config` field-mapping convention** (not explicit in the PRD, decided while building C2): the JSONB's `fields` object maps a semantic key (`speaker_name`, `job_title`, `company`, `speaker_photo`, `company_logo` for speakers; `company_logo`, `tier_label` for partners) to the *actual* Canva template's field name, e.g. `{ "speaker_name": "Speaker Name" }`. This is what Madhu needs to fill in per template when supplying design IDs.
+- [x] C1: Added `'autofill'` to `app/api/canva/design/route.ts` + `runCanvaAutofill`/`pollCanvaJob` in `app/lib/canva.ts` — **removed** in the v2 rework; `getCanvaAccessToken` and the original five actions (upload/create/export/status/check) kept as-is, Canva OAuth stays for future use.
+- [x] C2: `generate`/`regenerate-copy`/`regenerate-creative` routes built calling Canva autofill via `events.canva_template_config` — **reworked** in v2 to call Sharp instead.
+- [x] Canva OAuth connection itself fully debugged and verified working (scopes, credentials, live token) — this groundwork is NOT wasted, it stays in place for whatever future use the OAuth integration gets.
+- [x] Also fixed along the way: Railway auto-deploy had silently stopped since 2026-07-17 (payment lapse, unrelated to Canva) — found and resolved during this investigation.
+
+---
+
+## Phase C v2 — Sharp Compositing (PRD v1.4, current)
+
+Canva stays the design tool for the *background* templates (exported once as blank PNGs, no dynamic content). EventPilot composites the stakeholder's photo/logo + text onto that background server-side at generation time, using Sharp. See Context in `~/.claude/plans/magical-singing-rossum.md` for full detail.
+
+- [x] DB: `ALTER TABLE events RENAME COLUMN canva_template_config TO creative_template_config;` + `ALTER TABLE stakeholder_announcements DROP COLUMN IF EXISTS creative_canva_id;` — applied live and verified via `information_schema.columns`; `supabase/sae_migration.sql` updated to match with a header-comment history entry.
+- [x] `npm install sharp` + `npm install react-image-crop` — both confirmed in `package.json` (`sharp@^0.35.3`, `react-image-crop@^11.1.2`).
+- [x] Removed Canva Autofill code: `runCanvaAutofill`/`pollCanvaJob`/`CanvaAutofillField` deleted from `app/lib/canva.ts` (kept `getCanvaAccessToken` for the surviving 5 actions), `'autofill'` action removed from `app/api/canva/design/route.ts`, `buildAutofillFields`/`TemplateFieldMap`/`CanvaTemplateConfig` replaced by `buildCompositeInputs`/`CreativeTemplateConfig` in `app/lib/events/announcements.ts`.
+- [x] New `app/lib/announcements/composite.ts` — `compositeAnnouncement()`, adapted from PRD §7 using real `uploadPublicAsset()` URLs (not the PRD sample's placeholder `r2:` scheme).
+- [x] New `app/api/events/templates/upload/route.ts` (background PNG upload → Supabase Storage, `{r2_url}` response) + `app/api/events/templates/route.ts` (GET current `creative_template_config`).
+- [x] Reworked `generate/route.ts` + `regenerate-creative/route.ts`: select `creative_template_config`, call `buildCompositeInputs()` → `compositeAnnouncement()` → `uploadPublicAsset()`, dropped `canva_staff_id` from both request bodies entirely, dropped `creative_canva_id`/`canva_edit_url` from insert/response.
+- [x] Stakeholder Hub (`app/admin/events/[id]/stakeholders/page.tsx`): removed `canva_staff_id` from `generateAnnouncement()`'s body, removed the now-dead `staffId` state + its `/api/auth/session` mount effect.
+- [x] New "Creative Templates" section in the event profile edit form (`app/admin/events/[id]/page.tsx`) — upload buttons for Speaker/Partner backgrounds (via `uploadTemplateBackground()`, auto-merges the returned URL into the right slot of the JSON draft) with preview thumbnails, plus a "Layout Config" `<textarea>` for the raw `creative_template_config` JSON with parse-error display (`saveEventEdit()` validates JSON before PATCHing). No visual coordinate-picker, per PRD §8's own scope call for the pilot.
+- [x] Speaker photo crop/zoom tool: new `app/api/events/stakeholders/speakers/[id]/crop-photo/route.ts` (Sharp `.extract()` server-side against pixel coords, re-uploads, updates `photo_processed_url`) + new `app/admin/events/[id]/stakeholders/PhotoCropModal.tsx` (`react-image-crop` drag/resize UI, scales displayed-image coords to natural pixel dimensions before posting). Wired into `stakeholders/page.tsx`'s `uploadAsset()` — opens automatically after a speaker photo upload if `photo_processed_url` is set. **Speaker photos only — never partner logos**, confirmed.
+- [x] C3: Manual test — **run for real** against the live dev server and live Supabase (not Madhu's real Canva export, a disposable synthetic one, since the goal here was verifying the compositing pipeline itself, not final creative approval): uploaded a solid-color 1080×1350 PNG via `/api/events/templates/upload`, set a real `creative_template_config` (photo_zone + name/title/company text layers) on a real event, seeded a disposable test speaker + photo, called `/api/events/stakeholders/announcements/generate` for real (201, real `creative_url`), downloaded and visually confirmed the composited PNG — photo positioned/sized correctly in its zone, all three text layers rendered in the right position/color/weight. All test rows (DB) and objects (Storage) deleted afterward. **Still blocked** on Madhu's real Canva-exported background PNGs + final layout coordinates for the actual production templates — this test only proves the pipeline works, not the final creative design.
+
+**Still pending from Madhu (unchanged by this pivot):** `PHOTOROOM_API_KEY`, Postiz Cloud signup + API keys (see Phase E above — unaffected by this change).
+
+**No longer needed** (this pivot removes the blocker entirely): Canva template data-field setup — moot now, Autofill isn't used.
 
 ---
 

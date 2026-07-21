@@ -6,12 +6,16 @@
  *   action: 'create'   — create a design from uploaded asset
  *   action: 'export'   — export finished design back as image URL
  *   action: 'status'   — check export job status
- *   action: 'autofill' — populate a locked Brand Template with text/image
- *                         fields and export the result (Stakeholder
- *                         Announcement Engine — see PRD SS7.2)
+ *
+ * (A Stakeholder Announcement Engine 'autofill' action lived here briefly —
+ * removed 2026-07-21, Canva's Autofill API isn't usable without an
+ * enterprise developer workflow not available in the standard Canva for
+ * Teams editor. SAE creative generation now uses Sharp compositing
+ * instead — see app/lib/announcements/composite.ts. This file's OAuth
+ * integration stays in place for future use.)
  */
 import { NextRequest, NextResponse } from 'next/server'
-import { getCanvaAccessToken, runCanvaAutofill, type CanvaAutofillField } from '@/app/lib/canva'
+import { getCanvaAccessToken } from '@/app/lib/canva'
 
 const CANVA_API = 'https://api.canva.com/rest/v1'
 
@@ -137,26 +141,5 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ connected: !!t })
   }
 
-  // ── AUTOFILL: Populate a locked Brand Template, export as PNG ──────────
-  // Body: { action: 'autofill', staff_id, template_design_id,
-  //         fields: { [name]: { type: 'text'|'image', value?, asset_url? } } }
-  if (action === 'autofill') {
-    const { template_design_id, fields } = body as {
-      template_design_id?: string
-      fields?: Record<string, CanvaAutofillField>
-    }
-    if (!template_design_id || !fields) {
-      return NextResponse.json({ error: 'template_design_id and fields required' }, { status: 400 })
-    }
-
-    try {
-      const { designId, downloadUrl } = await runCanvaAutofill(token, template_design_id, fields)
-      return NextResponse.json({ design_id: designId, download_url: downloadUrl })
-    } catch (e) {
-      const message = e instanceof Error ? e.message : 'Autofill pipeline failed'
-      return NextResponse.json({ error: message }, { status: 502 })
-    }
-  }
-
-  return NextResponse.json({ error: 'Invalid action. Use: upload, create, export, status, check, autofill' }, { status: 400 })
+  return NextResponse.json({ error: 'Invalid action. Use: upload, create, export, status, check' }, { status: 400 })
 }

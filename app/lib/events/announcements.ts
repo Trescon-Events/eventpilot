@@ -2,7 +2,7 @@
 // announcements/generate and both regenerate-* routes, so the copy/creative
 // pipeline is defined once rather than duplicated across three route files.
 import { GoogleGenerativeAI } from '@google/generative-ai'
-import type { CanvaAutofillField } from '@/app/lib/canva'
+import type { CompositeConfig } from '@/app/lib/announcements/composite'
 
 let _gemini: GoogleGenerativeAI | null = null
 function getGemini() {
@@ -74,43 +74,58 @@ Return JSON only, no markdown fences: { "copy": "...", "hashtags": ["#...", "...
   return text
 }
 
-export type TemplateFieldMap = Record<string, string> // semantic key -> real Canva field name
-export type CanvaTemplateConfig = {
-  speaker?: { template_design_id: string; fields: TemplateFieldMap }
-  partner?: Record<string, { template_design_id: string; fields: TemplateFieldMap }>
+// events.creative_template_config — background PNG URL + pixel-coordinate
+// zones/text layers for Sharp compositing (PRD v1.4 SS4.4), replacing the
+// Canva-field-name-map shape this used to have.
+export type CreativeTemplateConfig = {
+  speaker?: CompositeConfig
+  partner?: Record<string, CompositeConfig> // keyed by partner_type
 }
 
-export function buildAutofillFields(
+export type CompositeInputs = {
+  config: CompositeConfig
+  assetUrl: string
+  isSvg: boolean
+  texts: { name?: string; title?: string; company?: string; tier?: string }
+}
+
+export function buildCompositeInputs(
   stakeholderType: 'speaker' | 'partner',
   speaker: Record<string, unknown> | null,
   partner: Record<string, unknown> | null,
-  templateConfig: CanvaTemplateConfig | null,
+  templateConfig: CreativeTemplateConfig | null,
   useCompanyLogo: boolean
-): { templateDesignId?: string; fields?: Record<string, CanvaAutofillField>; templateError?: string } {
+): CompositeInputs | { templateError: string } {
   if (stakeholderType === 'speaker') {
-    const cfg = templateConfig?.speaker
-    if (!cfg?.template_design_id) return { templateError: 'No Canva speaker template configured for this event (events.canva_template_config.speaker)' }
+    const config = templateConfig?.speaker
+    if (!config?.background_url) return { templateError: 'No speaker creative template configured for this event (events.creative_template_config.speaker)' }
 
-    const map = cfg.fields
-    const fields: Record<string, CanvaAutofillField> = {}
-    if (map.speaker_name) fields[map.speaker_name] = { type: 'text', value: String(speaker!.name ?? '') }
-    if (map.job_title) fields[map.job_title] = { type: 'text', value: String(speaker!.role ?? '') }
-    if (map.company) fields[map.company] = { type: 'text', value: String(speaker!.company ?? '') }
-    const photoUrl = (speaker!.photo_processed_url as string | null) ?? (speaker!.photo_url as string | null)
-    if (map.speaker_photo && photoUrl) fields[map.speaker_photo] = { type: 'image', asset_url: photoUrl }
-    if (useCompanyLogo && map.company_logo && speaker!.company_logo_url) {
-      fields[map.company_logo] = { type: 'image', asset_url: speaker!.company_logo_url as string }
+    const assetUrl = useCompanyLogo
+      ? (speaker!.company_logo_url as string | null)
+      : ((speaker!.photo_processed_url as string | null) ?? (speaker!.photo_url as string | null))
+    if (!assetUrl) return { templateError: useCompanyLogo ? 'This speaker has no company logo uploaded' : 'This speaker has no photo uploaded' }
+
+    return {
+      config,
+      assetUrl,
+      isSvg: assetUrl.toLowerCase().endsWith('.svg'),
+      texts: { name: String(speaker!.name ?? ''), title: String(speaker!.role ?? ''), company: String(speaker!.company ?? '') },
     }
-    return { templateDesignId: cfg.template_design_id, fields }
   }
 
+  // Per-tier config takes precedence; '_default' is the single-upload
+  // simple case (PRD SS9.2's default UX — one partner background covering
+  // every tier unless the MM adds a genuinely different per-tier entry by
+  // hand-editing the JSON).
   const partnerType = String(partner!.partner_type)
-  const cfg = templateConfig?.partner?.[partnerType]
-  if (!cfg?.template_design_id) return { templateError: `No Canva template configured for partner type '${partnerType}' (events.canva_template_config.partner.${partnerType})` }
+  const config = templateConfig?.partner?.[partnerType] ?? templateConfig?.partner?._default
+  if (!config?.background_url) return { templateError: `No creative template configured for partner type '${partnerType}' (events.creative_template_config.partner.${partnerType} or .partner._default)` }
 
-  const map = cfg.fields
-  const fields: Record<string, CanvaAutofillField> = {}
-  if (map.company_logo && partner!.logo_url) fields[map.company_logo] = { type: 'image', asset_url: partner!.logo_url as string }
-  if (map.tier_label) fields[map.tier_label] = { type: 'text', value: partnerType.replace(/_/g, ' ') }
-  return { templateDesignId: cfg.template_design_id, fields }
+  const assetUrl = partner!.logo_url as string | null
+  if (!assetUrl) return { templateError: 'This partner has no logo uploaded' }
+
+  // tier label comes from the template config's own tier_text.value
+  // (e.g. "LEAD SPONSOR") — not derived from partner_type here, so design
+  // controls the exact wording per template rather than code guessing it.
+  return { config, assetUrl, isSvg: assetUrl.toLowerCase().endsWith('.svg'), texts: {} }
 }

@@ -4,6 +4,7 @@ import { useState, useEffect, use } from 'react'
 import PageHeader from '@/app/components/PageHeader'
 import { Button, Card, Badge, Input, Select, Textarea } from '@/app/components/ui'
 import CalendarView from './CalendarView'
+import PhotoCropModal from './PhotoCropModal'
 
 type Speaker = {
   id: string; event_id: string
@@ -84,13 +85,9 @@ export default function StakeholderHubPage({ params }: { params: Promise<{ id: s
   const [draft, setDraft] = useState<EditDraft>(EMPTY_DRAFT)
   const [saving, setSaving] = useState(false)
   const [uploadingId, setUploadingId] = useState<string | null>(null)
-  const [staffId, setStaffId] = useState<string | null>(null)
+  const [cropTarget, setCropTarget] = useState<Speaker | null>(null)
 
   const category = CATEGORIES.find(c => c.key === activeTab)!
-
-  useEffect(() => {
-    fetch('/api/auth/session').then(r => r.json()).then(s => setStaffId(s?.sid ?? null))
-  }, [])
 
   async function fetchAll() {
     setLoading(true)
@@ -166,6 +163,15 @@ export default function StakeholderHubPage({ params }: { params: Promise<{ id: s
     await fetch(`${base}/${item.id}/upload-asset`, { method: 'POST', body: form })
     await fetchAll()
     setUploadingId(null)
+    // Offer the crop/zoom tool right after a speaker photo upload — never for
+    // company logos or partner logos. The freshly-fetched speaker record (with
+    // the new photo_processed_url) is picked up from the next fetchAll() below.
+    if (category.kind === 'speaker' && assetType === 'photo') {
+      const res = await fetch(`/api/events/stakeholders/speakers?event_id=${eventId}`)
+      const updated: Speaker[] = await res.json().catch(() => [])
+      const fresh = updated.find(s => s.id === item.id)
+      if (fresh?.photo_processed_url) setCropTarget(fresh)
+    }
   }
 
   async function processSubmission(submission: Submission) {
@@ -180,13 +186,11 @@ export default function StakeholderHubPage({ params }: { params: Promise<{ id: s
   }
 
   async function generateAnnouncement(item: Speaker | Partner) {
-    if (!staffId) { setMsg('Could not determine your staff account — try refreshing the page.'); return }
     const res = await fetch('/api/events/stakeholders/announcements/generate', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         event_id: eventId,
         stakeholder_type: category.kind === 'speaker' ? 'speaker' : 'partner',
-        canva_staff_id: staffId,
         ...(category.kind === 'speaker' ? { speaker_id: item.id } : { partner_id: item.id }),
       }),
     })
@@ -355,6 +359,15 @@ export default function StakeholderHubPage({ params }: { params: Promise<{ id: s
           )}
         </div>
       </div>
+
+      {cropTarget?.photo_processed_url && (
+        <PhotoCropModal
+          speakerId={cropTarget.id}
+          photoUrl={cropTarget.photo_processed_url}
+          onClose={() => setCropTarget(null)}
+          onCropped={fetchAll}
+        />
+      )}
 
       {/* Add/Edit slide-over */}
       {panelOpen && (

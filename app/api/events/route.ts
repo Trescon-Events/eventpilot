@@ -16,7 +16,7 @@ export async function GET(req: NextRequest) {
           description, expected_attendance, created_at,
           event_format, country, website_url, event_hashtag, registration_url,
           social_linkedin, social_x, social_instagram, social_facebook, social_youtube,
-          venue_map_url, postiz_profile_key, canva_template_config,
+          venue_map_url, postiz_profile_key, creative_template_config,
           event_staff(count),
           documents(count)
         `)
