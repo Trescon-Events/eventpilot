@@ -1,0 +1,102 @@
+import { NextRequest, NextResponse } from 'next/server'
+import { supabaseAdmin } from '@/app/lib/supabase'
+import { uploadPublicAsset } from '@/app/lib/events/storage'
+
+/* POST /api/events/stakeholders/speakers/[id]/upload-asset
+   multipart/form-data: file, asset_type: 'photo' | 'company_logo'
+
+   For 'photo': uploads the original, then calls PhotoRoom to strip the
+   background (single POST, binary PNG response, no polling — see PRD SS5a),
+   uploads the transparent PNG as photo_processed_url.
+   For 'company_logo': uploads as-is, no processing. */
+
+const ALLOWED_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp']
+const MAX_SIZE = 5 * 1024 * 1024
+
+export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const { id: speakerId } = await params
+  const form      = await req.formData()
+  const file      = form.get('file') as File | null
+  const assetType = form.get('asset_type') as string | null
+
+  if (!file || (assetType !== 'photo' && assetType !== 'company_logo')) {
+    return NextResponse.json({ error: 'file and asset_type (photo|company_logo) required' }, { status: 400 })
+  }
+  if (!ALLOWED_IMAGE_TYPES.includes(file.type)) {
+    return NextResponse.json({ error: `Unsupported file type ${file.type}` }, { status: 400 })
+  }
+  if (file.size > MAX_SIZE) {
+    return NextResponse.json({ error: 'File too large (max 5 MB)' }, { status: 413 })
+  }
+
+  const { data: speaker } = await supabaseAdmin.from('event_speakers').select('event_id').eq('id', speakerId).single()
+  if (!speaker) return NextResponse.json({ error: 'Speaker not found' }, { status: 404 })
+
+  const buffer = Buffer.from(await file.arrayBuffer())
+  const ext    = file.type.split('/')[1] === 'jpeg' ? 'jpg' : file.type.split('/')[1]
+
+  if (assetType === 'company_logo') {
+    const logoUrl = await uploadPublicAsset(
+      `events/${speaker.event_id}/speakers/${speakerId}/company-logo-${Date.now()}.${ext}`,
+      buffer,
+      file.type
+    )
+    const { data, error } = await supabaseAdmin
+      .from('event_speakers')
+      .update({ company_logo_url: logoUrl, updated_at: new Date().toISOString() })
+      .eq('id', speakerId)
+      .select('company_logo_url')
+      .single()
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+    return NextResponse.json(data)
+  }
+
+  // photo
+  const photoUrl = await uploadPublicAsset(
+    `events/${speaker.event_id}/speakers/${speakerId}/photo-original-${Date.now()}.${ext}`,
+    buffer,
+    file.type
+  )
+
+  let photoProcessedUrl: string | null = null
+  const photoRoomKey = process.env.PHOTOROOM_API_KEY
+  if (photoRoomKey) {
+    try {
+      const photoRoomForm = new FormData()
+      photoRoomForm.append('image_file', new Blob([new Uint8Array(buffer)], { type: file.type }), file.name || 'photo.jpg')
+      photoRoomForm.append('output_type', 'rgba')
+
+      const prRes = await fetch('https://sdk.photoroom.com/v1/segment', {
+        method: 'POST',
+        headers: { 'x-api-key': photoRoomKey },
+        body: photoRoomForm,
+      })
+
+      if (prRes.ok) {
+        const transparentPng = Buffer.from(await prRes.arrayBuffer())
+        photoProcessedUrl = await uploadPublicAsset(
+          `events/${speaker.event_id}/speakers/${speakerId}/photo-processed-${Date.now()}.png`,
+          transparentPng,
+          'image/png'
+        )
+      } else {
+        console.error('PhotoRoom request failed:', prRes.status, await prRes.text().catch(() => ''))
+      }
+    } catch (e) {
+      console.error('PhotoRoom call errored:', e)
+    }
+  }
+
+  const update: Record<string, unknown> = { photo_url: photoUrl, updated_at: new Date().toISOString() }
+  if (photoProcessedUrl) update.photo_processed_url = photoProcessedUrl
+
+  const { data, error } = await supabaseAdmin
+    .from('event_speakers')
+    .update(update)
+    .eq('id', speakerId)
+    .select('photo_url, photo_processed_url')
+    .single()
+
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  return NextResponse.json(data)
+}

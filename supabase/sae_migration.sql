@@ -13,8 +13,18 @@
 --   ALTER TABLE events RENAME COLUMN ayrshare_profile_key TO postiz_profile_key;
 --   ALTER TABLE events RENAME COLUMN venue_map_link TO venue_map_url;
 --   ALTER TABLE events DROP COLUMN IF EXISTS venue_map_place_id;
--- (Applied directly to the live Supabase project the same day.) This file
--- below reflects the corrected, current schema — a fresh run on a new
+-- (Applied directly to the live Supabase project the same day.)
+--
+-- Separately: the PRD's own announcement_status enum (SS4.5/4.6) never
+-- included 'archived', despite SS6.4 specifying DELETE should set it there.
+-- Added 'archived' to both CHECK constraints to make the API spec actually
+-- satisfiable — not IF NOT EXISTS-safe (constraint replacement), so
+-- already-migrated environments need:
+--   ALTER TABLE event_speakers DROP CONSTRAINT event_speakers_announcement_status_check;
+--   ALTER TABLE event_speakers ADD CONSTRAINT event_speakers_announcement_status_check
+--     CHECK (announcement_status IN ('pending_review','approved','assets_missing','ready','archived'));
+--   (same for event_sponsors)
+-- This file below reflects the corrected, current schema — a fresh run on a new
 -- database produces the right columns directly.
 
 -- ── 1. Extend events table ──────────────────────────────────────────────────
@@ -65,7 +75,7 @@ ALTER TABLE event_speakers
   ADD COLUMN IF NOT EXISTS website_card_url    TEXT,        -- generated speaker card (future use)
   ADD COLUMN IF NOT EXISTS announcement_status TEXT NOT NULL DEFAULT 'pending_review'
                              CHECK (announcement_status IN (
-                               'pending_review', 'approved', 'assets_missing', 'ready'
+                               'pending_review', 'approved', 'assets_missing', 'ready', 'archived'
                              )),
   ADD COLUMN IF NOT EXISTS source              TEXT NOT NULL DEFAULT 'manual'
                              CHECK (source IN ('onboarding_form', 'manual')),
@@ -97,7 +107,7 @@ ALTER TABLE event_sponsors
   ADD COLUMN IF NOT EXISTS website_tile_url    TEXT,       -- generated partner tile (future use)
   ADD COLUMN IF NOT EXISTS announcement_status TEXT NOT NULL DEFAULT 'pending_review'
                              CHECK (announcement_status IN (
-                               'pending_review', 'approved', 'assets_missing', 'ready'
+                               'pending_review', 'approved', 'assets_missing', 'ready', 'archived'
                              )),
   ADD COLUMN IF NOT EXISTS source              TEXT NOT NULL DEFAULT 'manual'
                              CHECK (source IN ('onboarding_form', 'manual')),
