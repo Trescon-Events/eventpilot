@@ -5,11 +5,13 @@ import { compositeAnnouncement } from '@/app/lib/announcements/composite'
 import { buildCompositeInputs, type CreativeTemplateConfig } from '@/app/lib/events/announcements'
 
 /* POST /api/events/stakeholders/announcements/[id]/regenerate-creative
-   Body: { use_company_logo? }
-   Re-composites the creative — used when assets were updated (PRD SS6.8, v1.4). */
+   Body: { use_company_logo?, variant_id? }
+   Re-composites the creative — used when assets were updated (PRD SS6.8,
+   v1.4 Phase C v3). variant_id defaults to whichever variant the
+   announcement was originally generated with. */
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
-  const body = await req.json().catch(() => ({})) as { use_company_logo?: boolean }
+  const body = await req.json().catch(() => ({})) as { use_company_logo?: boolean; variant_id?: string }
 
   const { data: announcement, error: annErr } = await supabaseAdmin
     .from('stakeholder_announcements')
@@ -33,19 +35,19 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     : null
 
   const templateConfig = event.creative_template_config as CreativeTemplateConfig | null
-  const inputs = buildCompositeInputs(announcement.stakeholder_type, speaker, partner, templateConfig, body.use_company_logo ?? false)
+  const variantId = body.variant_id ?? announcement.creative_variant_id ?? undefined
+  const inputs = buildCompositeInputs(announcement.stakeholder_type, speaker, partner, templateConfig, body.use_company_logo ?? false, variantId)
   if ('templateError' in inputs) return NextResponse.json({ error: inputs.templateError }, { status: 422 })
 
   try {
-    const assetRes = await fetch(inputs.assetUrl)
-    if (!assetRes.ok) throw new Error(`Failed to fetch stakeholder photo/logo: ${assetRes.status}`)
-    const assetBuffer = Buffer.from(await assetRes.arrayBuffer())
+    const assets: Record<string, { buffer: Buffer; is_svg?: boolean }> = {}
+    for (const needed of inputs.assetsNeeded) {
+      const assetRes = await fetch(needed.url)
+      if (!assetRes.ok) throw new Error(`Failed to fetch ${needed.source}: ${assetRes.status}`)
+      assets[needed.source] = { buffer: Buffer.from(await assetRes.arrayBuffer()), is_svg: needed.isSvg }
+    }
 
-    const creativeBuffer = await compositeAnnouncement(
-      inputs.config,
-      { photo_or_logo_buffer: assetBuffer, is_svg: inputs.isSvg },
-      inputs.texts
-    )
+    const creativeBuffer = await compositeAnnouncement(inputs.variant, assets, inputs.texts)
 
     const creativeUrl = await uploadPublicAsset(
       `events/${announcement.event_id}/announcements/${id}/creative-${Date.now()}.png`,
@@ -55,7 +57,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
     const { data, error } = await supabaseAdmin
       .from('stakeholder_announcements')
-      .update({ creative_url: creativeUrl, updated_at: new Date().toISOString() })
+      .update({ creative_url: creativeUrl, creative_variant_id: inputs.variant.id, updated_at: new Date().toISOString() })
       .eq('id', id)
       .select('id, creative_url')
       .single()

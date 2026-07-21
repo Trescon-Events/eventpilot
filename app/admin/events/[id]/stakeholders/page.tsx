@@ -5,6 +5,7 @@ import PageHeader from '@/app/components/PageHeader'
 import { Button, Card, Badge, Input, Select, Textarea } from '@/app/components/ui'
 import CalendarView from './CalendarView'
 import PhotoCropModal from './PhotoCropModal'
+import type { Variant, CreativeTemplateConfig } from '@/app/lib/announcements/composite'
 
 type Speaker = {
   id: string; event_id: string
@@ -86,17 +87,22 @@ export default function StakeholderHubPage({ params }: { params: Promise<{ id: s
   const [saving, setSaving] = useState(false)
   const [uploadingId, setUploadingId] = useState<string | null>(null)
   const [cropTarget, setCropTarget] = useState<Speaker | null>(null)
+  const [creativeVariants, setCreativeVariants] = useState<{ speaker: Variant[]; partner: Variant[] }>({ speaker: [], partner: [] })
+  const [variantChoice, setVariantChoice] = useState<Record<string, string>>({}) // item id -> chosen variant id
 
   const category = CATEGORIES.find(c => c.key === activeTab)!
 
   async function fetchAll() {
     setLoading(true)
-    const [spRes, ptRes] = await Promise.all([
+    const [spRes, ptRes, tplRes] = await Promise.all([
       fetch(`/api/events/stakeholders/speakers?event_id=${eventId}`),
       fetch(`/api/events/stakeholders/partners?event_id=${eventId}`),
+      fetch(`/api/events/templates?event_id=${eventId}`),
     ])
     setSpeakers(await spRes.json().catch(() => []))
     setPartners(await ptRes.json().catch(() => []))
+    const config: CreativeTemplateConfig | null = await tplRes.json().catch(() => null)
+    setCreativeVariants({ speaker: config?.speaker?.variants ?? [], partner: config?.partner?.variants ?? [] })
     setLoading(false)
   }
 
@@ -186,12 +192,14 @@ export default function StakeholderHubPage({ params }: { params: Promise<{ id: s
   }
 
   async function generateAnnouncement(item: Speaker | Partner) {
+    const variantId = variantChoice[item.id]
     const res = await fetch('/api/events/stakeholders/announcements/generate', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         event_id: eventId,
         stakeholder_type: category.kind === 'speaker' ? 'speaker' : 'partner',
         ...(category.kind === 'speaker' ? { speaker_id: item.id } : { partner_id: item.id }),
+        ...(variantId ? { variant_id: variantId } : {}),
       }),
     })
     const data = await res.json().catch(() => ({}))
@@ -342,6 +350,13 @@ export default function StakeholderHubPage({ params }: { params: Promise<{ id: s
                               <input type="file" accept="image/*" style={{ display: 'none' }} disabled={uploadingId === item.id}
                                 onChange={e => { const f = e.target.files?.[0]; if (f) uploadAsset(item, 'company_logo', f); e.target.value = '' }} />
                             </label>
+                          )}
+                          {creativeVariants[category.kind].length > 1 && (
+                            <Select value={variantChoice[item.id] ?? creativeVariants[category.kind][0]?.id ?? ''}
+                              onChange={e => setVariantChoice(v => ({ ...v, [item.id]: e.target.value }))}
+                              style={{ width: 'auto' }}>
+                              {creativeVariants[category.kind].map(v => <option key={v.id} value={v.id}>{v.name}</option>)}
+                            </Select>
                           )}
                           <Button variant="solid" disabled={item.announcement_status !== 'ready'} onClick={() => generateAnnouncement(item)}>
                             Generate Announcement ▶

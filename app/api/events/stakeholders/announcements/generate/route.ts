@@ -6,13 +6,16 @@ import { generatePostCopy, buildCompositeInputs, type CreativeTemplateConfig } f
 
 /* POST /api/events/stakeholders/announcements/generate
    Body: { event_id, stakeholder_type: 'speaker'|'partner', speaker_id?,
-           partner_id?, use_company_logo? }
+           partner_id?, use_company_logo?, variant_id? }
 
-   Main SAE generation pipeline (PRD SS6.8, v1.4): Gemini post copy grounded
-   in the live messaging doc + stakeholder data, Sharp-composited creative
-   (background template + photo/logo + text, per events.creative_template_config),
-   a new draft stakeholder_announcements row. No Canva call — see PRD v1.4
-   changelog / app/lib/canva.ts for why Autofill was dropped. */
+   Main SAE generation pipeline (PRD SS6.8, v1.4 Phase C v3): Gemini post copy
+   grounded in the live messaging doc + stakeholder data, Sharp-composited
+   creative (an ordered layer stack — image/photo-slot/text — per
+   events.creative_template_config, PRD v1.4 §7/§9.2), a new draft
+   stakeholder_announcements row. variant_id picks which named creative
+   variant to use; defaults to the first one configured for this
+   stakeholder_type if omitted. No Canva call — see PRD v1.4 changelog /
+   app/lib/canva.ts for why Autofill was dropped. */
 
 type GenerateBody = {
   event_id: string
@@ -20,6 +23,7 @@ type GenerateBody = {
   speaker_id?: string
   partner_id?: string
   use_company_logo?: boolean
+  variant_id?: string
 }
 
 export async function POST(req: NextRequest) {
@@ -64,20 +68,19 @@ export async function POST(req: NextRequest) {
 
   // ── 2. Creative via Sharp compositing ────────────────────────────────────
   const templateConfig = event.creative_template_config as CreativeTemplateConfig | null
-  const inputs = buildCompositeInputs(body.stakeholder_type, speaker, partner, templateConfig, body.use_company_logo ?? false)
+  const inputs = buildCompositeInputs(body.stakeholder_type, speaker, partner, templateConfig, body.use_company_logo ?? false, body.variant_id)
   if ('templateError' in inputs) return NextResponse.json({ error: inputs.templateError }, { status: 422 })
 
   let creativeUrl: string | null = null
   try {
-    const assetRes = await fetch(inputs.assetUrl)
-    if (!assetRes.ok) throw new Error(`Failed to fetch stakeholder photo/logo: ${assetRes.status}`)
-    const assetBuffer = Buffer.from(await assetRes.arrayBuffer())
+    const assets: Record<string, { buffer: Buffer; is_svg?: boolean }> = {}
+    for (const needed of inputs.assetsNeeded) {
+      const assetRes = await fetch(needed.url)
+      if (!assetRes.ok) throw new Error(`Failed to fetch ${needed.source}: ${assetRes.status}`)
+      assets[needed.source] = { buffer: Buffer.from(await assetRes.arrayBuffer()), is_svg: needed.isSvg }
+    }
 
-    const creativeBuffer = await compositeAnnouncement(
-      inputs.config,
-      { photo_or_logo_buffer: assetBuffer, is_svg: inputs.isSvg },
-      inputs.texts
-    )
+    const creativeBuffer = await compositeAnnouncement(inputs.variant, assets, inputs.texts)
 
     // announcement id assigned after insert below; use a temp-safe path keyed by timestamp
     creativeUrl = await uploadPublicAsset(
@@ -100,6 +103,7 @@ export async function POST(req: NextRequest) {
       partner_id: body.partner_id ?? null,
       post_copy: postCopy,
       creative_url: creativeUrl,
+      creative_variant_id: creativeUrl ? inputs.variant.id : null,
       status: 'draft',
     })
     .select()

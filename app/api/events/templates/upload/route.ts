@@ -2,12 +2,15 @@ import { NextRequest, NextResponse } from 'next/server'
 import { uploadPublicAsset } from '@/app/lib/events/storage'
 
 /* POST /api/events/templates/upload
-   multipart/form-data: file (PNG), event_id, template_type ('speaker'|'partner'), partner_tier?
-   Uploads a blank creative background PNG (exported from Canva, all dynamic
-   content removed — PRD v1.4 SS8) to storage. Does not touch
-   events.creative_template_config itself — the caller (event profile UI)
-   merges the returned URL into the right slot and saves it via the normal
-   PATCH /api/events flow, alongside the pixel-coordinate zones/text layers. */
+   multipart/form-data: file (PNG), event_id, template_type ('speaker'|'partner')
+   Uploads one creative layer's PNG asset (background art, a foreground
+   overlay with feathered transparency, etc. — exported from Canva, PRD v1.4
+   §8) to storage. Each call gets a unique path — a stakeholder type has
+   many layer images across its variants now (Phase C v3), not one single
+   background, so this must never overwrite a previous upload. Does not
+   touch events.creative_template_config itself — the layer editor UI
+   assigns the returned url to a layer's asset_url and saves the whole
+   variant via PUT /api/events/templates/variants. */
 
 const MAX_SIZE = 10 * 1024 * 1024
 
@@ -16,7 +19,6 @@ export async function POST(req: NextRequest) {
   const file = form.get('file') as File | null
   const eventId = form.get('event_id') as string | null
   const templateType = form.get('template_type') as string | null
-  const partnerTier = form.get('partner_tier') as string | null
 
   if (!file || !eventId || !templateType) {
     return NextResponse.json({ error: 'file, event_id, template_type required' }, { status: 400 })
@@ -32,12 +34,11 @@ export async function POST(req: NextRequest) {
   }
 
   const buffer = Buffer.from(await file.arrayBuffer())
-  const tierSuffix = partnerTier ? `-${partnerTier}` : ''
-  const r2_url = await uploadPublicAsset(
-    `events/${eventId}/templates/${templateType}${tierSuffix}-bg.png`,
+  const url = await uploadPublicAsset(
+    `events/${eventId}/templates/${templateType}-${Date.now()}.png`,
     buffer,
     'image/png'
   )
 
-  return NextResponse.json({ r2_url })
+  return NextResponse.json({ url })
 }

@@ -1,119 +1,144 @@
-// Sharp-based server-side creative compositing — replaces Canva Autofill
-// (PRD v1.4; see the comment in app/lib/canva.ts for why). Canva stays the
-// design tool for the *background* templates, exported once per event as
-// blank PNGs with all dynamic content removed; this composites the
-// stakeholder's photo/logo and text onto that background at generation
-// time. Adapted from the PRD's own SS7 sample, with two corrections against
-// this codebase's real conventions: background_url/the return value are
-// real public HTTPS URLs from app/lib/events/storage.ts's uploadPublicAsset
-// (not the PRD sample's placeholder `r2:` scheme), and this function
-// returns a Buffer — the caller uploads it, matching how the old
-// Canva-export re-upload step worked.
+// Sharp-based server-side creative compositing — PRD v1.4 Phase C v3.
+// Canva stays the design tool for individual layer assets (background art,
+// foreground overlays with feathered transparency, etc.), exported as PNGs;
+// this composites an ordered stack of layers (image / photo-slot / text)
+// onto a blank canvas at generation time. Supersedes the Phase C v2
+// single-background-plus-fixed-zones shape — real creatives (e.g. the WAIS
+// Malaysia "Speaking At" design) have independently-positioned elements with
+// genuine z-order between them (a speaker photo sitting *under* a
+// translucent foreground layer to get a feathered blend), which a fixed
+// background+zones model can't express.
+//
+// Photo/logo blending into the background is achieved purely through layer
+// order + the uploaded PNG's own alpha channel (baked in by whoever exports
+// it from Canva) — Sharp's .composite() already respects per-layer alpha,
+// so no custom masking logic is needed here.
 import sharp, { type OverlayOptions } from 'sharp'
 
+export type ImageLayer = {
+  id: string
+  type: 'image'
+  asset_url: string
+  x: number
+  y: number
+  width: number
+  height: number
+}
+
+export type PhotoSlotLayer = {
+  id: string
+  type: 'photo_slot'
+  source: 'speaker_photo' | 'speaker_logo' | 'partner_logo'
+  x: number
+  y: number
+  width: number
+  height: number
+}
+
 export type TextLayer = {
+  id: string
+  type: 'text'
+  field: 'name' | 'title' | 'company' | 'tier' | 'custom'
+  value?: string             // static text for 'custom', or a fallback for 'tier'
   x: number
   y: number
   font_size: number
-  font_color: string        // hex, e.g. '#FFFFFF'
+  font_color: string         // hex, e.g. '#FFFFFF'
   font_weight?: 'normal' | 'bold'
   align?: 'left' | 'center' | 'right'
-  max_width?: number        // reserved for future wrap/truncate support
-  value?: string             // hardcoded value (e.g. tier labels), used when no runtime text is passed
+  max_width?: number         // reserved for future wrap/truncate support
 }
 
-export type CompositeConfig = {
-  background_url: string
+export type Layer = ImageLayer | PhotoSlotLayer | TextLayer
+
+export type Variant = {
+  id: string
+  name: string
   canvas_width: number
   canvas_height: number
-  photo_zone?: { x: number; y: number; width: number; height: number }
-  logo_zone?: { x: number; y: number; width: number; height: number; background?: string }
-  name_text?: TextLayer
-  title_text?: TextLayer
-  company_text?: TextLayer
-  tier_text?: TextLayer
+  layers: Layer[]            // array order = z-order, index 0 = bottom
 }
 
+export type CreativeTemplateConfig = {
+  speaker?: { variants: Variant[] }
+  partner?: { variants: Variant[] }
+}
+
+export type ResolvedAssets = Partial<Record<PhotoSlotLayer['source'], { buffer: Buffer; is_svg?: boolean }>>
+
 export async function compositeAnnouncement(
-  config: CompositeConfig,
-  assets: { photo_or_logo_buffer: Buffer; is_svg?: boolean },
+  variant: Variant,
+  assets: ResolvedAssets,
   texts: { name?: string; title?: string; company?: string; tier?: string }
 ): Promise<Buffer> {
-  // 1. Fetch background from storage
-  const bgResponse = await fetch(config.background_url)
-  if (!bgResponse.ok) throw new Error(`Failed to fetch background template: ${bgResponse.status}`)
-  const bgBuffer = Buffer.from(await bgResponse.arrayBuffer())
-
-  // 2. Prepare the photo or logo
-  let assetBuffer = assets.photo_or_logo_buffer
-  if (assets.is_svg) {
-    assetBuffer = await sharp(assetBuffer).png().toBuffer()
-  }
-
   const compositeOps: OverlayOptions[] = []
 
-  // 3. Resize and position photo/logo
-  const zone = config.photo_zone ?? config.logo_zone
-  if (zone) {
-    if (config.logo_zone?.background) {
-      const bgCard = await sharp({
-        create: { width: zone.width, height: zone.height, channels: 4, background: config.logo_zone.background },
-      }).png().toBuffer()
-      compositeOps.push({ input: bgCard, left: zone.x, top: zone.y })
+  for (const layer of variant.layers) {
+    if (layer.type === 'image') {
+      const res = await fetch(layer.asset_url)
+      if (!res.ok) throw new Error(`Failed to fetch layer image (${layer.id}): ${res.status}`)
+      const buffer = Buffer.from(await res.arrayBuffer())
+      const resized = await sharp(buffer)
+        .resize(layer.width, layer.height, { fit: 'cover' })
+        .toBuffer()
+      compositeOps.push({ input: resized, left: layer.x, top: layer.y })
+      continue
     }
 
-    const resized = await sharp(assetBuffer)
-      .resize(zone.width, zone.height, { fit: 'inside', withoutEnlargement: false })
-      .toBuffer()
+    if (layer.type === 'photo_slot') {
+      const asset = assets[layer.source]
+      if (!asset) continue // caller validates required sources before calling; missing optional ones are skipped
 
-    const metadata = await sharp(resized).metadata()
-    const assetWidth = metadata.width ?? zone.width
-    const assetHeight = metadata.height ?? zone.height
+      let assetBuffer = asset.buffer
+      if (asset.is_svg) assetBuffer = await sharp(assetBuffer).png().toBuffer()
 
-    const leftOffset = zone.x + Math.floor((zone.width - assetWidth) / 2)
-    const topOffset = zone.y + Math.floor((zone.height - assetHeight) / 2)
+      const resized = await sharp(assetBuffer)
+        .resize(layer.width, layer.height, { fit: 'inside', withoutEnlargement: false })
+        .toBuffer()
 
-    compositeOps.push({ input: resized, left: leftOffset, top: topOffset })
+      const metadata = await sharp(resized).metadata()
+      const assetWidth = metadata.width ?? layer.width
+      const assetHeight = metadata.height ?? layer.height
+      const left = layer.x + Math.floor((layer.width - assetWidth) / 2)
+      const top = layer.y + Math.floor((layer.height - assetHeight) / 2)
+
+      compositeOps.push({ input: resized, left, top })
+      continue
+    }
+
+    // text
+    const value = resolveTextValue(layer, texts)
+    if (!value) continue
+    const svg = buildTextLayerSvg(layer, value, variant.canvas_width, variant.canvas_height)
+    const svgBuffer = await sharp(Buffer.from(svg)).png().toBuffer()
+    compositeOps.push({ input: svgBuffer, left: 0, top: 0 })
   }
 
-  // 4. Text overlays via SVG
-  const textSvg = buildTextSvg(config, texts, config.canvas_width, config.canvas_height)
-  if (textSvg) {
-    compositeOps.push({ input: Buffer.from(textSvg), top: 0, left: 0 })
-  }
-
-  // 5. Composite everything onto background
-  return sharp(bgBuffer)
-    .resize(config.canvas_width, config.canvas_height)
+  return sharp({
+    create: {
+      width: variant.canvas_width,
+      height: variant.canvas_height,
+      channels: 4,
+      background: { r: 0, g: 0, b: 0, alpha: 0 },
+    },
+  })
     .composite(compositeOps)
     .png()
     .toBuffer()
 }
 
-function buildTextSvg(
-  config: CompositeConfig,
-  texts: { name?: string; title?: string; company?: string; tier?: string },
-  width: number,
-  height: number
-): string | null {
-  const layers: string[] = []
+function resolveTextValue(layer: TextLayer, texts: { name?: string; title?: string; company?: string; tier?: string }): string | undefined {
+  if (layer.field === 'custom') return layer.value
+  if (layer.field === 'name') return texts.name
+  if (layer.field === 'title') return texts.title
+  if (layer.field === 'company') return texts.company
+  return texts.tier ?? layer.value // 'tier' — runtime value wins, falls back to the layer's own hardcoded label
+}
 
-  const addText = (layer: TextLayer | undefined, value: string | undefined) => {
-    if (!layer || !value) return
-    const weight = layer.font_weight === 'bold' ? 'bold' : 'normal'
-    const anchor = layer.align === 'center' ? 'middle' : layer.align === 'right' ? 'end' : 'start'
-    const xPos = layer.align === 'center' ? layer.x + (layer.max_width ?? 0) / 2 : layer.x
-    const safe = value.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
-    layers.push(
-      `<text x="${xPos}" y="${layer.y}" font-size="${layer.font_size}" fill="${layer.font_color}" font-weight="${weight}" text-anchor="${anchor}" font-family="Arial, Helvetica, sans-serif">${safe}</text>`
-    )
-  }
-
-  addText(config.name_text, texts.name)
-  addText(config.title_text, texts.title)
-  addText(config.company_text, texts.company)
-  addText(config.tier_text, texts.tier ?? config.tier_text?.value)
-
-  if (layers.length === 0) return null
-  return `<svg width="${width}" height="${height}" xmlns="http://www.w3.org/2000/svg">${layers.join('')}</svg>`
+function buildTextLayerSvg(layer: TextLayer, value: string, width: number, height: number): string {
+  const weight = layer.font_weight === 'bold' ? 'bold' : 'normal'
+  const anchor = layer.align === 'center' ? 'middle' : layer.align === 'right' ? 'end' : 'start'
+  const xPos = layer.align === 'center' ? layer.x + (layer.max_width ?? 0) / 2 : layer.x
+  const safe = value.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+  return `<svg width="${width}" height="${height}" xmlns="http://www.w3.org/2000/svg"><text x="${xPos}" y="${layer.y}" font-size="${layer.font_size}" fill="${layer.font_color}" font-weight="${weight}" text-anchor="${anchor}" font-family="Arial, Helvetica, sans-serif">${safe}</text></svg>`
 }

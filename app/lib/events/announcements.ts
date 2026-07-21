@@ -2,7 +2,7 @@
 // announcements/generate and both regenerate-* routes, so the copy/creative
 // pipeline is defined once rather than duplicated across three route files.
 import { GoogleGenerativeAI } from '@google/generative-ai'
-import type { CompositeConfig } from '@/app/lib/announcements/composite'
+import type { Variant, PhotoSlotLayer, CreativeTemplateConfig } from '@/app/lib/announcements/composite'
 
 let _gemini: GoogleGenerativeAI | null = null
 function getGemini() {
@@ -74,19 +74,26 @@ Return JSON only, no markdown fences: { "copy": "...", "hashtags": ["#...", "...
   return text
 }
 
-// events.creative_template_config — background PNG URL + pixel-coordinate
-// zones/text layers for Sharp compositing (PRD v1.4 SS4.4), replacing the
-// Canva-field-name-map shape this used to have.
-export type CreativeTemplateConfig = {
-  speaker?: CompositeConfig
-  partner?: Record<string, CompositeConfig> // keyed by partner_type
-}
+export type { CreativeTemplateConfig }
+
+export type NeededAsset = { source: PhotoSlotLayer['source']; url: string; isSvg: boolean }
 
 export type CompositeInputs = {
-  config: CompositeConfig
-  assetUrl: string
-  isSvg: boolean
+  variant: Variant
+  assetsNeeded: NeededAsset[]
   texts: { name?: string; title?: string; company?: string; tier?: string }
+}
+
+// Resolves a real asset URL for a photo_slot layer's `source` from the
+// stakeholder row — the one place that knows what each source name means.
+function resolveAssetUrl(
+  source: PhotoSlotLayer['source'],
+  speaker: Record<string, unknown> | null,
+  partner: Record<string, unknown> | null
+): string | null {
+  if (source === 'speaker_photo') return (speaker?.photo_processed_url as string | null) ?? (speaker?.photo_url as string | null)
+  if (source === 'speaker_logo') return speaker?.company_logo_url as string | null
+  return partner?.logo_url as string | null // partner_logo
 }
 
 export function buildCompositeInputs(
@@ -94,38 +101,39 @@ export function buildCompositeInputs(
   speaker: Record<string, unknown> | null,
   partner: Record<string, unknown> | null,
   templateConfig: CreativeTemplateConfig | null,
-  useCompanyLogo: boolean
+  useCompanyLogo: boolean,
+  variantId?: string
 ): CompositeInputs | { templateError: string } {
-  if (stakeholderType === 'speaker') {
-    const config = templateConfig?.speaker
-    if (!config?.background_url) return { templateError: 'No speaker creative template configured for this event (events.creative_template_config.speaker)' }
-
-    const assetUrl = useCompanyLogo
-      ? (speaker!.company_logo_url as string | null)
-      : ((speaker!.photo_processed_url as string | null) ?? (speaker!.photo_url as string | null))
-    if (!assetUrl) return { templateError: useCompanyLogo ? 'This speaker has no company logo uploaded' : 'This speaker has no photo uploaded' }
-
-    return {
-      config,
-      assetUrl,
-      isSvg: assetUrl.toLowerCase().endsWith('.svg'),
-      texts: { name: String(speaker!.name ?? ''), title: String(speaker!.role ?? ''), company: String(speaker!.company ?? '') },
-    }
+  const variants = templateConfig?.[stakeholderType]?.variants ?? []
+  const variant = (variantId ? variants.find(v => v.id === variantId) : null) ?? variants[0]
+  if (!variant) {
+    return { templateError: `No creative template configured for this event's ${stakeholderType}s (events.creative_template_config.${stakeholderType}.variants)` }
   }
 
-  // Per-tier config takes precedence; '_default' is the single-upload
-  // simple case (PRD SS9.2's default UX — one partner background covering
-  // every tier unless the MM adds a genuinely different per-tier entry by
-  // hand-editing the JSON).
-  const partnerType = String(partner!.partner_type)
-  const config = templateConfig?.partner?.[partnerType] ?? templateConfig?.partner?._default
-  if (!config?.background_url) return { templateError: `No creative template configured for partner type '${partnerType}' (events.creative_template_config.partner.${partnerType} or .partner._default)` }
+  // Only require assets for sources the chosen variant's layers actually reference.
+  const sourcesNeeded = new Set(
+    variant.layers.filter((l): l is PhotoSlotLayer => l.type === 'photo_slot').map(l => l.source)
+  )
+  // A speaker variant using useCompanyLogo swaps its photo source for the company logo.
+  const effectiveSources = new Set(sourcesNeeded)
+  if (stakeholderType === 'speaker' && useCompanyLogo && effectiveSources.has('speaker_photo')) {
+    effectiveSources.delete('speaker_photo')
+    effectiveSources.add('speaker_logo')
+  }
 
-  const assetUrl = partner!.logo_url as string | null
-  if (!assetUrl) return { templateError: 'This partner has no logo uploaded' }
+  const assetsNeeded: NeededAsset[] = []
+  for (const source of effectiveSources) {
+    const url = resolveAssetUrl(source, speaker, partner)
+    if (!url) {
+      const label = source === 'speaker_photo' ? 'photo' : source === 'speaker_logo' ? 'company logo' : 'logo'
+      return { templateError: `This ${stakeholderType} has no ${label} uploaded (required by variant "${variant.name}")` }
+    }
+    assetsNeeded.push({ source, url, isSvg: url.toLowerCase().endsWith('.svg') })
+  }
 
-  // tier label comes from the template config's own tier_text.value
-  // (e.g. "LEAD SPONSOR") — not derived from partner_type here, so design
-  // controls the exact wording per template rather than code guessing it.
-  return { config, assetUrl, isSvg: assetUrl.toLowerCase().endsWith('.svg'), texts: {} }
+  const texts = stakeholderType === 'speaker'
+    ? { name: String(speaker?.name ?? ''), title: String(speaker?.role ?? ''), company: String(speaker?.company ?? '') }
+    : {}
+
+  return { variant, assetsNeeded, texts }
 }

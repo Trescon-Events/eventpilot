@@ -765,6 +765,15 @@ export function getModuleRegistry(): ModuleDef[] {
       access: { kind: 'admin_only' },
     },
     {
+      key: 'admin-event-creative-templates', label: 'Creative Templates',
+      description: 'Layer-based editor for stakeholder announcement creatives.',
+      icon: I.layers, color: '#F0AB3C',
+      href: ctx => `/admin/events/${ctx.eventId}/creative-templates`,
+      needsEvent: true,
+      breadcrumbPattern: '/admin/events/:eventId/creative-templates',
+      access: { kind: 'admin_only' },
+    },
+    {
       key: 'leaderboard', label: 'Leaderboard',
       description: 'Weekly learning leaderboard ranked by course completions.',
       icon: <svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M18 20V10"/><path d="M12 20V4"/><path d="M6 20v-6"/></svg>,

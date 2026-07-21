@@ -38,6 +38,17 @@
 --   ALTER TABLE stakeholder_announcements DROP COLUMN IF EXISTS creative_canva_id;
 -- (Applied directly to the live Supabase project the same day.)
 --
+-- PRD v1.4 Phase C v3 (2026-07-21, same day): the single-background-plus-
+-- fixed-zones shape above didn't survive contact with real creatives, which
+-- have genuine z-order between independently-positioned elements (e.g. a
+-- speaker photo sitting *under* a translucent foreground layer to get a
+-- feathered blend). events.creative_template_config is still just JSONB —
+-- no column change — but its shape moved to named variants, each an
+-- ordered layer stack (image / photo_slot / text): see
+-- app/lib/announcements/composite.ts's Variant/Layer types for the current
+-- shape. One real column addition, applied live the same day:
+--   ALTER TABLE stakeholder_announcements ADD COLUMN IF NOT EXISTS creative_variant_id TEXT;
+--
 -- This file below reflects the corrected, current schema — a fresh run on a new
 -- database produces the right columns directly.
 
@@ -56,7 +67,7 @@ ALTER TABLE events
   ADD COLUMN IF NOT EXISTS social_youtube   TEXT,
   ADD COLUMN IF NOT EXISTS venue_map_url    TEXT,   -- Google Maps URL, pasted by the user — no API
   ADD COLUMN IF NOT EXISTS postiz_profile_key TEXT, -- Postiz Cloud workspace key for this event's social channels
-  ADD COLUMN IF NOT EXISTS creative_template_config JSONB; -- background PNG URLs + pixel-coordinate zones/text layers for Sharp compositing — see app/lib/announcements/composite.ts
+  ADD COLUMN IF NOT EXISTS creative_template_config JSONB; -- named variants per stakeholder type, each an ordered layer stack, for Sharp compositing — see app/lib/announcements/composite.ts
 
 -- ── 2. Topline Messaging Documents (version-controlled, per event) ─────────
 CREATE TABLE IF NOT EXISTS event_messaging_docs (
@@ -161,6 +172,7 @@ CREATE TABLE IF NOT EXISTS stakeholder_announcements (
   -- Generated content
   post_copy        TEXT,             -- AI-generated post text
   creative_url     TEXT,             -- public storage URL of the final 1080×1350 Sharp-composited PNG
+  creative_variant_id TEXT,          -- which named variant (events.creative_template_config.<type>.variants[].id) produced creative_url — lets regenerate-creative reuse it without the MM re-picking
   -- Approval
   status           TEXT NOT NULL DEFAULT 'draft'
                      CHECK (status IN (
