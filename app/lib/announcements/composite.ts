@@ -14,6 +14,7 @@
 // it from Canva) — Sharp's .composite() already respects per-layer alpha,
 // so no custom masking logic is needed here.
 import sharp, { type OverlayOptions } from 'sharp'
+import { alignAndCropPhoto, type PhotoAlignmentMeta } from '@/app/lib/media/face-alignment'
 
 export type ImageLayer = {
   id: string
@@ -33,6 +34,7 @@ export type PhotoSlotLayer = {
   y: number
   width: number
   height: number
+  alignment?: PhotoAlignmentMeta // face-aligned-cover fit (speaker photos only) when present; contain-centered otherwise — see app/lib/media/face-alignment.ts
 }
 
 export type TextLayerFont = {
@@ -98,6 +100,15 @@ export async function compositeAnnouncement(
 
       let assetBuffer = asset.buffer
       if (asset.is_svg) assetBuffer = await sharp(assetBuffer).png().toBuffer()
+
+      if (layer.alignment && layer.source === 'speaker_photo') {
+        const cropped = await alignAndCropPhoto(assetBuffer, {
+          ...layer.alignment,
+          box: { x: layer.x, y: layer.y, width: layer.width, height: layer.height },
+        })
+        compositeOps.push({ input: cropped, left: layer.x, top: layer.y })
+        continue
+      }
 
       const resized = await sharp(assetBuffer)
         .resize(layer.width, layer.height, { fit: 'inside', withoutEnlargement: false })

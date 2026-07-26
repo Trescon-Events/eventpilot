@@ -2,13 +2,16 @@ import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/app/lib/supabase'
 import { uploadPublicAsset } from '@/app/lib/events/storage'
 import { processLogo } from '@/app/lib/media/logo-engine'
+import { processSpeakerPhoto } from '@/app/lib/media/speaker-photo-engine'
 
 /* POST /api/events/stakeholders/speakers/[id]/upload-asset
    multipart/form-data: file, asset_type: 'photo' | 'company_logo'
 
-   For 'photo': uploads the original, then calls PhotoRoom to strip the
-   background (single POST, binary PNG response, no polling — see PRD SS5a),
-   uploads the transparent PNG as photo_processed_url.
+   For 'photo': uploads the original, then runs the Speaker Photo Engine
+   (PhotoRoom background removal + Sharp brightness/contrast/sharpen —
+   app/lib/media/speaker-photo-engine.ts), uploads the result as
+   photo_processed_url. No-ops gracefully (keeps only the original) if
+   PHOTOROOM_API_KEY isn't set.
    For 'company_logo': runs the Logo Engine (rasterize PDF/AI/SVG as needed,
    border-touching flood-fill background removal) — see
    app/lib/media/logo-engine.ts. Falls back to the raw upload if processing
@@ -87,32 +90,13 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   )
 
   let photoProcessedUrl: string | null = null
-  const photoRoomKey = process.env.PHOTOROOM_API_KEY
-  if (photoRoomKey) {
-    try {
-      const photoRoomForm = new FormData()
-      photoRoomForm.append('image_file', new Blob([new Uint8Array(buffer)], { type: file.type }), file.name || 'photo.jpg')
-      photoRoomForm.append('output_type', 'rgba')
-
-      const prRes = await fetch('https://sdk.photoroom.com/v1/segment', {
-        method: 'POST',
-        headers: { 'x-api-key': photoRoomKey },
-        body: photoRoomForm,
-      })
-
-      if (prRes.ok) {
-        const transparentPng = Buffer.from(await prRes.arrayBuffer())
-        photoProcessedUrl = await uploadPublicAsset(
-          `events/${speaker.event_id}/speakers/${speakerId}/photo-processed-${Date.now()}.png`,
-          transparentPng,
-          'image/png'
-        )
-      } else {
-        console.error('PhotoRoom request failed:', prRes.status, await prRes.text().catch(() => ''))
-      }
-    } catch (e) {
-      console.error('PhotoRoom call errored:', e)
-    }
+  const processed = await processSpeakerPhoto(buffer, file.name, file.type)
+  if (processed) {
+    photoProcessedUrl = await uploadPublicAsset(
+      `events/${speaker.event_id}/speakers/${speakerId}/photo-processed-${Date.now()}.png`,
+      processed,
+      'image/png'
+    )
   }
 
   const update: Record<string, unknown> = { photo_url: photoUrl, updated_at: new Date().toISOString() }
