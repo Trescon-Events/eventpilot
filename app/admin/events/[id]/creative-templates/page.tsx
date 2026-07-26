@@ -62,8 +62,16 @@ export default function CreativeTemplatesPage({ params }: { params: Promise<{ id
       fetch('/api/branding/fonts'),
     ])
     const config: CreativeTemplateConfig | null = await configRes.json().catch(() => null)
-    setSpeakerVariants(config?.speaker?.variants ?? [])
-    setPartnerVariants(config?.partner?.variants ?? [])
+    const loadedSpeakerVariants = config?.speaker?.variants ?? []
+    const loadedPartnerVariants = config?.partner?.variants ?? []
+    setSpeakerVariants(loadedSpeakerVariants)
+    setPartnerVariants(loadedPartnerVariants)
+    // Auto-select the first variant for the active tab on initial load — the
+    // tab-switch effect below only fires when activeType *changes*, so
+    // without this, a variant that already existed before this page load
+    // never gets selected until the MM manually switches tabs and back.
+    const initialList = activeType === 'speaker' ? loadedSpeakerVariants : loadedPartnerVariants
+    setActiveVariantId(prev => prev ?? initialList[0]?.id ?? null)
     const sp: Array<{ id: string; full_name: string }> = await spRes.json().catch(() => [])
     const pt: Array<{ id: string; company_name: string }> = await ptRes.json().catch(() => [])
     setSpeakers(sp.map(s => ({ id: s.id, label: s.full_name })))
@@ -231,7 +239,7 @@ export default function CreativeTemplatesPage({ params }: { params: Promise<{ id
               {!activeVariant ? (
                 <Card padded>
                   <div style={{ color: 'var(--ink3)', fontSize: '13px', textAlign: 'center', padding: '20px 0' }}>
-                    No {activeType} variants yet — click &quot;+ New Variant&quot; to start one.
+                    {`No ${activeType} variants yet — click "+ New Variant" to start one.`}
                   </div>
                 </Card>
               ) : (
