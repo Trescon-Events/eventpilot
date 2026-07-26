@@ -385,6 +385,27 @@ function ImageLayerFields({ layer, uploading, onChange, onUploadImage }: { layer
 
 function PhotoSlotLayerFields({ layer, activeType, onChange }: { layer: PhotoSlotLayer; activeType: StakeholderKind; onChange: (patch: Partial<PhotoSlotLayer>) => void }) {
   const sourceOptions: PhotoSlotLayer['source'][] = activeType === 'speaker' ? ['speaker_photo', 'speaker_logo'] : ['partner_logo']
+  const [analyzing, setAnalyzing] = useState(false)
+  const [analyzeError, setAnalyzeError] = useState<string | null>(null)
+
+  async function analyzeReferenceLayer(file: File) {
+    setAnalyzing(true)
+    setAnalyzeError(null)
+    const form = new FormData()
+    form.append('file', file)
+    const res = await fetch('/api/events/templates/derive-alignment', { method: 'POST', body: form })
+    const data = await res.json().catch(() => ({}))
+    if (res.ok) {
+      onChange({
+        x: data.box.x, y: data.box.y, width: data.box.width, height: data.box.height,
+        alignment: { target_head_center_x: data.target_head_center_x, target_head_center_y: data.target_head_center_y, target_head_height: data.target_head_height, shot_type: data.shot_type },
+      })
+    } else {
+      setAnalyzeError(data.error || 'Could not analyze that reference image.')
+    }
+    setAnalyzing(false)
+  }
+
   return (
     <>
       <label style={{ gridColumn: '1 / -1', fontSize: '11px', color: 'var(--ink3)', display: 'block' }}>
@@ -393,6 +414,26 @@ function PhotoSlotLayerFields({ layer, activeType, onChange }: { layer: PhotoSlo
           {sourceOptions.map(s => <option key={s} value={s}>{s.replace(/_/g, ' ')}</option>)}
         </Select>
       </label>
+
+      {layer.source === 'speaker_photo' && (
+        <div style={{ gridColumn: '1 / -1', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+          <label style={{ padding: '7px 14px', borderRadius: '8px', border: '1.5px solid var(--border)', color: 'var(--ink2)', fontSize: '12px', fontWeight: 700, cursor: 'pointer', width: 'fit-content' }}>
+            {analyzing ? 'Analyzing…' : 'Upload Reference Layer (auto-position)'}
+            <input type="file" accept="image/png" style={{ display: 'none' }} disabled={analyzing}
+              onChange={e => { const f = e.target.files?.[0]; if (f) analyzeReferenceLayer(f); e.target.value = '' }} />
+          </label>
+          <div style={{ fontSize: '10.5px', color: 'var(--ink3)', lineHeight: 1.4 }}>
+            Upload a transparent PNG showing a dummy photo already correctly positioned — the box and face-alignment target below are derived automatically. Manual fields below still work if you&apos;d rather set them by hand.
+          </div>
+          {analyzeError && <div style={{ fontSize: '11px', color: 'var(--red)' }}>{analyzeError}</div>}
+          {layer.alignment && (
+            <div style={{ fontSize: '11px', color: 'var(--teal-mid)', fontWeight: 700 }}>
+              Face-aligned ✓ (detected shot type: {layer.alignment.shot_type.replace(/_/g, ' ')})
+            </div>
+          )}
+        </div>
+      )}
+
       <NumField label="X" value={layer.x} onChange={x => onChange({ x })} />
       <NumField label="Y" value={layer.y} onChange={y => onChange({ y })} />
       <NumField label="Width" value={layer.width} onChange={width => onChange({ width })} />

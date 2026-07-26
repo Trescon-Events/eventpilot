@@ -363,6 +363,7 @@ export default function StakeholderHubPage({ params }: { params: Promise<{ id: s
                           {creativeVariants[category.kind].length > 1 && (
                             <Select value={variantChoice[item.id] ?? creativeVariants[category.kind][0]?.id ?? ''}
                               onChange={e => setVariantChoice(v => ({ ...v, [item.id]: e.target.value }))}
+                              title="Creative style"
                               style={{ width: 'auto' }}>
                               {creativeVariants[category.kind].map(v => <option key={v.id} value={v.id}>{v.name}</option>)}
                             </Select>
