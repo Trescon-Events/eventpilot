@@ -375,6 +375,14 @@ export function getModuleRegistry(): ModuleDef[] {
       platformMenu: { section: 'Administration' },
     },
     {
+      key: 'branding-fonts', label: 'Font Library',
+      description: 'Platform-wide brand fonts for stakeholder announcement creatives — upload or fetch from Google Fonts.',
+      icon: I.layers, color: '#A172F2',
+      href: '/admin/branding/fonts',
+      access: { kind: 'admin_only' },
+      platformMenu: { section: 'Administration' },
+    },
+    {
       key: 'toolkit', label: 'Toolkit',
       description: 'Smart Data, Website Builder, Market Intelligence, Brand Studio, Outreach and TresAgent',
       icon: I.wrench, color: '#009C89',

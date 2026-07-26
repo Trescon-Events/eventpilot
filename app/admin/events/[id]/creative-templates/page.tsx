@@ -42,6 +42,7 @@ export default function CreativeTemplatesPage({ params }: { params: Promise<{ id
 
   const [speakers, setSpeakers] = useState<StakeholderOption[]>([])
   const [partners, setPartners] = useState<StakeholderOption[]>([])
+  const [brandFonts, setBrandFonts] = useState<Array<{ id: string; family_name: string; regular_url: string; bold_url: string | null }>>([])
   const [previewFor, setPreviewFor] = useState<string>('')
   const [previewDataUrl, setPreviewDataUrl] = useState<string | null>(null)
   const [previewLoading, setPreviewLoading] = useState(false)
@@ -54,10 +55,11 @@ export default function CreativeTemplatesPage({ params }: { params: Promise<{ id
 
   async function fetchAll() {
     setLoading(true)
-    const [configRes, spRes, ptRes] = await Promise.all([
+    const [configRes, spRes, ptRes, fontsRes] = await Promise.all([
       fetch(`/api/events/templates?event_id=${eventId}`),
       fetch(`/api/events/stakeholders/speakers?event_id=${eventId}`),
       fetch(`/api/events/stakeholders/partners?event_id=${eventId}`),
+      fetch('/api/branding/fonts'),
     ])
     const config: CreativeTemplateConfig | null = await configRes.json().catch(() => null)
     setSpeakerVariants(config?.speaker?.variants ?? [])
@@ -66,6 +68,7 @@ export default function CreativeTemplatesPage({ params }: { params: Promise<{ id
     const pt: Array<{ id: string; company_name: string }> = await ptRes.json().catch(() => [])
     setSpeakers(sp.map(s => ({ id: s.id, label: s.full_name })))
     setPartners(pt.map(p => ({ id: p.id, label: p.company_name })))
+    setBrandFonts(await fontsRes.json().catch(() => []))
     setDirty(false)
     setLoading(false)
   }
@@ -256,6 +259,7 @@ export default function CreativeTemplatesPage({ params }: { params: Promise<{ id
                         total={activeVariant.layers.length}
                         activeType={activeType}
                         uploading={uploadingLayerId === layer.id}
+                        brandFonts={brandFonts}
                         onChange={patch => updateLayer(layer.id, patch)}
                         onDelete={() => deleteLayer(layer.id)}
                         onMove={delta => moveLayer(layer.id, delta)}
@@ -304,12 +308,13 @@ export default function CreativeTemplatesPage({ params }: { params: Promise<{ id
   )
 }
 
-function LayerRow({ layer, index, total, activeType, uploading, onChange, onDelete, onMove, onUploadImage }: {
+function LayerRow({ layer, index, total, activeType, uploading, brandFonts, onChange, onDelete, onMove, onUploadImage }: {
   layer: Layer
   index: number
   total: number
   activeType: StakeholderKind
   uploading: boolean
+  brandFonts: Array<{ id: string; family_name: string; regular_url: string; bold_url: string | null }>
   onChange: (patch: Partial<Layer>) => void
   onDelete: () => void
   onMove: (delta: 1 | -1) => void
@@ -334,7 +339,7 @@ function LayerRow({ layer, index, total, activeType, uploading, onChange, onDele
         <div style={{ padding: '12px 10px', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
           {layer.type === 'image' && <ImageLayerFields layer={layer} uploading={uploading} onChange={onChange} onUploadImage={onUploadImage} />}
           {layer.type === 'photo_slot' && <PhotoSlotLayerFields layer={layer} activeType={activeType} onChange={onChange} />}
-          {layer.type === 'text' && <TextLayerFields layer={layer} activeType={activeType} onChange={onChange} />}
+          {layer.type === 'text' && <TextLayerFields layer={layer} activeType={activeType} brandFonts={brandFonts} onChange={onChange} />}
         </div>
       )}
     </div>
@@ -396,7 +401,12 @@ function PhotoSlotLayerFields({ layer, activeType, onChange }: { layer: PhotoSlo
   )
 }
 
-function TextLayerFields({ layer, activeType, onChange }: { layer: TextLayer; activeType: StakeholderKind; onChange: (patch: Partial<TextLayer>) => void }) {
+function TextLayerFields({ layer, activeType, brandFonts, onChange }: {
+  layer: TextLayer
+  activeType: StakeholderKind
+  brandFonts: Array<{ id: string; family_name: string; regular_url: string; bold_url: string | null }>
+  onChange: (patch: Partial<TextLayer>) => void
+}) {
   const fieldOptions: TextLayer['field'][] = activeType === 'speaker' ? ['name', 'title', 'company', 'tier', 'custom'] : ['tier', 'custom']
   return (
     <>
@@ -412,6 +422,20 @@ function TextLayerFields({ layer, activeType, onChange }: { layer: TextLayer; ac
           <Input value={layer.value ?? ''} onChange={e => onChange({ value: e.target.value })} style={{ width: '100%', marginTop: '3px' }} />
         </label>
       )}
+      <label style={{ gridColumn: '1 / -1', fontSize: '11px', color: 'var(--ink3)', display: 'block' }}>
+        Font Family
+        <Select
+          value={layer.font_family?.family_name ?? ''}
+          onChange={e => {
+            const font = brandFonts.find(f => f.family_name === e.target.value)
+            onChange({ font_family: font ? { family_name: font.family_name, regular_url: font.regular_url, bold_url: font.bold_url } : undefined })
+          }}
+          style={{ width: '100%', marginTop: '3px' }}
+        >
+          <option value="">Default (generic sans-serif)</option>
+          {brandFonts.map(f => <option key={f.id} value={f.family_name}>{f.family_name}</option>)}
+        </Select>
+      </label>
       <NumField label="X" value={layer.x} onChange={x => onChange({ x })} />
       <NumField label="Y" value={layer.y} onChange={y => onChange({ y })} />
       <NumField label="Font size" value={layer.font_size} onChange={font_size => onChange({ font_size })} />

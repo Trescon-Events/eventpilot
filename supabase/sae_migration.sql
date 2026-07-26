@@ -49,6 +49,15 @@
 -- shape. One real column addition, applied live the same day:
 --   ALTER TABLE stakeholder_announcements ADD COLUMN IF NOT EXISTS creative_variant_id TEXT;
 --
+-- PRD v1.4 Phase C v4 (2026-07-26): real production creatives showed text
+-- needs to match the brand's actual typography, not a hardcoded Arial/
+-- Helvetica fallback (see app/lib/announcements/composite.ts). Added a
+-- platform-level font library (brand_fonts, below) — deliberately not
+-- SAE-scoped despite living in this migration file, since fonts are a
+-- reusable brand asset, not per-event data. Branding team uploads or
+-- fetches-by-name from Google Fonts once; any text layer in any event's
+-- creative_template_config can reference a brand_fonts row thereafter.
+--
 -- This file below reflects the corrected, current schema — a fresh run on a new
 -- database produces the right columns directly.
 
@@ -237,3 +246,17 @@ ALTER TABLE event_staff
       'operations_lead',
       'project_director'
     ));
+
+-- ── 9. Platform-level font library (Phase C v4, 2026-07-26) ─────────────────
+-- Not event-scoped — a font uploaded/fetched once is selectable from any
+-- text layer's Font Family dropdown in any event's Creative Templates editor.
+CREATE TABLE IF NOT EXISTS brand_fonts (
+  id                 UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  family_name        TEXT NOT NULL,               -- display name, e.g. "Poppins"
+  source             TEXT NOT NULL CHECK (source IN ('upload', 'google_fonts')),
+  google_font_family TEXT,                        -- exact Google Fonts family name, if source = 'google_fonts'
+  regular_url        TEXT NOT NULL,                -- public storage URL, weight 400
+  bold_url           TEXT,                         -- public storage URL, weight 700 (nullable — some uploads only provide one weight)
+  created_by         UUID,
+  created_at         TIMESTAMPTZ DEFAULT now()
+);

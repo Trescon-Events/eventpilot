@@ -35,6 +35,12 @@ export type PhotoSlotLayer = {
   height: number
 }
 
+export type TextLayerFont = {
+  family_name: string        // display name, e.g. "Poppins" — used as the SVG font-family
+  regular_url: string
+  bold_url?: string | null
+}
+
 export type TextLayer = {
   id: string
   type: 'text'
@@ -47,6 +53,7 @@ export type TextLayer = {
   font_weight?: 'normal' | 'bold'
   align?: 'left' | 'center' | 'right'
   max_width?: number         // reserved for future wrap/truncate support
+  font_family?: TextLayerFont // denormalized at variant-save time from a brand_fonts row — see app/lib/branding/fonts.ts. Falls back to a generic sans-serif when absent.
 }
 
 export type Layer = ImageLayer | PhotoSlotLayer | TextLayer
@@ -109,7 +116,7 @@ export async function compositeAnnouncement(
     // text
     const value = resolveTextValue(layer, texts)
     if (!value) continue
-    const svg = buildTextLayerSvg(layer, value, variant.canvas_width, variant.canvas_height)
+    const svg = await buildTextLayerSvg(layer, value, variant.canvas_width, variant.canvas_height)
     const svgBuffer = await sharp(Buffer.from(svg)).png().toBuffer()
     compositeOps.push({ input: svgBuffer, left: 0, top: 0 })
   }
@@ -135,10 +142,46 @@ function resolveTextValue(layer: TextLayer, texts: { name?: string; title?: stri
   return texts.tier ?? layer.value // 'tier' — runtime value wins, falls back to the layer's own hardcoded label
 }
 
-function buildTextLayerSvg(layer: TextLayer, value: string, width: number, height: number): string {
+const FONT_FORMATS: Record<string, string> = { ttf: 'truetype', otf: 'opentype', woff: 'woff', woff2: 'woff2' }
+
+function fontFormatFromUrl(url: string): string {
+  const ext = url.split('.').pop()?.toLowerCase() ?? ''
+  return FONT_FORMATS[ext] ?? 'woff2'
+}
+
+async function buildFontFaceCss(font: TextLayerFont): Promise<string> {
+  const familyName = font.family_name.replace(/"/g, '')
+  const faces: string[] = []
+
+  const regularRes = await fetch(font.regular_url)
+  if (regularRes.ok) {
+    const b64 = Buffer.from(await regularRes.arrayBuffer()).toString('base64')
+    const format = fontFormatFromUrl(font.regular_url)
+    faces.push(`@font-face{font-family:'${familyName}';font-weight:400;src:url(data:font/${format};base64,${b64}) format('${format}');}`)
+  }
+
+  if (font.bold_url) {
+    const boldRes = await fetch(font.bold_url)
+    if (boldRes.ok) {
+      const b64 = Buffer.from(await boldRes.arrayBuffer()).toString('base64')
+      const format = fontFormatFromUrl(font.bold_url)
+      faces.push(`@font-face{font-family:'${familyName}';font-weight:700;src:url(data:font/${format};base64,${b64}) format('${format}');}`)
+    }
+  }
+
+  return faces.join('')
+}
+
+async function buildTextLayerSvg(layer: TextLayer, value: string, width: number, height: number): Promise<string> {
   const weight = layer.font_weight === 'bold' ? 'bold' : 'normal'
   const anchor = layer.align === 'center' ? 'middle' : layer.align === 'right' ? 'end' : 'start'
   const xPos = layer.align === 'center' ? layer.x + (layer.max_width ?? 0) / 2 : layer.x
   const safe = value.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
-  return `<svg width="${width}" height="${height}" xmlns="http://www.w3.org/2000/svg"><text x="${xPos}" y="${layer.y}" font-size="${layer.font_size}" fill="${layer.font_color}" font-weight="${weight}" text-anchor="${anchor}" font-family="Arial, Helvetica, sans-serif">${safe}</text></svg>`
+
+  // Custom brand font if configured; falls back to a generic sans-serif
+  // (unaffected for every text layer authored before Phase C v4).
+  const fontFamily = layer.font_family ? layer.font_family.family_name.replace(/"/g, '') : 'Arial, Helvetica, sans-serif'
+  const styleBlock = layer.font_family ? `<style>${await buildFontFaceCss(layer.font_family)}</style>` : ''
+
+  return `<svg width="${width}" height="${height}" xmlns="http://www.w3.org/2000/svg">${styleBlock}<text x="${xPos}" y="${layer.y}" font-size="${layer.font_size}" fill="${layer.font_color}" font-weight="${weight}" text-anchor="${anchor}" font-family="${fontFamily}">${safe}</text></svg>`
 }
