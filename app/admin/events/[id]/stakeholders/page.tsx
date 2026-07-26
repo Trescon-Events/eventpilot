@@ -5,6 +5,7 @@ import PageHeader from '@/app/components/PageHeader'
 import { Button, Card, Badge, Input, Select, Textarea } from '@/app/components/ui'
 import CalendarView from './CalendarView'
 import PhotoCropModal from './PhotoCropModal'
+import LogoApprovalModal from './LogoApprovalModal'
 import type { Variant, CreativeTemplateConfig } from '@/app/lib/announcements/composite'
 
 type Speaker = {
@@ -87,6 +88,7 @@ export default function StakeholderHubPage({ params }: { params: Promise<{ id: s
   const [saving, setSaving] = useState(false)
   const [uploadingId, setUploadingId] = useState<string | null>(null)
   const [cropTarget, setCropTarget] = useState<Speaker | null>(null)
+  const [logoApproval, setLogoApproval] = useState<{ url: string; item: Speaker | Partner; assetType: 'photo' | 'company_logo' | 'logo' } | null>(null)
   const [creativeVariants, setCreativeVariants] = useState<{ speaker: Variant[]; partner: Variant[] }>({ speaker: [], partner: [] })
   const [variantChoice, setVariantChoice] = useState<Record<string, string>>({}) // item id -> chosen variant id
 
@@ -166,17 +168,24 @@ export default function StakeholderHubPage({ params }: { params: Promise<{ id: s
     const form = new FormData()
     form.append('file', file)
     if (category.kind === 'speaker') form.append('asset_type', assetType)
-    await fetch(`${base}/${item.id}/upload-asset`, { method: 'POST', body: form })
+    const res = await fetch(`${base}/${item.id}/upload-asset`, { method: 'POST', body: form })
+    const data = await res.json().catch(() => ({}))
     await fetchAll()
     setUploadingId(null)
     // Offer the crop/zoom tool right after a speaker photo upload — never for
     // company logos or partner logos. The freshly-fetched speaker record (with
     // the new photo_processed_url) is picked up from the next fetchAll() below.
     if (category.kind === 'speaker' && assetType === 'photo') {
-      const res = await fetch(`/api/events/stakeholders/speakers?event_id=${eventId}`)
-      const updated: Speaker[] = await res.json().catch(() => [])
-      const fresh = updated.find(s => s.id === item.id)
+      const updated = await fetch(`/api/events/stakeholders/speakers?event_id=${eventId}`).then(r => r.json()).catch(() => [])
+      const fresh = (updated as Speaker[]).find(s => s.id === item.id)
       if (fresh?.photo_processed_url) setCropTarget(fresh)
+    }
+    // Every logo path (partner logo, speaker's own company logo) runs
+    // through the Logo Engine automatically — offer a look-and-confirm step
+    // rather than trusting the automatic background removal blindly.
+    if (assetType === 'company_logo' || assetType === 'logo') {
+      const logoUrl = data.company_logo_url || data.logo_url
+      if (logoUrl) setLogoApproval({ url: logoUrl, item, assetType })
     }
   }
 
@@ -381,6 +390,14 @@ export default function StakeholderHubPage({ params }: { params: Promise<{ id: s
           photoUrl={cropTarget.photo_processed_url}
           onClose={() => setCropTarget(null)}
           onCropped={fetchAll}
+        />
+      )}
+
+      {logoApproval && (
+        <LogoApprovalModal
+          logoUrl={logoApproval.url}
+          onClose={() => setLogoApproval(null)}
+          onReupload={file => { const { item, assetType } = logoApproval; setLogoApproval(null); uploadAsset(item, assetType, file) }}
         />
       )}
 

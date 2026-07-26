@@ -14,6 +14,12 @@ const nextConfig: NextConfig = {
       bodySizeLimit: '50mb',
     },
   },
+  // @napi-rs/canvas ships a platform-specific native .node binary (used by
+  // pdfjs-dist to rasterize PDF/AI company logos — app/lib/media/logo-engine.ts).
+  // Turbopack's server bundler can't trace/bundle native addons correctly and
+  // throws MODULE_NOT_FOUND even though the package is installed — this tells
+  // Next to require() it directly from node_modules at runtime instead.
+  serverExternalPackages: ['@napi-rs/canvas', 'pdfjs-dist'],
   async headers() {
     return [
       {

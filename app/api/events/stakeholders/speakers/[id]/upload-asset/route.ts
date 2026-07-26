@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/app/lib/supabase'
 import { uploadPublicAsset } from '@/app/lib/events/storage'
+import { processLogo } from '@/app/lib/media/logo-engine'
 
 /* POST /api/events/stakeholders/speakers/[id]/upload-asset
    multipart/form-data: file, asset_type: 'photo' | 'company_logo'
@@ -8,9 +9,16 @@ import { uploadPublicAsset } from '@/app/lib/events/storage'
    For 'photo': uploads the original, then calls PhotoRoom to strip the
    background (single POST, binary PNG response, no polling — see PRD SS5a),
    uploads the transparent PNG as photo_processed_url.
-   For 'company_logo': uploads as-is, no processing. */
+   For 'company_logo': runs the Logo Engine (rasterize PDF/AI/SVG as needed,
+   border-touching flood-fill background removal) — see
+   app/lib/media/logo-engine.ts. Falls back to the raw upload if processing
+   fails for any reason. */
 
-const ALLOWED_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp']
+const ALLOWED_PHOTO_TYPES = ['image/jpeg', 'image/png', 'image/webp']
+const ALLOWED_LOGO_TYPES: Record<string, string> = {
+  'image/png': 'png', 'image/jpeg': 'jpg', 'image/webp': 'webp', 'image/svg+xml': 'svg',
+  'application/pdf': 'pdf', 'application/postscript': 'ai', 'application/octet-stream': 'ai',
+}
 const MAX_SIZE = 5 * 1024 * 1024
 
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -22,8 +30,14 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   if (!file || (assetType !== 'photo' && assetType !== 'company_logo')) {
     return NextResponse.json({ error: 'file and asset_type (photo|company_logo) required' }, { status: 400 })
   }
-  if (!ALLOWED_IMAGE_TYPES.includes(file.type)) {
+  if (assetType === 'photo' && !ALLOWED_PHOTO_TYPES.includes(file.type)) {
     return NextResponse.json({ error: `Unsupported file type ${file.type}` }, { status: 400 })
+  }
+  const logoExt = assetType === 'company_logo'
+    ? (ALLOWED_LOGO_TYPES[file.type] ?? (file.name.includes('.') ? file.name.split('.').pop()!.toLowerCase() : null))
+    : null
+  if (assetType === 'company_logo' && (!logoExt || !['png', 'jpg', 'jpeg', 'webp', 'svg', 'pdf', 'ai'].includes(logoExt))) {
+    return NextResponse.json({ error: `Unsupported file type (${file.type || 'unknown'})` }, { status: 400 })
   }
   if (file.size > MAX_SIZE) {
     return NextResponse.json({ error: 'File too large (max 5 MB)' }, { status: 413 })
@@ -36,11 +50,25 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   const ext    = file.type.split('/')[1] === 'jpeg' ? 'jpg' : file.type.split('/')[1]
 
   if (assetType === 'company_logo') {
-    const logoUrl = await uploadPublicAsset(
-      `events/${speaker.event_id}/speakers/${speakerId}/company-logo-${Date.now()}.${ext}`,
+    const timestamp = Date.now()
+    const logoRawUrl = await uploadPublicAsset(
+      `events/${speaker.event_id}/speakers/${speakerId}/company-logo-raw-${timestamp}.${logoExt}`,
       buffer,
-      file.type
+      file.type || 'application/octet-stream'
     )
+
+    let logoUrl = logoRawUrl
+    try {
+      const processed = await processLogo(buffer, file.name, file.type)
+      logoUrl = await uploadPublicAsset(
+        `events/${speaker.event_id}/speakers/${speakerId}/company-logo-processed-${timestamp}.png`,
+        processed.buffer,
+        'image/png'
+      )
+    } catch (e) {
+      console.error('Logo processing failed, falling back to raw upload:', e)
+    }
+
     const { data, error } = await supabaseAdmin
       .from('event_speakers')
       .update({ company_logo_url: logoUrl, updated_at: new Date().toISOString() })
