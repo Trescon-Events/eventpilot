@@ -6,6 +6,7 @@ import { Button, Card, Badge, Input, Select, Textarea } from '@/app/components/u
 import CalendarView from './CalendarView'
 import PhotoCropModal from './PhotoCropModal'
 import LogoApprovalModal from './LogoApprovalModal'
+import AnnouncementReviewModal from './AnnouncementReviewModal'
 import type { Variant, CreativeTemplateConfig } from '@/app/lib/announcements/composite'
 
 type Speaker = {
@@ -89,6 +90,7 @@ export default function StakeholderHubPage({ params }: { params: Promise<{ id: s
   const [uploadingId, setUploadingId] = useState<string | null>(null)
   const [cropTarget, setCropTarget] = useState<Speaker | null>(null)
   const [logoApproval, setLogoApproval] = useState<{ url: string; item: Speaker | Partner; assetType: 'photo' | 'company_logo' | 'logo' } | null>(null)
+  const [reviewTarget, setReviewTarget] = useState<{ announcementId: string; creativeUrl: string | null; postCopy: string; photoUrl?: string | null; logoUrl?: string | null } | null>(null)
   const [creativeVariants, setCreativeVariants] = useState<{ speaker: Variant[]; partner: Variant[] }>({ speaker: [], partner: [] })
   const [variantChoice, setVariantChoice] = useState<Record<string, string>>({}) // item id -> chosen variant id
 
@@ -212,10 +214,22 @@ export default function StakeholderHubPage({ params }: { params: Promise<{ id: s
       }),
     })
     const data = await res.json().catch(() => ({}))
-    if (!res.ok) setMsg(data.error || 'Announcement generation failed.')
-    // The review/approval UI (generator slide-over, Phase F) isn't built yet —
-    // for now this just confirms the announcement row + creative were created.
-    else setMsg(`Announcement generated (id: ${data.announcement_id}). Review UI is coming in Phase F.`)
+    if (!res.ok) { setMsg(data.error || 'Announcement generation failed.'); return }
+
+    // Consolidated review screen — the final composite, post copy, and the
+    // actual dynamic assets used (photo/logo), so the MM can sanity-check
+    // the raw material before this goes into the Phase D approval workflow
+    // (approver selection/sending isn't wired up yet — Phase F).
+    const isSpeaker = category.kind === 'speaker'
+    const s = item as Speaker
+    const p = item as Partner
+    setReviewTarget({
+      announcementId: data.announcement_id,
+      creativeUrl: data.creative_url ?? null,
+      postCopy: data.post_copy ?? '',
+      photoUrl: isSpeaker ? (s.photo_processed_url || s.photo_url) : null,
+      logoUrl: isSpeaker ? s.company_logo_url : p.logo_url,
+    })
   }
 
   const items: (Speaker | Partner)[] = category.kind === 'speaker' ? speakers : visiblePartners
@@ -399,6 +413,17 @@ export default function StakeholderHubPage({ params }: { params: Promise<{ id: s
           logoUrl={logoApproval.url}
           onClose={() => setLogoApproval(null)}
           onReupload={file => { const { item, assetType } = logoApproval; setLogoApproval(null); uploadAsset(item, assetType, file) }}
+        />
+      )}
+
+      {reviewTarget && (
+        <AnnouncementReviewModal
+          announcementId={reviewTarget.announcementId}
+          initialCreativeUrl={reviewTarget.creativeUrl}
+          initialPostCopy={reviewTarget.postCopy}
+          photoUrl={reviewTarget.photoUrl}
+          logoUrl={reviewTarget.logoUrl}
+          onClose={() => setReviewTarget(null)}
         />
       )}
 
