@@ -5,6 +5,7 @@ import Link from 'next/link'
 import PageHeader from '@/app/components/PageHeader'
 import { ImportDelegatesModal } from './ImportDelegatesModal'
 import { DelegateKanban } from './DelegateKanban'
+import { computeBespokePhase, BESPOKE_PHASE_FALLBACK } from '@/app/lib/bespoke-phase'
 
 /* ═══════════════════════════════════════════════════════════════════
    TYPES
@@ -688,11 +689,20 @@ export default function BespokeWorkspacePage({ params }: { params: Promise<{ id:
           <div style={{ fontSize: '12px', fontWeight: 700, color: 'var(--ink3)', marginBottom: '4px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Contract Value</div>
           <div style={{ fontSize: '28px', fontWeight: 800, color: 'var(--ink)' }}>{fmtCurrency(project.contract_value)}</div>
         </div>
-        {/* Phase */}
-        <div style={{ background: 'var(--card)', borderRadius: '10px', padding: '16px 20px', border: '1px solid var(--border)' }}>
-          <div style={{ fontSize: '12px', fontWeight: 700, color: 'var(--ink3)', marginBottom: '4px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Phase</div>
-          <div style={{ fontSize: '20px', fontWeight: 800, color: '#F5B94D', textTransform: 'capitalize' }}>{project.phase}</div>
-        </div>
+        {/* Phase — computed dynamically from contract_signed_date + event_date,
+             falls back to Kickoff & Alignment when dates missing. Colored badge
+             per active phase. Fix for build_request 16d1f7c4. */}
+        {(() => {
+          const p = computeBespokePhase(project.contract_signed_date, project.event_date) ?? BESPOKE_PHASE_FALLBACK
+          return (
+            <div style={{ background: 'var(--card)', borderRadius: '10px', padding: '16px 20px', border: '1px solid var(--border)' }}>
+              <div style={{ fontSize: '12px', fontWeight: 700, color: 'var(--ink3)', marginBottom: '4px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Phase</div>
+              <div style={{ display: 'inline-block', fontSize: '15px', fontWeight: 800, color: p.color, background: p.bgColor, padding: '4px 10px', borderRadius: '6px', marginTop: '2px' }}>
+                {p.label}
+              </div>
+            </div>
+          )
+        })()}
       </div>
 
       {/* ═══ Tab Bar ═════════════════════════════════════════════════ */}
