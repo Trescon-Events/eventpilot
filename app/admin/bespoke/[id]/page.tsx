@@ -58,6 +58,7 @@ type BespokeProject = {
 type BespokeTask = {
   id: string; title: string; description: string | null; phase: number
   week_number: number | null; assigned_to: string | null; assigned_role: string
+  assigned_team?: string | null   // Nic 2f002c2e — canonical display label
   due_date: string | null; status: string; sort_order: number
   assigned_staff: { id: string; name: string } | null
 }
@@ -94,6 +95,22 @@ const ROLE_COLORS: Record<string, { bg: string; fg: string }> = {
   design: { bg: 'var(--red-light)', fg: 'var(--red)' },
   production: { bg: 'rgba(255,255,255,0.06)', fg: 'var(--ink3)' },
 }
+
+// Team badge colors — Nic 2f002c2e canonical vocabulary. Keeps parity with
+// ROLE_COLORS on overlap so a task with role='delegate' + team='Delegate Team'
+// shows the same green either way. New team-only values get their own hue.
+const TEAM_COLORS: Record<string, { bg: string; fg: string }> = {
+  'Commercial':    { bg: '#FFF8E1', fg: '#B45309' },
+  'Marketing':     { bg: '#E3F2FD', fg: '#1565C0' },
+  'Delegate Team': { bg: '#E8F5E9', fg: '#2E7D32' },
+  'Operations':    { bg: '#F3E5F5', fg: '#7B1FA2' },
+  'Design':        { bg: '#FCE4EC', fg: '#C62828' },
+  'Production':    { bg: '#ECEFF1', fg: '#546E7A' },
+  'DRT':           { bg: '#E1F5FE', fg: '#01579B' },
+  'Client':        { bg: '#FFF3E0', fg: '#E65100' },
+  'All Teams':     { bg: '#EDE7F6', fg: '#4527A0' },
+}
+const TEAM_OPTIONS = ['Commercial', 'Marketing', 'Delegate Team', 'Operations', 'Design', 'Production', 'DRT'] as const
 
 const STATUS_CYCLE: Record<string, string> = { pending: 'in_progress', in_progress: 'done', done: 'pending' }
 const STATUS_LABELS: Record<string, string> = { pending: 'Pending', in_progress: 'In Progress', done: 'Done' }
@@ -153,6 +170,31 @@ function leadLabel(fkObj: { id: string; name: string } | null | undefined, manua
   if (fkObj?.name) return fkObj.name
   if (manual?.trim()) return manual.trim() + ' (external)'
   return 'Unassigned'
+}
+
+// Nic 2f002c2e — phase-level deadline text for the Tasks-tab banner row.
+// Returns null when both dates aren't set (no meaningful deadline to render).
+function computePhaseDeadline(phase: 1|2|3|4, contractSignedDate: string | null, eventDate: string | null): { label: string; date: string } | null {
+  try {
+    if (phase === 1) {
+      if (!contractSignedDate) return null
+      const d = new Date(contractSignedDate); d.setDate(d.getDate() + 4)
+      return { label: 'Complete within 4 days of contract signing', date: d.toISOString().split('T')[0] }
+    }
+    if (phase === 2) {
+      if (!eventDate) return null
+      const d = new Date(eventDate); d.setDate(d.getDate() - 5)
+      return { label: 'Complete by Day 25 of campaign runway', date: d.toISOString().split('T')[0] }
+    }
+    if (phase === 3) {
+      if (!eventDate) return null
+      return { label: 'Complete by Event Day', date: eventDate }
+    }
+    // phase === 4
+    if (!eventDate) return null
+    const d = new Date(eventDate); d.setDate(d.getDate() + 10)
+    return { label: 'Complete within 10 days post-event', date: d.toISOString().split('T')[0] }
+  } catch { return null }
 }
 
 function computePhase(project: BespokeProject): { activePhase: 1|2|3|4; label: string; dayOf: number; totalRunway: number; daysRemaining: number } | null {
@@ -221,6 +263,7 @@ export default function BespokeWorkspacePage({ params }: { params: Promise<{ id:
   const [briefSaving, setBriefSaving] = useState(false)
   const [addTaskPhase, setAddTaskPhase] = useState<number | null>(null)
   const [newTaskTitle, setNewTaskTitle] = useState('')
+  const [newTaskTeam, setNewTaskTeam] = useState<string>('Commercial') // Nic 2f002c2e
   const [taskError, setTaskError] = useState<string | null>(null)
   const [flashTaskId, setFlashTaskId] = useState<string | null>(null)
   const [briefSaveState, setBriefSaveState] = useState<'idle' | 'saved' | 'error'>('idle')
@@ -336,7 +379,10 @@ export default function BespokeWorkspacePage({ params }: { params: Promise<{ id:
     const res = await fetch('/api/bespoke/tasks', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ project_id: id, title: newTaskTitle.trim(), phase }),
+      // Nic 2f002c2e — new manual tasks carry the team the creator selected.
+      // Ignored server-side if the assigned_team column doesn't yet exist
+      // (i.e. migration hasn't been applied); doesn't block task creation.
+      body: JSON.stringify({ project_id: id, title: newTaskTitle.trim(), phase, assigned_team: newTaskTeam }),
     })
     if (res.ok) {
       const created = await res.json().catch(() => null)
@@ -1458,6 +1504,8 @@ export default function BespokeWorkspacePage({ params }: { params: Promise<{ id:
               const doneCount = phaseTasks.filter(t => t.status === 'done').length
               // Phase 1 is always interactive. 2/3/4 lock until the brief is locked.
               const phaseLocked = !project.brief_is_locked && phase !== 1
+              // Nic 2f002c2e — phase-level deadline text (silent if dates absent).
+              const phaseDeadline = computePhaseDeadline(phase as 1|2|3|4, project.contract_signed_date, project.event_date)
               return (
                 <div key={phase} style={{ background: 'var(--card)', borderRadius: '12px', border: '1px solid var(--border)', overflow: 'hidden' }}>
                   {/* Phase header */}
@@ -1486,10 +1534,22 @@ export default function BespokeWorkspacePage({ params }: { params: Promise<{ id:
                     </button>
                   </div>
 
+                  {/* Nic 2f002c2e — phase-level deadline banner (silent when
+                       either date is not yet set). */}
+                  {phaseDeadline && (
+                    <div style={{
+                      padding: '8px 20px', background: '#F0F9FF', borderBottom: '1px solid #DDE8EE',
+                      fontSize: '12px', fontWeight: 600, color: '#0369A1', lineHeight: 1.5,
+                    }}>
+                      <strong style={{ fontWeight: 800 }}>{phaseDeadline.label}</strong>{' '}<span style={{ color: '#075985' }}>(Due: {fmtDate(phaseDeadline.date)})</span>
+                    </div>
+                  )}
+
                   {/* Tasks list */}
                   <div style={{ opacity: phaseLocked ? 0.5 : 1 }}>
                     {phaseTasks.map(t => {
-                      const rc = ROLE_COLORS[t.assigned_role] || ROLE_COLORS.commercial
+                      const teamLabel = t.assigned_team || (t.assigned_role ? t.assigned_role.charAt(0).toUpperCase() + t.assigned_role.slice(1) : null)
+                      const tc = teamLabel ? (TEAM_COLORS[teamLabel] || ROLE_COLORS[t.assigned_role] || ROLE_COLORS.commercial) : ROLE_COLORS.commercial
                       const overdue = isOverdue(t.due_date, t.status)
                       return (
                         <div key={t.id} style={{
@@ -1516,10 +1576,12 @@ export default function BespokeWorkspacePage({ params }: { params: Promise<{ id:
                               {t.assigned_staff.name}
                             </span>
                           )}
-                          {/* Role badge */}
-                          <span style={{ fontSize: '11px', fontWeight: 700, padding: '2px 8px', borderRadius: '6px', background: rc.bg, color: rc.fg, textTransform: 'capitalize' }}>
-                            {t.assigned_role}
-                          </span>
+                          {/* Team badge — prefers assigned_team (Nic 2f002c2e vocab); falls back to legacy assigned_role capitalised. */}
+                          {teamLabel && (
+                            <span style={{ fontSize: '11px', fontWeight: 700, padding: '2px 8px', borderRadius: '6px', background: tc.bg, color: tc.fg }}>
+                              {teamLabel}
+                            </span>
+                          )}
                           {/* Due date */}
                           {t.due_date && (
                             <span style={{ fontSize: '12px', fontWeight: 600, color: overdue ? 'var(--red)' : 'var(--ink3)', whiteSpace: 'nowrap' }}>
@@ -1546,12 +1608,20 @@ export default function BespokeWorkspacePage({ params }: { params: Promise<{ id:
                     )}
                   </div>
 
-                  {/* Add task inline form */}
+                  {/* Add task inline form — Nic 2f002c2e adds a team dropdown */}
                   {addTaskPhase === phase && !phaseLocked && (
                     <div style={{ padding: '12px 20px', borderTop: '1px solid var(--border)', display: 'flex', flexDirection: 'column', gap: '8px' }}>
                       <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
                         <input style={{ ...INPUT_STYLE, flex: 1 }} placeholder="New task title..." value={newTaskTitle} onChange={e => setNewTaskTitle(e.target.value)}
                           onKeyDown={e => { if (e.key === 'Enter') addTask(phase) }} autoFocus />
+                        <select
+                          value={newTaskTeam}
+                          onChange={e => setNewTaskTeam(e.target.value)}
+                          style={{ ...INPUT_STYLE, width: 'auto', paddingRight: '32px', cursor: 'pointer' }}
+                          title="Assigned team"
+                        >
+                          {TEAM_OPTIONS.map(o => <option key={o} value={o}>{o}</option>)}
+                        </select>
                         <button onClick={() => addTask(phase)} style={{
                           padding: '8px 16px', borderRadius: '8px', border: 'none', background: '#F5B94D', color: 'var(--amber-light)',
                           fontSize: '13px', fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--font-manrope)', whiteSpace: 'nowrap',

@@ -63,20 +63,27 @@ export async function POST(req: NextRequest) {
     }
   }
 
+  // Nic 2f002c2e — accept assigned_team (canonical display label) alongside
+  // legacy assigned_role. Column added by supabase/bespoke_task_overhaul.sql.
+  // If the column doesn't exist yet in production, Supabase returns a clear
+  // error and the caller surfaces it.
+  const insertRow: Record<string, unknown> = {
+    project_id: body.project_id,
+    title: body.title,
+    description: body.description || null,
+    phase,
+    week_number: body.week_number || null,
+    assigned_to: body.assigned_to || null,
+    assigned_role: body.assigned_role || null,
+    due_date: body.due_date || null,
+    status: 'pending',
+    sort_order: body.sort_order ?? nextSortOrder,
+  }
+  if (body.assigned_team) insertRow.assigned_team = body.assigned_team
+
   const { data, error } = await supabaseAdmin
     .from('bespoke_tasks')
-    .insert({
-      project_id: body.project_id,
-      title: body.title,
-      description: body.description || null,
-      phase,
-      week_number: body.week_number || null,
-      assigned_to: body.assigned_to || null,
-      assigned_role: body.assigned_role || null,
-      due_date: body.due_date || null,
-      status: 'pending',
-      sort_order: body.sort_order ?? nextSortOrder,
-    })
+    .insert(insertRow)
     .select()
     .single()
 
