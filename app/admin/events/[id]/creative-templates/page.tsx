@@ -187,7 +187,7 @@ export default function CreativeTemplatesPage({ params }: { params: Promise<{ id
     <div style={{ minHeight: '100vh', background: 'var(--surface)' }}>
       <PageHeader
         eyebrow="Event Workspace"
-        title="Creative Templates"
+        title="Stakeholder Announcement Engine"
         description="Build layer stacks for stakeholder announcement creatives — background art, a speaker photo or partner logo, and text, in whatever stacking order the design needs."
         actions={<Button variant="lime" onClick={save} disabled={saving || !dirty}>{saving ? 'Saving…' : dirty ? 'Save Changes' : 'Saved'}</Button>}
       />

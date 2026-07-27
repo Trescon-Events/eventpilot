@@ -773,7 +773,7 @@ export function getModuleRegistry(): ModuleDef[] {
       access: { kind: 'admin_only' },
     },
     {
-      key: 'admin-event-creative-templates', label: 'Creative Templates',
+      key: 'admin-event-creative-templates', label: 'Stakeholder Announcement Engine',
       description: 'Layer-based editor for stakeholder announcement creatives — backgrounds, face-aligned speaker photos, logos and text, in whatever stacking order the design needs.',
       icon: I.layers, color: '#F0AB3C',
       href: ctx => `/admin/events/${ctx.eventId}/creative-templates`,

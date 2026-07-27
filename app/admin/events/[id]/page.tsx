@@ -774,11 +774,11 @@ export default function EventWorkspacePage({ params }: { params: Promise<{ id: s
                       Owns its own save path (PUT /api/events/templates/variants) via
                       a dedicated layer editor — deliberately not duplicated into this
                       form's PATCH, so editing one never risks clobbering the other. */}
-                  <div style={{ fontSize: '11px', fontWeight: 800, letterSpacing: '0.8px', color: 'var(--teal-mid)', margin: '20px 0 10px', textTransform: 'uppercase' }}>Creative Templates</div>
+                  <div style={{ fontSize: '11px', fontWeight: 800, letterSpacing: '0.8px', color: 'var(--teal-mid)', margin: '20px 0 10px', textTransform: 'uppercase' }}>Stakeholder Announcement Engine</div>
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 14px', borderRadius: '10px', border: '1px solid var(--border)' }}>
                     <div style={{ fontSize: '12.5px', color: 'var(--ink2)' }}>Layer-based editor for speaker/partner announcement creatives — backgrounds, photo/logo placement, and text, in any stacking order.</div>
                     <Link href={`/admin/events/${eventId}/creative-templates`} style={{ padding: '7px 14px', borderRadius: '8px', border: '1.5px solid var(--border)', color: 'var(--ink2)', fontSize: '12px', fontWeight: 700, whiteSpace: 'nowrap', flexShrink: 0 }}>
-                      Manage Creative Templates →
+                      Open →
                     </Link>
                   </div>
 
