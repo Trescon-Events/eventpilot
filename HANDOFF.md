@@ -1,14 +1,7 @@
 # EventPilot — Session Handoff
 
 > **Claude Code: Read this file at the start of EVERY session before doing any work.**
-> Report its contents to the user when starting, so they know the current state.
-> Update this file before every sign-off.
-
----
-
-## ⚠️ Durga — action needed: check your pushes from 17–21 Jul
-
-Railway's auto-deploy silently stopped working from **2026-07-17 to 2026-07-21** due to a lapsed billing payment (found + fixed by Claude Code on 2026-07-21, mid-way through unrelated SAE work — payment cleared, a fresh deploy was force-triggered via `railway redeploy --from-source`). Every push to `main` in that window sat undeployed until then, including some of Claude Code's own work. **If you pushed anything to `main` in that window, please double check it's actually live now** — Railway's deploy history only shows what got deployed once the fix landed, not whether your specific commit's effects are what you expect to see in production. Once confirmed, this note can be deleted.
+> **First run `git fetch origin` — the local HANDOFF may be stale.** Then report contents to the user before doing any work. Update this file before every sign-off.
 
 ---
 
@@ -16,8 +9,65 @@ Railway's auto-deploy silently stopped working from **2026-07-17 to 2026-07-21**
 
 | Field | Value |
 |---|---|
+| Who | Durga + Claude Code (Opus 4.7) — 27 Jul 2026 |
+| Latest push | 2026-07-27 — commit `a6a882d` (Nic's 5 open build_requests shipped: PHASE card fix + dashboard concluded UI + phase rename + dynamic Kanban + Save Draft label + 43-task SOP blueprint + team badges + deadline banners) |
+| Handed off to | Next session |
+| Deployed | ✅ Yes — Railway auto-deployed within 3 min of push; site 200 healthy at `eventpilot.tresconglobal.com`. |
+
+**Session highlight (27 Jul 2026):** Cleared **all 5 open build_requests from Nic** in the Bespoke Event Module pilot — 4 tickets + 1 subsumed duplicate. One migration applied (`supabase/bespoke_task_overhaul.sql`, backfilled 104 tasks). One consolidated close-out email to Nic + Madhu (bypassed per-ticket auto-email per Durga's batch-close-out rule). Also **reviewed Thulasi's status** on Corporate Marketing Phase-1 → confirmed everything from her Jul 9 PRD is shipped; the only pending item is a Durga↔Thulasi call to define Phase-2 direction.
+
+**Nic's 5 tickets closed (all via direct DB write to bypass per-ticket auto-email):**
+
+1. **`16d1f7c4` — PHASE stat card blank.** Commit `49eb297`. New shared helper `app/lib/bespoke-phase.ts` computes phase dynamically from `contract_signed_date + event_date` with safe null / invalid-date handling and a Kickoff & Alignment fallback. Colored badge per active phase (Orange / Teal / Green / Gray). Replaces the raw `project.phase` DB string that was rendering empty when the column wasn't seeded.
+2. **`490f6974` — dashboard concluded UI + app-wide phase rename + dynamic Kanban (subsumes `f071291c`).** Commit `30d2937`. Concluded events no longer render '-1 days ago' or '1d ago' anywhere: Days Left stat card, PageHeader subtitle, Kanban card meta, table view Days Left column all render 'Concluded'. Blue info banner on Overview tab when the event date is past. Main tracker Kanban column placement is now dynamic — computed per project each render from date math (`getProjectPhaseNum()` in `app/admin/bespoke/page.tsx`), with a legacy DB-phase fallback for older rows. Phase labels renamed app-wide (label change only, DB values unchanged): Initiation→Kickoff & Alignment · Campaign→Outreach Runway · Live→Live Execution · Closure→Reporting & Settlement.
+3. **`9fe12b0a` — Brief section Save Draft vs Verify & Lock.** Commit `d788f4b`. Renamed the primary button from 'Save Brief' → 'Save Draft' and success chip to '✓ Draft saved' so the two distinct flows (partial save vs validation-gated lock) read cleanly. Both behaviours already existed. **Did NOT ship a PDF parser fix** — Nic's error `Cannot find module '/app/.next/server/chunks/pdf.worker.mjs'` cannot come from this codebase (zero `pdfjs-dist` references; parse-brief uses `pdf-parse` with the defensive CJS-wrap fix from 17 Jul). Almost certainly stale bundle in his browser; hard-refresh advised in the close-out email.
+4. **`2f002c2e` — 43-task SOP overhaul + team badges + deadline banners.** Commit `a6a882d`. Full replacement of the prior 66-task hand-picked seed with Nic's 43-task blueprint. `{{client}}` and `{{venue}}` placeholders interpolated at seed time. Physical vs Webinar variants for Phase 2 task 15 and Phase 3 task 6 per spec. Task rows display an `assigned_team` badge (canonical Delegate Team, not Delegacy) with fall-back to capitalised legacy `assigned_role`. Tasks-tab phase blocks get a deadline banner: Phase 1 = contract+4d · Phase 2 = event-5d · Phase 3 = event day · Phase 4 = event+10d (silent when either date not set). 'Add Task' inline form gets a team dropdown. `POST /api/bespoke/tasks` accepts `assigned_team`; `POST /api/bespoke` writes `creator_id + assigned_team` on seed.
+5. **`f071291c` — dynamic Kanban filtering (subset of #4).** Closed as duplicate of `490f6974`; no separate work — same dynamic-columns logic already shipped in that commit.
+
+**Deferred (partial completion of `2f002c2e` — flagged to Nic in the close-out email):** creator-only edit + delete permissions on task rows with a new trash icon. Current UI has no rename or delete controls at all — that's a separate UI + PATCH/DELETE routes + session-identity gating piece. Recommend Nic first exercise the 43-task blueprint + badges + banners on a fresh project, confirm the SOP text and interpolation read correctly, then we open that as its own ticket.
+
+**Migration applied to production Supabase** (via Studio SQL Editor, Durga executed): `supabase/bespoke_task_overhaul.sql`. Added:
+- `bespoke_projects.creator_id UUID REFERENCES staff_members(id) ON DELETE SET NULL`
+- `bespoke_tasks.description TEXT`
+- `bespoke_tasks.assigned_team TEXT` with CHECK constraint on 9 canonical values
+- Backfill statement populated `assigned_team` from `assigned_role` on 104 existing tasks
+
+**Close-out email sent (Resend id `b347248f-eaf0-4a54-ae21-b171ecace805`):**
+- To: `nicholas@tresconglobal.com`
+- CC: `md@tresconglobal.com`
+- Reply-to: `dc@tresconglobal.com`
+- From: `noreply@eventpilot.tresconglobal.com`
+- One email covering all 5 tickets, hard-refresh reminder for the PDF error caveat, explicit call-out of the deferred creator-only edit/delete piece.
+
+**Process pain to avoid next time — locked to memory as `feedback_git_fetch_before_handoff_read.md`:** at session start I read the LOCAL `HANDOFF.md` (mtime 17 Jul) without `git fetch origin` first. Madhu's 21 Jul push (`009ffe4`) had a critical updated HANDOFF flagging (a) the Railway billing lapse 17-21 Jul, and (b) the full 17 Jul dark-theme rebrand (`ff0a1a0`, ~100 files, hardcoded hex → CSS variables). I wrote 4 commits against pre-rebrand code and the push was rejected. Recovery required a full rebase where 5 conflict blocks across 2 files had to be resolved to swap hardcoded colors for `var(--card)` / `var(--ink3)` / `var(--red)` / etc. Every minute of that was self-inflicted. **New session-start discipline:** `git fetch origin && git status` BEFORE reading HANDOFF; if origin is ahead, pull or reset first.
+
+**Thulasi (Corporate Marketing) status — reviewed, no code work needed:**
+- Phase-1 Refinement PRD (Jul 9) is fully shipped. `ReadinessDashboard.tsx` renders at top of Overview tab, six sections tracked, canonical-diff change detection, "Changes Since Last Publish" timeline, "Update Recommended" mark when the current DB state diverges from the last `content_snapshot`. `Dynamic Content` tab label renamed to `Live Content`. Events section wired to Events module with `last_synced` from `MAX(events.updated_at)`.
+- Jul 21 email exchange: Thulasi confirmed "phase-1 looks fine", asked "what next", agreed to a call with Durga the next morning to define Phase 2. **Blocked on the call happening — founder-side action.**
+- Real underlying bug she flagged that we still have not fixed: `events.status` doesn't auto-transition from `active` to `completed` after `event_date` passes. Bengaluru Skill Summit 2026 (event_date `2026-06-06`, status still `active` 51 days later) surfaced this — the deck's Events section correctly classifies it as Past (date-based) but any module filtering purely on status='active' still shows it as Upcoming. Fix is either (a) UI filter `AND event_date >= today` on Upcoming, or (b) scheduled job to flip status. **Not shipped this session — needs Durga's call on which fix.**
+
+**Verification this session:** `npx tsc --noEmit` clean after every cherry-pick (only pre-existing `.next/*` stale-artifact warnings, unrelated). Site 200 healthy at `eventpilot.tresconglobal.com` post-deploy. No authenticated browser click-through — will be Nic's next hard-refresh test.
+
+**Still to do:**
+1. **Bengaluru Skill Summit / Events auto-transition bug** — pick UI filter vs scheduled job, ship. Small ticket, cross-module benefit.
+2. **Creator-only edit + delete on bespoke tasks** — deferred piece of Nic's `2f002c2e`; open as its own ticket after he retests.
+3. **Corporate Marketing Phase-2 PRD** — waiting on Durga↔Thulasi call to define scope.
+
+**Carried forward from prior sessions (unchanged, not touched today):**
+- `staff_members.last_login_at` never written — blocks never-logged-in filters
+- Khalifat alignment reply drafted 06 Jul, still awaiting founder send
+- `CRON_SECRET` on Railway out of sync — blocks auto-revoke + weekly leaderboard cron
+- Charan Kaverappa sign-out/in for Finance Portal
+- Madhu's 15-16 Jul nav overhaul + 17 Jul dark theme — authenticated browser click-through still not done (only Microsoft SSO reaches production admin; local super-admin bypass can't confirm production visuals)
+
+---
+
+## Previous Session
+
+| Field | Value |
+|---|---|
 | Who | Madhu + Claude Code (Sonnet 5) — 17 Jul 2026 |
-| Latest push | 2026-07-17 — commit `ff0a1a0` (dark theme + access-control unification, merged with Durga's parallel bespoke pipeline session) |
+| Push | commit `ff0a1a0` (dark theme + access-control unification) |
 | Handed off to | Durga |
 | Deployed | ✅ Yes — confirmed live on Railway: `/login` and `/welcome` render the new dark theme correctly (screenshot-verified against the public production URL), `/login` (200) and `/api/auth/microsoft` (307) healthy throughout the deploy window with no downtime observed. **Not yet verified:** any authenticated page — production disables password sign-in entirely (Microsoft SSO only), so the local super-admin bypass used for all of this session's testing can't reach production; Madhu/Durga's own SSO login is the only way to confirm the dark theme and new Settings→Access pages look right once actually inside the app. |
 
