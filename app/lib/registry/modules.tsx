@@ -774,12 +774,21 @@ export function getModuleRegistry(): ModuleDef[] {
     },
     {
       key: 'admin-event-creative-templates', label: 'Creative Templates',
-      description: 'Layer-based editor for stakeholder announcement creatives.',
+      description: 'Layer-based editor for stakeholder announcement creatives — backgrounds, face-aligned speaker photos, logos and text, in whatever stacking order the design needs.',
       icon: I.layers, color: '#F0AB3C',
       href: ctx => `/admin/events/${ctx.eventId}/creative-templates`,
       needsEvent: true,
-      breadcrumbPattern: '/admin/events/:eventId/creative-templates',
+      breadcrumbPattern: '/admin/events/:eventId/creative-templates', breadcrumbParent: 'toolkit',
       access: { kind: 'admin_only' },
+      toolkitHub: {
+        category: 'Events', badge: 'Event Tool',
+        features: [
+          { icon: '◈', label: 'Layer-based compositing', detail: 'Stack background art, photo/logo slots and text in any order — Sharp composites them server-side' },
+          { icon: '◉', label: 'Face-aligned photos', detail: 'Upload a reference layer once — real speaker photos auto-align to match its head position/size' },
+          { icon: '▣', label: 'Logo normalization', detail: 'Any format including PDF/AI, background removed automatically, legitimate logo badges preserved' },
+          { icon: '◻', label: 'Live preview', detail: 'Debounced server-rendered preview — always matches exactly what generation will produce' },
+        ],
+      },
     },
     {
       key: 'leaderboard', label: 'Leaderboard',
