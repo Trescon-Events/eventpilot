@@ -207,6 +207,13 @@ option { background: var(--card); color: var(--ink); }
 }
 .tbtn:hover  { opacity: 0.82; }
 .tbtn:active { transform: scale(0.97); }
+.tbtn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+  pointer-events: none; /* disabled already blocks click/onClick, but also kills the :hover/:active feedback below so a disabled button never LOOKS interactive */
+}
+.tbtn:disabled:hover  { opacity: 0.4; }
+.tbtn:disabled:active { transform: none; }
 
 .tbtn-teal   { background: var(--teal-light);   border-color: var(--teal-border);   color: var(--teal); }
 .tbtn-indigo { background: var(--indigo-light);  border-color: var(--indigo-border); color: var(--indigo); }

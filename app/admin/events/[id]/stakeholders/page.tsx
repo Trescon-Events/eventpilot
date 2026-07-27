@@ -164,6 +164,26 @@ export default function StakeholderHubPage({ params }: { params: Promise<{ id: s
     fetchAll()
   }
 
+  // Generate Announcement is gated on announcement_status === 'ready', but
+  // nothing ever moved a stakeholder there — every path (manual add,
+  // onboarding-form conversion) lands on 'pending_review' and stays there
+  // forever, permanently disabling the button with no way to unblock it.
+  // Real gap found live (2026-07-27): Madhu added a speaker, clicked
+  // Generate Announcement, and nothing happened — the button LOOKED
+  // enabled (disabled buttons had no visual treatment at all, fixed
+  // separately in globals.css) but was actually inert. This is the
+  // missing step: an explicit "this stakeholder's details/photo/logo have
+  // been reviewed, go ahead" action, matching the 'ready' vocabulary
+  // STATUS_BADGE already defines but nothing ever set.
+  async function approveForAnnouncement(item: Speaker | Partner) {
+    const base = category.kind === 'speaker' ? '/api/events/stakeholders/speakers' : '/api/events/stakeholders/partners'
+    await fetch(`${base}/${item.id}`, {
+      method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ announcement_status: 'ready' }),
+    })
+    fetchAll()
+  }
+
   async function uploadAsset(item: Speaker | Partner, assetType: 'photo' | 'company_logo' | 'logo', file: File) {
     setUploadingId(item.id)
     const base = category.kind === 'speaker' ? '/api/events/stakeholders/speakers' : '/api/events/stakeholders/partners'
@@ -382,7 +402,13 @@ export default function StakeholderHubPage({ params }: { params: Promise<{ id: s
                               {creativeVariants[category.kind].map(v => <option key={v.id} value={v.id}>{v.name}</option>)}
                             </Select>
                           )}
-                          <Button variant="solid" disabled={item.announcement_status !== 'ready'} onClick={() => generateAnnouncement(item)}>
+                          {item.announcement_status !== 'ready' && item.announcement_status !== 'archived' && (
+                            <Button variant="teal" onClick={() => approveForAnnouncement(item)} title="Review the photo/logo/details above, then approve to unlock Generate Announcement">
+                              Approve for Announcement
+                            </Button>
+                          )}
+                          <Button variant="solid" disabled={item.announcement_status !== 'ready'} onClick={() => generateAnnouncement(item)}
+                            title={item.announcement_status !== 'ready' ? 'Click "Approve for Announcement" first' : undefined}>
                             Generate Announcement ▶
                           </Button>
                           <Button variant="ghost" onClick={() => remove(item)}>Archive</Button>
