@@ -774,14 +774,19 @@ export function getModuleRegistry(): ModuleDef[] {
     },
     {
       key: 'admin-event-creative-templates', label: 'Stakeholder Announcement Engine',
-      description: 'Layer-based editor for stakeholder announcement creatives — backgrounds, face-aligned speaker photos, logos and text, in whatever stacking order the design needs.',
+      description: 'Create stakeholder announcement creatives — pick a creative style, preview against a real speaker or partner, generate.',
       icon: I.layers, color: '#F0AB3C',
       href: ctx => `/admin/events/${ctx.eventId}/creative-templates`,
       needsEvent: true,
       breadcrumbPattern: '/admin/events/:eventId/creative-templates', breadcrumbParent: 'toolkit',
-      access: { kind: 'admin_only' },
+      // 'sae' module_access grants (Settings→Access-style, see the admin
+      // console entry below) are sufficient for entry at ANY tier — the
+      // stricter admin-tier requirement for actually editing variants lives
+      // on the separate admin-console module entry, not here.
+      access: { kind: 'admin_only', moduleAccessKey: 'sae' },
       toolkitHub: {
         category: 'Events', badge: 'Event Tool',
+        access: { kind: 'tool_grant', grantKey: null, moduleAccessKey: 'sae' },
         features: [
           { icon: '◈', label: 'Layer-based compositing', detail: 'Stack background art, photo/logo slots and text in any order — Sharp composites them server-side' },
           { icon: '◉', label: 'Face-aligned photos', detail: 'Upload a reference layer once — real speaker photos auto-align to match its head position/size' },
@@ -789,6 +794,19 @@ export function getModuleRegistry(): ModuleDef[] {
           { icon: '◻', label: 'Live preview', detail: 'Debounced server-rendered preview — always matches exactly what generation will produce' },
         ],
       },
+    },
+    {
+      // Not a Toolkit tile of its own — reached via the "Open Admin Console"
+      // link on the module's landing page above. Separate registry entry
+      // purely so it gets its own breadcrumb + a STRICTER server-side gate
+      // (admin-tier module_access, not just any tier) than the landing page.
+      key: 'admin-event-creative-templates-admin', label: 'Admin Console',
+      description: 'Branding-team console for the Stakeholder Announcement Engine — build and edit creative variants (layer stacks), manage who has access to this tool.',
+      icon: I.layers, color: '#F0AB3C',
+      href: ctx => `/admin/events/${ctx.eventId}/creative-templates/admin`,
+      needsEvent: true,
+      breadcrumbPattern: '/admin/events/:eventId/creative-templates/admin', breadcrumbParent: 'admin-event-creative-templates',
+      access: { kind: 'module_access', moduleKey: 'sae', minTier: 'admin' },
     },
     {
       key: 'leaderboard', label: 'Leaderboard',

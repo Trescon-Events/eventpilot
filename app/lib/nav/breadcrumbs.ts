@@ -54,6 +54,25 @@ export function matchesPattern(pattern: string, pathname: string): boolean {
   return patternSegs.every((seg, i) => seg.startsWith(':') || seg === pathSegs[i])
 }
 
+/** Pulls named `:param` values (e.g. `:eventId`) out of pathname per pattern — used to resolve a breadcrumbParent whose own href is a ctx function, not a plain string. */
+function extractParams(pattern: string, pathname: string): Record<string, string> {
+  const patternSegs = pattern.split('/').filter(Boolean)
+  const pathSegs = pathname.split('/').filter(Boolean)
+  const params: Record<string, string> = {}
+  patternSegs.forEach((seg, i) => { if (seg.startsWith(':')) params[seg.slice(1)] = pathSegs[i] })
+  return params
+}
+
+/** Resolves a module's href to a plain path for breadcrumb linking — same ctx-function-with-empty-object fallback as basePathOf, but callers needing a real param (event-scoped chains) pass it in. */
+function resolveHref(mod: ModuleDef, params: Record<string, string>): string | null {
+  if (typeof mod.href === 'string') return mod.href
+  try {
+    return mod.href(params).split('?')[0]
+  } catch {
+    return null
+  }
+}
+
 export function deriveBreadcrumbs(pathname: string): Crumb[] {
   const registry = getModuleRegistry()
   const clean = pathname.replace(/\/+$/, '') || '/'
@@ -69,10 +88,25 @@ export function deriveBreadcrumbs(pathname: string): Crumb[] {
   const patternMatch = registry.find(m => m.breadcrumbPattern && matchesPattern(m.breadcrumbPattern, clean))
   if (patternMatch) {
     pushDashboardRoot()
-    if (patternMatch.breadcrumbParent) {
-      const parent = registry.find(m => m.key === patternMatch.breadcrumbParent)
-      if (parent && typeof parent.href === 'string') crumbs.push({ label: parent.label, href: parent.href })
+    const params = patternMatch.breadcrumbPattern ? extractParams(patternMatch.breadcrumbPattern, clean) : {}
+    // Walk the FULL breadcrumbParent chain, not just one hop — a
+    // sub-console nested under an event-scoped tool (e.g. the Stakeholder
+    // Announcement Engine's Admin Console under its own landing page,
+    // itself under Toolkit) needs every ancestor, not just the immediate
+    // one. Each ancestor's own href may be a ctx function needing the same
+    // path params (:eventId etc) captured from the current pathname above.
+    const ancestorCrumbs: Crumb[] = []
+    let parentKey = patternMatch.breadcrumbParent
+    const seen = new Set<string>()
+    while (parentKey && !seen.has(parentKey)) {
+      seen.add(parentKey)
+      const parent = registry.find(m => m.key === parentKey)
+      if (!parent) break
+      const href = resolveHref(parent, params)
+      if (href) ancestorCrumbs.unshift({ label: parent.label, href })
+      parentKey = parent.breadcrumbParent
     }
+    crumbs.push(...ancestorCrumbs)
     crumbs.push({ label: patternMatch.label, href: null })
     return crumbs
   }
