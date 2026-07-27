@@ -84,6 +84,7 @@ export async function compositeAnnouncement(
 
   for (const layer of variant.layers) {
     if (layer.type === 'image') {
+      if (!layer.asset_url) continue // not uploaded yet — editor debounces a preview render right after "+ Image Layer" is clicked, before a file is chosen
       const res = await fetch(layer.asset_url)
       if (!res.ok) throw new Error(`Failed to fetch layer image (${layer.id}): ${res.status}`)
       const buffer = Buffer.from(await res.arrayBuffer())

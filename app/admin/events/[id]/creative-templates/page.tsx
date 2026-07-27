@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef, use } from 'react'
 import PageHeader from '@/app/components/PageHeader'
-import { Button, Card, Badge, Input, Select } from '@/app/components/ui'
+import { Button, Badge, Input, Select } from '@/app/components/ui'
 import type { Layer, ImageLayer, PhotoSlotLayer, TextLayer, Variant, CreativeTemplateConfig } from '@/app/lib/announcements/composite'
 
 /* Layer-based creative template editor (PRD v1.4 Phase C v3). Each
@@ -19,9 +19,12 @@ type StakeholderOption = { id: string; label: string }
 
 const LAYER_TYPE_LABEL: Record<Layer['type'], string> = { image: 'Image', photo_slot: 'Photo/Logo Slot', text: 'Text' }
 
-function newLayer(type: Layer['type'], activeType: StakeholderKind): Layer {
+function newLayer(type: Layer['type'], activeType: StakeholderKind, canvasWidth: number, canvasHeight: number): Layer {
   const id = crypto.randomUUID()
-  if (type === 'image') return { id, type: 'image', asset_url: '', x: 0, y: 0, width: 400, height: 400 }
+  // Image layers are always full-bleed background/overlay art pre-sized by
+  // the design team to the variant's exact canvas — default to that instead
+  // of an arbitrary box, since there's no manual resize UI for this layer type.
+  if (type === 'image') return { id, type: 'image', asset_url: '', x: 0, y: 0, width: canvasWidth, height: canvasHeight }
   if (type === 'photo_slot') return { id, type: 'photo_slot', source: activeType === 'speaker' ? 'speaker_photo' : 'partner_logo', x: 0, y: 0, width: 400, height: 400 }
   // eslint-disable-next-line no-restricted-syntax -- font_color is composited-creative content data, not EventPilot UI theming; the color rule governs var(--token) styling, not this
   return { id, type: 'text', field: activeType === 'speaker' ? 'name' : 'custom', value: activeType === 'partner' ? 'LEAD SPONSOR' : undefined, x: 0, y: 0, font_size: 32, font_color: '#FFFFFF', font_weight: 'normal', align: 'left' }
@@ -130,13 +133,16 @@ export default function CreativeTemplatesPage({ params }: { params: Promise<{ id
   }
 
   function deleteVariant(id: string) {
+    const variant = variants.find(v => v.id === id)
+    if (!variant) return
+    if (!confirm(`Delete variant "${variant.name || 'Untitled Variant'}" and its ${variant.layers.length} layer${variant.layers.length === 1 ? '' : 's'}? This can't be undone.`)) return
     mutate(vs => vs.filter(v => v.id !== id))
     if (activeVariantId === id) setActiveVariantId(null)
   }
 
   function addLayer(type: Layer['type']) {
     if (!activeVariant) return
-    updateActiveVariant({ layers: [...activeVariant.layers, newLayer(type, activeType)] })
+    updateActiveVariant({ layers: [...activeVariant.layers, newLayer(type, activeType, activeVariant.canvas_width, activeVariant.canvas_height)] })
   }
 
   function updateLayer(layerId: string, patch: Partial<Layer>) {
@@ -215,7 +221,7 @@ export default function CreativeTemplatesPage({ params }: { params: Promise<{ id
         {loading ? (
           <div style={{ color: 'var(--ink3)', fontSize: '13px' }}>Loading…</div>
         ) : (
-          <div style={{ display: 'grid', gridTemplateColumns: '220px 1fr 340px', gap: '20px', alignItems: 'flex-start' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '180px 1fr 1fr', gap: '24px', alignItems: 'flex-start' }}>
             {/* Variant list */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
               {variants.map(v => (
@@ -234,17 +240,17 @@ export default function CreativeTemplatesPage({ params }: { params: Promise<{ id
               <Button variant="ghost" onClick={addVariant}>+ New Variant</Button>
             </div>
 
-            {/* Layer editor */}
+            {/* Layer editor — plain container, not a nested Card; LayerRow's own
+                border is the only "box" here, so this reads as one workspace
+                instead of a card-in-a-card. */}
             <div>
               {!activeVariant ? (
-                <Card padded>
-                  <div style={{ color: 'var(--ink3)', fontSize: '13px', textAlign: 'center', padding: '20px 0' }}>
-                    {`No ${activeType} variants yet — click "+ New Variant" to start one.`}
-                  </div>
-                </Card>
+                <div style={{ color: 'var(--ink3)', fontSize: '13px', textAlign: 'center', padding: '40px 0' }}>
+                  {`No ${activeType} variants yet — click "+ New Variant" to start one.`}
+                </div>
               ) : (
-                <Card padded>
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr auto auto', gap: '10px', alignItems: 'center', marginBottom: '16px' }}>
+                <>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr auto auto', gap: '10px', alignItems: 'center', marginBottom: '14px' }}>
                     <Input value={activeVariant.name} onChange={e => updateActiveVariant({ name: e.target.value })} placeholder="Variant name" />
                     <label style={{ fontSize: '11px', color: 'var(--ink3)', display: 'flex', alignItems: 'center', gap: '6px' }}>
                       W <Input type="number" value={activeVariant.canvas_width} onChange={e => updateActiveVariant({ canvas_width: Number(e.target.value) })} style={{ width: '70px' }} />
@@ -285,29 +291,30 @@ export default function CreativeTemplatesPage({ params }: { params: Promise<{ id
                     <Button variant="ghost" onClick={() => addLayer('text')}>+ Text Layer</Button>
                     <Button variant="red" onClick={() => deleteVariant(activeVariant.id)}>Delete Variant</Button>
                   </div>
-                </Card>
+                </>
               )}
             </div>
 
-            {/* Live preview */}
+            {/* Live preview — the primary workspace element, given the widest
+                column of the three so it's actually usable to check real layouts. */}
             <div style={{ position: 'sticky', top: '20px' }}>
-              <Card padded>
-                <div style={{ fontSize: '11px', fontWeight: 800, color: 'var(--teal-mid)', letterSpacing: '0.6px', textTransform: 'uppercase', marginBottom: '10px' }}>Live Preview</div>
-                <Select value={previewFor} onChange={e => setPreviewFor(e.target.value)} style={{ marginBottom: '10px', width: '100%' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '10px', marginBottom: '10px' }}>
+                <span style={{ fontSize: '11px', fontWeight: 800, color: 'var(--teal-mid)', letterSpacing: '0.6px', textTransform: 'uppercase' }}>Live Preview</span>
+                <Select value={previewFor} onChange={e => setPreviewFor(e.target.value)} style={{ width: '200px' }}>
                   <option value="">Placeholder data</option>
                   {stakeholderOptions.map(o => <option key={o.id} value={o.id}>{o.label}</option>)}
                 </Select>
-                <div style={{ borderRadius: '8px', overflow: 'hidden', background: 'var(--surface)', border: '1px solid var(--border-light)', aspectRatio: activeVariant ? `${activeVariant.canvas_width} / ${activeVariant.canvas_height}` : '4 / 5', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                  {previewLoading ? (
-                    <span style={{ fontSize: '12px', color: 'var(--ink3)' }}>Rendering…</span>
-                  ) : previewDataUrl ? (
-                    // eslint-disable-next-line @next/next/no-img-element -- data: URL preview, next/image can't handle these
-                    <img src={previewDataUrl} alt="Creative preview" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
-                  ) : (
-                    <span style={{ fontSize: '12px', color: 'var(--ink3)' }}>{activeVariant ? 'No preview yet' : 'Select a variant'}</span>
-                  )}
-                </div>
-              </Card>
+              </div>
+              <div style={{ borderRadius: '10px', overflow: 'hidden', background: 'var(--surface)', border: '1px solid var(--border-light)', aspectRatio: activeVariant ? `${activeVariant.canvas_width} / ${activeVariant.canvas_height}` : '4 / 5', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                {previewLoading ? (
+                  <span style={{ fontSize: '12px', color: 'var(--ink3)' }}>Rendering…</span>
+                ) : previewDataUrl ? (
+                  // eslint-disable-next-line @next/next/no-img-element -- data: URL preview, next/image can't handle these
+                  <img src={previewDataUrl} alt="Creative preview" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
+                ) : (
+                  <span style={{ fontSize: '12px', color: 'var(--ink3)' }}>{activeVariant ? 'No preview yet' : 'Select a variant'}</span>
+                )}
+              </div>
             </div>
           </div>
         )}
@@ -345,7 +352,7 @@ function LayerRow({ layer, index, total, activeType, uploading, brandFonts, onCh
 
       {expanded && (
         <div style={{ padding: '12px 10px', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
-          {layer.type === 'image' && <ImageLayerFields layer={layer} uploading={uploading} onChange={onChange} onUploadImage={onUploadImage} />}
+          {layer.type === 'image' && <ImageLayerFields layer={layer} uploading={uploading} onUploadImage={onUploadImage} />}
           {layer.type === 'photo_slot' && <PhotoSlotLayerFields layer={layer} activeType={activeType} onChange={onChange} />}
           {layer.type === 'text' && <TextLayerFields layer={layer} activeType={activeType} brandFonts={brandFonts} onChange={onChange} />}
         </div>
@@ -369,25 +376,23 @@ function NumField({ label, value, onChange }: { label: string; value: number; on
   )
 }
 
-function ImageLayerFields({ layer, uploading, onChange, onUploadImage }: { layer: ImageLayer; uploading: boolean; onChange: (patch: Partial<ImageLayer>) => void; onUploadImage: (file: File) => void }) {
+function ImageLayerFields({ layer, uploading, onUploadImage }: { layer: ImageLayer; uploading: boolean; onUploadImage: (file: File) => void }) {
+  // Image layers are always full-bleed art pre-sized by the design team to
+  // the variant's exact canvas dimensions — no manual position/size fields,
+  // just the upload.
   return (
-    <>
-      <div style={{ gridColumn: '1 / -1', display: 'flex', alignItems: 'center', gap: '10px' }}>
-        {layer.asset_url && (
-          // eslint-disable-next-line @next/next/no-img-element -- small admin-only thumbnail, not worth next/image's remote-loader setup
-          <img src={layer.asset_url} alt="Layer asset" style={{ width: '40px', height: '50px', objectFit: 'cover', borderRadius: '4px', border: '1px solid var(--border-light)' }} />
-        )}
-        <label style={{ padding: '6px 12px', borderRadius: '8px', border: '1.5px solid var(--border)', background: 'transparent', color: 'var(--ink2)', fontSize: '12px', fontWeight: 700, cursor: 'pointer' }}>
-          {uploading ? 'Uploading…' : layer.asset_url ? 'Replace PNG' : 'Upload PNG'}
-          <input type="file" accept="image/png" style={{ display: 'none' }} disabled={uploading}
-            onChange={e => { const f = e.target.files?.[0]; if (f) onUploadImage(f); e.target.value = '' }} />
-        </label>
-      </div>
-      <NumField label="X" value={layer.x} onChange={x => onChange({ x })} />
-      <NumField label="Y" value={layer.y} onChange={y => onChange({ y })} />
-      <NumField label="Width" value={layer.width} onChange={width => onChange({ width })} />
-      <NumField label="Height" value={layer.height} onChange={height => onChange({ height })} />
-    </>
+    <div style={{ gridColumn: '1 / -1', display: 'flex', alignItems: 'center', gap: '10px' }}>
+      {layer.asset_url && (
+        // eslint-disable-next-line @next/next/no-img-element -- small admin-only thumbnail, not worth next/image's remote-loader setup
+        <img src={layer.asset_url} alt="Layer asset" style={{ width: '40px', height: '50px', objectFit: 'cover', borderRadius: '4px', border: '1px solid var(--border-light)' }} />
+      )}
+      <label style={{ padding: '6px 12px', borderRadius: '8px', border: '1.5px solid var(--border)', background: 'transparent', color: 'var(--ink2)', fontSize: '12px', fontWeight: 700, cursor: 'pointer' }}>
+        {uploading ? 'Uploading…' : layer.asset_url ? 'Replace PNG' : 'Upload PNG'}
+        <input type="file" accept="image/png" style={{ display: 'none' }} disabled={uploading}
+          onChange={e => { const f = e.target.files?.[0]; if (f) onUploadImage(f); e.target.value = '' }} />
+      </label>
+      <span style={{ fontSize: '11px', color: 'var(--ink3)' }}>{layer.width}×{layer.height} (full canvas)</span>
+    </div>
   )
 }
 
