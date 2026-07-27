@@ -2,6 +2,7 @@
 // uploaded or fetched once here is selectable from any text layer's Font
 // Family dropdown in any event's Creative Templates editor.
 import { uploadPublicAsset } from '@/app/lib/events/storage'
+import { resolveCanonicalFamilyName } from '@/app/lib/branding/google-fonts-catalog'
 
 export type FetchedFontFiles = {
   regularBuffer: Buffer
@@ -35,8 +36,15 @@ function extractLatinFontUrl(css: string, weight: number): string | null {
 }
 
 export async function fetchGoogleFontFiles(googleFontFamily: string): Promise<FetchedFontFiles> {
+  // Google's css2 API requires the exact canonical family-name casing
+  // ("Space Grotesk", not "space grotesk") and 400s otherwise — confirmed
+  // empirically (Madhu hit this live, 2026-07-27). Resolve through the
+  // catalog first so typed-in-any-case names still work; falls back to the
+  // literal input if the catalog has no match, so Google's own error still
+  // surfaces for genuinely-nonexistent font names rather than being masked.
+  const canonicalFamily = await resolveCanonicalFamilyName(googleFontFamily)
   const cssRes = await fetch(
-    `https://fonts.googleapis.com/css2?family=${encodeURIComponent(googleFontFamily)}:wght@400;700&display=swap`,
+    `https://fonts.googleapis.com/css2?family=${encodeURIComponent(canonicalFamily)}:wght@400;700&display=swap`,
     { headers: { 'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36' } }
   )
   if (!cssRes.ok) throw new Error(`Google Fonts family "${googleFontFamily}" not found (${cssRes.status})`)

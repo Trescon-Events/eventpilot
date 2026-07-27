@@ -260,3 +260,12 @@ CREATE TABLE IF NOT EXISTS brand_fonts (
   created_by         UUID,
   created_at         TIMESTAMPTZ DEFAULT now()
 );
+
+-- 2026-07-27: case-insensitive uniqueness — closes a real race condition
+-- found via live testing of the bulk drag-and-drop font uploader
+-- (app/api/branding/fonts/bulk-upload/route.ts): two near-simultaneous
+-- requests for the same family could both see "no existing row" and both
+-- insert, producing duplicate library entries. Applied live via
+-- `supabase db query --linked` (pooler DNS unreliable for this project,
+-- same workaround noted elsewhere in HANDOFF.md).
+CREATE UNIQUE INDEX IF NOT EXISTS brand_fonts_family_name_lower_idx ON brand_fonts (LOWER(family_name));
