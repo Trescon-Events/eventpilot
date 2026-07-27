@@ -230,7 +230,7 @@ export default function AdminPage() {
   const [codeError, setCodeError] = useState('')
   const [members, setMembers] = useState<Member[]>([])
   const [tasks, setTasks]     = useState<TaskProfile[]>([])
-  type AdminTab = 'overview' | 'people' | 'intelligence' | 'learning' | 'suggest' | 'events' | 'commercial' | 'review' | 'toolkit' | 'security' | 'finance' | 'hr'
+  type AdminTab = 'overview' | 'people' | 'intelligence' | 'learning' | 'suggest' | 'events' | 'commercial' | 'review' | 'toolkit' | 'security' | 'finance' | 'hr' | 'branding'
   const [tab, setTab]         = useState<AdminTab>(() => {
     if (typeof window === 'undefined') return 'overview'
     const t = new URLSearchParams(window.location.search).get('tab') as AdminTab | null
@@ -1310,6 +1310,7 @@ export default function AdminPage() {
             toolkit:      '#0EA79D',
             finance:      '#5AA9F2',
             hr:           '#A78BFA',
+            branding:     '#A172F2',
           }
           // Tabs that don't render inline content in this tab bar — they're
           // pure navigation links to a separate module (with its own
@@ -1318,11 +1319,14 @@ export default function AdminPage() {
           // before this; added per Madhu's request, 15 Jul 2026. Distinct
           // from the old Knowledge Base/DocuHub tabs (removed earlier) which
           // rendered thousands of lines of real content inline here — a
-          // link-only tab doesn't reintroduce that problem.
+          // link-only tab doesn't reintroduce that problem. Branding added
+          // 27 Jul 2026, same reasoning — the Font Library
+          // (app/admin/branding/fonts) had no discovery path either.
           const NAV_LINK_HREF: Record<string, string> = {
             toolkit: '/admin/toolkit',
             finance: '/finance',
             hr: '/hr',
+            branding: '/admin/branding/fonts',
           }
           return (
             <div id="tour-tabs" style={{ display: 'flex', gap: '6px', marginBottom: '28px', flexWrap: 'wrap' }}>
@@ -1335,6 +1339,7 @@ export default function AdminPage() {
                 ['events',       'Events'],
                 ['finance',      'Finance'],
                 ['hr',           'HR Portal'],
+                ['branding',     'Branding'],
                 ...(isSuperAdmin ? [['review', 'Review Queue']] : []),
                 ...(isSuperAdmin ? [['security', 'Security']] : []),
               ] as [typeof tab, string][]).map(([t, label]) => {
