@@ -1341,12 +1341,16 @@ export default function BespokeWorkspacePage({ params }: { params: Promise<{ id:
 
               {/* ── Action row ───────────────────────────────────── */}
               <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
+                {/* Save Draft — writes all field values to DB without running
+                    the critical-fields validation. Allows saving partial
+                    progress. Verify and Lock runs validation separately.
+                    Nic 9fe12b0a. */}
                 <button onClick={saveBrief} disabled={briefSaving} style={{
                   padding: '10px 28px', borderRadius: '8px', border: 'none', background: briefSaving ? 'var(--ink4)' : '#F5B94D',
                   color: briefSaving ? 'var(--surface)' : 'var(--amber-light)', fontSize: '14px', fontWeight: 700, cursor: briefSaving ? 'not-allowed' : 'pointer',
                   fontFamily: 'var(--font-manrope)',
                 }}>
-                  {briefSaving ? 'Saving…' : 'Save Brief'}
+                  {briefSaving ? 'Saving…' : 'Save Draft'}
                 </button>
 
                 {!project.brief_is_locked && (
@@ -1376,7 +1380,7 @@ export default function BespokeWorkspacePage({ params }: { params: Promise<{ id:
                     background: 'var(--success-light)', color: 'var(--success)',
                     fontSize: '12px', fontWeight: 700, fontFamily: 'var(--font-manrope)',
                   }}>
-                    ✓ Saved
+                    ✓ Draft saved
                   </span>
                 )}
                 {briefSaveState === 'error' && (
