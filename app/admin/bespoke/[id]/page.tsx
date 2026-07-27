@@ -73,11 +73,15 @@ type BespokeDelegate = {
 /* ═══════════════════════════════════════════════════════════════════
    CONSTANTS
    ═══════════════════════════════════════════════════════════════════ */
+// Phase labels renamed per Nic build_request 490f6974 — Kickoff & Alignment /
+// Outreach Runway / Live Execution / Reporting & Settlement. Keys stay the
+// same DB values so no data migration is required. Task-tab headers, Overview
+// Phase Progress strip, and Tasks-tab phase blocks all read from this array.
 const PHASES = [
-  { key: 'initiation', label: 'Initiation', num: 1 },
-  { key: 'campaign', label: 'Campaign', num: 2 },
-  { key: 'live', label: 'Live', num: 3 },
-  { key: 'closure', label: 'Closure', num: 4 },
+  { key: 'initiation', label: 'Kickoff & Alignment',   num: 1 },
+  { key: 'campaign',   label: 'Outreach Runway',       num: 2 },
+  { key: 'live',       label: 'Live Execution',        num: 3 },
+  { key: 'closure',    label: 'Reporting & Settlement', num: 4 },
 ]
 
 const PHASE_NUM_MAP: Record<string, number> = { initiation: 1, campaign: 2, live: 3, closure: 4, completed: 4 }
@@ -658,8 +662,8 @@ export default function BespokeWorkspacePage({ params }: { params: Promise<{ id:
           <>
             {project.client_company} · {fmtDate(project.event_date)}{project.city ? ` · ${project.city}` : ''}
             {days !== null && (
-              <> · <span style={{ fontWeight: 700, color: days <= 7 ? 'var(--red)' : days <= 14 ? '#F5B94D' : 'inherit' }}>
-                {days > 0 ? `${days} days left` : days === 0 ? 'Event Day' : `${Math.abs(days)} days ago`}
+              <> · <span style={{ fontWeight: 700, color: days < 0 ? 'var(--ink3)' : days <= 7 ? 'var(--red)' : days <= 14 ? '#F5B94D' : 'inherit' }}>
+                {days > 0 ? `${days} days left` : days === 0 ? 'Event Day' : 'Concluded'}
               </span></>
             )}
           </>
@@ -671,10 +675,16 @@ export default function BespokeWorkspacePage({ params }: { params: Promise<{ id:
 
       {/* ═══ KPI Strip ══════════════════════════════════════════════ */}
       <div style={{ padding: '20px 32px 0', display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '16px' }}>
-        {/* Days Left */}
+        {/* Days Left — concluded events show "Concluded" (no negative number). Nic 490f6974. */}
         <div style={{ background: 'var(--card)', borderRadius: '10px', padding: '16px 20px', border: '1px solid var(--border)' }}>
           <div style={{ fontSize: '12px', fontWeight: 700, color: 'var(--ink3)', marginBottom: '4px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Days Left</div>
-          <div style={{ fontSize: '28px', fontWeight: 800, color: days !== null && days <= 7 ? 'var(--red)' : 'var(--ink)' }}>{days ?? '--'}</div>
+          {days === null ? (
+            <div style={{ fontSize: '28px', fontWeight: 800, color: 'var(--ink)' }}>--</div>
+          ) : days < 0 ? (
+            <div style={{ fontSize: '20px', fontWeight: 800, color: 'var(--ink3)', marginTop: '4px' }}>Concluded</div>
+          ) : (
+            <div style={{ fontSize: '28px', fontWeight: 800, color: days <= 7 ? 'var(--red)' : 'var(--ink)' }}>{days}</div>
+          )}
         </div>
         {/* Registrations */}
         <div style={{ background: 'var(--card)', borderRadius: '10px', padding: '16px 20px', border: '1px solid var(--border)' }}>
@@ -724,6 +734,7 @@ export default function BespokeWorkspacePage({ params }: { params: Promise<{ id:
         {/* ── OVERVIEW TAB ─────────────────────────────────────────── */}
         {tab === 'Overview' && (() => {
           const phaseInfo = computePhase(project)
+          const isConcluded = !!project.event_date && new Date(project.event_date) < new Date(new Date().toISOString().split('T')[0])
           const suggestedTasks = phaseInfo
             ? [...tasks]
                 .filter(t => t.phase === phaseInfo.activePhase && t.status !== 'done')
@@ -738,6 +749,23 @@ export default function BespokeWorkspacePage({ params }: { params: Promise<{ id:
 
           return (
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
+            {/* Concluded event banner (spans full row) — Nic 490f6974. */}
+            {isConcluded && (
+              <div style={{
+                gridColumn: '1 / -1',
+                background: '#EFF6FF',
+                border: '1px solid #BFDBFE',
+                color: '#1E40AF',
+                padding: '12px 16px',
+                borderRadius: '8px',
+                fontSize: '14px',
+                fontWeight: 600,
+                lineHeight: 1.5,
+              }}>
+                🎉 <strong style={{ fontWeight: 800 }}>Event Concluded:</strong> This event was held on {fmtDate(project.event_date)}. The project is now in the Reporting &amp; Settlement phase. Please compile delegate attendance and deliver the post-event report.
+              </div>
+            )}
+
             {/* Phase Progress */}
             <div style={{ background: 'var(--card)', borderRadius: '12px', border: '1px solid var(--border)', padding: '24px', gridColumn: '1 / -1' }}>
               <h3 style={{ margin: '0 0 16px', fontSize: '15px', fontWeight: 800, color: 'var(--ink)' }}>Phase Progress</h3>
