@@ -9,9 +9,58 @@
 
 | Field | Value |
 |---|---|
+| Who | Durga + Claude Code (Opus 4.7) — 28 Jul 2026 |
+| Latest push | 2026-07-28 — commit `89a95cf` (Assets tab 3-category overhaul); plus `93d4529` (PDF upload crash fix — pdf-parse downgraded to v1.1.1) |
+| Handed off to | Next session |
+| Deployed | ✅ Yes — Railway auto-deployed; site 200 healthy at `eventpilot.tresconglobal.com`. |
+
+**Session highlight (28 Jul 2026):** Cleared **both of Nic's new build_requests** from 27 Jul (filed after yesterday's push, hit in overnight testing). One migration applied. One consolidated close-out email to Nic + Madhu. Explicit correction of yesterday's mis-diagnosis on the PDF worker error.
+
+**1. `85d7133d` — Brief PDF upload crash (root cause identified from Nic's screenshot).** Commit `93d4529`. Nic's screenshot showed: *"PDF parse failed: Setting up fake worker failed: Cannot find module '/app/.next/server/chunks/pdf.worker.mjs' imported from /app/.next/server/chunks/node_modules_pdf-parse_dist_pdf-parse_esm_index_0yf7438.js"*. Real cause: `pdf-parse` in `package.json` had been bumped to `^2.4.5`, which is ESM-only and internally depends on `pdfjs-dist@5.4.296`. pdfjs-dist v5 loads a `pdf.worker.mjs` worker file at runtime; Next.js's server bundler on Railway does NOT include `.mjs` worker files in the deployed chunk output. Fix: pinned `pdf-parse` to `1.1.1` (pure JS, single-threaded, no worker required), rewrote `extractPdfText()` in `app/api/bespoke/parse-brief/route.ts` to use v1's `pdf-parse/lib/pdf-parse.js` internal path (skips v1's fs.readFile self-test that fails in Next bundle) with a defensive shape-walk for CJS/ESM wrap variance. `npm install` naturally uninstalled the transitive pdfjs-dist. Build clean.
+
+**Correction on yesterday's close-out:** My 27 Jul close-out email for the earlier related ticket `9fe12b0a` said "no pdfjs-dist references, must be stale browser bundle, hard-refresh will resolve." That was wrong. It IS in the tree — as a transitive dep of pdf-parse v2, only visible via `npm ls pdfjs-dist`. Explicitly owned in today's email to Nic. **Lesson for future:** when a user reports a specific worker-file error path, `npm ls <lib>` the mentioned library before dismissing as a client-side artifact.
+
+**2. `517e232e` — Assets tab 3-category overhaul.** Commit `89a95cf`. Replaced the "Coming soon" placeholder card (Quick Links block preserved intact per Nic's explicit rule) with three cards:
+- **Brand & Styling** — file uploaders for Client Logo + Brand Guidelines that persist to new `bespoke_projects.client_logo_url` / `.brand_guidelines_url` columns (migration `supabase/bespoke_assets_urls.sql` applied to production today). Design References list rendered dynamically from `client_assets_url` + any http(s) URLs in `target_accounts_list`. Teal "Open Brand Studio" button deep-linking to `/admin/events/[event_id]/brand`.
+- **Campaign Media** — speaker cards from `bespoke_projects.speakers[]` JSONB with per-speaker headshot uploader that updates each speaker's `headshot_url` in-place. Promotional Links section extracts URLs from speaker bios (best-effort — no dedicated `promotional_links` field on the brief yet; flagged in email as optional follow-up).
+- **Data & Lead Lists** — Target Companies (parsed from `target_accounts_list`) + Target Job Titles (from `icp_job_titles[]`) rendered as scrollable chip clouds, each with a "Copy List" button. Pre-Registration Questionnaire card lists each question + its option choices.
+
+New file `app/admin/bespoke/[id]/AssetsTabContent.tsx` (533 lines) keeps the main page.tsx compact and localises the new component's upload state. New generic API `POST /api/bespoke/upload-asset` (multipart form-data) handles all three upload kinds (`client_logo` / `brand_guidelines` / `speaker_headshot`) — files land in the `event-stakeholder-assets` public bucket under `bespoke/{project_id}/{kind}/{ts}-{filename}`, 20 MB per-file cap. No design system changes; reuses `var(--card)` / `var(--border)` / `var(--ink*)` tokens; "Delegate Team" vocab everywhere.
+
+**Migration applied to production Supabase** (Studio SQL Editor, Durga executed): `supabase/bespoke_assets_urls.sql`. Adds `bespoke_projects.client_logo_url TEXT` + `bespoke_projects.brand_guidelines_url TEXT`. Idempotent.
+
+**Close-out email sent (Resend id `73674484-5950-49bd-90f7-9682d00e9205`):**
+- To: `nicholas@tresconglobal.com`
+- CC: `md@tresconglobal.com`
+- Reply-to: `dc@tresconglobal.com`
+- From: `noreply@eventpilot.tresconglobal.com`
+- Subject: *"Bespoke Tracker — PDF upload fix + Assets tab overhaul both live"*
+- Both tickets closed via direct DB write to bypass per-ticket auto-email (batch-close-out rule).
+
+**Verification this session:** `npx tsc --noEmit` clean. `npx next build` clean. Site 200 healthy at `eventpilot.tresconglobal.com` post-deploy. No authenticated browser click-through (production is SSO-only) — Nic's next test session confirms.
+
+**Still to do:**
+1. **Bengaluru Skill Summit / Events auto-transition bug** — carried from 27 Jul. Pick UI filter vs scheduled job for `events.status active → completed` when event_date passes.
+2. **Corporate Marketing Phase-2 PRD** — waiting on Durga↔Thulasi call to define scope.
+3. **Creator-only edit + delete on bespoke tasks** — deferred piece of Nic's `2f002c2e`; open as its own ticket after he retests the 43-task blueprint.
+4. **Dedicated `promotional_links` field on the brief** — currently extracted best-effort from speaker bios; add a proper field if Nic wants first-class UI for it.
+
+**Carried forward from prior sessions (unchanged, not touched today):**
+- `staff_members.last_login_at` never written — blocks never-logged-in filters
+- Khalifat alignment reply drafted 06 Jul, still awaiting founder send
+- `CRON_SECRET` on Railway out of sync — blocks auto-revoke + weekly leaderboard cron
+- Charan Kaverappa sign-out/in for Finance Portal
+- Madhu's 15-16 Jul nav overhaul + 17 Jul dark theme — authenticated browser click-through still not done (only Microsoft SSO reaches production admin; local super-admin bypass can't confirm production visuals)
+
+---
+
+## Previous Session
+
+| Field | Value |
+|---|---|
 | Who | Durga + Claude Code (Opus 4.7) — 27 Jul 2026 |
 | Latest push | 2026-07-27 — commit `a6a882d` (Nic's 5 open build_requests shipped: PHASE card fix + dashboard concluded UI + phase rename + dynamic Kanban + Save Draft label + 43-task SOP blueprint + team badges + deadline banners) |
-| Handed off to | Next session |
+| Handed off to | Durga |
 | Deployed | ✅ Yes — Railway auto-deployed within 3 min of push; site 200 healthy at `eventpilot.tresconglobal.com`. |
 
 **Session highlight (27 Jul 2026):** Cleared **all 5 open build_requests from Nic** in the Bespoke Event Module pilot — 4 tickets + 1 subsumed duplicate. One migration applied (`supabase/bespoke_task_overhaul.sql`, backfilled 104 tasks). One consolidated close-out email to Nic + Madhu (bypassed per-ticket auto-email per Durga's batch-close-out rule). Also **reviewed Thulasi's status** on Corporate Marketing Phase-1 → confirmed everything from her Jul 9 PRD is shipped; the only pending item is a Durga↔Thulasi call to define Phase-2 direction.
