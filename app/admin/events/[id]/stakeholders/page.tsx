@@ -1,13 +1,12 @@
 'use client'
 
 import { useState, useEffect, use } from 'react'
+import Link from 'next/link'
 import PageHeader from '@/app/components/PageHeader'
 import { Button, Card, Badge, Input, Select, Textarea } from '@/app/components/ui'
 import CalendarView from './CalendarView'
 import PhotoCropModal from './PhotoCropModal'
 import LogoApprovalModal from './LogoApprovalModal'
-import AnnouncementReviewModal from './AnnouncementReviewModal'
-import type { Variant, CreativeTemplateConfig } from '@/app/lib/announcements/composite'
 
 type Speaker = {
   id: string; event_id: string
@@ -90,23 +89,17 @@ export default function StakeholderHubPage({ params }: { params: Promise<{ id: s
   const [uploadingId, setUploadingId] = useState<string | null>(null)
   const [cropTarget, setCropTarget] = useState<Speaker | null>(null)
   const [logoApproval, setLogoApproval] = useState<{ url: string; item: Speaker | Partner; assetType: 'photo' | 'company_logo' | 'logo' } | null>(null)
-  const [reviewTarget, setReviewTarget] = useState<{ announcementId: string; creativeUrl: string | null; postCopy: string; photoUrl?: string | null; logoUrl?: string | null } | null>(null)
-  const [creativeVariants, setCreativeVariants] = useState<{ speaker: Variant[]; partner: Variant[] }>({ speaker: [], partner: [] })
-  const [variantChoice, setVariantChoice] = useState<Record<string, string>>({}) // item id -> chosen variant id
 
   const category = CATEGORIES.find(c => c.key === activeTab)!
 
   async function fetchAll() {
     setLoading(true)
-    const [spRes, ptRes, tplRes] = await Promise.all([
+    const [spRes, ptRes] = await Promise.all([
       fetch(`/api/events/stakeholders/speakers?event_id=${eventId}`),
       fetch(`/api/events/stakeholders/partners?event_id=${eventId}`),
-      fetch(`/api/events/templates?event_id=${eventId}`),
     ])
     setSpeakers(await spRes.json().catch(() => []))
     setPartners(await ptRes.json().catch(() => []))
-    const config: CreativeTemplateConfig | null = await tplRes.json().catch(() => null)
-    setCreativeVariants({ speaker: config?.speaker?.variants ?? [], partner: config?.partner?.variants ?? [] })
     setLoading(false)
   }
 
@@ -222,36 +215,6 @@ export default function StakeholderHubPage({ params }: { params: Promise<{ id: s
     fetchSubmissions(category.formType!)
   }
 
-  async function generateAnnouncement(item: Speaker | Partner) {
-    const variantId = variantChoice[item.id]
-    const res = await fetch('/api/events/stakeholders/announcements/generate', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        event_id: eventId,
-        stakeholder_type: category.kind === 'speaker' ? 'speaker' : 'partner',
-        ...(category.kind === 'speaker' ? { speaker_id: item.id } : { partner_id: item.id }),
-        ...(variantId ? { variant_id: variantId } : {}),
-      }),
-    })
-    const data = await res.json().catch(() => ({}))
-    if (!res.ok) { setMsg(data.error || 'Announcement generation failed.'); return }
-
-    // Consolidated review screen — the final composite, post copy, and the
-    // actual dynamic assets used (photo/logo), so the MM can sanity-check
-    // the raw material before this goes into the Phase D approval workflow
-    // (approver selection/sending isn't wired up yet — Phase F).
-    const isSpeaker = category.kind === 'speaker'
-    const s = item as Speaker
-    const p = item as Partner
-    setReviewTarget({
-      announcementId: data.announcement_id,
-      creativeUrl: data.creative_url ?? null,
-      postCopy: data.post_copy ?? '',
-      photoUrl: isSpeaker ? (s.photo_processed_url || s.photo_url) : null,
-      logoUrl: isSpeaker ? s.company_logo_url : p.logo_url,
-    })
-  }
-
   const items: (Speaker | Partner)[] = category.kind === 'speaker' ? speakers : visiblePartners
 
   return (
@@ -259,7 +222,8 @@ export default function StakeholderHubPage({ params }: { params: Promise<{ id: s
       <PageHeader
         eyebrow="Event Workspace"
         title="Stakeholder Hub"
-        description="Speakers, sponsors, and partners — onboarding, asset review, and announcements for this event."
+        description="Speakers, sponsors, and partners — onboarding, asset review, and approval. Announcement creatives are generated in the Stakeholder Announcement Engine."
+        actions={<Link href={`/admin/events/${eventId}/creative-templates`}><Button variant="ghost">Stakeholder Announcement Engine →</Button></Link>}
       />
       <div style={{ padding: '24px 32px', display: 'grid', gridTemplateColumns: '220px 1fr', gap: '24px', alignItems: 'flex-start' }}>
         {/* Left nav */}
@@ -394,23 +358,16 @@ export default function StakeholderHubPage({ params }: { params: Promise<{ id: s
                                 onChange={e => { const f = e.target.files?.[0]; if (f) uploadAsset(item, 'company_logo', f); e.target.value = '' }} />
                             </label>
                           )}
-                          {creativeVariants[category.kind].length > 1 && (
-                            <Select value={variantChoice[item.id] ?? creativeVariants[category.kind][0]?.id ?? ''}
-                              onChange={e => setVariantChoice(v => ({ ...v, [item.id]: e.target.value }))}
-                              title="Creative style"
-                              style={{ width: 'auto' }}>
-                              {creativeVariants[category.kind].map(v => <option key={v.id} value={v.id}>{v.name}</option>)}
-                            </Select>
-                          )}
                           {item.announcement_status !== 'ready' && item.announcement_status !== 'archived' && (
-                            <Button variant="teal" onClick={() => approveForAnnouncement(item)} title="Review the photo/logo/details above, then approve to unlock Generate Announcement">
+                            <Button variant="teal" onClick={() => approveForAnnouncement(item)} title="Review the photo/logo/details above, then approve to make this stakeholder available in the Stakeholder Announcement Engine">
                               Approve for Announcement
                             </Button>
                           )}
-                          <Button variant="solid" disabled={item.announcement_status !== 'ready'} onClick={() => generateAnnouncement(item)}
-                            title={item.announcement_status !== 'ready' ? 'Click "Approve for Announcement" first' : undefined}>
-                            Generate Announcement ▶
-                          </Button>
+                          {item.announcement_status === 'ready' && (
+                            <Link href={`/admin/events/${eventId}/creative-templates`}>
+                              <Button variant="solid">Generate Creative →</Button>
+                            </Link>
+                          )}
                           <Button variant="ghost" onClick={() => remove(item)}>Archive</Button>
                         </div>
                       </div>
@@ -439,17 +396,6 @@ export default function StakeholderHubPage({ params }: { params: Promise<{ id: s
           logoUrl={logoApproval.url}
           onClose={() => setLogoApproval(null)}
           onReupload={file => { const { item, assetType } = logoApproval; setLogoApproval(null); uploadAsset(item, assetType, file) }}
-        />
-      )}
-
-      {reviewTarget && (
-        <AnnouncementReviewModal
-          announcementId={reviewTarget.announcementId}
-          initialCreativeUrl={reviewTarget.creativeUrl}
-          initialPostCopy={reviewTarget.postCopy}
-          photoUrl={reviewTarget.photoUrl}
-          logoUrl={reviewTarget.logoUrl}
-          onClose={() => setReviewTarget(null)}
         />
       )}
 

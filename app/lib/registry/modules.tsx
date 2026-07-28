@@ -796,10 +796,11 @@ export function getModuleRegistry(): ModuleDef[] {
       },
     },
     {
-      // Not a Toolkit tile of its own — reached via the "Open Admin Console"
-      // link on the module's landing page above. Separate registry entry
-      // purely so it gets its own breadcrumb + a STRICTER server-side gate
-      // (admin-tier module_access, not just any tier) than the landing page.
+      // Not a Toolkit tile of its own — reached via the "Admin Console →"
+      // link in the main workspace page's header above. Separate registry
+      // entry purely so it gets its own breadcrumb + a STRICTER server-side
+      // gate (admin-tier module_access, not just any tier) than the
+      // generation workspace.
       key: 'admin-event-creative-templates-admin', label: 'Admin Console',
       description: 'Branding-team console for the Stakeholder Announcement Engine — build and edit creative variants (layer stacks), manage who has access to this tool.',
       icon: I.layers, color: '#F0AB3C',
