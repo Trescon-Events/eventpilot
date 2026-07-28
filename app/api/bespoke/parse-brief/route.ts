@@ -14,7 +14,6 @@
  */
 import { NextRequest, NextResponse } from 'next/server'
 import { GoogleGenerativeAI } from '@google/generative-ai'
-import { PDFParse } from 'pdf-parse'
 import { supabaseAdmin } from '@/app/lib/supabase'
 
 export const runtime = 'nodejs'
@@ -40,18 +39,41 @@ type ParsedBrief = {
 }
 
 async function extractPdfText(buffer: Buffer): Promise<string> {
-  // pdf-parse v2 replaced the old v1 "call a function, get {text}" API with
-  // a class (`new PDFParse({ data }).getText()`) — the installed version
-  // (package.json pins ^2.4.5) has no `lib/pdf-parse.js` internal module at
-  // all, that path only existed in v1. Constructor accepts a Node Buffer
-  // directly (it converts to Uint8Array internally).
-  const parser = new PDFParse({ data: buffer })
-  try {
-    const result = await parser.getText()
-    return (result?.text ?? '').trim()
-  } finally {
-    await parser.destroy()
+  // pdf-parse pinned to 1.1.1 (Nic build_request 85d7133d, 27 Jul).
+  //
+  // Why not v2: pdf-parse v2 is ESM-only and internally depends on
+  // pdfjs-dist v5, which loads a `pdf.worker.mjs` worker file at runtime.
+  // Next.js's server bundler on Railway does NOT include `.mjs` worker
+  // files in the deployed chunk output, so at request time the process
+  // crashes with:
+  //   PDF parse failed: Setting up fake worker failed:
+  //   "Cannot find module '/app/.next/server/chunks/pdf.worker.mjs'"
+  // v1 is pure JS, single-threaded, no worker file needed.
+  //
+  // Why the internal `lib/pdf-parse.js` path: v1's index.js runs an
+  // fs.readFile self-test at import time against a fixture PDF that
+  // doesn't exist inside the Next server bundle, and the CJS→ESM wrap
+  // in production sometimes yields `{ default: { default: fn } }`. Both
+  // failure modes surface as "n is not a function". Importing the
+  // internal module skips the self-test; the shape-walk below handles
+  // the wrap variance.
+  type PdfParseFn = (b: Buffer) => Promise<{ text?: string }>
+  const modPath = 'pdf-parse/lib/pdf-parse.js'
+  const mod = (await import(/* webpackIgnore: true */ modPath)) as unknown as {
+    default?: PdfParseFn | { default?: PdfParseFn }
   }
+  const candidates: unknown[] = [
+    mod.default,
+    (mod.default as { default?: PdfParseFn } | undefined)?.default,
+    mod,
+  ]
+  for (const c of candidates) {
+    if (typeof c === 'function') {
+      const result = await (c as PdfParseFn)(buffer)
+      return (result?.text ?? '').trim()
+    }
+  }
+  throw new Error('pdf-parse export shape unexpected — no callable found in default / default.default / module')
 }
 
 export async function POST(req: NextRequest) {
