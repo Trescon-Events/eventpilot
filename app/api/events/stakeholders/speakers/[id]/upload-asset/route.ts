@@ -18,10 +18,19 @@ import { processSpeakerPhoto } from '@/app/lib/media/speaker-photo-engine'
    fails for any reason. */
 
 const ALLOWED_PHOTO_TYPES = ['image/jpeg', 'image/png', 'image/webp']
+// MIME-type fallback only — checked AFTER the real filename extension.
+// .ai and .eps both commonly report application/postscript (or even
+// application/octet-stream), so a MIME-first lookup mislabels .eps raw
+// uploads as .ai (confirmed via a real test upload). detectLogoFormat() in
+// logo-engine.ts already gets this right by checking extension first; this
+// map just needs to agree, since it only determines the RAW file's stored
+// extension, not which processing path processLogo() takes (that's driven
+// by file.name, unaffected by this).
 const ALLOWED_LOGO_TYPES: Record<string, string> = {
   'image/png': 'png', 'image/jpeg': 'jpg', 'image/webp': 'webp', 'image/svg+xml': 'svg',
   'application/pdf': 'pdf', 'application/postscript': 'ai', 'application/octet-stream': 'ai',
 }
+const ALLOWED_LOGO_EXTENSIONS = ['png', 'jpg', 'jpeg', 'webp', 'svg', 'pdf', 'ai', 'eps', 'psd', 'psb']
 const MAX_SIZE = 5 * 1024 * 1024
 
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -36,10 +45,11 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   if (assetType === 'photo' && !ALLOWED_PHOTO_TYPES.includes(file.type)) {
     return NextResponse.json({ error: `Unsupported file type ${file.type}` }, { status: 400 })
   }
+  const filenameExt = file.name.includes('.') ? file.name.split('.').pop()!.toLowerCase() : null
   const logoExt = assetType === 'company_logo'
-    ? (ALLOWED_LOGO_TYPES[file.type] ?? (file.name.includes('.') ? file.name.split('.').pop()!.toLowerCase() : null))
+    ? ((filenameExt && ALLOWED_LOGO_EXTENSIONS.includes(filenameExt)) ? filenameExt : ALLOWED_LOGO_TYPES[file.type] ?? filenameExt)
     : null
-  if (assetType === 'company_logo' && (!logoExt || !['png', 'jpg', 'jpeg', 'webp', 'svg', 'pdf', 'ai'].includes(logoExt))) {
+  if (assetType === 'company_logo' && (!logoExt || !ALLOWED_LOGO_EXTENSIONS.includes(logoExt))) {
     return NextResponse.json({ error: `Unsupported file type (${file.type || 'unknown'})` }, { status: 400 })
   }
   if (file.size > MAX_SIZE) {
@@ -74,9 +84,9 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
     const { data, error } = await supabaseAdmin
       .from('event_speakers')
-      .update({ company_logo_url: logoUrl, updated_at: new Date().toISOString() })
+      .update({ company_logo_url: logoUrl, company_logo_raw_url: logoRawUrl, updated_at: new Date().toISOString() })
       .eq('id', speakerId)
-      .select('company_logo_url')
+      .select('company_logo_url, company_logo_raw_url')
       .single()
     if (error) return NextResponse.json({ error: error.message }, { status: 500 })
     return NextResponse.json(data)

@@ -269,3 +269,12 @@ CREATE TABLE IF NOT EXISTS brand_fonts (
 -- `supabase db query --linked` (pooler DNS unreliable for this project,
 -- same workaround noted elsewhere in HANDOFF.md).
 CREATE UNIQUE INDEX IF NOT EXISTS brand_fonts_family_name_lower_idx ON brand_fonts (LOWER(family_name));
+
+-- 2026-07-28: fixes a real gap found while building the Clean Logo Base
+-- generator — the speaker company-logo upload route (app/api/events/
+-- stakeholders/speakers/[id]/upload-asset/route.ts) already uploaded the
+-- raw file to storage but never persisted its URL anywhere, silently
+-- discarding it (only the processed company_logo_url was saved). Matches
+-- event_sponsors.logo_raw_url, which the partner flow already does correctly.
+ALTER TABLE event_speakers
+  ADD COLUMN IF NOT EXISTS company_logo_raw_url TEXT; -- original uploaded file (any format), before the Logo Engine's processing

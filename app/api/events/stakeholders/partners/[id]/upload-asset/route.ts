@@ -13,6 +13,14 @@ import { processLogo } from '@/app/lib/media/logo-engine'
    raw upload as logo_url too if processing fails for any reason (e.g. a
    genuinely malformed file) — never blocks the upload outright. */
 
+// MIME-type fallback only — checked AFTER the real filename extension.
+// .ai and .eps both commonly report application/postscript (or even
+// application/octet-stream), so a MIME-first lookup mislabels .eps raw
+// uploads as .ai (confirmed via a real test upload). detectLogoFormat() in
+// logo-engine.ts already gets this right by checking extension first; this
+// map just needs to agree, since it only determines the RAW file's stored
+// extension, not which processing path processLogo() takes (that's driven
+// by file.name, unaffected by this).
 const ALLOWED_TYPES: Record<string, string> = {
   'image/png': 'png',
   'image/jpeg': 'jpg',
@@ -21,6 +29,7 @@ const ALLOWED_TYPES: Record<string, string> = {
   'application/postscript': 'ai', // .ai files are often served as this or octet-stream
   'application/octet-stream': 'ai',
 }
+const ALLOWED_EXTENSIONS = ['png', 'jpg', 'jpeg', 'svg', 'pdf', 'ai', 'eps', 'psd', 'psb']
 const MAX_SIZE = 10 * 1024 * 1024
 
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -29,8 +38,9 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   const file = form.get('file') as File | null
 
   if (!file) return NextResponse.json({ error: 'file required' }, { status: 400 })
-  const ext = ALLOWED_TYPES[file.type] ?? (file.name.includes('.') ? file.name.split('.').pop()!.toLowerCase() : null)
-  if (!ext || !['png', 'jpg', 'jpeg', 'svg', 'pdf', 'ai'].includes(ext)) {
+  const filenameExt = file.name.includes('.') ? file.name.split('.').pop()!.toLowerCase() : null
+  const ext = (filenameExt && ALLOWED_EXTENSIONS.includes(filenameExt)) ? filenameExt : ALLOWED_TYPES[file.type] ?? filenameExt
+  if (!ext || !ALLOWED_EXTENSIONS.includes(ext)) {
     return NextResponse.json({ error: `Unsupported file type (${file.type || 'unknown'})` }, { status: 400 })
   }
   if (file.size > MAX_SIZE) {
