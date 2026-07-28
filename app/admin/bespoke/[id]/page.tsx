@@ -5,6 +5,7 @@ import Link from 'next/link'
 import PageHeader from '@/app/components/PageHeader'
 import { ImportDelegatesModal } from './ImportDelegatesModal'
 import { DelegateKanban } from './DelegateKanban'
+import AssetsTabContent from './AssetsTabContent'
 import { computeBespokePhase, BESPOKE_PHASE_FALLBACK } from '@/app/lib/bespoke-phase'
 
 /* ═══════════════════════════════════════════════════════════════════
@@ -53,6 +54,10 @@ type BespokeProject = {
   brief_file_url:          string | null
   brief_is_locked:         boolean
   client_assets_url:       string | null
+  // Assets tab — Nic 517e232e
+  client_logo_url:         string | null
+  brand_guidelines_url:    string | null
+  event_id?:               string | null
 }
 
 type BespokeTask = {
@@ -1856,9 +1861,10 @@ export default function BespokeWorkspacePage({ params }: { params: Promise<{ id:
           </div>
         )}
 
-        {/* ── ASSETS TAB (Placeholder) ─────────────────────────────── */}
+        {/* ── ASSETS TAB — Nic 517e232e (3 categories below Quick Links) ─── */}
         {tab === 'Assets' && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', maxWidth: '600px' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', maxWidth: '860px' }}>
+            {/* Quick Links — preserved intact per Nic's explicit "do not remove" rule */}
             <div style={{ background: 'var(--card)', borderRadius: '12px', border: '1px solid var(--border)', padding: '24px' }}>
               <h3 style={{ margin: '0 0 16px', fontSize: '15px', fontWeight: 800, color: 'var(--ink)' }}>Quick Links</h3>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
@@ -1892,13 +1898,7 @@ export default function BespokeWorkspacePage({ params }: { params: Promise<{ id:
               </div>
             </div>
 
-            <div style={{
-              background: 'var(--border-light)', borderRadius: '12px', border: '1px dashed var(--ink4)', padding: '32px',
-              textAlign: 'center',
-            }}>
-              <div style={{ fontSize: '15px', fontWeight: 700, color: 'var(--ink3)', marginBottom: '4px' }}>Coming soon</div>
-              <div style={{ fontSize: '14px', color: 'var(--ink4)' }}>Asset management -- file uploads, creative assets, and deliverables tracking.</div>
-            </div>
+            <AssetsTabContent project={project} onReload={loadProject} />
           </div>
         )}
       </div>
