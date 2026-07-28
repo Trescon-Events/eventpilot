@@ -19,7 +19,17 @@
 import sharp from 'sharp'
 import * as pdfjsLib from 'pdfjs-dist/legacy/build/pdf.mjs'
 import { createCanvas } from '@napi-rs/canvas'
+import { readPsd, initializeCanvas } from 'ag-psd'
 import { convertEpsToPng } from '@/app/lib/media/cloudconvert-client'
+
+// ag-psd needs a canvas factory even in useImageData mode — its embedded
+// thumbnail-resource decoder (unrelated to the composite image data we
+// actually read) unconditionally calls createCanvas. Reuses the same
+// @napi-rs/canvas already used for PDF/AI rasterization above rather than
+// pulling in node-canvas's native deps (confirmed via a real test: without
+// this, readPsd() throws "Canvas not initialized" even on files with no
+// transparency/layers to speak of).
+initializeCanvas(createCanvas as unknown as (width: number, height: number) => HTMLCanvasElement)
 
 export type LogoSourceFormat = 'png' | 'jpeg' | 'webp' | 'svg' | 'pdf' | 'ai' | 'psd' | 'eps' | 'unknown'
 
@@ -62,16 +72,29 @@ async function rasterizePdfToPng(buffer: Buffer): Promise<Buffer> {
   return canvas.toBuffer('image/png')
 }
 
+// PSD/PSB rasterization via ag-psd's useImageData path — reads the
+// Photoshop-baked composite (imageData, raw RGBA) rather than ag-psd's
+// canvas output mode, which would require node-canvas's native bindings
+// (this project deliberately avoids that — see @napi-rs/canvas usage
+// above). Confirmed via a real spike against 5 of Madhu's actual PSD files
+// (2026-07-28): all 5 decoded correctly through imageData with no need to
+// fall back to the canvas field, so the theoretical "no baked composite
+// present" risk noted in planning didn't materialize on real files — still
+// guarded below with a clear error rather than silently producing a blank
+// image, in case a future upload lacks one.
+function rasterizePsdToPng(buffer: Buffer): Promise<Buffer> {
+  const psd = readPsd(buffer, { useImageData: true, skipLayerImageData: true })
+  if (!psd.imageData) throw new Error('PSD file has no embedded composite image data — re-save from Photoshop with "Maximize Compatibility" enabled, or export as PDF/PNG instead.')
+  const { data, width, height } = psd.imageData
+  return sharp(Buffer.from(data.buffer, data.byteOffset, data.byteLength), { raw: { width, height, channels: 4 } })
+    .png()
+    .toBuffer()
+}
+
 async function toRasterPng(buffer: Buffer, format: LogoSourceFormat): Promise<Buffer> {
   if (format === 'pdf' || format === 'ai') return rasterizePdfToPng(buffer)
   if (format === 'svg') return sharp(buffer).png().toBuffer()
-  if (format === 'psd') {
-    // Deferred — see app/lib/media/logo-engine.psd.ts (added once a real
-    // spike against Madhu's own PSD files confirms ag-psd's embedded-
-    // composite path is reliable for his actual files; not stubbed here to
-    // avoid a silent no-op path).
-    throw new Error('PSD logo upload is not yet supported — coming soon.')
-  }
+  if (format === 'psd') return rasterizePsdToPng(buffer)
   if (format === 'eps') {
     const converted = await convertEpsToPng(buffer)
     if (!converted) throw new Error('EPS conversion failed — CloudConvert did not return a usable PNG (check CLOUDCONVERT_API_KEY, or try re-exporting as PDF/AI/PNG/SVG instead).')

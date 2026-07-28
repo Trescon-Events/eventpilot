@@ -22,6 +22,7 @@
     "@types/bcryptjs": "^2.4.6",
     "@types/libsodium-wrappers": "^0.7.14",
     "@types/pdf-parse": "^1.1.5",
+    "ag-psd": "^31.0.2",
     "aws4fetch": "^1.0.20",
     "bcryptjs": "^3.0.3",
     "drizzle-orm": "^0.44.0",
