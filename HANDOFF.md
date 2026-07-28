@@ -39,6 +39,60 @@ New file `app/admin/bespoke/[id]/AssetsTabContent.tsx` (533 lines) keeps the mai
 
 **Verification this session:** `npx tsc --noEmit` clean. `npx next build` clean. Site 200 healthy at `eventpilot.tresconglobal.com` post-deploy. No authenticated browser click-through (production is SSO-only) — Nic's next test session confirms.
 
+**3. AI-SDR MVP research + PRD delivered (no code written yet).** Commit `c138a03`. Trigger: Durga flagged https://www.convoflow.ae/ as a reference AI-SDR product Trescon might replicate in-house. Research + PRD landed at `docs/AI-SDR-MVP-Trescon.md` (538 lines).
+
+**What the doc covers:**
+- Business context — where Trescon's leads come from today, the SDR loop the AI would take over (steps 3–6 of the existing 43-task bespoke SOP), measurable pain points.
+- **In-scope for Phase 1 MVP:** one dedicated Trescon inbound number → Vapi voice AI answers → qualifies via LLM → books into Google Cal → writes to Supabase + one-way HubSpot sync → voicemail escalation with SLA promise. English + Arabic. Live in 5–7 working days from Durga's `go`. Phase 1 volume target: **100 calls/day**, scaling up to a **hard ceiling of 1,000 calls/day** (Durga locked this 28 Jul, reduced from initial 5,000/day figure).
+- **Out of scope Phase 1:** outbound AI-initiated calls, WhatsApp two-way, dead-lead revival, HubSpot bidirectional sync — all deferred to Phases 2–4.
+- **Home:** new EventPilot module at `/admin/toolkit/lead-response`, not a separate service. Reasons: single lead source of truth in Trescon's Supabase, single HubSpot sync, same auth/admin shell.
+- **User flows documented:** golden path (qualified → booked), disqualified path, human escalation, after-hours, post-call automation, admin dashboard (6 views: Live · Funnel · Calls · Call detail · Escalations · Configuration).
+- **Full architecture diagram + 10 tool-comparison tables** (voice AI OS, STT, LLM, TTS, telephony, WhatsApp, CRM, calendar, email, hosting), each with pricing + verdict for Trescon's use case at ~Q3 2026.
+
+**Recommended stack (best-of-breed picks):**
+| Layer | Pick | Why |
+|---|---|---|
+| Voice AI OS | Vapi | $0.05/min platform + BYO STT/LLM/TTS. Cheapest with most flexibility. Runner-up: Retell. |
+| STT | Deepgram Nova-2 | $0.0043/min, 240ms P50, 92% EN / 82–85% Arabic. Runner-up for Arabic-only route: Azure Speech. |
+| LLM | Claude Sonnet 4.6 | Best tool-calling reliability, native Arabic, Trescon already has Anthropic access. |
+| TTS | ElevenLabs Business ($990/mo) | Only provider shipping Gulf-dialect Arabic voices today (Cartesia adds Arabic Q4 2026 — revisit then). |
+| Telephony | Twilio | Best Vapi integration + GCC/India coverage. Runner-up: Telnyx ($0.031/call cheaper at scale). |
+| WhatsApp | Meta Cloud API direct | No BSP margin; Trescon owns the WhatsApp Business account. |
+| CRM | HubSpot | Non-negotiable — Trescon already runs it. |
+| Calendar | Google Calendar direct | Already in Google Workspace. |
+| Email | Resend | Already in EventPilot stack. |
+| Hosting | Railway | Already in EventPilot stack. |
+
+**Cost model (at 1,000 calls/day = 30,000 calls/mo max ceiling — Durga's locked scale):**
+- Premium stack ($0.32/call): **~$9,865/mo** at max scale. **~$1,000/mo at Phase 1 volume of 100 calls/day** — cheaper than ConvoFlow's 5,000 AED at that volume.
+- Hybrid stack (Vapi + Claude + ElevenLabs but Groq STT): **~$9,115/mo** at max scale. Saves ~$750/mo vs Premium; ~5–10% Arabic STT accuracy trade.
+- Cheap stack (self-hosted media pipeline, Llama on Groq, OpenAI TTS): **~$2,500/mo** at max scale. Adds ~2 weeks engineering; noticeably lower Arabic quality; more bot-feeling latency (700–1000ms vs sub-500ms).
+
+**Break-even vs ConvoFlow's 5,000 AED (~$1,360)/mo tier:** Premium stays cheaper up to ~200–300 calls/day; crosses at ~400/day. Recommended trajectory: start on Premium (Phase 1); at ~300–400 calls/day, swap Vapi for a self-hosted media pipeline (2 weeks engineering, drops per-call cost $0.32 → $0.14). Every stack change happens behind the same tool contract — no Supabase / HubSpot / prompt changes.
+
+**Honest caveat flagged in the doc:** ConvoFlow's "5,000 AED unlimited" figure is very likely NOT unlimited voice minutes at that price — mathematically impossible on any real stack (Twilio call routing alone is $0.010–$0.042 per 3-min call). Almost certainly "unlimited" covers unlimited leads / WhatsApp / SMS / email / users, with voice minutes capped or metered separately. Durga to verify the actual contract clause before we finalise the "build vs buy" pitch.
+
+**Compliance covered:** TDRA (UAE — recording disclosure at call open), TRAI (India — DND check for outbound Phase 2+), GDPR (Vapi EU region + optional Zero-Data-Retention $1000/mo add-on if EU callers appear), DIFC Data Protection Law No. 5 of 2020.
+
+**Open items — Durga input needed (none block Phase 1 kickoff except #1):**
+1. **Which stack path** — Premium (recommended) / Hybrid / Cheap. Needed by day 1.
+2. Confirm Vapi over Retell — recommended Vapi. Needed by day 3.
+3. Carrier of the dedicated Trescon inbound number (Twilio / other). Needed at Phase 1 live cut-over (~day 7).
+4. Booking calendar Gmail address (recommend creating `ai-sdr-bookings@tresconglobal.com`). Needed by day 5.
+5. HubSpot portal ID + private-app access token. Needed by day 6.
+6. Voicemail SLA text (recommend "within 1 business hour" for qualified, "within 4 business hours" for general). Needed by day 5.
+7. Language handling model — auto-detect (recommended) / IVR menu / two separate numbers. Needed by day 4.
+8. Qualification script sign-off from Trescon delegate team lead. Needed before Phase 2 live.
+9. Recording disclosure legal review. Needed before Phase 2 live.
+10. Verify what Trescon's actual ConvoFlow contract includes as "unlimited" (voice minutes cap? overage rate? actual current volume?). Needed to finalise cost narrative — not a build blocker.
+
+**Success KPIs baked into the PRD (weekly review with delegate team lead):**
+Response time < 60s median · contact rate ≥ 70% · qualification rate ≥ 40% · booking rate ≥ 25% of qualified · show rate ≥ 60% · cost per qualified lead < $2 · cost per booked meeting < $10 · delegate team time saved ≥ 20 hrs/week · CSAT ≥ 80% · escalation SLA compliance ≥ 95%.
+
+**Timeline:** Phase 1 MVP (working demo taking real calls) — **5–7 working days from Durga's `go`**. Phase 2 (multi-channel + dashboard live) — weeks 3–4. Phase 3 (two-way HubSpot + dead lead revival) — weeks 5–6. Phase 4 (scale + Meta WhatsApp verification + Arabic auto-detect A/B) — weeks 7+.
+
+**Status:** PRD committed, awaiting Durga's `go`. No code scaffolded yet.
+
 **Still to do:**
 1. **Bengaluru Skill Summit / Events auto-transition bug** — carried from 27 Jul. Pick UI filter vs scheduled job for `events.status active → completed` when event_date passes.
 2. **Corporate Marketing Phase-2 PRD** — waiting on Durga↔Thulasi call to define scope.
