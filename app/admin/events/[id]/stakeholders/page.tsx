@@ -5,8 +5,10 @@ import Link from 'next/link'
 import PageHeader from '@/app/components/PageHeader'
 import { Button, Card, Badge, Input, Select, Textarea } from '@/app/components/ui'
 import CalendarView from './CalendarView'
-import PhotoCropModal from './PhotoCropModal'
+import DeletedTab from './DeletedTab'
+import PhotoUploadModal from './PhotoUploadModal'
 import LogoApprovalModal from './LogoApprovalModal'
+import DeleteConfirmModal from './DeleteConfirmModal'
 
 type Speaker = {
   id: string; event_id: string
@@ -54,6 +56,8 @@ const CATEGORIES: Category[] = [
   { key: 'all_partners', label: 'All Partners', kind: 'partner' },
 ]
 
+const DELETED_KEY = 'deleted'
+
 const STATUS_BADGE: Record<string, { label: string; color: 'amber' | 'red' | 'teal' | 'grey' }> = {
   pending_review: { label: 'Pending Review', color: 'amber' },
   assets_missing: { label: 'Assets Missing', color: 'red' },
@@ -71,6 +75,14 @@ const EMPTY_DRAFT: EditDraft = {
   company_website: '', company_description: '', partner_type: 'sponsor',
 }
 
+function matchesSearch(item: Speaker | Partner, kind: CategoryKind, q: string): boolean {
+  if (!q) return true
+  const haystack = kind === 'speaker'
+    ? [(item as Speaker).full_name, (item as Speaker).job_title, (item as Speaker).company_name, (item as Speaker).country, (item as Speaker).bio, (item as Speaker).linkedin_url]
+    : [(item as Partner).company_name, (item as Partner).company_website, (item as Partner).company_description, (item as Partner).partner_type]
+  return haystack.filter(Boolean).join(' ').toLowerCase().includes(q)
+}
+
 export default function StakeholderHubPage({ params }: { params: Promise<{ id: string }> }) {
   const { id: eventId } = use(params)
 
@@ -81,16 +93,21 @@ export default function StakeholderHubPage({ params }: { params: Promise<{ id: s
   const [submissions, setSubmissions] = useState<Submission[]>([])
   const [loading, setLoading] = useState(true)
   const [msg, setMsg] = useState<string | null>(null)
+  const [search, setSearch] = useState('')
 
   const [panelOpen, setPanelOpen] = useState(false)
   const [editingId, setEditingId] = useState<string | null>(null)
   const [draft, setDraft] = useState<EditDraft>(EMPTY_DRAFT)
   const [saving, setSaving] = useState(false)
   const [uploadingId, setUploadingId] = useState<string | null>(null)
-  const [cropTarget, setCropTarget] = useState<Speaker | null>(null)
+  const [photoUploadTarget, setPhotoUploadTarget] = useState<{ speakerId: string; file: File } | null>(null)
   const [logoApproval, setLogoApproval] = useState<{ url: string; item: Speaker | Partner; assetType: 'photo' | 'company_logo' | 'logo' } | null>(null)
 
-  const category = CATEGORIES.find(c => c.key === activeTab)!
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
+  const [deleteConfirm, setDeleteConfirm] = useState<(Speaker | Partner)[] | null>(null)
+  const [deleting, setDeleting] = useState(false)
+
+  const category = CATEGORIES.find(c => c.key === activeTab)
 
   async function fetchAll() {
     setLoading(true)
@@ -112,11 +129,16 @@ export default function StakeholderHubPage({ params }: { params: Promise<{ id: s
   useEffect(() => { fetchAll() }, [eventId])
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- same fetch-on-dependency-change pattern as the effect above
-    if (category.formType) fetchSubmissions(category.formType)
+    if (category?.formType) fetchSubmissions(category.formType)
     else setSubmissions([])
-  }, [eventId, category.formType])
+  }, [eventId, category?.formType])
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- reset per-tab UI state (selection, search) on tab switch, not a fetch side effect
+    setSelectedIds(new Set())
+    setSearch('')
+  }, [activeTab])
 
-  const visiblePartners = partners.filter(p => !category.partnerTypes || category.partnerTypes.includes(p.partner_type))
+  const visiblePartners = category ? partners.filter(p => !category.partnerTypes || category.partnerTypes.includes(p.partner_type)) : []
 
   function openAdd() {
     setEditingId(null)
@@ -125,6 +147,7 @@ export default function StakeholderHubPage({ params }: { params: Promise<{ id: s
   }
 
   function openEdit(item: Speaker | Partner) {
+    if (!category) return
     setEditingId(item.id)
     if (category.kind === 'speaker') {
       const s = item as Speaker
@@ -137,6 +160,7 @@ export default function StakeholderHubPage({ params }: { params: Promise<{ id: s
   }
 
   async function save() {
+    if (!category) return
     setSaving(true)
     const base = category.kind === 'speaker' ? '/api/events/stakeholders/speakers' : '/api/events/stakeholders/partners'
     const body = category.kind === 'speaker'
@@ -151,12 +175,6 @@ export default function StakeholderHubPage({ params }: { params: Promise<{ id: s
     setSaving(false)
   }
 
-  async function remove(item: Speaker | Partner) {
-    const base = category.kind === 'speaker' ? '/api/events/stakeholders/speakers' : '/api/events/stakeholders/partners'
-    await fetch(`${base}/${item.id}`, { method: 'DELETE' })
-    fetchAll()
-  }
-
   // Generate Announcement is gated on announcement_status === 'ready', but
   // nothing ever moved a stakeholder there — every path (manual add,
   // onboarding-form conversion) lands on 'pending_review' and stays there
@@ -169,6 +187,7 @@ export default function StakeholderHubPage({ params }: { params: Promise<{ id: s
   // been reviewed, go ahead" action, matching the 'ready' vocabulary
   // STATUS_BADGE already defines but nothing ever set.
   async function approveForAnnouncement(item: Speaker | Partner) {
+    if (!category) return
     const base = category.kind === 'speaker' ? '/api/events/stakeholders/speakers' : '/api/events/stakeholders/partners'
     await fetch(`${base}/${item.id}`, {
       method: 'PATCH', headers: { 'Content-Type': 'application/json' },
@@ -177,7 +196,8 @@ export default function StakeholderHubPage({ params }: { params: Promise<{ id: s
     fetchAll()
   }
 
-  async function uploadAsset(item: Speaker | Partner, assetType: 'photo' | 'company_logo' | 'logo', file: File) {
+  async function uploadAsset(item: Speaker | Partner, assetType: 'company_logo' | 'logo', file: File) {
+    if (!category) return
     setUploadingId(item.id)
     const base = category.kind === 'speaker' ? '/api/events/stakeholders/speakers' : '/api/events/stakeholders/partners'
     const form = new FormData()
@@ -187,35 +207,51 @@ export default function StakeholderHubPage({ params }: { params: Promise<{ id: s
     const data = await res.json().catch(() => ({}))
     await fetchAll()
     setUploadingId(null)
-    // Offer the crop/zoom tool right after a speaker photo upload — never for
-    // company logos or partner logos. The freshly-fetched speaker record (with
-    // the new photo_processed_url) is picked up from the next fetchAll() below.
-    if (category.kind === 'speaker' && assetType === 'photo') {
-      const updated = await fetch(`/api/events/stakeholders/speakers?event_id=${eventId}`).then(r => r.json()).catch(() => [])
-      const fresh = (updated as Speaker[]).find(s => s.id === item.id)
-      if (fresh?.photo_processed_url) setCropTarget(fresh)
-    }
     // Every logo path (partner logo, speaker's own company logo) runs
     // through the Logo Engine automatically — offer a look-and-confirm step
     // rather than trusting the automatic background removal blindly.
-    if (assetType === 'company_logo' || assetType === 'logo') {
-      const logoUrl = data.company_logo_url || data.logo_url
-      if (logoUrl) setLogoApproval({ url: logoUrl, item, assetType })
-    }
+    const logoUrl = data.company_logo_url || data.logo_url
+    if (logoUrl) setLogoApproval({ url: logoUrl, item, assetType })
   }
 
   async function processSubmission(submission: Submission) {
+    if (!category) return
     const base = category.kind === 'speaker' ? '/api/events/stakeholders/speakers/from-submission' : '/api/events/stakeholders/partners/from-submission'
     const res = await fetch(base, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ submission_id: submission.id, event_id: eventId }) })
     if (res.ok) { await fetchSubmissions(category.formType!); await fetchAll() } else { setMsg('Could not process this submission.') }
   }
 
   async function rejectSubmission(submission: Submission) {
+    if (!category?.formType) return
     await fetch(`/api/events/stakeholders/submissions/${submission.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status: 'rejected' }) })
-    fetchSubmissions(category.formType!)
+    fetchSubmissions(category.formType)
   }
 
-  const items: (Speaker | Partner)[] = category.kind === 'speaker' ? speakers : visiblePartners
+  async function performDelete(alsoRemoveFromWebsite: boolean) {
+    if (!deleteConfirm || !category) return
+    setDeleting(true)
+    const base = category.kind === 'speaker' ? '/api/events/stakeholders/speakers' : '/api/events/stakeholders/partners'
+    await Promise.all(deleteConfirm.map(item =>
+      fetch(`${base}/${item.id}`, { method: 'DELETE', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ also_remove_from_website: alsoRemoveFromWebsite }) })
+    ))
+    setDeleting(false)
+    setDeleteConfirm(null)
+    setSelectedIds(new Set())
+    fetchAll()
+  }
+
+  function toggleSelected(id: string) {
+    setSelectedIds(prev => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id); else next.add(id)
+      return next
+    })
+  }
+
+  const items: (Speaker | Partner)[] = category ? (category.kind === 'speaker' ? speakers : visiblePartners) : []
+  const q = search.trim().toLowerCase()
+  const visibleItems = category ? items.filter(item => matchesSearch(item, category.kind, q)) : []
+  const allVisibleSelected = visibleItems.length > 0 && visibleItems.every(i => selectedIds.has(i.id))
 
   return (
     <div style={{ minHeight: '100vh', background: 'var(--surface)' }}>
@@ -250,11 +286,29 @@ export default function StakeholderHubPage({ params }: { params: Promise<{ id: s
               </button>
             )
           })}
+          <div style={{ height: '1px', background: 'var(--border-light)', margin: '6px 4px' }} />
+          <button onClick={() => setActiveTab(DELETED_KEY)}
+            style={{
+              display: 'flex', alignItems: 'center', gap: '8px',
+              padding: '9px 12px', borderRadius: '8px', border: 'none', textAlign: 'left', cursor: 'pointer',
+              fontFamily: 'inherit', fontSize: '13px', fontWeight: 700,
+              background: activeTab === DELETED_KEY ? 'var(--card)' : 'transparent',
+              color: activeTab === DELETED_KEY ? 'var(--ink)' : 'var(--ink3)',
+            }}>
+            <span>Deleted</span>
+          </button>
         </div>
 
         {/* Main content */}
         <div>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
+          {activeTab === DELETED_KEY ? (
+            <>
+              <div style={{ fontSize: '18px', fontWeight: 900, color: 'var(--ink)', marginBottom: '16px' }}>Deleted</div>
+              <DeletedTab eventId={eventId} />
+            </>
+          ) : category && (
+          <>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px', flexWrap: 'wrap', gap: '10px' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
               <div style={{ fontSize: '18px', fontWeight: 900, color: 'var(--ink)' }}>{viewMode === 'registry' ? category.label : 'Social Calendar'}</div>
               <div style={{ display: 'flex', borderRadius: '8px', border: '1px solid var(--border)', overflow: 'hidden' }}>
@@ -271,7 +325,10 @@ export default function StakeholderHubPage({ params }: { params: Promise<{ id: s
               </div>
             </div>
             {viewMode === 'registry' && (
-              <Button variant="lime" onClick={openAdd}>+ Add {category.kind === 'speaker' ? 'Speaker' : 'Partner'}</Button>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <Input value={search} onChange={e => setSearch(e.target.value)} placeholder={`Search ${category.label.toLowerCase()}…`} style={{ width: '240px' }} />
+                <Button variant="lime" onClick={openAdd}>+ Add {category.kind === 'speaker' ? 'Speaker' : 'Partner'}</Button>
+              </div>
             )}
           </div>
 
@@ -309,14 +366,31 @@ export default function StakeholderHubPage({ params }: { params: Promise<{ id: s
             </div>
           )}
 
+          {/* Bulk action bar */}
+          {selectedIds.size > 0 && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '10px 14px', background: 'var(--red-light)', border: '1px solid var(--red-border)', borderRadius: '8px', marginBottom: '14px' }}>
+              <span style={{ fontSize: '12.5px', fontWeight: 700, color: 'var(--red)' }}>{selectedIds.size} selected</span>
+              <Button variant="red" onClick={() => setDeleteConfirm(visibleItems.filter(i => selectedIds.has(i.id)))}>Delete Selected</Button>
+              <button onClick={() => setSelectedIds(new Set())} style={{ background: 'none', border: 'none', color: 'var(--ink3)', fontSize: '12px', fontWeight: 700, cursor: 'pointer' }}>Clear selection</button>
+            </div>
+          )}
+
           {/* Registry */}
           {loading ? (
             <div style={{ color: 'var(--ink3)', fontSize: '13px' }}>Loading…</div>
-          ) : items.length === 0 ? (
-            <div style={{ color: 'var(--ink3)', fontSize: '13px', padding: '30px 0', textAlign: 'center' }}>No {category.label.toLowerCase()} yet.</div>
+          ) : visibleItems.length === 0 ? (
+            <div style={{ color: 'var(--ink3)', fontSize: '13px', padding: '30px 0', textAlign: 'center' }}>
+              {items.length === 0 ? `No ${category.label.toLowerCase()} yet.` : `No ${category.label.toLowerCase()} match your search.`}
+            </div>
           ) : (
             <div style={{ display: 'grid', gap: '10px' }}>
-              {items.map(item => {
+              {items.length > 1 && (
+                <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '11.5px', fontWeight: 700, color: 'var(--ink3)', cursor: 'pointer', padding: '0 4px' }}>
+                  <input type="checkbox" checked={allVisibleSelected} onChange={e => setSelectedIds(e.target.checked ? new Set(visibleItems.map(i => i.id)) : new Set())} />
+                  Select all
+                </label>
+              )}
+              {visibleItems.map(item => {
                 const isSpeaker = category.kind === 'speaker'
                 const s = item as Speaker
                 const p = item as Partner
@@ -326,6 +400,7 @@ export default function StakeholderHubPage({ params }: { params: Promise<{ id: s
                 return (
                   <Card key={item.id} padded>
                     <div style={{ display: 'flex', alignItems: 'flex-start', gap: '14px' }}>
+                      <input type="checkbox" checked={selectedIds.has(item.id)} onChange={() => toggleSelected(item.id)} style={{ marginTop: '18px' }} />
                       <div style={{ width: '48px', height: '48px', borderRadius: '10px', background: 'var(--surface)', border: '1px solid var(--border-light)', flexShrink: 0, overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                         {thumb ? <img src={thumb} alt={name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : <span style={{ fontSize: '18px', color: 'var(--ink4)' }}>{name?.[0]}</span>}
                       </div>
@@ -342,17 +417,27 @@ export default function StakeholderHubPage({ params }: { params: Promise<{ id: s
                         </div>
                         <div style={{ display: 'flex', gap: '8px', marginTop: '10px', flexWrap: 'wrap' }}>
                           <Button variant="ghost" onClick={() => openEdit(item)}>Edit</Button>
-                          <label style={{ display: 'inline-flex' }}>
-                            <span style={{ padding: '7px 14px', borderRadius: '10px', border: '1.5px solid var(--border)', background: 'transparent', color: 'var(--ink2)', fontSize: '13px', fontWeight: 700, cursor: 'pointer' }}>
-                              {uploadingId === item.id ? 'Uploading…' : isSpeaker ? 'Upload Photo' : 'Upload Logo'}
-                            </span>
-                            <input type="file" accept="image/*" style={{ display: 'none' }} disabled={uploadingId === item.id}
-                              onChange={e => { const f = e.target.files?.[0]; if (f) uploadAsset(item, isSpeaker ? 'photo' : 'logo', f); e.target.value = '' }} />
-                          </label>
+                          {isSpeaker ? (
+                            <label style={{ display: 'inline-flex' }}>
+                              <span style={{ padding: '7px 14px', borderRadius: '10px', border: '1.5px solid var(--border)', background: 'transparent', color: 'var(--ink2)', fontSize: '13px', fontWeight: 700, cursor: 'pointer' }}>
+                                Upload Photo
+                              </span>
+                              <input type="file" accept="image/jpeg,image/png,image/webp" style={{ display: 'none' }}
+                                onChange={e => { const f = e.target.files?.[0]; if (f) setPhotoUploadTarget({ speakerId: item.id, file: f }); e.target.value = '' }} />
+                            </label>
+                          ) : (
+                            <label style={{ display: 'inline-flex' }}>
+                              <span style={{ padding: '7px 14px', borderRadius: '10px', border: '1.5px solid var(--border)', background: 'transparent', color: 'var(--ink2)', fontSize: '13px', fontWeight: 700, cursor: 'pointer' }}>
+                                {uploadingId === item.id ? 'Uploading…' : 'Upload Logo'}
+                              </span>
+                              <input type="file" accept="image/*" style={{ display: 'none' }} disabled={uploadingId === item.id}
+                                onChange={e => { const f = e.target.files?.[0]; if (f) uploadAsset(item, 'logo', f); e.target.value = '' }} />
+                            </label>
+                          )}
                           {isSpeaker && (
                             <label style={{ display: 'inline-flex' }}>
                               <span style={{ padding: '7px 14px', borderRadius: '10px', border: '1.5px solid var(--border)', background: 'transparent', color: 'var(--ink2)', fontSize: '13px', fontWeight: 700, cursor: 'pointer' }}>
-                                Upload Company Logo
+                                {uploadingId === item.id ? 'Uploading…' : 'Upload Company Logo'}
                               </span>
                               <input type="file" accept="image/*" style={{ display: 'none' }} disabled={uploadingId === item.id}
                                 onChange={e => { const f = e.target.files?.[0]; if (f) uploadAsset(item, 'company_logo', f); e.target.value = '' }} />
@@ -368,7 +453,7 @@ export default function StakeholderHubPage({ params }: { params: Promise<{ id: s
                               <Button variant="solid">Generate Creative →</Button>
                             </Link>
                           )}
-                          <Button variant="ghost" onClick={() => remove(item)}>Archive</Button>
+                          <Button variant="red" onClick={() => setDeleteConfirm([item])}>Delete</Button>
                         </div>
                       </div>
                     </div>
@@ -379,15 +464,17 @@ export default function StakeholderHubPage({ params }: { params: Promise<{ id: s
           )}
           </>
           )}
+          </>
+          )}
         </div>
       </div>
 
-      {cropTarget?.photo_processed_url && (
-        <PhotoCropModal
-          speakerId={cropTarget.id}
-          photoUrl={cropTarget.photo_processed_url}
-          onClose={() => setCropTarget(null)}
-          onCropped={fetchAll}
+      {photoUploadTarget && (
+        <PhotoUploadModal
+          speakerId={photoUploadTarget.speakerId}
+          initialFile={photoUploadTarget.file}
+          onClose={() => setPhotoUploadTarget(null)}
+          onDone={fetchAll}
         />
       )}
 
@@ -395,12 +482,23 @@ export default function StakeholderHubPage({ params }: { params: Promise<{ id: s
         <LogoApprovalModal
           logoUrl={logoApproval.url}
           onClose={() => setLogoApproval(null)}
-          onReupload={file => { const { item, assetType } = logoApproval; setLogoApproval(null); uploadAsset(item, assetType, file) }}
+          onReupload={file => { const { item, assetType } = logoApproval; setLogoApproval(null); uploadAsset(item, assetType as 'company_logo' | 'logo', file) }}
+        />
+      )}
+
+      {deleteConfirm && category && (
+        <DeleteConfirmModal
+          count={deleteConfirm.length}
+          itemLabel={category.kind === 'speaker' ? 'speaker' : 'partner'}
+          singleName={deleteConfirm.length === 1 ? (category.kind === 'speaker' ? (deleteConfirm[0] as Speaker).full_name : (deleteConfirm[0] as Partner).company_name) : undefined}
+          deleting={deleting}
+          onConfirm={performDelete}
+          onClose={() => setDeleteConfirm(null)}
         />
       )}
 
       {/* Add/Edit slide-over */}
-      {panelOpen && (
+      {panelOpen && category && (
         <div style={{ position: 'fixed', inset: 0, background: 'color-mix(in srgb, black 50%, transparent)', zIndex: 50, display: 'flex', justifyContent: 'flex-end' }} onClick={() => setPanelOpen(false)}>
           <div onClick={e => e.stopPropagation()} style={{ width: '440px', maxWidth: '100%', height: '100%', background: 'var(--card)', borderLeft: '1px solid var(--border)', padding: '24px', overflowY: 'auto' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '18px' }}>

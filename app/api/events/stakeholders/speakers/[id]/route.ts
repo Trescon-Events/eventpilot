@@ -2,13 +2,21 @@ import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/app/lib/supabase'
 
 /* PATCH  /api/events/stakeholders/speakers/[id] — update any SAE-owned field
-   DELETE /api/events/stakeholders/speakers/[id] — soft delete
+   DELETE /api/events/stakeholders/speakers/[id] — soft delete (Hub "Delete")
 
    Same field-name mapping as ../route.ts (full_name/job_title/company_name
    -> name/role/company). Never writes `status`, `tier`, or `active` — those
-   belong to the Website Builder / KonfHub flow. Soft delete sets
-   announcement_status to a terminal state rather than touching `status`
-   (which would silently affect the public site / KonfHub row). */
+   belong to the Website Builder / KonfHub flow — EXCEPT via the two narrow,
+   explicit opt-in flags below (also_remove_from_website on DELETE,
+   also_restore_to_website on PATCH), which exist so the Hub's Delete/
+   Restore confirmation UI can cross that boundary on deliberate user
+   request (2026-07-28, Madhu: "let it give an option to user where they
+   select 'Also remove from website'... keep a copy in a deleted speakers
+   tab to easily restore it back"). Every other caller of these routes
+   never sends these flags, so the original "never touch active" contract
+   holds for them unchanged. Soft delete itself sets announcement_status to
+   a terminal state rather than touching `status` (which would silently
+   affect the public site / KonfHub row on its own). */
 
 type SpeakerPatchBody = {
   full_name?: string
@@ -20,6 +28,7 @@ type SpeakerPatchBody = {
   announcement_status?: string
   notes?: string
   reviewed_by?: string
+  also_restore_to_website?: boolean
 }
 
 function toRow(body: SpeakerPatchBody) {
@@ -33,6 +42,7 @@ function toRow(body: SpeakerPatchBody) {
   if (body.announcement_status !== undefined) row.announcement_status = body.announcement_status
   if (body.notes !== undefined) row.notes = body.notes || null
   if (body.reviewed_by !== undefined) { row.reviewed_by = body.reviewed_by || null; row.reviewed_at = new Date().toISOString() }
+  if (body.also_restore_to_website) row.active = true
   return row
 }
 
@@ -60,13 +70,19 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   return NextResponse.json(fromRow(data))
 }
 
-export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+export async function DELETE(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
+  const body = await req.json().catch(() => ({})) as { also_remove_from_website?: boolean }
+
   // Soft delete only ever touches announcement_status — never `status`
-  // (public-site moderation state) or `active` (public-site visibility).
+  // (public-site moderation state). `active` (public-site visibility) is
+  // only touched when also_remove_from_website is explicitly true.
+  const row: Record<string, unknown> = { announcement_status: 'archived', updated_at: new Date().toISOString() }
+  if (body.also_remove_from_website) row.active = false
+
   const { error } = await supabaseAdmin
     .from('event_speakers')
-    .update({ announcement_status: 'archived', updated_at: new Date().toISOString() })
+    .update(row)
     .eq('id', id)
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })

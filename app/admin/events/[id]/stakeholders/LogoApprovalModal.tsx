@@ -5,7 +5,7 @@ import { Button } from '@/app/components/ui'
 /* Logo processing review step, shown right after the Logo Engine processes
    a freshly uploaded partner/speaker company logo (background removal +
    rasterization — app/lib/media/logo-engine.ts). Unlike the speaker photo
-   crop tool (PhotoCropModal.tsx), there's no crop/zoom choice here — the
+   crop tool (PhotoUploadModal.tsx), there's no crop/zoom choice here — the
    fitting math is fully deterministic — so this is just a look-and-confirm
    step: approve, or re-upload a different source file if the automatic
    processing looks wrong (e.g. a bad background-removal call on an unusual
