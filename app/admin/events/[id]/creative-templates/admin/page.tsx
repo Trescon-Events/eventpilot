@@ -4,7 +4,9 @@ import { useState, useEffect, useRef, use } from 'react'
 import PageHeader from '@/app/components/PageHeader'
 import { Button, Badge, Input, Select } from '@/app/components/ui'
 import AccessTab from '@/app/components/AccessTab'
-import type { Layer, ImageLayer, PhotoSlotLayer, TextLayer, Variant, CreativeTemplateConfig } from '@/app/lib/announcements/composite'
+import type { Layer, ImageLayer, PhotoSlotLayer, TextLayer, Variant, CreativeTemplateConfig, TextLayerDiagnostics } from '@/app/lib/announcements/composite'
+import { withTextLayerDefaults } from '@/app/lib/announcements/text-layer-defaults'
+import LayerBoxOverlay from './LayerBoxOverlay'
 
 /* Stakeholder Announcement Engine — Admin Console (PRD v1.4 Phase C v3,
    split into landing + admin console per Madhu's 2026-07-27 restructure
@@ -19,6 +21,11 @@ type StakeholderOption = { id: string; label: string }
 
 const LAYER_TYPE_LABEL: Record<Layer['type'], string> = { image: 'Image', photo_slot: 'Photo/Logo Slot', text: 'Text' }
 
+// Mirrors composite.ts's DEFAULT_MAX_LINES — kept here too (not imported)
+// since it's just the starting value for a freshly-added layer, not a
+// runtime fallback; the two are allowed to diverge without breaking anything.
+const DEFAULT_MAX_LINES_BY_FIELD: Record<TextLayer['field'], number> = { name: 3, title: 2, company: 2, tier: 2, custom: 2 }
+
 function newLayer(type: Layer['type'], activeType: StakeholderKind, canvasWidth: number, canvasHeight: number): Layer {
   const id = crypto.randomUUID()
   // Image layers are always full-bleed background/overlay art pre-sized by
@@ -26,8 +33,31 @@ function newLayer(type: Layer['type'], activeType: StakeholderKind, canvasWidth:
   // of an arbitrary box, since there's no manual resize UI for this layer type.
   if (type === 'image') return { id, type: 'image', asset_url: '', x: 0, y: 0, width: canvasWidth, height: canvasHeight }
   if (type === 'photo_slot') return { id, type: 'photo_slot', source: activeType === 'speaker' ? 'speaker_photo' : 'partner_logo', x: 0, y: 0, width: 400, height: 400 }
+  const field: TextLayer['field'] = activeType === 'speaker' ? 'name' : 'custom'
+  const maxLines = DEFAULT_MAX_LINES_BY_FIELD[field]
+  const fontSize = 32
+  const width = Math.round(canvasWidth * 0.6)
+  const height = Math.round(maxLines * fontSize * 1.2)
   // eslint-disable-next-line no-restricted-syntax -- font_color is composited-creative content data, not EventPilot UI theming; the color rule governs var(--token) styling, not this
-  return { id, type: 'text', field: activeType === 'speaker' ? 'name' : 'custom', value: activeType === 'partner' ? 'LEAD SPONSOR' : undefined, x: 0, y: 0, font_size: 32, font_color: '#FFFFFF', font_weight: 'normal', align: 'left' }
+  return { id, type: 'text', field, value: activeType === 'partner' ? 'LEAD SPONSOR' : undefined, x: 40, y: 40, width, height, max_lines: maxLines, font_size: fontSize, font_color: '#FFFFFF', font_weight: 'normal', align: 'left' }
+}
+
+// Fills in width/height/max_lines for any text layer saved before Phase C
+// v5 (real production variants predate this — e.g. Sir Alistair Raymond
+// Pemberton's "Speaking At" variant), purely so its box is visible/
+// draggable immediately on load. Applied once at fetch time, NOT inside
+// mutate() — merely opening an old variant must not mark it dirty and
+// eligible to save; only a real edit (typing a field, dragging a box)
+// should. If the MM never touches the layer, the same defaulting logic
+// also runs server-side at render time (composite.ts), so nothing here
+// is the only source of truth for what actually gets composited.
+function normalizeVariantTextLayers(variant: Variant): Variant {
+  return {
+    ...variant,
+    layers: variant.layers.map(layer =>
+      layer.type === 'text' ? withTextLayerDefaults(layer, { width: variant.canvas_width, height: variant.canvas_height }) : layer
+    ),
+  }
 }
 
 export default function CreativeTemplatesAdminPage({ params }: { params: Promise<{ id: string }> }) {
@@ -43,6 +73,11 @@ export default function CreativeTemplatesAdminPage({ params }: { params: Promise
   const [saving, setSaving] = useState(false)
   const [msg, setMsg] = useState<string | null>(null)
   const [uploadingLayerId, setUploadingLayerId] = useState<string | null>(null)
+  // Lifted out of LayerRow (was private per-row state) so LayerBoxOverlay
+  // can highlight the same layer that's expanded in the accordion, and
+  // clicking a box on the live preview can open its corresponding row.
+  const [expandedLayerId, setExpandedLayerId] = useState<string | null>(null)
+  const [textDiagnostics, setTextDiagnostics] = useState<Record<string, TextLayerDiagnostics>>({})
 
   const [speakers, setSpeakers] = useState<StakeholderOption[]>([])
   const [partners, setPartners] = useState<StakeholderOption[]>([])
@@ -66,8 +101,8 @@ export default function CreativeTemplatesAdminPage({ params }: { params: Promise
       fetch('/api/branding/fonts'),
     ])
     const config: CreativeTemplateConfig | null = await configRes.json().catch(() => null)
-    const loadedSpeakerVariants = config?.speaker?.variants ?? []
-    const loadedPartnerVariants = config?.partner?.variants ?? []
+    const loadedSpeakerVariants = (config?.speaker?.variants ?? []).map(normalizeVariantTextLayers)
+    const loadedPartnerVariants = (config?.partner?.variants ?? []).map(normalizeVariantTextLayers)
     setSpeakerVariants(loadedSpeakerVariants)
     setPartnerVariants(loadedPartnerVariants)
     // Auto-select the first variant for the active tab on initial load — the
@@ -112,6 +147,7 @@ export default function CreativeTemplatesAdminPage({ params }: { params: Promise
       })
       const data = await res.json().catch(() => ({}))
       setPreviewDataUrl(res.ok ? data.preview_data_url : null)
+      setTextDiagnostics(res.ok ? (data.text_diagnostics ?? {}) : {})
       setPreviewLoading(false)
     }, 500)
     return () => { if (previewTimer.current) clearTimeout(previewTimer.current) }
@@ -292,6 +328,9 @@ export default function CreativeTemplatesAdminPage({ params }: { params: Promise
                             activeType={activeType}
                             uploading={uploadingLayerId === layer.id}
                             brandFonts={brandFonts}
+                            expanded={expandedLayerId === layer.id}
+                            onToggleExpand={() => setExpandedLayerId(id => id === layer.id ? null : layer.id)}
+                            diagnostics={layer.type === 'text' ? textDiagnostics[layer.id] : undefined}
                             onChange={patch => updateLayer(layer.id, patch)}
                             onDelete={() => deleteLayer(layer.id)}
                             onMove={delta => moveLayer(layer.id, delta)}
@@ -323,14 +362,24 @@ export default function CreativeTemplatesAdminPage({ params }: { params: Promise
                       {stakeholderOptions.map(o => <option key={o.id} value={o.id}>{o.label}</option>)}
                     </Select>
                   </div>
-                  <div style={{ borderRadius: '10px', overflow: 'hidden', background: 'var(--surface)', border: '1px solid var(--border-light)', aspectRatio: activeVariant ? `${activeVariant.canvas_width} / ${activeVariant.canvas_height}` : '4 / 5', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <div style={{ position: 'relative', borderRadius: '10px', overflow: 'hidden', background: 'var(--surface)', border: '1px solid var(--border-light)', aspectRatio: activeVariant ? `${activeVariant.canvas_width} / ${activeVariant.canvas_height}` : '4 / 5', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                     {previewLoading ? (
                       <span style={{ fontSize: '12px', color: 'var(--ink3)' }}>Rendering…</span>
                     ) : previewDataUrl ? (
                       // eslint-disable-next-line @next/next/no-img-element -- data: URL preview, next/image can't handle these
-                      <img src={previewDataUrl} alt="Creative preview" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
+                      <img src={previewDataUrl} alt="Creative preview" style={{ width: '100%', height: '100%', objectFit: 'contain', display: 'block' }} />
                     ) : (
                       <span style={{ fontSize: '12px', color: 'var(--ink3)' }}>{activeVariant ? 'No preview yet' : 'Select a variant'}</span>
+                    )}
+                    {activeVariant && (
+                      <LayerBoxOverlay
+                        layers={activeVariant.layers}
+                        canvasWidth={activeVariant.canvas_width}
+                        canvasHeight={activeVariant.canvas_height}
+                        activeLayerId={expandedLayerId}
+                        onSelectLayer={setExpandedLayerId}
+                        onChangeLayer={updateLayer}
+                      />
                     )}
                   </div>
                 </div>
@@ -343,27 +392,30 @@ export default function CreativeTemplatesAdminPage({ params }: { params: Promise
   )
 }
 
-function LayerRow({ layer, index, total, activeType, uploading, brandFonts, onChange, onDelete, onMove, onUploadImage }: {
+function LayerRow({ layer, index, total, activeType, uploading, brandFonts, expanded, onToggleExpand, diagnostics, onChange, onDelete, onMove, onUploadImage }: {
   layer: Layer
   index: number
   total: number
   activeType: StakeholderKind
   uploading: boolean
   brandFonts: Array<{ id: string; family_name: string; regular_url: string; bold_url: string | null }>
+  expanded: boolean
+  onToggleExpand: () => void
+  diagnostics?: TextLayerDiagnostics
   onChange: (patch: Partial<Layer>) => void
   onDelete: () => void
   onMove: (delta: 1 | -1) => void
   onUploadImage: (file: File) => void
 }) {
-  const [expanded, setExpanded] = useState(false)
-
   return (
-    <div style={{ border: '1px solid var(--border-light)', borderRadius: '8px', overflow: 'hidden' }}>
+    <div style={{ border: expanded ? '1px solid var(--lime)' : '1px solid var(--border-light)', borderRadius: '8px', overflow: 'hidden' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '8px 10px', background: 'var(--surface)' }}>
         <Badge color={layer.type === 'image' ? 'purple' : layer.type === 'photo_slot' ? 'amber' : 'teal'}>{LAYER_TYPE_LABEL[layer.type]}</Badge>
-        <button onClick={() => setExpanded(x => !x)} style={{ flex: 1, textAlign: 'left', background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'inherit', fontSize: '12.5px', color: 'var(--ink)', fontWeight: 700 }}>
+        <button onClick={onToggleExpand} style={{ flex: 1, textAlign: 'left', background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'inherit', fontSize: '12.5px', color: 'var(--ink)', fontWeight: 700 }}>
           {layerSummary(layer)}
         </button>
+        {diagnostics?.did_truncate && <span title="Text was shrunk and still had to be cut off with an ellipsis to fit its box" style={{ fontSize: '10.5px', fontWeight: 700, color: 'var(--red)' }}>⚠ truncated</span>}
+        {diagnostics?.did_shrink && !diagnostics.did_truncate && <span title="Font size was auto-shrunk to fit its box" style={{ fontSize: '10.5px', fontWeight: 700, color: 'var(--amber)' }}>shrunk to fit</span>}
         <span style={{ fontSize: '10.5px', color: 'var(--ink4)' }}>{index + 1}/{total}</span>
         <button onClick={() => onMove(1)} disabled={index === total - 1} title="Bring forward" style={{ background: 'none', border: 'none', cursor: index === total - 1 ? 'default' : 'pointer', color: index === total - 1 ? 'var(--ink4)' : 'var(--ink2)', fontSize: '13px' }}>▲</button>
         <button onClick={() => onMove(-1)} disabled={index === 0} title="Send backward" style={{ background: 'none', border: 'none', cursor: index === 0 ? 'default' : 'pointer', color: index === 0 ? 'var(--ink4)' : 'var(--ink2)', fontSize: '13px' }}>▼</button>
@@ -372,7 +424,7 @@ function LayerRow({ layer, index, total, activeType, uploading, brandFonts, onCh
 
       {expanded && (
         <div style={{ padding: '12px 10px', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
-          {layer.type === 'image' && <ImageLayerFields layer={layer} uploading={uploading} onUploadImage={onUploadImage} />}
+          {layer.type === 'image' && <ImageLayerFields layer={layer} uploading={uploading} onChange={onChange as (patch: Partial<ImageLayer>) => void} onUploadImage={onUploadImage} />}
           {layer.type === 'photo_slot' && <PhotoSlotLayerFields layer={layer} activeType={activeType} onChange={onChange} />}
           {layer.type === 'text' && <TextLayerFields layer={layer} activeType={activeType} brandFonts={brandFonts} onChange={onChange} />}
         </div>
@@ -396,23 +448,30 @@ function NumField({ label, value, onChange }: { label: string; value: number; on
   )
 }
 
-function ImageLayerFields({ layer, uploading, onUploadImage }: { layer: ImageLayer; uploading: boolean; onUploadImage: (file: File) => void }) {
-  // Image layers are always full-bleed art pre-sized by the design team to
-  // the variant's exact canvas dimensions — no manual position/size fields,
-  // just the upload.
+function ImageLayerFields({ layer, uploading, onChange, onUploadImage }: { layer: ImageLayer; uploading: boolean; onChange: (patch: Partial<ImageLayer>) => void; onUploadImage: (file: File) => void }) {
+  // Image layers default to full-bleed (newLayer() above), but aren't
+  // locked to it — the box overlay on the live preview (LayerBoxOverlay)
+  // can drag/resize them like any other layer now (2026-07-29 unification);
+  // these NumFields are the precise-entry counterpart to that, matching
+  // the pattern already used for photo/logo and text layers.
   return (
-    <div style={{ gridColumn: '1 / -1', display: 'flex', alignItems: 'center', gap: '10px' }}>
-      {layer.asset_url && (
-        // eslint-disable-next-line @next/next/no-img-element -- small admin-only thumbnail, not worth next/image's remote-loader setup
-        <img src={layer.asset_url} alt="Layer asset" style={{ width: '40px', height: '50px', objectFit: 'cover', borderRadius: '4px', border: '1px solid var(--border-light)' }} />
-      )}
-      <label style={{ padding: '6px 12px', borderRadius: '8px', border: '1.5px solid var(--border)', background: 'transparent', color: 'var(--ink2)', fontSize: '12px', fontWeight: 700, cursor: 'pointer' }}>
-        {uploading ? 'Uploading…' : layer.asset_url ? 'Replace PNG' : 'Upload PNG'}
-        <input type="file" accept="image/png" style={{ display: 'none' }} disabled={uploading}
-          onChange={e => { const f = e.target.files?.[0]; if (f) onUploadImage(f); e.target.value = '' }} />
-      </label>
-      <span style={{ fontSize: '11px', color: 'var(--ink3)' }}>{layer.width}×{layer.height} (full canvas)</span>
-    </div>
+    <>
+      <div style={{ gridColumn: '1 / -1', display: 'flex', alignItems: 'center', gap: '10px' }}>
+        {layer.asset_url && (
+          // eslint-disable-next-line @next/next/no-img-element -- small admin-only thumbnail, not worth next/image's remote-loader setup
+          <img src={layer.asset_url} alt="Layer asset" style={{ width: '40px', height: '50px', objectFit: 'cover', borderRadius: '4px', border: '1px solid var(--border-light)' }} />
+        )}
+        <label style={{ padding: '6px 12px', borderRadius: '8px', border: '1.5px solid var(--border)', background: 'transparent', color: 'var(--ink2)', fontSize: '12px', fontWeight: 700, cursor: 'pointer' }}>
+          {uploading ? 'Uploading…' : layer.asset_url ? 'Replace PNG' : 'Upload PNG'}
+          <input type="file" accept="image/png" style={{ display: 'none' }} disabled={uploading}
+            onChange={e => { const f = e.target.files?.[0]; if (f) onUploadImage(f); e.target.value = '' }} />
+        </label>
+      </div>
+      <NumField label="X" value={layer.x} onChange={x => onChange({ x })} />
+      <NumField label="Y" value={layer.y} onChange={y => onChange({ y })} />
+      <NumField label="Width" value={layer.width} onChange={width => onChange({ width })} />
+      <NumField label="Height" value={layer.height} onChange={height => onChange({ height })} />
+    </>
   )
 }
 
@@ -518,7 +577,10 @@ function TextLayerFields({ layer, activeType, brandFonts, onChange }: {
       </label>
       <NumField label="X" value={layer.x} onChange={x => onChange({ x })} />
       <NumField label="Y" value={layer.y} onChange={y => onChange({ y })} />
-      <NumField label="Font size" value={layer.font_size} onChange={font_size => onChange({ font_size })} />
+      <NumField label="Width" value={layer.width} onChange={width => onChange({ width })} />
+      <NumField label="Height" value={layer.height} onChange={height => onChange({ height })} />
+      <NumField label="Max lines" value={layer.max_lines} onChange={max_lines => onChange({ max_lines: Math.max(1, max_lines) })} />
+      <NumField label="Font size (ceiling)" value={layer.font_size} onChange={font_size => onChange({ font_size })} />
       <label style={{ fontSize: '11px', color: 'var(--ink3)', display: 'block' }}>
         Font color
         <Input type="color" value={layer.font_color} onChange={e => onChange({ font_color: e.target.value })} style={{ width: '100%', marginTop: '3px', height: '34px', padding: '2px' }} />

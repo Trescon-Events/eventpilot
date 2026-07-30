@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/app/lib/supabase'
 import sharp from 'sharp'
-import { compositeAnnouncement, type Variant, type PhotoSlotLayer, type ResolvedAssets } from '@/app/lib/announcements/composite'
+import { compositeAnnouncement, analyzeTextLayers, type Variant, type PhotoSlotLayer, type ResolvedAssets } from '@/app/lib/announcements/composite'
 
 /* POST /api/events/templates/preview
    Body: { stakeholder_type, variant (draft, unsaved), speaker_id?, partner_id? }
@@ -69,7 +69,11 @@ export async function POST(req: NextRequest) {
 
   try {
     const buffer = await compositeAnnouncement(body.variant, assets, texts)
-    return NextResponse.json({ preview_data_url: `data:image/png;base64,${buffer.toString('base64')}` })
+    // Diagnostics-only, computed alongside the real render — lets the
+    // editor surface an inline "text was shrunk/truncated to fit" warning
+    // per layer without parsing the rendered PNG.
+    const text_diagnostics = await analyzeTextLayers(body.variant, texts)
+    return NextResponse.json({ preview_data_url: `data:image/png;base64,${buffer.toString('base64')}`, text_diagnostics })
   } catch (e) {
     const message = e instanceof Error ? e.message : 'Preview render failed'
     return NextResponse.json({ error: message }, { status: 500 })
