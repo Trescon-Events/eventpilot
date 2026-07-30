@@ -122,13 +122,23 @@ export async function deriveAlignmentTarget(referenceImageBuffer: Buffer): Promi
 // than leaving gaps, per the confirmed decision). Falls back to a simple
 // contain-centered fit if no face is detected or the alignment math fails
 // for any reason — never throws.
-export async function alignAndCropPhoto(realPhotoBuffer: Buffer, target: AlignmentTarget): Promise<Buffer> {
+//
+// `cachedHeadBox`: pass the speaker's stored `photo_head_box` (detected
+// once, at upload/crop time — see the upload-asset and crop-photo routes)
+// to skip a fresh Gemini call here. Real bug found live (2026-07-30):
+// without this, every single generate/regenerate re-ran detection from
+// scratch, and LLM-based detection isn't perfectly deterministic call-to-
+// call — the exact same unchanged photo could crop slightly differently
+// each time, with no code or data actually changing. `undefined`/`null`
+// (legacy speakers uploaded before photo_head_box existed) falls back to
+// the original live-detection behavior.
+export async function alignAndCropPhoto(realPhotoBuffer: Buffer, target: AlignmentTarget, cachedHeadBox?: HeadBox | null): Promise<Buffer> {
   try {
     const metadata = await sharp(realPhotoBuffer).metadata()
     const realWidth = metadata.width!
     const realHeight = metadata.height!
 
-    const head = await detectHeadBox(realPhotoBuffer)
+    const head = cachedHeadBox ?? await detectHeadBox(realPhotoBuffer)
     if (!head) return fallbackContainCenter(realPhotoBuffer, target.box)
 
     const realHeadHeightPx = head.heightRatio * realHeight

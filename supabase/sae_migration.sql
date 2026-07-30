@@ -278,3 +278,17 @@ CREATE UNIQUE INDEX IF NOT EXISTS brand_fonts_family_name_lower_idx ON brand_fon
 -- event_sponsors.logo_raw_url, which the partner flow already does correctly.
 ALTER TABLE event_speakers
   ADD COLUMN IF NOT EXISTS company_logo_raw_url TEXT; -- original uploaded file (any format), before the Logo Engine's processing
+
+-- 2026-07-30: fixes a real bug found live — Madhu regenerated a creative
+-- after only touching an unrelated layer (the company logo box) and the
+-- speaker's PHOTO crop shifted anyway. Root cause: alignAndCropPhoto()
+-- (app/lib/media/face-alignment.ts) never cached where a speaker's head
+-- actually sits in their photo — it re-ran a fresh Gemini vision call on
+-- every single generate/regenerate, and LLM-based detection isn't
+-- perfectly deterministic call-to-call, so the exact same photo could
+-- crop slightly differently each time. Caching the detected box once
+-- (at upload/crop time, since cropping changes the pixel content) and
+-- reusing it makes every subsequent generation of that photo produce an
+-- identical crop, only recomputing when the photo itself actually changes.
+ALTER TABLE event_speakers
+  ADD COLUMN IF NOT EXISTS photo_head_box JSONB; -- { centerXRatio, centerYRatio, heightRatio } from detectHeadBox() — null falls back to live per-call detection (legacy photos uploaded before this column existed)

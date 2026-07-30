@@ -15,7 +15,7 @@
 // so no custom masking logic is needed here.
 import sharp, { type OverlayOptions } from 'sharp'
 import { GlobalFonts } from '@napi-rs/canvas'
-import { alignAndCropPhoto, type PhotoAlignmentMeta } from '@/app/lib/media/face-alignment'
+import { alignAndCropPhoto, type PhotoAlignmentMeta, type HeadBox } from '@/app/lib/media/face-alignment'
 import { wrapAndFit } from '@/app/lib/announcements/text-layout'
 import { withTextLayerDefaults } from '@/app/lib/announcements/text-layer-defaults'
 
@@ -83,7 +83,7 @@ export type CreativeTemplateConfig = {
   partner?: { variants: Variant[] }
 }
 
-export type ResolvedAssets = Partial<Record<PhotoSlotLayer['source'], { buffer: Buffer; is_svg?: boolean }>>
+export type ResolvedAssets = Partial<Record<PhotoSlotLayer['source'], { buffer: Buffer; is_svg?: boolean; head_box?: HeadBox | null }>>
 
 export async function compositeAnnouncement(
   variant: Variant,
@@ -116,7 +116,7 @@ export async function compositeAnnouncement(
         const cropped = await alignAndCropPhoto(assetBuffer, {
           ...layer.alignment,
           box: { x: layer.x, y: layer.y, width: layer.width, height: layer.height },
-        })
+        }, asset.head_box)
         compositeOps.push({ input: cropped, left: layer.x, top: layer.y })
         continue
       }

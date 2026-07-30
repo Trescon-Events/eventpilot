@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/app/lib/supabase'
 import { uploadPublicAsset } from '@/app/lib/events/storage'
 import { compositeAnnouncement } from '@/app/lib/announcements/composite'
-import { buildCompositeInputs, type CreativeTemplateConfig } from '@/app/lib/events/announcements'
+import { buildCompositeInputs, type CreativeTemplateConfig, type NeededAsset } from '@/app/lib/events/announcements'
 
 /* POST /api/events/stakeholders/announcements/[id]/regenerate-creative
    Body: { use_company_logo?, variant_id? }
@@ -40,11 +40,11 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   if ('templateError' in inputs) return NextResponse.json({ error: inputs.templateError }, { status: 422 })
 
   try {
-    const assets: Record<string, { buffer: Buffer; is_svg?: boolean }> = {}
+    const assets: Record<string, { buffer: Buffer; is_svg?: boolean; head_box?: NeededAsset['headBox'] }> = {}
     for (const needed of inputs.assetsNeeded) {
       const assetRes = await fetch(needed.url)
       if (!assetRes.ok) throw new Error(`Failed to fetch ${needed.source}: ${assetRes.status}`)
-      assets[needed.source] = { buffer: Buffer.from(await assetRes.arrayBuffer()), is_svg: needed.isSvg }
+      assets[needed.source] = { buffer: Buffer.from(await assetRes.arrayBuffer()), is_svg: needed.isSvg, head_box: needed.headBox }
     }
 
     const creativeBuffer = await compositeAnnouncement(inputs.variant, assets, inputs.texts)

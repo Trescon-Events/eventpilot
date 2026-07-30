@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import sharp from 'sharp'
 import { supabaseAdmin } from '@/app/lib/supabase'
 import { uploadPublicAsset } from '@/app/lib/events/storage'
+import { detectHeadBox } from '@/app/lib/media/face-alignment'
 
 /* POST /api/events/stakeholders/speakers/[id]/crop-photo
    Body: { crop: { x, y, width, height } } — integer pixel coordinates
@@ -50,11 +51,24 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       'image/png'
     )
 
+    // Cropping changes the actual pixel content, so any previously cached
+    // head box (from upload time) is now stale relative to this new image
+    // — re-detect against the cropped result rather than carrying the old
+    // value over. Same graceful-degradation contract as upload: a
+    // detection failure leaves this null, falling back to live detection
+    // at generation time.
+    let photoHeadBox = null
+    try {
+      photoHeadBox = await detectHeadBox(cropped)
+    } catch (e) {
+      console.error('Head detection failed after crop, will fall back to live detection at generation time:', e)
+    }
+
     const { data, error } = await supabaseAdmin
       .from('event_speakers')
-      .update({ photo_processed_url: photoProcessedUrl, updated_at: new Date().toISOString() })
+      .update({ photo_processed_url: photoProcessedUrl, photo_head_box: photoHeadBox, updated_at: new Date().toISOString() })
       .eq('id', speakerId)
-      .select('photo_processed_url')
+      .select('photo_processed_url, photo_head_box')
       .single()
 
     if (error) return NextResponse.json({ error: error.message }, { status: 500 })

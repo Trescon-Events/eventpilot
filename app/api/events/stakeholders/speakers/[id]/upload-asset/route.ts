@@ -3,6 +3,7 @@ import { supabaseAdmin } from '@/app/lib/supabase'
 import { uploadPublicAsset } from '@/app/lib/events/storage'
 import { processLogo } from '@/app/lib/media/logo-engine'
 import { processSpeakerPhoto } from '@/app/lib/media/speaker-photo-engine'
+import { detectHeadBox } from '@/app/lib/media/face-alignment'
 
 /* POST /api/events/stakeholders/speakers/[id]/upload-asset
    multipart/form-data: file, asset_type: 'photo' | 'company_logo'
@@ -109,14 +110,30 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     )
   }
 
-  const update: Record<string, unknown> = { photo_url: photoUrl, updated_at: new Date().toISOString() }
+  // Detect the head position ONCE here rather than leaving it to a fresh
+  // Gemini call on every future generate/regenerate — real bug found live
+  // (2026-07-30): without caching, the same unchanged photo could crop
+  // slightly differently between generations since LLM-based detection
+  // isn't perfectly deterministic call-to-call. Detected against whichever
+  // buffer generation will actually use (processed if available, else the
+  // raw original). A detection failure (no face found, API error) leaves
+  // this null — generation falls back to its original live-detection path,
+  // never blocks the upload itself.
+  let photoHeadBox = null
+  try {
+    photoHeadBox = await detectHeadBox(processed ?? buffer)
+  } catch (e) {
+    console.error('Head detection failed on upload, will fall back to live detection at generation time:', e)
+  }
+
+  const update: Record<string, unknown> = { photo_url: photoUrl, updated_at: new Date().toISOString(), photo_head_box: photoHeadBox }
   if (photoProcessedUrl) update.photo_processed_url = photoProcessedUrl
 
   const { data, error } = await supabaseAdmin
     .from('event_speakers')
     .update(update)
     .eq('id', speakerId)
-    .select('photo_url, photo_processed_url')
+    .select('photo_url, photo_processed_url, photo_head_box')
     .single()
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })

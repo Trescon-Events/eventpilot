@@ -3,6 +3,7 @@
 // pipeline is defined once rather than duplicated across three route files.
 import { GoogleGenerativeAI } from '@google/generative-ai'
 import type { Variant, PhotoSlotLayer, CreativeTemplateConfig } from '@/app/lib/announcements/composite'
+import type { HeadBox } from '@/app/lib/media/face-alignment'
 
 let _gemini: GoogleGenerativeAI | null = null
 function getGemini() {
@@ -76,7 +77,7 @@ Return JSON only, no markdown fences: { "copy": "...", "hashtags": ["#...", "...
 
 export type { CreativeTemplateConfig }
 
-export type NeededAsset = { source: PhotoSlotLayer['source']; url: string; isSvg: boolean }
+export type NeededAsset = { source: PhotoSlotLayer['source']; url: string; isSvg: boolean; headBox?: HeadBox | null }
 
 export type CompositeInputs = {
   variant: Variant
@@ -128,7 +129,8 @@ export function buildCompositeInputs(
       const label = source === 'speaker_photo' ? 'photo' : source === 'speaker_logo' ? 'company logo' : 'logo'
       return { templateError: `This ${stakeholderType} has no ${label} uploaded (required by variant "${variant.name}")` }
     }
-    assetsNeeded.push({ source, url, isSvg: url.toLowerCase().endsWith('.svg') })
+    const headBox = source === 'speaker_photo' ? (speaker?.photo_head_box as HeadBox | null | undefined) : undefined
+    assetsNeeded.push({ source, url, isSvg: url.toLowerCase().endsWith('.svg'), headBox })
   }
 
   const texts = stakeholderType === 'speaker'

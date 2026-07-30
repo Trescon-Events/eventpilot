@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/app/lib/supabase'
 import sharp from 'sharp'
 import { compositeAnnouncement, analyzeTextLayers, type Variant, type PhotoSlotLayer, type ResolvedAssets } from '@/app/lib/announcements/composite'
+import type { HeadBox } from '@/app/lib/media/face-alignment'
 
 /* POST /api/events/templates/preview
    Body: { stakeholder_type, variant (draft, unsaved), speaker_id?, partner_id? }
@@ -50,7 +51,11 @@ export async function POST(req: NextRequest) {
     if (realUrl) {
       const res = await fetch(realUrl)
       if (res.ok) {
-        assets[source] = { buffer: Buffer.from(await res.arrayBuffer()), is_svg: realUrl.toLowerCase().endsWith('.svg') }
+        // Reuses the cached head box (photo_head_box) the same way real
+        // generation does, so the preview never shows a crop that
+        // regenerate would then diverge from.
+        const head_box: HeadBox | null | undefined = source === 'speaker_photo' ? (speaker?.photo_head_box as HeadBox | null) : undefined
+        assets[source] = { buffer: Buffer.from(await res.arrayBuffer()), is_svg: realUrl.toLowerCase().endsWith('.svg'), head_box }
         continue
       }
     }
