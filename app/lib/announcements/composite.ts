@@ -14,7 +14,7 @@
 // it from Canva) — Sharp's .composite() already respects per-layer alpha,
 // so no custom masking logic is needed here.
 import sharp, { type OverlayOptions } from 'sharp'
-import { GlobalFonts } from '@napi-rs/canvas'
+import { GlobalFonts, createCanvas } from '@napi-rs/canvas'
 import { alignAndCropPhoto, type PhotoAlignmentMeta, type HeadBox } from '@/app/lib/media/face-alignment'
 import { wrapAndFit } from '@/app/lib/announcements/text-layout'
 import { withTextLayerDefaults } from '@/app/lib/announcements/text-layer-defaults'
@@ -145,9 +145,8 @@ export async function compositeAnnouncement(
     const value = resolveTextValue(layer, texts)
     if (!value) return null
     const normalized = withTextLayerDefaults(layer, { width: variant.canvas_width, height: variant.canvas_height })
-    const { svg } = await buildTextLayerSvg(normalized, value, variant.canvas_width, variant.canvas_height)
-    const svgBuffer = await sharp(Buffer.from(svg)).png().toBuffer()
-    return { input: svgBuffer, left: 0, top: 0 }
+    const { buffer } = await renderTextLayerPng(normalized, value, variant.canvas_width, variant.canvas_height)
+    return { input: buffer, left: 0, top: 0 }
   }))
 
   const compositeOps = compositeOpsOrNull.filter((op): op is OverlayOptions => op !== null)
@@ -173,13 +172,6 @@ function resolveTextValue(layer: TextLayer, texts: { name?: string; title?: stri
   return texts.tier ?? layer.value // 'tier' — runtime value wins, falls back to the layer's own hardcoded label
 }
 
-const FONT_FORMATS: Record<string, string> = { ttf: 'truetype', otf: 'opentype', woff: 'woff', woff2: 'woff2' }
-
-function fontFormatFromUrl(url: string): string {
-  const ext = url.split('.').pop()?.toLowerCase() ?? ''
-  return FONT_FORMATS[ext] ?? 'woff2'
-}
-
 // Cached across calls (not just within one render) so the debounced live
 // preview in the variant editor — which re-renders on every keystroke —
 // doesn't refetch the same font file over the network every ~500ms.
@@ -197,27 +189,6 @@ function fetchFontBuffer(url: string): Promise<Buffer | null> {
   const promise = fetchFontBufferUncached(url).catch(() => null)
   fontBufferCache.set(url, promise)
   return promise
-}
-
-async function buildFontFaceCss(font: TextLayerFont): Promise<string> {
-  const familyName = font.family_name.replace(/"/g, '')
-  const faces: string[] = []
-
-  const regularBuffer = await fetchFontBuffer(font.regular_url)
-  if (regularBuffer) {
-    const format = fontFormatFromUrl(font.regular_url)
-    faces.push(`@font-face{font-family:'${familyName}';font-weight:400;src:url(data:font/${format};base64,${regularBuffer.toString('base64')}) format('${format}');}`)
-  }
-
-  if (font.bold_url) {
-    const boldBuffer = await fetchFontBuffer(font.bold_url)
-    if (boldBuffer) {
-      const format = fontFormatFromUrl(font.bold_url)
-      faces.push(`@font-face{font-family:'${familyName}';font-weight:700;src:url(data:font/${format};base64,${boldBuffer.toString('base64')}) format('${format}');}`)
-    }
-  }
-
-  return faces.join('')
 }
 
 // @napi-rs/canvas's GlobalFonts registry is process-global and additive —
@@ -240,33 +211,31 @@ async function ensureFontRegisteredForMeasurement(font: TextLayerFont): Promise<
   return familyName
 }
 
-function escapeXml(value: string): string {
-  return value.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
-}
-
-async function buildTextLayerSvg(
+// Renders a text layer directly via @napi-rs/canvas (Skia) rather than
+// building an SVG string for Sharp/librsvg to rasterize. Real bug found
+// live (2026-07-31): librsvg (the SVG engine Sharp uses, confirmed via
+// `sharp.versions.rsvg`) does NOT reliably apply embedded base64
+// @font-face fonts — Madhu selected a real, correctly-uploaded custom
+// brand font (Space Grotesk Bold) and the render silently fell back to a
+// generic default font every time. Confirmed via a direct test: an SVG
+// with a Space Grotesk @font-face embed and one with NO font specified
+// at all rendered to byte-identical PNGs — librsvg was ignoring the
+// embedded font entirely, not a caching or data problem. @napi-rs/canvas
+// or already correctly loads custom fonts via GlobalFonts.register() —
+// this was already proven working for wrapAndFit()'s own text
+// measurement — so rendering through the SAME engine both fixes the bug
+// and removes a latent measurement/render engine mismatch risk (SVG text
+// was previously measured by one engine and rendered by a different one).
+async function renderTextLayerPng(
   layer: TextLayer, value: string, canvasWidth: number, canvasHeight: number
-): Promise<{ svg: string; didShrink: boolean; didTruncate: boolean }> {
+): Promise<{ buffer: Buffer; didShrink: boolean; didTruncate: boolean }> {
   const weight = layer.font_weight === 'bold' ? 'bold' : 'normal'
-  const anchor = layer.align === 'center' ? 'middle' : layer.align === 'right' ? 'end' : 'start'
 
   // Custom brand font if configured; falls back to a generic sans-serif
-  // (unaffected for every text layer authored before Phase C v4). The
-  // fallback render family is the literal 'sans-serif' generic (not e.g.
-  // 'Arial, Helvetica, sans-serif') so it's guaranteed to resolve to the
-  // exact same font @napi-rs/canvas measures against below — a comma
-  // fallback list could resolve differently between Sharp's SVG renderer
-  // and @napi-rs/canvas's own font matching, silently invalidating the
-  // wrap points. The SAME font buffer is used both for the SVG @font-face
-  // embed (rendering) and @napi-rs/canvas registration (measurement) when
-  // a custom brand font IS configured — same reasoning, critical there too.
+  // (unaffected for every text layer authored before Phase C v4).
   let fontFamily = 'sans-serif'
-  let measurementFamily = 'sans-serif'
-  let styleBlock = ''
   if (layer.font_family) {
-    fontFamily = layer.font_family.family_name.replace(/"/g, '')
-    measurementFamily = await ensureFontRegisteredForMeasurement(layer.font_family)
-    styleBlock = `<style>${await buildFontFaceCss(layer.font_family)}</style>`
+    fontFamily = await ensureFontRegisteredForMeasurement(layer.font_family)
   }
 
   const { lines, fontSize, lineHeight, didShrink, didTruncate } = wrapAndFit(value, {
@@ -275,8 +244,14 @@ async function buildTextLayerSvg(
     maxLines: layer.max_lines,
     fontSize: layer.font_size,
     fontWeight: layer.font_weight,
-    fontFamily: measurementFamily,
+    fontFamily,
   })
+
+  const canvas = createCanvas(canvasWidth, canvasHeight)
+  const ctx = canvas.getContext('2d')
+  ctx.font = `${weight === 'bold' ? 'bold ' : ''}${fontSize}px ${fontFamily}`
+  ctx.fillStyle = layer.font_color
+  ctx.textAlign = layer.align === 'center' ? 'center' : layer.align === 'right' ? 'right' : 'left'
 
   const xPos = layer.align === 'center' ? layer.x + layer.width / 2 : layer.align === 'right' ? layer.x + layer.width : layer.x
 
@@ -286,12 +261,11 @@ async function buildTextLayerSvg(
   const blockHeight = lines.length * lineHeight
   const firstBaselineY = layer.y + Math.max(0, (layer.height - blockHeight) / 2) + approxAscent
 
-  const tspans = lines
-    .map((line, i) => `<tspan x="${xPos}" y="${firstBaselineY + i * lineHeight}">${escapeXml(line)}</tspan>`)
-    .join('')
+  for (let i = 0; i < lines.length; i++) {
+    ctx.fillText(lines[i], xPos, firstBaselineY + i * lineHeight)
+  }
 
-  const svg = `<svg width="${canvasWidth}" height="${canvasHeight}" xmlns="http://www.w3.org/2000/svg">${styleBlock}<text font-size="${fontSize}" fill="${layer.font_color}" font-weight="${weight}" text-anchor="${anchor}" font-family="${fontFamily}">${tspans}</text></svg>`
-  return { svg, didShrink, didTruncate }
+  return { buffer: canvas.toBuffer('image/png'), didShrink, didTruncate }
 }
 
 // Diagnostics-only: lets the variant editor's live preview surface an
