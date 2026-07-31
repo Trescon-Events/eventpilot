@@ -18,6 +18,7 @@ import { GlobalFonts } from '@napi-rs/canvas'
 import { alignAndCropPhoto, type PhotoAlignmentMeta, type HeadBox } from '@/app/lib/media/face-alignment'
 import { wrapAndFit } from '@/app/lib/announcements/text-layout'
 import { withTextLayerDefaults } from '@/app/lib/announcements/text-layer-defaults'
+import { fetchAssetBuffer } from '@/app/lib/announcements/asset-buffer-cache'
 
 export { withTextLayerDefaults, type LegacyTextLayer } from '@/app/lib/announcements/text-layer-defaults'
 
@@ -90,24 +91,31 @@ export async function compositeAnnouncement(
   assets: ResolvedAssets,
   texts: { name?: string; title?: string; company?: string; tier?: string }
 ): Promise<Buffer> {
-  const compositeOps: OverlayOptions[] = []
-
-  for (const layer of variant.layers) {
+  // Each layer's fetch/process work is independent of every other layer's —
+  // parallelized via Promise.all (2026-07-31 speed pass) rather than the
+  // original sequential for-loop, since a layer stack commonly has 3-4
+  // full-canvas background images plus a photo/logo/text, and fetching
+  // those one at a time was the dominant cost of a preview render.
+  // Promise.all preserves array order regardless of completion order, and
+  // sharp().composite() composites in array order = z-order, so mapping
+  // straight through (rather than reducing/pushing as each resolves) keeps
+  // z-order correct with zero extra bookkeeping. Layers that render nothing
+  // (unset image, missing photo asset, empty text) map to null and are
+  // filtered out afterward.
+  const compositeOpsOrNull = await Promise.all(variant.layers.map(async (layer): Promise<OverlayOptions | null> => {
     if (layer.type === 'image') {
-      if (!layer.asset_url) continue // not uploaded yet — editor debounces a preview render right after "+ Image Layer" is clicked, before a file is chosen
-      const res = await fetch(layer.asset_url)
-      if (!res.ok) throw new Error(`Failed to fetch layer image (${layer.id}): ${res.status}`)
-      const buffer = Buffer.from(await res.arrayBuffer())
+      if (!layer.asset_url) return null // not uploaded yet — editor can preview right after "+ Image Layer" is clicked, before a file is chosen
+      const buffer = await fetchAssetBuffer(layer.asset_url)
+      if (!buffer) throw new Error(`Failed to fetch layer image (${layer.id})`)
       const resized = await sharp(buffer)
         .resize(layer.width, layer.height, { fit: 'cover' })
         .toBuffer()
-      compositeOps.push({ input: resized, left: layer.x, top: layer.y })
-      continue
+      return { input: resized, left: layer.x, top: layer.y }
     }
 
     if (layer.type === 'photo_slot') {
       const asset = assets[layer.source]
-      if (!asset) continue // caller validates required sources before calling; missing optional ones are skipped
+      if (!asset) return null // caller validates required sources before calling; missing optional ones are skipped
 
       let assetBuffer = asset.buffer
       if (asset.is_svg) assetBuffer = await sharp(assetBuffer).png().toBuffer()
@@ -117,8 +125,7 @@ export async function compositeAnnouncement(
           ...layer.alignment,
           box: { x: layer.x, y: layer.y, width: layer.width, height: layer.height },
         }, asset.head_box)
-        compositeOps.push({ input: cropped, left: layer.x, top: layer.y })
-        continue
+        return { input: cropped, left: layer.x, top: layer.y }
       }
 
       const resized = await sharp(assetBuffer)
@@ -131,18 +138,19 @@ export async function compositeAnnouncement(
       const left = layer.x + Math.floor((layer.width - assetWidth) / 2)
       const top = layer.y + Math.floor((layer.height - assetHeight) / 2)
 
-      compositeOps.push({ input: resized, left, top })
-      continue
+      return { input: resized, left, top }
     }
 
     // text
     const value = resolveTextValue(layer, texts)
-    if (!value) continue
+    if (!value) return null
     const normalized = withTextLayerDefaults(layer, { width: variant.canvas_width, height: variant.canvas_height })
     const { svg } = await buildTextLayerSvg(normalized, value, variant.canvas_width, variant.canvas_height)
     const svgBuffer = await sharp(Buffer.from(svg)).png().toBuffer()
-    compositeOps.push({ input: svgBuffer, left: 0, top: 0 })
-  }
+    return { input: svgBuffer, left: 0, top: 0 }
+  }))
+
+  const compositeOps = compositeOpsOrNull.filter((op): op is OverlayOptions => op !== null)
 
   return sharp({
     create: {

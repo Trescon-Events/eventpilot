@@ -18,6 +18,8 @@ import LayerBoxOverlay from './LayerBoxOverlay'
 
 type StakeholderKind = 'speaker' | 'partner'
 type StakeholderOption = { id: string; label: string }
+type EditorSnapshot = { speakerVariants: Variant[]; partnerVariants: Variant[]; activeType: StakeholderKind; activeVariantId: string | null }
+const MAX_UNDO_ENTRIES = 50
 
 const LAYER_TYPE_LABEL: Record<Layer['type'], string> = { image: 'Image', photo_slot: 'Photo/Logo Slot', text: 'Text' }
 
@@ -85,7 +87,24 @@ export default function CreativeTemplatesAdminPage({ params }: { params: Promise
   const [previewFor, setPreviewFor] = useState<string>('')
   const [previewDataUrl, setPreviewDataUrl] = useState<string | null>(null)
   const [previewLoading, setPreviewLoading] = useState(false)
-  const previewTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  // Stale-while-revalidate (2026-07-31 UX pass, replacing the old debounced
+  // auto-render): switching speaker/partner keeps showing the last render,
+  // dimmed + badged, since the box layout is still correct and only the
+  // injected photo/text is stale. Switching variant/type clears it outright
+  // (see the effect below) since the layout itself just changed underneath
+  // it — an old image there would be actively misleading, not just stale.
+  const [previewStale, setPreviewStale] = useState(false)
+  const previewReqIdRef = useRef(0)
+
+  // Undo/redo (2026-07-31) — commit-point snapshots, not per-keystroke/
+  // per-pointermove. Lives in refs (not state) since snapshots are pushed
+  // imperatively from many call sites and don't themselves need to trigger
+  // renders; undoCount/redoCount below are the render-triggering mirror,
+  // used only to enable/disable the toolbar buttons.
+  const undoStackRef = useRef<EditorSnapshot[]>([])
+  const redoStackRef = useRef<EditorSnapshot[]>([])
+  const [undoCount, setUndoCount] = useState(0)
+  const [redoCount, setRedoCount] = useState(0)
 
   const variants = activeType === 'speaker' ? speakerVariants : partnerVariants
   const setVariants = activeType === 'speaker' ? setSpeakerVariants : setPartnerVariants
@@ -131,32 +150,122 @@ export default function CreativeTemplatesAdminPage({ params }: { params: Promise
     // eslint-disable-next-line react-hooks/exhaustive-deps -- only re-select on tab switch, not on every variants edit
   }, [activeType])
 
-  // Debounced server-rendered live preview — re-runs the real Sharp pipeline
-  // on every meaningful edit so what's shown here can never drift from what
-  // generate/regenerate-creative would actually produce.
+  // On-demand preview (2026-07-31, replacing the old 500ms-debounced
+  // auto-render-on-every-edit) — Madhu's explicit request: dragging/typing
+  // only ever touches local state (already instant, no network involved),
+  // the real Sharp render only fires on the "Generate Preview" button
+  // below. The box layout just changed underneath whatever was rendered,
+  // so an old image would be actively misleading — clear it outright.
+  // (Switching previewFor alone does NOT clear it — see the effect below.)
   useEffect(() => {
-    if (previewTimer.current) clearTimeout(previewTimer.current)
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- early-return guard when there's no variant to preview; the real render call's setState is inside a debounced async callback, outside the rule's scope
-    if (!activeVariant) { setPreviewDataUrl(null); return }
-    previewTimer.current = setTimeout(async () => {
-      setPreviewLoading(true)
-      const body: Record<string, unknown> = { stakeholder_type: activeType, variant: activeVariant }
-      if (previewFor) body[activeType === 'speaker' ? 'speaker_id' : 'partner_id'] = previewFor
-      const res = await fetch('/api/events/templates/preview', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
-      })
-      const data = await res.json().catch(() => ({}))
-      setPreviewDataUrl(res.ok ? data.preview_data_url : null)
-      setTextDiagnostics(res.ok ? (data.text_diagnostics ?? {}) : {})
-      setPreviewLoading(false)
-    }, 500)
-    return () => { if (previewTimer.current) clearTimeout(previewTimer.current) }
-  }, [activeVariant, previewFor, activeType])
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- clears a now-invalid preview when the box layout it was rendered against just changed; a derived-state reset, not a fetch side effect
+    setPreviewDataUrl(null)
+    setPreviewStale(false)
+  }, [activeVariantId, activeType])
+
+  // Switching which speaker/partner is injected doesn't invalidate the
+  // layout — keep showing the last render, just mark it stale (dimmed +
+  // badged in the JSX below) rather than clearing it.
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- marks the existing image stale rather than a fetch side effect; no-ops harmlessly if there's nothing rendered yet
+    if (previewDataUrl) setPreviewStale(true)
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- only react to previewFor changing, not previewDataUrl itself (would loop)
+  }, [previewFor])
+
+  async function generatePreview() {
+    if (!activeVariant) return
+    const reqId = ++previewReqIdRef.current
+    setPreviewLoading(true)
+    const body: Record<string, unknown> = { stakeholder_type: activeType, variant: activeVariant }
+    if (previewFor) body[activeType === 'speaker' ? 'speaker_id' : 'partner_id'] = previewFor
+    const res = await fetch('/api/events/templates/preview', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
+    })
+    const data = await res.json().catch(() => ({}))
+    if (reqId !== previewReqIdRef.current) return // a newer click superseded this one — discard
+    setPreviewDataUrl(res.ok ? data.preview_data_url : null)
+    setPreviewStale(false)
+    setTextDiagnostics(res.ok ? (data.text_diagnostics ?? {}) : {})
+    setPreviewLoading(false)
+  }
 
   function mutate(fn: (vs: Variant[]) => Variant[]) {
     setVariants(fn)
     setDirty(true)
   }
+
+  // Undo/redo (2026-07-31) — push the PRE-edit snapshot at commit points
+  // (discrete actions call this directly; drags/NumField edits call it
+  // once at the start of a gesture/focus, see LayerBoxOverlay and NumField
+  // below). A new edit always clears the redo stack — standard undo
+  // semantics, redoing a since-diverged future doesn't make sense.
+  function pushUndo() {
+    undoStackRef.current.push({ speakerVariants, partnerVariants, activeType, activeVariantId })
+    if (undoStackRef.current.length > MAX_UNDO_ENTRIES) undoStackRef.current.shift()
+    redoStackRef.current = []
+    setUndoCount(undoStackRef.current.length)
+    setRedoCount(0)
+  }
+
+  // Discards the most recently pushed undo entry — used when a
+  // focus→blur field edit turns out to be a no-op (value unchanged), so
+  // the undo stack doesn't accumulate entries for edits that never happened.
+  function discardLastUndo() {
+    undoStackRef.current.pop()
+    setUndoCount(undoStackRef.current.length)
+  }
+
+  function undo() {
+    const entry = undoStackRef.current.pop()
+    if (!entry) return
+    redoStackRef.current.push({ speakerVariants, partnerVariants, activeType, activeVariantId })
+    setSpeakerVariants(entry.speakerVariants)
+    setPartnerVariants(entry.partnerVariants)
+    setActiveType(entry.activeType)
+    setActiveVariantId(entry.activeVariantId)
+    setDirty(true)
+    setUndoCount(undoStackRef.current.length)
+    setRedoCount(redoStackRef.current.length)
+  }
+
+  function redo() {
+    const entry = redoStackRef.current.pop()
+    if (!entry) return
+    undoStackRef.current.push({ speakerVariants, partnerVariants, activeType, activeVariantId })
+    setSpeakerVariants(entry.speakerVariants)
+    setPartnerVariants(entry.partnerVariants)
+    setActiveType(entry.activeType)
+    setActiveVariantId(entry.activeVariantId)
+    setDirty(true)
+    setUndoCount(undoStackRef.current.length)
+    setRedoCount(redoStackRef.current.length)
+  }
+
+  // Global Cmd/Ctrl+Z / Cmd/Ctrl+Shift+Z — guarded against firing while
+  // focus is in a text input/select so it never fights native field-level
+  // undo (e.g. inside the variant name Input). Latest-ref pattern so the
+  // listener is attached once ([] deps) but always calls the current
+  // undo/redo closures (which capture fresh state every render).
+  const undoRef = useRef(undo)
+  const redoRef = useRef(redo)
+  useEffect(() => {
+    undoRef.current = undo
+    redoRef.current = redo
+  })
+
+  useEffect(() => {
+    function onKeyDown(e: KeyboardEvent) {
+      const active = document.activeElement
+      const isEditable = active instanceof HTMLElement && ['INPUT', 'TEXTAREA', 'SELECT'].includes(active.tagName)
+      if (isEditable) return
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'z') {
+        e.preventDefault()
+        if (e.shiftKey) redoRef.current(); else undoRef.current()
+      }
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [])
 
   function updateActiveVariant(patch: Partial<Variant>) {
     if (!activeVariantId) return
@@ -164,6 +273,7 @@ export default function CreativeTemplatesAdminPage({ params }: { params: Promise
   }
 
   function addVariant() {
+    pushUndo()
     const variant: Variant = { id: crypto.randomUUID(), name: 'Untitled Variant', canvas_width: 1080, canvas_height: 1350, layers: [] }
     mutate(vs => [...vs, variant])
     setActiveVariantId(variant.id)
@@ -172,13 +282,15 @@ export default function CreativeTemplatesAdminPage({ params }: { params: Promise
   function deleteVariant(id: string) {
     const variant = variants.find(v => v.id === id)
     if (!variant) return
-    if (!confirm(`Delete variant "${variant.name || 'Untitled Variant'}" and its ${variant.layers.length} layer${variant.layers.length === 1 ? '' : 's'}? This can't be undone.`)) return
+    if (!confirm(`Delete variant "${variant.name || 'Untitled Variant'}" and its ${variant.layers.length} layer${variant.layers.length === 1 ? '' : 's'}?`)) return
+    pushUndo()
     mutate(vs => vs.filter(v => v.id !== id))
     if (activeVariantId === id) setActiveVariantId(null)
   }
 
   function addLayer(type: Layer['type']) {
     if (!activeVariant) return
+    pushUndo()
     updateActiveVariant({ layers: [...activeVariant.layers, newLayer(type, activeType, activeVariant.canvas_width, activeVariant.canvas_height)] })
   }
 
@@ -189,6 +301,7 @@ export default function CreativeTemplatesAdminPage({ params }: { params: Promise
 
   function deleteLayer(layerId: string) {
     if (!activeVariant) return
+    pushUndo()
     updateActiveVariant({ layers: activeVariant.layers.filter(l => l.id !== layerId) })
   }
 
@@ -198,6 +311,7 @@ export default function CreativeTemplatesAdminPage({ params }: { params: Promise
     const idx = layers.findIndex(l => l.id === layerId)
     const swapIdx = idx + delta
     if (idx < 0 || swapIdx < 0 || swapIdx >= layers.length) return
+    pushUndo()
     ;[layers[idx], layers[swapIdx]] = [layers[swapIdx], layers[idx]]
     updateActiveVariant({ layers })
   }
@@ -232,7 +346,13 @@ export default function CreativeTemplatesAdminPage({ params }: { params: Promise
         eyebrow="Event Workspace · Admin Console"
         title="Stakeholder Announcement Engine"
         description="Branding-team console — build and edit creative variants (layer stacks), and manage who has access to this tool."
-        actions={consoleTab === 'variants' ? <Button variant="lime" onClick={save} disabled={saving || !dirty}>{saving ? 'Saving…' : dirty ? 'Save Changes' : 'Saved'}</Button> : undefined}
+        actions={consoleTab === 'variants' ? (
+          <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+            <Button variant="ghost" onClick={undo} disabled={undoCount === 0} title="Undo (Cmd/Ctrl+Z)">↶ Undo</Button>
+            <Button variant="ghost" onClick={redo} disabled={redoCount === 0} title="Redo (Cmd/Ctrl+Shift+Z)">↷ Redo</Button>
+            <Button variant="lime" onClick={save} disabled={saving || !dirty}>{saving ? 'Saving…' : dirty ? 'Save Changes' : 'Saved'}</Button>
+          </div>
+        ) : undefined}
       />
 
       <div style={{ padding: '24px 32px' }}>
@@ -335,6 +455,8 @@ export default function CreativeTemplatesAdminPage({ params }: { params: Promise
                             onDelete={() => deleteLayer(layer.id)}
                             onMove={delta => moveLayer(layer.id, delta)}
                             onUploadImage={file => uploadLayerImage(layer.id, file)}
+                            pushUndo={pushUndo}
+                            discardLastUndo={discardLastUndo}
                           />
                         ))}
                         {activeVariant.layers.length === 0 && (
@@ -352,24 +474,45 @@ export default function CreativeTemplatesAdminPage({ params }: { params: Promise
                   )}
                 </div>
 
-                {/* Live preview — the primary workspace element, given the widest
-                    column of the three so it's actually usable to check real layouts. */}
+                {/* Preview — on-demand as of 2026-07-31 (was auto-rendering on
+                    every edit, which meant every drag pixel triggered a real
+                    multi-second Sharp render). Dragging/editing only ever
+                    touches local state now; the Generate Preview button is
+                    the one place that actually pays for a server render. */}
                 <div style={{ position: 'sticky', top: '20px' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '10px', marginBottom: '10px' }}>
-                    <span style={{ fontSize: '11px', fontWeight: 800, color: 'var(--teal-mid)', letterSpacing: '0.6px', textTransform: 'uppercase' }}>Live Preview</span>
-                    <Select value={previewFor} onChange={e => setPreviewFor(e.target.value)} style={{ width: '200px' }}>
-                      <option value="">Placeholder data</option>
-                      {stakeholderOptions.map(o => <option key={o.id} value={o.id}>{o.label}</option>)}
-                    </Select>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '10px', marginBottom: '10px', flexWrap: 'wrap' }}>
+                    <span style={{ fontSize: '11px', fontWeight: 800, color: 'var(--teal-mid)', letterSpacing: '0.6px', textTransform: 'uppercase' }}>Preview</span>
+                    <div style={{ display: 'flex', gap: '8px' }}>
+                      <Select value={previewFor} onChange={e => setPreviewFor(e.target.value)} style={{ width: '200px' }}>
+                        <option value="">Placeholder data</option>
+                        {stakeholderOptions.map(o => <option key={o.id} value={o.id}>{o.label}</option>)}
+                      </Select>
+                      <Button variant="teal" onClick={generatePreview} disabled={!activeVariant || previewLoading}>
+                        {previewLoading ? 'Generating…' : 'Generate Preview'}
+                      </Button>
+                    </div>
                   </div>
                   <div style={{ position: 'relative', borderRadius: '10px', overflow: 'hidden', background: 'var(--surface)', border: '1px solid var(--border-light)', aspectRatio: activeVariant ? `${activeVariant.canvas_width} / ${activeVariant.canvas_height}` : '4 / 5', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                    {previewLoading ? (
-                      <span style={{ fontSize: '12px', color: 'var(--ink3)' }}>Rendering…</span>
-                    ) : previewDataUrl ? (
+                    {previewDataUrl ? (
                       // eslint-disable-next-line @next/next/no-img-element -- data: URL preview, next/image can't handle these
-                      <img src={previewDataUrl} alt="Creative preview" style={{ width: '100%', height: '100%', objectFit: 'contain', display: 'block' }} />
+                      <img src={previewDataUrl} alt="Creative preview" style={{ width: '100%', height: '100%', objectFit: 'contain', display: 'block', opacity: previewStale ? 0.45 : 1, transition: 'opacity 0.15s ease' }} />
                     ) : (
-                      <span style={{ fontSize: '12px', color: 'var(--ink3)' }}>{activeVariant ? 'No preview yet' : 'Select a variant'}</span>
+                      <span style={{ fontSize: '12px', color: 'var(--ink3)' }}>
+                        {!activeVariant ? 'Select a variant' : previewLoading ? 'Generating…' : 'No preview yet — click Generate Preview'}
+                      </span>
+                    )}
+                    {/* Stale-while-revalidate: the old render stays visible (dimmed
+                        above) rather than being replaced by a blank "Rendering…"
+                        state — this badge is the only new UI while a fresh one loads. */}
+                    {previewLoading && previewDataUrl && (
+                      <span style={{ position: 'absolute', top: '10px', left: '10px', padding: '4px 10px', borderRadius: '20px', background: 'color-mix(in srgb, var(--card) 90%, transparent)', border: '1px solid var(--border)', fontSize: '11px', fontWeight: 700, color: 'var(--ink2)', zIndex: 20 }}>
+                        Generating…
+                      </span>
+                    )}
+                    {!previewLoading && previewStale && previewDataUrl && (
+                      <span style={{ position: 'absolute', top: '10px', left: '10px', padding: '4px 10px', borderRadius: '20px', background: 'color-mix(in srgb, var(--amber) 20%, var(--card))', border: '1px solid var(--amber-border)', fontSize: '11px', fontWeight: 700, color: 'var(--amber)', zIndex: 20 }}>
+                        Stale — click Generate Preview
+                      </span>
                     )}
                     {activeVariant && (
                       <LayerBoxOverlay
@@ -379,6 +522,7 @@ export default function CreativeTemplatesAdminPage({ params }: { params: Promise
                         activeLayerId={expandedLayerId}
                         onSelectLayer={setExpandedLayerId}
                         onChangeLayer={updateLayer}
+                        onCommitUndo={pushUndo}
                       />
                     )}
                   </div>
@@ -392,7 +536,7 @@ export default function CreativeTemplatesAdminPage({ params }: { params: Promise
   )
 }
 
-function LayerRow({ layer, index, total, activeType, uploading, brandFonts, expanded, onToggleExpand, diagnostics, onChange, onDelete, onMove, onUploadImage }: {
+function LayerRow({ layer, index, total, activeType, uploading, brandFonts, expanded, onToggleExpand, diagnostics, onChange, onDelete, onMove, onUploadImage, pushUndo, discardLastUndo }: {
   layer: Layer
   index: number
   total: number
@@ -406,6 +550,8 @@ function LayerRow({ layer, index, total, activeType, uploading, brandFonts, expa
   onDelete: () => void
   onMove: (delta: 1 | -1) => void
   onUploadImage: (file: File) => void
+  pushUndo: () => void
+  discardLastUndo: () => void
 }) {
   return (
     <div style={{ border: expanded ? '1px solid var(--lime)' : '1px solid var(--border-light)', borderRadius: '8px', overflow: 'hidden' }}>
@@ -424,9 +570,9 @@ function LayerRow({ layer, index, total, activeType, uploading, brandFonts, expa
 
       {expanded && (
         <div style={{ padding: '12px 10px', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
-          {layer.type === 'image' && <ImageLayerFields layer={layer} uploading={uploading} onChange={onChange as (patch: Partial<ImageLayer>) => void} onUploadImage={onUploadImage} />}
-          {layer.type === 'photo_slot' && <PhotoSlotLayerFields layer={layer} activeType={activeType} onChange={onChange} />}
-          {layer.type === 'text' && <TextLayerFields layer={layer} activeType={activeType} brandFonts={brandFonts} onChange={onChange} />}
+          {layer.type === 'image' && <ImageLayerFields layer={layer} uploading={uploading} onChange={onChange as (patch: Partial<ImageLayer>) => void} onUploadImage={onUploadImage} pushUndo={pushUndo} discardLastUndo={discardLastUndo} />}
+          {layer.type === 'photo_slot' && <PhotoSlotLayerFields layer={layer} activeType={activeType} onChange={onChange} pushUndo={pushUndo} discardLastUndo={discardLastUndo} />}
+          {layer.type === 'text' && <TextLayerFields layer={layer} activeType={activeType} brandFonts={brandFonts} onChange={onChange} pushUndo={pushUndo} discardLastUndo={discardLastUndo} />}
         </div>
       )}
     </div>
@@ -439,16 +585,31 @@ function layerSummary(layer: Layer): string {
   return `Text: ${layer.field}${layer.field === 'custom' || layer.field === 'tier' ? ` "${layer.value ?? ''}"` : ''}`
 }
 
-function NumField({ label, value, onChange }: { label: string; value: number; onChange: (v: number) => void }) {
+function NumField({ label, value, onChange, pushUndo, discardLastUndo }: {
+  label: string; value: number; onChange: (v: number) => void
+  pushUndo?: () => void; discardLastUndo?: () => void
+}) {
+  // Undo commit point (2026-07-31): snapshot on focus (before any edit),
+  // discard that snapshot on blur if the value never actually changed —
+  // live typing keeps using the unthrottled onChange below, this is a
+  // separate side-channel so undo doesn't get an entry per keystroke.
+  const focusValueRef = useRef(value)
   return (
     <label style={{ fontSize: '11px', color: 'var(--ink3)', display: 'block' }}>
       {label}
-      <Input type="number" value={value} onChange={e => onChange(Number(e.target.value))} style={{ width: '100%', marginTop: '3px' }} />
+      <Input type="number" value={value}
+        onFocus={() => { focusValueRef.current = value; pushUndo?.() }}
+        onChange={e => onChange(Number(e.target.value))}
+        onBlur={() => { if (focusValueRef.current === value) discardLastUndo?.() }}
+        style={{ width: '100%', marginTop: '3px' }} />
     </label>
   )
 }
 
-function ImageLayerFields({ layer, uploading, onChange, onUploadImage }: { layer: ImageLayer; uploading: boolean; onChange: (patch: Partial<ImageLayer>) => void; onUploadImage: (file: File) => void }) {
+function ImageLayerFields({ layer, uploading, onChange, onUploadImage, pushUndo, discardLastUndo }: {
+  layer: ImageLayer; uploading: boolean; onChange: (patch: Partial<ImageLayer>) => void; onUploadImage: (file: File) => void
+  pushUndo: () => void; discardLastUndo: () => void
+}) {
   // Image layers default to full-bleed (newLayer() above), but aren't
   // locked to it — the box overlay on the live preview (LayerBoxOverlay)
   // can drag/resize them like any other layer now (2026-07-29 unification);
@@ -467,15 +628,18 @@ function ImageLayerFields({ layer, uploading, onChange, onUploadImage }: { layer
             onChange={e => { const f = e.target.files?.[0]; if (f) onUploadImage(f); e.target.value = '' }} />
         </label>
       </div>
-      <NumField label="X" value={layer.x} onChange={x => onChange({ x })} />
-      <NumField label="Y" value={layer.y} onChange={y => onChange({ y })} />
-      <NumField label="Width" value={layer.width} onChange={width => onChange({ width })} />
-      <NumField label="Height" value={layer.height} onChange={height => onChange({ height })} />
+      <NumField label="X" value={layer.x} onChange={x => onChange({ x })} pushUndo={pushUndo} discardLastUndo={discardLastUndo} />
+      <NumField label="Y" value={layer.y} onChange={y => onChange({ y })} pushUndo={pushUndo} discardLastUndo={discardLastUndo} />
+      <NumField label="Width" value={layer.width} onChange={width => onChange({ width })} pushUndo={pushUndo} discardLastUndo={discardLastUndo} />
+      <NumField label="Height" value={layer.height} onChange={height => onChange({ height })} pushUndo={pushUndo} discardLastUndo={discardLastUndo} />
     </>
   )
 }
 
-function PhotoSlotLayerFields({ layer, activeType, onChange }: { layer: PhotoSlotLayer; activeType: StakeholderKind; onChange: (patch: Partial<PhotoSlotLayer>) => void }) {
+function PhotoSlotLayerFields({ layer, activeType, onChange, pushUndo, discardLastUndo }: {
+  layer: PhotoSlotLayer; activeType: StakeholderKind; onChange: (patch: Partial<PhotoSlotLayer>) => void
+  pushUndo: () => void; discardLastUndo: () => void
+}) {
   const sourceOptions: PhotoSlotLayer['source'][] = activeType === 'speaker' ? ['speaker_photo', 'speaker_logo'] : ['partner_logo']
   const [analyzing, setAnalyzing] = useState(false)
   const [analyzeError, setAnalyzeError] = useState<string | null>(null)
@@ -532,19 +696,21 @@ function PhotoSlotLayerFields({ layer, activeType, onChange }: { layer: PhotoSlo
         )}
       </div>
 
-      <NumField label="X" value={layer.x} onChange={x => onChange({ x })} />
-      <NumField label="Y" value={layer.y} onChange={y => onChange({ y })} />
-      <NumField label="Width" value={layer.width} onChange={width => onChange({ width })} />
-      <NumField label="Height" value={layer.height} onChange={height => onChange({ height })} />
+      <NumField label="X" value={layer.x} onChange={x => onChange({ x })} pushUndo={pushUndo} discardLastUndo={discardLastUndo} />
+      <NumField label="Y" value={layer.y} onChange={y => onChange({ y })} pushUndo={pushUndo} discardLastUndo={discardLastUndo} />
+      <NumField label="Width" value={layer.width} onChange={width => onChange({ width })} pushUndo={pushUndo} discardLastUndo={discardLastUndo} />
+      <NumField label="Height" value={layer.height} onChange={height => onChange({ height })} pushUndo={pushUndo} discardLastUndo={discardLastUndo} />
     </>
   )
 }
 
-function TextLayerFields({ layer, activeType, brandFonts, onChange }: {
+function TextLayerFields({ layer, activeType, brandFonts, onChange, pushUndo, discardLastUndo }: {
   layer: TextLayer
   activeType: StakeholderKind
   brandFonts: Array<{ id: string; family_name: string; regular_url: string; bold_url: string | null }>
   onChange: (patch: Partial<TextLayer>) => void
+  pushUndo: () => void
+  discardLastUndo: () => void
 }) {
   const fieldOptions: TextLayer['field'][] = activeType === 'speaker' ? ['name', 'title', 'company', 'tier', 'custom'] : ['tier', 'custom']
   return (
@@ -575,12 +741,12 @@ function TextLayerFields({ layer, activeType, brandFonts, onChange }: {
           {brandFonts.map(f => <option key={f.id} value={f.family_name}>{f.family_name}</option>)}
         </Select>
       </label>
-      <NumField label="X" value={layer.x} onChange={x => onChange({ x })} />
-      <NumField label="Y" value={layer.y} onChange={y => onChange({ y })} />
-      <NumField label="Width" value={layer.width} onChange={width => onChange({ width })} />
-      <NumField label="Height" value={layer.height} onChange={height => onChange({ height })} />
-      <NumField label="Max lines" value={layer.max_lines} onChange={max_lines => onChange({ max_lines: Math.max(1, max_lines) })} />
-      <NumField label="Font size (ceiling)" value={layer.font_size} onChange={font_size => onChange({ font_size })} />
+      <NumField label="X" value={layer.x} onChange={x => onChange({ x })} pushUndo={pushUndo} discardLastUndo={discardLastUndo} />
+      <NumField label="Y" value={layer.y} onChange={y => onChange({ y })} pushUndo={pushUndo} discardLastUndo={discardLastUndo} />
+      <NumField label="Width" value={layer.width} onChange={width => onChange({ width })} pushUndo={pushUndo} discardLastUndo={discardLastUndo} />
+      <NumField label="Height" value={layer.height} onChange={height => onChange({ height })} pushUndo={pushUndo} discardLastUndo={discardLastUndo} />
+      <NumField label="Max lines" value={layer.max_lines} onChange={max_lines => onChange({ max_lines: Math.max(1, max_lines) })} pushUndo={pushUndo} discardLastUndo={discardLastUndo} />
+      <NumField label="Font size (ceiling)" value={layer.font_size} onChange={font_size => onChange({ font_size })} pushUndo={pushUndo} discardLastUndo={discardLastUndo} />
       <label style={{ fontSize: '11px', color: 'var(--ink3)', display: 'block' }}>
         Font color
         <Input type="color" value={layer.font_color} onChange={e => onChange({ font_color: e.target.value })} style={{ width: '100%', marginTop: '3px', height: '34px', padding: '2px' }} />

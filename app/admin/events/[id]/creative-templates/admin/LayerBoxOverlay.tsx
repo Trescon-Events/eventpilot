@@ -1,6 +1,6 @@
 'use client'
 
-import { useRef } from 'react'
+import { useRef, useState } from 'react'
 import type { Layer } from '@/app/lib/announcements/composite'
 
 /* Drag/resize box editor overlaid on the variant editor's live preview
@@ -12,6 +12,10 @@ import type { Layer } from '@/app/lib/announcements/composite'
    PhotoUploadModal.tsx) — that component is a single-box/single-image
    crop selector, the wrong shape for N simultaneous boxes over one shared
    preview image.
+
+   2026-07-31 UX pass added arrow-key nudging, snap guides, and undo
+   commit points (see onCommitUndo) — the editor previously had zero
+   precision-editing ergonomics beyond raw number fields.
 
    Positioning uses plain CSS percentages of the container (left/top/width/
    height as % of canvas_width/canvas_height) rather than tracking the
@@ -34,6 +38,11 @@ type Props = {
   activeLayerId: string | null
   onSelectLayer: (id: string) => void
   onChangeLayer: (layerId: string, patch: Partial<Layer>) => void
+  // Called once per edit "gesture" (a drag, or a burst of arrow-key
+  // nudges), right before the FIRST actual change is applied — the caller
+  // (page.tsx) pushes a pre-edit undo snapshot. Never called for a
+  // click/press that ends up not moving anything.
+  onCommitUndo: () => void
 }
 
 type Box = { x: number; y: number; width: number; height: number }
@@ -44,6 +53,12 @@ type DragMode = 'move' | HandlePos
 // than this during a gesture (free-typing in the NumFields is unclamped;
 // this only governs pointer drags, per the plan's gesture-vs-typing split).
 const MIN_BOX = 16
+// Snap threshold, in canvas-space px (resolution-independent — matches the
+// space onPointerMove already computes deltas in).
+const SNAP_THRESHOLD = 6
+// A burst of rapid arrow-key nudges (holding the key, or fast repeats)
+// coalesces into one undo entry — a new burst starts after this much quiet.
+const NUDGE_BURST_GAP_MS = 500
 
 const HANDLE_POSITIONS: HandlePos[] = ['nw', 'n', 'ne', 'e', 'se', 's', 'sw', 'w']
 const HANDLE_CURSOR: Record<HandlePos, string> = { nw: 'nwse-resize', n: 'ns-resize', ne: 'nesw-resize', e: 'ew-resize', se: 'nwse-resize', s: 'ns-resize', sw: 'nesw-resize', w: 'ew-resize' }
@@ -64,9 +79,43 @@ function handleStyle(pos: HandlePos): React.CSSProperties {
   return style
 }
 
-export default function LayerBoxOverlay({ layers, canvasWidth, canvasHeight, activeLayerId, onSelectLayer, onChangeLayer }: Props) {
+// Snap targets = canvas edges/center (as one implicit pseudo-layer) plus
+// every OTHER layer's edges and centers. Returns the snapped value and
+// whether a snap actually engaged, for both axes independently — only the
+// moving edge/axis snaps, box size is never silently altered by this.
+function computeSnap(
+  value: number, size: number, axisMax: number, siblingRanges: Array<{ start: number; size: number }>
+): { snapped: number; guideAt: number | null } {
+  const center = value + size / 2
+  const candidates: number[] = [0, axisMax / 2 - size / 2, axisMax - size] // canvas start/center/end (for this box's start coordinate)
+  const guideCandidates: number[] = [0, axisMax / 2, axisMax]
+  for (const sibling of siblingRanges) {
+    candidates.push(sibling.start, sibling.start + sibling.size / 2 - size / 2, sibling.start + sibling.size - size)
+    guideCandidates.push(sibling.start, sibling.start + sibling.size / 2, sibling.start + sibling.size)
+  }
+  let best: { snapped: number; guideAt: number; dist: number } | null = null
+  for (let i = 0; i < candidates.length; i++) {
+    const dist = Math.abs(value - candidates[i])
+    if (dist <= SNAP_THRESHOLD && (!best || dist < best.dist)) {
+      best = { snapped: candidates[i], guideAt: guideCandidates[i], dist }
+    }
+  }
+  // Also check the box's CENTER against guide centerlines directly (covers
+  // the common case of centering a box that isn't the same size as a sibling).
+  for (const g of guideCandidates) {
+    const dist = Math.abs(center - g)
+    if (dist <= SNAP_THRESHOLD && (!best || dist < best.dist)) {
+      best = { snapped: g - size / 2, guideAt: g, dist }
+    }
+  }
+  return best ? { snapped: best.snapped, guideAt: best.guideAt } : { snapped: value, guideAt: null }
+}
+
+export default function LayerBoxOverlay({ layers, canvasWidth, canvasHeight, activeLayerId, onSelectLayer, onChangeLayer, onCommitUndo }: Props) {
   const containerRef = useRef<HTMLDivElement | null>(null)
-  const dragRef = useRef<{ layerId: string; mode: DragMode; startClientX: number; startClientY: number; startBox: Box } | null>(null)
+  const dragRef = useRef<{ layerId: string; mode: DragMode; startClientX: number; startClientY: number; startBox: Box; committed: boolean } | null>(null)
+  const nudgeBurstRef = useRef<{ layerId: string; lastAt: number } | null>(null)
+  const [guides, setGuides] = useState<{ x: number | null; y: number | null }>({ x: null, y: null })
 
   function toCanvasDelta(clientDx: number, clientDy: number): { dx: number; dy: number } {
     const rect = containerRef.current?.getBoundingClientRect()
@@ -78,8 +127,9 @@ export default function LayerBoxOverlay({ layers, canvasWidth, canvasHeight, act
     e.preventDefault()
     e.stopPropagation()
     onSelectLayer(layer.id)
+    containerRef.current?.focus()
     ;(e.currentTarget as Element).setPointerCapture(e.pointerId)
-    dragRef.current = { layerId: layer.id, mode, startClientX: e.clientX, startClientY: e.clientY, startBox: { x: layer.x, y: layer.y, width: layer.width, height: layer.height } }
+    dragRef.current = { layerId: layer.id, mode, startClientX: e.clientX, startClientY: e.clientY, startBox: { x: layer.x, y: layer.y, width: layer.width, height: layer.height }, committed: false }
   }
 
   function onPointerMove(e: React.PointerEvent) {
@@ -105,6 +155,23 @@ export default function LayerBoxOverlay({ layers, canvasWidth, canvasHeight, act
       }
     }
 
+    // Snap (move gestures only — resizing snaps would silently change the
+    // box's own size, which isn't what a snap guide should do) against
+    // canvas edges/center and every OTHER layer's edges/centers.
+    let guideX: number | null = null
+    let guideY: number | null = null
+    if (mode === 'move') {
+      const siblingsX = layers.filter(l => l.id !== drag.layerId).map(l => ({ start: l.x, size: l.width }))
+      const siblingsY = layers.filter(l => l.id !== drag.layerId).map(l => ({ start: l.y, size: l.height }))
+      const snapX = computeSnap(x, width, canvasWidth, siblingsX)
+      const snapY = computeSnap(y, height, canvasHeight, siblingsY)
+      x = snapX.snapped
+      y = snapY.snapped
+      guideX = snapX.guideAt
+      guideY = snapY.guideAt
+    }
+    setGuides({ x: guideX, y: guideY })
+
     // Clamp to stay on-canvas during the gesture itself — dragging/resizing
     // off-canvas is blocked here, but typing an intentionally off-canvas
     // value directly into a NumField is NOT clamped (a legitimate design
@@ -114,6 +181,10 @@ export default function LayerBoxOverlay({ layers, canvasWidth, canvasHeight, act
     width = Math.min(width, canvasWidth - x)
     height = Math.min(height, canvasHeight - y)
 
+    if (!drag.committed) {
+      onCommitUndo() // first real change of this drag — snapshot the pre-drag state, once
+      drag.committed = true
+    }
     onChangeLayer(drag.layerId, { x: Math.round(x), y: Math.round(y), width: Math.round(width), height: Math.round(height) } as Partial<Layer>)
   }
 
@@ -122,10 +193,42 @@ export default function LayerBoxOverlay({ layers, canvasWidth, canvasHeight, act
       try { (e.currentTarget as Element).releasePointerCapture(e.pointerId) } catch { /* already released on unmount/blur */ }
     }
     dragRef.current = null
+    setGuides({ x: null, y: null })
+  }
+
+  function onKeyDown(e: React.KeyboardEvent) {
+    if (!activeLayerId) return
+    const deltas: Record<string, [number, number]> = {
+      ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1],
+    }
+    const delta = deltas[e.key]
+    if (!delta) return
+    e.preventDefault()
+    const layer = layers.find(l => l.id === activeLayerId)
+    if (!layer) return
+
+    const step = e.shiftKey ? 10 : 1
+    const nextX = Math.max(0, Math.min(layer.x + delta[0] * step, canvasWidth - MIN_BOX))
+    const nextY = Math.max(0, Math.min(layer.y + delta[1] * step, canvasHeight - MIN_BOX))
+
+    const now = Date.now()
+    const burst = nudgeBurstRef.current
+    const isNewBurst = !burst || burst.layerId !== activeLayerId || now - burst.lastAt > NUDGE_BURST_GAP_MS
+    if (isNewBurst) onCommitUndo()
+    nudgeBurstRef.current = { layerId: activeLayerId, lastAt: now }
+
+    onChangeLayer(activeLayerId, { x: nextX, y: nextY } as Partial<Layer>)
   }
 
   return (
-    <div ref={containerRef} style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }} onPointerMove={onPointerMove} onPointerUp={endDrag}>
+    <div
+      ref={containerRef}
+      tabIndex={0}
+      onKeyDown={onKeyDown}
+      style={{ position: 'absolute', inset: 0, pointerEvents: 'none', outline: 'none' }}
+      onPointerMove={onPointerMove}
+      onPointerUp={endDrag}
+    >
       {layers.map(layer => {
         const isActive = layer.id === activeLayerId
         return (
@@ -152,6 +255,14 @@ export default function LayerBoxOverlay({ layers, canvasWidth, canvasHeight, act
           </div>
         )
       })}
+
+      {/* Snap guide lines — only rendered while a snap is actively engaged during a move drag. */}
+      {guides.x !== null && (
+        <div style={{ position: 'absolute', left: `${(guides.x / canvasWidth) * 100}%`, top: 0, bottom: 0, width: '1px', background: 'var(--teal-mid)', zIndex: 15, pointerEvents: 'none' }} />
+      )}
+      {guides.y !== null && (
+        <div style={{ position: 'absolute', top: `${(guides.y / canvasHeight) * 100}%`, left: 0, right: 0, height: '1px', background: 'var(--teal-mid)', zIndex: 15, pointerEvents: 'none' }} />
+      )}
     </div>
   )
 }
