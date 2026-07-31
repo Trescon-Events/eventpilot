@@ -58,6 +58,13 @@ type Props = {
   // "Generate Preview" is still the source of truth for the exact result.
   activeType: StakeholderKind
   previewForRecord: StakeholderOption | null
+  // Whether to actually draw the ghost content. False once a real,
+  // up-to-date preview render is showing underneath — otherwise the ghost
+  // text/image stacks directly on top of the real Sharp-rendered text at a
+  // slightly different position/size (different wrap + font-matching
+  // engines), reading as a visible duplicate layer. True when there's no
+  // preview yet, or the last one is stale relative to the current edit.
+  showGhost: boolean
 }
 
 type Box = { x: number; y: number; width: number; height: number }
@@ -165,7 +172,7 @@ function FontFaceStyles({ layers }: { layers: Layer[] }) {
   return <style>{rules.join('\n')}</style>
 }
 
-export default function LayerBoxOverlay({ layers, canvasWidth, canvasHeight, activeLayerId, onSelectLayer, onChangeLayer, onCommitUndo, activeType, previewForRecord }: Props) {
+export default function LayerBoxOverlay({ layers, canvasWidth, canvasHeight, activeLayerId, onSelectLayer, onChangeLayer, onCommitUndo, activeType, previewForRecord, showGhost }: Props) {
   const containerRef = useRef<HTMLDivElement | null>(null)
   const dragRef = useRef<{ layerId: string; mode: DragMode; startClientX: number; startClientY: number; startBox: Box; committed: boolean } | null>(null)
   const nudgeBurstRef = useRef<{ layerId: string; lastAt: number } | null>(null)
@@ -290,8 +297,8 @@ export default function LayerBoxOverlay({ layers, canvasWidth, canvasHeight, act
       <FontFaceStyles layers={layers} />
       {layers.map(layer => {
         const isActive = layer.id === activeLayerId
-        const ghostText = isActive && layer.type === 'text' ? resolveGhostText(layer, activeType, previewForRecord) : ''
-        const ghostImageUrl = isActive && layer.type === 'photo_slot' ? resolveGhostImageUrl(layer, previewForRecord) : null
+        const ghostText = isActive && showGhost && layer.type === 'text' ? resolveGhostText(layer, activeType, previewForRecord) : ''
+        const ghostImageUrl = isActive && showGhost && layer.type === 'photo_slot' ? resolveGhostImageUrl(layer, previewForRecord) : null
         return (
           <div
             key={layer.id}

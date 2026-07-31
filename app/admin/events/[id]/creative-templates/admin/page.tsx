@@ -534,6 +534,7 @@ export default function CreativeTemplatesAdminPage({ params }: { params: Promise
                         onCommitUndo={pushUndo}
                         activeType={activeType}
                         previewForRecord={previewForRecord}
+                        showGhost={!previewDataUrl || previewStale}
                       />
                     )}
                   </div>
