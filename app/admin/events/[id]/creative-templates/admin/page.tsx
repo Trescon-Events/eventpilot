@@ -279,6 +279,14 @@ export default function CreativeTemplatesAdminPage({ params }: { params: Promise
   function updateActiveVariant(patch: Partial<Variant>) {
     if (!activeVariantId) return
     mutate(vs => vs.map(v => v.id === activeVariantId ? { ...v, ...patch } : v))
+    // Every layer/variant edit (field change, drag, add/delete/reorder — all
+    // funnel through here) invalidates whatever's currently rendered. Marks
+    // stale rather than clearing outright — same "keep showing the last
+    // render, dimmed + badged" treatment as switching previewFor below,
+    // which also brings the ghost overlay back for the active layer so font/
+    // color/weight/position edits get instant client-side feedback again
+    // without paying for a new server render on every keystroke.
+    if (previewDataUrl) setPreviewStale(true)
   }
 
   function addVariant() {

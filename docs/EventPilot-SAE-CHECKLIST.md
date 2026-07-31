@@ -316,6 +316,14 @@ Madhu regenerated a preview right after v6.2 shipped and caught two real bugs li
 - [x] Full verification suite (`npx tsc --noEmit`, targeted `eslint`, `npm run build`, `npm run check:nav`) clean.
 - [ ] **Follow-up not in scope here**: synthetic bold is a visual approximation (stroke-widened Regular glyphs), not real Bold-weight glyph data — won't be pixel-identical to Canva's own bold rendering. A pixel-perfect fix would need to statically instantiate the variable font's `wght` axis at 700 server-side (e.g. via a font-instancing library) rather than relying on `@napi-rs/canvas` to do it — worth a proper look if exact bold fidelity turns out to matter for real output, not just a “does it look bold” check.
 
+### Phase C v6.4 — Field edits (font/weight/color/size/align) now reactivate the live ghost overlay (2026-07-31, same day)
+
+Madhu asked, after a preview is generated, why changing a text layer's font/weight/etc. still required a full server re-render just to see the effect — the ghost overlay already renders real text in the real font/weight/color/size straight off live layer state, so this should be free. Confirmed: the ghost span's styles already read `font_family`/`font_weight`/`font_color`/`font_size`/`align` directly off the layer object, so it was already capable of reflecting any field edit instantly — the actual gap was `showGhost`'s gating: it only re-armed on a box *drag*, so a plain field edit (a `Select`/`NumField` change, no pointer gesture involved) left the ghost hidden and the old, now-inaccurate real render sitting there unchanged with no stale indicator at all.
+
+- [x] `page.tsx`: `updateActiveVariant()` — the single choke point every layer/variant mutation already funnels through (field edits, drag, add/delete/reorder layer, canvas resize) — now marks `previewStale = true` whenever a preview exists, the same "keep the last render, dimmed + badged" treatment `previewFor` switches already got. This one change reactivates the ghost overlay for the active layer on any edit, for free, since the ghost's rendering was already wired to live layer state.
+- [x] **Verified live** via Playwright against the real "Speaker template 1" variant: generated a real preview (no stale badge), then edited the name layer's Font size via its NumField — stale badge appeared immediately and the ghost text reappeared at the new size with zero server call; separately confirmed switching the Weight `Select` from Bold to Normal also immediately re-armed the stale badge and visibly thinned the ghost text. No test data saved.
+- [x] Full verification suite (`npx tsc --noEmit`, targeted `eslint`, `npm run build`, `npm run check:nav`) clean.
+
 ---
 
 ## Phase D — Approval Workflow
