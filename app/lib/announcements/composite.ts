@@ -41,6 +41,13 @@ export type PhotoSlotLayer = {
   width: number
   height: number
   alignment?: PhotoAlignmentMeta // face-aligned-cover fit (speaker photos only) when present; contain-centered otherwise — see app/lib/media/face-alignment.ts
+  // The image uploaded via "Upload Reference Layer (auto-position)" — see
+  // derive-alignment/route.ts — stored (2026-07-31, was previously
+  // discarded after deriving x/y/width/height/alignment from it) so it can
+  // double as placeholder-preview content when no real stakeholder is
+  // selected, matching what the button's own help text ("a dummy photo
+  // already correctly positioned") implies but never actually did before.
+  reference_url?: string
 }
 
 export type TextLayerFont = {

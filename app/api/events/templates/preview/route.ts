@@ -20,16 +20,17 @@ import type { HeadBox } from '@/app/lib/media/face-alignment'
    50% — real generate/regenerate-creative (unaffected by this file) always
    render full-resolution, only this interactive preview trades a little
    fidelity for a smaller/faster payload. If speaker_id/partner_id is
-   given, real photo/logo + text are used; otherwise flat-color placeholder
-   boxes stand in for photo/logo layers (a real photo_slot layer's box and
-   face-alignment target are already fully supplied by whoever creates the
-   variant, so there's nothing useful to substitute here) and text falls
-   back to the event's saved "Placeholder data" profile (2026-07-31 — one
-   reusable name/title/company per stakeholder type, editable in the layer
-   editor, instead of every variant preview hardcoding its own sample
-   text), falling back further to hardcoded sample text for any field the
-   placeholder profile hasn't been filled in yet, or for events that
-   haven't set one up at all. */
+   given, real photo/logo + text are used; otherwise each photo_slot
+   layer's own `reference_url` stands in if one was saved (the image
+   uploaded via "Upload Reference Layer (auto-position)" — see
+   derive-alignment/route.ts — which used to be analyzed for its box/
+   alignment and then discarded; now persisted precisely so it has
+   something to show here), falling back further to a flat gray box for
+   any photo_slot layer that's never had a reference layer uploaded at
+   all. Text falls back to the event's saved "Placeholder data" profile
+   (2026-07-31 — one reusable name/title/company per stakeholder type,
+   editable in the layer editor), falling back further to hardcoded
+   sample text for any field neither has. */
 
 const PLACEHOLDER_TEXT = { name: 'Jane Doe', title: 'Chief Officer', company: 'Acme Corp', tier: 'LEAD SPONSOR' }
 const PLACEHOLDER_COLOR = { r: 140, g: 140, b: 150, alpha: 1 }
@@ -62,6 +63,7 @@ export async function POST(req: NextRequest) {
   )
 
   const assetEntries = await Promise.all(Array.from(sourcesNeeded).map(async (source): Promise<[PhotoSlotLayer['source'], ResolvedAssets[PhotoSlotLayer['source']]]> => {
+    const layer = body.variant!.layers.find((l): l is PhotoSlotLayer => l.type === 'photo_slot' && l.source === source)!
     const realUrl = source === 'speaker_photo' ? ((speaker?.photo_processed_url as string | null) ?? (speaker?.photo_url as string | null))
       : source === 'speaker_logo' ? (speaker?.company_logo_url as string | null)
       : (partner?.logo_url as string | null)
@@ -77,7 +79,14 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    const layer = body.variant!.layers.find((l): l is PhotoSlotLayer => l.type === 'photo_slot' && l.source === source)!
+    if (layer.reference_url) {
+      const buffer = await fetchAssetBuffer(layer.reference_url)
+      // No cached head_box for a reference image — alignAndCropPhoto()
+      // falls back to live detection against it, same as any real photo
+      // that predates head-box caching.
+      if (buffer) return [source, { buffer, is_svg: false }]
+    }
+
     const placeholder = await sharp({ create: { width: layer.width, height: layer.height, channels: 4, background: PLACEHOLDER_COLOR } }).png().toBuffer()
     return [source, { buffer: placeholder }]
   }))

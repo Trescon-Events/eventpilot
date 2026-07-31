@@ -163,17 +163,18 @@ function resolveGhostText(layer: TextLayer, activeType: StakeholderKind, record:
   return ''
 }
 
-// No placeholder-profile fallback here, deliberately (2026-07-31, per
-// Madhu) — a real photo_slot layer's box and face-alignment target are
-// already fully supplied by whoever creates the variant (a designer
-// uploads a reference layer with a placeholder photo/logo already
-// correctly positioned), so there's no real photo/logo content missing to
-// stand in for; the ghost simply shows nothing for this layer until a real
-// stakeholder is selected.
+// Falls back to the layer's own reference_url (2026-07-31) — the image
+// uploaded via "Upload Reference Layer (auto-position)", which used to be
+// analyzed for box/alignment and then discarded; now persisted (see
+// PhotoSlotLayer.reference_url in composite.ts) so it can stand in here
+// too, matching what the real preview route does. No stakeholder-type-
+// level placeholder-profile fallback for photo/logo, deliberately — each
+// photo_slot layer already carries its own reference image, so there's
+// nothing else to substitute.
 function resolveGhostImageUrl(layer: PhotoSlotLayer, record: StakeholderOption | null): string | null {
-  if (layer.source === 'speaker_photo') return record?.photo_url ?? null
-  if (layer.source === 'speaker_logo') return record?.company_logo_url ?? null
-  return record?.logo_url ?? null // partner_logo
+  if (layer.source === 'speaker_photo') return record?.photo_url ?? layer.reference_url ?? null
+  if (layer.source === 'speaker_logo') return record?.company_logo_url ?? layer.reference_url ?? null
+  return record?.logo_url ?? layer.reference_url ?? null // partner_logo
 }
 
 // One @font-face rule per distinct custom brand font in use, reusing the

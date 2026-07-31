@@ -496,6 +496,7 @@ export default function CreativeTemplatesAdminPage({ params }: { params: Promise
                             onUploadImage={file => uploadLayerImage(layer.id, file)}
                             pushUndo={pushUndo}
                             discardLastUndo={discardLastUndo}
+                            eventId={eventId}
                           />
                         ))}
                         {activeVariant.layers.length === 0 && (
@@ -591,7 +592,7 @@ export default function CreativeTemplatesAdminPage({ params }: { params: Promise
   )
 }
 
-function LayerRow({ layer, index, total, activeType, uploading, brandFonts, expanded, onToggleExpand, diagnostics, onChange, onDelete, onMove, onUploadImage, pushUndo, discardLastUndo }: {
+function LayerRow({ layer, index, total, activeType, uploading, brandFonts, expanded, onToggleExpand, diagnostics, onChange, onDelete, onMove, onUploadImage, pushUndo, discardLastUndo, eventId }: {
   layer: Layer
   index: number
   total: number
@@ -607,6 +608,7 @@ function LayerRow({ layer, index, total, activeType, uploading, brandFonts, expa
   onUploadImage: (file: File) => void
   pushUndo: () => void
   discardLastUndo: () => void
+  eventId: string
 }) {
   return (
     <div style={{ border: expanded ? '1px solid var(--lime)' : '1px solid var(--border-light)', borderRadius: '8px', overflow: 'hidden' }}>
@@ -626,7 +628,7 @@ function LayerRow({ layer, index, total, activeType, uploading, brandFonts, expa
       {expanded && (
         <div style={{ padding: '12px 10px', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
           {layer.type === 'image' && <ImageLayerFields layer={layer} uploading={uploading} onChange={onChange as (patch: Partial<ImageLayer>) => void} onUploadImage={onUploadImage} pushUndo={pushUndo} discardLastUndo={discardLastUndo} />}
-          {layer.type === 'photo_slot' && <PhotoSlotLayerFields layer={layer} activeType={activeType} onChange={onChange} pushUndo={pushUndo} discardLastUndo={discardLastUndo} />}
+          {layer.type === 'photo_slot' && <PhotoSlotLayerFields layer={layer} activeType={activeType} onChange={onChange} pushUndo={pushUndo} discardLastUndo={discardLastUndo} eventId={eventId} />}
           {layer.type === 'text' && <TextLayerFields layer={layer} activeType={activeType} brandFonts={brandFonts} onChange={onChange} pushUndo={pushUndo} discardLastUndo={discardLastUndo} />}
         </div>
       )}
@@ -736,9 +738,9 @@ function ImageLayerFields({ layer, uploading, onChange, onUploadImage, pushUndo,
   )
 }
 
-function PhotoSlotLayerFields({ layer, activeType, onChange, pushUndo, discardLastUndo }: {
+function PhotoSlotLayerFields({ layer, activeType, onChange, pushUndo, discardLastUndo, eventId }: {
   layer: PhotoSlotLayer; activeType: StakeholderKind; onChange: (patch: Partial<PhotoSlotLayer>) => void
-  pushUndo: () => void; discardLastUndo: () => void
+  pushUndo: () => void; discardLastUndo: () => void; eventId: string
 }) {
   const sourceOptions: PhotoSlotLayer['source'][] = activeType === 'speaker' ? ['speaker_photo', 'speaker_logo'] : ['partner_logo']
   const [analyzing, setAnalyzing] = useState(false)
@@ -751,11 +753,16 @@ function PhotoSlotLayerFields({ layer, activeType, onChange, pushUndo, discardLa
     setAnalyzeError(null)
     const form = new FormData()
     form.append('file', file)
+    form.append('event_id', eventId)
     const res = await fetch('/api/events/templates/derive-alignment', { method: 'POST', body: form })
     const data = await res.json().catch(() => ({}))
     if (res.ok) {
       onChange({
         x: data.box.x, y: data.box.y, width: data.box.width, height: data.box.height,
+        // Saved (2026-07-31) so it can stand in for the real photo/logo when
+        // previewing with no real stakeholder selected — see
+        // PhotoSlotLayer.reference_url's doc comment in composite.ts.
+        reference_url: data.reference_url,
         // Face-alignment metadata only means anything for a speaker photo —
         // composite.ts only reads .alignment when source === 'speaker_photo',
         // but skip persisting it for logos so a logo layer's data doesn't
@@ -785,13 +792,18 @@ function PhotoSlotLayerFields({ layer, activeType, onChange, pushUndo, discardLa
         </label>
         <div style={{ fontSize: '10.5px', color: 'var(--ink3)', lineHeight: 1.4 }}>
           {isPhoto
-            ? <>Upload a transparent PNG showing a dummy photo already correctly positioned — the box and face-alignment target below are derived automatically. Manual fields below still work if you&apos;d rather set them by hand.</>
-            : <>Upload a transparent PNG showing the logo already correctly positioned (e.g. a placeholder logo in its final spot) — the box below is derived automatically from where it sits. Manual fields below still work if you&apos;d rather set them by hand.</>}
+            ? <>Upload a transparent PNG showing a dummy photo already correctly positioned — the box and face-alignment target below are derived automatically, and this image also stands in for the real photo when previewing with Placeholder data selected. Manual fields below still work if you&apos;d rather set them by hand.</>
+            : <>Upload a transparent PNG showing the logo already correctly positioned (e.g. a placeholder logo in its final spot) — the box below is derived automatically from where it sits, and this image also stands in for the real logo when previewing with Placeholder data selected. Manual fields below still work if you&apos;d rather set them by hand.</>}
         </div>
         {analyzeError && <div style={{ fontSize: '11px', color: 'var(--red)' }}>{analyzeError}</div>}
         {isPhoto && layer.alignment && (
           <div style={{ fontSize: '11px', color: 'var(--teal-mid)', fontWeight: 700 }}>
             Face-aligned ✓ (detected shot type: {layer.alignment.shot_type.replace(/_/g, ' ')})
+          </div>
+        )}
+        {layer.reference_url && (
+          <div style={{ fontSize: '11px', color: 'var(--teal-mid)', fontWeight: 700 }}>
+            Reference image saved ✓ (used as Placeholder-data preview content)
           </div>
         )}
       </div>
