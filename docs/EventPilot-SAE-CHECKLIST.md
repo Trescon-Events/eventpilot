@@ -351,6 +351,18 @@ Madhu noticed "Jane Doe / Chief Officer / Acme Corp" looked hardcoded, and it wa
 - [x] **Verified live end-to-end** against the real event: opened the panel, filled Name/Job Title/Company, uploaded a real test photo, saved — confirmed via a fresh `GET` that it persisted; confirmed the ghost overlay immediately showed the new name instead of "Jane Doe"; confirmed a freshly generated REAL preview (Placeholder data selected, no real speaker chosen) rendered both the uploaded photo and the new name, not the flat gray box/hardcoded text. Test placeholder profile reset back to `{}` afterward so the live event isn't left with test data.
 - [x] Full verification suite (`npx tsc --noEmit`, targeted `eslint`, `npm run build`, `npm run check:nav`) clean.
 
+### Phase C v6.7 — Placeholder photo/logo upload was solving a problem that doesn't exist; simplified to text-only (2026-07-31, same day)
+
+Before shipping v6.6, walked Madhu through how the real speaker/logo pipeline processes uploads (PhotoRoom background removal, Logo Engine cleanup, cached face-detection) to flag that the new placeholder-photo upload skipped all of that. Madhu's correction: it doesn't need to exist at all — when a designer creates a photo_slot/logo layer for a new variant, they already upload a reference layer showing a placeholder photo/logo fully positioned (`derive-alignment/route.ts`), which is what supplies the box + face-alignment target. A separately-stored placeholder photo/logo would just be redundant content nobody asked for. Only the placeholder TEXT (name/title/company) was ever actually needed, since text has no equivalent "designer already supplied it" mechanism.
+
+- [x] `composite.ts`: `PlaceholderProfile` reduced to `{ name?, job_title?, company_name? }` — dropped `photo_url`/`company_logo_url`/`logo_url` entirely.
+- [x] Deleted `app/api/events/templates/placeholder-upload/route.ts` outright (not deprecated/left dead — confirmed unused anywhere else first).
+- [x] `preview/route.ts`: asset resolution reverted to its original two tiers (real stakeholder → flat gray box) — no placeholder-profile tier for photo/logo. Text resolution keeps its three tiers (real → placeholder profile → hardcoded) from v6.6, unchanged.
+- [x] `LayerBoxOverlay.tsx`: `resolveGhostImageUrl` reverted to its pre-v6.6 shape (real record only, no placeholder fallback) — `resolveGhostText`'s placeholder-profile fallback stays.
+- [x] `page.tsx`'s `PlaceholderPanel`: upload UI, upload state, and the `eventId` prop it only needed for uploads all removed — just the three text fields + Save.
+- [x] **Verified live**: confirmed no upload controls render in the simplified panel; ran a clean, controlled sequence (reset via API → fresh `GET` confirms empty → fresh page load → read the actual rendered input values, not just a screenshot) to prove the fields genuinely render empty against an empty profile — an earlier screenshot mid-edit had briefly shown stale data, traced to a Next.js dev-server HMR timing artifact from editing files while a Playwright test was running concurrently, not a real bug (a fully clean re-run confirmed correct behavior). Test data reset to `{}` afterward.
+- [x] Full verification suite (`npx tsc --noEmit`, targeted `eslint`, `npm run build`, `npm run check:nav`) clean.
+
 ---
 
 ## Phase D — Approval Workflow

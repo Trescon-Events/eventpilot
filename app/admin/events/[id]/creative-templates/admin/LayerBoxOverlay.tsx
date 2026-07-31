@@ -58,10 +58,11 @@ type Props = {
   // "Generate Preview" is still the source of truth for the exact result.
   activeType: StakeholderKind
   previewForRecord: StakeholderOption | null
-  // The event's saved "Placeholder data" profile (2026-07-31) — used as the
-  // ghost's fallback content when no real stakeholder is selected
-  // (previewForRecord is null), same as the server preview route falls back
-  // to it. Replaces the old hardcoded "Jane Doe" stand-in.
+  // The event's saved "Placeholder data" profile (2026-07-31, text-only —
+  // see resolveGhostImageUrl's comment for why photo/logo aren't part of
+  // this) — used as the ghost text's fallback when no real stakeholder is
+  // selected (previewForRecord is null), same as the server preview route
+  // falls back to it. Replaces the old hardcoded "Jane Doe" stand-in.
   placeholderProfile: PlaceholderProfile
   // Whether to actually draw the ghost content. False once a real,
   // up-to-date preview render is showing underneath — otherwise the ghost
@@ -162,10 +163,17 @@ function resolveGhostText(layer: TextLayer, activeType: StakeholderKind, record:
   return ''
 }
 
-function resolveGhostImageUrl(layer: PhotoSlotLayer, record: StakeholderOption | null, placeholder: PlaceholderProfile): string | null {
-  if (layer.source === 'speaker_photo') return record?.photo_url ?? placeholder.photo_url ?? null
-  if (layer.source === 'speaker_logo') return record?.company_logo_url ?? placeholder.company_logo_url ?? null
-  return record?.logo_url ?? placeholder.logo_url ?? null // partner_logo
+// No placeholder-profile fallback here, deliberately (2026-07-31, per
+// Madhu) — a real photo_slot layer's box and face-alignment target are
+// already fully supplied by whoever creates the variant (a designer
+// uploads a reference layer with a placeholder photo/logo already
+// correctly positioned), so there's no real photo/logo content missing to
+// stand in for; the ghost simply shows nothing for this layer until a real
+// stakeholder is selected.
+function resolveGhostImageUrl(layer: PhotoSlotLayer, record: StakeholderOption | null): string | null {
+  if (layer.source === 'speaker_photo') return record?.photo_url ?? null
+  if (layer.source === 'speaker_logo') return record?.company_logo_url ?? null
+  return record?.logo_url ?? null // partner_logo
 }
 
 // One @font-face rule per distinct custom brand font in use, reusing the
@@ -314,7 +322,7 @@ export default function LayerBoxOverlay({ layers, canvasWidth, canvasHeight, act
       {layers.map(layer => {
         const isActive = layer.id === activeLayerId
         const ghostText = isActive && showGhost && layer.type === 'text' ? resolveGhostText(layer, activeType, previewForRecord, placeholderProfile) : ''
-        const ghostImageUrl = isActive && showGhost && layer.type === 'photo_slot' ? resolveGhostImageUrl(layer, previewForRecord, placeholderProfile) : null
+        const ghostImageUrl = isActive && showGhost && layer.type === 'photo_slot' ? resolveGhostImageUrl(layer, previewForRecord) : null
         const showGhostMask = hasUnderlyingPreview && (!!ghostText || !!ghostImageUrl)
         return (
           <div

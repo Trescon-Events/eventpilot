@@ -20,13 +20,16 @@ import type { HeadBox } from '@/app/lib/media/face-alignment'
    50% — real generate/regenerate-creative (unaffected by this file) always
    render full-resolution, only this interactive preview trades a little
    fidelity for a smaller/faster payload. If speaker_id/partner_id is
-   given, real photo/logo + text are used; otherwise the event's saved
-   "Placeholder data" profile stands in (2026-07-31 — one reusable profile
-   per stakeholder type, editable in the layer editor, instead of every
-   variant preview falling back to hardcoded sample text and a flat gray
-   box); falls back further to that same hardcoded text/color for any
-   field the placeholder profile hasn't been filled in yet, or for events
-   that haven't set one up at all. */
+   given, real photo/logo + text are used; otherwise flat-color placeholder
+   boxes stand in for photo/logo layers (a real photo_slot layer's box and
+   face-alignment target are already fully supplied by whoever creates the
+   variant, so there's nothing useful to substitute here) and text falls
+   back to the event's saved "Placeholder data" profile (2026-07-31 — one
+   reusable name/title/company per stakeholder type, editable in the layer
+   editor, instead of every variant preview hardcoding its own sample
+   text), falling back further to hardcoded sample text for any field the
+   placeholder profile hasn't been filled in yet, or for events that
+   haven't set one up at all. */
 
 const PLACEHOLDER_TEXT = { name: 'Jane Doe', title: 'Chief Officer', company: 'Acme Corp', tier: 'LEAD SPONSOR' }
 const PLACEHOLDER_COLOR = { r: 140, g: 140, b: 150, alpha: 1 }
@@ -72,18 +75,6 @@ export async function POST(req: NextRequest) {
         const head_box: HeadBox | null | undefined = source === 'speaker_photo' ? (speaker?.photo_head_box as HeadBox | null) : undefined
         return [source, { buffer, is_svg: realUrl.toLowerCase().endsWith('.svg'), head_box }]
       }
-    }
-
-    // No real stakeholder photo/logo — try the event's saved placeholder
-    // profile next (no cached head_box for it, so a photo_slot source here
-    // re-detects live each generation, same as any legacy speaker photo
-    // predating head-box caching).
-    const placeholderUrl = source === 'speaker_photo' ? placeholderProfile?.photo_url
-      : source === 'speaker_logo' ? placeholderProfile?.company_logo_url
-      : placeholderProfile?.logo_url
-    if (placeholderUrl) {
-      const buffer = await fetchAssetBuffer(placeholderUrl)
-      if (buffer) return [source, { buffer, is_svg: placeholderUrl.toLowerCase().endsWith('.svg') }]
     }
 
     const layer = body.variant!.layers.find((l): l is PhotoSlotLayer => l.type === 'photo_slot' && l.source === source)!

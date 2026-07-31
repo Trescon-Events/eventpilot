@@ -539,7 +539,6 @@ export default function CreativeTemplatesAdminPage({ params }: { params: Promise
                       key={activeType}
                       activeType={activeType}
                       profile={placeholderProfiles[activeType]}
-                      eventId={eventId}
                       onSave={savePlaceholder}
                     />
                   )}
@@ -645,30 +644,20 @@ function layerSummary(layer: Layer): string {
 // stakeholder type, shared by every variant's preview/ghost instead of each
 // hardcoding "Jane Doe" independently. Keyed by activeType at the call site
 // so switching tabs remounts this with a fresh draft rather than leaking
-// the other type's in-progress edits.
-function PlaceholderPanel({ activeType, profile, eventId, onSave }: {
-  activeType: StakeholderKind; profile: PlaceholderProfile; eventId: string
+// the other type's in-progress edits. Text only, deliberately — no photo/
+// logo upload here: a real photo_slot layer's box and face-alignment
+// target are already fully supplied by whoever creates the variant (a
+// designer uploads a reference layer with a placeholder photo/logo already
+// correctly positioned), so a separately-stored placeholder photo/logo
+// would just be redundant content nobody asked for, not a real gap —
+// confirmed with Madhu 2026-07-31 after an initial version briefly
+// included one.
+function PlaceholderPanel({ activeType, profile, onSave }: {
+  activeType: StakeholderKind; profile: PlaceholderProfile
   onSave: (profile: PlaceholderProfile) => Promise<void>
 }) {
   const [draft, setDraft] = useState<PlaceholderProfile>(profile)
-  const [uploading, setUploading] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
-
-  async function upload(file: File, kind: 'photo' | 'company_logo' | 'logo') {
-    setUploading(kind)
-    const form = new FormData()
-    form.append('file', file)
-    form.append('event_id', eventId)
-    form.append('stakeholder_type', activeType)
-    form.append('kind', kind)
-    const res = await fetch('/api/events/templates/placeholder-upload', { method: 'POST', body: form })
-    const data = await res.json().catch(() => ({}))
-    setUploading(null)
-    if (res.ok && data.url) {
-      const field = kind === 'photo' ? 'photo_url' : kind === 'company_logo' ? 'company_logo_url' : 'logo_url'
-      setDraft(d => ({ ...d, [field]: data.url }))
-    }
-  }
 
   async function handleSave() {
     setSaving(true)
@@ -677,16 +666,6 @@ function PlaceholderPanel({ activeType, profile, eventId, onSave }: {
   }
 
   const fieldStyle: React.CSSProperties = { fontSize: '11px', color: 'var(--ink3)', display: 'block' }
-  const uploadLabel = (kind: 'photo' | 'company_logo' | 'logo', text: string, url: string | null | undefined) => (
-    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-      <label style={{ padding: '6px 12px', borderRadius: '8px', border: '1.5px solid var(--border)', color: 'var(--ink2)', fontSize: '11.5px', fontWeight: 700, cursor: 'pointer' }}>
-        {uploading === kind ? 'Uploading…' : text}
-        <input type="file" accept="image/png,image/jpeg,image/webp,image/svg+xml" style={{ display: 'none' }} disabled={uploading === kind}
-          onChange={e => { const f = e.target.files?.[0]; if (f) upload(f, kind); e.target.value = '' }} />
-      </label>
-      {url && <span style={{ fontSize: '10.5px', color: 'var(--teal-mid)' }}>✓ uploaded</span>}
-    </div>
-  )
 
   return (
     <div style={{ marginBottom: '10px', padding: '12px', borderRadius: '10px', border: '1px solid var(--border-light)', background: 'var(--surface)', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
@@ -695,14 +674,9 @@ function PlaceholderPanel({ activeType, profile, eventId, onSave }: {
           <label style={fieldStyle}>Name<Input value={draft.name ?? ''} onChange={e => setDraft(d => ({ ...d, name: e.target.value }))} style={{ width: '100%', marginTop: '3px' }} /></label>
           <label style={fieldStyle}>Job Title<Input value={draft.job_title ?? ''} onChange={e => setDraft(d => ({ ...d, job_title: e.target.value }))} style={{ width: '100%', marginTop: '3px' }} /></label>
           <label style={{ ...fieldStyle, gridColumn: '1 / -1' }}>Company<Input value={draft.company_name ?? ''} onChange={e => setDraft(d => ({ ...d, company_name: e.target.value }))} style={{ width: '100%', marginTop: '3px' }} /></label>
-          {uploadLabel('photo', 'Upload Photo', draft.photo_url)}
-          {uploadLabel('company_logo', 'Upload Company Logo', draft.company_logo_url)}
         </>
       ) : (
-        <>
-          <label style={{ ...fieldStyle, gridColumn: '1 / -1' }}>Company Name<Input value={draft.company_name ?? ''} onChange={e => setDraft(d => ({ ...d, company_name: e.target.value }))} style={{ width: '100%', marginTop: '3px' }} /></label>
-          {uploadLabel('logo', 'Upload Logo', draft.logo_url)}
-        </>
+        <label style={{ ...fieldStyle, gridColumn: '1 / -1' }}>Company Name<Input value={draft.company_name ?? ''} onChange={e => setDraft(d => ({ ...d, company_name: e.target.value }))} style={{ width: '100%', marginTop: '3px' }} /></label>
       )}
       <div style={{ gridColumn: '1 / -1' }}>
         <Button variant="teal" onClick={handleSave} disabled={saving}>{saving ? 'Saving…' : 'Save Placeholder'}</Button>

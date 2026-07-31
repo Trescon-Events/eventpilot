@@ -81,17 +81,20 @@ export type Variant = {
 
 // Reusable "Placeholder data" content (2026-07-31) — Madhu's ask: the ghost
 // overlay and the preview route each had their OWN hardcoded stand-in text
-// ("Jane Doe" / "Chief Officer" / "Acme Corp") and no placeholder photo/logo
-// at all (a flat gray box), duplicated in two places with no way to edit
-// either. One profile per stakeholder type, stored alongside the variants
-// on the same event so it's naturally reused across every variant.
+// ("Jane Doe" / "Chief Officer" / "Acme Corp"), duplicated in two places
+// with no way to edit either. One profile per stakeholder type, stored
+// alongside the variants on the same event so it's naturally reused across
+// every variant. Text only, deliberately — a real photo_slot layer's box
+// and face-alignment target are already fully supplied by whoever creates
+// the variant (a designer uploads a reference layer showing a placeholder
+// photo/logo already correctly positioned; see derive-alignment/route.ts),
+// so a separately-stored placeholder photo/logo would just be redundant
+// content nobody asked for, not a real gap — confirmed with Madhu
+// 2026-07-31 after an initial version of this feature briefly included one.
 export type PlaceholderProfile = {
   name?: string
   job_title?: string
   company_name?: string
-  photo_url?: string | null
-  company_logo_url?: string | null
-  logo_url?: string | null
 }
 
 export type CreativeTemplateConfig = {
