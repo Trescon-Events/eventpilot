@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/app/lib/supabase'
 import sharp from 'sharp'
-import { compositeAnnouncement, analyzeTextLayers, type Variant, type PhotoSlotLayer, type ResolvedAssets } from '@/app/lib/announcements/composite'
+import { compositeAnnouncement, analyzeTextLayers, type Variant, type PhotoSlotLayer, type ResolvedAssets, type CreativeTemplateConfig } from '@/app/lib/announcements/composite'
 import { fetchAssetBuffer } from '@/app/lib/announcements/asset-buffer-cache'
 import type { HeadBox } from '@/app/lib/media/face-alignment'
 
@@ -20,9 +20,13 @@ import type { HeadBox } from '@/app/lib/media/face-alignment'
    50% — real generate/regenerate-creative (unaffected by this file) always
    render full-resolution, only this interactive preview trades a little
    fidelity for a smaller/faster payload. If speaker_id/partner_id is
-   given, real photo/logo + text are used; otherwise flat-color placeholder
-   boxes and sample text stand in for whatever the variant's layers need,
-   so the MM can preview before any real speaker/partner data exists. */
+   given, real photo/logo + text are used; otherwise the event's saved
+   "Placeholder data" profile stands in (2026-07-31 — one reusable profile
+   per stakeholder type, editable in the layer editor, instead of every
+   variant preview falling back to hardcoded sample text and a flat gray
+   box); falls back further to that same hardcoded text/color for any
+   field the placeholder profile hasn't been filled in yet, or for events
+   that haven't set one up at all. */
 
 const PLACEHOLDER_TEXT = { name: 'Jane Doe', title: 'Chief Officer', company: 'Acme Corp', tier: 'LEAD SPONSOR' }
 const PLACEHOLDER_COLOR = { r: 140, g: 140, b: 150, alpha: 1 }
@@ -33,6 +37,7 @@ type PreviewBody = {
   variant?: Variant
   speaker_id?: string
   partner_id?: string
+  event_id?: string
 }
 
 export async function POST(req: NextRequest) {
@@ -41,10 +46,13 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'variant, stakeholder_type required' }, { status: 400 })
   }
 
-  const [speaker, partner] = await Promise.all([
+  const [speaker, partner, event] = await Promise.all([
     body.speaker_id ? supabaseAdmin.from('event_speakers').select('*').eq('id', body.speaker_id).single().then(r => r.data) : Promise.resolve(null),
     body.partner_id ? supabaseAdmin.from('event_sponsors').select('*').eq('id', body.partner_id).single().then(r => r.data) : Promise.resolve(null),
+    body.event_id ? supabaseAdmin.from('events').select('creative_template_config').eq('id', body.event_id).single().then(r => r.data) : Promise.resolve(null),
   ])
+  const config = event?.creative_template_config as CreativeTemplateConfig | null
+  const placeholderProfile = config?.placeholder?.[body.stakeholder_type]
 
   const sourcesNeeded = new Set(
     body.variant.layers.filter((l): l is PhotoSlotLayer => l.type === 'photo_slot').map(l => l.source)
@@ -66,6 +74,18 @@ export async function POST(req: NextRequest) {
       }
     }
 
+    // No real stakeholder photo/logo — try the event's saved placeholder
+    // profile next (no cached head_box for it, so a photo_slot source here
+    // re-detects live each generation, same as any legacy speaker photo
+    // predating head-box caching).
+    const placeholderUrl = source === 'speaker_photo' ? placeholderProfile?.photo_url
+      : source === 'speaker_logo' ? placeholderProfile?.company_logo_url
+      : placeholderProfile?.logo_url
+    if (placeholderUrl) {
+      const buffer = await fetchAssetBuffer(placeholderUrl)
+      if (buffer) return [source, { buffer, is_svg: placeholderUrl.toLowerCase().endsWith('.svg') }]
+    }
+
     const layer = body.variant!.layers.find((l): l is PhotoSlotLayer => l.type === 'photo_slot' && l.source === source)!
     const placeholder = await sharp({ create: { width: layer.width, height: layer.height, channels: 4, background: PLACEHOLDER_COLOR } }).png().toBuffer()
     return [source, { buffer: placeholder }]
@@ -74,9 +94,9 @@ export async function POST(req: NextRequest) {
   const assets: ResolvedAssets = Object.fromEntries(assetEntries)
 
   const texts = {
-    name: (speaker?.name as string | undefined) ?? PLACEHOLDER_TEXT.name,
-    title: (speaker?.role as string | undefined) ?? PLACEHOLDER_TEXT.title,
-    company: (speaker?.company as string | undefined) ?? PLACEHOLDER_TEXT.company,
+    name: (speaker?.name as string | undefined) ?? placeholderProfile?.name ?? PLACEHOLDER_TEXT.name,
+    title: (speaker?.role as string | undefined) ?? placeholderProfile?.job_title ?? PLACEHOLDER_TEXT.title,
+    company: (speaker?.company as string | undefined) ?? placeholderProfile?.company_name ?? PLACEHOLDER_TEXT.company,
     tier: PLACEHOLDER_TEXT.tier,
   }
 

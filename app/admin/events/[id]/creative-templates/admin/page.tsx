@@ -4,7 +4,7 @@ import { useState, useEffect, useRef, use } from 'react'
 import PageHeader from '@/app/components/PageHeader'
 import { Button, Badge, Input, Select } from '@/app/components/ui'
 import AccessTab from '@/app/components/AccessTab'
-import type { Layer, ImageLayer, PhotoSlotLayer, TextLayer, Variant, CreativeTemplateConfig, TextLayerDiagnostics } from '@/app/lib/announcements/composite'
+import type { Layer, ImageLayer, PhotoSlotLayer, TextLayer, Variant, CreativeTemplateConfig, TextLayerDiagnostics, PlaceholderProfile } from '@/app/lib/announcements/composite'
 import { withTextLayerDefaults } from '@/app/lib/announcements/text-layer-defaults'
 import LayerBoxOverlay from './LayerBoxOverlay'
 
@@ -93,6 +93,13 @@ export default function CreativeTemplatesAdminPage({ params }: { params: Promise
   const [partners, setPartners] = useState<StakeholderOption[]>([])
   const [brandFonts, setBrandFonts] = useState<Array<{ id: string; family_name: string; regular_url: string; bold_url: string | null }>>([])
   const [previewFor, setPreviewFor] = useState<string>('')
+  // Reusable "Placeholder data" content (2026-07-31) — one profile per
+  // stakeholder type, saved on the event alongside the variants themselves
+  // (events.creative_template_config.placeholder), so every variant's
+  // preview/ghost shares the same stand-in photo/name/title/company
+  // instead of each hardcoding its own "Jane Doe" sample text.
+  const [placeholderProfiles, setPlaceholderProfiles] = useState<{ speaker: PlaceholderProfile; partner: PlaceholderProfile }>({ speaker: {}, partner: {} })
+  const [showPlaceholderPanel, setShowPlaceholderPanel] = useState(false)
   const [previewDataUrl, setPreviewDataUrl] = useState<string | null>(null)
   const [previewLoading, setPreviewLoading] = useState(false)
   // Stale-while-revalidate (2026-07-31 UX pass, replacing the old debounced
@@ -133,6 +140,7 @@ export default function CreativeTemplatesAdminPage({ params }: { params: Promise
     const loadedPartnerVariants = (config?.partner?.variants ?? []).map(normalizeVariantTextLayers)
     setSpeakerVariants(loadedSpeakerVariants)
     setPartnerVariants(loadedPartnerVariants)
+    setPlaceholderProfiles({ speaker: config?.placeholder?.speaker ?? {}, partner: config?.placeholder?.partner ?? {} })
     // Auto-select the first variant for the active tab on initial load — the
     // tab-switch effect below only fires when activeType *changes*, so
     // without this, a variant that already existed before this page load
@@ -185,7 +193,7 @@ export default function CreativeTemplatesAdminPage({ params }: { params: Promise
     if (!activeVariant) return
     const reqId = ++previewReqIdRef.current
     setPreviewLoading(true)
-    const body: Record<string, unknown> = { stakeholder_type: activeType, variant: activeVariant }
+    const body: Record<string, unknown> = { event_id: eventId, stakeholder_type: activeType, variant: activeVariant }
     if (previewFor) body[activeType === 'speaker' ? 'speaker_id' : 'partner_id'] = previewFor
     const res = await fetch('/api/events/templates/preview', {
       method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
@@ -346,6 +354,20 @@ export default function CreativeTemplatesAdminPage({ params }: { params: Promise
     setUploadingLayerId(null)
   }
 
+  async function savePlaceholder(profile: PlaceholderProfile) {
+    const res = await fetch('/api/events/templates/placeholder', {
+      method: 'PUT', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ event_id: eventId, stakeholder_type: activeType, placeholder: profile }),
+    })
+    const data = await res.json().catch(() => ({}))
+    if (res.ok) {
+      setPlaceholderProfiles(p => ({ ...p, [activeType]: profile }))
+      setMsg('Placeholder saved.')
+    } else {
+      setMsg(data.error || 'Placeholder save failed.')
+    }
+  }
+
   async function save() {
     setSaving(true)
     const res = await fetch('/api/events/templates/variants', {
@@ -504,11 +526,23 @@ export default function CreativeTemplatesAdminPage({ params }: { params: Promise
                         <option value="">Placeholder data</option>
                         {stakeholderOptions.map(o => <option key={o.id} value={o.id}>{o.label}</option>)}
                       </Select>
+                      <Button variant="ghost" onClick={() => setShowPlaceholderPanel(s => !s)}>
+                        {showPlaceholderPanel ? 'Close' : 'Edit Placeholder'}
+                      </Button>
                       <Button variant="teal" onClick={generatePreview} disabled={!activeVariant || previewLoading}>
                         {previewLoading ? 'Generating…' : 'Generate Preview'}
                       </Button>
                     </div>
                   </div>
+                  {showPlaceholderPanel && (
+                    <PlaceholderPanel
+                      key={activeType}
+                      activeType={activeType}
+                      profile={placeholderProfiles[activeType]}
+                      eventId={eventId}
+                      onSave={savePlaceholder}
+                    />
+                  )}
                   <div style={{ position: 'relative', borderRadius: '10px', overflow: 'hidden', background: 'var(--surface)', border: '1px solid var(--border-light)', aspectRatio: activeVariant ? `${activeVariant.canvas_width} / ${activeVariant.canvas_height}` : '4 / 5', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                     {previewDataUrl ? (
                       // eslint-disable-next-line @next/next/no-img-element -- data: URL preview, next/image can't handle these
@@ -542,6 +576,7 @@ export default function CreativeTemplatesAdminPage({ params }: { params: Promise
                         onCommitUndo={pushUndo}
                         activeType={activeType}
                         previewForRecord={previewForRecord}
+                        placeholderProfile={placeholderProfiles[activeType]}
                         showGhost={!previewDataUrl || previewStale}
                         hasUnderlyingPreview={!!previewDataUrl}
                       />
@@ -604,6 +639,76 @@ function layerSummary(layer: Layer): string {
   if (layer.type === 'image') return layer.asset_url ? `Image (${layer.width}×${layer.height})` : 'Image (no file uploaded)'
   if (layer.type === 'photo_slot') return `${layer.source.replace(/_/g, ' ')} (${layer.width}×${layer.height})`
   return `Text: ${layer.field}${layer.field === 'custom' || layer.field === 'tier' ? ` "${layer.value ?? ''}"` : ''}`
+}
+
+// Reusable "Placeholder data" editor (2026-07-31) — one profile per
+// stakeholder type, shared by every variant's preview/ghost instead of each
+// hardcoding "Jane Doe" independently. Keyed by activeType at the call site
+// so switching tabs remounts this with a fresh draft rather than leaking
+// the other type's in-progress edits.
+function PlaceholderPanel({ activeType, profile, eventId, onSave }: {
+  activeType: StakeholderKind; profile: PlaceholderProfile; eventId: string
+  onSave: (profile: PlaceholderProfile) => Promise<void>
+}) {
+  const [draft, setDraft] = useState<PlaceholderProfile>(profile)
+  const [uploading, setUploading] = useState<string | null>(null)
+  const [saving, setSaving] = useState(false)
+
+  async function upload(file: File, kind: 'photo' | 'company_logo' | 'logo') {
+    setUploading(kind)
+    const form = new FormData()
+    form.append('file', file)
+    form.append('event_id', eventId)
+    form.append('stakeholder_type', activeType)
+    form.append('kind', kind)
+    const res = await fetch('/api/events/templates/placeholder-upload', { method: 'POST', body: form })
+    const data = await res.json().catch(() => ({}))
+    setUploading(null)
+    if (res.ok && data.url) {
+      const field = kind === 'photo' ? 'photo_url' : kind === 'company_logo' ? 'company_logo_url' : 'logo_url'
+      setDraft(d => ({ ...d, [field]: data.url }))
+    }
+  }
+
+  async function handleSave() {
+    setSaving(true)
+    await onSave(draft)
+    setSaving(false)
+  }
+
+  const fieldStyle: React.CSSProperties = { fontSize: '11px', color: 'var(--ink3)', display: 'block' }
+  const uploadLabel = (kind: 'photo' | 'company_logo' | 'logo', text: string, url: string | null | undefined) => (
+    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+      <label style={{ padding: '6px 12px', borderRadius: '8px', border: '1.5px solid var(--border)', color: 'var(--ink2)', fontSize: '11.5px', fontWeight: 700, cursor: 'pointer' }}>
+        {uploading === kind ? 'Uploading…' : text}
+        <input type="file" accept="image/png,image/jpeg,image/webp,image/svg+xml" style={{ display: 'none' }} disabled={uploading === kind}
+          onChange={e => { const f = e.target.files?.[0]; if (f) upload(f, kind); e.target.value = '' }} />
+      </label>
+      {url && <span style={{ fontSize: '10.5px', color: 'var(--teal-mid)' }}>✓ uploaded</span>}
+    </div>
+  )
+
+  return (
+    <div style={{ marginBottom: '10px', padding: '12px', borderRadius: '10px', border: '1px solid var(--border-light)', background: 'var(--surface)', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+      {activeType === 'speaker' ? (
+        <>
+          <label style={fieldStyle}>Name<Input value={draft.name ?? ''} onChange={e => setDraft(d => ({ ...d, name: e.target.value }))} style={{ width: '100%', marginTop: '3px' }} /></label>
+          <label style={fieldStyle}>Job Title<Input value={draft.job_title ?? ''} onChange={e => setDraft(d => ({ ...d, job_title: e.target.value }))} style={{ width: '100%', marginTop: '3px' }} /></label>
+          <label style={{ ...fieldStyle, gridColumn: '1 / -1' }}>Company<Input value={draft.company_name ?? ''} onChange={e => setDraft(d => ({ ...d, company_name: e.target.value }))} style={{ width: '100%', marginTop: '3px' }} /></label>
+          {uploadLabel('photo', 'Upload Photo', draft.photo_url)}
+          {uploadLabel('company_logo', 'Upload Company Logo', draft.company_logo_url)}
+        </>
+      ) : (
+        <>
+          <label style={{ ...fieldStyle, gridColumn: '1 / -1' }}>Company Name<Input value={draft.company_name ?? ''} onChange={e => setDraft(d => ({ ...d, company_name: e.target.value }))} style={{ width: '100%', marginTop: '3px' }} /></label>
+          {uploadLabel('logo', 'Upload Logo', draft.logo_url)}
+        </>
+      )}
+      <div style={{ gridColumn: '1 / -1' }}>
+        <Button variant="teal" onClick={handleSave} disabled={saving}>{saving ? 'Saving…' : 'Save Placeholder'}</Button>
+      </div>
+    </div>
+  )
 }
 
 function NumField({ label, value, onChange, pushUndo, discardLastUndo }: {

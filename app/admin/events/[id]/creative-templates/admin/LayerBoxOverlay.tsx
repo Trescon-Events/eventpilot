@@ -1,7 +1,7 @@
 'use client'
 
 import { useRef, useState } from 'react'
-import type { Layer, TextLayer, PhotoSlotLayer } from '@/app/lib/announcements/composite'
+import type { Layer, TextLayer, PhotoSlotLayer, PlaceholderProfile } from '@/app/lib/announcements/composite'
 import type { StakeholderKind, StakeholderOption } from './page'
 
 /* Drag/resize box editor overlaid on the variant editor's live preview
@@ -58,6 +58,11 @@ type Props = {
   // "Generate Preview" is still the source of truth for the exact result.
   activeType: StakeholderKind
   previewForRecord: StakeholderOption | null
+  // The event's saved "Placeholder data" profile (2026-07-31) — used as the
+  // ghost's fallback content when no real stakeholder is selected
+  // (previewForRecord is null), same as the server preview route falls back
+  // to it. Replaces the old hardcoded "Jane Doe" stand-in.
+  placeholderProfile: PlaceholderProfile
   // Whether to actually draw the ghost content. False once a real,
   // up-to-date preview render is showing underneath — otherwise the ghost
   // text/image stacks directly on top of the real Sharp-rendered text at a
@@ -142,23 +147,25 @@ function computeSnap(
   return best ? { snapped: best.snapped, guideAt: best.guideAt } : { snapped: value, guideAt: null }
 }
 
-// Mirrors the server's own placeholder defaults (preview/route.ts's
-// PLACEHOLDER_TEXT) so the ghost matches what "Generate Preview" would
-// actually show when no real speaker/partner is selected.
-function resolveGhostText(layer: TextLayer, activeType: StakeholderKind, record: StakeholderOption | null): string {
+// Mirrors the server's own placeholder fallback chain (preview/route.ts):
+// real stakeholder record, then the event's saved placeholder profile, then
+// the same hardcoded last-resort text — so the ghost matches what
+// "Generate Preview" would actually show at every tier, not just when a
+// real speaker/partner is selected.
+function resolveGhostText(layer: TextLayer, activeType: StakeholderKind, record: StakeholderOption | null, placeholder: PlaceholderProfile): string {
   if (layer.field === 'custom') return layer.value || ''
   if (layer.field === 'tier') return layer.value || 'LEAD SPONSOR'
   if (activeType !== 'speaker') return ''
-  if (layer.field === 'name') return record?.label || 'Jane Doe'
-  if (layer.field === 'title') return record?.job_title || 'Chief Officer'
-  if (layer.field === 'company') return record?.company_name || 'Acme Corp'
+  if (layer.field === 'name') return record?.label || placeholder.name || 'Jane Doe'
+  if (layer.field === 'title') return record?.job_title || placeholder.job_title || 'Chief Officer'
+  if (layer.field === 'company') return record?.company_name || placeholder.company_name || 'Acme Corp'
   return ''
 }
 
-function resolveGhostImageUrl(layer: PhotoSlotLayer, record: StakeholderOption | null): string | null {
-  if (layer.source === 'speaker_photo') return record?.photo_url ?? null
-  if (layer.source === 'speaker_logo') return record?.company_logo_url ?? null
-  return record?.logo_url ?? null // partner_logo
+function resolveGhostImageUrl(layer: PhotoSlotLayer, record: StakeholderOption | null, placeholder: PlaceholderProfile): string | null {
+  if (layer.source === 'speaker_photo') return record?.photo_url ?? placeholder.photo_url ?? null
+  if (layer.source === 'speaker_logo') return record?.company_logo_url ?? placeholder.company_logo_url ?? null
+  return record?.logo_url ?? placeholder.logo_url ?? null // partner_logo
 }
 
 // One @font-face rule per distinct custom brand font in use, reusing the
@@ -181,7 +188,7 @@ function FontFaceStyles({ layers }: { layers: Layer[] }) {
   return <style>{rules.join('\n')}</style>
 }
 
-export default function LayerBoxOverlay({ layers, canvasWidth, canvasHeight, activeLayerId, onSelectLayer, onChangeLayer, onCommitUndo, activeType, previewForRecord, showGhost, hasUnderlyingPreview }: Props) {
+export default function LayerBoxOverlay({ layers, canvasWidth, canvasHeight, activeLayerId, onSelectLayer, onChangeLayer, onCommitUndo, activeType, previewForRecord, placeholderProfile, showGhost, hasUnderlyingPreview }: Props) {
   const containerRef = useRef<HTMLDivElement | null>(null)
   const dragRef = useRef<{ layerId: string; mode: DragMode; startClientX: number; startClientY: number; startBox: Box; committed: boolean } | null>(null)
   const nudgeBurstRef = useRef<{ layerId: string; lastAt: number } | null>(null)
@@ -306,8 +313,8 @@ export default function LayerBoxOverlay({ layers, canvasWidth, canvasHeight, act
       <FontFaceStyles layers={layers} />
       {layers.map(layer => {
         const isActive = layer.id === activeLayerId
-        const ghostText = isActive && showGhost && layer.type === 'text' ? resolveGhostText(layer, activeType, previewForRecord) : ''
-        const ghostImageUrl = isActive && showGhost && layer.type === 'photo_slot' ? resolveGhostImageUrl(layer, previewForRecord) : null
+        const ghostText = isActive && showGhost && layer.type === 'text' ? resolveGhostText(layer, activeType, previewForRecord, placeholderProfile) : ''
+        const ghostImageUrl = isActive && showGhost && layer.type === 'photo_slot' ? resolveGhostImageUrl(layer, previewForRecord, placeholderProfile) : null
         const showGhostMask = hasUnderlyingPreview && (!!ghostText || !!ghostImageUrl)
         return (
           <div

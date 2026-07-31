@@ -79,9 +79,25 @@ export type Variant = {
   layers: Layer[]            // array order = z-order, index 0 = bottom
 }
 
+// Reusable "Placeholder data" content (2026-07-31) — Madhu's ask: the ghost
+// overlay and the preview route each had their OWN hardcoded stand-in text
+// ("Jane Doe" / "Chief Officer" / "Acme Corp") and no placeholder photo/logo
+// at all (a flat gray box), duplicated in two places with no way to edit
+// either. One profile per stakeholder type, stored alongside the variants
+// on the same event so it's naturally reused across every variant.
+export type PlaceholderProfile = {
+  name?: string
+  job_title?: string
+  company_name?: string
+  photo_url?: string | null
+  company_logo_url?: string | null
+  logo_url?: string | null
+}
+
 export type CreativeTemplateConfig = {
   speaker?: { variants: Variant[] }
   partner?: { variants: Variant[] }
+  placeholder?: { speaker?: PlaceholderProfile; partner?: PlaceholderProfile }
 }
 
 export type ResolvedAssets = Partial<Record<PhotoSlotLayer['source'], { buffer: Buffer; is_svg?: boolean; head_box?: HeadBox | null }>>
