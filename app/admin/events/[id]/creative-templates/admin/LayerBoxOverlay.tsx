@@ -1,7 +1,8 @@
 'use client'
 
 import { useRef, useState } from 'react'
-import type { Layer } from '@/app/lib/announcements/composite'
+import type { Layer, TextLayer, PhotoSlotLayer } from '@/app/lib/announcements/composite'
+import type { StakeholderKind, StakeholderOption } from './page'
 
 /* Drag/resize box editor overlaid on the variant editor's live preview
    image (SAE Phase C v5, 2026-07-29) — Madhu's explicit request to unify
@@ -43,6 +44,20 @@ type Props = {
   // (page.tsx) pushes a pre-edit undo snapshot. Never called for a
   // click/press that ends up not moving anything.
   onCommitUndo: () => void
+  // Ghost-overlay content (2026-07-31): text/photo/logo layers need to be
+  // positioned relative to their REAL content, not just a dashed outline —
+  // Madhu's own framing: "for such layers, its required for live preview
+  // to work... otherwise they wont be able to properly adjust". Rather
+  // than a real server render on every move (the exact cost problem the
+  // rest of this pass just fixed), the active layer's real text or real
+  // photo/logo image renders directly as a client-side approximation —
+  // actual font (loaded via @font-face from the same URLs already stored
+  // on the layer) and actual image, no server round-trip. Approximate,
+  // not pixel-identical to the real Sharp render (natural CSS wrapping
+  // instead of wrapAndFit's shrink algorithm, no face-alignment crop) —
+  // "Generate Preview" is still the source of truth for the exact result.
+  activeType: StakeholderKind
+  previewForRecord: StakeholderOption | null
 }
 
 type Box = { x: number; y: number; width: number; height: number }
@@ -111,7 +126,46 @@ function computeSnap(
   return best ? { snapped: best.snapped, guideAt: best.guideAt } : { snapped: value, guideAt: null }
 }
 
-export default function LayerBoxOverlay({ layers, canvasWidth, canvasHeight, activeLayerId, onSelectLayer, onChangeLayer, onCommitUndo }: Props) {
+// Mirrors the server's own placeholder defaults (preview/route.ts's
+// PLACEHOLDER_TEXT) so the ghost matches what "Generate Preview" would
+// actually show when no real speaker/partner is selected.
+function resolveGhostText(layer: TextLayer, activeType: StakeholderKind, record: StakeholderOption | null): string {
+  if (layer.field === 'custom') return layer.value || ''
+  if (layer.field === 'tier') return layer.value || 'LEAD SPONSOR'
+  if (activeType !== 'speaker') return ''
+  if (layer.field === 'name') return record?.label || 'Jane Doe'
+  if (layer.field === 'title') return record?.job_title || 'Chief Officer'
+  if (layer.field === 'company') return record?.company_name || 'Acme Corp'
+  return ''
+}
+
+function resolveGhostImageUrl(layer: PhotoSlotLayer, record: StakeholderOption | null): string | null {
+  if (layer.source === 'speaker_photo') return record?.photo_url ?? null
+  if (layer.source === 'speaker_logo') return record?.company_logo_url ?? null
+  return record?.logo_url ?? null // partner_logo
+}
+
+// One @font-face rule per distinct custom brand font in use, reusing the
+// exact same regular_url/bold_url already stored per-layer — unlike
+// librsvg (see composite.ts's renderTextLayerPng doc comment), browsers
+// reliably support @font-face, so the ghost can show the REAL font too.
+function FontFaceStyles({ layers }: { layers: Layer[] }) {
+  const seen = new Set<string>()
+  const rules: string[] = []
+  for (const layer of layers) {
+    if (layer.type !== 'text' || !layer.font_family) continue
+    const { family_name, regular_url, bold_url } = layer.font_family
+    if (seen.has(family_name)) continue
+    seen.add(family_name)
+    const safeName = family_name.replace(/"/g, '')
+    rules.push(`@font-face{font-family:"${safeName}";font-weight:400;src:url("${regular_url}");}`)
+    if (bold_url) rules.push(`@font-face{font-family:"${safeName}";font-weight:700;src:url("${bold_url}");}`)
+  }
+  if (rules.length === 0) return null
+  return <style>{rules.join('\n')}</style>
+}
+
+export default function LayerBoxOverlay({ layers, canvasWidth, canvasHeight, activeLayerId, onSelectLayer, onChangeLayer, onCommitUndo, activeType, previewForRecord }: Props) {
   const containerRef = useRef<HTMLDivElement | null>(null)
   const dragRef = useRef<{ layerId: string; mode: DragMode; startClientX: number; startClientY: number; startBox: Box; committed: boolean } | null>(null)
   const nudgeBurstRef = useRef<{ layerId: string; lastAt: number } | null>(null)
@@ -225,12 +279,19 @@ export default function LayerBoxOverlay({ layers, canvasWidth, canvasHeight, act
       ref={containerRef}
       tabIndex={0}
       onKeyDown={onKeyDown}
-      style={{ position: 'absolute', inset: 0, pointerEvents: 'none', outline: 'none' }}
+      // containerType enables the `cqw` unit below (1cqw = 1% of THIS
+      // container's width) — lets ghost font-size scale exactly like the
+      // box's own %-based position/size math, regardless of the preview
+      // panel's actual on-screen pixel size.
+      style={{ position: 'absolute', inset: 0, pointerEvents: 'none', outline: 'none', containerType: 'inline-size' }}
       onPointerMove={onPointerMove}
       onPointerUp={endDrag}
     >
+      <FontFaceStyles layers={layers} />
       {layers.map(layer => {
         const isActive = layer.id === activeLayerId
+        const ghostText = isActive && layer.type === 'text' ? resolveGhostText(layer, activeType, previewForRecord) : ''
+        const ghostImageUrl = isActive && layer.type === 'photo_slot' ? resolveGhostImageUrl(layer, previewForRecord) : null
         return (
           <div
             key={layer.id}
@@ -249,6 +310,38 @@ export default function LayerBoxOverlay({ layers, canvasWidth, canvasHeight, act
               cursor: isActive ? 'move' : 'pointer',
             }}
           >
+            {ghostText && layer.type === 'text' && (
+              <div style={{
+                position: 'absolute', inset: 0, overflow: 'hidden', pointerEvents: 'none',
+                display: 'flex', alignItems: 'center',
+                justifyContent: layer.align === 'center' ? 'center' : layer.align === 'right' ? 'flex-end' : 'flex-start',
+              }}>
+                <span style={{
+                  fontFamily: layer.font_family ? `"${layer.font_family.family_name.replace(/"/g, '')}"` : 'sans-serif',
+                  fontWeight: layer.font_weight === 'bold' ? 700 : 400,
+                  fontSize: `${(layer.font_size / canvasWidth) * 100}cqw`,
+                  lineHeight: 1.2,
+                  color: layer.font_color,
+                  textAlign: layer.align ?? 'left',
+                  whiteSpace: 'pre-wrap',
+                  wordBreak: 'break-word',
+                  display: '-webkit-box',
+                  WebkitLineClamp: layer.max_lines,
+                  WebkitBoxOrient: 'vertical',
+                  overflow: 'hidden',
+                } as React.CSSProperties}>
+                  {ghostText}
+                </span>
+              </div>
+            )}
+            {ghostImageUrl && layer.type === 'photo_slot' && (
+              // eslint-disable-next-line @next/next/no-img-element -- live positioning approximation for an arbitrary external stakeholder-asset URL, not worth next/image's remote-loader config for a transient editor overlay
+              <img src={ghostImageUrl} alt="" style={{
+                position: 'absolute', inset: 0, width: '100%', height: '100%',
+                objectFit: layer.source === 'speaker_photo' ? 'cover' : 'contain',
+                pointerEvents: 'none',
+              }} />
+            )}
             {isActive && HANDLE_POSITIONS.map(pos => (
               <div key={pos} onPointerDown={e => startDrag(e, layer, pos)} style={handleStyle(pos)} />
             ))}

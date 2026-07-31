@@ -16,8 +16,16 @@ import LayerBoxOverlay from './LayerBoxOverlay'
    original single-page version) and Access Control (who can use/administer
    this module — the shared AccessTab component, module_access table). */
 
-type StakeholderKind = 'speaker' | 'partner'
-type StakeholderOption = { id: string; label: string }
+export type StakeholderKind = 'speaker' | 'partner'
+export type StakeholderOption = {
+  id: string; label: string
+  // Ghost-overlay content (2026-07-31) — enough to show the REAL text/
+  // photo/logo directly on the canvas while positioning a box, without a
+  // server round-trip. Undefined fields fall back to the same placeholder
+  // text/blank the server preview itself uses when nothing is selected.
+  job_title?: string; company_name?: string
+  photo_url?: string | null; company_logo_url?: string | null; logo_url?: string | null
+}
 type EditorSnapshot = { speakerVariants: Variant[]; partnerVariants: Variant[]; activeType: StakeholderKind; activeVariantId: string | null }
 const MAX_UNDO_ENTRIES = 50
 
@@ -110,6 +118,7 @@ export default function CreativeTemplatesAdminPage({ params }: { params: Promise
   const setVariants = activeType === 'speaker' ? setSpeakerVariants : setPartnerVariants
   const activeVariant = variants.find(v => v.id === activeVariantId) ?? null
   const stakeholderOptions = activeType === 'speaker' ? speakers : partners
+  const previewForRecord = stakeholderOptions.find(o => o.id === previewFor) ?? null
 
   async function fetchAll() {
     setLoading(true)
@@ -130,10 +139,10 @@ export default function CreativeTemplatesAdminPage({ params }: { params: Promise
     // never gets selected until the MM manually switches tabs and back.
     const initialList = activeType === 'speaker' ? loadedSpeakerVariants : loadedPartnerVariants
     setActiveVariantId(prev => prev ?? initialList[0]?.id ?? null)
-    const sp: Array<{ id: string; full_name: string }> = await spRes.json().catch(() => [])
-    const pt: Array<{ id: string; company_name: string }> = await ptRes.json().catch(() => [])
-    setSpeakers(sp.map(s => ({ id: s.id, label: s.full_name })))
-    setPartners(pt.map(p => ({ id: p.id, label: p.company_name })))
+    const sp: Array<{ id: string; full_name: string; job_title: string; company_name: string; photo_processed_url: string | null; photo_url: string | null; company_logo_url: string | null }> = await spRes.json().catch(() => [])
+    const pt: Array<{ id: string; company_name: string; logo_url: string | null }> = await ptRes.json().catch(() => [])
+    setSpeakers(sp.map(s => ({ id: s.id, label: s.full_name, job_title: s.job_title, company_name: s.company_name, photo_url: s.photo_processed_url ?? s.photo_url, company_logo_url: s.company_logo_url })))
+    setPartners(pt.map(p => ({ id: p.id, label: p.company_name, company_name: p.company_name, logo_url: p.logo_url })))
     setBrandFonts(await fontsRes.json().catch(() => []))
     setDirty(false)
     setLoading(false)
@@ -523,6 +532,8 @@ export default function CreativeTemplatesAdminPage({ params }: { params: Promise
                         onSelectLayer={setExpandedLayerId}
                         onChangeLayer={updateLayer}
                         onCommitUndo={pushUndo}
+                        activeType={activeType}
+                        previewForRecord={previewForRecord}
                       />
                     )}
                   </div>
