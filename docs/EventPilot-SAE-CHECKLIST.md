@@ -324,6 +324,20 @@ Madhu asked, after a preview is generated, why changing a text layer's font/weig
 - [x] **Verified live** via Playwright against the real "Speaker template 1" variant: generated a real preview (no stale badge), then edited the name layer's Font size via its NumField — stale badge appeared immediately and the ghost text reappeared at the new size with zero server call; separately confirmed switching the Weight `Select` from Bold to Normal also immediately re-armed the stale badge and visibly thinned the ghost text. No test data saved.
 - [x] Full verification suite (`npx tsc --noEmit`, targeted `eslint`, `npm run build`, `npm run check:nav`) clean.
 
+### Phase C v6.5 — Ghost re-arming created its own doubled-text look; text was vertically centered, hiding the box's real top edge (2026-07-31, same day)
+
+Two more real issues Madhu caught immediately after v6.4 shipped.
+
+**Ghost re-arming (v6.4) created a NEW doubled-text look of its own.** Editing a field now correctly reactivates the ghost — but the underlying stale real render (dimmed via opacity, not hidden) still has ITS OWN old text for that same layer sitting right there, just faded — so the crisp new ghost text now draws directly on top of the faded old text at a slightly different size/position, reading as a doubled layer again, just fainter than the original v6.2 bug.
+- [x] `LayerBoxOverlay.tsx`: when the ghost is drawing for a layer AND a real preview exists underneath (`hasUnderlyingPreview`, threaded down from `page.tsx` as `!!previewDataUrl`), a `backdrop-filter: blur(8px)` + translucent scrim now renders first, sized exactly to that layer's box — masks out the stale render's own old content for that specific region before the crisp ghost draws on top, instead of leaving it legible underneath.
+- [x] **Verified live**: reproduced the doubled look first (screenshot confirms it was real), then confirmed the mask fully resolves it — single crisp text, no ghosting. Separately verified against a `photo_slot` layer (mask applies there too) — the ghost photo itself renders fully crisp (confirmed via a direct isolated-element screenshot); an earlier full-page screenshot that looked soft/blurred was a Playwright full-page-capture timing artifact, not a real rendering bug — a viewport-clipped screenshot at `deviceScaleFactor: 1` showed it crisp.
+
+**Text was vertically centered within its box, not top-anchored.** Madhu's own framing: seeing text sit in the middle of its box hid where the box's real top edge was, so the Y you set didn't visibly correspond to where the text actually started — most design tools (Figma, Canva, PowerPoint) anchor text boxes from the top by default, only centering if you explicitly ask for it. Both the real render and the ghost were consistently centering (not a ghost-vs-real mismatch, just the wrong default for both).
+- [x] `composite.ts`'s `renderTextLayerPng()`: removed the `(layer.height - blockHeight) / 2` centering offset — text now starts right at `layer.y` (plus font ascent, so the cap-height sits just below Y as expected), growing downward.
+- [x] `LayerBoxOverlay.tsx`'s ghost text container: `alignItems: 'center'` → `'flex-start'`, matching the real render exactly.
+- [x] **Verified live**: real "Speaker template 1" name layer's rendered text now visibly starts at the box's top edge in both the ghost and a freshly generated real preview, not floating in the middle. **Flagged, not silently absorbed**: this changes the real vertical position of text in every EXISTING text layer across every already-configured variant, since box heights were set assuming center-alignment — worth a quick pass over other variants/templates to confirm nothing now looks off, before this is considered final.
+- [x] Full verification suite (`npx tsc --noEmit`, targeted `eslint`, `npm run build`, `npm run check:nav`) clean.
+
 ---
 
 ## Phase D — Approval Workflow

@@ -301,11 +301,13 @@ async function renderTextLayerPng(
 
   const xPos = layer.align === 'center' ? layer.x + layer.width / 2 : layer.align === 'right' ? layer.x + layer.width : layer.x
 
-  // Vertically center the wrapped block within the box height — mirrors
-  // the existing photo_slot "center content inside a box" math above.
+  // Top-anchored (2026-07-31, was vertically centered) — Madhu's feedback:
+  // centering hid where the box's own top edge actually was, so text didn't
+  // visibly start at the Y you set. Matches how every mainstream design
+  // tool (Figma, Canva, PowerPoint) anchors a text box by default — content
+  // starts at the top and grows downward, never floating away from Y.
   const approxAscent = fontSize * 0.8
-  const blockHeight = lines.length * lineHeight
-  const firstBaselineY = layer.y + Math.max(0, (layer.height - blockHeight) / 2) + approxAscent
+  const firstBaselineY = layer.y + approxAscent
 
   for (let i = 0; i < lines.length; i++) {
     const y = firstBaselineY + i * lineHeight

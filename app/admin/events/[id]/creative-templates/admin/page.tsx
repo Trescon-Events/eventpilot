@@ -543,6 +543,7 @@ export default function CreativeTemplatesAdminPage({ params }: { params: Promise
                         activeType={activeType}
                         previewForRecord={previewForRecord}
                         showGhost={!previewDataUrl || previewStale}
+                        hasUnderlyingPreview={!!previewDataUrl}
                       />
                     )}
                   </div>

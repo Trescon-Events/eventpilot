@@ -65,6 +65,15 @@ type Props = {
   // engines), reading as a visible duplicate layer. True when there's no
   // preview yet, or the last one is stale relative to the current edit.
   showGhost: boolean
+  // Whether an existing (now possibly stale) real preview image is showing
+  // underneath at all. When true AND the ghost is drawing for this exact
+  // layer, the ghost's own box gets a blur/scrim mask first — otherwise the
+  // stale render's OWN old text for this same layer is still sitting there
+  // (just dimmed, not gone) directly behind the crisp new ghost text,
+  // which reads as a doubled/ghosted layer (2026-07-31, caught live: editing
+  // a field re-arms the ghost per v6.4, and the dimmed-but-still-legible old
+  // text was showing right through it).
+  hasUnderlyingPreview: boolean
 }
 
 type Box = { x: number; y: number; width: number; height: number }
@@ -172,7 +181,7 @@ function FontFaceStyles({ layers }: { layers: Layer[] }) {
   return <style>{rules.join('\n')}</style>
 }
 
-export default function LayerBoxOverlay({ layers, canvasWidth, canvasHeight, activeLayerId, onSelectLayer, onChangeLayer, onCommitUndo, activeType, previewForRecord, showGhost }: Props) {
+export default function LayerBoxOverlay({ layers, canvasWidth, canvasHeight, activeLayerId, onSelectLayer, onChangeLayer, onCommitUndo, activeType, previewForRecord, showGhost, hasUnderlyingPreview }: Props) {
   const containerRef = useRef<HTMLDivElement | null>(null)
   const dragRef = useRef<{ layerId: string; mode: DragMode; startClientX: number; startClientY: number; startBox: Box; committed: boolean } | null>(null)
   const nudgeBurstRef = useRef<{ layerId: string; lastAt: number } | null>(null)
@@ -299,6 +308,7 @@ export default function LayerBoxOverlay({ layers, canvasWidth, canvasHeight, act
         const isActive = layer.id === activeLayerId
         const ghostText = isActive && showGhost && layer.type === 'text' ? resolveGhostText(layer, activeType, previewForRecord) : ''
         const ghostImageUrl = isActive && showGhost && layer.type === 'photo_slot' ? resolveGhostImageUrl(layer, previewForRecord) : null
+        const showGhostMask = hasUnderlyingPreview && (!!ghostText || !!ghostImageUrl)
         return (
           <div
             key={layer.id}
@@ -317,10 +327,25 @@ export default function LayerBoxOverlay({ layers, canvasWidth, canvasHeight, act
               cursor: isActive ? 'move' : 'pointer',
             }}
           >
+            {showGhostMask && (
+              // Blur/scrim the stale render's own old content for this exact
+              // box before drawing the crisp ghost on top — plain dimming
+              // (opacity on the whole preview image) still leaves the old
+              // text legible enough to read as a second, offset layer.
+              <div style={{
+                position: 'absolute', inset: 0, pointerEvents: 'none',
+                backdropFilter: 'blur(8px)', WebkitBackdropFilter: 'blur(8px)',
+                background: 'color-mix(in srgb, var(--card) 55%, transparent)',
+              }} />
+            )}
             {ghostText && layer.type === 'text' && (
+              // Top-anchored (2026-07-31, matches the real render — see
+              // renderTextLayerPng's comment in composite.ts) — was
+              // alignItems: 'center', which hid where the box's own top
+              // edge actually was during editing.
               <div style={{
                 position: 'absolute', inset: 0, overflow: 'hidden', pointerEvents: 'none',
-                display: 'flex', alignItems: 'center',
+                display: 'flex', alignItems: 'flex-start',
                 justifyContent: layer.align === 'center' ? 'center' : layer.align === 'right' ? 'flex-end' : 'flex-start',
               }}>
                 <span style={{
