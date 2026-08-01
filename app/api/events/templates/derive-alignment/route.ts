@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import sharp from 'sharp'
-import { deriveAlignmentTarget, detectHeadBox } from '@/app/lib/media/face-alignment'
+import { deriveAlignmentTarget } from '@/app/lib/media/face-alignment'
 import { uploadPublicAsset } from '@/app/lib/events/storage'
 
 /* POST /api/events/templates/derive-alignment
@@ -39,10 +39,23 @@ import { uploadPublicAsset } from '@/app/lib/events/storage'
    Also caches a head-box detection against the trimmed buffer
    (`reference_head_box`) so a photo reference behaves exactly like a real
    speaker's cached `photo_head_box` — detected once here, never re-detected
-   live on every future preview. A second, independent Gemini call from the
-   one deriveAlignmentTarget() already ran internally (to keep this route's
-   contract simple) — an acceptable one-time cost on upload, unlike a
-   redundant call on every render. */
+   live on every future preview.
+
+   `reference_head_box` is built directly from `target`'s own
+   target_head_center_x/y/height — NOT a second, independent `detectHeadBox`
+   call (2026-08-01, real bug found live, and it took three rounds of
+   Madhu's testing to isolate cleanly): a second Gemini call against the
+   same image doesn't reliably agree with the first pixel-for-pixel, and
+   `alignAndCropPhoto()`'s scale/position math amplifies even a small
+   disagreement between "where alignment says the head should end up" and
+   "where the cached head-box says the head currently is" into a visibly
+   wrong crop (here: a consistently, deterministically cut-off head — not
+   the non-determinism the caching itself already fixed, a DIFFERENT bug
+   layered on top of it). Since a reference layer's box already exactly
+   matches its own trimmed pixel dimensions (confirmed empirically), using
+   the SAME detection for both is mathematically a no-op — the resulting
+   crop is just the reference image untouched, exactly matching what the
+   ghost overlay's plain CSS already shows for it. */
 export async function POST(req: NextRequest) {
   const form = await req.formData()
   const file = form.get('file') as File | null
@@ -52,11 +65,15 @@ export async function POST(req: NextRequest) {
   try {
     const buffer = Buffer.from(await file.arrayBuffer())
     const trimmedBuffer = await sharp(buffer).trim().toBuffer()
-    const [target, reference_url, reference_head_box] = await Promise.all([
+    const [target, reference_url] = await Promise.all([
       deriveAlignmentTarget(buffer),
       uploadPublicAsset(`events/${eventId}/templates/reference-${Date.now()}.png`, trimmedBuffer, 'image/png'),
-      detectHeadBox(trimmedBuffer).catch(() => null),
     ])
+    const reference_head_box = {
+      centerXRatio: target.target_head_center_x,
+      centerYRatio: target.target_head_center_y,
+      heightRatio: target.target_head_height,
+    }
     return NextResponse.json({ ...target, reference_url, reference_head_box })
   } catch (e) {
     const message = e instanceof Error ? e.message : 'Could not analyze the reference layer'
