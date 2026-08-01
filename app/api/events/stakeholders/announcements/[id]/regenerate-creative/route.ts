@@ -41,12 +41,14 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   if ('templateError' in inputs) return NextResponse.json({ error: inputs.templateError }, { status: 422 })
 
   try {
-    const assetEntries = await Promise.all(inputs.assetsNeeded.map(async (needed): Promise<[string, { buffer: Buffer; is_svg?: boolean; head_box?: NeededAsset['headBox'] }]> => {
+    const assetEntries = await Promise.all(inputs.assetsNeeded.map(async (needed): Promise<[string, { buffer: Buffer; url?: string; is_svg?: boolean; head_box?: NeededAsset['headBox'] }]> => {
       const buffer = await fetchAssetBuffer(needed.url)
       if (!buffer) throw new Error(`Failed to fetch ${needed.source}`)
-      return [needed.source, { buffer, is_svg: needed.isSvg, head_box: needed.headBox }]
+      // url threaded through (2026-08-01) for compositeAnnouncement()'s
+      // per-layer render cache — see generate/route.ts's identical comment.
+      return [needed.source, { buffer, url: needed.url, is_svg: needed.isSvg, head_box: needed.headBox }]
     }))
-    const assets: Record<string, { buffer: Buffer; is_svg?: boolean; head_box?: NeededAsset['headBox'] }> = Object.fromEntries(assetEntries)
+    const assets: Record<string, { buffer: Buffer; url?: string; is_svg?: boolean; head_box?: NeededAsset['headBox'] }> = Object.fromEntries(assetEntries)
 
     const creativeBuffer = await compositeAnnouncement(inputs.variant, assets, inputs.texts)
 

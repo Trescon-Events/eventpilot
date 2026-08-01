@@ -128,7 +128,41 @@ export type CreativeTemplateConfig = {
   placeholder?: { speaker?: PlaceholderProfile; partner?: PlaceholderProfile }
 }
 
-export type ResolvedAssets = Partial<Record<PhotoSlotLayer['source'], { buffer: Buffer; is_svg?: boolean; head_box?: HeadBox | null }>>
+export type ResolvedAssets = Partial<Record<PhotoSlotLayer['source'], { buffer: Buffer; url?: string; is_svg?: boolean; head_box?: HeadBox | null }>>
+
+// Per-layer rendered-output cache (2026-08-01) — Madhu's ask: Generate
+// Preview re-rendered every layer's pixels on every click, even ones
+// nobody touched since the last render. Mirrors the exact pattern already
+// used twice in this codebase (asset-buffer-cache.ts, the font-buffer
+// cache below in this file): in-memory Map keyed by content, LRU-capped,
+// zero explicit invalidation — a changed layer produces a different key
+// automatically (its own JSON changed, or the URL/head_box it resolved to
+// changed), so there's nothing to invalidate on purpose. Process-lifetime
+// scope is correct here — this app runs as a single long-lived Railway
+// container, not serverless/multi-instance (see CLAUDE.md), same as the
+// other two caches. Shared across compositeAnnouncement()'s callers, so
+// the real generate/regenerate-creative routes benefit too, not just the
+// interactive preview.
+const layerRenderCache = new Map<string, Promise<OverlayOptions | null>>()
+const MAX_LAYER_CACHE_ENTRIES = 50
+
+async function getOrRenderLayer(key: string, render: () => Promise<OverlayOptions | null>): Promise<OverlayOptions | null> {
+  const cached = layerRenderCache.get(key)
+  if (cached) {
+    // Re-insert to mark as most-recently-used (Map iterates in insertion
+    // order, so this is enough to implement LRU eviction below).
+    layerRenderCache.delete(key)
+    layerRenderCache.set(key, cached)
+    return cached
+  }
+  const promise = render().catch(() => null)
+  layerRenderCache.set(key, promise)
+  if (layerRenderCache.size > MAX_LAYER_CACHE_ENTRIES) {
+    const oldestKey = layerRenderCache.keys().next().value
+    if (oldestKey !== undefined) layerRenderCache.delete(oldestKey)
+  }
+  return promise
+}
 
 export async function compositeAnnouncement(
   variant: Variant,
@@ -149,48 +183,66 @@ export async function compositeAnnouncement(
   const compositeOpsOrNull = await Promise.all(variant.layers.map(async (layer): Promise<OverlayOptions | null> => {
     if (layer.type === 'image') {
       if (!layer.asset_url) return null // not uploaded yet — editor can preview right after "+ Image Layer" is clicked, before a file is chosen
-      const buffer = await fetchAssetBuffer(layer.asset_url)
-      if (!buffer) throw new Error(`Failed to fetch layer image (${layer.id})`)
-      const resized = await sharp(buffer)
-        .resize(layer.width, layer.height, { fit: 'cover' })
-        .toBuffer()
-      return { input: resized, left: layer.x, top: layer.y }
+      const key = JSON.stringify({ t: 'image', layer })
+      return getOrRenderLayer(key, async () => {
+        const buffer = await fetchAssetBuffer(layer.asset_url)
+        if (!buffer) throw new Error(`Failed to fetch layer image (${layer.id})`)
+        const resized = await sharp(buffer)
+          .resize(layer.width, layer.height, { fit: 'cover' })
+          .toBuffer()
+        return { input: resized, left: layer.x, top: layer.y }
+      })
     }
 
     if (layer.type === 'photo_slot') {
       const asset = assets[layer.source]
       if (!asset) return null // caller validates required sources before calling; missing optional ones are skipped
 
-      let assetBuffer = asset.buffer
-      if (asset.is_svg) assetBuffer = await sharp(assetBuffer).png().toBuffer()
+      // Keyed on the resolved asset's URL (not the buffer itself — cheap to
+      // compare, and every upload route already mints a new timestamped URL
+      // on re-upload, so a stale key can never alias new content) plus the
+      // layer's own fields (box/alignment) and the cached head_box, which
+      // together fully determine this layer's output pixels.
+      const key = JSON.stringify({ t: 'photo_slot', layer, url: asset.url, head_box: asset.head_box })
+      return getOrRenderLayer(key, async () => {
+        let assetBuffer = asset.buffer
+        if (asset.is_svg) assetBuffer = await sharp(assetBuffer).png().toBuffer()
 
-      if (layer.alignment && layer.source === 'speaker_photo') {
-        const cropped = await alignAndCropPhoto(assetBuffer, {
-          ...layer.alignment,
-          box: { x: layer.x, y: layer.y, width: layer.width, height: layer.height },
-        }, asset.head_box)
-        return { input: cropped, left: layer.x, top: layer.y }
-      }
+        if (layer.alignment && layer.source === 'speaker_photo') {
+          const cropped = await alignAndCropPhoto(assetBuffer, {
+            ...layer.alignment,
+            box: { x: layer.x, y: layer.y, width: layer.width, height: layer.height },
+          }, asset.head_box)
+          return { input: cropped, left: layer.x, top: layer.y }
+        }
 
-      const resized = await sharp(assetBuffer)
-        .resize(layer.width, layer.height, { fit: 'inside', withoutEnlargement: false })
-        .toBuffer()
+        const resized = await sharp(assetBuffer)
+          .resize(layer.width, layer.height, { fit: 'inside', withoutEnlargement: false })
+          .toBuffer()
 
-      const metadata = await sharp(resized).metadata()
-      const assetWidth = metadata.width ?? layer.width
-      const assetHeight = metadata.height ?? layer.height
-      const left = layer.x + Math.floor((layer.width - assetWidth) / 2)
-      const top = layer.y + Math.floor((layer.height - assetHeight) / 2)
+        const metadata = await sharp(resized).metadata()
+        const assetWidth = metadata.width ?? layer.width
+        const assetHeight = metadata.height ?? layer.height
+        const left = layer.x + Math.floor((layer.width - assetWidth) / 2)
+        const top = layer.y + Math.floor((layer.height - assetHeight) / 2)
 
-      return { input: resized, left, top }
+        return { input: resized, left, top }
+      })
     }
 
     // text
     const value = resolveTextValue(layer, texts)
     if (!value) return null
-    const normalized = withTextLayerDefaults(layer, { width: variant.canvas_width, height: variant.canvas_height })
-    const { buffer } = await renderTextLayerPng(normalized, value, variant.canvas_width, variant.canvas_height)
-    return { input: buffer, left: 0, top: 0 }
+    // Canvas size is part of the key too — renderTextLayerPng() allocates a
+    // canvas at the full variant size, not just the layer's own box, so a
+    // canvas-size change must invalidate every text layer even though
+    // their own box fields didn't change.
+    const key = JSON.stringify({ t: 'text', layer, value, cw: variant.canvas_width, ch: variant.canvas_height })
+    return getOrRenderLayer(key, async () => {
+      const normalized = withTextLayerDefaults(layer, { width: variant.canvas_width, height: variant.canvas_height })
+      const { buffer } = await renderTextLayerPng(normalized, value, variant.canvas_width, variant.canvas_height)
+      return { input: buffer, left: 0, top: 0 }
+    })
   }))
 
   const compositeOps = compositeOpsOrNull.filter((op): op is OverlayOptions => op !== null)

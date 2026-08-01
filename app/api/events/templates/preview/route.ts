@@ -30,7 +30,14 @@ import type { HeadBox } from '@/app/lib/media/face-alignment'
    all. Text falls back to the event's saved "Placeholder data" profile
    (2026-07-31 — one reusable name/title/company per stakeholder type,
    editable in the layer editor), falling back further to hardcoded
-   sample text for any field neither has. */
+   sample text for any field neither has.
+
+   (3) compositeAnnouncement() itself caches each layer's rendered output
+   (2026-08-01) keyed on that layer's own fields plus whatever it resolved
+   to — an unchanged layer is a cache hit and skips its sharp/canvas work
+   entirely, not just skips a network fetch. This route's job is to resolve
+   each source's URL/head_box the same way every time for the same input,
+   which is what makes that cache actually hit. */
 
 const PLACEHOLDER_TEXT = { name: 'Jane Doe', title: 'Chief Officer', company: 'Acme Corp', tier: 'LEAD SPONSOR' }
 const PLACEHOLDER_COLOR = { r: 140, g: 140, b: 150, alpha: 1 }
@@ -50,13 +57,16 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'variant, stakeholder_type required' }, { status: 400 })
   }
 
-  const [speaker, partner, event] = await Promise.all([
+  const [speaker, partner] = await Promise.all([
     body.speaker_id ? supabaseAdmin.from('event_speakers').select('*').eq('id', body.speaker_id).single().then(r => r.data) : Promise.resolve(null),
     body.partner_id ? supabaseAdmin.from('event_sponsors').select('*').eq('id', body.partner_id).single().then(r => r.data) : Promise.resolve(null),
-    body.event_id ? supabaseAdmin.from('events').select('creative_template_config').eq('id', body.event_id).single().then(r => r.data) : Promise.resolve(null),
   ])
-  const config = event?.creative_template_config as CreativeTemplateConfig | null
-  const placeholderProfile = config?.placeholder?.[body.stakeholder_type]
+  // Not awaited yet — only needed for text resolution below, not asset
+  // resolution, so let it run concurrently with that instead of gating it
+  // (2026-08-01 speed pass, found while investigating Generate Preview
+  // latency: this query was blocking asset resolution from starting at all
+  // despite having nothing to do with it).
+  const eventPromise = body.event_id ? supabaseAdmin.from('events').select('creative_template_config').eq('id', body.event_id).single().then(r => r.data) : Promise.resolve(null)
 
   const sourcesNeeded = new Set(
     body.variant.layers.filter((l): l is PhotoSlotLayer => l.type === 'photo_slot').map(l => l.source)
@@ -75,7 +85,7 @@ export async function POST(req: NextRequest) {
         // generation does, so the preview never shows a crop that
         // regenerate would then diverge from.
         const head_box: HeadBox | null | undefined = source === 'speaker_photo' ? (speaker?.photo_head_box as HeadBox | null) : undefined
-        return [source, { buffer, is_svg: realUrl.toLowerCase().endsWith('.svg'), head_box }]
+        return [source, { buffer, url: realUrl, is_svg: realUrl.toLowerCase().endsWith('.svg'), head_box }]
       }
     }
 
@@ -86,7 +96,7 @@ export async function POST(req: NextRequest) {
       // live Gemini detection against the same unchanged reference image,
       // non-deterministically (a real bug: looked "misaligned" then "even
       // more distorted" after just two regenerates).
-      if (buffer) return [source, { buffer, is_svg: false, head_box: layer.reference_head_box }]
+      if (buffer) return [source, { buffer, url: layer.reference_url, is_svg: false, head_box: layer.reference_head_box }]
     }
 
     const placeholder = await sharp({ create: { width: layer.width, height: layer.height, channels: 4, background: PLACEHOLDER_COLOR } }).png().toBuffer()
@@ -94,6 +104,10 @@ export async function POST(req: NextRequest) {
   }))
 
   const assets: ResolvedAssets = Object.fromEntries(assetEntries)
+
+  const event = await eventPromise
+  const config = event?.creative_template_config as CreativeTemplateConfig | null
+  const placeholderProfile = config?.placeholder?.[body.stakeholder_type]
 
   const texts = {
     name: (speaker?.name as string | undefined) ?? placeholderProfile?.name ?? PLACEHOLDER_TEXT.name,

@@ -74,12 +74,17 @@ export async function POST(req: NextRequest) {
 
   let creativeUrl: string | null = null
   try {
-    const assetEntries = await Promise.all(inputs.assetsNeeded.map(async (needed): Promise<[string, { buffer: Buffer; is_svg?: boolean; head_box?: NeededAsset['headBox'] }]> => {
+    const assetEntries = await Promise.all(inputs.assetsNeeded.map(async (needed): Promise<[string, { buffer: Buffer; url?: string; is_svg?: boolean; head_box?: NeededAsset['headBox'] }]> => {
       const buffer = await fetchAssetBuffer(needed.url)
       if (!buffer) throw new Error(`Failed to fetch ${needed.source}`)
-      return [needed.source, { buffer, is_svg: needed.isSvg, head_box: needed.headBox }]
+      // url threaded through (2026-08-01) so compositeAnnouncement()'s
+      // per-layer render cache has a cheap, stable key — without it every
+      // real generate would be a guaranteed cache miss even for a layer
+      // whose resolved asset is byte-identical to a preview render moments
+      // earlier.
+      return [needed.source, { buffer, url: needed.url, is_svg: needed.isSvg, head_box: needed.headBox }]
     }))
-    const assets: Record<string, { buffer: Buffer; is_svg?: boolean; head_box?: NeededAsset['headBox'] }> = Object.fromEntries(assetEntries)
+    const assets: Record<string, { buffer: Buffer; url?: string; is_svg?: boolean; head_box?: NeededAsset['headBox'] }> = Object.fromEntries(assetEntries)
 
     const creativeBuffer = await compositeAnnouncement(inputs.variant, assets, inputs.texts)
 
