@@ -408,6 +408,14 @@ Madhu caught this immediately: uploaded a real logo reference layer to the (alre
 - [x] **Verified live**: re-uploaded the exact same reference logo file Madhu used, against a disposable test variant, and confirmed the derived box now lands on exactly 100×50 (2:1) instead of the raw 241×50 alpha-trim bounding box. Confirmed the real "speaker logo" layer in "Speaker template 1" is unaffected by this test (still the correctly-snapped 100×50 from the v7.0 fix — Madhu's screenshot showing 241×50 was an unsaved in-browser state from before that fix, not a DB regression).
 - [x] Full verification suite (`npx tsc --noEmit`, targeted `eslint`, `npm run build`, `npm run check:nav`) clean.
 
+### Phase C v7.2 — Speaker photo was still distorting after the logo fix; a pre-existing reference predated head-box caching (2026-08-01, same day)
+
+Madhu re-uploaded the logo (now correctly 2:1) and regenerated — the logo looked right, but the speaker photo distorted again, asking "why does this keep happening?" Checked the real data directly: the speaker photo's `reference_url` (`reference-1785573771255.png`) was uploaded on 2026-07-31, BEFORE `reference_head_box` caching existed at all (v6.9) — it had no cached head box, `reference_head_box` simply absent from the layer. Every single preview since had been falling all the way through to live, uncached Gemini detection against that same unchanged reference image, non-deterministically — the exact bug v6.9's caching was built to prevent, just never applied retroactively to data that predated the fix. Not a new bug or a regression from the logo work; a leftover gap in already-existing real data.
+
+- [x] No code change — re-ran the existing "Upload Reference Layer" flow (now with caching) against the real "speaker photo" layer in "Speaker template 1," using the same reference file already on hand, through the actual editor UI, and clicked Save Changes. `reference_head_box` is now populated (`{ heightRatio: 0.5, centerXRatio: 0.5, centerYRatio: 0.325 }`).
+- [x] **Verified live**: generated the real preview three times back-to-back and confirmed byte-for-byte identical output (SHA-256 match) across all three — the non-determinism is gone. Visually confirmed the photo renders correctly proportioned, no distortion.
+- [x] **Note for future occurrences of "why does a reference photo keep shifting/distorting"**: check whether that specific layer's `reference_head_box` is actually populated in the saved data before assuming a code regression — any reference upload made before 2026-08-01 (when this caching was added) will be missing it and needs exactly this same one-time re-upload to backfill.
+
 ---
 
 ## Phase D — Approval Workflow
