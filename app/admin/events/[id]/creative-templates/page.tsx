@@ -69,6 +69,12 @@ export default function CreativeTemplatesWorkspacePage({ params }: { params: Pro
   const [variants, setVariants] = useState<{ speaker: Variant[]; partner: Variant[] }>({ speaker: [], partner: [] })
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [variantChoice, setVariantChoice] = useState<Record<string, string>>({})
+  // Separate from variantChoice (2026-08-01) — that one picks the variant
+  // for a fresh generate(); this picks which variant to switch an ALREADY
+  // generated draft to on Regenerate Creative. Keeping them independent
+  // means picking a different regenerate target doesn't silently change
+  // what a later "Generate Again" would use, and vice versa.
+  const [regenerateVariantChoice, setRegenerateVariantChoice] = useState<Record<string, string>>({})
   const [msg, setMsg] = useState<string | null>(null)
 
   const [generating, setGenerating] = useState(false)
@@ -141,7 +147,11 @@ export default function CreativeTemplatesWorkspacePage({ params }: { params: Pro
 
   async function regenerateCreative(announcementId: string, stakeholderId: string) {
     setRegeneratingCreative(true)
-    const res = await fetch(`/api/events/stakeholders/announcements/${announcementId}/regenerate-creative`, { method: 'POST' })
+    const variantId = regenerateVariantChoice[stakeholderId]
+    const res = await fetch(`/api/events/stakeholders/announcements/${announcementId}/regenerate-creative`, {
+      method: 'POST',
+      ...(variantId ? { headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ variant_id: variantId }) } : {}),
+    })
     const data = await res.json().catch(() => ({}))
     if (res.ok) setResults(prev => ({ ...prev, [stakeholderId]: { ...prev[stakeholderId], creativeUrl: data.creative_url } }))
     else setMsg(data.error || 'Could not regenerate the creative.')
@@ -288,7 +298,14 @@ export default function CreativeTemplatesWorkspacePage({ params }: { params: Pro
                             <span style={{ fontSize: '12px', color: 'var(--ink3)' }}>No creative generated</span>
                           )}
                         </div>
-                        <div style={{ marginTop: '10px' }}>
+                        <div style={{ marginTop: '10px', display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                          {activeVariants.length > 1 && (
+                            <Select value={regenerateVariantChoice[selected.id] ?? activeVariants[0]?.id ?? ''}
+                              onChange={e => setRegenerateVariantChoice(v => ({ ...v, [selected.id]: e.target.value }))}
+                              title="Switch to a different variant on regenerate" style={{ width: 'auto' }}>
+                              {activeVariants.map(v => <option key={v.id} value={v.id}>{v.name}</option>)}
+                            </Select>
+                          )}
                           <Button variant="ghost" onClick={() => regenerateCreative(selectedResult.announcementId, selected.id)} disabled={regeneratingCreative}>
                             {regeneratingCreative ? 'Regenerating…' : 'Regenerate Creative'}
                           </Button>

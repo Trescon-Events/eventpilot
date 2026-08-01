@@ -82,7 +82,6 @@ export default function CreativeTemplatesAdminPage({ params }: { params: Promise
   const [dirty, setDirty] = useState(false)
   const [saving, setSaving] = useState(false)
   const [msg, setMsg] = useState<string | null>(null)
-  const [uploadingLayerId, setUploadingLayerId] = useState<string | null>(null)
   // Lifted out of LayerRow (was private per-row state) so LayerBoxOverlay
   // can highlight the same layer that's expanded in the accordion, and
   // clicking a box on the live preview can open its corresponding row.
@@ -349,19 +348,6 @@ export default function CreativeTemplatesAdminPage({ params }: { params: Promise
     updateActiveVariant({ layers })
   }
 
-  async function uploadLayerImage(layerId: string, file: File) {
-    setUploadingLayerId(layerId)
-    const form = new FormData()
-    form.append('file', file)
-    form.append('event_id', eventId)
-    form.append('template_type', activeType)
-    const res = await fetch('/api/events/templates/upload', { method: 'POST', body: form })
-    const data = await res.json().catch(() => ({}))
-    if (res.ok && data.url) updateLayer(layerId, { asset_url: data.url } as Partial<ImageLayer>)
-    else setMsg(data.error || 'Layer image upload failed.')
-    setUploadingLayerId(null)
-  }
-
   async function savePlaceholder(profile: PlaceholderProfile) {
     const res = await fetch('/api/events/templates/placeholder', {
       method: 'PUT', headers: { 'Content-Type': 'application/json' },
@@ -522,7 +508,6 @@ export default function CreativeTemplatesAdminPage({ params }: { params: Promise
                             index={i}
                             total={activeVariant.layers.length}
                             activeType={activeType}
-                            uploading={uploadingLayerId === layer.id}
                             brandFonts={brandFonts}
                             expanded={expandedLayerId === layer.id}
                             onToggleExpand={() => setExpandedLayerId(id => id === layer.id ? null : layer.id)}
@@ -530,7 +515,6 @@ export default function CreativeTemplatesAdminPage({ params }: { params: Promise
                             onChange={patch => updateLayer(layer.id, patch)}
                             onDelete={() => deleteLayer(layer.id)}
                             onMove={delta => moveLayer(layer.id, delta)}
-                            onUploadImage={file => uploadLayerImage(layer.id, file)}
                             pushUndo={pushUndo}
                             discardLastUndo={discardLastUndo}
                             eventId={eventId}
@@ -542,10 +526,20 @@ export default function CreativeTemplatesAdminPage({ params }: { params: Promise
                       </div>
 
                       <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-                        <Button variant="ghost" onClick={() => addLayer('image')}>+ Image Layer</Button>
-                        <Button variant="ghost" onClick={() => addLayer('photo_slot')}>+ Photo/Logo Slot</Button>
-                        <Button variant="ghost" onClick={() => addLayer('text')}>+ Text Layer</Button>
+                        <Button variant="ghost" title="Static art, identical on every announcement — backgrounds, decorative overlays, branding blocks. Not this speaker/partner's own photo or logo." onClick={() => addLayer('image')}>+ Image Layer</Button>
+                        <Button variant="ghost" title="A slot that fills in with each real speaker/partner's own photo or logo at generation time. Not static art." onClick={() => addLayer('photo_slot')}>+ Photo/Logo Slot</Button>
+                        <Button variant="ghost" title="A field of text (name, title, company, a static caption, etc.) rendered live at generation time." onClick={() => addLayer('text')}>+ Text Layer</Button>
                         <Button variant="red" onClick={() => deleteVariant(activeVariant.id)}>Delete Variant</Button>
+                      </div>
+                      {/* Inline, not just hover tooltips (2026-08-01) — the
+                          branding team will be clicking these repeatedly
+                          across several variants with none of this session's
+                          context; Madhu himself mixed these two up once
+                          earlier this session (a real speaker photo uploaded
+                          into a plain Image layer), so the distinction is
+                          spelled out up front, not just on hover. */}
+                      <div style={{ fontSize: '10.5px', color: 'var(--ink4)', marginTop: '6px', lineHeight: 1.4 }}>
+                        <strong>Image Layer</strong> = fixed art, same on every announcement (backgrounds, decorative overlays, branding). <strong>Photo/Logo Slot</strong> = swaps in each speaker/partner&apos;s own photo or logo.
                       </div>
                     </>
                   )}
@@ -635,12 +629,11 @@ export default function CreativeTemplatesAdminPage({ params }: { params: Promise
   )
 }
 
-function LayerRow({ layer, index, total, activeType, uploading, brandFonts, expanded, onToggleExpand, diagnostics, onChange, onDelete, onMove, onUploadImage, pushUndo, discardLastUndo, eventId }: {
+function LayerRow({ layer, index, total, activeType, brandFonts, expanded, onToggleExpand, diagnostics, onChange, onDelete, onMove, pushUndo, discardLastUndo, eventId }: {
   layer: Layer
   index: number
   total: number
   activeType: StakeholderKind
-  uploading: boolean
   brandFonts: Array<{ id: string; family_name: string; regular_url: string; bold_url: string | null }>
   expanded: boolean
   onToggleExpand: () => void
@@ -648,7 +641,6 @@ function LayerRow({ layer, index, total, activeType, uploading, brandFonts, expa
   onChange: (patch: Partial<Layer>) => void
   onDelete: () => void
   onMove: (delta: 1 | -1) => void
-  onUploadImage: (file: File) => void
   pushUndo: () => void
   discardLastUndo: () => void
   eventId: string
@@ -670,9 +662,9 @@ function LayerRow({ layer, index, total, activeType, uploading, brandFonts, expa
 
       {expanded && (
         <div style={{ padding: '12px 10px', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
-          {layer.type === 'image' && <ImageLayerFields layer={layer} uploading={uploading} onChange={onChange as (patch: Partial<ImageLayer>) => void} onUploadImage={onUploadImage} pushUndo={pushUndo} discardLastUndo={discardLastUndo} />}
+          {layer.type === 'image' && <ImageLayerFields layer={layer} onChange={onChange as (patch: Partial<ImageLayer>) => void} pushUndo={pushUndo} discardLastUndo={discardLastUndo} eventId={eventId} />}
           {layer.type === 'photo_slot' && <PhotoSlotLayerFields layer={layer} activeType={activeType} onChange={onChange} pushUndo={pushUndo} discardLastUndo={discardLastUndo} eventId={eventId} />}
-          {layer.type === 'text' && <TextLayerFields layer={layer} activeType={activeType} brandFonts={brandFonts} onChange={onChange} pushUndo={pushUndo} discardLastUndo={discardLastUndo} />}
+          {layer.type === 'text' && <TextLayerFields layer={layer} activeType={activeType} brandFonts={brandFonts} onChange={onChange} pushUndo={pushUndo} discardLastUndo={discardLastUndo} eventId={eventId} />}
         </div>
       )}
     </div>
@@ -751,15 +743,46 @@ function NumField({ label, value, onChange, pushUndo, discardLastUndo }: {
   )
 }
 
-function ImageLayerFields({ layer, uploading, onChange, onUploadImage, pushUndo, discardLastUndo }: {
-  layer: ImageLayer; uploading: boolean; onChange: (patch: Partial<ImageLayer>) => void; onUploadImage: (file: File) => void
-  pushUndo: () => void; discardLastUndo: () => void
+// Image layers default to full-bleed (newLayer() above), but aren't locked
+// to it — the box overlay on the live preview (LayerBoxOverlay) can
+// drag/resize them like any other layer (2026-07-29 unification); the
+// NumFields below are the precise-entry counterpart to that.
+//
+// "Upload Reference Layer (auto-position)" (2026-08-01, replaces the old
+// plain "Upload PNG" button) — mirrors PhotoSlotLayerFields' pattern, but
+// simpler: an Image layer's art is static, the same on every announcement
+// (background art, decorative overlays, branding blocks), so there's no
+// "reference vs. real content" distinction the way there is for a
+// photo_slot's per-speaker photo. One upload does double duty — the
+// alpha-trimmed PNG becomes the box (x/y/width/height) AND the real
+// asset_url — instead of today's two-step "upload art" then "manually type
+// X/Y/W/H." Always sends detect_face=false — a background/graphic layer
+// never has a face to detect, and running Gemini against it would just
+// waste a call and return meaningless data (see derive-alignment/route.ts).
+function ImageLayerFields({ layer, onChange, pushUndo, discardLastUndo, eventId }: {
+  layer: ImageLayer; onChange: (patch: Partial<ImageLayer>) => void
+  pushUndo: () => void; discardLastUndo: () => void; eventId: string
 }) {
-  // Image layers default to full-bleed (newLayer() above), but aren't
-  // locked to it — the box overlay on the live preview (LayerBoxOverlay)
-  // can drag/resize them like any other layer now (2026-07-29 unification);
-  // these NumFields are the precise-entry counterpart to that, matching
-  // the pattern already used for photo/logo and text layers.
+  const [analyzing, setAnalyzing] = useState(false)
+  const [analyzeError, setAnalyzeError] = useState<string | null>(null)
+
+  async function analyzeReferenceLayer(file: File) {
+    setAnalyzing(true)
+    setAnalyzeError(null)
+    const form = new FormData()
+    form.append('file', file)
+    form.append('event_id', eventId)
+    form.append('detect_face', 'false')
+    const res = await fetch('/api/events/templates/derive-alignment', { method: 'POST', body: form })
+    const data = await res.json().catch(() => ({}))
+    if (res.ok) {
+      onChange({ x: data.box.x, y: data.box.y, width: data.box.width, height: data.box.height, asset_url: data.reference_url })
+    } else {
+      setAnalyzeError(data.error || 'Could not analyze that reference image.')
+    }
+    setAnalyzing(false)
+  }
+
   return (
     <>
       <div style={{ gridColumn: '1 / -1', display: 'flex', alignItems: 'center', gap: '10px' }}>
@@ -767,12 +790,16 @@ function ImageLayerFields({ layer, uploading, onChange, onUploadImage, pushUndo,
           // eslint-disable-next-line @next/next/no-img-element -- small admin-only thumbnail, not worth next/image's remote-loader setup
           <img src={layer.asset_url} alt="Layer asset" style={{ width: '40px', height: '50px', objectFit: 'cover', borderRadius: '4px', border: '1px solid var(--border-light)' }} />
         )}
-        <label style={{ padding: '6px 12px', borderRadius: '8px', border: '1.5px solid var(--border)', background: 'transparent', color: 'var(--ink2)', fontSize: '12px', fontWeight: 700, cursor: 'pointer' }}>
-          {uploading ? 'Uploading…' : layer.asset_url ? 'Replace PNG' : 'Upload PNG'}
-          <input type="file" accept="image/png" style={{ display: 'none' }} disabled={uploading}
-            onChange={e => { const f = e.target.files?.[0]; if (f) onUploadImage(f); e.target.value = '' }} />
+        <label style={{ padding: '7px 14px', borderRadius: '8px', border: '1.5px solid var(--border)', background: 'transparent', color: 'var(--ink2)', fontSize: '12px', fontWeight: 700, cursor: 'pointer' }}>
+          {analyzing ? 'Analyzing…' : layer.asset_url ? 'Replace (auto-position)' : 'Upload Reference Layer (auto-position)'}
+          <input type="file" accept="image/png" style={{ display: 'none' }} disabled={analyzing}
+            onChange={e => { const f = e.target.files?.[0]; if (f) analyzeReferenceLayer(f); e.target.value = '' }} />
         </label>
       </div>
+      <div style={{ gridColumn: '1 / -1', fontSize: '10.5px', color: 'var(--ink3)', lineHeight: 1.4 }}>
+        Upload a transparent PNG with the art already positioned where it should sit on the canvas — the box below and the rendered asset are both derived automatically from it. Manual fields below still work if you&apos;d rather set them by hand.
+      </div>
+      {analyzeError && <div style={{ gridColumn: '1 / -1', fontSize: '11px', color: 'var(--red)' }}>{analyzeError}</div>}
       <NumField label="X" value={layer.x} onChange={x => onChange({ x })} pushUndo={pushUndo} discardLastUndo={discardLastUndo} />
       <NumField label="Y" value={layer.y} onChange={y => onChange({ y })} pushUndo={pushUndo} discardLastUndo={discardLastUndo} />
       <NumField label="Width" value={layer.width} onChange={width => onChange({ width })} pushUndo={pushUndo} discardLastUndo={discardLastUndo} />
@@ -818,6 +845,11 @@ function PhotoSlotLayerFields({ layer, activeType, onChange, pushUndo, discardLa
     const form = new FormData()
     form.append('file', file)
     form.append('event_id', eventId)
+    // Only a real speaker photo needs face detection — see
+    // derive-alignment/route.ts's doc comment (2026-08-01, generalized to
+    // every layer type). Without this, the route defaults to skipping
+    // detection entirely, which would silently break real photo alignment.
+    form.append('detect_face', isPhoto ? 'true' : 'false')
     const res = await fetch('/api/events/templates/derive-alignment', { method: 'POST', body: form })
     const data = await res.json().catch(() => ({}))
     if (res.ok) {
@@ -884,17 +916,56 @@ function PhotoSlotLayerFields({ layer, activeType, onChange, pushUndo, discardLa
   )
 }
 
-function TextLayerFields({ layer, activeType, brandFonts, onChange, pushUndo, discardLastUndo }: {
+function TextLayerFields({ layer, activeType, brandFonts, onChange, pushUndo, discardLastUndo, eventId }: {
   layer: TextLayer
   activeType: StakeholderKind
   brandFonts: Array<{ id: string; family_name: string; regular_url: string; bold_url: string | null }>
   onChange: (patch: Partial<TextLayer>) => void
   pushUndo: () => void
   discardLastUndo: () => void
+  eventId: string
 }) {
   const fieldOptions: TextLayer['field'][] = activeType === 'speaker' ? ['name', 'title', 'company', 'tier', 'custom'] : ['tier', 'custom']
+  const [analyzing, setAnalyzing] = useState(false)
+  const [analyzeError, setAnalyzeError] = useState<string | null>(null)
+
+  // Box-only counterpart to ImageLayerFields/PhotoSlotLayerFields' same
+  // button (2026-08-01) — a text layer always renders its text live at
+  // generation time (wrapAndFit/canvas), so unlike those two there's no
+  // asset_url/reference_url to derive here, only the box. The uploaded
+  // reference PNG (e.g. a mockup showing where "name"/"title"/"company"
+  // sit) is discarded after use — never sent detect_face:true, a name/
+  // title block has no face to detect.
+  async function analyzeReferenceLayer(file: File) {
+    setAnalyzing(true)
+    setAnalyzeError(null)
+    const form = new FormData()
+    form.append('file', file)
+    form.append('event_id', eventId)
+    form.append('detect_face', 'false')
+    const res = await fetch('/api/events/templates/derive-alignment', { method: 'POST', body: form })
+    const data = await res.json().catch(() => ({}))
+    if (res.ok) {
+      onChange({ x: data.box.x, y: data.box.y, width: data.box.width, height: data.box.height })
+    } else {
+      setAnalyzeError(data.error || 'Could not analyze that reference image.')
+    }
+    setAnalyzing(false)
+  }
+
   return (
     <>
+      <div style={{ gridColumn: '1 / -1', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+        <label style={{ padding: '7px 14px', borderRadius: '8px', border: '1.5px solid var(--border)', color: 'var(--ink2)', fontSize: '12px', fontWeight: 700, cursor: 'pointer', width: 'fit-content' }}>
+          {analyzing ? 'Analyzing…' : 'Upload Reference Layer (auto-position)'}
+          <input type="file" accept="image/png" style={{ display: 'none' }} disabled={analyzing}
+            onChange={e => { const f = e.target.files?.[0]; if (f) analyzeReferenceLayer(f); e.target.value = '' }} />
+        </label>
+        <div style={{ fontSize: '10.5px', color: 'var(--ink3)', lineHeight: 1.4 }}>
+          Upload a transparent PNG showing where this text should sit (e.g. a mockup with dummy text in place) — the box below is derived automatically from it. Font, size, color, weight and align aren&apos;t derived from the image and stay manual, below.
+        </div>
+        {analyzeError && <div style={{ fontSize: '11px', color: 'var(--red)' }}>{analyzeError}</div>}
+      </div>
       <label style={{ fontSize: '11px', color: 'var(--ink3)', display: 'block' }}>
         Field
         <Select value={layer.field} onChange={e => onChange({ field: e.target.value as TextLayer['field'] })} style={{ width: '100%', marginTop: '3px' }}>

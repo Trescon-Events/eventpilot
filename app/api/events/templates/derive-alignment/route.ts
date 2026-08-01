@@ -5,14 +5,22 @@ import { uploadPublicAsset } from '@/app/lib/events/storage'
 
 /* POST /api/events/templates/derive-alignment
    multipart/form-data: file (a transparent PNG reference layer, showing a
-   dummy speaker photo already correctly positioned — same shape as a real
-   photo_slot layer's asset), event_id
+   dummy photo/logo/graphic/text already correctly positioned — same shape
+   as what the target layer's real asset will look like), event_id,
+   detect_face ('true'|'false')
 
-   Run once, when the branding team uploads a reference layer for a
-   photo_slot layer in the Creative Templates editor — combines alpha-trim
-   box detection with Gemini face detection to derive both the layer's
-   box (x/y/width/height) and the target head position/size within it. See
-   app/lib/media/face-alignment.ts.
+   Run once, when the branding team uploads a reference layer for ANY layer
+   type (image/text/photo_slot — generalized 2026-08-01, was photo_slot-only)
+   in the Creative Templates editor — combines alpha-trim box detection
+   (works identically for every layer type: text, graphic art, a photo, all
+   just "find the non-transparent content's bounding box") with, ONLY for a
+   real speaker photo, Gemini face detection to also derive the target head
+   position/size within it. See app/lib/media/face-alignment.ts.
+   `detect_face=false` (sent for image/text layers, and for photo_slot
+   layers whose source isn't speaker_photo — see PhotoSlotLayerFields'
+   isPhoto) skips that Gemini call entirely: it's wasted cost against a
+   text/graphic reference, and would produce meaningless alignment data
+   composite.ts already ignores for anything but speaker_photo.
 
    Also uploads the reference file itself and returns its URL (2026-07-31,
    was previously analyzed and discarded) — real bug found live: Madhu
@@ -60,20 +68,24 @@ export async function POST(req: NextRequest) {
   const form = await req.formData()
   const file = form.get('file') as File | null
   const eventId = form.get('event_id') as string | null
+  const detectFace = form.get('detect_face') === 'true'
   if (!file || !eventId) return NextResponse.json({ error: 'file, event_id required' }, { status: 400 })
 
   try {
     const buffer = Buffer.from(await file.arrayBuffer())
     const trimmedBuffer = await sharp(buffer).trim().toBuffer()
     const [target, reference_url] = await Promise.all([
-      deriveAlignmentTarget(buffer),
+      deriveAlignmentTarget(buffer, { detectFace }),
       uploadPublicAsset(`events/${eventId}/templates/reference-${Date.now()}.png`, trimmedBuffer, 'image/png'),
     ])
-    const reference_head_box = {
+    // Only meaningful when a real detection ran — the fallback/default
+    // values deriveAlignmentTarget() returns with detectFace:false aren't a
+    // real head position, so don't hand them back as if they were one.
+    const reference_head_box = detectFace ? {
       centerXRatio: target.target_head_center_x,
       centerYRatio: target.target_head_center_y,
       heightRatio: target.target_head_height,
-    }
+    } : null
     return NextResponse.json({ ...target, reference_url, reference_head_box })
   } catch (e) {
     const message = e instanceof Error ? e.message : 'Could not analyze the reference layer'

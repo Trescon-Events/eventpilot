@@ -86,8 +86,15 @@ export type AlignmentTarget = PhotoAlignmentMeta & {
 
 // Run once, when the branding team uploads a reference layer (a transparent
 // PNG with a dummy photo already correctly positioned) for a photo_slot
-// layer in the Creative Templates editor.
-export async function deriveAlignmentTarget(referenceImageBuffer: Buffer): Promise<AlignmentTarget> {
+// layer in the Creative Templates editor. `detectFace` (2026-08-01, default
+// true) lets callers skip the Gemini call entirely — the alpha-trim `box`
+// this function derives is useful for EVERY layer type (image/text/
+// photo_slot), but face detection only means anything for a real
+// speaker_photo photo_slot; running it against a text or graphic-art
+// reference wastes a Gemini call and produces meaningless alignment data
+// that composite.ts already ignores for anything but speaker_photo.
+export async function deriveAlignmentTarget(referenceImageBuffer: Buffer, opts?: { detectFace?: boolean }): Promise<AlignmentTarget> {
+  const detectFace = opts?.detectFace ?? true
   const { info } = await sharp(referenceImageBuffer).trim().toBuffer({ resolveWithObject: true })
   // Sharp reports trimOffsetLeft/Top as negative — the offset needed to
   // restore the trimmed region to its original position — so the box's
@@ -95,6 +102,10 @@ export async function deriveAlignmentTarget(referenceImageBuffer: Buffer): Promi
   // to the canvas's right/bottom edges, -trimOffsetLeft/Top + width/height
   // landed exactly on the original canvas dimensions).
   const box = { x: Math.max(0, -(info.trimOffsetLeft ?? 0)), y: Math.max(0, -(info.trimOffsetTop ?? 0)), width: info.width, height: info.height }
+
+  if (!detectFace) {
+    return { box, target_head_center_x: 0.5, target_head_center_y: 0.35, target_head_height: 0.3, shot_type: 'shoulders' }
+  }
 
   const trimmedBuffer = await sharp(referenceImageBuffer)
     .extract({ left: box.x, top: box.y, width: box.width, height: box.height })
