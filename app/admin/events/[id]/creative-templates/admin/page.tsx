@@ -761,8 +761,11 @@ function PhotoSlotLayerFields({ layer, activeType, onChange, pushUndo, discardLa
         x: data.box.x, y: data.box.y, width: data.box.width, height: data.box.height,
         // Saved (2026-07-31) so it can stand in for the real photo/logo when
         // previewing with no real stakeholder selected — see
-        // PhotoSlotLayer.reference_url's doc comment in composite.ts.
+        // PhotoSlotLayer.reference_url's doc comment in composite.ts. Only
+        // for a photo does the cached head-box detection mean anything
+        // (logos never go through alignAndCropPhoto).
         reference_url: data.reference_url,
+        ...(isPhoto ? { reference_head_box: data.reference_head_box } : {}),
         // Face-alignment metadata only means anything for a speaker photo —
         // composite.ts only reads .alignment when source === 'speaker_photo',
         // but skip persisting it for logos so a logo layer's data doesn't

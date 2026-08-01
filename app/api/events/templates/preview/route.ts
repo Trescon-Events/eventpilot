@@ -81,10 +81,12 @@ export async function POST(req: NextRequest) {
 
     if (layer.reference_url) {
       const buffer = await fetchAssetBuffer(layer.reference_url)
-      // No cached head_box for a reference image — alignAndCropPhoto()
-      // falls back to live detection against it, same as any real photo
-      // that predates head-box caching.
-      if (buffer) return [source, { buffer, is_svg: false }]
+      // Reuses the cached reference_head_box the same way a real speaker's
+      // photo_head_box is reused above — without it, every preview re-ran
+      // live Gemini detection against the same unchanged reference image,
+      // non-deterministically (a real bug: looked "misaligned" then "even
+      // more distorted" after just two regenerates).
+      if (buffer) return [source, { buffer, is_svg: false, head_box: layer.reference_head_box }]
     }
 
     const placeholder = await sharp({ create: { width: layer.width, height: layer.height, channels: 4, background: PLACEHOLDER_COLOR } }).png().toBuffer()

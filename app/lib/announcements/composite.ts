@@ -47,7 +47,17 @@ export type PhotoSlotLayer = {
   // double as placeholder-preview content when no real stakeholder is
   // selected, matching what the button's own help text ("a dummy photo
   // already correctly positioned") implies but never actually did before.
+  // Stored TRIMMED to just its own visible content (not the full reference
+  // canvas it was uploaded as) — see derive-alignment/route.ts.
   reference_url?: string
+  // Cached head-box detection for reference_url (2026-07-31), computed once
+  // at upload time — same rationale as event_speakers.photo_head_box (see
+  // alignAndCropPhoto's doc comment): without this, every single preview
+  // render re-ran live Gemini face detection against the SAME unchanged
+  // image, non-deterministically, producing visibly different crops call to
+  // call (a real bug Madhu hit live: a reference photo looked "misaligned"
+  // then "even more distorted" after only two regenerates).
+  reference_head_box?: HeadBox | null
 }
 
 export type TextLayerFont = {
