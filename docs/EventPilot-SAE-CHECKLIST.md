@@ -426,6 +426,18 @@ Root cause: `reference_head_box` was being computed via a SEPARATE, independent 
 - [x] **Verified live**: disposable test variant confirmed a full, uncut head in the resulting preview (previously cut off with the old two-call approach); re-ran the fix against the real "speaker photo" layer in "Speaker template 1" and confirmed `reference_head_box` now exactly mirrors `alignment`'s own values (`0.611/0.505/0.3895` on both, not two different numbers); regenerated the real preview three times back-to-back — byte-for-byte identical (SHA-256 match) each time, full head visible, no cutoff.
 - [x] Full verification suite (`npx tsc --noEmit`, targeted `eslint`, `npm run build`, `npm run check:nav`) clean.
 
+### Phase C v7.4 — Preview now survives a page reload; Save button moved next to the preview it saves (2026-08-01)
+
+Two asks: (1) `previewDataUrl` only ever lived in client React state since the on-demand-preview architecture shipped (v6) — a page reload always lost it, showing "No preview yet" even right after saving; Madhu wanted whatever was on screen at save time to still be there on a later visit. (2) The Save button lived in the page header, visually far from the Preview panel and its Generate Preview/Edit Placeholder buttons it's functionally tied to.
+
+- [x] `composite.ts`: `Variant` gains `last_preview_url?: string` — a real Storage URL, not inline base64 (keeps `creative_template_config`'s JSONB blob from ballooning).
+- [x] New `POST /api/events/templates/save-preview` — uploads a preview PNG to storage, returns its URL. Mirrors the existing `templates/upload` route's shape.
+- [x] `page.tsx`'s `save()`: if the currently-displayed preview is a fresh, unsaved `data:` URL, uploads it via the new route first and swaps local state to the resulting real URL; if it's already a persisted URL (loaded from a previous save), passes it straight through. Either way, `last_preview_url` rides along in the same `variants` array already being saved — no extra request beyond the one upload. Whatever's on screen at save time is what's kept, stale or not — regenerating is cheap if it's out of date, and second-guessing which state to keep wasn't asked for.
+- [x] The variant/type-switch effect that used to unconditionally clear the preview to `null` now restores `activeVariant.last_preview_url` instead — not marked stale, since it was generated against and saved alongside that exact layer state by construction; only a new edit after loading marks it stale again.
+- [x] Save Changes button moved from `PageHeader`'s actions (top of page) into the Preview panel's own header row, next to Edit Placeholder/Generate Preview. Undo/Redo stayed in the page header — global page actions, not preview-specific.
+- [x] **Verified live** with a disposable test variant: generated a preview, saved, did a full fresh page reload, selected the variant again — the preview showed immediately (a real `https://` URL, not `data:`), no "No preview yet," no stale badge. Confirmed the Save button now sits directly beside Generate Preview and is gone from the header. Test variant deleted and the deletion saved afterward — confirmed the real "Speaker template 1" untouched.
+- [x] Full verification suite (`npx tsc --noEmit`, targeted `eslint`, `npm run build`, `npm run check:nav`) clean.
+
 ---
 
 ## Phase D — Approval Workflow

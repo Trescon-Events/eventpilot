@@ -172,12 +172,20 @@ export default function CreativeTemplatesAdminPage({ params }: { params: Promise
   // only ever touches local state (already instant, no network involved),
   // the real Sharp render only fires on the "Generate Preview" button
   // below. The box layout just changed underneath whatever was rendered,
-  // so an old image would be actively misleading — clear it outright.
-  // (Switching previewFor alone does NOT clear it — see the effect below.)
+  // so an in-memory preview from a DIFFERENT variant would be actively
+  // misleading — but THIS variant's own last saved preview
+  // (last_preview_url, 2026-08-01) is exactly what belongs here, so restore
+  // that instead of clearing to null. Not stale — it was generated against
+  // and saved alongside this exact layer state, by definition, since save()
+  // persists them together; only a NEW edit after loading marks it stale.
+  // (Switching previewFor alone does NOT touch this — see the effect below.)
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- clears a now-invalid preview when the box layout it was rendered against just changed; a derived-state reset, not a fetch side effect
-    setPreviewDataUrl(null)
+    const list = activeType === 'speaker' ? speakerVariants : partnerVariants
+    const v = list.find(x => x.id === activeVariantId)
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- restores this variant's own saved preview when switching to it; a derived-state reset, not a fetch side effect
+    setPreviewDataUrl(v?.last_preview_url ?? null)
     setPreviewStale(false)
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- only re-run on variant/type switch, not on every speakerVariants/partnerVariants edit (would re-restore over in-progress local changes)
   }, [activeVariantId, activeType])
 
   // Switching which speaker/partner is injected doesn't invalidate the
@@ -370,12 +378,42 @@ export default function CreativeTemplatesAdminPage({ params }: { params: Promise
 
   async function save() {
     setSaving(true)
+
+    // Persist whatever preview is currently on screen (2026-08-01) so
+    // revisiting this variant later shows it immediately instead of "No
+    // preview yet" — previewDataUrl otherwise only ever lived in client
+    // React state, gone on refresh. A fresh, not-yet-persisted render is a
+    // `data:` URL and needs uploading first; a previously-persisted one
+    // (loaded from last_preview_url on mount, or from an earlier save this
+    // session) is already a real URL and just carries straight through.
+    let previewUrlToSave = activeVariant?.last_preview_url
+    if (activeVariantId && previewDataUrl) {
+      if (previewDataUrl.startsWith('data:')) {
+        const blob = await (await fetch(previewDataUrl)).blob()
+        const form = new FormData()
+        form.append('file', blob, 'preview.png')
+        form.append('event_id', eventId)
+        form.append('variant_id', activeVariantId)
+        const uploadRes = await fetch('/api/events/templates/save-preview', { method: 'POST', body: form })
+        const uploadData = await uploadRes.json().catch(() => ({}))
+        if (uploadRes.ok && uploadData.url) {
+          previewUrlToSave = uploadData.url
+          setPreviewDataUrl(uploadData.url) // swap local state to the persisted URL too, not left pointing at a throwaway data: URL
+        }
+      } else {
+        previewUrlToSave = previewDataUrl
+      }
+    }
+    const variantsToSave = activeVariantId
+      ? variants.map(v => v.id === activeVariantId ? { ...v, last_preview_url: previewUrlToSave } : v)
+      : variants
+
     const res = await fetch('/api/events/templates/variants', {
       method: 'PUT', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ event_id: eventId, stakeholder_type: activeType, variants }),
+      body: JSON.stringify({ event_id: eventId, stakeholder_type: activeType, variants: variantsToSave }),
     })
     const data = await res.json().catch(() => ({}))
-    if (res.ok) { setDirty(false); setMsg('Saved.') } else { setMsg(data.error || 'Save failed.') }
+    if (res.ok) { setVariants(variantsToSave); setDirty(false); setMsg('Saved.') } else { setMsg(data.error || 'Save failed.') }
     setSaving(false)
   }
 
@@ -389,7 +427,6 @@ export default function CreativeTemplatesAdminPage({ params }: { params: Promise
           <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
             <Button variant="ghost" onClick={undo} disabled={undoCount === 0} title="Undo (Cmd/Ctrl+Z)">↶ Undo</Button>
             <Button variant="ghost" onClick={redo} disabled={redoCount === 0} title="Redo (Cmd/Ctrl+Shift+Z)">↷ Redo</Button>
-            <Button variant="lime" onClick={save} disabled={saving || !dirty}>{saving ? 'Saving…' : dirty ? 'Save Changes' : 'Saved'}</Button>
           </div>
         ) : undefined}
       />
@@ -533,6 +570,12 @@ export default function CreativeTemplatesAdminPage({ params }: { params: Promise
                       <Button variant="teal" onClick={generatePreview} disabled={!activeVariant || previewLoading}>
                         {previewLoading ? 'Generating…' : 'Generate Preview'}
                       </Button>
+                      {/* Moved here from the page header (2026-08-01, per
+                          Madhu) — was far from the preview it actually
+                          controls; saving is also what persists the current
+                          preview render (last_preview_url), so it belongs
+                          next to the button that generates it. */}
+                      <Button variant="lime" onClick={save} disabled={saving || !dirty}>{saving ? 'Saving…' : dirty ? 'Save Changes' : 'Saved'}</Button>
                     </div>
                   </div>
                   {showPlaceholderPanel && (

@@ -94,6 +94,14 @@ export type Variant = {
   canvas_width: number
   canvas_height: number
   layers: Layer[]            // array order = z-order, index 0 = bottom
+  // The last "Generate Preview" render, persisted on Save Changes
+  // (2026-08-01) so a later visit to this variant shows it immediately
+  // instead of "No preview yet" — previously previewDataUrl only ever
+  // lived in client React state, gone on refresh. Whatever's on screen at
+  // save time (fresh or stale) is what gets kept; regenerating is cheap if
+  // it's out of date. A real Storage URL, not inline base64 — kept out of
+  // the (already-large) creative_template_config JSONB blob.
+  last_preview_url?: string
 }
 
 // Reusable "Placeholder data" content (2026-07-31) — Madhu's ask: the ghost
