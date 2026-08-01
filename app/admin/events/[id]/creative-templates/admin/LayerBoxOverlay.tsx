@@ -86,6 +86,24 @@ type Box = { x: number; y: number; width: number; height: number }
 type HandlePos = 'nw' | 'n' | 'ne' | 'e' | 'se' | 's' | 'sw' | 'w'
 type DragMode = 'move' | HandlePos
 
+// Logo boxes resize locked to this ratio (2026-08-01) — a real speaker/
+// partner logo always gets standardized onto the Clean Logo Base's fixed
+// 600×300 canvas (app/lib/media/logo-engine.ts's BASE_WIDTH/BASE_HEIGHT —
+// NOT imported directly: that module pulls in `sharp`, a Node-only native
+// dependency, which broke the entire client bundle the first time this was
+// tried, since composite.ts — which re-exports PhotoSlotLayer etc. used all
+// over this file — also imports `sharp` at its top; any RUNTIME (non-type)
+// import from it drags the whole server-only module graph into the
+// browser bundle. A plain duplicated number has none of that risk), so a
+// template's own logo box should always match that ratio too, or a
+// compliant real logo ends up letterboxed/cropped once it's swapped in.
+// Photo boxes are unaffected — their sizing is governed by face-alignment,
+// not a fixed ratio.
+const LOGO_BOX_ASPECT_RATIO = 2 // width:height
+function isLogoLayer(layer: Layer): boolean {
+  return layer.type === 'photo_slot' && (layer.source === 'speaker_logo' || layer.source === 'partner_logo')
+}
+
 // Floor in canvas-space px — a box can never be dragged/resized smaller
 // than this during a gesture (free-typing in the NumFields is unclamped;
 // this only governs pointer drags, per the plan's gesture-vs-typing split).
@@ -199,7 +217,7 @@ function FontFaceStyles({ layers }: { layers: Layer[] }) {
 
 export default function LayerBoxOverlay({ layers, canvasWidth, canvasHeight, activeLayerId, onSelectLayer, onChangeLayer, onCommitUndo, activeType, previewForRecord, placeholderProfile, showGhost, hasUnderlyingPreview }: Props) {
   const containerRef = useRef<HTMLDivElement | null>(null)
-  const dragRef = useRef<{ layerId: string; mode: DragMode; startClientX: number; startClientY: number; startBox: Box; committed: boolean } | null>(null)
+  const dragRef = useRef<{ layerId: string; mode: DragMode; startClientX: number; startClientY: number; startBox: Box; committed: boolean; aspectLocked: boolean } | null>(null)
   const nudgeBurstRef = useRef<{ layerId: string; lastAt: number } | null>(null)
   const [guides, setGuides] = useState<{ x: number | null; y: number | null }>({ x: null, y: null })
 
@@ -215,7 +233,7 @@ export default function LayerBoxOverlay({ layers, canvasWidth, canvasHeight, act
     onSelectLayer(layer.id)
     containerRef.current?.focus()
     ;(e.currentTarget as Element).setPointerCapture(e.pointerId)
-    dragRef.current = { layerId: layer.id, mode, startClientX: e.clientX, startClientY: e.clientY, startBox: { x: layer.x, y: layer.y, width: layer.width, height: layer.height }, committed: false }
+    dragRef.current = { layerId: layer.id, mode, startClientX: e.clientX, startClientY: e.clientY, startBox: { x: layer.x, y: layer.y, width: layer.width, height: layer.height }, committed: false, aspectLocked: mode !== 'move' && isLogoLayer(layer) }
   }
 
   function onPointerMove(e: React.PointerEvent) {
@@ -238,6 +256,23 @@ export default function LayerBoxOverlay({ layers, canvasWidth, canvasHeight, act
       if (mode.includes('n')) {
         height = Math.max(MIN_BOX, startBox.height - dy)
         y = startBox.y + (startBox.height - height)
+      }
+
+      // Logo boxes: re-derive whichever dimension the handle didn't directly
+      // drive so width:height always stays exactly LOGO_BOX_ASPECT_RATIO —
+      // width leads for corner handles (both axes present), otherwise
+      // whichever axis IS present leads and the box re-centers along the
+      // other axis (there's no drag intent to anchor an edge on there).
+      if (drag.aspectLocked) {
+        const hasH = mode.includes('e') || mode.includes('w')
+        const hasV = mode.includes('n') || mode.includes('s')
+        if (hasH) {
+          height = Math.max(MIN_BOX, width / LOGO_BOX_ASPECT_RATIO)
+          y = hasV ? (mode.includes('n') ? startBox.y + startBox.height - height : startBox.y) : startBox.y + (startBox.height - height) / 2
+        } else if (hasV) {
+          width = Math.max(MIN_BOX, height * LOGO_BOX_ASPECT_RATIO)
+          x = startBox.x + (startBox.width - width) / 2
+        }
       }
     }
 
