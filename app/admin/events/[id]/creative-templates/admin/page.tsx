@@ -738,6 +738,27 @@ function ImageLayerFields({ layer, uploading, onChange, onUploadImage, pushUndo,
   )
 }
 
+// Matches the same lock LayerBoxOverlay.tsx's drag-resize enforces for
+// logo boxes (a plain local duplicate, deliberately — see that file's
+// LOGO_BOX_ASPECT_RATIO comment for why this doesn't come from a shared
+// import: composite.ts pulls in `sharp`, and any runtime value import from
+// it breaks the client bundle). Applied here too (2026-08-01, real bug
+// caught live) because "Upload Reference Layer" sets the box from the
+// uploaded PNG's own raw alpha-trim bounding box — completely bypassing
+// the drag-resize lock, since it never goes through a drag at all. Shrinks
+// the derived box to 2:1 around its own center, same as the manual snap
+// already applied to the real "speaker logo" layer.
+const LOGO_BOX_ASPECT_RATIO = 2 // width:height
+function snapLogoBox(box: { x: number; y: number; width: number; height: number }) {
+  const ratio = box.width / box.height
+  let { width, height } = box
+  if (ratio > LOGO_BOX_ASPECT_RATIO) width = height * LOGO_BOX_ASPECT_RATIO
+  else height = width / LOGO_BOX_ASPECT_RATIO
+  const cx = box.x + box.width / 2
+  const cy = box.y + box.height / 2
+  return { x: Math.round(cx - width / 2), y: Math.round(cy - height / 2), width: Math.round(width), height: Math.round(height) }
+}
+
 function PhotoSlotLayerFields({ layer, activeType, onChange, pushUndo, discardLastUndo, eventId }: {
   layer: PhotoSlotLayer; activeType: StakeholderKind; onChange: (patch: Partial<PhotoSlotLayer>) => void
   pushUndo: () => void; discardLastUndo: () => void; eventId: string
@@ -757,8 +778,9 @@ function PhotoSlotLayerFields({ layer, activeType, onChange, pushUndo, discardLa
     const res = await fetch('/api/events/templates/derive-alignment', { method: 'POST', body: form })
     const data = await res.json().catch(() => ({}))
     if (res.ok) {
+      const box = isPhoto ? data.box : snapLogoBox(data.box)
       onChange({
-        x: data.box.x, y: data.box.y, width: data.box.width, height: data.box.height,
+        x: box.x, y: box.y, width: box.width, height: box.height,
         // Saved (2026-07-31) so it can stand in for the real photo/logo when
         // previewing with no real stakeholder selected — see
         // PhotoSlotLayer.reference_url's doc comment in composite.ts. Only

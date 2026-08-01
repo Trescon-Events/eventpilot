@@ -400,6 +400,14 @@ Madhu's framing: a real speaker/partner logo always gets standardized onto the C
 - [x] **Snapped the real "speaker logo" box** in "Speaker template 1" from 241×50 (4.82:1) to 100×50 (2:1) — kept height, shrank width, recentered (`x` 739→810), done through the actual editor UI (NumFields + Save Changes) like any other real-data edit this session, not a direct DB script. Confirmed persisted via a direct read afterward.
 - [x] Full verification suite (`npx tsc --noEmit`, targeted `eslint`, `npm run build`, `npm run check:nav`) clean.
 
+### Phase C v7.1 — Aspect lock only covered drag-resize, not the "Upload Reference Layer" path that also sets a logo box (2026-08-01, same day)
+
+Madhu caught this immediately: uploaded a real logo reference layer to the (already-snapped, 100×50) "speaker logo" slot, and the box reverted to an off-ratio 241×50 again. Real gap in v7.0 — the aspect lock was only implemented inside `LayerBoxOverlay.tsx`'s pointer-drag handler, but a logo box's dimensions are also set through a completely separate path: "Upload Reference Layer (auto-position)" sets `x/y/width/height` directly from the uploaded PNG's own raw alpha-trim bounding box (`analyzeReferenceLayer()` in `page.tsx`), which never goes through a drag at all and so never hit the lock.
+
+- [x] `page.tsx`: `PhotoSlotLayerFields`'s `analyzeReferenceLayer()` now snaps the derived box to 2:1 (shrinking around its own center, same math as the manual real-data snap) before applying it, for logo sources only — a photo box's derived box is untouched, since photo sizing is governed by face-alignment, not a fixed ratio. Duplicates the `2` ratio constant locally rather than importing it from `LayerBoxOverlay.tsx` or `composite.ts` — same reasoning as v7.0's client-bundle bug, avoided proactively this time.
+- [x] **Verified live**: re-uploaded the exact same reference logo file Madhu used, against a disposable test variant, and confirmed the derived box now lands on exactly 100×50 (2:1) instead of the raw 241×50 alpha-trim bounding box. Confirmed the real "speaker logo" layer in "Speaker template 1" is unaffected by this test (still the correctly-snapped 100×50 from the v7.0 fix — Madhu's screenshot showing 241×50 was an unsaved in-browser state from before that fix, not a DB regression).
+- [x] Full verification suite (`npx tsc --noEmit`, targeted `eslint`, `npm run build`, `npm run check:nav`) clean.
+
 ---
 
 ## Phase D — Approval Workflow
