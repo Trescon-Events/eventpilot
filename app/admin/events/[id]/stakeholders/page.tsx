@@ -448,9 +448,16 @@ export default function StakeholderHubPage({ params }: { params: Promise<{ id: s
                               Approve for Announcement
                             </Button>
                           )}
+                          {/* Plain wayfinding link, not a styled action button
+                              (2026-08-02, per Madhu) — every announcement-
+                              creation action now lives only in the SAE
+                              module (creative-templates), so this page
+                              shouldn't read as if generating happens here
+                              too. Approve for Announcement above stays a
+                              real action; this is navigation only. */}
                           {item.announcement_status === 'ready' && (
-                            <Link href={`/admin/events/${eventId}/creative-templates`}>
-                              <Button variant="solid">Generate Creative →</Button>
+                            <Link href={`/admin/events/${eventId}/creative-templates`} style={{ fontSize: '12.5px', color: 'var(--ink3)', textDecoration: 'underline', alignSelf: 'center' }}>
+                              Manage in Stakeholder Announcement Engine →
                             </Link>
                           )}
                           <Button variant="red" onClick={() => setDeleteConfirm([item])}>Delete</Button>

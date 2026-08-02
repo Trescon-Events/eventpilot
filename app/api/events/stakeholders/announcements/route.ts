@@ -13,7 +13,7 @@ export async function GET(req: NextRequest) {
 
   let q = supabaseAdmin
     .from('stakeholder_announcements')
-    .select('id, stakeholder_type, speaker_id, partner_id, post_copy, creative_url, status, scheduled_for, platforms, published_at')
+    .select('id, stakeholder_type, speaker_id, partner_id, post_copy, creative_url, creative_variant_id, status, created_at, scheduled_for, platforms, published_at')
     .eq('event_id', eventId)
     .order('scheduled_for', { ascending: true, nullsFirst: false })
 

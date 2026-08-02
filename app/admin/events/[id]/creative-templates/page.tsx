@@ -3,60 +3,97 @@
 import { useState, useEffect, use } from 'react'
 import Link from 'next/link'
 import PageHeader from '@/app/components/PageHeader'
-import { Button, Badge, Select } from '@/app/components/ui'
+import { Button, Badge, Select, type BadgeColor } from '@/app/components/ui'
 import type { Variant, CreativeTemplateConfig } from '@/app/lib/announcements/composite'
+import CreateAnnouncementModal from './CreateAnnouncementModal'
+import DeleteCreativeModal from './DeleteCreativeModal'
 
 /* Stakeholder Announcement Engine — main workspace (restructured
-   2026-07-28 per Madhu's explicit ask). Previously this base path was a
+   2026-07-28 per Madhu's explicit ask, restructured again 2026-08-02 for
+   real create/list/delete management). Previously this base path was a
    lightweight landing page linking out to the Stakeholder Hub for actual
    generation, and generation itself happened in a small popup modal on
    that page. Both moved here as a proper full-page workspace:
 
    - Speaker/Partner sub-sections (matching the Admin Console's own split).
-   - Left: the list of stakeholders "approved for announcement"
-     (announcement_status === 'ready', set via the Stakeholder Hub's own
-     Approve for Announcement action — that page still owns stakeholder
-     DATA management; this page owns the CREATIVE).
-   - Right: a real workspace, not a dismissible overlay — generate, see a
-     genuine inline loading state instead of a silent ~20s wait, review,
-     regenerate creative/copy, all without losing the result if you
-     navigate to another stakeholder and back (existing announcements are
-     fetched up front and shown immediately, no regeneration required just
-     to look at something already generated).
+   - Left: stakeholders who already have at least one creative (NOT every
+     approved stakeholder — see 2026-08-02 below). Right: all of that
+     stakeholder's creatives as a grid, plus a detail panel for whichever
+     one is selected.
+   - "+ Create New" (page-level, not scoped to the left-rail selection)
+     opens a 2-step modal: pick a stakeholder (from those approved for
+     announcement, `announcement_status === 'ready'` — regardless of
+     whether they already have creatives) → pick a variant (shown with its
+     real preview thumbnail) → Generate.
+
+   2026-08-02 (Madhu): every announcement-creation action lives ONLY here
+   now — the Stakeholder Hub's "Generate Creative →" button was removed
+   (see stakeholders/page.tsx) so there's exactly one place a "generate"
+   affordance can be clicked from. The SAE main view intentionally shows
+   EXISTING creatives grouped by stakeholder, not a picker of every eligible
+   stakeholder — that picker only exists inside the Create flow.
+
+   Also fixes a real bug found the same day: `generate` always INSERTs a
+   new row (never upserts), so a stakeholder could already silently
+   accumulate multiple announcement rows — but the old `results` state only
+   ever kept the FIRST one it fetched per stakeholder, hiding every other
+   generation that already existed in the database. `results` is now an
+   array per stakeholder, and every row is shown.
 
    Variant CREATION (the layer-stack editor) lives at ./admin instead —
    branding-team-only, unchanged by this restructure. */
 
-type StakeholderKind = 'speaker' | 'partner'
+export type StakeholderKind = 'speaker' | 'partner'
 
-type Speaker = {
+export type Speaker = {
   id: string; full_name: string; job_title: string; company_name: string
   photo_url: string | null; photo_processed_url: string | null; company_logo_url: string | null
   announcement_status: 'pending_review' | 'approved' | 'assets_missing' | 'ready' | 'archived'
 }
-type Partner = {
+export type Partner = {
   id: string; company_name: string; partner_type: string
   logo_url: string | null
   announcement_status: 'pending_review' | 'approved' | 'assets_missing' | 'ready' | 'archived'
 }
-type Stakeholder = Speaker | Partner
+export type Stakeholder = Speaker | Partner
 
-type AnnouncementSummary = {
+// AnnouncementStatus/AnnouncementListItem (2026-08-02) — replaces the old
+// AnnouncementSummary; see `results` state's own comment below for why: a
+// stakeholder can have MULTIPLE announcement rows (generate always INSERTs,
+// never upserts), so the shape needs every row's own status/variant/date,
+// not just enough fields for a single displayed result.
+export type AnnouncementStatus = 'draft' | 'pending_approval' | 'approved' | 'approved_with_comments' | 'changes_requested' | 'scheduled' | 'published' | 'failed'
+
+export type AnnouncementListItem = {
   id: string
+  stakeholder_type: StakeholderKind
   speaker_id: string | null
   partner_id: string | null
   post_copy: string | null
   creative_url: string | null
+  creative_variant_id: string | null
+  status: AnnouncementStatus
+  created_at: string
+  scheduled_for: string | null
+  platforms: string[] | null
+  published_at: string | null
 }
 
-function displayName(kind: StakeholderKind, s: Stakeholder): string {
+export function displayName(kind: StakeholderKind, s: Stakeholder): string {
   return kind === 'speaker' ? (s as Speaker).full_name : (s as Partner).company_name
 }
-function displaySubtitle(kind: StakeholderKind, s: Stakeholder): string {
+export function displaySubtitle(kind: StakeholderKind, s: Stakeholder): string {
   return kind === 'speaker' ? `${(s as Speaker).job_title} · ${(s as Speaker).company_name}` : (s as Partner).partner_type.replace(/_/g, ' ')
 }
-function thumbUrl(kind: StakeholderKind, s: Stakeholder): string | null {
+export function thumbUrl(kind: StakeholderKind, s: Stakeholder): string | null {
   return kind === 'speaker' ? ((s as Speaker).photo_processed_url || (s as Speaker).photo_url) : (s as Partner).logo_url
+}
+
+function statusColor(s: AnnouncementStatus): BadgeColor {
+  if (s === 'published' || s === 'approved' || s === 'approved_with_comments') return 'teal'
+  if (s === 'failed' || s === 'changes_requested') return 'red'
+  if (s === 'scheduled') return 'purple'
+  return 'amber' // draft, pending_approval
 }
 
 export default function CreativeTemplatesWorkspacePage({ params }: { params: Promise<{ id: string }> }) {
@@ -68,27 +105,34 @@ export default function CreativeTemplatesWorkspacePage({ params }: { params: Pro
   const [partners, setPartners] = useState<Partner[]>([])
   const [variants, setVariants] = useState<{ speaker: Variant[]; partner: Variant[] }>({ speaker: [], partner: [] })
   const [selectedId, setSelectedId] = useState<string | null>(null)
-  const [variantChoice, setVariantChoice] = useState<Record<string, string>>({})
-  // Separate from variantChoice (2026-08-01) — that one picks the variant
-  // for a fresh generate(); this picks which variant to switch an ALREADY
-  // generated draft to on Regenerate Creative. Keeping them independent
-  // means picking a different regenerate target doesn't silently change
-  // what a later "Generate Again" would use, and vice versa.
+  const [selectedAnnouncementId, setSelectedAnnouncementId] = useState<string | null>(null)
+  const [showCreateModal, setShowCreateModal] = useState(false)
+  const [deleteTarget, setDeleteTarget] = useState<AnnouncementListItem | null>(null)
+  const [deleting, setDeleting] = useState(false)
+  // Keyed by ANNOUNCEMENT id now, not stakeholder id (2026-08-02) — a
+  // stakeholder can have several creatives visible at once, each needing
+  // its own independent "switch variant on regenerate" selection; keying by
+  // stakeholder would leak one card's choice into another's control.
   const [regenerateVariantChoice, setRegenerateVariantChoice] = useState<Record<string, string>>({})
   const [msg, setMsg] = useState<string | null>(null)
 
-  const [generating, setGenerating] = useState(false)
   const [regeneratingCreative, setRegeneratingCreative] = useState(false)
   const [regeneratingCopy, setRegeneratingCopy] = useState(false)
-  // Per-stakeholder result, keyed by stakeholder id — separate from the
-  // fetched `announcements` list so a fresh generate()/regenerate() updates
-  // immediately without waiting on a full refetch.
-  const [results, setResults] = useState<Record<string, { announcementId: string; creativeUrl: string | null; postCopy: string }>>({})
+  // Every creative for a stakeholder, not just one — keyed by stakeholder
+  // id, newest first. See the file-header comment for the shadowing bug
+  // this replaced.
+  const [results, setResults] = useState<Record<string, AnnouncementListItem[]>>({})
 
   const stakeholders: Stakeholder[] = activeType === 'speaker' ? speakers : partners
   const readyStakeholders = stakeholders.filter(s => s.announcement_status === 'ready')
-  const selected = readyStakeholders.find(s => s.id === selectedId) ?? null
+  // Left rail (2026-08-02) — only stakeholders who already have a creative,
+  // not every approved-for-announcement one. Picking WHO to create for now
+  // happens inside the Create modal instead (readyStakeholders, above).
+  const stakeholdersWithCreatives = stakeholders.filter(s => (results[s.id]?.length ?? 0) > 0)
+  const selected = stakeholdersWithCreatives.find(s => s.id === selectedId) ?? null
   const activeVariants = variants[activeType]
+  const selectedList = selected ? (results[selected.id] ?? []) : []
+  const selectedAnnouncement = selectedList.find(a => a.id === selectedAnnouncementId) ?? selectedList[0] ?? null
 
   async function fetchAll() {
     setLoading(true)
@@ -102,19 +146,18 @@ export default function CreativeTemplatesWorkspacePage({ params }: { params: Pro
     setPartners(await ptRes.json().catch(() => []))
     const config: CreativeTemplateConfig | null = await tplRes.json().catch(() => null)
     setVariants({ speaker: config?.speaker?.variants ?? [], partner: config?.partner?.variants ?? [] })
-    const anns: AnnouncementSummary[] = await annRes.json().catch(() => [])
-    // Seed `results` from the most recent existing announcement per
-    // stakeholder so switching to someone already generated shows their
-    // creative immediately — never requires clicking Generate again just
-    // to look at it.
-    setResults(prev => {
-      const next = { ...prev }
-      for (const a of anns) {
-        const id = a.speaker_id ?? a.partner_id
-        if (id && !next[id]) next[id] = { announcementId: a.id, creativeUrl: a.creative_url, postCopy: a.post_copy ?? '' }
-      }
-      return next
-    })
+    const anns: AnnouncementListItem[] = await annRes.json().catch(() => [])
+    // Group every row into its stakeholder's array, newest first — the
+    // single source of truth for `results`, rebuilt in full on every fetch
+    // rather than hand-merged, so create/delete just call fetchAll() again.
+    const byStakeholder: Record<string, AnnouncementListItem[]> = {}
+    for (const a of anns) {
+      const id = a.speaker_id ?? a.partner_id
+      if (!id) continue
+      ;(byStakeholder[id] ??= []).push(a)
+    }
+    for (const id in byStakeholder) byStakeholder[id].sort((a, b) => b.created_at.localeCompare(a.created_at))
+    setResults(byStakeholder)
     setLoading(false)
   }
 
@@ -124,37 +167,30 @@ export default function CreativeTemplatesWorkspacePage({ params }: { params: Pro
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- reset selection on tab switch, derived UI state not a fetch side effect
     setSelectedId(null)
+    setSelectedAnnouncementId(null)
   }, [activeType])
 
-  async function generate(stakeholder: Stakeholder) {
-    setGenerating(true)
-    setMsg(null)
-    const variantId = variantChoice[stakeholder.id]
-    const res = await fetch('/api/events/stakeholders/announcements/generate', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        event_id: eventId,
-        stakeholder_type: activeType,
-        ...(activeType === 'speaker' ? { speaker_id: stakeholder.id } : { partner_id: stakeholder.id }),
-        ...(variantId ? { variant_id: variantId } : {}),
-      }),
-    })
-    const data = await res.json().catch(() => ({}))
-    if (!res.ok) { setMsg(data.error || 'Announcement generation failed.'); setGenerating(false); return }
-    setResults(prev => ({ ...prev, [stakeholder.id]: { announcementId: data.announcement_id, creativeUrl: data.creative_url ?? null, postCopy: data.post_copy ?? '' } }))
-    setGenerating(false)
+  async function handleCreated(stakeholderId: string, announcementId: string) {
+    await fetchAll()
+    setSelectedId(stakeholderId)
+    setSelectedAnnouncementId(announcementId)
+    setShowCreateModal(false)
   }
 
   async function regenerateCreative(announcementId: string, stakeholderId: string) {
     setRegeneratingCreative(true)
-    const variantId = regenerateVariantChoice[stakeholderId]
+    const variantId = regenerateVariantChoice[announcementId]
     const res = await fetch(`/api/events/stakeholders/announcements/${announcementId}/regenerate-creative`, {
       method: 'POST',
       ...(variantId ? { headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ variant_id: variantId }) } : {}),
     })
     const data = await res.json().catch(() => ({}))
-    if (res.ok) setResults(prev => ({ ...prev, [stakeholderId]: { ...prev[stakeholderId], creativeUrl: data.creative_url } }))
-    else setMsg(data.error || 'Could not regenerate the creative.')
+    if (res.ok) {
+      setResults(prev => ({
+        ...prev,
+        [stakeholderId]: (prev[stakeholderId] ?? []).map(a => a.id === announcementId ? { ...a, creative_url: data.creative_url } : a),
+      }))
+    } else setMsg(data.error || 'Could not regenerate the creative.')
     setRegeneratingCreative(false)
   }
 
@@ -162,12 +198,27 @@ export default function CreativeTemplatesWorkspacePage({ params }: { params: Pro
     setRegeneratingCopy(true)
     const res = await fetch(`/api/events/stakeholders/announcements/${announcementId}/regenerate-copy`, { method: 'POST' })
     const data = await res.json().catch(() => ({}))
-    if (res.ok) setResults(prev => ({ ...prev, [stakeholderId]: { ...prev[stakeholderId], postCopy: data.post_copy } }))
-    else setMsg(data.error || 'Could not regenerate the post copy.')
+    if (res.ok) {
+      setResults(prev => ({
+        ...prev,
+        [stakeholderId]: (prev[stakeholderId] ?? []).map(a => a.id === announcementId ? { ...a, post_copy: data.post_copy } : a),
+      }))
+    } else setMsg(data.error || 'Could not regenerate the post copy.')
     setRegeneratingCopy(false)
   }
 
-  const selectedResult = selected ? results[selected.id] : null
+  async function performDelete() {
+    if (!deleteTarget) return
+    setDeleting(true)
+    const res = await fetch(`/api/events/stakeholders/announcements/${deleteTarget.id}`, { method: 'DELETE' })
+    setDeleting(false)
+    if (!res.ok) { setMsg('Could not delete this creative.'); return }
+    const deletedId = deleteTarget.id
+    setDeleteTarget(null)
+    if (selectedAnnouncementId === deletedId) setSelectedAnnouncementId(null)
+    await fetchAll()
+  }
+
   const photoUrl = selected && activeType === 'speaker' ? ((selected as Speaker).photo_processed_url || (selected as Speaker).photo_url) : null
   const logoUrl = selected ? (activeType === 'speaker' ? (selected as Speaker).company_logo_url : (selected as Partner).logo_url) : null
 
@@ -176,7 +227,7 @@ export default function CreativeTemplatesWorkspacePage({ params }: { params: Pro
       <PageHeader
         eyebrow="Event Workspace"
         title="Stakeholder Announcement Engine"
-        description="Generate and review stakeholder announcement creatives. Speaker/partner details are managed in the Stakeholder Hub — this workspace covers approved stakeholders only."
+        description="Create, review, and manage stakeholder announcement creatives. Speaker/partner details are managed in the Stakeholder Hub — this workspace covers approved stakeholders only."
         actions={<Link href={`/admin/events/${eventId}/creative-templates/admin`}><Button variant="ghost">Admin Console →</Button></Link>}
       />
 
@@ -187,33 +238,36 @@ export default function CreativeTemplatesWorkspacePage({ params }: { params: Pro
           </div>
         )}
 
-        <div style={{ display: 'flex', borderRadius: '8px', border: '1px solid var(--border)', overflow: 'hidden', width: 'fit-content', marginBottom: '20px' }}>
-          {(['speaker', 'partner'] as const).map(t => (
-            <button key={t} onClick={() => setActiveType(t)}
-              style={{
-                padding: '7px 18px', border: 'none', cursor: 'pointer', fontFamily: 'inherit', fontSize: '12.5px', fontWeight: 700,
-                background: activeType === t ? 'var(--card)' : 'transparent',
-                color: activeType === t ? 'var(--ink)' : 'var(--ink3)',
-              }}>
-              {t === 'speaker' ? 'Speakers' : 'Partners'}
-            </button>
-          ))}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '20px', flexWrap: 'wrap', gap: '10px' }}>
+          <div style={{ display: 'flex', borderRadius: '8px', border: '1px solid var(--border)', overflow: 'hidden', width: 'fit-content' }}>
+            {(['speaker', 'partner'] as const).map(t => (
+              <button key={t} onClick={() => setActiveType(t)}
+                style={{
+                  padding: '7px 18px', border: 'none', cursor: 'pointer', fontFamily: 'inherit', fontSize: '12.5px', fontWeight: 700,
+                  background: activeType === t ? 'var(--card)' : 'transparent',
+                  color: activeType === t ? 'var(--ink)' : 'var(--ink3)',
+                }}>
+                {t === 'speaker' ? 'Speakers' : 'Partners'}
+              </button>
+            ))}
+          </div>
+          <Button variant="solid" onClick={() => setShowCreateModal(true)}>+ Create New</Button>
         </div>
 
         {loading ? (
           <div style={{ color: 'var(--ink3)', fontSize: '13px' }}>Loading…</div>
         ) : (
           <div style={{ display: 'grid', gridTemplateColumns: '300px 1fr', gap: '24px', alignItems: 'flex-start' }}>
-            {/* Left: approved-for-announcement stakeholder list */}
+            {/* Left: stakeholders who already have at least one creative */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
               <div style={{ fontSize: '11px', fontWeight: 800, color: 'var(--ink3)', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '4px' }}>
-                Approved {activeType === 'speaker' ? 'Speakers' : 'Partners'} ({readyStakeholders.length})
+                {activeType === 'speaker' ? 'Speakers' : 'Partners'} with Creatives ({stakeholdersWithCreatives.length})
               </div>
-              {readyStakeholders.map(s => {
+              {stakeholdersWithCreatives.map(s => {
                 const thumb = thumbUrl(activeType, s)
-                const hasResult = !!results[s.id]
+                const count = results[s.id]?.length ?? 0
                 return (
-                  <button key={s.id} onClick={() => setSelectedId(s.id)}
+                  <button key={s.id} onClick={() => { setSelectedId(s.id); setSelectedAnnouncementId(null) }}
                     style={{
                       display: 'flex', alignItems: 'center', gap: '10px', padding: '9px 10px', borderRadius: '10px',
                       border: 'none', textAlign: 'left', cursor: 'pointer', fontFamily: 'inherit',
@@ -229,56 +283,62 @@ export default function CreativeTemplatesWorkspacePage({ params }: { params: Pro
                       <div style={{ fontSize: '12.5px', fontWeight: 700, color: 'var(--ink)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{displayName(activeType, s)}</div>
                       <div style={{ fontSize: '10.5px', color: 'var(--ink3)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{displaySubtitle(activeType, s)}</div>
                     </div>
-                    {hasResult && <Badge color="teal">Generated</Badge>}
+                    <Badge color="teal">{count}</Badge>
                   </button>
                 )
               })}
-              {readyStakeholders.length === 0 && (
+              {stakeholdersWithCreatives.length === 0 && (
                 <div style={{ color: 'var(--ink3)', fontSize: '12px', padding: '10px 0', lineHeight: 1.5 }}>
-                  No {activeType === 'speaker' ? 'speakers' : 'partners'} approved for announcement yet — approve one from the Stakeholder Hub first.
+                  No creatives yet — click <strong>+ Create New</strong> above.
                 </div>
               )}
             </div>
 
-            {/* Right: generation workspace for the selected stakeholder */}
+            {/* Right: this stakeholder's creatives + detail panel */}
             <div>
               {!selected ? (
                 <div style={{ color: 'var(--ink3)', fontSize: '13px', textAlign: 'center', padding: '60px 0' }}>
-                  {readyStakeholders.length === 0 ? 'Nothing to generate yet.' : `Select a ${activeType} from the list to generate or review their announcement.`}
+                  {stakeholdersWithCreatives.length === 0 ? 'Nothing here yet — click + Create New to generate your first announcement creative.' : `Select a ${activeType} from the list to review their creatives.`}
                 </div>
               ) : (
                 <>
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px', marginBottom: '16px', flexWrap: 'wrap' }}>
-                    <div>
-                      <div style={{ fontSize: '16px', fontWeight: 800, color: 'var(--ink)' }}>{displayName(activeType, selected)}</div>
-                      <div style={{ fontSize: '12px', color: 'var(--ink3)' }}>{displaySubtitle(activeType, selected)}</div>
-                    </div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                      {activeVariants.length > 1 && (
-                        <Select value={variantChoice[selected.id] ?? activeVariants[0]?.id ?? ''}
-                          onChange={e => setVariantChoice(v => ({ ...v, [selected.id]: e.target.value }))}
-                          title="Creative style" style={{ width: 'auto' }}>
-                          {activeVariants.map(v => <option key={v.id} value={v.id}>{v.name}</option>)}
-                        </Select>
-                      )}
-                      <Button variant="solid" onClick={() => generate(selected)} disabled={generating || activeVariants.length === 0}>
-                        {generating ? 'Generating…' : selectedResult ? 'Generate Again' : 'Generate Announcement ▶'}
-                      </Button>
-                    </div>
+                  <div style={{ marginBottom: '16px' }}>
+                    <div style={{ fontSize: '16px', fontWeight: 800, color: 'var(--ink)' }}>{displayName(activeType, selected)}</div>
+                    <div style={{ fontSize: '12px', color: 'var(--ink3)' }}>{displaySubtitle(activeType, selected)}</div>
                   </div>
 
-                  {activeVariants.length === 0 && (
-                    <div style={{ padding: '10px 14px', borderRadius: '8px', background: 'var(--amber-light)', border: '1px solid var(--amber-border)', color: 'var(--amber)', fontSize: '12.5px', marginBottom: '16px' }}>
-                      No creative variants configured for {activeType === 'speaker' ? 'speakers' : 'partners'} yet — build one in the <Link href={`/admin/events/${eventId}/creative-templates/admin`} style={{ color: 'inherit', fontWeight: 700 }}>Admin Console</Link> first.
-                    </div>
-                  )}
+                  <div style={{ fontSize: '10.5px', fontWeight: 800, color: 'var(--ink3)', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '8px' }}>
+                    Creatives ({selectedList.length})
+                  </div>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: '12px', marginBottom: '24px' }}>
+                    {selectedList.map(item => {
+                      const variantName = activeVariants.find(v => v.id === item.creative_variant_id)?.name ?? '—'
+                      const isSelected = selectedAnnouncement?.id === item.id
+                      return (
+                        <div key={item.id} onClick={() => setSelectedAnnouncementId(item.id)}
+                          style={{ cursor: 'pointer', borderRadius: '10px', overflow: 'hidden', border: isSelected ? '2px solid var(--teal-mid)' : '1px solid var(--border-light)', background: 'var(--surface)' }}>
+                          <div style={{ aspectRatio: '4 / 5', background: 'var(--card)', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
+                            {item.creative_url ? (
+                              // eslint-disable-next-line @next/next/no-img-element -- small creative-list thumbnail
+                              <img src={item.creative_url} alt={variantName} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                            ) : (
+                              <span style={{ fontSize: '10.5px', color: 'var(--ink4)' }}>No creative</span>
+                            )}
+                          </div>
+                          <div style={{ padding: '8px' }}>
+                            <div style={{ fontSize: '11px', fontWeight: 700, color: 'var(--ink)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{variantName}</div>
+                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: '4px' }}>
+                              <Badge color={statusColor(item.status)}>{item.status}</Badge>
+                              <button onClick={e => { e.stopPropagation(); setDeleteTarget(item) }} title="Delete this creative" style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--red)', fontSize: '13px' }}>✕</button>
+                            </div>
+                            <div style={{ fontSize: '10px', color: 'var(--ink4)', marginTop: '4px' }}>{new Date(item.created_at).toLocaleDateString()}</div>
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
 
-                  {generating ? (
-                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '10px', padding: '100px 0', border: '1px solid var(--border-light)', borderRadius: '12px' }}>
-                      <div className="tspinner" style={{ width: '28px', height: '28px', borderRadius: '50%', border: '3px solid var(--border)', borderTopColor: 'var(--teal-mid)', animation: 'tspin 0.8s linear infinite' }} />
-                      <div style={{ fontSize: '13px', color: 'var(--ink3)' }}>Generating creative and post copy — this can take up to 20 seconds…</div>
-                    </div>
-                  ) : selectedResult ? (
+                  {selectedAnnouncement && (
                     // Three side-by-side columns, not stacked — a full-bleed
                     // 1080x1350 creative at native-ish width would otherwise
                     // force an absurdly tall page (an early version of this
@@ -291,22 +351,22 @@ export default function CreativeTemplatesWorkspacePage({ params }: { params: Pro
                     <div style={{ display: 'grid', gridTemplateColumns: 'minmax(280px, 400px) 1fr 240px', gap: '24px', alignItems: 'start' }}>
                       <div>
                         <div style={{ borderRadius: '12px', overflow: 'hidden', background: 'var(--surface)', border: '1px solid var(--border-light)', aspectRatio: '4 / 5', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                          {selectedResult.creativeUrl ? (
+                          {selectedAnnouncement.creative_url ? (
                             // eslint-disable-next-line @next/next/no-img-element -- reviewing a freshly generated/regenerated remote asset, not worth next/image's static-optimization pass here
-                            <img src={selectedResult.creativeUrl} alt="Generated creative" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
+                            <img src={selectedAnnouncement.creative_url} alt="Generated creative" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
                           ) : (
                             <span style={{ fontSize: '12px', color: 'var(--ink3)' }}>No creative generated</span>
                           )}
                         </div>
                         <div style={{ marginTop: '10px', display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
                           {activeVariants.length > 1 && (
-                            <Select value={regenerateVariantChoice[selected.id] ?? activeVariants[0]?.id ?? ''}
-                              onChange={e => setRegenerateVariantChoice(v => ({ ...v, [selected.id]: e.target.value }))}
+                            <Select value={regenerateVariantChoice[selectedAnnouncement.id] ?? activeVariants[0]?.id ?? ''}
+                              onChange={e => setRegenerateVariantChoice(v => ({ ...v, [selectedAnnouncement.id]: e.target.value }))}
                               title="Switch to a different variant on regenerate" style={{ width: 'auto' }}>
                               {activeVariants.map(v => <option key={v.id} value={v.id}>{v.name}</option>)}
                             </Select>
                           )}
-                          <Button variant="ghost" onClick={() => regenerateCreative(selectedResult.announcementId, selected.id)} disabled={regeneratingCreative}>
+                          <Button variant="ghost" onClick={() => regenerateCreative(selectedAnnouncement.id, selected.id)} disabled={regeneratingCreative}>
                             {regeneratingCreative ? 'Regenerating…' : 'Regenerate Creative'}
                           </Button>
                         </div>
@@ -315,10 +375,10 @@ export default function CreativeTemplatesWorkspacePage({ params }: { params: Pro
                       <div>
                         <div style={{ fontSize: '10.5px', fontWeight: 800, color: 'var(--ink3)', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '6px' }}>Post Copy</div>
                         <div style={{ padding: '14px', borderRadius: '10px', border: '1px solid var(--border-light)', background: 'var(--surface)', fontSize: '13px', color: 'var(--ink2)', whiteSpace: 'pre-wrap', lineHeight: 1.6, minHeight: '200px' }}>
-                          {selectedResult.postCopy}
+                          {selectedAnnouncement.post_copy}
                         </div>
                         <div style={{ marginTop: '10px' }}>
-                          <Button variant="ghost" onClick={() => regenerateCopy(selectedResult.announcementId, selected.id)} disabled={regeneratingCopy}>
+                          <Button variant="ghost" onClick={() => regenerateCopy(selectedAnnouncement.id, selected.id)} disabled={regeneratingCopy}>
                             {regeneratingCopy ? 'Regenerating…' : 'Regenerate Post Copy'}
                           </Button>
                         </div>
@@ -345,10 +405,6 @@ export default function CreativeTemplatesWorkspacePage({ params }: { params: Pro
                         {!photoUrl && !logoUrl && <div style={{ fontSize: '11px', color: 'var(--ink4)' }}>No photo/logo layer in this creative.</div>}
                       </div>
                     </div>
-                  ) : (
-                    <div style={{ color: 'var(--ink3)', fontSize: '13px', textAlign: 'center', padding: '60px 0', border: '1px dashed var(--border-light)', borderRadius: '12px' }}>
-                      {`No creative generated for ${displayName(activeType, selected)} yet — click "Generate Announcement" above.`}
-                    </div>
                   )}
                 </>
               )}
@@ -356,6 +412,27 @@ export default function CreativeTemplatesWorkspacePage({ params }: { params: Pro
           </div>
         )}
       </div>
+
+      {showCreateModal && (
+        <CreateAnnouncementModal
+          eventId={eventId}
+          stakeholderType={activeType}
+          readyStakeholders={readyStakeholders}
+          variants={activeVariants}
+          onClose={() => setShowCreateModal(false)}
+          onCreated={handleCreated}
+        />
+      )}
+
+      {deleteTarget && (
+        <DeleteCreativeModal
+          variantName={activeVariants.find(v => v.id === deleteTarget.creative_variant_id)?.name ?? 'this creative'}
+          status={deleteTarget.status}
+          deleting={deleting}
+          onConfirm={performDelete}
+          onClose={() => setDeleteTarget(null)}
+        />
+      )}
 
       <style>{`@keyframes tspin { to { transform: rotate(360deg) } }`}</style>
     </div>
