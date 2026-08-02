@@ -82,6 +82,20 @@ export type TextLayer = {
   font_weight?: 'normal' | 'bold'
   align?: 'left' | 'center' | 'right'
   font_family?: TextLayerFont // denormalized at variant-save time from a brand_fonts row — see app/lib/branding/fonts.ts. Falls back to a generic sans-serif when absent.
+  // "Snap below previous text layer" (2026-08-02) — id of another TEXT
+  // layer in the same variant. When set, this layer's rendered Y is
+  // computed at generation time from the REFERENCED layer's actual
+  // rendered bottom edge (its resolved Y + real line count × line height,
+  // not its reserved box height) plus the gap originally authored between
+  // them (this.y − (referenced.y + referenced.height), preserved exactly).
+  // Fixes a real layout gap Madhu hit: a job-title box reserved 2 lines to
+  // fit a long title, but a short one-line title left visible empty space
+  // above "company" below it, since company sat at a fixed Y unaware of
+  // how many lines title actually used. `x`/`width`/`height` stay
+  // authored/unchanged — only the effective Y shifts. See
+  // resolveTextLayerYPositions() below for the resolution pass; supports
+  // chains (A -> B -> C) via memoized recursion, with cycle protection.
+  snap_below_layer_id?: string
 }
 
 export type TextLayerDiagnostics = { did_shrink: boolean; did_truncate: boolean }
@@ -169,6 +183,12 @@ export async function compositeAnnouncement(
   assets: ResolvedAssets,
   texts: { name?: string; title?: string; company?: string; tier?: string }
 ): Promise<Buffer> {
+  // "Snap below" resolution — see TextLayer.snap_below_layer_id's doc
+  // comment. Cheap (just wrapAndFit measurement, no Sharp/canvas render) and
+  // safe to run even when no layer uses the feature — every resolved Y
+  // equals the layer's own authored y in that case.
+  const textLayerYPositions = await resolveTextLayerYPositions(variant, texts)
+
   // Each layer's fetch/process work is independent of every other layer's —
   // parallelized via Promise.all (2026-07-31 speed pass) rather than the
   // original sequential for-loop, since a layer stack commonly has 3-4
@@ -233,13 +253,21 @@ export async function compositeAnnouncement(
     // text
     const value = resolveTextValue(layer, texts)
     if (!value) return null
+    // Substitute the resolved "snap below" Y (a no-op copy when the layer
+    // doesn't use the feature — see resolveTextLayerYPositions) BEFORE
+    // building the cache key, not after — the resolved Y can change even
+    // when this layer's OWN fields didn't (e.g. company's position shifts
+    // because title's text got shorter), and the cache key needs to reflect
+    // that or a stale render would stick around incorrectly.
+    const resolvedY = textLayerYPositions.get(layer.id) ?? layer.y
+    const positionedLayer = resolvedY === layer.y ? layer : { ...layer, y: resolvedY }
     // Canvas size is part of the key too — renderTextLayerPng() allocates a
     // canvas at the full variant size, not just the layer's own box, so a
     // canvas-size change must invalidate every text layer even though
     // their own box fields didn't change.
-    const key = JSON.stringify({ t: 'text', layer, value, cw: variant.canvas_width, ch: variant.canvas_height })
+    const key = JSON.stringify({ t: 'text', layer: positionedLayer, value, cw: variant.canvas_width, ch: variant.canvas_height })
     return getOrRenderLayer(key, async () => {
-      const normalized = withTextLayerDefaults(layer, { width: variant.canvas_width, height: variant.canvas_height })
+      const normalized = withTextLayerDefaults(positionedLayer, { width: variant.canvas_width, height: variant.canvas_height })
       const { buffer } = await renderTextLayerPng(normalized, value, variant.canvas_width, variant.canvas_height)
       return { input: buffer, left: 0, top: 0 }
     })
@@ -266,6 +294,74 @@ function resolveTextValue(layer: TextLayer, texts: { name?: string; title?: stri
   if (layer.field === 'title') return texts.title
   if (layer.field === 'company') return texts.company
   return texts.tier ?? layer.value // 'tier' — runtime value wins, falls back to the layer's own hardcoded label
+}
+
+// A text layer's actual rendered height (real line count × line height) —
+// used by resolveTextLayerYPositions() below to know how far a "snap below"
+// layer should shift up when the layer above it wraps to fewer lines than
+// its box reserves. Deliberately separate from renderTextLayerPng() (which
+// also allocates a canvas and draws) — this only ever needs the wrapAndFit
+// measurement, the cheaper of the two, and runs once per text layer per
+// render regardless of how many other layers snap below it.
+async function measureTextLayerHeight(layer: TextLayer, value: string, canvasWidth: number, canvasHeight: number): Promise<number> {
+  const normalized = withTextLayerDefaults(layer, { width: canvasWidth, height: canvasHeight })
+  const registered = normalized.font_family ? await ensureFontRegisteredForMeasurement(normalized.font_family) : null
+  const { lines, lineHeight } = wrapAndFit(value, {
+    width: normalized.width, height: normalized.height, maxLines: normalized.max_lines,
+    fontSize: normalized.font_size,
+    fontWeight: registered?.hasTrueBold ? normalized.font_weight : 'normal',
+    fontFamily: registered?.family ?? 'sans-serif',
+  })
+  return lines.length * lineHeight
+}
+
+// See TextLayer.snap_below_layer_id's doc comment for the full rationale.
+// Returns every text layer's EFFECTIVE render Y — equal to its own authored
+// y unless it (transitively) snaps below another text layer, in which case
+// it's derived from that layer's resolved Y + actual rendered height + the
+// originally-authored gap between them. Memoized recursion so a chain
+// (A -> B -> C) resolves in one pass regardless of array order; a cycle
+// (should never happen from the UI, which only offers layers earlier in
+// the same variant) falls back to the layer's own authored y rather than
+// looping forever.
+async function resolveTextLayerYPositions(
+  variant: Variant,
+  texts: { name?: string; title?: string; company?: string; tier?: string }
+): Promise<Map<string, number>> {
+  const textLayers = new Map<string, TextLayer>()
+  for (const l of variant.layers) if (l.type === 'text') textLayers.set(l.id, l)
+
+  const resolvedY = new Map<string, number>()
+  const inProgress = new Set<string>()
+
+  async function resolve(id: string): Promise<number> {
+    const cached = resolvedY.get(id)
+    if (cached !== undefined) return cached
+    const layer = textLayers.get(id)
+    if (!layer) return 0
+    if (inProgress.has(id)) {
+      resolvedY.set(id, layer.y)
+      return layer.y
+    }
+    inProgress.add(id)
+
+    let y = layer.y
+    const above = layer.snap_below_layer_id ? textLayers.get(layer.snap_below_layer_id) : undefined
+    if (above) {
+      const aboveY = await resolve(above.id)
+      const aboveValue = resolveTextValue(above, texts)
+      const aboveHeight = aboveValue ? await measureTextLayerHeight(above, aboveValue, variant.canvas_width, variant.canvas_height) : 0
+      const authoredGap = layer.y - (above.y + above.height)
+      y = aboveY + aboveHeight + authoredGap
+    }
+
+    resolvedY.set(id, y)
+    inProgress.delete(id)
+    return y
+  }
+
+  for (const id of textLayers.keys()) await resolve(id)
+  return resolvedY
 }
 
 // Cached across calls (not just within one render) so the debounced live

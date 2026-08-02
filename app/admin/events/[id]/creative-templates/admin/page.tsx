@@ -529,6 +529,7 @@ export default function CreativeTemplatesAdminPage({ params }: { params: Promise
                             pushUndo={pushUndo}
                             discardLastUndo={discardLastUndo}
                             eventId={eventId}
+                            allLayers={activeVariant.layers}
                           />
                         ))}
                         {activeVariant.layers.length === 0 && (
@@ -644,7 +645,7 @@ export default function CreativeTemplatesAdminPage({ params }: { params: Promise
   )
 }
 
-function LayerRow({ layer, index, total, activeType, brandFonts, expanded, onToggleExpand, diagnostics, onChange, onDelete, onMove, pushUndo, discardLastUndo, eventId }: {
+function LayerRow({ layer, index, total, activeType, brandFonts, expanded, onToggleExpand, diagnostics, onChange, onDelete, onMove, pushUndo, discardLastUndo, eventId, allLayers }: {
   layer: Layer
   index: number
   total: number
@@ -659,6 +660,7 @@ function LayerRow({ layer, index, total, activeType, brandFonts, expanded, onTog
   pushUndo: () => void
   discardLastUndo: () => void
   eventId: string
+  allLayers: Layer[]
 }) {
   return (
     <div style={{ border: expanded ? '1px solid var(--lime)' : '1px solid var(--border-light)', borderRadius: '8px', overflow: 'hidden' }}>
@@ -679,7 +681,7 @@ function LayerRow({ layer, index, total, activeType, brandFonts, expanded, onTog
         <div style={{ padding: '12px 10px', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
           {layer.type === 'image' && <ImageLayerFields layer={layer} onChange={onChange as (patch: Partial<ImageLayer>) => void} pushUndo={pushUndo} discardLastUndo={discardLastUndo} eventId={eventId} />}
           {layer.type === 'photo_slot' && <PhotoSlotLayerFields layer={layer} activeType={activeType} onChange={onChange} pushUndo={pushUndo} discardLastUndo={discardLastUndo} eventId={eventId} />}
-          {layer.type === 'text' && <TextLayerFields layer={layer} activeType={activeType} brandFonts={brandFonts} onChange={onChange} pushUndo={pushUndo} discardLastUndo={discardLastUndo} eventId={eventId} />}
+          {layer.type === 'text' && <TextLayerFields layer={layer} activeType={activeType} brandFonts={brandFonts} onChange={onChange} pushUndo={pushUndo} discardLastUndo={discardLastUndo} eventId={eventId} allLayers={allLayers} />}
         </div>
       )}
     </div>
@@ -931,7 +933,7 @@ function PhotoSlotLayerFields({ layer, activeType, onChange, pushUndo, discardLa
   )
 }
 
-function TextLayerFields({ layer, activeType, brandFonts, onChange, pushUndo, discardLastUndo, eventId }: {
+function TextLayerFields({ layer, activeType, brandFonts, onChange, pushUndo, discardLastUndo, eventId, allLayers }: {
   layer: TextLayer
   activeType: StakeholderKind
   brandFonts: Array<{ id: string; family_name: string; regular_url: string; bold_url: string | null }>
@@ -939,7 +941,9 @@ function TextLayerFields({ layer, activeType, brandFonts, onChange, pushUndo, di
   pushUndo: () => void
   discardLastUndo: () => void
   eventId: string
+  allLayers: Layer[]
 }) {
+  const snapCandidates = allLayers.filter((l): l is TextLayer => l.type === 'text' && l.id !== layer.id)
   const fieldOptions: TextLayer['field'][] = activeType === 'speaker' ? ['name', 'title', 'company', 'tier', 'custom'] : ['tier', 'custom']
   const [analyzing, setAnalyzing] = useState(false)
   const [analyzeError, setAnalyzeError] = useState<string | null>(null)
@@ -1019,6 +1023,20 @@ function TextLayerFields({ layer, activeType, brandFonts, onChange, pushUndo, di
           <Input value={layer.value ?? ''} onChange={e => onChange({ value: e.target.value })} style={{ width: '100%', marginTop: '3px' }} />
         </label>
       )}
+      {/* "Snap below" (2026-08-02) — fixes a real gap Madhu hit: a job-title
+          box reserved 2 lines for a long title, but a short 1-line title
+          left visible empty space before "company" below it, since company
+          sat at a fixed Y unaware of how many lines title actually used.
+          Picking a layer here makes THIS layer's rendered Y follow that
+          layer's actual bottom edge at generation time instead of its own
+          fixed Y — see composite.ts's TextLayer.snap_below_layer_id. */}
+      <label style={{ gridColumn: '1 / -1', fontSize: '11px', color: 'var(--ink3)', display: 'block' }}>
+        Snap below (closes the gap if that layer wraps to fewer lines)
+        <Select value={layer.snap_below_layer_id ?? ''} onChange={e => onChange({ snap_below_layer_id: e.target.value || undefined })} style={{ width: '100%', marginTop: '3px' }}>
+          <option value="">None — stays at its own fixed Y</option>
+          {snapCandidates.map(l => <option key={l.id} value={l.id}>{layerSummary(l)}</option>)}
+        </Select>
+      </label>
       <label style={{ gridColumn: '1 / -1', fontSize: '11px', color: 'var(--ink3)', display: 'block' }}>
         Font Family
         <Select
