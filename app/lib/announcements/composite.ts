@@ -86,16 +86,29 @@ export type TextLayer = {
   // layer in the same variant. When set, this layer's rendered Y is
   // computed at generation time from the REFERENCED layer's actual
   // rendered bottom edge (its resolved Y + real line count × line height,
-  // not its reserved box height) plus the gap originally authored between
-  // them (this.y − (referenced.y + referenced.height), preserved exactly).
-  // Fixes a real layout gap Madhu hit: a job-title box reserved 2 lines to
-  // fit a long title, but a short one-line title left visible empty space
-  // above "company" below it, since company sat at a fixed Y unaware of
-  // how many lines title actually used. `x`/`width`/`height` stay
-  // authored/unchanged — only the effective Y shifts. See
-  // resolveTextLayerYPositions() below for the resolution pass; supports
-  // chains (A -> B -> C) via memoized recursion, with cycle protection.
+  // NOT its reserved box height) plus `snap_gap`. Fixes a real layout gap
+  // Madhu hit: a job-title box reserved 2 lines to fit a long title, but a
+  // short one-line title left visible empty space above "company" below it,
+  // since company sat at a fixed Y unaware of how many lines title actually
+  // used. `x`/`width`/`height` stay authored/unchanged — only the effective
+  // Y shifts. See resolveTextLayerYPositions() below for the resolution
+  // pass; supports chains (A -> B -> C) via memoized recursion, with cycle
+  // protection.
   snap_below_layer_id?: string
+  // Fixed pixel gap applied below the referenced layer's ACTUAL bottom edge
+  // (2026-08-02) — only meaningful when snap_below_layer_id is set.
+  // Deliberately a flat px value, not derived from wherever the two boxes
+  // happened to be dragged (an earlier version of this feature did that,
+  // and Madhu correctly flagged it as fragile — resizing either box for an
+  // unrelated reason would silently change the gap too) and not scaled by
+  // either layer's font size — the layer ABOVE's actual height already
+  // accounts for its own font size/line-height on its own (see
+  // measureTextLayerHeight), so a flat gap added on top behaves
+  // consistently no matter what font either layer uses; it just controls
+  // pure whitespace between them. Defaults to 20 (UI default — see
+  // TextLayerFields) when a snap target is picked but no explicit value is
+  // set yet.
+  snap_gap?: number
 }
 
 export type TextLayerDiagnostics = { did_shrink: boolean; did_truncate: boolean }
@@ -315,15 +328,14 @@ async function measureTextLayerHeight(layer: TextLayer, value: string, canvasWid
   return lines.length * lineHeight
 }
 
-// See TextLayer.snap_below_layer_id's doc comment for the full rationale.
-// Returns every text layer's EFFECTIVE render Y — equal to its own authored
-// y unless it (transitively) snaps below another text layer, in which case
-// it's derived from that layer's resolved Y + actual rendered height + the
-// originally-authored gap between them. Memoized recursion so a chain
-// (A -> B -> C) resolves in one pass regardless of array order; a cycle
-// (should never happen from the UI, which only offers layers earlier in
-// the same variant) falls back to the layer's own authored y rather than
-// looping forever.
+// See TextLayer.snap_below_layer_id/snap_gap's doc comments for the full
+// rationale. Returns every text layer's EFFECTIVE render Y — equal to its
+// own authored y unless it (transitively) snaps below another text layer,
+// in which case it's that layer's resolved Y + actual rendered height +
+// snap_gap. Memoized recursion so a chain (A -> B -> C) resolves in one
+// pass regardless of array order; a cycle (should never happen from the UI,
+// which only offers layers earlier in the same variant) falls back to the
+// layer's own authored y rather than looping forever.
 async function resolveTextLayerYPositions(
   variant: Variant,
   texts: { name?: string; title?: string; company?: string; tier?: string }
@@ -351,8 +363,7 @@ async function resolveTextLayerYPositions(
       const aboveY = await resolve(above.id)
       const aboveValue = resolveTextValue(above, texts)
       const aboveHeight = aboveValue ? await measureTextLayerHeight(above, aboveValue, variant.canvas_width, variant.canvas_height) : 0
-      const authoredGap = layer.y - (above.y + above.height)
-      y = aboveY + aboveHeight + authoredGap
+      y = aboveY + aboveHeight + (layer.snap_gap ?? 20)
     }
 
     resolvedY.set(id, y)

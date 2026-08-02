@@ -506,6 +506,15 @@ Madhu described a real design tension: a job-title box needs 2 lines reserved to
 - [x] **Verified two ways**: (1) a direct Node script (`npx tsx`) called `compositeAnnouncement()` with a synthetic 2-layer variant (title snapped-below-by company) against a short (1-line) vs. long (2-line) title string, then scanned the output PNG's raw pixels for company's actual top row — short-title case rendered company 38px higher than the long-title case, matching almost exactly one line-height's difference (32px font × 1.2 ratio = 38.4px), i.e. the gap fully closes when title wraps to fewer lines and stays put when it doesn't. (2) Regenerated a real preview against the unmodified, real "Speaker template 1" variant (no layer uses `snap_below_layer_id`) — 200 response, screenshot confirmed pixel-identical layout to before, confirming the shared `composite.ts` change is a no-op for every existing variant.
 - [x] Full verification suite (`npx tsc --noEmit`, targeted `eslint`, `npm run build`, `npm run check:nav`) clean.
 
+### Phase C v7.10 — "Snap below" gap made explicit, not derived from box positions (2026-08-02, same day)
+
+Madhu asked whether v7.9's gap could be a simple, explicit standard value (e.g. 20px) rather than whatever fell out of wherever the two boxes happened to be dragged, and whether a flat pixel gap holds up across text blocks with very different font styling.
+
+- [x] `composite.ts`: `TextLayer` gains `snap_gap?: number` — a flat pixel value applied below the referenced layer's actual rendered bottom edge, replacing v7.9's implicit `this.y − (referenced.y + referenced.height)` derivation. The derivation approach was fragile (resizing either box for an unrelated reason silently changed the gap too); an explicit value doesn't have that problem. `resolveTextLayerYPositions()` now uses `layer.snap_gap ?? 20` directly.
+- [x] `page.tsx`: new "Gap (px)" field appears once a "Snap below" target is picked, defaulting to 20 the moment a target is first selected (still fully editable, including down to 0).
+- [x] **Verified live**: confirmed a flat gap is genuinely font-agnostic — a controlled test snapped a 14px title below an 80px name and swept `snap_gap` through 5/20/50px; the rendered title moved by *exactly* 15px and 30px between those values (pixel-perfect, zero drift from the 80px/14px font-size mismatch) — because the layer ABOVE's actual height is already measured using its own font size independently, the gap is purely an added constant on top of that, unaffected by either layer's styling. Also re-confirmed chaining still holds with the explicit-gap version: a 3-layer name→title→company chain (each with an independent font size, one deliberately tiny at 14px) showed title and company shifting by the identical amount when name's line count changed, and the title↔company gap staying exactly constant across both cases — the whole stack cascades together, not just one level.
+- [x] Full verification suite (`npx tsc --noEmit`, targeted `eslint`, `npm run build`, `npm run check:nav`) clean.
+
 ---
 
 ## Phase D — Approval Workflow

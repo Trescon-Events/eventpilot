@@ -1029,14 +1029,30 @@ function TextLayerFields({ layer, activeType, brandFonts, onChange, pushUndo, di
           sat at a fixed Y unaware of how many lines title actually used.
           Picking a layer here makes THIS layer's rendered Y follow that
           layer's actual bottom edge at generation time instead of its own
-          fixed Y — see composite.ts's TextLayer.snap_below_layer_id. */}
+          fixed Y — see composite.ts's TextLayer.snap_below_layer_id. Chains
+          — if title itself snaps below name, and company snaps below
+          title, a short name pulls title up which pulls company up too. */}
       <label style={{ gridColumn: '1 / -1', fontSize: '11px', color: 'var(--ink3)', display: 'block' }}>
         Snap below (closes the gap if that layer wraps to fewer lines)
-        <Select value={layer.snap_below_layer_id ?? ''} onChange={e => onChange({ snap_below_layer_id: e.target.value || undefined })} style={{ width: '100%', marginTop: '3px' }}>
+        <Select
+          value={layer.snap_below_layer_id ?? ''}
+          onChange={e => {
+            const id = e.target.value || undefined
+            // Default the gap to 20px the moment a target is first picked
+            // (2026-08-02, per Madhu) so there's always a sane starting
+            // value rather than an empty/zero gap — still fully editable
+            // in the field below.
+            onChange({ snap_below_layer_id: id, ...(id && layer.snap_gap === undefined ? { snap_gap: 20 } : {}) })
+          }}
+          style={{ width: '100%', marginTop: '3px' }}
+        >
           <option value="">None — stays at its own fixed Y</option>
           {snapCandidates.map(l => <option key={l.id} value={l.id}>{layerSummary(l)}</option>)}
         </Select>
       </label>
+      {layer.snap_below_layer_id && (
+        <NumField label="Gap (px)" value={layer.snap_gap ?? 20} onChange={snap_gap => onChange({ snap_gap: Math.max(0, snap_gap) })} pushUndo={pushUndo} discardLastUndo={discardLastUndo} />
+      )}
       <label style={{ gridColumn: '1 / -1', fontSize: '11px', color: 'var(--ink3)', display: 'block' }}>
         Font Family
         <Select
