@@ -405,7 +405,12 @@ export default function CreativeTemplatesAdminPage({ params }: { params: Promise
       body: JSON.stringify({ event_id: eventId, stakeholder_type: activeType, variants: variantsToSave }),
     })
     const data = await res.json().catch(() => ({}))
-    if (res.ok) { setVariants(variantsToSave); setDirty(false); setMsg('Saved.') } else { setMsg(data.error || 'Save failed.') }
+    // No success toast (2026-08-02, per Madhu) — the Save button itself
+    // already flips to a disabled "Saved" state once `dirty` clears below,
+    // which is the whole signal a save succeeded; a separate banner just
+    // duplicated that and ate vertical space. Failures still need surfacing
+    // here since nothing else shows them.
+    if (res.ok) { setVariants(variantsToSave); setDirty(false) } else { setMsg(data.error || 'Save failed.') }
     setSaving(false)
   }
 
@@ -586,7 +591,11 @@ export default function CreativeTemplatesAdminPage({ params }: { params: Promise
                       onSave={savePlaceholder}
                     />
                   )}
-                  <div style={{ position: 'relative', borderRadius: '10px', overflow: 'hidden', background: 'var(--surface)', border: '1px solid var(--border-light)', aspectRatio: activeVariant ? `${activeVariant.canvas_width} / ${activeVariant.canvas_height}` : '4 / 5', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  {/* maxWidth: 80% (2026-08-02, per Madhu) — on smaller
+                      screens the full-width preview (tall, ~4:5 for a real
+                      1080x1350 canvas) didn't fit in one look, forcing a
+                      scroll just to see the whole creative. */}
+                  <div style={{ position: 'relative', borderRadius: '10px', overflow: 'hidden', background: 'var(--surface)', border: '1px solid var(--border-light)', aspectRatio: activeVariant ? `${activeVariant.canvas_width} / ${activeVariant.canvas_height}` : '4 / 5', display: 'flex', alignItems: 'center', justifyContent: 'center', maxWidth: '80%' }}>
                     {previewDataUrl ? (
                       // eslint-disable-next-line @next/next/no-img-element -- data: URL preview, next/image can't handle these
                       <img src={previewDataUrl} alt="Creative preview" style={{ width: '100%', height: '100%', objectFit: 'contain', display: 'block', opacity: previewStale ? 0.45 : 1, transition: 'opacity 0.15s ease' }} />
@@ -934,14 +943,24 @@ function TextLayerFields({ layer, activeType, brandFonts, onChange, pushUndo, di
   const fieldOptions: TextLayer['field'][] = activeType === 'speaker' ? ['name', 'title', 'company', 'tier', 'custom'] : ['tier', 'custom']
   const [analyzing, setAnalyzing] = useState(false)
   const [analyzeError, setAnalyzeError] = useState<string | null>(null)
+  const [styleDetected, setStyleDetected] = useState(false)
 
-  // Box-only counterpart to ImageLayerFields/PhotoSlotLayerFields' same
-  // button (2026-08-01) — a text layer always renders its text live at
-  // generation time (wrapAndFit/canvas), so unlike those two there's no
-  // asset_url/reference_url to derive here, only the box. The uploaded
-  // reference PNG (e.g. a mockup showing where "name"/"title"/"company"
-  // sit) is discarded after use — never sent detect_face:true, a name/
-  // title block has no face to detect.
+  // Counterpart to ImageLayerFields/PhotoSlotLayerFields' same button
+  // (2026-08-01, styling guess added 2026-08-02) — a text layer always
+  // renders its text live at generation time (wrapAndFit/canvas), so unlike
+  // those two there's no asset_url/reference_url to persist here; the
+  // uploaded reference PNG is analyzed and discarded. Always sends
+  // detect_text_style:true (never detect_face — a name/title block has no
+  // face to detect) — Madhu asked whether the branding team should also
+  // have to manually re-type color/weight/align they can already see in
+  // their own Canva mockup; text-style-detection.ts guesses those via
+  // Gemini. Font FAMILY is never guessed (no reliable way to match a flat
+  // image to one of this event's actual brand fonts) and stays manual
+  // below regardless. font_size is derived locally from the box height and
+  // the detected line_count, not asked of Gemini directly — it's only ever
+  // a ceiling (wrapAndFit auto-shrinks to fit), so an exact pixel guess
+  // isn't needed, just a reasonable starting point; 1.2 matches
+  // text-layout.ts's own LINE_HEIGHT_RATIO.
   async function analyzeReferenceLayer(file: File) {
     setAnalyzing(true)
     setAnalyzeError(null)
@@ -949,10 +968,21 @@ function TextLayerFields({ layer, activeType, brandFonts, onChange, pushUndo, di
     form.append('file', file)
     form.append('event_id', eventId)
     form.append('detect_face', 'false')
+    form.append('detect_text_style', 'true')
     const res = await fetch('/api/events/templates/derive-alignment', { method: 'POST', body: form })
     const data = await res.json().catch(() => ({}))
     if (res.ok) {
-      onChange({ x: data.box.x, y: data.box.y, width: data.box.width, height: data.box.height })
+      const style = data.text_style as { color: string; weight: 'normal' | 'bold'; align: 'left' | 'center' | 'right'; line_count: number } | null
+      onChange({
+        x: data.box.x, y: data.box.y, width: data.box.width, height: data.box.height,
+        ...(style ? {
+          font_color: style.color,
+          font_weight: style.weight,
+          align: style.align,
+          font_size: Math.max(10, Math.round(data.box.height / (style.line_count * 1.2))),
+        } : {}),
+      })
+      setStyleDetected(!!style)
     } else {
       setAnalyzeError(data.error || 'Could not analyze that reference image.')
     }
@@ -968,9 +998,14 @@ function TextLayerFields({ layer, activeType, brandFonts, onChange, pushUndo, di
             onChange={e => { const f = e.target.files?.[0]; if (f) analyzeReferenceLayer(f); e.target.value = '' }} />
         </label>
         <div style={{ fontSize: '10.5px', color: 'var(--ink3)', lineHeight: 1.4 }}>
-          Upload a transparent PNG showing where this text should sit (e.g. a mockup with dummy text in place) — the box below is derived automatically from it. Font, size, color, weight and align aren&apos;t derived from the image and stay manual, below.
+          Upload a transparent PNG showing where THIS ONE field&apos;s text should sit — e.g. a mockup with just the name in place, not the whole name/title/company block at once (upload one reference per text layer, same as you would for a photo or logo slot). The box, color, weight, and alignment below are all derived automatically from it — font family and exact size still need a manual check afterward.
         </div>
         {analyzeError && <div style={{ fontSize: '11px', color: 'var(--red)' }}>{analyzeError}</div>}
+        {styleDetected && (
+          <div style={{ fontSize: '11px', color: 'var(--teal-mid)', fontWeight: 700 }}>
+            Style guessed ✓ (color/weight/align below — double-check them, this is Gemini&apos;s best guess from the image)
+          </div>
+        )}
       </div>
       <label style={{ fontSize: '11px', color: 'var(--ink3)', display: 'block' }}>
         Field

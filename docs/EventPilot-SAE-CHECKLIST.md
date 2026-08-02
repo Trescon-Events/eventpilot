@@ -467,6 +467,36 @@ Madhu shared the layer breakdown for a second real speaker announcement design (
   - All disposable test data (a temporary speaker row, temporary variants) deleted afterward; confirmed via a fresh DB read that Test Event - Khalifa has zero variants and zero speakers again.
 - [x] Full verification suite (`npx tsc --noEmit`, targeted `eslint`, `npm run build`, `npm run check:nav`) clean.
 
+### Phase C v7.7 — Clicking "+ ..." left the previous layer open, new one collapsed at the bottom (2026-08-02)
+
+Madhu caught this immediately while actually using v7.6's new buttons to build against real "Speaker template 2" layers: clicking any of "+ Image Layer" / "+ Photo/Logo Slot" / "+ Text Layer" appended the new layer collapsed at the bottom of the list while the previously-expanded layer stayed open — nothing visibly changed for a moment, reading as if the click had done nothing.
+
+- [x] `page.tsx`: `addLayer()` now expands the layer it just created (`setExpandedLayerId`), which also collapses whatever was open before since only one layer can be expanded at a time.
+- [x] **Verified live** on a disposable test variant: added an Image, then a Photo/Logo Slot, then a Text layer back to back, confirmed exactly one layer's field grid was visible after each click and it was always the newest one.
+- [x] Full verification suite clean.
+
+### Phase C v7.8 — Two real bugs found live building "Speaker template 2"; text-layer auto-position gained style guessing; UI polish (2026-08-02, same day)
+
+Madhu started actually using v7.6/v7.7's tooling to build "Speaker template 2" layer by layer and hit two real, non-obvious issues along the way, plus asked for one feature extension and two small UI fixes.
+
+**Bug 1 — white background showing behind the speaker photo.** Traced to Madhu uploading a real (non-transparent) stock headshot as a reference layer into a plain **Image Layer** instead of a **Photo/Logo Slot** — an Image layer bakes the uploaded PNG in verbatim as permanent static art, background and all, with none of the real per-speaker face-alignment/crop logic a Photo/Logo Slot applies. Re-uploading the same file under a Photo/Logo Slot still showed the white background — traced further, with the file's own `sips -g all` metadata as evidence: `hasAlpha: no`, `samplesPerPixel: 3` — the source PNG (`layer 2.png`, exported from Canva) has no alpha channel at all, just a flat opaque white fill baked into the file. Not a system bug — `sharp().trim()` has nothing transparent to trim around when the file itself has none. Diagnosis only, no code change; Madhu needs to re-export with Canva's "Transparent background" toggle on.
+
+**Bug 2 (fixed, see v7.7 above) — found in the same working session, documented here for the full picture of what "trying to build a real variant" surfaced that synthetic testing hadn't.**
+
+**Feature — text-layer reference upload now guesses styling, not just position.** Madhu asked whether uploading a reference layer for a text field could also guess font color/weight/alignment, not just the box, since the branding team can already see those values in their own Canva mockup. Scoped via a couple of quick questions first: font FAMILY was ruled out as unreliable to guess from a flat raster image (no way to match it to this event's actual brand fonts) and stays manual; color/weight/size/align were approved for auto-detection. Also surfaced a real constraint in Madhu's own reference file (`layer 5.png`): it has THREE text blocks (name + title + company) baked into one image, but box derivation only finds one overall bounding box — auto-position needs one reference PNG per text field (matching the existing photo/logo convention), not one combined mockup.
+
+- [x] New `app/lib/media/text-style-detection.ts` — `detectTextStyle()`, a Gemini call (same `gemini-2.5-flash` structured-JSON pattern as `detectHeadBox()`) returning dominant text color (hex), weight (bold/normal), alignment (left/center/right), and visible line count from a trimmed reference image.
+- [x] `derive-alignment/route.ts`: new `detect_text_style` form field: when `true`, runs `detectTextStyle()` against the same trimmed buffer already being uploaded, concurrently with box/face derivation; returns `text_style` (or `null` if no real text was detected in the image).
+- [x] `page.tsx`: `TextLayerFields`'s `analyzeReferenceLayer()` always sends `detect_text_style: 'true'`; on a successful detection, sets `font_color`/`font_weight`/`align` directly from the guess, and derives a `font_size` ceiling from the box height and detected line count (`height / (line_count × 1.2)`, matching `text-layout.ts`'s own `LINE_HEIGHT_RATIO`) rather than asking Gemini to measure pixels directly — `font_size` is only ever a ceiling (`wrapAndFit` auto-shrinks to fit), so precision isn't needed, just a reasonable starting point. Shows a "Style guessed ✓ — double-check them" note, same spirit as the existing "Face-aligned ✓" indicator.
+- [x] Updated the export-convention note in the UI: upload one reference PNG per text FIELD, not a combined mockup.
+- [x] **Verified live**: a synthetic solid-color-rectangle reference (no real glyphs) correctly returned `text_detected: false` from Gemini (sensible — there's no actual text to analyze in a flat color block) — caught this in verification itself, not a bug, just meant the test data needed real rendered text. Regenerated a reference with actual bold lime-green text via `@napi-rs/canvas`: derived box landed within a couple px of the drawn text's real bounds, weight correctly detected as `bold`, color reasonably close to the drawn `#c8ff4d` (a genuine visual estimate, as expected — not pixel-exact, which is why the UI explicitly says "double-check"), font size ceiling landed in a sane range. Alignment came back `center` on this single-line reference — an inherent ambiguity (a tightly-trimmed single line can't visually distinguish left/center/right, there's nothing to compare it against), not a bug; a genuinely multi-line reference (wrapped text, ragged right edge) would give a real signal either way.
+
+**Two small UI fixes, both caught by Madhu live:**
+- [x] Removed the red "Saved." success banner after a variant save — the Save button itself already flips to a disabled "Saved" state once there's nothing unsaved (and back to active "Save Changes" on the next edit), so the separate banner was duplicate signal that just ate vertical space. Save failures still surface via the same banner (nothing else shows those).
+- [x] Preview image capped to 80% of its column width (`maxWidth: '80%'` on the aspect-ratio box) — on smaller screens the full-width preview (tall, close to a real creative's 4:5-ish ratio) didn't fit in one look, forcing a scroll just to see the whole thing.
+- [x] **Verified live**: confirmed no red banner after Save (button still correctly reads "Saved"), and confirmed the preview box renders at exactly 80% of its column's width (643px / 804px measured directly).
+- [x] Full verification suite (`npx tsc --noEmit`, targeted `eslint`, `npm run build`, `npm run check:nav`) clean.
+
 ---
 
 ## Phase D — Approval Workflow
