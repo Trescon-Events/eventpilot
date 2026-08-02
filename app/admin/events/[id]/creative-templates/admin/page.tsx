@@ -323,7 +323,13 @@ export default function CreativeTemplatesAdminPage({ params }: { params: Promise
   function addLayer(type: Layer['type']) {
     if (!activeVariant) return
     pushUndo()
-    updateActiveVariant({ layers: [...activeVariant.layers, newLayer(type, activeType, activeVariant.canvas_width, activeVariant.canvas_height)] })
+    const layer = newLayer(type, activeType, activeVariant.canvas_width, activeVariant.canvas_height)
+    updateActiveVariant({ layers: [...activeVariant.layers, layer] })
+    // Auto-expand the new layer and collapse whatever was open (2026-08-02,
+    // real confusion caught live) — previously the new row landed collapsed
+    // at the bottom while the old one stayed open, so clicking "+ ..." looked
+    // like it did nothing for a moment.
+    setExpandedLayerId(layer.id)
   }
 
   function updateLayer(layerId: string, patch: Partial<Layer>) {
