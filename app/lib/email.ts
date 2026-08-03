@@ -321,7 +321,11 @@ export async function sendToolAccessRequest({
 
   return getResend().emails.send({
     from:    FROM,
-    to:      ['dc@tresconglobal.com'],
+    // Both admins now (2026-08-03) — previously Durga only, which meant
+    // Madhu never saw these at all regardless of whether the send itself
+    // succeeded (real gap surfaced when Fouzan + 4 others' requests sat
+    // unresolved for weeks with neither admin aware).
+    to:      ['dc@tresconglobal.com', 'md@tresconglobal.com'],
     subject: `Access request: ${staffName} → ${tool}`,
     html,
   })
