@@ -24,9 +24,7 @@ const MAX_TEXT_CHARS = 40_000 // Gemini context safety per PRD
 
 type ParsedBrief = {
   primary_goal:            string | null
-  success_criteria:        string | null
   key_themes:              string | null
-  desired_outcome:         string | null
   icp_job_titles:          string[]
   icp_industries:          string[]
   icp_geographies:         string[]
@@ -130,16 +128,23 @@ export async function POST(req: NextRequest) {
 
   const prompt = `You are extracting structured fields from a client event brief document.
 
-Return STRICT JSON only — no markdown wrapping, no commentary. If a field is not
-found in the brief, return null (for scalar fields) or [] (for array fields).
-Never invent information.
+Return STRICT JSON only — no markdown wrapping, no commentary. If a scalar
+field is not found in the brief, return null. If an array field is not
+found, return []. Never invent information for the extractable fields.
+
+SPECIAL RULE FOR "key_themes":
+Client briefs almost never contain a dedicated "Themes" section. You must
+READ THE ENTIRE DOCUMENT and SYNTHESISE 3 to 5 concise event themes from
+context — from the primary goal, the topics discussed, the speakers'
+expertise, the agenda sessions, the industries mentioned, the buyer
+outcomes framed. Return them as a single comma-separated string in
+"key_themes" (e.g. "AI in Finance, ESG Compliance, Cross-Border M&A").
+If the document is too thin to synthesise anything, return null.
 
 Return exactly this shape:
 {
   "primary_goal":            string | null,
-  "success_criteria":        string | null,
   "key_themes":              string | null,
-  "desired_outcome":         string | null,
   "icp_job_titles":          string[] (max 20 entries),
   "icp_industries":          string[] (max 20 entries),
   "icp_geographies":         string[] (max 20 entries),
@@ -185,9 +190,7 @@ ${truncated}
 
   const safe: ParsedBrief = {
     primary_goal:           typeof parsed.primary_goal          === 'string' ? parsed.primary_goal          : null,
-    success_criteria:       typeof parsed.success_criteria      === 'string' ? parsed.success_criteria      : null,
     key_themes:             typeof parsed.key_themes            === 'string' ? parsed.key_themes            : null,
-    desired_outcome:        typeof parsed.desired_outcome       === 'string' ? parsed.desired_outcome       : null,
     icp_job_titles:         cap<string>(parsed.icp_job_titles).filter(s => typeof s === 'string'),
     icp_industries:         cap<string>(parsed.icp_industries).filter(s => typeof s === 'string'),
     icp_geographies:        cap<string>(parsed.icp_geographies).filter(s => typeof s === 'string'),

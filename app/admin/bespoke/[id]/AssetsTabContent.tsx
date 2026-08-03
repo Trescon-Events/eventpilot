@@ -30,6 +30,8 @@ type BespokeProjectAssetsShape = {
   client_company:         string
   target_accounts_list?:  string | null
   icp_job_titles?:        string[] | null
+  icp_industries?:        string[] | null
+  icp_geographies?:       string[] | null
   registration_questions?: Array<{ question: string; options: string[] }> | null
   speakers?:              Speaker[] | null
   client_assets_url?:     string | null
@@ -206,6 +208,8 @@ export default function AssetsTabContent({
   const speakers        = project.speakers        ?? []
   const targetAccounts  = splitList(project.target_accounts_list)
   const targetJobTitles = project.icp_job_titles  ?? []
+  const targetIndustries  = project.icp_industries  ?? []
+  const targetGeographies = project.icp_geographies ?? []
   const regQuestions    = project.registration_questions ?? []
   const promoLinks      = speakers.flatMap(sp => extractUrls(sp.bio ?? ''))  // best-effort: promo URLs sometimes appear in the bio blob
 
@@ -359,6 +363,47 @@ export default function AssetsTabContent({
             ) : (
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px', maxHeight: '220px', overflowY: 'auto', paddingRight: '4px' }}>
                 {targetJobTitles.map((t, i) => (
+                  <span key={i} style={{
+                    fontSize: '12px', padding: '3px 10px', borderRadius: '999px',
+                    background: 'var(--surface)', color: INK, border: `1px solid ${BORDER}`,
+                  }}>{t}</span>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Nic d17e10d8 — Industries + Geographies as chip clouds (not text blocks) */}
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px', marginBottom: '20px' }}>
+          <div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+              <span style={LABEL_STYLE}>Target Industries</span>
+              {targetIndustries.length > 0 && <CopyChip text={targetIndustries.join('\n')} />}
+            </div>
+            {targetIndustries.length === 0 ? (
+              <div style={{ fontSize: '12px', color: INK3 }}>None yet — add via Brief tab.</div>
+            ) : (
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px', maxHeight: '220px', overflowY: 'auto', paddingRight: '4px' }}>
+                {targetIndustries.map((t, i) => (
+                  <span key={i} style={{
+                    fontSize: '12px', padding: '3px 10px', borderRadius: '999px',
+                    background: 'var(--surface)', color: INK, border: `1px solid ${BORDER}`,
+                  }}>{t}</span>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+              <span style={LABEL_STYLE}>Target Geographies</span>
+              {targetGeographies.length > 0 && <CopyChip text={targetGeographies.join('\n')} />}
+            </div>
+            {targetGeographies.length === 0 ? (
+              <div style={{ fontSize: '12px', color: INK3 }}>None yet — add via Brief tab.</div>
+            ) : (
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px', maxHeight: '220px', overflowY: 'auto', paddingRight: '4px' }}>
+                {targetGeographies.map((t, i) => (
                   <span key={i} style={{
                     fontSize: '12px', padding: '3px 10px', borderRadius: '999px',
                     background: 'var(--surface)', color: INK, border: `1px solid ${BORDER}`,
