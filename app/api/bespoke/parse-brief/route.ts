@@ -122,9 +122,19 @@ export async function POST(req: NextRequest) {
 
   const truncated = text.length > MAX_TEXT_CHARS ? text.slice(0, MAX_TEXT_CHARS) : text
 
-  // Ask Gemini to extract structured fields
+  // Ask Gemini to extract structured fields.
+  // responseMimeType: 'application/json' FORCES the model to return valid JSON —
+  // eliminates the historical "Gemini returned invalid JSON" failure mode Nic
+  // hit 2026-07-28 where the model added preamble/commentary or wrapped in
+  // ```json fences and the string cleanup couldn't recover.
   const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY)
-  const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' })
+  const model = genAI.getGenerativeModel({
+    model: 'gemini-2.5-flash',
+    generationConfig: {
+      responseMimeType: 'application/json',
+      temperature: 0.2,          // Low temp — extraction should be deterministic, not creative
+    },
+  })
 
   const prompt = `You are extracting structured fields from a client event brief document.
 
@@ -169,17 +179,39 @@ ${truncated}
     return NextResponse.json({ error: `Gemini error: ${msg}` }, { status: 500 })
   }
 
-  // Strip any accidental markdown fences and locate the JSON object
-  const cleaned = raw.startsWith('{')
-    ? raw
-    : raw.slice(raw.indexOf('{'), raw.lastIndexOf('}') + 1)
+  // Defence-in-depth JSON extraction. Even though responseMimeType:'application/json'
+  // should give us clean JSON, we still handle the historical failure modes:
+  //   1. Model wraps output in ```json ... ``` fences
+  //   2. Model prefixes with commentary ("Here is the JSON:\n{...}")
+  //   3. Model returns whitespace / BOM before the '{'
+  // Strategy: strip fence markers, then locate the outer object by matching
+  // the first '{' with its balancing '}'.
+  const stripped = raw
+    .replace(/^﻿/, '')                      // BOM
+    .replace(/^```(?:json)?\s*/i, '')            // opening fence
+    .replace(/\s*```\s*$/i, '')                  // closing fence
+    .trim()
+
+  let cleaned: string
+  if (stripped.startsWith('{')) {
+    cleaned = stripped
+  } else {
+    const first = stripped.indexOf('{')
+    const last  = stripped.lastIndexOf('}')
+    cleaned = first !== -1 && last > first ? stripped.slice(first, last + 1) : stripped
+  }
 
   let parsed: ParsedBrief
   try {
     parsed = JSON.parse(cleaned) as ParsedBrief
   } catch {
+    // Include the first 300 chars of what Gemini actually returned so the
+    // caller can diagnose (visible in browser network tab / server logs).
     return NextResponse.json(
-      { error: 'Gemini returned invalid JSON — please fill fields manually' },
+      {
+        error: 'Gemini returned invalid JSON — please fill fields manually',
+        debug: raw.slice(0, 300),
+      },
       { status: 500 }
     )
   }
