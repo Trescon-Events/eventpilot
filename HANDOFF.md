@@ -38,6 +38,14 @@
 
 **Verification this session:** `npx tsc --noEmit` clean (only pre-existing `/api/documents/*` route errors, unrelated). `npx next build` clean · 369 pages compiled in 5.9s. Site 200 healthy at `eventpilot.tresconglobal.com` post-deploy. No authenticated browser click-through (production is SSO-only) — Nic's retest confirms.
 
+**Follow-up fix (commit `363d203`, same session):** Durga surfaced Nic's 28 Jul screenshot showing *"Gemini returned invalid JSON — please fill fields manually"* on a brief upload. Hardened the parse-brief route:
+
+- Added `generationConfig: { responseMimeType: 'application/json', temperature: 0.2 }` to the `getGenerativeModel()` call — Gemini's SDK-level JSON mode guarantees valid JSON output (no more preamble commentary or markdown-wrapped responses).
+- Hardened the extraction regardless: strips BOM + \`\`\`json/\`\`\` fences before locating the outer `{ ... }`.
+- Failure path now includes the first 300 chars of the raw Gemini response in a `debug` field on the 500 response so future failures are diagnosable from the browser network tab.
+
+Same session's original overhaul was necessary for the UI-level fixes (Nic's spec). This follow-up addresses the underlying parse reliability that Nic hit before I ever saw the ticket.
+
 **Close-out email sent (Resend id `a18f2533-fbfd-48f2-a706-e90ac694bfa7`):**
 - To: `nicholas@tresconglobal.com`
 - CC: `md@tresconglobal.com`
