@@ -50,7 +50,7 @@ function NoAccessInner() {
   const fromPath = params.get('from') ?? ''
   const label    = TOOL_LABEL[toolKey] ?? 'this tool'
 
-  const [state,   setState]   = useState<'idle' | 'sending' | 'sent' | 'error'>('idle')
+  const [state,   setState]   = useState<'idle' | 'sending' | 'sent' | 'sent_no_email' | 'error'>('idle')
   const [errText, setErrText] = useState<string | null>(null)
 
   async function requestAccess() {
@@ -62,13 +62,19 @@ function NoAccessInner() {
         headers: { 'Content-Type': 'application/json' },
         body:    JSON.stringify({ tool: toolKey || 'unknown', from: fromPath || null }),
       })
+      const d = await res.json().catch(() => ({}))
       if (!res.ok) {
-        const d = await res.json().catch(() => ({}))
         setErrText(d?.error ?? `Server returned ${res.status}`)
         setState('error')
         return
       }
-      setState('sent')
+      // The request is always logged either way (that part never fails
+      // silently) — but the email itself can fail to send, or get
+      // deduped if this tool was already requested in the last 24h.
+      // Real bug found live (2026-08-03): several requests sat unseen
+      // for weeks because this state was previously indistinguishable
+      // from a normal successful send.
+      setState(d?.email_failed || d?.deduped ? 'sent_no_email' : 'sent')
     } catch (e) {
       setErrText((e as Error).message)
       setState('error')
@@ -197,6 +203,24 @@ function NoAccessInner() {
             </p>
             <p style={{ fontSize: '12px', color: 'var(--ink2)', margin: 0 }}>
               You&apos;ll be notified when access is granted.
+            </p>
+          </div>
+        )}
+
+        {state === 'sent_no_email' && (
+          <div style={{
+            background: 'var(--amber-light)',
+            border: '1px solid var(--amber-border)',
+            borderRadius: '14px',
+            padding: '14px 18px',
+            marginBottom: '14px',
+            textAlign: 'center',
+          }}>
+            <p style={{ fontSize: '13px', color: 'var(--amber)', fontWeight: 800, margin: '0 0 4px' }}>
+              Request logged
+            </p>
+            <p style={{ fontSize: '12px', color: 'var(--ink2)', margin: 0 }}>
+              We couldn&apos;t confirm the email notification went through this time. Your request is saved — if it takes a while, it&apos;s worth pinging your admin directly too.
             </p>
           </div>
         )}
