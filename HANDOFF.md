@@ -9,6 +9,58 @@
 
 | Field | Value |
 |---|---|
+| Who | Durga + Claude Code (Opus 4.7 · 1M) — 03 Aug 2026 |
+| Latest push | 2026-08-03 — commit `921d16d` (Brief tab overhaul — Nic build_request `d17e10d8`); one migration applied to production |
+| Handed off to | Next session |
+| Deployed | ✅ Yes — Railway auto-deployed; site 200 healthy at `eventpilot.tresconglobal.com`. |
+
+**Session highlight (03 Aug 2026):** Cleared Nic's outstanding `d17e10d8` "Updates to brief section" build_request — a 4-part Brief tab overhaul (Event Objectives simplification + two-step upload + AI theme synthesis + comma-separated ICP + read-only Submit/Edit Brief lifecycle). One migration applied. Ticket closed via direct DB write; consolidated close-out email sent to Nic + Madhu (Resend id `a18f2533-fbfd-48f2-a706-e90ac694bfa7`).
+
+**Process discipline lesson (worth locking):** At session start I ran the state check against HANDOFF only and reported "no new Nic pilot requests" — Durga caught that the `d17e10d8` ticket had been sitting `status='submitted'` in the `build_requests` DB for 5 days (created 2026-07-28 10:38 UTC, missed at that session's close-out too). **New session-start step:** always query the `build_requests` table for open tickets in addition to reading HANDOFF. The DB is source-of-truth; HANDOFF is a summary that can lag.
+
+**What shipped this session (commit `921d16d`):**
+
+1. **Event Objectives simplified.** Dropped `success_criteria` + `desired_outcome` from DB and UI. Kept `primary_goal` (relabeled "Description *") and `key_themes` (relabeled "Themes"). Both were NULL in production data — no data loss.
+
+2. **Two-step upload flow.** Dropping a PDF/DOCX now STAGES the file (filename + Upload button revealed with Cancel option). Nothing sent until Upload clicked. Split `handleBriefUpload()` → `stageBriefFile()` + `runBriefUpload()`.
+
+3. **Gemini synthesises Themes from full-doc context.** Prompt rewritten with a SPECIAL RULE block instructing the model to read the entire brief and synthesise 3–5 event themes from context (primary goal + agenda topics + speaker expertise + industries mentioned), returned as a comma-separated string. Handles briefs that lack a dedicated Themes section (i.e., all real briefs).
+
+4. **Comma-separated ICP inputs → text[] arrays.** Job Titles, Industries, Geographies now accept `"CEO, CMO, VP"` style input. `csvToArray()` helper splits on save. Existing `linesToArray()` kept for registration question options (still one-per-line UX). Assets tab (Category 3) renders all three ICP arrays as chip clouds alongside Target Companies — Industries + Geographies were newly added.
+
+5. **Save Draft + Submit Brief + Edit Brief lifecycle.** Lock/Unlock buttons replaced. Handlers renamed: `verifyAndLockBrief` → `verifyAndSubmitBrief`, `lockBrief` → `submitBrief`, `unlockBrief` → `editBrief`. On Submit: `brief_is_submitted = true` AND `brief_is_locked = true` (both written together for backward compat). New `BriefSummary` component (~200 lines at bottom of page.tsx) renders when submitted — hides all input UI and shows structured summary (Event Objectives · ICP chips · Target Accounts · Client Approver · Logistics & Brand · Speakers · Agenda · Registration Questions). Bottom Edit Brief button reopens editing and re-locks Phase 2/3/4 tasks. `phaseLocked` check now reads `!project.brief_is_submitted && phase !== 1`.
+
+**Migration applied to production Supabase** (Studio SQL Editor, Durga executed): `supabase/bespoke_brief_submit.sql`. Adds `brief_is_submitted BOOLEAN DEFAULT FALSE`, drops the 2 removed columns, backfills `brief_is_submitted = brief_is_locked` for existing rows. Idempotent.
+
+**Constraints honoured (Nic's ticket):**
+- *Functional changes only* — no card designs/fonts/colors restructured. Same `var(--card)` / `var(--border)` / `var(--ink*)` tokens throughout.
+- *Terminology check* — grep verified zero "Delegacy" strings anywhere in UI code. Canonical "Delegate Team" already locked in from prior session `2f002c2e`.
+
+**Verification this session:** `npx tsc --noEmit` clean (only pre-existing `/api/documents/*` route errors, unrelated). `npx next build` clean · 369 pages compiled in 5.9s. Site 200 healthy at `eventpilot.tresconglobal.com` post-deploy. No authenticated browser click-through (production is SSO-only) — Nic's retest confirms.
+
+**Close-out email sent (Resend id `a18f2533-fbfd-48f2-a706-e90ac694bfa7`):**
+- To: `nicholas@tresconglobal.com`
+- CC: `md@tresconglobal.com`
+- Reply-to: `dc@tresconglobal.com`
+- From: `noreply@eventpilot.tresconglobal.com`
+- Subject: *"Bespoke Tracker — Brief tab overhaul live (Submit Brief workflow, comma-separated ICP, AI Themes synthesis)"*
+- 7-step retest checklist embedded for Nic
+- Ticket closed via direct DB write to bypass per-ticket auto-email (batch close-out rule)
+
+**Carried forward — unchanged this session (still-to-do items from 28 Jul):**
+- **AI-SDR MVP** — PRD committed at commit `c138a03`, still awaiting Durga's `go` on Phase 1 stack choice (Premium / Hybrid / Cheap) + Vapi vs Retell + language handling
+- **Bengaluru Skill Summit / Events auto-transition** — `events.status` doesn't flip `active → completed` post-date. Needs Durga's call on UI-filter vs scheduled-job
+- **Corporate Marketing Phase-2 PRD** — waiting on Durga↔Thulasi call
+- **Creator-only edit + delete on bespoke tasks** — deferred piece from `2f002c2e`; open as its own ticket after Nic retests 43-task blueprint
+- **Dedicated `promotional_links` field on the brief** — currently best-effort from speaker bios
+- `staff_members.last_login_at` never written; Khalifat alignment reply awaiting founder send; `CRON_SECRET` on Railway out of sync; Charan sign-out/in for Finance Portal; Madhu's dark theme authenticated browser click-through
+
+---
+
+## Session 28 Jul 2026
+
+| Field | Value |
+|---|---|
 | Who | Durga + Claude Code (Opus 4.7) — 28 Jul 2026 |
 | Latest push | 2026-07-28 — commit `89a95cf` (Assets tab 3-category overhaul); plus `93d4529` (PDF upload crash fix — pdf-parse downgraded to v1.1.1) |
 | Handed off to | Next session |
