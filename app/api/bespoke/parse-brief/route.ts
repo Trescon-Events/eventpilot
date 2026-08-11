@@ -36,6 +36,14 @@ type ParsedBrief = {
   registration_questions:  Array<{ question: string; options: string[] }>
 }
 
+/** Normalise a single ICP array entry: collapse line breaks + repeated
+ *  whitespace into a single space, then trim. Fixes the "Director of\n
+ *  Infrastructure" fragmenting bug Nic reported (df915458). */
+function normaliseIcpEntry(s: unknown): string {
+  if (typeof s !== 'string') return ''
+  return s.replace(/[\r\n]+/g, ' ').replace(/\s+/g, ' ').trim()
+}
+
 async function extractPdfText(buffer: Buffer): Promise<string> {
   // pdf-parse pinned to 1.1.1 (Nic build_request 85d7133d, 27 Jul).
   //
@@ -142,14 +150,33 @@ Return STRICT JSON only — no markdown wrapping, no commentary. If a scalar
 field is not found in the brief, return null. If an array field is not
 found, return []. Never invent information for the extractable fields.
 
-SPECIAL RULE FOR "key_themes":
+SPECIAL RULE FOR "primary_goal" (Nic a837da08):
+Write a 2-3 sentence overview that synthesises (a) the sponsor's commercial
+intent — what product/service/positioning are they trying to introduce or
+reinforce, (b) the target executive audience seniority + role type, and
+(c) the concrete registration target (e.g. "to secure 25 qualified CIO/CDO
+registrants from Tier-1 UAE banks"). If the target registration count is
+not stated, omit clause (c) rather than invent one. Keep sentences plain
+and specific. Do not start with "The primary goal is…".
+
+SPECIAL RULE FOR "key_themes" (Nic a837da08):
 Client briefs almost never contain a dedicated "Themes" section. You must
 READ THE ENTIRE DOCUMENT and SYNTHESISE 3 to 5 concise event themes from
 context — from the primary goal, the topics discussed, the speakers'
 expertise, the agenda sessions, the industries mentioned, the buyer
-outcomes framed. Return them as a single comma-separated string in
-"key_themes" (e.g. "AI in Finance, ESG Compliance, Cross-Border M&A").
+outcomes framed. Return as a single bulleted TEXT block — each theme on
+its own line prefixed with the bullet character "• " (bullet followed by
+one space). Do not use commas, semicolons, or numbered lists. Never split
+a single theme across two bullets. Example format:
+  "• AI in Finance\\n• ESG Compliance\\n• Cross-Border M&A"
 If the document is too thin to synthesise anything, return null.
+
+SPECIAL RULE FOR ICP ARRAYS (Nic df915458):
+For "icp_job_titles", "icp_industries", "icp_geographies": each entry must
+be a single job title / industry / geography name as it appears in the
+brief. Never split a long title across two entries. If a title in the
+brief spans two lines (e.g. "Director of\\nInfrastructure"), stitch it
+back into one entry ("Director of Infrastructure"). Trim whitespace.
 
 Return exactly this shape:
 {
@@ -223,9 +250,12 @@ ${truncated}
   const safe: ParsedBrief = {
     primary_goal:           typeof parsed.primary_goal          === 'string' ? parsed.primary_goal          : null,
     key_themes:             typeof parsed.key_themes            === 'string' ? parsed.key_themes            : null,
-    icp_job_titles:         cap<string>(parsed.icp_job_titles).filter(s => typeof s === 'string'),
-    icp_industries:         cap<string>(parsed.icp_industries).filter(s => typeof s === 'string'),
-    icp_geographies:        cap<string>(parsed.icp_geographies).filter(s => typeof s === 'string'),
+    // Nic df915458 — server-side whitespace normalisation so
+    // "Director of\n Infrastructure" style entries survive as ONE item
+    // regardless of the model's exact behaviour.
+    icp_job_titles:         cap<string>(parsed.icp_job_titles).map(normaliseIcpEntry).filter(Boolean),
+    icp_industries:         cap<string>(parsed.icp_industries).map(normaliseIcpEntry).filter(Boolean),
+    icp_geographies:        cap<string>(parsed.icp_geographies).map(normaliseIcpEntry).filter(Boolean),
     target_accounts_list:   typeof parsed.target_accounts_list  === 'string' ? parsed.target_accounts_list  : null,
     client_approver_name:   typeof parsed.client_approver_name  === 'string' ? parsed.client_approver_name  : null,
     client_approver_email:  typeof parsed.client_approver_email === 'string' ? parsed.client_approver_email : null,

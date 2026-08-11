@@ -1,11 +1,32 @@
 /**
  * Bespoke Tasks API
- * GET  ?project_id=X — list all tasks for a project
- * PATCH              — update task status/notes
- * POST               — create custom task
+ * GET    ?project_id=X — list all tasks for a project
+ * PATCH                — update task status/notes/title (project creator or admin)
+ * POST                 — create custom task
+ * DELETE ?id=X         — delete task (project creator or admin only, Nic e606f19c)
  */
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/app/lib/supabase'
+import { getSession } from '@/app/lib/access/session'
+
+/** Returns true when the current session may mutate tasks on this project.
+ *  Admin OR the project's creator OR any assigned team lead. */
+async function canMutateTasks(req: NextRequest, projectId: string): Promise<boolean> {
+  const session = getSession(req)
+  if (!session) return false
+  if (session.adm) return true
+  const { data: p } = await supabaseAdmin
+    .from('bespoke_projects')
+    .select('created_by, commercial_lead_id, marketing_lead_id, delegate_lead_id, operations_lead_id, design_lead_id, production_advisor_id')
+    .eq('id', projectId)
+    .maybeSingle()
+  if (!p) return false
+  const allowedIds = [
+    p.created_by, p.commercial_lead_id, p.marketing_lead_id,
+    p.delegate_lead_id, p.operations_lead_id, p.design_lead_id, p.production_advisor_id,
+  ].filter(Boolean)
+  return allowedIds.includes(session.sid)
+}
 
 export async function GET(req: NextRequest) {
   const project_id = req.nextUrl.searchParams.get('project_id')
@@ -89,4 +110,31 @@ export async function POST(req: NextRequest) {
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
   return NextResponse.json(data, { status: 201 })
+}
+
+/**
+ * DELETE /api/bespoke/tasks?id=UUID
+ * Deletes a single task. Only the project creator, an assigned team lead,
+ * or a super-admin may delete. Nic build_request e606f19c.
+ */
+export async function DELETE(req: NextRequest) {
+  const id = req.nextUrl.searchParams.get('id')
+  if (!id) return NextResponse.json({ error: 'id required' }, { status: 400 })
+
+  // Look up the task's project so we can authorise the caller.
+  const { data: task, error: lookupErr } = await supabaseAdmin
+    .from('bespoke_tasks')
+    .select('id, project_id')
+    .eq('id', id)
+    .maybeSingle()
+  if (lookupErr) return NextResponse.json({ error: lookupErr.message }, { status: 500 })
+  if (!task)     return NextResponse.json({ error: 'task not found' }, { status: 404 })
+
+  if (!(await canMutateTasks(req, task.project_id))) {
+    return NextResponse.json({ error: 'only the project creator, an assigned team lead, or an admin can delete tasks' }, { status: 403 })
+  }
+
+  const { error } = await supabaseAdmin.from('bespoke_tasks').delete().eq('id', id)
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  return NextResponse.json({ ok: true })
 }

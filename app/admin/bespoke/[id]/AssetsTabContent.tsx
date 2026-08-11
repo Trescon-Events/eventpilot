@@ -22,7 +22,8 @@
 import { useState, useRef, useCallback } from 'react'
 import Link from 'next/link'
 
-type Speaker  = { name: string; title: string; company: string; bio: string; headshot_url?: string }
+type Speaker    = { name: string; title: string; company: string; bio: string; headshot_url?: string }
+type AgendaItem = { time: string; title: string; description: string }
 
 type BespokeProjectAssetsShape = {
   id:                     string
@@ -34,6 +35,7 @@ type BespokeProjectAssetsShape = {
   icp_geographies?:       string[] | null
   registration_questions?: Array<{ question: string; options: string[] }> | null
   speakers?:              Speaker[] | null
+  agenda?:                AgendaItem[] | null   // Nic 590aa5c2
   client_assets_url?:     string | null
   client_logo_url?:       string | null
   brand_guidelines_url?:  string | null
@@ -158,6 +160,54 @@ function CopyChip({ text }: { text: string }) {
   )
 }
 
+/** Nic 590aa5c2 — one-click Copy Agenda for copywriters/web builders.
+ *  Formats each item as "• 5:30pm - 6:00pm — Start · Arrival, welcome drinks
+ *  & networking" so the pasted text stays readable on a landing-page brief. */
+function CopyAgendaButton({ agenda }: { agenda: Array<{ time: string; title: string; description: string }> }) {
+  const [flash, setFlash] = useState(false)
+  const formatted = agenda.map(a => {
+    const parts = [a.time || '', a.title || ''].filter(Boolean).join(' — ')
+    return a.description ? `• ${parts} · ${a.description}` : `• ${parts}`
+  }).join('\n')
+  return (
+    <button
+      type="button"
+      onClick={async () => {
+        const ok = await copyToClipboard(formatted)
+        if (ok) { setFlash(true); setTimeout(() => setFlash(false), 1200) }
+      }}
+      style={{
+        padding: '4px 10px', borderRadius: '999px', border: `1px solid ${BORDER}`,
+        background: flash ? '#0d948833' : 'var(--surface)',
+        color: flash ? TEAL : INK, cursor: 'pointer',
+        fontSize: '11px', fontWeight: 700, fontFamily: 'var(--font-manrope)',
+      }}>
+      {flash ? '✓ Copied' : 'Copy Agenda'}
+    </button>
+  )
+}
+
+/** Nic df915458 — vertical bullet-list render for ICP arrays. Replaces
+ *  the previous horizontal chip cloud which cluttered on long entries. */
+function IcpBulletList({ items }: { items: string[] }) {
+  if (items.length === 0) {
+    return <div style={{ fontSize: '12px', color: INK3 }}>None yet — add via Brief tab.</div>
+  }
+  return (
+    <div style={{ maxHeight: '220px', overflowY: 'auto', paddingRight: '4px' }}>
+      {items.map((t, i) => (
+        <div key={i} style={{
+          display: 'flex', alignItems: 'flex-start', gap: 8,
+          margin: '6px 0', fontSize: 13, color: INK, lineHeight: 1.5,
+        }}>
+          <span style={{ color: TEAL, fontWeight: 800, lineHeight: 1 }}>•</span>
+          <span>{t}</span>
+        </div>
+      ))}
+    </div>
+  )
+}
+
 export default function AssetsTabContent({
   project,
   onReload,
@@ -197,13 +247,14 @@ export default function AssetsTabContent({
     }
   }, [project.id, onReload])
 
-  // Design references — dynamic from client_assets_url (if it's a link) + any
-  // URLs in target_accounts_list free-text. Everything else the brief parser
-  // stored as an ICP list stays a text list, not a link.
-  const designRefs: string[] = [
-    project.client_assets_url,
-    ...extractUrls(project.target_accounts_list),
-  ].filter((x): x is string => !!x && /^https?:\/\//i.test(x))
+  // Design references — ONLY the explicit client_assets_url. Previous
+  // implementation also harvested any URL from target_accounts_list free-text
+  // and displayed them as design refs, which is a hallucination — those are
+  // account company websites, not design inspiration. Nic 3173e664: the
+  // brief parser should not assume; if the brief has no design-reference
+  // link, none is shown.
+  const designRefs: string[] = [project.client_assets_url]
+    .filter((x): x is string => !!x && /^https?:\/\//i.test(x))
 
   const speakers        = project.speakers        ?? []
   const targetAccounts  = splitList(project.target_accounts_list)
@@ -212,6 +263,7 @@ export default function AssetsTabContent({
   const targetGeographies = project.icp_geographies ?? []
   const regQuestions    = project.registration_questions ?? []
   const promoLinks      = speakers.flatMap(sp => extractUrls(sp.bio ?? ''))  // best-effort: promo URLs sometimes appear in the bio blob
+  const agenda          = project.agenda ?? []   // Nic 590aa5c2 — surface agenda on Assets tab
 
   const brandStudioHref = project.event_id ? `/admin/events/${project.event_id}/brand` : '/admin/toolkit/brand-studio'
 
@@ -327,6 +379,38 @@ export default function AssetsTabContent({
             </div>
           </div>
         )}
+
+        {/* Nic 590aa5c2 — Event Agenda rendered inside Campaign Media so
+             copywriters + web builders can grab the timeline. Time range
+             on the left, session title + description on the right. */}
+        {agenda.length > 0 && (
+          <div style={{ marginTop: '20px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+              <span style={LABEL_STYLE}>Event Agenda</span>
+              <CopyAgendaButton agenda={agenda} />
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+              {agenda.map((a, i) => (
+                <div key={i} style={{
+                  display: 'grid', gridTemplateColumns: '140px 1fr', gap: '14px',
+                  padding: '10px 14px', borderRadius: '8px', border: `1px solid ${BORDER}`,
+                }}>
+                  <div style={{ fontSize: '12px', fontWeight: 700, color: TEAL, whiteSpace: 'nowrap' }}>
+                    {a.time || '—'}
+                  </div>
+                  <div>
+                    <div style={{ fontSize: '13px', fontWeight: 700, color: INK }}>{a.title || '(untitled)'}</div>
+                    {a.description && (
+                      <div style={{ fontSize: '12px', color: INK3, marginTop: '2px', lineHeight: 1.45 }}>
+                        {a.description}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
 
       {/* ═══ 3. Data & Lead Lists ═════════════════════════════════════ */}
@@ -358,40 +442,19 @@ export default function AssetsTabContent({
               <span style={LABEL_STYLE}>Target Job Titles</span>
               {targetJobTitles.length > 0 && <CopyChip text={targetJobTitles.join('\n')} />}
             </div>
-            {targetJobTitles.length === 0 ? (
-              <div style={{ fontSize: '12px', color: INK3 }}>None yet — add via Brief tab.</div>
-            ) : (
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px', maxHeight: '220px', overflowY: 'auto', paddingRight: '4px' }}>
-                {targetJobTitles.map((t, i) => (
-                  <span key={i} style={{
-                    fontSize: '12px', padding: '3px 10px', borderRadius: '999px',
-                    background: 'var(--surface)', color: INK, border: `1px solid ${BORDER}`,
-                  }}>{t}</span>
-                ))}
-              </div>
-            )}
+            <IcpBulletList items={targetJobTitles} />
           </div>
         </div>
 
-        {/* Nic d17e10d8 — Industries + Geographies as chip clouds (not text blocks) */}
+        {/* Nic df915458 — Industries + Geographies as vertical bullet lists
+             (not horizontal chips) so long entries don't wrap cluttered. */}
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px', marginBottom: '20px' }}>
           <div>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
               <span style={LABEL_STYLE}>Target Industries</span>
               {targetIndustries.length > 0 && <CopyChip text={targetIndustries.join('\n')} />}
             </div>
-            {targetIndustries.length === 0 ? (
-              <div style={{ fontSize: '12px', color: INK3 }}>None yet — add via Brief tab.</div>
-            ) : (
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px', maxHeight: '220px', overflowY: 'auto', paddingRight: '4px' }}>
-                {targetIndustries.map((t, i) => (
-                  <span key={i} style={{
-                    fontSize: '12px', padding: '3px 10px', borderRadius: '999px',
-                    background: 'var(--surface)', color: INK, border: `1px solid ${BORDER}`,
-                  }}>{t}</span>
-                ))}
-              </div>
-            )}
+            <IcpBulletList items={targetIndustries} />
           </div>
 
           <div>
@@ -399,18 +462,7 @@ export default function AssetsTabContent({
               <span style={LABEL_STYLE}>Target Geographies</span>
               {targetGeographies.length > 0 && <CopyChip text={targetGeographies.join('\n')} />}
             </div>
-            {targetGeographies.length === 0 ? (
-              <div style={{ fontSize: '12px', color: INK3 }}>None yet — add via Brief tab.</div>
-            ) : (
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px', maxHeight: '220px', overflowY: 'auto', paddingRight: '4px' }}>
-                {targetGeographies.map((t, i) => (
-                  <span key={i} style={{
-                    fontSize: '12px', padding: '3px 10px', borderRadius: '999px',
-                    background: 'var(--surface)', color: INK, border: `1px solid ${BORDER}`,
-                  }}>{t}</span>
-                ))}
-              </div>
-            )}
+            <IcpBulletList items={targetGeographies} />
           </div>
         </div>
 

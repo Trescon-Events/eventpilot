@@ -61,6 +61,11 @@ type BespokeProject = {
   client_logo_url:         string | null
   brand_guidelines_url:    string | null
   event_id?:               string | null
+  // Creator + assigned-lead FK IDs — needed by Tasks-tab creator-only
+  // Edit/Delete affordances (Nic e606f19c). Server exposes them via SELECT *.
+  created_by?:              string | null
+  creator_id?:              string | null
+  production_advisor_id?:   string | null
 }
 
 type BespokeTask = {
@@ -274,6 +279,9 @@ export default function BespokeWorkspacePage({ params }: { params: Promise<{ id:
   const [newTaskTeam, setNewTaskTeam] = useState<string>('Commercial') // Nic 2f002c2e
   const [taskError, setTaskError] = useState<string | null>(null)
   const [flashTaskId, setFlashTaskId] = useState<string | null>(null)
+  // Nic e606f19c — session identity so we render Edit/Delete task actions
+  // only for project creator, an assigned lead, or a super-admin.
+  const [me, setMe] = useState<{ sid: string; adm: boolean } | null>(null)
   const [briefSaveState, setBriefSaveState] = useState<'idle' | 'saved' | 'error'>('idle')
   const [recalcState, setRecalcState] = useState<'idle' | 'pending' | 'done'>('idle')
   const [showAddDelegate, setShowAddDelegate] = useState(false)
@@ -371,6 +379,61 @@ export default function BespokeWorkspacePage({ params }: { params: Promise<{ id:
   }, [id])
 
   useEffect(() => { loadProject(); loadTasks(); loadDelegates() }, [loadProject, loadTasks, loadDelegates])
+
+  // Nic e606f19c — fetch session once; drives creator-only Edit/Delete
+  // affordances on Tasks-tab rows below. Silent on 401 (public/anon view).
+  useEffect(() => {
+    fetch('/api/me')
+      .then(r => r.ok ? r.json() : null)
+      .then(d => { if (d && typeof d.sid === 'string') setMe({ sid: d.sid, adm: !!d.adm }) })
+      .catch(() => {})
+  }, [])
+
+  // A task row shows Edit/Delete only if the current session may mutate this
+  // project — creator, an assigned team lead, or a super-admin.
+  const canMutateTasks = !!me && !!project && (
+    me.adm ||
+    me.sid === project.created_by ||
+    me.sid === project.creator_id ||
+    me.sid === project.commercial_lead?.id ||
+    me.sid === project.marketing_lead?.id ||
+    me.sid === project.delegate_lead?.id ||
+    me.sid === project.operations_lead?.id ||
+    me.sid === project.design_lead?.id ||
+    me.sid === project.production_advisor_id
+  )
+
+  /* ── Task edit/delete (Nic e606f19c) ─────────────────────────── */
+  const renameTask = async (task: BespokeTask) => {
+    const nextTitle = window.prompt('Rename task', task.title)
+    if (nextTitle == null) return
+    const trimmed = nextTitle.trim()
+    if (!trimmed || trimmed === task.title) return
+    setTasks(prev => prev.map(t => t.id === task.id ? { ...t, title: trimmed } : t))
+    const res = await fetch('/api/bespoke/tasks', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: task.id, title: trimmed }),
+    })
+    if (!res.ok) {
+      // Revert on failure and surface the reason inline.
+      setTasks(prev => prev.map(t => t.id === task.id ? { ...t, title: task.title } : t))
+      const err = await res.json().catch(() => ({ error: 'unknown error' }))
+      alert(`Rename failed: ${err.error || res.statusText}`)
+    }
+  }
+
+  const deleteTask = async (task: BespokeTask) => {
+    if (!window.confirm(`Delete task "${task.title}"? This cannot be undone.`)) return
+    const previous = tasks
+    setTasks(prev => prev.filter(t => t.id !== task.id))
+    const res = await fetch(`/api/bespoke/tasks?id=${task.id}`, { method: 'DELETE' })
+    if (!res.ok) {
+      setTasks(previous)
+      const err = await res.json().catch(() => ({ error: 'unknown error' }))
+      alert(`Delete failed: ${err.error || res.statusText}`)
+    }
+  }
 
   /* ── Task status toggle ───────────────────────────────────────── */
   const toggleTaskStatus = async (task: BespokeTask) => {
@@ -1663,6 +1726,32 @@ export default function BespokeWorkspacePage({ params }: { params: Promise<{ id:
                             }}>
                             {STATUS_LABELS[t.status] || t.status}
                           </button>
+                          {/* Nic e606f19c — Edit/Delete visible only to project creator,
+                              an assigned team lead, or a super-admin. */}
+                          {canMutateTasks && !phaseLocked && (
+                            <>
+                              <button
+                                onClick={() => renameTask(t)}
+                                title="Rename task"
+                                style={{
+                                  border: 'none', background: 'none', cursor: 'pointer',
+                                  padding: 4, display: 'flex', alignItems: 'center',
+                                  color: 'var(--ink3)',
+                                }}>
+                                ✏️
+                              </button>
+                              <button
+                                onClick={() => deleteTask(t)}
+                                title="Delete task"
+                                style={{
+                                  border: 'none', background: 'none', cursor: 'pointer',
+                                  padding: 4, display: 'flex', alignItems: 'center',
+                                  color: 'var(--red)',
+                                }}>
+                                🗑
+                              </button>
+                            </>
+                          )}
                         </div>
                       )
                     })}
@@ -2019,7 +2108,26 @@ function BriefSummary({ project, briefFields, briefData, speakers, agenda, regQu
   const jobTitles   = csvToList(briefFields.icp_job_titles)
   const industries  = csvToList(briefFields.icp_industries)
   const geographies = csvToList(briefFields.icp_geographies)
-  const themes      = csvToList(briefFields.key_themes)
+  // Nic a837da08 — Themes no longer split on commas. Render whatever the
+  // brief parser saved (bulleted text block from Gemini's SPECIAL RULE, or
+  // legacy comma-separated string) verbatim with whiteSpace: pre-wrap.
+
+  // Nic df915458 — ICP inline as a bulleted vertical list, one item per row.
+  const BULLET: React.CSSProperties = { color: 'var(--teal)', fontWeight: 800, lineHeight: 1 }
+  const ICP_ROW: React.CSSProperties = {
+    display: 'flex', alignItems: 'flex-start', gap: 8, margin: '6px 0',
+    fontSize: 13, color: 'var(--ink)', lineHeight: 1.5,
+  }
+  const renderIcpList = (items: string[]) => (
+    items.length > 0
+      ? <div>{items.map((t, i) => (
+          <div key={i} style={ICP_ROW}>
+            <span style={BULLET}>•</span>
+            <span>{t}</span>
+          </div>
+        ))}</div>
+      : <div style={EMPTY}>None</div>
+  )
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', maxWidth: '800px' }}>
@@ -2041,35 +2149,29 @@ function BriefSummary({ project, briefFields, briefData, speakers, agenda, regQu
         </div>
         <div>
           <span style={LABEL}>Themes</span>
-          {themes.length > 0 ? (
-            <div>{themes.map((t, i) => <span key={i} style={CHIP}>{t}</span>)}</div>
+          {briefFields.key_themes.trim() ? (
+            <div style={BODY}>{briefFields.key_themes}</div>
           ) : (
             <div style={EMPTY}>None identified</div>
           )}
         </div>
       </div>
 
-      {/* ICP */}
+      {/* ICP — vertical bullet list per Nic df915458 */}
       <div style={CARD}>
         <h3 style={H3}>Ideal Customer Profile</h3>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '16px' }}>
           <div>
             <span style={LABEL}>Job Titles</span>
-            {jobTitles.length > 0
-              ? <div>{jobTitles.map((t, i) => <span key={i} style={CHIP}>{t}</span>)}</div>
-              : <div style={EMPTY}>None</div>}
+            {renderIcpList(jobTitles)}
           </div>
           <div>
             <span style={LABEL}>Industries</span>
-            {industries.length > 0
-              ? <div>{industries.map((t, i) => <span key={i} style={CHIP}>{t}</span>)}</div>
-              : <div style={EMPTY}>None</div>}
+            {renderIcpList(industries)}
           </div>
           <div>
             <span style={LABEL}>Geographies</span>
-            {geographies.length > 0
-              ? <div>{geographies.map((t, i) => <span key={i} style={CHIP}>{t}</span>)}</div>
-              : <div style={EMPTY}>None</div>}
+            {renderIcpList(geographies)}
           </div>
         </div>
       </div>
