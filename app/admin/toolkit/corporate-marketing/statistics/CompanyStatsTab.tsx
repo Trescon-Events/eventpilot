@@ -10,6 +10,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { StatusPill } from './OverviewDashboard'
+import StatisticDetailDrawer from './StatisticDetailDrawer'
 
 const BRAND = '#F1667A'
 
@@ -46,6 +47,7 @@ export default function CompanyStatsTab() {
   const [showArchived, setShowArchived] = useState(false)
   const [showNewRow, setShowNewRow]     = useState(false)
   const [newRow, setNewRow]     = useState({ name: '', current_value: '', unit: '', description: '' })
+  const [detailId, setDetailId] = useState<string | null>(null)
 
   const load = useCallback(async () => {
     setError(null)
@@ -197,7 +199,15 @@ export default function CompanyStatsTab() {
             }}>
               {/* Name + description */}
               <div>
-                <div style={{ fontWeight: 800 }}>{r.name}</div>
+                <button
+                  onClick={() => setDetailId(r.id)}
+                  style={{
+                    background: 'none', border: 'none', padding: 0, textAlign: 'left',
+                    fontFamily: 'inherit', fontSize: '13px', fontWeight: 800,
+                    color: 'var(--ink)', cursor: 'pointer',
+                  }}>
+                  {r.name}
+                </button>
                 {r.description && <div style={{ fontSize: '11px', color: 'var(--ink4)', marginTop: '2px' }}>{r.description}</div>}
               </div>
               {/* Value */}
@@ -265,8 +275,9 @@ export default function CompanyStatsTab() {
       <div style={{ fontSize: '11px', color: 'var(--ink4)', lineHeight: 1.55, marginTop: '4px' }}>
         <strong style={{ color: 'var(--ink3)' }}>Workflow:</strong>&nbsp;
         Draft → Submit for Review → Super-admin Approves (or Rejects) → other EventPilot modules consume the value.
-        Editing an approved value drops it back to draft automatically.
+        Editing an approved value drops it back to draft automatically. Click a name to see history + dependencies.
       </div>
+      <StatisticDetailDrawer statisticId={detailId} onClose={() => setDetailId(null)} onChanged={load} />
     </div>
   )
 }

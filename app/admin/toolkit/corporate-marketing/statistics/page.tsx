@@ -11,8 +11,13 @@
 
 import { useState } from 'react'
 import Link from 'next/link'
-import OverviewDashboard from './OverviewDashboard'
-import CompanyStatsTab   from './CompanyStatsTab'
+import OverviewDashboard    from './OverviewDashboard'
+import CompanyStatsTab      from './CompanyStatsTab'
+import EventSeriesStatsTab  from './EventSeriesStatsTab'
+import EventStatsTab        from './EventStatsTab'
+import RecentChangesTab     from './RecentChangesTab'
+import DependencyMapTab     from './DependencyMapTab'
+import SettingsTab          from './SettingsTab'
 
 // Reuse the deck module's palette so both live consistently in Corporate Marketing.
 const BRAND = '#F1667A'
@@ -106,25 +111,12 @@ export default function StatisticsRepositoryPage() {
         {/* Tab body */}
         {tab === 'overview'     && <OverviewDashboard onJumpToTab={setTab} />}
         {tab === 'company'      && <CompanyStatsTab />}
-        {tab === 'event_series' && <ComingSoon label="Event Series Statistics" slice="Slice 4" />}
-        {tab === 'event'        && <ComingSoon label="Event Statistics"        slice="Slice 4" />}
-        {tab === 'recent'       && <ComingSoon label="Recent Changes"          slice="Slice 6" />}
-        {tab === 'dependencies' && <ComingSoon label="Dependency Map"          slice="Slice 6" />}
-        {tab === 'settings'     && <ComingSoon label="Settings"                slice="Slice 6" />}
+        {tab === 'event_series' && <EventSeriesStatsTab />}
+        {tab === 'event'        && <EventStatsTab />}
+        {tab === 'recent'       && <RecentChangesTab />}
+        {tab === 'dependencies' && <DependencyMapTab />}
+        {tab === 'settings'     && <SettingsTab />}
       </div>
-    </div>
-  )
-}
-
-function ComingSoon({ label, slice }: { label: string; slice: string }) {
-  return (
-    <div style={{
-      padding: '48px 24px', textAlign: 'center',
-      border: '1px dashed var(--border)', borderRadius: '16px',
-      background: 'var(--card)', color: 'var(--ink3)',
-    }}>
-      <div style={{ fontSize: '18px', fontWeight: 800, color: 'var(--ink)', marginBottom: '6px' }}>{label}</div>
-      <div style={{ fontSize: '13px' }}>Ships in {slice} of the CM-002.1 build. Backend endpoints are already live.</div>
     </div>
   )
 }
