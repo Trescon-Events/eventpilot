@@ -29,23 +29,41 @@ function fmtBytes(n: number | null): string {
   return `${(n / (1024 * 1024)).toFixed(1)} MB`
 }
 
+type Readiness = {
+  current_version:   number
+  published_version: number | null
+  changes_since_publish?: number
+}
+
 export default function VersionsTab() {
-  const [versions, setVersions] = useState<Version[]>([])
-  const [loading, setLoading]   = useState(true)
+  const [versions, setVersions]   = useState<Version[]>([])
+  const [readiness, setReadiness] = useState<Readiness | null>(null)
+  const [loading, setLoading]     = useState(true)
 
   const load = useCallback(async () => {
-    const res = await fetch('/api/corporate-marketing/versions', { cache: 'no-store' })
-    if (res.ok) {
-      const d = await res.json()
-      setVersions(d.versions ?? [])
-    }
+    // Load published versions AND current-draft state so we can prepend
+    // the unpublished draft as a top row (Thulasi 10 Aug — Overview showed
+    // "v5" but Version History only listed v4; the draft wasn't visible).
+    const [vRes, rRes] = await Promise.all([
+      fetch('/api/corporate-marketing/versions',         { cache: 'no-store' }),
+      fetch('/api/corporate-marketing/deck/readiness',   { cache: 'no-store' }),
+    ])
+    if (vRes.ok) { const d = await vRes.json(); setVersions(d.versions ?? []) }
+    if (rRes.ok) { const d = await rRes.json(); setReadiness(d) }
     setLoading(false)
   }, [])
   useEffect(() => { load() }, [load])
 
   if (loading) return <Card><div style={{ fontSize: '13px', color: 'var(--ink3)' }}>Loading version history…</div></Card>
 
-  if (versions.length === 0) {
+  // Draft is "real" when the working current_version exceeds what's
+  // been published — i.e. content has changed since last publish.
+  const hasDraft = !!readiness
+    && readiness.current_version > 0
+    && (readiness.published_version == null || readiness.current_version > readiness.published_version)
+  const draftNumber = readiness?.current_version ?? 0
+
+  if (versions.length === 0 && !hasDraft) {
     return (
       <Card>
         <SectionLabel>Version History</SectionLabel>
@@ -61,11 +79,45 @@ export default function VersionsTab() {
     <div style={{ display: 'flex', flexDirection: 'column', gap: '18px', maxWidth: '980px' }}>
       <Card>
         <SectionLabel>Version History</SectionLabel>
-        <H2 style={{ marginBottom: '6px' }}>{versions.length} published version{versions.length === 1 ? '' : 's'}</H2>
+        <H2 style={{ marginBottom: '6px' }}>
+          {versions.length} published version{versions.length === 1 ? '' : 's'}
+          {hasDraft && <span style={{ fontSize: '14px', fontWeight: 700, color: 'var(--amber)', marginLeft: '10px' }}>· 1 draft in progress</span>}
+        </H2>
         <div style={{ fontSize: '13px', color: 'var(--ink3)', lineHeight: 1.6 }}>
-          Every version stores the PDF exactly as it was at publish time. Nothing here can be overwritten or edited.
+          Every published version stores the PDF exactly as it was at publish time. Nothing here can be overwritten or edited. The current draft appears at the top until you click <strong>Publish</strong> on the Overview tab.
         </div>
       </Card>
+
+      {/* Thulasi 10 Aug — unpublished draft appears above published versions
+          so the Overview "v5 (last published v4)" line has an entry here too. */}
+      {hasDraft && (
+        <Card style={{ padding: '22px 26px', borderColor: 'var(--amber)40', background: 'var(--amber-light)' }}>
+          <div style={{ display: 'flex', gap: '14px', alignItems: 'flex-start', flexWrap: 'wrap' }}>
+            <div style={{ minWidth: '80px' }}>
+              <div style={{ fontSize: '26px', fontWeight: 900, color: 'var(--amber)', letterSpacing: '-0.5px', lineHeight: 1 }}>v{draftNumber}</div>
+              <div style={{
+                fontSize: '9px', fontWeight: 800, color: 'var(--amber)', background: '#F5B94D22',
+                padding: '3px 8px', borderRadius: '10px', letterSpacing: '0.5px',
+                display: 'inline-block', marginTop: '6px', border: '1px solid #F5B94D40',
+              }}>
+                DRAFT · UNPUBLISHED
+              </div>
+            </div>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontSize: '14px', color: 'var(--ink)', lineHeight: 1.55 }}>
+                Content has changed since the last published version
+                {readiness?.published_version != null && <> (<strong>v{readiness.published_version}</strong>)</>}.
+                {readiness?.changes_since_publish != null && readiness.changes_since_publish > 0 && (
+                  <> {readiness.changes_since_publish} section{readiness.changes_since_publish === 1 ? '' : 's'} modified.</>
+                )}
+              </div>
+              <div style={{ fontSize: '12px', color: 'var(--ink3)', marginTop: '8px' }}>
+                Go to the <strong>Overview</strong> tab and click <strong>Publish</strong> to lock this as v{draftNumber} and add it to the immutable history below.
+              </div>
+            </div>
+          </div>
+        </Card>
+      )}
 
       {versions.map((v, i) => {
         const isLatest = i === 0

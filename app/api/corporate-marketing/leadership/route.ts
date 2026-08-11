@@ -65,10 +65,16 @@ export async function GET(req: NextRequest) {
 
   let extras: StaffRow[] = []
   if (extraIds.length > 0) {
+    // Thulasi 10 Aug — is_active filter here matches the senior query above.
+    // Without it, ex-employees (e.g. Gururanjana) who were once flagged
+    // include_in_deck=true keep appearing in the deck picker forever, even
+    // after HR marks them inactive. Deck now follows the single-source-of-
+    // truth principle: inactive in HR → gone from every downstream surface.
     const { data } = await supabaseAdmin
       .from('staff_members')
       .select('id, name, role, department, email, job_level')
       .in('id', extraIds)
+      .eq('is_active', true)
     extras = (data ?? []) as StaffRow[]
   }
 
