@@ -8,7 +8,7 @@ import type { MouseEventHandler, ReactNode } from 'react'
   default path, not a convention to remember.
 */
 
-export type ButtonVariant = 'teal' | 'indigo' | 'purple' | 'amber' | 'red' | 'ghost' | 'solid' | 'lime'
+export type ButtonVariant = 'teal' | 'indigo' | 'purple' | 'amber' | 'red' | 'ghost' | 'solid' | 'lime' | 'success'
 
 type ButtonProps = {
   variant?: ButtonVariant

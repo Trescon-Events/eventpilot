@@ -292,3 +292,49 @@ ALTER TABLE event_speakers
 -- identical crop, only recomputing when the photo itself actually changes.
 ALTER TABLE event_speakers
   ADD COLUMN IF NOT EXISTS photo_head_box JSONB; -- { centerXRatio, centerYRatio, heightRatio } from detectHeadBox() — null falls back to live per-call detection (legacy photos uploaded before this column existed)
+
+-- 2026-08-04: full font-weight support (was regular/bold only) — per
+-- Madhu: "for most of our google fonts or custom fonts we also use font
+-- weight option too instead of just using regular/bold/italics." Real
+-- technical unlock found live: Google's css2 API serves almost its whole
+-- catalog as ONE variable-font file regardless of which weight you
+-- request (confirmed: 5 different weight requests for Space Grotesk all
+-- resolved to the identical gstatic URL) — but requesting with an old
+-- Android User-Agent (pre-variable-font browser support) forces Google to
+-- serve genuinely distinct static per-weight files instead (confirmed via
+-- SHA-256: 5 different hashes, 5 different byte lengths). @napi-rs/canvas
+-- (the renderer — see composite.ts) can register any number of font files
+-- under the SAME family name and correctly select between them via a
+-- NUMERIC ctx.font weight (confirmed live: 5 weights registered together
+-- rendered 5 visibly distinct weights). regular_url/bold_url stay as they
+-- are for every existing consumer and existing row — weights is purely
+-- additive, populated going forward by both the Google Fonts fetch and
+-- the bulk custom-font uploader.
+ALTER TABLE brand_fonts
+  ADD COLUMN IF NOT EXISTS weights JSONB; -- { "300": url, "400": url, "700": url, ... } — numeric weight (100-900) -> public storage URL, only genuinely distinct files ever stored (byte-deduped against variable-font false positives)
+
+-- 2026-08-05: conversational section-level edits to the Topline Messaging
+-- Doc. structured_json (see section 2 above) moved from a fixed 6-key
+-- schema to a dynamic { sections: [{ id, order, title, kind, content,
+-- updated_at, updated_by, change_note }] } shape, editable one section at
+-- a time via a propose -> human-approve -> apply chat flow. Deliberately
+-- NOT full document version snapshots per edit — that's speculative
+-- complexity nobody asked for. Each section already carries its own
+-- updated_at/change_note inline; this table is the append-only audit
+-- trail of every applied edit (what changed, why, who approved it),
+-- which is what "what changed and when" actually needs. Restoring a past
+-- section's exact prior content is possible later from before_excerpt if
+-- it ever becomes a real requirement, but isn't built now.
+CREATE TABLE IF NOT EXISTS event_messaging_doc_edits (
+  id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  event_id        UUID NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+  doc_id          UUID NOT NULL REFERENCES event_messaging_docs(id) ON DELETE CASCADE,
+  section_id      TEXT NOT NULL,
+  instruction     TEXT NOT NULL,       -- the user's original chat message that caused this edit
+  before_excerpt  TEXT,
+  after_excerpt   TEXT,
+  applied_by      UUID REFERENCES staff_members(id) ON DELETE SET NULL,
+  applied_at      TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_messaging_doc_edits_doc ON event_messaging_doc_edits(doc_id, applied_at);

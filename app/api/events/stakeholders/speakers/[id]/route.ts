@@ -1,15 +1,21 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/app/lib/supabase'
+import { getSession } from '@/app/lib/access/session'
+import { hasEventPermission } from '@/app/lib/access/event-access'
+import { resolveFormSchema } from '@/app/lib/forms/resolve-schema'
+import { mapFieldsToRecord, recordToFields } from '@/app/lib/forms/map-to-stakeholder-record'
+import { FieldSchema, SubmittedValue } from '@/app/lib/forms/types'
 
 /* PATCH  /api/events/stakeholders/speakers/[id] — update any SAE-owned field
    DELETE /api/events/stakeholders/speakers/[id] — soft delete (Hub "Delete")
 
-   Same field-name mapping as ../route.ts (full_name/job_title/company_name
-   -> name/role/company). Never writes `status`, `tier`, or `active` — those
-   belong to the Website Builder / KonfHub flow — EXCEPT via the two narrow,
-   explicit opt-in flags below (also_remove_from_website on DELETE,
-   also_restore_to_website on PATCH), which exist so the Hub's Delete/
-   Restore confirmation UI can cross that boundary on deliberate user
+   `fields` (schema-driven, Phase 4 — see ../route.ts's doc comment) is an
+   optional top-level key alongside the pre-existing narrow flags below,
+   which stay exactly as they were: never writes `status`, `tier`, or
+   `active` — those belong to the Website Builder / KonfHub flow — EXCEPT
+   via the two narrow, explicit opt-in flags below (also_restore_to_website
+   on PATCH, also_remove_from_website on DELETE), which exist so the Hub's
+   Delete/Restore confirmation UI can cross that boundary on deliberate user
    request (2026-07-28, Madhu: "let it give an option to user where they
    select 'Also remove from website'... keep a copy in a deleted speakers
    tab to easily restore it back"). Every other caller of these routes
@@ -19,35 +25,29 @@ import { supabaseAdmin } from '@/app/lib/supabase'
    affect the public site / KonfHub row on its own). */
 
 type SpeakerPatchBody = {
-  full_name?: string
-  job_title?: string
-  company_name?: string
-  country?: string
-  bio?: string
-  linkedin_url?: string
+  fields?: Record<string, SubmittedValue>
   announcement_status?: string
   notes?: string
   reviewed_by?: string
   also_restore_to_website?: boolean
-}
-
-function toRow(body: SpeakerPatchBody) {
-  const row: Record<string, unknown> = {}
-  if (body.full_name !== undefined) row.name = body.full_name
-  if (body.job_title !== undefined) row.role = body.job_title
-  if (body.company_name !== undefined) row.company = body.company_name
-  if (body.country !== undefined) row.country = body.country || null
-  if (body.bio !== undefined) row.bio = body.bio || null
-  if (body.linkedin_url !== undefined) row.linkedin_url = body.linkedin_url || null
-  if (body.announcement_status !== undefined) row.announcement_status = body.announcement_status
-  if (body.notes !== undefined) row.notes = body.notes || null
-  if (body.reviewed_by !== undefined) { row.reviewed_by = body.reviewed_by || null; row.reviewed_at = new Date().toISOString() }
-  if (body.also_restore_to_website) row.active = true
-  return row
+  // Explicit opt-in flag (2026-08-04, per Madhu: "let there be an option
+  // to remove/delete an uploaded company logo... currently we can only
+  // reupload") — same narrow-flag convention as also_restore_to_website
+  // above, rather than allowing company_logo_url to be set to an arbitrary
+  // client-supplied value. Clears both the processed and raw logo columns
+  // together — they're always written as a pair by upload-asset/route.ts,
+  // so a stale company_logo_raw_url left behind after removal would be a
+  // real (if invisible) inconsistency.
+  remove_company_logo?: boolean
 }
 
 function fromRow(row: Record<string, unknown>) {
   return { ...row, full_name: row.name, job_title: row.role, company_name: row.company }
+}
+
+function hasValue(v: SubmittedValue | undefined): boolean {
+  if (Array.isArray(v)) return v.length > 0
+  return !!v && v.trim().length > 0
 }
 
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -55,7 +55,35 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   const body = await req.json().catch(() => null) as SpeakerPatchBody | null
   if (!body) return NextResponse.json({ error: 'body required' }, { status: 400 })
 
-  const row = toRow(body)
+  const { data: existing } = await supabaseAdmin.from('event_speakers').select('event_id').eq('id', id).single()
+  if (!existing) return NextResponse.json({ error: 'Speaker not found' }, { status: 404 })
+
+  const session = getSession(req)
+  const isEdit = 'announcement_status' in body === false || Object.keys(body).length > 1
+  const permOk = isEdit
+    ? await hasEventPermission(session?.sid, existing.event_id, 'sae.stakeholders.edit')
+    : await hasEventPermission(session?.sid, existing.event_id, 'sae.approvals.approve')
+  if (!session?.adm && !permOk) return NextResponse.json({ error: 'Not authorized.' }, { status: 403 })
+
+  const row: Record<string, unknown> = {}
+  let schema: FieldSchema[] | null = null
+
+  if (body.fields) {
+    schema = await resolveFormSchema(existing.event_id, 'speaker')
+    for (const f of schema) {
+      if (f.required && f.type !== 'file' && !hasValue(body.fields[f.key])) {
+        return NextResponse.json({ error: `${f.label} is required` }, { status: 400 })
+      }
+    }
+    const { columns, customFields } = mapFieldsToRecord('speaker', schema, body.fields, {})
+    Object.assign(row, columns, { custom_fields: customFields })
+  }
+  if (body.announcement_status !== undefined) row.announcement_status = body.announcement_status
+  if (body.notes !== undefined) row.notes = body.notes || null
+  if (body.reviewed_by !== undefined) { row.reviewed_by = body.reviewed_by || null; row.reviewed_at = new Date().toISOString() }
+  if (body.also_restore_to_website) row.active = true
+  if (body.remove_company_logo) { row.company_logo_url = null; row.company_logo_raw_url = null }
+
   if (Object.keys(row).length === 0) return NextResponse.json({ error: 'no valid fields' }, { status: 400 })
   row.updated_at = new Date().toISOString()
 
@@ -67,12 +95,21 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     .single()
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-  return NextResponse.json(fromRow(data))
+  const resolvedSchema = schema ?? await resolveFormSchema(existing.event_id, 'speaker')
+  return NextResponse.json({ ...fromRow(data), fields: recordToFields('speaker', resolvedSchema, data) })
 }
 
 export async function DELETE(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
   const body = await req.json().catch(() => ({})) as { also_remove_from_website?: boolean }
+
+  const { data: existing } = await supabaseAdmin.from('event_speakers').select('event_id').eq('id', id).single()
+  if (!existing) return NextResponse.json({ error: 'Speaker not found' }, { status: 404 })
+
+  const session = getSession(req)
+  if (!session?.adm && !(await hasEventPermission(session?.sid, existing.event_id, 'sae.stakeholders.delete'))) {
+    return NextResponse.json({ error: 'Not authorized.' }, { status: 403 })
+  }
 
   // Soft delete only ever touches announcement_status — never `status`
   // (public-site moderation state). `active` (public-site visibility) is

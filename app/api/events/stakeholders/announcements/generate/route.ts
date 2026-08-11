@@ -39,65 +39,83 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'partner_id required for stakeholder_type partner' }, { status: 400 })
   }
 
-  const { data: event, error: eventErr } = await supabaseAdmin
-    .from('events')
-    .select('name, event_date, end_date, venue, city, event_hashtag, registration_url, creative_template_config')
-    .eq('id', body.event_id)
-    .single()
-  if (eventErr || !event) return NextResponse.json({ error: 'Event not found' }, { status: 404 })
+  // Four independent reads (2026-08-04 perf pass) — none depends on
+  // another's result, but were previously awaited one after another.
+  const [eventRes, speakerRes, partnerRes, messagingDocRes] = await Promise.all([
+    supabaseAdmin
+      .from('events')
+      .select('name, event_date, end_date, venue, city, event_hashtag, registration_url, creative_template_config')
+      .eq('id', body.event_id)
+      .single(),
+    body.stakeholder_type === 'speaker'
+      ? supabaseAdmin.from('event_speakers').select('*').eq('id', body.speaker_id!).single()
+      : Promise.resolve({ data: null, error: null }),
+    body.stakeholder_type === 'partner'
+      ? supabaseAdmin.from('event_sponsors').select('*').eq('id', body.partner_id!).single()
+      : Promise.resolve({ data: null, error: null }),
+    supabaseAdmin
+      .from('event_messaging_docs')
+      .select('structured_json')
+      .eq('event_id', body.event_id)
+      .eq('status', 'live')
+      .order('version', { ascending: false })
+      .limit(1)
+      .maybeSingle(),
+  ])
 
-  const speaker = body.stakeholder_type === 'speaker'
-    ? (await supabaseAdmin.from('event_speakers').select('*').eq('id', body.speaker_id!).single()).data
-    : null
-  const partner = body.stakeholder_type === 'partner'
-    ? (await supabaseAdmin.from('event_sponsors').select('*').eq('id', body.partner_id!).single()).data
-    : null
+  const event = eventRes.data
+  if (eventRes.error || !event) return NextResponse.json({ error: 'Event not found' }, { status: 404 })
+
+  const speaker = speakerRes.data
+  const partner = partnerRes.data
   if (body.stakeholder_type === 'speaker' && !speaker) return NextResponse.json({ error: 'Speaker not found' }, { status: 404 })
   if (body.stakeholder_type === 'partner' && !partner) return NextResponse.json({ error: 'Partner not found' }, { status: 404 })
 
-  const { data: messagingDoc } = await supabaseAdmin
-    .from('event_messaging_docs')
-    .select('structured_json')
-    .eq('event_id', body.event_id)
-    .eq('status', 'live')
-    .order('version', { ascending: false })
-    .limit(1)
-    .maybeSingle()
+  const messagingDoc = messagingDocRes.data
 
-  // ── 1. Post copy via Gemini ──────────────────────────────────────────────
-  const postCopy = await generatePostCopy(event, speaker, partner, messagingDoc?.structured_json ?? null)
-
-  // ── 2. Creative via Sharp compositing ────────────────────────────────────
+  // Build inputs FIRST (sync, cheap) — fail fast on a broken/missing
+  // template config before spending any time on either async step below.
   const templateConfig = event.creative_template_config as CreativeTemplateConfig | null
   const inputs = buildCompositeInputs(body.stakeholder_type, speaker, partner, templateConfig, body.use_company_logo ?? false, body.variant_id)
   if ('templateError' in inputs) return NextResponse.json({ error: inputs.templateError }, { status: 422 })
 
-  let creativeUrl: string | null = null
-  try {
-    const assetEntries = await Promise.all(inputs.assetsNeeded.map(async (needed): Promise<[string, { buffer: Buffer; url?: string; is_svg?: boolean; head_box?: NeededAsset['headBox'] }]> => {
-      const buffer = await fetchAssetBuffer(needed.url)
-      if (!buffer) throw new Error(`Failed to fetch ${needed.source}`)
-      // url threaded through (2026-08-01) so compositeAnnouncement()'s
-      // per-layer render cache has a cheap, stable key — without it every
-      // real generate would be a guaranteed cache miss even for a layer
-      // whose resolved asset is byte-identical to a preview render moments
-      // earlier.
-      return [needed.source, { buffer, url: needed.url, is_svg: needed.isSvg, head_box: needed.headBox }]
-    }))
-    const assets: Record<string, { buffer: Buffer; url?: string; is_svg?: boolean; head_box?: NeededAsset['headBox'] }> = Object.fromEntries(assetEntries)
+  // Post copy (Gemini) and the creative (asset fetch + Sharp compositing +
+  // upload) are genuinely independent — neither consumes the other's
+  // output, and both are only needed together at the final insert below.
+  // Previously awaited strictly back-to-back (2026-08-04 perf pass: real
+  // generates were taking ~20s); this collapses wall-clock time to
+  // whichever of the two is slower instead of their sum.
+  const [postCopy, creativeUrl] = await Promise.all([
+    generatePostCopy(event, speaker, partner, messagingDoc?.structured_json ?? null),
+    (async (): Promise<string | null> => {
+      try {
+        const assetEntries = await Promise.all(inputs.assetsNeeded.map(async (needed): Promise<[string, { buffer: Buffer; url?: string; is_svg?: boolean; head_box?: NeededAsset['headBox'] }]> => {
+          const buffer = await fetchAssetBuffer(needed.url)
+          if (!buffer) throw new Error(`Failed to fetch ${needed.source}`)
+          // url threaded through (2026-08-01) so compositeAnnouncement()'s
+          // per-layer render cache has a cheap, stable key — without it
+          // every real generate would be a guaranteed cache miss even for
+          // a layer whose resolved asset is byte-identical to a preview
+          // render moments earlier.
+          return [needed.source, { buffer, url: needed.url, is_svg: needed.isSvg, head_box: needed.headBox }]
+        }))
+        const assets: Record<string, { buffer: Buffer; url?: string; is_svg?: boolean; head_box?: NeededAsset['headBox'] }> = Object.fromEntries(assetEntries)
 
-    const creativeBuffer = await compositeAnnouncement(inputs.variant, assets, inputs.texts)
+        const creativeBuffer = await compositeAnnouncement(inputs.variant, assets, inputs.texts)
 
-    // announcement id assigned after insert below; use a temp-safe path keyed by timestamp
-    creativeUrl = await uploadPublicAsset(
-      `events/${body.event_id}/announcements/${Date.now()}/creative.png`,
-      creativeBuffer,
-      'image/png'
-    )
-  } catch (e) {
-    console.error('Creative compositing failed:', e)
-    // Continue without a creative — MM can regenerate via regenerate-creative once the issue is fixed.
-  }
+        // announcement id assigned after insert below; use a temp-safe path keyed by timestamp
+        return await uploadPublicAsset(
+          `events/${body.event_id}/announcements/${Date.now()}/creative.png`,
+          creativeBuffer,
+          'image/png'
+        )
+      } catch (e) {
+        console.error('Creative compositing failed:', e)
+        // Continue without a creative — MM can regenerate via regenerate-creative once the issue is fixed.
+        return null
+      }
+    })(),
+  ])
 
   // ── 3. Create the draft announcement ─────────────────────────────────────
   const { data: announcement, error: insertErr } = await supabaseAdmin

@@ -2,52 +2,35 @@ import { NextRequest, NextResponse } from 'next/server'
 import { Resend } from 'resend'
 import { supabaseAdmin } from '@/app/lib/supabase'
 import { uploadPublicAsset } from '@/app/lib/events/storage'
+import { getStakeholderEmailHeaderHtml, getStakeholderHeaderUrl } from '@/app/lib/branding/email-header'
+import { FormType, FORM_TYPES, SubmittedValue } from '@/app/lib/forms/types'
+import { resolveFormSchema } from '@/app/lib/forms/resolve-schema'
 
 /* GET  /api/public/forms/[event_id]/[form_type] — form schema, no auth
    POST /api/public/forms/[event_id]/[form_type] — form submission, no auth
 
    Public, unauthenticated — reachable via middleware.ts's /public prefix
-   exception. Fixed schemas per PRD SS8.2/8.3 (no drag-and-drop builder,
-   out of scope this sprint). Honeypot field ('website_hp') is a basic bot
-   guard since there's no auth wall on this endpoint. */
+   exception. Field set is producer-customizable per event (Phase 4 of the
+   SAE producer-workflow initiative, see app/lib/forms/) — resolveFormSchema()
+   returns a stored override if one exists, else the original fixed default
+   set. Honeypot field ('website_hp') is a basic bot guard since there's no
+   auth wall on this endpoint. */
 
-type FieldDef = {
-  name: string; label: string; type: 'text' | 'url' | 'email' | 'textarea' | 'file'
-  required: boolean; help?: string; accept?: string
+// Maps an invite's recipient_name/recipient_email onto whichever fields
+// THIS form_type's DEFAULT schema declares — never invents a field.
+// Speaker forms have no email field at all (deliberate gap, only LinkedIn
+// is collected), so a speaker invite only ever prefills full_name. Kept
+// hardcoded to these exact keys (not schema-driven) since prefill is a
+// Phase 3 concern layered on top of whatever schema is active — the
+// caller filters this against the resolved schema's actual keys so a
+// customized schema that removed these keys silently gets no prefill
+// instead of injecting orphan values.
+function prefillFor(formType: FormType, recipientName: string, recipientEmail: string): Record<string, string> {
+  if (formType === 'speaker') return { full_name: recipientName }
+  return { contact_person_name: recipientName, contact_person_email: recipientEmail }
 }
 
-const SPEAKER_FIELDS: FieldDef[] = [
-  { name: 'full_name', label: 'Full Name', type: 'text', required: true },
-  { name: 'job_title', label: 'Job Title', type: 'text', required: true },
-  { name: 'company_name', label: 'Company Name', type: 'text', required: true },
-  { name: 'country', label: 'Country', type: 'text', required: true },
-  { name: 'linkedin_url', label: 'LinkedIn Profile URL', type: 'url', required: false },
-  { name: 'bio', label: 'Bio', type: 'textarea', required: true, help: '150–300 words' },
-  { name: 'photo', label: 'Photo Upload', type: 'file', required: true, accept: 'image/jpeg,image/png', help: 'JPG/PNG, min 400×400px, max 5MB' },
-  { name: 'company_logo', label: 'Company Logo Upload', type: 'file', required: false, accept: 'image/png,image/jpeg', help: 'Optional, PNG/JPG preferred, max 3MB' },
-]
-
-const PARTNER_FIELDS: FieldDef[] = [
-  { name: 'company_name', label: 'Company Name', type: 'text', required: true },
-  { name: 'company_website', label: 'Company Website URL', type: 'url', required: true },
-  { name: 'company_description', label: 'Company Description', type: 'textarea', required: true, help: '100–200 words' },
-  { name: 'contact_person_name', label: 'Contact Person Name', type: 'text', required: true },
-  { name: 'contact_person_email', label: 'Contact Person Email', type: 'email', required: true },
-  { name: 'contact_person_phone', label: 'Contact Person Phone', type: 'text', required: false },
-  { name: 'logo', label: 'Logo Upload', type: 'file', required: true, accept: 'image/png,image/jpeg,image/svg+xml,application/pdf', help: 'Any format: PNG, JPG, SVG, PDF, AI — max 10MB' },
-  { name: 'additional_notes', label: 'Additional Notes', type: 'textarea', required: false },
-]
-
-const FORM_TYPES = ['speaker', 'sponsor', 'media_partner', 'association_partner'] as const
-type FormType = typeof FORM_TYPES[number]
-
-function fieldsFor(formType: FormType): FieldDef[] {
-  return formType === 'speaker' ? SPEAKER_FIELDS : PARTNER_FIELDS
-}
-
-const MAX_FILE_SIZE: Record<string, number> = { photo: 5 * 1024 * 1024, company_logo: 3 * 1024 * 1024, logo: 10 * 1024 * 1024 }
-
-export async function GET(_req: NextRequest, { params }: { params: Promise<{ event_id: string; form_type: string }> }) {
+export async function GET(req: NextRequest, { params }: { params: Promise<{ event_id: string; form_type: string }> }) {
   const { event_id, form_type } = await params
   if (!FORM_TYPES.includes(form_type as FormType)) {
     return NextResponse.json({ error: 'Unknown form type' }, { status: 404 })
@@ -56,7 +39,47 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ eve
   const { data: event } = await supabaseAdmin.from('events').select('name').eq('id', event_id).single()
   if (!event) return NextResponse.json({ error: 'Event not found' }, { status: 404 })
 
-  return NextResponse.json({ form_type, event_name: event.name, fields: fieldsFor(form_type as FormType) })
+  // HubSpot takes priority when connected — the public page embeds
+  // HubSpot's own form and submits directly to HubSpot (never to this
+  // route's POST). No connection for this event+form_type falls through
+  // to the existing FieldSchema-driven form below, unchanged.
+  const { data: hubspotForm } = await supabaseAdmin
+    .from('event_hubspot_forms')
+    .select('hubspot_form_id')
+    .eq('event_id', event_id).eq('form_type', form_type)
+    .maybeSingle()
+  if (hubspotForm) {
+    const headerUrl = await getStakeholderHeaderUrl()
+    return NextResponse.json({
+      hubspot: true,
+      portal_id: process.env.HUBSPOT_PORTAL_ID,
+      hubspot_form_id: hubspotForm.hubspot_form_id,
+      form_type, event_name: event.name, header_url: headerUrl,
+    })
+  }
+
+  const fields = await resolveFormSchema(event_id, form_type as FormType)
+  const headerUrl = await getStakeholderHeaderUrl()
+
+  // Attribution-only — a missing/mismatched/wrong-context token never
+  // blocks the form, it just means no prefill (see route POST comment
+  // for the same principle applied at submit time).
+  let prefill: Record<string, string> | null = null
+  const inviteToken = req.nextUrl.searchParams.get('invite')
+  if (inviteToken) {
+    const { data: invite } = await supabaseAdmin
+      .from('stakeholder_invites')
+      .select('recipient_name, recipient_email')
+      .eq('invite_token', inviteToken).eq('event_id', event_id).eq('form_type', form_type)
+      .maybeSingle()
+    if (invite) {
+      const raw = prefillFor(form_type as FormType, invite.recipient_name, invite.recipient_email)
+      const filtered = Object.fromEntries(Object.entries(raw).filter(([k]) => fields.some(f => f.key === k)))
+      prefill = Object.keys(filtered).length > 0 ? filtered : null
+    }
+  }
+
+  return NextResponse.json({ form_type, event_name: event.name, fields, header_url: headerUrl, prefill })
 }
 
 export async function POST(req: NextRequest, { params }: { params: Promise<{ event_id: string; form_type: string }> }) {
@@ -75,33 +98,41 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ eve
     return NextResponse.json({ success: true, message: 'Thank you. Your submission has been received.' })
   }
 
-  const fields = fieldsFor(form_type as FormType)
-  const submittedData: Record<string, string> = {}
+  const fields = await resolveFormSchema(event_id, form_type as FormType)
+  const submittedData: Record<string, SubmittedValue> = {}
   for (const field of fields) {
     if (field.type === 'file') continue
-    const value = (form.get(field.name) as string | null)?.trim() ?? ''
+    if (field.type === 'multiselect') {
+      const vals = form.getAll(field.key).map(v => String(v).trim()).filter(Boolean)
+      if (field.required && vals.length === 0) {
+        return NextResponse.json({ error: `${field.label} is required` }, { status: 400 })
+      }
+      if (vals.length) submittedData[field.key] = vals
+      continue
+    }
+    const value = (form.get(field.key) as string | null)?.trim() ?? ''
     if (field.required && !value) {
       return NextResponse.json({ error: `${field.label} is required` }, { status: 400 })
     }
-    if (value) submittedData[field.name] = value
+    if (value) submittedData[field.key] = value
   }
 
   const fileUrls: Record<string, string> = {}
   for (const field of fields) {
     if (field.type !== 'file') continue
-    const file = form.get(field.name) as File | null
+    const file = form.get(field.key) as File | null
     if (!file || file.size === 0) {
       if (field.required) return NextResponse.json({ error: `${field.label} is required` }, { status: 400 })
       continue
     }
-    const maxSize = MAX_FILE_SIZE[field.name] ?? 10 * 1024 * 1024
+    const maxSize = (field.max_size_mb ?? 10) * 1024 * 1024
     if (file.size > maxSize) {
-      return NextResponse.json({ error: `${field.label} is too large (max ${Math.round(maxSize / 1024 / 1024)}MB)` }, { status: 413 })
+      return NextResponse.json({ error: `${field.label} is too large (max ${field.max_size_mb ?? 10}MB)` }, { status: 413 })
     }
     const buffer = Buffer.from(await file.arrayBuffer())
     const ext = file.name.includes('.') ? file.name.split('.').pop() : 'bin'
-    fileUrls[field.name] = await uploadPublicAsset(
-      `events/${event_id}/form-submissions/${Date.now()}-${field.name}.${ext}`,
+    fileUrls[field.key] = await uploadPublicAsset(
+      `events/${event_id}/form-submissions/${Date.now()}-${field.key}.${ext}`,
       buffer,
       file.type || 'application/octet-stream'
     )
@@ -115,21 +146,43 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ eve
 
   if (error) return NextResponse.json({ error: 'Submission failed — please try again.' }, { status: 500 })
 
-  await sendNotifications(event_id, event.name, form_type as FormType, submittedData, submission.id).catch(e =>
+  // Attribution-only, same principle as GET — a stale/wrong/missing token
+  // never blocks the submission itself, it just skips linking. Only link
+  // while status='sent' (not already 'submitted') so a stale re-visit of
+  // an already-used link (forwarded, bookmarked, a correction resubmit)
+  // can't clobber a prior link.
+  let invitedByStaffId: string | null = null
+  const inviteToken = (form.get('invite_token') as string | null)?.trim()
+  if (inviteToken) {
+    const { data: invite } = await supabaseAdmin
+      .from('stakeholder_invites')
+      .select('id, status, sent_by')
+      .eq('invite_token', inviteToken).eq('event_id', event_id).eq('form_type', form_type)
+      .maybeSingle()
+    if (invite && invite.status === 'sent') {
+      await supabaseAdmin.from('stakeholder_form_submissions').update({ invite_id: invite.id }).eq('id', submission.id)
+      await supabaseAdmin.from('stakeholder_invites').update({ status: 'submitted', submission_id: submission.id, submitted_at: new Date().toISOString() }).eq('id', invite.id)
+      invitedByStaffId = invite.sent_by
+    }
+  }
+
+  await sendNotifications(event_id, event.name, form_type as FormType, submittedData, submission.id, invitedByStaffId).catch(e =>
     console.error('Form submission notification failed (submission still saved):', e)
   )
 
   return NextResponse.json({ success: true, message: 'Thank you. Your submission has been received.' })
 }
 
-async function sendNotifications(eventId: string, eventName: string, formType: FormType, data: Record<string, string>, submissionId: string) {
+async function sendNotifications(eventId: string, eventName: string, formType: FormType, data: Record<string, SubmittedValue>, submissionId: string, invitedByStaffId: string | null) {
   if (!process.env.RESEND_API_KEY) return
   const resend = new Resend(process.env.RESEND_API_KEY)
   const from = process.env.RESEND_FROM || 'Event Pilot <noreply@eventpilot.tresconglobal.com>'
 
-  const submitterName  = data.full_name || data.contact_person_name || data.company_name || 'there'
-  const submitterEmail = data.contact_person_email
-  const displayName    = data.full_name || data.company_name || 'New submission'
+  const asStr = (v: SubmittedValue | undefined) => (Array.isArray(v) ? v.join(', ') : v)
+  const submitterName  = asStr(data.full_name) || asStr(data.contact_person_name) || asStr(data.company_name) || 'there'
+  const submitterEmail = asStr(data.contact_person_email)
+  const displayName    = asStr(data.full_name) || asStr(data.company_name) || 'New submission'
+  const headerHtml = await getStakeholderEmailHeaderHtml()
 
   // Speaker submissions have no contact-email field (only LinkedIn) — a
   // confirmation email only goes out when we actually have somewhere to send it.
@@ -138,7 +191,7 @@ async function sendNotifications(eventId: string, eventName: string, formType: F
       from,
       to: submitterEmail,
       subject: `Thank you — ${eventName}`,
-      html: `<p>Thank you ${submitterName}. Your details have been received and our team will be in touch. See you at ${eventName}!</p>`,
+      html: `<div style="font-family:sans-serif;max-width:520px;margin:0 auto">${headerHtml}<p>Thank you ${submitterName}. Your details have been received and our team will be in touch. See you at ${eventName}!</p></div>`,
     })
   }
 
@@ -152,16 +205,27 @@ async function sendNotifications(eventId: string, eventName: string, formType: F
     .map(a => (a.staff as unknown as { email?: string } | null)?.email)
     .filter((e): e is string => !!e)
 
-  if (mmEmails.length === 0) return
+  // The producer who actually sent this invite — "producers get a
+  // notification" per the original ask means the person who did the
+  // outreach, not just whoever holds the marketing_manager event_role.
+  let invitedByEmail: string | null = null
+  if (invitedByStaffId) {
+    const { data: staff } = await supabaseAdmin.from('staff_members').select('email').eq('id', invitedByStaffId).single()
+    invitedByEmail = staff?.email ?? null
+  }
+
+  const recipients = Array.from(new Set([...mmEmails, ...(invitedByEmail ? [invitedByEmail] : [])]))
+  if (recipients.length === 0) return
 
   await resend.emails.send({
     from,
-    to: mmEmails,
+    to: recipients,
     subject: `New ${formType.replace(/_/g, ' ')} submission: ${displayName} — ${eventName}`,
     /* eslint-disable no-restricted-syntax -- email HTML; clients can't render CSS custom properties, literal colors required (matches app/api/content/posts/[id]/approve/route.ts's existing convention) */
-    html: `<p>New ${formType.replace(/_/g, ' ')} submission from <strong>${displayName}</strong> for ${eventName}.</p>
+    html: `<div style="font-family:sans-serif;max-width:520px;margin:0 auto">${headerHtml}
+           <p>New ${formType.replace(/_/g, ' ')} submission from <strong>${displayName}</strong> for ${eventName}.</p>
            <p><a href="${process.env.NEXT_PUBLIC_SITE_URL ?? ''}/admin/events/${eventId}/stakeholders">Review in EventPilot →</a></p>
-           <p style="color:#888;font-size:12px">Submission ID: ${submissionId}</p>`,
+           <p style="color:#888;font-size:12px">Submission ID: ${submissionId}</p></div>`,
     /* eslint-enable no-restricted-syntax */
   })
 }

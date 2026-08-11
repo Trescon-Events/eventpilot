@@ -383,6 +383,22 @@ export function getModuleRegistry(): ModuleDef[] {
       platformMenu: { section: 'Administration' },
     },
     {
+      key: 'email-templates', label: 'Email Templates',
+      description: 'Workspace-level email templates — rich-text editor, AI rewrite, and "send as" delivery via Microsoft Graph.',
+      icon: I.message, color: '#F16A7A',
+      href: '/admin/email-templates',
+      access: { kind: 'admin_only' },
+      platformMenu: { section: 'Administration' },
+    },
+    {
+      key: 'form-templates', label: 'Form Templates',
+      description: 'Default onboarding form fields for speakers, sponsors, and partners — applies to every event unless customized per event.',
+      icon: I.doc, color: '#3FAE8C',
+      href: '/admin/form-templates',
+      access: { kind: 'admin_only' },
+      platformMenu: { section: 'Administration' },
+    },
+    {
       key: 'toolkit', label: 'Toolkit',
       description: 'Smart Data, Website Builder, Market Intelligence, Brand Studio, Outreach and TresAgent',
       icon: I.wrench, color: '#009C89',
@@ -770,6 +786,15 @@ export function getModuleRegistry(): ModuleDef[] {
       href: ctx => `/admin/events/${ctx.eventId}/stakeholders`,
       needsEvent: true,
       breadcrumbPattern: '/admin/events/:eventId/stakeholders',
+      access: { kind: 'admin_only' },
+    },
+    {
+      key: 'admin-event-access', label: 'Access',
+      description: 'Define roles and assign staff access to this event\'s modules.',
+      icon: I.gear, color: '#8C8C8C',
+      href: ctx => `/admin/events/${ctx.eventId}/access`,
+      needsEvent: true,
+      breadcrumbPattern: '/admin/events/:eventId/access',
       access: { kind: 'admin_only' },
     },
     {

@@ -6,6 +6,7 @@ import { Button, Badge, Input, Select } from '@/app/components/ui'
 import AccessTab from '@/app/components/AccessTab'
 import type { Layer, ImageLayer, PhotoSlotLayer, TextLayer, Variant, CreativeTemplateConfig, TextLayerDiagnostics, PlaceholderProfile } from '@/app/lib/announcements/composite'
 import { withTextLayerDefaults } from '@/app/lib/announcements/text-layer-defaults'
+import type { ResolvedFont, BrandRulesSnapshot } from '@/app/lib/branding/brand-rules'
 import LayerBoxOverlay from './LayerBoxOverlay'
 
 /* Stakeholder Announcement Engine — Admin Console (PRD v1.4 Phase C v3,
@@ -17,6 +18,10 @@ import LayerBoxOverlay from './LayerBoxOverlay'
    this module — the shared AccessTab component, module_access table). */
 
 export type StakeholderKind = 'speaker' | 'partner'
+// 2026-08-04 — weights added (full weight support, was regular_url/bold_url
+// only). Nullable/optional since fonts added before that date have no
+// weights map at all.
+export type BrandFontOption = { id: string; family_name: string; regular_url: string; bold_url: string | null; weights?: Record<number, string> | null }
 export type StakeholderOption = {
   id: string; label: string
   // Ghost-overlay content (2026-07-31) — enough to show the REAL text/
@@ -36,7 +41,16 @@ const LAYER_TYPE_LABEL: Record<Layer['type'], string> = { image: 'Image', photo_
 // runtime fallback; the two are allowed to diverge without breaking anything.
 const DEFAULT_MAX_LINES_BY_FIELD: Record<TextLayer['field'], number> = { name: 3, title: 2, company: 2, tier: 2, custom: 2 }
 
-function newLayer(type: Layer['type'], activeType: StakeholderKind, canvasWidth: number, canvasHeight: number): Layer {
+// Editor-local — maps a text layer's `field` to the content-type slug the
+// brand-rules resolver understands (app/lib/branding/brand-rules.ts). This
+// is presentation-editor business logic (what a "name" field usually looks
+// like on a card), not general brand-rules logic, so it stays here rather
+// than in the shared library.
+const FIELD_TO_CONTENT_TYPE: Record<TextLayer['field'], string> = {
+  name: 'heading', title: 'subheading', company: 'body', tier: 'body', custom: 'body',
+}
+
+function newLayer(type: Layer['type'], activeType: StakeholderKind, canvasWidth: number, canvasHeight: number, fontSuggestion?: ResolvedFont | null): Layer {
   const id = crypto.randomUUID()
   // Image layers are always full-bleed background/overlay art pre-sized by
   // the design team to the variant's exact canvas — default to that instead
@@ -48,8 +62,16 @@ function newLayer(type: Layer['type'], activeType: StakeholderKind, canvasWidth:
   const fontSize = 32
   const width = Math.round(canvasWidth * 0.6)
   const height = Math.round(maxLines * fontSize * 1.2)
+  // Brand-rules suggestion (app/lib/branding/brand-rules.ts) — a default
+  // for a NEW layer only, never touches an existing saved layer's choice.
+  // Absent/no-match leaves font_family undefined, byte-identical to today's
+  // behavior (generic sans-serif fallback at render time).
+  const font_family = fontSuggestion
+    ? { family_name: fontSuggestion.family_name, regular_url: fontSuggestion.regular_url, bold_url: fontSuggestion.bold_url, weights: fontSuggestion.weights }
+    : undefined
+  const font_weight: TextLayer['font_weight'] = fontSuggestion?.weight ?? 'normal'
   // eslint-disable-next-line no-restricted-syntax -- font_color is composited-creative content data, not EventPilot UI theming; the color rule governs var(--token) styling, not this
-  return { id, type: 'text', field, value: activeType === 'partner' ? 'LEAD SPONSOR' : undefined, x: 40, y: 40, width, height, max_lines: maxLines, font_size: fontSize, font_color: '#FFFFFF', font_weight: 'normal', align: 'left' }
+  return { id, type: 'text', field, value: activeType === 'partner' ? 'LEAD SPONSOR' : undefined, x: 40, y: 40, width, height, max_lines: maxLines, font_size: fontSize, font_color: '#FFFFFF', font_family, font_weight, align: 'left' }
 }
 
 // Fills in width/height/max_lines for any text layer saved before Phase C
@@ -90,7 +112,8 @@ export default function CreativeTemplatesAdminPage({ params }: { params: Promise
 
   const [speakers, setSpeakers] = useState<StakeholderOption[]>([])
   const [partners, setPartners] = useState<StakeholderOption[]>([])
-  const [brandFonts, setBrandFonts] = useState<Array<{ id: string; family_name: string; regular_url: string; bold_url: string | null }>>([])
+  const [brandFonts, setBrandFonts] = useState<Array<BrandFontOption>>([])
+  const [brandRules, setBrandRules] = useState<BrandRulesSnapshot>({ fonts: [] })
   const [previewFor, setPreviewFor] = useState<string>('')
   // Reusable "Placeholder data" content (2026-07-31) — one profile per
   // stakeholder type, saved on the event alongside the variants themselves
@@ -128,11 +151,12 @@ export default function CreativeTemplatesAdminPage({ params }: { params: Promise
 
   async function fetchAll() {
     setLoading(true)
-    const [configRes, spRes, ptRes, fontsRes] = await Promise.all([
+    const [configRes, spRes, ptRes, fontsRes, brandRulesRes] = await Promise.all([
       fetch(`/api/events/templates?event_id=${eventId}`),
       fetch(`/api/events/stakeholders/speakers?event_id=${eventId}`),
       fetch(`/api/events/stakeholders/partners?event_id=${eventId}`),
       fetch('/api/branding/fonts'),
+      fetch('/api/branding/brand-rules'),
     ])
     const config: CreativeTemplateConfig | null = await configRes.json().catch(() => null)
     const loadedSpeakerVariants = (config?.speaker?.variants ?? []).map(normalizeVariantTextLayers)
@@ -151,6 +175,7 @@ export default function CreativeTemplatesAdminPage({ params }: { params: Promise
     setSpeakers(sp.map(s => ({ id: s.id, label: s.full_name, job_title: s.job_title, company_name: s.company_name, photo_url: s.photo_processed_url ?? s.photo_url, company_logo_url: s.company_logo_url })))
     setPartners(pt.map(p => ({ id: p.id, label: p.company_name, company_name: p.company_name, logo_url: p.logo_url })))
     setBrandFonts(await fontsRes.json().catch(() => []))
+    setBrandRules(await brandRulesRes.json().catch(() => ({ fonts: [] })))
     setDirty(false)
     setLoading(false)
   }
@@ -323,7 +348,11 @@ export default function CreativeTemplatesAdminPage({ params }: { params: Promise
   function addLayer(type: Layer['type']) {
     if (!activeVariant) return
     pushUndo()
-    const layer = newLayer(type, activeType, activeVariant.canvas_width, activeVariant.canvas_height)
+    // Mirrors newLayer()'s own field derivation (it isn't passed in) so the
+    // brand-rules lookup matches the field the new layer will actually get.
+    const field: TextLayer['field'] = activeType === 'speaker' ? 'name' : 'custom'
+    const fontSuggestion = type === 'text' ? brandRules.fonts.find(f => f.content_type === FIELD_TO_CONTENT_TYPE[field]) ?? null : null
+    const layer = newLayer(type, activeType, activeVariant.canvas_width, activeVariant.canvas_height, fontSuggestion)
     updateActiveVariant({ layers: [...activeVariant.layers, layer] })
     // Auto-expand the new layer and collapse whatever was open (2026-08-02,
     // real confusion caught live) — previously the new row landed collapsed
@@ -650,7 +679,7 @@ function LayerRow({ layer, index, total, activeType, brandFonts, expanded, onTog
   index: number
   total: number
   activeType: StakeholderKind
-  brandFonts: Array<{ id: string; family_name: string; regular_url: string; bold_url: string | null }>
+  brandFonts: Array<BrandFontOption>
   expanded: boolean
   onToggleExpand: () => void
   diagnostics?: TextLayerDiagnostics
@@ -933,10 +962,46 @@ function PhotoSlotLayerFields({ layer, activeType, onChange, pushUndo, discardLa
   )
 }
 
+// Full weight support (2026-08-04, was Normal/Bold only) — per Madhu: "for
+// most of our google fonts or custom fonts we also use font weight option
+// too instead of just using regular/bold." Every standard CSS weight is
+// always LISTED, but only ones the selected font genuinely has a distinct
+// file for are selectable — see availableWeightsFor() below.
+const WEIGHT_OPTIONS: { value: number; label: string }[] = [
+  { value: 100, label: '100 · Thin' },
+  { value: 200, label: '200 · Extra Light' },
+  { value: 300, label: '300 · Light' },
+  { value: 400, label: '400 · Regular' },
+  { value: 500, label: '500 · Medium' },
+  { value: 600, label: '600 · SemiBold' },
+  { value: 700, label: '700 · Bold' },
+  { value: 800, label: '800 · Extra Bold' },
+  { value: 900, label: '900 · Black' },
+]
+
+// Client-safe duplicate of composite.ts's resolveFontWeight() — that
+// module imports sharp/@napi-rs/canvas at the top level, native server-
+// only deps this 'use client' page must never pull into the browser bundle.
+function resolveWeightForUI(w: TextLayer['font_weight']): number {
+  if (typeof w === 'number') return w
+  if (w === 'bold') return 700
+  return 400
+}
+
+// No custom font selected -> generic sans-serif fallback, which only ever
+// had Normal/Bold to pick from before this feature existed — kept exactly
+// that conservative for the no-font case rather than guessing how a
+// generic system family handles the other 7 weights.
+function availableWeightsFor(font: BrandFontOption | undefined): number[] {
+  if (!font) return [400, 700]
+  if (font.weights && Object.keys(font.weights).length > 0) return Object.keys(font.weights).map(Number)
+  return [400, ...(font.bold_url ? [700] : [])]
+}
+
 function TextLayerFields({ layer, activeType, brandFonts, onChange, pushUndo, discardLastUndo, eventId, allLayers }: {
   layer: TextLayer
   activeType: StakeholderKind
-  brandFonts: Array<{ id: string; family_name: string; regular_url: string; bold_url: string | null }>
+  brandFonts: Array<BrandFontOption>
   onChange: (patch: Partial<TextLayer>) => void
   pushUndo: () => void
   discardLastUndo: () => void
@@ -1059,7 +1124,14 @@ function TextLayerFields({ layer, activeType, brandFonts, onChange, pushUndo, di
           value={layer.font_family?.family_name ?? ''}
           onChange={e => {
             const font = brandFonts.find(f => f.family_name === e.target.value)
-            onChange({ font_family: font ? { family_name: font.family_name, regular_url: font.regular_url, bold_url: font.bold_url } : undefined })
+            const font_family = font ? { family_name: font.family_name, regular_url: font.regular_url, bold_url: font.bold_url, weights: font.weights ?? null } : undefined
+            // Snap the current weight to the nearest one the NEW font
+            // actually has — switching fonts can silently leave a weight
+            // selected that font has no file for at all otherwise.
+            const available = availableWeightsFor(font)
+            const currentWeight = resolveWeightForUI(layer.font_weight)
+            const nearestAvailable = available.reduce((best, w) => Math.abs(w - currentWeight) < Math.abs(best - currentWeight) ? w : best, available[0])
+            onChange({ font_family, font_weight: nearestAvailable })
           }}
           style={{ width: '100%', marginTop: '3px' }}
         >
@@ -1079,9 +1151,19 @@ function TextLayerFields({ layer, activeType, brandFonts, onChange, pushUndo, di
       </label>
       <label style={{ fontSize: '11px', color: 'var(--ink3)', display: 'block' }}>
         Weight
-        <Select value={layer.font_weight ?? 'normal'} onChange={e => onChange({ font_weight: e.target.value as TextLayer['font_weight'] })} style={{ width: '100%', marginTop: '3px' }}>
-          <option value="normal">Normal</option>
-          <option value="bold">Bold</option>
+        <Select
+          value={String(resolveWeightForUI(layer.font_weight))}
+          onChange={e => onChange({ font_weight: Number(e.target.value) })}
+          style={{ width: '100%', marginTop: '3px' }}
+        >
+          {WEIGHT_OPTIONS.map(opt => {
+            const available = availableWeightsFor(brandFonts.find(f => f.family_name === layer.font_family?.family_name)).includes(opt.value)
+            return (
+              <option key={opt.value} value={opt.value} disabled={!available}>
+                {opt.label}{available ? '' : ' — not available for this font'}
+              </option>
+            )
+          })}
         </Select>
       </label>
       <label style={{ fontSize: '11px', color: 'var(--ink3)', display: 'block' }}>
@@ -1091,6 +1173,15 @@ function TextLayerFields({ layer, activeType, brandFonts, onChange, pushUndo, di
           <option value="center">Center</option>
           <option value="right">Right</option>
         </Select>
+      </label>
+      {/* Uppercase toggle (2026-08-04, per Madhu: "we sometimes go with full
+          upper case version for speaker names... if unselected, it goes
+          back to whatever format it is typed in coming from the speaker
+          database") — purely a display transform (resolveTextValue() in
+          composite.ts), never rewrites the underlying speaker/partner data. */}
+      <label style={{ gridColumn: '1 / -1', fontSize: '11px', color: 'var(--ink3)', display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer' }}>
+        <input type="checkbox" checked={layer.uppercase ?? false} onChange={e => onChange({ uppercase: e.target.checked })} />
+        Uppercase (renders as ALL CAPS regardless of how it's typed in the source data)
       </label>
     </>
   )

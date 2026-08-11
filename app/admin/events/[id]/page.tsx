@@ -168,7 +168,6 @@ export default function EventWorkspacePage({ params }: { params: Promise<{ id: s
   }
   const [messagingDoc,       setMessagingDoc]       = useState<MessagingDoc | null>(null)
   const [messagingUploading, setMessagingUploading] = useState(false)
-  const [messagingExpanded,  setMessagingExpanded]  = useState(false)
 
   // Team tab
   const [eventStaff,     setEventStaff]     = useState<EventStaffMember[]>([])
@@ -922,12 +921,9 @@ export default function EventWorkspacePage({ params }: { params: Promise<{ id: s
               )}
             </div>
             <div style={{ display: 'flex', gap: '8px' }}>
-              {messagingDoc && (
-                <button onClick={() => setMessagingExpanded(v => !v)}
-                  style={{ padding: '7px 14px', borderRadius: '8px', border: '1px solid var(--border)', background: 'transparent', color: 'var(--ink2)', fontSize: '12px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
-                  {messagingExpanded ? 'Hide' : 'View'}
-                </button>
-              )}
+              <Link href={`/admin/events/${eventId}/messaging`} style={{ textDecoration: 'none', padding: '7px 14px', borderRadius: '8px', border: '1px solid var(--border)', background: 'transparent', color: 'var(--ink2)', fontSize: '12px', fontWeight: 700, fontFamily: 'inherit', display: 'flex', alignItems: 'center' }}>
+                Open Messaging Doc →
+              </Link>
               <label style={{ padding: '7px 14px', borderRadius: '8px', border: 'none', background: 'var(--lime)', color: 'var(--lime-dark)', fontSize: '12px', fontWeight: 800, cursor: 'pointer', fontFamily: 'inherit', opacity: messagingUploading ? 0.6 : 1 }}>
                 {messagingUploading ? 'Uploading…' : 'Upload ▲'}
                 <input type="file" accept="application/pdf" disabled={messagingUploading} style={{ display: 'none' }}
@@ -935,18 +931,6 @@ export default function EventWorkspacePage({ params }: { params: Promise<{ id: s
               </label>
             </div>
           </div>
-          {messagingExpanded && messagingDoc?.structured_json && (
-            <div style={{ marginTop: '14px', paddingTop: '14px', borderTop: '1px solid var(--border-light)', display: 'grid', gap: '10px' }}>
-              {Object.entries(messagingDoc.structured_json).map(([key, value]) => (
-                <div key={key}>
-                  <div style={{ fontSize: '10px', fontWeight: 800, color: 'var(--ink3)', textTransform: 'uppercase', letterSpacing: '0.6px', marginBottom: '2px' }}>{key.replace(/_/g, ' ')}</div>
-                  <div style={{ fontSize: '12.5px', color: 'var(--ink2)', lineHeight: 1.55 }}>
-                    {Array.isArray(value) ? value.join(', ') : String(value)}
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
         </div>
 
         {/* Website Production Flow */}

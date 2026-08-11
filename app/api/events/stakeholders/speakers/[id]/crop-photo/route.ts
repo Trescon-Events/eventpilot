@@ -3,6 +3,7 @@ import sharp from 'sharp'
 import { supabaseAdmin } from '@/app/lib/supabase'
 import { uploadPublicAsset } from '@/app/lib/events/storage'
 import { detectHeadBox } from '@/app/lib/media/face-alignment'
+import { MAX_STORED_PHOTO_DIMENSION } from '@/app/lib/media/speaker-photo-engine'
 
 /* POST /api/events/stakeholders/speakers/[id]/crop-photo
    Body: { crop: { x, y, width, height } } — integer pixel coordinates
@@ -41,7 +42,18 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     const buffer = Buffer.from(await imgRes.arrayBuffer())
 
     const cropped = await sharp(buffer)
+      // .rotate() with no args = auto-orient from EXIF first — the source
+      // here is always an already-processed photo_processed_url (already
+      // orientation-normalized upstream), so this is a no-op in practice,
+      // included only for consistency with the other resize call sites
+      // touched in the same 2026-08-04 pass.
+      .rotate()
       .extract({ left: Math.round(crop.x), top: Math.round(crop.y), width: Math.round(crop.width), height: Math.round(crop.height) })
+      // Same cap as processSpeakerPhoto() (2026-08-04 perf pass) — a crop of
+      // an already-capped source can never exceed this anyway, but photos
+      // stored before this cap existed could still produce an oversized
+      // result here without it.
+      .resize(MAX_STORED_PHOTO_DIMENSION, MAX_STORED_PHOTO_DIMENSION, { fit: 'inside', withoutEnlargement: true })
       .png()
       .toBuffer()
 

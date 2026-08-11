@@ -1,5 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/app/lib/supabase'
+import { getSession } from '@/app/lib/access/session'
+import { hasEventPermission } from '@/app/lib/access/event-access'
+import { resolveFormSchema } from '@/app/lib/forms/resolve-schema'
+import { mapFieldsToRecord } from '@/app/lib/forms/map-to-stakeholder-record'
+import { FormType, SubmittedValue } from '@/app/lib/forms/types'
+import { processLogo } from '@/app/lib/media/logo-engine'
+import { uploadPublicAsset } from '@/app/lib/events/storage'
 
 /* POST /api/events/stakeholders/partners/from-submission
    Body: { submission_id, event_id }
@@ -7,17 +14,15 @@ import { supabaseAdmin } from '@/app/lib/supabase'
    'media_partner' | 'association_partner') into a real event_sponsors row.
    Partner tier/type is set internally by the MM afterward — the form never
    asks for it (PRD SS8.3), so this defaults to 'sponsor' and the MM edits it
-   via PATCH /api/events/stakeholders/partners/[id]. */
+   via PATCH /api/events/stakeholders/partners/[id]. Field->column mapping
+   (incl. any producer-customized custom fields) is delegated to the shared
+   mapFieldsToRecord() (Phase 4 of the SAE producer-workflow initiative).
 
-type SubmittedPartnerData = {
-  company_name: string
-  company_website?: string
-  company_description?: string
-  contact_person_name?: string
-  contact_person_email?: string
-  contact_person_phone?: string
-  additional_notes?: string
-}
+   Native-form submissions store logo_url/logo_raw_url unprocessed —
+   processLogo() only ever ran from the Hub's manual "Upload Logo" button,
+   with no equivalent re-upload moment for a HubSpot-sourced submission.
+   So HubSpot submissions (source==='hubspot') get an inline processLogo()
+   call below; native-form behavior is completely unchanged. */
 
 const FORM_TYPE_TO_PARTNER_TYPE: Record<string, string> = {
   sponsor: 'sponsor',
@@ -29,6 +34,11 @@ export async function POST(req: NextRequest) {
   const body = await req.json().catch(() => null) as { submission_id?: string; event_id?: string } | null
   if (!body?.submission_id || !body?.event_id) {
     return NextResponse.json({ error: 'submission_id and event_id required' }, { status: 400 })
+  }
+
+  const session = getSession(req)
+  if (!session?.adm && !(await hasEventPermission(session?.sid, body.event_id, 'sae.submissions.process'))) {
+    return NextResponse.json({ error: 'Not authorized.' }, { status: 403 })
   }
 
   const { data: submission, error: subErr } = await supabaseAdmin
@@ -46,26 +56,19 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Submission already processed' }, { status: 409 })
   }
 
-  const submitted = submission.submitted_data as SubmittedPartnerData
+  const submitted = (submission.submitted_data ?? {}) as Record<string, SubmittedValue>
   const fileUrls  = (submission.file_urls ?? {}) as { logo?: string }
-  const contactNotes = [
-    submitted.contact_person_name && `Contact: ${submitted.contact_person_name}`,
-    submitted.contact_person_email && `Email: ${submitted.contact_person_email}`,
-    submitted.contact_person_phone && `Phone: ${submitted.contact_person_phone}`,
-    submitted.additional_notes,
-  ].filter(Boolean).join(' · ') || null
+
+  const schema = await resolveFormSchema(body.event_id, submission.form_type as FormType)
+  const { columns, customFields } = mapFieldsToRecord(submission.form_type as FormType, schema, submitted, fileUrls, { collapsePartnerContactIntoNotes: true })
 
   const { data: partner, error: insertErr } = await supabaseAdmin
     .from('event_sponsors')
     .insert({
+      ...columns,
       event_id:            body.event_id,
-      name:                submitted.company_name,
-      website_url:         submitted.company_website || null,
-      company_description: submitted.company_description || null,
       partner_type:        FORM_TYPE_TO_PARTNER_TYPE[submission.form_type],
-      logo_url:            fileUrls.logo || null,
-      logo_raw_url:        fileUrls.logo || null,
-      notes:               contactNotes,
+      custom_fields:        customFields,
       source:              'onboarding_form',
       form_submission_id:  submission.id,
       announcement_status: 'pending_review',
@@ -74,6 +77,26 @@ export async function POST(req: NextRequest) {
     .single()
 
   if (insertErr) return NextResponse.json({ error: insertErr.message }, { status: 500 })
+
+  if (submission.source === 'hubspot' && fileUrls.logo) {
+    try {
+      const imgRes = await fetch(fileUrls.logo)
+      if (imgRes.ok) {
+        const rawBuffer = Buffer.from(await imgRes.arrayBuffer())
+        const contentType = imgRes.headers.get('content-type') || 'application/octet-stream'
+        const filename = fileUrls.logo.split('/').pop() || 'logo'
+        const processed = await processLogo(rawBuffer, filename, contentType)
+        const processedUrl = await uploadPublicAsset(
+          `events/${body.event_id}/partners/${partner.id}/logo-processed-${Date.now()}.png`,
+          processed.buffer,
+          'image/png'
+        )
+        await supabaseAdmin.from('event_sponsors').update({ logo_url: processedUrl, logo_raw_url: fileUrls.logo }).eq('id', partner.id)
+      }
+    } catch (e) {
+      console.error('Logo processing failed for HubSpot submission', submission.id, e)
+    }
+  }
 
   await supabaseAdmin
     .from('stakeholder_form_submissions')

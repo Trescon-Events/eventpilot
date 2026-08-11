@@ -1,5 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/app/lib/supabase'
+import { getSession } from '@/app/lib/access/session'
+import { hasEventPermission } from '@/app/lib/access/event-access'
+import { resolveFormSchema } from '@/app/lib/forms/resolve-schema'
+import { mapFieldsToRecord, recordToFields } from '@/app/lib/forms/map-to-stakeholder-record'
+import { SubmittedValue } from '@/app/lib/forms/types'
 
 /* GET  /api/events/stakeholders/speakers?event_id=X&status=Y
    POST /api/events/stakeholders/speakers
@@ -11,34 +16,20 @@ import { supabaseAdmin } from '@/app/lib/supabase'
    touches `announcement_status` and the SAE-specific columns added by
    supabase/sae_migration.sql.
 
-   Request/response bodies use the PRD's field names (full_name, job_title,
-   company_name) for a stable API contract; internally these map to the
-   pre-existing columns (name, role, company) rather than duplicating them. */
+   Request body is schema-driven (Phase 4 of the SAE producer-workflow
+   initiative) — `fields` is keyed by whatever FieldSchema.key the event's
+   resolved speaker form declares (resolveFormSchema()), same shape the
+   public onboarding form and the Form Builder use. Response still exposes
+   the PRD's stable full_name/job_title/company_name aliases (fromRow) for
+   backward compatibility with existing callers, plus a `fields` map
+   (recordToFields) so the Hub's manual panel can seed dynamic/custom
+   fields when editing. */
 
 type SpeakerBody = {
   event_id: string
-  full_name: string
-  job_title: string
-  company_name: string
-  country?: string
-  bio?: string
-  linkedin_url?: string
+  fields: Record<string, SubmittedValue>
   source?: 'onboarding_form' | 'manual'
   created_by?: string
-}
-
-function toRow(body: Partial<SpeakerBody>) {
-  const row: Record<string, unknown> = {}
-  if (body.event_id !== undefined) row.event_id = body.event_id
-  if (body.full_name !== undefined) row.name = body.full_name
-  if (body.job_title !== undefined) row.role = body.job_title
-  if (body.company_name !== undefined) row.company = body.company_name
-  if (body.country !== undefined) row.country = body.country || null
-  if (body.bio !== undefined) row.bio = body.bio || null
-  if (body.linkedin_url !== undefined) row.linkedin_url = body.linkedin_url || null
-  if (body.source !== undefined) row.source = body.source
-  if (body.created_by !== undefined) row.created_by = body.created_by || null
-  return row
 }
 
 function fromRow(row: Record<string, unknown>) {
@@ -71,16 +62,35 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   const body = await req.json().catch(() => null) as SpeakerBody | null
-  if (!body?.event_id || !body?.full_name || !body?.job_title || !body?.company_name) {
-    return NextResponse.json({ error: 'event_id, full_name, job_title, company_name required' }, { status: 400 })
+  if (!body?.event_id || !body?.fields) {
+    return NextResponse.json({ error: 'event_id and fields required' }, { status: 400 })
   }
+
+  const session = getSession(req)
+  if (!session?.adm && !(await hasEventPermission(session?.sid, body.event_id, 'sae.stakeholders.edit'))) {
+    return NextResponse.json({ error: 'Not authorized.' }, { status: 403 })
+  }
+
+  const schema = await resolveFormSchema(body.event_id, 'speaker')
+  for (const f of schema) {
+    if (f.required && f.type !== 'file' && !hasValue(body.fields[f.key])) {
+      return NextResponse.json({ error: `${f.label} is required` }, { status: 400 })
+    }
+  }
+
+  const { columns, customFields } = mapFieldsToRecord('speaker', schema, body.fields, {})
 
   const { data, error } = await supabaseAdmin
     .from('event_speakers')
-    .insert({ ...toRow(body), source: body.source ?? 'manual' })
+    .insert({ ...columns, event_id: body.event_id, custom_fields: customFields, source: body.source ?? 'manual', created_by: body.created_by || null })
     .select()
     .single()
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-  return NextResponse.json(fromRow(data), { status: 201 })
+  return NextResponse.json({ ...fromRow(data), fields: recordToFields('speaker', schema, data) }, { status: 201 })
+}
+
+function hasValue(v: SubmittedValue | undefined): boolean {
+  if (Array.isArray(v)) return v.length > 0
+  return !!v && v.trim().length > 0
 }

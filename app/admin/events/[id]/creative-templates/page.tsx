@@ -2,8 +2,10 @@
 
 import { useState, useEffect, use } from 'react'
 import Link from 'next/link'
+import { Download } from 'lucide-react'
 import PageHeader from '@/app/components/PageHeader'
 import { Button, Badge, Select, type BadgeColor } from '@/app/components/ui'
+import { downloadFile } from '@/app/lib/download-file'
 import type { Variant, CreativeTemplateConfig } from '@/app/lib/announcements/composite'
 import CreateAnnouncementModal from './CreateAnnouncementModal'
 import DeleteCreativeModal from './DeleteCreativeModal'
@@ -107,8 +109,13 @@ export default function CreativeTemplatesWorkspacePage({ params }: { params: Pro
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [selectedAnnouncementId, setSelectedAnnouncementId] = useState<string | null>(null)
   const [showCreateModal, setShowCreateModal] = useState(false)
-  const [deleteTarget, setDeleteTarget] = useState<AnnouncementListItem | null>(null)
+  // Holds whatever's pending confirmation in DeleteCreativeModal — 1 item
+  // for a single card's own ✕, 2+ for bulk-select delete (2026-08-03, per
+  // Madhu: test creatives piled up with no way to clear several at once).
+  const [deleteTargets, setDeleteTargets] = useState<AnnouncementListItem[]>([])
   const [deleting, setDeleting] = useState(false)
+  const [selectionMode, setSelectionMode] = useState(false)
+  const [selectedForBulk, setSelectedForBulk] = useState<Set<string>>(new Set())
   // Keyed by ANNOUNCEMENT id now, not stakeholder id (2026-08-02) — a
   // stakeholder can have several creatives visible at once, each needing
   // its own independent "switch variant on regenerate" selection; keying by
@@ -168,6 +175,8 @@ export default function CreativeTemplatesWorkspacePage({ params }: { params: Pro
     // eslint-disable-next-line react-hooks/set-state-in-effect -- reset selection on tab switch, derived UI state not a fetch side effect
     setSelectedId(null)
     setSelectedAnnouncementId(null)
+    setSelectionMode(false)
+    setSelectedForBulk(new Set())
   }, [activeType])
 
   async function handleCreated(stakeholderId: string, announcementId: string) {
@@ -208,14 +217,21 @@ export default function CreativeTemplatesWorkspacePage({ params }: { params: Pro
   }
 
   async function performDelete() {
-    if (!deleteTarget) return
+    if (deleteTargets.length === 0) return
     setDeleting(true)
-    const res = await fetch(`/api/events/stakeholders/announcements/${deleteTarget.id}`, { method: 'DELETE' })
+    const results = await Promise.all(
+      deleteTargets.map(t => fetch(`/api/events/stakeholders/announcements/${t.id}`, { method: 'DELETE' }))
+    )
     setDeleting(false)
-    if (!res.ok) { setMsg('Could not delete this creative.'); return }
-    const deletedId = deleteTarget.id
-    setDeleteTarget(null)
-    if (selectedAnnouncementId === deletedId) setSelectedAnnouncementId(null)
+    const failedCount = results.filter(r => !r.ok).length
+    if (failedCount > 0) {
+      setMsg(deleteTargets.length === 1 ? 'Could not delete this creative.' : `Could not delete ${failedCount} of ${deleteTargets.length} creatives.`)
+    }
+    const deletedIds = new Set(deleteTargets.map(t => t.id))
+    setDeleteTargets([])
+    if (selectedAnnouncementId && deletedIds.has(selectedAnnouncementId)) setSelectedAnnouncementId(null)
+    setSelectedForBulk(new Set())
+    setSelectionMode(false)
     await fetchAll()
   }
 
@@ -267,7 +283,7 @@ export default function CreativeTemplatesWorkspacePage({ params }: { params: Pro
                 const thumb = thumbUrl(activeType, s)
                 const count = results[s.id]?.length ?? 0
                 return (
-                  <button key={s.id} onClick={() => { setSelectedId(s.id); setSelectedAnnouncementId(null) }}
+                  <button key={s.id} onClick={() => { setSelectedId(s.id); setSelectedAnnouncementId(null); setSelectionMode(false); setSelectedForBulk(new Set()) }}
                     style={{
                       display: 'flex', alignItems: 'center', gap: '10px', padding: '9px 10px', borderRadius: '10px',
                       border: 'none', textAlign: 'left', cursor: 'pointer', fontFamily: 'inherit',
@@ -307,16 +323,47 @@ export default function CreativeTemplatesWorkspacePage({ params }: { params: Pro
                     <div style={{ fontSize: '12px', color: 'var(--ink3)' }}>{displaySubtitle(activeType, selected)}</div>
                   </div>
 
-                  <div style={{ fontSize: '10.5px', fontWeight: 800, color: 'var(--ink3)', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '8px' }}>
-                    Creatives ({selectedList.length})
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px', flexWrap: 'wrap', gap: '8px' }}>
+                    <div style={{ fontSize: '10.5px', fontWeight: 800, color: 'var(--ink3)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                      Creatives ({selectedList.length})
+                    </div>
+                    {/* Bulk select/delete (2026-08-03, per Madhu) — test
+                        creatives pile up fast with no way to clear several
+                        at once; individual ✕ still works outside this mode. */}
+                    {selectionMode ? (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <span style={{ fontSize: '11.5px', color: 'var(--ink3)' }}>{selectedForBulk.size} selected</span>
+                        <Button variant="ghost" onClick={() => setSelectedForBulk(new Set(selectedList.map(i => i.id)))}>Select All</Button>
+                        <Button variant="ghost" onClick={() => setSelectedForBulk(new Set())}>Clear</Button>
+                        <Button variant="red" disabled={selectedForBulk.size === 0}
+                          onClick={() => setDeleteTargets(selectedList.filter(i => selectedForBulk.has(i.id)))}>
+                          Delete Selected
+                        </Button>
+                        <Button variant="ghost" onClick={() => { setSelectionMode(false); setSelectedForBulk(new Set()) }}>Cancel</Button>
+                      </div>
+                    ) : (
+                      <Button variant="ghost" onClick={() => setSelectionMode(true)}>Select</Button>
+                    )}
                   </div>
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: '12px', marginBottom: '24px' }}>
                     {selectedList.map(item => {
                       const variantName = activeVariants.find(v => v.id === item.creative_variant_id)?.name ?? '—'
                       const isSelected = selectedAnnouncement?.id === item.id
+                      const isBulkChecked = selectedForBulk.has(item.id)
+                      function toggleBulk() {
+                        setSelectedForBulk(prev => {
+                          const next = new Set(prev)
+                          if (next.has(item.id)) next.delete(item.id); else next.add(item.id)
+                          return next
+                        })
+                      }
                       return (
-                        <div key={item.id} onClick={() => setSelectedAnnouncementId(item.id)}
-                          style={{ cursor: 'pointer', borderRadius: '10px', overflow: 'hidden', border: isSelected ? '2px solid var(--teal-mid)' : '1px solid var(--border-light)', background: 'var(--surface)' }}>
+                        <div key={item.id} onClick={() => selectionMode ? toggleBulk() : setSelectedAnnouncementId(item.id)}
+                          style={{ cursor: 'pointer', position: 'relative', borderRadius: '10px', overflow: 'hidden', border: (selectionMode ? isBulkChecked : isSelected) ? '2px solid var(--teal-mid)' : '1px solid var(--border-light)', background: 'var(--surface)' }}>
+                          {selectionMode && (
+                            <input type="checkbox" checked={isBulkChecked} onChange={toggleBulk} onClick={e => e.stopPropagation()}
+                              style={{ position: 'absolute', top: '8px', left: '8px', zIndex: 5, width: '16px', height: '16px', cursor: 'pointer' }} />
+                          )}
                           <div style={{ aspectRatio: '4 / 5', background: 'var(--card)', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
                             {item.creative_url ? (
                               // eslint-disable-next-line @next/next/no-img-element -- small creative-list thumbnail
@@ -329,7 +376,9 @@ export default function CreativeTemplatesWorkspacePage({ params }: { params: Pro
                             <div style={{ fontSize: '11px', fontWeight: 700, color: 'var(--ink)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{variantName}</div>
                             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: '4px' }}>
                               <Badge color={statusColor(item.status)}>{item.status}</Badge>
-                              <button onClick={e => { e.stopPropagation(); setDeleteTarget(item) }} title="Delete this creative" style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--red)', fontSize: '13px' }}>✕</button>
+                              {!selectionMode && (
+                                <button onClick={e => { e.stopPropagation(); setDeleteTargets([item]) }} title="Delete this creative" style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--red)', fontSize: '13px' }}>✕</button>
+                              )}
                             </div>
                             <div style={{ fontSize: '10px', color: 'var(--ink4)', marginTop: '4px' }}>{new Date(item.created_at).toLocaleDateString()}</div>
                           </div>
@@ -369,6 +418,22 @@ export default function CreativeTemplatesWorkspacePage({ params }: { params: Pro
                           <Button variant="ghost" onClick={() => regenerateCreative(selectedAnnouncement.id, selected.id)} disabled={regeneratingCreative}>
                             {regeneratingCreative ? 'Regenerating…' : 'Regenerate Creative'}
                           </Button>
+                          {/* Download (2026-08-04, per Madhu: "if they want
+                              to download and use it for approvals etc. they
+                              can do so easily") — same forced-download
+                              helper as the Stakeholder Hub's photo/logo
+                              download buttons, needed for the same reason:
+                              this file lives on a cross-origin storage
+                              domain, so a plain <a download> wouldn't
+                              reliably force a save. */}
+                          {selectedAnnouncement.creative_url && (
+                            <Button variant="ghost"
+                              onClick={() => downloadFile(selectedAnnouncement.creative_url!, `${displayName(activeType, selected).replace(/\s+/g, '-')}-creative.png`).catch(() => {})}
+                              title="Download this creative">
+                              <Download size={13} style={{ marginRight: '5px', verticalAlign: '-2px' }} />
+                              Download
+                            </Button>
+                          )}
                         </div>
                       </div>
 
@@ -424,13 +489,12 @@ export default function CreativeTemplatesWorkspacePage({ params }: { params: Pro
         />
       )}
 
-      {deleteTarget && (
+      {deleteTargets.length > 0 && (
         <DeleteCreativeModal
-          variantName={activeVariants.find(v => v.id === deleteTarget.creative_variant_id)?.name ?? 'this creative'}
-          status={deleteTarget.status}
+          items={deleteTargets.map(t => ({ variantName: activeVariants.find(v => v.id === t.creative_variant_id)?.name ?? 'this creative', status: t.status }))}
           deleting={deleting}
           onConfirm={performDelete}
-          onClose={() => setDeleteTarget(null)}
+          onClose={() => setDeleteTargets([])}
         />
       )}
 

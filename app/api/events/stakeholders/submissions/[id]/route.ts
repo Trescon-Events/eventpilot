@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/app/lib/supabase'
+import { getSession } from '@/app/lib/access/session'
+import { hasEventPermission } from '@/app/lib/access/event-access'
 
 /* PATCH /api/events/stakeholders/submissions/[id]
    Body: { status: 'rejected' }
@@ -12,6 +14,14 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   const body = await req.json().catch(() => null) as { status?: string } | null
   if (body?.status !== 'rejected') {
     return NextResponse.json({ error: "only status: 'rejected' is supported here" }, { status: 400 })
+  }
+
+  const { data: existing } = await supabaseAdmin.from('stakeholder_form_submissions').select('event_id').eq('id', id).single()
+  if (!existing) return NextResponse.json({ error: 'Submission not found' }, { status: 404 })
+
+  const session = getSession(req)
+  if (!session?.adm && !(await hasEventPermission(session?.sid, existing.event_id, 'sae.submissions.reject'))) {
+    return NextResponse.json({ error: 'Not authorized.' }, { status: 403 })
   }
 
   const { data, error } = await supabaseAdmin

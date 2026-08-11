@@ -2,22 +2,51 @@
 
 import { useState, useEffect, use } from 'react'
 import Link from 'next/link'
+import { Download } from 'lucide-react'
 import PageHeader from '@/app/components/PageHeader'
-import { Button, Card, Badge, Input, Select, Textarea } from '@/app/components/ui'
+import { Button, Card, Badge, Input, Select } from '@/app/components/ui'
+import { downloadFile, downloadFilesAsZip } from '@/app/lib/download-file'
 import CalendarView from './CalendarView'
 import DeletedTab from './DeletedTab'
 import PhotoUploadModal from './PhotoUploadModal'
 import LogoApprovalModal from './LogoApprovalModal'
 import DeleteConfirmModal from './DeleteConfirmModal'
+import HeadBoxEditorModal from './HeadBoxEditorModal'
+import InviteComposer from './InviteComposer'
+import { FormFieldInput } from '@/app/components/forms/FormFieldInput'
+import { FieldSchema, FormType, SubmittedValue, asText } from '@/app/lib/forms/types'
+import { recordToFields } from '@/app/lib/forms/map-to-stakeholder-record'
+
+// Small download-icon button shown under a photo/logo thumbnail (2026-08-04,
+// per Madhu: "our team usually need them for different purposes so they can
+// easily download cleaned versions"). Stops propagation so it never
+// triggers whatever the thumbnail itself might be wrapped in.
+function ThumbDownloadButton({ url, filename }: { url: string; filename: string }) {
+  return (
+    <button
+      onClick={e => { e.stopPropagation(); downloadFile(url, filename).catch(() => {}) }}
+      title="Download"
+      style={{
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        width: '48px', padding: '2px 0', marginTop: '4px',
+        background: 'none', border: 'none', color: 'var(--ink4)', cursor: 'pointer',
+      }}
+    >
+      <Download size={13} />
+    </button>
+  )
+}
 
 type Speaker = {
   id: string; event_id: string
   full_name: string; job_title: string; company_name: string
   country: string | null; bio: string | null; linkedin_url: string | null
   photo_url: string | null; photo_processed_url: string | null; company_logo_url: string | null
+  photo_head_box: { centerXRatio: number; centerYRatio: number; heightRatio: number } | null
   announcement_status: 'pending_review' | 'approved' | 'assets_missing' | 'ready' | 'archived'
   source: 'onboarding_form' | 'manual'
   notes: string | null; created_at: string
+  custom_fields: Record<string, SubmittedValue> | null
 }
 
 type Partner = {
@@ -28,13 +57,23 @@ type Partner = {
   announcement_status: 'pending_review' | 'approved' | 'assets_missing' | 'ready' | 'archived'
   source: 'onboarding_form' | 'manual'
   notes: string | null; created_at: string
+  custom_fields: Record<string, SubmittedValue> | null
 }
 
 type Submission = {
   id: string; event_id: string; form_type: string
-  submitted_data: Record<string, string>
+  submitted_data: Record<string, SubmittedValue>
   file_urls: { photo?: string; company_logo?: string; logo?: string } | null
   status: string; submitted_at: string
+}
+
+type Invite = {
+  id: string; event_id: string; form_type: string; template_id: string
+  invite_token: string; recipient_name: string; recipient_email: string
+  status: 'draft' | 'sent' | 'submitted'; send_error: string | null
+  actual_subject: string; actual_body_html: string
+  sent_at: string | null; reminder_count: number
+  submission: { status: string; processed_into: string | null } | null
 }
 
 type CategoryKind = 'speaker' | 'partner'
@@ -66,15 +105,6 @@ const STATUS_BADGE: Record<string, { label: string; color: 'amber' | 'red' | 'te
   archived:       { label: 'Archived', color: 'grey' },
 }
 
-type EditDraft = {
-  full_name: string; job_title: string; company_name: string; country: string; bio: string; linkedin_url: string
-  company_website: string; company_description: string; partner_type: string
-}
-const EMPTY_DRAFT: EditDraft = {
-  full_name: '', job_title: '', company_name: '', country: '', bio: '', linkedin_url: '',
-  company_website: '', company_description: '', partner_type: 'sponsor',
-}
-
 function matchesSearch(item: Speaker | Partner, kind: CategoryKind, q: string): boolean {
   if (!q) return true
   const haystack = kind === 'speaker'
@@ -91,32 +121,45 @@ export default function StakeholderHubPage({ params }: { params: Promise<{ id: s
   const [speakers, setSpeakers] = useState<Speaker[]>([])
   const [partners, setPartners] = useState<Partner[]>([])
   const [submissions, setSubmissions] = useState<Submission[]>([])
+  const [invites, setInvites] = useState<Invite[]>([])
+  const [composeOpen, setComposeOpen] = useState(false)
   const [loading, setLoading] = useState(true)
   const [msg, setMsg] = useState<string | null>(null)
   const [search, setSearch] = useState('')
 
   const [panelOpen, setPanelOpen] = useState(false)
   const [editingId, setEditingId] = useState<string | null>(null)
-  const [draft, setDraft] = useState<EditDraft>(EMPTY_DRAFT)
+  const [values, setValues] = useState<Record<string, SubmittedValue>>({})
+  const [partnerType, setPartnerType] = useState('sponsor')
+  const [formSchema, setFormSchema] = useState<FieldSchema[]>([])
   const [saving, setSaving] = useState(false)
   const [uploadingId, setUploadingId] = useState<string | null>(null)
   const [photoUploadTarget, setPhotoUploadTarget] = useState<{ speakerId: string; file: File } | null>(null)
   const [logoApproval, setLogoApproval] = useState<{ url: string; item: Speaker | Partner; assetType: 'photo' | 'company_logo' | 'logo' } | null>(null)
+  const [headBoxTarget, setHeadBoxTarget] = useState<Speaker | null>(null)
 
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [deleteConfirm, setDeleteConfirm] = useState<(Speaker | Partner)[] | null>(null)
   const [deleting, setDeleting] = useState(false)
+  const [bulkDownloading, setBulkDownloading] = useState<'photo' | 'logo' | null>(null)
+  const [permissions, setPermissions] = useState<Set<string>>(new Set())
 
   const category = CATEGORIES.find(c => c.key === activeTab)
+  // '*' = platform admin (getEventPermissions() returns this instead of
+  // enumerating every key) — see app/lib/access/event-access.ts.
+  const can = (key: string) => permissions.has('*') || permissions.has(key)
 
   async function fetchAll() {
     setLoading(true)
-    const [spRes, ptRes] = await Promise.all([
+    const [spRes, ptRes, permRes] = await Promise.all([
       fetch(`/api/events/stakeholders/speakers?event_id=${eventId}`),
       fetch(`/api/events/stakeholders/partners?event_id=${eventId}`),
+      fetch(`/api/events/access/me?event_id=${eventId}`),
     ])
     setSpeakers(await spRes.json().catch(() => []))
     setPartners(await ptRes.json().catch(() => []))
+    const permData = await permRes.json().catch(() => ({ permissions: [] }))
+    setPermissions(new Set(permData.permissions ?? []))
     setLoading(false)
   }
 
@@ -125,13 +168,28 @@ export default function StakeholderHubPage({ params }: { params: Promise<{ id: s
     setSubmissions(await res.json().catch(() => []))
   }
 
+  async function fetchInvites(formType: string) {
+    const res = await fetch(`/api/events/stakeholders/invites?event_id=${eventId}&form_type=${formType}`)
+    setInvites(await res.json().catch(() => []))
+  }
+
+  async function fetchFormSchema(formType: string) {
+    const res = await fetch(`/api/events/stakeholders/forms/${formType}/schema?event_id=${eventId}`)
+    const data = await res.json().catch(() => ({ fields: [] }))
+    setFormSchema(data.fields ?? [])
+  }
+
   // eslint-disable-next-line react-hooks/set-state-in-effect -- standard fetch-on-mount; matches app/admin/events/[id]/page.tsx's fetchAll effect
   useEffect(() => { fetchAll() }, [eventId])
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- same fetch-on-dependency-change pattern as the effect above
-    if (category?.formType) fetchSubmissions(category.formType)
-    else setSubmissions([])
+    if (category?.formType) { fetchSubmissions(category.formType); fetchInvites(category.formType) }
+    else { setSubmissions([]); setInvites([]) }
   }, [eventId, category?.formType])
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- fetch the resolved schema for whichever form this category maps to (fallback 'sponsor' for categories with no dedicated form) — used by the manual Add/Edit panel below
+    if (category) fetchFormSchema(category.kind === 'speaker' ? 'speaker' : (category.formType ?? 'sponsor'))
+  }, [eventId, category?.key])
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- reset per-tab UI state (selection, search) on tab switch, not a fetch side effect
     setSelectedIds(new Set())
@@ -142,20 +200,17 @@ export default function StakeholderHubPage({ params }: { params: Promise<{ id: s
 
   function openAdd() {
     setEditingId(null)
-    setDraft(EMPTY_DRAFT)
+    setValues({})
+    setPartnerType('sponsor')
     setPanelOpen(true)
   }
 
   function openEdit(item: Speaker | Partner) {
     if (!category) return
     setEditingId(item.id)
-    if (category.kind === 'speaker') {
-      const s = item as Speaker
-      setDraft({ ...EMPTY_DRAFT, full_name: s.full_name, job_title: s.job_title, company_name: s.company_name, country: s.country ?? '', bio: s.bio ?? '', linkedin_url: s.linkedin_url ?? '' })
-    } else {
-      const p = item as Partner
-      setDraft({ ...EMPTY_DRAFT, company_name: p.company_name, company_website: p.company_website ?? '', company_description: p.company_description ?? '', partner_type: p.partner_type })
-    }
+    const formType: FormType = category.kind === 'speaker' ? 'speaker' : (category.formType as FormType | undefined) ?? 'sponsor'
+    setValues(recordToFields(formType, formSchema, item as unknown as Record<string, unknown>))
+    if (category.kind === 'partner') setPartnerType((item as Partner).partner_type)
     setPanelOpen(true)
   }
 
@@ -164,8 +219,8 @@ export default function StakeholderHubPage({ params }: { params: Promise<{ id: s
     setSaving(true)
     const base = category.kind === 'speaker' ? '/api/events/stakeholders/speakers' : '/api/events/stakeholders/partners'
     const body = category.kind === 'speaker'
-      ? { event_id: eventId, full_name: draft.full_name, job_title: draft.job_title, company_name: draft.company_name, country: draft.country, bio: draft.bio, linkedin_url: draft.linkedin_url }
-      : { event_id: eventId, company_name: draft.company_name, company_website: draft.company_website, company_description: draft.company_description, partner_type: draft.partner_type }
+      ? { event_id: eventId, fields: values }
+      : { event_id: eventId, fields: values, partner_type: partnerType, form_type: category.formType ?? 'sponsor' }
 
     const res = editingId
       ? await fetch(`${base}/${editingId}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
@@ -199,19 +254,83 @@ export default function StakeholderHubPage({ params }: { params: Promise<{ id: s
   async function uploadAsset(item: Speaker | Partner, assetType: 'company_logo' | 'logo', file: File) {
     if (!category) return
     setUploadingId(item.id)
+    setMsg(null)
     const base = category.kind === 'speaker' ? '/api/events/stakeholders/speakers' : '/api/events/stakeholders/partners'
     const form = new FormData()
     form.append('file', file)
     if (category.kind === 'speaker') form.append('asset_type', assetType)
-    const res = await fetch(`${base}/${item.id}/upload-asset`, { method: 'POST', body: form })
+    let res: Response
+    try {
+      res = await fetch(`${base}/${item.id}/upload-asset`, { method: 'POST', body: form })
+    } catch (e) {
+      // Network failure never reached the server at all — previously
+      // silently swallowed here (real bug reported live, 2026-08-04:
+      // "when I upload company logo nothing happens" — ANY failure in this
+      // function, network or server-side, produced zero visible feedback,
+      // since the only success path required `logoUrl` to be truthy and
+      // nothing else was ever surfaced).
+      setUploadingId(null)
+      setMsg(`Could not upload logo: ${(e as Error).message}`)
+      return
+    }
     const data = await res.json().catch(() => ({}))
-    await fetchAll()
     setUploadingId(null)
+    if (!res.ok) { setMsg(data?.error ?? `Could not upload logo (${res.status}).`); return }
+    await fetchAll()
     // Every logo path (partner logo, speaker's own company logo) runs
     // through the Logo Engine automatically — offer a look-and-confirm step
     // rather than trusting the automatic background removal blindly.
     const logoUrl = data.company_logo_url || data.logo_url
     if (logoUrl) setLogoApproval({ url: logoUrl, item, assetType })
+    else setMsg('Upload succeeded but no logo URL was returned — please try again.')
+  }
+
+  async function removeCompanyLogo(speakerId: string) {
+    setUploadingId(speakerId)
+    setMsg(null)
+    const res = await fetch(`/api/events/stakeholders/speakers/${speakerId}`, {
+      method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ remove_company_logo: true }),
+    })
+    setUploadingId(null)
+    if (!res.ok) { setMsg('Could not remove the logo — please try again.'); return }
+    await fetchAll()
+  }
+
+  // Bulk download (2026-08-04, per Madhu: "when multiple speakers are
+  // selected, a button each should show on top to download photos and one
+  // for logos... bulk (more than one) should download as a zip file") —
+  // speaker-only (photo_url/company_logo_url are Speaker-only fields), so
+  // these two buttons only render for the Speakers category, not Partners.
+  // Silently skips any selected speaker who doesn't have that asset rather
+  // than failing the whole batch over it.
+  async function bulkDownloadAssets(kind: 'photo' | 'logo') {
+    const selected = visibleItems.filter(i => selectedIds.has(i.id)) as Speaker[]
+    const files = selected
+      .map(s => {
+        if (kind === 'photo') {
+          const url = s.photo_processed_url || s.photo_url
+          if (!url) return null
+          return { url, filename: `${s.full_name.replace(/\s+/g, '-')}-photo.${s.photo_processed_url ? 'png' : 'jpg'}` }
+        }
+        if (!s.company_logo_url) return null
+        return { url: s.company_logo_url, filename: `${s.full_name.replace(/\s+/g, '-')}-logo.png` }
+      })
+      .filter((f): f is { url: string; filename: string } => f !== null)
+
+    if (files.length === 0) {
+      setMsg(`None of the ${selected.length} selected speakers have a ${kind === 'photo' ? 'photo' : 'company logo'} uploaded.`)
+      return
+    }
+
+    setBulkDownloading(kind)
+    setMsg(null)
+    try {
+      await downloadFilesAsZip(files, `speaker-${kind}s-${Date.now()}.zip`)
+    } catch (e) {
+      setMsg(`Could not prepare download: ${(e as Error).message}`)
+    }
+    setBulkDownloading(null)
   }
 
   async function processSubmission(submission: Submission) {
@@ -225,6 +344,27 @@ export default function StakeholderHubPage({ params }: { params: Promise<{ id: s
     if (!category?.formType) return
     await fetch(`/api/events/stakeholders/submissions/${submission.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status: 'rejected' }) })
     fetchSubmissions(category.formType)
+  }
+
+  async function remindInvite(invite: Invite) {
+    if (!category?.formType) return
+    const res = await fetch(`/api/events/stakeholders/invites/${invite.id}/remind`, { method: 'POST' })
+    if (res.ok) fetchInvites(category.formType)
+    else setMsg('Could not send reminder.')
+  }
+
+  async function retryInvite(invite: Invite) {
+    if (!category?.formType) return
+    const res = await fetch('/api/events/stakeholders/invites/send', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        invite_token: invite.invite_token, event_id: invite.event_id, form_type: invite.form_type, template_id: invite.template_id,
+        recipient_name: invite.recipient_name, recipient_email: invite.recipient_email,
+        subject: invite.actual_subject, html: invite.actual_body_html,
+      }),
+    })
+    if (res.ok) fetchInvites(category.formType)
+    else setMsg('Retry failed — check the invite for details.')
   }
 
   async function performDelete(alsoRemoveFromWebsite: boolean) {
@@ -327,7 +467,12 @@ export default function StakeholderHubPage({ params }: { params: Promise<{ id: s
             {viewMode === 'registry' && (
               <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                 <Input value={search} onChange={e => setSearch(e.target.value)} placeholder={`Search ${category.label.toLowerCase()}…`} style={{ width: '240px' }} />
-                <Button variant="lime" onClick={openAdd}>+ Add {category.kind === 'speaker' ? 'Speaker' : 'Partner'}</Button>
+                {category.formType && can('sae.forms.manage') && (
+                  <Link href={`/admin/events/${eventId}/stakeholders/hubspot-form/${category.formType}`}>
+                    <Button variant="ghost">Connect HubSpot Form</Button>
+                  </Link>
+                )}
+                {can('sae.stakeholders.edit') && <Button variant="lime" onClick={openAdd}>+ Add {category.kind === 'speaker' ? 'Speaker' : 'Partner'}</Button>}
               </div>
             )}
           </div>
@@ -343,7 +488,7 @@ export default function StakeholderHubPage({ params }: { params: Promise<{ id: s
           )}
 
           {/* Submissions inbox */}
-          {category.formType && submissions.length > 0 && (
+          {category.formType && submissions.length > 0 && can('sae.submissions.view') && (
             <div style={{ marginBottom: '18px' }}>
             <Card padded>
               <div style={{ fontSize: '11px', fontWeight: 800, color: 'var(--amber)', letterSpacing: '0.6px', textTransform: 'uppercase', marginBottom: '10px' }}>
@@ -353,11 +498,44 @@ export default function StakeholderHubPage({ params }: { params: Promise<{ id: s
                 {submissions.map(s => (
                   <div key={s.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 12px', background: 'var(--amber-light)', border: '1px solid var(--amber-border)', borderRadius: '8px' }}>
                     <div style={{ fontSize: '12.5px', color: 'var(--ink)' }}>
-                      {s.submitted_data.full_name || s.submitted_data.company_name} {s.submitted_data.company_name && s.submitted_data.full_name ? `· ${s.submitted_data.company_name}` : ''}
+                      {asText(s.submitted_data.full_name) || asText(s.submitted_data.company_name)} {s.submitted_data.company_name && s.submitted_data.full_name ? `· ${asText(s.submitted_data.company_name)}` : ''}
                     </div>
                     <div style={{ display: 'flex', gap: '6px' }}>
-                      <Button variant="teal" onClick={() => processSubmission(s)}>Process</Button>
-                      <Button variant="ghost" onClick={() => rejectSubmission(s)}>Reject</Button>
+                      {can('sae.submissions.process') && <Button variant="teal" onClick={() => processSubmission(s)}>Process</Button>}
+                      {can('sae.submissions.reject') && <Button variant="ghost" onClick={() => rejectSubmission(s)}>Reject</Button>}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </Card>
+            </div>
+          )}
+
+          {/* Invites tracker */}
+          {category.formType && can('sae.stakeholders.view') && (
+            <div style={{ marginBottom: '18px' }}>
+            <Card padded>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+                <div style={{ fontSize: '11px', fontWeight: 800, color: 'var(--ink3)', letterSpacing: '0.6px', textTransform: 'uppercase' }}>Invites{invites.length > 0 ? ` (${invites.length})` : ''}</div>
+                {can('sae.invites.send') && <Button variant="lime" onClick={() => setComposeOpen(true)}>+ Invite</Button>}
+              </div>
+              {invites.length === 0 && <div style={{ fontSize: '12.5px', color: 'var(--ink3)' }}>No invites sent yet for this category.</div>}
+              <div style={{ display: 'grid', gap: '8px' }}>
+                {invites.map(inv => (
+                  <div key={inv.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 12px', background: 'var(--card-hi)', border: '1px solid var(--surface)', borderRadius: '8px' }}>
+                    <div>
+                      <div style={{ fontSize: '12.5px', fontWeight: 700, color: 'var(--ink)' }}>{inv.recipient_name} <span style={{ fontWeight: 400, color: 'var(--ink3)' }}>· {inv.recipient_email}</span></div>
+                      <div style={{ fontSize: '11px', color: 'var(--ink4)', marginTop: '2px' }}>
+                        {inv.status === 'submitted' && 'Submitted'}
+                        {inv.status === 'sent' && `Sent${inv.sent_at ? ' ' + new Date(inv.sent_at).toLocaleDateString() : ''}`}
+                        {inv.status === 'draft' && `Send failed${inv.send_error ? `: ${inv.send_error}` : ''}`}
+                        {inv.reminder_count > 0 && ` · Reminded ${inv.reminder_count}×`}
+                      </div>
+                    </div>
+                    <div style={{ display: 'flex', gap: '6px' }}>
+                      {inv.status === 'sent' && can('sae.invites.send') && <Button variant="ghost" onClick={() => remindInvite(inv)}>Send Reminder</Button>}
+                      {inv.status === 'draft' && can('sae.invites.send') && <Button variant="red" onClick={() => retryInvite(inv)}>Retry Send</Button>}
+                      {inv.status === 'submitted' && <Badge color="teal">Processed via Submissions Inbox</Badge>}
                     </div>
                   </div>
                 ))}
@@ -368,9 +546,23 @@ export default function StakeholderHubPage({ params }: { params: Promise<{ id: s
 
           {/* Bulk action bar */}
           {selectedIds.size > 0 && (
-            <div style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '10px 14px', background: 'var(--red-light)', border: '1px solid var(--red-border)', borderRadius: '8px', marginBottom: '14px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '10px 14px', background: 'var(--red-light)', border: '1px solid var(--red-border)', borderRadius: '8px', marginBottom: '14px', flexWrap: 'wrap' }}>
               <span style={{ fontSize: '12.5px', fontWeight: 700, color: 'var(--red)' }}>{selectedIds.size} selected</span>
-              <Button variant="red" onClick={() => setDeleteConfirm(visibleItems.filter(i => selectedIds.has(i.id)))}>Delete Selected</Button>
+              {/* Bulk download (2026-08-04, per Madhu) — speaker-only, see
+                  bulkDownloadAssets()'s own doc comment. More than one
+                  matching asset zips automatically; exactly one downloads
+                  directly (no point zipping a single file). */}
+              {category?.kind === 'speaker' && (
+                <>
+                  <Button variant="ghost" onClick={() => bulkDownloadAssets('photo')} disabled={bulkDownloading !== null}>
+                    {bulkDownloading === 'photo' ? 'Preparing…' : 'Download Photos'}
+                  </Button>
+                  <Button variant="ghost" onClick={() => bulkDownloadAssets('logo')} disabled={bulkDownloading !== null}>
+                    {bulkDownloading === 'logo' ? 'Preparing…' : 'Download Logos'}
+                  </Button>
+                </>
+              )}
+              {can('sae.stakeholders.delete') && <Button variant="red" onClick={() => setDeleteConfirm(visibleItems.filter(i => selectedIds.has(i.id)))}>Delete Selected</Button>}
               <button onClick={() => setSelectedIds(new Set())} style={{ background: 'none', border: 'none', color: 'var(--ink3)', fontSize: '12px', fontWeight: 700, cursor: 'pointer' }}>Clear selection</button>
             </div>
           )}
@@ -401,9 +593,39 @@ export default function StakeholderHubPage({ params }: { params: Promise<{ id: s
                   <Card key={item.id} padded>
                     <div style={{ display: 'flex', alignItems: 'flex-start', gap: '14px' }}>
                       <input type="checkbox" checked={selectedIds.has(item.id)} onChange={() => toggleSelected(item.id)} style={{ marginTop: '18px' }} />
-                      <div style={{ width: '48px', height: '48px', borderRadius: '10px', background: 'var(--surface)', border: '1px solid var(--border-light)', flexShrink: 0, overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                        {thumb ? <img src={thumb} alt={name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : <span style={{ fontSize: '18px', color: 'var(--ink4)' }}>{name?.[0]}</span>}
+                      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', flexShrink: 0 }}>
+                        <div style={{ width: '48px', height: '48px', borderRadius: '10px', background: 'var(--surface)', border: '1px solid var(--border-light)', overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                          {thumb ? <img src={thumb} alt={name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : <span style={{ fontSize: '18px', color: 'var(--ink4)' }}>{name?.[0]}</span>}
+                        </div>
+                        {/* Download icon (2026-08-04, per Madhu: "our team
+                            usually need them for different purposes so they
+                            can easily download cleaned versions") — only
+                            when there's actually a processed asset to
+                            download, not the bare-initial placeholder. */}
+                        {thumb && <ThumbDownloadButton url={thumb} filename={`${name.replace(/\s+/g, '-')}-photo.${isSpeaker ? 'jpg' : 'png'}`} />}
                       </div>
+                      {/* Company logo indicator (2026-08-04, per Madhu) —
+                          previously a speaker's uploaded company logo had no
+                          persistent visual trace anywhere in the Hub once
+                          the upload review modal closed, the only feedback
+                          was a one-time approval popup. `objectFit: contain`
+                          (not cover, unlike the photo thumb above) — a logo
+                          shouldn't get cropped to fill a square. Checkerboard
+                          background shows through any transparency, same
+                          convention as the upload review modals. */}
+                      {isSpeaker && s.company_logo_url && (
+                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', flexShrink: 0 }}>
+                          <div title="Company logo" style={{
+                            width: '48px', height: '48px', borderRadius: '10px',
+                            background: 'repeating-conic-gradient(var(--border-light) 0% 25%, var(--surface) 0% 50%) 50% / 12px 12px',
+                            border: '1px solid var(--border-light)', overflow: 'hidden',
+                            display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '4px',
+                          }}>
+                            <img src={s.company_logo_url} alt={`${name} company logo`} style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain' }} />
+                          </div>
+                          <ThumbDownloadButton url={s.company_logo_url} filename={`${name.replace(/\s+/g, '-')}-logo.png`} />
+                        </div>
+                      )}
                       <div style={{ flex: 1, minWidth: 0 }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
                           <div style={{ fontSize: '14px', fontWeight: 800, color: 'var(--ink)' }}>{name}</div>
@@ -415,12 +637,33 @@ export default function StakeholderHubPage({ params }: { params: Promise<{ id: s
                         <div style={{ fontSize: '11px', color: 'var(--ink4)', marginTop: '2px' }}>
                           {isSpeaker && s.country ? `${s.country} · ` : ''}via {item.source === 'onboarding_form' ? 'Onboarding Form' : 'Manual'}
                         </div>
+                        {item.custom_fields && Object.keys(item.custom_fields).length > 0 && (
+                          <details style={{ marginTop: '6px', fontSize: '11.5px', color: 'var(--ink3)' }}>
+                            <summary style={{ cursor: 'pointer', fontWeight: 700 }}>Additional Details</summary>
+                            <div style={{ marginTop: '4px', display: 'grid', gap: '2px' }}>
+                              {Object.entries(item.custom_fields).map(([k, v]) => (
+                                <div key={k}>{formSchema.find(f => f.key === k)?.label ?? k}: {asText(v)}</div>
+                              ))}
+                            </div>
+                          </details>
+                        )}
                         <div style={{ display: 'flex', gap: '8px', marginTop: '10px', flexWrap: 'wrap' }}>
-                          <Button variant="ghost" onClick={() => openEdit(item)}>Edit</Button>
+                          {can('sae.stakeholders.edit') && <Button variant="ghost" onClick={() => openEdit(item)}>Edit</Button>}
                           {isSpeaker ? (
+                            // "Done" state (2026-08-04, per Madhu: "at least
+                            // once if upload photo... is performed, let the
+                            // button turn green so user knows that step is
+                            // done. however they still can upload again" —
+                            // purely visual, the input/onChange below is
+                            // completely unchanged, still re-uploadable.
                             <label style={{ display: 'inline-flex' }}>
-                              <span style={{ padding: '7px 14px', borderRadius: '10px', border: '1.5px solid var(--border)', background: 'transparent', color: 'var(--ink2)', fontSize: '13px', fontWeight: 700, cursor: 'pointer' }}>
-                                Upload Photo
+                              <span style={{
+                                padding: '7px 14px', borderRadius: '10px', fontSize: '13px', fontWeight: 700, cursor: 'pointer',
+                                border: (s.photo_processed_url || s.photo_url) ? '1.5px solid color-mix(in srgb, var(--success) 45%, transparent)' : '1.5px solid var(--border)',
+                                background: (s.photo_processed_url || s.photo_url) ? 'var(--success-light)' : 'transparent',
+                                color: (s.photo_processed_url || s.photo_url) ? 'var(--success)' : 'var(--ink2)',
+                              }}>
+                                {(s.photo_processed_url || s.photo_url) ? '✓ Upload Photo' : 'Upload Photo'}
                               </span>
                               <input type="file" accept="image/jpeg,image/png,image/webp" style={{ display: 'none' }}
                                 onChange={e => { const f = e.target.files?.[0]; if (f) setPhotoUploadTarget({ speakerId: item.id, file: f }); e.target.value = '' }} />
@@ -436,14 +679,37 @@ export default function StakeholderHubPage({ params }: { params: Promise<{ id: s
                           )}
                           {isSpeaker && (
                             <label style={{ display: 'inline-flex' }}>
-                              <span style={{ padding: '7px 14px', borderRadius: '10px', border: '1.5px solid var(--border)', background: 'transparent', color: 'var(--ink2)', fontSize: '13px', fontWeight: 700, cursor: 'pointer' }}>
-                                {uploadingId === item.id ? 'Uploading…' : 'Upload Company Logo'}
+                              <span style={{
+                                padding: '7px 14px', borderRadius: '10px', fontSize: '13px', fontWeight: 700, cursor: 'pointer',
+                                border: s.company_logo_url ? '1.5px solid color-mix(in srgb, var(--success) 45%, transparent)' : '1.5px solid var(--border)',
+                                background: s.company_logo_url ? 'var(--success-light)' : 'transparent',
+                                color: s.company_logo_url ? 'var(--success)' : 'var(--ink2)',
+                              }}>
+                                {uploadingId === item.id ? 'Uploading…' : (s.company_logo_url ? '✓ Upload Company Logo' : 'Upload Company Logo')}
                               </span>
                               <input type="file" accept="image/*" style={{ display: 'none' }} disabled={uploadingId === item.id}
                                 onChange={e => { const f = e.target.files?.[0]; if (f) uploadAsset(item, 'company_logo', f); e.target.value = '' }} />
                             </label>
                           )}
-                          {item.announcement_status !== 'ready' && item.announcement_status !== 'archived' && (
+                          {/* Remove Logo (2026-08-04, per Madhu: "currently
+                              we can only reupload a different one, but if we
+                              decide to remove it altogether, let there be an
+                              option for it too") — no confirmation modal,
+                              unlike deleting a whole speaker: this is a
+                              single low-stakes, fully reversible field
+                              (re-uploading restores it immediately), matching
+                              Upload Company Logo's own lack of ceremony. */}
+                          {isSpeaker && s.company_logo_url && (
+                            <Button variant="ghost" onClick={() => removeCompanyLogo(item.id)} disabled={uploadingId === item.id}>
+                              Remove Logo
+                            </Button>
+                          )}
+                          {isSpeaker && (s.photo_processed_url || s.photo_url) && (
+                            <Button variant={s.photo_head_box ? 'success' : 'ghost'} onClick={() => setHeadBoxTarget(s)} title="Manually adjust where the head is detected — use this if a generated creative shows the head too small, too large, or mispositioned">
+                              {s.photo_head_box ? '✓ Fix Head Position' : 'Fix Head Position'}
+                            </Button>
+                          )}
+                          {item.announcement_status !== 'ready' && item.announcement_status !== 'archived' && can('sae.approvals.approve') && (
                             <Button variant="teal" onClick={() => approveForAnnouncement(item)} title="Review the photo/logo/details above, then approve to make this stakeholder available in the Stakeholder Announcement Engine">
                               Approve for Announcement
                             </Button>
@@ -460,7 +726,7 @@ export default function StakeholderHubPage({ params }: { params: Promise<{ id: s
                               Manage in Stakeholder Announcement Engine →
                             </Link>
                           )}
-                          <Button variant="red" onClick={() => setDeleteConfirm([item])}>Delete</Button>
+                          {can('sae.stakeholders.delete') && <Button variant="red" onClick={() => setDeleteConfirm([item])}>Delete</Button>}
                         </div>
                       </div>
                     </div>
@@ -493,6 +759,16 @@ export default function StakeholderHubPage({ params }: { params: Promise<{ id: s
         />
       )}
 
+      {headBoxTarget && (
+        <HeadBoxEditorModal
+          speakerId={headBoxTarget.id}
+          photoUrl={(headBoxTarget.photo_processed_url || headBoxTarget.photo_url)!}
+          currentHeadBox={headBoxTarget.photo_head_box}
+          onClose={() => setHeadBoxTarget(null)}
+          onDone={fetchAll}
+        />
+      )}
+
       {deleteConfirm && category && (
         <DeleteConfirmModal
           count={deleteConfirm.length}
@@ -501,6 +777,15 @@ export default function StakeholderHubPage({ params }: { params: Promise<{ id: s
           deleting={deleting}
           onConfirm={performDelete}
           onClose={() => setDeleteConfirm(null)}
+        />
+      )}
+
+      {composeOpen && category?.formType && (
+        <InviteComposer
+          eventId={eventId}
+          formType={category.formType as 'speaker' | 'sponsor' | 'media_partner' | 'association_partner'}
+          onClose={() => setComposeOpen(false)}
+          onSent={() => fetchInvites(category.formType!)}
         />
       )}
 
@@ -514,28 +799,27 @@ export default function StakeholderHubPage({ params }: { params: Promise<{ id: s
             </div>
 
             <div style={{ display: 'grid', gap: '12px' }}>
-              {category.kind === 'speaker' ? (
-                <>
-                  <Field label="Full Name *"><Input value={draft.full_name} onChange={e => setDraft(d => ({ ...d, full_name: e.target.value }))} /></Field>
-                  <Field label="Job Title *"><Input value={draft.job_title} onChange={e => setDraft(d => ({ ...d, job_title: e.target.value }))} /></Field>
-                  <Field label="Company Name *"><Input value={draft.company_name} onChange={e => setDraft(d => ({ ...d, company_name: e.target.value }))} /></Field>
-                  <Field label="Country"><Input value={draft.country} onChange={e => setDraft(d => ({ ...d, country: e.target.value }))} /></Field>
-                  <Field label="LinkedIn Profile URL"><Input type="url" value={draft.linkedin_url} onChange={e => setDraft(d => ({ ...d, linkedin_url: e.target.value }))} /></Field>
-                  <Field label="Bio"><Textarea rows={4} value={draft.bio} onChange={e => setDraft(d => ({ ...d, bio: e.target.value }))} /></Field>
-                </>
-              ) : (
-                <>
-                  <Field label="Company Name *"><Input value={draft.company_name} onChange={e => setDraft(d => ({ ...d, company_name: e.target.value }))} /></Field>
-                  <Field label="Company Website URL"><Input type="url" value={draft.company_website} onChange={e => setDraft(d => ({ ...d, company_website: e.target.value }))} /></Field>
-                  <Field label="Company Description"><Textarea rows={4} value={draft.company_description} onChange={e => setDraft(d => ({ ...d, company_description: e.target.value }))} /></Field>
-                  <Field label="Partner Type">
-                    <Select value={draft.partner_type} onChange={e => setDraft(d => ({ ...d, partner_type: e.target.value }))}>
-                      {['headline_sponsor', 'platinum_sponsor', 'gold_sponsor', 'silver_sponsor', 'bronze_sponsor', 'exhibitor', 'media_partner', 'association_partner', 'ecosystem_partner', 'knowledge_partner', 'official_partner', 'supporting_partner', 'other'].map(t => (
-                        <option key={t} value={t}>{t.replace(/_/g, ' ')}</option>
-                      ))}
-                    </Select>
-                  </Field>
-                </>
+              {formSchema.filter(f => f.type !== 'file').map(field => (
+                <FormFieldInput
+                  key={field.id}
+                  field={field}
+                  value={values[field.key] ?? (field.type === 'multiselect' ? [] : '')}
+                  onChange={v => setValues(prev => ({ ...prev, [field.key]: v }))}
+                />
+              ))}
+              {category.kind === 'partner' && (
+                <Field label="Partner Type">
+                  <Select value={partnerType} onChange={e => setPartnerType(e.target.value)}>
+                    {['headline_sponsor', 'platinum_sponsor', 'gold_sponsor', 'silver_sponsor', 'bronze_sponsor', 'exhibitor', 'media_partner', 'association_partner', 'ecosystem_partner', 'knowledge_partner', 'official_partner', 'supporting_partner', 'other'].map(t => (
+                      <option key={t} value={t}>{t.replace(/_/g, ' ')}</option>
+                    ))}
+                  </Select>
+                </Field>
+              )}
+              {formSchema.some(f => f.type === 'file') && (
+                <div style={{ fontSize: '11.5px', color: 'var(--ink4)' }}>
+                  File fields (photo/logo) aren&apos;t set here — use the Upload Photo/Upload Logo buttons on the card after saving.
+                </div>
               )}
             </div>
 

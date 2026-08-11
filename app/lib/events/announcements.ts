@@ -33,7 +33,7 @@ export async function generatePostCopy(
   ].filter(Boolean).join('\n')
 
   const messagingContext = messagingJson
-    ? `Messaging doc context (use for positioning/tone/themes — do not invent facts beyond this):\n${JSON.stringify(messagingJson)}`
+    ? `Messaging doc context (use for positioning/tone/themes — do not invent facts beyond this). Any section with "kind":"rules" is a hard constraint (naming/style rules, verbatim lines, things that must never appear) — never violate it, even if it conflicts with your default instincts:\n${JSON.stringify(messagingJson)}`
     : 'No topline messaging doc uploaded for this event yet — write in a neutral, professional Trescon voice.'
 
   const stakeholderContext = speaker

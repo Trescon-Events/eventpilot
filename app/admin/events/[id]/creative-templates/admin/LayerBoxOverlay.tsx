@@ -2,6 +2,7 @@
 
 import { useRef, useState } from 'react'
 import type { Layer, TextLayer, PhotoSlotLayer, PlaceholderProfile } from '@/app/lib/announcements/composite'
+import type { HeadBox } from '@/app/lib/media/face-alignment'
 import type { StakeholderKind, StakeholderOption } from './page'
 
 /* Drag/resize box editor overlaid on the variant editor's live preview
@@ -171,7 +172,27 @@ function computeSnap(
 // the same hardcoded last-resort text — so the ghost matches what
 // "Generate Preview" would actually show at every tier, not just when a
 // real speaker/partner is selected.
+// Client-safe duplicate of composite.ts's resolveFontWeight() (2026-08-04)
+// — that module imports sharp/@napi-rs/canvas at the top level, native
+// server-only deps this 'use client' file must never pull into the browser
+// bundle (same risk this file's own LOGO_BOX_ASPECT_RATIO comment already
+// flags for a different import). The logic itself is 3 lines, safe to
+// duplicate rather than risk that.
+function resolveGhostFontWeight(w: TextLayer['font_weight']): number {
+  if (typeof w === 'number') return w
+  if (w === 'bold') return 700
+  return 400
+}
+
 function resolveGhostText(layer: TextLayer, activeType: StakeholderKind, record: StakeholderOption | null, placeholder: PlaceholderProfile): string {
+  const raw = resolveGhostTextRaw(layer, activeType, record, placeholder)
+  // Mirrors resolveTextValue()'s uppercase transform (composite.ts) so the
+  // editor's ghost preview matches what a real render will actually produce
+  // (2026-08-04).
+  return layer.uppercase && raw ? raw.toUpperCase() : raw
+}
+
+function resolveGhostTextRaw(layer: TextLayer, activeType: StakeholderKind, record: StakeholderOption | null, placeholder: PlaceholderProfile): string {
   if (layer.field === 'custom') return layer.value || ''
   if (layer.field === 'tier') return layer.value || 'LEAD SPONSOR'
   if (activeType !== 'speaker') return ''
@@ -195,21 +216,27 @@ function resolveGhostImageUrl(layer: PhotoSlotLayer, record: StakeholderOption |
   return record?.logo_url ?? layer.reference_url ?? null // partner_logo
 }
 
-// One @font-face rule per distinct custom brand font in use, reusing the
-// exact same regular_url/bold_url already stored per-layer — unlike
-// librsvg (see composite.ts's renderTextLayerPng doc comment), browsers
-// reliably support @font-face, so the ghost can show the REAL font too.
+// One @font-face rule per distinct WEIGHT of each custom brand font in use
+// (2026-08-04, was exactly 2 hardcoded rules — regular_url/bold_url only).
+// Reuses whatever's already denormalized onto the layer — unlike librsvg
+// (see composite.ts's renderTextLayerPng doc comment), browsers reliably
+// support @font-face natively, so the ghost preview can show any number of
+// real weights, not just Regular/Bold, with no extra work here.
 function FontFaceStyles({ layers }: { layers: Layer[] }) {
   const seen = new Set<string>()
   const rules: string[] = []
   for (const layer of layers) {
     if (layer.type !== 'text' || !layer.font_family) continue
-    const { family_name, regular_url, bold_url } = layer.font_family
+    const { family_name, regular_url, bold_url, weights } = layer.font_family
     if (seen.has(family_name)) continue
     seen.add(family_name)
     const safeName = family_name.replace(/"/g, '')
-    rules.push(`@font-face{font-family:"${safeName}";font-weight:400;src:url("${regular_url}");}`)
-    if (bold_url) rules.push(`@font-face{font-family:"${safeName}";font-weight:700;src:url("${bold_url}");}`)
+    const urlsByWeight: Record<number, string> = weights ? { ...weights } : {}
+    if (!urlsByWeight[400] && regular_url) urlsByWeight[400] = regular_url
+    if (!urlsByWeight[700] && bold_url) urlsByWeight[700] = bold_url
+    for (const [weight, url] of Object.entries(urlsByWeight)) {
+      rules.push(`@font-face{font-family:"${safeName}";font-weight:${weight};src:url("${url}");}`)
+    }
   }
   if (rules.length === 0) return null
   return <style>{rules.join('\n')}</style>
@@ -218,8 +245,46 @@ function FontFaceStyles({ layers }: { layers: Layer[] }) {
 export default function LayerBoxOverlay({ layers, canvasWidth, canvasHeight, activeLayerId, onSelectLayer, onChangeLayer, onCommitUndo, activeType, previewForRecord, placeholderProfile, showGhost, hasUnderlyingPreview }: Props) {
   const containerRef = useRef<HTMLDivElement | null>(null)
   const dragRef = useRef<{ layerId: string; mode: DragMode; startClientX: number; startClientY: number; startBox: Box; committed: boolean; aspectLocked: boolean } | null>(null)
+  // Head-marker drag (2026-08-03, Madhu's ask — "shouldn't the circle be
+  // aligned to wherever the head is?") — a SEPARATE drag mode from the box's
+  // own, since it edits target_head_center_x/y/height (ratios of the BOX's
+  // own width/height), not the box's canvas-space x/y/width/height. Uses the
+  // box element's own on-screen rect (captured once at drag start, via the
+  // `data-box-el` marker on that div) to convert client-pixel deltas into
+  // box-relative fractions directly — deliberately NOT reusing toCanvasDelta,
+  // which converts into CANVAS-space, the wrong space for a box-relative ratio.
+  const markerDragRef = useRef<{
+    layerId: string; mode: 'move' | 'resize'
+    startClientX: number; startClientY: number
+    startCenterX: number; startCenterY: number; startHeight: number
+    boxRectWidth: number; boxRectHeight: number
+    committed: boolean
+  } | null>(null)
   const nudgeBurstRef = useRef<{ layerId: string; lastAt: number } | null>(null)
   const [guides, setGuides] = useState<{ x: number | null; y: number | null }>({ x: null, y: null })
+
+  function startMarkerDrag(e: React.PointerEvent, layer: PhotoSlotLayer, mode: 'move' | 'resize') {
+    if (!layer.alignment) return
+    e.preventDefault()
+    e.stopPropagation()
+    onSelectLayer(layer.id)
+    containerRef.current?.focus()
+    ;(e.currentTarget as Element).setPointerCapture(e.pointerId)
+    const boxEl = (e.target as HTMLElement).closest('[data-box-el]') as HTMLElement | null
+    const rect = boxEl?.getBoundingClientRect()
+    markerDragRef.current = {
+      layerId: layer.id, mode,
+      startClientX: e.clientX, startClientY: e.clientY,
+      startCenterX: layer.alignment.target_head_center_x,
+      startCenterY: layer.alignment.target_head_center_y,
+      startHeight: layer.alignment.target_head_height,
+      // Fallback to the canvas-space box size if the rect lookup somehow
+      // fails — wrong on-screen scale, but never a divide-by-zero.
+      boxRectWidth: rect?.width || layer.width,
+      boxRectHeight: rect?.height || layer.height,
+      committed: false,
+    }
+  }
 
   function toCanvasDelta(clientDx: number, clientDy: number): { dx: number; dy: number } {
     const rect = containerRef.current?.getBoundingClientRect()
@@ -237,6 +302,39 @@ export default function LayerBoxOverlay({ layers, canvasWidth, canvasHeight, act
   }
 
   function onPointerMove(e: React.PointerEvent) {
+    const markerDrag = markerDragRef.current
+    if (markerDrag) {
+      const dxRatio = (e.clientX - markerDrag.startClientX) / markerDrag.boxRectWidth
+      const dyRatio = (e.clientY - markerDrag.startClientY) / markerDrag.boxRectHeight
+      const layer = layers.find(l => l.id === markerDrag.layerId) as PhotoSlotLayer | undefined
+      if (!layer?.alignment) return
+
+      let target_head_center_x = markerDrag.startCenterX
+      let target_head_center_y = markerDrag.startCenterY
+      let target_head_height = markerDrag.startHeight
+      if (markerDrag.mode === 'move') {
+        target_head_center_x = Math.max(0, Math.min(1, markerDrag.startCenterX + dxRatio))
+        target_head_center_y = Math.max(0, Math.min(1, markerDrag.startCenterY + dyRatio))
+      } else {
+        // Resize handle sits at the circle's bottom edge (center_y + height/2)
+        // — dragging it down/up by dy moves that edge, so the diameter
+        // (target_head_height) changes by 2×dy. Min floor keeps the marker
+        // from collapsing to an unusable sliver; no upper cap (a shot-type
+        // mismatch, e.g. a waist-level target, can legitimately exceed 1).
+        target_head_height = Math.max(0.03, markerDrag.startHeight + dyRatio * 2)
+      }
+
+      if (!markerDrag.committed) { onCommitUndo(); markerDrag.committed = true }
+      const alignment = { ...layer.alignment, target_head_center_x, target_head_center_y, target_head_height }
+      // reference_head_box mirrors alignment EXACTLY (same convention
+      // c6ea243 established) — this is what makes the reference photo
+      // preview a no-op crop against its own now-corrected target, instead
+      // of drifting out of sync with whatever this drag just set.
+      const reference_head_box: HeadBox = { centerXRatio: target_head_center_x, centerYRatio: target_head_center_y, heightRatio: target_head_height }
+      onChangeLayer(markerDrag.layerId, { alignment, reference_head_box } as Partial<Layer>)
+      return
+    }
+
     const drag = dragRef.current
     if (!drag) return
     const { dx, dy } = toCanvasDelta(e.clientX - drag.startClientX, e.clientY - drag.startClientY)
@@ -310,10 +408,11 @@ export default function LayerBoxOverlay({ layers, canvasWidth, canvasHeight, act
   }
 
   function endDrag(e: React.PointerEvent) {
-    if (dragRef.current) {
+    if (dragRef.current || markerDragRef.current) {
       try { (e.currentTarget as Element).releasePointerCapture(e.pointerId) } catch { /* already released on unmount/blur */ }
     }
     dragRef.current = null
+    markerDragRef.current = null
     setGuides({ x: null, y: null })
   }
 
@@ -363,6 +462,7 @@ export default function LayerBoxOverlay({ layers, canvasWidth, canvasHeight, act
         return (
           <div
             key={layer.id}
+            data-box-el
             onPointerDown={e => startDrag(e, layer, 'move')}
             style={{
               position: 'absolute',
@@ -401,7 +501,7 @@ export default function LayerBoxOverlay({ layers, canvasWidth, canvasHeight, act
               }}>
                 <span style={{
                   fontFamily: layer.font_family ? `"${layer.font_family.family_name.replace(/"/g, '')}"` : 'sans-serif',
-                  fontWeight: layer.font_weight === 'bold' ? 700 : 400,
+                  fontWeight: resolveGhostFontWeight(layer.font_weight),
                   fontSize: `${(layer.font_size / canvasWidth) * 100}cqw`,
                   lineHeight: 1.2,
                   color: layer.font_color,
@@ -424,6 +524,55 @@ export default function LayerBoxOverlay({ layers, canvasWidth, canvasHeight, act
                 objectFit: layer.source === 'speaker_photo' ? 'cover' : 'contain',
                 pointerEvents: 'none',
               }} />
+            )}
+            {layer.type === 'photo_slot' && layer.source === 'speaker_photo' && layer.alignment && (
+              // Head-position REFERENCE marker (2026-08-03, Madhu's idea,
+              // made draggable same day after a real miscalibrated reference
+              // upload made this necessary — auto-detection isn't reliable
+              // enough to trust blindly, see face-alignment.ts's own doc
+              // comments) — not a crop container, a visual + EDITABLE guide
+              // for where/how big alignAndCropPhoto() will place a real
+              // speaker's head within this box. Diameter derived from
+              // target_head_height (a ratio of the box's own HEIGHT, same
+              // convention the per-speaker head_box uses — see
+              // HeadBoxEditorModal.tsx) applied to both axes for a true
+              // circle despite the box's own width:height not being 1:1.
+              // Only interactive when this layer is active, matching the
+              // box's own handles.
+              <div
+                onPointerDown={isActive ? e => startMarkerDrag(e, layer, 'move') : undefined}
+                style={{
+                  position: 'absolute',
+                  left: `${(layer.alignment.target_head_center_x - (layer.alignment.target_head_height * layer.height / layer.width) / 2) * 100}%`,
+                  top: `${(layer.alignment.target_head_center_y - layer.alignment.target_head_height / 2) * 100}%`,
+                  width: `${(layer.alignment.target_head_height * layer.height / layer.width) * 100}%`,
+                  height: `${layer.alignment.target_head_height * 100}%`,
+                  borderRadius: '50%',
+                  border: '1.5px dashed var(--teal-mid)',
+                  background: 'color-mix(in srgb, var(--teal-mid) 8%, transparent)',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  pointerEvents: isActive ? 'auto' : 'none',
+                  cursor: isActive ? 'move' : undefined,
+                  zIndex: 6,
+                }}>
+                <span style={{ fontSize: '9px', fontWeight: 800, letterSpacing: '0.4px', textTransform: 'uppercase', color: 'var(--teal-mid)', opacity: 0.85, pointerEvents: 'none' }}>Head</span>
+                {isActive && (
+                  // Resize handle — bottom edge of the circle. Dragging it
+                  // vertically changes target_head_height (radius); the
+                  // circle stays centered on target_head_center_x/y, only
+                  // its size changes.
+                  <div
+                    onPointerDown={e => startMarkerDrag(e, layer, 'resize')}
+                    title="Drag to resize the head marker"
+                    style={{
+                      position: 'absolute', bottom: -5, left: '50%', marginLeft: -5,
+                      width: 10, height: 10, borderRadius: '50%',
+                      background: 'var(--teal-mid)', border: '1.5px solid var(--card)',
+                      cursor: 'ns-resize', pointerEvents: 'auto',
+                    }}
+                  />
+                )}
+              </div>
             )}
             {isActive && HANDLE_POSITIONS.map(pos => (
               <div key={pos} onPointerDown={e => startDrag(e, layer, pos)} style={handleStyle(pos)} />

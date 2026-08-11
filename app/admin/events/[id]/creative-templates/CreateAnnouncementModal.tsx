@@ -3,7 +3,38 @@
 import { useState } from 'react'
 import { Button } from '@/app/components/ui'
 import type { Variant } from '@/app/lib/announcements/composite'
-import { type StakeholderKind, type Stakeholder, displayName, displaySubtitle, thumbUrl } from './page'
+import { type StakeholderKind, type Stakeholder, type Speaker, type Partner, displayName, displaySubtitle, thumbUrl } from './page'
+
+// Mirrors buildCompositeInputs()'s own asset-presence check (app/lib/events/
+// announcements.ts) client-side, so a variant a future generate would
+// reject outright (e.g. one with a speaker_logo photo_slot, for a speaker
+// with no company_logo_url) is visibly disabled here instead of only
+// failing after a ~10s generate — per Madhu's ask, 2026-08-04: some
+// variants won't have a company logo slot at all, so speakers without one
+// should still be able to pick those, just not the ones that need it.
+// Doesn't import buildCompositeInputs directly — that whole module also
+// exports generatePostCopy, which pulls in @google/generative-ai, a
+// server-only dependency this client component shouldn't bundle (same
+// class of issue LayerBoxOverlay.tsx's own doc comment warns about for
+// `sharp` via composite.ts — `Variant`/`PhotoSlotLayer` here are type-only
+// imports, erased at compile time, so no runtime cost either way).
+const SOURCE_LABEL: Record<'speaker_photo' | 'speaker_logo' | 'partner_logo', string> = {
+  speaker_photo: 'photo', speaker_logo: 'company logo', partner_logo: 'logo',
+}
+
+function missingAssetLabels(v: Variant, stakeholderType: StakeholderKind, s: Stakeholder): string[] {
+  const sources = new Set(v.layers.filter((l): l is Extract<typeof v.layers[number], { type: 'photo_slot' }> => l.type === 'photo_slot').map(l => l.source))
+  const missing: string[] = []
+  if (stakeholderType === 'speaker') {
+    const sp = s as Speaker
+    if (sources.has('speaker_photo') && !(sp.photo_processed_url || sp.photo_url)) missing.push(SOURCE_LABEL.speaker_photo)
+    if (sources.has('speaker_logo') && !sp.company_logo_url) missing.push(SOURCE_LABEL.speaker_logo)
+  } else {
+    const p = s as Partner
+    if (sources.has('partner_logo') && !p.logo_url) missing.push(SOURCE_LABEL.partner_logo)
+  }
+  return missing
+}
 
 /* "+ Create New" flow (2026-08-02) — genuinely 2 steps since this is a
    page-level entry point, not scoped to whatever's selected in the left
@@ -33,6 +64,12 @@ export default function CreateAnnouncementModal({ eventId, stakeholderType, read
 
   function pickStakeholder(s: Stakeholder) {
     setSelectedStakeholder(s)
+    // Re-pick a default variant now that we actually know who was chosen —
+    // `variants[0]` (the initial state) may well be one this speaker can't
+    // use (e.g. a logo-required variant for a speaker with no company
+    // logo), which would otherwise leave Generate enabled on a disabled tile.
+    const firstUsable = variants.find(v => missingAssetLabels(v, stakeholderType, s).length === 0)
+    setSelectedVariantId(firstUsable?.id ?? null)
     setStep('variant')
   }
 
@@ -104,7 +141,14 @@ export default function CreateAnnouncementModal({ eventId, stakeholderType, read
           </>
         )}
 
-        {step === 'variant' && selectedStakeholder && (
+        {step === 'variant' && selectedStakeholder && (() => {
+          // Defense in depth alongside pickStakeholder()'s own default-
+          // reselection — if selectedVariantId still points at a variant
+          // this stakeholder can't use for any reason, Generate must stay
+          // disabled regardless of what the tile-click handlers enforce.
+          const selectedVariant = variants.find(v => v.id === selectedVariantId)
+          const selectedVariantInvalid = !selectedVariant || missingAssetLabels(selectedVariant, stakeholderType, selectedStakeholder).length > 0
+          return (
           <>
             <div style={{ fontSize: '15px', fontWeight: 800, color: 'var(--ink)', marginBottom: '4px' }}>
               Creating for {displayName(stakeholderType, selectedStakeholder)}
@@ -126,24 +170,38 @@ export default function CreateAnnouncementModal({ eventId, stakeholderType, read
                   </div>
                 )}
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))', gap: '12px', marginBottom: '16px' }}>
-                  {variants.map(v => (
-                    <button key={v.id} onClick={() => setSelectedVariantId(v.id)}
+                  {variants.map(v => {
+                    const missing = missingAssetLabels(v, stakeholderType, selectedStakeholder)
+                    const disabled = missing.length > 0
+                    return (
+                    <button key={v.id} onClick={() => { if (!disabled) setSelectedVariantId(v.id) }}
+                      disabled={disabled}
+                      title={disabled ? `${missing.map(m => m[0].toUpperCase() + m.slice(1)).join(' and ')} required — this speaker doesn't have one uploaded yet` : undefined}
                       style={{
-                        display: 'flex', flexDirection: 'column', gap: '6px', padding: '8px', borderRadius: '10px', cursor: 'pointer',
+                        display: 'flex', flexDirection: 'column', gap: '6px', padding: '8px', borderRadius: '10px',
+                        cursor: disabled ? 'not-allowed' : 'pointer',
                         background: 'var(--surface)', fontFamily: 'inherit', textAlign: 'left',
                         border: selectedVariantId === v.id ? '2px solid var(--teal-mid)' : '1px solid var(--border-light)',
+                        opacity: disabled ? 0.45 : 1,
+                        position: 'relative',
                       }}>
                       <div style={{ borderRadius: '8px', overflow: 'hidden', background: 'var(--card)', aspectRatio: '4 / 5', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                         {v.last_preview_url ? (
                           // eslint-disable-next-line @next/next/no-img-element -- small variant-picker thumbnail
-                          <img src={v.last_preview_url} alt={v.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                          <img src={v.last_preview_url} alt={v.name} style={{ width: '100%', height: '100%', objectFit: 'cover', filter: disabled ? 'grayscale(1)' : undefined }} />
                         ) : (
                           <span style={{ fontSize: '10.5px', color: 'var(--ink4)', textAlign: 'center', padding: '0 8px' }}>{v.name || 'Untitled Variant'}</span>
                         )}
                       </div>
                       <span style={{ fontSize: '11.5px', fontWeight: 700, color: 'var(--ink)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{v.name || 'Untitled Variant'}</span>
+                      {disabled && (
+                        <span style={{ fontSize: '10px', fontWeight: 700, color: 'var(--red)', lineHeight: 1.3 }}>
+                          {missing.map(m => m[0].toUpperCase() + m.slice(1)).join(' & ')} required
+                        </span>
+                      )}
                     </button>
-                  ))}
+                    )
+                  })}
                   {variants.length === 0 && (
                     <div style={{ gridColumn: '1 / -1', color: 'var(--ink3)', fontSize: '12px', padding: '10px 0' }}>
                       No creative variants configured yet — build one in the Admin Console first.
@@ -154,7 +212,7 @@ export default function CreateAnnouncementModal({ eventId, stakeholderType, read
                   <Button variant="ghost" onClick={() => setStep('speaker')}>← Back</Button>
                   <div style={{ display: 'flex', gap: '8px' }}>
                     <Button variant="ghost" onClick={onClose}>Cancel</Button>
-                    <Button variant="solid" onClick={generate} disabled={!selectedVariantId || variants.length === 0}>
+                    <Button variant="solid" onClick={generate} disabled={!selectedVariantId || selectedVariantInvalid || variants.length === 0}>
                       Generate
                     </Button>
                   </div>
@@ -162,7 +220,8 @@ export default function CreateAnnouncementModal({ eventId, stakeholderType, read
               </>
             )}
           </>
-        )}
+          )
+        })()}
       </div>
     </div>
   )

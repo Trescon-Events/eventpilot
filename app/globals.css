@@ -223,6 +223,12 @@ option { background: var(--card); color: var(--ink); }
 .tbtn-ghost  { background: transparent;          border-color: var(--border);        color: var(--ink2); }
 .tbtn-solid  { background: var(--teal-mid);      border-color: var(--teal-mid);      color: var(--teal-light); }
 .tbtn-lime   { background: var(--lime);          border-color: #A3D424;              color: var(--lime-dark); }
+/* No dedicated --success-border token exists (only --success/--success-
+   light) — color-mix approximates the same "tinted border" relationship
+   the other families get from a real token (2026-08-04, "done" state for
+   Upload Photo/Company Logo/Fix Head Position once performed at least
+   once — app/admin/events/[id]/stakeholders/page.tsx). */
+.tbtn-success { background: var(--success-light); border-color: color-mix(in srgb, var(--success) 45%, transparent); color: var(--success); }
 
 /* ── Cards ─────────────────────────────────────────────────────── */
 .tcard {

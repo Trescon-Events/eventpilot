@@ -18,22 +18,50 @@ function getGemini() {
   return _gemini
 }
 
-const STRUCTURE_PROMPT = `You are extracting a structured summary from an event's topline messaging document, for use by an AI system that writes social media announcement copy.
+const STRUCTURE_PROMPT = `You are structuring an event's topline messaging document into sections, for use both by producers reading it in EventPilot and by AI systems (post-copy generation, chat-based editing) that need to search and rely on it.
 
-From the document text below, extract a JSON object with this exact shape:
+Segment the document into a JSON object of this shape:
 {
-  "positioning_statement": "...",
-  "narrative": "...",
-  "themes": ["...", "..."],
-  "target_audiences": ["...", "..."],
-  "campaign_phases": ["...", "..."],
-  "tone_of_voice": "..."
+  "sections": [
+    {
+      "id": "kebab-case-slug",          // short, stable, derived from the section's heading
+      "order": 1,                        // matches the document's own order
+      "title": "Section title as written in the document",
+      "kind": "text" | "table" | "facts" | "rules",
+      "content": ...                     // shape depends on "kind", see below
+    }
+  ]
 }
 
-Only use information actually present in the document — never invent or infer facts not stated. If a field genuinely isn't covered, use an empty string or empty array. Return JSON only, no commentary, no markdown fences.
+Derive the sections from the document's OWN headings and structure — do not force it into a fixed list. Use judgement on granularity: a numbered heading in the source is usually one section; don't split a single heading's content into several sections or merge multiple headings into one.
+
+Choose "kind" per section based on its actual content:
+- "text" — narrative prose, bullet lists, or callout boxes. "content" is a markdown-lite string using ONLY **bold** and "- " bullet lines, with blank lines between paragraphs. Never emit a markdown table (pipe/dash syntax) inside "text" or "rules" content — if the source has a genuine two-column or wider table anywhere, even inside a section that's mostly prose or rules, either give it its own "table"-kind section, or, for a short "use this / not this" style pairing, flatten each row into one bullet line instead, e.g.: - Use "AI Malaysia (National AI Office)" — not "NAIO on its own".
+- "table" — a genuine table in the source (columns + rows). "content" is { "columns": ["..."], "rows": [["...", "..."], ...] }.
+- "facts" — a sourced reference/fact bank (a fact, its detail, and where it's sourced from). "content" is [{ "fact": "...", "detail": "...", "source": "..." }, ...]. If the source doesn't cite a source per fact, omit "source" per item.
+- "rules" — naming/style/language guidelines, verbatim lines that must be used as-is, and anything the document says must NOT appear or must NOT be implied (embargo lists, forbidden claims, compliance constraints). This is the most important tag to get right — anything phrased as a hard requirement, a "do not"/"never", or "use this / not this" belongs here, even if it's mixed in with a section that also has plain text. Prefer splitting a "rules" subsection out on its own rather than folding it into a "text" section, since downstream consumers treat "rules" sections as non-negotiable constraints. "content" for "rules" follows the same markdown-lite bullet format as "text" — same no-markdown-table restriction applies.
+
+A worked example of the kind of document you'll typically see (World AI Show Malaysia's topline messaging doc) has sections like: Introduction (text), Positioning (text), Event details (table), Key objectives (text), Value propositions (text), "by the numbers" stats (table or facts, whichever fits the source better), Structure of the Summit incl. strategic themes (text, or table for the themes grid), Key highlights (text), What's new this edition (text), Who the Summit serves (table), Sponsor value incl. tier comparison and approved positioning lines (table + rules — the "use these lines verbatim" content is rules), Outcomes expected (text), Messaging and style guidelines incl. naming/language/institutional-name pairs and "what must not appear" (rules), a verified reference/fact bank (facts), Trescon role and value (text), and a closing argument section (text). Treat this as an illustration of the kind of segmentation to aim for, not a schema every document must match — a different messaging doc may have entirely different sections.
+
+Only use information actually present in the document — never invent, infer, or embellish facts not stated. Return JSON only, no commentary, no markdown fences.
 
 DOCUMENT TEXT:
 `
+
+// Stamps freshly-extracted sections with updated_at (now)/updated_by/change_note
+// (both null — these only get set by a conversational edit, see apply-edit/route.ts)
+// so every section has a consistent shape from the moment it's created.
+function normalizeSections(parsed: unknown): Record<string, unknown> | null {
+  if (!parsed || typeof parsed !== 'object' || !Array.isArray((parsed as any).sections)) return null
+  const now = new Date().toISOString()
+  const sections = (parsed as any).sections.map((s: Record<string, unknown>) => ({
+    ...s,
+    updated_at: now,
+    updated_by: null,
+    change_note: null,
+  }))
+  return { sections }
+}
 
 export async function GET(req: NextRequest) {
   const eventId = req.nextUrl.searchParams.get('event_id')
@@ -104,10 +132,15 @@ export async function POST(req: NextRequest) {
   try {
     rawText = await extractKbText(buffer, file.name)
     const model  = getGemini().getGenerativeModel({ model: 'gemini-2.5-flash' })
-    const result = await model.generateContent([{ text: STRUCTURE_PROMPT + rawText.slice(0, 30000) }])
+    // 200k chars is comfortably within gemini-2.5-flash's context window and
+    // far beyond any realistic messaging doc — the old 30k cap silently
+    // dropped exactly the kind of reference material (fact banks, "must
+    // not appear" lists) a messaging doc exists to protect.
+    const result = await model.generateContent([{ text: STRUCTURE_PROMPT + rawText.slice(0, 200000) }])
     const text   = result.response.text().trim()
     const match  = text.match(/\{[\s\S]*\}/)
-    structuredJson = match ? JSON.parse(match[0]) : null
+    const parsed = match ? JSON.parse(match[0]) : null
+    structuredJson = normalizeSections(parsed)
   } catch (e) {
     console.error('Messaging doc extraction failed:', e)
     // Still save the doc with the PDF stored — extraction can be retried via PATCH later.

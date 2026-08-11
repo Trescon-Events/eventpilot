@@ -1,5 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/app/lib/supabase'
+import { getSession } from '@/app/lib/access/session'
+import { hasEventPermission } from '@/app/lib/access/event-access'
+import { resolveFormSchema } from '@/app/lib/forms/resolve-schema'
+import { mapFieldsToRecord, recordToFields } from '@/app/lib/forms/map-to-stakeholder-record'
+import { FormType, SubmittedValue } from '@/app/lib/forms/types'
 
 /* GET  /api/events/stakeholders/partners?event_id=X&type=Y&status=Z
    POST /api/events/stakeholders/partners
@@ -11,34 +16,36 @@ import { supabaseAdmin } from '@/app/lib/supabase'
    `announcement_status`/`partner_type` and the other SAE-specific columns
    added by supabase/sae_migration.sql.
 
-   Request/response bodies use the PRD's field names (company_name,
-   company_website) for a stable API contract; company_website maps to the
-   pre-existing `website_url` column rather than duplicating it. */
+   Request body is schema-driven (Phase 4 of the SAE producer-workflow
+   initiative) — `fields` is keyed by whatever FieldSchema.key the event's
+   resolved partner form declares. `partner_type` stays a separate
+   top-level field — it's producer-set internally, never part of any form
+   schema (the public form never asks for it, PRD SS8.3). resolveFormSchema()
+   falls back to 'sponsor' for the three partner categories with no
+   dedicated form (exhibitors/ecosystem/all_partners), matching how the
+   Hub's single fixed field set already treated them identically pre-Phase-4. */
 
 type PartnerBody = {
   event_id: string
-  company_name: string
-  company_website?: string
-  company_description?: string
+  fields: Record<string, SubmittedValue>
+  // Which form schema to resolve/validate against — the caller (Hub)
+  // passes category.formType, falling back to 'sponsor' for categories
+  // with no dedicated form (exhibitors/ecosystem/all_partners). Distinct
+  // from partner_type below, which is the actual tier/category stored on
+  // the record.
+  form_type?: FormType
   partner_type?: string
   source?: 'onboarding_form' | 'manual'
   created_by?: string
 }
 
-function toRow(body: Partial<PartnerBody>) {
-  const row: Record<string, unknown> = {}
-  if (body.event_id !== undefined) row.event_id = body.event_id
-  if (body.company_name !== undefined) row.name = body.company_name
-  if (body.company_website !== undefined) row.website_url = body.company_website || null
-  if (body.company_description !== undefined) row.company_description = body.company_description || null
-  if (body.partner_type !== undefined) row.partner_type = body.partner_type
-  if (body.source !== undefined) row.source = body.source
-  if (body.created_by !== undefined) row.created_by = body.created_by || null
-  return row
-}
-
 function fromRow(row: Record<string, unknown>) {
   return { ...row, company_name: row.name, company_website: row.website_url }
+}
+
+function hasValue(v: SubmittedValue | undefined): boolean {
+  if (Array.isArray(v)) return v.length > 0
+  return !!v && v.trim().length > 0
 }
 
 export async function GET(req: NextRequest) {
@@ -64,16 +71,31 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   const body = await req.json().catch(() => null) as PartnerBody | null
-  if (!body?.event_id || !body?.company_name) {
-    return NextResponse.json({ error: 'event_id and company_name required' }, { status: 400 })
+  if (!body?.event_id || !body?.fields) {
+    return NextResponse.json({ error: 'event_id and fields required' }, { status: 400 })
   }
+
+  const session = getSession(req)
+  if (!session?.adm && !(await hasEventPermission(session?.sid, body.event_id, 'sae.stakeholders.edit'))) {
+    return NextResponse.json({ error: 'Not authorized.' }, { status: 403 })
+  }
+
+  const formType: FormType = body.form_type ?? 'sponsor'
+  const schema = await resolveFormSchema(body.event_id, formType)
+  for (const f of schema) {
+    if (f.required && f.type !== 'file' && !hasValue(body.fields[f.key])) {
+      return NextResponse.json({ error: `${f.label} is required` }, { status: 400 })
+    }
+  }
+
+  const { columns, customFields } = mapFieldsToRecord(formType, schema, body.fields, {})
 
   const { data, error } = await supabaseAdmin
     .from('event_sponsors')
-    .insert({ ...toRow(body), partner_type: body.partner_type ?? 'sponsor', source: body.source ?? 'manual' })
+    .insert({ ...columns, event_id: body.event_id, custom_fields: customFields, partner_type: body.partner_type ?? 'sponsor', source: body.source ?? 'manual', created_by: body.created_by || null })
     .select()
     .single()
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-  return NextResponse.json(fromRow(data), { status: 201 })
+  return NextResponse.json({ ...fromRow(data), fields: recordToFields(formType, schema, data) }, { status: 201 })
 }

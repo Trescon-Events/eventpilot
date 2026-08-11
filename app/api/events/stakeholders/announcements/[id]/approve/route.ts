@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { Resend } from 'resend'
 import { supabaseAdmin } from '@/app/lib/supabase'
+import { getStakeholderEmailHeaderHtml } from '@/app/lib/branding/email-header'
 
 /* POST /api/events/stakeholders/announcements/[id]/approve
    Body: { token?, approver_id?, status: 'approved'|'approved_with_comments'|
@@ -82,6 +83,7 @@ async function notifyMM(announcementId: string, newStatus: string) {
   const resend = new Resend(process.env.RESEND_API_KEY)
   const from = process.env.RESEND_FROM || 'Event Pilot <noreply@eventpilot.tresconglobal.com>'
   const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://eventpilot.tresconglobal.com'
+  const headerHtml = await getStakeholderEmailHeaderHtml()
 
   const isApproved = newStatus === 'approved' || newStatus === 'approved_with_comments'
   const subject = isApproved
@@ -93,10 +95,11 @@ async function notifyMM(announcementId: string, newStatus: string) {
     to: creator.email,
     subject,
     /* eslint-disable no-restricted-syntax -- email HTML; clients can't render CSS custom properties, literal colors required (matches app/api/content/posts/[id]/approve/route.ts's existing convention) */
-    html: `<p style="font-family:sans-serif;font-size:14px;color:#2D3E50">
+    html: `<div style="font-family:sans-serif;max-width:520px;margin:0 auto">${headerHtml}
+           <p style="font-size:14px;color:#2D3E50">
              ${isApproved ? 'All approvers have signed off on this announcement.' : 'An approver has requested changes to this announcement.'}
            </p>
-           <p><a href="${siteUrl}/admin/events/${event?.id}/stakeholders" style="color:#00695C">Review in EventPilot →</a></p>`,
+           <p><a href="${siteUrl}/admin/events/${event?.id}/stakeholders" style="color:#00695C">Review in EventPilot →</a></p></div>`,
     /* eslint-enable no-restricted-syntax */
   })
 }

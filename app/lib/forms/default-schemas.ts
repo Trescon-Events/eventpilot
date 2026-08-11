@@ -1,0 +1,42 @@
+// The pre-Phase-4 hardcoded onboarding-form field sets, re-expressed as
+// FieldSchema[]. Used by resolve-schema.ts whenever an event has no
+// event_form_schemas override row — every existing event keeps working
+// unchanged. `id`s here are fixed strings (not crypto.randomUUID()) so a
+// never-customized event's resolved schema is stable across requests.
+
+import { FieldSchema, FormType } from './types'
+
+export const DEFAULT_SPEAKER_FIELDS: FieldSchema[] = [
+  { id: 'speaker-full_name', key: 'full_name', label: 'Full Name', type: 'text', required: true, locked: true },
+  { id: 'speaker-job_title', key: 'job_title', label: 'Job Title', type: 'text', required: true, locked: false },
+  { id: 'speaker-company_name', key: 'company_name', label: 'Company Name', type: 'text', required: true, locked: false },
+  { id: 'speaker-country', key: 'country', label: 'Country', type: 'text', required: true, locked: false },
+  { id: 'speaker-linkedin_url', key: 'linkedin_url', label: 'LinkedIn Profile URL', type: 'url', required: false, locked: false },
+  { id: 'speaker-bio', key: 'bio', label: 'Bio', type: 'textarea', required: true, locked: false, help: '150–300 words' },
+  {
+    id: 'speaker-photo', key: 'photo', label: 'Photo Upload', type: 'file', required: true, locked: false,
+    accept: 'image/jpeg,image/png', help: 'JPG/PNG, min 400×400px, max 5MB', max_size_mb: 5,
+  },
+  {
+    id: 'speaker-company_logo', key: 'company_logo', label: 'Company Logo Upload', type: 'file', required: false, locked: false,
+    accept: 'image/png,image/jpeg', help: 'Optional, PNG/JPG preferred, max 3MB', max_size_mb: 3,
+  },
+]
+
+export const DEFAULT_PARTNER_FIELDS: FieldSchema[] = [
+  { id: 'partner-company_name', key: 'company_name', label: 'Company Name', type: 'text', required: true, locked: true },
+  { id: 'partner-company_website', key: 'company_website', label: 'Company Website URL', type: 'url', required: true, locked: false },
+  { id: 'partner-company_description', key: 'company_description', label: 'Company Description', type: 'textarea', required: true, locked: false, help: '100–200 words' },
+  { id: 'partner-contact_person_name', key: 'contact_person_name', label: 'Contact Person Name', type: 'text', required: true, locked: false },
+  { id: 'partner-contact_person_email', key: 'contact_person_email', label: 'Contact Person Email', type: 'email', required: true, locked: false },
+  { id: 'partner-contact_person_phone', key: 'contact_person_phone', label: 'Contact Person Phone', type: 'phone', required: false, locked: false },
+  {
+    id: 'partner-logo', key: 'logo', label: 'Logo Upload', type: 'file', required: true, locked: false,
+    accept: 'image/png,image/jpeg,image/svg+xml,application/pdf', help: 'Any format: PNG, JPG, SVG, PDF, AI — max 10MB', max_size_mb: 10,
+  },
+  { id: 'partner-additional_notes', key: 'additional_notes', label: 'Additional Notes', type: 'textarea', required: false, locked: false },
+]
+
+export function defaultFieldsFor(formType: FormType): FieldSchema[] {
+  return formType === 'speaker' ? DEFAULT_SPEAKER_FIELDS : DEFAULT_PARTNER_FIELDS
+}

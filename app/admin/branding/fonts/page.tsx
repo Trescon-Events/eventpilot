@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
+import Link from 'next/link'
 import PageHeader from '@/app/components/PageHeader'
 import { Button, Card, Input } from '@/app/components/ui'
 
@@ -17,7 +18,18 @@ type BrandFont = {
   google_font_family: string | null
   regular_url: string
   bold_url: string | null
+  weights: Record<string, string> | null // weight (100-900) -> URL, 2026-08-04 — legacy rows may only have regular_url/bold_url
   created_at: string
+}
+
+// Fonts added before the 2026-08-04 weight expansion have no `weights`
+// map at all — fall back to describing them via the two legacy columns
+// exactly as the library already did, rather than showing "no weights".
+function weightSummary(f: BrandFont): string {
+  const weights = f.weights && Object.keys(f.weights).length > 0
+    ? Object.keys(f.weights).map(Number).sort((a, b) => a - b)
+    : [400, ...(f.bold_url ? [700] : [])]
+  return weights.length === 1 ? `Weight ${weights[0]}` : `Weights ${weights.join(', ')}`
 }
 
 type FontSuggestion = { family: string; category: string }
@@ -116,6 +128,10 @@ export default function BrandingFontsPage() {
       />
 
       <div style={{ padding: '24px 32px', maxWidth: '860px' }}>
+        <div style={{ display: 'flex', gap: '4px', marginBottom: '20px', background: 'var(--card)', border: '1px solid var(--border)', borderRadius: '12px', padding: '5px', width: 'fit-content' }}>
+          <div style={{ padding: '8px 16px', borderRadius: '8px', background: 'var(--surface)', color: 'var(--lime)', fontSize: '13px', fontWeight: 800 }}>Fonts</div>
+          <Link href="/admin/branding/corporate" style={{ padding: '8px 16px', borderRadius: '8px', color: 'var(--ink3)', fontSize: '13px', fontWeight: 800, textDecoration: 'none' }}>Corporate Brand</Link>
+        </div>
         {msg && (
           <div style={{ padding: '10px 14px', borderRadius: '8px', background: 'var(--red-light)', border: '1px solid var(--red-border)', color: 'var(--red)', fontSize: '12.5px', marginBottom: '16px' }}>
             {msg} <button onClick={() => setMsg(null)} style={{ background: 'none', border: 'none', color: 'inherit', cursor: 'pointer', fontWeight: 700, marginLeft: '8px' }}>×</button>
@@ -189,7 +205,7 @@ export default function BrandingFontsPage() {
                 }} />
             </label>
             <div style={{ fontSize: '11px', color: 'var(--ink3)', marginTop: '8px', lineHeight: 1.4 }}>
-              TTF/OTF/WOFF/WOFF2 — the family name and weight (Regular/Bold) are read straight from each file, never typed by hand. Already-in-the-library families are detected and skipped automatically.
+              TTF/OTF/WOFF/WOFF2 — the family name and exact weight (Thin through Black) are read straight from each file, never typed by hand. Drop as many weight files per family as you have; already-in-the-library weights are detected and skipped automatically.
             </div>
             {uploadResults.length > 0 && (
               <div style={{ marginTop: '10px', display: 'grid', gap: '6px' }}>
@@ -221,7 +237,7 @@ export default function BrandingFontsPage() {
                   <div>
                     <div style={{ fontSize: '14px', fontWeight: 800, color: 'var(--ink)' }}>{f.family_name}</div>
                     <div style={{ fontSize: '11px', color: 'var(--ink3)', marginTop: '2px' }}>
-                      {f.source === 'google_fonts' ? `Google Fonts: ${f.google_font_family}` : 'Custom upload'} · {f.bold_url ? 'Regular + Bold' : 'Regular only'}
+                      {f.source === 'google_fonts' ? `Google Fonts: ${f.google_font_family}` : 'Custom upload'} · {weightSummary(f)}
                     </div>
                   </div>
                   <Button variant="ghost" onClick={() => deleteFont(f.id)}>Delete</Button>

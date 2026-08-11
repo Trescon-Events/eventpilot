@@ -1,6 +1,7 @@
 import { notFound } from 'next/navigation'
 import { cookies } from 'next/headers'
 import { supabaseAdmin } from '@/app/lib/supabase'
+import { getDefaultFaviconUrl, getDefaultSocialShareImageUrl } from '@/app/lib/branding/email-header'
 import type { PageStructure, Section, SectionDesign, SectionItem } from '@/app/lib/event-page-types'
 import { defaultFooter } from '@/app/lib/event-page-types'
 import AgendaTabs          from './sections/AgendaTabs'
@@ -893,9 +894,20 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
     .single()
   if (!data) return {}
   const ev = (data as unknown as { events: { name: string } | null }).events
+
+  // event_websites has no per-event favicon/OG-image columns yet, so these
+  // are always the corporate default for now — that's still correct
+  // "unless a different one is defined" behavior, since no override exists
+  // to be defined. hero_bg_url doubles as the one per-event OG override
+  // that does exist today.
+  const [favicon, defaultSocialImage] = await Promise.all([getDefaultFaviconUrl(), getDefaultSocialShareImageUrl()])
+  const ogImage = data.hero_bg_url || defaultSocialImage
+
   return {
     title: data.hero_headline ?? ev?.name ?? slug,
     description: data.hero_subheadline ?? '',
-    openGraph: { images: data.hero_bg_url ? [data.hero_bg_url] : [] },
+    icons: favicon ? { icon: favicon } : undefined,
+    openGraph: { images: ogImage ? [ogImage] : [] },
+    twitter: { card: 'summary_large_image', images: ogImage ? [ogImage] : [] },
   }
 }

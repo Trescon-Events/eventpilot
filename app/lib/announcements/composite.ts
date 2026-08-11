@@ -64,6 +64,13 @@ export type TextLayerFont = {
   family_name: string        // display name, e.g. "Poppins" — used as the SVG font-family
   regular_url: string
   bold_url?: string | null
+  // 2026-08-04 — full weight support (was regular/bold only), see
+  // app/lib/branding/fonts.ts. Numeric CSS weight (100-900) -> public
+  // storage URL for that specific weight's own distinct font file.
+  // Optional/nullable since this is denormalized onto the layer at
+  // variant-save time from a brand_fonts row — fonts added before this
+  // date have no weights map at all, only regular_url/bold_url.
+  weights?: Record<number, string> | null
 }
 
 export type TextLayer = {
@@ -79,7 +86,19 @@ export type TextLayer = {
                               // ellipsis-truncates if the text still can't fit within this many lines
   font_size: number           // ceiling — actual rendered size may auto-shrink smaller to fit
   font_color: string         // hex, e.g. '#FFFFFF'
-  font_weight?: 'normal' | 'bold'
+  // 2026-08-04 — widened to a numeric CSS weight (100-900) so a text layer
+  // can pick any weight the selected font_family genuinely has a distinct
+  // file for (see fonts.ts's fetchGoogleFontFiles doc comment on how that's
+  // now possible at all). 'normal'/'bold' kept purely for backward
+  // compatibility with layers saved before this date — resolveFontWeight()
+  // normalizes either shape to a concrete number.
+  font_weight?: 'normal' | 'bold' | number
+  // Force-uppercase at render time (2026-08-04, per Madhu: "we sometimes go
+  // with full upper case version for speaker names... if unselected, it
+  // goes back to whatever format it is typed in coming from the speaker
+  // database") — a display transform applied in resolveTextValue(), never
+  // written back to the underlying speaker/partner data itself.
+  uppercase?: boolean
   align?: 'left' | 'center' | 'right'
   font_family?: TextLayerFont // denormalized at variant-save time from a brand_fonts row — see app/lib/branding/fonts.ts. Falls back to a generic sans-serif when absent.
   // "Snap below previous text layer" (2026-08-02) — id of another TEXT
@@ -302,11 +321,12 @@ export async function compositeAnnouncement(
 }
 
 function resolveTextValue(layer: TextLayer, texts: { name?: string; title?: string; company?: string; tier?: string }): string | undefined {
-  if (layer.field === 'custom') return layer.value
-  if (layer.field === 'name') return texts.name
-  if (layer.field === 'title') return texts.title
-  if (layer.field === 'company') return texts.company
-  return texts.tier ?? layer.value // 'tier' — runtime value wins, falls back to the layer's own hardcoded label
+  const raw = layer.field === 'custom' ? layer.value
+    : layer.field === 'name' ? texts.name
+    : layer.field === 'title' ? texts.title
+    : layer.field === 'company' ? texts.company
+    : (texts.tier ?? layer.value) // 'tier' — runtime value wins, falls back to the layer's own hardcoded label
+  return layer.uppercase && raw ? raw.toUpperCase() : raw
 }
 
 // A text layer's actual rendered height (real line count × line height) —
@@ -319,10 +339,15 @@ function resolveTextValue(layer: TextLayer, texts: { name?: string; title?: stri
 async function measureTextLayerHeight(layer: TextLayer, value: string, canvasWidth: number, canvasHeight: number): Promise<number> {
   const normalized = withTextLayerDefaults(layer, { width: canvasWidth, height: canvasHeight })
   const registered = normalized.font_family ? await ensureFontRegisteredForMeasurement(normalized.font_family) : null
+  const targetWeight = resolveFontWeight(normalized.font_weight)
+  // Must resolve to the SAME effective weight renderTextLayerPng() will
+  // actually draw at, or "snap below" positioning could be computed
+  // against a different width/line-count than what really renders.
+  const actualWeight = registered && registered.weights.length > 0 ? nearestWeight(registered.weights, targetWeight) : targetWeight
   const { lines, lineHeight } = wrapAndFit(value, {
     width: normalized.width, height: normalized.height, maxLines: normalized.max_lines,
     fontSize: normalized.font_size,
-    fontWeight: registered?.hasTrueBold ? normalized.font_weight : 'normal',
+    fontWeight: actualWeight,
     fontFamily: registered?.family ?? 'sans-serif',
   })
   return lines.length * lineHeight
@@ -398,44 +423,64 @@ function fetchFontBuffer(url: string): Promise<Buffer | null> {
 // registering the same family twice is harmless but wasteful (network
 // fetch + native registration on every debounced preview keystroke), so
 // track what's already been registered this process.
-type RegisteredFont = { family: string; hasTrueBold: boolean }
+type RegisteredFont = { family: string; weights: number[] } // weights: sorted ascending, only genuinely distinct registered files
 const registeredFontFamilies = new Map<string, RegisteredFont>()
+
+// Normalizes font_weight's legacy 'normal'/'bold' shape (pre-2026-08-04
+// saved layers) and the new numeric shape to a single concrete CSS weight.
+export function resolveFontWeight(w: TextLayer['font_weight']): number {
+  if (typeof w === 'number') return w
+  if (w === 'bold') return 700
+  return 400
+}
+
+function nearestWeight(available: number[], target: number): number {
+  return available.reduce((best, w) => Math.abs(w - target) < Math.abs(best - target) ? w : best, available[0])
+}
 
 // Real bug found live (2026-07-31, same day as the librsvg fix above):
 // Madhu selected Bold for a Space Grotesk text layer and the render kept
-// coming out at regular weight. Root cause is one level past the librsvg
-// bug — Google Fonts' css2 API now serves almost its entire catalog as
-// variable fonts, and for a variable family it returns the SAME physical
-// file for every weight in the response (confirmed directly: fresh 400 vs
-// 700 CSS blocks for both Space Grotesk and Open Sans point at one
-// identical .woff2 URL) — real browsers pick the right instance out of that
-// one file via the variable font's own weight axis, but @napi-rs/canvas has
-// no such support: registering that single file and requesting
-// `ctx.font = 'bold ...'` renders pixel-for-pixel identical to a non-bold
-// request, silently, with no error and no fallback to a different family.
-// So: only trust a font as having a genuine separate bold face when its
-// bold_url actually downloads to different bytes than regular_url — true
-// for hand-uploaded TTFs (the bulk-upload route stores genuinely distinct
-// files), false for most Google Fonts today. When it's false, renderTextLayerPng()
-// below falls back to drawing synthetic/faux bold itself.
+// coming out at regular weight. Root cause: Google Fonts' css2 API serves
+// almost its entire catalog as variable fonts, and for a variable family it
+// returns the SAME physical file for every weight in the response
+// (confirmed directly: fresh 400 vs 700 CSS blocks for both Space Grotesk
+// and Open Sans pointed at one identical .woff2 URL) — real browsers pick
+// the right instance out of that one file via the variable font's own
+// weight axis, but @napi-rs/canvas has no such support: registering that
+// single file and requesting a heavier weight renders pixel-for-pixel
+// identical to a lighter one, silently, no error, no fallback.
+//
+// 2026-08-04 — this is now solved upstream instead of worked around here:
+// fetchGoogleFontFiles() (app/lib/branding/fonts.ts) requests weight files
+// with an old Android User-Agent, which forces Google to serve genuinely
+// distinct static per-weight files rather than one variable file (confirmed
+// via SHA-256: 5 different hashes for 5 requested weights of the same
+// family). This function's byte-equality check stays as defense in depth —
+// a font added before that fix (or any future edge case) still can't
+// silently claim a weight it can't actually render differently.
 async function ensureFontRegisteredForMeasurement(font: TextLayerFont): Promise<RegisteredFont> {
   const familyName = font.family_name.replace(/"/g, '')
   const cached = registeredFontFamilies.get(familyName)
   if (cached) return cached
 
-  const regularBuffer = await fetchFontBuffer(font.regular_url)
-  if (regularBuffer) GlobalFonts.register(regularBuffer, familyName)
+  const urlsByWeight: Record<number, string> = font.weights ? { ...font.weights } : {}
+  if (!urlsByWeight[400] && font.regular_url) urlsByWeight[400] = font.regular_url
+  if (!urlsByWeight[700] && font.bold_url) urlsByWeight[700] = font.bold_url
 
-  let hasTrueBold = false
-  if (font.bold_url) {
-    const boldBuffer = await fetchFontBuffer(font.bold_url)
-    if (boldBuffer && regularBuffer && !boldBuffer.equals(regularBuffer)) {
-      GlobalFonts.register(boldBuffer, familyName)
-      hasTrueBold = true
-    }
+  const weights: number[] = []
+  const seenBuffers: Buffer[] = []
+  // Deterministic ascending order so byte-dedup consistently favors the
+  // lower weight when two "different" weights turn out to be the same file.
+  for (const weight of Object.keys(urlsByWeight).map(Number).sort((a, b) => a - b)) {
+    const buffer = await fetchFontBuffer(urlsByWeight[weight])
+    if (!buffer) continue
+    if (seenBuffers.some(b => b.equals(buffer))) continue
+    seenBuffers.push(buffer)
+    GlobalFonts.register(buffer, familyName)
+    weights.push(weight)
   }
 
-  const result: RegisteredFont = { family: familyName, hasTrueBold }
+  const result: RegisteredFont = { family: familyName, weights }
   registeredFontFamilies.set(familyName, result)
   return result
 }
@@ -458,37 +503,35 @@ async function ensureFontRegisteredForMeasurement(font: TextLayerFont): Promise<
 async function renderTextLayerPng(
   layer: TextLayer, value: string, canvasWidth: number, canvasHeight: number
 ): Promise<{ buffer: Buffer; didShrink: boolean; didTruncate: boolean }> {
-  const weight = layer.font_weight === 'bold' ? 'bold' : 'normal'
+  const targetWeight = resolveFontWeight(layer.font_weight)
 
   // Custom brand font if configured; falls back to a generic sans-serif
   // (unaffected for every text layer authored before Phase C v4).
   let fontFamily = 'sans-serif'
-  let hasTrueBold = false
+  let actualWeight = targetWeight
   if (layer.font_family) {
     const registered = await ensureFontRegisteredForMeasurement(layer.font_family)
     fontFamily = registered.family
-    hasTrueBold = registered.hasTrueBold
+    if (registered.weights.length > 0) actualWeight = nearestWeight(registered.weights, targetWeight)
   }
-  // See ensureFontRegisteredForMeasurement's comment above — when there's no
-  // genuinely distinct bold face to select, draw synthetic bold ourselves.
-  const useSyntheticBold = weight === 'bold' && !hasTrueBold
+  // Only fake it when the request is MEANINGFULLY heavier than what's
+  // actually available (matches how browsers only synthesize bold when no
+  // real bold-ish face exists at all) — a small nearest-match gap (e.g.
+  // asked for 600, only 500 on file) doesn't need faking.
+  const useSyntheticBold = targetWeight >= 600 && actualWeight < 600
 
   const { lines, fontSize, lineHeight, didShrink, didTruncate } = wrapAndFit(value, {
     width: layer.width,
     height: layer.height,
     maxLines: layer.max_lines,
     fontSize: layer.font_size,
-    // Measuring as 'bold' against a family with no true bold face returns
-    // identical widths to 'normal' anyway (nothing to measure differently),
-    // so this only actually changes anything — correctly — when a genuine
-    // bold face is registered.
-    fontWeight: hasTrueBold ? layer.font_weight : 'normal',
+    fontWeight: actualWeight,
     fontFamily,
   })
 
   const canvas = createCanvas(canvasWidth, canvasHeight)
   const ctx = canvas.getContext('2d')
-  ctx.font = `${hasTrueBold && weight === 'bold' ? 'bold ' : ''}${fontSize}px ${fontFamily}`
+  ctx.font = `${actualWeight} ${fontSize}px ${fontFamily}`
   ctx.fillStyle = layer.font_color
   ctx.textAlign = layer.align === 'center' ? 'center' : layer.align === 'right' ? 'right' : 'left'
   if (useSyntheticBold) {
@@ -536,10 +579,12 @@ export async function analyzeTextLayers(
     if (!value) continue
     const normalized = withTextLayerDefaults(layer, { width: variant.canvas_width, height: variant.canvas_height })
     const registered = normalized.font_family ? await ensureFontRegisteredForMeasurement(normalized.font_family) : null
+    const targetWeight = resolveFontWeight(normalized.font_weight)
+    const actualWeight = registered && registered.weights.length > 0 ? nearestWeight(registered.weights, targetWeight) : targetWeight
     const { didShrink, didTruncate } = wrapAndFit(value, {
       width: normalized.width, height: normalized.height, maxLines: normalized.max_lines,
       fontSize: normalized.font_size,
-      fontWeight: registered?.hasTrueBold ? normalized.font_weight : 'normal',
+      fontWeight: actualWeight,
       fontFamily: registered?.family ?? 'sans-serif',
     })
     result[layer.id] = { did_shrink: didShrink, did_truncate: didTruncate }

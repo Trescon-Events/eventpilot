@@ -11,14 +11,30 @@ import { supabaseAdmin } from '@/app/lib/supabase'
 const BUCKET = 'event-stakeholder-assets'
 let bucketReady = false
 
+// 50 MB — this project's actual hard ceiling on Supabase's current storage
+// plan tier, confirmed by direct API probing 2026-08-06 (150/100/60MB were
+// all rejected with "The object exceeded the maximum allowed size" even on
+// a metadata-only updateBucket() call — not something app code can raise;
+// requires upgrading the Supabase plan). Requested target for the Corporate
+// Brand PDF import was 150MB; 50MB is what's actually achievable today.
+// Shared across every uploadPublicAsset() caller, but each endpoint still
+// enforces its own tighter per-asset limit before calling this (speaker
+// photo 5MB, company logo 3MB, partner logo 10MB, etc.) — this is just the
+// outer ceiling, not a new default.
+const FILE_SIZE_LIMIT = 52428800
+
 async function ensureBucket() {
   if (bucketReady) return
   const { error } = await supabaseAdmin.storage.createBucket(BUCKET, {
     public: true,
-    fileSizeLimit: 20971520, // 20 MB — covers photos/logos/PDFs with headroom
+    fileSizeLimit: FILE_SIZE_LIMIT,
   })
-  if (error && error.message !== 'The resource already exists') {
-    await supabaseAdmin.storage.updateBucket(BUCKET, { public: true, fileSizeLimit: 20971520 }).catch(() => {})
+  // Bucket already existing (from before FILE_SIZE_LIMIT was raised, or any
+  // earlier run) is the expected steady-state case, not an error to ignore —
+  // it's exactly when an existing bucket needs to be brought up to the
+  // current limit via an explicit update call.
+  if (error) {
+    await supabaseAdmin.storage.updateBucket(BUCKET, { public: true, fileSizeLimit: FILE_SIZE_LIMIT }).catch(() => {})
   }
   bucketReady = true
 }

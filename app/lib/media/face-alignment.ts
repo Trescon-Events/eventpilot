@@ -53,7 +53,15 @@ export async function detectHeadBox(imageBuffer: Buffer): Promise<HeadBox | null
     generationConfig: { responseMimeType: 'application/json', responseSchema: schema },
   })
 
-  const pngBuffer = await sharp(imageBuffer).png().toBuffer()
+  // Downscale before sending — detectHeadBox only ever returns normalized
+  // 0-1 RATIOS (relative to whatever size Gemini sees), never pixels, so a
+  // smaller image produces an IDENTICAL result, just with a much smaller
+  // upload/inference payload (2026-08-04 perf pass: real speaker photos
+  // this session have been as large as 2015x3583 — sent at full resolution,
+  // base64-inflated ~33% on top, for a task that only needs coarse
+  // localization). withoutEnlargement means a photo already smaller than
+  // this never gets upscaled first.
+  const pngBuffer = await sharp(imageBuffer).resize(768, 768, { fit: 'inside', withoutEnlargement: true }).png().toBuffer()
   const result = await model.generateContent([
     { inlineData: { mimeType: 'image/png', data: pngBuffer.toString('base64') } },
     { text: 'Detect the bounding box of the person\'s HEAD/FACE only (not their whole body or shoulders) in this image. Return box_2d as [y0, x0, y1, x1] normalized to a 0-1000 scale relative to image width/height.' },
@@ -186,9 +194,24 @@ export async function alignAndCropPhoto(realPhotoBuffer: Buffer, target: Alignme
       ? await sharp(scaled).extend({ left: padLeft, top: padTop, right: padRight, bottom: padBottom, background: { r: 0, g: 0, b: 0, alpha: 0 } }).toBuffer()
       : scaled
 
-    return sharp(padded)
+    const cropped = await sharp(padded)
       .extract({ left: desiredLeft + padLeft, top: desiredTop + padTop, width: target.box.width, height: target.box.height })
       .toBuffer()
+
+    // Sanity-check the actual pixel content before trusting it — a cached
+    // head_box can point at empty background (bad detection, or a manual
+    // entry error) while still landing fully in-bounds, so extract() above
+    // never throws and this silently produces a fully transparent crop that
+    // composites as an invisible photo with zero signal anything went wrong
+    // (real incident, 2026-08-03). alpha max === 0 means not a single pixel
+    // in this crop is opaque — the person isn't in it at all.
+    const { channels } = await sharp(cropped).stats()
+    if (channels.length > 3 && channels[3].max === 0) {
+      console.error('Face alignment produced a fully transparent crop (head_box points at empty background) — falling back to contain-centered fit')
+      return fallbackContainCenter(realPhotoBuffer, target.box)
+    }
+
+    return cropped
   } catch (e) {
     console.error('Face alignment failed, falling back to contain-centered fit:', e)
     return fallbackContainCenter(realPhotoBuffer, target.box)

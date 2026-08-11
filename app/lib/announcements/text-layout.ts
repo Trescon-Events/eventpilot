@@ -21,7 +21,7 @@ export type WrapAndFitOptions = {
   height: number
   maxLines: number
   fontSize: number          // ceiling — actual returned fontSize may be smaller
-  fontWeight?: 'normal' | 'bold'
+  fontWeight?: number // 100-900, 2026-08-04 (was 'normal'|'bold') — see composite.ts's resolveFontWeight()
   fontFamily?: string       // must already be registered with GlobalFonts if custom
 }
 
@@ -40,12 +40,12 @@ const LINE_HEIGHT_RATIO = 1.2
 const SHRINK_FLOOR_RATIO = 0.6
 const SHRINK_STEP = 1
 
-function measure(text: string, size: number, weight: 'normal' | 'bold', family: string): number {
-  measureCtx.font = `${weight === 'bold' ? 'bold ' : ''}${size}px ${family}`
+function measure(text: string, size: number, weight: number, family: string): number {
+  measureCtx.font = `${weight} ${size}px ${family}`
   return measureCtx.measureText(text).width
 }
 
-function greedyWordWrap(text: string, boxWidth: number, size: number, weight: 'normal' | 'bold', family: string): string[] {
+function greedyWordWrap(text: string, boxWidth: number, size: number, weight: number, family: string): string[] {
   const words = text.split(/\s+/).filter(Boolean)
   const lines: string[] = []
   let current = ''
@@ -69,7 +69,7 @@ function greedyWordWrap(text: string, boxWidth: number, size: number, weight: 'n
 // unmodified — needed when a whole trailing line got dropped (maxLines
 // cut it off) rather than this specific line itself being too wide; the
 // visible last line still needs to signal that more text existed.
-function truncateToWidth(text: string, boxWidth: number, size: number, weight: 'normal' | 'bold', family: string, forceEllipsis = false): string {
+function truncateToWidth(text: string, boxWidth: number, size: number, weight: number, family: string, forceEllipsis = false): string {
   const ellipsis = '…'
   if (!forceEllipsis && measure(text, size, weight, family) <= boxWidth) return text
   if (measure(text + ellipsis, size, weight, family) <= boxWidth) return text + ellipsis
@@ -85,7 +85,7 @@ function truncateToWidth(text: string, boxWidth: number, size: number, weight: '
 }
 
 export function wrapAndFit(text: string, opts: WrapAndFitOptions): WrapAndFitResult {
-  const { width, height, maxLines, fontSize, fontWeight = 'normal', fontFamily = 'sans-serif' } = opts
+  const { width, height, maxLines, fontSize, fontWeight = 400, fontFamily = 'sans-serif' } = opts
   const trimmed = text.trim()
   if (!trimmed) return { lines: [], fontSize, lineHeight: fontSize * LINE_HEIGHT_RATIO, didShrink: false, didTruncate: false }
 

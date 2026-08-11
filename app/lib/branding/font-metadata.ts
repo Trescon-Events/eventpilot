@@ -10,6 +10,32 @@ export type ParsedFontFile = {
   familyName: string
   subfamilyName: string
   isBold: boolean
+  weight: number // 100-900, nearest standard CSS weight bucket
+}
+
+// Subfamily-name fallback (2026-08-04, full weight support) — not every
+// font file's OS/2.usWeightClass is reliably set (some hand-exported/older
+// files leave it at the 400 default regardless of actual weight), but the
+// STYLE name almost always says what it is. Longest/most-specific terms
+// first so "Extra Bold" matches before the plainer "Bold" pattern would.
+const WEIGHT_NAME_PATTERNS: [RegExp, number][] = [
+  [/extra\s*-?\s*light|ultra\s*-?\s*light/i, 200],
+  [/semi\s*-?\s*bold|demi\s*-?\s*bold/i, 600],
+  [/extra\s*-?\s*bold|ultra\s*-?\s*bold/i, 800],
+  [/thin|hairline/i, 100],
+  [/light/i, 300],
+  [/medium/i, 500],
+  [/black|heavy/i, 900],
+  [/bold/i, 700],
+  [/regular|normal|book/i, 400],
+]
+
+// Rounds an arbitrary OS/2 weight class (spec allows 1-1000, real files
+// sometimes use odd values) to the nearest standard 100-step CSS bucket —
+// matches how browsers/OSes already treat font-weight matching.
+function roundToStandardWeight(raw: number): number {
+  const clamped = Math.max(100, Math.min(900, raw))
+  return Math.round(clamped / 100) * 100
 }
 
 export function parseFontMetadata(buffer: Buffer): ParsedFontFile {
@@ -25,7 +51,17 @@ export function parseFontMetadata(buffer: Buffer): ParsedFontFile {
 
   const subfamilyName = font.subfamilyName?.trim() ?? ''
   const weightClass = font['OS/2']?.usWeightClass
-  const isBold = /bold/i.test(subfamilyName) || (typeof weightClass === 'number' && weightClass >= 700)
 
-  return { familyName, subfamilyName, isBold }
+  // Prefer a real OS/2 weight class UNLESS it's sitting at the generic 400
+  // default while the subfamily name clearly claims something else (the
+  // "reliably-unset" case this fallback exists for) — a genuine 400 file
+  // whose name also says "Regular" still correctly resolves to 400 either way.
+  const namedWeight = WEIGHT_NAME_PATTERNS.find(([re]) => re.test(subfamilyName))?.[1]
+  const weight = (typeof weightClass === 'number' && weightClass > 0 && !(weightClass === 400 && namedWeight && namedWeight !== 400))
+    ? roundToStandardWeight(weightClass)
+    : (namedWeight ?? 400)
+
+  const isBold = weight >= 600 || /bold/i.test(subfamilyName)
+
+  return { familyName, subfamilyName, isBold, weight }
 }

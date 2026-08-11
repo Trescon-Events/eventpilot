@@ -36,7 +36,7 @@ export async function POST(req: NextRequest) {
     // family_name is what shows up in the SAE editor's Font Family dropdown.
     const canonicalFamily = await resolveCanonicalFamilyName(body.google_font_family)
     const files = await fetchGoogleFontFiles(canonicalFamily)
-    const { regular_url, bold_url } = await storeFontFiles(fontId, files)
+    const { regular_url, bold_url, weights } = await storeFontFiles(fontId, files)
 
     const { data, error } = await supabaseAdmin
       .from('brand_fonts')
@@ -47,6 +47,7 @@ export async function POST(req: NextRequest) {
         google_font_family: canonicalFamily,
         regular_url,
         bold_url,
+        weights,
       })
       .select()
       .single()

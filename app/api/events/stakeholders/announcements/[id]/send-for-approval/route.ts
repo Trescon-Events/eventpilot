@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { randomBytes } from 'node:crypto'
 import { Resend } from 'resend'
 import { supabaseAdmin } from '@/app/lib/supabase'
+import { getStakeholderEmailHeaderHtml } from '@/app/lib/branding/email-header'
 
 /* POST /api/events/stakeholders/announcements/[id]/send-for-approval
    Body: { approvers: [{ staff_id, role_label }] }
@@ -71,6 +72,7 @@ async function sendApprovalEmails(announcement: AnnouncementRow, approvals: Appr
   const from = process.env.RESEND_FROM || 'Event Pilot <noreply@eventpilot.tresconglobal.com>'
   const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://eventpilot.tresconglobal.com'
   const event = Array.isArray(announcement.event) ? announcement.event[0] : announcement.event
+  const headerHtml = await getStakeholderEmailHeaderHtml()
 
   for (const approval of approvals) {
     const approver = Array.isArray(approval.approver) ? approval.approver[0] : approval.approver
@@ -85,6 +87,7 @@ async function sendApprovalEmails(announcement: AnnouncementRow, approvals: Appr
       /* eslint-disable no-restricted-syntax -- email HTML; clients can't render CSS custom properties, literal colors required (matches app/api/content/posts/[id]/approve/route.ts's existing convention) */
       html: `
         <div style="font-family:sans-serif;max-width:520px;margin:0 auto">
+          ${headerHtml}
           <h2 style="font-size:18px;color:#0F1923;margin:0 0 12px">Approval Requested — ${approver.name ?? ''}</h2>
           <p style="font-size:14px;color:#2D3E50;line-height:1.6;margin:0 0 16px">
             An announcement for <strong>${event?.name ?? 'an event'}</strong> is ready for your review as ${approval.approver_role}.
