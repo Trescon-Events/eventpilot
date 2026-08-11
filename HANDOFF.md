@@ -9,14 +9,17 @@
 
 | Field | Value |
 |---|---|
-| Who | Durga + Claude Code (Opus 4.7 · 1M) — 11 Aug 2026 |
-| Latest push | 2026-08-11 — commit `dc4bb6d` (5-ticket Nic batch); no migration needed |
+| Who | Durga + Claude Code (Opus 4.7 · 1M) — 11 Aug 2026 (long session, three arcs) |
+| Latest push | 2026-08-11 — commit `66ebbe8` (CM-002.1 Statistics Repository final slices). Also this session: `dc4bb6d` (Nic batch), `a381b1f` (Thulasi 2 quick fixes), `696ed08` (CM-002.1 Slices 1–3), `66ebbe8` (CM-002.1 Slices 4–6). |
+| DB migrations applied | ✅ `supabase/cm_statistics_repository.sql` (3 tables, 2 enums, 2 triggers, 11 seeded Company stats — applied by Durga via Studio SQL Editor at ~04:52 UTC) |
 | Handed off to | Next session |
-| Deployed | ✅ Yes — pushed to `main`, Railway auto-deploy triggered (~3 min). Verify `eventpilot.tresconglobal.com` reflects `dc4bb6d` before starting new work. |
+| Deployed | ✅ Yes — every commit pushed to `main`, Railway auto-deployed. Verify `eventpilot.tresconglobal.com` reflects `66ebbe8` before starting new work. |
 
-**Session highlight (11 Aug 2026):** Cleared all 5 outstanding Nic build_requests in one batch. Session-start protocol worked as designed — HANDOFF was silent but DB query surfaced all 5 that had been sitting `submitted` for 4–7 days.
+**Session highlight (11 Aug 2026):** Three arcs in one long session — cleared 5 outstanding Nic build_requests, shipped 2 of Thulasi's 3 quick fixes from her 10 Aug .docx, and built the whole **CM-002.1 · Statistics Repository** (Thulasi's CMOS 2.1 spec, 29 Jul 2026) end-to-end in 6 tracked slices. Two consolidated close-out emails sent (one to Nic, one to Thulasi). Corporate Marketing Phase-2 PRD is no longer "waiting on Durga↔Thulasi call" — it's live.
 
-**Tickets shipped (one commit `dc4bb6d`, one email):**
+### Arc 1 · Nic — 5 build_requests batched (commit `dc4bb6d`)
+
+Session-start protocol (git fetch → HANDOFF → DB query) surfaced all 5 sitting `submitted` for 4–7 days. Batched into one commit + one email.
 
 | ID | Title | Fix |
 |---|---|---|
@@ -26,24 +29,59 @@
 | `3173e664` | Design references hallucination | `AssetsTabContent.designRefs` drops the `target_accounts_list` URL fallback — only `client_assets_url` populates now. Empty when brief has no design link, per Nic's ask. |
 | `590aa5c2` | Agenda in Campaign Media on Assets tab | Renders `project.agenda` inside Campaign Media (time-range on left, session title + description on right). New `CopyAgendaButton` produces a bulleted text agenda for clipboard. |
 
-**Constraints honoured:** every ticket said "Functional Changes Only" — no card layouts, widths, or colours restructured. Terminology check clean (Delegate Team, never Delegacy).
+Every ticket said "Functional Changes Only" — no card layouts, widths, or colours restructured. All 5 flipped to `status='completed'` via direct DB write. Close-out Resend id **`cfa2f67d-9b8a-4156-a9e9-f54f81633f93`** — delivered to Nic (CC Madhu, reply-to dc@).
 
-**Close-out email (Resend id `cfa2f67d-9b8a-4156-a9e9-f54f81633f93`):**
-- To: `nicholas@tresconglobal.com`
-- CC: `md@tresconglobal.com`
-- Reply-to: `dc@tresconglobal.com`
-- From: `noreply@eventpilot.tresconglobal.com`
-- Subject: *"Bespoke Tracker — 5 build_requests shipped (Tasks edit/delete · Description + Themes · ICP parser · Design refs · Agenda in Assets)"*
-- 5-section retest checklist embedded (one per ticket)
-- All 5 tickets flipped to `status='completed'` via direct DB write to bypass per-ticket auto-email (batch close-out rule)
+### Arc 2 · Thulasi — 2 quick fixes from 10 Aug .docx (commit `a381b1f`)
 
-**Verification this session:** `npx tsc --noEmit` clean (only pre-existing route errors, unrelated). `npx next build` compiled 6.6s clean. Not authenticated-browser retested (production is SSO-only) — Nic retests confirm.
+Thulasi's 10 Aug document (Desktop/`thulasi 10th Aug.docx`, 3 issues + screenshots). Fixed 2, deferred the 3rd until she shared the CMOS spec.
 
-**Carried forward — unchanged this session (still-to-do items):**
+| Issue | Fix |
+|---|---|
+| **Leadership tab — remove/add members** | `/api/corporate-marketing/leadership`: added `.eq('is_active', true)` to the 'extras' query so ex-employees (like Gururanjana) drop out once HR marks them inactive. Leadership panel UI got a **+ Add teammate** button (deep-links to `/hr/staff/new`) and a hint pointing to `/team` for removals. Staff CRUD stays centralised in HR — single-source-of-truth principle preserved. |
+| **Version History — Overview showed v5 but list only had v4** | `VersionsTab.tsx` now also fetches `/api/corporate-marketing/deck/readiness` alongside published versions. When `current_version > published_version`, an amber-bordered **v5 · DRAFT · UNPUBLISHED** row prepends the list with a pointer to click Publish on Overview. |
+
+Issue 3 (Event Statistics tab schema) was blocked on Thulasi's source doc — Durga forwarded `refinement for Phase-1 - 9 July.pdf` + `CMOS - 2.1.pdf`, which unlocked Arc 3.
+
+### Arc 3 · CM-002.1 · Statistics Repository (commits `696ed08` + `66ebbe8`)
+
+Thulasi's CMOS 2.1 spec (29 Jul 2026, `Desktop/CMOS - 2.1.pdf`) is the source of truth. Founder-approved scope decisions:
+- **Full CMOS 2.1 build** (not a slice)
+- **Named `CM-002.1 · Statistics Repository`** (Thulasi's own recommendation — nested under Knowledge Hub as an extension of it, not a standalone CM-003)
+- **Approvers = super-admins only** (Madhu + Durga — locks the workflow strictly for v1)
+- Notifications for pending approvals **skipped** — Overview Dashboard's "Pending Approval" card is the signal
+
+Shipped in 6 tracked slices, all in the commit trailer:
+
+| Slice | Scope |
+|---|---|
+| 1 | DB migration: 3 tables (`cm_statistics`, `cm_statistic_history`, `cm_statistic_dependencies`), 2 enums (`cm_stat_approval_status`, `cm_stat_scope`), 2 triggers (touch `updated_at`, flip linked deps to `needs_review` on value change), 11 seeded Company stats. Idempotent. |
+| 2 | 10 REST endpoints under `/api/corporate-marketing/statistics/*` — list · create · detail · update · archive · submit · approve · reject · history · dependencies · dashboard. Approver gate: `session.adm === true`. Every value or metadata change writes a history row. Editing an approved value auto-drops to Draft. |
+| 3 | UI shell + Overview Dashboard (7 metric cards + Recent Activity feed) + Company Statistics tab (inline-edit CRUD with Submit/Approve/Reject/Archive actions). |
+| 4 | Event Series Statistics tab (free-text series names, chip picker, suggested stat names) + Event Statistics tab (picker reads live from `/api/events` — no duplication). |
+| 5 | Statistic Detail slide-in drawer with 4 sub-tabs (General · History · Dependencies · Approval). Wired into all three stat tabs — click a name to open. |
+| 6 | Recent Changes tab (filterable audit feed) + Dependency Map tab (statistics grouped by consuming assets) + Settings tab (workflow + lifecycle reference) + Corporate Marketing landing rewritten from redirect to a 2-module picker (CM-001 Deck + CM-002.1 Repository). |
+
+**Access reach:** Anyone with `staff_members.tool_grants.corporate_marketing = true` OR `job_level = super_admin`. Verified Thulasi (`thulasi@tresconglobal.com`) already has the grant.
+
+**Live at:** `https://eventpilot.tresconglobal.com/admin/toolkit/corporate-marketing/statistics`
+
+Close-out Resend id **`1d9dbea8-1aad-4fec-b694-b77ebc5885af`** — delivered to Thulasi (CC Madhu + Durga, reply-to dc@) covering both the 10 Aug .docx fixes AND the new module.
+
+**Deferred debt from this arc (explicit):**
+- Corporate Deck's Live Content → Statistics panel still uses free-text label/value pairs. Next step is to wire it to *consume* approved statistics from the new repository so the Deck stops being a separate source. Scheduled for the next Corporate Deck content pass — no functional break in the interim.
+- CMOS 2.1 Phase-2 wishlist (categories dropdown, unit vocabulary picker, default owners, JSONB custom fields) — schema supports it, UI is roadmap.
+
+### Verification (all three arcs)
+
+- `npx tsc --noEmit` clean (3 pre-existing unrelated errors persist; count stable across every commit).
+- `npx next build` clean · compiled in 5.8–6.8s across the session.
+- No authenticated browser click-through by Claude (production is SSO-only) — Nic + Thulasi retests confirm.
+
+**Carried forward — still-to-do items:**
 - **AI-SDR MVP** — PRD at commit `c138a03`, still awaiting Durga's `go` on Phase 1 stack choice (Premium / Hybrid / Cheap) + Vapi vs Retell + language handling
 - **Bengaluru Skill Summit / Events auto-transition** — `events.status` doesn't flip `active → completed` post-date
-- **Corporate Marketing Phase-2 PRD** — waiting on Durga↔Thulasi call
 - **Dedicated `promotional_links` field on the brief** — currently best-effort from speaker bios
+- **Corporate Deck → Statistics Repository wire-in** (see Arc 3 deferred debt above)
 - `staff_members.last_login_at` never written; Khalifat alignment reply awaiting founder send; `CRON_SECRET` on Railway out of sync; Charan sign-out/in for Finance Portal; Madhu's dark theme authenticated browser click-through
 
 **Historical session (03 Aug 2026):** Cleared Nic's outstanding `d17e10d8` "Updates to brief section" build_request — a 4-part Brief tab overhaul (Event Objectives simplification + two-step upload + AI theme synthesis + comma-separated ICP + read-only Submit/Edit Brief lifecycle). One migration applied. Ticket closed via direct DB write; consolidated close-out email sent to Nic + Madhu (Resend id `a18f2533-fbfd-48f2-a706-e90ac694bfa7`).
