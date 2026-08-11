@@ -9,12 +9,44 @@
 
 | Field | Value |
 |---|---|
-| Who | Durga + Claude Code (Opus 4.7 · 1M) — 03 Aug 2026 |
-| Latest push | 2026-08-03 — commit `921d16d` (Brief tab overhaul — Nic build_request `d17e10d8`); one migration applied to production |
+| Who | Durga + Claude Code (Opus 4.7 · 1M) — 11 Aug 2026 |
+| Latest push | 2026-08-11 — commit `dc4bb6d` (5-ticket Nic batch); no migration needed |
 | Handed off to | Next session |
-| Deployed | ✅ Yes — Railway auto-deployed; site 200 healthy at `eventpilot.tresconglobal.com`. |
+| Deployed | ✅ Yes — pushed to `main`, Railway auto-deploy triggered (~3 min). Verify `eventpilot.tresconglobal.com` reflects `dc4bb6d` before starting new work. |
 
-**Session highlight (03 Aug 2026):** Cleared Nic's outstanding `d17e10d8` "Updates to brief section" build_request — a 4-part Brief tab overhaul (Event Objectives simplification + two-step upload + AI theme synthesis + comma-separated ICP + read-only Submit/Edit Brief lifecycle). One migration applied. Ticket closed via direct DB write; consolidated close-out email sent to Nic + Madhu (Resend id `a18f2533-fbfd-48f2-a706-e90ac694bfa7`).
+**Session highlight (11 Aug 2026):** Cleared all 5 outstanding Nic build_requests in one batch. Session-start protocol worked as designed — HANDOFF was silent but DB query surfaced all 5 that had been sitting `submitted` for 4–7 days.
+
+**Tickets shipped (one commit `dc4bb6d`, one email):**
+
+| ID | Title | Fix |
+|---|---|---|
+| `e606f19c` | Changes to the tasks section | New `/api/me` route + DELETE handler on `/api/bespoke/tasks` + pencil/trash icons on Tasks-tab rows, visible only to project creator / assigned lead / super-admin. Inline rename via prompt with optimistic update. The 43-task auto-seed + phase render already ship from `a6a882d` — nothing changed there. |
+| `a837da08` | Description + Themes structure | Gemini prompt: `primary_goal` = 2-3 sentence commercial intent + registration target (omitted, not invented, if brief lacks it); `key_themes` = bulleted TEXT block (bullet + newline per theme), no more commas. BriefSummary Themes render uses `whiteSpace: pre-wrap`, no comma-split chips. |
+| `df915458` | ICP parser + UI | Gemini prompt: stitch multi-line titles back into one entry. Server-side `normaliseIcpEntry()` collapses `\r\n` + repeated whitespace to a single space. ICP fields (Brief tab summary + Assets tab) render as vertical bullet lists, not horizontal chips. |
+| `3173e664` | Design references hallucination | `AssetsTabContent.designRefs` drops the `target_accounts_list` URL fallback — only `client_assets_url` populates now. Empty when brief has no design link, per Nic's ask. |
+| `590aa5c2` | Agenda in Campaign Media on Assets tab | Renders `project.agenda` inside Campaign Media (time-range on left, session title + description on right). New `CopyAgendaButton` produces a bulleted text agenda for clipboard. |
+
+**Constraints honoured:** every ticket said "Functional Changes Only" — no card layouts, widths, or colours restructured. Terminology check clean (Delegate Team, never Delegacy).
+
+**Close-out email (Resend id `cfa2f67d-9b8a-4156-a9e9-f54f81633f93`):**
+- To: `nicholas@tresconglobal.com`
+- CC: `md@tresconglobal.com`
+- Reply-to: `dc@tresconglobal.com`
+- From: `noreply@eventpilot.tresconglobal.com`
+- Subject: *"Bespoke Tracker — 5 build_requests shipped (Tasks edit/delete · Description + Themes · ICP parser · Design refs · Agenda in Assets)"*
+- 5-section retest checklist embedded (one per ticket)
+- All 5 tickets flipped to `status='completed'` via direct DB write to bypass per-ticket auto-email (batch close-out rule)
+
+**Verification this session:** `npx tsc --noEmit` clean (only pre-existing route errors, unrelated). `npx next build` compiled 6.6s clean. Not authenticated-browser retested (production is SSO-only) — Nic retests confirm.
+
+**Carried forward — unchanged this session (still-to-do items):**
+- **AI-SDR MVP** — PRD at commit `c138a03`, still awaiting Durga's `go` on Phase 1 stack choice (Premium / Hybrid / Cheap) + Vapi vs Retell + language handling
+- **Bengaluru Skill Summit / Events auto-transition** — `events.status` doesn't flip `active → completed` post-date
+- **Corporate Marketing Phase-2 PRD** — waiting on Durga↔Thulasi call
+- **Dedicated `promotional_links` field on the brief** — currently best-effort from speaker bios
+- `staff_members.last_login_at` never written; Khalifat alignment reply awaiting founder send; `CRON_SECRET` on Railway out of sync; Charan sign-out/in for Finance Portal; Madhu's dark theme authenticated browser click-through
+
+**Historical session (03 Aug 2026):** Cleared Nic's outstanding `d17e10d8` "Updates to brief section" build_request — a 4-part Brief tab overhaul (Event Objectives simplification + two-step upload + AI theme synthesis + comma-separated ICP + read-only Submit/Edit Brief lifecycle). One migration applied. Ticket closed via direct DB write; consolidated close-out email sent to Nic + Madhu (Resend id `a18f2533-fbfd-48f2-a706-e90ac694bfa7`).
 
 **Process discipline lesson (worth locking):** At session start I ran the state check against HANDOFF only and reported "no new Nic pilot requests" — Durga caught that the `d17e10d8` ticket had been sitting `status='submitted'` in the `build_requests` DB for 5 days (created 2026-07-28 10:38 UTC, missed at that session's close-out too). **New session-start step:** always query the `build_requests` table for open tickets in addition to reading HANDOFF. The DB is source-of-truth; HANDOFF is a summary that can lag.
 
