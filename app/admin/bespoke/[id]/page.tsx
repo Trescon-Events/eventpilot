@@ -5,6 +5,8 @@ import Link from 'next/link'
 import PageHeader from '@/app/components/PageHeader'
 import { ImportDelegatesModal } from './ImportDelegatesModal'
 import { DelegateKanban } from './DelegateKanban'
+import AssetsTabContent from './AssetsTabContent'
+import { computeBespokePhase, BESPOKE_PHASE_FALLBACK } from '@/app/lib/bespoke-phase'
 
 /* ═══════════════════════════════════════════════════════════════════
    TYPES
@@ -36,10 +38,12 @@ type BespokeProject = {
   delegate_stats: DelegateStats
   created_at: string; updated_at: string
   // ── PRD #4 brief columns ─────────────────────────────────
+  // success_criteria + desired_outcome dropped 2026-08-03 (Nic d17e10d8).
+  // brief_is_submitted added 2026-08-03 — replaces the "lock" terminology
+  // with an explicit submit/edit lifecycle. brief_is_locked kept for
+  // backward compat; both fields are always written together.
   primary_goal:            string | null
-  success_criteria:        string | null
   key_themes:              string | null
-  desired_outcome:         string | null
   icp_job_titles:          string[] | null
   icp_industries:          string[] | null
   icp_geographies:         string[] | null
@@ -51,12 +55,23 @@ type BespokeProject = {
   registration_questions:  RegQuestion[] | null
   brief_file_url:          string | null
   brief_is_locked:         boolean
+  brief_is_submitted:      boolean
   client_assets_url:       string | null
+  // Assets tab — Nic 517e232e
+  client_logo_url:         string | null
+  brand_guidelines_url:    string | null
+  event_id?:               string | null
+  // Creator + assigned-lead FK IDs — needed by Tasks-tab creator-only
+  // Edit/Delete affordances (Nic e606f19c). Server exposes them via SELECT *.
+  created_by?:              string | null
+  creator_id?:              string | null
+  production_advisor_id?:   string | null
 }
 
 type BespokeTask = {
   id: string; title: string; description: string | null; phase: number
   week_number: number | null; assigned_to: string | null; assigned_role: string
+  assigned_team?: string | null   // Nic 2f002c2e — canonical display label
   due_date: string | null; status: string; sort_order: number
   assigned_staff: { id: string; name: string } | null
 }
@@ -72,11 +87,15 @@ type BespokeDelegate = {
 /* ═══════════════════════════════════════════════════════════════════
    CONSTANTS
    ═══════════════════════════════════════════════════════════════════ */
+// Phase labels renamed per Nic build_request 490f6974 — Kickoff & Alignment /
+// Outreach Runway / Live Execution / Reporting & Settlement. Keys stay the
+// same DB values so no data migration is required. Task-tab headers, Overview
+// Phase Progress strip, and Tasks-tab phase blocks all read from this array.
 const PHASES = [
-  { key: 'initiation', label: 'Initiation', num: 1 },
-  { key: 'campaign', label: 'Campaign', num: 2 },
-  { key: 'live', label: 'Live', num: 3 },
-  { key: 'closure', label: 'Closure', num: 4 },
+  { key: 'initiation', label: 'Kickoff & Alignment',   num: 1 },
+  { key: 'campaign',   label: 'Outreach Runway',       num: 2 },
+  { key: 'live',       label: 'Live Execution',        num: 3 },
+  { key: 'closure',    label: 'Reporting & Settlement', num: 4 },
 ]
 
 const PHASE_NUM_MAP: Record<string, number> = { initiation: 1, campaign: 2, live: 3, closure: 4, completed: 4 }
@@ -89,6 +108,22 @@ const ROLE_COLORS: Record<string, { bg: string; fg: string }> = {
   design: { bg: 'var(--red-light)', fg: 'var(--red)' },
   production: { bg: 'rgba(255,255,255,0.06)', fg: 'var(--ink3)' },
 }
+
+// Team badge colors — Nic 2f002c2e canonical vocabulary. Keeps parity with
+// ROLE_COLORS on overlap so a task with role='delegate' + team='Delegate Team'
+// shows the same green either way. New team-only values get their own hue.
+const TEAM_COLORS: Record<string, { bg: string; fg: string }> = {
+  'Commercial':    { bg: '#FFF8E1', fg: '#B45309' },
+  'Marketing':     { bg: '#E3F2FD', fg: '#1565C0' },
+  'Delegate Team': { bg: '#E8F5E9', fg: '#2E7D32' },
+  'Operations':    { bg: '#F3E5F5', fg: '#7B1FA2' },
+  'Design':        { bg: '#FCE4EC', fg: '#C62828' },
+  'Production':    { bg: '#ECEFF1', fg: '#546E7A' },
+  'DRT':           { bg: '#E1F5FE', fg: '#01579B' },
+  'Client':        { bg: '#FFF3E0', fg: '#E65100' },
+  'All Teams':     { bg: '#EDE7F6', fg: '#4527A0' },
+}
+const TEAM_OPTIONS = ['Commercial', 'Marketing', 'Delegate Team', 'Operations', 'Design', 'Production', 'DRT'] as const
 
 const STATUS_CYCLE: Record<string, string> = { pending: 'in_progress', in_progress: 'done', done: 'pending' }
 const STATUS_LABELS: Record<string, string> = { pending: 'Pending', in_progress: 'In Progress', done: 'Done' }
@@ -148,6 +183,31 @@ function leadLabel(fkObj: { id: string; name: string } | null | undefined, manua
   if (fkObj?.name) return fkObj.name
   if (manual?.trim()) return manual.trim() + ' (external)'
   return 'Unassigned'
+}
+
+// Nic 2f002c2e — phase-level deadline text for the Tasks-tab banner row.
+// Returns null when both dates aren't set (no meaningful deadline to render).
+function computePhaseDeadline(phase: 1|2|3|4, contractSignedDate: string | null, eventDate: string | null): { label: string; date: string } | null {
+  try {
+    if (phase === 1) {
+      if (!contractSignedDate) return null
+      const d = new Date(contractSignedDate); d.setDate(d.getDate() + 4)
+      return { label: 'Complete within 4 days of contract signing', date: d.toISOString().split('T')[0] }
+    }
+    if (phase === 2) {
+      if (!eventDate) return null
+      const d = new Date(eventDate); d.setDate(d.getDate() - 5)
+      return { label: 'Complete by Day 25 of campaign runway', date: d.toISOString().split('T')[0] }
+    }
+    if (phase === 3) {
+      if (!eventDate) return null
+      return { label: 'Complete by Event Day', date: eventDate }
+    }
+    // phase === 4
+    if (!eventDate) return null
+    const d = new Date(eventDate); d.setDate(d.getDate() + 10)
+    return { label: 'Complete within 10 days post-event', date: d.toISOString().split('T')[0] }
+  } catch { return null }
 }
 
 function computePhase(project: BespokeProject): { activePhase: 1|2|3|4; label: string; dayOf: number; totalRunway: number; daysRemaining: number } | null {
@@ -216,8 +276,12 @@ export default function BespokeWorkspacePage({ params }: { params: Promise<{ id:
   const [briefSaving, setBriefSaving] = useState(false)
   const [addTaskPhase, setAddTaskPhase] = useState<number | null>(null)
   const [newTaskTitle, setNewTaskTitle] = useState('')
+  const [newTaskTeam, setNewTaskTeam] = useState<string>('Commercial') // Nic 2f002c2e
   const [taskError, setTaskError] = useState<string | null>(null)
   const [flashTaskId, setFlashTaskId] = useState<string | null>(null)
+  // Nic e606f19c — session identity so we render Edit/Delete task actions
+  // only for project creator, an assigned lead, or a super-admin.
+  const [me, setMe] = useState<{ sid: string; adm: boolean } | null>(null)
   const [briefSaveState, setBriefSaveState] = useState<'idle' | 'saved' | 'error'>('idle')
   const [recalcState, setRecalcState] = useState<'idle' | 'pending' | 'done'>('idle')
   const [showAddDelegate, setShowAddDelegate] = useState(false)
@@ -227,16 +291,15 @@ export default function BespokeWorkspacePage({ params }: { params: Promise<{ id:
   const [showImportModal, setShowImportModal] = useState(false)
 
   /* ── PRD #4 Brief state ─────────────────────────────────────────
-     Every new brief field is held locally so users can edit freely,
-     then flushed via saveBrief() as a single PATCH. Textarea-backed
-     string[] columns (ICP job titles/industries/geographies) are
-     serialized as newline-separated strings while editing and split
-     back to arrays on save. */
+     Every brief field is held locally so users can edit freely, then
+     flushed via saveBrief() as a single PATCH.
+     2026-08-03 (Nic d17e10d8):
+       · Removed success_criteria + desired_outcome
+       · ICP fields now hold COMMA-separated strings while editing
+         (was newline-separated) and are split back to arrays on save. */
   const [briefFields, setBriefFields] = useState({
     primary_goal:           '',
-    success_criteria:       '',
     key_themes:             '',
-    desired_outcome:        '',
     icp_job_titles:         '',
     icp_industries:         '',
     icp_geographies:        '',
@@ -249,6 +312,10 @@ export default function BespokeWorkspacePage({ params }: { params: Promise<{ id:
   const [agenda,        setAgenda]        = useState<AgendaItem[]>([])
   const [regQuestions,  setRegQuestions]  = useState<RegQuestion[]>([])
 
+  // Two-step upload (Nic d17e10d8): a dropped/picked file is STAGED here
+  // and rendered with an "Upload" button. Only when that button is
+  // clicked do we send it to /api/bespoke/brief-upload + parse-brief.
+  const [briefStagedFile,  setBriefStagedFile]  = useState<File | null>(null)
   const [briefUploading,   setBriefUploading]   = useState(false)
   const [briefParsing,     setBriefParsing]     = useState(false)
   const [briefUploadError, setBriefUploadError] = useState<string | null>(null)
@@ -276,12 +343,12 @@ export default function BespokeWorkspacePage({ params }: { params: Promise<{ id:
             const legacyObjectives = (p.brief_data?.event_objectives ?? {}) as Record<string, string>
             setBriefFields({
               primary_goal:          p.primary_goal          ?? legacyObjectives.primary_goal      ?? '',
-              success_criteria:      p.success_criteria      ?? legacyObjectives.success_criteria  ?? '',
               key_themes:            p.key_themes            ?? legacyObjectives.key_themes        ?? '',
-              desired_outcome:       p.desired_outcome       ?? legacyObjectives.desired_outcome   ?? '',
-              icp_job_titles:        (p.icp_job_titles  ?? []).join('\n'),
-              icp_industries:        (p.icp_industries  ?? []).join('\n'),
-              icp_geographies:       (p.icp_geographies ?? []).join('\n'),
+              // ICP arrays render as COMMA-separated strings while editing
+              // (Nic d17e10d8) — the split-back-to-array happens on save.
+              icp_job_titles:        (p.icp_job_titles  ?? []).join(', '),
+              icp_industries:        (p.icp_industries  ?? []).join(', '),
+              icp_geographies:       (p.icp_geographies ?? []).join(', '),
               target_accounts_list:  p.target_accounts_list  ?? '',
               client_approver_name:  p.client_approver_name  ?? '',
               client_approver_email: p.client_approver_email ?? '',
@@ -313,6 +380,61 @@ export default function BespokeWorkspacePage({ params }: { params: Promise<{ id:
 
   useEffect(() => { loadProject(); loadTasks(); loadDelegates() }, [loadProject, loadTasks, loadDelegates])
 
+  // Nic e606f19c — fetch session once; drives creator-only Edit/Delete
+  // affordances on Tasks-tab rows below. Silent on 401 (public/anon view).
+  useEffect(() => {
+    fetch('/api/me')
+      .then(r => r.ok ? r.json() : null)
+      .then(d => { if (d && typeof d.sid === 'string') setMe({ sid: d.sid, adm: !!d.adm }) })
+      .catch(() => {})
+  }, [])
+
+  // A task row shows Edit/Delete only if the current session may mutate this
+  // project — creator, an assigned team lead, or a super-admin.
+  const canMutateTasks = !!me && !!project && (
+    me.adm ||
+    me.sid === project.created_by ||
+    me.sid === project.creator_id ||
+    me.sid === project.commercial_lead?.id ||
+    me.sid === project.marketing_lead?.id ||
+    me.sid === project.delegate_lead?.id ||
+    me.sid === project.operations_lead?.id ||
+    me.sid === project.design_lead?.id ||
+    me.sid === project.production_advisor_id
+  )
+
+  /* ── Task edit/delete (Nic e606f19c) ─────────────────────────── */
+  const renameTask = async (task: BespokeTask) => {
+    const nextTitle = window.prompt('Rename task', task.title)
+    if (nextTitle == null) return
+    const trimmed = nextTitle.trim()
+    if (!trimmed || trimmed === task.title) return
+    setTasks(prev => prev.map(t => t.id === task.id ? { ...t, title: trimmed } : t))
+    const res = await fetch('/api/bespoke/tasks', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: task.id, title: trimmed }),
+    })
+    if (!res.ok) {
+      // Revert on failure and surface the reason inline.
+      setTasks(prev => prev.map(t => t.id === task.id ? { ...t, title: task.title } : t))
+      const err = await res.json().catch(() => ({ error: 'unknown error' }))
+      alert(`Rename failed: ${err.error || res.statusText}`)
+    }
+  }
+
+  const deleteTask = async (task: BespokeTask) => {
+    if (!window.confirm(`Delete task "${task.title}"? This cannot be undone.`)) return
+    const previous = tasks
+    setTasks(prev => prev.filter(t => t.id !== task.id))
+    const res = await fetch(`/api/bespoke/tasks?id=${task.id}`, { method: 'DELETE' })
+    if (!res.ok) {
+      setTasks(previous)
+      const err = await res.json().catch(() => ({ error: 'unknown error' }))
+      alert(`Delete failed: ${err.error || res.statusText}`)
+    }
+  }
+
   /* ── Task status toggle ───────────────────────────────────────── */
   const toggleTaskStatus = async (task: BespokeTask) => {
     const newStatus = STATUS_CYCLE[task.status] || 'pending'
@@ -331,7 +453,10 @@ export default function BespokeWorkspacePage({ params }: { params: Promise<{ id:
     const res = await fetch('/api/bespoke/tasks', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ project_id: id, title: newTaskTitle.trim(), phase }),
+      // Nic 2f002c2e — new manual tasks carry the team the creator selected.
+      // Ignored server-side if the assigned_team column doesn't yet exist
+      // (i.e. migration hasn't been applied); doesn't block task creation.
+      body: JSON.stringify({ project_id: id, title: newTaskTitle.trim(), phase, assigned_team: newTaskTeam }),
     })
     if (res.ok) {
       const created = await res.json().catch(() => null)
@@ -413,15 +538,21 @@ export default function BespokeWorkspacePage({ params }: { params: Promise<{ id:
     }
   }
 
-  /* ── Serialize newline-separated textarea → clean string[] ──────
-     Trim entries, drop blanks, so "  Foo \n\n Bar  " → ["Foo","Bar"]. */
+  /* ── Split a comma-separated input → clean string[] ─────────────
+     Trim entries, drop blanks, so " CEO ,, CMO,VP " → ["CEO","CMO","VP"].
+     Nic d17e10d8 — ICP brief inputs switched from newline to comma delimiter. */
+  const csvToArray = (v: string): string[] =>
+    v.split(',').map(s => s.trim()).filter(Boolean)
+
+  /* ── Split newline-separated textarea → clean string[] ──────────
+     Still used for registration question options (one per line UX). */
   const linesToArray = (v: string): string[] =>
     v.split('\n').map(s => s.trim()).filter(Boolean)
 
-  /* ── Save brief (draft — does not lock) ─────────────────────────
-     Writes every new PRD #4 top-level column plus the two brief_data
-     JSONB values we still keep (logistics_notes / branding_notes) so
-     nothing the user typed is lost across saves. */
+  /* ── Save brief (draft — does not submit) ───────────────────────
+     Writes every top-level column plus the two brief_data JSONB values
+     we still keep (logistics_notes / branding_notes) so nothing the
+     user typed is lost across saves. */
   const saveBrief = async () => {
     setBriefSaving(true)
     setBriefSaveState('idle')
@@ -430,12 +561,10 @@ export default function BespokeWorkspacePage({ params }: { params: Promise<{ id:
         id,
         brief_status:          'in_progress',
         primary_goal:          briefFields.primary_goal.trim()          || null,
-        success_criteria:      briefFields.success_criteria.trim()      || null,
         key_themes:            briefFields.key_themes.trim()            || null,
-        desired_outcome:       briefFields.desired_outcome.trim()       || null,
-        icp_job_titles:        linesToArray(briefFields.icp_job_titles),
-        icp_industries:        linesToArray(briefFields.icp_industries),
-        icp_geographies:       linesToArray(briefFields.icp_geographies),
+        icp_job_titles:        csvToArray(briefFields.icp_job_titles),
+        icp_industries:        csvToArray(briefFields.icp_industries),
+        icp_geographies:       csvToArray(briefFields.icp_geographies),
         target_accounts_list:  briefFields.target_accounts_list.trim()  || null,
         client_approver_name:  briefFields.client_approver_name.trim()  || null,
         client_approver_email: briefFields.client_approver_email.trim() || null,
@@ -465,14 +594,22 @@ export default function BespokeWorkspacePage({ params }: { params: Promise<{ id:
     }
   }
 
-  /* ── Upload + auto-parse a brief file ──────────────────────────
-     Two-step: (1) POST FormData to /api/bespoke/brief-upload which
-     stores the file and updates brief_file_url on the project; then
-     (2) POST JSON to /api/bespoke/parse-brief with the returned
-     storage_path so Gemini can extract structured fields. We only
-     backfill blank fields — anything the user has already typed
-     stays untouched. */
-  const handleBriefUpload = async (file: File) => {
+  /* ── Two-step upload + auto-parse a brief file ─────────────────
+     Nic d17e10d8 (2026-08-03): dropping a file no longer triggers
+     parse. It STAGES the file in briefStagedFile and reveals an
+     explicit "Upload" button. Only the button click runs the pipeline:
+       (1) POST FormData to /api/bespoke/brief-upload
+       (2) POST JSON to /api/bespoke/parse-brief with the storage_path
+     We only backfill blank fields — anything the user has already
+     typed stays untouched. */
+  const stageBriefFile = (file: File) => {
+    setBriefUploadError(null)
+    setBriefStagedFile(file)
+  }
+
+  const runBriefUpload = async () => {
+    if (!briefStagedFile) return
+    const file = briefStagedFile
     setBriefUploadError(null)
     setBriefUploading(true)
     try {
@@ -497,14 +634,13 @@ export default function BespokeWorkspacePage({ params }: { params: Promise<{ id:
       if (!parseRes.ok) {
         const err = await parseRes.json().catch(() => ({}))
         setBriefUploadError(err?.error || 'Parsing failed. File uploaded but fields not populated.')
+        setBriefStagedFile(null)
         loadProject() // still refresh so the brief_file_url shows
         return
       }
       const parsed = await parseRes.json() as {
         primary_goal:            string | null
-        success_criteria:        string | null
         key_themes:              string | null
-        desired_outcome:         string | null
         icp_job_titles:          string[]
         icp_industries:          string[]
         icp_geographies:         string[]
@@ -517,14 +653,13 @@ export default function BespokeWorkspacePage({ params }: { params: Promise<{ id:
       }
 
       // Merge without overwriting anything the user already typed.
+      // ICP fields joined with ", " to match the new comma-separated input format.
       setBriefFields(prev => ({
         primary_goal:          prev.primary_goal.trim()          || parsed.primary_goal          || '',
-        success_criteria:      prev.success_criteria.trim()      || parsed.success_criteria      || '',
         key_themes:            prev.key_themes.trim()            || parsed.key_themes            || '',
-        desired_outcome:       prev.desired_outcome.trim()       || parsed.desired_outcome       || '',
-        icp_job_titles:        prev.icp_job_titles.trim()        || parsed.icp_job_titles.join('\n'),
-        icp_industries:        prev.icp_industries.trim()        || parsed.icp_industries.join('\n'),
-        icp_geographies:       prev.icp_geographies.trim()       || parsed.icp_geographies.join('\n'),
+        icp_job_titles:        prev.icp_job_titles.trim()        || parsed.icp_job_titles.join(', '),
+        icp_industries:        prev.icp_industries.trim()        || parsed.icp_industries.join(', '),
+        icp_geographies:       prev.icp_geographies.trim()       || parsed.icp_geographies.join(', '),
         target_accounts_list:  prev.target_accounts_list.trim()  || parsed.target_accounts_list  || '',
         client_approver_name:  prev.client_approver_name.trim()  || parsed.client_approver_name  || '',
         client_approver_email: prev.client_approver_email.trim() || parsed.client_approver_email || '',
@@ -534,6 +669,7 @@ export default function BespokeWorkspacePage({ params }: { params: Promise<{ id:
       setAgenda(prev       => prev.length ? prev : parsed.agenda)
       setRegQuestions(prev => prev.length ? prev : parsed.registration_questions)
 
+      setBriefStagedFile(null)
       loadProject()
     } catch (e) {
       setBriefUploadError(e instanceof Error ? e.message : 'Unexpected error uploading brief')
@@ -543,20 +679,22 @@ export default function BespokeWorkspacePage({ params }: { params: Promise<{ id:
     }
   }
 
-  /* ── Verify + lock brief ────────────────────────────────────────
+  /* ── Verify + submit brief ─────────────────────────────────────
+     Nic d17e10d8 (2026-08-03): renamed from Verify+Lock → Verify+Submit.
      Hard-fails on missing required fields (primary_goal, client
      approver name, at least one ICP entry). Soft-warns on optional
-     gaps (speakers/agenda/target accounts) and lets the user "Lock
-     Anyway". A clean pass locks immediately. */
-  const verifyAndLockBrief = async () => {
+     gaps (speakers/agenda/target accounts) and lets the user "Submit
+     Anyway". On success, sets BOTH brief_is_submitted AND brief_is_locked
+     to true so any legacy consumer of brief_is_locked stays in sync. */
+  const verifyAndSubmitBrief = async () => {
     setLockError(null)
     setLockWarning(null)
 
     const missing: string[] = []
-    if (!briefFields.primary_goal.trim())           missing.push('Primary Goal')
+    if (!briefFields.primary_goal.trim())           missing.push('Description (Primary Goal)')
     if (!briefFields.client_approver_name.trim())   missing.push('Client Approver Name')
     const hasAnyIcp = [briefFields.icp_job_titles, briefFields.icp_industries, briefFields.icp_geographies]
-      .some(v => linesToArray(v).length > 0)
+      .some(v => csvToArray(v).length > 0)
     if (!hasAnyIcp) missing.push('ICP (at least one of Job Titles, Industries, or Geographies)')
 
     if (missing.length) {
@@ -574,40 +712,40 @@ export default function BespokeWorkspacePage({ params }: { params: Promise<{ id:
       return
     }
 
-    await lockBrief()
+    await submitBrief()
   }
 
-  const lockBrief = async () => {
+  const submitBrief = async () => {
     setLockBusy(true)
     setLockError(null)
     setLockWarning(null)
     try {
-      // First save any pending edits so the locked state matches what the user sees.
+      // First save any pending edits so the submitted state matches what the user sees.
       await saveBrief()
       const res = await fetch('/api/bespoke', {
         method:  'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify({ id, brief_is_locked: true }),
+        body:    JSON.stringify({ id, brief_is_submitted: true, brief_is_locked: true }),
       })
       if (res.ok) {
         setLockSuccess(true)
         setTimeout(() => setLockSuccess(false), 3000)
         loadProject()
       } else {
-        setLockError(['Could not lock brief. Please retry.'])
+        setLockError(['Could not submit brief. Please retry.'])
       }
     } finally {
       setLockBusy(false)
     }
   }
 
-  const unlockBrief = async () => {
+  const editBrief = async () => {
     setLockBusy(true)
     try {
       const res = await fetch('/api/bespoke', {
         method:  'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify({ id, brief_is_locked: false }),
+        body:    JSON.stringify({ id, brief_is_submitted: false, brief_is_locked: false }),
       })
       if (res.ok) loadProject()
     } finally {
@@ -657,8 +795,8 @@ export default function BespokeWorkspacePage({ params }: { params: Promise<{ id:
           <>
             {project.client_company} · {fmtDate(project.event_date)}{project.city ? ` · ${project.city}` : ''}
             {days !== null && (
-              <> · <span style={{ fontWeight: 700, color: days <= 7 ? 'var(--red)' : days <= 14 ? '#F5B94D' : 'inherit' }}>
-                {days > 0 ? `${days} days left` : days === 0 ? 'Event Day' : `${Math.abs(days)} days ago`}
+              <> · <span style={{ fontWeight: 700, color: days < 0 ? 'var(--ink3)' : days <= 7 ? 'var(--red)' : days <= 14 ? '#F5B94D' : 'inherit' }}>
+                {days > 0 ? `${days} days left` : days === 0 ? 'Event Day' : 'Concluded'}
               </span></>
             )}
           </>
@@ -670,10 +808,16 @@ export default function BespokeWorkspacePage({ params }: { params: Promise<{ id:
 
       {/* ═══ KPI Strip ══════════════════════════════════════════════ */}
       <div style={{ padding: '20px 32px 0', display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '16px' }}>
-        {/* Days Left */}
+        {/* Days Left — concluded events show "Concluded" (no negative number). Nic 490f6974. */}
         <div style={{ background: 'var(--card)', borderRadius: '10px', padding: '16px 20px', border: '1px solid var(--border)' }}>
           <div style={{ fontSize: '12px', fontWeight: 700, color: 'var(--ink3)', marginBottom: '4px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Days Left</div>
-          <div style={{ fontSize: '28px', fontWeight: 800, color: days !== null && days <= 7 ? 'var(--red)' : 'var(--ink)' }}>{days ?? '--'}</div>
+          {days === null ? (
+            <div style={{ fontSize: '28px', fontWeight: 800, color: 'var(--ink)' }}>--</div>
+          ) : days < 0 ? (
+            <div style={{ fontSize: '20px', fontWeight: 800, color: 'var(--ink3)', marginTop: '4px' }}>Concluded</div>
+          ) : (
+            <div style={{ fontSize: '28px', fontWeight: 800, color: days <= 7 ? 'var(--red)' : 'var(--ink)' }}>{days}</div>
+          )}
         </div>
         {/* Registrations */}
         <div style={{ background: 'var(--card)', borderRadius: '10px', padding: '16px 20px', border: '1px solid var(--border)' }}>
@@ -688,11 +832,20 @@ export default function BespokeWorkspacePage({ params }: { params: Promise<{ id:
           <div style={{ fontSize: '12px', fontWeight: 700, color: 'var(--ink3)', marginBottom: '4px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Contract Value</div>
           <div style={{ fontSize: '28px', fontWeight: 800, color: 'var(--ink)' }}>{fmtCurrency(project.contract_value)}</div>
         </div>
-        {/* Phase */}
-        <div style={{ background: 'var(--card)', borderRadius: '10px', padding: '16px 20px', border: '1px solid var(--border)' }}>
-          <div style={{ fontSize: '12px', fontWeight: 700, color: 'var(--ink3)', marginBottom: '4px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Phase</div>
-          <div style={{ fontSize: '20px', fontWeight: 800, color: '#F5B94D', textTransform: 'capitalize' }}>{project.phase}</div>
-        </div>
+        {/* Phase — computed dynamically from contract_signed_date + event_date,
+             falls back to Kickoff & Alignment when dates missing. Colored badge
+             per active phase. Fix for build_request 16d1f7c4. */}
+        {(() => {
+          const p = computeBespokePhase(project.contract_signed_date, project.event_date) ?? BESPOKE_PHASE_FALLBACK
+          return (
+            <div style={{ background: 'var(--card)', borderRadius: '10px', padding: '16px 20px', border: '1px solid var(--border)' }}>
+              <div style={{ fontSize: '12px', fontWeight: 700, color: 'var(--ink3)', marginBottom: '4px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Phase</div>
+              <div style={{ display: 'inline-block', fontSize: '15px', fontWeight: 800, color: p.color, background: p.bgColor, padding: '4px 10px', borderRadius: '6px', marginTop: '2px' }}>
+                {p.label}
+              </div>
+            </div>
+          )
+        })()}
       </div>
 
       {/* ═══ Tab Bar ═════════════════════════════════════════════════ */}
@@ -714,6 +867,7 @@ export default function BespokeWorkspacePage({ params }: { params: Promise<{ id:
         {/* ── OVERVIEW TAB ─────────────────────────────────────────── */}
         {tab === 'Overview' && (() => {
           const phaseInfo = computePhase(project)
+          const isConcluded = !!project.event_date && new Date(project.event_date) < new Date(new Date().toISOString().split('T')[0])
           const suggestedTasks = phaseInfo
             ? [...tasks]
                 .filter(t => t.phase === phaseInfo.activePhase && t.status !== 'done')
@@ -728,6 +882,23 @@ export default function BespokeWorkspacePage({ params }: { params: Promise<{ id:
 
           return (
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
+            {/* Concluded event banner (spans full row) — Nic 490f6974. */}
+            {isConcluded && (
+              <div style={{
+                gridColumn: '1 / -1',
+                background: '#EFF6FF',
+                border: '1px solid #BFDBFE',
+                color: '#1E40AF',
+                padding: '12px 16px',
+                borderRadius: '8px',
+                fontSize: '14px',
+                fontWeight: 600,
+                lineHeight: 1.5,
+              }}>
+                🎉 <strong style={{ fontWeight: 800 }}>Event Concluded:</strong> This event was held on {fmtDate(project.event_date)}. The project is now in the Reporting &amp; Settlement phase. Please compile delegate attendance and deliver the post-event report.
+              </div>
+            )}
+
             {/* Phase Progress */}
             <div style={{ background: 'var(--card)', borderRadius: '12px', border: '1px solid var(--border)', padding: '24px', gridColumn: '1 / -1' }}>
               <h3 style={{ margin: '0 0 16px', fontSize: '15px', fontWeight: 800, color: 'var(--ink)' }}>Phase Progress</h3>
@@ -920,8 +1091,8 @@ export default function BespokeWorkspacePage({ params }: { params: Promise<{ id:
               Bottom row: Save Brief · Verify and Lock / Unlock */}
         {tab === 'Brief' && (
           <div style={{ maxWidth: '800px' }}>
-            {/* Briefing incomplete banner — only when not yet locked */}
-            {!project.brief_is_locked && (
+            {/* Briefing incomplete banner — only shown when brief is not yet submitted */}
+            {!project.brief_is_submitted && (
               <div style={{
                 background: 'var(--orange-light)', borderLeft: '4px solid var(--orange)', color: 'var(--orange)',
                 padding: '16px', borderRadius: '8px', marginBottom: '20px',
@@ -940,13 +1111,34 @@ export default function BespokeWorkspacePage({ params }: { params: Promise<{ id:
                 padding: '14px 16px', borderRadius: '8px', marginBottom: '20px',
                 fontSize: '14px', fontWeight: 700, fontFamily: 'var(--font-manrope)',
               }}>
-                ✓ Brief locked. Downstream tasks unlocked.
+                ✓ Brief submitted. Downstream Phase 2, 3 and 4 tasks unlocked.
               </div>
             )}
 
+            {/* ═══ Nic d17e10d8: after submit, render read-only Summary. ═══
+                The editable form (uploader + inputs) is completely hidden.
+                An "Edit Brief" button at the bottom flips back to editable
+                and re-locks Phase 2/3/4 tasks. ═══════════════════════ */}
+            {project.brief_is_submitted && (
+              <BriefSummary
+                project={project}
+                briefFields={briefFields}
+                briefData={briefData}
+                speakers={speakers}
+                agenda={agenda}
+                regQuestions={regQuestions}
+                onEdit={editBrief}
+                editBusy={lockBusy}
+              />
+            )}
+
+            {!project.brief_is_submitted && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
 
-              {/* ── Drag-and-drop uploader ─────────────────────────── */}
+              {/* ── Two-step uploader (Nic d17e10d8) ────────────────
+                  Drop / pick → STAGE the file locally → reveal an
+                  explicit "Upload" button → click runs upload+parse.
+                  Prevents accidental parse on stray drops. */}
               <div style={{ background: 'var(--card)', borderRadius: '12px', border: '1px solid var(--border)', padding: '24px' }}>
                 <h3 style={{ margin: '0 0 12px', fontSize: '15px', fontWeight: 800, color: '#F5B94D' }}>Upload Brief Document</h3>
                 <div
@@ -956,15 +1148,16 @@ export default function BespokeWorkspacePage({ params }: { params: Promise<{ id:
                     e.preventDefault()
                     setBriefDragOver(false)
                     const f = e.dataTransfer.files?.[0]
-                    if (f) handleBriefUpload(f)
+                    if (f) stageBriefFile(f)
                   }}
                   onClick={() => {
+                    if (briefUploading || briefParsing) return
                     const input = document.createElement('input')
                     input.type   = 'file'
                     input.accept = '.pdf,.docx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document'
                     input.onchange = () => {
                       const f = input.files?.[0]
-                      if (f) handleBriefUpload(f)
+                      if (f) stageBriefFile(f)
                     }
                     input.click()
                   }}
@@ -980,13 +1173,22 @@ export default function BespokeWorkspacePage({ params }: { params: Promise<{ id:
                     <div style={{ fontSize: '14px', fontWeight: 700, color: '#F5B94D' }}>Uploading…</div>
                   ) : briefParsing ? (
                     <div style={{ fontSize: '14px', fontWeight: 700, color: '#F5B94D' }}>Parsing… extracting fields from your brief</div>
+                  ) : briefStagedFile ? (
+                    <>
+                      <div style={{ fontSize: '14px', fontWeight: 700, color: 'var(--ink)', marginBottom: '4px' }}>
+                        Ready to upload: <span style={{ color: '#F5B94D' }}>{briefStagedFile.name}</span>
+                      </div>
+                      <div style={{ fontSize: '12px', color: 'var(--ink3)' }}>
+                        Click &ldquo;Upload&rdquo; below to send the file and auto-fill the fields.
+                      </div>
+                    </>
                   ) : (
                     <>
                       <div style={{ fontSize: '14px', fontWeight: 700, color: 'var(--ink)', marginBottom: '4px' }}>
                         Drop a PDF or DOCX brief here, or click to browse
                       </div>
                       <div style={{ fontSize: '12px', color: 'var(--ink3)' }}>
-                        We&rsquo;ll auto-fill the fields below with what we can extract. Max 20 MB.
+                        Nothing is sent until you click &ldquo;Upload&rdquo;. Max 20 MB.
                       </div>
                       {project.brief_file_url && (
                         <div style={{ fontSize: '12px', color: 'var(--success)', marginTop: '8px', fontWeight: 600 }}>
@@ -996,6 +1198,30 @@ export default function BespokeWorkspacePage({ params }: { params: Promise<{ id:
                     </>
                   )}
                 </div>
+                {briefStagedFile && !briefUploading && !briefParsing && (
+                  <div style={{ marginTop: '12px', display: 'flex', gap: '8px', alignItems: 'center' }}>
+                    <button
+                      onClick={runBriefUpload}
+                      style={{
+                        padding: '9px 22px', borderRadius: '8px', border: 'none', background: '#F5B94D',
+                        color: 'var(--amber-light)', fontSize: '13px', fontWeight: 700, cursor: 'pointer',
+                        fontFamily: 'var(--font-manrope)',
+                      }}
+                    >
+                      Upload
+                    </button>
+                    <button
+                      onClick={() => setBriefStagedFile(null)}
+                      style={{
+                        padding: '9px 14px', borderRadius: '8px', border: '1px solid var(--ink4)', background: 'var(--card)',
+                        color: 'var(--ink3)', fontSize: '13px', fontWeight: 600, cursor: 'pointer',
+                        fontFamily: 'var(--font-manrope)',
+                      }}
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                )}
                 {briefUploadError && (
                   <div style={{
                     marginTop: '10px', padding: '8px 12px', borderRadius: '8px',
@@ -1006,20 +1232,24 @@ export default function BespokeWorkspacePage({ params }: { params: Promise<{ id:
                 )}
               </div>
 
-              {/* ── Event Objectives ─────────────────────────────── */}
+              {/* ── Event Objectives (Nic d17e10d8 — simplified to
+                     Description + Themes only. Success Criteria and
+                     Desired Outcome removed. Themes is AI-synthesised
+                     from the full brief when a doc is uploaded.) ── */}
               <div style={{ background: 'var(--card)', borderRadius: '12px', border: '1px solid var(--border)', padding: '24px' }}>
                 <h3 style={{ margin: '0 0 16px', fontSize: '15px', fontWeight: 800, color: '#F5B94D' }}>Event Objectives</h3>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
                   {([
-                    ['primary_goal',     'Primary Goal *'],
-                    ['success_criteria', 'Success Criteria'],
-                    ['key_themes',       'Key Themes'],
-                    ['desired_outcome',  'Desired Outcome'],
-                  ] as const).map(([field, label]) => (
+                    ['primary_goal', 'Description *',
+                      'What is this event about, in one paragraph.'],
+                    ['key_themes',   'Themes',
+                      'Comma-separated themes. Auto-synthesised from the uploaded brief when available.'],
+                  ] as const).map(([field, label, hint]) => (
                     <div key={field}>
                       <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: 'var(--ink2)', marginBottom: '4px' }}>{label}</label>
                       <textarea
                         style={{ ...INPUT_STYLE, minHeight: '60px', resize: 'vertical' }}
+                        placeholder={hint}
                         value={briefFields[field]}
                         onChange={e => setBriefFields(prev => ({ ...prev, [field]: e.target.value }))}
                       />
@@ -1028,22 +1258,24 @@ export default function BespokeWorkspacePage({ params }: { params: Promise<{ id:
                 </div>
               </div>
 
-              {/* ── ICP ──────────────────────────────────────────── */}
+              {/* ── ICP (Nic d17e10d8 — comma-separated input.
+                     Splits to text[] arrays on save; renders as chip
+                     clouds in the Assets tab.) ─────────────────── */}
               <div style={{ background: 'var(--card)', borderRadius: '12px', border: '1px solid var(--border)', padding: '24px' }}>
                 <h3 style={{ margin: '0 0 16px', fontSize: '15px', fontWeight: 800, color: '#F5B94D' }}>Ideal Customer Profile (ICP)</h3>
                 <div style={{ fontSize: '12px', color: 'var(--ink3)', marginBottom: '12px' }}>
-                  One entry per line. At least one section is required to lock the brief.
+                  Enter values comma-separated (e.g. <em>CEO, CMO, VP</em>). At least one field is required to submit the brief.
                 </div>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '12px' }}>
                   {([
-                    ['icp_job_titles',  'Job Titles',  'Head of Marketing\nCFO\n…'],
-                    ['icp_industries',  'Industries',  'Fintech\nHealthcare\n…'],
-                    ['icp_geographies', 'Geographies', 'UAE\nSaudi Arabia\n…'],
+                    ['icp_job_titles',  'Job Titles',  'Head of Marketing, CFO, VP Sales'],
+                    ['icp_industries',  'Industries',  'Fintech, Healthcare, Retail'],
+                    ['icp_geographies', 'Geographies', 'UAE, Saudi Arabia, India'],
                   ] as const).map(([field, label, placeholder]) => (
                     <div key={field}>
                       <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: 'var(--ink2)', marginBottom: '4px' }}>{label}</label>
                       <textarea
-                        style={{ ...INPUT_STYLE, minHeight: '110px', resize: 'vertical' }}
+                        style={{ ...INPUT_STYLE, minHeight: '80px', resize: 'vertical' }}
                         placeholder={placeholder}
                         value={briefFields[field]}
                         onChange={e => setBriefFields(prev => ({ ...prev, [field]: e.target.value }))}
@@ -1270,7 +1502,7 @@ export default function BespokeWorkspacePage({ params }: { params: Promise<{ id:
                   padding: '14px 16px', borderRadius: '8px',
                   fontSize: '13px', fontWeight: 600, fontFamily: 'var(--font-manrope)',
                 }}>
-                  <div style={{ fontWeight: 800, marginBottom: '4px' }}>Cannot lock — missing required fields:</div>
+                  <div style={{ fontWeight: 800, marginBottom: '4px' }}>Cannot submit — missing required fields:</div>
                   <ul style={{ margin: '4px 0 0 20px', padding: 0 }}>
                     {lockError.map(m => <li key={m}>{m}</li>)}
                   </ul>
@@ -1283,16 +1515,16 @@ export default function BespokeWorkspacePage({ params }: { params: Promise<{ id:
                   fontSize: '13px', fontWeight: 600, fontFamily: 'var(--font-manrope)',
                 }}>
                   <div style={{ fontWeight: 800, marginBottom: '4px' }}>
-                    Brief is missing some optional details. You can still lock it, but consider adding:
+                    Brief is missing some optional details. You can still submit it, but consider adding:
                   </div>
                   <ul style={{ margin: '4px 0 12px 20px', padding: 0 }}>
                     {lockWarning.map(m => <li key={m}>{m}</li>)}
                   </ul>
                   <div style={{ display: 'flex', gap: '8px' }}>
-                    <button onClick={lockBrief} disabled={lockBusy} style={{
+                    <button onClick={submitBrief} disabled={lockBusy} style={{
                       padding: '8px 16px', borderRadius: '8px', border: 'none', background: 'var(--orange)', color: 'var(--orange-light)',
                       fontSize: '13px', fontWeight: 700, cursor: lockBusy ? 'wait' : 'pointer', fontFamily: 'var(--font-manrope)',
-                    }}>{lockBusy ? 'Locking…' : 'Lock Anyway'}</button>
+                    }}>{lockBusy ? 'Submitting…' : 'Submit Anyway'}</button>
                     <button onClick={() => setLockWarning(null)} style={{
                       padding: '8px 12px', borderRadius: '8px', border: '1px solid var(--ink4)', background: 'var(--card)',
                       fontSize: '13px', fontWeight: 600, color: 'var(--ink3)', cursor: 'pointer', fontFamily: 'var(--font-manrope)',
@@ -1301,35 +1533,23 @@ export default function BespokeWorkspacePage({ params }: { params: Promise<{ id:
                 </div>
               )}
 
-              {/* ── Action row ───────────────────────────────────── */}
+              {/* ── Action row (Nic d17e10d8 — Save Draft + Submit Brief) ── */}
               <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
                 <button onClick={saveBrief} disabled={briefSaving} style={{
-                  padding: '10px 28px', borderRadius: '8px', border: 'none', background: briefSaving ? 'var(--ink4)' : '#F5B94D',
-                  color: briefSaving ? 'var(--surface)' : 'var(--amber-light)', fontSize: '14px', fontWeight: 700, cursor: briefSaving ? 'not-allowed' : 'pointer',
+                  padding: '10px 28px', borderRadius: '8px', border: '1px solid #F5B94D', background: 'var(--card)',
+                  color: '#F5B94D', fontSize: '14px', fontWeight: 700, cursor: briefSaving ? 'not-allowed' : 'pointer',
                   fontFamily: 'var(--font-manrope)',
                 }}>
-                  {briefSaving ? 'Saving…' : 'Save Brief'}
+                  {briefSaving ? 'Saving…' : 'Save Draft'}
                 </button>
 
-                {!project.brief_is_locked && (
-                  <button onClick={verifyAndLockBrief} disabled={lockBusy} style={{
-                    padding: '10px 28px', borderRadius: '8px', border: '1px solid #F5B94D', background: 'var(--card)',
-                    color: '#F5B94D', fontSize: '14px', fontWeight: 700, cursor: lockBusy ? 'wait' : 'pointer',
-                    fontFamily: 'var(--font-manrope)',
-                  }}>
-                    {lockBusy ? 'Working…' : 'Verify and Lock Brief'}
-                  </button>
-                )}
-
-                {project.brief_is_locked && (
-                  <button onClick={unlockBrief} disabled={lockBusy} style={{
-                    padding: '10px 28px', borderRadius: '8px', border: '1px solid var(--ink3)', background: 'var(--card)',
-                    color: 'var(--ink3)', fontSize: '14px', fontWeight: 700, cursor: lockBusy ? 'wait' : 'pointer',
-                    fontFamily: 'var(--font-manrope)',
-                  }}>
-                    {lockBusy ? 'Working…' : 'Unlock Brief'}
-                  </button>
-                )}
+                <button onClick={verifyAndSubmitBrief} disabled={lockBusy} style={{
+                  padding: '10px 28px', borderRadius: '8px', border: 'none', background: '#F5B94D',
+                  color: 'var(--amber-light)', fontSize: '14px', fontWeight: 700, cursor: lockBusy ? 'wait' : 'pointer',
+                  fontFamily: 'var(--font-manrope)',
+                }}>
+                  {lockBusy ? 'Working…' : 'Submit Brief'}
+                </button>
 
                 {briefSaveState === 'saved' && (
                   <span style={{
@@ -1338,7 +1558,7 @@ export default function BespokeWorkspacePage({ params }: { params: Promise<{ id:
                     background: 'var(--success-light)', color: 'var(--success)',
                     fontSize: '12px', fontWeight: 700, fontFamily: 'var(--font-manrope)',
                   }}>
-                    ✓ Saved
+                    ✓ Draft saved
                   </span>
                 )}
                 {briefSaveState === 'error' && (
@@ -1352,18 +1572,9 @@ export default function BespokeWorkspacePage({ params }: { params: Promise<{ id:
                   </span>
                 )}
 
-                {project.brief_is_locked && (
-                  <span style={{
-                    display: 'inline-flex', alignItems: 'center', gap: '6px',
-                    padding: '6px 12px', borderRadius: '999px',
-                    background: 'var(--success-light)', color: 'var(--success)',
-                    fontSize: '12px', fontWeight: 700, fontFamily: 'var(--font-manrope)',
-                  }}>
-                    🔒 Brief Locked
-                  </span>
-                )}
               </div>
             </div>
+            )}
           </div>
         )}
 
@@ -1414,8 +1625,13 @@ export default function BespokeWorkspacePage({ params }: { params: Promise<{ id:
             {[1, 2, 3, 4].map(phase => {
               const phaseTasks = tasks.filter(t => t.phase === phase)
               const doneCount = phaseTasks.filter(t => t.status === 'done').length
-              // Phase 1 is always interactive. 2/3/4 lock until the brief is locked.
-              const phaseLocked = !project.brief_is_locked && phase !== 1
+              // Phase 1 is always interactive. 2/3/4 lock until the brief
+              // is submitted. Nic d17e10d8 — reads brief_is_submitted (new
+              // canonical field). Legacy brief_is_locked stays in sync so
+              // this reads correctly for pre-migration rows too.
+              const phaseLocked = !project.brief_is_submitted && phase !== 1
+              // Nic 2f002c2e — phase-level deadline text (silent if dates absent).
+              const phaseDeadline = computePhaseDeadline(phase as 1|2|3|4, project.contract_signed_date, project.event_date)
               return (
                 <div key={phase} style={{ background: 'var(--card)', borderRadius: '12px', border: '1px solid var(--border)', overflow: 'hidden' }}>
                   {/* Phase header */}
@@ -1444,10 +1660,22 @@ export default function BespokeWorkspacePage({ params }: { params: Promise<{ id:
                     </button>
                   </div>
 
+                  {/* Nic 2f002c2e — phase-level deadline banner (silent when
+                       either date is not yet set). */}
+                  {phaseDeadline && (
+                    <div style={{
+                      padding: '8px 20px', background: '#F0F9FF', borderBottom: '1px solid #DDE8EE',
+                      fontSize: '12px', fontWeight: 600, color: '#0369A1', lineHeight: 1.5,
+                    }}>
+                      <strong style={{ fontWeight: 800 }}>{phaseDeadline.label}</strong>{' '}<span style={{ color: '#075985' }}>(Due: {fmtDate(phaseDeadline.date)})</span>
+                    </div>
+                  )}
+
                   {/* Tasks list */}
                   <div style={{ opacity: phaseLocked ? 0.5 : 1 }}>
                     {phaseTasks.map(t => {
-                      const rc = ROLE_COLORS[t.assigned_role] || ROLE_COLORS.commercial
+                      const teamLabel = t.assigned_team || (t.assigned_role ? t.assigned_role.charAt(0).toUpperCase() + t.assigned_role.slice(1) : null)
+                      const tc = teamLabel ? (TEAM_COLORS[teamLabel] || ROLE_COLORS[t.assigned_role] || ROLE_COLORS.commercial) : ROLE_COLORS.commercial
                       const overdue = isOverdue(t.due_date, t.status)
                       return (
                         <div key={t.id} style={{
@@ -1474,10 +1702,12 @@ export default function BespokeWorkspacePage({ params }: { params: Promise<{ id:
                               {t.assigned_staff.name}
                             </span>
                           )}
-                          {/* Role badge */}
-                          <span style={{ fontSize: '11px', fontWeight: 700, padding: '2px 8px', borderRadius: '6px', background: rc.bg, color: rc.fg, textTransform: 'capitalize' }}>
-                            {t.assigned_role}
-                          </span>
+                          {/* Team badge — prefers assigned_team (Nic 2f002c2e vocab); falls back to legacy assigned_role capitalised. */}
+                          {teamLabel && (
+                            <span style={{ fontSize: '11px', fontWeight: 700, padding: '2px 8px', borderRadius: '6px', background: tc.bg, color: tc.fg }}>
+                              {teamLabel}
+                            </span>
+                          )}
                           {/* Due date */}
                           {t.due_date && (
                             <span style={{ fontSize: '12px', fontWeight: 600, color: overdue ? 'var(--red)' : 'var(--ink3)', whiteSpace: 'nowrap' }}>
@@ -1496,6 +1726,32 @@ export default function BespokeWorkspacePage({ params }: { params: Promise<{ id:
                             }}>
                             {STATUS_LABELS[t.status] || t.status}
                           </button>
+                          {/* Nic e606f19c — Edit/Delete visible only to project creator,
+                              an assigned team lead, or a super-admin. */}
+                          {canMutateTasks && !phaseLocked && (
+                            <>
+                              <button
+                                onClick={() => renameTask(t)}
+                                title="Rename task"
+                                style={{
+                                  border: 'none', background: 'none', cursor: 'pointer',
+                                  padding: 4, display: 'flex', alignItems: 'center',
+                                  color: 'var(--ink3)',
+                                }}>
+                                ✏️
+                              </button>
+                              <button
+                                onClick={() => deleteTask(t)}
+                                title="Delete task"
+                                style={{
+                                  border: 'none', background: 'none', cursor: 'pointer',
+                                  padding: 4, display: 'flex', alignItems: 'center',
+                                  color: 'var(--red)',
+                                }}>
+                                🗑
+                              </button>
+                            </>
+                          )}
                         </div>
                       )
                     })}
@@ -1504,12 +1760,20 @@ export default function BespokeWorkspacePage({ params }: { params: Promise<{ id:
                     )}
                   </div>
 
-                  {/* Add task inline form */}
+                  {/* Add task inline form — Nic 2f002c2e adds a team dropdown */}
                   {addTaskPhase === phase && !phaseLocked && (
                     <div style={{ padding: '12px 20px', borderTop: '1px solid var(--border)', display: 'flex', flexDirection: 'column', gap: '8px' }}>
                       <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
                         <input style={{ ...INPUT_STYLE, flex: 1 }} placeholder="New task title..." value={newTaskTitle} onChange={e => setNewTaskTitle(e.target.value)}
                           onKeyDown={e => { if (e.key === 'Enter') addTask(phase) }} autoFocus />
+                        <select
+                          value={newTaskTeam}
+                          onChange={e => setNewTaskTeam(e.target.value)}
+                          style={{ ...INPUT_STYLE, width: 'auto', paddingRight: '32px', cursor: 'pointer' }}
+                          title="Assigned team"
+                        >
+                          {TEAM_OPTIONS.map(o => <option key={o} value={o}>{o}</option>)}
+                        </select>
                         <button onClick={() => addTask(phase)} style={{
                           padding: '8px 16px', borderRadius: '8px', border: 'none', background: '#F5B94D', color: 'var(--amber-light)',
                           fontSize: '13px', fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--font-manrope)', whiteSpace: 'nowrap',
@@ -1744,9 +2008,10 @@ export default function BespokeWorkspacePage({ params }: { params: Promise<{ id:
           </div>
         )}
 
-        {/* ── ASSETS TAB (Placeholder) ─────────────────────────────── */}
+        {/* ── ASSETS TAB — Nic 517e232e (3 categories below Quick Links) ─── */}
         {tab === 'Assets' && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', maxWidth: '600px' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', maxWidth: '860px' }}>
+            {/* Quick Links — preserved intact per Nic's explicit "do not remove" rule */}
             <div style={{ background: 'var(--card)', borderRadius: '12px', border: '1px solid var(--border)', padding: '24px' }}>
               <h3 style={{ margin: '0 0 16px', fontSize: '15px', fontWeight: 800, color: 'var(--ink)' }}>Quick Links</h3>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
@@ -1780,15 +2045,263 @@ export default function BespokeWorkspacePage({ params }: { params: Promise<{ id:
               </div>
             </div>
 
-            <div style={{
-              background: 'var(--border-light)', borderRadius: '12px', border: '1px dashed var(--ink4)', padding: '32px',
-              textAlign: 'center',
-            }}>
-              <div style={{ fontSize: '15px', fontWeight: 700, color: 'var(--ink3)', marginBottom: '4px' }}>Coming soon</div>
-              <div style={{ fontSize: '14px', color: 'var(--ink4)' }}>Asset management -- file uploads, creative assets, and deliverables tracking.</div>
-            </div>
+            <AssetsTabContent project={project} onReload={loadProject} />
           </div>
         )}
+      </div>
+    </div>
+  )
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   BRIEF SUMMARY — read-only view (Nic d17e10d8, 2026-08-03)
+   Renders when project.brief_is_submitted === true. Hides all
+   uploader / input UI. Shows every brief value as static structured
+   text formatted like an official project brief sheet. Bottom "Edit
+   Brief" button sets brief_is_submitted = false → re-locks Phase
+   2/3/4 tasks + restores the editable form.
+   ═══════════════════════════════════════════════════════════════════ */
+type BriefSummaryProps = {
+  project: BespokeProject
+  briefFields: {
+    primary_goal: string
+    key_themes: string
+    icp_job_titles: string
+    icp_industries: string
+    icp_geographies: string
+    target_accounts_list: string
+    client_approver_name: string
+    client_approver_email: string
+    client_assets_url: string
+  }
+  briefData: Record<string, unknown>
+  speakers: Speaker[]
+  agenda: AgendaItem[]
+  regQuestions: RegQuestion[]
+  onEdit: () => void
+  editBusy: boolean
+}
+
+function BriefSummary({ project, briefFields, briefData, speakers, agenda, regQuestions, onEdit, editBusy }: BriefSummaryProps) {
+  const CARD: React.CSSProperties = {
+    background: 'var(--card)', borderRadius: '12px', border: '1px solid var(--border)',
+    padding: '24px',
+  }
+  const H3: React.CSSProperties = {
+    margin: '0 0 12px', fontSize: '15px', fontWeight: 800, color: '#F5B94D',
+  }
+  const LABEL: React.CSSProperties = {
+    display: 'block', fontSize: '11px', fontWeight: 700, color: 'var(--ink3)',
+    textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '4px',
+  }
+  const BODY: React.CSSProperties = {
+    fontSize: '14px', color: 'var(--ink)', lineHeight: 1.55, whiteSpace: 'pre-wrap',
+  }
+  const CHIP: React.CSSProperties = {
+    display: 'inline-block', fontSize: '12px', padding: '3px 10px', borderRadius: '999px',
+    background: 'var(--surface)', color: 'var(--ink)', border: '1px solid var(--border)',
+    margin: '0 4px 4px 0',
+  }
+  const EMPTY: React.CSSProperties = { fontSize: '13px', color: 'var(--ink3)', fontStyle: 'italic' }
+
+  const csvToList = (v: string): string[] => v.split(',').map(s => s.trim()).filter(Boolean)
+  const jobTitles   = csvToList(briefFields.icp_job_titles)
+  const industries  = csvToList(briefFields.icp_industries)
+  const geographies = csvToList(briefFields.icp_geographies)
+  // Nic a837da08 — Themes no longer split on commas. Render whatever the
+  // brief parser saved (bulleted text block from Gemini's SPECIAL RULE, or
+  // legacy comma-separated string) verbatim with whiteSpace: pre-wrap.
+
+  // Nic df915458 — ICP inline as a bulleted vertical list, one item per row.
+  const BULLET: React.CSSProperties = { color: 'var(--teal)', fontWeight: 800, lineHeight: 1 }
+  const ICP_ROW: React.CSSProperties = {
+    display: 'flex', alignItems: 'flex-start', gap: 8, margin: '6px 0',
+    fontSize: 13, color: 'var(--ink)', lineHeight: 1.5,
+  }
+  const renderIcpList = (items: string[]) => (
+    items.length > 0
+      ? <div>{items.map((t, i) => (
+          <div key={i} style={ICP_ROW}>
+            <span style={BULLET}>•</span>
+            <span>{t}</span>
+          </div>
+        ))}</div>
+      : <div style={EMPTY}>None</div>
+  )
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', maxWidth: '800px' }}>
+      {/* Submitted badge */}
+      <div style={{
+        background: 'var(--success-light)', borderLeft: '4px solid var(--success)', color: 'var(--success)',
+        padding: '14px 16px', borderRadius: '8px',
+        fontSize: '14px', fontWeight: 700, fontFamily: 'var(--font-manrope)',
+      }}>
+        ✓ Brief submitted for {project.client_company} · Downstream Phase 2, 3 and 4 tasks unlocked.
+      </div>
+
+      {/* Event Objectives */}
+      <div style={CARD}>
+        <h3 style={H3}>Event Objectives</h3>
+        <div style={{ marginBottom: '14px' }}>
+          <span style={LABEL}>Description</span>
+          <div style={BODY}>{briefFields.primary_goal || <span style={EMPTY}>Not provided</span>}</div>
+        </div>
+        <div>
+          <span style={LABEL}>Themes</span>
+          {briefFields.key_themes.trim() ? (
+            <div style={BODY}>{briefFields.key_themes}</div>
+          ) : (
+            <div style={EMPTY}>None identified</div>
+          )}
+        </div>
+      </div>
+
+      {/* ICP — vertical bullet list per Nic df915458 */}
+      <div style={CARD}>
+        <h3 style={H3}>Ideal Customer Profile</h3>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '16px' }}>
+          <div>
+            <span style={LABEL}>Job Titles</span>
+            {renderIcpList(jobTitles)}
+          </div>
+          <div>
+            <span style={LABEL}>Industries</span>
+            {renderIcpList(industries)}
+          </div>
+          <div>
+            <span style={LABEL}>Geographies</span>
+            {renderIcpList(geographies)}
+          </div>
+        </div>
+      </div>
+
+      {/* Target Accounts */}
+      <div style={CARD}>
+        <h3 style={H3}>Target Accounts</h3>
+        <div style={BODY}>
+          {briefFields.target_accounts_list || <span style={EMPTY}>Not provided</span>}
+        </div>
+      </div>
+
+      {/* Client Approver */}
+      <div style={CARD}>
+        <h3 style={H3}>Client Approver</h3>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+          <div>
+            <span style={LABEL}>Name</span>
+            <div style={BODY}>{briefFields.client_approver_name || <span style={EMPTY}>Not provided</span>}</div>
+          </div>
+          <div>
+            <span style={LABEL}>Email</span>
+            <div style={BODY}>{briefFields.client_approver_email || <span style={EMPTY}>Not provided</span>}</div>
+          </div>
+        </div>
+      </div>
+
+      {/* Logistics + Brand */}
+      <div style={CARD}>
+        <h3 style={H3}>Logistics &amp; Brand Notes</h3>
+        <div style={{ marginBottom: '14px' }}>
+          <span style={LABEL}>Client Brand Assets Folder</span>
+          <div style={BODY}>
+            {briefFields.client_assets_url
+              ? <a href={briefFields.client_assets_url} target="_blank" rel="noreferrer" style={{ color: '#F5B94D' }}>{briefFields.client_assets_url}</a>
+              : <span style={EMPTY}>Not provided</span>}
+          </div>
+        </div>
+        <div style={{ marginBottom: '14px' }}>
+          <span style={LABEL}>Logistics Notes</span>
+          <div style={BODY}>{(briefData.logistics_notes as string) || <span style={EMPTY}>Not provided</span>}</div>
+        </div>
+        <div>
+          <span style={LABEL}>Branding Notes</span>
+          <div style={BODY}>{(briefData.branding_notes as string) || <span style={EMPTY}>Not provided</span>}</div>
+        </div>
+      </div>
+
+      {/* Speakers */}
+      <div style={CARD}>
+        <h3 style={H3}>Speakers ({speakers.length})</h3>
+        {speakers.length === 0 ? (
+          <div style={EMPTY}>No speakers on this brief.</div>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+            {speakers.map((s, i) => (
+              <div key={i} style={{ padding: '12px', borderRadius: '8px', border: '1px solid var(--border)' }}>
+                <div style={{ fontSize: '14px', fontWeight: 700, color: 'var(--ink)' }}>{s.name || '(unnamed)'}</div>
+                <div style={{ fontSize: '12px', color: 'var(--ink3)', marginTop: '2px' }}>
+                  {[s.title, s.company].filter(Boolean).join(' · ') || '—'}
+                </div>
+                {s.bio && <div style={{ fontSize: '13px', color: 'var(--ink2)', marginTop: '6px', lineHeight: 1.5 }}>{s.bio}</div>}
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Agenda */}
+      <div style={CARD}>
+        <h3 style={H3}>Agenda ({agenda.length})</h3>
+        {agenda.length === 0 ? (
+          <div style={EMPTY}>No agenda items.</div>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+            {agenda.map((a, i) => (
+              <div key={i} style={{ display: 'grid', gridTemplateColumns: '90px 1fr', gap: '12px', padding: '10px 0', borderBottom: i < agenda.length - 1 ? '1px solid var(--border)' : 'none' }}>
+                <div style={{ fontSize: '13px', fontWeight: 700, color: '#F5B94D' }}>{a.time || '—'}</div>
+                <div>
+                  <div style={{ fontSize: '14px', fontWeight: 700, color: 'var(--ink)' }}>{a.title || '(untitled)'}</div>
+                  {a.description && <div style={{ fontSize: '13px', color: 'var(--ink3)', marginTop: '2px', lineHeight: 1.5 }}>{a.description}</div>}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Registration Questions */}
+      <div style={CARD}>
+        <h3 style={H3}>Registration Questions ({regQuestions.length})</h3>
+        {regQuestions.length === 0 ? (
+          <div style={EMPTY}>No pre-registration questionnaire.</div>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+            {regQuestions.map((q, i) => (
+              <div key={i} style={{ padding: '10px 12px', borderRadius: '8px', border: '1px solid var(--border)' }}>
+                <div style={{ fontSize: '13px', fontWeight: 700, color: 'var(--ink)', marginBottom: q.options?.length ? '6px' : 0 }}>{q.question}</div>
+                {q.options?.length > 0 && (
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px' }}>
+                    {q.options.map((o, j) => (
+                      <span key={j} style={{
+                        fontSize: '11px', padding: '2px 8px', borderRadius: '4px',
+                        background: 'var(--surface)', color: 'var(--ink3)', border: '1px solid var(--border)',
+                      }}>{o}</span>
+                    ))}
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Edit Brief action */}
+      <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
+        <button
+          onClick={onEdit}
+          disabled={editBusy}
+          style={{
+            padding: '10px 28px', borderRadius: '8px', border: '1px solid var(--ink3)', background: 'var(--card)',
+            color: 'var(--ink)', fontSize: '14px', fontWeight: 700, cursor: editBusy ? 'wait' : 'pointer',
+            fontFamily: 'var(--font-manrope)',
+          }}
+        >
+          {editBusy ? 'Reopening…' : 'Edit Brief'}
+        </button>
+        <span style={{ fontSize: '12px', color: 'var(--ink3)' }}>
+          Reopens editing and re-locks Phase 2, 3 and 4 tasks until the brief is submitted again.
+        </span>
       </div>
     </div>
   )

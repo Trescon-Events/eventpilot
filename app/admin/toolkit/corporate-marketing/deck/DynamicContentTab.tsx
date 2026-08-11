@@ -13,6 +13,7 @@
 */
 
 import { useCallback, useEffect, useState } from 'react'
+import Link from 'next/link'
 import { BRAND, Card, SectionLabel, H2, PrimaryButton, GhostButton, ErrorBox, inputStyle, textareaStyle, fmtDate, initials } from './_shared'
 
 type ContentMap = Record<string, { label: string; value_text: string | null; value_json: unknown; updated_at: string }>
@@ -451,8 +452,25 @@ function LeadershipPanel() {
     <Card>
       <SectionLabel>Leadership</SectionLabel>
       <H2 style={{ marginBottom: '6px' }}>Who appears in the deck</H2>
-      <div style={{ fontSize: '13px', color: 'var(--ink3)', lineHeight: 1.6, marginBottom: '18px' }}>
+      <div style={{ fontSize: '13px', color: 'var(--ink3)', lineHeight: 1.6, marginBottom: '14px' }}>
         People come from <strong>staff_members</strong> (single source of truth — do not duplicate). You control who&apos;s included, in what order, and can add an optional corporate bio just for the deck.
+      </div>
+      {/* Thulasi 10 Aug — deep-links to HR because staff CRUD is centralised
+          there, not duplicated here. Removing a person = mark inactive in HR
+          → the deck picker will drop them next reload. */}
+      <div style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap', marginBottom: '18px' }}>
+        <Link href="/hr/staff/new" style={{
+          display: 'inline-flex', alignItems: 'center', gap: '6px',
+          fontSize: '12px', fontWeight: 700, color: BRAND,
+          padding: '6px 12px', borderRadius: '8px',
+          border: `1px solid ${BRAND}`, background: 'transparent',
+          textDecoration: 'none',
+        }}>
+          + Add teammate
+        </Link>
+        <span style={{ fontSize: '12px', color: 'var(--ink4)' }}>
+          To remove someone permanently, mark them inactive in <Link href="/team" style={{ color: 'var(--ink3)', textDecoration: 'underline' }}>Team</Link>.
+        </span>
       </div>
 
       {included.length > 0 && (

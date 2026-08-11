@@ -3,6 +3,7 @@
 import { useState, useEffect, useMemo } from 'react'
 import Link from 'next/link'
 import PageHeader from '@/app/components/PageHeader'
+import { computeBespokePhase, BESPOKE_PHASES, type BespokePhaseNum } from '@/app/lib/bespoke-phase'
 
 type DelegateStats = { total: number; registered: number; attended: number }
 
@@ -12,6 +13,7 @@ type BespokeProject = {
   client_company: string
   format: string
   event_date: string | null
+  contract_signed_date: string | null
   phase: string
   target_delegate_count: number
   contract_value: number
@@ -24,20 +26,18 @@ type BespokeProject = {
   created_at: string
 }
 
-const PHASE_LABELS: Record<string, string> = {
-  initiation: 'Initiation',
-  campaign: 'Campaign',
-  live: 'Live',
-  closure: 'Closure',
-  completed: 'Completed',
+// Static DB-value fallback (used when contract_signed_date is missing so
+// computeBespokePhase() returns null) — keeps legacy phase column meaningful
+// on rows that predate the dynamic-date model.
+const PHASE_STATIC_LABELS: Record<string, string> = {
+  initiation: 'Kickoff & Alignment',
+  campaign: 'Outreach Runway',
+  live: 'Live Execution',
+  closure: 'Reporting & Settlement',
+  completed: 'Reporting & Settlement',
 }
-
-const PHASE_COLORS: Record<string, { bg: string; fg: string }> = {
-  initiation: { bg: 'var(--amber-light)', fg: 'var(--amber)' },
-  campaign: { bg: 'var(--teal-light)', fg: 'var(--teal)' },
-  live: { bg: 'var(--success-light)', fg: 'var(--success)' },
-  closure: { bg: 'var(--purple-light)', fg: 'var(--purple)' },
-  completed: { bg: 'rgba(255,255,255,0.06)', fg: 'var(--ink3)' },
+const PHASE_STATIC_TO_NUM: Record<string, BespokePhaseNum> = {
+  initiation: 1, campaign: 2, live: 3, closure: 4, completed: 4,
 }
 
 const FORMAT_COLORS: Record<string, { bg: string; fg: string }> = {
@@ -46,17 +46,26 @@ const FORMAT_COLORS: Record<string, { bg: string; fg: string }> = {
   hybrid: { bg: 'var(--purple-light)', fg: 'var(--purple)' },
 }
 
-const KANBAN_COLS = [
-  { key: 'initiation', label: 'Initiation', phases: ['initiation'] },
-  { key: 'campaign', label: 'Campaign', phases: ['campaign'] },
-  { key: 'live', label: 'Live', phases: ['live'] },
-  { key: 'closure', label: 'Closure', phases: ['closure', 'completed'] },
-]
+// Kanban columns: one per phase, derived from the shared helper so labels /
+// colors stay in lockstep with the single-event dashboard. Filtering is done
+// dynamically in getProjectPhaseNum() below — no static DB-column matching.
+const KANBAN_COLS: Array<{ num: BespokePhaseNum; label: string; color: string }> = BESPOKE_PHASES.map(p => ({
+  num: p.num, label: p.label, color: p.color,
+}))
 
 function daysLeft(eventDate: string | null): number | null {
   if (!eventDate) return null
   const diff = Math.ceil((new Date(eventDate).getTime() - Date.now()) / 86400000)
   return diff
+}
+
+// Resolve a project to a phase number for Kanban column placement. Prefers
+// the dynamic date-based computation (contract_signed_date + event_date);
+// falls back to the legacy DB `phase` column when dates are missing.
+function getProjectPhaseNum(p: BespokeProject): BespokePhaseNum {
+  const dyn = computeBespokePhase(p.contract_signed_date, p.event_date)
+  if (dyn) return dyn.activePhase
+  return PHASE_STATIC_TO_NUM[p.phase] ?? 1
 }
 
 function fmtDate(d: string | null): string {
@@ -123,13 +132,18 @@ function ProjectCard({ p }: { p: BespokeProject }) {
         {/* Client */}
         <div style={{ fontSize: '13px', color: 'var(--ink3)', fontWeight: 500, marginBottom: '10px' }}>{p.client_company}</div>
 
-        {/* Event date + Days left */}
+        {/* Event date + Days left — concluded events show a neutral "Concluded"
+             badge (never a negative day count). Nic 490f6974. */}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
           <span style={{ fontSize: '12px', color: 'var(--ink3)' }}>{fmtDate(p.event_date)}</span>
           {days !== null && (
-            <span style={{ fontSize: '11px', fontWeight: 700, color: days <= 7 ? 'var(--red)' : days <= 14 ? '#F5B94D' : 'var(--ink3)' }}>
-              {days > 0 ? `${days}d left` : days === 0 ? 'Today' : `${Math.abs(days)}d ago`}
-            </span>
+            days < 0 ? (
+              <span style={{ fontSize: '11px', fontWeight: 700, color: 'var(--ink3)', background: 'var(--surface)', padding: '2px 8px', borderRadius: '6px' }}>Concluded</span>
+            ) : (
+              <span style={{ fontSize: '11px', fontWeight: 700, color: days <= 7 ? 'var(--red)' : days <= 14 ? '#F5B94D' : 'var(--ink3)' }}>
+                {days > 0 ? `${days}d left` : 'Today'}
+              </span>
+            )
           )}
         </div>
 
@@ -280,12 +294,16 @@ export default function BespokePipelinePage() {
             </Link>
           </div>
         ) : view === 'kanban' ? (
-          /* ── Kanban View ──────────────────────────────────────── */
+          /* ── Kanban View — dynamic column placement per Nic 490f6974
+             (and subsumes f071291c). Each project is placed based on its
+             computed phase from contract_signed_date + event_date, not the
+             legacy static DB `phase` column. Concluded events automatically
+             render under Reporting & Settlement. ──────────────────────── */
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '16px', alignItems: 'flex-start' }}>
             {KANBAN_COLS.map(col => {
-              const colProjects = projects.filter(p => col.phases.includes(p.phase || 'initiation'))
+              const colProjects = projects.filter(p => getProjectPhaseNum(p) === col.num)
               return (
-                <div key={col.key}>
+                <div key={col.num}>
                   <div style={{
                     display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px', padding: '0 4px',
                   }}>
@@ -321,7 +339,12 @@ export default function BespokePipelinePage() {
               <tbody>
                 {sorted.map(p => {
                   const days = daysLeft(p.event_date)
-                  const pc = PHASE_COLORS[p.phase] || PHASE_COLORS.initiation
+                  // Prefer dynamic phase for row-level pill; fall back to
+                  // static DB label if dates missing. Colors from shared helper.
+                  const dyn = computeBespokePhase(p.contract_signed_date, p.event_date)
+                  const phaseLabel = dyn ? dyn.label : (PHASE_STATIC_LABELS[p.phase] || p.phase)
+                  const phaseColor = dyn ? dyn.color   : (BESPOKE_PHASES[(PHASE_STATIC_TO_NUM[p.phase] ?? 1) - 1].color)
+                  const phaseBg    = dyn ? dyn.bgColor : (BESPOKE_PHASES[(PHASE_STATIC_TO_NUM[p.phase] ?? 1) - 1].bgColor)
                   const fc = FORMAT_COLORS[p.format] || FORMAT_COLORS.physical
                   return (
                     <tr key={p.id}
@@ -337,7 +360,7 @@ export default function BespokePipelinePage() {
                         <span style={{ fontSize: '11px', fontWeight: 700, padding: '2px 8px', borderRadius: '6px', background: fc.bg, color: fc.fg }}>{p.format}</span>
                       </td>
                       <td style={{ padding: '12px' }}>
-                        <span style={{ fontSize: '11px', fontWeight: 700, padding: '2px 8px', borderRadius: '6px', background: pc.bg, color: pc.fg }}>{PHASE_LABELS[p.phase] || p.phase}</span>
+                        <span style={{ fontSize: '11px', fontWeight: 700, padding: '2px 8px', borderRadius: '6px', background: phaseBg, color: phaseColor }}>{phaseLabel}</span>
                       </td>
                       <td style={{ padding: '12px' }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -347,11 +370,13 @@ export default function BespokePipelinePage() {
                       </td>
                       <td style={{ padding: '12px', fontSize: '13px', color: 'var(--ink2)' }}>{p.commercial_lead?.name || '--'}</td>
                       <td style={{ padding: '12px' }}>
-                        {days !== null ? (
+                        {days === null ? '--' : days < 0 ? (
+                          <span style={{ fontSize: '13px', fontWeight: 700, color: 'var(--ink3)' }}>Concluded</span>
+                        ) : (
                           <span style={{ fontSize: '13px', fontWeight: 700, color: days <= 7 ? 'var(--red)' : days <= 14 ? '#F5B94D' : 'var(--ink2)' }}>
-                            {days > 0 ? `${days}d` : days === 0 ? 'Today' : `${Math.abs(days)}d ago`}
+                            {days > 0 ? `${days}d` : 'Today'}
                           </span>
-                        ) : '--'}
+                        )}
                       </td>
                     </tr>
                   )

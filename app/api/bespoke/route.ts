@@ -6,90 +6,101 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/app/lib/supabase'
 
-// ── Task templates per phase/week based on SOP ──────────────────
+// ── Task templates per phase — Nic build_request 2f002c2e 43-task blueprint ──
 // formatScope drives Physical vs Webinar filtering at POST time.
 //   'both'     — always seeded
 //   'physical' — seeded only when project.format is physical or hybrid
 //   'virtual'  — seeded only when project.format is virtual (webinar)
+// team is the canonical display label (Delegate Team, not Delegacy) written
+// to bespoke_tasks.assigned_team. role is the lowercase key used for the
+// existing assigned_role column + role→lead FK mapping.
+// title supports {{client}} and {{venue}} placeholders — interpolated at
+// seed time with project.client_company / (project.venue + ', ' + project.city).
+type TaskTeam = 'Commercial' | 'Marketing' | 'Delegate Team' | 'Operations' | 'Design' | 'Production' | 'DRT' | 'Client' | 'All Teams'
 type TaskTemplate = {
   phase: number
   week: number
   role: string
+  team: TaskTeam
   title: string
   formatScope: 'physical' | 'virtual' | 'both'
 }
 
+// Compact team → (role, week-guess) map for the 43-task blueprint. The
+// legacy assigned_role column stays populated for badge back-compat.
+const TEAM_TO_ROLE: Record<TaskTeam, string> = {
+  Commercial: 'commercial', Marketing: 'marketing', 'Delegate Team': 'delegate',
+  Operations: 'operations', Design: 'design', Production: 'production',
+  DRT: 'marketing', // DRT reports up to marketing per current lead model
+  Client: 'commercial', // Client tasks tracked by commercial lead
+  'All Teams': 'commercial', // Kickoff-style ownership defaults to commercial
+}
+
 const TASK_TEMPLATES: TaskTemplate[] = [
-  // Phase 1 / Week 1: Initiation & Discovery
-  { phase: 1, week: 1, role: 'commercial', title: 'Conduct internal cross-functional briefing call', formatScope: 'both' },
-  { phase: 1, week: 1, role: 'commercial', title: 'Send client brief questionnaire', formatScope: 'both' },
-  { phase: 1, week: 1, role: 'commercial', title: 'Lock ICP parameters, theme, target account wishlist with client', formatScope: 'both' },
-  { phase: 1, week: 1, role: 'marketing', title: 'Deliver campaign architecture requirements to Design', formatScope: 'both' },
-  { phase: 1, week: 1, role: 'marketing', title: 'Submit DRT data parameters for list building', formatScope: 'both' },
-  { phase: 1, week: 1, role: 'marketing', title: 'Draft email announcement campaign', formatScope: 'both' },
-  { phase: 1, week: 1, role: 'marketing', title: 'Push landing page live', formatScope: 'both' },
-  { phase: 1, week: 1, role: 'delegate', title: 'Deep-dive review of target accounts', formatScope: 'both' },
-  { phase: 1, week: 1, role: 'delegate', title: 'Prepare personalized outreach messaging scripts', formatScope: 'both' },
-  { phase: 1, week: 1, role: 'design', title: 'Ingest client branding guidelines', formatScope: 'both' },
-  { phase: 1, week: 1, role: 'design', title: 'Build landing page wireframe + email headers + social templates', formatScope: 'both' },
-  { phase: 1, week: 1, role: 'operations', title: 'Initiate venue sourcing and vendor requirements', formatScope: 'physical' },
-  { phase: 1, week: 1, role: 'operations', title: 'Set up webinar platform account and configure event', formatScope: 'virtual' },
-  { phase: 1, week: 1, role: 'operations', title: 'Test webinar streaming, chat, Q&A, and polling features', formatScope: 'virtual' },
-  { phase: 1, week: 1, role: 'production', title: 'Advisory check on proposed agenda framework', formatScope: 'both' },
+  // ── Phase 1 · Kickoff & Alignment (6 tasks) ─────────────────────────
+  { phase: 1, week: 1, team: 'Commercial',   role: 'commercial', formatScope: 'both',     title: 'Send the Initial Requirement Document (Briefing Questionnaire) to {{client}}' },
+  { phase: 1, week: 1, team: 'Client',       role: 'commercial', formatScope: 'both',     title: 'Complete and return the Briefing Questionnaire' },
+  { phase: 1, week: 1, team: 'Commercial',   role: 'commercial', formatScope: 'both',     title: 'Upload the completed brief to the tracker (or parse it using the AI uploader)' },
+  { phase: 1, week: 1, team: 'Commercial',   role: 'commercial', formatScope: 'both',     title: 'Schedule the mandatory cross-functional internal briefing call' },
+  { phase: 1, week: 1, team: 'All Teams',    role: 'commercial', formatScope: 'both',     title: 'Hold the internal kickoff meeting to align on roles, target accounts, and the timeline' },
+  { phase: 1, week: 1, team: 'Marketing',    role: 'marketing',  formatScope: 'both',     title: 'Collect and review {{client}} brand guidelines, media kit, and logos' },
 
-  // Phase 2 / Week 2: Aggressive Outreach
-  { phase: 2, week: 2, role: 'marketing', title: 'Deploy automated segmented email wave via CRM', formatScope: 'both' },
-  { phase: 2, week: 2, role: 'marketing', title: 'Launch organic and paid social media banners', formatScope: 'both' },
-  { phase: 2, week: 2, role: 'marketing', title: 'Draft pre-event press release', formatScope: 'both' },
-  { phase: 2, week: 2, role: 'delegate', title: 'Execute calling campaigns to target wishlist', formatScope: 'both' },
-  { phase: 2, week: 2, role: 'delegate', title: 'Launch LinkedIn outreach', formatScope: 'both' },
-  { phase: 2, week: 2, role: 'delegate', title: 'Log all registrations in CRM in real time', formatScope: 'both' },
-  { phase: 2, week: 2, role: 'commercial', title: 'Monitor registration velocity, update client', formatScope: 'both' },
-  { phase: 2, week: 2, role: 'design', title: 'Ad-hoc assets and print mockups', formatScope: 'physical' },
-  { phase: 2, week: 2, role: 'operations', title: 'Finalize venue contract', formatScope: 'physical' },
-  { phase: 2, week: 2, role: 'operations', title: 'Pass print dimensions to Design team', formatScope: 'physical' },
+  // ── Phase 2 · Outreach Runway (17 tasks) ────────────────────────────
+  { phase: 2, week: 2, team: 'Design',       role: 'design',     formatScope: 'both',     title: 'Design the {{client}} landing page template and visual draft' },
+  { phase: 2, week: 2, team: 'Marketing',    role: 'marketing',  formatScope: 'both',     title: 'Write the copy for the {{client}} landing page and registration form, plan the campaign rollout and social media' },
+  { phase: 2, week: 2, team: 'Client',       role: 'commercial', formatScope: 'both',     title: 'Review and lock the {{client}} landing page content and design version' },
+  { phase: 2, week: 2, team: 'Design',       role: 'design',     formatScope: 'both',     title: 'Set up the registration forms and embed them on the {{client}} landing page' },
+  { phase: 2, week: 2, team: 'Marketing',    role: 'marketing',  formatScope: 'both',     title: 'Write and set up the email engine and prepare the cold filtering automation flow (5 emails)' },
+  { phase: 2, week: 2, team: 'Client',       role: 'commercial', formatScope: 'both',     title: 'Approve email copy templates and campaign rollout schedule' },
+  { phase: 2, week: 2, team: 'Delegate Team', role: 'delegate',  formatScope: 'both',     title: "Review {{client}}'s target accounts wishlist" },
+  { phase: 2, week: 2, team: 'Marketing',    role: 'marketing',  formatScope: 'both',     title: 'Define data parameters with delegate team (geography, titles, sectors) and submit the list brief to the DRT' },
+  { phase: 2, week: 2, team: 'Marketing',    role: 'marketing',  formatScope: 'both',     title: 'Source target accounts and scrape contacts for key executive stakeholders' },
+  { phase: 2, week: 3, team: 'Marketing',    role: 'marketing',  formatScope: 'both',     title: 'Validate and scrub contact lists using email verification tools (e.g. ZeroBounce)' },
+  { phase: 2, week: 3, team: 'Marketing',    role: 'marketing',  formatScope: 'both',     title: 'Upload the contact list into the marketing outreach engine' },
+  { phase: 2, week: 3, team: 'Marketing',    role: 'marketing',  formatScope: 'both',     title: 'Launch the email and LinkedIn campaigns' },
+  { phase: 2, week: 3, team: 'Delegate Team', role: 'delegate',  formatScope: 'both',     title: 'Execute direct outreach campaigns (calls/emails) to secure qualified registrations' },
+  { phase: 2, week: 3, team: 'Marketing',    role: 'marketing',  formatScope: 'both',     title: 'Write and schedule social media marketing posts on LinkedIn' },
+  { phase: 2, week: 3, team: 'Operations',   role: 'operations', formatScope: 'physical', title: 'Settle physical venue contracts for {{venue}}' },
+  { phase: 2, week: 3, team: 'Operations',   role: 'operations', formatScope: 'virtual',  title: 'Configure virtual platform hosting settings for Webinar' },
+  { phase: 2, week: 3, team: 'Operations',   role: 'operations', formatScope: 'physical', title: 'Coordinate layouts for print assets (banners, standees, tent cards, badges) with Design' },
+  { phase: 2, week: 3, team: 'Design',       role: 'design',     formatScope: 'both',     title: 'Begin working on asset files for the event' },
 
-  // Phase 2 / Week 3: Mid-Campaign Optimization
-  { phase: 2, week: 3, role: 'marketing', title: 'Deploy email wave targeting non-responders', formatScope: 'both' },
-  { phase: 2, week: 3, role: 'marketing', title: 'Target high-intent leads (clicks, opens)', formatScope: 'both' },
-  { phase: 2, week: 3, role: 'marketing', title: 'Run mid-campaign social media check-ins', formatScope: 'both' },
-  { phase: 2, week: 3, role: 'delegate', title: 'Intensify follow-up on warm leads', formatScope: 'both' },
-  { phase: 2, week: 3, role: 'delegate', title: 'Provide registration conversion counts to client', formatScope: 'both' },
-  { phase: 2, week: 3, role: 'commercial', title: 'Cross-reference registrants with client target requirements', formatScope: 'both' },
-  { phase: 2, week: 3, role: 'operations', title: 'Submit print-ready files to production vendors', formatScope: 'physical' },
-  { phase: 2, week: 3, role: 'design', title: 'Complete all print layouts — freeze asset alterations', formatScope: 'physical' },
-  { phase: 2, week: 3, role: 'operations', title: 'Send webinar access links + calendar invites', formatScope: 'virtual' },
+  // ── Phase 3 · Live Execution (12 tasks) ─────────────────────────────
+  { phase: 3, week: 4, team: 'Delegate Team', role: 'delegate',  formatScope: 'both',     title: 'Compile the final list of registered delegates for screening and confirmation' },
+  { phase: 3, week: 4, team: 'Design',       role: 'design',     formatScope: 'physical', title: 'Deliver print-ready asset files to Operations for production' },
+  { phase: 3, week: 4, team: 'Delegate Team', role: 'delegate',  formatScope: 'both',     title: 'Send calendar invites and formal confirmation passes to registered delegates' },
+  { phase: 3, week: 4, team: 'Delegate Team', role: 'delegate',  formatScope: 'both',     title: 'Run the 24-48 hour confirmation call campaign to prevent dropouts' },
+  { phase: 3, week: 4, team: 'Delegate Team', role: 'delegate',  formatScope: 'both',     title: 'Send final reminders on the morning of the event' },
+  { phase: 3, week: 4, team: 'Operations',   role: 'operations', formatScope: 'physical', title: 'Verify physical venue setup and catering layouts for {{venue}}' },
+  { phase: 3, week: 4, team: 'Operations',   role: 'operations', formatScope: 'virtual',  title: 'Test digital host/panel settings for Webinar' },
+  { phase: 3, week: 4, team: 'Operations',   role: 'operations', formatScope: 'both',     title: 'Perform technical AV checks and dry-runs with speakers and client' },
+  { phase: 3, week: 5, team: 'Operations',   role: 'operations', formatScope: 'physical', title: 'Place print materials, banners, and set up the check-in desk onsite' },
+  { phase: 3, week: 5, team: 'Operations',   role: 'operations', formatScope: 'physical', title: 'Open registration desk and manage delegate badges/check-in' },
+  { phase: 3, week: 5, team: 'Production',   role: 'production', formatScope: 'both',     title: 'Manage agenda timeline and speaker transition cues' },
+  { phase: 3, week: 5, team: 'Commercial',   role: 'commercial', formatScope: 'both',     title: 'Host the boardroom roundtable or moderate the webinar panel' },
+  { phase: 3, week: 5, team: 'Operations',   role: 'operations', formatScope: 'physical', title: 'Manage event tear-down and secure physical materials post-event' },
 
-  // Phase 3 / Week 4: Registration Lock & Confirmation
-  { phase: 3, week: 4, role: 'commercial', title: 'Finalize guest list breakdown with client', formatScope: 'both' },
-  { phase: 3, week: 4, role: 'marketing', title: 'Deploy logistic broadcasts (venue, calendar, access links)', formatScope: 'both' },
-  { phase: 3, week: 4, role: 'marketing', title: 'Close registration forms when limit reached', formatScope: 'both' },
-  { phase: 3, week: 4, role: 'delegate', title: 'Execute attendance safeguarding protocol — reminder calls', formatScope: 'both' },
-  { phase: 3, week: 4, role: 'delegate', title: 'Send calendar hold emails to all registrants', formatScope: 'both' },
-  { phase: 3, week: 4, role: 'operations', title: 'Receive printed materials, check for errors', formatScope: 'physical' },
-  { phase: 3, week: 4, role: 'operations', title: 'Venue tech rehearsal — AV, mics, catering, stage', formatScope: 'physical' },
-  { phase: 3, week: 4, role: 'operations', title: 'Organize transport logistics', formatScope: 'physical' },
-  { phase: 3, week: 4, role: 'operations', title: 'Run technical dry-run with speakers on webinar platform', formatScope: 'virtual' },
-
-  // Phase 3 / Event Day
-  { phase: 3, week: 5, role: 'commercial', title: 'Welcome client representatives onsite', formatScope: 'both' },
-  { phase: 3, week: 5, role: 'commercial', title: 'Monitor overall delivery sentiment', formatScope: 'both' },
-  { phase: 3, week: 5, role: 'operations', title: 'Direct venue staff, oversee AV desk', formatScope: 'physical' },
-  { phase: 3, week: 5, role: 'operations', title: 'Manage check-in and badges station', formatScope: 'physical' },
-  { phase: 3, week: 5, role: 'delegate', title: 'Staff registration desk, cross-reference arrivals', formatScope: 'both' },
-  { phase: 3, week: 5, role: 'delegate', title: 'Call missing high-priority delegates morning of event', formatScope: 'both' },
-  { phase: 3, week: 5, role: 'marketing', title: 'Document content highlights for post-event', formatScope: 'both' },
-  { phase: 3, week: 5, role: 'operations', title: 'Monitor webinar broadcast, chat moderation, technical support', formatScope: 'virtual' },
-  { phase: 3, week: 5, role: 'delegate', title: 'Track live attendance via webinar platform, cross-reference with registrations', formatScope: 'virtual' },
-
-  // Phase 4 / Week 5+: Post-Event Closure
-  { phase: 4, week: 6, role: 'marketing', title: 'Reconcile registration vs actual attendance lists', formatScope: 'both' },
-  { phase: 4, week: 6, role: 'marketing', title: 'Compile post-event press release', formatScope: 'both' },
-  { phase: 4, week: 6, role: 'commercial', title: 'Present final post-event report to client', formatScope: 'both' },
-  { phase: 4, week: 6, role: 'commercial', title: 'Validate delivery of contractual targets', formatScope: 'both' },
-  { phase: 4, week: 6, role: 'commercial', title: 'Issue final project invoice', formatScope: 'both' },
-  { phase: 4, week: 6, role: 'commercial', title: 'Initiate cross-sell / renewal discussion', formatScope: 'both' },
+  // ── Phase 4 · Reporting & Settlement (8 tasks) ──────────────────────
+  { phase: 4, week: 6, team: 'Delegate Team', role: 'delegate',  formatScope: 'both',     title: 'Reconcile final check-ins and flag no-show delegates' },
+  { phase: 4, week: 6, team: 'Delegate Team', role: 'delegate',  formatScope: 'both',     title: 'Compile detailed attendee analytics and registration source data' },
+  { phase: 4, week: 6, team: 'Marketing',    role: 'marketing',  formatScope: 'both',     title: 'Generate the post-event report draft containing delegate metrics and survey responses' },
+  { phase: 4, week: 6, team: 'Commercial',   role: 'commercial', formatScope: 'both',     title: "Review the post-event report against the client's KPIs (quotas, seniority parameters)" },
+  { phase: 4, week: 6, team: 'Commercial',   role: 'commercial', formatScope: 'both',     title: 'Deliver the final post-event report to the client and schedule a review call' },
+  { phase: 4, week: 6, team: 'Marketing',    role: 'marketing',  formatScope: 'both',     title: 'Coordinate with PR to distribute post-event press releases (if in scope)' },
+  { phase: 4, week: 6, team: 'Marketing',    role: 'marketing',  formatScope: 'both',     title: 'Post event photo highlights and thank-you updates on LinkedIn' },
+  { phase: 4, week: 6, team: 'Commercial',   role: 'commercial', formatScope: 'both',     title: 'Hold the client satisfaction review meeting' },
 ]
+
+// Interpolate {{client}} and {{venue}} placeholders in a task title using
+// the project's client_company + venue + city. Missing values are replaced
+// with sensible defaults (e.g. "TBD venue") so the task title always reads
+// cleanly to a user even when the project row is incomplete.
+function interpolateTitle(title: string, project: { client_company?: string | null; venue?: string | null; city?: string | null }): string {
+  const client = (project.client_company ?? '').trim() || 'the client'
+  const venueParts = [project.venue, project.city].map(v => (v ?? '').trim()).filter(Boolean)
+  const venue = venueParts.length ? venueParts.join(', ') : 'the venue (TBD)'
+  return title.replace(/\{\{client\}\}/g, client).replace(/\{\{venue\}\}/g, venue)
+}
 
 // Runway-proportional due-date calculator.
 //   Phase 1: 0.00 → 0.15 of runway
@@ -254,6 +265,10 @@ export async function POST(req: NextRequest) {
       delegate_lead_manual: body.delegate_lead_manual || null,
       operations_lead_manual: body.operations_lead_manual || null,
       created_by: body.created_by || null,
+      // Nic 2f002c2e — creator_id drives edit/delete permissions on the
+      // Tasks tab. Falls back to body.created_by so a project retains the
+      // creator identity even when session isn't available at POST time.
+      creator_id: body.creator_id || body.created_by || null,
     })
     .select('id')
     .single()
@@ -283,11 +298,18 @@ export async function POST(req: NextRequest) {
 
   const tasks = applicableTemplates.map((t, i) => ({
     project_id: project.id,
-    title: t.title,
+    // Nic 2f002c2e — interpolate {{client}}/{{venue}} placeholders using
+    // the current project's client_company/venue/city.
+    title: interpolateTitle(t.title, { client_company: body.client_company, venue: body.venue, city: body.city }),
     phase: t.phase,
     week_number: t.week,
     assigned_to: roleToLead[t.role] || null,
     assigned_role: t.role,
+    // Canonical display team label (Delegate Team, not Delegacy). Column
+    // added by supabase/bespoke_task_overhaul.sql — safe insert: if the
+    // column doesn't yet exist in production, Supabase will reject with a
+    // clear error and the 207 branch below surfaces it.
+    assigned_team: t.team,
     due_date: calculateDueDate(body.contract_signed_date, body.event_date, t.phase, t.week),
     status: 'pending',
     sort_order: i,

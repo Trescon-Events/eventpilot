@@ -14,7 +14,6 @@
  */
 import { NextRequest, NextResponse } from 'next/server'
 import { GoogleGenerativeAI } from '@google/generative-ai'
-import { PDFParse } from 'pdf-parse'
 import { supabaseAdmin } from '@/app/lib/supabase'
 
 export const runtime = 'nodejs'
@@ -25,9 +24,7 @@ const MAX_TEXT_CHARS = 40_000 // Gemini context safety per PRD
 
 type ParsedBrief = {
   primary_goal:            string | null
-  success_criteria:        string | null
   key_themes:              string | null
-  desired_outcome:         string | null
   icp_job_titles:          string[]
   icp_industries:          string[]
   icp_geographies:         string[]
@@ -39,19 +36,50 @@ type ParsedBrief = {
   registration_questions:  Array<{ question: string; options: string[] }>
 }
 
+/** Normalise a single ICP array entry: collapse line breaks + repeated
+ *  whitespace into a single space, then trim. Fixes the "Director of\n
+ *  Infrastructure" fragmenting bug Nic reported (df915458). */
+function normaliseIcpEntry(s: unknown): string {
+  if (typeof s !== 'string') return ''
+  return s.replace(/[\r\n]+/g, ' ').replace(/\s+/g, ' ').trim()
+}
+
 async function extractPdfText(buffer: Buffer): Promise<string> {
-  // pdf-parse v2 replaced the old v1 "call a function, get {text}" API with
-  // a class (`new PDFParse({ data }).getText()`) — the installed version
-  // (package.json pins ^2.4.5) has no `lib/pdf-parse.js` internal module at
-  // all, that path only existed in v1. Constructor accepts a Node Buffer
-  // directly (it converts to Uint8Array internally).
-  const parser = new PDFParse({ data: buffer })
-  try {
-    const result = await parser.getText()
-    return (result?.text ?? '').trim()
-  } finally {
-    await parser.destroy()
+  // pdf-parse pinned to 1.1.1 (Nic build_request 85d7133d, 27 Jul).
+  //
+  // Why not v2: pdf-parse v2 is ESM-only and internally depends on
+  // pdfjs-dist v5, which loads a `pdf.worker.mjs` worker file at runtime.
+  // Next.js's server bundler on Railway does NOT include `.mjs` worker
+  // files in the deployed chunk output, so at request time the process
+  // crashes with:
+  //   PDF parse failed: Setting up fake worker failed:
+  //   "Cannot find module '/app/.next/server/chunks/pdf.worker.mjs'"
+  // v1 is pure JS, single-threaded, no worker file needed.
+  //
+  // Why the internal `lib/pdf-parse.js` path: v1's index.js runs an
+  // fs.readFile self-test at import time against a fixture PDF that
+  // doesn't exist inside the Next server bundle, and the CJS→ESM wrap
+  // in production sometimes yields `{ default: { default: fn } }`. Both
+  // failure modes surface as "n is not a function". Importing the
+  // internal module skips the self-test; the shape-walk below handles
+  // the wrap variance.
+  type PdfParseFn = (b: Buffer) => Promise<{ text?: string }>
+  const modPath = 'pdf-parse/lib/pdf-parse.js'
+  const mod = (await import(/* webpackIgnore: true */ modPath)) as unknown as {
+    default?: PdfParseFn | { default?: PdfParseFn }
   }
+  const candidates: unknown[] = [
+    mod.default,
+    (mod.default as { default?: PdfParseFn } | undefined)?.default,
+    mod,
+  ]
+  for (const c of candidates) {
+    if (typeof c === 'function') {
+      const result = await (c as PdfParseFn)(buffer)
+      return (result?.text ?? '').trim()
+    }
+  }
+  throw new Error('pdf-parse export shape unexpected — no callable found in default / default.default / module')
 }
 
 export async function POST(req: NextRequest) {
@@ -102,22 +130,58 @@ export async function POST(req: NextRequest) {
 
   const truncated = text.length > MAX_TEXT_CHARS ? text.slice(0, MAX_TEXT_CHARS) : text
 
-  // Ask Gemini to extract structured fields
+  // Ask Gemini to extract structured fields.
+  // responseMimeType: 'application/json' FORCES the model to return valid JSON —
+  // eliminates the historical "Gemini returned invalid JSON" failure mode Nic
+  // hit 2026-07-28 where the model added preamble/commentary or wrapped in
+  // ```json fences and the string cleanup couldn't recover.
   const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY)
-  const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' })
+  const model = genAI.getGenerativeModel({
+    model: 'gemini-2.5-flash',
+    generationConfig: {
+      responseMimeType: 'application/json',
+      temperature: 0.2,          // Low temp — extraction should be deterministic, not creative
+    },
+  })
 
   const prompt = `You are extracting structured fields from a client event brief document.
 
-Return STRICT JSON only — no markdown wrapping, no commentary. If a field is not
-found in the brief, return null (for scalar fields) or [] (for array fields).
-Never invent information.
+Return STRICT JSON only — no markdown wrapping, no commentary. If a scalar
+field is not found in the brief, return null. If an array field is not
+found, return []. Never invent information for the extractable fields.
+
+SPECIAL RULE FOR "primary_goal" (Nic a837da08):
+Write a 2-3 sentence overview that synthesises (a) the sponsor's commercial
+intent — what product/service/positioning are they trying to introduce or
+reinforce, (b) the target executive audience seniority + role type, and
+(c) the concrete registration target (e.g. "to secure 25 qualified CIO/CDO
+registrants from Tier-1 UAE banks"). If the target registration count is
+not stated, omit clause (c) rather than invent one. Keep sentences plain
+and specific. Do not start with "The primary goal is…".
+
+SPECIAL RULE FOR "key_themes" (Nic a837da08):
+Client briefs almost never contain a dedicated "Themes" section. You must
+READ THE ENTIRE DOCUMENT and SYNTHESISE 3 to 5 concise event themes from
+context — from the primary goal, the topics discussed, the speakers'
+expertise, the agenda sessions, the industries mentioned, the buyer
+outcomes framed. Return as a single bulleted TEXT block — each theme on
+its own line prefixed with the bullet character "• " (bullet followed by
+one space). Do not use commas, semicolons, or numbered lists. Never split
+a single theme across two bullets. Example format:
+  "• AI in Finance\\n• ESG Compliance\\n• Cross-Border M&A"
+If the document is too thin to synthesise anything, return null.
+
+SPECIAL RULE FOR ICP ARRAYS (Nic df915458):
+For "icp_job_titles", "icp_industries", "icp_geographies": each entry must
+be a single job title / industry / geography name as it appears in the
+brief. Never split a long title across two entries. If a title in the
+brief spans two lines (e.g. "Director of\\nInfrastructure"), stitch it
+back into one entry ("Director of Infrastructure"). Trim whitespace.
 
 Return exactly this shape:
 {
   "primary_goal":            string | null,
-  "success_criteria":        string | null,
   "key_themes":              string | null,
-  "desired_outcome":         string | null,
   "icp_job_titles":          string[] (max 20 entries),
   "icp_industries":          string[] (max 20 entries),
   "icp_geographies":         string[] (max 20 entries),
@@ -142,17 +206,39 @@ ${truncated}
     return NextResponse.json({ error: `Gemini error: ${msg}` }, { status: 500 })
   }
 
-  // Strip any accidental markdown fences and locate the JSON object
-  const cleaned = raw.startsWith('{')
-    ? raw
-    : raw.slice(raw.indexOf('{'), raw.lastIndexOf('}') + 1)
+  // Defence-in-depth JSON extraction. Even though responseMimeType:'application/json'
+  // should give us clean JSON, we still handle the historical failure modes:
+  //   1. Model wraps output in ```json ... ``` fences
+  //   2. Model prefixes with commentary ("Here is the JSON:\n{...}")
+  //   3. Model returns whitespace / BOM before the '{'
+  // Strategy: strip fence markers, then locate the outer object by matching
+  // the first '{' with its balancing '}'.
+  const stripped = raw
+    .replace(/^﻿/, '')                      // BOM
+    .replace(/^```(?:json)?\s*/i, '')            // opening fence
+    .replace(/\s*```\s*$/i, '')                  // closing fence
+    .trim()
+
+  let cleaned: string
+  if (stripped.startsWith('{')) {
+    cleaned = stripped
+  } else {
+    const first = stripped.indexOf('{')
+    const last  = stripped.lastIndexOf('}')
+    cleaned = first !== -1 && last > first ? stripped.slice(first, last + 1) : stripped
+  }
 
   let parsed: ParsedBrief
   try {
     parsed = JSON.parse(cleaned) as ParsedBrief
   } catch {
+    // Include the first 300 chars of what Gemini actually returned so the
+    // caller can diagnose (visible in browser network tab / server logs).
     return NextResponse.json(
-      { error: 'Gemini returned invalid JSON — please fill fields manually' },
+      {
+        error: 'Gemini returned invalid JSON — please fill fields manually',
+        debug: raw.slice(0, 300),
+      },
       { status: 500 }
     )
   }
@@ -163,12 +249,13 @@ ${truncated}
 
   const safe: ParsedBrief = {
     primary_goal:           typeof parsed.primary_goal          === 'string' ? parsed.primary_goal          : null,
-    success_criteria:       typeof parsed.success_criteria      === 'string' ? parsed.success_criteria      : null,
     key_themes:             typeof parsed.key_themes            === 'string' ? parsed.key_themes            : null,
-    desired_outcome:        typeof parsed.desired_outcome       === 'string' ? parsed.desired_outcome       : null,
-    icp_job_titles:         cap<string>(parsed.icp_job_titles).filter(s => typeof s === 'string'),
-    icp_industries:         cap<string>(parsed.icp_industries).filter(s => typeof s === 'string'),
-    icp_geographies:        cap<string>(parsed.icp_geographies).filter(s => typeof s === 'string'),
+    // Nic df915458 — server-side whitespace normalisation so
+    // "Director of\n Infrastructure" style entries survive as ONE item
+    // regardless of the model's exact behaviour.
+    icp_job_titles:         cap<string>(parsed.icp_job_titles).map(normaliseIcpEntry).filter(Boolean),
+    icp_industries:         cap<string>(parsed.icp_industries).map(normaliseIcpEntry).filter(Boolean),
+    icp_geographies:        cap<string>(parsed.icp_geographies).map(normaliseIcpEntry).filter(Boolean),
     target_accounts_list:   typeof parsed.target_accounts_list  === 'string' ? parsed.target_accounts_list  : null,
     client_approver_name:   typeof parsed.client_approver_name  === 'string' ? parsed.client_approver_name  : null,
     client_approver_email:  typeof parsed.client_approver_email === 'string' ? parsed.client_approver_email : null,

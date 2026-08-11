@@ -1,8 +1,7 @@
 # EventPilot — Session Handoff
 
 > **Claude Code: Read this file at the start of EVERY session before doing any work.**
-> Report its contents to the user when starting, so they know the current state.
-> Update this file before every sign-off.
+> **First run `git fetch origin` — the local HANDOFF may be stale.** Then report contents to the user before doing any work. Update this file before every sign-off.
 
 ---
 
@@ -17,9 +16,10 @@ Railway's auto-deploy silently stopped working from **2026-07-17 to 2026-07-21**
 | Field | Value |
 |---|---|
 | Who | Madhu + Claude Code (Sonnet 5) — 11 Aug 2026 |
-| Latest push | 2026-08-11 — see commit for exact SHA. Corporate Brand asset library + the full SAE (Stakeholder Announcement Engine) producer-workflow initiative (Access/RBAC → Email Templates → Invite workflow → Form Builder + global Form Templates) + a new HubSpot Forms integration (connect/map/capture/photo-logo reprocessing/secure-document OAuth handling) — merged in on top of the team's parallel Bespoke build_requests + Corporate Marketing Statistics Repository work that landed on `main` the same day. |
+| Latest push | 2026-08-11 — this push: Corporate Brand asset library + the full SAE (Stakeholder Announcement Engine) producer-workflow initiative (Access/RBAC → Email Templates → Invite workflow → Form Builder + global Form Templates) + a new HubSpot Forms integration (connect/map/capture/photo-logo reprocessing/secure-document OAuth handling). Merged onto a parallel Durga + Claude Code (Opus 4.7) session the same day — see below — which had already landed `66ebbe8` (CM-002.1 Statistics Repository final slices), `dc4bb6d` (Nic batch), `a381b1f` (Thulasi 2 quick fixes), `696ed08` (CM-002.1 Slices 1–3) on `main` first. |
+| DB migrations applied | This session: `access_rbac`, `email_templates`, `stakeholder_invites`, `event_form_schemas`, `event_stakeholder_custom_fields`, `form_schema_defaults`, `hubspot_forms`, `hubspot_submissions`, `secure_documents`, `corporate_brand_assets`, `corporate_brand_guidelines` — applied directly against production Supabase via the pg pooler. Parallel session: ✅ `supabase/cm_statistics_repository.sql` (applied by Durga via Studio SQL Editor). |
 | Handed off to | Durga |
-| Deployed | Pushed to `main` this session — Railway auto-deploys on push, verify `/login` (200) and `/api/auth/microsoft` (307) post-deploy. **Needs your action**: see "HubSpot integration — what Durga needs to do next" below — none of the HubSpot-form-capture or secure-document features work for a real event until someone actually connects a form and builds the HubSpot Workflow per event. |
+| Deployed | Pushed to `main` this session — Railway auto-deploys on push, verify `eventpilot.tresconglobal.com` reflects the latest commit. **Needs Durga's action**: see "HubSpot integration — what Durga needs to do next" below — none of the HubSpot-form-capture or secure-document features work for a real event until someone actually connects a form and builds the HubSpot Workflow per event. |
 
 ## ⚠️ Durga — action needed: HubSpot integration setup
 
@@ -32,6 +32,8 @@ The forms direction changed this session: EventPilot no longer builds its own on
 Azure (Files.ReadWrite delegated permission) and Google Cloud (new "EventPilot Integrations" project, Drive API, Internal OAuth consent screen) are both already set up — no further Azure/Google Console work needed unless something breaks.
 
 The old in-app Form Builder (`/admin/form-templates` for global defaults, or a per-event "Customize Form" screen) still exists and still works for any event that doesn't connect a HubSpot form — it was not removed, just no longer the primary path.
+
+**Merge note:** this session ran in parallel with a separate Durga + Claude Code (Opus 4.7) session the same day (Nic build_requests batch + Thulasi fixes + the new CM-002.1 Statistics Repository — full write-up immediately below). Durga's landed on `main` first; this session's branch (`sae-stakeholder-announcement-engine`, several weeks and 28 commits behind `main`) merged theirs in before pushing. Confirmed zero file-level overlap between the two bodies of work. One real conflict: `package.json`'s `pdf-parse` version — `main` had it pinned to `1.1.1` to fix a production crash (see 28 Jul entry below); this branch still had the old unpinned `^2.4.5`. Resolved by taking `main`'s pinned value; `package-lock.json` regenerated from the resolved `package.json` rather than hand-merged.
 
 **Session highlight (11 Aug 2026):** a large, multi-week backlog of previously-uncommitted work finally landed in one push, spanning the Corporate Brand asset library and the full 4-phase SAE (Stakeholder Announcement Engine) producer-workflow initiative, followed same-day by a pivot: EventPilot's own in-app Form Builder was superseded by a HubSpot Forms integration once Madhu clarified the team already builds and manages these forms in HubSpot and wants that to stay the source of truth.
 
@@ -62,9 +64,305 @@ Mid-session, Madhu clarified: onboarding forms are managed in HubSpot already, a
 
 **Verified**: `tsc`/`eslint` clean throughout. Real end-to-end HTTP tests against the actual dev server for the webhook receiver (auth, dedupe, all 4 mapping target types) and the public form's HubSpot-embed branch. Direct-function verification for the photo/logo reprocessing path, token encryption round-trip, and folder-link parsing. OAuth connect flows and the Drive/OneDrive copy operation are code-complete but not live-tested end-to-end (blocked on a real producer clicking through the consent screens in production — see the action item).
 
-**Merge note:** this branch (`sae-stakeholder-announcement-engine`) was 28 commits and several weeks behind `main` when this session's work was ready to ship. `main` had moved forward the same day with the team's Bespoke build_requests batch and Thulasi's Corporate Marketing Statistics Repository (CM-002.1) — zero file-level overlap with this branch's work, confirmed before merging. One real conflict: `package.json`'s `pdf-parse` version — `main` had pinned it to `1.1.1` to fix a production crash; this branch still had the old unpinned `^2.4.5`. Resolved by taking `main`'s pinned value.
+---
+
+## Session 11 Aug 2026 (parallel) — Durga + Claude Code (Opus 4.7 · 1M) — Nic batch + Thulasi fixes + CM-002.1 Statistics Repository
+
+| Field | Value |
+|---|---|
+| Who | Durga + Claude Code (Opus 4.7 · 1M) — 11 Aug 2026 (long session, three arcs) |
+| Latest push | 2026-08-11 — commit `66ebbe8` (CM-002.1 Statistics Repository final slices). Also this session: `dc4bb6d` (Nic batch), `a381b1f` (Thulasi 2 quick fixes), `696ed08` (CM-002.1 Slices 1–3), `66ebbe8` (CM-002.1 Slices 4–6). |
+| DB migrations applied | ✅ `supabase/cm_statistics_repository.sql` (3 tables, 2 enums, 2 triggers, 11 seeded Company stats — applied by Durga via Studio SQL Editor at ~04:52 UTC) |
+| Deployed | ✅ Yes — every commit pushed to `main`, Railway auto-deployed. Merged into the parallel Madhu session above before that session's own push. |
+
+**Session highlight:** Three arcs in one long session — cleared 5 outstanding Nic build_requests, shipped 2 of Thulasi's 3 quick fixes from her 10 Aug .docx, and built the whole **CM-002.1 · Statistics Repository** (Thulasi's CMOS 2.1 spec, 29 Jul 2026) end-to-end in 6 tracked slices. Two consolidated close-out emails sent (one to Nic, one to Thulasi). Corporate Marketing Phase-2 PRD is no longer "waiting on Durga↔Thulasi call" — it's live.
+
+### Arc 1 · Nic — 5 build_requests batched (commit `dc4bb6d`)
+
+Session-start protocol (git fetch → HANDOFF → DB query) surfaced all 5 sitting `submitted` for 4–7 days. Batched into one commit + one email.
+
+| ID | Title | Fix |
+|---|---|---|
+| `e606f19c` | Changes to the tasks section | New `/api/me` route + DELETE handler on `/api/bespoke/tasks` + pencil/trash icons on Tasks-tab rows, visible only to project creator / assigned lead / super-admin. Inline rename via prompt with optimistic update. The 43-task auto-seed + phase render already ship from `a6a882d` — nothing changed there. |
+| `a837da08` | Description + Themes structure | Gemini prompt: `primary_goal` = 2-3 sentence commercial intent + registration target (omitted, not invented, if brief lacks it); `key_themes` = bulleted TEXT block (bullet + newline per theme), no more commas. BriefSummary Themes render uses `whiteSpace: pre-wrap`, no comma-split chips. |
+| `df915458` | ICP parser + UI | Gemini prompt: stitch multi-line titles back into one entry. Server-side `normaliseIcpEntry()` collapses `\r\n` + repeated whitespace to a single space. ICP fields (Brief tab summary + Assets tab) render as vertical bullet lists, not horizontal chips. |
+| `3173e664` | Design references hallucination | `AssetsTabContent.designRefs` drops the `target_accounts_list` URL fallback — only `client_assets_url` populates now. Empty when brief has no design link, per Nic's ask. |
+| `590aa5c2` | Agenda in Campaign Media on Assets tab | Renders `project.agenda` inside Campaign Media (time-range on left, session title + description on right). New `CopyAgendaButton` produces a bulleted text agenda for clipboard. |
+
+Every ticket said "Functional Changes Only" — no card layouts, widths, or colours restructured. All 5 flipped to `status='completed'` via direct DB write. Close-out Resend id **`cfa2f67d-9b8a-4156-a9e9-f54f81633f93`** — delivered to Nic (CC Madhu, reply-to dc@).
+
+### Arc 2 · Thulasi — 2 quick fixes from 10 Aug .docx (commit `a381b1f`)
+
+Thulasi's 10 Aug document (Desktop/`thulasi 10th Aug.docx`, 3 issues + screenshots). Fixed 2, deferred the 3rd until she shared the CMOS spec.
+
+| Issue | Fix |
+|---|---|
+| **Leadership tab — remove/add members** | `/api/corporate-marketing/leadership`: added `.eq('is_active', true)` to the 'extras' query so ex-employees (like Gururanjana) drop out once HR marks them inactive. Leadership panel UI got a **+ Add teammate** button (deep-links to `/hr/staff/new`) and a hint pointing to `/team` for removals. Staff CRUD stays centralised in HR — single-source-of-truth principle preserved. |
+| **Version History — Overview showed v5 but list only had v4** | `VersionsTab.tsx` now also fetches `/api/corporate-marketing/deck/readiness` alongside published versions. When `current_version > published_version`, an amber-bordered **v5 · DRAFT · UNPUBLISHED** row prepends the list with a pointer to click Publish on Overview. |
+
+Issue 3 (Event Statistics tab schema) was blocked on Thulasi's source doc — Durga forwarded `refinement for Phase-1 - 9 July.pdf` + `CMOS - 2.1.pdf`, which unlocked Arc 3.
+
+### Arc 3 · CM-002.1 · Statistics Repository (commits `696ed08` + `66ebbe8`)
+
+Thulasi's CMOS 2.1 spec (29 Jul 2026, `Desktop/CMOS - 2.1.pdf`) is the source of truth. Founder-approved scope decisions:
+- **Full CMOS 2.1 build** (not a slice)
+- **Named `CM-002.1 · Statistics Repository`** (Thulasi's own recommendation — nested under Knowledge Hub as an extension of it, not a standalone CM-003)
+- **Approvers = super-admins only** (Madhu + Durga — locks the workflow strictly for v1)
+- Notifications for pending approvals **skipped** — Overview Dashboard's "Pending Approval" card is the signal
+
+Shipped in 6 tracked slices, all in the commit trailer:
+
+| Slice | Scope |
+|---|---|
+| 1 | DB migration: 3 tables (`cm_statistics`, `cm_statistic_history`, `cm_statistic_dependencies`), 2 enums (`cm_stat_approval_status`, `cm_stat_scope`), 2 triggers (touch `updated_at`, flip linked deps to `needs_review` on value change), 11 seeded Company stats. Idempotent. |
+| 2 | 10 REST endpoints under `/api/corporate-marketing/statistics/*` — list · create · detail · update · archive · submit · approve · reject · history · dependencies · dashboard. Approver gate: `session.adm === true`. Every value or metadata change writes a history row. Editing an approved value auto-drops to Draft. |
+| 3 | UI shell + Overview Dashboard (7 metric cards + Recent Activity feed) + Company Statistics tab (inline-edit CRUD with Submit/Approve/Reject/Archive actions). |
+| 4 | Event Series Statistics tab (free-text series names, chip picker, suggested stat names) + Event Statistics tab (picker reads live from `/api/events` — no duplication). |
+| 5 | Statistic Detail slide-in drawer with 4 sub-tabs (General · History · Dependencies · Approval). Wired into all three stat tabs — click a name to open. |
+| 6 | Recent Changes tab (filterable audit feed) + Dependency Map tab (statistics grouped by consuming assets) + Settings tab (workflow + lifecycle reference) + Corporate Marketing landing rewritten from redirect to a 2-module picker (CM-001 Deck + CM-002.1 Repository). |
+
+**Access reach:** Anyone with `staff_members.tool_grants.corporate_marketing = true` OR `job_level = super_admin`. Verified Thulasi (`thulasi@tresconglobal.com`) already has the grant.
+
+**Live at:** `https://eventpilot.tresconglobal.com/admin/toolkit/corporate-marketing/statistics`
+
+Close-out Resend id **`1d9dbea8-1aad-4fec-b694-b77ebc5885af`** — delivered to Thulasi (CC Madhu + Durga, reply-to dc@) covering both the 10 Aug .docx fixes AND the new module.
+
+**Deferred debt from this arc (explicit):**
+- Corporate Deck's Live Content → Statistics panel still uses free-text label/value pairs. Next step is to wire it to *consume* approved statistics from the new repository so the Deck stops being a separate source. Scheduled for the next Corporate Deck content pass — no functional break in the interim.
+- CMOS 2.1 Phase-2 wishlist (categories dropdown, unit vocabulary picker, default owners, JSONB custom fields) — schema supports it, UI is roadmap.
+
+### Verification (all three arcs)
+
+- `npx tsc --noEmit` clean (3 pre-existing unrelated errors persist; count stable across every commit).
+- `npx next build` clean · compiled in 5.8–6.8s across the session.
+- No authenticated browser click-through by Claude (production is SSO-only) — Nic + Thulasi retests confirm.
+
+**Carried forward — still-to-do items:**
+- **AI-SDR MVP** — PRD at commit `c138a03`, still awaiting Durga's `go` on Phase 1 stack choice (Premium / Hybrid / Cheap) + Vapi vs Retell + language handling
+- **Bengaluru Skill Summit / Events auto-transition** — `events.status` doesn't flip `active → completed` post-date
+- **Dedicated `promotional_links` field on the brief** — currently best-effort from speaker bios
+- **Corporate Deck → Statistics Repository wire-in** (see Arc 3 deferred debt above)
+- `staff_members.last_login_at` never written; Khalifat alignment reply awaiting founder send; `CRON_SECRET` on Railway out of sync; Charan sign-out/in for Finance Portal; Madhu's dark theme authenticated browser click-through
+
+**Historical session (03 Aug 2026):** Cleared Nic's outstanding `d17e10d8` "Updates to brief section" build_request — a 4-part Brief tab overhaul (Event Objectives simplification + two-step upload + AI theme synthesis + comma-separated ICP + read-only Submit/Edit Brief lifecycle). One migration applied. Ticket closed via direct DB write; consolidated close-out email sent to Nic + Madhu (Resend id `a18f2533-fbfd-48f2-a706-e90ac694bfa7`).
+
+**Process discipline lesson (worth locking):** At session start I ran the state check against HANDOFF only and reported "no new Nic pilot requests" — Durga caught that the `d17e10d8` ticket had been sitting `status='submitted'` in the `build_requests` DB for 5 days (created 2026-07-28 10:38 UTC, missed at that session's close-out too). **New session-start step:** always query the `build_requests` table for open tickets in addition to reading HANDOFF. The DB is source-of-truth; HANDOFF is a summary that can lag.
+
+**What shipped this session (commit `921d16d`):**
+
+1. **Event Objectives simplified.** Dropped `success_criteria` + `desired_outcome` from DB and UI. Kept `primary_goal` (relabeled "Description *") and `key_themes` (relabeled "Themes"). Both were NULL in production data — no data loss.
+
+2. **Two-step upload flow.** Dropping a PDF/DOCX now STAGES the file (filename + Upload button revealed with Cancel option). Nothing sent until Upload clicked. Split `handleBriefUpload()` → `stageBriefFile()` + `runBriefUpload()`.
+
+3. **Gemini synthesises Themes from full-doc context.** Prompt rewritten with a SPECIAL RULE block instructing the model to read the entire brief and synthesise 3–5 event themes from context (primary goal + agenda topics + speaker expertise + industries mentioned), returned as a comma-separated string. Handles briefs that lack a dedicated Themes section (i.e., all real briefs).
+
+4. **Comma-separated ICP inputs → text[] arrays.** Job Titles, Industries, Geographies now accept `"CEO, CMO, VP"` style input. `csvToArray()` helper splits on save. Existing `linesToArray()` kept for registration question options (still one-per-line UX). Assets tab (Category 3) renders all three ICP arrays as chip clouds alongside Target Companies — Industries + Geographies were newly added.
+
+5. **Save Draft + Submit Brief + Edit Brief lifecycle.** Lock/Unlock buttons replaced. Handlers renamed: `verifyAndLockBrief` → `verifyAndSubmitBrief`, `lockBrief` → `submitBrief`, `unlockBrief` → `editBrief`. On Submit: `brief_is_submitted = true` AND `brief_is_locked = true` (both written together for backward compat). New `BriefSummary` component (~200 lines at bottom of page.tsx) renders when submitted — hides all input UI and shows structured summary (Event Objectives · ICP chips · Target Accounts · Client Approver · Logistics & Brand · Speakers · Agenda · Registration Questions). Bottom Edit Brief button reopens editing and re-locks Phase 2/3/4 tasks. `phaseLocked` check now reads `!project.brief_is_submitted && phase !== 1`.
+
+**Migration applied to production Supabase** (Studio SQL Editor, Durga executed): `supabase/bespoke_brief_submit.sql`. Adds `brief_is_submitted BOOLEAN DEFAULT FALSE`, drops the 2 removed columns, backfills `brief_is_submitted = brief_is_locked` for existing rows. Idempotent.
+
+**Constraints honoured (Nic's ticket):**
+- *Functional changes only* — no card designs/fonts/colors restructured. Same `var(--card)` / `var(--border)` / `var(--ink*)` tokens throughout.
+- *Terminology check* — grep verified zero "Delegacy" strings anywhere in UI code. Canonical "Delegate Team" already locked in from prior session `2f002c2e`.
+
+**Verification this session:** `npx tsc --noEmit` clean (only pre-existing `/api/documents/*` route errors, unrelated). `npx next build` clean · 369 pages compiled in 5.9s. Site 200 healthy at `eventpilot.tresconglobal.com` post-deploy. No authenticated browser click-through (production is SSO-only) — Nic's retest confirms.
+
+**Follow-up fix (commit `363d203`, same session):** Durga surfaced Nic's 28 Jul screenshot showing *"Gemini returned invalid JSON — please fill fields manually"* on a brief upload. Hardened the parse-brief route:
+
+- Added `generationConfig: { responseMimeType: 'application/json', temperature: 0.2 }` to the `getGenerativeModel()` call — Gemini's SDK-level JSON mode guarantees valid JSON output (no more preamble commentary or markdown-wrapped responses).
+- Hardened the extraction regardless: strips BOM + \`\`\`json/\`\`\` fences before locating the outer `{ ... }`.
+- Failure path now includes the first 300 chars of the raw Gemini response in a `debug` field on the 500 response so future failures are diagnosable from the browser network tab.
+
+Same session's original overhaul was necessary for the UI-level fixes (Nic's spec). This follow-up addresses the underlying parse reliability that Nic hit before I ever saw the ticket.
+
+**Close-out email sent (Resend id `a18f2533-fbfd-48f2-a706-e90ac694bfa7`):**
+- To: `nicholas@tresconglobal.com`
+- CC: `md@tresconglobal.com`
+- Reply-to: `dc@tresconglobal.com`
+- From: `noreply@eventpilot.tresconglobal.com`
+- Subject: *"Bespoke Tracker — Brief tab overhaul live (Submit Brief workflow, comma-separated ICP, AI Themes synthesis)"*
+- 7-step retest checklist embedded for Nic
+- Ticket closed via direct DB write to bypass per-ticket auto-email (batch close-out rule)
+
+**Carried forward — unchanged this session (still-to-do items from 28 Jul):**
+- **AI-SDR MVP** — PRD committed at commit `c138a03`, still awaiting Durga's `go` on Phase 1 stack choice (Premium / Hybrid / Cheap) + Vapi vs Retell + language handling
+- **Bengaluru Skill Summit / Events auto-transition** — `events.status` doesn't flip `active → completed` post-date. Needs Durga's call on UI-filter vs scheduled-job
+- **Corporate Marketing Phase-2 PRD** — waiting on Durga↔Thulasi call
+- **Creator-only edit + delete on bespoke tasks** — deferred piece from `2f002c2e`; open as its own ticket after Nic retests 43-task blueprint
+- **Dedicated `promotional_links` field on the brief** — currently best-effort from speaker bios
+- `staff_members.last_login_at` never written; Khalifat alignment reply awaiting founder send; `CRON_SECRET` on Railway out of sync; Charan sign-out/in for Finance Portal; Madhu's dark theme authenticated browser click-through
 
 ---
+
+## Session 28 Jul 2026
+
+| Field | Value |
+|---|---|
+| Who | Durga + Claude Code (Opus 4.7) — 28 Jul 2026 |
+| Latest push | 2026-07-28 — commit `89a95cf` (Assets tab 3-category overhaul); plus `93d4529` (PDF upload crash fix — pdf-parse downgraded to v1.1.1) |
+| Handed off to | Next session |
+| Deployed | ✅ Yes — Railway auto-deployed; site 200 healthy at `eventpilot.tresconglobal.com`. |
+
+**Session highlight (28 Jul 2026):** Cleared **both of Nic's new build_requests** from 27 Jul (filed after yesterday's push, hit in overnight testing). One migration applied. One consolidated close-out email to Nic + Madhu. Explicit correction of yesterday's mis-diagnosis on the PDF worker error.
+
+**1. `85d7133d` — Brief PDF upload crash (root cause identified from Nic's screenshot).** Commit `93d4529`. Nic's screenshot showed: *"PDF parse failed: Setting up fake worker failed: Cannot find module '/app/.next/server/chunks/pdf.worker.mjs' imported from /app/.next/server/chunks/node_modules_pdf-parse_dist_pdf-parse_esm_index_0yf7438.js"*. Real cause: `pdf-parse` in `package.json` had been bumped to `^2.4.5`, which is ESM-only and internally depends on `pdfjs-dist@5.4.296`. pdfjs-dist v5 loads a `pdf.worker.mjs` worker file at runtime; Next.js's server bundler on Railway does NOT include `.mjs` worker files in the deployed chunk output. Fix: pinned `pdf-parse` to `1.1.1` (pure JS, single-threaded, no worker required), rewrote `extractPdfText()` in `app/api/bespoke/parse-brief/route.ts` to use v1's `pdf-parse/lib/pdf-parse.js` internal path (skips v1's fs.readFile self-test that fails in Next bundle) with a defensive shape-walk for CJS/ESM wrap variance. `npm install` naturally uninstalled the transitive pdfjs-dist. Build clean.
+
+**Correction on yesterday's close-out:** My 27 Jul close-out email for the earlier related ticket `9fe12b0a` said "no pdfjs-dist references, must be stale browser bundle, hard-refresh will resolve." That was wrong. It IS in the tree — as a transitive dep of pdf-parse v2, only visible via `npm ls pdfjs-dist`. Explicitly owned in today's email to Nic. **Lesson for future:** when a user reports a specific worker-file error path, `npm ls <lib>` the mentioned library before dismissing as a client-side artifact.
+
+**2. `517e232e` — Assets tab 3-category overhaul.** Commit `89a95cf`. Replaced the "Coming soon" placeholder card (Quick Links block preserved intact per Nic's explicit rule) with three cards:
+- **Brand & Styling** — file uploaders for Client Logo + Brand Guidelines that persist to new `bespoke_projects.client_logo_url` / `.brand_guidelines_url` columns (migration `supabase/bespoke_assets_urls.sql` applied to production today). Design References list rendered dynamically from `client_assets_url` + any http(s) URLs in `target_accounts_list`. Teal "Open Brand Studio" button deep-linking to `/admin/events/[event_id]/brand`.
+- **Campaign Media** — speaker cards from `bespoke_projects.speakers[]` JSONB with per-speaker headshot uploader that updates each speaker's `headshot_url` in-place. Promotional Links section extracts URLs from speaker bios (best-effort — no dedicated `promotional_links` field on the brief yet; flagged in email as optional follow-up).
+- **Data & Lead Lists** — Target Companies (parsed from `target_accounts_list`) + Target Job Titles (from `icp_job_titles[]`) rendered as scrollable chip clouds, each with a "Copy List" button. Pre-Registration Questionnaire card lists each question + its option choices.
+
+New file `app/admin/bespoke/[id]/AssetsTabContent.tsx` (533 lines) keeps the main page.tsx compact and localises the new component's upload state. New generic API `POST /api/bespoke/upload-asset` (multipart form-data) handles all three upload kinds (`client_logo` / `brand_guidelines` / `speaker_headshot`) — files land in the `event-stakeholder-assets` public bucket under `bespoke/{project_id}/{kind}/{ts}-{filename}`, 20 MB per-file cap. No design system changes; reuses `var(--card)` / `var(--border)` / `var(--ink*)` tokens; "Delegate Team" vocab everywhere.
+
+**Migration applied to production Supabase** (Studio SQL Editor, Durga executed): `supabase/bespoke_assets_urls.sql`. Adds `bespoke_projects.client_logo_url TEXT` + `bespoke_projects.brand_guidelines_url TEXT`. Idempotent.
+
+**Close-out email sent (Resend id `73674484-5950-49bd-90f7-9682d00e9205`):**
+- To: `nicholas@tresconglobal.com`
+- CC: `md@tresconglobal.com`
+- Reply-to: `dc@tresconglobal.com`
+- From: `noreply@eventpilot.tresconglobal.com`
+- Subject: *"Bespoke Tracker — PDF upload fix + Assets tab overhaul both live"*
+- Both tickets closed via direct DB write to bypass per-ticket auto-email (batch-close-out rule).
+
+**Verification this session:** `npx tsc --noEmit` clean. `npx next build` clean. Site 200 healthy at `eventpilot.tresconglobal.com` post-deploy. No authenticated browser click-through (production is SSO-only) — Nic's next test session confirms.
+
+**3. AI-SDR MVP research + PRD delivered (no code written yet).** Commit `c138a03`. Trigger: Durga flagged https://www.convoflow.ae/ as a reference AI-SDR product Trescon might replicate in-house. Research + PRD landed at `docs/AI-SDR-MVP-Trescon.md` (538 lines).
+
+**What the doc covers:**
+- Business context — where Trescon's leads come from today, the SDR loop the AI would take over (steps 3–6 of the existing 43-task bespoke SOP), measurable pain points.
+- **In-scope for Phase 1 MVP:** one dedicated Trescon inbound number → Vapi voice AI answers → qualifies via LLM → books into Google Cal → writes to Supabase + one-way HubSpot sync → voicemail escalation with SLA promise. English + Arabic. Live in 5–7 working days from Durga's `go`. Phase 1 volume target: **100 calls/day**, scaling up to a **hard ceiling of 1,000 calls/day** (Durga locked this 28 Jul, reduced from initial 5,000/day figure).
+- **Out of scope Phase 1:** outbound AI-initiated calls, WhatsApp two-way, dead-lead revival, HubSpot bidirectional sync — all deferred to Phases 2–4.
+- **Home:** new EventPilot module at `/admin/toolkit/lead-response`, not a separate service. Reasons: single lead source of truth in Trescon's Supabase, single HubSpot sync, same auth/admin shell.
+- **User flows documented:** golden path (qualified → booked), disqualified path, human escalation, after-hours, post-call automation, admin dashboard (6 views: Live · Funnel · Calls · Call detail · Escalations · Configuration).
+- **Full architecture diagram + 10 tool-comparison tables** (voice AI OS, STT, LLM, TTS, telephony, WhatsApp, CRM, calendar, email, hosting), each with pricing + verdict for Trescon's use case at ~Q3 2026.
+
+**Recommended stack (best-of-breed picks):**
+| Layer | Pick | Why |
+|---|---|---|
+| Voice AI OS | Vapi | $0.05/min platform + BYO STT/LLM/TTS. Cheapest with most flexibility. Runner-up: Retell. |
+| STT | Deepgram Nova-2 | $0.0043/min, 240ms P50, 92% EN / 82–85% Arabic. Runner-up for Arabic-only route: Azure Speech. |
+| LLM | Claude Sonnet 4.6 | Best tool-calling reliability, native Arabic, Trescon already has Anthropic access. |
+| TTS | ElevenLabs Business ($990/mo) | Only provider shipping Gulf-dialect Arabic voices today (Cartesia adds Arabic Q4 2026 — revisit then). |
+| Telephony | Twilio | Best Vapi integration + GCC/India coverage. Runner-up: Telnyx ($0.031/call cheaper at scale). |
+| WhatsApp | Meta Cloud API direct | No BSP margin; Trescon owns the WhatsApp Business account. |
+| CRM | HubSpot | Non-negotiable — Trescon already runs it. |
+| Calendar | Google Calendar direct | Already in Google Workspace. |
+| Email | Resend | Already in EventPilot stack. |
+| Hosting | Railway | Already in EventPilot stack. |
+
+**Cost model (at 1,000 calls/day = 30,000 calls/mo max ceiling — Durga's locked scale):**
+- Premium stack ($0.32/call): **~$9,865/mo** at max scale. **~$1,000/mo at Phase 1 volume of 100 calls/day** — cheaper than ConvoFlow's 5,000 AED at that volume.
+- Hybrid stack (Vapi + Claude + ElevenLabs but Groq STT): **~$9,115/mo** at max scale. Saves ~$750/mo vs Premium; ~5–10% Arabic STT accuracy trade.
+- Cheap stack (self-hosted media pipeline, Llama on Groq, OpenAI TTS): **~$2,500/mo** at max scale. Adds ~2 weeks engineering; noticeably lower Arabic quality; more bot-feeling latency (700–1000ms vs sub-500ms).
+
+**Break-even vs ConvoFlow's 5,000 AED (~$1,360)/mo tier:** Premium stays cheaper up to ~200–300 calls/day; crosses at ~400/day. Recommended trajectory: start on Premium (Phase 1); at ~300–400 calls/day, swap Vapi for a self-hosted media pipeline (2 weeks engineering, drops per-call cost $0.32 → $0.14). Every stack change happens behind the same tool contract — no Supabase / HubSpot / prompt changes.
+
+**Honest caveat flagged in the doc:** ConvoFlow's "5,000 AED unlimited" figure is very likely NOT unlimited voice minutes at that price — mathematically impossible on any real stack (Twilio call routing alone is $0.010–$0.042 per 3-min call). Almost certainly "unlimited" covers unlimited leads / WhatsApp / SMS / email / users, with voice minutes capped or metered separately. Durga to verify the actual contract clause before we finalise the "build vs buy" pitch.
+
+**Compliance covered:** TDRA (UAE — recording disclosure at call open), TRAI (India — DND check for outbound Phase 2+), GDPR (Vapi EU region + optional Zero-Data-Retention $1000/mo add-on if EU callers appear), DIFC Data Protection Law No. 5 of 2020.
+
+**Open items — Durga input needed (none block Phase 1 kickoff except #1):**
+1. **Which stack path** — Premium (recommended) / Hybrid / Cheap. Needed by day 1.
+2. Confirm Vapi over Retell — recommended Vapi. Needed by day 3.
+3. Carrier of the dedicated Trescon inbound number (Twilio / other). Needed at Phase 1 live cut-over (~day 7).
+4. Booking calendar Gmail address (recommend creating `ai-sdr-bookings@tresconglobal.com`). Needed by day 5.
+5. HubSpot portal ID + private-app access token. Needed by day 6.
+6. Voicemail SLA text (recommend "within 1 business hour" for qualified, "within 4 business hours" for general). Needed by day 5.
+7. Language handling model — auto-detect (recommended) / IVR menu / two separate numbers. Needed by day 4.
+8. Qualification script sign-off from Trescon delegate team lead. Needed before Phase 2 live.
+9. Recording disclosure legal review. Needed before Phase 2 live.
+10. Verify what Trescon's actual ConvoFlow contract includes as "unlimited" (voice minutes cap? overage rate? actual current volume?). Needed to finalise cost narrative — not a build blocker.
+
+**Success KPIs baked into the PRD (weekly review with delegate team lead):**
+Response time < 60s median · contact rate ≥ 70% · qualification rate ≥ 40% · booking rate ≥ 25% of qualified · show rate ≥ 60% · cost per qualified lead < $2 · cost per booked meeting < $10 · delegate team time saved ≥ 20 hrs/week · CSAT ≥ 80% · escalation SLA compliance ≥ 95%.
+
+**Timeline:** Phase 1 MVP (working demo taking real calls) — **5–7 working days from Durga's `go`**. Phase 2 (multi-channel + dashboard live) — weeks 3–4. Phase 3 (two-way HubSpot + dead lead revival) — weeks 5–6. Phase 4 (scale + Meta WhatsApp verification + Arabic auto-detect A/B) — weeks 7+.
+
+**Status:** PRD committed, awaiting Durga's `go`. No code scaffolded yet.
+
+**Still to do:**
+1. **Bengaluru Skill Summit / Events auto-transition bug** — carried from 27 Jul. Pick UI filter vs scheduled job for `events.status active → completed` when event_date passes.
+2. **Corporate Marketing Phase-2 PRD** — waiting on Durga↔Thulasi call to define scope.
+3. **Creator-only edit + delete on bespoke tasks** — deferred piece of Nic's `2f002c2e`; open as its own ticket after he retests the 43-task blueprint.
+4. **Dedicated `promotional_links` field on the brief** — currently extracted best-effort from speaker bios; add a proper field if Nic wants first-class UI for it.
+
+**Carried forward from prior sessions (unchanged, not touched today):**
+- `staff_members.last_login_at` never written — blocks never-logged-in filters
+- Khalifat alignment reply drafted 06 Jul, still awaiting founder send
+- `CRON_SECRET` on Railway out of sync — blocks auto-revoke + weekly leaderboard cron
+- Charan Kaverappa sign-out/in for Finance Portal
+- Madhu's 15-16 Jul nav overhaul + 17 Jul dark theme — authenticated browser click-through still not done (only Microsoft SSO reaches production admin; local super-admin bypass can't confirm production visuals)
+
+---
+
+## Previous Session
+
+| Field | Value |
+|---|---|
+| Who | Durga + Claude Code (Opus 4.7) — 27 Jul 2026 |
+| Latest push | 2026-07-27 — commit `a6a882d` (Nic's 5 open build_requests shipped: PHASE card fix + dashboard concluded UI + phase rename + dynamic Kanban + Save Draft label + 43-task SOP blueprint + team badges + deadline banners) |
+| Handed off to | Durga |
+| Deployed | ✅ Yes — Railway auto-deployed within 3 min of push; site 200 healthy at `eventpilot.tresconglobal.com`. |
+
+**Session highlight (27 Jul 2026):** Cleared **all 5 open build_requests from Nic** in the Bespoke Event Module pilot — 4 tickets + 1 subsumed duplicate. One migration applied (`supabase/bespoke_task_overhaul.sql`, backfilled 104 tasks). One consolidated close-out email to Nic + Madhu (bypassed per-ticket auto-email per Durga's batch-close-out rule). Also **reviewed Thulasi's status** on Corporate Marketing Phase-1 → confirmed everything from her Jul 9 PRD is shipped; the only pending item is a Durga↔Thulasi call to define Phase-2 direction.
+
+**Nic's 5 tickets closed (all via direct DB write to bypass per-ticket auto-email):**
+
+1. **`16d1f7c4` — PHASE stat card blank.** Commit `49eb297`. New shared helper `app/lib/bespoke-phase.ts` computes phase dynamically from `contract_signed_date + event_date` with safe null / invalid-date handling and a Kickoff & Alignment fallback. Colored badge per active phase (Orange / Teal / Green / Gray). Replaces the raw `project.phase` DB string that was rendering empty when the column wasn't seeded.
+2. **`490f6974` — dashboard concluded UI + app-wide phase rename + dynamic Kanban (subsumes `f071291c`).** Commit `30d2937`. Concluded events no longer render '-1 days ago' or '1d ago' anywhere: Days Left stat card, PageHeader subtitle, Kanban card meta, table view Days Left column all render 'Concluded'. Blue info banner on Overview tab when the event date is past. Main tracker Kanban column placement is now dynamic — computed per project each render from date math (`getProjectPhaseNum()` in `app/admin/bespoke/page.tsx`), with a legacy DB-phase fallback for older rows. Phase labels renamed app-wide (label change only, DB values unchanged): Initiation→Kickoff & Alignment · Campaign→Outreach Runway · Live→Live Execution · Closure→Reporting & Settlement.
+3. **`9fe12b0a` — Brief section Save Draft vs Verify & Lock.** Commit `d788f4b`. Renamed the primary button from 'Save Brief' → 'Save Draft' and success chip to '✓ Draft saved' so the two distinct flows (partial save vs validation-gated lock) read cleanly. Both behaviours already existed. **Did NOT ship a PDF parser fix** — Nic's error `Cannot find module '/app/.next/server/chunks/pdf.worker.mjs'` cannot come from this codebase (zero `pdfjs-dist` references; parse-brief uses `pdf-parse` with the defensive CJS-wrap fix from 17 Jul). Almost certainly stale bundle in his browser; hard-refresh advised in the close-out email.
+4. **`2f002c2e` — 43-task SOP overhaul + team badges + deadline banners.** Commit `a6a882d`. Full replacement of the prior 66-task hand-picked seed with Nic's 43-task blueprint. `{{client}}` and `{{venue}}` placeholders interpolated at seed time. Physical vs Webinar variants for Phase 2 task 15 and Phase 3 task 6 per spec. Task rows display an `assigned_team` badge (canonical Delegate Team, not Delegacy) with fall-back to capitalised legacy `assigned_role`. Tasks-tab phase blocks get a deadline banner: Phase 1 = contract+4d · Phase 2 = event-5d · Phase 3 = event day · Phase 4 = event+10d (silent when either date not set). 'Add Task' inline form gets a team dropdown. `POST /api/bespoke/tasks` accepts `assigned_team`; `POST /api/bespoke` writes `creator_id + assigned_team` on seed.
+5. **`f071291c` — dynamic Kanban filtering (subset of #4).** Closed as duplicate of `490f6974`; no separate work — same dynamic-columns logic already shipped in that commit.
+
+**Deferred (partial completion of `2f002c2e` — flagged to Nic in the close-out email):** creator-only edit + delete permissions on task rows with a new trash icon. Current UI has no rename or delete controls at all — that's a separate UI + PATCH/DELETE routes + session-identity gating piece. Recommend Nic first exercise the 43-task blueprint + badges + banners on a fresh project, confirm the SOP text and interpolation read correctly, then we open that as its own ticket.
+
+**Migration applied to production Supabase** (via Studio SQL Editor, Durga executed): `supabase/bespoke_task_overhaul.sql`. Added:
+- `bespoke_projects.creator_id UUID REFERENCES staff_members(id) ON DELETE SET NULL`
+- `bespoke_tasks.description TEXT`
+- `bespoke_tasks.assigned_team TEXT` with CHECK constraint on 9 canonical values
+- Backfill statement populated `assigned_team` from `assigned_role` on 104 existing tasks
+
+**Close-out email sent (Resend id `b347248f-eaf0-4a54-ae21-b171ecace805`):**
+- To: `nicholas@tresconglobal.com`
+- CC: `md@tresconglobal.com`
+- Reply-to: `dc@tresconglobal.com`
+- From: `noreply@eventpilot.tresconglobal.com`
+- One email covering all 5 tickets, hard-refresh reminder for the PDF error caveat, explicit call-out of the deferred creator-only edit/delete piece.
+
+**Process pain to avoid next time — locked to memory as `feedback_git_fetch_before_handoff_read.md`:** at session start I read the LOCAL `HANDOFF.md` (mtime 17 Jul) without `git fetch origin` first. Madhu's 21 Jul push (`009ffe4`) had a critical updated HANDOFF flagging (a) the Railway billing lapse 17-21 Jul, and (b) the full 17 Jul dark-theme rebrand (`ff0a1a0`, ~100 files, hardcoded hex → CSS variables). I wrote 4 commits against pre-rebrand code and the push was rejected. Recovery required a full rebase where 5 conflict blocks across 2 files had to be resolved to swap hardcoded colors for `var(--card)` / `var(--ink3)` / `var(--red)` / etc. Every minute of that was self-inflicted. **New session-start discipline:** `git fetch origin && git status` BEFORE reading HANDOFF; if origin is ahead, pull or reset first.
+
+**Thulasi (Corporate Marketing) status — reviewed, no code work needed:**
+- Phase-1 Refinement PRD (Jul 9) is fully shipped. `ReadinessDashboard.tsx` renders at top of Overview tab, six sections tracked, canonical-diff change detection, "Changes Since Last Publish" timeline, "Update Recommended" mark when the current DB state diverges from the last `content_snapshot`. `Dynamic Content` tab label renamed to `Live Content`. Events section wired to Events module with `last_synced` from `MAX(events.updated_at)`.
+- Jul 21 email exchange: Thulasi confirmed "phase-1 looks fine", asked "what next", agreed to a call with Durga the next morning to define Phase 2. **Blocked on the call happening — founder-side action.**
+- Real underlying bug she flagged that we still have not fixed: `events.status` doesn't auto-transition from `active` to `completed` after `event_date` passes. Bengaluru Skill Summit 2026 (event_date `2026-06-06`, status still `active` 51 days later) surfaced this — the deck's Events section correctly classifies it as Past (date-based) but any module filtering purely on status='active' still shows it as Upcoming. Fix is either (a) UI filter `AND event_date >= today` on Upcoming, or (b) scheduled job to flip status. **Not shipped this session — needs Durga's call on which fix.**
+
+**Verification this session:** `npx tsc --noEmit` clean after every cherry-pick (only pre-existing `.next/*` stale-artifact warnings, unrelated). Site 200 healthy at `eventpilot.tresconglobal.com` post-deploy. No authenticated browser click-through — will be Nic's next hard-refresh test.
+
+**Still to do:**
+1. **Bengaluru Skill Summit / Events auto-transition bug** — pick UI filter vs scheduled job, ship. Small ticket, cross-module benefit.
+2. **Creator-only edit + delete on bespoke tasks** — deferred piece of Nic's `2f002c2e`; open as its own ticket after he retests.
+3. **Corporate Marketing Phase-2 PRD** — waiting on Durga↔Thulasi call to define scope.
+
+**Carried forward from prior sessions (unchanged, not touched today):**
+- `staff_members.last_login_at` never written — blocks never-logged-in filters
+- Khalifat alignment reply drafted 06 Jul, still awaiting founder send
+- `CRON_SECRET` on Railway out of sync — blocks auto-revoke + weekly leaderboard cron
+- Charan Kaverappa sign-out/in for Finance Portal
+- Madhu's 15-16 Jul nav overhaul + 17 Jul dark theme — authenticated browser click-through still not done (only Microsoft SSO reaches production admin; local super-admin bypass can't confirm production visuals)
+
+---
+
+## Previous Session
+
+| Field | Value |
+|---|---|
+| Who | Madhu + Claude Code (Sonnet 5) — 17 Jul 2026 |
+| Push | commit `ff0a1a0` (dark theme + access-control unification) |
+| Handed off to | Durga |
+| Deployed | ✅ Yes — confirmed live on Railway: `/login` and `/welcome` render the new dark theme correctly (screenshot-verified against the public production URL), `/login` (200) and `/api/auth/microsoft` (307) healthy throughout the deploy window with no downtime observed. **Not yet verified:** any authenticated page — production disables password sign-in entirely (Microsoft SSO only), so the local super-admin bypass used for all of this session's testing can't reach production; Madhu/Durga's own SSO login is the only way to confirm the dark theme and new Settings→Access pages look right once actually inside the app. |
 
 **Session highlight (17 Jul 2026):** two large, mostly-independent threads. **(1) Complete dark navy/teal color-theme overhaul** — full replacement of the light theme across essentially every internal page (~100 files), centralized via `app/globals.css` CSS custom properties, with a formal "text-on-surface pairing rules" convention (3 numbered rules) written directly into `globals.css` so future pages don't need to re-derive contrast logic. **(2) Tool access-control unification** — Madhu reported 6 staff (Imran, Nicholas, Shadi, Thulasi, Hussain, Fouzan) granted KB/DocuHub/Knowledge Assistant access who still couldn't get in, and several Pilot Projects' "Open Tool" buttons not working. Root cause: two disconnected grant systems (`staff_members.tool_grants` — the only thing checked for page entry — vs. `module_access` — used by KB/DocuHub's own Settings→Access tab for tool-specific admin tier, never consulted for entry). Fixed at the root, then generalized and rolled out to every gated tool, plus new Pilot Projects member/grant management. Also found and fixed a real, separate production bug: DocuHub file uploads were failing on Railway (missing `Content-Length` header on R2 storage writes — the same bug already fixed in KB's storage code weeks ago, never ported to DocuHub's separate copy).
 
