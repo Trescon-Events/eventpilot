@@ -27,21 +27,28 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Not authorized.' }, { status: 403 })
   }
 
-  const [{ data: event }, { data: template }] = await Promise.all([
-    supabaseAdmin.from('events').select('name').eq('id', body.event_id).single(),
+  const [{ data: event }, { data: template }, { data: hubspotConnection }] = await Promise.all([
+    supabaseAdmin.from('events').select('name, public_name').eq('id', body.event_id).single(),
     supabaseAdmin.from('email_templates').select('*').eq('id', body.template_id).eq('is_active', true).single(),
+    supabaseAdmin.from('event_hubspot_forms').select('public_page_url').eq('event_id', body.event_id).eq('form_type', body.form_type).maybeSingle(),
   ])
   if (!event) return NextResponse.json({ error: 'Event not found' }, { status: 404 })
   if (!template) return NextResponse.json({ error: 'Template not found' }, { status: 404 })
 
   const inviteToken = randomBytes(32).toString('hex')
+  // The officially branded page (e.g. worldaishow.com/malaysia/speaker-
+  // onboarding) is preferred once set — it's what producers already send
+  // today and embeds the same HubSpot form. It doesn't understand
+  // EventPilot's ?invite= token (no attribution there, already an accepted
+  // tradeoff of the HubSpot capture path), so the token is only appended
+  // to the fallback EventPilot-hosted link.
   const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://eventpilot.tresconglobal.com'
-  const formLink = `${siteUrl}/public/forms/${body.event_id}/${body.form_type}?invite=${inviteToken}`
+  const formLink = hubspotConnection?.public_page_url || `${siteUrl}/public/forms/${body.event_id}/${body.form_type}?invite=${inviteToken}`
 
   const { subject, html } = renderEmailTemplate(template, {
     recipient_name: body.recipient_name,
     speaker_name: body.recipient_name, // populated for the seeded template's {{speaker_name}} token; harmless no-op for others
-    event_name: event.name,
+    event_name: event.public_name || event.name,
     form_link: formLink,
     sender_name: template.sender_name,
   })

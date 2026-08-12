@@ -27,7 +27,7 @@ type MessagingDoc = {
   version: number
   title: string
   status: 'draft' | 'live' | 'superseded'
-  structured_json: { sections: Section[] } | null
+  structured_json: { sections: Section[]; default_fields?: Record<string, string | null> } | null
   source_url: string | null
   updated_at: string
   created_at: string
@@ -35,9 +35,13 @@ type MessagingDoc = {
 
 type Event = { id: string; name: string; city?: string; event_date?: string }
 
+// This page only ever chats against the LIVE doc, so target_type is
+// always 'section' in practice here — default_field proposals only exist
+// on a still-draft doc, reviewed on the Event Details page instead.
 type Proposal = {
-  section_id: string
-  section_title: string
+  target_type: 'section' | 'default_field'
+  target_key: string
+  target_label: string
   current_excerpt: string
   proposed_content: unknown
   rationale: string
@@ -135,7 +139,6 @@ export default function MessagingDocPage({ params }: { params: Promise<{ id: str
   const [doc, setDoc] = useState<MessagingDoc | null>(null)
   const [versions, setVersions] = useState<MessagingDoc[]>([])
   const [loading, setLoading] = useState(true)
-  const [uploading, setUploading] = useState(false)
   const [showVersions, setShowVersions] = useState(false)
 
   const [messages, setMessages] = useState<ChatMessage[]>([])
@@ -164,17 +167,6 @@ export default function MessagingDocPage({ params }: { params: Promise<{ id: str
     const res = await fetch(`/api/events/stakeholders/messaging?event_id=${eventId}&all=true`)
     const data = await res.json().catch(() => [])
     setVersions(Array.isArray(data) ? data : [])
-  }
-
-  async function uploadNewVersion(file: File) {
-    setUploading(true)
-    const form = new FormData()
-    form.append('event_id', eventId)
-    form.append('file', file)
-    if (session?.sid) form.append('uploaded_by', session.sid)
-    const res = await fetch('/api/events/stakeholders/messaging', { method: 'POST', body: form })
-    if (res.ok) { await fetchDoc(); if (showVersions) await fetchVersions() }
-    setUploading(false)
   }
 
   async function makeLive(target: MessagingDoc) {
@@ -225,7 +217,8 @@ export default function MessagingDocPage({ params }: { params: Promise<{ id: str
     const res = await fetch(`/api/events/stakeholders/messaging/${doc.id}/apply-edit`, {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        section_id: proposal.section_id,
+        target_type: proposal.target_type,
+        target_key: proposal.target_key,
         new_content: proposal.proposed_content,
         instruction: msg.instruction ?? proposal.rationale,
         applied_by: session?.sid ?? null,
@@ -283,12 +276,11 @@ export default function MessagingDocPage({ params }: { params: Promise<{ id: str
                 style={{ padding: '9px 16px', borderRadius: 8, border: `1px solid ${C.border}`, background: 'transparent', color: 'var(--ink2)', fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
                 {showVersions ? 'Hide versions' : 'Version history'}
               </button>
-              <label title={doc ? 'Replaces the whole document with a fresh PDF — re-extracts and re-segments every section from scratch, kept as a new version. For a smaller update to one section, use the chat instead.' : undefined}
-                style={{ padding: '9px 20px', borderRadius: 8, border: 'none', background: C.lime, color: 'var(--lime-dark)', fontSize: 13, fontWeight: 800, cursor: 'pointer', fontFamily: 'inherit', opacity: uploading ? 0.6 : 1 }}>
-                {uploading ? 'Uploading…' : (doc ? 'Replace with new PDF ▲' : 'Upload PDF ▲')}
-                <input type="file" accept="application/pdf" disabled={uploading} style={{ display: 'none' }}
-                  onChange={e => { const f = e.target.files?.[0]; if (f) uploadNewVersion(f); e.target.value = '' }} />
-              </label>
+              <Link href={`/admin/events/${eventId}/details`}
+                title="Uploading a new PDF now starts on the Event Details page, where you review/chat through the draft and approve it before it goes live."
+                style={{ padding: '9px 20px', borderRadius: 8, border: 'none', background: C.lime, color: 'var(--lime-dark)', fontSize: 13, fontWeight: 800, cursor: 'pointer', fontFamily: 'inherit', textDecoration: 'none', display: 'inline-block' }}>
+                {doc ? 'Replace with new PDF →' : 'Upload PDF →'}
+              </Link>
             </div>
           </div>
 
@@ -301,10 +293,15 @@ export default function MessagingDocPage({ params }: { params: Promise<{ id: str
                     v{v.version} · {v.title} · {fmtDate(v.created_at)}
                     <span style={{ marginLeft: 8, fontSize: 10.5, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.5px', color: v.status === 'live' ? C.teal : v.status === 'draft' ? C.amber : C.muted }}>{v.status}</span>
                   </div>
-                  {v.status !== 'live' && (
+                  {v.status === 'superseded' && (
                     <button onClick={() => makeLive(v)} style={{ padding: '5px 12px', borderRadius: 6, border: `1px solid ${C.border}`, background: 'transparent', color: 'var(--ink2)', fontSize: 11.5, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
                       Make live
                     </button>
+                  )}
+                  {v.status === 'draft' && (
+                    <Link href={`/admin/events/${eventId}/details`} style={{ fontSize: 11.5, fontWeight: 700, color: C.amber, textDecoration: 'none' }}>
+                      Review &amp; approve →
+                    </Link>
                   )}
                 </div>
               ))}
@@ -374,7 +371,7 @@ export default function MessagingDocPage({ params }: { params: Promise<{ id: str
                         border: `1px solid ${p.status === 'approved' ? C.teal : p.status === 'discarded' ? C.border : p.conflict ? C.amber : 'rgba(192,244,60,0.4)'}`,
                         borderRadius: 8, padding: '10px 12px', opacity: p.status === 'discarded' ? 0.5 : 1,
                       }}>
-                        <div style={{ fontSize: 11, fontWeight: 800, color: C.text, marginBottom: 4 }}>{p.section_title}</div>
+                        <div style={{ fontSize: 11, fontWeight: 800, color: C.text, marginBottom: 4 }}>{p.target_label}</div>
                         <div style={{ fontSize: 11.5, color: C.muted, marginBottom: 6 }}>{p.rationale}</div>
                         {p.conflict && (
                           <div style={{ display: 'flex', gap: 6, alignItems: 'flex-start', marginBottom: 8, padding: '6px 10px', borderRadius: 6, background: 'rgba(245,185,77,0.1)', border: `1px solid ${C.amber}40` }}>

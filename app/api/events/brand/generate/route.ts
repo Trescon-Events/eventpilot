@@ -17,14 +17,14 @@ export async function POST(req: NextRequest) {
   // Fetch event details
   const { data: event, error: evErr } = await supabaseAdmin
     .from('events')
-    .select('id, name, city, event_date, description')
+    .select('id, name, city, event_date, description, public_name')
     .eq('id', event_id)
     .single()
 
   if (evErr || !event) return NextResponse.json({ error: 'Event not found' }, { status: 404 })
 
   const eventSummary = [
-    `Event Name: ${event.name}`,
+    `Event Name: ${event.public_name || event.name}`,
     event.city ? `City: ${event.city}` : null,
     event.event_date ? `Date: ${new Date(event.event_date).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}` : null,
     event.description ? `Description: ${event.description}` : null,

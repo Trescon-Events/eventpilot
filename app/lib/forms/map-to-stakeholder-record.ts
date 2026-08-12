@@ -53,6 +53,19 @@ export function mapFieldsToRecord(
   const columns: Record<string, unknown> = {}
   const customFields: Record<string, SubmittedValue> = {}
 
+  // full_name (the NOT NULL `name` column) stays authoritative — if a
+  // submission provides it directly (native form, or a HubSpot form mapped
+  // straight to Full Name), that wins untouched. Only synthesize it from
+  // first_name/last_name (e.g. a HubSpot form using separate firstname/
+  // lastname properties, HubSpot's own convention) when full_name itself
+  // is absent. first_name/last_name still land in customFields as usual via
+  // the loop below — nothing here removes them.
+  if (isSpeaker && !data.full_name && (data.first_name || data.last_name)) {
+    const asStr = (v: SubmittedValue | undefined) => (Array.isArray(v) ? v.join(' ') : v)
+    const fullName = [asStr(data.first_name), asStr(data.last_name)].filter(Boolean).join(' ').trim()
+    if (fullName) data = { ...data, full_name: fullName }
+  }
+
   if (collapseNotes) {
     const asStr = (v: SubmittedValue | undefined) => (Array.isArray(v) ? v.join(', ') : v)
     const notes = [

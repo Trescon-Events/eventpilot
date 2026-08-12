@@ -1,12 +1,41 @@
 // HubSpot Forms integration (2026-08-11), Phase A of the SAE
 // producer-workflow initiative's move to HubSpot-hosted onboarding forms.
 
+import { FieldType } from '@/app/lib/forms/types'
+
+export type HubSpotFormFieldOption = { label: string; value: string }
+
 export type HubSpotFormField = {
   name: string
   label: string
   fieldType: string
   required: boolean
   hidden: boolean
+  options?: HubSpotFormFieldOption[]   // dropdown/checkbox/radio only
+}
+
+// HubSpot's own field-type vocabulary -> ours. Used only to pre-fill the
+// mapping page's "+ Create new field" draft (type + options + required) so
+// a producer creating an EventPilot field to match e.g. a HubSpot dropdown
+// doesn't have to re-pick the type or retype every option by hand — see
+// hubspot-form/[formType]/page.tsx. Best-effort: HubSpot has fieldTypes we
+// have no equivalent for (number, single_checkbox consent boxes); those
+// fall back to 'text', a safe default the producer can still override
+// before confirming.
+const HUBSPOT_FIELD_TYPE_MAP: Record<string, FieldType> = {
+  single_line_text: 'text',
+  multi_line_text: 'textarea',
+  email: 'email',
+  phone: 'phone',
+  dropdown: 'select',
+  radio: 'select',
+  checkbox: 'multiselect',
+  date: 'date',
+  file: 'file',
+}
+
+export function guessFieldTypeFromHubSpot(hubspotFieldType: string): FieldType {
+  return HUBSPOT_FIELD_TYPE_MAP[hubspotFieldType] ?? 'text'
 }
 
 export type HubSpotForm = {

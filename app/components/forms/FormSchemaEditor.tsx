@@ -3,7 +3,8 @@
 import { useState, useEffect } from 'react'
 import { Button, Card, Input } from '@/app/components/ui'
 import { FormFieldInput } from '@/app/components/forms/FormFieldInput'
-import { FieldSchema, FieldType, RESERVED_FIELD_KEYS, FIELD_USAGE_HINTS, slugifyKey } from '@/app/lib/forms/types'
+import { AddFieldForm, NewFieldDraft, EMPTY_FIELD_DRAFT, buildFieldFromDraft, FieldRow } from '@/app/components/forms/AddFieldForm'
+import { FieldSchema, FIELD_USAGE_HINTS } from '@/app/lib/forms/types'
 import { DndContext, PointerSensor, useSensor, useSensors, DragEndEvent } from '@dnd-kit/core'
 import { SortableContext, verticalListSortingStrategy, useSortable, arrayMove } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
@@ -21,25 +22,6 @@ import { CSS } from '@dnd-kit/utilities'
    DelegateKanban.tsx, only uses @dnd-kit/core's column-drag primitives).
    Live preview renders the exact same FormFieldInput the real public form
    and the Hub's manual panel use, so it can never drift from reality. */
-
-const FIELD_TYPE_OPTIONS: { type: FieldType; label: string }[] = [
-  { type: 'text', label: 'Text' },
-  { type: 'email', label: 'Email' },
-  { type: 'phone', label: 'Phone' },
-  { type: 'url', label: 'URL' },
-  { type: 'textarea', label: 'Long Text' },
-  { type: 'select', label: 'Dropdown' },
-  { type: 'multiselect', label: 'Checkboxes' },
-  { type: 'date', label: 'Date' },
-  { type: 'file', label: 'File Upload' },
-]
-
-type NewFieldDraft = {
-  type: FieldType; label: string; required: boolean; help: string
-  options: string[]; max_size_mb: number; accept: string
-}
-
-const EMPTY_DRAFT: NewFieldDraft = { type: 'text', label: '', required: false, help: '', options: [''], max_size_mb: 10, accept: 'image/png,image/jpeg' }
 
 export type FormSchemaEditorProps = {
   schemaApiUrl: string           // GET (load) / PUT (save) / DELETE (reset) all target this exact URL
@@ -63,7 +45,7 @@ export function FormSchemaEditor({
   const [msgIsError, setMsgIsError] = useState(false)
   const [expandedId, setExpandedId] = useState<string | null>(null)
   const [addOpen, setAddOpen] = useState(false)
-  const [draft, setDraft] = useState<NewFieldDraft>(EMPTY_DRAFT)
+  const [draft, setDraft] = useState<NewFieldDraft>(EMPTY_FIELD_DRAFT)
 
   const loading = schemaLoading || !!permissionsLoading
 
@@ -103,34 +85,11 @@ export function FormSchemaEditor({
     if (expandedId === field.id) setExpandedId(null)
   }
 
-  function uniqueKey(base: string): string {
-    const existing = new Set(fields.map(f => f.key.toLowerCase()))
-    if (!existing.has(base) && !RESERVED_FIELD_KEYS.includes(base)) return base
-    let n = 2
-    while (existing.has(`${base}_${n}`) || RESERVED_FIELD_KEYS.includes(`${base}_${n}`)) n++
-    return `${base}_${n}`
-  }
-
   function confirmAddField() {
-    const label = draft.label.trim()
-    if (!label) { setMsg('Give the field a label.'); setMsgIsError(true); return }
-    if ((draft.type === 'select' || draft.type === 'multiselect') && draft.options.filter(o => o.trim()).length === 0) {
-      setMsg('Add at least one option.'); setMsgIsError(true); return
-    }
-    const field: FieldSchema = {
-      id: crypto.randomUUID(),
-      key: uniqueKey(slugifyKey(label)),
-      label,
-      type: draft.type,
-      required: draft.required,
-      locked: false,
-      help: draft.help.trim() || undefined,
-      options: (draft.type === 'select' || draft.type === 'multiselect') ? draft.options.map(o => o.trim()).filter(Boolean) : undefined,
-      max_size_mb: draft.type === 'file' ? draft.max_size_mb : undefined,
-      accept: draft.type === 'file' ? draft.accept : undefined,
-    }
-    setFields(prev => [...prev, field])
-    setDraft(EMPTY_DRAFT)
+    const result = buildFieldFromDraft(draft, fields)
+    if (typeof result === 'string') { setMsg(result); setMsgIsError(true); return }
+    setFields(prev => [...prev, result])
+    setDraft(EMPTY_FIELD_DRAFT)
     setAddOpen(false)
     setMsg(null)
   }
@@ -209,7 +168,7 @@ export function FormSchemaEditor({
                 {!addOpen ? (
                   <Button variant="ghost" onClick={() => setAddOpen(true)}>+ Add Field</Button>
                 ) : (
-                  <AddFieldForm draft={draft} setDraft={setDraft} onCancel={() => { setAddOpen(false); setDraft(EMPTY_DRAFT) }} onConfirm={confirmAddField} />
+                  <AddFieldForm draft={draft} setDraft={setDraft} onCancel={() => { setAddOpen(false); setDraft(EMPTY_FIELD_DRAFT) }} onConfirm={confirmAddField} />
                 )}
               </div>
             )}
@@ -322,70 +281,3 @@ function SortableField({ field, canManage, expanded, onToggle, onChange, onDelet
   )
 }
 
-function FieldRow({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <div>
-      <label style={{ fontSize: '11px', fontWeight: 700, color: 'var(--ink3)', display: 'block', marginBottom: '4px' }}>{label}</label>
-      {children}
-    </div>
-  )
-}
-
-function AddFieldForm({ draft, setDraft, onCancel, onConfirm }: {
-  draft: NewFieldDraft
-  setDraft: (d: NewFieldDraft | ((d: NewFieldDraft) => NewFieldDraft)) => void
-  onCancel: () => void
-  onConfirm: () => void
-}) {
-  return (
-    <Card padded>
-      <div style={{ display: 'grid', gap: '10px' }}>
-        <FieldRow label="Field Type">
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
-            {FIELD_TYPE_OPTIONS.map(o => (
-              <button
-                key={o.type}
-                onClick={() => setDraft(d => ({ ...d, type: o.type }))}
-                style={{
-                  padding: '6px 12px', borderRadius: '8px', fontSize: '12px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit',
-                  border: draft.type === o.type ? '1.5px solid var(--teal-mid)' : '1px solid var(--border)',
-                  background: draft.type === o.type ? 'var(--teal-light)' : 'transparent',
-                  color: draft.type === o.type ? 'var(--teal-mid)' : 'var(--ink2)',
-                }}
-              >
-                {o.label}
-              </button>
-            ))}
-          </div>
-        </FieldRow>
-        <FieldRow label="Label">
-          <Input value={draft.label} onChange={e => setDraft(d => ({ ...d, label: e.target.value }))} placeholder="e.g. T-Shirt Size" />
-        </FieldRow>
-        {draft.label.trim() && (
-          <div style={{ fontSize: '11px', color: 'var(--ink4)' }}>Field key: <code>{slugifyKey(draft.label)}</code></div>
-        )}
-        <FieldRow label="Help text (optional)">
-          <Input value={draft.help} onChange={e => setDraft(d => ({ ...d, help: e.target.value }))} />
-        </FieldRow>
-        <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '12.5px', color: 'var(--ink2)', cursor: 'pointer' }}>
-          <input type="checkbox" checked={draft.required} onChange={e => setDraft(d => ({ ...d, required: e.target.checked }))} />
-          Required
-        </label>
-        {(draft.type === 'select' || draft.type === 'multiselect') && (
-          <FieldRow label="Options (one per line)">
-            <textarea className="tfield" rows={4} value={draft.options.join('\n')} onChange={e => setDraft(d => ({ ...d, options: e.target.value.split('\n') }))} />
-          </FieldRow>
-        )}
-        {draft.type === 'file' && (
-          <FieldRow label="Max file size (MB)">
-            <Input type="number" min={1} max={25} value={draft.max_size_mb} onChange={e => setDraft(d => ({ ...d, max_size_mb: Math.min(25, Math.max(1, Number(e.target.value) || 10)) }))} />
-          </FieldRow>
-        )}
-        <div style={{ display: 'flex', gap: '8px' }}>
-          <Button variant="lime" onClick={onConfirm}>Add Field</Button>
-          <Button variant="ghost" onClick={onCancel}>Cancel</Button>
-        </div>
-      </div>
-    </Card>
-  )
-}

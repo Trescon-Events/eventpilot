@@ -8,6 +8,16 @@ import { FieldSchema, FormType } from './types'
 
 export const DEFAULT_SPEAKER_FIELDS: FieldSchema[] = [
   { id: 'speaker-full_name', key: 'full_name', label: 'Full Name', type: 'text', required: true, locked: true },
+  // Optional — mirrors HubSpot's own firstname/lastname properties (HubSpot
+  // treats "Full Name" as a read-only merge of the two, never a directly
+  // editable property). Kept non-locked/non-required so forms that only
+  // collect one combined name field are unaffected. When submitted without
+  // full_name, map-to-stakeholder-record.ts derives full_name from these —
+  // full_name (the NOT NULL `name` column) stays the single source every
+  // other part of the app already reads, so nothing downstream needs to
+  // know first/last name exist.
+  { id: 'speaker-first_name', key: 'first_name', label: 'First Name', type: 'text', required: false, locked: false },
+  { id: 'speaker-last_name', key: 'last_name', label: 'Last Name', type: 'text', required: false, locked: false },
   { id: 'speaker-job_title', key: 'job_title', label: 'Job Title', type: 'text', required: true, locked: false },
   { id: 'speaker-company_name', key: 'company_name', label: 'Company Name', type: 'text', required: true, locked: false },
   { id: 'speaker-country', key: 'country', label: 'Country', type: 'text', required: true, locked: false },

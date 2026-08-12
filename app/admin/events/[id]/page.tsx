@@ -27,6 +27,11 @@ type Event = {
   client_name: string | null
   description: string | null
   expected_attendance: number | null
+  // Public-facing overrides — what emails/announcements/other external
+  // content use instead of the internal reference name/venue/dates above.
+  public_name: string | null
+  public_dates_display: string | null
+  public_venue_display: string | null
   // Digital presence (Stakeholder Announcement Engine)
   event_format: string | null
   country: string | null
@@ -155,9 +160,7 @@ export default function EventWorkspacePage({ params }: { params: Promise<{ id: s
   const [editing,        setEditing]        = useState(false)
   const [editForm,       setEditForm]       = useState({
     name: '', type: '', status: '', event_date: '', end_date: '', venue: '', city: '', client_name: '', description: '', expected_attendance: '',
-    event_format: '', country: '', website_url: '', event_hashtag: '', registration_url: '',
-    social_linkedin: '', social_x: '', social_instagram: '', social_facebook: '', social_youtube: '',
-    venue_map_url: '', postiz_profile_key: '',
+    event_format: '', country: '', postiz_profile_key: '',
   })
   const [savingEdit,     setSavingEdit]     = useState(false)
 
@@ -167,7 +170,6 @@ export default function EventWorkspacePage({ params }: { params: Promise<{ id: s
     structured_json: Record<string, unknown> | null; status: string; updated_at: string
   }
   const [messagingDoc,       setMessagingDoc]       = useState<MessagingDoc | null>(null)
-  const [messagingUploading, setMessagingUploading] = useState(false)
 
   // Team tab
   const [eventStaff,     setEventStaff]     = useState<EventStaffMember[]>([])
@@ -239,16 +241,6 @@ export default function EventWorkspacePage({ params }: { params: Promise<{ id: s
     setMessagingDoc(data ?? null)
   }
 
-  async function uploadMessagingDoc(file: File) {
-    setMessagingUploading(true)
-    const form = new FormData()
-    form.append('event_id', eventId)
-    form.append('file', file)
-    const res = await fetch('/api/events/stakeholders/messaging', { method: 'POST', body: form })
-    if (res.ok) await fetchMessagingDoc()
-    setMessagingUploading(false)
-  }
-
   async function fetchEventStaff() {
     const res  = await fetch(`/api/events/staff?event_id=${eventId}`)
     const data = await res.json().catch(() => [])
@@ -270,15 +262,6 @@ export default function EventWorkspacePage({ params }: { params: Promise<{ id: s
       expected_attendance: editForm.expected_attendance ? Number(editForm.expected_attendance) : null,
       event_format:      editForm.event_format || null,
       country:           editForm.country || null,
-      website_url:       editForm.website_url || null,
-      event_hashtag:     editForm.event_hashtag || null,
-      registration_url:  editForm.registration_url || null,
-      social_linkedin:   editForm.social_linkedin || null,
-      social_x:          editForm.social_x || null,
-      social_instagram:  editForm.social_instagram || null,
-      social_facebook:   editForm.social_facebook || null,
-      social_youtube:    editForm.social_youtube || null,
-      venue_map_url:      editForm.venue_map_url || null,
       postiz_profile_key: editForm.postiz_profile_key || null,
     }
     const res  = await fetch(`/api/events?id=${eventId}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
@@ -330,15 +313,6 @@ export default function EventWorkspacePage({ params }: { params: Promise<{ id: s
         expected_attendance: ev.expected_attendance ? String(ev.expected_attendance) : '',
         event_format:        ev.event_format ?? '',
         country:             ev.country ?? '',
-        website_url:         ev.website_url ?? '',
-        event_hashtag:       ev.event_hashtag ?? '',
-        registration_url:    ev.registration_url ?? '',
-        social_linkedin:     ev.social_linkedin ?? '',
-        social_x:            ev.social_x ?? '',
-        social_instagram:    ev.social_instagram ?? '',
-        social_facebook:     ev.social_facebook ?? '',
-        social_youtube:      ev.social_youtube ?? '',
-        venue_map_url:       ev.venue_map_url ?? '',
         postiz_profile_key:  ev.postiz_profile_key ?? '',
       })
     }
@@ -654,6 +628,9 @@ export default function EventWorkspacePage({ params }: { params: Promise<{ id: s
               {!editing ? (
                 <>
                   <h1 style={{ fontSize: '36px', fontWeight: 900, color: 'var(--ink)', margin: '0 0 6px', letterSpacing: '-0.5px' }}>{event.name}</h1>
+                  {event.public_name && event.public_name !== event.name && (
+                    <div style={{ fontSize: '12.5px', color: 'var(--teal-mid)', margin: '-2px 0 8px' }}>Public name: {event.public_name}</div>
+                  )}
                   <div style={{ display: 'flex', gap: '20px', flexWrap: 'wrap' }}>
                     {event.city && <span style={{ fontSize: '13px', color: 'var(--ink2)' }}>{event.city}</span>}
                     {event.event_date && <span style={{ fontSize: '13px', color: 'var(--ink2)' }}>{new Date(event.event_date).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}</span>}
@@ -700,16 +677,17 @@ export default function EventWorkspacePage({ params }: { params: Promise<{ id: s
                     </div>
                   </div>
 
-                  {/* ── Digital Presence (Stakeholder Announcement Engine) ── */}
+                  {/* ── Digital Presence — event_format/country stay here (internal
+                      classification); public_name/dates/venue/website/registration/
+                      hashtag/socials/venue_map_url moved to the Event Details page
+                      (2026-08-11), which also owns the Topline Messaging Doc and a
+                      change history for those fields. */}
                   <div style={{ fontSize: '11px', fontWeight: 800, letterSpacing: '0.8px', color: 'var(--teal-mid)', margin: '20px 0 10px', textTransform: 'uppercase' }}>Digital Presence</div>
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
                     {([
-                      ['EVENT FORMAT', 'event_format', null, ['physical', 'virtual', 'hybrid']],
-                      ['COUNTRY', 'country', null, null],
-                      ['EVENT WEBSITE URL', 'website_url', 'url', null],
-                      ['REGISTRATION URL', 'registration_url', 'url', null],
-                      ['EVENT HASHTAG', 'event_hashtag', null, null],
-                    ] as [string, string, string | null, string[] | null][]).map(([label, key, type, opts]) => (
+                      ['EVENT FORMAT', 'event_format', ['physical', 'virtual', 'hybrid']],
+                      ['COUNTRY', 'country', null],
+                    ] as [string, string, string[] | null][]).map(([label, key, opts]) => (
                       <div key={key}>
                         <label style={{ fontSize: '11px', fontWeight: 700, color: 'var(--ink3)', display: 'block', marginBottom: '4px' }}>{label}</label>
                         {opts ? (
@@ -719,46 +697,15 @@ export default function EventWorkspacePage({ params }: { params: Promise<{ id: s
                             {opts.map(o => <option key={o} value={o}>{o}</option>)}
                           </select>
                         ) : (
-                          <input type={type ?? 'text'} value={editForm[key as keyof typeof editForm]} onChange={e => setEditForm(f => ({ ...f, [key]: e.target.value }))}
+                          <input type="text" value={editForm[key as keyof typeof editForm]} onChange={e => setEditForm(f => ({ ...f, [key]: e.target.value }))}
                             style={{ width: '100%', padding: '9px 12px', borderRadius: '8px', border: '1px solid var(--border)', fontSize: '13px', fontFamily: 'inherit', color: 'var(--ink)', boxSizing: 'border-box' }} />
                         )}
                       </div>
                     ))}
                   </div>
 
-                  <div style={{ fontSize: '11px', fontWeight: 800, letterSpacing: '0.8px', color: 'var(--teal-mid)', margin: '20px 0 10px', textTransform: 'uppercase' }}>Social Channels</div>
+                  <div style={{ fontSize: '11px', fontWeight: 800, letterSpacing: '0.8px', color: 'var(--teal-mid)', margin: '20px 0 10px', textTransform: 'uppercase' }}>Social Publishing</div>
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
-                    {([
-                      ['LINKEDIN', 'social_linkedin'],
-                      ['X', 'social_x'],
-                      ['INSTAGRAM', 'social_instagram'],
-                      ['FACEBOOK', 'social_facebook'],
-                      ['YOUTUBE', 'social_youtube'],
-                    ] as [string, string][]).map(([label, key]) => (
-                      <div key={key}>
-                        <label style={{ fontSize: '11px', fontWeight: 700, color: 'var(--ink3)', display: 'block', marginBottom: '4px' }}>{label}</label>
-                        <input type="url" value={editForm[key as keyof typeof editForm]} onChange={e => setEditForm(f => ({ ...f, [key]: e.target.value }))}
-                          style={{ width: '100%', padding: '9px 12px', borderRadius: '8px', border: '1px solid var(--border)', fontSize: '13px', fontFamily: 'inherit', color: 'var(--ink)', boxSizing: 'border-box' }} />
-                      </div>
-                    ))}
-                  </div>
-
-                  <div style={{ fontSize: '11px', fontWeight: 800, letterSpacing: '0.8px', color: 'var(--teal-mid)', margin: '20px 0 10px', textTransform: 'uppercase' }}>Venue Map &amp; Social Publishing</div>
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
-                    <div>
-                      <label style={{ fontSize: '11px', fontWeight: 700, color: 'var(--ink3)', display: 'block', marginBottom: '4px' }}>VENUE MAP LINK</label>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                        <input type="url" placeholder="Paste Google Maps URL" value={editForm.venue_map_url}
-                          onChange={e => setEditForm(f => ({ ...f, venue_map_url: e.target.value }))}
-                          style={{ flex: 1, padding: '9px 12px', borderRadius: '8px', border: '1px solid var(--border)', fontSize: '13px', fontFamily: 'inherit', color: 'var(--ink)', boxSizing: 'border-box' }} />
-                        {editForm.venue_map_url && (
-                          <a href={editForm.venue_map_url} target="_blank" rel="noopener noreferrer" style={{ fontSize: '11px', color: 'var(--teal-mid)', whiteSpace: 'nowrap', flexShrink: 0 }}>View Map ↗</a>
-                        )}
-                      </div>
-                      <div style={{ fontSize: '10.5px', color: 'var(--ink3)', marginTop: '4px', lineHeight: 1.4 }}>
-                        Search the venue in Google Maps, click Share → Copy Link, and paste it here.
-                      </div>
-                    </div>
                     <div>
                       <label style={{ fontSize: '11px', fontWeight: 700, color: 'var(--ink3)', display: 'block', marginBottom: '4px' }}>POSTIZ PROFILE KEY</label>
                       <input type="password" value={editForm.postiz_profile_key} onChange={e => setEditForm(f => ({ ...f, postiz_profile_key: e.target.value }))}
@@ -907,29 +854,25 @@ export default function EventWorkspacePage({ params }: { params: Promise<{ id: s
           </div>
         </div>
 
-        {/* Topline Messaging Doc */}
+        {/* Event Details — Common Details (public name/dates/venue/links/
+            socials, per-form-type onboarding page links, a change history)
+            plus the Topline Messaging Doc, one destination since 2026-08-11
+            (previously two separate cards/pages for these). */}
         <div style={{ marginBottom: '16px', background: 'var(--card)', border: '1px solid var(--border)', borderRadius: '16px', padding: '18px 24px' }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '10px' }}>
             <div>
-              <div style={{ fontSize: '11px', fontWeight: 800, color: 'var(--teal-mid)', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '4px' }}>Topline Messaging Doc</div>
+              <div style={{ fontSize: '11px', fontWeight: 800, color: 'var(--teal-mid)', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '4px' }}>Event Details</div>
               {messagingDoc ? (
                 <div style={{ fontSize: '12px', color: 'var(--ink3)' }}>
-                  v{messagingDoc.version} · Last updated: {new Date(messagingDoc.updated_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}
+                  Messaging doc v{messagingDoc.version} · Last updated: {new Date(messagingDoc.updated_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}
                 </div>
               ) : (
-                <div style={{ fontSize: '12px', color: 'var(--ink3)' }}>No messaging doc uploaded yet — Gemini will extract a structured summary from the PDF.</div>
+                <div style={{ fontSize: '12px', color: 'var(--ink3)' }}>No messaging doc uploaded yet — public name, dates, venue, links, and more, all in one place.</div>
               )}
             </div>
-            <div style={{ display: 'flex', gap: '8px' }}>
-              <Link href={`/admin/events/${eventId}/messaging`} style={{ textDecoration: 'none', padding: '7px 14px', borderRadius: '8px', border: '1px solid var(--border)', background: 'transparent', color: 'var(--ink2)', fontSize: '12px', fontWeight: 700, fontFamily: 'inherit', display: 'flex', alignItems: 'center' }}>
-                Open Messaging Doc →
-              </Link>
-              <label style={{ padding: '7px 14px', borderRadius: '8px', border: 'none', background: 'var(--lime)', color: 'var(--lime-dark)', fontSize: '12px', fontWeight: 800, cursor: 'pointer', fontFamily: 'inherit', opacity: messagingUploading ? 0.6 : 1 }}>
-                {messagingUploading ? 'Uploading…' : 'Upload ▲'}
-                <input type="file" accept="application/pdf" disabled={messagingUploading} style={{ display: 'none' }}
-                  onChange={e => { const f = e.target.files?.[0]; if (f) uploadMessagingDoc(f); e.target.value = '' }} />
-              </label>
-            </div>
+            <Link href={`/admin/events/${eventId}/details`} style={{ textDecoration: 'none', padding: '7px 14px', borderRadius: '8px', border: 'none', background: 'var(--lime)', color: 'var(--lime-dark)', fontSize: '12px', fontWeight: 800, fontFamily: 'inherit', display: 'flex', alignItems: 'center' }}>
+              Edit Event Details →
+            </Link>
           </div>
         </div>
 

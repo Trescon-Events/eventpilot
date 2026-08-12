@@ -36,8 +36,9 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ even
     return NextResponse.json({ error: 'Unknown form type' }, { status: 404 })
   }
 
-  const { data: event } = await supabaseAdmin.from('events').select('name').eq('id', event_id).single()
+  const { data: event } = await supabaseAdmin.from('events').select('name, public_name').eq('id', event_id).single()
   if (!event) return NextResponse.json({ error: 'Event not found' }, { status: 404 })
+  const eventName = event.public_name || event.name
 
   // HubSpot takes priority when connected — the public page embeds
   // HubSpot's own form and submits directly to HubSpot (never to this
@@ -54,7 +55,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ even
       hubspot: true,
       portal_id: process.env.HUBSPOT_PORTAL_ID,
       hubspot_form_id: hubspotForm.hubspot_form_id,
-      form_type, event_name: event.name, header_url: headerUrl,
+      form_type, event_name: eventName, header_url: headerUrl,
     })
   }
 
@@ -79,7 +80,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ even
     }
   }
 
-  return NextResponse.json({ form_type, event_name: event.name, fields, header_url: headerUrl, prefill })
+  return NextResponse.json({ form_type, event_name: eventName, fields, header_url: headerUrl, prefill })
 }
 
 export async function POST(req: NextRequest, { params }: { params: Promise<{ event_id: string; form_type: string }> }) {
@@ -88,7 +89,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ eve
     return NextResponse.json({ error: 'Unknown form type' }, { status: 404 })
   }
 
-  const { data: event } = await supabaseAdmin.from('events').select('name').eq('id', event_id).single()
+  const { data: event } = await supabaseAdmin.from('events').select('name, public_name').eq('id', event_id).single()
   if (!event) return NextResponse.json({ error: 'Event not found' }, { status: 404 })
 
   const form = await req.formData()
@@ -166,7 +167,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ eve
     }
   }
 
-  await sendNotifications(event_id, event.name, form_type as FormType, submittedData, submission.id, invitedByStaffId).catch(e =>
+  await sendNotifications(event_id, event.public_name || event.name, form_type as FormType, submittedData, submission.id, invitedByStaffId).catch(e =>
     console.error('Form submission notification failed (submission still saved):', e)
   )
 

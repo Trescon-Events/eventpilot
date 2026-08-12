@@ -15,6 +15,11 @@ export type EventContext = {
   name: string; event_date: string | null; end_date: string | null
   venue: string | null; city: string | null
   event_hashtag: string | null; registration_url: string | null
+  // Public-facing overrides (Public-Facing Details on the event page) —
+  // preferred over the raw fields above when set, since announcement copy
+  // is external content and the internal reference name/computed date
+  // range aren't necessarily what should appear in it.
+  public_name?: string | null; public_dates_display?: string | null; public_venue_display?: string | null
 }
 
 export async function generatePostCopy(
@@ -23,11 +28,12 @@ export async function generatePostCopy(
   partner: Record<string, unknown> | null,
   messagingJson: Record<string, unknown> | null
 ): Promise<string> {
-  const dates = [event.event_date, event.end_date].filter(Boolean).join(' – ')
+  const dates = event.public_dates_display || [event.event_date, event.end_date].filter(Boolean).join(' – ')
+  const venueLine = event.public_venue_display || (event.venue ? `${event.venue}${event.city ? `, ${event.city}` : ''}` : null)
   const eventContext = [
-    `Event: ${event.name}`,
+    `Event: ${event.public_name || event.name}`,
     dates && `Dates: ${dates}`,
-    event.venue && `Venue: ${event.venue}${event.city ? `, ${event.city}` : ''}`,
+    venueLine && `Venue: ${venueLine}`,
     event.event_hashtag && `Hashtag: ${event.event_hashtag}`,
     event.registration_url && `Registration: ${event.registration_url}`,
   ].filter(Boolean).join('\n')

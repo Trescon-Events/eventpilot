@@ -14,7 +14,10 @@ function authHeaders(): Record<string, string> {
 }
 
 type HubSpotFormFieldGroup = { fields?: RawHubSpotField[] }
-type RawHubSpotField = { name: string; label: string; fieldType: string; required?: boolean; hidden?: boolean }
+type RawHubSpotField = {
+  name: string; label: string; fieldType: string; required?: boolean; hidden?: boolean
+  options?: { label: string; value: string }[]
+}
 type RawHubSpotForm = { id: string; name: string; fieldGroups?: HubSpotFormFieldGroup[] }
 
 function flattenFields(data: RawHubSpotForm): HubSpotFormField[] {
@@ -25,6 +28,7 @@ function flattenFields(data: RawHubSpotForm): HubSpotFormField[] {
       fieldType: f.fieldType,
       required: !!f.required,
       hidden: !!f.hidden,
+      options: f.options?.length ? f.options.map(o => ({ label: o.label, value: o.value })) : undefined,
     }))
   )
 }

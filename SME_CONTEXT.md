@@ -191,6 +191,8 @@ Do not ask Durga to build anything that already exists. Reference this when writ
 | `/admin/events/[id]/brand` | Brand Studio — 9-section brand book builder |
 | `/admin/events/[id]/website` | Website Builder — template selection, content editing |
 | `/admin/events/[id]/market-intel` | Market Intelligence reports |
+| `/admin/events/[id]/details` | Event Details (11 Aug 2026) — public-facing name/dates/venue/links/socials (separate from the internal HR-synced name), per-form-type "Public Onboarding Pages" links, and the Topline Messaging Doc (PDF upload → draft → chat-review → Approve gate). Every field change is logged (`event_details_field_changes`) |
+| `/admin/events/[id]/stakeholders` | Stakeholder Hub — speaker/sponsor/partner onboarding, RBAC-gated (`sae.*` permission keys). Forms are managed in HubSpot, not built in-app — see `.../stakeholders/hubspot-form/[formType]` to connect a form and map its fields |
 | `/admin/toolkit` | Full toolkit — every tool as a card, gated by `tool_grants` (see §4) |
 | `/admin/courses` | Course Builder — create/edit/publish courses |
 | `/admin/templates` | Manage microsite templates |

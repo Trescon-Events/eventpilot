@@ -3,14 +3,22 @@ import { GoogleGenerativeAI } from '@google/generative-ai'
 import { supabaseAdmin } from '@/app/lib/supabase'
 import { extractKbText } from '@/app/lib/kb/extract'
 import { uploadPublicAsset } from '@/app/lib/events/storage'
+import { TRACKED_EVENT_FIELDS } from '@/app/lib/events/detail-field-log'
 
 /* GET /api/events/stakeholders/messaging?event_id=X          — the live doc
    GET /api/events/stakeholders/messaging?event_id=X&all=true — all versions
 
    POST /api/events/stakeholders/messaging (multipart/form-data)
    Body: event_id, file (PDF), title?, uploaded_by?
-   Uploads a new messaging doc, extracts text + structured JSON via Gemini,
-   supersedes the previous live doc, stores the new one as live. */
+   Uploads a new messaging doc, extracts text + structured JSON (sections[]
+   AND default_fields, see STRUCTURE_PROMPT) via Gemini, and stores it as a
+   DRAFT — it does NOT touch the current live doc yet. A producer reviews/
+   chats through the draft (propose-edit/apply-edit, extended to also cover
+   default_fields.<key>) on the Event Details page, then explicitly hits
+   Approve (see .../[id]/approve/route.ts), which is the only thing that
+   supersedes the prior live doc and writes default_fields into
+   events/event_hubspot_forms. This is the 2026-08-11 Event Details Page
+   change — uploads used to go straight to live with no review gate. */
 
 let _gemini: GoogleGenerativeAI | null = null
 function getGemini() {
@@ -30,7 +38,26 @@ Segment the document into a JSON object of this shape:
       "kind": "text" | "table" | "facts" | "rules",
       "content": ...                     // shape depends on "kind", see below
     }
-  ]
+  ],
+  "default_fields": {
+    // A small, FIXED set of atomic facts — every key below must be present,
+    // set to a plain string if the document states it, or null if it
+    // doesn't. These are separate from "sections" — they feed typed,
+    // directly-consumed fields elsewhere in EventPilot (invite emails,
+    // announcement copy, the public onboarding form), not freeform content.
+    "public_name": ...,             // the event's PUBLIC-FACING name, as it should appear externally — may differ from an internal/reference name like "WAIS26" or a code the document uses only for internal tracking
+    "public_dates_display": ...,    // the event dates exactly as they should read publicly, e.g. "12–14 March 2026" — a formatted string, not raw ISO dates
+    "public_venue_display": ...,    // the venue exactly as it should read publicly, e.g. "Dubai World Trade Centre, Dubai, UAE"
+    "website_url": ...,             // the official event website URL, if stated
+    "registration_url": ...,        // the registration/ticketing page URL, if stated and different from website_url
+    "event_hashtag": ...,           // the official event hashtag, if stated (include the #)
+    "social_linkedin": ...,         // official LinkedIn page/post URL, if stated
+    "social_x": ...,                // official X/Twitter URL, if stated
+    "social_instagram": ...,        // official Instagram URL, if stated
+    "social_facebook": ...,         // official Facebook URL, if stated
+    "social_youtube": ...,          // official YouTube URL, if stated
+    "venue_map_url": ...            // a Google Maps (or similar) link to the venue, if stated
+  }
 }
 
 Derive the sections from the document's OWN headings and structure — do not force it into a fixed list. Use judgement on granularity: a numbered heading in the source is usually one section; don't split a single heading's content into several sections or merge multiple headings into one.
@@ -51,16 +78,29 @@ DOCUMENT TEXT:
 // Stamps freshly-extracted sections with updated_at (now)/updated_by/change_note
 // (both null — these only get set by a conversational edit, see apply-edit/route.ts)
 // so every section has a consistent shape from the moment it's created.
+// default_fields is normalized to exactly TRACKED_EVENT_FIELDS' keys —
+// missing/unrecognized keys from the model's output become null/dropped,
+// so the approve endpoint can trust the shape without re-validating it.
+type ParsedExtraction = { sections?: unknown; default_fields?: Record<string, unknown> }
+
 function normalizeSections(parsed: unknown): Record<string, unknown> | null {
-  if (!parsed || typeof parsed !== 'object' || !Array.isArray((parsed as any).sections)) return null
+  const p = parsed as ParsedExtraction | null
+  if (!p || typeof p !== 'object' || !Array.isArray(p.sections)) return null
   const now = new Date().toISOString()
-  const sections = (parsed as any).sections.map((s: Record<string, unknown>) => ({
+  const sections = p.sections.map((s: Record<string, unknown>) => ({
     ...s,
     updated_at: now,
     updated_by: null,
     change_note: null,
   }))
-  return { sections }
+  const rawDefaults = p.default_fields ?? {}
+  const default_fields = Object.fromEntries(
+    TRACKED_EVENT_FIELDS.map(key => {
+      const v = rawDefaults[key]
+      return [key, typeof v === 'string' && v.trim() ? v.trim() : null]
+    })
+  )
+  return { sections, default_fields }
 }
 
 export async function GET(req: NextRequest) {
@@ -117,7 +157,6 @@ export async function POST(req: NextRequest) {
     .order('version', { ascending: false })
 
   const nextVersion = existing && existing.length > 0 ? Math.max(...existing.map(d => d.version)) + 1 : 1
-  const liveDoc = existing?.find(d => d.status === 'live')
 
   // Upload PDF
   const sourceUrl = await uploadPublicAsset(
@@ -146,14 +185,9 @@ export async function POST(req: NextRequest) {
     // Still save the doc with the PDF stored — extraction can be retried via PATCH later.
   }
 
-  // Supersede the previous live doc, if any
-  if (liveDoc) {
-    await supabaseAdmin
-      .from('event_messaging_docs')
-      .update({ status: 'superseded' })
-      .eq('id', liveDoc.id)
-  }
-
+  // Lands as a draft, not live — a producer reviews/chats through it and
+  // explicitly Approves (see .../[id]/approve/route.ts) before it supersedes
+  // the current live doc or writes default_fields anywhere.
   const { data, error } = await supabaseAdmin
     .from('event_messaging_docs')
     .insert({
@@ -163,17 +197,12 @@ export async function POST(req: NextRequest) {
       raw_text:        rawText || null,
       structured_json: structuredJson,
       source_url:      sourceUrl,
-      status:          'live',
+      status:          'draft',
       uploaded_by:     uploadedBy,
     })
     .select()
     .single()
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-
-  if (liveDoc) {
-    await supabaseAdmin.from('event_messaging_docs').update({ superseded_by: data.id }).eq('id', liveDoc.id)
-  }
-
   return NextResponse.json(data, { status: 201 })
 }

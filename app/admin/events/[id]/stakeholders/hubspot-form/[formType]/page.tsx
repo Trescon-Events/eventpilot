@@ -5,7 +5,29 @@ import Link from 'next/link'
 import PageHeader from '@/app/components/PageHeader'
 import { Button, Card, Input, Select } from '@/app/components/ui'
 import { FormType, FORM_TYPES, FORM_TITLES, FieldSchema } from '@/app/lib/forms/types'
-import { HubSpotFieldMapping, HubSpotFormField, EventHubSpotForm } from '@/app/lib/hubspot/types'
+import { HubSpotFieldMapping, HubSpotFormField, EventHubSpotForm, guessFieldTypeFromHubSpot } from '@/app/lib/hubspot/types'
+import { AddFieldForm, NewFieldDraft, EMPTY_FIELD_DRAFT, FIELD_TYPE_OPTIONS, buildFieldFromDraft } from '@/app/components/forms/AddFieldForm'
+
+const CONCEPT_TYPE_OPTIONS = FIELD_TYPE_OPTIONS.filter(o => o.type !== 'file')
+const CREATE_NEW_FIELD = '__create_new_field__'
+
+// "Concept" fields can't be type 'file' (files go through the separate
+// asset/secure_document mapping types) — if the HubSpot field's own type
+// has no concept-safe equivalent (e.g. it's a file field being created as
+// a concept for some reason), fall back to 'text' rather than a type the
+// form's own type picker doesn't offer.
+function draftFromHubSpotField(f: HubSpotFormField): NewFieldDraft {
+  const guessed = guessFieldTypeFromHubSpot(f.fieldType)
+  const type = CONCEPT_TYPE_OPTIONS.some(o => o.type === guessed) ? guessed : 'text'
+  const hasOptions = (type === 'select' || type === 'multiselect') && !!f.options?.length
+  return {
+    ...EMPTY_FIELD_DRAFT,
+    label: f.label,
+    type,
+    required: f.required,
+    options: hasOptions ? f.options!.map(o => o.value) : [''],
+  }
+}
 
 /* Connect a HubSpot form to this event+form_type, inspect its real fields
    via the HubSpot API, and map each one to an EventPilot concept — Phase A
@@ -44,6 +66,7 @@ export default function HubSpotFormConnectPage({ params }: { params: Promise<{ i
 
   const [permissions, setPermissions] = useState<Set<string>>(new Set())
   const [connection, setConnection] = useState<EventHubSpotForm | null>(null)
+  const [allFields, setAllFields] = useState<FieldSchema[]>([])
   const [conceptFields, setConceptFields] = useState<FieldSchema[]>([])
   const [mapping, setMapping] = useState<HubSpotFieldMapping[]>([])
   const [loading, setLoading] = useState(valid)
@@ -52,6 +75,17 @@ export default function HubSpotFormConnectPage({ params }: { params: Promise<{ i
   const [msgIsError, setMsgIsError] = useState(false)
   const [newFormId, setNewFormId] = useState('')
   const [connecting, setConnecting] = useState(false)
+  const [creatingFor, setCreatingFor] = useState<string | null>(null)
+  const [fieldDraft, setFieldDraft] = useState<NewFieldDraft>(EMPTY_FIELD_DRAFT)
+  const [creatingField, setCreatingField] = useState(false)
+  // True only while `mapping` has changes not yet persisted via Save
+  // Mapping — set on every updateTarget() call, cleared whenever `mapping`
+  // is freshly loaded from the server (initial load, connect, resync — all
+  // of which already reflect the persisted state) or right after a
+  // successful save. Drives disabling Save Mapping so its state always
+  // matches reality (2026-08-11, Madhu: "user will not be confused whether
+  // the mapping was saved or not").
+  const [dirty, setDirty] = useState(false)
 
   const can = (key: string) => permissions.has('*') || permissions.has(key)
   const canManage = can('sae.forms.manage')
@@ -64,8 +98,39 @@ export default function HubSpotFormConnectPage({ params }: { params: Promise<{ i
     ])
     setPermissions(new Set(permRes.permissions ?? []))
     setConnection(connRes?.id ? connRes : null)
+    setAllFields(schemaRes.fields ?? [])
     setConceptFields((schemaRes.fields ?? []).filter((f: FieldSchema) => f.type !== 'file'))
     setMapping(connRes?.field_mapping ?? [])
+    setDirty(false)
+  }
+
+  // Persists a brand-new EventPilot field (this event's own form_schema
+  // override) so a HubSpot field with no existing match — e.g. HubSpot's
+  // separate firstname/lastname vs. our single locked full_name — gets a
+  // real, reusable target instead of falling back to "extra data." Saves
+  // immediately (its own PUT to the schema route, distinct from the
+  // mapping's own Save) so the new field is available right away; still
+  // requires "Save Mapping" to persist which HubSpot field points at it.
+  async function createField(f: HubSpotFormField) {
+    const result = buildFieldFromDraft(fieldDraft, allFields)
+    if (typeof result === 'string') { setMsg(result); setMsgIsError(true); return }
+    setCreatingField(true); setMsg(null)
+    const nextFields = [...allFields, result]
+    const res = await fetch(`/api/events/stakeholders/forms/${formType}/schema?event_id=${eventId}`, {
+      method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ fields: nextFields }),
+    })
+    const data = await res.json().catch(() => ({}))
+    setCreatingField(false)
+    if (res.ok) {
+      const savedFields = data.fields as FieldSchema[]
+      setAllFields(savedFields)
+      setConceptFields(savedFields.filter(x => x.type !== 'file'))
+      updateTarget(f.name, f.label, { type: 'concept', key: result.key })
+      setCreatingFor(null); setFieldDraft(EMPTY_FIELD_DRAFT)
+      setMsg(`Field "${result.label}" created.`); setMsgIsError(false)
+    } else {
+      setMsg(data.error ?? 'Could not create field.'); setMsgIsError(true)
+    }
   }
 
   useEffect(() => {
@@ -82,6 +147,7 @@ export default function HubSpotFormConnectPage({ params }: { params: Promise<{ i
       next.push({ hubspot_field_name: fieldName, hubspot_label: fieldLabel, target })
       return next
     })
+    setDirty(true)
   }
 
   async function connect() {
@@ -93,7 +159,7 @@ export default function HubSpotFormConnectPage({ params }: { params: Promise<{ i
     })
     const data = await res.json().catch(() => ({}))
     setConnecting(false)
-    if (res.ok) { setConnection(data); setMapping(data.field_mapping ?? []); setNewFormId(''); setMsg('Connected.'); setMsgIsError(false) }
+    if (res.ok) { setConnection(data); setMapping(data.field_mapping ?? []); setDirty(false); setNewFormId(''); setMsg('Connected.'); setMsgIsError(false) }
     else { setMsg(data.error ?? 'Could not connect that form.'); setMsgIsError(true) }
   }
 
@@ -106,7 +172,7 @@ export default function HubSpotFormConnectPage({ params }: { params: Promise<{ i
     const data = await res.json().catch(() => ({}))
     setSaving(false)
     if (res.ok) {
-      setConnection(data); setMapping(data.field_mapping ?? [])
+      setConnection(data); setMapping(data.field_mapping ?? []); setDirty(false)
       const removed = data.removed_fields as string[] | undefined
       setMsg(removed?.length ? `Re-synced. ${removed.length} field(s) no longer exist on the HubSpot form and were unmapped: ${removed.join(', ')}` : 'Re-synced.')
       setMsgIsError(false)
@@ -121,8 +187,10 @@ export default function HubSpotFormConnectPage({ params }: { params: Promise<{ i
     })
     const data = await res.json().catch(() => ({}))
     setSaving(false)
-    if (res.ok) { setConnection(data); setMsg('Mapping saved.'); setMsgIsError(false) }
-    else { setMsg(data.error ?? 'Save failed.'); setMsgIsError(true) }
+    if (res.ok) {
+      setConnection(data); setDirty(false); setMsg('Mapping saved.'); setMsgIsError(false)
+      window.scrollTo({ top: 0, behavior: 'smooth' })
+    } else { setMsg(data.error ?? 'Save failed.'); setMsgIsError(true) }
   }
 
   async function disconnect() {
@@ -130,7 +198,7 @@ export default function HubSpotFormConnectPage({ params }: { params: Promise<{ i
     setSaving(true)
     const res = await fetch(`/api/events/stakeholders/hubspot/connection?event_id=${eventId}&form_type=${formType}`, { method: 'DELETE' })
     setSaving(false)
-    if (res.ok) { setConnection(null); setMapping([]); setMsg('Disconnected.'); setMsgIsError(false) }
+    if (res.ok) { setConnection(null); setMapping([]); setDirty(false); setMsg('Disconnected.'); setMsgIsError(false) }
     else setMsg('Could not disconnect — please try again.')
   }
 
@@ -221,8 +289,13 @@ export default function HubSpotFormConnectPage({ params }: { params: Promise<{ i
                       </Select>
                       {type === 'concept' && (
                         <Select disabled={!canManage} value={m?.target.type === 'concept' ? m.target.key : ''}
-                          onChange={e => updateTarget(f.name, f.label, { type: 'concept', key: e.target.value })}>
+                          onChange={e => {
+                            const v = e.target.value
+                            if (v === CREATE_NEW_FIELD) { setFieldDraft(draftFromHubSpotField(f)); setCreatingFor(f.name) }
+                            else updateTarget(f.name, f.label, { type: 'concept', key: v })
+                          }}>
                           {conceptFields.map(cf => <option key={cf.key} value={cf.key}>{cf.label}</option>)}
+                          {canManage && <option value={CREATE_NEW_FIELD}>+ Create new field…</option>}
                         </Select>
                       )}
                       {type === 'asset' && (
@@ -238,6 +311,18 @@ export default function HubSpotFormConnectPage({ params }: { params: Promise<{ i
                         </Select>
                       )}
                     </div>
+                    {creatingFor === f.name && (
+                      <div style={{ marginTop: '12px', paddingTop: '12px', borderTop: '1px solid var(--border-light)' }}>
+                        <AddFieldForm
+                          draft={fieldDraft}
+                          setDraft={setFieldDraft}
+                          typeOptions={CONCEPT_TYPE_OPTIONS}
+                          confirmLabel={creatingField ? 'Creating…' : 'Create Field'}
+                          onCancel={() => { setCreatingFor(null); setFieldDraft(EMPTY_FIELD_DRAFT) }}
+                          onConfirm={() => createField(f)}
+                        />
+                      </div>
+                    )}
                   </Card>
                 )
               })}
@@ -248,7 +333,7 @@ export default function HubSpotFormConnectPage({ params }: { params: Promise<{ i
 
             {canManage && (
               <div style={{ marginTop: '16px', display: 'flex', gap: '8px' }}>
-                <Button variant="lime" onClick={saveMapping} disabled={saving}>{saving ? 'Saving…' : 'Save Mapping'}</Button>
+                <Button variant="lime" onClick={saveMapping} disabled={saving || !dirty}>{saving ? 'Saving…' : 'Save Mapping'}</Button>
               </div>
             )}
 

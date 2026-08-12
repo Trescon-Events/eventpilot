@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/app/lib/supabase'
+import { getSession } from '@/app/lib/access/session'
+import { TRACKED_EVENT_FIELDS, logEventFieldChanges } from '@/app/lib/events/detail-field-log'
 
 /* GET /api/events — list all events with staff count and doc count */
 export async function GET(req: NextRequest) {
@@ -14,6 +16,7 @@ export async function GET(req: NextRequest) {
         .select(`
           id, name, type, status, event_date, end_date, venue, city, client_name,
           description, expected_attendance, created_at,
+          public_name, public_dates_display, public_venue_display,
           event_format, country, website_url, event_hashtag, registration_url,
           social_linkedin, social_x, social_instagram, social_facebook, social_youtube,
           venue_map_url, postiz_profile_key, creative_template_config,
@@ -109,14 +112,30 @@ export async function POST(req: NextRequest) {
   return NextResponse.json(data)
 }
 
-/* PATCH /api/events?id=uuid — update event */
+/* PATCH /api/events?id=uuid — update event
+   Any of TRACKED_EVENT_FIELDS (the Common Details set — public_name,
+   website_url, social_*, etc.) present in the body gets diffed against the
+   current row and logged to event_details_field_changes as a 'manual'
+   change — see app/lib/events/detail-field-log.ts. Every other field on
+   this route's body (name, status, financials, ...) is untouched by this
+   and just updates as before. */
 export async function PATCH(req: NextRequest) {
   const id   = req.nextUrl.searchParams.get('id')
   const body = await req.json().catch(() => null)
   if (!id || !body) return NextResponse.json({ error: 'id and body required' }, { status: 400 })
 
+  // Supabase can't infer column types from a dynamically-built select
+  // string, hence the cast — the columns themselves are real (TRACKED_EVENT_FIELDS).
+  const { data: before } = await supabaseAdmin.from('events').select(TRACKED_EVENT_FIELDS.join(', ')).eq('id', id).maybeSingle() as { data: Record<string, unknown> | null }
+
   const { data, error } = await supabaseAdmin.from('events').update(body).eq('id', id).select().single()
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+
+  if (before) {
+    const session = getSession(req)
+    await logEventFieldChanges(id, before, body, 'manual', session?.sid ?? null)
+  }
+
   return NextResponse.json(data)
 }
 

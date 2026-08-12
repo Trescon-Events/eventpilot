@@ -1,14 +1,22 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { GoogleGenerativeAI } from '@google/generative-ai'
 import { supabaseAdmin } from '@/app/lib/supabase'
+import { TRACKED_EVENT_FIELDS, FIELD_LABELS } from '@/app/lib/events/detail-field-log'
 
 /* POST /api/events/stakeholders/messaging/[id]/propose-edit
    Body: { message: string, history?: { role: 'user'|'assistant', text: string }[] }
 
-   Conversational update, step 1 of 2 — proposes section edits without
-   writing anything. The user reviews and approves per-section via
-   POST .../apply-edit, which is the only endpoint that actually mutates
-   structured_json. Never auto-applies. */
+   Conversational update, step 1 of 2 — proposes edits without writing
+   anything. The user reviews and approves per-proposal via POST
+   .../apply-edit, which is the only endpoint that actually mutates
+   structured_json. Never auto-applies.
+
+   A proposal targets either an existing narrative section (target_type:
+   'section', unchanged from before), or — DRAFT docs only, i.e. before a
+   producer has hit Approve on the Event Details page — one of the fixed
+   default_fields (target_type: 'default_field'). Once a doc is 'live',
+   default_fields are plain inline-edited fields elsewhere, not chat-edited
+   here — see the Event Details Page plan, 2026-08-11. */
 
 type Section = {
   id: string
@@ -22,8 +30,9 @@ type Section = {
 }
 
 type Proposal = {
-  section_id: string
-  section_title: string
+  target_type: 'section' | 'default_field'
+  target_key: string
+  target_label: string
   current_excerpt: string
   proposed_content: unknown
   rationale: string
@@ -50,14 +59,18 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
   const { data: doc, error: docErr } = await supabaseAdmin
     .from('event_messaging_docs')
-    .select('id, structured_json')
+    .select('id, status, structured_json')
     .eq('id', id)
     .single()
   if (docErr || !doc) return NextResponse.json({ error: 'Messaging doc not found' }, { status: 404 })
 
   const sections: Section[] = doc.structured_json?.sections ?? []
-  if (sections.length === 0) {
-    return NextResponse.json({ error: 'This document has no structured sections to edit yet.' }, { status: 400 })
+  const isDraft = doc.status === 'draft'
+  // default_fields are only chat-editable pre-approval — once live, they're
+  // plain inline-edited fields on the Event Details page, not this chat.
+  const defaultFields: Record<string, string | null> = isDraft ? (doc.structured_json?.default_fields ?? {}) : {}
+  if (sections.length === 0 && Object.keys(defaultFields).length === 0) {
+    return NextResponse.json({ error: 'This document has no structured content to edit yet.' }, { status: 400 })
   }
 
   const historyText = history
@@ -67,22 +80,26 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
   const rulesSections = sections.filter(s => s.kind === 'rules')
 
-  const prompt = `You help a producer keep an event's topline messaging document up to date by chatting with them. The document is already split into sections (below). The producer will describe a change — a new sponsor/partner, a speaker to call out, an updated stat, a corrected fact, etc. Your job is to figure out which existing section(s) that change belongs in and propose new content for exactly those sections. Never invent facts the producer didn't give you. Never propose changing a section the request doesn't actually touch.
+  const defaultFieldsBlock = isDraft
+    ? `\nDEFAULT FIELDS (fixed atomic facts, target_type "default_field" — target_key must exactly match one of these "key" values):\n${JSON.stringify(TRACKED_EVENT_FIELDS.map(k => ({ key: k, label: FIELD_LABELS[k], current_value: defaultFields[k] ?? null })), null, 2)}\n`
+    : ''
 
-If the request is genuinely ambiguous (could plausibly belong in more than one section, or you need a missing detail to write it correctly), ask a short clarifying question instead of proposing an edit — set "proposals" to an empty array and put the question in "reply".
+  const prompt = `You help a producer keep an event's topline messaging document up to date by chatting with them. The document is already split into sections (below)${isDraft ? ', plus a small fixed set of "default fields" (name, dates, venue, links) since this document is still a DRAFT awaiting the producer\'s first approval' : ''}. The producer will describe a change — a new sponsor/partner, a speaker to call out, an updated stat, a corrected fact, a link that changed, etc. Your job is to figure out which existing section(s)${isDraft ? ' or default field(s)' : ''} that change belongs in and propose new content for exactly those targets. Never invent facts the producer didn't give you. Never propose changing something the request doesn't actually touch.
 
-CROSS-SECTION CONFLICT CHECK — do this for every proposal before finalizing it:
-This document has dedicated "rules" sections (naming/style/language conventions, verbatim lines, and things that must NEVER appear in external copy) listed below. Before finalizing each proposal, check whether the new content you're about to write would contradict, use forbidden terms from, or otherwise conflict with any of these rules — even though the request itself targets a different section. This matters because a producer's request can be perfectly reasonable on its own while still colliding with a naming/style/embargo rule defined elsewhere in the document (e.g. asking to use an abbreviation the rules explicitly forbid in external copy).
+If the request is genuinely ambiguous (could plausibly belong in more than one target, or you need a missing detail to write it correctly), ask a short clarifying question instead of proposing an edit — set "proposals" to an empty array and put the question in "reply".
+
+CROSS-SECTION CONFLICT CHECK — do this for every SECTION proposal before finalizing it (this check does not apply to default_field proposals, which are atomic facts, not copy):
+This document has dedicated "rules" sections (naming/style/language conventions, verbatim lines, and things that must NEVER appear in external copy) listed below. Before finalizing each section proposal, check whether the new content you're about to write would contradict, use forbidden terms from, or otherwise conflict with any of these rules — even though the request itself targets a different section. This matters because a producer's request can be perfectly reasonable on its own while still colliding with a naming/style/embargo rule defined elsewhere in the document (e.g. asking to use an abbreviation the rules explicitly forbid in external copy).
 - If you find no conflict, set that proposal's "conflict" to null.
 - If you find a conflict but there's an obvious way to satisfy the producer's underlying intent while staying compliant (e.g. swap a forbidden term for the approved one from the rules), do that automatically in "proposed_content" and explain the substitution in "conflict" (e.g. "Used the approved primary hashtag set instead of WAIS-prefixed tags, since section 13 marks WAIS as internal-only").
-- If the request fundamentally cannot be satisfied without violating a rule (no compliant alternative exists), do not include a proposal for it at all — instead explain the conflict in "reply" and leave "proposals" empty (or omit just that one section's proposal if other sections in the same request are fine).
+- If the request fundamentally cannot be satisfied without violating a rule (no compliant alternative exists), do not include a proposal for it at all — instead explain the conflict in "reply" and leave "proposals" empty (or omit just that one section's proposal if other targets in the same request are fine).
 
 RULES SECTIONS TO CHECK AGAINST:
 ${rulesSections.length > 0 ? JSON.stringify(rulesSections.map(s => ({ id: s.id, title: s.title, content: s.content })), null, 2) : '(this document has no sections tagged "rules" yet)'}
 
 CURRENT SECTIONS:
 ${JSON.stringify(sections.map(s => ({ id: s.id, title: s.title, kind: s.kind, content: s.content })), null, 2)}
-
+${defaultFieldsBlock}
 ${historyText ? `RECENT CONVERSATION:\n${historyText}\n` : ''}
 PRODUCER'S REQUEST:
 ${message}
@@ -92,8 +109,9 @@ Return JSON only, no markdown fences, in this exact shape:
   "reply": "a short, human sentence explaining what you're proposing (or your clarifying question, or the conflict that blocked a proposal)",
   "proposals": [
     {
-      "section_id": "must exactly match an existing section id above",
-      "proposed_content": ...,   // same shape/kind as that section's existing content (string for text/rules, {columns,rows} for table, array for facts) — the FULL new content for the section, not just the delta — already conflict-resolved per the check above
+      "target_type": "section" | "default_field",
+      "target_key": "must exactly match an existing section id, or one of the default field keys listed above",
+      "proposed_content": ...,   // for "section": same shape/kind as that section's existing content (string for text/rules, {columns,rows} for table, array for facts) — the FULL new content, not just the delta, already conflict-resolved per the check above. For "default_field": a plain string (the new value), or null to clear it.
       "rationale": "one sentence on what changed and why",
       "conflict": "explanation of the rule conflict and how you resolved it, or null if none"
     }
@@ -106,17 +124,31 @@ Return JSON only, no markdown fences, in this exact shape:
     const text   = result.response.text().trim()
     const match  = text.match(/\{[\s\S]*\}/)
     if (!match) throw new Error('No JSON in model response')
-    const parsed = JSON.parse(match[0]) as { reply: string; proposals: Array<{ section_id: string; proposed_content: unknown; rationale: string; conflict?: string | null }> }
+    const parsed = JSON.parse(match[0]) as { reply: string; proposals: Array<{ target_type: 'section' | 'default_field'; target_key: string; proposed_content: unknown; rationale: string; conflict?: string | null }> }
 
-    const byId = new Map(sections.map(s => [s.id, s]))
+    const sectionsByKey = new Map(sections.map(s => [s.id, s]))
+    const trackedKeys: readonly string[] = TRACKED_EVENT_FIELDS
     const proposals: Proposal[] = (parsed.proposals ?? [])
-      .filter(p => byId.has(p.section_id))
+      .filter(p => p.target_type === 'section' ? sectionsByKey.has(p.target_key) : (isDraft && trackedKeys.includes(p.target_key)))
       .map(p => {
-        const section = byId.get(p.section_id)!
+        if (p.target_type === 'section') {
+          const section = sectionsByKey.get(p.target_key)!
+          return {
+            target_type: 'section' as const,
+            target_key: p.target_key,
+            target_label: section.title,
+            current_excerpt: excerpt(section.content),
+            proposed_content: p.proposed_content,
+            rationale: p.rationale,
+            conflict: p.conflict ?? null,
+          }
+        }
+        const key = p.target_key as typeof TRACKED_EVENT_FIELDS[number]
         return {
-          section_id: p.section_id,
-          section_title: section.title,
-          current_excerpt: excerpt(section.content),
+          target_type: 'default_field' as const,
+          target_key: key,
+          target_label: FIELD_LABELS[key],
+          current_excerpt: excerpt(defaultFields[key] ?? null),
           proposed_content: p.proposed_content,
           rationale: p.rationale,
           conflict: p.conflict ?? null,
