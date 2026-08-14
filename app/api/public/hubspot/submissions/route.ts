@@ -16,19 +16,17 @@ import { copySecureDocument } from '@/app/lib/security/secure-document-copy'
    The connected HubSpot form ID is read from the "hubspot_form_id" QUERY
    PARAM on the webhook URL, not the body — this lets the workflow action
    just use HubSpot's built-in "Include all triggered contact properties"
-   body mode (raw contact properties, real internal names, no per-field
-   manual mapping) instead of hand-typing every field as a custom body key.
-   Only the URL needs to change per event/form_type connection:
+   body mode instead of hand-typing every field as a custom body key. Only
+   the URL needs to change per event/form_type connection:
      https://.../api/public/hubspot/submissions?hubspot_form_id=<form id>
 
-   Body is flat top-level JSON — one sibling key per contact property,
-   using HubSpot's real internal property names (whatever "include all
-   triggered contact properties" sends). Unrecognized keys are ignored. */
+   "Include all triggered contact properties" sends HubSpot's legacy v1
+   Contact-object shape, not flat fields:
+   { vid, canonical-vid, portal-id, properties: { <field>: { value, versions }, ... }, ... }
+   normalizeProperties() unwraps that (or accepts flat top-level fields,
+   for a manually-configured "Customize request body" action instead). */
 
-type WebhookBody = {
-  contact_id?: string
-  [key: string]: string | undefined
-}
+type WebhookBody = Record<string, unknown>
 
 const DEDUPE_WINDOW_MS = 10 * 60 * 1000
 
@@ -39,8 +37,32 @@ function verifyAuth(req: NextRequest): boolean {
   return header === `Bearer ${secret}`
 }
 
-function submissionHash(formId: string, contactId: string | undefined, properties: Record<string, string | undefined>): string {
+function submissionHash(formId: string, contactId: string | number | undefined, properties: Record<string, string | undefined>): string {
   return crypto.createHash('sha256').update(JSON.stringify({ f: formId, c: contactId, p: properties })).digest('hex')
+}
+
+function normalizeProperties(body: WebhookBody): Record<string, string | undefined> {
+  const raw = body.properties
+  if (raw && typeof raw === 'object' && !Array.isArray(raw)) {
+    // Legacy v1 Contact object: { "<field>": { "value": "...", "versions": [...] } }
+    const out: Record<string, string | undefined> = {}
+    for (const [key, entry] of Object.entries(raw as Record<string, unknown>)) {
+      if (entry && typeof entry === 'object' && 'value' in (entry as Record<string, unknown>)) {
+        out[key] = (entry as { value?: unknown }).value as string | undefined
+      } else if (typeof entry === 'string') {
+        out[key] = entry
+      }
+    }
+    return out
+  }
+  // Flat body (manually configured "Customize request body" action) —
+  // every top-level key except the reserved ones is a property.
+  const out: Record<string, string | undefined> = {}
+  for (const [key, value] of Object.entries(body)) {
+    if (key === 'hubspot_form_id' || key === 'contact_id') continue
+    if (typeof value === 'string') out[key] = value
+  }
+  return out
 }
 
 export async function POST(req: NextRequest) {
@@ -51,13 +73,13 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'JSON body required' }, { status: 400 })
   }
 
-  const hubspot_form_id = req.nextUrl.searchParams.get('hubspot_form_id') ?? body.hubspot_form_id
+  const hubspot_form_id = req.nextUrl.searchParams.get('hubspot_form_id') ?? (body.hubspot_form_id as string | undefined)
   if (!hubspot_form_id) {
     return NextResponse.json({ error: 'hubspot_form_id query param required' }, { status: 400 })
   }
 
-  const { contact_id, ...properties } = body
-  delete properties.hubspot_form_id
+  const contact_id = (body.contact_id ?? body.vid ?? body['canonical-vid']) as string | number | undefined
+  const properties = normalizeProperties(body)
 
   const { data: connection } = await supabaseAdmin
     .from('event_hubspot_forms')
