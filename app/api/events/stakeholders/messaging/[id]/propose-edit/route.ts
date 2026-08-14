@@ -4,19 +4,44 @@ import { supabaseAdmin } from '@/app/lib/supabase'
 import { TRACKED_EVENT_FIELDS, FIELD_LABELS } from '@/app/lib/events/detail-field-log'
 
 /* POST /api/events/stakeholders/messaging/[id]/propose-edit
-   Body: { message: string, history?: { role: 'user'|'assistant', text: string }[] }
+   Body (conversational mode): { message: string, history?: { role: 'user'|'assistant', text: string }[], section_id?: string }
+   Body (sync mode):           { sync: true }
+
+   `section_id` (LIVE docs' chat, Event Details page) scopes a
+   conversational request to exactly one section a producer has selected
+   in the UI — the model only ever sees that one section's content (plus
+   the rules sections, for the conflict check) and can only propose a
+   change to it, never any other section. This is what makes "select a
+   section, then chat next to it" an actual guarantee rather than a UI
+   suggestion Gemini could ignore — without it, a broad request like
+   "update the sponsor section" could land on the wrong section, or a
+   vague one could silently touch several. Draft-doc review (still
+   whole-document) and sync mode don't take section_id.
 
    Conversational update, step 1 of 2 — proposes edits without writing
    anything. The user reviews and approves per-proposal via POST
    .../apply-edit, which is the only endpoint that actually mutates
-   structured_json. Never auto-applies.
+   anything. Never auto-applies.
 
    A proposal targets either an existing narrative section (target_type:
-   'section', unchanged from before), or — DRAFT docs only, i.e. before a
-   producer has hit Approve on the Event Details page — one of the fixed
-   default_fields (target_type: 'default_field'). Once a doc is 'live',
-   default_fields are plain inline-edited fields elsewhere, not chat-edited
-   here — see the Event Details Page plan, 2026-08-11. */
+   'section'), or one of the fixed default_fields (target_type:
+   'default_field'). Conversational default_field proposals only happen
+   on DRAFT docs — before a producer has hit Approve, chatting can adjust
+   the whole draft including its default_fields. Once a doc is 'live',
+   default_fields are normally plain inline-edited fields on the Event
+   Details page, not chat-edited here.
+
+   Sync mode (`{sync:true}`, LIVE docs only) is the one exception: the
+   Event Details page's "Sync with Messaging Doc" button, for when a
+   producer edited a LIVE doc's sections via chat afterward (e.g. changed
+   the venue mentioned in a section) and the Common Details fields on the
+   events table are now stale relative to that. No producer message —
+   Gemini compares the doc's current sections against the event's CURRENT
+   Common Details values (fetched fresh from `events`, not the doc's own
+   default_fields blob, which is only meaningful pre-approval) and
+   proposes default_field updates only where the sections clearly imply a
+   different value. apply-edit writes a sync-derived default_field
+   proposal straight into `events` (see that route's comment). */
 
 type Section = {
   id: string
@@ -53,38 +78,94 @@ function excerpt(content: unknown): string {
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
   const body = await req.json().catch(() => null)
+  const syncMode = body?.sync === true
   const message = body?.message as string | undefined
   const history = Array.isArray(body?.history) ? body.history : []
-  if (!message?.trim()) return NextResponse.json({ error: 'message required' }, { status: 400 })
+  const sectionId = body?.section_id as string | undefined
+  if (!syncMode && !message?.trim()) return NextResponse.json({ error: 'message required' }, { status: 400 })
 
   const { data: doc, error: docErr } = await supabaseAdmin
     .from('event_messaging_docs')
-    .select('id, status, structured_json')
+    .select('id, event_id, status, structured_json')
     .eq('id', id)
     .single()
   if (docErr || !doc) return NextResponse.json({ error: 'Messaging doc not found' }, { status: 404 })
+  if (syncMode && doc.status !== 'live') {
+    return NextResponse.json({ error: 'Sync only applies to the live document.' }, { status: 400 })
+  }
 
   const sections: Section[] = doc.structured_json?.sections ?? []
   const isDraft = doc.status === 'draft'
-  // default_fields are only chat-editable pre-approval — once live, they're
-  // plain inline-edited fields on the Event Details page, not this chat.
-  const defaultFields: Record<string, string | null> = isDraft ? (doc.structured_json?.default_fields ?? {}) : {}
+
+  let scopedSection: Section | undefined
+  if (sectionId) {
+    scopedSection = sections.find(s => s.id === sectionId)
+    if (!scopedSection) return NextResponse.json({ error: 'Section not found on this document' }, { status: 404 })
+  }
+
+  // Sync mode always sources "current" default field values fresh from the
+  // events row (the real source of truth once live); conversational mode
+  // on a draft sources from the draft's own staged blob (nothing's been
+  // written to events yet); conversational mode on a live doc doesn't
+  // offer default_field targets at all.
+  let defaultFields: Record<string, string | null> = {}
+  if (syncMode) {
+    const { data: eventRow } = await supabaseAdmin.from('events').select(TRACKED_EVENT_FIELDS.join(', ')).eq('id', doc.event_id).single() as { data: Record<string, string | null> | null }
+    defaultFields = eventRow ?? {}
+  } else if (isDraft) {
+    defaultFields = doc.structured_json?.default_fields ?? {}
+  }
+
   if (sections.length === 0 && Object.keys(defaultFields).length === 0) {
     return NextResponse.json({ error: 'This document has no structured content to edit yet.' }, { status: 400 })
   }
 
-  const historyText = history
-    .slice(-8)
-    .map((m: { role: string; text: string }) => `${m.role === 'user' ? 'Producer' : 'Assistant'}: ${m.text}`)
-    .join('\n')
-
   const rulesSections = sections.filter(s => s.kind === 'rules')
+  const offerDefaultFields = syncMode || isDraft
 
-  const defaultFieldsBlock = isDraft
+  const defaultFieldsBlock = offerDefaultFields
     ? `\nDEFAULT FIELDS (fixed atomic facts, target_type "default_field" — target_key must exactly match one of these "key" values):\n${JSON.stringify(TRACKED_EVENT_FIELDS.map(k => ({ key: k, label: FIELD_LABELS[k], current_value: defaultFields[k] ?? null })), null, 2)}\n`
     : ''
 
-  const prompt = `You help a producer keep an event's topline messaging document up to date by chatting with them. The document is already split into sections (below)${isDraft ? ', plus a small fixed set of "default fields" (name, dates, venue, links) since this document is still a DRAFT awaiting the producer\'s first approval' : ''}. The producer will describe a change — a new sponsor/partner, a speaker to call out, an updated stat, a corrected fact, a link that changed, etc. Your job is to figure out which existing section(s)${isDraft ? ' or default field(s)' : ''} that change belongs in and propose new content for exactly those targets. Never invent facts the producer didn't give you. Never propose changing something the request doesn't actually touch.
+  let prompt: string
+
+  if (syncMode) {
+    prompt = `You are checking whether an event's Common Details (fixed atomic facts — name, dates, venue, links) are still accurate compared to the current content of its topline messaging document. The producer edits the messaging document's sections independently over time (via chat), so these fixed fields can drift out of date.
+
+Compare the CURRENT SECTIONS below against the CURRENT DEFAULT FIELD VALUES. Propose an update ONLY for a field where the sections clearly and unambiguously state something different from the current value (e.g. the sections now mention a different venue, a different date range, an updated hashtag). Do NOT propose a change just because a field is currently blank and the sections don't mention it — leave it alone unless there's a clear, confident signal that the CURRENT value is wrong or outdated.
+
+RULES SECTIONS (for context only — do not propose changes to these):
+${rulesSections.length > 0 ? JSON.stringify(rulesSections.map(s => ({ id: s.id, title: s.title, content: s.content })), null, 2) : '(none)'}
+
+CURRENT SECTIONS:
+${JSON.stringify(sections.map(s => ({ id: s.id, title: s.title, kind: s.kind, content: s.content })), null, 2)}
+${defaultFieldsBlock}
+Return JSON only, no markdown fences, in this exact shape:
+{
+  "reply": "a short, human sentence summarizing what's out of date (or confirming everything still matches, with an empty proposals array)",
+  "proposals": [
+    {
+      "target_type": "default_field",
+      "target_key": "must exactly match one of the default field keys listed above",
+      "proposed_content": "the new value as a plain string, or null to clear it",
+      "rationale": "one sentence on what changed and why, quoting or pointing at the specific section that implies it",
+      "conflict": null
+    }
+  ]
+}`
+  } else {
+    const historyText = history
+      .slice(-8)
+      .map((m: { role: string; text: string }) => `${m.role === 'user' ? 'Producer' : 'Assistant'}: ${m.text}`)
+      .join('\n')
+
+    const contextSections = scopedSection ? [scopedSection] : sections
+
+    const scopeInstruction = scopedSection
+      ? `The producer has selected exactly ONE section to update — "${scopedSection.title}" (id "${scopedSection.id}") — shown below in CURRENT SECTIONS. You may ONLY propose a change to this section. You cannot see the document's other sections, so never guess at or propose a different target_key. If the request clearly doesn't belong in this section (it describes something that belongs elsewhere in the document), say so in "reply" and return no proposals — do not attempt it here.`
+      : `Your job is to figure out which existing section(s)${isDraft ? ' or default field(s)' : ''} the request belongs in and propose new content for exactly those targets. Never invent facts the producer didn't give you. Never propose changing something the request doesn't actually touch.`
+
+    prompt = `You help a producer keep an event's topline messaging document up to date by chatting with them.${isDraft ? ' This document is still a DRAFT awaiting the producer\'s first approval, so a small fixed set of "default fields" (name, dates, venue, links) is also available below.' : ''} The producer will describe a change — a new sponsor/partner, a speaker to call out, an updated stat, a corrected fact, a link that changed, etc. ${scopeInstruction}
 
 If the request is genuinely ambiguous (could plausibly belong in more than one target, or you need a missing detail to write it correctly), ask a short clarifying question instead of proposing an edit — set "proposals" to an empty array and put the question in "reply".
 
@@ -98,7 +179,7 @@ RULES SECTIONS TO CHECK AGAINST:
 ${rulesSections.length > 0 ? JSON.stringify(rulesSections.map(s => ({ id: s.id, title: s.title, content: s.content })), null, 2) : '(this document has no sections tagged "rules" yet)'}
 
 CURRENT SECTIONS:
-${JSON.stringify(sections.map(s => ({ id: s.id, title: s.title, kind: s.kind, content: s.content })), null, 2)}
+${JSON.stringify(contextSections.map(s => ({ id: s.id, title: s.title, kind: s.kind, content: s.content })), null, 2)}
 ${defaultFieldsBlock}
 ${historyText ? `RECENT CONVERSATION:\n${historyText}\n` : ''}
 PRODUCER'S REQUEST:
@@ -117,6 +198,7 @@ Return JSON only, no markdown fences, in this exact shape:
     }
   ]
 }`
+  }
 
   try {
     const model  = getGemini().getGenerativeModel({ model: 'gemini-2.5-flash' })
@@ -129,7 +211,9 @@ Return JSON only, no markdown fences, in this exact shape:
     const sectionsByKey = new Map(sections.map(s => [s.id, s]))
     const trackedKeys: readonly string[] = TRACKED_EVENT_FIELDS
     const proposals: Proposal[] = (parsed.proposals ?? [])
-      .filter(p => p.target_type === 'section' ? sectionsByKey.has(p.target_key) : (isDraft && trackedKeys.includes(p.target_key)))
+      .filter(p => p.target_type === 'section'
+        ? sectionsByKey.has(p.target_key) && (!scopedSection || p.target_key === scopedSection.id)
+        : (offerDefaultFields && !scopedSection && trackedKeys.includes(p.target_key)))
       .map(p => {
         if (p.target_type === 'section') {
           const section = sectionsByKey.get(p.target_key)!

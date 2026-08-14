@@ -52,7 +52,13 @@ async function isAdminPreview(): Promise<boolean> {
     return s?.adm === true || !!s?.sid
   } catch { return false }
 }
-type EventRow = { name: string; event_date: string|null; city: string|null; description: string|null }
+// event_date deliberately excluded — it's the Staff Portal project's
+// staff-allocation window, not the event's actual dates (Madhu,
+// 2026-08-13). public_dates_display (Event Details page) is the real
+// source for the free-text date badge; there's no structured public date
+// field yet, so the countdown widget (below) requires an explicit
+// per-section custom_body instead of ever falling back to event_date.
+type EventRow = { name: string; public_dates_display: string|null; city: string|null; description: string|null }
 
 function groupBy<T extends Record<string,unknown>>(arr: T[], key: keyof T) {
   return arr.reduce<Record<string, T[]>>((acc, item) => {
@@ -142,7 +148,7 @@ export default async function EventPublicPage({
   // filter so unpublished drafts render for admins previewing before publish.
   let query = supabaseAdmin
     .from('event_websites')
-    .select('*, events(name, event_date, city, description)')
+    .select('*, events(name, public_dates_display, city, description)')
     .eq('slug', slug)
   if (!preview) query = query.eq('status', 'live')
 
@@ -174,9 +180,7 @@ export default async function EventPublicPage({
     dark:       w.logo_dark_url,
   }
 
-  const eventDate = ev?.event_date
-    ? new Date(ev.event_date).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })
-    : null
+  const eventDate = ev?.public_dates_display ?? null
 
   // Normalize: some legacy rows store page_structure_full as an empty
   // object {} instead of null. Treat missing `pages` array as null so
@@ -258,8 +262,6 @@ export default async function EventPublicPage({
   const agenda   = (agRes.data ?? []) as Agenda[]
   const sponsors = (spnRes.data ?? []) as Sponsor[]
   const agByDay  = groupBy(agenda, 'day')
-
-  const eventDateISO = ev?.event_date ?? null
 
   // ── Section renderer (home page — includes hero) ──────────────────────────
   function renderSection(sec: Section) {
@@ -473,8 +475,13 @@ export default async function EventPublicPage({
       }
 
       // ── Countdown ─────────────────────────────────────────────────────────
+      // Requires an explicit custom_body (an ISO date a producer sets on
+      // this section) — no fallback to any events-table date. event_date
+      // is the Staff Portal's staff-allocation window, not the event's
+      // actual date, and public_dates_display is free text, not a
+      // parseable ISO date, so neither is safe to count down to.
       case 'countdown': {
-        const target = sec.custom_body ?? eventDateISO
+        const target = sec.custom_body
         if (!target) return null
         return (
           <section key={sec.id} style={{ ...ds, textAlign: 'center' }}>

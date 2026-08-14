@@ -16,7 +16,7 @@ const LOCATION_MAP: Record<string, string> = {
 const STATUS_MAP: Record<string, string> = {
   planning:  'planning',
   active:    'active',
-  on_hold:   'planning',
+  on_hold:   'on_hold',
   completed: 'completed',
   cancelled: 'cancelled',
 }
@@ -83,7 +83,7 @@ export async function GET(req: NextRequest) {
       phone, address, emergency_contact_name, emergency_contact_phone,
       work_mode, company, business_unit, employee_code, skills,
       is_management_overhead, gender, date_of_birth, salutation,
-      blood_group, timezone_override, timesheet_exempted, attendance_exempted
+      blood_group, timezone_override, attendance_exempted
     `).eq('is_active', true),
     hrms.from('projects').select('*'),
     hrms.from('allocations').select('id, project_id, staff_id'),
@@ -135,7 +135,8 @@ export async function GET(req: NextRequest) {
       salutation:               p.salutation ?? null,
       blood_group:              p.blood_group ?? null,
       timezone_override:        p.timezone_override ?? null,
-      timesheet_exempted:       p.timesheet_exempted ?? false,
+      // timesheet_exempted intentionally omitted — see the identical
+      // comment in app/api/hrms-sync/route.ts.
       attendance_exempted:      p.attendance_exempted ?? false,
       data_source:              'hrms',
       last_synced_at:           new Date().toISOString(),
@@ -163,6 +164,9 @@ export async function GET(req: NextRequest) {
   }
 
   // ── Sync projects → events ──
+  // event_date/end_date are the Staff Portal project's staff-allocation
+  // window, not the event's actual dates — see the identical comment in
+  // app/api/hrms-sync/route.ts.
   const eventRows = (projects ?? []).map((p: any) => ({
     hrms_project_id: p.id,
     name:            p.name,
@@ -170,6 +174,7 @@ export async function GET(req: NextRequest) {
     description:     p.description ?? p.notes ?? null,
     status:          STATUS_MAP[p.status] ?? 'planning',
     event_date:      p.start_date ?? null,
+    end_date:        p.end_date ?? null,
     type:            p.project_type ?? null,
   }))
 

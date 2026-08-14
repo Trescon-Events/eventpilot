@@ -30,7 +30,10 @@ type Website  = {
   pattern_1_url: string|null; pattern_2_url: string|null; pattern_3_url: string|null; pattern_4_url: string|null; pattern_5_url: string|null
   page_structure_full: PageStructure | null
 }
-type EventRow = { name: string; event_date: string|null; city: string|null }
+// event_date deliberately excluded — Staff Portal staff-allocation
+// window, not the event's actual date (Madhu, 2026-08-13). See the
+// countdown section below.
+type EventRow = { name: string; city: string|null }
 
 function groupBy<T extends Record<string,unknown>>(arr: T[], key: keyof T) {
   return arr.reduce<Record<string, T[]>>((acc, item) => {
@@ -68,7 +71,7 @@ export default async function EventSubPage({ params }: { params: Promise<{ slug:
 
   const { data: web, error } = await supabaseAdmin
     .from('event_websites')
-    .select('*, events(name, event_date, city)')
+    .select('*, events(name, city)')
     .eq('slug', slug)
     .eq('status', 'live')
     .single()
@@ -123,8 +126,6 @@ export default async function EventSubPage({ params }: { params: Promise<{ slug:
   const sponsors = (spnRes.data ?? []) as Sponsor[]
   const agByDay  = groupBy(agenda, 'day')
 
-  // ── Event date for countdown ───────────────────────────────────────────────
-  const eventDateISO = ev?.event_date ?? null
 
   // ── Shared CSS ────────────────────────────────────────────────────────────
   const css = `
@@ -322,8 +323,11 @@ export default async function EventSubPage({ params }: { params: Promise<{ slug:
       }
 
       // ── Countdown ─────────────────────────────────────────────────────────
+      // Requires an explicit custom_body — no fallback to event_date (the
+      // Staff Portal's staff-allocation window, not the event's actual
+      // date). See app/events/[slug]/page.tsx's identical comment.
       case 'countdown': {
-        const target = sec.custom_body ?? eventDateISO
+        const target = sec.custom_body
         if (!target) return null
         return (
           <section key={sec.id} style={{ ...ds, textAlign: 'center' }}>

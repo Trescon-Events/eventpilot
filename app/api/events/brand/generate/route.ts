@@ -17,16 +17,19 @@ export async function POST(req: NextRequest) {
   // Fetch event details
   const { data: event, error: evErr } = await supabaseAdmin
     .from('events')
-    .select('id, name, city, event_date, description, public_name')
+    .select('id, name, city, description, public_name, public_dates_display')
     .eq('id', event_id)
     .single()
 
   if (evErr || !event) return NextResponse.json({ error: 'Event not found' }, { status: 404 })
 
+  // event_date isn't used here — it's the Staff Portal project's staff-
+  // allocation window, not the event's actual dates (Madhu, 2026-08-13).
+  // public_dates_display (Event Details page) is the only real source.
   const eventSummary = [
     `Event Name: ${event.public_name || event.name}`,
     event.city ? `City: ${event.city}` : null,
-    event.event_date ? `Date: ${new Date(event.event_date).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}` : null,
+    event.public_dates_display ? `Date: ${event.public_dates_display}` : null,
     event.description ? `Description: ${event.description}` : null,
   ].filter(Boolean).join('\n')
 

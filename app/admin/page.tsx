@@ -519,6 +519,11 @@ export default function AdminPage() {
     id: string; name: string; type: string; status: string
     event_date: string | null; end_date: string | null; venue: string | null; city: string | null
     client_name: string | null; description: string | null
+    // The event's real dates, per the Event Details page — event_date/
+    // end_date are the Staff Portal project's staff-allocation window,
+    // NOT the event's actual dates (Madhu, 2026-08-13), so nothing in
+    // this tab uses them for scheduling/grouping/display anymore.
+    public_dates_display: string | null
     event_staff?: { count: number }[] | null
     documents?:   { count: number }[] | null
     event_checklist?: { count: number }[] | null
@@ -532,7 +537,7 @@ export default function AdminPage() {
   const [eventStaff,    setEventStaff]    = useState<{id:string;role:string|null;staff_members:{id:string;name:string;department:string|null}}[]>([])
   const [assignStaffId, setAssignStaffId] = useState('')
   const [assignRole,    setAssignRole]    = useState('')
-  const [eventView,       setEventView]       = useState<'upcoming' | 'past'>('upcoming')
+  const [eventView,       setEventView]       = useState<'inprogress' | 'closed'>('inprogress')
   type EventSummary = { confirmed_revenue: number; pending_revenue: number; total_expenses: number; approved_budget: number; currency: string; net_pnl: number; margin_pct: number | null; task_total: number; task_done: number; task_pct: number; has_budget: boolean; has_revenue: boolean; has_expenses: boolean }
   const [eventSummaries,  setEventSummaries]  = useState<Record<string, EventSummary>>({})
   const [summariesLoading,setSummariesLoading]= useState(false)
@@ -3380,36 +3385,35 @@ export default function AdminPage() {
         {/* ── Events tab ── */}
         {tab === 'events' && (() => {
           const TYPE_COLOR: Record<string,string> = { conference:'#12C9BD', summit:'#A78BFA', forum:'#5AA9F2', awards:'#F5B94D', workshop:'#34D399', flagship:'#F1667A', managed:'#8882DA', bespoke:'#E0670B', corporate:'#F2F6F8', others:'#6B8296', other:'#F2F6F8' }
+          // Matches the Staff Portal's own Status field 1:1 (Planning /
+          // Active / On Hold / Completed / Cancelled) — segregation below
+          // is by this, never by event_date/end_date (2026-08-13, Madhu:
+          // "it should not pick up any date from staff portal").
           const STATUS_CFG: Record<string,{color:string;bg:string}> = {
             planning:  { color:'#7E93A1',  bg: 'rgba(255,255,255,0.08)' },
-            upcoming:  { color:'#8882DA',  bg: 'rgba(136,130,218,0.15)' },
             active:    { color:'var(--lime)',  bg: 'rgba(192,244,60,0.15)'  },
+            on_hold:   { color:'#F5B94D',  bg: 'rgba(245,185,77,0.15)' },
             completed: { color:'#12C9BD',  bg: 'rgba(18,201,189,0.14)' },
             cancelled: { color:'#F1667A',  bg: 'rgba(241,102,122,0.14)' },
           }
+          const IN_PROGRESS_ORDER = ['active', 'planning', 'on_hold'] as const
+          const CLOSED_STATUSES = new Set(['completed', 'cancelled'])
 
-          const today    = new Date()
-          const daysUntil = (d: string | null) => d ? Math.ceil((new Date(d).getTime() - today.getTime()) / 86400000) : null
-          const fmt       = (n: number, cur = 'USD') => {
+          const fmt = (n: number, cur = 'USD') => {
             const abs = Math.abs(n)
             const str = abs >= 1000000 ? `${(abs/1000000).toFixed(1)}M` : abs >= 1000 ? `${(abs/1000).toFixed(0)}K` : `${abs.toLocaleString()}`
             return `${n < 0 ? '-' : ''}${cur === 'INR' ? '₹' : '$'}${str}`
           }
 
-          const todayStr = new Date().toISOString().slice(0, 10)
-          const upcoming = events
-            .filter(e => {
-              if (e.status === 'completed' || e.status === 'cancelled') return false
-              if (!e.event_date) return true                          // no date yet → treat as upcoming
-              if (e.event_date >= todayStr) return true              // starts today or later
-              if (e.end_date && e.end_date >= todayStr) return true  // multi-day, still running
-              return false
-            })
-            .sort((a,b) => (a.event_date ?? '9999').localeCompare(b.event_date ?? '9999'))
-          // Past = anything whose date has passed (incl. active events that were never delivered)
-          const past = events
-            .filter(e => !upcoming.includes(e))
-            .sort((a,b) => (b.event_date ?? '').localeCompare(a.event_date ?? ''))
+          // "In progress" = anything not yet Completed/Cancelled (covers
+          // Planning/Active/On Hold plus any other status value this
+          // event happens to carry, e.g. the RACI phase-flow statuses).
+          const inProgress = events
+            .filter(e => !CLOSED_STATUSES.has(e.status))
+            .sort((a,b) => IN_PROGRESS_ORDER.indexOf(a.status as typeof IN_PROGRESS_ORDER[number]) - IN_PROGRESS_ORDER.indexOf(b.status as typeof IN_PROGRESS_ORDER[number]))
+          const closed = events
+            .filter(e => CLOSED_STATUSES.has(e.status))
+            .sort((a,b) => a.name.localeCompare(b.name))
 
           const totalStaff = events.reduce((s,e) => s + ((e.event_staff as {count:number}[]|null)?.[0]?.count ?? 0), 0)
 
@@ -3468,57 +3472,35 @@ export default function AdminPage() {
           )
 
           // ── Intelligence signals ────────────────────────────────────────────
-          const executionGap = upcoming.filter(ev => {
-            const d = daysUntil(ev.event_date)
-            const tasks = (ev.event_checklist as {count:number}[]|null)?.[0]?.count ?? 0
-            const s = eventSummaries[ev.id]
-            const taskDone = s?.task_done ?? 0
-            // Past their date, never completed, and zero task activity
-            return d !== null && d < 0 && ev.status !== 'completed' && ev.status !== 'cancelled' && tasks === 0 && taskDone === 0
-          })
-          const needsAttnEvents = upcoming.filter(ev => {
-            const d = daysUntil(ev.event_date)
-            if (d === null || d < 0) return false   // only upcoming
+          // Status-based only — no date math (see the note on EventRow above).
+          // "Needs attention" replaces the old date-threshold version: an
+          // Active event (Staff Portal already says it's underway) with no
+          // staff or no checklist is the signal, no day-count needed.
+          const needsAttnEvents = inProgress.filter(ev => {
+            if (ev.status !== 'active') return false
             const staff = (ev.event_staff as {count:number}[]|null)?.[0]?.count ?? 0
             const tasks = (ev.event_checklist as {count:number}[]|null)?.[0]?.count ?? 0
-            return (d <= 45 && staff === 0) || (d <= 30 && tasks === 0)
+            return staff === 0 || tasks === 0
           })
-          const next30Count = upcoming.filter(ev => { const d = daysUntil(ev.event_date); return d !== null && d >= 0 && d <= 30 }).length
-          const totalPlanned = upcoming.length + past.length
-          const executionRate = totalPlanned > 0 ? Math.round((past.filter(e=>e.status==='completed').length / totalPlanned) * 100) : 0
+          const onHoldCount = inProgress.filter(ev => ev.status === 'on_hold').length
+          const executionRate = events.length > 0 ? Math.round((closed.filter(e=>e.status==='completed').length / events.length) * 100) : 0
 
           return (
             <div>
               {/* ── Intelligence header ── */}
               {events.length > 0 && (
                 <div style={{ marginBottom: '24px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                  {/* Execution gap callout */}
-                  {executionGap.length > 0 && (
-                    <div style={{ background: 'rgba(139,26,26,0.04)', border: '1px solid rgba(139,26,26,0.2)', borderLeft: '4px solid var(--red)', borderRadius: '12px', padding: '14px 18px', display: 'flex', alignItems: 'center', gap: '16px' }}>
-                      <div style={{ flexShrink: 0 }}>
-                        <div style={{ fontSize: '28px', fontWeight: 900, color: 'var(--red)', lineHeight: 1 }}>{executionGap.length}</div>
-                        <div style={{ fontSize: '10px', fontWeight: 800, color: 'var(--red)', textTransform: 'uppercase', letterSpacing: '1px', marginTop: '2px' }}>Never executed</div>
-                      </div>
-                      <div style={{ width: '1px', height: '40px', background: 'rgba(139,26,26,0.15)', flexShrink: 0 }} />
-                      <div>
-                        <div style={{ fontSize: '13px', fontWeight: 700, color: 'var(--red)', marginBottom: '3px' }}>Planning without execution</div>
-                        <div style={{ fontSize: '13px', color: 'var(--ink3)', lineHeight: 1.5 }}>
-                          {executionGap.length} event{executionGap.length !== 1 ? 's were' : ' was'} planned and dated, but no task was ever started. Execution rate across all events: <strong style={{ color: executionRate < 30 ? 'var(--red)' : '#F5B94D' }}>{executionRate}%</strong>. Planning is not delivery.
-                        </div>
-                      </div>
-                    </div>
-                  )}
                   {/* Stats row */}
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: '10px' }}>
                     <div style={{ background: needsAttnEvents.length > 0 ? 'rgba(217,119,6,0.05)' : 'rgba(61,107,0,0.05)', border: `1px solid ${needsAttnEvents.length > 0 ? 'rgba(217,119,6,0.3)' : 'rgba(61,107,0,0.2)'}`, borderRadius: '12px', padding: '14px 16px' }}>
-                      <div style={{ fontSize: '10px', fontWeight: 700, color: needsAttnEvents.length > 0 ? 'var(--amber)' : 'var(--lime)', letterSpacing: '0.5px', textTransform: 'uppercase', marginBottom: '6px' }}>Upcoming gaps</div>
+                      <div style={{ fontSize: '10px', fontWeight: 700, color: needsAttnEvents.length > 0 ? 'var(--amber)' : 'var(--lime)', letterSpacing: '0.5px', textTransform: 'uppercase', marginBottom: '6px' }}>Needs attention</div>
                       <div style={{ fontSize: '28px', fontWeight: 900, color: needsAttnEvents.length > 0 ? '#F5B94D' : 'var(--lime)', lineHeight: 1 }}>{needsAttnEvents.length}</div>
-                      <div style={{ fontSize: '11px', color: 'var(--ink3)', marginTop: '4px' }}>{needsAttnEvents.length === 0 ? 'All upcoming events staffed' : 'upcoming events with gaps'}</div>
+                      <div style={{ fontSize: '11px', color: 'var(--ink3)', marginTop: '4px' }}>{needsAttnEvents.length === 0 ? 'All active events staffed' : 'active events with gaps'}</div>
                     </div>
                     <div style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: '12px', padding: '14px 16px' }}>
-                      <div style={{ fontSize: '10px', fontWeight: 700, color: 'var(--ink3)', letterSpacing: '0.5px', textTransform: 'uppercase', marginBottom: '6px' }}>Next 30 days</div>
-                      <div style={{ fontSize: '28px', fontWeight: 900, color: '#8882DA', lineHeight: 1 }}>{next30Count}</div>
-                      <div style={{ fontSize: '11px', color: 'var(--ink3)', marginTop: '4px' }}>events coming up</div>
+                      <div style={{ fontSize: '10px', fontWeight: 700, color: 'var(--ink3)', letterSpacing: '0.5px', textTransform: 'uppercase', marginBottom: '6px' }}>On hold</div>
+                      <div style={{ fontSize: '28px', fontWeight: 900, color: '#F5B94D', lineHeight: 1 }}>{onHoldCount}</div>
+                      <div style={{ fontSize: '11px', color: 'var(--ink3)', marginTop: '4px' }}>paused per Staff Portal</div>
                     </div>
                     <div style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: '12px', padding: '14px 16px' }}>
                       <div style={{ fontSize: '10px', fontWeight: 700, color: 'var(--ink3)', letterSpacing: '0.5px', textTransform: 'uppercase', marginBottom: '6px' }}>Staff deployed</div>
@@ -3528,7 +3510,7 @@ export default function AdminPage() {
                     <div style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: '12px', padding: '14px 16px' }}>
                       <div style={{ fontSize: '10px', fontWeight: 700, color: 'var(--ink3)', letterSpacing: '0.5px', textTransform: 'uppercase', marginBottom: '6px' }}>Execution rate</div>
                       <div style={{ fontSize: '28px', fontWeight: 900, color: executionRate < 30 ? 'var(--red)' : executionRate < 60 ? '#F5B94D' : 'var(--lime)', lineHeight: 1 }}>{executionRate}%</div>
-                      <div style={{ fontSize: '11px', color: 'var(--ink3)', marginTop: '4px' }}>{past.filter(e=>e.status==='completed').length} of {totalPlanned} events completed</div>
+                      <div style={{ fontSize: '11px', color: 'var(--ink3)', marginTop: '4px' }}>{closed.filter(e=>e.status==='completed').length} of {events.length} events completed</div>
                     </div>
                   </div>
                 </div>
@@ -3547,13 +3529,13 @@ export default function AdminPage() {
                 <>
                   {/* ── View switcher + New Event ── */}
                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '20px' }}>
-                    {(['upcoming','past'] as const).map(v => (
+                    {(['inprogress','closed'] as const).map(v => (
                       <button key={v} onClick={() => {
                         setEventView(v)
-                        if (v === 'past' && Object.keys(eventSummaries).length === 0) fetchEventSummaries()
+                        if (v === 'closed' && Object.keys(eventSummaries).length === 0) fetchEventSummaries()
                       }}
                         style={{ padding: '8px 18px', borderRadius: '8px', border: `1px solid ${eventView===v ? 'var(--teal-mid)' : 'var(--border)'}`, background: eventView===v ? 'var(--teal-mid)' : 'var(--card)', color: eventView===v ? 'var(--teal-light)' : 'var(--ink3)', fontSize: '13px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
-                        {v === 'upcoming' ? `Active & Upcoming (${upcoming.length})` : `Past Events (${past.length})`}
+                        {v === 'inprogress' ? `Planning, Active & On Hold (${inProgress.length})` : `Completed & Cancelled (${closed.length})`}
                       </button>
                     ))}
                     <div style={{ flex: 1 }} />
@@ -3565,42 +3547,34 @@ export default function AdminPage() {
 
                   {showCreateEvent && <div style={{ marginBottom: '24px' }}>{createForm}</div>}
 
-                  {/* ══ UPCOMING — GROUPED INTELLIGENCE CARDS ══ */}
-                  {eventView === 'upcoming' && (() => {
-                    // Compute per-event signals
-                    const annotated = upcoming.map(ev => {
-                      const days       = daysUntil(ev.event_date)
+                  {/* ══ IN PROGRESS — GROUPED BY STAFF PORTAL STATUS ══ */}
+                  {eventView === 'inprogress' && (() => {
+                    // Compute per-event signals — status-based only, no date math.
+                    const annotated = inProgress.map(ev => {
                       const staffCount = (ev.event_staff    as {count:number}[]|null)?.[0]?.count ?? 0
                       const taskCount  = (ev.event_checklist as {count:number}[]|null)?.[0]?.count ?? 0
                       const s          = eventSummaries[ev.id]
                       const taskDone   = s?.task_done ?? 0
                       const taskTotal  = s?.task_total ?? taskCount
                       const taskPct    = taskTotal > 0 ? Math.round((taskDone / taskTotal) * 100) : 0
-                      // Only flag gaps for truly upcoming events — past-date events are post-mortem territory
-                      const isUpcoming = days !== null && days >= 0
+                      // Only Active events get gap alerts — Planning/On Hold
+                      // haven't necessarily started staffing/checklists yet.
                       const alerts: string[] = []
-                      if (isUpcoming && staffCount === 0) alerts.push('No staff assigned')
-                      if (isUpcoming && taskTotal === 0) alerts.push('No checklist yet')
-                      else if (isUpcoming && days !== null && days <= 30 && taskPct < 15 && taskDone === 0) alerts.push('Tasks not started')
-                      const isUrgent = (isUpcoming && days !== null && days <= 45 && staffCount === 0) ||
-                                       (isUpcoming && days !== null && days <= 30 && taskTotal === 0)
-                      return { ev, days, staffCount, taskTotal, taskDone, taskPct, alerts, isUrgent, s }
+                      if (ev.status === 'active' && staffCount === 0) alerts.push('No staff assigned')
+                      if (ev.status === 'active' && taskTotal === 0) alerts.push('No checklist yet')
+                      return { ev, staffCount, taskTotal, taskDone, taskPct, alerts, s }
                     })
 
+                    const STATUS_GROUP_LABEL: Record<string, string> = { active: 'Active', planning: 'Planning', on_hold: 'On Hold' }
                     const groups = [
-                      // Upcoming events with critical gaps (within 45d no staff, within 30d no checklist)
-                      { key: 'attn',  label: 'Needs attention', color: '#F5B94D', items: annotated.filter(x => x.isUrgent) },
-                      // Next 30 days, no critical gap
-                      { key: 'month', label: 'Next 30 days',    color: '#8882DA', items: annotated.filter(x => !x.isUrgent && x.days !== null && x.days >= 0 && x.days <= 30) },
-                      // 31–90 days out
-                      { key: 'soon',  label: 'Coming up',       color: 'var(--info)', items: annotated.filter(x => !x.isUrgent && x.days !== null && x.days > 30 && x.days <= 90) },
-                      // No date or 90+ days
-                      { key: 'later', label: 'Later',           color: 'var(--lime)', items: annotated.filter(x => !x.isUrgent && (x.days === null || x.days > 90)) },
+                      ...IN_PROGRESS_ORDER.map(st => ({ key: st, label: STATUS_GROUP_LABEL[st], color: STATUS_CFG[st].color, items: annotated.filter(x => x.ev.status === st) })),
+                      // Any other status value this event happens to carry (e.g. RACI phase-flow statuses) — shown rather than silently dropped.
+                      { key: 'other', label: 'Other', color: '#7E93A1', items: annotated.filter(x => !IN_PROGRESS_ORDER.includes(x.ev.status as typeof IN_PROGRESS_ORDER[number])) },
                     ]
 
                     return (
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '28px' }}>
-                        {upcoming.length === 0 && <div style={{ padding: '40px', textAlign: 'center', color: 'var(--ink3)', fontSize: '13px' }}>No upcoming or active events.</div>}
+                        {inProgress.length === 0 && <div style={{ padding: '40px', textAlign: 'center', color: 'var(--ink3)', fontSize: '13px' }}>No events in Planning, Active, or On Hold.</div>}
                         {groups.map(grp => grp.items.length === 0 ? null : (
                           <div key={grp.key}>
                             {/* Group header */}
@@ -3612,31 +3586,12 @@ export default function AdminPage() {
                             </div>
                             {/* Cards grid */}
                             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2,1fr)', gap: '10px' }}>
-                              {grp.items.map(({ ev, days, staffCount, taskTotal, taskDone, taskPct, alerts, s }) => {
+                              {grp.items.map(({ ev, staffCount, taskTotal, taskDone, taskPct, alerts, s }) => {
                                 const sc = STATUS_CFG[ev.status] ?? STATUS_CFG.planning
                                 const tc = TYPE_COLOR[ev.type]   ?? '#7E93A1'
-                                const urgencyColor  = days === null ? 'var(--ink3)' : days < 0 ? 'var(--red)' : days <= 14 ? '#F5B94D' : days <= 30 ? '#8882DA' : days <= 90 ? 'var(--info)' : 'var(--lime-dark)'
-                                const borderColor   = days === null ? 'var(--border)' : days < 0 ? 'rgba(139,26,26,0.2)' : days <= 14 ? 'rgba(217,119,6,0.3)' : days <= 30 ? 'rgba(55,48,163,0.2)' : 'var(--border)'
-                                // Date display — always include year; range if end_date set
-                                const fmtFull  = (iso: string) => new Date(iso + 'T00:00:00').toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
-                                const fmtShort = (iso: string) => new Date(iso + 'T00:00:00').toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })
-                                const hasEnd = ev.end_date && ev.end_date !== ev.event_date
-                                const dateLabel = !ev.event_date ? 'No date set' : hasEnd
-                                  ? (() => {
-                                      const s = new Date(ev.event_date + 'T00:00:00')
-                                      const e = new Date(ev.end_date! + 'T00:00:00')
-                                      return s.getMonth() === e.getMonth()
-                                        ? `${s.getDate()}–${e.getDate()} ${s.toLocaleDateString('en-GB',{month:'short'})} ${s.getFullYear()}`
-                                        : `${fmtShort(ev.event_date)} – ${fmtFull(ev.end_date!)}`
-                                    })()
-                                  : fmtFull(ev.event_date)
-                                // Upcoming: countdown is primary, date is secondary
-                                // In-progress: date is primary, no countdown
-                                const isPast         = days !== null && days < 0
-                                const primaryLabel   = isPast ? dateLabel : days === 0 ? 'Today' : days === 1 ? 'Tomorrow' : days !== null ? `In ${days}d` : dateLabel
-                                const secondaryLabel = isPast ? '' : (days === 0 || days === 1) ? dateLabel : days !== null ? dateLabel : ''
+                                const borderColor = alerts.length > 0 ? 'rgba(217,119,6,0.3)' : 'var(--border)'
                                 return (
-                                  <div key={ev.id} style={{ background: 'var(--card)', border: `1px solid ${borderColor}`, borderLeft: `4px solid ${urgencyColor}`, borderRadius: '12px', padding: '16px 18px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                                  <div key={ev.id} style={{ background: 'var(--card)', border: `1px solid ${borderColor}`, borderLeft: `4px solid ${sc.color}`, borderRadius: '12px', padding: '16px 18px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
                                     {/* Alert pills */}
                                     {alerts.length > 0 && (
                                       <div style={{ display: 'flex', flexWrap: 'wrap', gap: '5px' }}>
@@ -3645,18 +3600,17 @@ export default function AdminPage() {
                                         ))}
                                       </div>
                                     )}
-                                    {/* Name + date */}
+                                    {/* Name + public dates, if set */}
                                     <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '10px' }}>
                                       <div style={{ fontSize: '14px', fontWeight: 800, color: 'var(--ink)', lineHeight: 1.3 }}>{ev.name}</div>
-                                      <div style={{ textAlign: 'right', flexShrink: 0 }}>
-                                        <div style={{ fontSize: '13px', fontWeight: 900, color: urgencyColor, whiteSpace: 'nowrap' }}>{primaryLabel}</div>
-                                        {secondaryLabel && <div style={{ fontSize: '11px', color: 'var(--ink3)', whiteSpace: 'nowrap', marginTop: '2px' }}>{secondaryLabel}</div>}
-                                      </div>
+                                      {ev.public_dates_display && (
+                                        <div style={{ fontSize: '11px', color: 'var(--ink3)', whiteSpace: 'nowrap', flexShrink: 0, textAlign: 'right' }}>{ev.public_dates_display}</div>
+                                      )}
                                     </div>
                                     {/* Meta row */}
                                     <div style={{ display: 'flex', gap: '5px', alignItems: 'center', flexWrap: 'wrap' }}>
                                       <span style={{ fontSize: '10px', fontWeight: 700, padding: '2px 6px', borderRadius: '5px', background: `${tc}18`, color: tc, textTransform: 'capitalize' }}>{ev.type}</span>
-                                      <span style={{ fontSize: '10px', fontWeight: 700, padding: '2px 6px', borderRadius: '5px', background: sc.bg, color: sc.color, textTransform: 'capitalize' }}>{ev.status}</span>
+                                      <span style={{ fontSize: '10px', fontWeight: 700, padding: '2px 6px', borderRadius: '5px', background: sc.bg, color: sc.color, textTransform: 'capitalize' }}>{ev.status.replace('_', ' ')}</span>
                                       {ev.city && <span style={{ fontSize: '11px', color: 'var(--ink3)' }}>{ev.city}</span>}
                                       {ev.client_name && <span style={{ fontSize: '11px', color: 'var(--ink3)' }}>· {ev.client_name}</span>}
                                     </div>
@@ -3704,20 +3658,18 @@ export default function AdminPage() {
                     )
                   })()}
 
-                  {/* ══ PAST EVENTS P&L VIEW ══ */}
-                  {eventView === 'past' && (
+                  {/* ══ COMPLETED & CANCELLED — P&L VIEW ══ */}
+                  {eventView === 'closed' && (
                     summariesLoading
                       ? <div style={{ textAlign: 'center', padding: '60px 0', color: 'var(--ink3)', fontSize: '13px' }}>Loading P&L data…</div>
                       : (() => {
-                          const gapEvents       = past.filter(e => e.status !== 'completed' && e.status !== 'cancelled')
-                          const deliveredEvents = past.filter(e => e.status === 'completed' || e.status === 'cancelled')
                           const pastGroups = [
-                            { key: 'gap',       label: 'Execution gap — dated & active, never marked complete', color: 'var(--red)', items: gapEvents },
-                            { key: 'delivered', label: 'Delivered',                                             color: 'var(--lime)', items: deliveredEvents },
+                            { key: 'completed', label: 'Completed', color: 'var(--lime)', items: closed.filter(e => e.status === 'completed') },
+                            { key: 'cancelled', label: 'Cancelled', color: 'var(--red)',  items: closed.filter(e => e.status === 'cancelled') },
                           ]
                           return (
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '28px' }}>
-                          {past.length === 0 && <div style={{ textAlign: 'center', padding: '40px', color: 'var(--ink3)', fontSize: '13px' }}>No past events yet.</div>}
+                          {closed.length === 0 && <div style={{ textAlign: 'center', padding: '40px', color: 'var(--ink3)', fontSize: '13px' }}>No completed or cancelled events yet.</div>}
                           {pastGroups.map(grp => grp.items.length === 0 ? null : (
                             <div key={grp.key}>
                               <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '14px' }}>
@@ -3741,9 +3693,8 @@ export default function AdminPage() {
                                 <div style={{ padding: '16px 18px' }}>
                                   <div style={{ fontSize: '13px', fontWeight: 800, color: 'var(--ink)', lineHeight: 1.3, marginBottom: '3px' }}>{ev.name}</div>
                                   <div style={{ fontSize: '11px', color: 'var(--ink3)', marginBottom: '14px' }}>
-                                    {ev.event_date ? new Date(ev.event_date).toLocaleDateString('en-GB',{day:'numeric',month:'short',year:'numeric'}) : ''}
-                                    {ev.city ? ` · ${ev.city}` : ''}
-                                    {' · '}
+                                    {ev.public_dates_display ? `${ev.public_dates_display} · ` : ''}
+                                    {ev.city ? `${ev.city} · ` : ''}
                                     <span style={{ textTransform: 'capitalize', color: ev.status==='completed' ? 'var(--teal-mid)' : 'var(--red)', fontWeight: 700 }}>{ev.status}</span>
                                   </div>
 

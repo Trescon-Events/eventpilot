@@ -20,7 +20,7 @@ const LOCATION_MAP: Record<string, string> = {
 const STATUS_MAP: Record<string, string> = {
   planning:  'planning',
   active:    'active',
-  on_hold:   'planning',
+  on_hold:   'on_hold',
   completed: 'completed',
   cancelled: 'cancelled',
 }
@@ -94,7 +94,7 @@ export async function POST(req: NextRequest) {
       phone, address, emergency_contact_name, emergency_contact_phone,
       work_mode, company, business_unit, employee_code, skills,
       is_management_overhead, gender, date_of_birth, salutation,
-      blood_group, timezone_override, timesheet_exempted, attendance_exempted
+      blood_group, timezone_override, attendance_exempted
     `).eq('is_active', true),
     hrms.from('projects').select('*'),
     hrms.from('allocations').select('id, project_id, staff_id'),
@@ -153,7 +153,15 @@ export async function POST(req: NextRequest) {
       salutation:               p.salutation ?? null,
       blood_group:              p.blood_group ?? null,
       timezone_override:        p.timezone_override ?? null,
-      timesheet_exempted:       p.timesheet_exempted ?? false,
+      // timesheet_exempted intentionally omitted — the Staff Portal
+      // removed/renamed this column (2026-08-13 investigation found
+      // profiles.timesheet_exempted no longer exists there; a
+      // profiles.timesheet_self_entry now exists, but its semantics
+      // aren't confirmed to be a drop-in replacement, so this sync no
+      // longer touches EventPilot's own timesheet_exempted column at
+      // all rather than guess — existing values are left as they are.
+      // Ask Madhu/Durga what timesheet_self_entry actually means before
+      // wiring it back in.
       attendance_exempted:      p.attendance_exempted ?? false,
       access_roles:             roles,
       data_source:              'hrms',
@@ -188,6 +196,15 @@ export async function POST(req: NextRequest) {
   }
 
   // ── Sync projects → events ──
+  // event_date/end_date here are the STAFF PORTAL project's allocation
+  // window (who's staffed on this, for how long) — not the actual public
+  // event's dates. Madhu, 2026-08-13: "the start and end date are not the
+  // 'event's' dates. they are the duration where the staff work on that
+  // event." The real event dates belong in the Event Details page's
+  // public_dates_display (events.public_dates_display), a producer-entered
+  // field entirely separate from this sync — see app/lib/events/announcements.ts
+  // and brand/generate/route.ts, which deliberately do NOT fall back to
+  // event_date/end_date for public-facing copy, only to public_dates_display.
   const eventRows = (projects ?? []).map((p: any) => ({
     hrms_project_id: p.id,
     name:            p.name,
@@ -195,6 +212,7 @@ export async function POST(req: NextRequest) {
     description:     p.description ?? p.notes ?? null,
     status:          STATUS_MAP[p.status] ?? 'planning',
     event_date:      p.start_date ?? null,
+    end_date:        p.end_date ?? null,
     type:            p.project_type ?? null,
   }))
 

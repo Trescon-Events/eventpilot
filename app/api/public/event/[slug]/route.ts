@@ -27,7 +27,7 @@ export async function GET(
   // Resolve event from slug
   const { data: web, error: webErr } = await supabaseAdmin
     .from('event_websites')
-    .select('*, events(id, name, event_date, city, venue, description, type, expected_attendance)')
+    .select('*, events(id, name, city, venue, description, type, expected_attendance, public_name, public_dates_display, public_venue_display)')
     .eq('slug', slug)
     .eq('status', 'live')
     .single()
@@ -75,17 +75,26 @@ export async function GET(
       .eq('event_id', eventId).eq('active', true).order('order_index').order('name'),
   ])
 
-  const ev = web.events as { id: string; name: string; event_date: string | null; city: string | null; venue: string | null; description: string | null; type: string | null; expected_attendance: number | null } | null
+  // event_date is deliberately not selected/returned here — it's the Staff
+  // Portal project's staff-allocation window, not the event's actual
+  // dates (Madhu, 2026-08-13). public_dates_display (Event Details page)
+  // is the real source; website.venue_date_display (a per-website override)
+  // still takes precedence over it when the producer has set one.
+  const ev = web.events as {
+    id: string; name: string; city: string | null; venue: string | null; description: string | null
+    type: string | null; expected_attendance: number | null
+    public_name: string | null; public_dates_display: string | null; public_venue_display: string | null
+  } | null
 
   return NextResponse.json({
     event: {
       id:                  ev?.id,
-      name:                ev?.name,
+      name:                ev?.public_name || ev?.name,
       type:                ev?.type,
       description:         ev?.description,
-      event_date:          ev?.event_date,
+      public_dates_display: ev?.public_dates_display,
       city:                ev?.city,
-      venue:               ev?.venue,
+      venue:               ev?.public_venue_display || ev?.venue,
       expected_attendance: ev?.expected_attendance,
     },
     website: {

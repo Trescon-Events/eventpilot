@@ -17,7 +17,7 @@ export async function POST(_req: NextRequest, { params }: { params: Promise<{ id
 
   const { data: event, error: eventErr } = await supabaseAdmin
     .from('events')
-    .select('name, event_date, end_date, venue, city, event_hashtag, registration_url, public_name, public_dates_display, public_venue_display')
+    .select('name, venue, city, event_hashtag, registration_url, public_name, public_dates_display, public_venue_display')
     .eq('id', announcement.event_id)
     .single()
   if (eventErr || !event) return NextResponse.json({ error: 'Event not found' }, { status: 404 })

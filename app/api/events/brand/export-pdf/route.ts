@@ -36,7 +36,7 @@ export async function GET(req: NextRequest) {
   const [guidelinesRes, assetsRes, eventRes] = await Promise.all([
     supabaseAdmin.from('event_brand_guidelines').select('*').eq('event_id', event_id).single(),
     supabaseAdmin.from('event_brand_assets').select('*').eq('event_id', event_id).order('created_at', { ascending: false }),
-    supabaseAdmin.from('events').select('name, event_date').eq('id', event_id).single(),
+    supabaseAdmin.from('events').select('name').eq('id', event_id).single(),
   ])
 
   const g    = guidelinesRes.data

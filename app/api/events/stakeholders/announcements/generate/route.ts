@@ -44,7 +44,7 @@ export async function POST(req: NextRequest) {
   const [eventRes, speakerRes, partnerRes, messagingDocRes] = await Promise.all([
     supabaseAdmin
       .from('events')
-      .select('name, event_date, end_date, venue, city, event_hashtag, registration_url, creative_template_config, public_name, public_dates_display, public_venue_display')
+      .select('name, venue, city, event_hashtag, registration_url, creative_template_config, public_name, public_dates_display, public_venue_display')
       .eq('id', body.event_id)
       .single(),
     body.stakeholder_type === 'speaker'

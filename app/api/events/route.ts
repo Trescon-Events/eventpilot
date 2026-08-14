@@ -43,6 +43,7 @@ export async function GET(req: NextRequest) {
       .from('events')
       .select(`
         id, name, type, status, event_date, end_date, venue, city, client_name, description, created_at,
+        public_dates_display,
         event_staff(count),
         documents(count),
         event_checklist(count)
