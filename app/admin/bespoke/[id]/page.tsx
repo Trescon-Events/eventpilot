@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback, use } from 'react'
+import { useState, useEffect, useCallback, useRef, use } from 'react'
 import Link from 'next/link'
 import PageHeader from '@/app/components/PageHeader'
 import { ImportDelegatesModal } from './ImportDelegatesModal'
@@ -282,6 +282,13 @@ export default function BespokeWorkspacePage({ params }: { params: Promise<{ id:
   // Nic e606f19c — session identity so we render Edit/Delete task actions
   // only for project creator, an assigned lead, or a super-admin.
   const [me, setMe] = useState<{ sid: string; adm: boolean } | null>(null)
+  // Nic 09390aeb — retroactive 43-task seed. Auto-fires on first-load
+  // when tasks come back empty; the button on empty phase headers is a
+  // manual re-trigger. Guard so the auto-fire doesn't loop if the seed
+  // silently returns 0 rows.
+  const [reseedState, setReseedState] = useState<'idle' | 'seeding' | 'seeded' | 'error'>('idle')
+  const [reseedError, setReseedError] = useState<string | null>(null)
+  const autoSeedTriedRef = useRef(false)
   const [briefSaveState, setBriefSaveState] = useState<'idle' | 'saved' | 'error'>('idle')
   const [recalcState, setRecalcState] = useState<'idle' | 'pending' | 'done'>('idle')
   const [showAddDelegate, setShowAddDelegate] = useState(false)
@@ -388,6 +395,43 @@ export default function BespokeWorkspacePage({ params }: { params: Promise<{ id:
       .then(d => { if (d && typeof d.sid === 'string') setMe({ sid: d.sid, adm: !!d.adm }) })
       .catch(() => {})
   }, [])
+
+  /* ── Nic 09390aeb — retroactive 43-task seed ─────────────────────
+     Auto-fires ONCE per page-load when tasks come back empty. Server
+     refuses if the project already has tasks, so this is safe. The
+     button on each empty phase header is a manual re-trigger. */
+  const runReseed = useCallback(async () => {
+    if (reseedState === 'seeding') return
+    setReseedState('seeding'); setReseedError(null)
+    try {
+      const r = await fetch('/api/bespoke/tasks/reseed', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ project_id: id }),
+      })
+      const j = await r.json().catch(() => ({}))
+      if (!r.ok || j?.ok === false) {
+        setReseedState('error')
+        setReseedError(j?.message || j?.error || `Seed failed (HTTP ${r.status})`)
+        return
+      }
+      setReseedState('seeded')
+      await loadTasks()
+    } catch (e) {
+      setReseedState('error')
+      setReseedError(e instanceof Error ? e.message : 'Seed request failed')
+    }
+  }, [id, loadTasks, reseedState])
+
+  // Auto-fire the seed once per page load when the task list comes back
+  // empty. Guarded by autoSeedTriedRef so a truly-empty project (no
+  // matching templates) doesn't loop forever.
+  useEffect(() => {
+    if (!project || autoSeedTriedRef.current) return
+    if (tasks.length > 0) return
+    autoSeedTriedRef.current = true
+    runReseed()
+  }, [project, tasks.length, runReseed])
 
   // A task row shows Edit/Delete only if the current session may mutate this
   // project — creator, an assigned team lead, or a super-admin.
@@ -1755,8 +1799,36 @@ export default function BespokeWorkspacePage({ params }: { params: Promise<{ id:
                         </div>
                       )
                     })}
+                    {/* Nic 09390aeb — empty phase gets a manual "Load Standard 43 SOP Tasks"
+                        button as a fallback when the auto-seed on mount hasn't populated
+                        anything (e.g. seed just returned no matching templates for the
+                        project format). The button hits the same /reseed endpoint the
+                        auto-fire uses, so behaviour is identical. */}
                     {phaseTasks.length === 0 && (
-                      <div style={{ padding: '20px', textAlign: 'center', fontSize: '14px', color: 'var(--ink4)' }}>No tasks in this phase</div>
+                      <div style={{ padding: '20px', textAlign: 'center', fontSize: '14px', color: 'var(--ink4)' }}>
+                        {reseedState === 'seeding'
+                          ? 'Loading the 43 standard SOP tasks…'
+                          : (
+                            <>
+                              <div style={{ marginBottom: '10px' }}>No tasks in this phase</div>
+                              <button
+                                onClick={runReseed}
+                                style={{
+                                  padding: '7px 14px', borderRadius: '8px',
+                                  border: '1px solid var(--teal)', background: 'var(--card)',
+                                  color: 'var(--teal)', fontFamily: 'inherit', fontSize: '12px',
+                                  fontWeight: 800, cursor: 'pointer',
+                                }}>
+                                Load Standard 43 SOP Tasks
+                              </button>
+                              {reseedError && (
+                                <div style={{ marginTop: '8px', color: 'var(--red)', fontSize: '12px', fontWeight: 700 }}>
+                                  {reseedError}
+                                </div>
+                              )}
+                            </>
+                          )}
+                      </div>
                     )}
                   </div>
 
