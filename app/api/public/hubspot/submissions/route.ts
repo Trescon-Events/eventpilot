@@ -13,18 +13,19 @@ import { copySecureDocument } from '@/app/lib/security/secure-document-copy'
    one per connected event+form_type — see the numbered HubSpot-side setup
    steps in the implementation plan.
 
-   Expected body — flat top-level JSON (HubSpot's native webhook action
-   can't build nested objects, so every field is a sibling key rather than
-   nested under "properties"):
-   {
-     "hubspot_form_id": "<static text, same Form ID connected in Phase A>",
-     "contact_id": "<HubSpot contact object ID token>",
-     "<hubspot field name>": "<token value>", ...
-   }
-   One key per field the producer mapped in the Connect HubSpot Form UI. */
+   The connected HubSpot form ID is read from the "hubspot_form_id" QUERY
+   PARAM on the webhook URL, not the body — this lets the workflow action
+   just use HubSpot's built-in "Include all triggered contact properties"
+   body mode (raw contact properties, real internal names, no per-field
+   manual mapping) instead of hand-typing every field as a custom body key.
+   Only the URL needs to change per event/form_type connection:
+     https://.../api/public/hubspot/submissions?hubspot_form_id=<form id>
+
+   Body is flat top-level JSON — one sibling key per contact property,
+   using HubSpot's real internal property names (whatever "include all
+   triggered contact properties" sends). Unrecognized keys are ignored. */
 
 type WebhookBody = {
-  hubspot_form_id?: string
   contact_id?: string
   [key: string]: string | undefined
 }
@@ -46,11 +47,17 @@ export async function POST(req: NextRequest) {
   if (!verifyAuth(req)) return NextResponse.json({ error: 'Not authorized.' }, { status: 403 })
 
   const body = await req.json().catch(() => null) as WebhookBody | null
-  if (!body?.hubspot_form_id) {
-    return NextResponse.json({ error: 'hubspot_form_id required' }, { status: 400 })
+  if (!body) {
+    return NextResponse.json({ error: 'JSON body required' }, { status: 400 })
   }
 
-  const { hubspot_form_id, contact_id, ...properties } = body
+  const hubspot_form_id = req.nextUrl.searchParams.get('hubspot_form_id') ?? body.hubspot_form_id
+  if (!hubspot_form_id) {
+    return NextResponse.json({ error: 'hubspot_form_id query param required' }, { status: 400 })
+  }
+
+  const { contact_id, ...properties } = body
+  delete properties.hubspot_form_id
 
   const { data: connection } = await supabaseAdmin
     .from('event_hubspot_forms')
