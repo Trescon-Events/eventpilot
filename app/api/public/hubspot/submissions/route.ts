@@ -13,19 +13,20 @@ import { copySecureDocument } from '@/app/lib/security/secure-document-copy'
    one per connected event+form_type — see the numbered HubSpot-side setup
    steps in the implementation plan.
 
-   Expected body (the producer configures this shape in HubSpot's Workflow
-   webhook action, using its token picker for every value):
+   Expected body — flat top-level JSON (HubSpot's native webhook action
+   can't build nested objects, so every field is a sibling key rather than
+   nested under "properties"):
    {
      "hubspot_form_id": "<static text, same Form ID connected in Phase A>",
      "contact_id": "<HubSpot contact object ID token>",
-     "properties": { "<hubspot field name>": "<token value>", ... }
+     "<hubspot field name>": "<token value>", ...
    }
    One key per field the producer mapped in the Connect HubSpot Form UI. */
 
 type WebhookBody = {
   hubspot_form_id?: string
   contact_id?: string
-  properties?: Record<string, string>
+  [key: string]: string | undefined
 }
 
 const DEDUPE_WINDOW_MS = 10 * 60 * 1000
@@ -37,22 +38,24 @@ function verifyAuth(req: NextRequest): boolean {
   return header === `Bearer ${secret}`
 }
 
-function submissionHash(body: WebhookBody): string {
-  return crypto.createHash('sha256').update(JSON.stringify({ f: body.hubspot_form_id, c: body.contact_id, p: body.properties })).digest('hex')
+function submissionHash(formId: string, contactId: string | undefined, properties: Record<string, string | undefined>): string {
+  return crypto.createHash('sha256').update(JSON.stringify({ f: formId, c: contactId, p: properties })).digest('hex')
 }
 
 export async function POST(req: NextRequest) {
   if (!verifyAuth(req)) return NextResponse.json({ error: 'Not authorized.' }, { status: 403 })
 
   const body = await req.json().catch(() => null) as WebhookBody | null
-  if (!body?.hubspot_form_id || !body.properties) {
-    return NextResponse.json({ error: 'hubspot_form_id and properties required' }, { status: 400 })
+  if (!body?.hubspot_form_id) {
+    return NextResponse.json({ error: 'hubspot_form_id required' }, { status: 400 })
   }
+
+  const { hubspot_form_id, contact_id, ...properties } = body
 
   const { data: connection } = await supabaseAdmin
     .from('event_hubspot_forms')
     .select('event_id, form_type, field_mapping')
-    .eq('hubspot_form_id', body.hubspot_form_id)
+    .eq('hubspot_form_id', hubspot_form_id)
     .maybeSingle()
 
   if (!connection) return NextResponse.json({ error: 'No event is connected to this HubSpot form.' }, { status: 404 })
@@ -63,7 +66,7 @@ export async function POST(req: NextRequest) {
   // alternative — coalesces retries of the SAME submission while still
   // allowing a genuine resubmission (different values, or same values
   // after the window) to land as a new row.
-  const hash = submissionHash(body)
+  const hash = submissionHash(hubspot_form_id, contact_id, properties)
   const { data: dupe } = await supabaseAdmin
     .from('stakeholder_form_submissions')
     .select('id')
@@ -78,7 +81,7 @@ export async function POST(req: NextRequest) {
 
   const mapping = (connection.field_mapping ?? []) as HubSpotFieldMapping[]
   for (const m of mapping) {
-    const value = body.properties[m.hubspot_field_name]
+    const value = properties[m.hubspot_field_name]
     if (value === undefined || value === null || value === '') continue
     switch (m.target.type) {
       case 'concept':

@@ -28,8 +28,11 @@ function loginRedirect(origin: string, msg: string) {
 
 export async function GET(req: NextRequest) {
   const { searchParams } = req.nextUrl
-  // Always use the configured public domain so redirects never expose internal Vercel URLs
-  const origin = process.env.NEXT_PUBLIC_SITE_URL ?? req.nextUrl.origin
+  // Production pins to the configured public domain so redirects never expose internal
+  // Railway URLs; local/dev uses the real request origin so SSO stays on localhost.
+  const origin = process.env.NODE_ENV === 'production'
+    ? (process.env.NEXT_PUBLIC_SITE_URL ?? req.nextUrl.origin)
+    : req.nextUrl.origin
   const code       = searchParams.get('code')
   const returnedState = searchParams.get('state')
   const oauthError = searchParams.get('error')
@@ -58,7 +61,7 @@ export async function GET(req: NextRequest) {
   const clientId     = process.env.MICROSOFT_CLIENT_ID!
   const clientSecret = process.env.MICROSOFT_CLIENT_SECRET!
   const tenantId     = process.env.MICROSOFT_TENANT_ID!
-  const redirectUri  = `${process.env.NEXT_PUBLIC_SITE_URL ?? origin}/api/auth/callback`
+  const redirectUri  = `${origin}/api/auth/callback`
 
   const tokenRes = await fetch(
     `https://login.microsoftonline.com/${tenantId}/oauth2/v2.0/token`,

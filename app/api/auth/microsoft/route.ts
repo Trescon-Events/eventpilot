@@ -19,7 +19,11 @@ export async function GET(req: NextRequest) {
   const next     = req.nextUrl.searchParams.get('next') ?? '/dashboard'
   const stateVal = Buffer.from(JSON.stringify({ state, next })).toString('base64')
 
-  const origin      = process.env.NEXT_PUBLIC_SITE_URL ?? req.nextUrl.origin
+  // Production pins to the configured public domain so redirects never expose internal
+  // Railway URLs; local/dev uses the real request origin so SSO stays on localhost.
+  const origin      = process.env.NODE_ENV === 'production'
+    ? (process.env.NEXT_PUBLIC_SITE_URL ?? req.nextUrl.origin)
+    : req.nextUrl.origin
   const redirectUri = `${origin}/api/auth/callback`
 
   const params = new URLSearchParams({
