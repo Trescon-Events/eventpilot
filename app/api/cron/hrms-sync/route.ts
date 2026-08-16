@@ -163,10 +163,10 @@ export async function GET(req: NextRequest) {
 
     const managerUpdates = (profiles ?? [])
       .filter((p: any) => p.reporting_manager_id && managerEmailMap[p.reporting_manager_id])
-      .map((p: any) => ({
+      .map((p: { email: string; full_name: string | null; reporting_manager_id: string | null }) => ({
         email:      p.email.toLowerCase(),
         name:       p.full_name?.trim() ?? p.email,
-        manager_id: emailToId[managerEmailMap[p.reporting_manager_id]] ?? null,
+        manager_id: emailToId[managerEmailMap[p.reporting_manager_id!]] ?? null,
       }))
       .filter((u: any) => u.manager_id)
 

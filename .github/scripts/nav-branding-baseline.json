@@ -1,13 +1,16 @@
 {
-  "generatedAt": "2026-07-20",
+  "generatedAt": "2026-08-16",
   "registryMissing": [],
   "pageHeaderMissing": [
     "/admin/access-requests",
+    "/admin/branding/corporate",
     "/admin/events/[id]",
+    "/admin/events/[id]/announcements/[announcementId]/review",
     "/admin/events/[id]/brand",
     "/admin/events/[id]/brief",
     "/admin/events/[id]/execution",
     "/admin/events/[id]/market-intel",
+    "/admin/events/[id]/messaging",
     "/admin/events/[id]/plan",
     "/admin/events/[id]/website",
     "/admin/org-chart",
@@ -15,6 +18,7 @@
     "/admin/templates",
     "/admin/toolkit",
     "/admin/toolkit/corporate-marketing",
-    "/admin/toolkit/corporate-marketing/deck"
+    "/admin/toolkit/corporate-marketing/deck",
+    "/admin/toolkit/corporate-marketing/statistics"
   ]
 }
