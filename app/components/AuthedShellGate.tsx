@@ -2,6 +2,7 @@
 
 import { usePathname } from 'next/navigation'
 import GlobalShell from '@/app/components/GlobalShell'
+import { BreadcrumbLabelsProvider } from '@/app/lib/nav/breadcrumb-labels'
 
 /*
   Wraps every page in the root layout, deciding whether the persistent
@@ -41,5 +42,9 @@ function shouldHideShell(pathname: string): boolean {
 export default function AuthedShellGate({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
   if (shouldHideShell(pathname)) return <>{children}</>
-  return <GlobalShell>{children}</GlobalShell>
+  return (
+    <BreadcrumbLabelsProvider>
+      <GlobalShell>{children}</GlobalShell>
+    </BreadcrumbLabelsProvider>
+  )
 }

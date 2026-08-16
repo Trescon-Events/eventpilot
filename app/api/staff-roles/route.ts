@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/app/lib/supabase'
-
-const VALID_ROLES = ['standard', 'hr', 'project_manager', 'project_director', 'admin', 'super_admin']
+import { sanitizeAccessRoles } from '@/app/lib/access/access-roles'
 
 /* PATCH /api/staff-roles  { id, roles: string[] }
    Manually override a staff member's access_roles, bypassing HRMS sync.
@@ -12,8 +11,7 @@ export async function PATCH(req: NextRequest) {
     return NextResponse.json({ error: 'id and roles[] required' }, { status: 400 })
   }
 
-  const clean = roles.filter(r => VALID_ROLES.includes(r))
-  const final = clean.length > 0 ? clean : ['standard']
+  const final = sanitizeAccessRoles(roles)
 
   const { error } = await supabaseAdmin
     .from('staff_members')

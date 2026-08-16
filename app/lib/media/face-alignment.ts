@@ -82,53 +82,124 @@ export async function detectHeadBox(imageBuffer: Buffer): Promise<HeadBox | null
 // composite.ts) — the box itself is just the layer's own x/y/width/height,
 // no need to duplicate it here.
 export type PhotoAlignmentMeta = {
-  target_head_center_x: number // ratio 0-1, relative to the layer's box width
-  target_head_center_y: number // ratio 0-1, relative to the layer's box height
-  target_head_height: number   // ratio 0-1, relative to the layer's box height
+  target_head_center_x: number // ratio 0-1, relative to reference_box_width (NOT the layer's live box width — see below)
+  target_head_center_y: number // ratio 0-1, relative to reference_box_height
+  target_head_height: number   // ratio 0-1, relative to reference_box_height
   shot_type: ShotType
+  // The box dimensions these ratios were measured against — frozen at the
+  // moment they were last set (either from the uploaded reference layer's
+  // own trimmed size, or from a manual head-marker drag in the Template
+  // Maker), NOT read live from the layer's current x/y/width/height.
+  //
+  // 2026-08-16 fix, per Madhu: a real speaker photo with more visible body
+  // below the head (e.g. an arm) was getting hard-cropped, because the
+  // layer's box was originally auto-sized via alpha-trim() to whatever the
+  // ONE reference photo happened to show — tight in that specific case —
+  // and target_head_height/center were ratios of THAT box. Before this fix,
+  // dragging the box's own resize handles bigger (the obvious way to add
+  // footroom) also silently rescaled/repositioned the head, because
+  // alignAndCropPhoto() computed the head's target size/position as a
+  // fraction of the box's LIVE width/height — so the box and the alignment
+  // math were coupled with no way to change one without the other.
+  // Freezing the reference dimensions here decouples them: the box
+  // (layer.width/height) can be resized freely to add crop room around an
+  // already-correctly-scaled-and-positioned head, since the head's target
+  // pixel size/position no longer depends on the box's current size at all.
+  //
+  // Optional — legacy layers saved before this fix won't have these; every
+  // read site falls back to the box's live dimensions, which reproduces
+  // the exact old (coupled) behavior for those until they're next touched
+  // (box resized, or the head marker dragged), at which point they get
+  // frozen and become safe to resize going forward.
+  reference_box_width?: number
+  reference_box_height?: number
 }
 
 export type AlignmentTarget = PhotoAlignmentMeta & {
   box: { x: number; y: number; width: number; height: number } // where the photo_slot layer sits on the canvas
 }
 
-// Run once, when the branding team uploads a reference layer (a transparent
-// PNG with a dummy photo already correctly positioned) for a photo_slot
-// layer in the Creative Templates editor. `detectFace` (2026-08-01, default
-// true) lets callers skip the Gemini call entirely — the alpha-trim `box`
-// this function derives is useful for EVERY layer type (image/text/
-// photo_slot), but face detection only means anything for a real
-// speaker_photo photo_slot; running it against a text or graphic-art
-// reference wastes a Gemini call and produces meaningless alignment data
-// that composite.ts already ignores for anything but speaker_photo.
-export async function deriveAlignmentTarget(referenceImageBuffer: Buffer, opts?: { detectFace?: boolean }): Promise<AlignmentTarget> {
+// Run once, when the branding team uploads a reference layer for a layer in
+// the Creative Templates editor. `detectFace` and `trimToContent` are
+// independent (2026-08-16, split apart after Madhu confirmed EVERY
+// reference file — photo, logo, background, design element, text mockup —
+// is always exported at the template's own full canvas size, same
+// convention as a real Canva layer export, with the actual content
+// positioned wherever it should visually sit and everything else
+// transparent):
+//
+// - trimToContent: false — the box is simply the reference's own full
+//   pixel dimensions, untouched. Correct whenever the reference file
+//   itself (or something standing in its place) becomes the rendered
+//   asset at generation time, so its own internal composition — where the
+//   real content sits within the transparent canvas — already IS the
+//   layout; trimming would only throw that away. Used for:
+//     - Image layers (backgrounds, foreground overlays, design elements)
+//       — the reference PNG stays the literal rendered asset forever
+//       (composite.ts just resizes-to-box then composites at layer.x/y —
+//       a full-canvas box at (0,0) is a no-op resize, and the file's own
+//       alpha channel does the rest).
+//     - photo_slot/speaker_photo — the reference gets REPLACED by a real
+//       speaker's photo at generation time, scaled/positioned to match
+//       the SAME head ratio the reference showed within its own full
+//       frame (see alignAndCropPhoto). A whole session of "box too tight"
+//       bugs traced back to trimming this down to the visible silhouette,
+//       discarding the deliberate headroom/footroom around the person.
+// - trimToContent: true — alpha-trim to the visible content's own
+//   bounding box, same as before. Still correct for:
+//     - Text layers — no asset ever gets composited here (live text
+//       renders via wrapAndFit instead, the reference is analyzed and
+//       discarded), so the box's job is "roughly where does the text sit
+//       and how big an area does it need to wrap within" — a full-canvas
+//       box would break wrapping/positioning/font-size-from-box-height
+//       entirely, unlike a photo/image box which just gets bigger.
+//     - photo_slot/speaker_logo & partner_logo — a REAL logo (always
+//       standardized to Logo Engine's fixed-aspect Clean Logo Base)
+//       replaces the reference too, but unlike a photo there's no "show
+//       more if available" — the box just needs to be "how big and where
+//       the logo sits," a small region, not the full canvas.
+export async function deriveAlignmentTarget(referenceImageBuffer: Buffer, opts?: { detectFace?: boolean; trimToContent?: boolean }): Promise<AlignmentTarget> {
   const detectFace = opts?.detectFace ?? true
-  const { info } = await sharp(referenceImageBuffer).trim().toBuffer({ resolveWithObject: true })
-  // Sharp reports trimOffsetLeft/Top as negative — the offset needed to
-  // restore the trimmed region to its original position — so the box's
-  // actual x/y is the negation (confirmed empirically: for a photo bleeding
-  // to the canvas's right/bottom edges, -trimOffsetLeft/Top + width/height
-  // landed exactly on the original canvas dimensions).
-  const box = { x: Math.max(0, -(info.trimOffsetLeft ?? 0)), y: Math.max(0, -(info.trimOffsetTop ?? 0)), width: info.width, height: info.height }
+  // Historical default (before trimToContent existed as its own flag):
+  // trim unless detecting a face. Callers added after 2026-08-16 should
+  // pass trimToContent explicitly rather than lean on this.
+  const trimToContent = opts?.trimToContent ?? !detectFace
 
-  if (!detectFace) {
-    return { box, target_head_center_x: 0.5, target_head_center_y: 0.35, target_head_height: 0.3, shot_type: 'shoulders' }
+  let box: { x: number; y: number; width: number; height: number }
+  let detectionSourceBuffer = referenceImageBuffer
+  if (trimToContent) {
+    const { info } = await sharp(referenceImageBuffer).trim().toBuffer({ resolveWithObject: true })
+    // Sharp reports trimOffsetLeft/Top as negative — the offset needed to
+    // restore the trimmed region to its original position — so the box's
+    // actual x/y is the negation (confirmed empirically: for a photo
+    // bleeding to the canvas's right/bottom edges, -trimOffsetLeft/Top +
+    // width/height landed exactly on the original canvas dimensions).
+    box = { x: Math.max(0, -(info.trimOffsetLeft ?? 0)), y: Math.max(0, -(info.trimOffsetTop ?? 0)), width: info.width, height: info.height }
+    if (detectFace) {
+      detectionSourceBuffer = await sharp(referenceImageBuffer)
+        .extract({ left: box.x, top: box.y, width: box.width, height: box.height })
+        .toBuffer()
+    }
+  } else {
+    const metadata = await sharp(referenceImageBuffer).metadata()
+    box = { x: 0, y: 0, width: metadata.width!, height: metadata.height! }
   }
 
-  const trimmedBuffer = await sharp(referenceImageBuffer)
-    .extract({ left: box.x, top: box.y, width: box.width, height: box.height })
-    .toBuffer()
+  if (!detectFace) {
+    return { box, reference_box_width: box.width, reference_box_height: box.height, target_head_center_x: 0.5, target_head_center_y: 0.35, target_head_height: 0.3, shot_type: 'shoulders' }
+  }
 
-  const head = await detectHeadBox(trimmedBuffer)
+  const head = await detectHeadBox(detectionSourceBuffer)
   if (!head) {
     // No face detected in the reference — fall back to a centered default;
     // the MM can still see this doesn't look right in the preview and swap
     // the reference image.
-    return { box, target_head_center_x: 0.5, target_head_center_y: 0.35, target_head_height: 0.3, shot_type: 'shoulders' }
+    return { box, reference_box_width: box.width, reference_box_height: box.height, target_head_center_x: 0.5, target_head_center_y: 0.35, target_head_height: 0.3, shot_type: 'shoulders' }
   }
-
   return {
     box,
+    reference_box_width: box.width,
+    reference_box_height: box.height,
     target_head_center_x: head.centerXRatio,
     target_head_center_y: head.centerYRatio,
     target_head_height: head.heightRatio,
@@ -160,8 +231,15 @@ export async function alignAndCropPhoto(realPhotoBuffer: Buffer, target: Alignme
     const head = cachedHeadBox ?? await detectHeadBox(realPhotoBuffer)
     if (!head) return fallbackContainCenter(realPhotoBuffer, target.box)
 
+    // Scale/position the head against the FROZEN reference dimensions, not
+    // the box's live width/height — see PhotoAlignmentMeta's doc comment.
+    // Falls back to the live box for legacy layers saved before that field
+    // existed, reproducing the old (coupled) behavior unchanged for those.
+    const referenceWidth = target.reference_box_width ?? target.box.width
+    const referenceHeight = target.reference_box_height ?? target.box.height
+
     const realHeadHeightPx = head.heightRatio * realHeight
-    const targetHeadHeightPx = target.target_head_height * target.box.height
+    const targetHeadHeightPx = target.target_head_height * referenceHeight
     const scale = targetHeadHeightPx / realHeadHeightPx
 
     const scaledWidth = Math.round(realWidth * scale)
@@ -170,8 +248,8 @@ export async function alignAndCropPhoto(realPhotoBuffer: Buffer, target: Alignme
 
     const realHeadCenterXPx = head.centerXRatio * realWidth * scale
     const realHeadCenterYPx = head.centerYRatio * realHeight * scale
-    const targetHeadCenterXPx = target.target_head_center_x * target.box.width
-    const targetHeadCenterYPx = target.target_head_center_y * target.box.height
+    const targetHeadCenterXPx = target.target_head_center_x * referenceWidth
+    const targetHeadCenterYPx = target.target_head_center_y * referenceHeight
 
     // Desired crop rectangle in the SCALED image's coordinate space — may be
     // negative or extend past the scaled image's edges if the source photo

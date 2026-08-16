@@ -50,12 +50,20 @@ function hasValue(v: SubmittedValue | undefined): boolean {
   return !!v && v.trim().length > 0
 }
 
+export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params
+  const { data, error } = await supabaseAdmin.from('event_speakers').select('*').eq('id', id).single()
+  if (error || !data) return NextResponse.json({ error: 'Speaker not found' }, { status: 404 })
+  const schema = await resolveFormSchema(data.event_id, 'speaker')
+  return NextResponse.json({ ...fromRow(data), fields: recordToFields('speaker', schema, data) })
+}
+
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
   const body = await req.json().catch(() => null) as SpeakerPatchBody | null
   if (!body) return NextResponse.json({ error: 'body required' }, { status: 400 })
 
-  const { data: existing } = await supabaseAdmin.from('event_speakers').select('event_id').eq('id', id).single()
+  const { data: existing } = await supabaseAdmin.from('event_speakers').select('event_id, announcement_status').eq('id', id).single()
   if (!existing) return NextResponse.json({ error: 'Speaker not found' }, { status: 404 })
 
   const session = getSession(req)
@@ -71,7 +79,10 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   if (body.fields) {
     schema = await resolveFormSchema(existing.event_id, 'speaker')
     for (const f of schema) {
-      if (f.required && f.type !== 'file' && !hasValue(body.fields[f.key])) {
+      // A required checkbox means "must be checked" — hasValue() alone would
+      // also accept the explicit 'false' string a real unchecked box stores.
+      const unsatisfied = f.type === 'checkbox' ? body.fields[f.key] !== 'true' : !hasValue(body.fields[f.key])
+      if (f.required && f.type !== 'file' && unsatisfied) {
         return NextResponse.json({ error: `${f.label} is required` }, { status: 400 })
       }
     }
@@ -85,6 +96,17 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   if (body.remove_company_logo) { row.company_logo_url = null; row.company_logo_raw_url = null }
 
   if (Object.keys(row).length === 0) return NextResponse.json({ error: 'no valid fields' }, { status: 400 })
+
+  // Editing an already-approved speaker (any data change — fields, notes,
+  // logo removal) must force a fresh review before it counts for
+  // announcements again, same pattern as cm_statistics'
+  // approved→draft-on-edit (see app/api/corporate-marketing/statistics/
+  // [id]/route.ts). Skipped when the caller explicitly sets
+  // announcement_status in this same request (e.g. the Approve button's own
+  // pure {announcement_status:'ready'} PATCH).
+  if (existing.announcement_status === 'ready' && body.announcement_status === undefined) {
+    row.announcement_status = 'pending_review'
+  }
   row.updated_at = new Date().toISOString()
 
   const { data, error } = await supabaseAdmin

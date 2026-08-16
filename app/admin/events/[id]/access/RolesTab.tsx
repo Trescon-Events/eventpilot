@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { Button, Card, Badge } from '@/app/components/ui'
-import { ACCESS_REGISTRY } from '@/app/lib/registry/access-permissions'
+import { ACCESS_REGISTRY, type AccessModule } from '@/app/lib/registry/access-permissions'
 
 type RoleRow = { id: string; name: string; slug: string; description: string | null; permission_keys: string[] }
 
@@ -42,6 +42,27 @@ export default function RolesTab() {
     setChecked(prev => {
       const next = new Set(prev)
       if (next.has(key)) next.delete(key); else next.add(key)
+      return next
+    })
+  }
+
+  // Whole-module wildcard (2026-08-16, Event Workspace Access Roles
+  // foundation redesign) — stores '<module>.*' instead of enumerating
+  // every item, so the role automatically inherits new permissions as
+  // that module grows (see app/lib/access/permission-match.ts for the
+  // matching logic this relies on). Checking it replaces any individually
+  // checked items for that module; individual items are disabled while
+  // the wildcard is active (see the item checkbox below).
+  function toggleModuleWildcard(mod: AccessModule) {
+    const wildcardKey = `${mod.key}.*`
+    setChecked(prev => {
+      const next = new Set(prev)
+      if (next.has(wildcardKey)) {
+        next.delete(wildcardKey)
+      } else {
+        mod.items.forEach(item => next.delete(item.key))
+        next.add(wildcardKey)
+      }
       return next
     })
   }
@@ -108,22 +129,32 @@ export default function RolesTab() {
 
           <div style={{ fontSize: '11px', fontWeight: 800, color: 'var(--ink3)', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '10px' }}>Permissions</div>
           <div style={{ display: 'grid', gap: '14px', marginBottom: '18px' }}>
-            {ACCESS_REGISTRY.map(mod => (
-              <div key={mod.key}>
-                <div style={{ fontSize: '13px', fontWeight: 800, color: 'var(--ink)', marginBottom: '6px' }}>{mod.label}</div>
-                <div style={{ display: 'grid', gap: '4px', paddingLeft: '4px' }}>
-                  {mod.items.map(item => (
-                    <label key={item.key} style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '12.5px', color: 'var(--ink2)', cursor: 'pointer' }}>
-                      <input type="checkbox" checked={checked.has(item.key)} onChange={() => toggle(item.key)} />
-                      {item.label}
-                      {!item.enforced && (
-                        <span style={{ fontSize: '10px', fontWeight: 700, color: 'var(--ink4)', background: 'var(--card-hi)', borderRadius: '999px', padding: '1px 7px' }}>not yet enforced</span>
-                      )}
+            {ACCESS_REGISTRY.map(mod => {
+              const wildcardKey = `${mod.key}.*`
+              const hasWildcard = checked.has(wildcardKey)
+              return (
+                <div key={mod.key}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '6px' }}>
+                    <div style={{ fontSize: '13px', fontWeight: 800, color: 'var(--ink)' }}>{mod.label}</div>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '11.5px', fontWeight: 700, color: hasWildcard ? 'var(--teal-mid)' : 'var(--ink3)', cursor: 'pointer' }}>
+                      <input type="checkbox" checked={hasWildcard} onChange={() => toggleModuleWildcard(mod)} />
+                      Full access to this module
                     </label>
-                  ))}
+                  </div>
+                  <div style={{ display: 'grid', gap: '4px', paddingLeft: '4px' }}>
+                    {mod.items.map(item => (
+                      <label key={item.key} style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '12.5px', color: hasWildcard ? 'var(--ink4)' : 'var(--ink2)', cursor: hasWildcard ? 'default' : 'pointer' }}>
+                        <input type="checkbox" checked={hasWildcard || checked.has(item.key)} disabled={hasWildcard} onChange={() => toggle(item.key)} />
+                        {item.label}
+                        {!item.enforced && (
+                          <span style={{ fontSize: '10px', fontWeight: 700, color: 'var(--ink4)', background: 'var(--card-hi)', borderRadius: '999px', padding: '1px 7px' }}>not yet enforced</span>
+                        )}
+                      </label>
+                    ))}
+                  </div>
                 </div>
-              </div>
-            ))}
+              )
+            })}
           </div>
 
           {msg && <div style={{ fontSize: '12.5px', color: 'var(--red)', marginBottom: '12px' }}>{msg}</div>}

@@ -34,9 +34,14 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     return NextResponse.json({ error: 'head_box { centerXRatio, centerYRatio, heightRatio } required, each 0-1' }, { status: 400 })
   }
 
+  // Manually repositioning the head marker on an already-approved speaker
+  // must force a fresh review — same reset guard as the main PATCH route.
+  const { data: existing } = await supabaseAdmin.from('event_speakers').select('announcement_status').eq('id', speakerId).single()
+  const reapprovalReset: Record<string, unknown> = existing?.announcement_status === 'ready' ? { announcement_status: 'pending_review' } : {}
+
   const { data, error } = await supabaseAdmin
     .from('event_speakers')
-    .update({ photo_head_box: body!.head_box, updated_at: new Date().toISOString() })
+    .update({ photo_head_box: body!.head_box, updated_at: new Date().toISOString(), ...reapprovalReset })
     .eq('id', speakerId)
     .select('photo_head_box')
     .single()
@@ -59,10 +64,11 @@ export async function POST(_req: NextRequest, { params }: { params: Promise<{ id
 
   const { data: speaker } = await supabaseAdmin
     .from('event_speakers')
-    .select('photo_url, photo_processed_url')
+    .select('photo_url, photo_processed_url, announcement_status')
     .eq('id', speakerId)
     .single()
   if (!speaker) return NextResponse.json({ error: 'Speaker not found' }, { status: 404 })
+  const reapprovalReset: Record<string, unknown> = speaker.announcement_status === 'ready' ? { announcement_status: 'pending_review' } : {}
 
   const photoUrl = speaker.photo_processed_url || speaker.photo_url
   if (!photoUrl) return NextResponse.json({ error: 'No photo uploaded yet' }, { status: 422 })
@@ -81,7 +87,7 @@ export async function POST(_req: NextRequest, { params }: { params: Promise<{ id
 
   const { data, error } = await supabaseAdmin
     .from('event_speakers')
-    .update({ photo_head_box: head_box, updated_at: new Date().toISOString() })
+    .update({ photo_head_box: head_box, updated_at: new Date().toISOString(), ...reapprovalReset })
     .eq('id', speakerId)
     .select('photo_head_box')
     .single()

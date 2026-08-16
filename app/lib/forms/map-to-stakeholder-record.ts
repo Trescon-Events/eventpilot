@@ -16,6 +16,15 @@ const SPEAKER_KEY_MAP: Record<string, string> = {
   full_name: 'name',
   job_title: 'role',
   company_name: 'company',
+  // Alias — 'company_name' is the default schema's key for this concept,
+  // but 'company' isn't locked for speakers (only full_name is), so a
+  // producer's Form Builder edit or a HubSpot "+ Create new field" can end
+  // up with the field keyed 'company' instead. Real bug found live
+  // (2026-08-14, Madhu): a HubSpot-mapped speaker's company silently landed
+  // in custom_fields instead of the `company` column, so the creative
+  // compositor (which reads the column directly) rendered it blank — this
+  // alias makes either key reach the same column.
+  company: 'company',
   country: 'country',
   bio: 'bio',
   linkedin_url: 'linkedin_url',

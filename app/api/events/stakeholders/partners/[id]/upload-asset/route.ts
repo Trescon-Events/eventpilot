@@ -24,12 +24,24 @@ import { processLogo } from '@/app/lib/media/logo-engine'
 const ALLOWED_TYPES: Record<string, string> = {
   'image/png': 'png',
   'image/jpeg': 'jpg',
+  'image/gif': 'gif',
+  'image/bmp': 'bmp',
+  'image/x-ms-bmp': 'bmp',
+  'image/x-icon': 'ico',
+  'image/vnd.microsoft.icon': 'ico',
+  'image/tiff': 'tiff',
+  'image/heic': 'heic',
+  'image/heif': 'heic',
   'image/svg+xml': 'svg',
   'application/pdf': 'pdf',
   'application/postscript': 'ai', // .ai files are often served as this or octet-stream
   'application/octet-stream': 'ai',
 }
-const ALLOWED_EXTENSIONS = ['png', 'jpg', 'jpeg', 'svg', 'pdf', 'ai', 'eps', 'psd', 'psb']
+// Clients send logos in whatever their design tool exports (2026-08-15,
+// per Madhu: "we work with 100s of clients... exhaustive coverage of
+// different possible formats") — bmp/ico/tiff/heic all now route through
+// logo-engine.ts's own decoders (see its detectLogoFormat()/toRasterPng()).
+const ALLOWED_EXTENSIONS = ['png', 'jpg', 'jpeg', 'gif', 'bmp', 'ico', 'cur', 'tif', 'tiff', 'heic', 'heif', 'svg', 'pdf', 'ai', 'eps', 'psd', 'psb']
 const MAX_SIZE = 10 * 1024 * 1024
 
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -47,8 +59,11 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     return NextResponse.json({ error: 'File too large (max 10 MB)' }, { status: 413 })
   }
 
-  const { data: partner } = await supabaseAdmin.from('event_sponsors').select('event_id').eq('id', partnerId).single()
+  const { data: partner } = await supabaseAdmin.from('event_sponsors').select('event_id, announcement_status').eq('id', partnerId).single()
   if (!partner) return NextResponse.json({ error: 'Partner not found' }, { status: 404 })
+  // Uploading a new logo on an already-approved partner must force a fresh
+  // review — same reset guard as the main PATCH route.
+  const reapprovalReset: Record<string, unknown> = partner.announcement_status === 'ready' ? { announcement_status: 'pending_review' } : {}
 
   const buffer = Buffer.from(await file.arrayBuffer())
   const timestamp = Date.now()
@@ -72,7 +87,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
   const { data, error } = await supabaseAdmin
     .from('event_sponsors')
-    .update({ logo_url: logoUrl, logo_raw_url: logoRawUrl, updated_at: new Date().toISOString() })
+    .update({ logo_url: logoUrl, logo_raw_url: logoRawUrl, updated_at: new Date().toISOString(), ...reapprovalReset })
     .eq('id', partnerId)
     .select('logo_url, logo_raw_url')
     .single()

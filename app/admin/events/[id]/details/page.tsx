@@ -1,12 +1,13 @@
 'use client'
 
 import { useState, useEffect, useRef, useMemo, use } from 'react'
-import Link from 'next/link'
 import { useSearchParams, useRouter } from 'next/navigation'
 import PageHeader from '@/app/components/PageHeader'
+import { permissionSetSatisfies } from '@/app/lib/access/permission-match'
 import { Button, Card, Input } from '@/app/components/ui'
 import { FORM_TITLES, FormType } from '@/app/lib/forms/types'
 import { TRACKED_EVENT_FIELDS, FIELD_LABELS, TrackedEventField } from '@/app/lib/events/detail-fields'
+import { useBreadcrumbLabel } from '@/app/lib/nav/breadcrumb-labels'
 
 /* Event Details — the single place a producer manages "everything about
    this event": Overview (Common Details — public name, dates/venue as
@@ -150,6 +151,9 @@ export default function EventDetailsPage({ params }: { params: Promise<{ id: str
 
   const [permissions, setPermissions] = useState<Set<string>>(new Set())
   const [event, setEvent] = useState<EventRow | null>(null)
+  // Breadcrumb trail (GlobalShell) has no way to know this event's real
+  // name on its own — see breadcrumb-labels.tsx.
+  useBreadcrumbLabel(eventId, event?.name ?? null)
   const [editForm, setEditForm] = useState<Record<TrackedEventField, string>>(
     Object.fromEntries(TRACKED_EVENT_FIELDS.map(k => [k, ''])) as Record<TrackedEventField, string>
   )
@@ -171,7 +175,7 @@ export default function EventDetailsPage({ params }: { params: Promise<{ id: str
   const [syncReply, setSyncReply] = useState<string | null>(null)
   const [syncLoading, setSyncLoading] = useState(false)
 
-  const can = (key: string) => permissions.has('*') || permissions.has(key)
+  const can = (key: string) => permissionSetSatisfies(permissions, key)
   const canManage = can('sae.forms.manage')
 
   const liveDoc = docs.find(d => d.status === 'live') ?? null
@@ -309,7 +313,8 @@ export default function EventDetailsPage({ params }: { params: Promise<{ id: str
         eyebrow="Event Workspace / Event Details"
         title={event.name}
         description="Everything the rest of EventPilot reads for external content — invite emails, announcement copy, brand generation, the public onboarding form — plus the Topline Messaging Doc it's derived from."
-        actions={<Link href={`/admin/events/${eventId}`}><Button variant="ghost">← Back to Workspace</Button></Link>}
+        backHref={`/admin/events/${eventId}`}
+        backLabel="Back to Workspace"
       />
 
       <div style={{ padding: '20px 32px 0', display: 'flex', gap: '4px', borderBottom: '1px solid var(--border-light)' }}>

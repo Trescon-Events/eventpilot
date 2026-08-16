@@ -30,11 +30,14 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
   const { data: speaker } = await supabaseAdmin
     .from('event_speakers')
-    .select('event_id, photo_processed_url')
+    .select('event_id, photo_processed_url, announcement_status')
     .eq('id', speakerId)
     .single()
   if (!speaker) return NextResponse.json({ error: 'Speaker not found' }, { status: 404 })
   if (!speaker.photo_processed_url) return NextResponse.json({ error: 'No processed photo to crop yet — upload a photo first' }, { status: 422 })
+  // Re-cropping an already-approved speaker's photo must force a fresh
+  // review — same reset guard as the main PATCH route.
+  const reapprovalReset: Record<string, unknown> = speaker.announcement_status === 'ready' ? { announcement_status: 'pending_review' } : {}
 
   try {
     const imgRes = await fetch(speaker.photo_processed_url)
@@ -78,7 +81,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
     const { data, error } = await supabaseAdmin
       .from('event_speakers')
-      .update({ photo_processed_url: photoProcessedUrl, photo_head_box: photoHeadBox, updated_at: new Date().toISOString() })
+      .update({ photo_processed_url: photoProcessedUrl, photo_head_box: photoHeadBox, updated_at: new Date().toISOString(), ...reapprovalReset })
       .eq('id', speakerId)
       .select('photo_processed_url, photo_head_box')
       .single()

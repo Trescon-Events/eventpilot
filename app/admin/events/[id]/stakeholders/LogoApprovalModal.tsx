@@ -37,7 +37,7 @@ export default function LogoApprovalModal({ logoUrl, onClose, onReupload }: Prop
           <Button variant="lime" onClick={onClose}>Looks Good</Button>
           <label style={{ flex: 1, textAlign: 'center', padding: '9px 14px', borderRadius: '10px', border: '1.5px solid var(--border)', color: 'var(--ink2)', fontSize: '13px', fontWeight: 700, cursor: 'pointer' }}>
             Upload Different File
-            <input type="file" accept="image/*,.pdf,.ai,.svg" style={{ display: 'none' }}
+            <input type="file" accept="image/*,.pdf,.ai,.svg,.eps,.psd,.psb,.bmp,.ico,.cur,.tif,.tiff,.heic,.heif" style={{ display: 'none' }}
               onChange={e => { const f = e.target.files?.[0]; if (f) onReupload(f); e.target.value = '' }} />
           </label>
         </div>

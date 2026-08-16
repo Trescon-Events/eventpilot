@@ -82,6 +82,12 @@ export async function POST(req: NextRequest) {
   const file = form.get('file') as File | null
   const eventId = form.get('event_id') as string | null
   const detectFace = form.get('detect_face') === 'true'
+  // Independent of detectFace (2026-08-16 — see deriveAlignmentTarget's own
+  // doc comment for the full reasoning) — defaults to the historical
+  // trim-unless-detecting-a-face behavior when a caller doesn't send it
+  // explicitly, so older callers (none currently) wouldn't silently break.
+  const trimToContentRaw = form.get('trim_to_content')
+  const trimToContent = trimToContentRaw === null ? !detectFace : trimToContentRaw === 'true'
   // Text-layer-only (2026-08-02) — see text-style-detection.ts for what's
   // actually feasible to guess from a flat reference image (color/weight/
   // align/line-count) versus what stays manual (font family, precise size).
@@ -90,11 +96,15 @@ export async function POST(req: NextRequest) {
 
   try {
     const buffer = Buffer.from(await file.arrayBuffer())
-    const trimmedBuffer = await sharp(buffer).trim().toBuffer()
+    // Stored reference asset mirrors the SAME trim decision as the box
+    // itself — an untrimmed box paired with a trimmed reference_url would
+    // leave the ghost preview pointing at a smaller image than the box
+    // it's meant to fill, stretching it to cover the gap.
+    const referenceBuffer = trimToContent ? await sharp(buffer).trim().toBuffer() : buffer
     const [target, reference_url, text_style] = await Promise.all([
-      deriveAlignmentTarget(buffer, { detectFace }),
-      uploadPublicAsset(`events/${eventId}/templates/reference-${Date.now()}.png`, trimmedBuffer, 'image/png'),
-      detectTextStyleFlag ? detectTextStyle(trimmedBuffer) : Promise.resolve(null),
+      deriveAlignmentTarget(buffer, { detectFace, trimToContent }),
+      uploadPublicAsset(`events/${eventId}/templates/reference-${Date.now()}.png`, referenceBuffer, 'image/png'),
+      detectTextStyleFlag ? detectTextStyle(referenceBuffer) : Promise.resolve(null),
     ])
     // Only meaningful when a real detection ran — the fallback/default
     // values deriveAlignmentTarget() returns with detectFace:false aren't a

@@ -4,7 +4,10 @@ import { getSession } from '@/app/lib/access/session'
 
 /* GET  /api/events/access/assignments?event_id=uuid — list (staff, role)
    assignments for one event, joined with staff name/email + role name.
+   GET  /api/events/access/assignments?event_id=global — list org-wide
+   assignments (event_id IS NULL — applies to every event, 2026-08-16).
    POST /api/events/access/assignments — body { event_id, staff_id, role_id }.
+   event_id may be null for a global assignment.
    Both platform admin only, matching /api/access-roles. */
 
 export async function GET(req: NextRequest) {
@@ -14,11 +17,13 @@ export async function GET(req: NextRequest) {
   const eventId = req.nextUrl.searchParams.get('event_id')
   if (!eventId) return NextResponse.json({ error: 'event_id required' }, { status: 400 })
 
-  const { data, error } = await supabaseAdmin
+  let q = supabaseAdmin
     .from('event_access_assignments')
     .select('*, staff_members!staff_id(name, email), access_roles_catalog!role_id(name, slug)')
-    .eq('event_id', eventId)
     .order('granted_at', { ascending: false })
+  q = eventId === 'global' ? q.is('event_id', null) : q.eq('event_id', eventId)
+
+  const { data, error } = await q
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
   return NextResponse.json(data ?? [])
 }
@@ -27,9 +32,9 @@ export async function POST(req: NextRequest) {
   const session = getSession(req)
   if (!session?.adm) return NextResponse.json({ error: 'Not authorized.' }, { status: 403 })
 
-  const body = await req.json().catch(() => null) as { event_id?: string; staff_id?: string; role_id?: string } | null
-  if (!body?.event_id || !body.staff_id || !body.role_id) {
-    return NextResponse.json({ error: 'event_id, staff_id, and role_id required' }, { status: 400 })
+  const body = await req.json().catch(() => null) as { event_id?: string | null; staff_id?: string; role_id?: string } | null
+  if (!body || body.event_id === undefined || !body.staff_id || !body.role_id) {
+    return NextResponse.json({ error: 'event_id (or null for a global assignment), staff_id, and role_id required' }, { status: 400 })
   }
 
   const { data, error } = await supabaseAdmin
@@ -38,7 +43,9 @@ export async function POST(req: NextRequest) {
     .select('*, staff_members!staff_id(name, email), access_roles_catalog!role_id(name, slug)')
     .single()
 
-  if (error?.code === '23505') return NextResponse.json({ error: 'This staff member already holds this role on this event.' }, { status: 409 })
+  if (error?.code === '23505') {
+    return NextResponse.json({ error: body.event_id ? 'This staff member already holds this role on this event.' : 'This staff member already holds this role globally.' }, { status: 409 })
+  }
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
   return NextResponse.json(data, { status: 201 })
 }

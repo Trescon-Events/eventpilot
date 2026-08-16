@@ -1,13 +1,25 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { Resend } from 'resend'
 import { supabaseAdmin } from '@/app/lib/supabase'
-import { getPostizPostStatus } from '@/app/lib/postiz'
+import { listPostizPostsInRange, type PostizPostSummary } from '@/app/lib/postiz'
 
 /* GET /api/cron/announcements/sync-status
    cron-job.org, every 15 minutes, Authorization: Bearer CRON_SECRET.
    For every 'scheduled' announcement past its scheduled_for, checks Postiz
    and marks published/failed. Matches this repo's existing cron auth
-   convention (see app/api/cron/content-analytics/route.ts). */
+   convention (see app/api/cron/content-analytics/route.ts).
+
+   2026-08-16 rewrite: the real Postiz public API has no per-post status
+   lookup, only GET /posts?from=&to= (a date-range LIST) — and a 30
+   requests/hour rate limit, which the original one-call-per-due-row design
+   would blow through with more than a few posts in flight. Batches instead:
+   one listPostizPostsInRange call per EVENT per run (grouped by
+   postiz_profile_key), covering every due announcement for that event in
+   a single request. A post can target several channels at once (see
+   publish_results, keyed by Postiz integration id) — the announcement only
+   flips to a terminal status once every one of its channels has resolved
+   (no channel still 'QUEUE'), matching the real multi-channel shape rather
+   than the old single-postiz_post_id assumption. */
 export async function GET(req: NextRequest) {
   const authHeader = req.headers.get('authorization')
   const cronSecret = process.env.CRON_SECRET
@@ -17,41 +29,77 @@ export async function GET(req: NextRequest) {
 
   const { data: due, error } = await supabaseAdmin
     .from('stakeholder_announcements')
-    .select('id, postiz_post_id, scheduled_for, event:event_id(id, name, postiz_profile_key), creator:created_by(email)')
+    .select('id, scheduled_for, publish_results, event:event_id(id, name, postiz_profile_key), creator:created_by(email)')
     .eq('status', 'scheduled')
     .lte('scheduled_for', new Date().toISOString())
-    .not('postiz_post_id', 'is', null)
+    .not('publish_results', 'is', null)
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
   if (!due || due.length === 0) return NextResponse.json({ checked: 0, published: 0, failed: 0 })
 
+  // Group due rows by event so each event's Postiz workspace is queried
+  // exactly once this run, regardless of how many announcements are due.
+  const byEvent = new Map<string, { profileKey: string; id: string; name: string; rows: typeof due }>()
+  for (const row of due) {
+    const event = Array.isArray(row.event) ? row.event[0] : row.event
+    if (!event?.postiz_profile_key) continue
+    const bucket = byEvent.get(event.postiz_profile_key) ?? { profileKey: event.postiz_profile_key, id: event.id, name: event.name, rows: [] as typeof due }
+    bucket.rows.push(row)
+    byEvent.set(event.postiz_profile_key, bucket)
+  }
+
   let publishedCount = 0
   let failedCount = 0
 
-  for (const row of due) {
-    const event = Array.isArray(row.event) ? row.event[0] : row.event
-    if (!event?.postiz_profile_key || !row.postiz_post_id) continue
-
+  for (const { profileKey, id: eventId, name, rows } of byEvent.values()) {
+    const earliestScheduled = rows.reduce((min, r) => (r.scheduled_for! < min ? r.scheduled_for! : min), rows[0].scheduled_for!)
+    let posts: PostizPostSummary[]
     try {
-      const { status, raw } = await getPostizPostStatus(event.postiz_profile_key, row.postiz_post_id)
+      posts = await listPostizPostsInRange(earliestScheduled, new Date().toISOString(), profileKey)
+    } catch (e) {
+      console.error(`Postiz posts list failed for event "${name}":`, e)
+      continue
+    }
+    const postById = new Map(posts.map(p => [p.id, p]))
 
-      if (status === 'published' || status === 'success' || status === 'posted') {
+    for (const row of rows) {
+      const results = (row.publish_results ?? {}) as Record<string, { success: boolean; postId: string; state?: string }>
+      const channelIds = Object.keys(results)
+      if (channelIds.length === 0) continue
+
+      let anyError = false
+      let anyQueue = false
+      const updatedResults: typeof results = { ...results }
+      for (const channelId of channelIds) {
+        const postId = results[channelId].postId
+        const post = postById.get(postId)
+        if (!post) { anyQueue = true; continue } // not seen yet in this range — treat as still pending
+        updatedResults[channelId] = { ...results[channelId], state: post.state }
+        if (post.state === 'ERROR') anyError = true
+        else if (post.state === 'QUEUE' || post.state === 'DRAFT') anyQueue = true
+      }
+
+      if (anyQueue) {
+        // Still in flight on at least one channel — leave as 'scheduled',
+        // just refresh the per-channel state detail for the UI.
+        await supabaseAdmin.from('stakeholder_announcements').update({ publish_results: updatedResults, updated_at: new Date().toISOString() }).eq('id', row.id)
+        continue
+      }
+
+      if (anyError) {
         await supabaseAdmin
           .from('stakeholder_announcements')
-          .update({ status: 'published', published_at: new Date().toISOString(), publish_results: raw, updated_at: new Date().toISOString() })
-          .eq('id', row.id)
-        publishedCount++
-      } else if (status === 'failed' || status === 'error') {
-        await supabaseAdmin
-          .from('stakeholder_announcements')
-          .update({ status: 'failed', publish_results: raw, updated_at: new Date().toISOString() })
+          .update({ status: 'failed', publish_results: updatedResults, updated_at: new Date().toISOString() })
           .eq('id', row.id)
         failedCount++
-        await notifyMMOfFailure(row, event).catch(e => console.error('Failure notification failed:', e))
+        await notifyMMOfFailure(row, { id: eventId, name }).catch(e => console.error('Failure notification failed:', e))
+      } else {
+        await supabaseAdmin
+          .from('stakeholder_announcements')
+          .update({ status: 'published', published_at: new Date().toISOString(), publish_results: updatedResults, updated_at: new Date().toISOString() })
+          .eq('id', row.id)
+        publishedCount++
       }
-      // any other status (e.g. still in_progress/queued): leave as 'scheduled', check again next run
-    } catch (e) {
-      console.error(`Postiz status check failed for announcement ${row.id}:`, e)
     }
   }
 
@@ -78,7 +126,7 @@ async function notifyMMOfFailure(row: DueRow, event: EventInfo) {
     html: `<p style="font-family:sans-serif;font-size:14px;color:#2D3E50">
              Postiz reported a publishing failure for an announcement scheduled for ${event.name}. Please check the post and try again.
            </p>
-           <p><a href="${siteUrl}/admin/events/${event.id}/stakeholders" style="color:#00695C">Review in EventPilot →</a></p>`,
+           <p><a href="${siteUrl}/admin/events/${event.id}/creative-templates" style="color:#00695C">Review in EventPilot →</a></p>`,
     /* eslint-enable no-restricted-syntax */
   })
 }

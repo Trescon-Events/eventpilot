@@ -17,7 +17,15 @@ type Assignment = {
 // concept and has no event scoping; forcing one component to serve both
 // shapes would mean threading conditionals through it for a genuinely
 // different case.
-export default function AssignmentsTab({ eventId }: { eventId: string }) {
+//
+// eventId omitted (2026-08-16, Event Workspace Access Roles foundation
+// redesign) = org-wide scope — the role applies to every event, current
+// and future (event_id IS NULL in event_access_assignments; see
+// supabase/access_rbac.sql's "ORG-WIDE (GLOBAL) ASSIGNMENTS" section).
+// Used both here (per-event Access tab) and from app/admin/access/page.tsx
+// (the global assignments page).
+export default function AssignmentsTab({ eventId }: { eventId?: string }) {
+  const isGlobal = !eventId
   const [assignments, setAssignments] = useState<Assignment[]>([])
   const [staffOptions, setStaffOptions] = useState<StaffOption[]>([])
   const [roleOptions, setRoleOptions] = useState<RoleOption[]>([])
@@ -32,7 +40,7 @@ export default function AssignmentsTab({ eventId }: { eventId: string }) {
   async function fetchAll() {
     setLoading(true)
     const [assignRes, staffRes, rolesRes] = await Promise.all([
-      fetch(`/api/events/access/assignments?event_id=${eventId}`),
+      fetch(`/api/events/access/assignments?event_id=${eventId ?? 'global'}`),
       fetch('/api/staff-list'),
       fetch('/api/access-roles'),
     ])
@@ -49,7 +57,7 @@ export default function AssignmentsTab({ eventId }: { eventId: string }) {
     setAssigning(true); setMsg(null)
     const res = await fetch('/api/events/access/assignments', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ event_id: eventId, staff_id: staffId, role_id: roleId }),
+      body: JSON.stringify({ event_id: eventId ?? null, staff_id: staffId, role_id: roleId }),
     })
     const data = await res.json()
     if (!res.ok) { setMsg(data.error ?? 'Assign failed'); setAssigning(false); return }
@@ -75,7 +83,9 @@ export default function AssignmentsTab({ eventId }: { eventId: string }) {
 
   return (
     <div>
-      <div style={{ fontSize: '13px', fontWeight: 800, color: 'var(--ink)', marginBottom: '14px' }}>Assign a Role for This Event</div>
+      <div style={{ fontSize: '13px', fontWeight: 800, color: 'var(--ink)', marginBottom: '14px' }}>
+        {isGlobal ? 'Assign a Role Organization-Wide' : 'Assign a Role for This Event'}
+      </div>
       <div style={{ display: 'flex', gap: '8px', marginBottom: '10px' }}>
         <select value={staffId} onChange={e => setStaffId(e.target.value)}
           style={{ flex: 1, padding: '9px 10px', borderRadius: '9px', border: '1px solid var(--border)', fontSize: '13px', fontFamily: 'inherit' }}>
@@ -95,13 +105,17 @@ export default function AssignmentsTab({ eventId }: { eventId: string }) {
       <div style={{ display: 'grid', gap: '6px' }}>
         {assignments.map(a => (
           <div key={a.id} style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '10px 14px', background: 'var(--card)', border: '1px solid var(--border)', borderRadius: '10px' }}>
-            <span style={{ fontSize: '13px', fontWeight: 700, color: 'var(--ink)', flex: 1 }}>{a.staff_members?.name ?? a.staff_id}</span>
+            <span style={{ fontSize: '13px', fontWeight: 700, color: 'var(--ink)', flex: 1, minWidth: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{a.staff_members?.name ?? a.staff_id}</span>
             <span style={{ fontSize: '13px', color: 'var(--ink3)' }}>{a.staff_members?.email}</span>
             <span style={{ fontSize: '13px', fontWeight: 700, color: 'var(--teal-mid)', background: 'var(--card-hi)', padding: '2px 8px', borderRadius: '10px' }}>{a.access_roles_catalog?.name ?? 'Unknown role'}</span>
             <button onClick={() => unassign(a)} style={{ fontSize: '13px', fontWeight: 700, color: 'var(--red)', background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'inherit' }}>Unassign</button>
           </div>
         ))}
-        {assignments.length === 0 && <div style={{ fontSize: '13px', color: 'var(--ink3)' }}>No one is assigned to this event yet.</div>}
+        {assignments.length === 0 && (
+          <div style={{ fontSize: '13px', color: 'var(--ink3)' }}>
+            {isGlobal ? 'No one holds an organization-wide role yet.' : 'No one is assigned to this event yet.'}
+          </div>
+        )}
       </div>
     </div>
   )

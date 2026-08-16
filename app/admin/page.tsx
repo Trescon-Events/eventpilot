@@ -8,6 +8,7 @@ import { buildQuestions, ALL_DEPARTMENTS } from '@/app/lib/questions'
 import type { Question } from '@/app/lib/questions'
 import { computeAIRS } from '@/app/lib/airs'
 import { getModuleRegistry } from '@/app/lib/registry/modules'
+import { VALID_ACCESS_ROLES } from '@/app/lib/access/access-roles'
 import PageHeader from '@/app/components/PageHeader'
 
 // Colors here are literal (not CSS vars) on purpose — several are reused
@@ -538,6 +539,7 @@ export default function AdminPage() {
   const [assignStaffId, setAssignStaffId] = useState('')
   const [assignRole,    setAssignRole]    = useState('')
   const [eventView,       setEventView]       = useState<'inprogress' | 'closed'>('inprogress')
+  const [eventSearch,     setEventSearch]     = useState('')
   type EventSummary = { confirmed_revenue: number; pending_revenue: number; total_expenses: number; approved_budget: number; currency: string; net_pnl: number; margin_pct: number | null; task_total: number; task_done: number; task_pct: number; has_budget: boolean; has_revenue: boolean; has_expenses: boolean }
   const [eventSummaries,  setEventSummaries]  = useState<Record<string, EventSummary>>({})
   const [summariesLoading,setSummariesLoading]= useState(false)
@@ -2230,6 +2232,9 @@ export default function AdminPage() {
                     <svg width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
                     Refresh
                   </button>
+                  <Link href="/admin/access-center" style={{ padding: '7px 14px', borderRadius: '8px', border: '1px solid var(--ink4)', background: 'var(--card)', color: 'var(--ink3)', fontSize: '13px', fontWeight: 700, textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '5px' }}>
+                    Access &amp; Permissions →
+                  </Link>
                   {totalNotEnabled > 0 && (
                     <button onClick={async () => {
                       if (!confirm(`Enable platform access for all ${totalNotEnabled} staff? They will be able to log in immediately.`)) return
@@ -3405,13 +3410,22 @@ export default function AdminPage() {
             return `${n < 0 ? '-' : ''}${cur === 'INR' ? '₹' : '$'}${str}`
           }
 
+          // 2026-08-16: search by name/city/client, applied before the
+          // in-progress/closed split so both view counts reflect it.
+          const searchQ = eventSearch.trim().toLowerCase()
+          const searchedEvents = !searchQ ? events : events.filter(e =>
+            e.name.toLowerCase().includes(searchQ) ||
+            (e.city ?? '').toLowerCase().includes(searchQ) ||
+            (e.client_name ?? '').toLowerCase().includes(searchQ)
+          )
+
           // "In progress" = anything not yet Completed/Cancelled (covers
           // Planning/Active/On Hold plus any other status value this
           // event happens to carry, e.g. the RACI phase-flow statuses).
-          const inProgress = events
+          const inProgress = searchedEvents
             .filter(e => !CLOSED_STATUSES.has(e.status))
             .sort((a,b) => IN_PROGRESS_ORDER.indexOf(a.status as typeof IN_PROGRESS_ORDER[number]) - IN_PROGRESS_ORDER.indexOf(b.status as typeof IN_PROGRESS_ORDER[number]))
-          const closed = events
+          const closed = searchedEvents
             .filter(e => CLOSED_STATUSES.has(e.status))
             .sort((a,b) => a.name.localeCompare(b.name))
 
@@ -3539,11 +3553,23 @@ export default function AdminPage() {
                       </button>
                     ))}
                     <div style={{ flex: 1 }} />
+                    <div style={{ position: 'relative' }}>
+                      <svg width="12" height="12" fill="none" stroke="var(--ink3)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24" style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none' }}><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+                      <input value={eventSearch} onChange={e => setEventSearch(e.target.value)} placeholder="Search events…"
+                        style={{ paddingLeft: '30px', paddingRight: eventSearch ? '28px' : '12px', paddingTop: '7px', paddingBottom: '7px', borderRadius: '8px', border: '1px solid var(--border)', background: 'var(--card)', color: 'var(--ink)', fontSize: '13px', fontFamily: 'inherit', outline: 'none', width: '220px' }} />
+                      {eventSearch && (
+                        <button onClick={() => setEventSearch('')} title="Clear search"
+                          style={{ position: 'absolute', right: '8px', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', color: 'var(--ink3)', fontSize: '14px', fontWeight: 700, cursor: 'pointer', padding: 0, lineHeight: 1 }}>×</button>
+                      )}
+                    </div>
                     <button onClick={() => setShowCreateEvent(s => !s)}
                       style={{ padding: '8px 16px', borderRadius: '8px', border: 'none', background: showCreateEvent ? 'var(--border)' : 'var(--teal-mid)', color: showCreateEvent ? 'var(--ink3)' : 'var(--teal-light)', fontSize: '13px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
                       {showCreateEvent ? 'Cancel' : '+ New Event'}
                     </button>
                   </div>
+                  {searchQ && inProgress.length === 0 && closed.length === 0 && (
+                    <div style={{ fontSize: '13px', color: 'var(--ink3)', padding: '24px 0', textAlign: 'center' }}>No events match &quot;{eventSearch}&quot;.</div>
+                  )}
 
                   {showCreateEvent && <div style={{ marginBottom: '24px' }}>{createForm}</div>}
 
@@ -4415,7 +4441,7 @@ export default function AdminPage() {
       {/* ── Access Roles Modal ── */}
       {rolesOpen && rolesStaff && (() => {
         const off = OFFICES.find(o => o.id === rolesStaff.office_id)
-        const ALL_ROLES = ['standard', 'hr', 'project_manager', 'project_director', 'admin', 'super_admin']
+        const ALL_ROLES = VALID_ACCESS_ROLES
         const toggle = (r: string) => {
           if (r === 'standard') return // always present, can't untick directly
           setRolesEdit(prev =>

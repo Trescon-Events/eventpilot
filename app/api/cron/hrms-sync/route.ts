@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { supabaseAdmin } from '@/app/lib/supabase'
+import { applyRoleAccessMapping } from '@/app/lib/hrms/apply-role-access-map'
+import { sanitizeAccessRoles } from '@/app/lib/access/access-roles'
 
 // Called daily at midnight IST (18:30 UTC) by cron-job.org
 // Schedule on cron-job.org: 30 18 * * *
@@ -108,7 +110,8 @@ export async function GET(req: NextRequest) {
   const staffRows = (profiles ?? []).map((p: any) => {
     const email = p.email?.trim().toLowerCase()
     const existingLevel = existingMap[email]?.job_level
-    const roles = userRolesMap[p.id] ?? ['standard']
+    // 2026-08-16 fix — see the identical comment in app/api/hrms-sync/route.ts
+    const roles = sanitizeAccessRoles(userRolesMap[p.id])
     return {
       name:                     p.full_name?.trim() ?? email,
       email,
@@ -146,6 +149,11 @@ export async function GET(req: NextRequest) {
   await supabaseAdmin.from('staff_members').upsert(staffRows, { onConflict: 'email', ignoreDuplicates: false })
 
   // ── Resolve manager links ──
+  // 2026-08-16 fix — see the identical comment in app/api/hrms-sync/route.ts:
+  // this upsert only sent {email, manager_id}, which fails Postgres's NOT
+  // NULL check on staff_members.name during ON CONFLICT DO UPDATE's
+  // candidate-row validation. Confirmed live this silently failed on every
+  // run. Now includes each person's own name.
   const managerIds = [...new Set((profiles ?? []).map((p: any) => p.reporting_manager_id).filter(Boolean))] as string[]
   if (managerIds.length > 0) {
     const { data: managers } = await hrms.from('profiles').select('id, email').in('id', managerIds)
@@ -155,11 +163,16 @@ export async function GET(req: NextRequest) {
 
     const managerUpdates = (profiles ?? [])
       .filter((p: any) => p.reporting_manager_id && managerEmailMap[p.reporting_manager_id])
-      .map((p: any) => ({ email: p.email.toLowerCase(), manager_id: emailToId[managerEmailMap[p.reporting_manager_id]] ?? null }))
+      .map((p: any) => ({
+        email:      p.email.toLowerCase(),
+        name:       p.full_name?.trim() ?? p.email,
+        manager_id: emailToId[managerEmailMap[p.reporting_manager_id]] ?? null,
+      }))
       .filter((u: any) => u.manager_id)
 
     if (managerUpdates.length > 0) {
-      await supabaseAdmin.from('staff_members').upsert(managerUpdates, { onConflict: 'email', ignoreDuplicates: false })
+      const { error: managerErr } = await supabaseAdmin.from('staff_members').upsert(managerUpdates, { onConflict: 'email', ignoreDuplicates: false })
+      if (managerErr) console.error('Manager link upsert failed:', managerErr.message)
     }
   }
 
@@ -224,6 +237,12 @@ export async function GET(req: NextRequest) {
     await supabaseAdmin.from('event_staff')
       .upsert(projRoleRows, { onConflict: 'event_id,staff_id', ignoreDuplicates: false })
   }
+
+  // ── Phase 2: auto-apply hrms_role_access_map ──
+  // Grants/replaces the EventPilot access role matching each person's
+  // Staff Portal role_type — see app/lib/hrms/apply-role-access-map.ts.
+  // Never touches manually-assigned roles (auto_granted stays false there).
+  const accessMapResult = await applyRoleAccessMapping(projRoleRows)
 
   // ── Sync timesheets → staff_timesheets ──
   const tsRows = (timesheets ?? [])
@@ -344,5 +363,7 @@ export async function GET(req: NextRequest) {
     timesheets:           tsRows.length,
     leave_balances:       leaveBalancesSynced,
     checklists_seeded:    checklistsSeeded,
+    access_granted:       accessMapResult.applied,
+    access_removed:       accessMapResult.removed,
   })
 }

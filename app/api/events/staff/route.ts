@@ -19,9 +19,20 @@ export async function GET(req: NextRequest) {
 
   if (!eventId) return NextResponse.json({ error: 'event_id or staff_id required' }, { status: 400 })
 
+  // 2026-08-16 fix: this query referenced a column, `assigned_at`, that
+  // doesn't exist on event_staff (real column is `created_at` — confirmed
+  // live, this was silently 500ing every call and returning `[]`, masked
+  // by the error-branch below also returning `[]`, just with a 500
+  // status nothing was checking for). Surfaced while wiring up the
+  // announcement approver picker, which is the first caller to actually
+  // need this route's data to render correctly. Also now selects
+  // event_role — the SAE migration's own purpose-built column for "MM,
+  // Production Lead, CD, etc per event", exactly what an approver picker
+  // wants as a default role label, more meaningful than the generic
+  // free-text `role` column.
   const { data, error } = await supabaseAdmin
     .from('event_staff')
-    .select('id, role, assigned_at, staff_members(id, name, email, department, role)')
+    .select('id, role, event_role, created_at, staff_members(id, name, email, department, role)')
     .eq('event_id', eventId)
 
   if (error) return NextResponse.json([], { status: 500 })

@@ -3,10 +3,13 @@
 // the builder UI, and the Stakeholder Hub's manual Add/Edit panel — see
 // resolve-schema.ts for how a schema is resolved per (event, form_type).
 
-export type FieldType = 'text' | 'email' | 'phone' | 'url' | 'textarea' | 'select' | 'multiselect' | 'date' | 'file'
+export type FieldType = 'text' | 'email' | 'phone' | 'url' | 'textarea' | 'select' | 'multiselect' | 'checkbox' | 'date' | 'file'
 
 // string[] only ever populated for type === 'multiselect' — every other
-// type stores a plain string.
+// type stores a plain string. 'checkbox' (a single yes/no consent box, not
+// a multi-option group — that's 'multiselect') stores exactly 'true' or
+// 'false', matching the string convention HubSpot's own boolean fields
+// already use in submitted_data.
 export type SubmittedValue = string | string[]
 
 export type FormType = 'speaker' | 'sponsor' | 'media_partner' | 'association_partner'

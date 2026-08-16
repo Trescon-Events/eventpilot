@@ -7,7 +7,7 @@ import Link from '@tiptap/extension-link'
 import Underline from '@tiptap/extension-underline'
 import { TextStyle } from '@tiptap/extension-text-style'
 import Color from '@tiptap/extension-color'
-import { Button, Input } from '@/app/components/ui'
+import { Button, Input, ProcessingOverlay } from '@/app/components/ui'
 import RichTextToolbar from '@/app/components/RichTextToolbar'
 
 /* Invite compose flow — Phase 3 of the SAE producer-workflow initiative.
@@ -24,19 +24,40 @@ import RichTextToolbar from '@/app/components/RichTextToolbar'
 type FormType = 'speaker' | 'sponsor' | 'media_partner' | 'association_partner'
 type TemplateOption = { id: string; name: string; subject: string; variable_hints: { key: string; label?: string }[]; sender_name: string; sender_email: string }
 
-type Props = {
-  eventId: string
-  formType: FormType
-  onClose: () => void
-  onSent: () => void
+const FORM_TYPE_LABELS: Record<FormType, string> = {
+  speaker: 'Speaker', sponsor: 'Sponsor', media_partner: 'Media Partner', association_partner: 'Association Partner',
 }
 
-export default function InviteComposer({ eventId, formType, onClose, onSent }: Props) {
+type Props = {
+  eventId: string
+  // Fixed when opened from a single category tab; omitted when opened from
+  // the unified top-level Invites tab, which shows a Category picker
+  // instead since it isn't scoped to one form_type.
+  formType?: FormType
+  onClose: () => void
+  onSent: () => void
+  // Pre-fills the picker step for a reminder — reopening this same compose
+  // flow for someone already invited (2026-08-14, per Madhu: reminders
+  // should let the producer add extra text before sending, not silently
+  // resend the original verbatim) rather than a separate instant-resend
+  // path. Still requires clicking "Compose Email" like any new invite —
+  // only the initial field values differ.
+  initialTemplateId?: string
+  initialRecipientName?: string
+  initialRecipientEmail?: string
+  title?: string
+}
+
+export default function InviteComposer({
+  eventId, formType: fixedFormType, onClose, onSent,
+  initialTemplateId = '', initialRecipientName = '', initialRecipientEmail = '', title,
+}: Props) {
   const [step, setStep] = useState<'pick' | 'edit' | 'sending' | 'error'>('pick')
   const [templates, setTemplates] = useState<TemplateOption[]>([])
-  const [templateId, setTemplateId] = useState('')
-  const [recipientName, setRecipientName] = useState('')
-  const [recipientEmail, setRecipientEmail] = useState('')
+  const [templateId, setTemplateId] = useState(initialTemplateId)
+  const [recipientName, setRecipientName] = useState(initialRecipientName)
+  const [recipientEmail, setRecipientEmail] = useState(initialRecipientEmail)
+  const [pickedFormType, setPickedFormType] = useState<FormType | ''>(fixedFormType ?? '')
   const [pickError, setPickError] = useState<string | null>(null)
   const [composing, setComposing] = useState(false)
 
@@ -60,15 +81,15 @@ export default function InviteComposer({ eventId, formType, onClose, onSent }: P
   }, [eventId])
 
   async function startCompose() {
-    if (!templateId || !recipientName.trim() || !recipientEmail.trim()) {
-      setPickError('Pick a template and enter the recipient’s name and email.')
+    if (!pickedFormType || !templateId || !recipientName.trim() || !recipientEmail.trim()) {
+      setPickError('Pick a category, a template, and enter the recipient’s name and email.')
       return
     }
     setComposing(true); setPickError(null)
     try {
       const res = await fetch('/api/events/stakeholders/invites/compose', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ event_id: eventId, form_type: formType, template_id: templateId, recipient_name: recipientName.trim(), recipient_email: recipientEmail.trim() }),
+        body: JSON.stringify({ event_id: eventId, form_type: pickedFormType, template_id: templateId, recipient_name: recipientName.trim(), recipient_email: recipientEmail.trim() }),
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error)
@@ -84,6 +105,27 @@ export default function InviteComposer({ eventId, formType, onClose, onSent }: P
     setComposing(false)
   }
 
+  // Standard email-builder link behavior (2026-08-14, per Madhu): a plain
+  // click on already-linked text should never navigate away mid-edit — it
+  // should let the producer view/change the URL instead. Only cmd/ctrl+click
+  // actually opens it, to verify the link works. `Link.configure({
+  // openOnClick: false })` above already blocks the extension's own
+  // navigate-on-click behavior; this adds the edit-on-click / open-on-
+  // modifier-click behavior standard editors have on top of that.
+  function handleEditorAreaClick(e: React.MouseEvent) {
+    if (!editor || !editor.isActive('link')) return
+    const href = editor.getAttributes('link').href as string
+    if (e.metaKey || e.ctrlKey) {
+      window.open(href, '_blank', 'noopener,noreferrer')
+      return
+    }
+    const url = window.prompt('Edit link URL (leave blank to remove the link):', href)
+    if (url === null) return
+    const trimmed = url.trim()
+    if (trimmed === '') editor.chain().focus().extendMarkRange('link').unsetLink().run()
+    else editor.chain().focus().extendMarkRange('link').setLink({ href: trimmed }).run()
+  }
+
   async function send() {
     if (!editor) return
     setStep('sending'); setSendError(null)
@@ -91,7 +133,7 @@ export default function InviteComposer({ eventId, formType, onClose, onSent }: P
       const res = await fetch('/api/events/stakeholders/invites/send', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          invite_token: inviteToken, event_id: eventId, form_type: formType, template_id: templateId,
+          invite_token: inviteToken, event_id: eventId, form_type: pickedFormType, template_id: templateId,
           recipient_name: recipientName.trim(), recipient_email: recipientEmail.trim(),
           subject, html: editor.getHTML(),
         }),
@@ -110,48 +152,61 @@ export default function InviteComposer({ eventId, formType, onClose, onSent }: P
     <div style={{ position: 'fixed', inset: 0, background: 'color-mix(in srgb, black 60%, transparent)', zIndex: 60, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}>
       <div style={{ width: '680px', maxWidth: '95%', maxHeight: '90vh', overflowY: 'auto', background: 'var(--card)', border: '1px solid var(--border)', borderRadius: '14px', padding: '24px' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-          <div style={{ fontSize: '15px', fontWeight: 800, color: 'var(--ink)' }}>Invite a {formType === 'speaker' ? 'Speaker' : 'Partner'}</div>
-          <button onClick={onClose} style={{ background: 'none', border: 'none', fontSize: '18px', color: 'var(--ink3)', cursor: 'pointer' }}>×</button>
+          <div style={{ fontSize: '17px', fontWeight: 800, color: 'var(--ink)' }}>{title ?? (fixedFormType === 'speaker' ? 'Invite a Speaker' : fixedFormType ? 'Invite a Partner' : 'Send an Invite')}</div>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', fontSize: '20px', color: 'var(--ink3)', cursor: 'pointer' }}>×</button>
         </div>
 
         {step === 'pick' && (
           <div style={{ display: 'grid', gap: '14px' }}>
+            {!fixedFormType && (
+              <div>
+                <span style={{ fontSize: '13px', fontWeight: 800, color: 'var(--ink3)', textTransform: 'uppercase', letterSpacing: '1px', display: 'block', marginBottom: '6px' }}>Category</span>
+                <select value={pickedFormType} onChange={e => setPickedFormType(e.target.value as FormType)}
+                  style={{ width: '100%', padding: '9px 12px', borderRadius: '8px', border: '1px solid var(--border)', fontSize: '15px', fontFamily: 'inherit' }}>
+                  <option value="">Select a category…</option>
+                  {(Object.keys(FORM_TYPE_LABELS) as FormType[]).map(ft => <option key={ft} value={ft}>{FORM_TYPE_LABELS[ft]}</option>)}
+                </select>
+              </div>
+            )}
             <div>
-              <span style={{ fontSize: '11px', fontWeight: 800, color: 'var(--ink3)', textTransform: 'uppercase', letterSpacing: '1px', display: 'block', marginBottom: '6px' }}>Template</span>
+              <span style={{ fontSize: '13px', fontWeight: 800, color: 'var(--ink3)', textTransform: 'uppercase', letterSpacing: '1px', display: 'block', marginBottom: '6px' }}>Template</span>
               <select value={templateId} onChange={e => setTemplateId(e.target.value)}
-                style={{ width: '100%', padding: '9px 12px', borderRadius: '8px', border: '1px solid var(--border)', fontSize: '13px', fontFamily: 'inherit' }}>
+                style={{ width: '100%', padding: '9px 12px', borderRadius: '8px', border: '1px solid var(--border)', fontSize: '15px', fontFamily: 'inherit' }}>
                 <option value="">Select a template…</option>
                 {templates.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
               </select>
-              {templates.length === 0 && <div style={{ fontSize: '11.5px', color: 'var(--ink4)', marginTop: '6px' }}>No email templates available yet — create one under Email Templates first.</div>}
+              {templates.length === 0 && <div style={{ fontSize: '13.5px', color: 'var(--ink4)', marginTop: '6px' }}>No email templates available yet — create one under Email Templates first.</div>}
             </div>
             <div>
-              <span style={{ fontSize: '11px', fontWeight: 800, color: 'var(--ink3)', textTransform: 'uppercase', letterSpacing: '1px', display: 'block', marginBottom: '6px' }}>Recipient Name</span>
+              <span style={{ fontSize: '13px', fontWeight: 800, color: 'var(--ink3)', textTransform: 'uppercase', letterSpacing: '1px', display: 'block', marginBottom: '6px' }}>Recipient Name</span>
               <Input value={recipientName} onChange={e => setRecipientName(e.target.value)} placeholder="e.g. Amara Okafor" />
             </div>
             <div>
-              <span style={{ fontSize: '11px', fontWeight: 800, color: 'var(--ink3)', textTransform: 'uppercase', letterSpacing: '1px', display: 'block', marginBottom: '6px' }}>Recipient Email</span>
+              <span style={{ fontSize: '13px', fontWeight: 800, color: 'var(--ink3)', textTransform: 'uppercase', letterSpacing: '1px', display: 'block', marginBottom: '6px' }}>Recipient Email</span>
               <Input type="email" value={recipientEmail} onChange={e => setRecipientEmail(e.target.value)} placeholder="amara@example.com" />
             </div>
-            {pickError && <div style={{ fontSize: '12.5px', color: 'var(--red)' }}>{pickError}</div>}
+            {pickError && <div style={{ fontSize: '14.5px', color: 'var(--red)' }}>{pickError}</div>}
             <Button variant="teal" onClick={startCompose}>{composing ? 'Composing…' : 'Compose Email'}</Button>
           </div>
         )}
 
         {(step === 'edit' || step === 'sending' || step === 'error') && (
           <div style={{ display: 'grid', gap: '12px' }}>
-            <div style={{ fontSize: '12px', color: 'var(--ink3)' }}>Sending as <strong style={{ color: 'var(--ink2)' }}>{senderName}</strong> &lt;{senderEmail}&gt; to <strong style={{ color: 'var(--ink2)' }}>{recipientEmail}</strong></div>
+            <div style={{ fontSize: '14px', color: 'var(--ink3)' }}>Sending as <strong style={{ color: 'var(--ink2)' }}>{senderName}</strong> &lt;{senderEmail}&gt; to <strong style={{ color: 'var(--ink2)' }}>{recipientEmail}</strong></div>
             <div>
-              <span style={{ fontSize: '11px', fontWeight: 800, color: 'var(--ink3)', textTransform: 'uppercase', letterSpacing: '1px', display: 'block', marginBottom: '6px' }}>Subject</span>
+              <span style={{ fontSize: '13px', fontWeight: 800, color: 'var(--ink3)', textTransform: 'uppercase', letterSpacing: '1px', display: 'block', marginBottom: '6px' }}>Subject</span>
               <Input value={subject} onChange={e => setSubject(e.target.value)} />
             </div>
             <div style={{ border: '1px solid var(--border)', borderRadius: '8px', padding: '14px' }}>
               <RichTextToolbar editor={editor} />
-              <div style={{ minHeight: '220px', fontSize: '14px', lineHeight: 1.6 }}>
+              <div
+                onClick={handleEditorAreaClick}
+                style={{ minHeight: '220px', fontSize: '16px', lineHeight: 1.6 }}
+              >
                 <EditorContent editor={editor} />
               </div>
             </div>
-            {sendError && <div style={{ fontSize: '12.5px', color: 'var(--red)' }}>{sendError}</div>}
+            {sendError && <div style={{ fontSize: '14.5px', color: 'var(--red)' }}>{sendError}</div>}
             <div style={{ display: 'flex', gap: '8px' }}>
               <Button variant="teal" onClick={send}>{step === 'sending' ? 'Sending…' : step === 'error' ? 'Retry Send' : 'Send'}</Button>
               <Button variant="ghost" onClick={() => setStep('pick')}>Back</Button>
@@ -159,6 +214,11 @@ export default function InviteComposer({ eventId, formType, onClose, onSent }: P
           </div>
         )}
       </div>
+      <ProcessingOverlay
+        active={composing || step === 'sending'}
+        label={step === 'sending' ? 'Sending invite…' : 'Composing email…'}
+        estimatedMs={step === 'sending' ? 2200 : 1200}
+      />
     </div>
   )
 }

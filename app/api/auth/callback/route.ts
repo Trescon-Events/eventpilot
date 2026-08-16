@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/app/lib/supabase'
 import { sessionCookieOptions } from '@/app/lib/access/session-cookie'
+import { isAdminRoleSet } from '@/app/lib/access/access-roles'
 
 /*
   GET /api/auth/callback
@@ -123,7 +124,7 @@ export async function GET(req: NextRequest) {
   // ── Build session (same format as password login) ─────────────────────────
   const jobLevel    = staff.job_level ?? 'staff'
   const accessRoles = (staff.access_roles ?? ['standard']) as string[]
-  const isAdmin     = accessRoles.includes('admin') || accessRoles.includes('super_admin')
+  const isAdmin     = isAdminRoleSet(accessRoles)
 
   const sessionPayload = Buffer.from(JSON.stringify({
     sid:   staff.id,

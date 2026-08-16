@@ -16,6 +16,7 @@
 */
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/app/lib/supabase'
+import { isAdminRoleSet } from '@/app/lib/access/access-roles'
 
 export type FinanceSession = {
   sid:   string
@@ -62,8 +63,7 @@ export async function requireFinanceAccess(req: NextRequest): Promise<Ok | Fail>
   const isAuthorised =
     session.adm === true ||
     session.roles.includes('finance') ||
-    session.roles.includes('admin') ||
-    session.roles.includes('super_admin')
+    isAdminRoleSet(session.roles)
 
   if (!isAuthorised) {
     return { ok: false, res: NextResponse.json({ error: 'Forbidden — finance access required' }, { status: 403 }) }
@@ -104,7 +104,7 @@ export async function logFinanceAccess(
       target_staff_id: target,
       action,
       route,
-      is_admin:        session.adm === true || session.roles.includes('admin') || session.roles.includes('super_admin'),
+      is_admin:        session.adm === true || isAdminRoleSet(session.roles),
     })
   } catch {
     /* audit failures never block the response */

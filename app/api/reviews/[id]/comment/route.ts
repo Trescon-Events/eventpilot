@@ -1,5 +1,6 @@
 import { supabaseAdmin } from '@/app/lib/supabase'
 import { NextRequest, NextResponse } from 'next/server'
+import { ADMIN_ROLE_VALUES } from '@/app/lib/access/access-roles'
 
 function getSession(req: NextRequest) {
   const raw = req.cookies.get('tcs_session')?.value
@@ -55,21 +56,14 @@ export async function POST(
   })
   if (cErr) return NextResponse.json({ error: cErr.message }, { status: 500 })
 
-  // Notify all admins
+  // Notify all admins — single overlap query against the shared role list
+  // (2026-08-16: previously two separate .contains() queries + JS dedupe)
   const { data: admins } = await supabaseAdmin
     .from('staff_members')
     .select('id')
-    .contains('access_roles', ['admin'])
+    .overlaps('access_roles', ADMIN_ROLE_VALUES)
 
-  const { data: superAdmins } = await supabaseAdmin
-    .from('staff_members')
-    .select('id')
-    .contains('access_roles', ['super_admin'])
-
-  const adminIds = [
-    ...(admins ?? []).map(a => a.id),
-    ...(superAdmins ?? []).map(a => a.id),
-  ].filter((v, i, arr) => arr.indexOf(v) === i) // dedupe
+  const adminIds = (admins ?? []).map(a => a.id)
 
   if (adminIds.length > 0) {
     await supabaseAdmin.from('notifications').insert(

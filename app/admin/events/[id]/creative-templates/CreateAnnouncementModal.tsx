@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { Button } from '@/app/components/ui'
+import { Button, ProcessingOverlay } from '@/app/components/ui'
 import type { Variant } from '@/app/lib/announcements/composite'
 import { type StakeholderKind, type Stakeholder, type Speaker, type Partner, displayName, displaySubtitle, thumbUrl } from './page'
 
@@ -223,6 +223,12 @@ export default function CreateAnnouncementModal({ eventId, stakeholderType, read
           )
         })()}
       </div>
+      <ProcessingOverlay
+        active={generating}
+        label="Generating announcement…"
+        sublabel="Compositing the creative and writing the post copy."
+        estimatedMs={15000}
+      />
     </div>
   )
 }

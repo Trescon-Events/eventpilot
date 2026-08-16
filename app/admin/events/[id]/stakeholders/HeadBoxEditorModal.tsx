@@ -1,7 +1,7 @@
 'use client'
 
 import { useRef, useState } from 'react'
-import { Button } from '@/app/components/ui'
+import { Button, ProcessingOverlay } from '@/app/components/ui'
 
 /* Manual head-position override (2026-08-03) — auto-detection (Gemini,
    app/lib/media/face-alignment.ts) isn't reliable for every photo: re-running
@@ -186,6 +186,12 @@ export default function HeadBoxEditorModal({ speakerId, photoUrl, currentHeadBox
           <Button variant="ghost" onClick={onClose}>Cancel</Button>
         </div>
       </div>
+      <ProcessingOverlay
+        active={saving || redetecting}
+        label={redetecting ? 'Detecting the face position…' : 'Saving head position…'}
+        sublabel={redetecting ? 'Running automatic face detection.' : undefined}
+        estimatedMs={redetecting ? 4000 : 700}
+      />
     </div>
   )
 }

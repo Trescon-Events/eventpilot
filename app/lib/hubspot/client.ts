@@ -46,3 +46,20 @@ export async function listHubSpotForms(): Promise<{ id: string; name: string }[]
   const data = (await res.json()) as { results?: { id: string; name: string }[] }
   return (data.results ?? []).map(f => ({ id: f.id, name: f.name }))
 }
+
+// Uploaded-file signed-url-redirect links (a submission's photo/logo file
+// URL, as stored in stakeholder_form_submissions.file_urls) — unlike the
+// form/field-definition endpoints above, this one 307-redirects to
+// HubSpot's own login page instead of the actual file when fetched without
+// auth, even moments after submission (confirmed live, 2026-08-15 — NOT a
+// signed-URL-expiry issue; the redirect endpoint itself requires an
+// authenticated HubSpot request, the same Service Key works here since
+// `forms-uploaded-files` is one of its granted scopes). Every from-
+// submission conversion route that re-hosts/processes a submitted
+// photo/logo must fetch through this, not a bare fetch(), or the "photo"
+// it ends up storing is HubSpot's login-page HTML. Only the FIRST hop gets
+// this header — the redirect target (HubSpot's CDN) carries its own signed
+// query-string params and doesn't need it, so nothing leaks cross-origin.
+export async function fetchHubSpotUploadedFile(url: string): Promise<Response> {
+  return fetch(url, { headers: authHeaders() })
+}

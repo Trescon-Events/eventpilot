@@ -3,6 +3,7 @@
 import { useState, useEffect, use } from 'react'
 import Link from 'next/link'
 import PageHeader from '@/app/components/PageHeader'
+import { permissionSetSatisfies } from '@/app/lib/access/permission-match'
 import { Button, Card, Input, Select } from '@/app/components/ui'
 import { FormType, FORM_TYPES, FORM_TITLES, FieldSchema } from '@/app/lib/forms/types'
 import { HubSpotFieldMapping, HubSpotFormField, EventHubSpotForm, guessFieldTypeFromHubSpot } from '@/app/lib/hubspot/types'
@@ -87,7 +88,7 @@ export default function HubSpotFormConnectPage({ params }: { params: Promise<{ i
   // the mapping was saved or not").
   const [dirty, setDirty] = useState(false)
 
-  const can = (key: string) => permissions.has('*') || permissions.has(key)
+  const can = (key: string) => permissionSetSatisfies(permissions, key)
   const canManage = can('sae.forms.manage')
 
   async function loadAll() {
@@ -212,7 +213,8 @@ export default function HubSpotFormConnectPage({ params }: { params: Promise<{ i
         eyebrow="Stakeholder Hub / Connect HubSpot Form"
         title={FORM_TITLES[formType as FormType]}
         description="Connect the HubSpot form your team already built for this event, and map its fields so submissions flow into the Submissions Inbox."
-        actions={<Link href={`/admin/events/${eventId}/stakeholders`}><Button variant="ghost">← Back to Stakeholder Hub</Button></Link>}
+        backHref={`/admin/events/${eventId}/stakeholders`}
+        backLabel="Back to Stakeholder Hub"
       />
 
       <div style={{ padding: '24px 32px', maxWidth: '900px' }}>

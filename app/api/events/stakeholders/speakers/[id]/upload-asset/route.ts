@@ -35,10 +35,16 @@ const ALLOWED_PHOTO_TYPES = ['image/jpeg', 'image/png', 'image/webp']
 // extension, not which processing path processLogo() takes (that's driven
 // by file.name, unaffected by this).
 const ALLOWED_LOGO_TYPES: Record<string, string> = {
-  'image/png': 'png', 'image/jpeg': 'jpg', 'image/webp': 'webp', 'image/svg+xml': 'svg',
+  'image/png': 'png', 'image/jpeg': 'jpg', 'image/webp': 'webp', 'image/gif': 'gif', 'image/svg+xml': 'svg',
+  'image/bmp': 'bmp', 'image/x-ms-bmp': 'bmp', 'image/x-icon': 'ico', 'image/vnd.microsoft.icon': 'ico',
+  'image/tiff': 'tiff', 'image/heic': 'heic', 'image/heif': 'heic',
   'application/pdf': 'pdf', 'application/postscript': 'ai', 'application/octet-stream': 'ai',
 }
-const ALLOWED_LOGO_EXTENSIONS = ['png', 'jpg', 'jpeg', 'webp', 'svg', 'pdf', 'ai', 'eps', 'psd', 'psb']
+// Clients send logos in whatever their design tool exports (2026-08-15,
+// per Madhu: "we work with 100s of clients... exhaustive coverage of
+// different possible formats") — bmp/ico/tiff/heic all now route through
+// logo-engine.ts's own decoders (see its detectLogoFormat()/toRasterPng()).
+const ALLOWED_LOGO_EXTENSIONS = ['png', 'jpg', 'jpeg', 'webp', 'gif', 'bmp', 'ico', 'cur', 'tif', 'tiff', 'heic', 'heif', 'svg', 'pdf', 'ai', 'eps', 'psd', 'psb']
 // Generous safety ceiling, not a business rule (2026-08-04, per Madhu: raw
 // speaker photos from the field can be arbitrarily large and legitimately
 // need to come through — everything gets downscaled to
@@ -73,8 +79,12 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     return NextResponse.json({ error: `File too large (max ${MAX_SIZE / (1024 * 1024)} MB)` }, { status: 413 })
   }
 
-  const { data: speaker } = await supabaseAdmin.from('event_speakers').select('event_id').eq('id', speakerId).single()
+  const { data: speaker } = await supabaseAdmin.from('event_speakers').select('event_id, announcement_status').eq('id', speakerId).single()
   if (!speaker) return NextResponse.json({ error: 'Speaker not found' }, { status: 404 })
+  // Uploading a new photo/logo on an already-approved speaker must force a
+  // fresh review — same reset guard as the main PATCH route (see its
+  // comment for the precedent).
+  const reapprovalReset: Record<string, unknown> = speaker.announcement_status === 'ready' ? { announcement_status: 'pending_review' } : {}
 
   const buffer = Buffer.from(await file.arrayBuffer())
 
@@ -100,7 +110,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
     const { data, error } = await supabaseAdmin
       .from('event_speakers')
-      .update({ company_logo_url: logoUrl, company_logo_raw_url: logoRawUrl, updated_at: new Date().toISOString() })
+      .update({ company_logo_url: logoUrl, company_logo_raw_url: logoRawUrl, updated_at: new Date().toISOString(), ...reapprovalReset })
       .eq('id', speakerId)
       .select('company_logo_url, company_logo_raw_url')
       .single()
@@ -160,7 +170,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       : Promise.resolve(null),
   ])
 
-  const update: Record<string, unknown> = { photo_url: photoUrl, updated_at: new Date().toISOString(), photo_head_box: photoHeadBox }
+  const update: Record<string, unknown> = { photo_url: photoUrl, updated_at: new Date().toISOString(), photo_head_box: photoHeadBox, ...reapprovalReset }
   if (photoProcessedUrl) update.photo_processed_url = photoProcessedUrl
 
   const { data, error } = await supabaseAdmin

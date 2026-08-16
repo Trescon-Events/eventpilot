@@ -135,8 +135,8 @@ body {
   font-family: var(--font-manrope), sans-serif;
   background: var(--surface);
   color: var(--ink);
-  font-size: 14px;
-  line-height: 1.5;
+  font-size: 15px;
+  line-height: 1.55;
   -webkit-font-smoothing: antialiased;
 }
 
@@ -149,7 +149,7 @@ input, select, textarea {
   background: var(--card);
   color: var(--ink);
   font-family: var(--font-manrope), sans-serif;
-  font-size: 13px;
+  font-size: 14px;
 }
 input::placeholder, textarea::placeholder { color: var(--ink3); }
 option { background: var(--card); color: var(--ink); }
@@ -181,7 +181,7 @@ option { background: var(--card); color: var(--ink); }
 }
 
 .t-nav-title {
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 600;
   color: var(--ink2);
   white-space: nowrap;
@@ -192,9 +192,9 @@ option { background: var(--card); color: var(--ink); }
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  padding: 7px 14px;
+  padding: 8px 15px;
   border-radius: 10px;
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 700;
   font-family: var(--font-manrope), sans-serif;
   text-decoration: none;
@@ -222,6 +222,7 @@ option { background: var(--card); color: var(--ink); }
 .tbtn-red    { background: var(--red-light);     border-color: var(--red-border);    color: var(--red); }
 .tbtn-ghost  { background: transparent;          border-color: var(--border);        color: var(--ink2); }
 .tbtn-solid  { background: var(--teal-mid);      border-color: var(--teal-mid);      color: var(--teal-light); }
+.tbtn-full   { width: 100%; justify-content: center; }
 .tbtn-lime   { background: var(--lime);          border-color: #A3D424;              color: var(--lime-dark); }
 /* No dedicated --success-border token exists (only --success/--success-
    light) — color-mix approximates the same "tinted border" relationship
@@ -260,12 +261,12 @@ option { background: var(--card); color: var(--ink); }
 /* ── Form Fields ───────────────────────────────────────────────── */
 .tfield {
   width: 100%;
-  padding: 10px 12px;
+  padding: 11px 13px;
   border-radius: 8px;
   border: 1.5px solid var(--border);
   background: var(--card);
   color: var(--ink);
-  font-size: 13px;
+  font-size: 14px;
   font-family: var(--font-manrope), sans-serif;
   outline: none;
   transition: border-color 0.15s, box-shadow 0.15s;
@@ -274,15 +275,21 @@ option { background: var(--card); color: var(--ink); }
   border-color: var(--teal-mid);
   box-shadow: 0 0 0 3px rgba(0,137,123,0.14);
 }
+/* Larger, more legible variant — Stakeholder full-page review screen. */
+.tfield-lg {
+  padding: 14px 16px;
+  font-size: 16.5px;
+  border-radius: 10px;
+}
 
 /* ── Badges ─────────────────────────────────────────────────────── */
 .tbadge {
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  padding: 3px 9px;
+  padding: 4px 10px;
   border-radius: 20px;
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 800;
   letter-spacing: 0.5px;
   text-transform: uppercase;
@@ -294,3 +301,36 @@ option { background: var(--card); color: var(--ink); }
 .tbadge-amber  { background: var(--amber-light);   border-color: var(--amber-border);  color: var(--amber); }
 .tbadge-red    { background: var(--red-light);     border-color: var(--red-border);    color: var(--red); }
 .tbadge-grey   { background: rgba(255,255,255,0.06); border-color: var(--border);       color: var(--ink3); }
+
+/* ── Rich text editor (Tiptap/ProseMirror) ────────────────────────
+   No spacing rules ship with StarterKit itself — without this, every
+   paragraph/heading/list item runs together with zero vertical gap even
+   though they're structurally correct separate block elements (this is
+   exactly why the compose editor looked "crowded, no line breaks" while
+   the actual sent email, rendered by a real mail client's default <p>
+   margins, looked fine — same HTML, missing editor-only CSS). */
+.ProseMirror { outline: none; }
+.ProseMirror p { margin: 0 0 14px; }
+.ProseMirror p:last-child { margin-bottom: 0; }
+.ProseMirror h2, .ProseMirror h3 { margin: 20px 0 10px; line-height: 1.3; }
+.ProseMirror h2:first-child, .ProseMirror h3:first-child { margin-top: 0; }
+.ProseMirror ul, .ProseMirror ol { margin: 0 0 14px; padding-left: 24px; }
+.ProseMirror li { margin-bottom: 4px; }
+.ProseMirror blockquote {
+  margin: 0 0 14px; padding: 4px 0 4px 14px;
+  border-left: 3px solid var(--border); color: var(--ink3);
+}
+.ProseMirror a { color: var(--teal-mid); cursor: pointer; text-decoration: underline; }
+
+/* Social post-copy preview (creative-templates/page.tsx) — deliberately
+   NOT themed to the app's own dark surface/teal accent. This editor's job
+   is to look like the actual post once it's live on LinkedIn/X/Facebook/
+   Instagram, all of which render a white card with dark body text and a
+   platform-blue auto-linkified URL — matching that is the whole point of
+   a WYSIWYG caption editor, more than matching this app's own theme. */
+.social-caption-preview { background: #FFFFFF; }
+.social-caption-preview .ProseMirror {
+  color: #1A1A1A; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  font-size: 15px; line-height: 1.5;
+}
+.social-caption-preview .ProseMirror a { color: #0A66C2; }

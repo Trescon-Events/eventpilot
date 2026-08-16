@@ -2,6 +2,7 @@ import { supabaseAdmin } from '@/app/lib/supabase'
 import { NextRequest, NextResponse } from 'next/server'
 import bcrypt from 'bcryptjs'
 import { sessionCookieOptions } from '@/app/lib/access/session-cookie'
+import { isAdminRoleSet } from '@/app/lib/access/access-roles'
 
 /* POST /api/login — unified login for all Event Pilot users
    Security layers applied in order:
@@ -109,7 +110,7 @@ export async function POST(req: NextRequest) {
   // ── Layer 2: IP allowlist (skip for admins — they can login from anywhere) ──
   const jobLevel    = staff.job_level ?? 'staff'
   const accessRoles = (staff.access_roles ?? ['standard']) as string[]
-  const isAdmin     = accessRoles.includes('admin') || accessRoles.includes('super_admin')
+  const isAdmin     = isAdminRoleSet(accessRoles)
   const officeIps = (process.env.OFFICE_IPS ?? '')
     .split(',')
     .map(s => s.trim())
@@ -161,7 +162,6 @@ export async function POST(req: NextRequest) {
     supabaseAdmin.from('staff_task_profiles').select('*', { count: 'exact', head: true }).eq('staff_id', staff.id),
   ])
 
-  const fullIsAdmin = accessRoles.includes('admin') || accessRoles.includes('super_admin')
   const hasProfile  = (profileCount ?? 0) > 0
 
   const responseBody = {
@@ -171,7 +171,7 @@ export async function POST(req: NextRequest) {
     role:                 staff.role,
     office_id:            staff.office_id,
     job_level:            jobLevel,
-    is_admin:             fullIsAdmin,
+    is_admin:             isAdmin,
     has_reports:          (reportCount ?? 0) > 0,
     has_profile:          hasProfile,
     must_change_password: staff.must_change_password ?? false,
@@ -180,7 +180,7 @@ export async function POST(req: NextRequest) {
   const sessionPayload = Buffer.from(JSON.stringify({
     sid:   staff.id,
     jl:    jobLevel,
-    adm:   fullIsAdmin,
+    adm:   isAdmin,
     dept:  staff.department ?? '',
     roles: accessRoles,
   })).toString('base64')

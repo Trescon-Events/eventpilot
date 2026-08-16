@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { usePathname } from 'next/navigation'
 import Link from 'next/link'
 import { deriveBreadcrumbs } from '@/app/lib/nav/breadcrumbs'
+import { useBreadcrumbLabels } from '@/app/lib/nav/breadcrumb-labels'
 import { HelpMenu, SoundToggle, ProfileMenu } from '@/app/components/NavBar'
 import PlatformMenu from '@/app/components/PlatformMenu'
 
@@ -87,6 +88,7 @@ function NavButtonLink({ btn, active }: { btn: NavButton; active: boolean }) {
 export default function GlobalShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
   const [qa, setQa] = useState<QuickAccess>(DEFAULT_QA)
+  const breadcrumbLabels = useBreadcrumbLabels()
 
   useEffect(() => {
     fetch('/api/nav/quick-access').then(r => r.json()).then(setQa).catch(() => {})
@@ -96,7 +98,7 @@ export default function GlobalShell({ children }: { children: React.ReactNode })
   const quick = quickAccessButtons(qa).filter(b => b.show)
   const activeHome = activeKeyOf(pathname, home)
   const activeQuick = activeKeyOf(pathname, quick)
-  const crumbs = deriveBreadcrumbs(pathname)
+  const crumbs = deriveBreadcrumbs(pathname, breadcrumbLabels)
 
   return (
     <>

@@ -23,7 +23,8 @@ export const FIELD_TYPE_OPTIONS: { type: FieldType; label: string }[] = [
   { type: 'url', label: 'URL' },
   { type: 'textarea', label: 'Long Text' },
   { type: 'select', label: 'Dropdown' },
-  { type: 'multiselect', label: 'Checkboxes' },
+  { type: 'multiselect', label: 'Checkboxes (pick several)' },
+  { type: 'checkbox', label: 'Checkbox (single yes/no)' },
   { type: 'date', label: 'Date' },
   { type: 'file', label: 'File Upload' },
 ]

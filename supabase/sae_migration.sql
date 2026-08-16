@@ -338,3 +338,28 @@ CREATE TABLE IF NOT EXISTS event_messaging_doc_edits (
 );
 
 CREATE INDEX IF NOT EXISTS idx_messaging_doc_edits_doc ON event_messaging_doc_edits(doc_id, applied_at);
+
+-- 2026-08-16: Postiz channel selection. Real-world discovery while wiring
+-- up the actual publish/schedule UI: the Postiz public API (verified
+-- directly against docs.postiz.com — see app/lib/postiz.ts's own rewrite
+-- comment) targets specific CONNECTED CHANNELS by their own integration
+-- id (a post can go to any subset of however many channels a workspace
+-- has connected — LinkedIn, X, Instagram, etc., including multiple of the
+-- same platform type), not a platform-type string like the existing
+-- `stakeholder_announcements.platforms TEXT[]` column assumed. That
+-- column is left in place (unused going forward, harmless) rather than
+-- repurposed, since integration ids are opaque and a column named
+-- "platforms" holding them would be misleading to anyone reading the row
+-- directly.
+--
+-- Two new columns, matching Madhu's ask (2026-08-16): a per-event
+-- remembered DEFAULT channel selection (so posting never requires
+-- re-picking channels from scratch), and a per-announcement selection
+-- that starts pre-filled from that default the first time a post is
+-- opened for scheduling, but can be freely adjusted per post from there
+-- without touching the event's own default.
+ALTER TABLE events
+  ADD COLUMN IF NOT EXISTS postiz_default_channel_ids TEXT[]; -- Postiz integration ids, this event's remembered default channel selection
+
+ALTER TABLE stakeholder_announcements
+  ADD COLUMN IF NOT EXISTS postiz_channel_ids TEXT[]; -- Postiz integration ids actually targeted by this post — pre-filled from events.postiz_default_channel_ids, editable per post

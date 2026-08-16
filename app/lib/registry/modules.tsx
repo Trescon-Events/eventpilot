@@ -366,6 +366,40 @@ export function getModuleRegistry(): ModuleDef[] {
         icon: <svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>,
       },
     },
+    // The next three entries exist purely to give the breadcrumb resolver
+    // (app/lib/nav/breadcrumbs.ts) an accurate parent chain for the Access
+    // & Permissions hub and its pages (2026-08-16, per Madhu: the trail
+    // was showing "Admin Dashboard > Access Center" with no "People" step,
+    // even though every real path there goes through the People tab).
+    // 'admin-people' never renders in any menu (a plain-string href with a
+    // query param doesn't prefix-match anything else, so it can't become
+    // any OTHER page's "deepest" match either) — it exists solely to be
+    // walked via breadcrumbParent, same "page-badge-only" pattern already
+    // used by eventpilot/insights/admin-reviews above.
+    {
+      key: 'admin-people', label: 'People',
+      description: 'Staff directory, roles, and tool access — a tab of the Admin Dashboard, not its own route.',
+      icon: I.gear, color: '#12C9BD',
+      href: '/admin?tab=people',
+      access: { kind: 'admin_only' },
+      breadcrumbParent: 'admin',
+    },
+    {
+      key: 'admin-access-center', label: 'Access & Permissions',
+      description: 'Index of every access-management surface — platform, per-tool, and per-event.',
+      icon: I.gear, color: '#12C9BD',
+      href: '/admin/access-center',
+      access: { kind: 'admin_only' },
+      breadcrumbParent: 'admin-people',
+    },
+    {
+      key: 'admin-org-wide-access', label: 'Organization-Wide Access',
+      description: 'Assign a role across every event at once, and map Staff Portal role types to auto-grant access.',
+      icon: I.gear, color: '#12C9BD',
+      href: '/admin/access',
+      access: { kind: 'admin_only' },
+      breadcrumbParent: 'admin-access-center',
+    },
     {
       key: 'finance-admin', label: 'Finance Portal',
       description: 'Salary, expenses, vendor payments, payroll and Commercial P&L',
@@ -749,7 +783,7 @@ export function getModuleRegistry(): ModuleDef[] {
       icon: I.dashboard, color: '#009C89',
       href: ctx => `/admin/events/${ctx.eventId}`,
       needsEvent: true,
-      breadcrumbPattern: '/admin/events/:eventId',
+      breadcrumbPattern: '/admin/events/:eventId', breadcrumbParent: 'admin',
       access: { kind: 'admin_only' },
     },
     {
@@ -758,7 +792,7 @@ export function getModuleRegistry(): ModuleDef[] {
       icon: I.dashboard, color: '#009C89',
       href: ctx => `/admin/events/${ctx.eventId}/plan`,
       needsEvent: true,
-      breadcrumbPattern: '/admin/events/:eventId/plan',
+      breadcrumbPattern: '/admin/events/:eventId/plan', breadcrumbParent: 'admin-event-workspace',
       access: { kind: 'admin_only' },
     },
     {
@@ -767,7 +801,7 @@ export function getModuleRegistry(): ModuleDef[] {
       icon: I.dashboard, color: '#009C89',
       href: ctx => `/admin/events/${ctx.eventId}/execution`,
       needsEvent: true,
-      breadcrumbPattern: '/admin/events/:eventId/execution',
+      breadcrumbPattern: '/admin/events/:eventId/execution', breadcrumbParent: 'admin-event-workspace',
       access: { kind: 'admin_only' },
     },
     {
@@ -776,7 +810,7 @@ export function getModuleRegistry(): ModuleDef[] {
       icon: I.dashboard, color: '#009C89',
       href: ctx => `/admin/events/${ctx.eventId}/brief`,
       needsEvent: true,
-      breadcrumbPattern: '/admin/events/:eventId/brief',
+      breadcrumbPattern: '/admin/events/:eventId/brief', breadcrumbParent: 'admin-event-workspace',
       access: { kind: 'admin_only' },
     },
     {
@@ -785,7 +819,7 @@ export function getModuleRegistry(): ModuleDef[] {
       icon: I.people, color: '#F0AB3C',
       href: ctx => `/admin/events/${ctx.eventId}/stakeholders`,
       needsEvent: true,
-      breadcrumbPattern: '/admin/events/:eventId/stakeholders',
+      breadcrumbPattern: '/admin/events/:eventId/stakeholders', breadcrumbParent: 'admin-event-workspace',
       access: { kind: 'admin_only' },
     },
     {
@@ -794,7 +828,7 @@ export function getModuleRegistry(): ModuleDef[] {
       icon: I.gear, color: '#8C8C8C',
       href: ctx => `/admin/events/${ctx.eventId}/access`,
       needsEvent: true,
-      breadcrumbPattern: '/admin/events/:eventId/access',
+      breadcrumbPattern: '/admin/events/:eventId/access', breadcrumbParent: 'admin-event-workspace',
       access: { kind: 'admin_only' },
     },
     {

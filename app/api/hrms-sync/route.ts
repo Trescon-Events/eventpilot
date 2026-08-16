@@ -1,6 +1,8 @@
 import { supabaseAdmin } from '@/app/lib/supabase'
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
+import { applyRoleAccessMapping } from '@/app/lib/hrms/apply-role-access-map'
+import { sanitizeAccessRoles } from '@/app/lib/access/access-roles'
 
 /* POST /api/hrms-sync
    Full sync: staff, manager links, projects → events, allocations,
@@ -127,7 +129,12 @@ export async function POST(req: NextRequest) {
   const staffRows = profiles.map((p: any) => {
     const email = p.email?.trim().toLowerCase()
     const existingLevel = existingMap[email]?.job_level
-    const roles = userRolesMap[p.id] ?? ['standard']
+    // 2026-08-16 fix: previously wrote userRolesMap[p.id] straight through
+    // with no validation — an arbitrary HRMS user_roles.role string could
+    // land unfiltered in access_roles, a column several security-relevant
+    // checks read from. sanitizeAccessRoles() applies the same whitelist
+    // PATCH /api/staff-roles already enforces for manual edits.
+    const roles = sanitizeAccessRoles(userRolesMap[p.id])
     return {
       name:                     p.full_name?.trim() ?? email,
       email,
@@ -178,6 +185,19 @@ export async function POST(req: NextRequest) {
   }
 
   // ── Resolve manager links ──
+  // 2026-08-16 fix: this upsert previously sent only {email, manager_id}
+  // with onConflict:'email' — Postgres's INSERT ... ON CONFLICT DO UPDATE
+  // still validates the candidate row's NOT NULL constraints (staff_members
+  // .name) BEFORE the conflict check redirects it to an UPDATE, so every
+  // one of these upserts failed with a 23502 constraint violation. The
+  // error was never checked (no {data, error} destructuring), so this has
+  // been silently failing on every sync — confirmed live: 0 of 119
+  // resolvable manager links were actually being written, which is why
+  // the org-chart Reporting Chain panel showed "No reporting data" for
+  // real staff with a real manager set in Staff Portal. Fix: include each
+  // person's own name (already on hand from the HRMS profile) so the
+  // candidate row satisfies the constraint even though only manager_id
+  // is meant to change.
   const managerIds = [...new Set(profiles.map((p: any) => p.reporting_manager_id).filter(Boolean))] as string[]
   if (managerIds.length > 0) {
     const { data: managers } = await hrms.from('profiles').select('id, email').in('id', managerIds)
@@ -187,11 +207,16 @@ export async function POST(req: NextRequest) {
 
     const managerUpdates = profiles
       .filter((p: any) => p.reporting_manager_id && managerEmailMap[p.reporting_manager_id])
-      .map((p: any) => ({ email: p.email.toLowerCase(), manager_id: emailToId[managerEmailMap[p.reporting_manager_id]] ?? null }))
+      .map((p: any) => ({
+        email:      p.email.toLowerCase(),
+        name:       p.full_name?.trim() ?? p.email,
+        manager_id: emailToId[managerEmailMap[p.reporting_manager_id]] ?? null,
+      }))
       .filter((u: any) => u.manager_id)
 
     if (managerUpdates.length > 0) {
-      await supabaseAdmin.from('staff_members').upsert(managerUpdates, { onConflict: 'email', ignoreDuplicates: false })
+      const { error: managerErr } = await supabaseAdmin.from('staff_members').upsert(managerUpdates, { onConflict: 'email', ignoreDuplicates: false })
+      if (managerErr) console.error('Manager link upsert failed:', managerErr.message)
     }
   }
 
@@ -272,6 +297,12 @@ export async function POST(req: NextRequest) {
     await supabaseAdmin.from('event_staff')
       .upsert(projRoleRows, { onConflict: 'event_id,staff_id', ignoreDuplicates: false })
   }
+
+  // ── Phase 2: auto-apply hrms_role_access_map ──
+  // Grants/replaces the EventPilot access role matching each person's
+  // Staff Portal role_type — see app/lib/hrms/apply-role-access-map.ts.
+  // Never touches manually-assigned roles (auto_granted stays false there).
+  const accessMapResult = await applyRoleAccessMapping(projRoleRows)
 
   // ── Sync timesheets → staff_timesheets ──
   const tsRows = (timesheets ?? [])
@@ -393,6 +424,8 @@ export async function POST(req: NextRequest) {
     checklists_seeded: checklistsSeeded,
     ...(leaveBalancesError ? { leave_balances_error: leaveBalancesError } : {}),
     project_roles:     projRoleRows.length,
-    message:           `Sync complete. ${staffRows.length} staff, ${eventRows.length} projects, ${allocRows.length} allocations, ${projRoleRows.length} project roles, ${tsRows.length} timesheets, ${leaveBalancesSynced} leave balances.`,
+    access_granted:    accessMapResult.applied,
+    access_removed:    accessMapResult.removed,
+    message:           `Sync complete. ${staffRows.length} staff, ${eventRows.length} projects, ${allocRows.length} allocations, ${projRoleRows.length} project roles, ${tsRows.length} timesheets, ${leaveBalancesSynced} leave balances, ${accessMapResult.applied} access roles auto-granted.`,
   })
 }

@@ -1,9 +1,8 @@
 'use client'
 
 import { useState, useEffect, use } from 'react'
-import Link from 'next/link'
 import PageHeader from '@/app/components/PageHeader'
-import { Button } from '@/app/components/ui'
+import { permissionSetSatisfies } from '@/app/lib/access/permission-match'
 import { FormSchemaEditor } from '@/app/components/forms/FormSchemaEditor'
 import { FormType, FORM_TYPES, FORM_TITLES } from '@/app/lib/forms/types'
 
@@ -19,7 +18,7 @@ export default function FormBuilderPage({ params }: { params: Promise<{ id: stri
   const [permissions, setPermissions] = useState<Set<string>>(new Set())
   const [loading, setLoading] = useState(valid)
 
-  const can = (key: string) => permissions.has('*') || permissions.has(key)
+  const can = (key: string) => permissionSetSatisfies(permissions, key)
 
   useEffect(() => {
     if (!valid) return
@@ -45,7 +44,8 @@ export default function FormBuilderPage({ params }: { params: Promise<{ id: stri
         eyebrow="Stakeholder Hub / Customize Form"
         title={FORM_TITLES[formType as FormType]}
         description="Add, remove, reorder, and relabel the fields on this event's onboarding form. Changes only affect this event."
-        actions={<Link href={`/admin/events/${eventId}/stakeholders`}><Button variant="ghost">← Back to Stakeholder Hub</Button></Link>}
+        backHref={`/admin/events/${eventId}/stakeholders`}
+        backLabel="Back to Stakeholder Hub"
       />
 
       <div style={{ padding: '24px 32px' }}>

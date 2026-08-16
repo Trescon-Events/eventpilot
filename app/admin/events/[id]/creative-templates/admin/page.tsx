@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef, use } from 'react'
 import PageHeader from '@/app/components/PageHeader'
-import { Button, Badge, Input, Select } from '@/app/components/ui'
+import { Button, Badge, Input, Select, ProcessingOverlay } from '@/app/components/ui'
 import AccessTab from '@/app/components/AccessTab'
 import type { Layer, ImageLayer, PhotoSlotLayer, TextLayer, Variant, CreativeTemplateConfig, TextLayerDiagnostics, PlaceholderProfile } from '@/app/lib/announcements/composite'
 import { withTextLayerDefaults } from '@/app/lib/announcements/text-layer-defaults'
@@ -363,7 +363,56 @@ export default function CreativeTemplatesAdminPage({ params }: { params: Promise
 
   function updateLayer(layerId: string, patch: Partial<Layer>) {
     if (!activeVariant) return
-    updateActiveVariant({ layers: activeVariant.layers.map(l => l.id === layerId ? ({ ...l, ...patch } as Layer) : l) })
+    updateActiveVariant({
+      layers: activeVariant.layers.map(l => {
+        if (l.id !== layerId) return l
+        if (l.type !== 'photo_slot' || !l.alignment || 'alignment' in patch) {
+          // No adjustment needed: not a photo_slot, has no alignment yet, or
+          // this patch already carries its own `alignment` (a fresh
+          // reference upload or a head-marker drag) — don't clobber
+          // reference dims/ratios that call site just deliberately set.
+          return { ...l, ...patch } as Layer
+        }
+        const pl = l as PhotoSlotLayer
+        const alignment = pl.alignment!
+        const hasSize = 'width' in patch || 'height' in patch
+        const hasOrigin = 'x' in patch || 'y' in patch
+        // A drag that changes BOTH origin (x/y) AND size (width/height) in
+        // the same gesture is a resize-from-a-west/north handle — the box's
+        // OWN top-left corner moving is what makes the west/north edge
+        // "extend." A drag that changes ONLY origin (no size) is a plain
+        // move, where the content SHOULD travel with the box — no
+        // compensation there, that's correct as-is.
+        const isEdgeResize = hasSize && hasOrigin
+        const refW = alignment.reference_box_width ?? pl.width
+        const refH = alignment.reference_box_height ?? pl.height
+        // Real bug found live (2026-08-16, Madhu): dragging the box's west
+        // edge to add room on the left also dragged the speaker photo left
+        // with it. Cause: target_head_center_x/y are ratios of the FROZEN
+        // reference box, applied on top of the box's OWN origin (layer.x/y)
+        // at composite time — moving x without compensating shifts the
+        // photo's absolute canvas position by exactly as much as the origin
+        // moved. Compensating here (only for a genuine edge-resize, not a
+        // move) keeps the head/photo pinned at its existing absolute
+        // position while the box's edge — and the extra room it reveals —
+        // moves independently, matching south/east resize (which never
+        // touches x/y, so never needed this).
+        const dx = isEdgeResize ? (patch.x as number ?? pl.x) - pl.x : 0
+        const dy = isEdgeResize ? (patch.y as number ?? pl.y) - pl.y : 0
+        const needsFreeze = !alignment.reference_box_width || !alignment.reference_box_height
+        if (!isEdgeResize && !(hasSize && needsFreeze)) return { ...l, ...patch } as Layer
+        return {
+          ...l, ...patch,
+          alignment: {
+            ...alignment,
+            target_head_center_x: alignment.target_head_center_x - dx / refW,
+            target_head_center_y: alignment.target_head_center_y - dy / refH,
+            reference_box_width: refW,
+            reference_box_height: refH,
+          },
+        } as Layer
+      }),
+    })
   }
 
   function deleteLayer(layerId: string) {
@@ -559,6 +608,8 @@ export default function CreativeTemplatesAdminPage({ params }: { params: Promise
                             discardLastUndo={discardLastUndo}
                             eventId={eventId}
                             allLayers={activeVariant.layers}
+                            canvasWidth={activeVariant.canvas_width}
+                            canvasHeight={activeVariant.canvas_height}
                           />
                         ))}
                         {activeVariant.layers.length === 0 && (
@@ -674,7 +725,7 @@ export default function CreativeTemplatesAdminPage({ params }: { params: Promise
   )
 }
 
-function LayerRow({ layer, index, total, activeType, brandFonts, expanded, onToggleExpand, diagnostics, onChange, onDelete, onMove, pushUndo, discardLastUndo, eventId, allLayers }: {
+function LayerRow({ layer, index, total, activeType, brandFonts, expanded, onToggleExpand, diagnostics, onChange, onDelete, onMove, pushUndo, discardLastUndo, eventId, allLayers, canvasWidth, canvasHeight }: {
   layer: Layer
   index: number
   total: number
@@ -690,6 +741,8 @@ function LayerRow({ layer, index, total, activeType, brandFonts, expanded, onTog
   discardLastUndo: () => void
   eventId: string
   allLayers: Layer[]
+  canvasWidth: number
+  canvasHeight: number
 }) {
   return (
     <div style={{ border: expanded ? '1px solid var(--lime)' : '1px solid var(--border-light)', borderRadius: '8px', overflow: 'hidden' }}>
@@ -709,7 +762,7 @@ function LayerRow({ layer, index, total, activeType, brandFonts, expanded, onTog
       {expanded && (
         <div style={{ padding: '12px 10px', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
           {layer.type === 'image' && <ImageLayerFields layer={layer} onChange={onChange as (patch: Partial<ImageLayer>) => void} pushUndo={pushUndo} discardLastUndo={discardLastUndo} eventId={eventId} />}
-          {layer.type === 'photo_slot' && <PhotoSlotLayerFields layer={layer} activeType={activeType} onChange={onChange} pushUndo={pushUndo} discardLastUndo={discardLastUndo} eventId={eventId} />}
+          {layer.type === 'photo_slot' && <PhotoSlotLayerFields layer={layer} activeType={activeType} onChange={onChange} pushUndo={pushUndo} discardLastUndo={discardLastUndo} eventId={eventId} canvasWidth={canvasWidth} canvasHeight={canvasHeight} />}
           {layer.type === 'text' && <TextLayerFields layer={layer} activeType={activeType} brandFonts={brandFonts} onChange={onChange} pushUndo={pushUndo} discardLastUndo={discardLastUndo} eventId={eventId} allLayers={allLayers} />}
         </div>
       )}
@@ -819,6 +872,16 @@ function ImageLayerFields({ layer, onChange, pushUndo, discardLastUndo, eventId 
     form.append('file', file)
     form.append('event_id', eventId)
     form.append('detect_face', 'false')
+    // Never trim — 2026-08-16, per Madhu: every reference layer (background,
+    // foreground overlay, design element) is exported at the template's own
+    // full canvas size, with the actual art already positioned wherever it
+    // should visually sit and everything else transparent. The reference
+    // file stays the literal rendered asset forever (see the 'image' branch
+    // of composite.ts), so its own internal composition already IS the
+    // layout — trimming would only throw that away, same root cause as the
+    // speaker-photo box-too-tight bugs (see deriveAlignmentTarget's doc
+    // comment).
+    form.append('trim_to_content', 'false')
     const res = await fetch('/api/events/templates/derive-alignment', { method: 'POST', body: form })
     const data = await res.json().catch(() => ({}))
     if (res.ok) {
@@ -842,6 +905,7 @@ function ImageLayerFields({ layer, onChange, pushUndo, discardLastUndo, eventId 
             onChange={e => { const f = e.target.files?.[0]; if (f) analyzeReferenceLayer(f); e.target.value = '' }} />
         </label>
       </div>
+      <ProcessingOverlay active={analyzing} label="Analyzing reference layer…" sublabel="Detecting where the art sits on the canvas." estimatedMs={1500} />
       <div style={{ gridColumn: '1 / -1', fontSize: '10.5px', color: 'var(--ink3)', lineHeight: 1.4 }}>
         Upload a transparent PNG with the art already positioned where it should sit on the canvas — the box below and the rendered asset are both derived automatically from it. Manual fields below still work if you&apos;d rather set them by hand.
       </div>
@@ -875,9 +939,30 @@ function snapLogoBox(box: { x: number; y: number; width: number; height: number 
   return { x: Math.round(cx - width / 2), y: Math.round(cy - height / 2), width: Math.round(width), height: Math.round(height) }
 }
 
-function PhotoSlotLayerFields({ layer, activeType, onChange, pushUndo, discardLastUndo, eventId }: {
+// Warn when a photo_slot's head target leaves very little room below it —
+// 2026-08-16, per Madhu: box height is capped by the canvas itself (auto-
+// extending it further isn't always possible — see this variant's own
+// canvas_height), so if the head is set to occupy a large share of
+// whatever height IS available, there's a hard ceiling on how much torso/
+// arm can ever show for a real speaker's photo, no matter how the box is
+// sized. That's a genuine design trade-off (bigger head vs. more visible
+// body), not a bug — this surfaces it directly in the editor instead of a
+// branding user only discovering it via a clipped real photo later.
+// Threshold (15% of the box's own height) is a starting heuristic, not a
+// hard rule — tune if it fires too eagerly/rarely in practice.
+const LOW_FOOTROOM_THRESHOLD = 0.15
+function computeFootroomWarning(layer: PhotoSlotLayer): { footroomPct: number } | null {
+  if (!layer.alignment) return null
+  const refH = layer.alignment.reference_box_height ?? layer.height
+  const headBottomPx = refH * (layer.alignment.target_head_center_y + layer.alignment.target_head_height / 2)
+  const footroomPx = layer.height - headBottomPx
+  const footroomPct = footroomPx / layer.height
+  return footroomPct < LOW_FOOTROOM_THRESHOLD ? { footroomPct } : null
+}
+
+function PhotoSlotLayerFields({ layer, activeType, onChange, pushUndo, discardLastUndo, eventId, canvasWidth, canvasHeight }: {
   layer: PhotoSlotLayer; activeType: StakeholderKind; onChange: (patch: Partial<PhotoSlotLayer>) => void
-  pushUndo: () => void; discardLastUndo: () => void; eventId: string
+  pushUndo: () => void; discardLastUndo: () => void; eventId: string; canvasWidth: number; canvasHeight: number
 }) {
   const sourceOptions: PhotoSlotLayer['source'][] = activeType === 'speaker' ? ['speaker_photo', 'speaker_logo'] : ['partner_logo']
   const [analyzing, setAnalyzing] = useState(false)
@@ -896,10 +981,35 @@ function PhotoSlotLayerFields({ layer, activeType, onChange, pushUndo, discardLa
     // every layer type). Without this, the route defaults to skipping
     // detection entirely, which would silently break real photo alignment.
     form.append('detect_face', isPhoto ? 'true' : 'false')
+    // Speaker photos: never trim — the reference gets replaced by a real
+    // photo scaled/positioned to match the SAME head ratio within the same
+    // full frame (see deriveAlignmentTarget's doc comment). Logos: still
+    // trim — a real logo has no "show more if available" concept, the box
+    // just needs to be the small region where the reference logo actually
+    // sits, not the whole canvas.
+    form.append('trim_to_content', isPhoto ? 'false' : 'true')
     const res = await fetch('/api/events/templates/derive-alignment', { method: 'POST', body: form })
     const data = await res.json().catch(() => ({}))
     if (res.ok) {
-      const box = isPhoto ? data.box : snapLogoBox(data.box)
+      const trimmedBox = isPhoto ? data.box : snapLogoBox(data.box)
+      // Auto-extend a speaker-photo box out to the canvas's bottom and
+      // right edges — 2026-08-16, per Madhu: don't rely on a branding user
+      // remembering to manually drag the box for footroom after uploading
+      // a reference. Grows height DOWNWARD and width RIGHTWARD only (x/y —
+      // the box's top-left origin — are never touched): the target head
+      // position is a fraction of reference_box_width/height times the
+      // box's OWN origin offset (layer.x/y, applied later at composite
+      // time), so growing from the top-left corner is the one direction
+      // that can never shift where the head ends up — growing the other
+      // way (or resizing x/y) would need to also shift the origin to
+      // compensate, which isn't worth the complexity for an automatic
+      // default (a manual drag can still do that if a template genuinely
+      // needs it). Logo boxes are untouched (aspect-locked, not
+      // head-aligned). Extends ONLY — a trimmed box already reaching (or
+      // past) an edge is left alone, never shrunk.
+      const box = isPhoto
+        ? { ...trimmedBox, width: Math.max(trimmedBox.width, canvasWidth - trimmedBox.x), height: Math.max(trimmedBox.height, canvasHeight - trimmedBox.y) }
+        : trimmedBox
       onChange({
         x: box.x, y: box.y, width: box.width, height: box.height,
         // Saved (2026-07-31) so it can stand in for the real photo/logo when
@@ -913,7 +1023,15 @@ function PhotoSlotLayerFields({ layer, activeType, onChange, pushUndo, discardLa
         // composite.ts only reads .alignment when source === 'speaker_photo',
         // but skip persisting it for logos so a logo layer's data doesn't
         // carry a meaningless "detected shot type".
-        ...(isPhoto ? { alignment: { target_head_center_x: data.target_head_center_x, target_head_center_y: data.target_head_center_y, target_head_height: data.target_head_height, shot_type: data.shot_type } } : {}),
+        ...(isPhoto ? { alignment: {
+          target_head_center_x: data.target_head_center_x, target_head_center_y: data.target_head_center_y, target_head_height: data.target_head_height, shot_type: data.shot_type,
+          // Freezes the alignment ratios to THIS reference upload's own box
+          // size — see PhotoAlignmentMeta's doc comment (face-alignment.ts)
+          // for why this is what lets the box be resized afterward (e.g. to
+          // add footroom below the head) without silently rescaling/moving
+          // the head target.
+          reference_box_width: data.reference_box_width, reference_box_height: data.reference_box_height,
+        } } : {}),
       })
     } else {
       setAnalyzeError(data.error || 'Could not analyze that reference image.')
@@ -936,6 +1054,12 @@ function PhotoSlotLayerFields({ layer, activeType, onChange, pushUndo, discardLa
           <input type="file" accept="image/png" style={{ display: 'none' }} disabled={analyzing}
             onChange={e => { const f = e.target.files?.[0]; if (f) analyzeReferenceLayer(f); e.target.value = '' }} />
         </label>
+        <ProcessingOverlay
+          active={analyzing}
+          label={isPhoto ? 'Analyzing reference photo…' : 'Analyzing reference logo…'}
+          sublabel={isPhoto ? 'Detecting position and running face alignment.' : 'Detecting where the logo sits on the canvas.'}
+          estimatedMs={isPhoto ? 5500 : 1500}
+        />
         <div style={{ fontSize: '10.5px', color: 'var(--ink3)', lineHeight: 1.4 }}>
           {isPhoto
             ? <>Upload a transparent PNG showing a dummy photo already correctly positioned — the box and face-alignment target below are derived automatically, and this image also stands in for the real photo when previewing with Placeholder data selected. Manual fields below still work if you&apos;d rather set them by hand.</>
@@ -947,6 +1071,17 @@ function PhotoSlotLayerFields({ layer, activeType, onChange, pushUndo, discardLa
             Face-aligned ✓ (detected shot type: {layer.alignment.shot_type.replace(/_/g, ' ')})
           </div>
         )}
+        {isPhoto && layer.alignment && (() => {
+          const footroom = computeFootroomWarning(layer)
+          if (!footroom) return null
+          return (
+            <div style={{ fontSize: '10.5px', color: 'var(--amber)', fontWeight: 700, lineHeight: 1.5 }}>
+              ⚠ Limited footroom — only ~{Math.round(footroom.footroomPct * 100)}% of the box is left below the head. Real
+              speaker photos with more visible torso/arms will likely get cropped tighter here — consider a smaller
+              head-size target, or accept the trade-off.
+            </div>
+          )
+        })()}
         {layer.reference_url && (
           <div style={{ fontSize: '11px', color: 'var(--teal-mid)', fontWeight: 700 }}>
             Reference image saved ✓ (used as Placeholder-data preview content)
@@ -1037,6 +1172,14 @@ function TextLayerFields({ layer, activeType, brandFonts, onChange, pushUndo, di
     form.append('file', file)
     form.append('event_id', eventId)
     form.append('detect_face', 'false')
+    // Text layers keep trimming — no asset ever renders here (live text via
+    // wrapAndFit instead, the reference is analyzed and discarded), so the
+    // box's job is "roughly where does the text sit and how big an area
+    // does it need to wrap within" — a full-canvas box would break
+    // wrapping/positioning/font-size-from-box-height entirely, unlike a
+    // photo/image box which just gets more room. See deriveAlignmentTarget's
+    // doc comment.
+    form.append('trim_to_content', 'true')
     form.append('detect_text_style', 'true')
     const res = await fetch('/api/events/templates/derive-alignment', { method: 'POST', body: form })
     const data = await res.json().catch(() => ({}))
@@ -1066,6 +1209,7 @@ function TextLayerFields({ layer, activeType, brandFonts, onChange, pushUndo, di
           <input type="file" accept="image/png" style={{ display: 'none' }} disabled={analyzing}
             onChange={e => { const f = e.target.files?.[0]; if (f) analyzeReferenceLayer(f); e.target.value = '' }} />
         </label>
+        <ProcessingOverlay active={analyzing} label="Analyzing reference layer…" sublabel="Detecting position and guessing text style." estimatedMs={4000} />
         <div style={{ fontSize: '10.5px', color: 'var(--ink3)', lineHeight: 1.4 }}>
           Upload a transparent PNG showing where THIS ONE field&apos;s text should sit — e.g. a mockup with just the name in place, not the whole name/title/company block at once (upload one reference per text layer, same as you would for a photo or logo slot). The box, color, weight, and alignment below are all derived automatically from it — font family and exact size still need a manual check afterward.
         </div>

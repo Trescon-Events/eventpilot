@@ -19,9 +19,8 @@ export type HubSpotFormField = {
 // a producer creating an EventPilot field to match e.g. a HubSpot dropdown
 // doesn't have to re-pick the type or retype every option by hand — see
 // hubspot-form/[formType]/page.tsx. Best-effort: HubSpot has fieldTypes we
-// have no equivalent for (number, single_checkbox consent boxes); those
-// fall back to 'text', a safe default the producer can still override
-// before confirming.
+// have no equivalent for (number); those fall back to 'text', a safe
+// default the producer can still override before confirming.
 const HUBSPOT_FIELD_TYPE_MAP: Record<string, FieldType> = {
   single_line_text: 'text',
   multi_line_text: 'textarea',
@@ -29,7 +28,8 @@ const HUBSPOT_FIELD_TYPE_MAP: Record<string, FieldType> = {
   phone: 'phone',
   dropdown: 'select',
   radio: 'select',
-  checkbox: 'multiselect',
+  checkbox: 'multiselect',      // a GROUP of checkboxes (pick any of several options)
+  single_checkbox: 'checkbox',  // ONE yes/no consent box — e.g. "I agree to..."
   date: 'date',
   file: 'file',
 }

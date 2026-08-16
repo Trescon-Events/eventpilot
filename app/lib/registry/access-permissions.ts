@@ -35,6 +35,13 @@ export const ACCESS_REGISTRY: AccessModule[] = [
       { key: 'sae.submissions.reject',     label: 'Reject a submission',                             enforced: true },
       { key: 'sae.approvals.approve',      label: 'Approve a record for announcement',               enforced: true },
       { key: 'sae.announcements.generate', label: 'Generate announcement creatives',                 enforced: false },
+      // Deliberately distinct from sae.approvals.approve above — that one
+      // gates approving a STAKEHOLDER RECORD's data as ready for SAE to
+      // generate from; these two gate approving/publishing the generated
+      // ANNOUNCEMENT (creative + post copy) itself, a later, separate step
+      // in the pipeline (2026-08-16, publishing/scheduling UI build-out).
+      { key: 'sae.announcements.approve',  label: 'Approve an announcement for scheduling/publishing', enforced: true },
+      { key: 'sae.announcements.publish',  label: 'Schedule or post announcements directly, without requiring approval', enforced: true },
       // Extension points for later phases (email templates / invite workflow)
       // — keys exist now so a Producer role can be pre-provisioned with
       // them; no route enforces them yet.
@@ -42,28 +49,40 @@ export const ACCESS_REGISTRY: AccessModule[] = [
       { key: 'sae.forms.manage',           label: 'Customize onboarding form fields',                enforced: true },
       { key: 'sae.secure_documents.manage', label: 'Configure the secure passport/ID destination folder', enforced: true },
       { key: 'sae.messaging.use',          label: 'Use the Messaging module for this event',         enforced: false },
+      // Unifies the Creative Templates Admin Console (layer/variant editor,
+      // deliberately narrow — branding team) into this same per-event
+      // permission-key system (2026-08-16) — previously gated separately
+      // through the older, global 2-tier module_access table's 'admin'
+      // tier (app/lib/access/module-access.ts). See
+      // app/admin/events/[id]/creative-templates/admin/layout.tsx.
+      { key: 'sae.admin.access',           label: 'Open the Creative Templates Admin Console (layer/variant editing)', enforced: true },
     ],
   },
   {
     key: 'website-builder', label: 'Website Builder',
     items: [
-      { key: 'website-builder.view',    label: 'View the site builder',        enforced: false },
-      { key: 'website-builder.edit',    label: 'Edit sections & content',      enforced: false },
-      { key: 'website-builder.publish', label: 'Publish live / manage domain', enforced: false },
+      // 2026-08-16 (Phase 3): flipped enforced true — layout now checks
+      // hasEventPermission instead of the global tool_grants.website_builder
+      // flag. See app/admin/events/[id]/website/layout.tsx.
+      { key: 'website-builder.view',    label: 'View the site builder',        enforced: true },
+      { key: 'website-builder.edit',    label: 'Edit sections & content',      enforced: true },
+      { key: 'website-builder.publish', label: 'Publish live / manage domain', enforced: true },
     ],
   },
   {
     key: 'brand-studio', label: 'Brand Studio',
     items: [
-      { key: 'brand-studio.view', label: 'View brand assets',                  enforced: false },
-      { key: 'brand-studio.edit', label: 'Upload brand doc / generate assets', enforced: false },
+      // 2026-08-16 (Phase 3): see app/admin/events/[id]/brand/layout.tsx.
+      { key: 'brand-studio.view', label: 'View brand assets',                  enforced: true },
+      { key: 'brand-studio.edit', label: 'Upload brand doc / generate assets', enforced: true },
     ],
   },
   {
     key: 'market-intel', label: 'Market Intelligence',
     items: [
-      { key: 'market-intel.view', label: 'View market intelligence reports', enforced: false },
-      { key: 'market-intel.edit', label: 'Generate / edit reports',          enforced: false },
+      // 2026-08-16 (Phase 3): see app/admin/events/[id]/market-intel/layout.tsx.
+      { key: 'market-intel.view', label: 'View market intelligence reports', enforced: true },
+      { key: 'market-intel.edit', label: 'Generate / edit reports',          enforced: true },
     ],
   },
   {
@@ -81,8 +100,34 @@ export const ACCESS_REGISTRY: AccessModule[] = [
       { key: 'overview.edit', label: 'Edit event details & team roster', enforced: false },
     ],
   },
+  // Platform-wide items — genuinely not event-scoped (no event context at
+  // all), unlike every module above. Checked via hasPlatformPermission()
+  // (app/lib/access/event-access.ts), not hasEventPermission() — it looks
+  // across ALL of a staffer's role assignments regardless of event_id
+  // (event-scoped or global), since a platform tool like this doesn't
+  // vary by which event happened to trigger the grant. This lets the
+  // same HRMS role_type → access-role auto-mapping (Phase 2) reach a
+  // genuinely platform-wide permission even though every auto-grant it
+  // writes is tied to a real event_id (whichever event the person is
+  // allocated to in Staff Portal) — see app/admin/branding/fonts/
+  // layout.tsx, 2026-08-16.
+  {
+    key: 'platform', label: 'Platform Administration',
+    items: [
+      { key: 'platform.branding.manage', label: 'Manage brand fonts (Font Library)', enforced: true },
+    ],
+  },
 ]
 
+// Also accepts wildcard keys ('<module>.*', or a future deeper
+// '<module>.<area>.*' once a module grows that structure) — see
+// app/lib/access/permission-match.ts for how these are matched at
+// permission-check time. A wildcard validates if its prefix names a real
+// module, or is an ancestor of at least one real item key.
 export function isKnownPermissionKey(key: string): boolean {
+  if (key.endsWith('.*')) {
+    const prefix = key.slice(0, -2)
+    return ACCESS_REGISTRY.some(m => m.key === prefix || m.items.some(i => i.key.startsWith(`${prefix}.`)))
+  }
   return ACCESS_REGISTRY.some(m => m.items.some(i => i.key === key))
 }

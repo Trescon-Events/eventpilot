@@ -2,6 +2,7 @@
 
 import { useState, useEffect, use } from 'react'
 import Link from 'next/link'
+import { useBreadcrumbLabel } from '@/app/lib/nav/breadcrumb-labels'
 
 type ChecklistItem = {
   id: string
@@ -45,7 +46,10 @@ type Event = {
   social_youtube: string | null
   venue_map_url: string | null
   postiz_profile_key: string | null
+  postiz_default_channel_ids: string[] | null
 }
+
+type PostizChannel = { id: string; name: string; identifier: string; picture: string | null; disabled: boolean }
 
 type StaffMember = { id: string; name: string; department: string }
 
@@ -141,6 +145,9 @@ export default function EventWorkspacePage({ params }: { params: Promise<{ id: s
   const { id: eventId } = use(params)
 
   const [event,         setEvent]         = useState<Event | null>(null)
+  // Breadcrumb trail (GlobalShell) has no way to know this event's real
+  // name on its own — see breadcrumb-labels.tsx.
+  useBreadcrumbLabel(eventId, event?.name ?? null)
   const [checklist,     setChecklist]     = useState<ChecklistItem[]>([])
   const [staffList,     setStaffList]     = useState<StaffMember[]>([])
   const [loading,       setLoading]       = useState(true)
@@ -163,6 +170,13 @@ export default function EventWorkspacePage({ params }: { params: Promise<{ id: s
     event_format: '', country: '', postiz_profile_key: '',
   })
   const [savingEdit,     setSavingEdit]     = useState(false)
+  // Postiz "Connected Channels" — kept separate from editForm (a plain
+  // Record<string,string>) since this one's an array. Fetched once on
+  // mount and re-fetched after a save that changes postiz_profile_key
+  // (a new key can have different channels connected than the old one).
+  const [defaultChannelIds, setDefaultChannelIds] = useState<string[]>([])
+  const [availableChannels, setAvailableChannels] = useState<PostizChannel[]>([])
+  const [channelsLoading,   setChannelsLoading]   = useState(false)
 
   // Topline Messaging Doc
   type MessagingDoc = {
@@ -227,6 +241,15 @@ export default function EventWorkspacePage({ params }: { params: Promise<{ id: s
   const [savingDel,      setSavingDel]      = useState(false)
   const [showDelForm,    setShowDelForm]    = useState(false)
 
+  // 2026-08-16 fix: navigating here via the "Workspace" link on the Events
+  // list (app/admin/page.tsx) was landing scrolled partway down the page
+  // instead of at the top — the browser was restoring this URL's last
+  // scroll position from history rather than treating the Link click as a
+  // fresh visit. Force scroll-to-top on mount regardless of cause.
+  useEffect(() => {
+    window.scrollTo(0, 0)
+  }, [])
+
   useEffect(() => {
     fetchAll()
     fetchPnlData()
@@ -247,9 +270,21 @@ export default function EventWorkspacePage({ params }: { params: Promise<{ id: s
     setEventStaff(Array.isArray(data) ? data : [])
   }
 
+  async function fetchPostizChannels() {
+    setChannelsLoading(true)
+    const res  = await fetch(`/api/events/postiz-channels?event_id=${eventId}`)
+    const data = await res.json().catch(() => ({ channels: [] }))
+    setAvailableChannels(Array.isArray(data.channels) ? data.channels : [])
+    setChannelsLoading(false)
+  }
+
+  function toggleDefaultChannel(id: string) {
+    setDefaultChannelIds(prev => prev.includes(id) ? prev.filter(c => c !== id) : [...prev, id])
+  }
+
   async function saveEventEdit() {
     setSavingEdit(true)
-    const body: Record<string, string | number | null> = {
+    const body: Record<string, string | number | null | string[]> = {
       name:        editForm.name,
       type:        editForm.type,
       status:      editForm.status,
@@ -263,6 +298,7 @@ export default function EventWorkspacePage({ params }: { params: Promise<{ id: s
       event_format:      editForm.event_format || null,
       country:           editForm.country || null,
       postiz_profile_key: editForm.postiz_profile_key || null,
+      postiz_default_channel_ids: defaultChannelIds,
     }
     const res  = await fetch(`/api/events?id=${eventId}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
     if (res.ok) { setEditing(false); fetchAll() }
@@ -315,6 +351,8 @@ export default function EventWorkspacePage({ params }: { params: Promise<{ id: s
         country:             ev.country ?? '',
         postiz_profile_key:  ev.postiz_profile_key ?? '',
       })
+      setDefaultChannelIds(ev.postiz_default_channel_ids ?? [])
+      fetchPostizChannels()
     }
     setChecklist(Array.isArray(clData) ? clData : [])
     setStaffList(Array.isArray(stData) ? stData : [])
@@ -623,6 +661,15 @@ export default function EventWorkspacePage({ params }: { params: Promise<{ id: s
                   style={{ marginLeft: '4px', padding: '3px 10px', borderRadius: '8px', border: '1px solid var(--border)', background: editing ? 'var(--surface)' : 'var(--card)', color: editing ? 'var(--lime)' : 'var(--ink3)', fontSize: '11px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
                   {editing ? 'Cancel' : 'Edit'}
                 </button>
+                {/* 2026-08-16 fix — this per-event Access page (roles +
+                    assignments) existed since Phase 1 of the RBAC
+                    redesign but had no entry point from the workspace
+                    itself, only reachable via direct URL. Madhu couldn't
+                    find it from here, confirming the gap. */}
+                <Link href={`/admin/events/${eventId}/access`}
+                  style={{ padding: '3px 10px', borderRadius: '8px', border: '1px solid var(--border)', background: 'var(--card)', color: 'var(--ink3)', fontSize: '11px', fontWeight: 700, textDecoration: 'none', fontFamily: 'inherit' }}>
+                  Access →
+                </Link>
               </div>
 
               {!editing ? (
@@ -707,13 +754,58 @@ export default function EventWorkspacePage({ params }: { params: Promise<{ id: s
                   <div style={{ fontSize: '11px', fontWeight: 800, letterSpacing: '0.8px', color: 'var(--teal-mid)', margin: '20px 0 10px', textTransform: 'uppercase' }}>Social Publishing</div>
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
                     <div>
-                      <label style={{ fontSize: '11px', fontWeight: 700, color: 'var(--ink3)', display: 'block', marginBottom: '4px' }}>POSTIZ PROFILE KEY</label>
-                      <input type="password" value={editForm.postiz_profile_key} onChange={e => setEditForm(f => ({ ...f, postiz_profile_key: e.target.value }))}
+                      <label style={{ fontSize: '11px', fontWeight: 700, color: 'var(--ink3)', display: 'block', marginBottom: '4px' }}>POSTIZ CUSTOMER ID (OPTIONAL)</label>
+                      <input type="text" value={editForm.postiz_profile_key} onChange={e => setEditForm(f => ({ ...f, postiz_profile_key: e.target.value }))}
                         style={{ width: '100%', padding: '9px 12px', borderRadius: '8px', border: '1px solid var(--border)', fontSize: '13px', fontFamily: 'inherit', color: 'var(--ink)', boxSizing: 'border-box' }} />
                       <div style={{ fontSize: '10.5px', color: 'var(--ink3)', marginTop: '4px', lineHeight: 1.4 }}>
-                        Paste the workspace API key from Postiz for this event&apos;s connected social accounts.
+                        Not an API key — the whole workspace shares one key, configured once on the server. Leave this
+                        blank unless Trescon&apos;s Postiz plan sets up a separate &quot;customer&quot; for this event to scope
+                        channels to; until then every event sees the full connected-channel list below.
                       </div>
                     </div>
+                  </div>
+
+                  {/* Connected Channels (2026-08-16) — the remembered
+                      per-event default channel selection every announcement
+                      pre-fills from, so scheduling/posting never requires
+                      re-picking channels from scratch. A Postiz workspace
+                      may have many more channels connected than are
+                      relevant to any one event (Madhu: "postiz might show
+                      15 different channels, but inside WAIS Malaysia...
+                      user would select whichever is relevant for this
+                      event, and the system would remember it") — this is
+                      that selection. Still adjustable per post from the
+                      announcement's own action panel; this only sets the
+                      default. No longer gated on the Customer ID above
+                      (2026-08-16 live fix) — Trescon's real Postiz account
+                      is a single flat workspace with no per-customer
+                      scoping, so every event fetches the full channel list
+                      unscoped by default. */}
+                  <div style={{ marginTop: '14px' }}>
+                    <label style={{ fontSize: '11px', fontWeight: 700, color: 'var(--ink3)', display: 'block', marginBottom: '4px' }}>CONNECTED CHANNELS (DEFAULT SELECTION)</label>
+                    {channelsLoading ? (
+                      <div style={{ fontSize: '11.5px', color: 'var(--ink4)' }}>Loading channels…</div>
+                    ) : availableChannels.length === 0 ? (
+                      <div style={{ fontSize: '11.5px', color: 'var(--ink4)' }}>No channels connected to this Postiz workspace yet.</div>
+                    ) : (
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+                        {availableChannels.map(ch => {
+                          const checked = defaultChannelIds.includes(ch.id)
+                          return (
+                            <label key={ch.id} title={ch.disabled ? 'Disconnected in Postiz' : undefined}
+                              style={{
+                                display: 'flex', alignItems: 'center', gap: '6px', padding: '6px 10px', borderRadius: '8px',
+                                border: `1.5px solid ${checked ? 'var(--teal-mid)' : 'var(--border)'}`,
+                                background: checked ? 'var(--teal-light)' : 'transparent',
+                                color: ch.disabled ? 'var(--ink4)' : 'var(--ink2)', fontSize: '12px', fontWeight: 700, cursor: 'pointer',
+                              }}>
+                              <input type="checkbox" checked={checked} onChange={() => toggleDefaultChannel(ch.id)} style={{ margin: 0 }} />
+                              {ch.name} <span style={{ color: 'var(--ink4)', fontWeight: 400 }}>({ch.identifier})</span>
+                            </label>
+                          )
+                        })}
+                      </div>
+                    )}
                   </div>
 
                   {/* ── Creative Templates (Sharp compositing, PRD v1.4 Phase C v3) ──
@@ -759,6 +851,30 @@ export default function EventWorkspacePage({ params }: { params: Promise<{ id: s
               {msg}
             </div>
           )}
+        </div>
+
+        {/* Event Details — Common Details (public name/dates/venue/links/
+            socials, per-form-type onboarding page links, a change history)
+            plus the Topline Messaging Doc, one destination since 2026-08-11
+            (previously two separate cards/pages for these). Moved above
+            the Event Lifecycle flow 2026-08-16 per Madhu — it's a
+            top-level item, not a sub-step of the phase flow. */}
+        <div style={{ marginBottom: '16px', background: 'var(--card)', border: '1px solid var(--border)', borderRadius: '16px', padding: '18px 24px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '10px' }}>
+            <div>
+              <div style={{ fontSize: '11px', fontWeight: 800, color: 'var(--teal-mid)', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '4px' }}>Event Details</div>
+              {messagingDoc ? (
+                <div style={{ fontSize: '12px', color: 'var(--ink3)' }}>
+                  Messaging doc v{messagingDoc.version} · Last updated: {new Date(messagingDoc.updated_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}
+                </div>
+              ) : (
+                <div style={{ fontSize: '12px', color: 'var(--ink3)' }}>No messaging doc uploaded yet — public name, dates, venue, links, and more, all in one place.</div>
+              )}
+            </div>
+            <Link href={`/admin/events/${eventId}/details`} style={{ textDecoration: 'none', padding: '7px 14px', borderRadius: '8px', border: 'none', background: 'var(--lime)', color: 'var(--lime-dark)', fontSize: '12px', fontWeight: 800, fontFamily: 'inherit', display: 'flex', alignItems: 'center' }}>
+              Edit Event Details →
+            </Link>
+          </div>
         </div>
 
         {/* ══════════ RACI PHASE FLOW ══════════ */}
@@ -851,28 +967,6 @@ export default function EventWorkspacePage({ params }: { params: Promise<{ id: s
                 21 days to 1 day before event — agenda freeze, print materials, registrations close, final operational readiness.
               </div>
             </div>
-          </div>
-        </div>
-
-        {/* Event Details — Common Details (public name/dates/venue/links/
-            socials, per-form-type onboarding page links, a change history)
-            plus the Topline Messaging Doc, one destination since 2026-08-11
-            (previously two separate cards/pages for these). */}
-        <div style={{ marginBottom: '16px', background: 'var(--card)', border: '1px solid var(--border)', borderRadius: '16px', padding: '18px 24px' }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '10px' }}>
-            <div>
-              <div style={{ fontSize: '11px', fontWeight: 800, color: 'var(--teal-mid)', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '4px' }}>Event Details</div>
-              {messagingDoc ? (
-                <div style={{ fontSize: '12px', color: 'var(--ink3)' }}>
-                  Messaging doc v{messagingDoc.version} · Last updated: {new Date(messagingDoc.updated_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}
-                </div>
-              ) : (
-                <div style={{ fontSize: '12px', color: 'var(--ink3)' }}>No messaging doc uploaded yet — public name, dates, venue, links, and more, all in one place.</div>
-              )}
-            </div>
-            <Link href={`/admin/events/${eventId}/details`} style={{ textDecoration: 'none', padding: '7px 14px', borderRadius: '8px', border: 'none', background: 'var(--lime)', color: 'var(--lime-dark)', fontSize: '12px', fontWeight: 800, fontFamily: 'inherit', display: 'flex', alignItems: 'center' }}>
-              Edit Event Details →
-            </Link>
           </div>
         </div>
 

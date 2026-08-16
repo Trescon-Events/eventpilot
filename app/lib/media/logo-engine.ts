@@ -20,6 +20,8 @@ import sharp from 'sharp'
 import * as pdfjsLib from 'pdfjs-dist/legacy/build/pdf.mjs'
 import { createCanvas } from '@napi-rs/canvas'
 import { readPsd, initializeCanvas } from 'ag-psd'
+import { decode as decodeBmp } from 'bmp-ts'
+import { decodeIco } from 'icojs'
 import { convertEpsToPng } from '@/app/lib/media/cloudconvert-client'
 
 // ag-psd needs a canvas factory even in useImageData mode — its embedded
@@ -31,7 +33,7 @@ import { convertEpsToPng } from '@/app/lib/media/cloudconvert-client'
 // transparency/layers to speak of).
 initializeCanvas(createCanvas as unknown as (width: number, height: number) => HTMLCanvasElement)
 
-export type LogoSourceFormat = 'png' | 'jpeg' | 'webp' | 'svg' | 'pdf' | 'ai' | 'psd' | 'eps' | 'unknown'
+export type LogoSourceFormat = 'png' | 'jpeg' | 'webp' | 'gif' | 'bmp' | 'ico' | 'tiff' | 'heif' | 'svg' | 'pdf' | 'ai' | 'psd' | 'eps' | 'unknown'
 
 export function detectLogoFormat(filename: string, mimeType: string): LogoSourceFormat {
   const ext = filename.split('.').pop()?.toLowerCase() ?? ''
@@ -50,6 +52,22 @@ export function detectLogoFormat(filename: string, mimeType: string): LogoSource
   if (ext === 'png' || mimeType === 'image/png') return 'png'
   if (ext === 'jpg' || ext === 'jpeg' || mimeType === 'image/jpeg') return 'jpeg'
   if (ext === 'webp' || mimeType === 'image/webp') return 'webp'
+  if (ext === 'gif' || mimeType === 'image/gif') return 'gif'
+  // Clients send logos in whatever their design tool exports — real bug
+  // found live (2026-08-15, Madhu: "we work with 100s of clients... just
+  // have to have exhaustive coverage of different possible formats"):
+  // .bmp and .ico were both rejected outright. Neither is decodable by
+  // sharp directly in this build (no ImageMagick delegate compiled in —
+  // confirmed via sharp.format.magick === false), so each gets its own
+  // small pure-JS decoder in toRasterPng() below instead.
+  if (ext === 'bmp' || mimeType === 'image/bmp' || mimeType === 'image/x-ms-bmp') return 'bmp'
+  if (ext === 'ico' || mimeType === 'image/x-icon' || mimeType === 'image/vnd.microsoft.icon') return 'ico'
+  // TIFF and HEIC/HEIF (iPhone photos, common for a hastily-cropped logo
+  // screenshot) — sharp DOES decode both of these natively in this build
+  // (confirmed via sharp.format.tiff/.heif === true), so no extra decoder
+  // needed; they just weren't in the recognized-extension list at all.
+  if (ext === 'tif' || ext === 'tiff' || mimeType === 'image/tiff') return 'tiff'
+  if (ext === 'heic' || ext === 'heif' || mimeType === 'image/heic' || mimeType === 'image/heif') return 'heif'
   return 'unknown'
 }
 
@@ -91,16 +109,56 @@ function rasterizePsdToPng(buffer: Buffer): Promise<Buffer> {
     .toBuffer()
 }
 
+// BMP — sharp has no native decoder in this build (no ImageMagick
+// delegate). bmp-ts is a small pure-JS decoder (no native bindings, so no
+// extra system dependency on Railway) that unpacks straight to raw RGBA,
+// which sharp then accepts directly as raw pixel input.
+function rasterizeBmpToPng(buffer: Buffer): Promise<Buffer> {
+  const decoded = decodeBmp(buffer, { toRGBA: true })
+  const data = Buffer.from(decoded.data)
+  // Real bug found live (2026-08-15) in bmp-ts itself: for anything below
+  // 32bpp — i.e. every plain BMP with no alpha channel at all, by far the
+  // most common real-world case (24-bit is Windows Paint/Photoshop's own
+  // default "no transparency" export) — its toRGBA output still allocates
+  // a 4th byte per pixel but leaves it 0 (fully transparent) instead of
+  // defaulting to opaque. Left uncorrected, the Logo Engine's white-canvas
+  // compositing step below makes the ENTIRE logo silently vanish — every
+  // pixel shows through as transparent onto the white base, producing a
+  // blank white result with zero error anywhere. Confirmed via a real
+  // Pillow-generated 24-bit BMP: colors decoded correctly, alpha did not.
+  if (decoded.bitPP !== 32) {
+    for (let i = 3; i < data.length; i += 4) data[i] = 255
+  }
+  return sharp(data, { raw: { width: decoded.width, height: decoded.height, channels: 4 } }).png().toBuffer()
+}
+
+// ICO — a container for one or more embedded images at different sizes
+// (each itself BMP- or PNG-encoded internally); icojs handles unpacking
+// either internal format and re-encodes each to a real PNG buffer for us
+// (pure JS — bmp-ts/pngjs/jpeg-js under the hood, no native deps), so we
+// just pick the largest embedded size (icons are frequently exported with
+// only a 16/32px favicon-sized frame bundled first) and hand that PNG to
+// sharp like any other. .cur (cursor) files share the exact same
+// container format and decode through the same path.
+async function rasterizeIcoToPng(buffer: Buffer): Promise<Buffer> {
+  const entries = await decodeIco(buffer, 'image/png')
+  if (entries.length === 0) throw new Error('ICO file has no embedded images.')
+  const largest = entries.reduce((a, b) => (b.width * b.height > a.width * a.height ? b : a))
+  return sharp(Buffer.from(largest.buffer)).png().toBuffer()
+}
+
 async function toRasterPng(buffer: Buffer, format: LogoSourceFormat): Promise<Buffer> {
   if (format === 'pdf' || format === 'ai') return rasterizePdfToPng(buffer)
   if (format === 'svg') return sharp(buffer).png().toBuffer()
   if (format === 'psd') return rasterizePsdToPng(buffer)
+  if (format === 'bmp') return rasterizeBmpToPng(buffer)
+  if (format === 'ico') return rasterizeIcoToPng(buffer)
   if (format === 'eps') {
     const converted = await convertEpsToPng(buffer)
     if (!converted) throw new Error('EPS conversion failed — CloudConvert did not return a usable PNG (check CLOUDCONVERT_API_KEY, or try re-exporting as PDF/AI/PNG/SVG instead).')
     return converted
   }
-  return sharp(buffer).png().toBuffer() // png/jpeg/webp — sharp reads all natively
+  return sharp(buffer).png().toBuffer() // png/jpeg/webp/gif/tiff/heif — sharp reads all natively (gif: first frame only)
 }
 
 // Border-touching flood-fill background removal: only removes pixels

@@ -7,6 +7,7 @@ import { mapFieldsToRecord } from '@/app/lib/forms/map-to-stakeholder-record'
 import { FormType, SubmittedValue } from '@/app/lib/forms/types'
 import { processLogo } from '@/app/lib/media/logo-engine'
 import { uploadPublicAsset } from '@/app/lib/events/storage'
+import { fetchHubSpotUploadedFile } from '@/app/lib/hubspot/client'
 
 /* POST /api/events/stakeholders/partners/from-submission
    Body: { submission_id, event_id }
@@ -80,18 +81,32 @@ export async function POST(req: NextRequest) {
 
   if (submission.source === 'hubspot' && fileUrls.logo) {
     try {
-      const imgRes = await fetch(fileUrls.logo)
+      // HubSpot's uploaded-file link needs our Service Key attached or it
+      // 307-redirects to HubSpot's login page instead of the file, even
+      // moments after submission — see fetchHubSpotUploadedFile()'s own
+      // comment.
+      const imgRes = await fetchHubSpotUploadedFile(fileUrls.logo)
       if (imgRes.ok) {
         const rawBuffer = Buffer.from(await imgRes.arrayBuffer())
         const contentType = imgRes.headers.get('content-type') || 'application/octet-stream'
         const filename = fileUrls.logo.split('/').pop() || 'logo'
+        // Re-host the raw upload to OUR OWN storage too, not just the
+        // processed result — logo_raw_url previously stored HubSpot's own
+        // external link directly, which is not permanent (same class of
+        // bug as the speaker photo fix — see from-submission/route.ts's
+        // speaker equivalent).
+        const rawUrl = await uploadPublicAsset(
+          `events/${body.event_id}/partners/${partner.id}/logo-raw-${Date.now()}.${contentType.includes('png') ? 'png' : contentType.includes('svg') ? 'svg' : 'jpg'}`,
+          rawBuffer,
+          contentType
+        )
         const processed = await processLogo(rawBuffer, filename, contentType)
         const processedUrl = await uploadPublicAsset(
           `events/${body.event_id}/partners/${partner.id}/logo-processed-${Date.now()}.png`,
           processed.buffer,
           'image/png'
         )
-        await supabaseAdmin.from('event_sponsors').update({ logo_url: processedUrl, logo_raw_url: fileUrls.logo }).eq('id', partner.id)
+        await supabaseAdmin.from('event_sponsors').update({ logo_url: processedUrl, logo_raw_url: rawUrl }).eq('id', partner.id)
       }
     } catch (e) {
       console.error('Logo processing failed for HubSpot submission', submission.id, e)

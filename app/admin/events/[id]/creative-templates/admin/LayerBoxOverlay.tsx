@@ -119,6 +119,44 @@ const NUDGE_BURST_GAP_MS = 500
 const HANDLE_POSITIONS: HandlePos[] = ['nw', 'n', 'ne', 'e', 'se', 's', 'sw', 'w']
 const HANDLE_CURSOR: Record<HandlePos, string> = { nw: 'nwse-resize', n: 'ns-resize', ne: 'nesw-resize', e: 'ew-resize', se: 'nwse-resize', s: 'ns-resize', sw: 'nesw-resize', w: 'ew-resize' }
 
+// Head-position REFERENCE marker geometry, as a %-of-the-CURRENT-box rect
+// suitable for direct use in the marker div's inline style — see the call
+// site's comment for why this isn't just `layer.alignment` read directly.
+function computeHeadMarkerRect(layer: PhotoSlotLayer): { left: number; top: number; width: number; height: number } | null {
+  if (!layer.alignment) return null
+  const refW = layer.alignment.reference_box_width ?? layer.width
+  const refH = layer.alignment.reference_box_height ?? layer.height
+  const diameterPx = layer.alignment.target_head_height * refH
+  const centerXPx = layer.alignment.target_head_center_x * refW
+  const centerYPx = layer.alignment.target_head_center_y * refH
+  return {
+    left: ((centerXPx - diameterPx / 2) / layer.width) * 100,
+    top: ((centerYPx - diameterPx / 2) / layer.height) * 100,
+    width: (diameterPx / layer.width) * 100,
+    height: (diameterPx / layer.height) * 100,
+  }
+}
+
+// Ghost speaker-photo rect, as a %-of-the-CURRENT-box size anchored at its
+// top-left — 2026-08-16, per Madhu: dragging a box bigger was making the
+// ghost preview image visibly "zoom in/expand," which looked like the same
+// head-repositioning bug even though the real math (alignAndCropPhoto) was
+// already correct. Cause: the ghost <img> used `objectFit: 'cover'` sized
+// to 100%/100% of the LIVE box — cover naturally rescales whenever the
+// box's own aspect ratio changes, regardless of any alignment fix. Fixing
+// it to look right means sizing the <img> to cover the FROZEN reference
+// box (refW × refH) instead of the live one — extending the box then just
+// reveals more of the SAME fixed-scale reference image (transparent/empty
+// past its own edges, same as the real crop would show past a real photo's
+// own content), rather than rescaling it. Logos don't use this — see call
+// site (they keep plain contain-fit against the live box, unaffected by
+// any of this).
+function computeGhostPhotoRect(layer: PhotoSlotLayer): { width: number; height: number } {
+  const refW = layer.alignment?.reference_box_width ?? layer.width
+  const refH = layer.alignment?.reference_box_height ?? layer.height
+  return { width: (refW / layer.width) * 100, height: (refH / layer.height) * 100 }
+}
+
 function handleStyle(pos: HandlePos): React.CSSProperties {
   const size = 9
   const half = size / 2
@@ -325,7 +363,12 @@ export default function LayerBoxOverlay({ layers, canvasWidth, canvasHeight, act
       }
 
       if (!markerDrag.committed) { onCommitUndo(); markerDrag.committed = true }
-      const alignment = { ...layer.alignment, target_head_center_x, target_head_center_y, target_head_height }
+      // Re-anchors the reference dimensions to the box AS IT CURRENTLY IS —
+      // dragging the marker directly is the admin deliberately re-specifying
+      // "the head goes exactly here" relative to what they're looking at
+      // right now, same convention deriveAlignmentTarget() uses on a fresh
+      // reference upload. See PhotoAlignmentMeta's doc comment.
+      const alignment = { ...layer.alignment, target_head_center_x, target_head_center_y, target_head_height, reference_box_width: layer.width, reference_box_height: layer.height }
       // reference_head_box mirrors alignment EXACTLY (same convention
       // c6ea243 established) — this is what makes the reference photo
       // preview a no-op crop against its own now-corrected target, instead
@@ -459,6 +502,8 @@ export default function LayerBoxOverlay({ layers, canvasWidth, canvasHeight, act
         const ghostText = isActive && showGhost && layer.type === 'text' ? resolveGhostText(layer, activeType, previewForRecord, placeholderProfile) : ''
         const ghostImageUrl = isActive && showGhost && layer.type === 'photo_slot' ? resolveGhostImageUrl(layer, previewForRecord) : null
         const showGhostMask = hasUnderlyingPreview && (!!ghostText || !!ghostImageUrl)
+        const headMarkerRect = layer.type === 'photo_slot' && layer.source === 'speaker_photo' ? computeHeadMarkerRect(layer) : null
+        const ghostPhotoRect = layer.type === 'photo_slot' && layer.source === 'speaker_photo' ? computeGhostPhotoRect(layer) : null
         return (
           <div
             key={layer.id}
@@ -478,17 +523,37 @@ export default function LayerBoxOverlay({ layers, canvasWidth, canvasHeight, act
               cursor: isActive ? 'move' : 'pointer',
             }}
           >
-            {showGhostMask && (
-              // Blur/scrim the stale render's own old content for this exact
-              // box before drawing the crisp ghost on top — plain dimming
-              // (opacity on the whole preview image) still leaves the old
-              // text legible enough to read as a second, offset layer.
-              <div style={{
-                position: 'absolute', inset: 0, pointerEvents: 'none',
-                backdropFilter: 'blur(8px)', WebkitBackdropFilter: 'blur(8px)',
-                background: 'color-mix(in srgb, var(--card) 55%, transparent)',
-              }} />
-            )}
+            {/* Ghost content sits in its own overflow:hidden wrapper, separate
+                from the outer box div — the box div's own resize handles are
+                deliberately positioned with negative offsets to sit OUTSIDE
+                its bounds (see handleStyle), so clipping couldn't be applied
+                to the outer div itself without also cutting off the handles.
+                Only matters once ghostPhotoRect can legitimately exceed
+                100% (a box shrunk below its own frozen reference size) — a
+                no-op otherwise. */}
+            <div style={{ position: 'absolute', inset: 0, overflow: 'hidden', pointerEvents: 'none' }}>
+              {showGhostMask && (
+                // Blur/scrim the stale render's own old content for this exact
+                // box before drawing the crisp ghost on top — plain dimming
+                // (opacity on the whole preview image) still leaves the old
+                // text legible enough to read as a second, offset layer.
+                <div style={{
+                  position: 'absolute', inset: 0, pointerEvents: 'none',
+                  backdropFilter: 'blur(8px)', WebkitBackdropFilter: 'blur(8px)',
+                  background: 'color-mix(in srgb, var(--card) 55%, transparent)',
+                }} />
+              )}
+              {ghostImageUrl && layer.type === 'photo_slot' && (
+                // eslint-disable-next-line @next/next/no-img-element -- live positioning approximation for an arbitrary external stakeholder-asset URL, not worth next/image's remote-loader config for a transient editor overlay
+                <img src={ghostImageUrl} alt="" style={ghostPhotoRect ? {
+                  position: 'absolute', left: 0, top: 0, width: `${ghostPhotoRect.width}%`, height: `${ghostPhotoRect.height}%`,
+                  objectFit: 'cover', pointerEvents: 'none',
+                } : {
+                  position: 'absolute', inset: 0, width: '100%', height: '100%',
+                  objectFit: 'contain', pointerEvents: 'none',
+                }} />
+              )}
+            </div>
             {ghostText && layer.type === 'text' && (
               // Top-anchored (2026-07-31, matches the real render — see
               // renderTextLayerPng's comment in composite.ts) — was
@@ -517,36 +582,34 @@ export default function LayerBoxOverlay({ layers, canvasWidth, canvasHeight, act
                 </span>
               </div>
             )}
-            {ghostImageUrl && layer.type === 'photo_slot' && (
-              // eslint-disable-next-line @next/next/no-img-element -- live positioning approximation for an arbitrary external stakeholder-asset URL, not worth next/image's remote-loader config for a transient editor overlay
-              <img src={ghostImageUrl} alt="" style={{
-                position: 'absolute', inset: 0, width: '100%', height: '100%',
-                objectFit: layer.source === 'speaker_photo' ? 'cover' : 'contain',
-                pointerEvents: 'none',
-              }} />
-            )}
-            {layer.type === 'photo_slot' && layer.source === 'speaker_photo' && layer.alignment && (
+            {layer.type === 'photo_slot' && layer.source === 'speaker_photo' && layer.alignment && headMarkerRect && (
               // Head-position REFERENCE marker (2026-08-03, Madhu's idea,
               // made draggable same day after a real miscalibrated reference
               // upload made this necessary — auto-detection isn't reliable
               // enough to trust blindly, see face-alignment.ts's own doc
               // comments) — not a crop container, a visual + EDITABLE guide
               // for where/how big alignAndCropPhoto() will place a real
-              // speaker's head within this box. Diameter derived from
-              // target_head_height (a ratio of the box's own HEIGHT, same
-              // convention the per-speaker head_box uses — see
-              // HeadBoxEditorModal.tsx) applied to both axes for a true
-              // circle despite the box's own width:height not being 1:1.
-              // Only interactive when this layer is active, matching the
-              // box's own handles.
+              // speaker's head within this box.
+              //
+              // 2026-08-16: the actual geometry math lives in
+              // computeHeadMarkerRect() (above) rather than inline here —
+              // target_head_center_x/y/height are ratios of
+              // reference_box_width/height (frozen at derive/last-drag time —
+              // see PhotoAlignmentMeta's doc comment), NOT necessarily this
+              // box's CURRENT width/height — the whole point being that the
+              // box can now be resized (e.g. taller, for footroom) without
+              // moving the head. computeHeadMarkerRect() converts the
+              // reference-relative ratios into a %-of-the-CURRENT-box rect
+              // for rendering; when the box hasn't been resized since the
+              // reference was set, that reduces to exactly the old formula.
               <div
                 onPointerDown={isActive ? e => startMarkerDrag(e, layer, 'move') : undefined}
                 style={{
                   position: 'absolute',
-                  left: `${(layer.alignment.target_head_center_x - (layer.alignment.target_head_height * layer.height / layer.width) / 2) * 100}%`,
-                  top: `${(layer.alignment.target_head_center_y - layer.alignment.target_head_height / 2) * 100}%`,
-                  width: `${(layer.alignment.target_head_height * layer.height / layer.width) * 100}%`,
-                  height: `${layer.alignment.target_head_height * 100}%`,
+                  left: `${headMarkerRect.left}%`,
+                  top: `${headMarkerRect.top}%`,
+                  width: `${headMarkerRect.width}%`,
+                  height: `${headMarkerRect.height}%`,
                   borderRadius: '50%',
                   border: '1.5px dashed var(--teal-mid)',
                   background: 'color-mix(in srgb, var(--teal-mid) 8%, transparent)',

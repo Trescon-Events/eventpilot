@@ -58,12 +58,24 @@ ${messagingContext}
 
 ${stakeholderContext}
 
-Generate LinkedIn post copy (max 1300 characters):
-- Opening hook (1-2 sentences, grounded in the ${speaker ? "speaker's expertise" : "company's relevance"})
-- 2-3 sentences on why this ${speaker ? 'speaker' : 'partner'} matters to the event audience
-- Event dates and venue, if given above
-- A call to action, including the registration link if given above
-- Hashtags: the event hashtag (if given) plus 4-6 relevant topic hashtags
+Generate LinkedIn post copy (max 1300 characters), written as four SEPARATE
+SHORT PARAGRAPHS — one for each of the sections below, each 1-3 sentences,
+each its own paragraph separated by a blank line (a literal \n\n between
+paragraphs in the "copy" string). This is exactly how real, readable
+LinkedIn posts are actually formatted — short scannable blocks of
+whitespace-separated text, never one dense unbroken wall of text:
+1. Opening hook, grounded in the ${speaker ? "speaker's expertise" : "company's relevance"}
+2. Why this ${speaker ? 'speaker' : 'partner'} matters to the event audience
+3. Event dates and venue, if given above
+4. A call to action, including the registration link if given above
+
+Plain text only — no markdown syntax of any kind (no **bold**, no #
+headings, no - or * bullet markers). LinkedIn and every other social
+platform renders a caption as plain text; markdown characters would show
+up literally instead of formatting anything.
+
+Hashtags: the event hashtag (if given) plus 4-6 relevant topic hashtags,
+returned separately in "hashtags" — not inside "copy".
 
 Return JSON only, no markdown fences: { "copy": "...", "hashtags": ["#...", "..."] }`
 

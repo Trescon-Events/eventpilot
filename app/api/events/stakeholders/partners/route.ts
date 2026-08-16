@@ -83,7 +83,10 @@ export async function POST(req: NextRequest) {
   const formType: FormType = body.form_type ?? 'sponsor'
   const schema = await resolveFormSchema(body.event_id, formType)
   for (const f of schema) {
-    if (f.required && f.type !== 'file' && !hasValue(body.fields[f.key])) {
+    // A required checkbox means "must be checked" — hasValue() alone would
+    // also accept the explicit 'false' string a real unchecked box stores.
+    const unsatisfied = f.type === 'checkbox' ? body.fields[f.key] !== 'true' : !hasValue(body.fields[f.key])
+    if (f.required && f.type !== 'file' && unsatisfied) {
       return NextResponse.json({ error: `${f.label} is required` }, { status: 400 })
     }
   }

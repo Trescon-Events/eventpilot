@@ -9,6 +9,7 @@ import { hasEventPermission } from '@/app/lib/access/event-access'
 import { resolveFormSchema } from '@/app/lib/forms/resolve-schema'
 import { mapFieldsToRecord } from '@/app/lib/forms/map-to-stakeholder-record'
 import { SubmittedValue } from '@/app/lib/forms/types'
+import { fetchHubSpotUploadedFile } from '@/app/lib/hubspot/client'
 
 /* POST /api/events/stakeholders/speakers/from-submission
    Body: { submission_id, event_id }
@@ -68,63 +69,102 @@ export async function POST(req: NextRequest) {
 
   if (insertErr) return NextResponse.json({ error: insertErr.message }, { status: 500 })
 
+  // Re-host the submitted photo to OUR OWN storage immediately, regardless
+  // of whether PhotoRoom succeeds below — an external submission-source URL
+  // (e.g. HubSpot's own signed-url-redirect link, stored as photo_url by
+  // mapFieldsToRecord() above) is NOT permanent. Real bug found live
+  // (2026-08-14): a speaker whose PhotoRoom processing never ran (no
+  // PHOTOROOM_API_KEY configured, or a transient failure) was left with
+  // only that externally-hosted photo_url — HubSpot's signed links expire
+  // within a short window, so it silently started 307-redirecting to
+  // HubSpot's own login page instead of the image, and the generated
+  // creative rendered with no photo at all, with zero error surfaced
+  // anywhere (fetchAssetBuffer() treats any failed/non-image fetch as "no
+  // asset", not an error — see asset-buffer-cache.ts). Re-hosting here
+  // means photo_url always points at a URL we control, whether or not
+  // background-removal ever succeeds.
+  let rawBuffer: Buffer | null = null
+  let rawContentType = 'image/jpeg'
+  if (fileUrls.photo) {
+    try {
+      // HubSpot's uploaded-file link needs our Service Key attached or it
+      // 307-redirects to HubSpot's login page instead of the file, even
+      // moments after submission — see fetchHubSpotUploadedFile()'s own
+      // comment. Native-form submissions store photo_url on our own
+      // storage already, which neither needs nor wants a HubSpot bearer
+      // token attached to the request.
+      const imgRes = submission.source === 'hubspot'
+        ? await fetchHubSpotUploadedFile(fileUrls.photo)
+        : await fetch(fileUrls.photo)
+      if (imgRes.ok) {
+        rawBuffer = Buffer.from(await imgRes.arrayBuffer())
+        rawContentType = imgRes.headers.get('content-type') || 'image/jpeg'
+        const ext = rawContentType.includes('png') ? 'png' : rawContentType.includes('webp') ? 'webp' : 'jpg'
+        const rehostedUrl = await uploadPublicAsset(
+          `events/${body.event_id}/speakers/${speaker.id}/photo-raw-${Date.now()}.${ext}`,
+          rawBuffer,
+          rawContentType
+        )
+        await supabaseAdmin.from('event_speakers').update({ photo_url: rehostedUrl }).eq('id', speaker.id)
+      } else {
+        console.error('Could not fetch submitted photo to re-host for submission', submission.id, imgRes.status)
+      }
+    } catch (e) {
+      console.error('Could not fetch submitted photo to re-host for submission', submission.id, e)
+    }
+  }
+
   // Background-remove the submitted photo, best-effort — failure here
   // shouldn't block the submission from being processed.
   const photoRoomKey = process.env.PHOTOROOM_API_KEY
-  if (fileUrls.photo && photoRoomKey) {
+  if (rawBuffer && photoRoomKey) {
     try {
-      const imgRes = await fetch(fileUrls.photo)
-      if (imgRes.ok) {
-        const originalBuffer = Buffer.from(await imgRes.arrayBuffer())
-        const contentType    = imgRes.headers.get('content-type') || 'image/jpeg'
+      const photoRoomForm = new FormData()
+      photoRoomForm.append('image_file', new Blob([new Uint8Array(rawBuffer)], { type: rawContentType }), 'photo.jpg')
+      photoRoomForm.append('output_type', 'rgba')
 
-        const photoRoomForm = new FormData()
-        photoRoomForm.append('image_file', new Blob([new Uint8Array(originalBuffer)], { type: contentType }), 'photo.jpg')
-        photoRoomForm.append('output_type', 'rgba')
+      const prRes = await fetch('https://sdk.photoroom.com/v1/segment', {
+        method: 'POST',
+        headers: { 'x-api-key': photoRoomKey },
+        body: photoRoomForm,
+      })
 
-        const prRes = await fetch('https://sdk.photoroom.com/v1/segment', {
-          method: 'POST',
-          headers: { 'x-api-key': photoRoomKey },
-          body: photoRoomForm,
-        })
+      if (prRes.ok) {
+        // Same stored-resolution cap as processSpeakerPhoto()/crop-photo
+        // (2026-08-04 perf pass) — this route builds photo_processed_url
+        // via its own inline PhotoRoom call rather than that shared
+        // helper, so it needs the identical resize applied here too.
+        const transparentPng = await sharp(Buffer.from(await prRes.arrayBuffer()))
+          // .rotate() with no args = auto-orient from EXIF first —
+          // PhotoRoom's own output has consistently come out already
+          // normalized in testing, included here only for consistency
+          // with the other resize call sites touched in the same
+          // 2026-08-04 pass.
+          .rotate()
+          .resize(MAX_STORED_PHOTO_DIMENSION, MAX_STORED_PHOTO_DIMENSION, { fit: 'inside', withoutEnlargement: true })
+          .png()
+          .toBuffer()
+        const processedUrl = await uploadPublicAsset(
+          `events/${body.event_id}/speakers/${speaker.id}/photo-processed-${Date.now()}.png`,
+          transparentPng,
+          'image/png'
+        )
 
-        if (prRes.ok) {
-          // Same stored-resolution cap as processSpeakerPhoto()/crop-photo
-          // (2026-08-04 perf pass) — this route builds photo_processed_url
-          // via its own inline PhotoRoom call rather than that shared
-          // helper, so it needs the identical resize applied here too.
-          const transparentPng = await sharp(Buffer.from(await prRes.arrayBuffer()))
-            // .rotate() with no args = auto-orient from EXIF first —
-            // PhotoRoom's own output has consistently come out already
-            // normalized in testing, included here only for consistency
-            // with the other resize call sites touched in the same
-            // 2026-08-04 pass.
-            .rotate()
-            .resize(MAX_STORED_PHOTO_DIMENSION, MAX_STORED_PHOTO_DIMENSION, { fit: 'inside', withoutEnlargement: true })
-            .png()
-            .toBuffer()
-          const processedUrl = await uploadPublicAsset(
-            `events/${body.event_id}/speakers/${speaker.id}/photo-processed-${Date.now()}.png`,
-            transparentPng,
-            'image/png'
-          )
-
-          // Cache the head position, same as the manual upload-asset route —
-          // without this, form-onboarded speakers had no photo_head_box at
-          // all and generation fell all the way through to a non-face-aware
-          // center crop (real bug found 2026-08-03: Alistair Cavendish-
-          // Ponsonby's creative rendered with his head too small/low). A
-          // detection failure here still leaves this null and falls back to
-          // live detection at generation time, same as upload-asset's.
-          let photoHeadBox = null
-          try {
-            photoHeadBox = await detectHeadBox(transparentPng)
-          } catch (e) {
-            console.error('Head detection failed for submission', submission.id, e)
-          }
-
-          await supabaseAdmin.from('event_speakers').update({ photo_processed_url: processedUrl, photo_head_box: photoHeadBox }).eq('id', speaker.id)
+        // Cache the head position, same as the manual upload-asset route —
+        // without this, form-onboarded speakers had no photo_head_box at
+        // all and generation fell all the way through to a non-face-aware
+        // center crop (real bug found 2026-08-03: Alistair Cavendish-
+        // Ponsonby's creative rendered with his head too small/low). A
+        // detection failure here still leaves this null and falls back to
+        // live detection at generation time, same as upload-asset's.
+        let photoHeadBox = null
+        try {
+          photoHeadBox = await detectHeadBox(transparentPng)
+        } catch (e) {
+          console.error('Head detection failed for submission', submission.id, e)
         }
+
+        await supabaseAdmin.from('event_speakers').update({ photo_processed_url: processedUrl, photo_head_box: photoHeadBox }).eq('id', speaker.id)
       }
     } catch (e) {
       console.error('PhotoRoom processing failed for submission', submission.id, e)
