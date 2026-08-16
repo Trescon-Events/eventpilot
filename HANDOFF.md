@@ -16,7 +16,7 @@ Railway's auto-deploy silently stopped working from **2026-07-17 to 2026-07-21**
 | Field | Value |
 |---|---|
 | Who | Madhu + Claude Code (Sonnet 5) — 16 Aug 2026 |
-| Latest push | 2026-08-16 — Postiz publishing system (schedule/post/approve for stakeholder announcements) + the full Event Workspace Access Roles redesign (3 phases) + a new Access & Permissions hub + a round of live-bug-report fixes. See the dated section below for the full write-up. |
+| Latest push | 2026-08-16 — Postiz publishing system (schedule/post/approve for stakeholder announcements) + the full Event Workspace Access Roles redesign (3 phases) + a new Access & Permissions hub + a round of live-bug-report fixes, followed same day by a CI/cron reliability pass (line-scoped lint gate, refreshed nav baseline, fixed a broken 15-min cron's stale secret). See the dated sections below for the full write-up. |
 | DB migrations applied | `access_rbac.sql` extended twice (org-wide/global assignment tier via nullable `event_id` + `auto_granted` column; new `hrms_role_access_map` table). `events.postiz_default_channel_ids` / `stakeholder_announcements.postiz_channel_ids` (from `sae_migration.sql`). All applied directly against production Supabase via the pg pooler. |
 | Handed off to | Durga |
 | Deployed | Pushed to `main` this session, Railway auto-deploys on push. Verify `eventpilot.tresconglobal.com` reflects the latest commit. |
@@ -56,6 +56,16 @@ Several were caught from Madhu's own real usage screenshots, not proactive QA �
 **Verified**: `tsc --noEmit` clean project-wide throughout, `eslint` diffed against `git stash` baselines for every pre-existing file touched (confirmed zero new lint issues introduced anywhere). Every migration applied live against production Supabase and verified with real queries, not assumed. Every new permission/role mechanism live-tested end-to-end against the real dev server with real (or deliberately-cleaned-up throwaway) staff and data — denied/granted/admin-bypass states, wildcard expansion, org-wide scope resolution, HRMS-sync replace/unmap behavior, and manual-grant-never-overwritten all separately confirmed, not just typechecked.
 
 **What's next**: Madhu still needs to actually configure the real "Producer"/"Production Lead" roles + Staff Portal role_type mappings via the new UI (walked through the exact steps, not done on his behalf — see `/admin/access` → Roles tab, then Staff Portal Mapping tab). The deferred post-publish tagging-reminder email is ready to build once the recipient question is answered. Phase 3's explicitly-scoped-out items (Finance/HR/DocuHub/KB/etc. consolidation) remain a known gap, not a todo, unless priorities change.
+
+### Same day, follow-up — CI noise + a broken 15-minute cron, both fixed
+
+Madhu asked why he kept getting GitHub "run failed" emails on every push. Two separate, unrelated root causes, both fixed and verified green on real runs (not just locally):
+
+- **CI's `lint:changed` step was file-scoped, not line-scoped** — touching even one line in a file carrying pre-existing lint debt (common; `app/admin/page.tsx` alone has 381 legacy issues) surfaced that whole file's backlog as a failure. Rewrote `.github/scripts/lint-changed.mjs` to diff actual added/changed line ranges (`git diff --unified=0`) against eslint's own JSON output and only fail on errors within lines the push actually touched — the exact follow-up the script's own old comment had flagged (`reviewdog/action-eslint`, `filter_mode=added`) without adding a new external Action. Caught two genuine `any`-typed params this surfaced on lines reformatted earlier the same day (`app/api/{,cron/}hrms-sync/route.ts`) — typed both properly rather than leaving them red.
+- **`check:nav`'s baseline (`.github/scripts/nav-branding-baseline.json`) hadn't been regenerated since 2026-07-20** — a month of legitimate, unrelated page drift (branding/corporate, the messaging-page-became-a-redirect change from 13 Aug, corporate-marketing/statistics) was being reported as "new" violations on every push. Regenerated against current `main`; confirmed none of today's own new pages were in the flagged set.
+- **Separately, "Auto-revoke expired access" (15-min scheduled cron) was failing 100% of the time** — its GitHub Actions `CRON_SECRET` repo secret (last set 2026-07-07) no longer matched what's actually deployed on Railway; confirmed by testing `.env.local`'s current value directly against the live endpoint (200) before updating the GitHub secret to match. **Worth remembering going forward: GitHub Actions secrets and Railway env vars are two separate stores with no auto-sync — if `CRON_SECRET` (or any secret both use) is ever rotated on one side, it needs updating on the other too.** This also silently would have broken **Weekly Leaderboard**'s next Monday run (same secret) — headed off before it happened, confirmed via that workflow's clean run history right up until the value changed sometime after its 10 Aug run.
+
+Commit `27cae9a`. All four GitHub Actions workflows (CI, Enrich Build Log, Auto-revoke expired access, Weekly Leaderboard) confirmed healthy as of this session.
 
 ---
 
