@@ -58,16 +58,23 @@ ${messagingContext}
 
 ${stakeholderContext}
 
-Generate LinkedIn post copy (max 1300 characters), written as four SEPARATE
-SHORT PARAGRAPHS — one for each of the sections below, each 1-3 sentences,
-each its own paragraph separated by a blank line (a literal \n\n between
-paragraphs in the "copy" string). This is exactly how real, readable
-LinkedIn posts are actually formatted — short scannable blocks of
-whitespace-separated text, never one dense unbroken wall of text:
-1. Opening hook, grounded in the ${speaker ? "speaker's expertise" : "company's relevance"}
-2. Why this ${speaker ? 'speaker' : 'partner'} matters to the event audience
-3. Event dates and venue, if given above
-4. A call to action, including the registration link if given above
+Generate LinkedIn post copy — aim for 500-900 characters, hard max 1300 —
+written as SEPARATE SHORT PARAGRAPHS (1-2 sentences each, each its own
+paragraph separated by a blank line, a literal \n\n between paragraphs in
+the "copy" string). This is exactly how real, high-performing LinkedIn
+event-announcement posts are formatted — short scannable blocks of
+whitespace-separated text, never one dense unbroken wall of text. Favor
+shorter over longer; do not pad toward the character ceiling.
+
+1. Opening hook — one punchy line grounded in the ${speaker ? "speaker's topic/expertise" : "partner's relevance"} (a bold claim, a sharp question, or a trend statement). Do NOT name the ${speaker ? 'speaker' : 'partner'} yet — save the name for paragraph 2.
+2. A DIRECT, ENERGETIC announcement that names the ${speaker ? 'speaker' : 'partner'} (with ${speaker ? 'their title and company' : 'their category'}) and explicitly states they are speaking at / joining the event — e.g. "Excited to welcome [Name] ([Title], [Company]) to the stage at [Event]!", "We're thrilled to welcome [Name] to [Event]!", or "[Name] is the latest to join our speaker lineup for [Event]!". This sentence MUST unambiguously say they ARE speaking/joining — never leave that implied only through a bio. This is the single most important paragraph; do not bury or soften it.
+3. Why this ${speaker ? 'speaker' : 'partner'} matters — one credibility line grounded in their real, given experience (years, scale, a notable achievement) tied to the event's themes.
+4. Event dates and venue as a single compact line, not a full sentence — e.g. "9-10 Sept 2026 | DoubleTree by Hilton, KL" — if given above.
+5. A short call to action with the registration link, if given above.
+
+Tone: confident and genuinely excited — this should read like real
+enthusiasm about a great ${speaker ? 'speaker' : 'partner'} joining, not a
+formal press release. Short, punchy sentences beat long, descriptive ones.
 
 Plain text only — no markdown syntax of any kind (no **bold**, no #
 headings, no - or * bullet markers). LinkedIn and every other social
@@ -79,7 +86,15 @@ returned separately in "hashtags" — not inside "copy".
 
 Return JSON only, no markdown fences: { "copy": "...", "hashtags": ["#...", "..."] }`
 
-  const model  = getGemini().getGenerativeModel({ model: 'gemini-2.5-flash' })
+  // 2026-08-17: responseMimeType 'application/json' makes Gemini itself
+  // guarantee syntactically valid JSON (properly escaped newlines inside
+  // string values, etc.) — without it, Gemini sometimes emits a literal
+  // unescaped newline inside the "copy" string, which is invalid JSON;
+  // JSON.parse below would then throw, and the code fell through to
+  // returning the whole raw, unparsed JSON blob (braces, field labels and
+  // all) as if it were the post copy. Confirmed live: roughly 1 in 3
+  // generations hit this before adding the mode.
+  const model  = getGemini().getGenerativeModel({ model: 'gemini-2.5-flash', generationConfig: { responseMimeType: 'application/json' } })
   const result = await model.generateContent([{ text: prompt }])
   const text   = result.response.text().trim()
 

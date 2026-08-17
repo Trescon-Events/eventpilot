@@ -3,6 +3,7 @@ import { supabaseAdmin } from '@/app/lib/supabase'
 import { getSession } from '@/app/lib/access/session'
 import { hasEventPermission } from '@/app/lib/access/event-access'
 import { sendGraphMail } from '@/app/lib/email/graph-mail'
+import { resolveSenderIdentity } from '@/app/lib/email/sender-identity'
 
 /* POST /api/events/stakeholders/invites/send
    Body: { invite_token, event_id, form_type, template_id, recipient_name,
@@ -27,9 +28,14 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Not authorized.' }, { status: 403 })
   }
 
-  // Never trust client-supplied sender identity — re-fetch from the template.
+  // Never trust client-supplied sender identity — resolve from the session
+  // server-side (the real logged-in staffer, 2026-08-17 — see
+  // sender-identity.ts; previously always re-fetched the template's own
+  // stored sender, which meant every send went out as whoever authored the
+  // template regardless of who was actually sending it).
   const { data: template } = await supabaseAdmin.from('email_templates').select('sender_name, sender_email').eq('id', body.template_id).single()
   if (!template) return NextResponse.json({ error: 'Template not found' }, { status: 404 })
+  const sender = await resolveSenderIdentity(session, template)
 
   // Write status:'draft' FIRST so a mid-send crash leaves a retryable row, not silence.
   const { data: invite, error: upsertErr } = await supabaseAdmin
@@ -46,7 +52,7 @@ export async function POST(req: NextRequest) {
   if (upsertErr || !invite) return NextResponse.json({ error: upsertErr?.message ?? 'Could not create invite record' }, { status: 500 })
 
   try {
-    await sendGraphMail({ senderEmail: template.sender_email, senderName: template.sender_name, to: body.recipient_email, subject: body.subject, html: body.html })
+    await sendGraphMail({ senderEmail: sender.email, senderName: sender.name, to: body.recipient_email, subject: body.subject, html: body.html })
 
     await supabaseAdmin.from('stakeholder_invites').update({ status: 'sent', sent_at: new Date().toISOString(), send_error: null }).eq('id', invite.id)
     await supabaseAdmin.from('email_template_sends').insert({

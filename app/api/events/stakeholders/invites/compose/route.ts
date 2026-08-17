@@ -4,6 +4,7 @@ import { supabaseAdmin } from '@/app/lib/supabase'
 import { getSession } from '@/app/lib/access/session'
 import { hasEventPermission } from '@/app/lib/access/event-access'
 import { renderEmailTemplate } from '@/app/lib/email/render-template'
+import { resolveSenderIdentity } from '@/app/lib/email/sender-identity'
 
 /* POST /api/events/stakeholders/invites/compose
    Body: { event_id, form_type, template_id, recipient_name, recipient_email }
@@ -35,6 +36,8 @@ export async function POST(req: NextRequest) {
   if (!event) return NextResponse.json({ error: 'Event not found' }, { status: 404 })
   if (!template) return NextResponse.json({ error: 'Template not found' }, { status: 404 })
 
+  const sender = await resolveSenderIdentity(session, template)
+
   const inviteToken = randomBytes(32).toString('hex')
   // The officially branded page (e.g. worldaishow.com/malaysia/speaker-
   // onboarding) is preferred once set — it's what producers already send
@@ -50,7 +53,7 @@ export async function POST(req: NextRequest) {
     speaker_name: body.recipient_name, // populated for the seeded template's {{speaker_name}} token; harmless no-op for others
     event_name: event.public_name || event.name,
     form_link: formLink,
-    sender_name: template.sender_name,
+    sender_name: sender.name,
   })
 
   return NextResponse.json({
@@ -58,6 +61,6 @@ export async function POST(req: NextRequest) {
     event_id: body.event_id, form_type: body.form_type, template_id: body.template_id,
     recipient_name: body.recipient_name, recipient_email: body.recipient_email,
     subject, html,
-    sender_name: template.sender_name, sender_email: template.sender_email,
+    sender_name: sender.name, sender_email: sender.email,
   })
 }
