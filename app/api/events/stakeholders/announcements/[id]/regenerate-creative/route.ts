@@ -37,7 +37,14 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
   const templateConfig = event.creative_template_config as CreativeTemplateConfig | null
   const variantId = body.variant_id ?? announcement.creative_variant_id ?? undefined
-  const inputs = buildCompositeInputs(announcement.stakeholder_type, speaker, partner, templateConfig, body.use_company_logo ?? false, variantId)
+  // 2026-08-18: without passing kind here, buildCompositeInputs' new
+  // category filter (see announcements.ts) defaults to 'org_promo' — for a
+  // self_promo announcement, variantId would then be searched for inside
+  // the WRONG (org-promo) filtered variant list, never find it, and
+  // silently fall back to variants[0] of the wrong category. Real gap
+  // caught during Self Promo build-out, not hypothetical.
+  const kind: 'org_promo' | 'self_promo' = announcement.announcement_kind === 'self_promo' ? 'self_promo' : 'org_promo'
+  const inputs = buildCompositeInputs(announcement.stakeholder_type, speaker, partner, templateConfig, body.use_company_logo ?? false, variantId, kind)
   if ('templateError' in inputs) return NextResponse.json({ error: inputs.templateError }, { status: 422 })
 
   try {

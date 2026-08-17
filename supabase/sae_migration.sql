@@ -363,3 +363,70 @@ ALTER TABLE events
 
 ALTER TABLE stakeholder_announcements
   ADD COLUMN IF NOT EXISTS postiz_channel_ids TEXT[]; -- Postiz integration ids actually targeted by this post — pre-filled from events.postiz_default_channel_ids, editable per post
+
+-- 2026-08-18: Self Promo module + speaker data quality. Building a second
+-- creative flow (org posts on Trescon's own channels vs. a creative +
+-- copy emailed TO the speaker for them to post themselves) surfaced a
+-- real, separate gap worth fixing at the same time: creatives/post copy
+-- only ever had the speaker's raw `name` to work with — no way to
+-- override it with the exact publicly-correct form (honorifics/spelling),
+-- no way to know how to refer to the person in third person, no way to
+-- ground copy in anything more specific than a generic bio, and no way
+-- to address them correctly in email. All four are producer-controlled
+-- data gaps, not AI-prompt gaps — fixing them improves the existing,
+-- already-shipped org-promo flow too, not just the new self-promo one.
+--
+-- public_name mirrors events.public_name's existing override pattern
+-- (nullable, `?? name` fallback everywhere public content is generated).
+--
+-- salutation: a real "Salutation" field already exists on the live
+-- onboarding form (confirmed against the actual worldaishow.com/malaysia
+-- form) but was never mapped to any real EventPilot concept — it's been
+-- landing nowhere usable. Promoting it to a first-class column so it can
+-- be relied on in every speaker email communication, not just captured
+-- and lost in a generic per-event custom field.
+--
+-- pronoun_style: closed set, third-person reference style for org-promo
+-- copy only (self-promo is first-person "I/my", doesn't need this).
+-- Extending this list later needs DROP CONSTRAINT + ADD CONSTRAINT, not
+-- IF NOT EXISTS — same recurring cost as announcement_status's own
+-- history in this file (see its CHECK constraint above). Kept
+-- intentionally small; add options only when a real need shows up.
+--
+-- key_talking_points: free text, referenced by both the org-promo and
+-- self-promo copy generators when present.
+ALTER TABLE event_speakers ADD COLUMN IF NOT EXISTS public_name TEXT;
+ALTER TABLE event_speakers ADD COLUMN IF NOT EXISTS salutation TEXT;
+ALTER TABLE event_speakers ADD COLUMN IF NOT EXISTS key_talking_points TEXT;
+ALTER TABLE event_speakers ADD COLUMN IF NOT EXISTS pronoun_style TEXT
+  CHECK (pronoun_style IN ('he_him','she_her','his_excellency','her_excellency','his_highness','her_highness'));
+
+-- Distinguishes the new Self Promo flow's rows from the existing org-promo
+-- ones. NOT NULL DEFAULT so every existing row is unaffected — mirrors
+-- event_sponsors.partner_type's own NOT NULL DEFAULT pattern.
+ALTER TABLE stakeholder_announcements ADD COLUMN IF NOT EXISTS announcement_kind TEXT
+  NOT NULL DEFAULT 'org_promo' CHECK (announcement_kind IN ('org_promo','self_promo'));
+
+-- Audit/send record for the new "send this creative to the speaker"
+-- email flow. Deliberately a dedicated table, not a reuse of
+-- stakeholder_invites (FK'd to form_type — a different concept, onboarding
+-- invites not creative sends) and not just email_template_sends alone
+-- (generic audit only, no announcement linkage, no cc list) — need to be
+-- able to answer "was this specific announcement ever sent, to whom, with
+-- what cc list" later, same as the invite flow already can for itself.
+CREATE TABLE IF NOT EXISTS stakeholder_announcement_sends (
+  id                UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  announcement_id   UUID NOT NULL REFERENCES stakeholder_announcements(id) ON DELETE CASCADE,
+  template_id       UUID REFERENCES email_templates(id) ON DELETE SET NULL,
+  recipient_name    TEXT NOT NULL,
+  recipient_email   TEXT NOT NULL,
+  cc_emails         TEXT[],
+  actual_subject    TEXT,
+  actual_body_html  TEXT,
+  status            TEXT NOT NULL DEFAULT 'draft' CHECK (status IN ('draft','sent','failed')),
+  send_error        TEXT,
+  sent_by           UUID REFERENCES staff_members(id) ON DELETE SET NULL,
+  sent_at           TIMESTAMPTZ,
+  created_at        TIMESTAMPTZ DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_announcement_sends_announcement ON stakeholder_announcement_sends(announcement_id);

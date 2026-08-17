@@ -28,6 +28,12 @@ const SPEAKER_KEY_MAP: Record<string, string> = {
   country: 'country',
   bio: 'bio',
   linkedin_url: 'linkedin_url',
+  // 2026-08-18: a real "Salutation" field already exists on the live
+  // onboarding form (confirmed against the actual worldaishow.com/malaysia
+  // form) but had no column to map to — it was landing in custom_fields,
+  // invisible to every email/copy-generation consumer. Same fix shape as
+  // the company/company_name alias above.
+  salutation: 'salutation',
 }
 
 const PARTNER_KEY_MAP: Record<string, string> = {

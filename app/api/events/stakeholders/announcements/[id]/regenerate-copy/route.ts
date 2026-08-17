@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/app/lib/supabase'
-import { generatePostCopy } from '@/app/lib/events/announcements'
+import { generatePostCopy, generateSelfPromoPostCopy } from '@/app/lib/events/announcements'
 
 /* POST /api/events/stakeholders/announcements/[id]/regenerate-copy
    Regenerates only the post copy for an existing announcement — used when
@@ -38,7 +38,13 @@ export async function POST(_req: NextRequest, { params }: { params: Promise<{ id
     .limit(1)
     .maybeSingle()
 
-  const postCopy = await generatePostCopy(event, speaker, partner, messagingDoc?.structured_json ?? null)
+  // 2026-08-18: without this branch, "Regenerate" on a self-promo row would
+  // silently overwrite its first-person speaker-voice copy with third-
+  // person org-voice copy from generatePostCopy — a real gap caught during
+  // Self Promo planning, not a hypothetical.
+  const postCopy = announcement.announcement_kind === 'self_promo'
+    ? await generateSelfPromoPostCopy(event, speaker!, messagingDoc?.structured_json ?? null)
+    : await generatePostCopy(event, speaker, partner, messagingDoc?.structured_json ?? null)
 
   const { data, error } = await supabaseAdmin
     .from('stakeholder_announcements')

@@ -39,6 +39,12 @@ type SpeakerPatchBody = {
   // so a stale company_logo_raw_url left behind after removal would be a
   // real (if invisible) inconsistency.
   remove_company_logo?: boolean
+  // Producer-editable, NOT part of the onboarding form (2026-08-18) — see
+  // supabase/sae_migration.sql's dated comment for why each exists.
+  public_name?: string | null
+  salutation?: string | null
+  pronoun_style?: string | null
+  key_talking_points?: string | null
 }
 
 function fromRow(row: Record<string, unknown>) {
@@ -94,6 +100,10 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   if (body.reviewed_by !== undefined) { row.reviewed_by = body.reviewed_by || null; row.reviewed_at = new Date().toISOString() }
   if (body.also_restore_to_website) row.active = true
   if (body.remove_company_logo) { row.company_logo_url = null; row.company_logo_raw_url = null }
+  if (body.public_name !== undefined) row.public_name = body.public_name || null
+  if (body.salutation !== undefined) row.salutation = body.salutation || null
+  if (body.pronoun_style !== undefined) row.pronoun_style = body.pronoun_style || null
+  if (body.key_talking_points !== undefined) row.key_talking_points = body.key_talking_points || null
 
   if (Object.keys(row).length === 0) return NextResponse.json({ error: 'no valid fields' }, { status: 400 })
 

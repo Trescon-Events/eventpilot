@@ -5,7 +5,7 @@ import { useSearchParams } from 'next/navigation'
 import { Download } from 'lucide-react'
 import PageHeader from '@/app/components/PageHeader'
 import { permissionSetSatisfies } from '@/app/lib/access/permission-match'
-import { Button, Card, Badge, Select, ProcessingOverlay } from '@/app/components/ui'
+import { Button, Card, Badge, Select, Input, Textarea, ProcessingOverlay } from '@/app/components/ui'
 import { FormFieldInput } from '@/app/components/forms/FormFieldInput'
 import { FieldSchema, FormType, SubmittedValue } from '@/app/lib/forms/types'
 import { downloadFile } from '@/app/lib/download-file'
@@ -46,6 +46,9 @@ type StakeholderRecord = {
   photo_head_box?: { centerXRatio: number; centerYRatio: number; heightRatio: number } | null
   company_website?: string | null; company_description?: string | null
   partner_type?: string
+  public_name?: string | null; salutation?: string | null
+  pronoun_style?: 'he_him' | 'she_her' | 'his_excellency' | 'her_excellency' | 'his_highness' | 'her_highness' | null
+  key_talking_points?: string | null
   logo_url?: string | null; logo_raw_url?: string | null
   announcement_status: AnnouncementStatus
   source: 'onboarding_form' | 'manual'
@@ -116,6 +119,17 @@ const PARTNER_TYPES = [
   'knowledge_partner', 'official_partner', 'supporting_partner', 'sponsor', 'other',
 ]
 
+// Third-person reference style for org-promo copy (2026-08-18) — deliberately
+// small/closed; extending it needs a DB constraint change, not just this list.
+const PRONOUN_STYLES: { value: string; label: string }[] = [
+  { value: 'he_him', label: 'He / Him' },
+  { value: 'she_her', label: 'She / Her' },
+  { value: 'his_excellency', label: 'His Excellency' },
+  { value: 'her_excellency', label: 'Her Excellency' },
+  { value: 'his_highness', label: 'His Highness' },
+  { value: 'her_highness', label: 'Her Highness' },
+]
+
 const STATUS_BADGE: Record<AnnouncementStatus, { label: string; color: 'amber' | 'red' | 'teal' | 'grey' }> = {
   pending_review: { label: 'Pending Review', color: 'amber' },
   assets_missing: { label: 'Assets Missing', color: 'red' },
@@ -138,6 +152,19 @@ export default function StakeholderReviewPage({ params }: { params: Promise<{ id
   const [schema, setSchema] = useState<FieldSchema[]>([])
   const [values, setValues] = useState<Record<string, SubmittedValue>>({})
   const [partnerType, setPartnerType] = useState('sponsor')
+  // Speaker-only, producer-editable, NOT part of the onboarding form
+  // (2026-08-18) — public_name overrides `full_name` everywhere
+  // public-facing content is generated (creatives, both org-promo and
+  // self-promo post copy, future website), same fallback pattern as
+  // events.public_name. pronoun_style/key_talking_points ground the AI
+  // copy generators. salutation is different from public_name — it's real
+  // data the live onboarding form already captures but was never mapped
+  // to anything, used specifically for addressing the speaker correctly
+  // in email (not creatives/post copy).
+  const [publicName, setPublicName] = useState('')
+  const [salutation, setSalutation] = useState('')
+  const [pronounStyle, setPronounStyle] = useState('')
+  const [keyTalkingPoints, setKeyTalkingPoints] = useState('')
   const [status, setStatus] = useState<AnnouncementStatus>('pending_review')
   const [loading, setLoading] = useState(true)
   const [permissions, setPermissions] = useState<Set<string>>(new Set())
@@ -170,8 +197,16 @@ export default function StakeholderReviewPage({ params }: { params: Promise<{ id
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const valuesRef = useRef(values)
   const partnerTypeRef = useRef(partnerType)
+  const publicNameRef = useRef(publicName)
+  const salutationRef = useRef(salutation)
+  const pronounStyleRef = useRef(pronounStyle)
+  const keyTalkingPointsRef = useRef(keyTalkingPoints)
   useEffect(() => { valuesRef.current = values }, [values])
   useEffect(() => { partnerTypeRef.current = partnerType }, [partnerType])
+  useEffect(() => { publicNameRef.current = publicName }, [publicName])
+  useEffect(() => { salutationRef.current = salutation }, [salutation])
+  useEffect(() => { pronounStyleRef.current = pronounStyle }, [pronounStyle])
+  useEffect(() => { keyTalkingPointsRef.current = keyTalkingPoints }, [keyTalkingPoints])
 
   const load = useCallback(async () => {
     const [recRes, schemaRes, permRes, eventRes] = await Promise.all([
@@ -186,6 +221,12 @@ export default function StakeholderReviewPage({ params }: { params: Promise<{ id
       setValues(data.fields ?? {})
       setStatus(data.announcement_status)
       if (kind === 'partner') setPartnerType(data.partner_type ?? 'sponsor')
+      if (kind === 'speaker') {
+        setPublicName(data.public_name ?? '')
+        setSalutation(data.salutation ?? '')
+        setPronounStyle(data.pronoun_style ?? '')
+        setKeyTalkingPoints(data.key_talking_points ?? '')
+      }
     } else {
       setMsg('Could not load this record.')
     }
@@ -218,6 +259,12 @@ export default function StakeholderReviewPage({ params }: { params: Promise<{ id
     setSaveState('saving')
     const body: Record<string, unknown> = { fields: valuesRef.current }
     if (kind === 'partner') { body.form_type = formType; body.partner_type = partnerTypeRef.current }
+    if (kind === 'speaker') {
+      body.public_name = publicNameRef.current.trim() || null
+      body.salutation = salutationRef.current.trim() || null
+      body.pronoun_style = pronounStyleRef.current || null
+      body.key_talking_points = keyTalkingPointsRef.current.trim() || null
+    }
     const res = await fetch(`${base}/${stakeholderId}`, {
       method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
     })
@@ -416,6 +463,45 @@ export default function StakeholderReviewPage({ params }: { params: Promise<{ id
                     {PARTNER_TYPES.map(t => <option key={t} value={t}>{t.replace(/_/g, ' ')}</option>)}
                   </Select>
                 </div>
+              )}
+              {kind === 'speaker' && (
+                <>
+                  <div>
+                    <label style={{ fontSize: '16px', fontWeight: 700, color: 'var(--ink3)', display: 'block', marginBottom: '7px' }}>Public Name</label>
+                    <Input
+                      className="tfield-lg" value={publicName} disabled={!canEdit} onBlur={flushSave}
+                      placeholder="Exact name to use everywhere public-facing"
+                      onChange={e => { setPublicName(e.target.value); scheduleSave() }}
+                    />
+                  </div>
+                  <div>
+                    <label style={{ fontSize: '16px', fontWeight: 700, color: 'var(--ink3)', display: 'block', marginBottom: '7px' }}>Salutation</label>
+                    <Input
+                      className="tfield-lg" value={salutation} disabled={!canEdit} onBlur={flushSave}
+                      placeholder="e.g. Dr., Prof., Datuk"
+                      onChange={e => { setSalutation(e.target.value); scheduleSave() }}
+                    />
+                  </div>
+                  <div>
+                    <label style={{ fontSize: '16px', fontWeight: 700, color: 'var(--ink3)', display: 'block', marginBottom: '7px' }}>Pronoun / Honorific Style</label>
+                    <Select
+                      className="tfield-lg" value={pronounStyle} disabled={!canEdit} onBlur={flushSave}
+                      onChange={e => { setPronounStyle(e.target.value); scheduleSave() }}
+                    >
+                      <option value="">Not set</option>
+                      {PRONOUN_STYLES.map(p => <option key={p.value} value={p.value}>{p.label}</option>)}
+                    </Select>
+                  </div>
+                  <div style={{ gridColumn: '1 / -1' }}>
+                    <label style={{ fontSize: '16px', fontWeight: 700, color: 'var(--ink3)', display: 'block', marginBottom: '7px' }}>Key Talking Points</label>
+                    <Textarea
+                      className="tfield-lg" value={keyTalkingPoints} disabled={!canEdit} onBlur={flushSave}
+                      placeholder="What this speaker will specifically cover — used to ground the AI-generated post copy"
+                      rows={3}
+                      onChange={e => { setKeyTalkingPoints(e.target.value); scheduleSave() }}
+                    />
+                  </div>
+                </>
               )}
             </div>
           </Card>

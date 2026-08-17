@@ -31,6 +31,7 @@ type QueueRow = {
   scheduled_for: string | null
   published_at: string | null
   postiz_channel_ids: string[] | null
+  announcement_kind: 'org_promo' | 'self_promo'
 }
 
 const STATUS_OPTIONS: { value: AnnouncementStatus | 'all'; label: string }[] = [
@@ -145,6 +146,9 @@ export default function AnnouncementQueuePage({ params }: { params: Promise<{ id
                   <div style={{ minWidth: 0 }}>
                     <div style={{ fontSize: '13.5px', fontWeight: 800, color: 'var(--ink)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                       {row.stakeholder_name ?? 'Unknown'} <span style={{ fontWeight: 500, color: 'var(--ink4)', fontSize: '11.5px' }}>· {row.stakeholder_type}</span>
+                      {row.announcement_kind === 'self_promo' && (
+                        <span style={{ marginLeft: '6px', fontSize: '10px', fontWeight: 800, color: 'var(--indigo)', border: '1px solid var(--indigo)', borderRadius: '5px', padding: '1px 5px', verticalAlign: '1px' }}>Self Promo</span>
+                      )}
                     </div>
                     <div style={{ fontSize: '12px', color: 'var(--ink3)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '460px' }}>
                       {row.post_copy?.replace(/\n+/g, ' ') || '(no copy yet)'}

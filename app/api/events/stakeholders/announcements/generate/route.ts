@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/app/lib/supabase'
 import { uploadPublicAsset } from '@/app/lib/events/storage'
 import { compositeAnnouncement } from '@/app/lib/announcements/composite'
-import { generatePostCopy, buildCompositeInputs, type CreativeTemplateConfig, type NeededAsset } from '@/app/lib/events/announcements'
+import { generatePostCopy, generateSelfPromoPostCopy, buildCompositeInputs, type CreativeTemplateConfig, type NeededAsset } from '@/app/lib/events/announcements'
 import { fetchAssetBuffer } from '@/app/lib/announcements/asset-buffer-cache'
 
 /* POST /api/events/stakeholders/announcements/generate
@@ -25,6 +25,10 @@ type GenerateBody = {
   partner_id?: string
   use_company_logo?: boolean
   variant_id?: string
+  // 2026-08-18: Self Promo — omitted/absent means 'org_promo', the
+  // pre-existing flow, so every caller that predates this field keeps
+  // working unchanged.
+  kind?: 'org_promo' | 'self_promo'
 }
 
 export async function POST(req: NextRequest) {
@@ -37,6 +41,12 @@ export async function POST(req: NextRequest) {
   }
   if (body.stakeholder_type === 'partner' && !body.partner_id) {
     return NextResponse.json({ error: 'partner_id required for stakeholder_type partner' }, { status: 400 })
+  }
+  const kind = body.kind === 'self_promo' ? 'self_promo' : 'org_promo'
+  // Self Promo is speaker-only per product decision (see plan) — there is
+  // no first-person "self promo" voice for a partner/sponsor.
+  if (kind === 'self_promo' && body.stakeholder_type !== 'speaker') {
+    return NextResponse.json({ error: 'Self Promo is only available for speakers' }, { status: 400 })
   }
 
   // Four independent reads (2026-08-04 perf pass) — none depends on
@@ -76,7 +86,7 @@ export async function POST(req: NextRequest) {
   // Build inputs FIRST (sync, cheap) — fail fast on a broken/missing
   // template config before spending any time on either async step below.
   const templateConfig = event.creative_template_config as CreativeTemplateConfig | null
-  const inputs = buildCompositeInputs(body.stakeholder_type, speaker, partner, templateConfig, body.use_company_logo ?? false, body.variant_id)
+  const inputs = buildCompositeInputs(body.stakeholder_type, speaker, partner, templateConfig, body.use_company_logo ?? false, body.variant_id, kind)
   if ('templateError' in inputs) return NextResponse.json({ error: inputs.templateError }, { status: 422 })
 
   // Post copy (Gemini) and the creative (asset fetch + Sharp compositing +
@@ -86,7 +96,9 @@ export async function POST(req: NextRequest) {
   // generates were taking ~20s); this collapses wall-clock time to
   // whichever of the two is slower instead of their sum.
   const [postCopy, creativeUrl] = await Promise.all([
-    generatePostCopy(event, speaker, partner, messagingDoc?.structured_json ?? null),
+    kind === 'self_promo'
+      ? generateSelfPromoPostCopy(event, speaker!, messagingDoc?.structured_json ?? null)
+      : generatePostCopy(event, speaker, partner, messagingDoc?.structured_json ?? null),
     (async (): Promise<string | null> => {
       try {
         const assetEntries = await Promise.all(inputs.assetsNeeded.map(async (needed): Promise<[string, { buffer: Buffer; url?: string; is_svg?: boolean; head_box?: NeededAsset['headBox'] }]> => {
@@ -129,6 +141,7 @@ export async function POST(req: NextRequest) {
       creative_url: creativeUrl,
       creative_variant_id: creativeUrl ? inputs.variant.id : null,
       status: 'draft',
+      announcement_kind: kind,
     })
     .select()
     .single()

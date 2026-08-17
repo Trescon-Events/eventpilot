@@ -53,9 +53,14 @@ type Props = {
   variants: Variant[]
   onClose: () => void
   onCreated: (stakeholderId: string, announcementId: string) => void
+  // 2026-08-18: Self Promo — defaults to the pre-existing org-promo flow so
+  // every caller that predates this prop keeps working unchanged. The
+  // Creative Templates page's Promo/Self Promo sub-toggle passes this
+  // through along with an already-filtered `variants` list.
+  kind?: 'org_promo' | 'self_promo'
 }
 
-export default function CreateAnnouncementModal({ eventId, stakeholderType, readyStakeholders, variants, onClose, onCreated }: Props) {
+export default function CreateAnnouncementModal({ eventId, stakeholderType, readyStakeholders, variants, onClose, onCreated, kind = 'org_promo' }: Props) {
   const [step, setStep] = useState<'speaker' | 'variant'>('speaker')
   const [selectedStakeholder, setSelectedStakeholder] = useState<Stakeholder | null>(null)
   const [selectedVariantId, setSelectedVariantId] = useState<string | null>(variants[0]?.id ?? null)
@@ -84,6 +89,7 @@ export default function CreateAnnouncementModal({ eventId, stakeholderType, read
         stakeholder_type: stakeholderType,
         ...(stakeholderType === 'speaker' ? { speaker_id: selectedStakeholder.id } : { partner_id: selectedStakeholder.id }),
         variant_id: selectedVariantId,
+        kind,
       }),
     })
     const data = await res.json().catch(() => ({}))

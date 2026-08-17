@@ -11,6 +11,19 @@ function getGemini() {
   return _gemini
 }
 
+// Third-person reference guidance for org-promo copy — matches
+// event_speakers.pronoun_style's CHECK constraint exactly (see
+// supabase/sae_migration.sql). Self-promo copy is first-person and never
+// needs this.
+const PRONOUN_GUIDANCE: Record<string, string> = {
+  he_him: 'he/him',
+  she_her: 'she/her',
+  his_excellency: '"His Excellency" (not "he/him")',
+  her_excellency: '"Her Excellency" (not "she/her")',
+  his_highness: '"His Highness" (not "he/him")',
+  her_highness: '"Her Highness" (not "she/her")',
+}
+
 export type EventContext = {
   name: string
   venue: string | null; city: string | null
@@ -44,8 +57,20 @@ export async function generatePostCopy(
     ? `Messaging doc context (use for positioning/tone/themes — do not invent facts beyond this). Any section with "kind":"rules" is a hard constraint (naming/style rules, verbatim lines, things that must never appear) — never violate it, even if it conflicts with your default instincts:\n${JSON.stringify(messagingJson)}`
     : 'No topline messaging doc uploaded for this event yet — write in a neutral, professional Trescon voice.'
 
+  // 2026-08-18: public_name overrides the raw `name` for anything
+  // public-facing (creatives, both copy generators, future website) — same
+  // fallback pattern as event.public_name above. pronoun_style/
+  // key_talking_points are producer-editable fields that ground the copy;
+  // both degrade silently to nothing when unset, never injecting a literal
+  // "undefined"/"null" into the prompt.
+  const speakerName = speaker ? (speaker.public_name || speaker.name) : null
+  const pronounGuidance = speaker?.pronoun_style ? `\nRefer to this speaker as: ${PRONOUN_GUIDANCE[speaker.pronoun_style as string] ?? ''}` : ''
+  const talkingPoints = speaker?.key_talking_points
+    ? `\nKey talking points (ground the copy in these specifically when relevant, don't just restate them verbatim): ${speaker.key_talking_points}`
+    : ''
+
   const stakeholderContext = speaker
-    ? `Speaker: ${speaker.name}, ${speaker.role} at ${speaker.company}${speaker.country ? `, ${speaker.country}` : ''}.\nBio: ${speaker.bio ?? '(not provided)'}`
+    ? `Speaker: ${speakerName}, ${speaker.role} at ${speaker.company}${speaker.country ? `, ${speaker.country}` : ''}.\nBio: ${speaker.bio ?? '(not provided)'}${talkingPoints}${pronounGuidance}`
     : `Partner: ${partner!.name}, category: ${String(partner!.partner_type).replace(/_/g, ' ')}.\nDescription: ${partner!.company_description ?? '(not provided)'}`
 
   const prompt = `You are writing social media announcement posts for Trescon events.
@@ -96,18 +121,130 @@ Return JSON only, no markdown fences: { "copy": "...", "hashtags": ["#...", "...
   // generations hit this before adding the mode.
   const model  = getGemini().getGenerativeModel({ model: 'gemini-2.5-flash', generationConfig: { responseMimeType: 'application/json' } })
   const result = await model.generateContent([{ text: prompt }])
-  const text   = result.response.text().trim()
+  return parseGeminiCopyResponse(result.response.text().trim())
+}
 
+// 2026-08-18: responseMimeType 'application/json' cuts the failure rate but
+// does NOT guarantee it — confirmed live, Gemini still occasionally emits a
+// literal unescaped newline inside the "copy" string (invalid JSON; a raw
+// newline is a bare control character, only \n the two-char escape is
+// legal inside a JSON string). JSON.parse has zero tolerance for that, so
+// without this the whole raw {"copy":...,"hashtags":[...]} blob leaks
+// through the old catch-and-fallback. Walk the matched text as a tiny state
+// machine and escape control chars only while inside a string literal
+// (never inside object/array structural whitespace, which would corrupt
+// the JSON the other way) before parsing.
+function sanitizeJsonControlChars(s: string): string {
+  let out = ''
+  let inString = false
+  let escaped = false
+  for (const ch of s) {
+    if (escaped) { out += ch; escaped = false; continue }
+    if (ch === '\\') { out += ch; escaped = true; continue }
+    if (ch === '"') { inString = !inString; out += ch; continue }
+    if (inString && (ch === '\n' || ch === '\r' || ch === '\t')) {
+      out += ch === '\n' ? '\\n' : ch === '\r' ? '\\r' : '\\t'
+      continue
+    }
+    out += ch
+  }
+  return out
+}
+
+// Shared by generatePostCopy and generateSelfPromoPostCopy — both call
+// Gemini in JSON mode and want the same { copy, hashtags } → joined-string
+// extraction, with the same raw-text fallback if parsing ever fails.
+function parseGeminiCopyResponse(text: string): string {
   try {
     const match = text.match(/\{[\s\S]*\}/)
     if (match) {
-      const parsed = JSON.parse(match[0]) as { copy?: string; hashtags?: string[] }
+      const parsed = JSON.parse(sanitizeJsonControlChars(match[0])) as { copy?: string; hashtags?: string[] }
       if (parsed.copy) return [parsed.copy, ...(parsed.hashtags ?? [])].join('\n\n')
     }
   } catch {
     // fall through to raw text
   }
   return text
+}
+
+// Self Promo module (2026-08-18): a creative + post copy emailed TO the
+// speaker so THEY can post it themselves, rather than the org posting on
+// its own channels. The copy must therefore read as genuinely theirs —
+// first person, reflective, no third-person references and no hard-sell
+// CTA energy (that belongs to generatePostCopy's org voice, not this one).
+// Speaker-only signature, deliberately no partner branch — self-promo is
+// speaker-only per product decision, so a narrower type here is more
+// honest than mirroring generatePostCopy's dual-stakeholder shape.
+export async function generateSelfPromoPostCopy(
+  event: EventContext,
+  speaker: Record<string, unknown>,
+  messagingJson: Record<string, unknown> | null
+): Promise<string> {
+  const dates = event.public_dates_display ?? ''
+  const venueLine = event.public_venue_display || (event.venue ? `${event.venue}${event.city ? `, ${event.city}` : ''}` : null)
+  const eventContext = [
+    `Event: ${event.public_name || event.name}`,
+    dates && `Dates: ${dates}`,
+    venueLine && `Venue: ${venueLine}`,
+    event.event_hashtag && `Hashtag: ${event.event_hashtag}`,
+  ].filter(Boolean).join('\n')
+
+  const messagingContext = messagingJson
+    ? `Messaging doc context (use for positioning/tone/themes only — do not invent facts beyond this). Any "kind":"rules" section is a hard constraint, never violate it:\n${JSON.stringify(messagingJson)}`
+    : 'No topline messaging doc uploaded for this event yet.'
+
+  const publicName = speaker.public_name || speaker.name
+  const talkingPoints = speaker.key_talking_points
+    ? `Talking points to ground the post in (use these as the actual substance of what "I" am excited to talk about — do not just restate them, reflect on them in first person):\n${speaker.key_talking_points}`
+    : ''
+
+  const prompt = `You are ${publicName}, writing a short, personal LinkedIn post in your
+OWN voice, first person ("I"/"my"), about speaking at an upcoming event.
+This is NOT a marketing announcement — it is a speaker's own reflective,
+thought-leadership post. Never refer to yourself in the third person.
+Never write promotional CTA language like "Don't miss out" or "Register
+now" — that energy belongs to the event's own announcement, not yours.
+
+Grounded only in the data below — never fabricate credentials, statistics,
+or claims not given.
+
+${eventContext}
+
+${messagingContext}
+
+Speaker: ${publicName}, ${speaker.role} at ${speaker.company}.
+Bio: ${speaker.bio ?? '(not provided)'}
+Session: ${speaker.session_title ?? '(not provided)'}
+${talkingPoints}
+
+Write a LinkedIn post, 500-700 characters, as SEPARATE SHORT PARAGRAPHS
+(1-2 sentences each, separated by a literal \n\n in the "copy" string) —
+short, scannable, whitespace-separated blocks, never one dense paragraph.
+
+Structure:
+1. Open with a genuine, specific thought or question related to your
+   talking points/expertise — the kind of reflection you'd actually post
+   independent of any event (a real opinion, an observation, a lesson).
+2. Connect that thought to why you're looking forward to this
+   conversation at ${event.public_name || event.name}${venueLine ? `, ${venueLine}` : ''}${dates ? ` (${dates})` : ''} —
+   mention the session/topic naturally, not as a formal announcement line.
+3. A soft, personal closing line — an invitation to connect or an honest
+   note of anticipation, not a hard call to action.
+
+Tone: warm, reflective, first-person, understated confidence — reads like
+something a real speaker would actually post themselves, not something
+written about them.
+
+Plain text only — no markdown syntax of any kind.
+
+Hashtags: exactly 5-6 curated, relevant hashtags (topic/industry — NOT a
+broad generic block), returned separately in "hashtags", not inside "copy".
+
+Return JSON only, no markdown fences: { "copy": "...", "hashtags": ["#...", "..."] }`
+
+  const model  = getGemini().getGenerativeModel({ model: 'gemini-2.5-flash', generationConfig: { responseMimeType: 'application/json' } })
+  const result = await model.generateContent([{ text: prompt }])
+  return parseGeminiCopyResponse(result.response.text().trim())
 }
 
 export type { CreativeTemplateConfig }
@@ -138,12 +275,20 @@ export function buildCompositeInputs(
   partner: Record<string, unknown> | null,
   templateConfig: CreativeTemplateConfig | null,
   useCompanyLogo: boolean,
-  variantId?: string
+  variantId?: string,
+  // 2026-08-18: Self Promo (org_promo default preserves every existing
+  // caller's behavior exactly). A variant with no `category` at all is
+  // treated as 'promo' (pure-additive JSONB shape, see composite.ts) —
+  // every variant that predates this field must keep resolving under
+  // 'org_promo' unchanged.
+  kind: 'org_promo' | 'self_promo' = 'org_promo'
 ): CompositeInputs | { templateError: string } {
-  const variants = templateConfig?.[stakeholderType]?.variants ?? []
+  const wantCategory = kind === 'self_promo' ? 'self_promo' : 'promo'
+  const variants = (templateConfig?.[stakeholderType]?.variants ?? []).filter(v => (v.category ?? 'promo') === wantCategory)
   const variant = (variantId ? variants.find(v => v.id === variantId) : null) ?? variants[0]
   if (!variant) {
-    return { templateError: `No creative template configured for this event's ${stakeholderType}s (events.creative_template_config.${stakeholderType}.variants)` }
+    const kindLabel = kind === 'self_promo' ? 'self-promo ' : ''
+    return { templateError: `No ${kindLabel}creative template configured for this event's ${stakeholderType}s (events.creative_template_config.${stakeholderType}.variants)` }
   }
 
   // Only require assets for sources the chosen variant's layers actually reference.
@@ -169,7 +314,7 @@ export function buildCompositeInputs(
   }
 
   const texts = stakeholderType === 'speaker'
-    ? { name: String(speaker?.name ?? ''), title: String(speaker?.role ?? ''), company: String(speaker?.company ?? '') }
+    ? { name: String(speaker?.public_name || speaker?.name || ''), title: String(speaker?.role ?? ''), company: String(speaker?.company ?? '') }
     : {}
 
   return { variant, assetsNeeded, texts }

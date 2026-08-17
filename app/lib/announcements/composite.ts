@@ -148,6 +148,13 @@ export type Variant = {
   // it's out of date. A real Storage URL, not inline base64 — kept out of
   // the (already-large) creative_template_config JSONB blob.
   last_preview_url?: string
+  // 2026-08-18: which flow this variant belongs to — the org's own
+  // "Promo" channel-publish flow, or the new "Self Promo" flow (a
+  // creative emailed TO the speaker for them to post themselves). Absent
+  // means 'promo' — every variant created before this field existed still
+  // resolves correctly with no data migration needed. Purely a UI/picker
+  // filtering concern; the compositing logic below never reads this.
+  category?: 'promo' | 'self_promo'
 }
 
 // Reusable "Placeholder data" content (2026-07-31) — Madhu's ask: the ghost

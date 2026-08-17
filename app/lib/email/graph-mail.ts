@@ -40,8 +40,14 @@ export async function sendGraphMail(opts: {
   senderEmail: string
   senderName?: string
   to: string | string[]
+  // 2026-08-18: Self Promo's "Send to Speaker" needs CC (producer wants a
+  // copy / wants to loop in a colleague) and a real attachment (the
+  // creative image) — both optional, so the two pre-existing callers
+  // (invite send, template send-test) are untouched.
+  cc?: string[]
   subject: string
   html: string
+  attachments?: { filename: string; contentType: string; contentBytes: string }[]
 }): Promise<void> {
   const token = await getGraphAppToken()
   const toList = Array.isArray(opts.to) ? opts.to : [opts.to]
@@ -54,7 +60,16 @@ export async function sendGraphMail(opts: {
         subject: opts.subject,
         body: { contentType: 'HTML', content: opts.html },
         toRecipients: toList.map(address => ({ emailAddress: { address } })),
+        ...(opts.cc?.length ? { ccRecipients: opts.cc.map(address => ({ emailAddress: { address } })) } : {}),
         from: { emailAddress: { address: opts.senderEmail, name: opts.senderName } },
+        ...(opts.attachments?.length ? {
+          attachments: opts.attachments.map(a => ({
+            '@odata.type': '#microsoft.graph.fileAttachment',
+            name: a.filename,
+            contentType: a.contentType,
+            contentBytes: a.contentBytes,
+          })),
+        } : {}),
       },
       saveToSentItems: true,
     }),

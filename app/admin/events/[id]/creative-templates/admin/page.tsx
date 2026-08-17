@@ -575,8 +575,19 @@ export default function CreativeTemplatesAdminPage({ params }: { params: Promise
                     </div>
                   ) : (
                     <>
-                      <div style={{ display: 'grid', gridTemplateColumns: '1fr auto auto', gap: '10px', alignItems: 'center', marginBottom: '14px' }}>
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr auto auto auto', gap: '10px', alignItems: 'center', marginBottom: '14px' }}>
                         <Input value={activeVariant.name} onChange={e => updateActiveVariant({ name: e.target.value })} placeholder="Variant name" />
+                        <label style={{ fontSize: '11px', color: 'var(--ink3)', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                          Use
+                          <Select
+                            value={activeVariant.category ?? 'promo'}
+                            onChange={e => updateActiveVariant({ category: e.target.value as 'promo' | 'self_promo' })}
+                            style={{ width: '130px' }}
+                          >
+                            <option value="promo">Promo</option>
+                            <option value="self_promo">Self Promo</option>
+                          </Select>
+                        </label>
                         <label style={{ fontSize: '11px', color: 'var(--ink3)', display: 'flex', alignItems: 'center', gap: '6px' }}>
                           W <Input type="number" value={activeVariant.canvas_width} onChange={e => updateActiveVariant({ canvas_width: Number(e.target.value) })} style={{ width: '70px' }} />
                         </label>

@@ -28,10 +28,19 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Not authorized.' }, { status: 403 })
   }
 
-  const [{ data: event }, { data: template }, { data: hubspotConnection }] = await Promise.all([
+  const [{ data: event }, { data: template }, { data: hubspotConnection }, { data: existingSpeaker }] = await Promise.all([
     supabaseAdmin.from('events').select('name, public_name').eq('id', body.event_id).single(),
     supabaseAdmin.from('email_templates').select('*').eq('id', body.template_id).eq('is_active', true).single(),
     supabaseAdmin.from('event_hubspot_forms').select('public_page_url').eq('event_id', body.event_id).eq('form_type', body.form_type).maybeSingle(),
+    // 2026-08-18: an onboarding invite is sent BEFORE the recipient has
+    // ever filled the form — their salutation is genuinely unknown unless
+    // a producer already manually created a partial speaker record (or
+    // this is a resend to someone who's submitted before). Best-effort
+    // match by email; a miss degrades to no salutation, never a literal
+    // "undefined".
+    body.form_type === 'speaker'
+      ? supabaseAdmin.from('event_speakers').select('salutation').eq('event_id', body.event_id).ilike('email', body.recipient_email).maybeSingle()
+      : Promise.resolve({ data: null }),
   ])
   if (!event) return NextResponse.json({ error: 'Event not found' }, { status: 404 })
   if (!template) return NextResponse.json({ error: 'Template not found' }, { status: 404 })
@@ -51,6 +60,10 @@ export async function POST(req: NextRequest) {
   const { subject, html } = renderEmailTemplate(template, {
     recipient_name: body.recipient_name,
     speaker_name: body.recipient_name, // populated for the seeded template's {{speaker_name}} token; harmless no-op for others
+    // Trailing space included when set so the template's "{{salutation}}{{speaker_name}}"
+    // greeting reads correctly either way ("Dear Dr. Ahmad," vs "Dear Ahmad,")
+    // without a stray double space when unknown.
+    salutation: existingSpeaker?.salutation ? `${existingSpeaker.salutation} ` : '',
     event_name: event.public_name || event.name,
     form_link: formLink,
     sender_name: sender.name,

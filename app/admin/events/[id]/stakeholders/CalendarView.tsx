@@ -7,6 +7,7 @@ type Announcement = {
   id: string; stakeholder_type: 'speaker' | 'partner'; stakeholder_name: string | null
   post_copy: string | null; creative_url: string | null; status: string
   scheduled_for: string | null; platforms: string[] | null
+  announcement_kind: 'org_promo' | 'self_promo'
 }
 
 const DOT_COLOR: Record<string, string> = { speaker: 'var(--indigo)', partner: 'var(--amber)' }
@@ -36,6 +37,13 @@ export default function CalendarView({ eventId }: { eventId: string }) {
   const byDay = new Map<number, Announcement[]>()
   for (const a of announcements) {
     if (!a.scheduled_for) continue
+    // Self Promo (2026-08-18) rows are emailed to the speaker, never
+    // scheduled/posted on Trescon's own channels — the "send to speaker"
+    // route never sets scheduled_for, so this should never actually fire.
+    // Kept as a defensive filter rather than trusting that invariant holds
+    // forever (a self_promo row shouldn't be able to leak onto the
+    // calendar even if it somehow did get a scheduled_for set).
+    if (a.announcement_kind === 'self_promo') continue
     const day = new Date(a.scheduled_for).getUTCDate()
     byDay.set(day, [...(byDay.get(day) ?? []), a])
   }

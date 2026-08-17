@@ -13,6 +13,7 @@ import { downloadFile } from '@/app/lib/download-file'
 import type { Variant, CreativeTemplateConfig } from '@/app/lib/announcements/composite'
 import CreateAnnouncementModal from './CreateAnnouncementModal'
 import DeleteCreativeModal from './DeleteCreativeModal'
+import SendToSpeakerComposer from './SendToSpeakerComposer'
 
 // post_copy is stored as plain text with '\n\n' paragraph breaks (not
 // HTML) — the AI generation path writes it that way, and
@@ -68,6 +69,10 @@ export type Speaker = {
   id: string; full_name: string; job_title: string; company_name: string
   photo_url: string | null; photo_processed_url: string | null; company_logo_url: string | null
   announcement_status: 'pending_review' | 'approved' | 'assets_missing' | 'ready' | 'archived'
+  // Already present on GET .../speakers's `select('*')` response — added to
+  // the type here (2026-08-18) to default Send to Speaker's recipient
+  // fields without a second fetch.
+  email: string | null; public_name: string | null
 }
 export type Partner = {
   id: string; company_name: string; partner_type: string
@@ -98,6 +103,7 @@ export type AnnouncementListItem = {
   published_at: string | null
   postiz_channel_ids: string[] | null
   publish_results: Record<string, { success: boolean; postId: string; state?: string }> | null
+  announcement_kind: 'org_promo' | 'self_promo'
 }
 
 export type PostizChannel = { id: string; name: string; identifier: string; picture: string | null; disabled: boolean }
@@ -142,6 +148,13 @@ export default function CreativeTemplatesWorkspacePage({ params }: { params: Pro
     return new URLSearchParams(window.location.search)
   })()
   const [activeType, setActiveType] = useState<StakeholderKind>((initialParams?.get('type') as StakeholderKind | null) ?? 'speaker')
+  // Self Promo (2026-08-18) — speaker-only sub-toggle nested inside the
+  // Speakers tab (mirrors the Speakers/Partners pill toggle below it).
+  // Always forced back to 'org_promo' on the Partners tab — there is no
+  // first-person "self promo" voice for a partner/sponsor (product
+  // decision, see the Self Promo plan).
+  const [activeKind, setActiveKind] = useState<'org_promo' | 'self_promo'>('org_promo')
+  const [sendToSpeakerAnnouncementId, setSendToSpeakerAnnouncementId] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [speakers, setSpeakers] = useState<Speaker[]>([])
   const [partners, setPartners] = useState<Partner[]>([])
@@ -194,15 +207,26 @@ export default function CreativeTemplatesWorkspacePage({ params }: { params: Pro
   const [approverPickerOpen, setApproverPickerOpen] = useState(false)
   const [pickedApprovers, setPickedApprovers] = useState<Record<string, string>>({}) // staff_id -> role_label
 
+  // Self Promo is speaker-only (product decision) — the Partners tab always
+  // behaves as org_promo regardless of activeKind's last-set value, so a
+  // producer can't get stuck looking at an empty self-promo Partners view.
+  const effectiveKind: 'org_promo' | 'self_promo' = activeType === 'speaker' ? activeKind : 'org_promo'
+  const wantVariantCategory = effectiveKind === 'self_promo' ? 'self_promo' : 'promo'
+
   const stakeholders: Stakeholder[] = activeType === 'speaker' ? speakers : partners
   const readyStakeholders = stakeholders.filter(s => s.announcement_status === 'ready')
-  // Left rail (2026-08-02) — only stakeholders who already have a creative,
-  // not every approved-for-announcement one. Picking WHO to create for now
+  // A variant with no `category` at all is treated as 'promo' — every
+  // variant that predates the Self Promo field must keep resolving under
+  // org_promo unchanged (matches buildCompositeInputs' own fallback).
+  const activeVariants = variants[activeType].filter(v => (v.category ?? 'promo') === wantVariantCategory)
+  // Left rail (2026-08-02) — only stakeholders who already have a creative
+  // OF THE CURRENTLY ACTIVE KIND, not every approved-for-announcement one
+  // and not creatives of the other kind. Picking WHO to create for now
   // happens inside the Create modal instead (readyStakeholders, above).
-  const stakeholdersWithCreatives = stakeholders.filter(s => (results[s.id]?.length ?? 0) > 0)
+  const resultsForKind = (id: string) => (results[id] ?? []).filter(a => a.announcement_kind === effectiveKind)
+  const stakeholdersWithCreatives = stakeholders.filter(s => resultsForKind(s.id).length > 0)
   const selected = stakeholdersWithCreatives.find(s => s.id === selectedId) ?? null
-  const activeVariants = variants[activeType]
-  const selectedList = selected ? (results[selected.id] ?? []) : []
+  const selectedList = selected ? resultsForKind(selected.id) : []
   const selectedAnnouncement = selectedList.find(a => a.id === selectedAnnouncementId) ?? selectedList[0] ?? null
 
   // Post copy is a social caption, not a document — no real platform
@@ -350,7 +374,7 @@ export default function CreativeTemplatesWorkspacePage({ params }: { params: Pro
     setSelectedAnnouncementId(null)
     setSelectionMode(false)
     setSelectedForBulk(new Set())
-  }, [activeType])
+  }, [activeType, activeKind])
 
   async function handleCreated(stakeholderId: string, announcementId: string) {
     await fetchAll()
@@ -516,17 +540,35 @@ export default function CreativeTemplatesWorkspacePage({ params }: { params: Pro
         )}
 
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '20px', flexWrap: 'wrap', gap: '10px' }}>
-          <div style={{ display: 'flex', borderRadius: '8px', border: '1px solid var(--border)', overflow: 'hidden', width: 'fit-content' }}>
-            {(['speaker', 'partner'] as const).map(t => (
-              <button key={t} onClick={() => setActiveType(t)}
-                style={{
-                  padding: '7px 18px', border: 'none', cursor: 'pointer', fontFamily: 'inherit', fontSize: '12.5px', fontWeight: 700,
-                  background: activeType === t ? 'var(--card)' : 'transparent',
-                  color: activeType === t ? 'var(--ink)' : 'var(--ink3)',
-                }}>
-                {t === 'speaker' ? 'Speakers' : 'Partners'}
-              </button>
-            ))}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+            <div style={{ display: 'flex', borderRadius: '8px', border: '1px solid var(--border)', overflow: 'hidden', width: 'fit-content' }}>
+              {(['speaker', 'partner'] as const).map(t => (
+                <button key={t} onClick={() => setActiveType(t)}
+                  style={{
+                    padding: '7px 18px', border: 'none', cursor: 'pointer', fontFamily: 'inherit', fontSize: '12.5px', fontWeight: 700,
+                    background: activeType === t ? 'var(--card)' : 'transparent',
+                    color: activeType === t ? 'var(--ink)' : 'var(--ink3)',
+                  }}>
+                  {t === 'speaker' ? 'Speakers' : 'Partners'}
+                </button>
+              ))}
+            </div>
+            {/* Self Promo (2026-08-18) — speaker-only, so this sub-toggle
+                only ever shows on the Speakers tab. */}
+            {activeType === 'speaker' && (
+              <div style={{ display: 'flex', borderRadius: '8px', border: '1px solid var(--border)', overflow: 'hidden', width: 'fit-content' }}>
+                {(['org_promo', 'self_promo'] as const).map(k => (
+                  <button key={k} onClick={() => setActiveKind(k)}
+                    style={{
+                      padding: '7px 18px', border: 'none', cursor: 'pointer', fontFamily: 'inherit', fontSize: '12.5px', fontWeight: 700,
+                      background: activeKind === k ? 'var(--indigo-light)' : 'transparent',
+                      color: activeKind === k ? 'var(--indigo)' : 'var(--ink3)',
+                    }}>
+                    {k === 'org_promo' ? 'Promo' : 'Self Promo'}
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
           <Button variant="solid" onClick={() => setShowCreateModal(true)}>+ Create New</Button>
         </div>
@@ -737,12 +779,13 @@ export default function CreativeTemplatesWorkspacePage({ params }: { params: Pro
                         </div>
                       </div>
 
-                      {/* Publishing (2026-08-16) — channel selection,
+                      {effectiveKind === 'org_promo' ? (
+                      /* Publishing (2026-08-16) — channel selection,
                           approval, schedule/post, and status, all for the
                           currently-selected announcement. Channels default
                           to this event's remembered selection (see
                           fetchAll's postiz_default_channel_ids) but are
-                          freely adjustable per post. */}
+                          freely adjustable per post. */
                       <div style={{ padding: '16px 18px', borderRadius: '10px', border: '1px solid var(--border-light)', background: 'var(--surface)' }}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
                           <div style={{ fontSize: '10.5px', fontWeight: 800, color: 'var(--ink3)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Publishing</div>
@@ -849,6 +892,53 @@ export default function CreativeTemplatesWorkspacePage({ params }: { params: Pro
                           )}
                         </div>
                       </div>
+                      ) : (
+                      /* Send to Speaker (2026-08-18) — Self Promo's terminal
+                          action. No Postiz/channel/char-limit UI at all: this
+                          is an email to the speaker, not a post on Trescon's
+                          own channels. Send-for-Approval/self-approve stay
+                          identical to org-promo (same routes, same
+                          permission) — only the "approved → do the thing"
+                          action swaps from Schedule/Post Now to Send to
+                          Speaker, and the terminal 'published' status means
+                          "sent", not "posted". */
+                      <div style={{ padding: '16px 18px', borderRadius: '10px', border: '1px solid var(--border-light)', background: 'var(--surface)' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+                          <div style={{ fontSize: '10.5px', fontWeight: 800, color: 'var(--ink3)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Send to Speaker</div>
+                          <Badge color={statusColor(selectedAnnouncement.status)}>{selectedAnnouncement.status.replace(/_/g, ' ')}</Badge>
+                        </div>
+
+                        {selectedAnnouncement.status === 'pending_approval' && (
+                          <div style={{ fontSize: '12px', color: 'var(--ink3)', marginBottom: '12px' }}>Waiting on approval — check back or follow up with your approvers directly.</div>
+                        )}
+                        {selectedAnnouncement.status === 'changes_requested' && (
+                          <div style={{ fontSize: '12px', color: 'var(--red)', marginBottom: '12px' }}>Changes were requested — update the copy/creative above, then send for approval again.</div>
+                        )}
+                        {selectedAnnouncement.status === 'published' ? (
+                          <div style={{ fontSize: '12px', color: 'var(--teal-mid)', fontWeight: 700, marginBottom: '12px' }}>
+                            ✓ Sent to the speaker {selectedAnnouncement.published_at ? new Date(selectedAnnouncement.published_at).toLocaleString() : ''}
+                          </div>
+                        ) : (
+                          <div style={{ fontSize: '12px', color: 'var(--ink3)', marginBottom: '12px', lineHeight: 1.5 }}>
+                            This creative and post copy are emailed directly to the speaker, asking them to post it themselves and tag the event&apos;s channels — there is no publishing step here.
+                          </div>
+                        )}
+
+                        <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center' }}>
+                          {(selectedAnnouncement.status === 'draft' || selectedAnnouncement.status === 'changes_requested') && (
+                            <Button variant="ghost" onClick={() => setApproverPickerOpen(true)} disabled={publishing !== null}>
+                              {publishing === 'approval' ? 'Sending…' : 'Send for Approval'}
+                            </Button>
+                          )}
+                          {(selectedAnnouncement.status === 'approved' || selectedAnnouncement.status === 'approved_with_comments'
+                            || ((selectedAnnouncement.status === 'draft' || selectedAnnouncement.status === 'changes_requested') && can('sae.announcements.publish'))) && (
+                            <Button variant="lime" onClick={() => setSendToSpeakerAnnouncementId(selectedAnnouncement.id)}>
+                              Send to Speaker
+                            </Button>
+                          )}
+                        </div>
+                      </div>
+                      )}
                     </div>
                   )}
                 </>
@@ -864,8 +954,22 @@ export default function CreativeTemplatesWorkspacePage({ params }: { params: Pro
           stakeholderType={activeType}
           readyStakeholders={readyStakeholders}
           variants={activeVariants}
+          kind={effectiveKind}
           onClose={() => setShowCreateModal(false)}
           onCreated={handleCreated}
+        />
+      )}
+
+      {sendToSpeakerAnnouncementId && selected && activeType === 'speaker' && (
+        <SendToSpeakerComposer
+          announcementId={sendToSpeakerAnnouncementId}
+          speakerName={displayName(activeType, selected)}
+          initialRecipientName={(selected as Speaker).public_name || displayName(activeType, selected)}
+          initialRecipientEmail={(selected as Speaker).email ?? ''}
+          onClose={() => setSendToSpeakerAnnouncementId(null)}
+          onSent={() => {
+            if (selected) applyAnnouncementUpdate(selected.id, sendToSpeakerAnnouncementId, { status: 'published', published_at: new Date().toISOString() })
+          }}
         />
       )}
 
