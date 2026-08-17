@@ -27,6 +27,24 @@ async function roleIdsFor(staffId: string, eventId: string): Promise<string[]> {
   return (data ?? []).map(r => r.role_id)
 }
 
+// "Does this staffer have ANY real role on this event at all" — coarser
+// than hasEventPermission(), which checks one specific permission key.
+// Used to gate pages that are pure navigation/summary surfaces (the event
+// workspace hub and its shared sub-pages) rather than a specific tool, so
+// that holding e.g. only 'sae.stakeholders.view' is still enough to reach
+// the hub that links to Stakeholders — gating on a narrow key there would
+// leave that same staffer unable to see the page that gets them to the
+// one tool they actually do have.
+export async function hasAnyEventAccess(
+  staffId: string | null | undefined,
+  eventId: string
+): Promise<boolean> {
+  if (!staffId) return false
+  if (await isPlatformAdmin(staffId)) return true
+  const roleIds = await roleIdsFor(staffId, eventId)
+  return roleIds.length > 0
+}
+
 export async function hasEventPermission(
   staffId: string | null | undefined,
   eventId: string,

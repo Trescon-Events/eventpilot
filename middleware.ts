@@ -189,7 +189,12 @@ export async function middleware(req: NextRequest) {
     // platform.branding.manage — see app/admin/branding/fonts/layout.tsx.
     // Scoped to /fonts only, not the sibling /admin/branding/corporate page.
     pathname.startsWith('/admin/branding/fonts') ||
-    /^\/admin\/events\/[^/]+\/(website|brand|market-intel|creative-templates|stakeholders)/.test(pathname)
+    /^\/admin\/events\/[^/]+\/(website|brand|market-intel|creative-templates|stakeholders|plan|execution|brief|details|announcements|messaging)/.test(pathname) ||
+    // 2026-08-17: the workspace hub itself (no sub-segment) — auth-only,
+    // app/admin/events/[id]/layout.tsx does the real hasAnyEventAccess
+    // check. Deliberately excludes /access (RBAC assignment management),
+    // which stays admin-only.
+    /^\/admin\/events\/[^/]+$/.test(pathname)
 
   // /admin/* → admin only
   if (pathname.startsWith('/admin') && !isToolRoute) {

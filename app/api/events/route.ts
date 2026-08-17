@@ -30,12 +30,29 @@ export async function GET(req: NextRequest) {
     }
 
     if (staffId) {
-      // Events assigned to this staff member
-      const { data: assignments } = await supabaseAdmin
-        .from('event_staff')
-        .select('event_id, role, events(id, name, type, status, event_date, venue, city, client_name, description)')
-        .eq('staff_id', staffId)
-      return NextResponse.json((assignments ?? []).map(a => ({ ...a.events, my_role: a.role })))
+      // Events assigned to this staff member (roster, event_staff — the
+      // older staffing table). Separately, event_access_assignments is the
+      // real RBAC system (2026-08-16) and does NOT sync with event_staff by
+      // design (see supabase/access_rbac.sql) — a roster row alone doesn't
+      // grant workspace tool access, so has_workspace_access is a genuinely
+      // separate check, not derived from the roster query above.
+      const [{ data: assignments }, { data: accessRows }] = await Promise.all([
+        supabaseAdmin
+          .from('event_staff')
+          .select('event_id, role, events(id, name, type, status, event_date, venue, city, client_name, description)')
+          .eq('staff_id', staffId),
+        supabaseAdmin
+          .from('event_access_assignments')
+          .select('event_id')
+          .eq('staff_id', staffId),
+      ])
+      const orgWideAccess = (accessRows ?? []).some(r => r.event_id === null)
+      const accessibleEventIds = new Set((accessRows ?? []).map(r => r.event_id).filter(Boolean))
+      return NextResponse.json((assignments ?? []).map(a => ({
+        ...a.events,
+        my_role: a.role,
+        has_workspace_access: orgWideAccess || accessibleEventIds.has(a.event_id),
+      })))
     }
 
     // Admin — all events

@@ -161,7 +161,7 @@ function DashboardContent() {
   const [teamCourses,    setTeamCourses]    = useState<TeamMember[]>([])
   // Knowledge base + events
   type DocItem   = { id: string; title: string; type: string; word_count: number; events?: { name: string } | null }
-  type EventItem = { id: string; name: string; type: string; status: string; event_date: string | null; city: string | null; my_role: string | null }
+  type EventItem = { id: string; name: string; type: string; status: string; event_date: string | null; city: string | null; my_role: string | null; has_workspace_access?: boolean }
   type MyChecklistItem = {
     id: string; department: string; title: string; status: string
     due_date: string | null; notes: string | null
@@ -1319,9 +1319,13 @@ function DashboardContent() {
       )}
 
       {/* ── My Events section ── */}
-      {events.length > 0 && (
-        <div style={{ maxWidth: '900px', margin: '0 auto', padding: '0 24px 32px' }}>
-          <div style={{ fontSize: '13px', fontWeight: 800, letterSpacing: '2px', color: 'var(--teal)', textTransform: 'uppercase', marginBottom: '14px' }}>My Events</div>
+      <div id="events" style={{ maxWidth: '900px', margin: '0 auto', padding: '0 24px 32px', scrollMarginTop: '90px' }}>
+        <div style={{ fontSize: '13px', fontWeight: 800, letterSpacing: '2px', color: 'var(--teal)', textTransform: 'uppercase', marginBottom: '14px' }}>My Events</div>
+        {events.length === 0 ? (
+          <div style={{ fontSize: '13px', color: 'var(--ink2)', background: 'var(--card)', border: '1px solid var(--border)', borderRadius: '14px', padding: '18px 20px' }}>
+            No events assigned to you yet. If you think this is wrong, check with your manager or admin.
+          </div>
+        ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
             {events.map(ev => (
               <div key={ev.id} style={{ background: 'rgba(0,165,163,0.05)', border: '1px solid rgba(0,165,163,0.2)', borderRadius: '14px', padding: '18px 20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px', flexWrap: 'wrap' }}>
@@ -1336,19 +1340,27 @@ function DashboardContent() {
                     {ev.my_role && <span style={{ color: 'var(--teal)', fontWeight: 600 }}>{ev.my_role}</span>}
                   </div>
                 </div>
-                <button
-                  onClick={() => {
-                    const chat = document.querySelector('[data-pilot-trigger]') as HTMLElement
-                    if (chat) chat.click()
-                  }}
-                  style={{ padding: '8px 16px', borderRadius: '16px', border: '1px solid rgba(0,165,163,0.4)', background: 'rgba(0,165,163,0.1)', color: 'var(--teal)', fontSize: '13px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap' }}>
-                  Talk to Pilot about this event
-                </button>
+                <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                  {ev.has_workspace_access && (
+                    <Link href={`/admin/events/${ev.id}`}
+                      style={{ padding: '8px 16px', borderRadius: '16px', border: '1px solid var(--teal-border)', background: 'var(--teal)', color: 'var(--card)', fontSize: '13px', fontWeight: 700, fontFamily: 'inherit', whiteSpace: 'nowrap', textDecoration: 'none' }}>
+                      Open Workspace →
+                    </Link>
+                  )}
+                  <button
+                    onClick={() => {
+                      const chat = document.querySelector('[data-pilot-trigger]') as HTMLElement
+                      if (chat) chat.click()
+                    }}
+                    style={{ padding: '8px 16px', borderRadius: '16px', border: '1px solid rgba(0,165,163,0.4)', background: 'rgba(0,165,163,0.1)', color: 'var(--teal)', fontSize: '13px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap' }}>
+                    Talk to Pilot about this event
+                  </button>
+                </div>
               </div>
             ))}
           </div>
-        </div>
-      )}
+        )}
+      </div>
 
       {/* ── My Event Tasks section ── */}
       {myChecklist.length > 0 && (
