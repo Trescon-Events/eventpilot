@@ -45,6 +45,24 @@ export async function hasAnyEventAccess(
   return roleIds.length > 0
 }
 
+// "Does this staffer hold ANY permission in this module on this event" —
+// e.g. modulePrefix='sae' matches a held 'sae.stakeholders.view' or a
+// wildcard 'sae.*' equally. For gates that guard a whole module's entry
+// point (module-wide, not one specific action within it) rather than a
+// single leaf permission — see app/admin/events/[id]/creative-templates/
+// layout.tsx, which was the one module in the 2026-08-16 RBAC rollout
+// left checking only the old module_access/tool_grants system, so a real
+// per-event RBAC grant (any sae.* key) was invisible to it.
+export async function hasAnyModulePermission(
+  staffId: string | null | undefined,
+  eventId: string,
+  modulePrefix: string
+): Promise<boolean> {
+  const perms = await getEventPermissions(staffId, eventId)
+  if (perms.has('*')) return true
+  return [...perms].some(p => p === modulePrefix || p.startsWith(`${modulePrefix}.`))
+}
+
 export async function hasEventPermission(
   staffId: string | null | undefined,
   eventId: string,
