@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/app/lib/supabase'
 import sharp from 'sharp'
-import { compositeAnnouncement, analyzeTextLayers, type Variant, type PhotoSlotLayer, type ResolvedAssets, type CreativeTemplateConfig } from '@/app/lib/announcements/composite'
+import { compositeAnnouncement, analyzeTextLayers, type Variant, type ImageLayer, type PhotoSlotLayer, type ResolvedAssets, type CreativeTemplateConfig } from '@/app/lib/announcements/composite'
 import { fetchAssetBuffer } from '@/app/lib/announcements/asset-buffer-cache'
 import { alignAndCropPhoto, type HeadBox } from '@/app/lib/media/face-alignment'
 import { applyWebsitePhotoLighting } from '@/app/lib/media/website-photo-engine'
@@ -46,23 +46,32 @@ import { applyWebsitePhotoLighting } from '@/app/lib/media/website-photo-engine'
    right head_box for either a real selected speaker or, with no speaker
    selected, the layer's own reference_head_box from "Upload Reference
    Layer"), then that already-correctly-framed crop is run through
-   PhotoRoom's editWithAI (website-photo-engine.ts) using the event's SAVED
-   ai_edit_prompts entry, before compositing — so this is the one place a
-   branding team member can actually see what their prompt produces without
-   touching a real speaker's website_card_url, and it works against either
-   a real speaker OR the placeholder reference photo. This is genuinely NOT
-   free when it runs against a real photo — same PhotoRoom credit cost as a
-   real generate, per click — there's no way around that if the point is
-   showing real output; what this does save is the round-trip to a
-   speaker's own page and back, and not writing to production data while
-   iterating. Requires the prompt to already be SAVED in the AI Edit
-   Prompts tab (not the current unsaved textarea value) — those two tabs
-   are deliberately independent client state (see AiEditPromptsPanel), and
-   threading a live cross-tab draft here wasn't worth the complexity for a
-   "save, then preview" loop that's still just two clicks. No alignment set
-   on the layer yet, no prompt saved yet, or PhotoRoom errors: falls back
-   to the plain (still correctly cropped, when alignment exists) cutout,
-   with `lighting_applied: false` and a `lighting_error` explaining why. */
+   PhotoRoom's editWithAI (website-photo-engine.ts) — together with the
+   variant's own background Image layer, sent as background.imageFile —
+   using the event's SAVED ai_edit_prompts entry, so this is the one place
+   a branding team member can actually see what their prompt produces
+   without touching a real speaker's website_card_url, and it works
+   against either a real speaker OR the placeholder reference photo. When
+   this succeeds, PhotoRoom's own output IS the final image — the usual
+   compositeAnnouncement() background step is SKIPPED for this category
+   (confirmed same-day: local compositing can't reproduce PhotoRoom
+   blending a glow into the real background pixels, and trying to keep the
+   cutout transparent for local compositing doesn't work at all for a
+   backlight/rim-glow prompt — see website-photo-engine.ts's doc comment).
+   This is genuinely NOT free when it runs against a real photo — same
+   PhotoRoom credit cost as a real generate, per click — there's no way
+   around that if the point is showing real output; what this does save is
+   the round-trip to a speaker's own page and back, and not writing to
+   production data while iterating. Requires the prompt to already be
+   SAVED in the AI Edit Prompts tab (not the current unsaved textarea
+   value) — those two tabs are deliberately independent client state (see
+   AiEditPromptsPanel), and threading a live cross-tab draft here wasn't
+   worth the complexity for a "save, then preview" loop that's still just
+   two clicks. No alignment set on the layer yet, no prompt saved yet, or
+   PhotoRoom errors: falls back to compositeAnnouncement() placing the
+   plain (still correctly cropped, when alignment exists) cutout onto the
+   background locally, with `lighting_applied: false` and a
+   `lighting_error` explaining why. */
 
 const PLACEHOLDER_TEXT = { name: 'Jane Doe', title: 'Chief Officer', company: 'Acme Corp', tier: 'LEAD SPONSOR' }
 const PLACEHOLDER_COLOR = { r: 140, g: 140, b: 150, alpha: 1 }
@@ -138,6 +147,7 @@ export async function POST(req: NextRequest) {
   let lightingApplied = false
   let lightingError: string | null = null
   let renderVariant = body.variant
+  let websitePhotoFinalBuffer: Buffer | null = null
   const photoLayer = body.variant.category === 'website_photo'
     ? body.variant.layers.find((l): l is PhotoSlotLayer => l.type === 'photo_slot' && l.source === 'speaker_photo')
     : undefined
@@ -151,9 +161,10 @@ export async function POST(req: NextRequest) {
           { ...photoLayer.alignment, box: { x: 0, y: 0, width: body.variant.canvas_width, height: body.variant.canvas_height } },
           assets.speaker_photo.head_box
         )
-        // Cropped already — the final composite below should just place
-        // this, not crop it again, so strip alignment from a copy of the
-        // layer used only for that render.
+        // Cropped already — if lighting fails below and we fall back to
+        // compositeAnnouncement(), it should just place this, not crop it
+        // again, so strip alignment from a copy of the layer used only for
+        // that fallback render.
         renderVariant = { ...body.variant, layers: body.variant.layers.map(l => l.id === photoLayer.id ? { ...l, alignment: undefined } : l) }
         assets.speaker_photo = { ...assets.speaker_photo, buffer: cropped }
 
@@ -161,12 +172,14 @@ export async function POST(req: NextRequest) {
         if (!prompt) {
           lightingError = 'No saved prompt assigned to "Speaker Web Pic" in AI Edit Prompts yet — showing the plain crop.'
         } else {
-          const relit = await applyWebsitePhotoLighting(cropped, {
+          const backgroundLayer = body.variant.layers.find((l): l is ImageLayer => l.type === 'image')
+          const backgroundBuffer = backgroundLayer?.asset_url ? await fetchAssetBuffer(backgroundLayer.asset_url) : null
+          websitePhotoFinalBuffer = await applyWebsitePhotoLighting(cropped, {
             prompt,
             outputWidth: body.variant.canvas_width,
             outputHeight: body.variant.canvas_height,
+            backgroundBuffer,
           })
-          assets.speaker_photo = { ...assets.speaker_photo, buffer: relit }
           lightingApplied = true
         }
       } catch (e) {
@@ -183,7 +196,7 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    const fullBuffer = await compositeAnnouncement(renderVariant, assets, texts)
+    const fullBuffer = websitePhotoFinalBuffer ?? await compositeAnnouncement(renderVariant, assets, texts)
     const draftBuffer = await sharp(fullBuffer)
       .resize(Math.round(body.variant.canvas_width * DRAFT_SCALE), Math.round(body.variant.canvas_height * DRAFT_SCALE))
       .png()

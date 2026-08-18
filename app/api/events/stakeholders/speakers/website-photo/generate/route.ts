@@ -4,7 +4,7 @@ import { getSession } from '@/app/lib/access/session'
 import { hasEventPermission } from '@/app/lib/access/event-access'
 import { uploadPublicAsset } from '@/app/lib/events/storage'
 import { fetchAssetBuffer } from '@/app/lib/announcements/asset-buffer-cache'
-import { compositeAnnouncement, type CreativeTemplateConfig, type PhotoSlotLayer, type ResolvedAssets } from '@/app/lib/announcements/composite'
+import { type CreativeTemplateConfig, type ImageLayer, type PhotoSlotLayer } from '@/app/lib/announcements/composite'
 import { alignAndCropPhoto, type HeadBox } from '@/app/lib/media/face-alignment'
 import { applyWebsitePhotoLighting, WebsitePhotoEditError } from '@/app/lib/media/website-photo-engine'
 
@@ -12,20 +12,28 @@ import { applyWebsitePhotoLighting, WebsitePhotoEditError } from '@/app/lib/medi
    Body: { event_id, speaker_id }
 
    Speaker-only (no partner/sponsor equivalent — see the plan discussion).
-   Three-step pipeline (redesigned 2026-08-18 per Madhu — see
-   website-photo-engine.ts's doc comment for why): (1) crop the stored
-   photo_processed_url cutout to the variant's canvas size using the
-   SPEAKER'S OWN known head position (photo_head_box, same source
+   Two-step pipeline (redesigned twice 2026-08-18 per Madhu — see
+   website-photo-engine.ts's doc comment for the full history): (1) crop
+   the stored photo_processed_url cutout to the variant's canvas size using
+   the SPEAKER'S OWN known head position (photo_head_box, same source
    Promo/Self Promo variants already trust via alignAndCropPhoto) — not a
-   PhotoRoom guess; (2) one PhotoRoom editWithAI call to relight that
-   already-correctly-framed image; (3) one local compositeAnnouncement()
-   call to drop the result onto the variant's background layer. Writes the
-   result to event_speakers.website_card_url — a column that's existed
-   unused since the original SAE migration ("generated speaker card —
-   future use"), reused here rather than adding a new one. No
-   stakeholder_announcements row: this isn't a social creative with its own
-   publish/schedule lifecycle, just the speaker's current website photo,
-   one per speaker. */
+   PhotoRoom guess; (2) one PhotoRoom editWithAI call, given BOTH that
+   already-correctly-framed crop AND the variant's real background image
+   (background.imageFile), to relight the subject and blend it onto that
+   real background in one shot. PhotoRoom's own output IS the final image —
+   no local compositeAnnouncement() step, unlike every other creative kind
+   in this app. That's deliberate, not a shortcut: confirmed empirically
+   that keeping the cutout transparent for local compositing doesn't work
+   for a backlight/rim-glow prompt (PhotoRoom always paints something in
+   the background area for that style, however forcefully told not to),
+   and that PhotoRoom blending the glow into the REAL background image
+   directly looks materially better than a local hard-edged composite ever
+   could. Writes the result to event_speakers.website_card_url — a column
+   that's existed unused since the original SAE migration ("generated
+   speaker card — future use"), reused here rather than adding a new one.
+   No stakeholder_announcements row: this isn't a social creative with its
+   own publish/schedule lifecycle, just the speaker's current website
+   photo, one per speaker. */
 
 type GenerateBody = { event_id?: string; speaker_id?: string }
 
@@ -74,7 +82,12 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'No lighting prompt configured yet — set one in Admin Console → AI Edit Prompts' }, { status: 422 })
   }
 
-  const cutoutBuffer = await fetchAssetBuffer(cleanPhotoUrl)
+  const backgroundLayer = variant.layers.find((l): l is ImageLayer => l.type === 'image')
+
+  const [cutoutBuffer, backgroundBuffer] = await Promise.all([
+    fetchAssetBuffer(cleanPhotoUrl),
+    backgroundLayer?.asset_url ? fetchAssetBuffer(backgroundLayer.asset_url) : Promise.resolve(null),
+  ])
   if (!cutoutBuffer) {
     return NextResponse.json({ error: "Could not fetch this speaker's cleaned photo" }, { status: 502 })
   }
@@ -95,12 +108,13 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Cropping this speaker\'s photo to the template failed' }, { status: 500 })
   }
 
-  let litBuffer: Buffer
+  let finalBuffer: Buffer
   try {
-    litBuffer = await applyWebsitePhotoLighting(croppedBuffer, {
+    finalBuffer = await applyWebsitePhotoLighting(croppedBuffer, {
       prompt,
       outputWidth: variant.canvas_width,
       outputHeight: variant.canvas_height,
+      backgroundBuffer,
     })
   } catch (e) {
     const message = e instanceof WebsitePhotoEditError ? e.message : 'PhotoRoom lighting pass failed'
@@ -108,22 +122,9 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: message }, { status })
   }
 
-  // Cropping already happened above — pass a copy of the variant with this
-  // layer's alignment stripped so compositeAnnouncement just places the
-  // (already exactly canvas-sized) result instead of cropping it again.
-  const placementVariant = { ...variant, layers: variant.layers.map(l => l.id === photoLayer.id ? { ...l, alignment: undefined } : l) }
-  const assets: ResolvedAssets = { speaker_photo: { buffer: litBuffer } }
-  let compositeBuffer: Buffer
-  try {
-    compositeBuffer = await compositeAnnouncement(placementVariant, assets, {})
-  } catch (e) {
-    console.error('Website photo compositing failed:', e)
-    return NextResponse.json({ error: 'Compositing the final photo failed' }, { status: 500 })
-  }
-
   const websiteCardUrl = await uploadPublicAsset(
     `events/${body.event_id}/speakers/${body.speaker_id}/website-photo/${Date.now()}.png`,
-    compositeBuffer,
+    finalBuffer,
     'image/png'
   )
 
