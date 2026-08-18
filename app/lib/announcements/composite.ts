@@ -161,18 +161,30 @@ export type Variant = {
   // creative. Its photo_slot layer needs `alignment` set exactly like a
   // Promo variant's (same "Upload Reference Layer" flow) — the crop uses
   // that known head position via alignAndCropPhoto, same as any other
-  // photo_slot layer. Lighting is NOT PhotoRoom/AI for this category (see
-  // lighting_effect below and deterministic-lighting.ts) — this category's
-  // generate path is a separate route (not the announcements generate
-  // route), but reuses this same crop mechanism.
+  // photo_slot layer. This category's generate path is a separate route
+  // (not the announcements generate route), but reuses this same crop
+  // mechanism. An event typically has SEVERAL website_photo variants, one
+  // per branding-defined "look" — same pattern promo/self_promo already
+  // use for multiple named variants, not a special case.
   category?: 'promo' | 'self_promo' | 'website_photo'
-  // Only meaningful for category: 'website_photo' (2026-08-18, replaces an
-  // earlier PhotoRoom editWithAI prompt approach — see
-  // deterministic-lighting.ts's doc comment for why: a generative model
-  // can't guarantee the photo-for-photo consistency this needs since it's
-  // used publicly across every speaker). A deterministic rim-light + key-
-  // light effect, computed in code from this config — same input always
-  // produces the same output, no AI variance.
+  // Only meaningful for category: 'website_photo'. Two independent, non-
+  // exclusive lighting options — see photoroom-relight.ts and
+  // deterministic-lighting.ts's doc comments for the full history of why
+  // both exist:
+  //
+  // lighting_prompt (2026-08-19) — a free-text PhotoRoom editWithAI prompt,
+  // written by the branding team per variant/style, applied to the photo
+  // AFTER it's already composited onto the real background (not a bare
+  // cutout) — confirmed empirically this is what makes PhotoRoom actually
+  // preserve framing reliably; the earlier bare-cutout approach couldn't.
+  // Takes precedence when set, since it's the flexible mechanism branding
+  // wants for arbitrary future styles.
+  //
+  // lighting_effect (2026-08-18) — a deterministic rim-light + key-light
+  // effect, computed in code, zero AI variance. Falls back to this (or a
+  // plain composite with no effect, if this is unset too) when no prompt
+  // is configured.
+  lighting_prompt?: string
   lighting_effect?: LightingEffect
 }
 

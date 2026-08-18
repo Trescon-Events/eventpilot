@@ -605,7 +605,22 @@ export default function CreativeTemplatesAdminPage({ params }: { params: Promise
                       {activeVariant.category === 'website_photo' && (
                         <div style={{ marginBottom: '14px' }}>
                           <div style={{ fontSize: '11px', color: 'var(--ink3)', marginBottom: '10px' }}>
-                            This variant should have exactly two layers: an <strong>Image</strong> layer for the background, and a <strong>Photo/Logo Slot</strong> (source: speaker photo) sized to the full canvas — set the slot up exactly like a Promo variant&apos;s: click <strong>Upload Reference Layer (auto-position)</strong> and adjust the head position. That known position is what gets cropped. The lighting effect below is computed deterministically in code, not by an AI — the exact same input always produces the exact same output, for every speaker, every time (required since these photos are used publicly).
+                            This variant should have exactly two layers: an <strong>Image</strong> layer for the background, and a <strong>Photo/Logo Slot</strong> (source: speaker photo) sized to the full canvas — set the slot up exactly like a Promo variant&apos;s: click <strong>Upload Reference Layer (auto-position)</strong> and adjust the head position. That known position, the crop, and the background composite always happen exactly the same way, every time, regardless of which lighting option below is used.
+                          </div>
+                          <div style={{ marginBottom: '12px' }}>
+                            <label style={{ fontSize: '11px', color: 'var(--ink3)', display: 'block', marginBottom: '4px' }}>
+                              Lighting Prompt (PhotoRoom AI — optional)
+                            </label>
+                            <Textarea value={activeVariant.lighting_prompt ?? ''}
+                              onChange={e => updateActiveVariant({ lighting_prompt: e.target.value || undefined })}
+                              placeholder="e.g. Photography retouch: simulate a single small kicker light placed off-camera to the left..."
+                              style={{ width: '100%', minHeight: '70px' }} />
+                            <div style={{ fontSize: '10.5px', color: 'var(--ink4)', marginTop: '4px' }}>
+                              When set, this is applied to the already-cropped, already-composited photo (background baked in) — confirmed this ordering is what keeps PhotoRoom from re-framing the subject, unlike sending it a bare cutout. Wording matters: avoid words like &ldquo;edge&rdquo; or &ldquo;silhouette&rdquo;, which reliably push PhotoRoom toward outlining the whole person instead of a directional effect — describe it as a specific light source (e.g. &ldquo;kicker light&rdquo;) hitting specific areas instead. Takes precedence over the deterministic settings below when filled in. Costs a PhotoRoom credit and a few seconds per generate/preview.
+                            </div>
+                          </div>
+                          <div style={{ fontSize: '10.5px', color: 'var(--ink3)', marginBottom: '8px' }}>
+                            Deterministic fallback (used when no prompt above) — computed in code, zero AI, identical output every time:
                           </div>
                           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '12px', padding: '12px', borderRadius: '10px', border: '1px solid var(--border-light)', background: 'var(--surface)' }}>
                             <label style={{ fontSize: '11px', color: 'var(--ink3)' }}>
@@ -783,7 +798,9 @@ export default function CreativeTemplatesAdminPage({ params }: { params: Promise
                       color: lightingPreview.applied ? 'var(--teal-mid)' : 'var(--amber)',
                     }}>
                       {lightingPreview.applied
-                        ? '✓ Lighting effect applied — this is the real, deterministic output (same every time).'
+                        ? (activeVariant?.lighting_prompt
+                            ? '✓ Lighting prompt applied — this is real PhotoRoom output (used a credit).'
+                            : '✓ Lighting effect applied — this is the real, deterministic output (same every time).')
                         : lightingPreview.error ?? 'Select a real speaker with a cleaned photo above to preview the lighting effect.'}
                     </div>
                   )}

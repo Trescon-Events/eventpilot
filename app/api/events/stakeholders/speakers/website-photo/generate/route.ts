@@ -7,27 +7,34 @@ import { fetchAssetBuffer } from '@/app/lib/announcements/asset-buffer-cache'
 import { type CreativeTemplateConfig, type ImageLayer, type PhotoSlotLayer } from '@/app/lib/announcements/composite'
 import { alignAndCropPhoto, type HeadBox } from '@/app/lib/media/face-alignment'
 import { applyDeterministicLighting } from '@/app/lib/media/deterministic-lighting'
+import { applyPhotoRoomRelight, PhotoRoomRelightError } from '@/app/lib/media/photoroom-relight'
 
 /* POST /api/events/stakeholders/speakers/website-photo/generate
    Body: { event_id, speaker_id }
 
    Speaker-only (no partner/sponsor equivalent — see the plan discussion).
-   Two-step pipeline: (1) crop the stored photo_processed_url cutout to the
-   variant's canvas size using the SPEAKER'S OWN known head position
-   (photo_head_box, same source Promo/Self Promo variants already trust via
-   alignAndCropPhoto); (2) composite it onto the variant's background with a
-   deterministic rim-light + key-light effect (deterministic-lighting.ts) —
-   NOT PhotoRoom/AI. That's a deliberate, evidence-based call (2026-08-18,
-   per Madhu, after a full day investigating PhotoRoom's editWithAI): these
-   photos go out publicly across every speaker and "must all look the
-   same," which a generative model fundamentally can't guarantee — proven
-   two separate ways (it doesn't reliably obey framing instructions, and
-   correcting it afterward requires re-detecting the head on its output,
-   which is itself too imprecise to correct with). See
-   deterministic-lighting.ts's doc comment for the full reasoning. Writes
-   the result to event_speakers.website_card_url — a column that's existed
-   unused since the original SAE migration ("generated speaker card —
-   future use"), reused here rather than adding a new one. No
+   Common, always-exact step (2026-08-18/19, per Madhu): crop the stored
+   photo_processed_url cutout to the variant's canvas size using the
+   SPEAKER'S OWN known head position (photo_head_box, same source
+   Promo/Self Promo variants already trust via alignAndCropPhoto), then
+   composite onto the variant's real background — deterministic, zero AI,
+   identical every time.
+
+   Lighting is then EITHER of two options per variant (an event typically
+   has 2-3 website_photo variants, one per branding-defined style):
+   - variant.lighting_prompt set: send the already-composited photo to
+     PhotoRoom's editWithAI (photoroom-relight.ts) with that prompt — the
+     "compose first, relight second" approach, confirmed empirically
+     (2026-08-19, 12 real test runs) to keep framing reliably intact, unlike
+     the original bare-cutout approach. This is what lets branding write
+     arbitrary future styles as a prompt, per variant, without touching code.
+   - otherwise: variant.lighting_effect (deterministic-lighting.ts) — code-
+     only rim-light + key-light, or a plain composite with no effect at all
+     if that's unset too.
+
+   Writes the result to event_speakers.website_card_url — a column that's
+   existed unused since the original SAE migration ("generated speaker card
+   — future use"), reused here rather than adding a new one. No
    stakeholder_announcements row: this isn't a social creative with its own
    publish/schedule lifecycle, just the speaker's current website photo,
    one per speaker. */
@@ -107,19 +114,38 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Cropping this speaker\'s photo to the template failed' }, { status: 500 })
   }
 
-  let finalBuffer: Buffer
+  // Always-deterministic base composite (crop + real background, no
+  // lighting) — this is what a lighting_prompt gets sent to PhotoRoom for
+  // relighting, and it's also the direct output when neither lighting
+  // option is configured.
+  let plainComposite: Buffer
   try {
-    finalBuffer = await applyDeterministicLighting(croppedBuffer, backgroundBuffer, {
+    plainComposite = await applyDeterministicLighting(croppedBuffer, backgroundBuffer, {
       canvasWidth: variant.canvas_width,
       canvasHeight: variant.canvas_height,
       headCenterXRatio: photoLayer.alignment.target_head_center_x,
       headCenterYRatio: photoLayer.alignment.target_head_center_y,
       headHeightRatio: photoLayer.alignment.target_head_height,
-      effect: variant.lighting_effect,
+      effect: variant.lighting_prompt ? { rim_intensity: 0, key_light_intensity: 0 } : variant.lighting_effect,
     })
   } catch (e) {
-    console.error('Website photo lighting/composite failed:', e)
+    console.error('Website photo compositing failed:', e)
     return NextResponse.json({ error: 'Compositing the final photo failed' }, { status: 500 })
+  }
+
+  let finalBuffer = plainComposite
+  if (variant.lighting_prompt) {
+    try {
+      finalBuffer = await applyPhotoRoomRelight(plainComposite, {
+        prompt: variant.lighting_prompt,
+        outputWidth: variant.canvas_width,
+        outputHeight: variant.canvas_height,
+      })
+    } catch (e) {
+      const message = e instanceof PhotoRoomRelightError ? e.message : 'PhotoRoom relight failed'
+      const status = e instanceof PhotoRoomRelightError ? e.status : 502
+      return NextResponse.json({ error: message }, { status })
+    }
   }
 
   const websiteCardUrl = await uploadPublicAsset(

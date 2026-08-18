@@ -5,6 +5,7 @@ import { compositeAnnouncement, analyzeTextLayers, type Variant, type ImageLayer
 import { fetchAssetBuffer } from '@/app/lib/announcements/asset-buffer-cache'
 import { alignAndCropPhoto, type HeadBox } from '@/app/lib/media/face-alignment'
 import { applyDeterministicLighting } from '@/app/lib/media/deterministic-lighting'
+import { applyPhotoRoomRelight } from '@/app/lib/media/photoroom-relight'
 
 /* POST /api/events/templates/preview
    Body: { stakeholder_type, variant (draft, unsaved), speaker_id?, partner_id? }
@@ -40,27 +41,26 @@ import { applyDeterministicLighting } from '@/app/lib/media/deterministic-lighti
    each source's URL/head_box the same way every time for the same input,
    which is what makes that cache actually hit.
 
-   2026-08-18 — for a category: 'website_photo' variant, the speaker_photo
-   source is cropped with alignAndCropPhoto (same as any other photo_slot
-   layer with alignment set — the asset loop below already resolves the
-   right head_box for either a real selected speaker or, with no speaker
-   selected, the layer's own reference_head_box from "Upload Reference
-   Layer"), then composited with a DETERMINISTIC rim-light + key-light
-   effect (deterministic-lighting.ts), not PhotoRoom/AI — see that file's
-   doc comment for the full reasoning: these photos are used publicly
-   across every speaker and "must all look the same," which a generative
-   model can't guarantee no matter how the prompt is worded (proven two
-   separate, compounding ways during the investigation this replaced).
-   When this succeeds, its output IS the final image — the usual
-   compositeAnnouncement() background step is SKIPPED for this category,
-   since the deterministic effect already composited onto the real
-   background itself. This is free and instant (no AI credit, no network
-   call) unlike the approach it replaced, so there's no real cost concern
-   to iterating here. No alignment set on the layer yet, or no background
-   Image layer configured yet: falls back to compositeAnnouncement()
-   placing the plain (still correctly cropped, when alignment exists)
-   cutout onto the background locally, with `lighting_applied: false` and
-   a `lighting_error` explaining why. */
+   2026-08-18/19 — for a category: 'website_photo' variant, the
+   speaker_photo source is cropped with alignAndCropPhoto (same as any
+   other photo_slot layer with alignment set — the asset loop below already
+   resolves the right head_box for either a real selected speaker or, with
+   no speaker selected, the layer's own reference_head_box from "Upload
+   Reference Layer"), then composited onto the variant's real background —
+   deterministic, always. Lighting from there is EITHER
+   variant.lighting_prompt, sent to PhotoRoom's editWithAI on that already-
+   composited photo (photoroom-relight.ts — the "compose first, relight
+   second" approach, confirmed to actually preserve framing reliably,
+   unlike sending PhotoRoom a bare cutout), OR variant.lighting_effect
+   (deterministic-lighting.ts, code-only, zero AI) when no prompt is set.
+   Either way this route's own output IS the final image — the usual
+   compositeAnnouncement() background step is SKIPPED for this category.
+   Only variant.lighting_prompt costs a PhotoRoom credit and real wall-clock
+   time per click; the deterministic path is free and instant. No alignment
+   set on the layer yet, or no background Image layer configured yet: falls
+   back to compositeAnnouncement() placing the plain (still correctly
+   cropped, when alignment exists) cutout onto the background locally, with
+   `lighting_applied: false` and a `lighting_error` explaining why. */
 
 const PLACEHOLDER_TEXT = { name: 'Jane Doe', title: 'Chief Officer', company: 'Acme Corp', tier: 'LEAD SPONSOR' }
 const PLACEHOLDER_COLOR = { r: 140, g: 140, b: 150, alpha: 1 }
@@ -162,14 +162,21 @@ export async function POST(req: NextRequest) {
         if (!backgroundBuffer) {
           lightingError = 'No background image set on the Image layer yet — showing the plain crop.'
         } else {
-          websitePhotoFinalBuffer = await applyDeterministicLighting(cropped, backgroundBuffer, {
+          const plainComposite = await applyDeterministicLighting(cropped, backgroundBuffer, {
             canvasWidth: body.variant.canvas_width,
             canvasHeight: body.variant.canvas_height,
             headCenterXRatio: photoLayer.alignment.target_head_center_x,
             headCenterYRatio: photoLayer.alignment.target_head_center_y,
             headHeightRatio: photoLayer.alignment.target_head_height,
-            effect: body.variant.lighting_effect,
+            effect: body.variant.lighting_prompt ? { rim_intensity: 0, key_light_intensity: 0 } : body.variant.lighting_effect,
           })
+          websitePhotoFinalBuffer = body.variant.lighting_prompt
+            ? await applyPhotoRoomRelight(plainComposite, {
+                prompt: body.variant.lighting_prompt,
+                outputWidth: body.variant.canvas_width,
+                outputHeight: body.variant.canvas_height,
+              })
+            : plainComposite
           lightingApplied = true
         }
       } catch (e) {

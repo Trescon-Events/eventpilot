@@ -313,11 +313,12 @@ export default function StakeholderReviewPage({ params }: { params: Promise<{ id
 
   async function generateWebsitePhoto() {
     setGeneratingWebsitePhoto(true)
-    // 2026-08-18: deterministic (crop + code-based lighting composite, no
-    // AI call) — see deterministic-lighting.ts. Fast; this estimate is just
-    // for the progress bar's pacing, not a real bottleneck like the
-    // PhotoRoom-based approach this replaced.
-    setProcessing({ label: 'Generating website photo…', estimatedMs: 2500 })
+    // 2026-08-19: crop + composite is always fast/deterministic; lighting is
+    // either that same deterministic composite (near-instant) or, when the
+    // variant has a lighting_prompt configured, a real PhotoRoom call
+    // (photoroom-relight.ts, ~10-20s observed) — this estimate just paces
+    // the progress bar reasonably for either case, not a hard bottleneck.
+    setProcessing({ label: 'Generating website photo…', estimatedMs: 8000 })
     setMsg(null)
     const res = await fetch('/api/events/stakeholders/speakers/website-photo/generate', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -521,13 +522,17 @@ export default function StakeholderReviewPage({ params }: { params: Promise<{ id
             </div>
           </Card>
 
-          {/* Website Photo (2026-08-18) — a separate, square, relit speaker
-              card photo for the public Speakers page/KonfHub, generated
-              from the same Cleaned Photo above but not the same asset
-              (deterministic crop + lighting composite, see
-              deterministic-lighting.ts — not PhotoRoom/AI). Speaker-only —
-              partners have no equivalent. Not gated on approval status,
-              same as SAE's own Create New: just the generate permission +
+          {/* Website Photo (2026-08-18/19) — a separate, square, relit
+              speaker card photo for the public Speakers page/KonfHub,
+              generated from the same Cleaned Photo above but not the same
+              asset. Crop/background composite is always deterministic;
+              lighting is either the branding team's PhotoRoom prompt
+              (photoroom-relight.ts) or a deterministic effect
+              (deterministic-lighting.ts) depending on how the event's
+              Website Photo variant is configured — see composite.ts's
+              Variant.lighting_prompt doc comment. Speaker-only — partners
+              have no equivalent. Not gated on approval status, same as
+              SAE's own Create New: just the generate permission +
               having a cleaned photo to start from. */}
           {kind === 'speaker' && (
             <Card padded>
