@@ -2101,12 +2101,8 @@ function AdminPageInner() {
           const LEVEL_COLOR: Record<string,string> = { super_admin:'#34D399', office_head:'#1296BA', dept_head:'#A78BFA', team_lead:'#F5B94D', staff:'#7E93A1' }
 
           const allPeople = staffList.map(s => {
-            const member  = memberById[s.id]
-            const tData   = memberTairs[s.id]
-            const score   = tData?.score ?? null
-            const tTier   = score !== null ? airsTier(score) : null
-            const tColor  = tTier ? { color: tTier.color, bg: `${tTier.color}15` } : null
-            return { ...s, access_enabled: (s as {access_enabled?:boolean}).access_enabled ?? false, profile_complete: member?.profile_complete ?? false, joined_at: member?.joined_at ?? null, airs_score: score, tier_label: tTier?.label ?? null, tier_color: tColor }
+            const member = memberById[s.id]
+            return { ...s, access_enabled: (s as {access_enabled?:boolean}).access_enabled ?? false, profile_complete: member?.profile_complete ?? false, joined_at: member?.joined_at ?? null }
           })
 
           const totalEnabled       = allPeople.filter(p => p.access_enabled).length
@@ -2234,8 +2230,8 @@ function AdminPageInner() {
               ) : (
                 <div style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: '16px', overflow: 'hidden' }}>
                   {/* Header */}
-                  <div style={{ display: 'grid', gridTemplateColumns: '2.5fr 1.8fr 1fr 1fr 1.2fr 1.1fr 180px', padding: '10px 20px', background: 'var(--surface)', borderBottom: '1px solid var(--border)' }}>
-                    {['Name', 'Department / Role', 'Office', 'Level', 'Platform Status', 'AI Score', ''].map(h => (
+                  <div style={{ display: 'grid', gridTemplateColumns: '2.5fr 1.8fr 1fr 1fr 1.2fr 180px', padding: '10px 20px', background: 'var(--surface)', borderBottom: '1px solid var(--border)' }}>
+                    {['Name', 'Department / Role', 'Office', 'Level', 'Platform Status', ''].map(h => (
                       <div key={h} style={{ fontSize: '9px', fontWeight: 700, letterSpacing: '1.5px', textTransform: 'uppercase', color: 'var(--ink3)' }}>{h}</div>
                     ))}
                   </div>
@@ -2250,7 +2246,7 @@ function AdminPageInner() {
                     else if (!p.profile_complete) { statusLabel = 'Awaiting Profile'; statusColor = 'var(--amber)'; statusBg = 'var(--amber-light)' }
                     else                     { statusLabel = 'Active';           statusColor = 'var(--success)'; statusBg = 'var(--success-light)' }
                     return (
-                      <div key={p.id} style={{ display: 'grid', gridTemplateColumns: '2.5fr 1.8fr 1fr 1fr 1.2fr 1.1fr 180px', alignItems: 'center', padding: '12px 20px', borderBottom: idx < filtered.length - 1 ? '1px solid var(--surface)' : 'none' }}>
+                      <div key={p.id} style={{ display: 'grid', gridTemplateColumns: '2.5fr 1.8fr 1fr 1fr 1.2fr 180px', alignItems: 'center', padding: '12px 20px', borderBottom: idx < filtered.length - 1 ? '1px solid var(--surface)' : 'none' }}>
                         {/* Name + email */}
                         <div style={{ display: 'flex', alignItems: 'center', gap: '10px', minWidth: 0 }}>
                           <div style={{ width: '30px', height: '30px', borderRadius: '8px', background: `${off?.color ?? 'var(--teal-mid)'}18`, border: `1px solid ${off?.color ?? 'var(--teal-mid)'}30`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
@@ -2285,17 +2281,6 @@ function AdminPageInner() {
                               return <span key={r} style={{ fontSize: '9px', fontWeight: 700, padding: '2px 6px', borderRadius: '4px', background: rc.bg, color: rc.color, letterSpacing: '0.5px', textTransform: 'uppercase' }}>{rc.label}</span>
                             })}
                           </div>
-                        </div>
-                        {/* AI Score */}
-                        <div>
-                          {p.airs_score !== null && p.tier_color ? (
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                              <span style={{ fontSize: '18px', fontWeight: 900, color: p.tier_color.color, lineHeight: 1 }}>{p.airs_score}</span>
-                              <span style={{ fontSize: '9px', fontWeight: 700, color: p.tier_color.color, background: p.tier_color.bg, padding: '2px 5px', borderRadius: '4px' }}>{p.tier_label}</span>
-                            </div>
-                          ) : (
-                            <span style={{ fontSize: '12px', color: 'var(--ink4)' }}>—</span>
-                          )}
                         </div>
                         {/* Actions */}
                         <div style={{ display: 'flex', gap: '5px', justifyContent: 'flex-end', flexWrap: 'wrap' }}>
