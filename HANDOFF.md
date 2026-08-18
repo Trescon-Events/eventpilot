@@ -15,12 +15,12 @@ Railway's auto-deploy silently stopped working from **2026-07-17 to 2026-07-21**
 
 | Field | Value |
 |---|---|
-| Who | Madhu + Claude Code (Sonnet 5) — 17 Aug 2026 |
-| Latest push | 2026-08-17 — RBAC access-fix trio for non-admin staff (Nazim's "My Events" bug, generalized), three live-bug-report fixes (photo background remover, Postiz channels not showing, invite sender identity), an announcement-copy prompt rewrite + a real Gemini JSON-parsing reliability fix, and a new **Self Promo** module for the Stakeholder Announcement Engine (speaker-voiced first-person post copy + creative, emailed directly to the speaker to post themselves — separate from the existing org-posts-it-themselves Promo flow). See the dated section below for the full write-up. |
-| DB migrations applied | `sae_migration.sql` extended: 4 new `event_speakers` columns (`public_name`, `salutation`, `key_talking_points`, `pronoun_style`), `stakeholder_announcements.announcement_kind`, new `stakeholder_announcement_sends` table. Applied directly against production Supabase via the pg pooler, verified with real queries. |
+| Who | Madhu + Claude Code (Sonnet 5) — 17–18 Aug 2026 |
+| Latest push | 2026-08-18 — shipped the persistent-sidebar navigation rebuild that had been parked mid-work on 17 Aug: registry-driven `AppSidebar` (collapsible sections), `CommandPalette` (cmd+k), and a new `event_permission` access-check kind (plus `.*` wildcard support via `hasAnyModulePermission`) so sidebar entries can gate on per-event RBAC permissions instead of only legacy `module_access`. Additive — existing access kinds/surfaces (`platformMenu`, `toolkitHub`) unchanged. Commit `e31c076`. |
+| DB migrations applied | None this push. (17 Aug's `sae_migration.sql` additions — `event_speakers` columns, `announcement_kind`, `stakeholder_announcement_sends` — already applied, see prior entry below.) |
 | Handed off to | Durga |
-| Deployed | Pushed to `main` this session, Railway auto-deploys on push. Verify `eventpilot.tresconglobal.com` reflects the latest commit. |
-| Not deployed / on hold | A full persistent-sidebar navigation rebuild (registry-driven `AppSidebar`, command palette, `event_permission` access-check kind) was designed and fully built earlier this session, then explicitly parked by Madhu mid-work ("keep this on hold for now") before this session's other fixes. It remains **uncommitted in the working tree** — untouched by this push, not lost, just intentionally not shipped yet. Whoever picks this up next should ask Madhu before touching it further. |
+| Deployed | Pushed to `main`, Railway auto-deploys on push. Verify `eventpilot.tresconglobal.com` reflects commit `e31c076` and the new sidebar/command palette render correctly. |
+| Left alone, not part of this push | Unrelated untracked content in the working tree (`.scratch/`, `Attendee Data Historical/`, `Historical docs for KB/`, `docs/EventPilot-KB-PRD-v*.md`, `knowledge-base/bd/proposals/**`) — Madhu's own separate WIP, deliberately not committed or pushed. |
 
 ## 17 Aug 2026 — RBAC access-fix trio, 3 live-bug fixes, Self Promo module
 
