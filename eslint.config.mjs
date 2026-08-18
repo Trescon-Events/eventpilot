@@ -40,6 +40,9 @@ const eslintConfig = defineConfig([
       "app/admin/ai-learning/AiLearningTab.tsx",
       "app/admin/ai-learning/AnalyticsSection.tsx",
       "app/admin/ai-learning/CourseGeneratorSection.tsx",
+      "app/admin/ai-learning/MemberFilterRow.tsx",
+      "app/admin/ai-learning/ReadinessSection.tsx",
+      "app/admin/ai-learning/useReadinessData.ts",
     ],
     rules: {
       "no-restricted-syntax": [
