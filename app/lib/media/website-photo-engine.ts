@@ -45,6 +45,23 @@
 // confirmed empirically: a 1000x1000 input came back 1024x1024 with
 // framing/content otherwise faithfully preserved. `outputSize` pins it
 // back to the variant's real canvas size.
+//
+// editWithAI ALSO doesn't reliably preserve the SUBJECT's scale/position
+// within that canvas on its own, for a prompt this involved (relight +
+// blend onto a real background) — real bug Madhu caught live: our own crop
+// (alignAndCropPhoto) was provably correct (verified by diffing its output
+// directly against PhotoRoom's), but PhotoRoom's own generative pass was
+// visibly shrinking and shifting the subject regardless, landing the head
+// somewhere other than the target position/size the crop had already
+// established. Confirmed the fix by direct comparison — with an explicit
+// "do not zoom out, shrink, resize, or reposition" instruction, PhotoRoom's
+// output matched the pre-PhotoRoom crop almost exactly; without it, the
+// same input drifted. So this instruction is appended to EVERY prompt here
+// unconditionally, not left for whoever writes an AI Edit Preset to know to
+// include — a branding team member describing "add a rim light" shouldn't
+// need to also know PhotoRoom might silently re-frame the photo.
+const PRESERVE_FRAMING_INSTRUCTION = 'IMPORTANT: do not zoom out, shrink, resize, or reposition the subject in any way — keep the person\'s exact size, scale, and position within the frame completely unchanged from the input image. Only change lighting and background.'
+
 export class WebsitePhotoEditError extends Error {
   status: number
   constructor(message: string, status = 502) {
@@ -72,7 +89,7 @@ export async function applyWebsitePhotoLighting(
     form.append('removeBackground', 'false')
     form.append('keepExistingAlphaChannel', 'auto')
   }
-  form.append('editWithAI.prompt', opts.prompt)
+  form.append('editWithAI.prompt', `${opts.prompt} ${PRESERVE_FRAMING_INSTRUCTION}`)
   form.append('editWithAI.mode', 'ai.auto')
   form.append('outputSize', `${opts.outputWidth}x${opts.outputHeight}`)
 
