@@ -22,7 +22,7 @@ const FULL_WIDTH = '248px'
   Data intentionally have none).
 */
 export default function AppSidebar() {
-  const { session, sidebarKeys, eventsData } = useNavData()
+  const { session, sidebarKeys } = useNavData()
   const { hovering, setHovering, collapsedRail } = useSidebarCollapse()
 
   const registry = getModuleRegistry()
@@ -59,7 +59,7 @@ export default function AppSidebar() {
 
         <div style={{ flex: 1, overflowY: 'auto', overflowX: 'hidden', padding: '4px 8px 16px' }}>
           <AppSidebarSection title="Home" entries={home} collapsedRail={collapsedRail} />
-          <EventsSidebarSection eventsData={eventsData} collapsedRail={collapsedRail} />
+          <EventsSidebarSection collapsedRail={collapsedRail} />
           <AppSidebarSection title="Pilot Projects" entries={pilots} collapsedRail={collapsedRail} />
           <AppSidebarSection title="Toolkit" entries={toolkit} collapsedRail={collapsedRail} />
           <AppSidebarSection title="Admin" entries={admin} collapsedRail={collapsedRail} />

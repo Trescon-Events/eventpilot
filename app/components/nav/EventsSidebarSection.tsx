@@ -1,141 +1,52 @@
 'use client'
 
-import { useState } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { getModuleRegistry } from '@/app/lib/registry/modules'
-import type { MyEvent } from '@/app/lib/nav/NavDataContext'
+
+const EVENTS_COLOR = 'var(--amber)'
+const EVENTS_HREF = '/dashboard#events'
 
 /*
-  The Events section is a hybrid, unlike Home/Pilots/Admin/Toolkit: the
-  registry only holds which tool TEMPLATES exist (website-builder,
-  admin-event-stakeholders, ...) and their access rule — the actual
-  per-user event list, and which of those templates are visible on each
-  specific event, is data from GET /api/events/access/my-events (see
-  app/lib/nav/NavDataContext.tsx), not registry rows. This component
-  resolves each event's toolKeys back against the registry for display
-  data (label/icon/color/href) — the same "server decides access, client
-  renders" split every other nav surface in this codebase already uses.
+  2026-08-18: collapsed from a full expandable per-event tree (every
+  assigned event, each with its own tool sub-list + a search box once the
+  list ran past SEARCH_THRESHOLD) down to a single "My Events" link — the
+  full tree read as noise for anyone with more than a handful of events
+  (Madhu's own account: 50+). It now just deep-links to the dashboard's
+  existing "My Events" section (#events anchor, app/dashboard/page.tsx),
+  which is the real place to browse and open a specific event.
+
+  The full per-event tool breakdown this used to render inline isn't
+  gone — it's still available. It has just moved: the Cmd+K command
+  palette (paletteIndex.tsx) still indexes every assigned event's tools
+  from the same eventsData for direct search/jump, which scales far
+  better than a scrolling sidebar list ever could.
 */
-
-const SEARCH_THRESHOLD = 6 // below this, a search box is just noise
-
-export default function EventsSidebarSection({
-  eventsData,
-  collapsedRail,
-}: {
-  eventsData: { allEvents: boolean; events: MyEvent[] } | null
-  collapsedRail: boolean
-}) {
+export default function EventsSidebarSection({ collapsedRail }: { collapsedRail: boolean }) {
   const pathname = usePathname()
-  const [openEventId, setOpenEventId] = useState<string | null>(null)
-  const [query, setQuery] = useState('')
-
-  if (collapsedRail) {
-    return (
-      <Link
-        href="/admin?tab=events"
-        title="Events"
-        style={{
-          display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '2px 8px', padding: '9px',
-          borderRadius: '8px', color: 'var(--ink3)', textDecoration: 'none',
-        }}
-      >
-        <CalendarIcon />
-      </Link>
-    )
-  }
-
-  const registry = getModuleRegistry()
-  const toolDefByKey = new Map(registry.map(m => [m.key, m]))
+  const active = pathname === '/dashboard'
 
   return (
     <div style={{ marginBottom: '4px' }}>
-      <div style={{ fontSize: '10.5px', fontWeight: 800, letterSpacing: '1.2px', textTransform: 'uppercase', color: 'var(--ink4)', padding: '9px 12px 5px' }}>
-        Events
-      </div>
-
-      {eventsData === null ? (
-        <div style={{ padding: '6px 12px 10px', fontSize: '12px', color: 'var(--ink4)' }}>Loading…</div>
-      ) : eventsData.events.length === 0 ? (
-        <div style={{ padding: '6px 12px 10px', fontSize: '12px', color: 'var(--ink4)' }}>
-          No events assigned yet. Ask your manager or admin for access.
-        </div>
-      ) : (
-        <>
-          {eventsData.events.length > SEARCH_THRESHOLD && (
-            <div style={{ padding: '0 12px 6px' }}>
-              <input
-                value={query}
-                onChange={e => setQuery(e.target.value)}
-                placeholder="Search events…"
-                style={{
-                  width: '100%', fontSize: '12px', padding: '6px 9px', borderRadius: '7px', boxSizing: 'border-box',
-                  border: '1px solid var(--border-light)', background: 'var(--card)', color: 'var(--ink)', fontFamily: 'inherit',
-                }}
-              />
-            </div>
-          )}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
-            {eventsData.events
-              .filter(ev => !query || ev.name.toLowerCase().includes(query.toLowerCase()))
-              .map(ev => {
-                const isOpen = openEventId === ev.id || pathname.startsWith(`/admin/events/${ev.id}`)
-                const tools = ev.toolKeys
-                  .map(k => toolDefByKey.get(k))
-                  .filter((m): m is NonNullable<typeof m> => !!m)
-                  .sort((a, b) => (a.sidebar?.order ?? 999) - (b.sidebar?.order ?? 999))
-
-                return (
-                  <div key={ev.id}>
-                    <button
-                      onClick={() => setOpenEventId(isOpen ? null : ev.id)}
-                      style={{
-                        width: '100%', display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 12px',
-                        border: 'none', background: 'transparent', cursor: 'pointer', fontFamily: 'inherit', textAlign: 'left',
-                      }}
-                    >
-                      <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="var(--ink4)" strokeWidth="3" strokeLinecap="round"
-                        style={{ flexShrink: 0, transform: isOpen ? 'rotate(90deg)' : 'none', transition: 'transform .12s' }}>
-                        <polyline points="9 6 15 12 9 18" />
-                      </svg>
-                      <span style={{
-                        fontSize: '13px', fontWeight: isOpen ? 800 : 600, color: isOpen ? 'var(--ink)' : 'var(--ink3)',
-                        overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-                      }}>
-                        {ev.name}
-                      </span>
-                    </button>
-                    {isOpen && (
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', paddingLeft: '22px', marginBottom: '2px' }}>
-                        {tools.map(mod => {
-                          const href = typeof mod.href === 'function' ? mod.href({ eventId: ev.id }) : mod.href
-                          const base = href.split('?')[0]
-                          const active = pathname === base || pathname.startsWith(base + '/')
-                          const label = mod.sidebar?.label ?? mod.label
-                          return (
-                            <Link
-                              key={mod.key}
-                              href={href}
-                              style={{
-                                display: 'flex', alignItems: 'center', padding: '7px 10px', borderRadius: '7px',
-                                textDecoration: 'none', fontSize: '12.5px', fontWeight: active ? 800 : 600,
-                                color: active ? mod.color : 'var(--ink3)', background: active ? `${mod.color}12` : 'transparent',
-                                overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-                              }}
-                            >
-                              {label}
-                            </Link>
-                          )
-                        })}
-                      </div>
-                    )}
-                  </div>
-                )
-              })}
-          </div>
-        </>
-      )}
+      <Link
+        href={EVENTS_HREF}
+        title={collapsedRail ? 'My Events' : undefined}
+        style={{
+          display: 'flex', alignItems: 'center', gap: '10px', padding: '9px 12px',
+          borderRadius: '8px', textDecoration: 'none', position: 'relative',
+          fontSize: '13.5px', fontWeight: active ? 800 : 600,
+          color: active ? EVENTS_COLOR : 'var(--ink3)',
+          background: active ? 'var(--amber-light)' : 'transparent',
+          whiteSpace: 'nowrap', overflow: 'hidden',
+        }}
+      >
+        {active && (
+          <span style={{ position: 'absolute', left: 0, top: '8px', bottom: '8px', width: '3px', borderRadius: '0 3px 3px 0', background: EVENTS_COLOR }} />
+        )}
+        <span style={{ width: '20px', height: '20px', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, color: active ? EVENTS_COLOR : 'var(--ink3)' }}>
+          <CalendarIcon />
+        </span>
+        {!collapsedRail && <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>My Events</span>}
+      </Link>
     </div>
   )
 }
