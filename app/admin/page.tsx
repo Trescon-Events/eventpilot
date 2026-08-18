@@ -900,12 +900,6 @@ function AdminPageInner() {
     : tasks.filter(t => (memberIndex[t.staff_id]?.department ?? 'Other') === readinessDeptFilter)
   const deptReadinessList = rdFilteredTasks.flatMap(t => t.responses ?? []).filter(r => r.ai_readiness).map(r => r.ai_readiness!)
 
-  const filteredTasks = tasks.filter(t => {
-    const m = memberIndex[t.staff_id]
-    return (officeFilter === 'all' || m?.office_id === officeFilter) &&
-      (deptFilter === 'all' || (m?.department ?? 'Other') === deptFilter)
-  })
-
   const getOffice = (id: string) => OFFICES.find(o => o.id === id)
 
   /* ── AI Readiness breakdown (filtered by readinessDeptFilter) ── */
@@ -976,42 +970,6 @@ function AdminPageInner() {
     'Other':                { priority: 'Medium',   color: '#F1667A', why: 'Assess after more data' },
   }
 
-  // AIRS calculation per entity (dept/office/person)
-  function calcAIRS(params: {
-    readinessScores: number[]   // self-reported 1–5
-    allTools: string[]          // all tool mentions (with duplicates)
-    interviewed: number         // members who completed interview
-    totalJoinedForGroup: number // members who joined
-  }) {
-    const { readinessScores, allTools, interviewed, totalJoinedForGroup } = params
-
-    // ① AI Fluency (0–40)
-    const fluency = readinessScores.length
-      ? (readinessScores.reduce((a, b) => a + b, 0) / readinessScores.length / 5) * 40
-      : 0
-
-    // ② Digital Maturity (0–35)
-    // Ratio of advanced tool usage vs total — avoids rewarding sheer volume
-    const aiMentions     = allTools.filter(t => AI_TOOLS.has(t)).length
-    const modernMentions = allTools.filter(t => MODERN_SAAS.has(t)).length
-    const total          = allTools.length || 1
-    const maturityRatio  = (aiMentions * 3 + modernMentions * 1.5) / total
-    const maturity       = Math.min(35, maturityRatio * 35 * 3) // scale up (events co. typically < 0.3)
-
-    // ③ Engagement Rate (0–25)
-    const engagement = totalJoinedForGroup > 0
-      ? (interviewed / totalJoinedForGroup) * 25
-      : 0
-
-    const total_score = Math.round(fluency + maturity + engagement)
-    return {
-      score:    Math.min(100, total_score),
-      fluency:  Math.round(fluency),
-      maturity: Math.round(maturity),
-      engagement: Math.round(engagement),
-    }
-  }
-
   // AIRS tier label + color
   function airsTier(score: number) {
     if (score >= 75) return { label: 'AI-Forward',  color: '#34D399', desc: 'Deploy automations now' }
@@ -1060,10 +1018,6 @@ function AdminPageInner() {
 
   // ── Org-level AIRS (average of all assessed individual scores) ──
   const allAssessedScores = members.filter(m => m.profile_complete).map(m => memberTairs[m.id]?.score ?? 0)
-  const orgScore = allAssessedScores.length > 0
-    ? Math.round(allAssessedScores.reduce((a, b) => a + b, 0) / allAssessedScores.length)
-    : 0
-  const orgTier = airsTier(orgScore)
 
   const topIndividuals = members
     .filter(m => m.profile_complete)
@@ -1076,10 +1030,6 @@ function AdminPageInner() {
   const assessedAvg     = assessedScores.length > 0 ? Math.round(assessedScores.reduce((a, b) => a + b, 0) / assessedScores.length) : 0
   const assessedTier    = airsTier(assessedAvg)
   const participationPct = totalJoined > 0 ? Math.round(profilesComplete / totalJoined * 100) : 0
-
-  // Legacy compat for existing readiness dist block
-  const deptScores   = sortedDeptAirs.map(d => ({ dept: d.dept, avg: d.score / 20, count: d.interviewed }))
-  const officeScores = officeAirs.map(o => ({ ...o, avg: o.score / 20 }))
 
   /* ── AI-generated response detector ──
      Flags answers that pattern-match AI writing rather than human speech.
