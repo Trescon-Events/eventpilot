@@ -1,36 +1,35 @@
 /*
-  Stakeholder Announcement Engine access gate. Middleware treats this as a
-  "tool route" (authenticated-only, see middleware.ts's isToolRoute); this
-  layout enforces the actual access rule server-side before any page HTML
-  renders — platform admin, a granted 'sae' module_access tier (the
-  legacy global grant), OR any 'sae.*' permission from the per-event RBAC
-  system. The nested /admin console route has its own additional layout
-  requiring sae.admin.access specifically.
+  Gate for everything still nested under /creative-templates — the retired
+  workspace redirect itself, plus Queue and Admin Console (Admin Console
+  layers its own additional sae.admin.access check on top). Platform admin,
+  OR an explicit 'sae.stakeholders.view' grant for this event — same rule
+  the Stakeholder Hub's own layout uses, since these are now reached only
+  from inside the Hub and shouldn't be visible to anyone who can't see the
+  Hub itself.
 
-  2026-08-17: added the RBAC branch. This was the one module in the
-  2026-08-16 rollout (see sibling website/brand/market-intel layouts) left
-  checking only the legacy system — real per-event RBAC grants (e.g. the
-  Producer/Branding/Marketing Manager roles, which all hold sae.* keys)
-  were invisible to it, so anyone granted access only through the new
-  Access & Permissions UI hit "Request Access" here even though they had
-  real, resolved permissions. Additive: the legacy checkAccess() branch is
-  left in place so nobody who only holds the old grant loses access.
+  2026-08-18 (SAE-into-Hub merge, commit 6): replaced a dead branch here —
+  `checkAccess(mod.access, session)` was called with no `eventId` in its
+  ctx, so its 'event_permission' case's `if (!ctx?.eventId) return false`
+  always fired and that check always evaluated false. The comment above it
+  claimed it covered a "legacy module_access tier" grant, but it never
+  actually did; the real gate was always just hasAnyModulePermission(...,
+  'sae') below it. Also narrowed from "any sae.* permission" to
+  'sae.stakeholders.view' specifically, per the same reasoning as above —
+  verified against production first (see commit message) that every
+  current sae.* grant already includes this key, so nobody loses access.
 */
 
 import { redirect } from 'next/navigation'
-import { checkAccess, getServerSession } from '@/app/lib/registry/access'
-import { getModuleRegistry } from '@/app/lib/registry/modules'
-import { hasAnyModulePermission } from '@/app/lib/access/event-access'
+import { getServerSession } from '@/app/lib/registry/access'
+import { hasEventPermission } from '@/app/lib/access/event-access'
 
 export default async function CreativeTemplatesLayout({ children, params }: { children: React.ReactNode; params: Promise<{ id: string }> }) {
   const session = await getServerSession()
   if (!session) redirect('/login')
   const { id: eventId } = await params
 
-  const mod = getModuleRegistry().find(m => m.key === 'admin-event-creative-templates')!
-  const legacyOk = await checkAccess(mod.access, session)
-  const rbacOk = legacyOk || (await hasAnyModulePermission(session.sid, eventId, 'sae'))
-  if (!rbacOk) redirect('/no-access?tool=sae')
+  const ok = !!session.adm || await hasEventPermission(session.sid, eventId, 'sae.stakeholders.view')
+  if (!ok) redirect('/no-access?tool=sae')
 
   return <>{children}</>
 }

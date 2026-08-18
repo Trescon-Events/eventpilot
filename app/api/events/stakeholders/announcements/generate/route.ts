@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/app/lib/supabase'
+import { getSession } from '@/app/lib/access/session'
+import { hasEventPermission } from '@/app/lib/access/event-access'
 import { uploadPublicAsset } from '@/app/lib/events/storage'
 import { compositeAnnouncement } from '@/app/lib/announcements/composite'
 import { generatePostCopy, generateSelfPromoPostCopy, buildCompositeInputs, type CreativeTemplateConfig, type NeededAsset } from '@/app/lib/events/announcements'
@@ -35,6 +37,18 @@ export async function POST(req: NextRequest) {
   const body = await req.json().catch(() => null) as GenerateBody | null
   if (!body?.event_id || !body?.stakeholder_type) {
     return NextResponse.json({ error: 'event_id, stakeholder_type required' }, { status: 400 })
+  }
+
+  // 2026-08-18 (SAE-into-Hub merge, commit 6): sae.announcements.generate
+  // was registered as a permission but never actually checked anywhere —
+  // the Create button was the only thing standing between an authenticated
+  // staffer and generating an announcement for any event. Same
+  // getSession(req)/hasEventPermission pattern as checkCanPublish in
+  // postiz-publish.ts.
+  const session = getSession(req)
+  const canGenerate = session?.adm || await hasEventPermission(session?.sid, body.event_id, 'sae.announcements.generate')
+  if (!canGenerate) {
+    return NextResponse.json({ error: 'You do not have permission to generate announcements for this event' }, { status: 403 })
   }
   if (body.stakeholder_type === 'speaker' && !body.speaker_id) {
     return NextResponse.json({ error: 'speaker_id required for stakeholder_type speaker' }, { status: 400 })

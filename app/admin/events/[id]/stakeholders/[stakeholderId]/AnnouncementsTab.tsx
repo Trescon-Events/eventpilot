@@ -122,12 +122,14 @@ export default function AnnouncementsTab({
         <div style={{ fontSize: '10.5px', fontWeight: 800, color: 'var(--ink3)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
           Announcements ({items.length})
         </div>
-        <Button variant="solid" onClick={() => setShowCreateModal(true)}>+ Create New</Button>
+        {can('sae.announcements.generate') && (
+          <Button variant="solid" onClick={() => setShowCreateModal(true)}>+ Create New</Button>
+        )}
       </div>
 
       {items.length === 0 ? (
         <div style={{ color: 'var(--ink3)', fontSize: '13px', textAlign: 'center', padding: '48px 0' }}>
-          No announcements yet — click <strong>+ Create New</strong> above.
+          {can('sae.announcements.generate') ? <>No announcements yet — click <strong>+ Create New</strong> above.</> : 'No announcements yet.'}
         </div>
       ) : (
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: '12px', marginBottom: '24px' }}>
