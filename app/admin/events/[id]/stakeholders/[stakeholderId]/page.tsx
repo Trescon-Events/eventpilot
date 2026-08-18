@@ -313,7 +313,9 @@ export default function StakeholderReviewPage({ params }: { params: Promise<{ id
 
   async function generateWebsitePhoto() {
     setGeneratingWebsitePhoto(true)
-    setProcessing({ label: 'Generating website photo…', estimatedMs: 9000 })
+    // 2026-08-18: real editWithAI + segmentation calls have taken 30-90s in
+    // testing (PhotoRoom's own model latency) — see website-photo-engine.ts.
+    setProcessing({ label: 'Generating website photo… (can take up to a minute)', estimatedMs: 35000 })
     setMsg(null)
     const res = await fetch('/api/events/stakeholders/speakers/website-photo/generate', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },

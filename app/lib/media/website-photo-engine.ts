@@ -19,6 +19,22 @@
 // for PhotoRoom's AI background generation would be buying something we
 // don't need. Per PhotoRoom's own docs, 1 Editing-API call ≈ 5 Remove-
 // Background-API credits — worth knowing before regenerate becomes a habit.
+//
+// segmentation.prompt/referenceBox (2026-08-18, real bug caught in testing
+// against WAIS Malaysia data): without these, PhotoRoom crops tightly
+// around whatever's IN the cutout, which for a half-body source photo
+// means a half-body result — padding alone only adds margin around
+// whatever it decides "the subject" is, it doesn't decide to frame just
+// the head+shoulders on its own. Constraining segmentation to "head,
+// shoulders" with referenceBox: subjectBox (PhotoRoom's own documented
+// pattern for a fixed head+shoulders crop) fixes this regardless of how
+// much of the body the source photo shows — confirmed against the same
+// real speaker cutout that produced the bad wide crop.
+//
+// Slow — real calls with editWithAI + segmentation combined have taken
+// 30-90s in testing (PhotoRoom's own model latency, not our network) — not
+// a bug, just genuinely slower than the plain segment-only call. Callers
+// should not assume this returns quickly.
 export class WebsitePhotoEditError extends Error {
   status: number
   constructor(message: string, status = 502) {
@@ -40,6 +56,8 @@ export async function applyWebsitePhotoLighting(
   form.append('keepExistingAlphaChannel', 'auto')
   form.append('editWithAI.prompt', opts.prompt)
   form.append('editWithAI.mode', 'ai.auto')
+  form.append('segmentation.prompt', 'head, shoulders')
+  form.append('referenceBox', 'subjectBox')
   form.append('outputSize', `${opts.outputWidth}x${opts.outputHeight}`)
   form.append('padding', String(opts.padding))
 
