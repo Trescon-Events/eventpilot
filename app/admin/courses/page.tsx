@@ -527,6 +527,8 @@ export default function CoursesPage() {
       {/* Page header */}
       <PageHeader
         title="Course Builder"
+        backHref="/admin?tab=ai-learning"
+        backLabel="AI Learning"
         actions={drafts.length > 0 ? (
           <div style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '5px 12px', borderRadius: '20px', background: 'rgba(217,119,6,0.12)', border: '1px solid rgba(217,119,6,0.3)' }}>
             <div style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#F5B94D' }} />
