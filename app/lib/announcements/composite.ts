@@ -19,6 +19,7 @@ import { alignAndCropPhoto, type PhotoAlignmentMeta, type HeadBox } from '@/app/
 import { wrapAndFit } from '@/app/lib/announcements/text-layout'
 import { withTextLayerDefaults } from '@/app/lib/announcements/text-layer-defaults'
 import { fetchAssetBuffer } from '@/app/lib/announcements/asset-buffer-cache'
+import type { LightingEffect } from '@/app/lib/media/deterministic-lighting'
 
 export { withTextLayerDefaults, type LegacyTextLayer } from '@/app/lib/announcements/text-layer-defaults'
 
@@ -160,11 +161,19 @@ export type Variant = {
   // creative. Its photo_slot layer needs `alignment` set exactly like a
   // Promo variant's (same "Upload Reference Layer" flow) — the crop uses
   // that known head position via alignAndCropPhoto, same as any other
-  // photo_slot layer; PhotoRoom (website-photo-engine.ts) is only ever
-  // asked to relight the already-cropped result, never to guess the crop
-  // itself. So this category's generate path is a separate route (not the
-  // announcements generate route), but reuses this same crop mechanism.
+  // photo_slot layer. Lighting is NOT PhotoRoom/AI for this category (see
+  // lighting_effect below and deterministic-lighting.ts) — this category's
+  // generate path is a separate route (not the announcements generate
+  // route), but reuses this same crop mechanism.
   category?: 'promo' | 'self_promo' | 'website_photo'
+  // Only meaningful for category: 'website_photo' (2026-08-18, replaces an
+  // earlier PhotoRoom editWithAI prompt approach — see
+  // deterministic-lighting.ts's doc comment for why: a generative model
+  // can't guarantee the photo-for-photo consistency this needs since it's
+  // used publicly across every speaker). A deterministic rim-light + key-
+  // light effect, computed in code from this config — same input always
+  // produces the same output, no AI variance.
+  lighting_effect?: LightingEffect
 }
 
 // A reusable, named PhotoRoom editWithAI prompt (2026-08-18) — kept

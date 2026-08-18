@@ -4,7 +4,7 @@ import sharp from 'sharp'
 import { compositeAnnouncement, analyzeTextLayers, type Variant, type ImageLayer, type PhotoSlotLayer, type ResolvedAssets, type CreativeTemplateConfig } from '@/app/lib/announcements/composite'
 import { fetchAssetBuffer } from '@/app/lib/announcements/asset-buffer-cache'
 import { alignAndCropPhoto, type HeadBox } from '@/app/lib/media/face-alignment'
-import { applyWebsitePhotoLighting } from '@/app/lib/media/website-photo-engine'
+import { applyDeterministicLighting } from '@/app/lib/media/deterministic-lighting'
 
 /* POST /api/events/templates/preview
    Body: { stakeholder_type, variant (draft, unsaved), speaker_id?, partner_id? }
@@ -45,33 +45,22 @@ import { applyWebsitePhotoLighting } from '@/app/lib/media/website-photo-engine'
    layer with alignment set — the asset loop below already resolves the
    right head_box for either a real selected speaker or, with no speaker
    selected, the layer's own reference_head_box from "Upload Reference
-   Layer"), then that already-correctly-framed crop is run through
-   PhotoRoom's editWithAI (website-photo-engine.ts) — together with the
-   variant's own background Image layer, sent as background.imageFile —
-   using the event's SAVED ai_edit_prompts entry, so this is the one place
-   a branding team member can actually see what their prompt produces
-   without touching a real speaker's website_card_url, and it works
-   against either a real speaker OR the placeholder reference photo. When
-   this succeeds, PhotoRoom's own output IS the final image — the usual
-   compositeAnnouncement() background step is SKIPPED for this category
-   (confirmed same-day: local compositing can't reproduce PhotoRoom
-   blending a glow into the real background pixels, and trying to keep the
-   cutout transparent for local compositing doesn't work at all for a
-   backlight/rim-glow prompt — see website-photo-engine.ts's doc comment).
-   This is genuinely NOT free when it runs against a real photo — same
-   PhotoRoom credit cost as a real generate, per click — there's no way
-   around that if the point is showing real output; what this does save is
-   the round-trip to a speaker's own page and back, and not writing to
-   production data while iterating. Requires the prompt to already be
-   SAVED in the AI Edit Prompts tab (not the current unsaved textarea
-   value) — those two tabs are deliberately independent client state (see
-   AiEditPromptsPanel), and threading a live cross-tab draft here wasn't
-   worth the complexity for a "save, then preview" loop that's still just
-   two clicks. No alignment set on the layer yet, no prompt saved yet, or
-   PhotoRoom errors: falls back to compositeAnnouncement() placing the
-   plain (still correctly cropped, when alignment exists) cutout onto the
-   background locally, with `lighting_applied: false` and a
-   `lighting_error` explaining why. */
+   Layer"), then composited with a DETERMINISTIC rim-light + key-light
+   effect (deterministic-lighting.ts), not PhotoRoom/AI — see that file's
+   doc comment for the full reasoning: these photos are used publicly
+   across every speaker and "must all look the same," which a generative
+   model can't guarantee no matter how the prompt is worded (proven two
+   separate, compounding ways during the investigation this replaced).
+   When this succeeds, its output IS the final image — the usual
+   compositeAnnouncement() background step is SKIPPED for this category,
+   since the deterministic effect already composited onto the real
+   background itself. This is free and instant (no AI credit, no network
+   call) unlike the approach it replaced, so there's no real cost concern
+   to iterating here. No alignment set on the layer yet, or no background
+   Image layer configured yet: falls back to compositeAnnouncement()
+   placing the plain (still correctly cropped, when alignment exists)
+   cutout onto the background locally, with `lighting_applied: false` and
+   a `lighting_error` explaining why. */
 
 const PLACEHOLDER_TEXT = { name: 'Jane Doe', title: 'Chief Officer', company: 'Acme Corp', tier: 'LEAD SPONSOR' }
 const PLACEHOLDER_COLOR = { r: 140, g: 140, b: 150, alpha: 1 }
@@ -161,29 +150,30 @@ export async function POST(req: NextRequest) {
           { ...photoLayer.alignment, box: { x: 0, y: 0, width: body.variant.canvas_width, height: body.variant.canvas_height } },
           assets.speaker_photo.head_box
         )
-        // Cropped already — if lighting fails below and we fall back to
-        // compositeAnnouncement(), it should just place this, not crop it
-        // again, so strip alignment from a copy of the layer used only for
-        // that fallback render.
+        // Cropped already — if we fall back to compositeAnnouncement()
+        // below (no background layer yet), it should just place this, not
+        // crop it again, so strip alignment from a copy of the layer used
+        // only for that fallback render.
         renderVariant = { ...body.variant, layers: body.variant.layers.map(l => l.id === photoLayer.id ? { ...l, alignment: undefined } : l) }
         assets.speaker_photo = { ...assets.speaker_photo, buffer: cropped }
 
-        const prompt = config?.ai_edit_prompts?.find(p => p.module_key === 'speaker_website_photo')?.prompt
-        if (!prompt) {
-          lightingError = 'No saved prompt assigned to "Speaker Web Pic" in AI Edit Prompts yet — showing the plain crop.'
+        const backgroundLayer = body.variant.layers.find((l): l is ImageLayer => l.type === 'image')
+        const backgroundBuffer = backgroundLayer?.asset_url ? await fetchAssetBuffer(backgroundLayer.asset_url) : null
+        if (!backgroundBuffer) {
+          lightingError = 'No background image set on the Image layer yet — showing the plain crop.'
         } else {
-          const backgroundLayer = body.variant.layers.find((l): l is ImageLayer => l.type === 'image')
-          const backgroundBuffer = backgroundLayer?.asset_url ? await fetchAssetBuffer(backgroundLayer.asset_url) : null
-          websitePhotoFinalBuffer = await applyWebsitePhotoLighting(cropped, {
-            prompt,
-            outputWidth: body.variant.canvas_width,
-            outputHeight: body.variant.canvas_height,
-            backgroundBuffer,
+          websitePhotoFinalBuffer = await applyDeterministicLighting(cropped, backgroundBuffer, {
+            canvasWidth: body.variant.canvas_width,
+            canvasHeight: body.variant.canvas_height,
+            headCenterXRatio: photoLayer.alignment.target_head_center_x,
+            headCenterYRatio: photoLayer.alignment.target_head_center_y,
+            headHeightRatio: photoLayer.alignment.target_head_height,
+            effect: body.variant.lighting_effect,
           })
           lightingApplied = true
         }
       } catch (e) {
-        lightingError = e instanceof Error ? e.message : 'PhotoRoom lighting pass failed — showing the plain crop.'
+        lightingError = e instanceof Error ? e.message : 'Compositing the lighting effect failed — showing the plain crop.'
       }
     }
   }

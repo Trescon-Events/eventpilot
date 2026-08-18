@@ -313,9 +313,11 @@ export default function StakeholderReviewPage({ params }: { params: Promise<{ id
 
   async function generateWebsitePhoto() {
     setGeneratingWebsitePhoto(true)
-    // 2026-08-18: real editWithAI + segmentation calls have taken 30-90s in
-    // testing (PhotoRoom's own model latency) — see website-photo-engine.ts.
-    setProcessing({ label: 'Generating website photo… (can take up to a minute)', estimatedMs: 35000 })
+    // 2026-08-18: deterministic (crop + code-based lighting composite, no
+    // AI call) — see deterministic-lighting.ts. Fast; this estimate is just
+    // for the progress bar's pacing, not a real bottleneck like the
+    // PhotoRoom-based approach this replaced.
+    setProcessing({ label: 'Generating website photo…', estimatedMs: 2500 })
     setMsg(null)
     const res = await fetch('/api/events/stakeholders/speakers/website-photo/generate', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -521,11 +523,12 @@ export default function StakeholderReviewPage({ params }: { params: Promise<{ id
 
           {/* Website Photo (2026-08-18) — a separate, square, relit speaker
               card photo for the public Speakers page/KonfHub, generated
-              from the same Cleaned Photo above but not the same asset (see
-              website-photo-engine.ts). Speaker-only — partners have no
-              equivalent. Not gated on approval status, same as SAE's own
-              Create New: just the generate permission + having a cleaned
-              photo to start from. */}
+              from the same Cleaned Photo above but not the same asset
+              (deterministic crop + lighting composite, see
+              deterministic-lighting.ts — not PhotoRoom/AI). Speaker-only —
+              partners have no equivalent. Not gated on approval status,
+              same as SAE's own Create New: just the generate permission +
+              having a cleaned photo to start from. */}
           {kind === 'speaker' && (
             <Card padded>
               <div style={{ fontSize: '15px', fontWeight: 800, color: 'var(--ink)', marginBottom: '16px' }}>Website Photo</div>

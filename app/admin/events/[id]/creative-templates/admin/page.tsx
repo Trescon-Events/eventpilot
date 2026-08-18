@@ -71,7 +71,6 @@ function newLayer(type: Layer['type'], activeType: StakeholderKind, canvasWidth:
     ? { family_name: fontSuggestion.family_name, regular_url: fontSuggestion.regular_url, bold_url: fontSuggestion.bold_url, weights: fontSuggestion.weights }
     : undefined
   const font_weight: TextLayer['font_weight'] = fontSuggestion?.weight ?? 'normal'
-  // eslint-disable-next-line no-restricted-syntax -- font_color is composited-creative content data, not EventPilot UI theming; the color rule governs var(--token) styling, not this
   return { id, type: 'text', field, value: activeType === 'partner' ? 'LEAD SPONSOR' : undefined, x: 40, y: 40, width, height, max_lines: maxLines, font_size: fontSize, font_color: '#FFFFFF', font_family, font_weight, align: 'left' }
 }
 
@@ -604,8 +603,47 @@ export default function CreativeTemplatesAdminPage({ params }: { params: Promise
                         </label>
                       </div>
                       {activeVariant.category === 'website_photo' && (
-                        <div style={{ fontSize: '11px', color: 'var(--ink3)', marginBottom: '10px' }}>
-                          This variant should have exactly two layers: an <strong>Image</strong> layer for the background, and a <strong>Photo/Logo Slot</strong> (source: speaker photo) sized to the full canvas — set the slot up exactly like a Promo variant&apos;s: click <strong>Upload Reference Layer (auto-position)</strong> and adjust the head position. That known position is what gets cropped — PhotoRoom is only ever asked to relight, never to guess the crop. The lighting prompt is set in the <strong>AI Edit Prompts</strong> tab, assigned to &ldquo;Speaker Web Pic&rdquo; — write it to describe the SUBJECT&apos;s lighting only (e.g. a rim light, a key light), not the background: your Image layer&apos;s actual background is sent to PhotoRoom directly alongside the prompt and blended in for you, so describing a background in the prompt too is redundant at best and can fight the real one.
+                        <div style={{ marginBottom: '14px' }}>
+                          <div style={{ fontSize: '11px', color: 'var(--ink3)', marginBottom: '10px' }}>
+                            This variant should have exactly two layers: an <strong>Image</strong> layer for the background, and a <strong>Photo/Logo Slot</strong> (source: speaker photo) sized to the full canvas — set the slot up exactly like a Promo variant&apos;s: click <strong>Upload Reference Layer (auto-position)</strong> and adjust the head position. That known position is what gets cropped. The lighting effect below is computed deterministically in code, not by an AI — the exact same input always produces the exact same output, for every speaker, every time (required since these photos are used publicly).
+                          </div>
+                          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '12px', padding: '12px', borderRadius: '10px', border: '1px solid var(--border-light)', background: 'var(--surface)' }}>
+                            <label style={{ fontSize: '11px', color: 'var(--ink3)' }}>
+                              Rim Light Color
+                              <input type="color" value={activeVariant.lighting_effect?.rim_color ?? '#3CA0FF'}
+                                onChange={e => updateActiveVariant({ lighting_effect: { ...activeVariant.lighting_effect, rim_color: e.target.value } })}
+                                style={{ display: 'block', width: '100%', marginTop: '4px', height: '32px', border: '1px solid var(--border)', borderRadius: '6px', cursor: 'pointer', background: 'none' }} />
+                            </label>
+                            <label style={{ fontSize: '11px', color: 'var(--ink3)' }}>
+                              Rim Light Side
+                              <Select value={activeVariant.lighting_effect?.rim_side ?? 'left'}
+                                onChange={e => updateActiveVariant({ lighting_effect: { ...activeVariant.lighting_effect, rim_side: e.target.value as 'left' | 'right' } })}
+                                style={{ width: '100%', marginTop: '4px' }}>
+                                <option value="left">Left</option>
+                                <option value="right">Right</option>
+                              </Select>
+                            </label>
+                            <label style={{ fontSize: '11px', color: 'var(--ink3)' }}>
+                              Rim Light Intensity
+                              <Input type="number" min={0} max={1} step={0.1}
+                                value={activeVariant.lighting_effect?.rim_intensity ?? 1}
+                                onChange={e => updateActiveVariant({ lighting_effect: { ...activeVariant.lighting_effect, rim_intensity: Number(e.target.value) } })}
+                                style={{ width: '100%', marginTop: '4px' }} />
+                            </label>
+                            <label style={{ fontSize: '11px', color: 'var(--ink3)' }}>
+                              Key Light Color
+                              <input type="color" value={activeVariant.lighting_effect?.key_light_color ?? '#FFE1B4'}
+                                onChange={e => updateActiveVariant({ lighting_effect: { ...activeVariant.lighting_effect, key_light_color: e.target.value } })}
+                                style={{ display: 'block', width: '100%', marginTop: '4px', height: '32px', border: '1px solid var(--border)', borderRadius: '6px', cursor: 'pointer', background: 'none' }} />
+                            </label>
+                            <label style={{ fontSize: '11px', color: 'var(--ink3)' }}>
+                              Key Light Intensity
+                              <Input type="number" min={0} max={1} step={0.1}
+                                value={activeVariant.lighting_effect?.key_light_intensity ?? 1}
+                                onChange={e => updateActiveVariant({ lighting_effect: { ...activeVariant.lighting_effect, key_light_intensity: Number(e.target.value) } })}
+                                style={{ width: '100%', marginTop: '4px' }} />
+                            </label>
+                          </div>
                         </div>
                       )}
 
@@ -745,8 +783,8 @@ export default function CreativeTemplatesAdminPage({ params }: { params: Promise
                       color: lightingPreview.applied ? 'var(--teal-mid)' : 'var(--amber)',
                     }}>
                       {lightingPreview.applied
-                        ? '✓ Lighting prompt applied — this is real PhotoRoom output (used a credit).'
-                        : lightingPreview.error ?? 'Select a real speaker with a cleaned photo above to preview the lighting prompt.'}
+                        ? '✓ Lighting effect applied — this is the real, deterministic output (same every time).'
+                        : lightingPreview.error ?? 'Select a real speaker with a cleaned photo above to preview the lighting effect.'}
                     </div>
                   )}
                 </div>
