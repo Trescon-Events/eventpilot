@@ -7,7 +7,7 @@ on:
 
 jobs:
   summarize:
-    if: github.event.pull_request.user.login == 'khalifa-branding' || github.event.pull_request.user.login == 'tresconevents' # TEMP: testing, revert after
+    if: github.event.pull_request.user.login == 'khalifa-branding'
     runs-on: ubuntu-latest
     timeout-minutes: 5
     permissions:
