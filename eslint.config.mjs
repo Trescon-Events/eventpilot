@@ -43,6 +43,11 @@ const eslintConfig = defineConfig([
       "app/admin/ai-learning/MemberFilterRow.tsx",
       "app/admin/ai-learning/ReadinessSection.tsx",
       "app/admin/ai-learning/useReadinessData.ts",
+      // Moved from app/insights/page.tsx to app/admin/insights/page.tsx
+      // (2026-08-18, to inherit the real middleware admin gate) — the git
+      // rename makes line-scoped linting see this file's pre-existing
+      // color literals as "new," same as the AI Learning files above.
+      "app/admin/insights/page.tsx",
     ],
     rules: {
       "no-restricted-syntax": [
