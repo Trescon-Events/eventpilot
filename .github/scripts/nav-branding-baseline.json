@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-08-16",
+  "generatedAt": "2026-08-17",
   "registryMissing": [],
   "pageHeaderMissing": [
     "/admin/access-requests",
@@ -19,6 +19,8 @@
     "/admin/toolkit",
     "/admin/toolkit/corporate-marketing",
     "/admin/toolkit/corporate-marketing/deck",
-    "/admin/toolkit/corporate-marketing/statistics"
-  ]
+    "/admin/toolkit/corporate-marketing/statistics",
+    "/dashboard/course/[id]"
+  ],
+  "gateMissing": []
 }

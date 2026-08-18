@@ -71,6 +71,7 @@
   --card:          #142330;
   --card-hi:       #1B2C3B; /* hovered / active card, new this pass */
   --sidebar-bg:    #101C27; /* one step lighter than page bg, subtly distinct so persistent sidebars read as a separate plane */
+  --overlay-scrim: rgba(0,0,0,0.55); /* full-screen modal backdrop (Cmd+K palette, etc.) */
 
   /* Shadows — black-based shadows computed for a white page are nearly
      invisible on a dark one; deepened + a teal glow instead of a flat drop */

@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import type { ReactNode } from 'react'
 import Link from 'next/link'
+import { useSearchParams } from 'next/navigation'
 import { supabase } from '@/app/lib/supabase'
 import { buildQuestions, ALL_DEPARTMENTS } from '@/app/lib/questions'
 import type { Question } from '@/app/lib/questions'
@@ -237,6 +238,29 @@ export default function AdminPage() {
     const t = new URLSearchParams(window.location.search).get('tab') as AdminTab | null
     return t ?? 'overview'
   })
+  // The lazy initializer above only ever reads the URL once, on first
+  // mount — a client-side navigation to /admin?tab=X while already on
+  // /admin (e.g. from the persistent sidebar's Admin section deep-links,
+  // 2026-08-17) reuses this same component instance rather than
+  // remounting it, so without this fix the URL would change but the
+  // visible tab wouldn't. useSearchParams() is Next's reactive hook — it
+  // re-renders this component when the query string actually changes via
+  // real router navigation (a <Link>). Adjusting state DURING render
+  // (React's own documented pattern for "state that tracks a changed
+  // prop," not a useEffect) rather than reacting to it afterward — avoids
+  // an extra render pass, and this exact effect-based version was rejected
+  // by this repo's react-hooks/set-state-in-effect lint gate. Does not
+  // fire for syncAdminUrl()'s own window.history.replaceState calls below
+  // (a raw DOM API, outside the router Next/useSearchParams tracks) —
+  // harmless, since those already happen in the same tick as their own
+  // setTab() call.
+  const searchParams = useSearchParams()
+  const searchParamsTab = searchParams.get('tab') as AdminTab | null
+  const [lastSyncedTab, setLastSyncedTab] = useState(searchParamsTab)
+  if (searchParamsTab !== lastSyncedTab) {
+    setLastSyncedTab(searchParamsTab)
+    if (searchParamsTab) setTab(searchParamsTab)
+  }
 
   // Activity tracking state
   type ActiveUser = { staff_id: string; last_seen_at: string; ip: string | null; staff_members: { id: string; name: string; department: string | null; role: string | null; office_id: string; job_level: string } }

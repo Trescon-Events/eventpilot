@@ -3,6 +3,7 @@ import { cookies } from 'next/headers'
 import { supabaseAdmin } from '@/app/lib/supabase'
 import { hasModuleAccess } from '@/app/lib/access/module-access'
 import { hasToolGrant } from '@/app/lib/access/tool-grants'
+import { hasEventPermission, hasAnyModulePermission } from '@/app/lib/access/event-access'
 import type { TcsSession } from '@/app/lib/access/session'
 import { getModuleRegistry, type ModuleAccess, type ModuleDef } from './modules'
 
@@ -24,11 +25,32 @@ async function hasReports(staffId: string): Promise<boolean> {
   return (count ?? 0) > 0
 }
 
-export async function checkAccess(access: ModuleAccess, session: TcsSession): Promise<boolean> {
+export async function checkAccess(access: ModuleAccess, session: TcsSession, ctx?: { eventId?: string }): Promise<boolean> {
   const isAdmin = !!session.adm
   const roles = session.roles ?? []
 
   switch (access.kind) {
+    case 'event_permission':
+      // No eventId in context = not resolvable here (e.g. a surface
+      // listing keys with no event selected yet) — false, not a throw,
+      // since callers like getAccessibleModuleKeys() run this over the
+      // whole registry without per-entry context. Callers that DO have an
+      // eventId (the Events sidebar section, a page's own layout gate)
+      // pass ctx explicitly. Admin bypass lives inside hasEventPermission/
+      // hasAnyModulePermission themselves, not duplicated here.
+      if (!ctx?.eventId) return false
+      // A permissionKey ending '.*' means "any permission under this
+      // module prefix" (hasAnyModulePermission), not one exact leaf key
+      // (hasEventPermission) — lets a registry entry accurately describe a
+      // module-wide gate (e.g. SAE's outer workspace, real gate = legacy
+      // OR any sae.* RBAC permission) for sidebar-visibility purposes,
+      // without claiming the legacy half this kind can't express. Additive
+      // only — every existing event_permission entry uses an exact leaf
+      // key and is unaffected.
+      if (access.permissionKey.endsWith('.*')) {
+        return hasAnyModulePermission(session.sid, ctx.eventId, access.permissionKey.slice(0, -2))
+      }
+      return hasEventPermission(session.sid, ctx.eventId, access.permissionKey)
     case 'always':
       return true
     case 'admin_only': {
@@ -77,19 +99,26 @@ export async function getServerSession(): Promise<TcsSession | null> {
   }
 }
 
-/** For a given module key + effective access override (platformMenu/toolkitHub can override the base), resolve which ModuleAccess to check. */
-function effectiveAccess(mod: ModuleDef, surface?: 'platformMenu' | 'toolkitHub'): ModuleAccess {
+/** For a given module key + effective access override (platformMenu/toolkitHub can override the base), resolve which ModuleAccess to check.
+ *  'sidebar' has no per-surface override field (unlike platformMenu/toolkitHub) — the sidebar tag is placement-only, so it always falls through to the base access. */
+function effectiveAccess(mod: ModuleDef, surface?: 'platformMenu' | 'toolkitHub' | 'sidebar'): ModuleAccess {
   if (surface === 'platformMenu' && mod.platformMenu?.access) return mod.platformMenu.access
   if (surface === 'toolkitHub' && mod.toolkitHub?.access) return mod.toolkitHub.access
   return mod.access
 }
 
-/** Returns the set of module keys the given session can see, optionally scoped to one surface. */
-export async function getAccessibleModuleKeys(session: TcsSession | null, surface?: 'platformMenu' | 'toolkitHub'): Promise<string[]> {
+/** Returns the set of module keys the given session can see, optionally scoped to one surface.
+ *  `ctx.eventId`, when supplied, is threaded into checkAccess() for entries whose access kind needs it (event_permission) — omit for surfaces with no single event in scope (e.g. the sidebar's non-Events sections). */
+export async function getAccessibleModuleKeys(session: TcsSession | null, surface?: 'platformMenu' | 'toolkitHub' | 'sidebar', ctx?: { eventId?: string }): Promise<string[]> {
   if (!session) return []
-  const modules = getModuleRegistry().filter(m => !surface || (surface === 'platformMenu' ? !!m.platformMenu : !!m.toolkitHub))
+  const modules = getModuleRegistry().filter(m => {
+    if (!surface) return true
+    if (surface === 'platformMenu') return !!m.platformMenu
+    if (surface === 'toolkitHub') return !!m.toolkitHub
+    return !!m.sidebar
+  })
   const results = await Promise.all(
-    modules.map(async m => ({ key: m.key, ok: await checkAccess(effectiveAccess(m, surface), session) }))
+    modules.map(async m => ({ key: m.key, ok: await checkAccess(effectiveAccess(m, surface), session, ctx) }))
   )
   return results.filter(r => r.ok).map(r => r.key)
 }

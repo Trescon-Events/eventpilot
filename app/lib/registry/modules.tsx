@@ -33,6 +33,22 @@ export type ModuleAccess =
   | { kind: 'role_or_dept_or_admin'; roles: string[]; dept: string; grantKey?: string }  // e.g. finance role OR Finance dept OR admin
   | { kind: 'role_or_dept_not_admin'; roles: string[]; dept: string } // same, but admins see a separate Administration-section tile instead
   | { kind: 'has_reports_or_admin' }
+  | { kind: 'event_permission'; permissionKey: string }
+    // Per-event RBAC (event_access_assignments / access_role_permissions,
+    // see app/lib/access/event-access.ts). Requires an eventId at check
+    // time — checkAccess() callers that can't supply one (e.g. a surface
+    // resolving keys with no event in context) should treat this kind as
+    // "not resolvable there" rather than false. 2026-08-17: introduced so
+    // event-scoped tools have a path off the legacy tool_grant kind onto
+    // the same system that already gates the workspace hub and SAE — see
+    // that migration's own history in creative-templates/layout.tsx.
+    // Adopted per-tool, independently; a tool staying on 'tool_grant' for
+    // now is not a bug, just not yet migrated.
+    // permissionKey ending '.*' (e.g. 'sae.*') means "any permission under
+    // this module prefix" (checked via hasAnyModulePermission) rather than
+    // one exact leaf key (hasEventPermission) — use this for a module-wide
+    // gate whose real check is itself "any permission in this module,"
+    // not a single named permission.
   // `grantKey`, where present on admin_only / dept_or_admin / role_or_dept_or_admin,
   // is purely ADDITIVE — a tool_grants.<key> === true (or, once wired, a
   // module_access row) grants entry on TOP OF the existing role/dept/admin
@@ -41,6 +57,14 @@ export type ModuleAccess =
   // specific person access without changing their role or department.
 
 export type ModuleHrefCtx = { staffId?: string; eventId?: string }
+
+// Closed union, deliberately not `string` — only these five sections exist
+// in the new persistent sidebar as of 2026-08-17. Adding a 6th (e.g.
+// un-parking Finance once Staff Portal absorbs it) is a one-line type edit
+// that immediately makes every switch/case over SidebarSection fail to
+// typecheck until it's handled — that's the actual enforcement mechanism,
+// not a comment asking someone to remember.
+export type SidebarSection = 'home' | 'events' | 'pilots' | 'admin' | 'toolkit'
 
 type Feature = { icon: string; label: string; detail: string }
 
@@ -104,6 +128,26 @@ export type ModuleDef = {
    *  hop, used when the pattern's own path can't be prefix-matched to find
    *  one automatically. */
   breadcrumbParent?: string
+
+  /**
+   * Persistent sidebar placement (2026-08-17). Absent = does NOT render in
+   * the new sidebar — this is the entire "parked module" mechanism (HR
+   * Portal, Finance Portal, Timesheets, Commercial P&L, Smart Data, etc.
+   * simply never get this tag). Deliberately a SEPARATE field from
+   * breadcrumbParent, which answers "how did the user get to this page" —
+   * this answers "where does this entry's own tree node live," and the two
+   * can legitimately differ. `parent`, when set, must be another entry's
+   * `key` that itself carries a `sidebar` tag in the SAME section.
+   */
+  sidebar?: {
+    section: SidebarSection
+    parent?: string
+    order?: number
+    /** Sidebar-specific label/icon override — falls back to the top-level
+     *  fields when omitted, same convention as pageBadge above. */
+    label?: string
+    icon?: ReactNode
+  }
 }
 
 /* ── Shared icons (kept identical to PlatformMenu.tsx / NavBar.tsx) ── */
@@ -138,6 +182,7 @@ export function getModuleRegistry(): ModuleDef[] {
       href: ctx => ctx.staffId ? `/dashboard?id=${ctx.staffId}` : '/dashboard',
       access: { kind: 'always' },
       platformMenu: { section: 'Learning' },
+      sidebar: { section: 'home', order: 1, label: 'My Learning' },
     },
     {
       key: 'course-library', label: 'Course Library',
@@ -146,6 +191,7 @@ export function getModuleRegistry(): ModuleDef[] {
       href: ctx => ctx.staffId ? `/dashboard/library?id=${ctx.staffId}` : '/dashboard/library',
       access: { kind: 'always' },
       platformMenu: { section: 'Learning' },
+      sidebar: { section: 'home', order: 2 },
     },
     {
       key: 'ai-community', label: 'AI Community',
@@ -155,6 +201,7 @@ export function getModuleRegistry(): ModuleDef[] {
       href: ctx => ctx.staffId ? `/community?id=${ctx.staffId}` : '/community',
       access: { kind: 'always' },
       platformMenu: { section: 'Learning' },
+      sidebar: { section: 'home', order: 3 },
     },
     {
       key: 'pilot-ai', label: 'Talk to Pilot',
@@ -166,6 +213,7 @@ export function getModuleRegistry(): ModuleDef[] {
       // /chat's own nav badge (MOD_TRESCI) is a teal chat-bubble, not this
       // tile's purple bolt — a genuine pre-existing divergence, not a bug.
       pageBadge: { icon: I.message, color: '#00A5A3', label: 'Pilot AI' },
+      sidebar: { section: 'home', order: 5 },
     },
 
     /* ── Team & Organisation ── */
@@ -178,6 +226,7 @@ export function getModuleRegistry(): ModuleDef[] {
       platformMenu: { section: 'Team & Organisation' },
       // /my-hr's own nav badge uses MOD_PEOPLE (green), not this tile's pink.
       pageBadge: { color: '#5A9E00', label: 'People & Org' },
+      sidebar: { section: 'home', order: 7 },
     },
     {
       key: 'timesheets', label: 'Timesheets',
@@ -206,6 +255,7 @@ export function getModuleRegistry(): ModuleDef[] {
       platformMenu: { section: 'Team & Organisation' },
       // /team's own nav badge uses MOD_PEOPLE (green), not this tile's purple.
       pageBadge: { color: '#5A9E00', label: 'People & Org' },
+      sidebar: { section: 'home', order: 8 },
     },
     {
       key: 'hr', label: 'HR Portal',
@@ -288,6 +338,7 @@ export function getModuleRegistry(): ModuleDef[] {
       href: ctx => `/messages?id=${ctx.staffId ?? ''}`,
       access: { kind: 'always' },
       platformMenu: { section: 'Communication' },
+      sidebar: { section: 'home', order: 4 },
     },
 
     /* ── Data Intelligence ── */
@@ -339,6 +390,7 @@ export function getModuleRegistry(): ModuleDef[] {
       href: '/pilots',
       access: { kind: 'always' },
       platformMenu: { section: 'Pilot Projects' },
+      sidebar: { section: 'pilots', order: 1 },
     },
 
     /* ── Administration (PlatformMenu, admin-only) ── */
@@ -349,6 +401,7 @@ export function getModuleRegistry(): ModuleDef[] {
       href: '/admin/pilots',
       access: { kind: 'admin_only' },
       platformMenu: { section: 'Administration' },
+      sidebar: { section: 'pilots', order: 2, label: 'Manage Pilot Projects' },
     },
     {
       key: 'admin', label: 'Admin Dashboard',
@@ -365,6 +418,7 @@ export function getModuleRegistry(): ModuleDef[] {
         color: '#009D8D', label: 'Platform Admin',
         icon: <svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>,
       },
+      sidebar: { section: 'admin', order: 1, label: 'Overview' },
     },
     // The next three entries exist purely to give the breadcrumb resolver
     // (app/lib/nav/breadcrumbs.ts) an accurate parent chain for the Access
@@ -383,6 +437,25 @@ export function getModuleRegistry(): ModuleDef[] {
       href: '/admin?tab=people',
       access: { kind: 'admin_only' },
       breadcrumbParent: 'admin',
+      sidebar: { section: 'admin', parent: 'admin', order: 2 },
+    },
+    {
+      key: 'admin-review-queue', label: 'Review Queue',
+      description: 'Approve or reject AI-drafted courses from Learning Lab before they publish to the library. Super-admin only.',
+      icon: I.check, color: '#05A070',
+      href: '/admin?tab=review',
+      access: { kind: 'admin_only' },
+      breadcrumbParent: 'admin',
+      sidebar: { section: 'admin', parent: 'admin', order: 3 },
+    },
+    {
+      key: 'admin-security', label: 'Security',
+      description: "Login audit — today's logins/failures, currently-locked accounts, recent login activity. Super-admin only.",
+      icon: I.gear, color: '#E55F5F',
+      href: '/admin?tab=security',
+      access: { kind: 'admin_only' },
+      breadcrumbParent: 'admin',
+      sidebar: { section: 'admin', parent: 'admin', order: 4 },
     },
     {
       key: 'admin-access-center', label: 'Access & Permissions',
@@ -391,6 +464,7 @@ export function getModuleRegistry(): ModuleDef[] {
       href: '/admin/access-center',
       access: { kind: 'admin_only' },
       breadcrumbParent: 'admin-people',
+      sidebar: { section: 'admin', parent: 'admin', order: 5 },
     },
     {
       key: 'admin-org-wide-access', label: 'Organization-Wide Access',
@@ -415,6 +489,7 @@ export function getModuleRegistry(): ModuleDef[] {
       href: '/admin/branding/fonts',
       access: { kind: 'admin_only' },
       platformMenu: { section: 'Administration' },
+      sidebar: { section: 'admin', parent: 'admin', order: 6, label: 'Branding' },
     },
     {
       key: 'email-templates', label: 'Email Templates',
@@ -423,6 +498,7 @@ export function getModuleRegistry(): ModuleDef[] {
       href: '/admin/email-templates',
       access: { kind: 'admin_only' },
       platformMenu: { section: 'Administration' },
+      sidebar: { section: 'admin', parent: 'admin', order: 7 },
     },
     {
       key: 'form-templates', label: 'Form Templates',
@@ -431,6 +507,7 @@ export function getModuleRegistry(): ModuleDef[] {
       href: '/admin/form-templates',
       access: { kind: 'admin_only' },
       platformMenu: { section: 'Administration' },
+      sidebar: { section: 'admin', parent: 'admin', order: 8 },
     },
     {
       key: 'toolkit', label: 'Toolkit',
@@ -447,6 +524,7 @@ export function getModuleRegistry(): ModuleDef[] {
       href: '/admin/sites',
       access: { kind: 'admin_only' },
       platformMenu: { section: 'Administration' },
+      sidebar: { section: 'admin', parent: 'admin', order: 9, label: 'Site Builder Templates' },
     },
     {
       key: 'changelog', label: "What's Fixed",
@@ -455,6 +533,7 @@ export function getModuleRegistry(): ModuleDef[] {
       href: '/changelog',
       access: { kind: 'admin_only' },
       platformMenu: { section: 'Administration' },
+      sidebar: { section: 'admin', parent: 'admin', order: 10 },
     },
     {
       key: 'docs', label: 'Platform Docs',
@@ -463,6 +542,7 @@ export function getModuleRegistry(): ModuleDef[] {
       href: '/docs',
       access: { kind: 'admin_only' },
       platformMenu: { section: 'Administration' },
+      sidebar: { section: 'admin', parent: 'admin', order: 11 },
     },
 
     /* ── Toolkit-only: Knowledge ──
@@ -488,6 +568,7 @@ export function getModuleRegistry(): ModuleDef[] {
       // The page's own nav badge (formerly MOD_KNOWLEDGE) is grey, not the
       // tile's teal-blue — a genuine pre-existing divergence, preserved.
       pageBadge: { color: '#5591BE' },
+      sidebar: { section: 'toolkit', order: 1 },
       toolkitHub: {
         category: 'Knowledge', badge: 'Knowledge',
         description: 'Company knowledge base — policies, past event reports, and BD proposal intelligence, with a self-learning ingest pipeline and admin console for document review.',
@@ -506,6 +587,7 @@ export function getModuleRegistry(): ModuleDef[] {
       color: '#D97706',
       href: '/admin/toolkit/docuhub',
       access: { kind: 'tool_grant', grantKey: 'docuhub', moduleAccessKey: 'dochub' },
+      sidebar: { section: 'toolkit', order: 2 },
       toolkitHub: {
         category: 'Knowledge', badge: 'Knowledge',
         description: 'Upload and share post-event reports, proposals, and policies with a permanent link — with per-document access control and a full audit log.',
@@ -523,6 +605,7 @@ export function getModuleRegistry(): ModuleDef[] {
       icon: I.bolt, color: '#0899BC',
       href: '/admin/toolkit/knowledge-assistant',
       access: { kind: 'tool_grant', grantKey: 'knowledge_assistant', moduleAccessKey: 'knowledge-assistant' },
+      sidebar: { section: 'toolkit', order: 3 },
       toolkitHub: {
         category: 'Knowledge', badge: 'Knowledge',
         features: [
@@ -541,9 +624,21 @@ export function getModuleRegistry(): ModuleDef[] {
       href: ctx => `/admin/events/${ctx.eventId}/website`,
       needsEvent: true,
       breadcrumbPattern: '/admin/events/:eventId/website', breadcrumbParent: 'toolkit',
-      access: { kind: 'tool_grant', grantKey: 'website_builder', moduleAccessKey: 'website-builder' },
+      // 2026-08-17: was stale — website/layout.tsx's real gate is already
+      // hasEventPermission(..., 'website-builder.view') (2026-08-16 RBAC
+      // migration), but this registry entry still described the legacy
+      // tool_grant it used to check. Corrected to match the real gate —
+      // same drift class as the stakeholders/creative-templates-admin
+      // entries fixed alongside it.
+      access: { kind: 'event_permission', permissionKey: 'website-builder.view' },
+      sidebar: { section: 'events', parent: 'events' },
       toolkitHub: {
         category: 'Events', badge: 'Event Tool',
+        // Toolkit hub tile visibility has no single event in context, so it
+        // can't use the (per-event) base access above — explicit override
+        // preserves today's real event-agnostic check (does this person
+        // hold the legacy grant anywhere), unchanged behavior.
+        access: { kind: 'tool_grant', grantKey: 'website_builder', moduleAccessKey: 'website-builder' },
         features: [
           { icon: '◻', label: 'Drag-and-drop section builder', detail: 'Hero, stats, speakers, agenda, sponsors, media and more' },
           { icon: '◈', label: 'Brand system', detail: 'Logos, colour palette, fonts — applied across the whole site' },
@@ -561,9 +656,15 @@ export function getModuleRegistry(): ModuleDef[] {
       href: ctx => `/admin/events/${ctx.eventId}/market-intel`,
       needsEvent: true,
       breadcrumbPattern: '/admin/events/:eventId/market-intel', breadcrumbParent: 'toolkit',
-      access: { kind: 'tool_grant', grantKey: 'intelligence', moduleAccessKey: 'market-intel' },
+      // 2026-08-17: corrected to match market-intel/layout.tsx's real gate
+      // (hasEventPermission(..., 'market-intel.view'), 2026-08-16 RBAC
+      // migration) — same drift as website-builder above.
+      access: { kind: 'event_permission', permissionKey: 'market-intel.view' },
+      sidebar: { section: 'events', parent: 'events' },
       toolkitHub: {
         category: 'Events', badge: 'Event Tool',
+        // Event-agnostic override — see website-builder's identical comment above.
+        access: { kind: 'tool_grant', grantKey: 'intelligence', moduleAccessKey: 'market-intel' },
         features: [
           { icon: '◉', label: 'Competitor event analysis', detail: 'Understand what competing events are doing and where gaps exist' },
           { icon: '◈', label: 'Speaker discovery & scoring', detail: 'Find top voices in your sector ranked by relevance and reach' },
@@ -580,9 +681,15 @@ export function getModuleRegistry(): ModuleDef[] {
       href: ctx => `/admin/events/${ctx.eventId}/brand`,
       needsEvent: true,
       breadcrumbPattern: '/admin/events/:eventId/brand', breadcrumbParent: 'toolkit',
-      access: { kind: 'tool_grant', grantKey: 'brand_studio', moduleAccessKey: 'brand-studio' },
+      // 2026-08-17: corrected to match brand/layout.tsx's real gate
+      // (hasEventPermission(..., 'brand-studio.view'), 2026-08-16 RBAC
+      // migration) — same drift as website-builder above.
+      access: { kind: 'event_permission', permissionKey: 'brand-studio.view' },
+      sidebar: { section: 'events', parent: 'events' },
       toolkitHub: {
         category: 'Events', badge: 'Event Tool',
+        // Event-agnostic override — see website-builder's identical comment above.
+        access: { kind: 'tool_grant', grantKey: 'brand_studio', moduleAccessKey: 'brand-studio' },
         features: [
           { icon: '◈', label: 'AI brand extraction', detail: 'Upload a PDF — colours, fonts and key messages pulled automatically' },
           { icon: '▣', label: 'Imagen 3 asset generation', detail: 'Generate hero images, social banners and key visuals on-brand' },
@@ -646,6 +753,7 @@ export function getModuleRegistry(): ModuleDef[] {
       color: '#A78BFA',
       href: '/admin?tab=suggest',
       access: { kind: 'admin_only' },
+      sidebar: { section: 'toolkit', order: 4 },
       toolkitHub: {
         category: 'Academy', badge: 'Academy', access: { kind: 'tool_grant', grantKey: null },
         features: [
@@ -668,6 +776,7 @@ export function getModuleRegistry(): ModuleDef[] {
       // (TOOL_GRANT_KEY['course-manager'] = null excludes it from the
       // non-admin filter) — both preserved as admin_only, not a gap.
       access: { kind: 'admin_only' },
+      sidebar: { section: 'toolkit', order: 5 },
       toolkitHub: {
         category: 'Academy', badge: 'Academy', access: { kind: 'tool_grant', grantKey: null },
         features: [
@@ -778,13 +887,35 @@ export function getModuleRegistry(): ModuleDef[] {
       access: { kind: 'admin_only' },
     },
     {
+      // Sidebar section root / event switcher — the Events tree's actual
+      // per-user event list is data (getAccessibleEventIds / GET
+      // /api/events/access/my-events), not registry rows; this entry only
+      // holds the section's own framing (label/icon/order) and a fallback
+      // href. No platformMenu/toolkitHub tag — not surfaced anywhere but
+      // the new sidebar.
+      key: 'events', label: 'Events',
+      description: 'Event workspaces you have access to.',
+      icon: I.dashboard, color: '#009C89',
+      href: '/admin?tab=events',
+      access: { kind: 'always' },
+      sidebar: { section: 'events', order: 0 },
+    },
+    {
       key: 'admin-event-workspace', label: 'Event Workspace',
       description: 'Per-event workspace — checklist, details, and links into the event-scoped tools.',
       icon: I.dashboard, color: '#009C89',
       href: ctx => `/admin/events/${ctx.eventId}`,
       needsEvent: true,
       breadcrumbPattern: '/admin/events/:eventId', breadcrumbParent: 'admin',
+      // Real gate is app/admin/events/[id]/layout.tsx's hasAnyEventAccess
+      // (ANY role on this event, not one specific permission key) — doesn't
+      // fit event_permission's single-key shape, so left as admin_only here
+      // (a known under-representation for non-admins, not a regression —
+      // see the Stage 2 sidebar endpoint, which computes this section's
+      // real visibility directly via hasAnyEventAccess, not by reading this
+      // field). Same reasoning applies to plan/execution/brief below.
       access: { kind: 'admin_only' },
+      sidebar: { section: 'events', parent: 'events', order: 1, label: 'Overview' },
     },
     {
       key: 'admin-event-plan', label: 'Planning Board',
@@ -794,6 +925,7 @@ export function getModuleRegistry(): ModuleDef[] {
       needsEvent: true,
       breadcrumbPattern: '/admin/events/:eventId/plan', breadcrumbParent: 'admin-event-workspace',
       access: { kind: 'admin_only' },
+      sidebar: { section: 'events', parent: 'events', order: 2 },
     },
     {
       key: 'admin-event-execution', label: 'Execution Flow',
@@ -803,6 +935,7 @@ export function getModuleRegistry(): ModuleDef[] {
       needsEvent: true,
       breadcrumbPattern: '/admin/events/:eventId/execution', breadcrumbParent: 'admin-event-workspace',
       access: { kind: 'admin_only' },
+      sidebar: { section: 'events', parent: 'events', order: 3 },
     },
     {
       key: 'admin-event-brief', label: 'Event Brief',
@@ -812,6 +945,17 @@ export function getModuleRegistry(): ModuleDef[] {
       needsEvent: true,
       breadcrumbPattern: '/admin/events/:eventId/brief', breadcrumbParent: 'admin-event-workspace',
       access: { kind: 'admin_only' },
+      sidebar: { section: 'events', parent: 'events', order: 4 },
+    },
+    {
+      key: 'admin-event-details', label: 'Event Details',
+      description: 'Common Details (public name, dates/venue, socials) and the Messaging Doc — upload, draft review, chat-edit, and approve.',
+      icon: I.doc, color: '#009C89',
+      href: ctx => `/admin/events/${ctx.eventId}/details`,
+      needsEvent: true,
+      breadcrumbPattern: '/admin/events/:eventId/details', breadcrumbParent: 'admin-event-workspace',
+      access: { kind: 'admin_only' },
+      sidebar: { section: 'events', parent: 'events', order: 5 },
     },
     {
       key: 'admin-event-stakeholders', label: 'Stakeholder Hub',
@@ -820,7 +964,11 @@ export function getModuleRegistry(): ModuleDef[] {
       href: ctx => `/admin/events/${ctx.eventId}/stakeholders`,
       needsEvent: true,
       breadcrumbPattern: '/admin/events/:eventId/stakeholders', breadcrumbParent: 'admin-event-workspace',
-      access: { kind: 'admin_only' },
+      // 2026-08-17: corrected to match stakeholders/layout.tsx's real gate
+      // (hasEventPermission(..., 'sae.stakeholders.view')) — same drift
+      // class as website-builder/market-intel/brand-studio above.
+      access: { kind: 'event_permission', permissionKey: 'sae.stakeholders.view' },
+      sidebar: { section: 'events', parent: 'events', order: 6 },
     },
     {
       key: 'admin-event-access', label: 'Access',
@@ -829,7 +977,11 @@ export function getModuleRegistry(): ModuleDef[] {
       href: ctx => `/admin/events/${ctx.eventId}/access`,
       needsEvent: true,
       breadcrumbPattern: '/admin/events/:eventId/access', breadcrumbParent: 'admin-event-workspace',
+      // Genuinely admin_only — no RBAC path grants entry here (deliberate,
+      // this is the assignment-management page itself; middleware excludes
+      // it from the tool-route allowlist that fronts every other event page).
       access: { kind: 'admin_only' },
+      sidebar: { section: 'events', parent: 'events', order: 8 },
     },
     {
       key: 'admin-event-creative-templates', label: 'Stakeholder Announcement Engine',
@@ -838,11 +990,21 @@ export function getModuleRegistry(): ModuleDef[] {
       href: ctx => `/admin/events/${ctx.eventId}/creative-templates`,
       needsEvent: true,
       breadcrumbPattern: '/admin/events/:eventId/creative-templates', breadcrumbParent: 'toolkit',
-      // 'sae' module_access grants (Settings→Access-style, see the admin
-      // console entry below) are sufficient for entry at ANY tier — the
-      // stricter admin-tier requirement for actually editing variants lives
-      // on the separate admin-console module entry, not here.
-      access: { kind: 'admin_only', moduleAccessKey: 'sae' },
+      // Real gate (creative-templates/layout.tsx, 2026-08-17) is legacy
+      // module_access OR hasAnyModulePermission(..., 'sae') — this field
+      // describes only the RBAC half via event_permission's '.*' wildcard
+      // (hasAnyModulePermission), not the legacy OR-fallback (no
+      // ModuleAccess kind expresses "these two systems, OR'd together" —
+      // deliberately not adding one for a single entry). Practical effect:
+      // this SIDEBAR VISIBILITY field (the real page gate below is
+      // untouched and still honors both) may under-show for someone with
+      // ONLY a legacy grant and zero RBAC role — an accepted, shrinking
+      // edge case, not a regression (that person saw no SAE sidebar entry
+      // before this field existed either). Every real RBAC holder (the
+      // growing majority — SAE is the current real-usage priority) is
+      // accurately represented.
+      access: { kind: 'event_permission', permissionKey: 'sae.*' },
+      sidebar: { section: 'events', parent: 'events', order: 7 },
       toolkitHub: {
         category: 'Events', badge: 'Event Tool',
         access: { kind: 'tool_grant', grantKey: null, moduleAccessKey: 'sae' },
@@ -859,14 +1021,18 @@ export function getModuleRegistry(): ModuleDef[] {
       // link in the main workspace page's header above. Separate registry
       // entry purely so it gets its own breadcrumb + a STRICTER server-side
       // gate (admin-tier module_access, not just any tier) than the
-      // generation workspace.
+      // generation workspace. No `sidebar` tag — deliberately not its own
+      // tree node, same reasoning as its non-navigable Toolkit status.
       key: 'admin-event-creative-templates-admin', label: 'Admin Console',
       description: 'Branding-team console for the Stakeholder Announcement Engine — build and edit creative variants (layer stacks), manage who has access to this tool.',
       icon: I.layers, color: '#F0AB3C',
       href: ctx => `/admin/events/${ctx.eventId}/creative-templates/admin`,
       needsEvent: true,
       breadcrumbPattern: '/admin/events/:eventId/creative-templates/admin', breadcrumbParent: 'admin-event-creative-templates',
-      access: { kind: 'module_access', moduleKey: 'sae', minTier: 'admin' },
+      // 2026-08-17: corrected to match creative-templates/admin/layout.tsx's
+      // real gate (hasEventPermission(..., 'sae.admin.access')) — the old
+      // module_access-tier kind it described was stale.
+      access: { kind: 'event_permission', permissionKey: 'sae.admin.access' },
     },
     {
       key: 'leaderboard', label: 'Leaderboard',
@@ -875,6 +1041,7 @@ export function getModuleRegistry(): ModuleDef[] {
       color: '#00A5A3',
       href: '/leaderboard',
       access: { kind: 'always' },
+      sidebar: { section: 'home', order: 6 },
     },
   ]
 }

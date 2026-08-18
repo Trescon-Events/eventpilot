@@ -1,16 +1,21 @@
 'use client'
 
 import { usePathname } from 'next/navigation'
-import GlobalShell from '@/app/components/GlobalShell'
+import AppShellRoot from '@/app/components/nav/AppShellRoot'
 import { BreadcrumbLabelsProvider } from '@/app/lib/nav/breadcrumb-labels'
 
 /*
   Wraps every page in the root layout, deciding whether the persistent
-  global shell (logo/breadcrumb/quick-access/Help/Sound/Profile) should
-  render above it. Hidden on pages that are pre-auth or render their own
-  full-screen centered layout (login, join, password flows, the public
-  request-access screen, no-access, public event microsites) — everywhere
-  else gets the shell.
+  global shell (sidebar/breadcrumb/Help/Sound/Profile) should render around
+  it. Hidden on pages that are pre-auth or render their own full-screen
+  centered layout (login, join, password flows, the public request-access
+  screen, no-access, public event microsites) — everywhere else gets the
+  shell.
+
+  2026-08-17: AppShellRoot (persistent sidebar) replaces GlobalShell (top
+  nav bar) here — single cutover, see the nav rebuild plan. GlobalShell.tsx
+  itself is left in place as inert dead code until Stage 7 retires its
+  remaining callers.
 
   This list is deliberately broader than middleware.ts's PUBLIC_PREFIXES
   (which governs actual auth enforcement, untouched by this file) — e.g.
@@ -44,7 +49,7 @@ export default function AuthedShellGate({ children }: { children: React.ReactNod
   if (shouldHideShell(pathname)) return <>{children}</>
   return (
     <BreadcrumbLabelsProvider>
-      <GlobalShell>{children}</GlobalShell>
+      <AppShellRoot>{children}</AppShellRoot>
     </BreadcrumbLabelsProvider>
   )
 }

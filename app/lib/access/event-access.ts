@@ -63,6 +63,50 @@ export async function hasAnyModulePermission(
   return [...perms].some(p => p === modulePrefix || p.startsWith(`${modulePrefix}.`))
 }
 
+// Reverse of roleIdsFor()/hasEventPermission() — "which events can this
+// staffer see at all" (permissionKey omitted — powers the Events sidebar
+// switcher), or "which events can they use tool X on" (permissionKey set,
+// e.g. 'website-builder.view' — powers the Toolkit event picker's future
+// filtering). A NULL event_id row (org-wide/global grant) means "every
+// event, current and future" — represented as allEvents:true rather than
+// an exhaustive id list, since there is no fixed list to enumerate.
+// Callers must check allEvents before touching eventIds.
+export async function getAccessibleEventIds(
+  staffId: string | null | undefined,
+  permissionKey?: string
+): Promise<{ allEvents: boolean; eventIds: string[] }> {
+  if (!staffId) return { allEvents: false, eventIds: [] }
+  if (await isPlatformAdmin(staffId)) return { allEvents: true, eventIds: [] }
+
+  const { data } = await supabaseAdmin
+    .from('event_access_assignments')
+    .select('event_id, role_id')
+    .eq('staff_id', staffId)
+  const rows = data ?? []
+  if (rows.length === 0) return { allEvents: false, eventIds: [] }
+
+  // Unfiltered path — cheap, no permission expansion needed.
+  if (!permissionKey) {
+    if (rows.some(r => r.event_id === null)) return { allEvents: true, eventIds: [] }
+    return { allEvents: false, eventIds: [...new Set(rows.map(r => r.event_id).filter((id): id is string => id !== null))] }
+  }
+
+  // Filtered by a specific permission — expand role_ids once.
+  const roleIds = [...new Set(rows.map(r => r.role_id))]
+  const { data: permRows } = await supabaseAdmin
+    .from('access_role_permissions')
+    .select('role_id, permission_key')
+    .in('role_id', roleIds)
+  const keysByRole = new Map<string, string[]>()
+  for (const p of permRows ?? []) keysByRole.set(p.role_id, [...(keysByRole.get(p.role_id) ?? []), p.permission_key])
+  const satisfies = (roleId: string) => permissionSetSatisfies(keysByRole.get(roleId) ?? [], permissionKey)
+
+  if (rows.some(r => r.event_id === null && satisfies(r.role_id))) return { allEvents: true, eventIds: [] }
+  const eventIds = new Set<string>()
+  for (const r of rows) if (r.event_id && satisfies(r.role_id)) eventIds.add(r.event_id)
+  return { allEvents: false, eventIds: [...eventIds] }
+}
+
 export async function hasEventPermission(
   staffId: string | null | undefined,
   eventId: string,

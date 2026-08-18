@@ -8,12 +8,18 @@
   different people for many different reasons over time, so each opt-out
   needs to justify itself inline rather than relying on institutional memory.
 
-  Two independent checks, two independent exemption lists — a page can be
-  legitimately exempt from one and not the other:
+  Three independent checks, three independent exemption lists — a page can
+  be legitimately exempt from one and not the others:
   - REGISTRY_EXEMPT(_PREFIXES): page has no app/lib/registry/modules.tsx
     entry that resolves to it (no breadcrumb / no nav representation).
   - PAGEHEADER_EXEMPT(_PREFIXES): page doesn't render <PageHeader/> (e.g. a
     full-bleed builder canvas or a hub page with its own custom hero).
+  - GATE_EXEMPT(_PREFIXES): page resolves to an event_permission registry
+    entry but is intentionally gated outside this codebase's usual
+    hasEventPermission/hasAnyEventAccess/hasAnyModulePermission/
+    requireModuleAccess call pattern (2026-08-17) — e.g. a signed-token
+    external-approver flow with no EventPilot session to check permissions
+    against in the first place.
 
   Start empty. Do NOT pre-populate with today's non-conforming pages — those
   are tracked separately in scripts/nav-branding-baseline.json as a frozen,
@@ -35,6 +41,9 @@ export const PAGEHEADER_EXEMPT: NavExclusion[] = [
 ]
 export const PAGEHEADER_EXEMPT_PREFIXES: NavExclusionPrefix[] = []
 
+export const GATE_EXEMPT: NavExclusion[] = []
+export const GATE_EXEMPT_PREFIXES: NavExclusionPrefix[] = []
+
 function matches(pathname: string, exact: NavExclusion[], prefixes: NavExclusionPrefix[]): boolean {
   if (exact.some(e => e.path === pathname)) return true
   return prefixes.some(p => pathname === p.prefix || pathname.startsWith(p.prefix + '/'))
@@ -46,4 +55,8 @@ export function isRegistryExempt(pathname: string): boolean {
 
 export function isPageHeaderExempt(pathname: string): boolean {
   return matches(pathname, PAGEHEADER_EXEMPT, PAGEHEADER_EXEMPT_PREFIXES)
+}
+
+export function isGateExempt(pathname: string): boolean {
+  return matches(pathname, GATE_EXEMPT, GATE_EXEMPT_PREFIXES)
 }
