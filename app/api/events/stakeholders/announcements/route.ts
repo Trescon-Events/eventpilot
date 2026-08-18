@@ -1,14 +1,18 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/app/lib/supabase'
 
-/* GET /api/events/stakeholders/announcements?event_id=X&status=Y&month=YYYY-MM
-   Lists announcements for the social calendar (PRD SS6.11/9.7) and any
-   other "all announcements for this event" view. month filters on
-   scheduled_for falling within that calendar month. */
+/* GET /api/events/stakeholders/announcements?event_id=X&status=Y&month=YYYY-MM&speaker_id=Z&partner_id=Z
+   Lists announcements for the social calendar (PRD SS6.11/9.7), Queue, and
+   any other "announcements for this event" view. month filters on
+   scheduled_for falling within that calendar month. speaker_id/partner_id
+   scope to one stakeholder's announcements (the Stakeholder Hub detail
+   page's Announcements tab, 2026-08-18 SAE-into-Hub merge). */
 export async function GET(req: NextRequest) {
-  const eventId = req.nextUrl.searchParams.get('event_id')
-  const status  = req.nextUrl.searchParams.get('status')
-  const month   = req.nextUrl.searchParams.get('month') // YYYY-MM
+  const eventId   = req.nextUrl.searchParams.get('event_id')
+  const status    = req.nextUrl.searchParams.get('status')
+  const month     = req.nextUrl.searchParams.get('month') // YYYY-MM
+  const speakerId = req.nextUrl.searchParams.get('speaker_id')
+  const partnerId = req.nextUrl.searchParams.get('partner_id')
   if (!eventId) return NextResponse.json({ error: 'event_id required' }, { status: 400 })
 
   let q = supabaseAdmin
@@ -18,6 +22,8 @@ export async function GET(req: NextRequest) {
     .order('scheduled_for', { ascending: true, nullsFirst: false })
 
   if (status) q = q.eq('status', status)
+  if (speakerId) q = q.eq('speaker_id', speakerId)
+  if (partnerId) q = q.eq('partner_id', partnerId)
   if (month && /^\d{4}-\d{2}$/.test(month)) {
     const start = `${month}-01T00:00:00.000Z`
     const [y, m] = month.split('-').map(Number)

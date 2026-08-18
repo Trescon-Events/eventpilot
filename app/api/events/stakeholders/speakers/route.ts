@@ -57,7 +57,57 @@ export async function GET(req: NextRequest) {
 
   const { data, error } = await q
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-  return NextResponse.json((data ?? []).map(fromRow))
+
+  const announcementStatus = await fetchAnnouncementStatus((data ?? []).map(s => s.id))
+  return NextResponse.json((data ?? []).map(row => ({
+    ...fromRow(row),
+    has_announcement: announcementStatus.get(row.id)?.hasAnnouncement ?? false,
+    self_promo_sent: announcementStatus.get(row.id)?.selfPromoSent ?? false,
+  })))
+}
+
+/* Roster status columns (2026-08-18 SAE-into-Hub merge) — "Announced" and
+   "Self Promo Sent" aren't booleans on event_speakers itself: Announced =
+   at least one org_promo row in stakeholder_announcements; Self Promo Sent
+   = a stakeholder_announcement_sends row with status='sent' for one of
+   this speaker's self_promo announcements. Two batched queries for the
+   whole roster rather than N+1 per speaker. */
+async function fetchAnnouncementStatus(speakerIds: string[]): Promise<Map<string, { hasAnnouncement: boolean; selfPromoSent: boolean }>> {
+  const result = new Map<string, { hasAnnouncement: boolean; selfPromoSent: boolean }>()
+  if (speakerIds.length === 0) return result
+
+  const { data: announcements } = await supabaseAdmin
+    .from('stakeholder_announcements')
+    .select('id, speaker_id, announcement_kind')
+    .in('speaker_id', speakerIds)
+
+  const bySpeaker = new Map<string, { hasOrgPromo: boolean; selfPromoIds: string[] }>()
+  for (const a of announcements ?? []) {
+    if (!a.speaker_id) continue
+    const entry = bySpeaker.get(a.speaker_id) ?? { hasOrgPromo: false, selfPromoIds: [] }
+    if (a.announcement_kind === 'self_promo') entry.selfPromoIds.push(a.id)
+    else entry.hasOrgPromo = true
+    bySpeaker.set(a.speaker_id, entry)
+  }
+
+  const allSelfPromoIds = [...bySpeaker.values()].flatMap(e => e.selfPromoIds)
+  let sentAnnouncementIds = new Set<string>()
+  if (allSelfPromoIds.length > 0) {
+    const { data: sends } = await supabaseAdmin
+      .from('stakeholder_announcement_sends')
+      .select('announcement_id')
+      .in('announcement_id', allSelfPromoIds)
+      .eq('status', 'sent')
+    sentAnnouncementIds = new Set((sends ?? []).map(s => s.announcement_id))
+  }
+
+  for (const [speakerId, entry] of bySpeaker) {
+    result.set(speakerId, {
+      hasAnnouncement: entry.hasOrgPromo,
+      selfPromoSent: entry.selfPromoIds.some(id => sentAnnouncementIds.has(id)),
+    })
+  }
+  return result
 }
 
 export async function POST(req: NextRequest) {
