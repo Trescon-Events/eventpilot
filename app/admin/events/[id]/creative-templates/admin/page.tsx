@@ -110,6 +110,9 @@ export default function CreativeTemplatesAdminPage({ params }: { params: Promise
   // clicking a box on the live preview can open its corresponding row.
   const [expandedLayerId, setExpandedLayerId] = useState<string | null>(null)
   const [textDiagnostics, setTextDiagnostics] = useState<Record<string, TextLayerDiagnostics>>({})
+  // Only meaningful for category: 'website_photo' — see preview/route.ts's
+  // top comment. null = not a website_photo variant / not rendered yet.
+  const [lightingPreview, setLightingPreview] = useState<{ applied: boolean; error: string | null } | null>(null)
 
   const [speakers, setSpeakers] = useState<StakeholderOption[]>([])
   const [partners, setPartners] = useState<StakeholderOption[]>([])
@@ -236,6 +239,7 @@ export default function CreativeTemplatesAdminPage({ params }: { params: Promise
     setPreviewDataUrl(res.ok ? data.preview_data_url : null)
     setPreviewStale(false)
     setTextDiagnostics(res.ok ? (data.text_diagnostics ?? {}) : {})
+    setLightingPreview(res.ok && activeVariant.category === 'website_photo' ? { applied: !!data.lighting_applied, error: data.lighting_error ?? null } : null)
     setPreviewLoading(false)
   }
 
@@ -745,6 +749,16 @@ export default function CreativeTemplatesAdminPage({ params }: { params: Promise
                       />
                     )}
                   </div>
+                  {activeVariant?.category === 'website_photo' && lightingPreview && (
+                    <div style={{
+                      marginTop: '8px', fontSize: '11.5px', fontWeight: 700,
+                      color: lightingPreview.applied ? 'var(--teal-mid)' : 'var(--amber)',
+                    }}>
+                      {lightingPreview.applied
+                        ? '✓ Lighting prompt applied — this is real PhotoRoom output (used a credit).'
+                        : lightingPreview.error ?? 'Select a real speaker with a cleaned photo above to preview the lighting prompt.'}
+                    </div>
+                  )}
                 </div>
               </div>
             )}
