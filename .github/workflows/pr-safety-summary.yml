@@ -33,5 +33,5 @@ jobs:
           BASE_REF:               ${{ github.event.pull_request.base.ref }}
           REVIEWER_HANDLE:        tresconevents
           EVENTPILOT_WEBHOOK_URL: https://eventpilot.tresconglobal.com/api/webhooks/github-pr
-          GITHUB_PR_WEBHOOK_SECRET: ${{ secrets.GITHUB_PR_WEBHOOK_SECRET }}
+          GITHUB_PR_WEBHOOK_SECRET: ${{ secrets.PR_WEBHOOK_SECRET }}
         run: node .github/scripts/pr-safety-summary.js
