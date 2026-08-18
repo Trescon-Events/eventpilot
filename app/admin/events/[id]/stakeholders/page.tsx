@@ -25,6 +25,9 @@ type Speaker = {
   source: 'onboarding_form' | 'manual'
   notes: string | null; created_at: string
   custom_fields: Record<string, SubmittedValue> | null
+  // Roster status columns (2026-08-18, SAE-into-Hub merge) — computed
+  // server-side in GET .../speakers, see that route's own doc comment.
+  has_announcement: boolean; self_promo_sent: boolean
 }
 
 type Partner = {
@@ -36,6 +39,9 @@ type Partner = {
   source: 'onboarding_form' | 'manual'
   notes: string | null; created_at: string
   custom_fields: Record<string, SubmittedValue> | null
+  // Self Promo is speaker-only — always false here, kept for a uniform
+  // shape with Speaker (see partners GET route's own doc comment).
+  has_announcement: boolean; self_promo_sent: boolean
 }
 
 type Submission = {
@@ -91,6 +97,24 @@ function submissionLabel(s: Submission): string {
   if (name) return name
   if (company) return company
   return asText(d.email) || 'Untitled submission'
+}
+
+// One roster status indicator — a small label + a done/not-done dot.
+// `comingSoon` (2026-08-18) renders as a low-emphasis stub for "Published"
+// — no backing field exists yet (there's no "published to the public
+// website" tracking distinct from the general `active` visibility flag),
+// so this is a placeholder for a later feature, not a real status.
+function StatusColumn({ label, done, comingSoon }: { label: string; done: boolean; comingSoon?: boolean }) {
+  return (
+    <div style={{ textAlign: 'center', minWidth: '64px' }}>
+      <div style={{ fontSize: '9px', fontWeight: 800, letterSpacing: '0.4px', textTransform: 'uppercase', color: 'var(--ink4)', marginBottom: '3px' }}>{label}</div>
+      {comingSoon ? (
+        <span style={{ fontSize: '11px', color: 'var(--ink4)', fontStyle: 'italic' }}>Soon</span>
+      ) : (
+        <span style={{ fontSize: '13px', fontWeight: 800, color: done ? 'var(--success)' : 'var(--ink4)' }}>{done ? '✓' : '—'}</span>
+      )}
+    </div>
+  )
 }
 
 function matchesSearch(item: Speaker | Partner, kind: CategoryKind, q: string): boolean {
@@ -329,10 +353,22 @@ export default function StakeholderHubPage({ params }: { params: Promise<{ id: s
       <PageHeader
         eyebrow="Event Workspace"
         title="Stakeholder Hub"
-        description="Speakers, sponsors, and partners — onboarding, asset review, and approval. Announcement creatives are generated in the Stakeholder Announcement Engine."
+        description="Speakers, sponsors, and partners — onboarding, asset review, approval, and their announcements, all in one place."
         backHref={`/admin/events/${eventId}`}
         backLabel="Back to Workspace"
-        actions={<Link href={`/admin/events/${eventId}/creative-templates`}><Button variant="ghost">Stakeholder Announcement Engine →</Button></Link>}
+        actions={(
+          <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+            <Link href={`/admin/events/${eventId}/creative-templates/queue`}><Button variant="ghost">Queue →</Button></Link>
+            {/* Secondary/smaller — branding-team-only tool, not a daily
+                producer destination like Queue (2026-08-18 SAE-into-Hub
+                merge, per Madhu). */}
+            {can('sae.admin.access') && (
+              <Link href={`/admin/events/${eventId}/creative-templates/admin`} style={{ fontSize: '13px', color: 'var(--ink3)', textDecoration: 'none' }}>
+                Admin Console →
+              </Link>
+            )}
+          </div>
+        )}
       />
       <div style={{ padding: '24px 32px', display: 'grid', gridTemplateColumns: '220px 1fr', gap: '24px', alignItems: 'flex-start' }}>
         {/* Left nav */}
@@ -530,6 +566,15 @@ export default function StakeholderHubPage({ params }: { params: Promise<{ id: s
                           <Badge color={badge.color}>{badge.label}</Badge>
                         </div>
                         <div style={{ fontSize: '15px', color: 'var(--ink3)', marginTop: '3px' }}>{subtitle}</div>
+                      </div>
+                      {/* Roster status columns (2026-08-18, SAE-into-Hub
+                          merge) — at-a-glance answer to "who still needs an
+                          announcement", the thing the old separate SAE
+                          workspace had no single view for. */}
+                      <div style={{ display: 'flex', gap: '16px', flexShrink: 0, alignItems: 'center' }}>
+                        <StatusColumn label="Announced" done={item.has_announcement} />
+                        {isSpeaker && <StatusColumn label="Self Promo Sent" done={item.self_promo_sent} />}
+                        <StatusColumn label="Published" done={false} comingSoon />
                       </div>
                     </div>
                   </Card>
