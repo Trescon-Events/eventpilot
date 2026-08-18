@@ -48,19 +48,6 @@ const eslintConfig = defineConfig([
       // rename makes line-scoped linting see this file's pre-existing
       // color literals as "new," same as the AI Learning files above.
       "app/admin/insights/page.tsx",
-      // Speaker Website Photo deterministic lighting effect (2026-08-18) —
-      // different justification from the entries above: these hex values
-      // are genuinely new, but they're PHOTO-EFFECT DEFAULTS (a rim-light
-      // color, a key-light color), not UI chrome this app's design-token
-      // system governs. deterministic-lighting.ts's DEFAULTS object and
-      // the matching <input type="color"> initial values in the Admin
-      // Console must literally agree on the same hex strings — routing
-      // them through CSS custom properties would add indirection with no
-      // real benefit, since these aren't theme colors at all.
-      "app/lib/media/deterministic-lighting.ts",
-      // Glob-escaped — `[id]` in a bare glob is a character class, not a
-      // literal directory name, and would silently fail to match this path.
-      "app/admin/events/\\[id\\]/creative-templates/admin/page.tsx",
     ],
     rules: {
       "no-restricted-syntax": [

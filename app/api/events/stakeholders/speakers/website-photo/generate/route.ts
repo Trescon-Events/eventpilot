@@ -6,7 +6,7 @@ import { uploadPublicAsset } from '@/app/lib/events/storage'
 import { fetchAssetBuffer } from '@/app/lib/announcements/asset-buffer-cache'
 import { type CreativeTemplateConfig, type ImageLayer, type PhotoSlotLayer } from '@/app/lib/announcements/composite'
 import { alignAndCropPhoto, type HeadBox } from '@/app/lib/media/face-alignment'
-import { applyDeterministicLighting } from '@/app/lib/media/deterministic-lighting'
+import { compositeOnBackground } from '@/app/lib/media/composite-on-background'
 import { applyPhotoRoomRelight, PhotoRoomRelightError } from '@/app/lib/media/photoroom-relight'
 
 /* POST /api/events/stakeholders/speakers/website-photo/generate
@@ -17,20 +17,17 @@ import { applyPhotoRoomRelight, PhotoRoomRelightError } from '@/app/lib/media/ph
    photo_processed_url cutout to the variant's canvas size using the
    SPEAKER'S OWN known head position (photo_head_box, same source
    Promo/Self Promo variants already trust via alignAndCropPhoto), then
-   composite onto the variant's real background — deterministic, zero AI,
-   identical every time.
+   composite onto the variant's real background (composite-on-background.ts)
+   — deterministic, zero AI, identical every time, regardless of what
+   lighting option (if any) runs next.
 
-   Lighting is then EITHER of two options per variant (an event typically
-   has 2-3 website_photo variants, one per branding-defined style):
-   - variant.lighting_prompt set: send the already-composited photo to
-     PhotoRoom's editWithAI (photoroom-relight.ts) with that prompt — the
-     "compose first, relight second" approach, confirmed empirically
-     (2026-08-19, 12 real test runs) to keep framing reliably intact, unlike
-     the original bare-cutout approach. This is what lets branding write
-     arbitrary future styles as a prompt, per variant, without touching code.
-   - otherwise: variant.lighting_effect (deterministic-lighting.ts) — code-
-     only rim-light + key-light, or a plain composite with no effect at all
-     if that's unset too.
+   Lighting: if variant.lighting_prompt is set, that already-composited
+   photo is sent to PhotoRoom's editWithAI (photoroom-relight.ts) — the
+   "compose first, relight second" approach, confirmed empirically
+   (2026-08-19, 12+ real test runs) to keep framing reliably intact, unlike
+   sending PhotoRoom a bare cutout. This is what lets branding write
+   arbitrary per-event styles as a prompt, per variant, without touching
+   code. Unset: the plain composite is used as-is, no AI call.
 
    Writes the result to event_speakers.website_card_url — a column that's
    existed unused since the original SAE migration ("generated speaker card
@@ -98,10 +95,9 @@ export async function POST(req: NextRequest) {
   }
 
   // Crop using the speaker's own known head position — not a re-detection
-  // against generated output (see deterministic-lighting.ts's doc comment
-  // for why that's unreliable). Falls back to live detection inside
-  // alignAndCropPhoto itself if this speaker has never had "Fix Head
-  // Position" run for them.
+  // against generated output (unreliable — see photoroom-relight.ts's doc
+  // comment). Falls back to live detection inside alignAndCropPhoto itself
+  // if this speaker has never had "Fix Head Position" run for them.
   let croppedBuffer: Buffer
   try {
     croppedBuffer = await alignAndCropPhoto(
@@ -114,19 +110,11 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Cropping this speaker\'s photo to the template failed' }, { status: 500 })
   }
 
-  // Always-deterministic base composite (crop + real background, no
-  // lighting) — this is what a lighting_prompt gets sent to PhotoRoom for
-  // relighting, and it's also the direct output when neither lighting
-  // option is configured.
   let plainComposite: Buffer
   try {
-    plainComposite = await applyDeterministicLighting(croppedBuffer, backgroundBuffer, {
+    plainComposite = await compositeOnBackground(croppedBuffer, backgroundBuffer, {
       canvasWidth: variant.canvas_width,
       canvasHeight: variant.canvas_height,
-      headCenterXRatio: photoLayer.alignment.target_head_center_x,
-      headCenterYRatio: photoLayer.alignment.target_head_center_y,
-      headHeightRatio: photoLayer.alignment.target_head_height,
-      effect: variant.lighting_prompt ? { rim_intensity: 0, key_light_intensity: 0 } : variant.lighting_effect,
     })
   } catch (e) {
     console.error('Website photo compositing failed:', e)

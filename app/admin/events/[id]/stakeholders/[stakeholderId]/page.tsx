@@ -526,13 +526,12 @@ export default function StakeholderReviewPage({ params }: { params: Promise<{ id
               speaker card photo for the public Speakers page/KonfHub,
               generated from the same Cleaned Photo above but not the same
               asset. Crop/background composite is always deterministic;
-              lighting is either the branding team's PhotoRoom prompt
-              (photoroom-relight.ts) or a deterministic effect
-              (deterministic-lighting.ts) depending on how the event's
-              Website Photo variant is configured — see composite.ts's
-              Variant.lighting_prompt doc comment. Speaker-only — partners
-              have no equivalent. Not gated on approval status, same as
-              SAE's own Create New: just the generate permission +
+              lighting is the branding team's PhotoRoom prompt
+              (photoroom-relight.ts) if the event's Website Photo variant
+              has one set, otherwise the plain composite is used as-is — see
+              composite.ts's Variant.lighting_prompt doc comment. Speaker-only
+              — partners have no equivalent. Not gated on approval status,
+              same as SAE's own Create New: just the generate permission +
               having a cleaned photo to start from. */}
           {kind === 'speaker' && (
             <Card padded>

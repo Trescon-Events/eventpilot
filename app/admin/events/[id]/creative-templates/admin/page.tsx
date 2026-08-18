@@ -340,13 +340,30 @@ export default function CreativeTemplatesAdminPage({ params }: { params: Promise
     setActiveVariantId(variant.id)
   }
 
-  function deleteVariant(id: string) {
+  // Persists immediately (2026-08-19) rather than just staging a local
+  // edit — a "Delete" button that silently reverts on refresh unless the
+  // user separately remembers to click "Save Changes" reads as a bug, not
+  // an unsaved draft. mutate()'s normal dirty-staging is right for every
+  // other edit here (name/layers/etc — those are genuinely drafts you're
+  // still composing), but a destructive action should behave destructively.
+  async function deleteVariant(id: string) {
     const variant = variants.find(v => v.id === id)
     if (!variant) return
     if (!confirm(`Delete variant "${variant.name || 'Untitled Variant'}" and its ${variant.layers.length} layer${variant.layers.length === 1 ? '' : 's'}?`)) return
     pushUndo()
-    mutate(vs => vs.filter(v => v.id !== id))
+    const newVariants = variants.filter(v => v.id !== id)
+    setVariants(newVariants)
     if (activeVariantId === id) setActiveVariantId(null)
+    setDirty(true)
+    setSaving(true)
+    const res = await fetch('/api/events/templates/variants', {
+      method: 'PUT', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ event_id: eventId, stakeholder_type: activeType, variants: newVariants }),
+    })
+    const data = await res.json().catch(() => ({}))
+    if (res.ok) setDirty(false)
+    else setMsg(data.error || 'Delete failed to save — click "Save Changes" to retry.')
+    setSaving(false)
   }
 
   function addLayer(type: Layer['type']) {
@@ -616,48 +633,8 @@ export default function CreativeTemplatesAdminPage({ params }: { params: Promise
                               placeholder="e.g. Photography retouch: simulate a single small kicker light placed off-camera to the left..."
                               style={{ width: '100%', minHeight: '70px' }} />
                             <div style={{ fontSize: '10.5px', color: 'var(--ink4)', marginTop: '4px' }}>
-                              When set, this is applied to the already-cropped, already-composited photo (background baked in) — confirmed this ordering is what keeps PhotoRoom from re-framing the subject, unlike sending it a bare cutout. Wording matters: avoid words like &ldquo;edge&rdquo; or &ldquo;silhouette&rdquo;, which reliably push PhotoRoom toward outlining the whole person instead of a directional effect — describe it as a specific light source (e.g. &ldquo;kicker light&rdquo;) hitting specific areas instead. Takes precedence over the deterministic settings below when filled in. Costs a PhotoRoom credit and a few seconds per generate/preview.
+                              When set, this is applied to the already-cropped, already-composited photo (background baked in) — confirmed this ordering is what keeps PhotoRoom from re-framing the subject, unlike sending it a bare cutout. Wording matters: avoid words like &ldquo;edge&rdquo; or &ldquo;silhouette&rdquo;, which reliably push PhotoRoom toward outlining the whole person instead of a directional effect — describe it as a specific light source (e.g. &ldquo;kicker light&rdquo;) hitting specific areas instead. Left blank, the plain crop+background composite is used as-is, no AI call. Costs a PhotoRoom credit and a few seconds per generate/preview when filled in.
                             </div>
-                          </div>
-                          <div style={{ fontSize: '10.5px', color: 'var(--ink3)', marginBottom: '8px' }}>
-                            Deterministic fallback (used when no prompt above) — computed in code, zero AI, identical output every time:
-                          </div>
-                          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '12px', padding: '12px', borderRadius: '10px', border: '1px solid var(--border-light)', background: 'var(--surface)' }}>
-                            <label style={{ fontSize: '11px', color: 'var(--ink3)' }}>
-                              Rim Light Color
-                              <input type="color" value={activeVariant.lighting_effect?.rim_color ?? '#3CA0FF'}
-                                onChange={e => updateActiveVariant({ lighting_effect: { ...activeVariant.lighting_effect, rim_color: e.target.value } })}
-                                style={{ display: 'block', width: '100%', marginTop: '4px', height: '32px', border: '1px solid var(--border)', borderRadius: '6px', cursor: 'pointer', background: 'none' }} />
-                            </label>
-                            <label style={{ fontSize: '11px', color: 'var(--ink3)' }}>
-                              Rim Light Side
-                              <Select value={activeVariant.lighting_effect?.rim_side ?? 'left'}
-                                onChange={e => updateActiveVariant({ lighting_effect: { ...activeVariant.lighting_effect, rim_side: e.target.value as 'left' | 'right' } })}
-                                style={{ width: '100%', marginTop: '4px' }}>
-                                <option value="left">Left</option>
-                                <option value="right">Right</option>
-                              </Select>
-                            </label>
-                            <label style={{ fontSize: '11px', color: 'var(--ink3)' }}>
-                              Rim Light Intensity
-                              <Input type="number" min={0} max={1} step={0.1}
-                                value={activeVariant.lighting_effect?.rim_intensity ?? 1}
-                                onChange={e => updateActiveVariant({ lighting_effect: { ...activeVariant.lighting_effect, rim_intensity: Number(e.target.value) } })}
-                                style={{ width: '100%', marginTop: '4px' }} />
-                            </label>
-                            <label style={{ fontSize: '11px', color: 'var(--ink3)' }}>
-                              Key Light Color
-                              <input type="color" value={activeVariant.lighting_effect?.key_light_color ?? '#FFE1B4'}
-                                onChange={e => updateActiveVariant({ lighting_effect: { ...activeVariant.lighting_effect, key_light_color: e.target.value } })}
-                                style={{ display: 'block', width: '100%', marginTop: '4px', height: '32px', border: '1px solid var(--border)', borderRadius: '6px', cursor: 'pointer', background: 'none' }} />
-                            </label>
-                            <label style={{ fontSize: '11px', color: 'var(--ink3)' }}>
-                              Key Light Intensity
-                              <Input type="number" min={0} max={1} step={0.1}
-                                value={activeVariant.lighting_effect?.key_light_intensity ?? 1}
-                                onChange={e => updateActiveVariant({ lighting_effect: { ...activeVariant.lighting_effect, key_light_intensity: Number(e.target.value) } })}
-                                style={{ width: '100%', marginTop: '4px' }} />
-                            </label>
                           </div>
                         </div>
                       )}
@@ -800,7 +777,7 @@ export default function CreativeTemplatesAdminPage({ params }: { params: Promise
                       {lightingPreview.applied
                         ? (activeVariant?.lighting_prompt
                             ? '✓ Lighting prompt applied — this is real PhotoRoom output (used a credit).'
-                            : '✓ Lighting effect applied — this is the real, deterministic output (same every time).')
+                            : '✓ Plain crop + background composite — no lighting prompt set.')
                         : lightingPreview.error ?? 'Select a real speaker with a cleaned photo above to preview the lighting effect.'}
                     </div>
                   )}

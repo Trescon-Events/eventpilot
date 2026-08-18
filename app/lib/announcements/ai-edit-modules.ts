@@ -5,16 +5,14 @@
 // PhotoRoom editWithAI use case ships; nothing else needs to change to
 // support it showing up as an assignable module.
 //
-// 2026-08-18: 'speaker_website_photo' (Speaker Web Pic) was the original
-// motivating use case for this whole system, and has since been REMOVED
-// from here — it no longer uses PhotoRoom/AI at all. After a full day
-// investigating PhotoRoom's editWithAI for that feature, it turned out
-// unable to guarantee the photo-for-photo consistency required for
-// publicly-used speaker photos (see deterministic-lighting.ts's doc
-// comment for the two independent, compounding reasons why). Replaced with
-// a deterministic, code-based lighting effect — Variant.lighting_effect in
-// composite.ts, configured directly on the variant, not through a prompt
-// here. This list starts empty again; kept as infrastructure for whatever
+// 'speaker_website_photo' (Speaker Web Pic) was the original motivating use
+// case for this whole system but isn't routed through here — its PhotoRoom
+// prompt is a direct field on the variant (Variant.lighting_prompt in
+// composite.ts, set per-event by the branding team in Admin Console), not a
+// shared preset module, since crop/background stay deterministic and only
+// the lighting step is AI-driven (see photoroom-relight.ts's doc comment
+// for the "compose first, relight second" approach that makes that
+// reliable). This list starts empty; kept as infrastructure for whatever
 // genuinely-generative editWithAI use case comes along next.
 export const AI_EDIT_MODULES: ReadonlyArray<{ key: string; label: string }> = []
 

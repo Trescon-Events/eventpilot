@@ -1,11 +1,10 @@
-// PhotoRoom Relight, "compose-first" (2026-08-19) — the AI-prompt-driven
-// lighting option for website photos, alongside deterministic-lighting.ts's
-// code-only option. See Variant.lighting_prompt's doc comment in
-// composite.ts for how the two relate.
+// PhotoRoom Relight, "compose-first" (2026-08-19) — the only lighting
+// option for website photos; unset, the plain composite (composite-on-
+// background.ts) is used as-is. See Variant.lighting_prompt's doc comment
+// in composite.ts.
 //
-// This is NOT the same approach the original PhotoRoom pipeline used (see
-// deterministic-lighting.ts's doc comment for that whole investigation).
-// That approach sent PhotoRoom a bare transparent cutout and asked it to
+// This is NOT the same approach the original PhotoRoom pipeline used. That
+// approach sent PhotoRoom a bare transparent cutout and asked it to
 // relight AND figure out how to integrate a background in one step — that
 // ambiguity is exactly what caused it to silently re-zoom/reposition the
 // subject, confirmed by direct before/after pixel comparison, and no

@@ -4,7 +4,7 @@ import sharp from 'sharp'
 import { compositeAnnouncement, analyzeTextLayers, type Variant, type ImageLayer, type PhotoSlotLayer, type ResolvedAssets, type CreativeTemplateConfig } from '@/app/lib/announcements/composite'
 import { fetchAssetBuffer } from '@/app/lib/announcements/asset-buffer-cache'
 import { alignAndCropPhoto, type HeadBox } from '@/app/lib/media/face-alignment'
-import { applyDeterministicLighting } from '@/app/lib/media/deterministic-lighting'
+import { compositeOnBackground } from '@/app/lib/media/composite-on-background'
 import { applyPhotoRoomRelight } from '@/app/lib/media/photoroom-relight'
 
 /* POST /api/events/templates/preview
@@ -51,8 +51,11 @@ import { applyPhotoRoomRelight } from '@/app/lib/media/photoroom-relight'
    variant.lighting_prompt, sent to PhotoRoom's editWithAI on that already-
    composited photo (photoroom-relight.ts — the "compose first, relight
    second" approach, confirmed to actually preserve framing reliably,
-   unlike sending PhotoRoom a bare cutout), OR variant.lighting_effect
-   (deterministic-lighting.ts, code-only, zero AI) when no prompt is set.
+   unlike sending PhotoRoom a bare cutout), OR nothing at all (the plain
+   composite is used as-is) when no lighting_prompt is set — see Madhu's
+   2026-08-19 call: a deterministic code-only lighting effect isn't the
+   real requirement, branding wants arbitrary AI-prompt-driven styles per
+   event instead.
    Either way this route's own output IS the final image — the usual
    compositeAnnouncement() background step is SKIPPED for this category.
    Only variant.lighting_prompt costs a PhotoRoom credit and real wall-clock
@@ -162,13 +165,9 @@ export async function POST(req: NextRequest) {
         if (!backgroundBuffer) {
           lightingError = 'No background image set on the Image layer yet — showing the plain crop.'
         } else {
-          const plainComposite = await applyDeterministicLighting(cropped, backgroundBuffer, {
+          const plainComposite = await compositeOnBackground(cropped, backgroundBuffer, {
             canvasWidth: body.variant.canvas_width,
             canvasHeight: body.variant.canvas_height,
-            headCenterXRatio: photoLayer.alignment.target_head_center_x,
-            headCenterYRatio: photoLayer.alignment.target_head_center_y,
-            headHeightRatio: photoLayer.alignment.target_head_height,
-            effect: body.variant.lighting_prompt ? { rim_intensity: 0, key_light_intensity: 0 } : body.variant.lighting_effect,
           })
           websitePhotoFinalBuffer = body.variant.lighting_prompt
             ? await applyPhotoRoomRelight(plainComposite, {
