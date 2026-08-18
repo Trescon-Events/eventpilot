@@ -157,18 +157,14 @@ export type Variant = {
   //
   // 'website_photo' (2026-08-18) — a third flow: a square speaker card
   // photo pushed to KonfHub for the public Speakers page, not a social
-  // creative. Its photo_slot layer's source image isn't the plain
-  // background-removed cutout other categories use — it's that cutout
-  // after an AI relight/crop pass (see website-photo-engine.ts), so this
-  // category's generate path is a separate route, not the announcements
-  // generate route.
+  // creative. Its photo_slot layer needs `alignment` set exactly like a
+  // Promo variant's (same "Upload Reference Layer" flow) — the crop uses
+  // that known head position via alignAndCropPhoto, same as any other
+  // photo_slot layer; PhotoRoom (website-photo-engine.ts) is only ever
+  // asked to relight the already-cropped result, never to guess the crop
+  // itself. So this category's generate path is a separate route (not the
+  // announcements generate route), but reuses this same crop mechanism.
   category?: 'promo' | 'self_promo' | 'website_photo'
-  // Crop padding passed straight through to PhotoRoom's /v2/edit `padding`
-  // param when generating this variant's website photo (0-0.49, PhotoRoom's
-  // own accepted range) — how much breathing room around the framed
-  // head+shoulders. Only meaningful for category: 'website_photo'; ignored
-  // by compositeAnnouncement() below, which never talks to PhotoRoom.
-  photoroom_padding?: number
 }
 
 // A reusable, named PhotoRoom editWithAI prompt (2026-08-18) — kept

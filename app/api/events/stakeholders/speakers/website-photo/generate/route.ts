@@ -4,23 +4,28 @@ import { getSession } from '@/app/lib/access/session'
 import { hasEventPermission } from '@/app/lib/access/event-access'
 import { uploadPublicAsset } from '@/app/lib/events/storage'
 import { fetchAssetBuffer } from '@/app/lib/announcements/asset-buffer-cache'
-import { compositeAnnouncement, type CreativeTemplateConfig, type ResolvedAssets } from '@/app/lib/announcements/composite'
+import { compositeAnnouncement, type CreativeTemplateConfig, type PhotoSlotLayer, type ResolvedAssets } from '@/app/lib/announcements/composite'
+import { alignAndCropPhoto, type HeadBox } from '@/app/lib/media/face-alignment'
 import { applyWebsitePhotoLighting, WebsitePhotoEditError } from '@/app/lib/media/website-photo-engine'
 
 /* POST /api/events/stakeholders/speakers/website-photo/generate
    Body: { event_id, speaker_id }
 
    Speaker-only (no partner/sponsor equivalent — see the plan discussion).
-   Two-step pipeline: one PhotoRoom editWithAI call (relight + reframe the
-   stored photo_processed_url cutout, per website-photo-engine.ts) then one
-   local compositeAnnouncement() call (drop the result onto the variant's
-   background layer — the same engine SAE's own creatives use, just a
-   different, speaker-detail-page-scoped caller). Writes the result to
-   event_speakers.website_card_url — a column that's existed unused since
-   the original SAE migration ("generated speaker card — future use"),
-   reused here rather than adding a new one. No stakeholder_announcements
-   row: this isn't a social creative with its own publish/schedule
-   lifecycle, just the speaker's current website photo, one per speaker. */
+   Three-step pipeline (redesigned 2026-08-18 per Madhu — see
+   website-photo-engine.ts's doc comment for why): (1) crop the stored
+   photo_processed_url cutout to the variant's canvas size using the
+   SPEAKER'S OWN known head position (photo_head_box, same source
+   Promo/Self Promo variants already trust via alignAndCropPhoto) — not a
+   PhotoRoom guess; (2) one PhotoRoom editWithAI call to relight that
+   already-correctly-framed image; (3) one local compositeAnnouncement()
+   call to drop the result onto the variant's background layer. Writes the
+   result to event_speakers.website_card_url — a column that's existed
+   unused since the original SAE migration ("generated speaker card —
+   future use"), reused here rather than adding a new one. No
+   stakeholder_announcements row: this isn't a social creative with its own
+   publish/schedule lifecycle, just the speaker's current website photo,
+   one per speaker. */
 
 type GenerateBody = { event_id?: string; speaker_id?: string }
 
@@ -38,7 +43,7 @@ export async function POST(req: NextRequest) {
 
   const [eventRes, speakerRes] = await Promise.all([
     supabaseAdmin.from('events').select('creative_template_config').eq('id', body.event_id).single(),
-    supabaseAdmin.from('event_speakers').select('id, photo_processed_url, photo_url').eq('id', body.speaker_id).single(),
+    supabaseAdmin.from('event_speakers').select('id, photo_processed_url, photo_url, photo_head_box').eq('id', body.speaker_id).single(),
   ])
 
   const event = eventRes.data
@@ -57,6 +62,13 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "No Website Photo template configured for this event yet — set one up in Admin Console → Variants" }, { status: 422 })
   }
 
+  const photoLayer = variant.layers.find((l): l is PhotoSlotLayer => l.type === 'photo_slot' && l.source === 'speaker_photo')
+  if (!photoLayer?.alignment) {
+    return NextResponse.json({
+      error: 'The Website Photo variant has no reference photo layer set up yet — in Admin Console → Variants, open the Photo/Logo Slot layer and click "Upload Reference Layer (auto-position)" to set the target head position first',
+    }, { status: 422 })
+  }
+
   const prompt = templateConfig?.ai_edit_prompts?.find(p => p.module_key === 'speaker_website_photo')?.prompt
   if (!prompt) {
     return NextResponse.json({ error: 'No lighting prompt configured yet — set one in Admin Console → AI Edit Prompts' }, { status: 422 })
@@ -67,13 +79,28 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Could not fetch this speaker's cleaned photo" }, { status: 502 })
   }
 
+  // Crop first, using the speaker's own known head position — not a
+  // PhotoRoom guess (see website-photo-engine.ts). Falls back to live
+  // detection inside alignAndCropPhoto itself if this speaker has never had
+  // "Fix Head Position" run for them.
+  let croppedBuffer: Buffer
+  try {
+    croppedBuffer = await alignAndCropPhoto(
+      cutoutBuffer,
+      { ...photoLayer.alignment, box: { x: 0, y: 0, width: variant.canvas_width, height: variant.canvas_height } },
+      speaker.photo_head_box as HeadBox | null
+    )
+  } catch (e) {
+    console.error('Website photo crop failed:', e)
+    return NextResponse.json({ error: 'Cropping this speaker\'s photo to the template failed' }, { status: 500 })
+  }
+
   let litBuffer: Buffer
   try {
-    litBuffer = await applyWebsitePhotoLighting(cutoutBuffer, {
+    litBuffer = await applyWebsitePhotoLighting(croppedBuffer, {
       prompt,
       outputWidth: variant.canvas_width,
       outputHeight: variant.canvas_height,
-      padding: variant.photoroom_padding ?? 0.08,
     })
   } catch (e) {
     const message = e instanceof WebsitePhotoEditError ? e.message : 'PhotoRoom lighting pass failed'
@@ -81,10 +108,14 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: message }, { status })
   }
 
+  // Cropping already happened above — pass a copy of the variant with this
+  // layer's alignment stripped so compositeAnnouncement just places the
+  // (already exactly canvas-sized) result instead of cropping it again.
+  const placementVariant = { ...variant, layers: variant.layers.map(l => l.id === photoLayer.id ? { ...l, alignment: undefined } : l) }
   const assets: ResolvedAssets = { speaker_photo: { buffer: litBuffer } }
   let compositeBuffer: Buffer
   try {
-    compositeBuffer = await compositeAnnouncement(variant, assets, {})
+    compositeBuffer = await compositeAnnouncement(placementVariant, assets, {})
   } catch (e) {
     console.error('Website photo compositing failed:', e)
     return NextResponse.json({ error: 'Compositing the final photo failed' }, { status: 500 })

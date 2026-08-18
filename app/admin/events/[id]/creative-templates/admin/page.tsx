@@ -602,20 +602,10 @@ export default function CreativeTemplatesAdminPage({ params }: { params: Promise
                         <label style={{ fontSize: '11px', color: 'var(--ink3)', display: 'flex', alignItems: 'center', gap: '6px' }}>
                           H <Input type="number" value={activeVariant.canvas_height} onChange={e => updateActiveVariant({ canvas_height: Number(e.target.value) })} style={{ width: '70px' }} />
                         </label>
-                        {activeVariant.category === 'website_photo' && (
-                          <label style={{ fontSize: '11px', color: 'var(--ink3)', display: 'flex', alignItems: 'center', gap: '6px' }}
-                            title="Passed to PhotoRoom's crop as breathing room around the framed head+shoulders (0-0.49).">
-                            Padding
-                            <Input type="number" min={0} max={0.49} step={0.01}
-                              value={activeVariant.photoroom_padding ?? 0.08}
-                              onChange={e => updateActiveVariant({ photoroom_padding: Number(e.target.value) })}
-                              style={{ width: '70px' }} />
-                          </label>
-                        )}
                       </div>
                       {activeVariant.category === 'website_photo' && (
                         <div style={{ fontSize: '11px', color: 'var(--ink3)', marginBottom: '10px' }}>
-                          This variant should have exactly two layers: an <strong>Image</strong> layer for the background, and a <strong>Photo/Logo Slot</strong> (source: speaker photo) sized to the full canvas — PhotoRoom already frames/relights the speaker photo before it reaches this compositor, so no alignment/face-detection is needed on the slot itself. The lighting prompt it uses is set in the <strong>AI Edit Prompts</strong> tab, assigned to &ldquo;Speaker Web Pic&rdquo;.
+                          This variant should have exactly two layers: an <strong>Image</strong> layer for the background, and a <strong>Photo/Logo Slot</strong> (source: speaker photo) sized to the full canvas — set it up exactly like a Promo variant&apos;s photo slot: click <strong>Upload Reference Layer (auto-position)</strong> and adjust the head position. That known position is what gets cropped and relit — PhotoRoom is only ever asked to relight, never to guess the crop. The lighting prompt it uses is set in the <strong>AI Edit Prompts</strong> tab, assigned to &ldquo;Speaker Web Pic&rdquo;.
                         </div>
                       )}
 
