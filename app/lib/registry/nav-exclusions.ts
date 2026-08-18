@@ -38,6 +38,10 @@ export const PAGEHEADER_EXEMPT: NavExclusion[] = [
     path: '/admin/events/[id]/announcements/[announcementId]/review',
     reason: 'Stakeholder Announcement Engine approval review page — a standalone layout reachable by external approvers with no EventPilot session via a signed token (see middleware.ts + AuthedShellGate.tsx), same treatment as the public onboarding forms under app/public/*. Lives under app/admin/** only because the PRD placed it there; it never renders the internal admin chrome.',
   },
+  {
+    path: '/admin/events/[id]/creative-templates',
+    reason: 'Retired SAE main workspace (2026-08-18, SAE-into-Hub merge) — this route is now just a client-side redirect into the Stakeholder Hub, kept only so old bookmarks/links resolve somewhere instead of 404ing. It never renders real page content, so no PageHeader.',
+  },
 ]
 export const PAGEHEADER_EXEMPT_PREFIXES: NavExclusionPrefix[] = []
 

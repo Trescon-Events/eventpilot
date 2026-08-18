@@ -984,49 +984,54 @@ export function getModuleRegistry(): ModuleDef[] {
       sidebar: { section: 'events', parent: 'events', order: 8 },
     },
     {
+      // 2026-08-18 (SAE-into-Hub merge, step 5): this used to be SAE's own
+      // main workspace tile. That workspace is retired — the route now
+      // just client-redirects into the Stakeholder Hub (see
+      // creative-templates/page.tsx) — so no sidebar entry any more (it
+      // would just be a second, dead-ending path to the Hub). The registry
+      // entry itself stays, only so old bookmarks/deep-links still resolve
+      // a breadcrumb for the split-second before the redirect fires, and
+      // so Admin Console/Queue below have somewhere real to point their own
+      // breadcrumbParent at if that ever changes back.
       key: 'admin-event-creative-templates', label: 'Stakeholder Announcement Engine',
-      description: 'Create stakeholder announcement creatives — pick a creative style, preview against a real speaker or partner, generate.',
+      description: 'Retired workspace — redirects to the Stakeholder Hub, where announcements now live per-speaker/partner.',
       icon: I.layers, color: '#F0AB3C',
       href: ctx => `/admin/events/${ctx.eventId}/creative-templates`,
       needsEvent: true,
-      // 2026-08-18 (per Madhu): SAE graduated from a Toolkit trial tool to
-      // a real production module — its natural home is nested under this
-      // event's Stakeholder Hub (the actual click-path: Event > Stakeholder
-      // Hub > SAE), not the general Toolkit catalog. Same reasoning applies
-      // to the toolkitHub tile below (removed).
       breadcrumbPattern: '/admin/events/:eventId/creative-templates', breadcrumbParent: 'admin-event-stakeholders',
-      // Real gate (creative-templates/layout.tsx, 2026-08-17) is legacy
-      // module_access OR hasAnyModulePermission(..., 'sae') — this field
-      // describes only the RBAC half via event_permission's '.*' wildcard
-      // (hasAnyModulePermission), not the legacy OR-fallback (no
-      // ModuleAccess kind expresses "these two systems, OR'd together" —
-      // deliberately not adding one for a single entry). Practical effect:
-      // this SIDEBAR VISIBILITY field (the real page gate below is
-      // untouched and still honors both) may under-show for someone with
-      // ONLY a legacy grant and zero RBAC role — an accepted, shrinking
-      // edge case, not a regression (that person saw no SAE sidebar entry
-      // before this field existed either). Every real RBAC holder (the
-      // growing majority — SAE is the current real-usage priority) is
-      // accurately represented.
       access: { kind: 'event_permission', permissionKey: 'sae.*' },
-      sidebar: { section: 'events', parent: 'events', order: 7 },
     },
     {
       // Not its own sidebar/Toolkit tile — reached via the "Admin Console →"
-      // link in the main workspace page's header above. Separate registry
-      // entry purely so it gets its own breadcrumb + a STRICTER server-side
-      // gate (admin-tier module_access, not just any tier) than the
-      // generation workspace.
+      // link on the Stakeholder Hub's own header (2026-08-18: moved there
+      // from SAE's now-retired workspace header, along with Queue below).
+      // Separate registry entry purely so it gets its own breadcrumb + a
+      // STRICTER server-side gate (admin-tier module_access, not just any
+      // tier) than the Hub itself.
       key: 'admin-event-creative-templates-admin', label: 'Admin Console',
       description: 'Branding-team console for the Stakeholder Announcement Engine — build and edit creative variants (layer stacks), manage who has access to this tool.',
       icon: I.layers, color: '#F0AB3C',
       href: ctx => `/admin/events/${ctx.eventId}/creative-templates/admin`,
       needsEvent: true,
-      breadcrumbPattern: '/admin/events/:eventId/creative-templates/admin', breadcrumbParent: 'admin-event-creative-templates',
+      breadcrumbPattern: '/admin/events/:eventId/creative-templates/admin', breadcrumbParent: 'admin-event-stakeholders',
       // 2026-08-17: corrected to match creative-templates/admin/layout.tsx's
       // real gate (hasEventPermission(..., 'sae.admin.access')) — the old
       // module_access-tier kind it described was stale.
       access: { kind: 'event_permission', permissionKey: 'sae.admin.access' },
+    },
+    {
+      // Same "reached via a header link, not its own sidebar tile" pattern
+      // as Admin Console above — Queue is reached from the Stakeholder
+      // Hub's header (2026-08-18). Registry entry exists purely so it gets
+      // a correct breadcrumb; it had none before this (an actual gap, not
+      // a pre-existing one carried forward).
+      key: 'admin-event-creative-templates-queue', label: 'Queue',
+      description: 'Every announcement for this event, in one filterable, sortable list.',
+      icon: I.layers, color: '#F0AB3C',
+      href: ctx => `/admin/events/${ctx.eventId}/creative-templates/queue`,
+      needsEvent: true,
+      breadcrumbPattern: '/admin/events/:eventId/creative-templates/queue', breadcrumbParent: 'admin-event-stakeholders',
+      access: { kind: 'event_permission', permissionKey: 'sae.*' },
     },
     {
       key: 'leaderboard', label: 'Leaderboard',

@@ -12,10 +12,11 @@ import type { AnnouncementStatus, StakeholderKind } from '../page'
    filterable list), not a calendar grid — see the plan's "Scoped out of
    this pass" section for why the calendar view is a later pass. Reuses the
    existing GET /api/events/stakeholders/announcements route unchanged (it
-   already attaches stakeholder_name server-side); each row deep-links back
-   into the main creative-templates page via the ?type=&stakeholder=&
-   announcement= params wired up there, so the actual action panel (send
-   for approval / schedule / post now / retry) lives in exactly one place
+   already attaches stakeholder_name server-side); each row deep-links to
+   that stakeholder's own Announcements tab in the Stakeholder Hub
+   (2026-08-18, SAE-into-Hub merge, step 5 — previously deep-linked into
+   SAE's own now-retired main page), so the actual action panel (send for
+   approval / schedule / post now / retry) lives in exactly one place
    rather than being duplicated here. */
 
 type QueueRow = {
@@ -93,8 +94,8 @@ export default function AnnouncementQueuePage({ params }: { params: Promise<{ id
         eyebrow="Stakeholder Announcement Engine"
         title="Queue"
         description="Every announcement for this event, in one list — filter, sort, and jump to any post's action panel."
-        backHref={`/admin/events/${eventId}/creative-templates`}
-        backLabel="Back to Workspace"
+        backHref={`/admin/events/${eventId}/stakeholders`}
+        backLabel="Back to Stakeholder Hub"
       />
 
       <div style={{ padding: '24px 32px' }}>
@@ -124,8 +125,8 @@ export default function AnnouncementQueuePage({ params }: { params: Promise<{ id
             {filtered.map((row, i) => {
               const stakeholderId = row.speaker_id ?? row.partner_id
               const openHref = stakeholderId
-                ? `/admin/events/${eventId}/creative-templates?type=${row.stakeholder_type}&stakeholder=${stakeholderId}&announcement=${row.id}`
-                : `/admin/events/${eventId}/creative-templates?type=${row.stakeholder_type}`
+                ? `/admin/events/${eventId}/stakeholders/${stakeholderId}?tab=announcements&announcement=${row.id}`
+                : `/admin/events/${eventId}/stakeholders`
               const dateLabel = row.published_at
                 ? `Published ${new Date(row.published_at).toLocaleString()}`
                 : row.scheduled_for
