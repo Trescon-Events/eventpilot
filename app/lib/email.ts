@@ -836,6 +836,100 @@ export async function sendGithubPrAlert({
   })
 }
 
+// ── Email: Task Manager — task assigned (fires on create) ────────────────────
+
+const TASK_MANAGER_URL = `${process.env.NEXT_PUBLIC_APP_URL ?? 'https://eventpilot.tresconglobal.com'}/admin/task-manager`
+
+export async function sendTaskManagerAssigned({
+  to, recipientName, actorName, taskDescription, eventName, priority, deadline,
+}: {
+  to:              string
+  recipientName:   string
+  actorName:       string
+  taskDescription: string
+  eventName?:      string | null
+  priority:        string
+  deadline?:       string | null
+}) {
+  const firstName = recipientName.split(' ')[0]
+
+  const html = emailWrap(`
+    ${emailHeader('Task Manager')}
+    <div style="padding:32px 40px;">
+      <h2 style="font-size:21px;font-weight:800;color:${DARK};margin:0 0 6px;">New task from ${actorName}</h2>
+      <p style="color:${MUTED};font-size:14px;line-height:1.7;margin:0 0 20px;">Hi ${firstName}, a new task has been created${eventName ? ` for <strong style="color:${DARK};">${eventName}</strong>` : ''}.</p>
+
+      <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:18px 20px;margin-bottom:20px;">
+        <div style="font-size:11px;font-weight:800;letter-spacing:1.5px;text-transform:uppercase;color:#64748b;margin-bottom:8px;">Task</div>
+        <div style="font-size:15px;font-weight:700;color:${DARK};margin-bottom:10px;">${taskDescription}</div>
+        <div style="font-size:13px;color:${MUTED};">Priority: <strong style="color:${DARK};">${priority}</strong>${deadline ? ` · Due ${deadline}` : ''}</div>
+      </div>
+
+      <div style="text-align:center;margin:28px 0;">
+        <a href="${TASK_MANAGER_URL}" style="display:inline-block;background:${BRAND};color:#ffffff;font-weight:700;font-size:15px;padding:14px 32px;border-radius:10px;text-decoration:none;">
+          Open Task Manager
+        </a>
+      </div>
+
+      ${emailFooter()}
+    </div>
+  `)
+
+  return getResend().emails.send({
+    from:    FROM,
+    to,
+    subject: `New task: ${taskDescription}`,
+    html,
+  })
+}
+
+// ── Email: Task Manager — status changed ──────────────────────────────────────
+
+export async function sendTaskManagerStatusChanged({
+  to, recipientName, actorName, taskDescription, eventName, oldStatus, newStatus,
+}: {
+  to:              string
+  recipientName:   string
+  actorName:       string
+  taskDescription: string
+  eventName?:      string | null
+  oldStatus:       string
+  newStatus:       string
+}) {
+  const firstName = recipientName.split(' ')[0]
+  const STATUS_COLOR: Record<string, string> = { 'Not-Started': '#64748b', 'In-Progress': '#7C3AED', 'Completed': '#166534' }
+  const color = STATUS_COLOR[newStatus] ?? BRAND
+
+  const html = emailWrap(`
+    ${emailHeader('Task Manager')}
+    <div style="padding:32px 40px;">
+      <h2 style="font-size:21px;font-weight:800;color:${DARK};margin:0 0 6px;">${actorName} updated a task</h2>
+      <p style="color:${MUTED};font-size:14px;line-height:1.7;margin:0 0 20px;">Hi ${firstName}, the status of a task${eventName ? ` for <strong style="color:${DARK};">${eventName}</strong>` : ''} has changed.</p>
+
+      <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:18px 20px;margin-bottom:20px;">
+        <div style="font-size:11px;font-weight:800;letter-spacing:1.5px;text-transform:uppercase;color:#64748b;margin-bottom:8px;">Task</div>
+        <div style="font-size:15px;font-weight:700;color:${DARK};margin-bottom:12px;">${taskDescription}</div>
+        <div style="font-size:13px;color:${MUTED};">${oldStatus.replace('-', ' ')} → <strong style="color:${color};">${newStatus.replace('-', ' ')}</strong></div>
+      </div>
+
+      <div style="text-align:center;margin:28px 0;">
+        <a href="${TASK_MANAGER_URL}" style="display:inline-block;background:${BRAND};color:#ffffff;font-weight:700;font-size:15px;padding:14px 32px;border-radius:10px;text-decoration:none;">
+          Open Task Manager
+        </a>
+      </div>
+
+      ${emailFooter()}
+    </div>
+  `)
+
+  return getResend().emails.send({
+    from:    FROM,
+    to,
+    subject: `Task ${newStatus.replace('-', ' ').toLowerCase()}: ${taskDescription}`,
+    html,
+  })
+}
+
 // ── Email: Weekly Leaderboard Digest ─────────────────────────────────────────
 //
 // Fired every Monday 07:00 IST for the ISO week that just ended. Each eligible
