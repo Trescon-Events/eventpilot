@@ -25,9 +25,8 @@ jobs:
 
       - name: Summarize PR and post safety verdict
         env:
-          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-          GITHUB_TOKEN:      ${{ secrets.GITHUB_TOKEN }}
-          PR_NUMBER:         ${{ github.event.pull_request.number }}
-          BASE_REF:          ${{ github.event.pull_request.base.ref }}
-          REVIEWER_HANDLE:   tresconevents
+          GITHUB_TOKEN:    ${{ secrets.GITHUB_TOKEN }}
+          PR_NUMBER:       ${{ github.event.pull_request.number }}
+          BASE_REF:        ${{ github.event.pull_request.base.ref }}
+          REVIEWER_HANDLE: tresconevents
         run: node .github/scripts/pr-safety-summary.js
