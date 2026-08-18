@@ -154,7 +154,40 @@ export type Variant = {
   // means 'promo' — every variant created before this field existed still
   // resolves correctly with no data migration needed. Purely a UI/picker
   // filtering concern; the compositing logic below never reads this.
-  category?: 'promo' | 'self_promo'
+  //
+  // 'website_photo' (2026-08-18) — a third flow: a square speaker card
+  // photo pushed to KonfHub for the public Speakers page, not a social
+  // creative. Its photo_slot layer's source image isn't the plain
+  // background-removed cutout other categories use — it's that cutout
+  // after an AI relight/crop pass (see website-photo-engine.ts), so this
+  // category's generate path is a separate route, not the announcements
+  // generate route.
+  category?: 'promo' | 'self_promo' | 'website_photo'
+  // Crop padding passed straight through to PhotoRoom's /v2/edit `padding`
+  // param when generating this variant's website photo (0-0.49, PhotoRoom's
+  // own accepted range) — how much breathing room around the framed
+  // head+shoulders. Only meaningful for category: 'website_photo'; ignored
+  // by compositeAnnouncement() below, which never talks to PhotoRoom.
+  photoroom_padding?: number
+}
+
+// A reusable, named PhotoRoom editWithAI prompt (2026-08-18) — kept
+// deliberately generic ("AI Edit Presets"), not folded into Variant itself,
+// per Madhu: this event's speaker-website-photo lighting style is the first
+// of what he expects to be several similar templatized editWithAI use cases
+// over time, and they should all share one place to name/author/reassign a
+// prompt rather than each growing its own bespoke prompt field. `module_key`
+// is how a generate route finds "the" prompt for its feature — see
+// AI_EDIT_MODULES in ai-edit-modules.ts for the fixed, code-defined list of
+// keys a preset can be assigned to. At most one preset should be assigned to
+// a given module_key at a time; if more than one is, the generate route
+// takes the first match — enforcing uniqueness isn't worth an extra
+// validation pass for a single-branding-team, single-event-at-a-time editor.
+export type AiEditPreset = {
+  id: string
+  name: string
+  prompt: string
+  module_key: string | null // null = drafted but not wired to any feature yet
 }
 
 // Reusable "Placeholder data" content (2026-07-31) — Madhu's ask: the ghost
@@ -179,6 +212,8 @@ export type CreativeTemplateConfig = {
   speaker?: { variants: Variant[] }
   partner?: { variants: Variant[] }
   placeholder?: { speaker?: PlaceholderProfile; partner?: PlaceholderProfile }
+  // 2026-08-18 — see AiEditPreset's own doc comment above.
+  ai_edit_prompts?: AiEditPreset[]
 }
 
 export type ResolvedAssets = Partial<Record<PhotoSlotLayer['source'], { buffer: Buffer; url?: string; is_svg?: boolean; head_box?: HeadBox | null }>>

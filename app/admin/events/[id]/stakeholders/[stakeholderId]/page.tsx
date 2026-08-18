@@ -44,6 +44,7 @@ type StakeholderRecord = {
   full_name?: string; job_title?: string; company_name?: string
   country?: string | null; bio?: string | null; linkedin_url?: string | null
   photo_url?: string | null; photo_processed_url?: string | null
+  website_card_url?: string | null
   company_logo_url?: string | null; company_logo_raw_url?: string | null
   photo_head_box?: { centerXRatio: number; centerYRatio: number; heightRatio: number } | null
   company_website?: string | null; company_description?: string | null
@@ -181,6 +182,7 @@ export default function StakeholderReviewPage({ params }: { params: Promise<{ id
   const [saveState, setSaveState] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle')
   const [reapprovalBanner, setReapprovalBanner] = useState(false)
   const [approving, setApproving] = useState(false)
+  const [generatingWebsitePhoto, setGeneratingWebsitePhoto] = useState(false)
   const [msg, setMsg] = useState<string | null>(null)
 
   const [photoUploadTarget, setPhotoUploadTarget] = useState<File | null>(null)
@@ -307,6 +309,24 @@ export default function StakeholderReviewPage({ params }: { params: Promise<{ id
     setApproving(false)
     setProcessing(null)
     if (res.ok) { setStatus('ready'); setReapprovalBanner(false) } else { setMsg('Could not approve — please try again.') }
+  }
+
+  async function generateWebsitePhoto() {
+    setGeneratingWebsitePhoto(true)
+    setProcessing({ label: 'Generating website photo…', estimatedMs: 9000 })
+    setMsg(null)
+    const res = await fetch('/api/events/stakeholders/speakers/website-photo/generate', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ event_id: eventId, speaker_id: stakeholderId }),
+    })
+    const data = await res.json().catch(() => ({}))
+    setGeneratingWebsitePhoto(false)
+    setProcessing(null)
+    if (res.ok) {
+      setRecord(prev => prev ? { ...prev, website_card_url: data.website_card_url } : prev)
+    } else {
+      setMsg(data.error || 'Could not generate the website photo — please try again.')
+    }
   }
 
   async function uploadLogo(file: File) {
@@ -496,6 +516,33 @@ export default function StakeholderReviewPage({ params }: { params: Promise<{ id
               )}
             </div>
           </Card>
+
+          {/* Website Photo (2026-08-18) — a separate, square, relit speaker
+              card photo for the public Speakers page/KonfHub, generated
+              from the same Cleaned Photo above but not the same asset (see
+              website-photo-engine.ts). Speaker-only — partners have no
+              equivalent. Not gated on approval status, same as SAE's own
+              Create New: just the generate permission + having a cleaned
+              photo to start from. */}
+          {kind === 'speaker' && (
+            <Card padded>
+              <div style={{ fontSize: '15px', fontWeight: 800, color: 'var(--ink)', marginBottom: '16px' }}>Website Photo</div>
+              <div style={{ display: 'flex', gap: '24px', flexWrap: 'wrap', marginBottom: '18px' }}>
+                <AssetTile
+                  label="Website Photo" url={record.website_card_url ?? null} filename={`${namePrefix}-website-photo.png`}
+                  onOpen={(url, label) => setLightbox({ url, label })}
+                />
+              </div>
+              {can('sae.announcements.generate') && (
+                <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', paddingTop: '16px', borderTop: '1px solid var(--border-light)' }}>
+                  <Button variant="ghost" onClick={generateWebsitePhoto} disabled={!cleanPhoto || generatingWebsitePhoto}
+                    title={!cleanPhoto ? 'Upload and clean a photo first' : undefined}>
+                    {generatingWebsitePhoto ? 'Generating…' : record.website_card_url ? 'Regenerate Website Photo' : 'Generate Website Photo'}
+                  </Button>
+                </div>
+              )}
+            </Card>
+          )}
 
           {/* Fields */}
           <Card padded>

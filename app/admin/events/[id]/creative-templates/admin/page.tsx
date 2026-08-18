@@ -2,10 +2,11 @@
 
 import { useState, useEffect, useRef, use } from 'react'
 import PageHeader from '@/app/components/PageHeader'
-import { Button, Badge, Input, Select, ProcessingOverlay } from '@/app/components/ui'
+import { Button, Badge, Input, Select, Textarea, ProcessingOverlay } from '@/app/components/ui'
 import AccessTab from '@/app/components/AccessTab'
-import type { Layer, ImageLayer, PhotoSlotLayer, TextLayer, Variant, CreativeTemplateConfig, TextLayerDiagnostics, PlaceholderProfile } from '@/app/lib/announcements/composite'
+import type { Layer, ImageLayer, PhotoSlotLayer, TextLayer, Variant, CreativeTemplateConfig, TextLayerDiagnostics, PlaceholderProfile, AiEditPreset } from '@/app/lib/announcements/composite'
 import { withTextLayerDefaults } from '@/app/lib/announcements/text-layer-defaults'
+import { AI_EDIT_MODULES } from '@/app/lib/announcements/ai-edit-modules'
 import type { ResolvedFont, BrandRulesSnapshot } from '@/app/lib/branding/brand-rules'
 import LayerBoxOverlay from './LayerBoxOverlay'
 
@@ -94,7 +95,7 @@ function normalizeVariantTextLayers(variant: Variant): Variant {
 
 export default function CreativeTemplatesAdminPage({ params }: { params: Promise<{ id: string }> }) {
   const { id: eventId } = use(params)
-  const [consoleTab, setConsoleTab] = useState<'variants' | 'access'>('variants')
+  const [consoleTab, setConsoleTab] = useState<'variants' | 'ai_edit_prompts' | 'access'>('variants')
 
   const [loading, setLoading] = useState(true)
   const [speakerVariants, setSpeakerVariants] = useState<Variant[]>([])
@@ -508,7 +509,7 @@ export default function CreativeTemplatesAdminPage({ params }: { params: Promise
 
       <div style={{ padding: '24px 32px' }}>
         <div style={{ display: 'flex', borderRadius: '8px', border: '1px solid var(--border)', overflow: 'hidden', width: 'fit-content', marginBottom: '20px' }}>
-          {([['variants', 'Variants'], ['access', 'Access Control']] as const).map(([key, label]) => (
+          {([['variants', 'Variants'], ['ai_edit_prompts', 'AI Edit Prompts'], ['access', 'Access Control']] as const).map(([key, label]) => (
             <button key={key} onClick={() => setConsoleTab(key)}
               style={{
                 padding: '7px 18px', border: 'none', cursor: 'pointer', fontFamily: 'inherit', fontSize: '12.5px', fontWeight: 700,
@@ -522,6 +523,8 @@ export default function CreativeTemplatesAdminPage({ params }: { params: Promise
 
         {consoleTab === 'access' ? (
           <AccessTab moduleKey="sae" moduleLabel="Stakeholder Announcement Engine" />
+        ) : consoleTab === 'ai_edit_prompts' ? (
+          <AiEditPromptsPanel eventId={eventId} />
         ) : (
           <>
             {msg && (
@@ -581,11 +584,12 @@ export default function CreativeTemplatesAdminPage({ params }: { params: Promise
                           Use
                           <Select
                             value={activeVariant.category ?? 'promo'}
-                            onChange={e => updateActiveVariant({ category: e.target.value as 'promo' | 'self_promo' })}
-                            style={{ width: '130px' }}
+                            onChange={e => updateActiveVariant({ category: e.target.value as 'promo' | 'self_promo' | 'website_photo' })}
+                            style={{ width: '150px' }}
                           >
                             <option value="promo">Promo</option>
                             <option value="self_promo">Self Promo</option>
+                            <option value="website_photo">Website Photo</option>
                           </Select>
                         </label>
                         <label style={{ fontSize: '11px', color: 'var(--ink3)', display: 'flex', alignItems: 'center', gap: '6px' }}>
@@ -594,7 +598,22 @@ export default function CreativeTemplatesAdminPage({ params }: { params: Promise
                         <label style={{ fontSize: '11px', color: 'var(--ink3)', display: 'flex', alignItems: 'center', gap: '6px' }}>
                           H <Input type="number" value={activeVariant.canvas_height} onChange={e => updateActiveVariant({ canvas_height: Number(e.target.value) })} style={{ width: '70px' }} />
                         </label>
+                        {activeVariant.category === 'website_photo' && (
+                          <label style={{ fontSize: '11px', color: 'var(--ink3)', display: 'flex', alignItems: 'center', gap: '6px' }}
+                            title="Passed to PhotoRoom's crop as breathing room around the framed head+shoulders (0-0.49).">
+                            Padding
+                            <Input type="number" min={0} max={0.49} step={0.01}
+                              value={activeVariant.photoroom_padding ?? 0.08}
+                              onChange={e => updateActiveVariant({ photoroom_padding: Number(e.target.value) })}
+                              style={{ width: '70px' }} />
+                          </label>
+                        )}
                       </div>
+                      {activeVariant.category === 'website_photo' && (
+                        <div style={{ fontSize: '11px', color: 'var(--ink3)', marginBottom: '10px' }}>
+                          This variant should have exactly two layers: an <strong>Image</strong> layer for the background, and a <strong>Photo/Logo Slot</strong> (source: speaker photo) sized to the full canvas — PhotoRoom already frames/relights the speaker photo before it reaches this compositor, so no alignment/face-detection is needed on the slot itself. The lighting prompt it uses is set in the <strong>AI Edit Prompts</strong> tab, assigned to &ldquo;Speaker Web Pic&rdquo;.
+                        </div>
+                      )}
 
                       <div style={{ fontSize: '11px', color: 'var(--ink3)', marginBottom: '10px' }}>
                         Layers, bottom to top — the last one renders on top of everything above it.
@@ -827,6 +846,108 @@ function PlaceholderPanel({ activeType, profile, onSave }: {
       )}
       <div style={{ gridColumn: '1 / -1' }}>
         <Button variant="teal" onClick={handleSave} disabled={saving}>{saving ? 'Saving…' : 'Save Placeholder'}</Button>
+      </div>
+    </div>
+  )
+}
+
+// "AI Edit Prompts" — Admin Console's third tab (2026-08-18). Self-
+// contained like AccessTab, deliberately not wired through the Variants
+// tab's fetchAll()/mutate()/undo machinery, which is all built around
+// editing layer stacks — this is a much simpler flat list with its own
+// save. A named, reusable PhotoRoom editWithAI prompt library: each preset
+// can be assigned to one "module" (a fixed, code-defined feature — see
+// AI_EDIT_MODULES), and that feature's own generate route looks up its
+// prompt by module_key. Only one real module exists today (Speaker Web
+// Pic), but per Madhu this is meant to hold future templatized editWithAI
+// features too, without each growing its own bespoke config UI.
+function AiEditPromptsPanel({ eventId }: { eventId: string }) {
+  const [loading, setLoading] = useState(true)
+  const [prompts, setPrompts] = useState<AiEditPreset[]>([])
+  const [dirty, setDirty] = useState(false)
+  const [saving, setSaving] = useState(false)
+  const [msg, setMsg] = useState<string | null>(null)
+
+  useEffect(() => {
+    let cancelled = false
+    fetch(`/api/events/templates?event_id=${eventId}`)
+      .then(r => r.json())
+      .then((config: CreativeTemplateConfig | null) => {
+        if (cancelled) return
+        setPrompts(config?.ai_edit_prompts ?? [])
+        setLoading(false)
+      })
+      .catch(() => { if (!cancelled) setLoading(false) })
+    return () => { cancelled = true }
+  }, [eventId])
+
+  function addPreset() {
+    setPrompts(ps => [...ps, { id: crypto.randomUUID(), name: 'Untitled Preset', prompt: '', module_key: null }])
+    setDirty(true)
+  }
+
+  function updatePreset(id: string, patch: Partial<AiEditPreset>) {
+    setPrompts(ps => ps.map(p => p.id === id ? { ...p, ...patch } : p))
+    setDirty(true)
+  }
+
+  function deletePreset(id: string) {
+    const preset = prompts.find(p => p.id === id)
+    if (!confirm(`Delete preset "${preset?.name || 'Untitled Preset'}"?`)) return
+    setPrompts(ps => ps.filter(p => p.id !== id))
+    setDirty(true)
+  }
+
+  async function save() {
+    setSaving(true)
+    const res = await fetch('/api/events/templates/ai-edit-prompts', {
+      method: 'PUT', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ event_id: eventId, prompts }),
+    })
+    const data = await res.json().catch(() => ({}))
+    if (res.ok) setDirty(false); else setMsg(data.error || 'Save failed.')
+    setSaving(false)
+  }
+
+  if (loading) return <div style={{ color: 'var(--ink3)', fontSize: '13px' }}>Loading…</div>
+
+  return (
+    <div style={{ maxWidth: '760px' }}>
+      <div style={{ fontSize: '12.5px', color: 'var(--ink3)', marginBottom: '16px' }}>
+        Named PhotoRoom editWithAI prompts, each assignable to one feature below. A feature's generate step looks up its prompt by that assignment — rename or edit the text freely, it takes effect on the next generate.
+      </div>
+
+      {msg && (
+        <div style={{ padding: '10px 14px', borderRadius: '8px', background: 'var(--red-light)', border: '1px solid var(--red-border)', color: 'var(--red)', fontSize: '12.5px', marginBottom: '16px' }}>
+          {msg} <button onClick={() => setMsg(null)} style={{ background: 'none', border: 'none', color: 'inherit', cursor: 'pointer', fontWeight: 700, marginLeft: '8px' }}>×</button>
+        </div>
+      )}
+
+      {prompts.length === 0 && (
+        <div style={{ color: 'var(--ink3)', fontSize: '13px', textAlign: 'center', padding: '32px 0' }}>No presets yet.</div>
+      )}
+
+      <div style={{ display: 'grid', gap: '14px', marginBottom: '18px' }}>
+        {prompts.map(p => (
+          <div key={p.id} style={{ padding: '14px', borderRadius: '10px', border: '1px solid var(--border-light)', background: 'var(--surface)' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 220px auto', gap: '10px', marginBottom: '10px' }}>
+              <Input value={p.name} onChange={e => updatePreset(p.id, { name: e.target.value })} placeholder="Preset name" />
+              <Select value={p.module_key ?? ''} onChange={e => updatePreset(p.id, { module_key: e.target.value || null })}>
+                <option value="">— Unassigned —</option>
+                {AI_EDIT_MODULES.map(m => <option key={m.key} value={m.key}>{m.label}</option>)}
+              </Select>
+              <Button variant="ghost" onClick={() => deletePreset(p.id)}>Delete</Button>
+            </div>
+            <Textarea value={p.prompt} onChange={e => updatePreset(p.id, { prompt: e.target.value })}
+              placeholder="e.g. Add dramatic professional studio lighting: a cool blue rim light along the left edge of the face and hair, soft warm key light on the front of the face, deep natural shadows, editorial portrait look. Do not change facial features, expression, or identity."
+              style={{ width: '100%', minHeight: '80px' }} />
+          </div>
+        ))}
+      </div>
+
+      <div style={{ display: 'flex', gap: '10px' }}>
+        <Button variant="ghost" onClick={addPreset}>+ New Preset</Button>
+        <Button variant="teal" onClick={save} disabled={saving || !dirty}>{saving ? 'Saving…' : dirty ? 'Save Changes' : 'Saved'}</Button>
       </div>
     </div>
   )
