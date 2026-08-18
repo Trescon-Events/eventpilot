@@ -22,7 +22,7 @@ const SOURCE_LABEL: Record<'speaker_photo' | 'speaker_logo' | 'partner_logo', st
   speaker_photo: 'photo', speaker_logo: 'company logo', partner_logo: 'logo',
 }
 
-function missingAssetLabels(v: Variant, stakeholderType: StakeholderKind, s: Stakeholder): string[] {
+export function missingAssetLabels(v: Variant, stakeholderType: StakeholderKind, s: Stakeholder): string[] {
   const sources = new Set(v.layers.filter((l): l is Extract<typeof v.layers[number], { type: 'photo_slot' }> => l.type === 'photo_slot').map(l => l.source))
   const missing: string[] = []
   if (stakeholderType === 'speaker') {

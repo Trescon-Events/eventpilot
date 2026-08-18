@@ -1,7 +1,7 @@
 'use client'
 
 import { use, useCallback, useEffect, useRef, useState } from 'react'
-import { useSearchParams } from 'next/navigation'
+import { useSearchParams, useRouter, usePathname } from 'next/navigation'
 import { Download } from 'lucide-react'
 import PageHeader from '@/app/components/PageHeader'
 import { permissionSetSatisfies } from '@/app/lib/access/permission-match'
@@ -13,6 +13,8 @@ import { useBreadcrumbLabel } from '@/app/lib/nav/breadcrumb-labels'
 import PhotoUploadModal from '../PhotoUploadModal'
 import LogoApprovalModal from '../LogoApprovalModal'
 import HeadBoxEditorModal from '../HeadBoxEditorModal'
+import AnnouncementsTab from './AnnouncementsTab'
+import type { Speaker as SaeSpeaker, Partner as SaePartner } from '../../creative-templates/page'
 
 /* The generic, canonical full-page review/edit screen for a single
    stakeholder (Speaker or any Partner category) — replaces the old 440px
@@ -50,6 +52,7 @@ type StakeholderRecord = {
   pronoun_style?: 'he_him' | 'she_her' | 'his_excellency' | 'her_excellency' | 'his_highness' | 'her_highness' | null
   key_talking_points?: string | null
   logo_url?: string | null; logo_raw_url?: string | null
+  email?: string | null
   announcement_status: AnnouncementStatus
   source: 'onboarding_form' | 'manual'
   notes: string | null
@@ -143,9 +146,16 @@ const SAVE_DEBOUNCE_MS = 700
 export default function StakeholderReviewPage({ params }: { params: Promise<{ id: string; stakeholderId: string }> }) {
   const { id: eventId, stakeholderId } = use(params)
   const searchParams = useSearchParams()
+  const router = useRouter()
+  const pathname = usePathname()
   const kind: Kind = searchParams.get('kind') === 'partner' ? 'partner' : 'speaker'
   const formType: FormType = kind === 'speaker' ? 'speaker' : ((searchParams.get('formType') as FormType | null) ?? 'sponsor')
   const base = kind === 'speaker' ? '/api/events/stakeholders/speakers' : '/api/events/stakeholders/partners'
+  // Announcements tab (2026-08-18, SAE-into-Hub merge) — ?tab=announcements
+  // (+ optional ?announcement=X) is how Queue's "Open" links land directly
+  // on one creative's review panel, same deep-link idea SAE's own page used.
+  const activeTab: 'overview' | 'announcements' = searchParams.get('tab') === 'announcements' ? 'announcements' : 'overview'
+  const initialAnnouncementId = searchParams.get('announcement')
 
   const [record, setRecord] = useState<StakeholderRecord | null>(null)
   const [eventName, setEventName] = useState<string | null>(null)
@@ -337,6 +347,13 @@ export default function StakeholderReviewPage({ params }: { params: Promise<{ id
     await load()
   }
 
+  function setTab(tab: 'overview' | 'announcements') {
+    const params = new URLSearchParams(searchParams.toString())
+    params.set('tab', tab)
+    if (tab === 'overview') params.delete('announcement')
+    router.replace(`${pathname}?${params.toString()}`)
+  }
+
   if (loading || !record) {
     return <div style={{ minHeight: '100vh', background: 'var(--surface)', padding: '32px', color: 'var(--ink3)' }}>Loading…</div>
   }
@@ -360,6 +377,31 @@ export default function StakeholderReviewPage({ params }: { params: Promise<{ id
   const cleanLogo = (kind === 'speaker' ? record.company_logo_url : record.logo_url) ?? null
   const namePrefix = (name || 'stakeholder').replace(/\s+/g, '-')
 
+  // Adapted to SAE's own Speaker/Partner shape (app/admin/events/[id]/
+  // creative-templates/page.tsx) so AnnouncementsTab can hand this straight
+  // to AnnouncementDetailPanel/CreateAnnouncementForStakeholder without a
+  // second, diverging stakeholder type to keep in sync.
+  const stakeholderForPanel: SaeSpeaker | SaePartner = kind === 'speaker'
+    ? {
+        id: record.id,
+        full_name: name || '',
+        job_title: record.job_title ?? '',
+        company_name: record.company_name ?? '',
+        photo_url: record.photo_url ?? null,
+        photo_processed_url: record.photo_processed_url ?? null,
+        company_logo_url: record.company_logo_url ?? null,
+        announcement_status: status,
+        email: record.email ?? null,
+        public_name: record.public_name ?? null,
+      }
+    : {
+        id: record.id,
+        company_name: name || '',
+        partner_type: record.partner_type ?? 'sponsor',
+        logo_url: record.logo_url ?? null,
+        announcement_status: status,
+      }
+
   return (
     <div style={{ minHeight: '100vh', background: 'var(--surface)' }}>
       <PageHeader
@@ -370,7 +412,36 @@ export default function StakeholderReviewPage({ params }: { params: Promise<{ id
         backLabel="Back to Stakeholder Hub"
       />
 
-      <div style={{ maxWidth: '1240px', margin: '0 auto', padding: '28px 32px', display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) 300px', gap: '24px', alignItems: 'start' }}>
+      <div style={{ maxWidth: '1240px', margin: '0 auto', padding: '20px 32px 0' }}>
+        <div style={{ display: 'flex', gap: '6px', borderBottom: '1px solid var(--border-light)' }}>
+          {(['overview', 'announcements'] as const).map(t => (
+            <button key={t} onClick={() => setTab(t)}
+              style={{
+                padding: '10px 18px', border: 'none', borderBottom: activeTab === t ? '2px solid var(--teal-mid)' : '2px solid transparent',
+                background: 'transparent', cursor: 'pointer', fontFamily: 'inherit', fontSize: '13px', fontWeight: 700,
+                color: activeTab === t ? 'var(--ink)' : 'var(--ink3)', marginBottom: '-1px',
+              }}>
+              {t === 'overview' ? 'Overview' : 'Announcements'}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {activeTab === 'announcements' && (
+        <div style={{ maxWidth: '1240px', margin: '0 auto', padding: '24px 32px' }}>
+          <AnnouncementsTab
+            eventId={eventId}
+            stakeholderId={stakeholderId}
+            stakeholderType={kind}
+            stakeholder={stakeholderForPanel}
+            initialAnnouncementId={initialAnnouncementId}
+          />
+        </div>
+      )}
+
+      {activeTab === 'overview' && (
+      <div style={{ maxWidth: '1240px', margin: '0 auto', padding: '24px 32px' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) 300px', gap: '24px', alignItems: 'start' }}>
         <div style={{ display: 'grid', gap: '20px', minWidth: 0 }}>
           {msg && (
             <div style={{ padding: '10px 14px', borderRadius: '8px', background: 'var(--red-light)', border: '1px solid var(--red-border)', color: 'var(--red)', fontSize: '14.5px' }}>
@@ -548,7 +619,9 @@ export default function StakeholderReviewPage({ params }: { params: Promise<{ id
             )}
           </Card>
         </div>
+        </div>
       </div>
+      )}
 
       <ProcessingOverlay active={!!processing} label={processing?.label} estimatedMs={processing?.estimatedMs} />
 
