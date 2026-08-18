@@ -1,0 +1,4 @@
+# Required reviewer/approver for every pull request into main.
+# Paired with branch protection (require review from code owners) so that
+# non-admin collaborators (e.g. khalifa-branding) can never merge without approval here.
+* @tresconevents

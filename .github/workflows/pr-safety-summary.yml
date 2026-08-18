@@ -1,0 +1,33 @@
+name: PR Safety Summary
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+    branches: [main]
+
+jobs:
+  summarize:
+    if: github.event.pull_request.user.login == 'khalifa-branding'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      pull-requests: write
+      contents: read
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+
+      - name: Summarize PR and post safety verdict
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          GITHUB_TOKEN:      ${{ secrets.GITHUB_TOKEN }}
+          PR_NUMBER:         ${{ github.event.pull_request.number }}
+          BASE_REF:          ${{ github.event.pull_request.base.ref }}
+          REVIEWER_HANDLE:   tresconevents
+        run: node .github/scripts/pr-safety-summary.js
