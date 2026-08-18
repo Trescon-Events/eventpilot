@@ -751,7 +751,7 @@ export function getModuleRegistry(): ModuleDef[] {
       description: 'Describe a skill gap or topic — Gemini AI designs a complete course with reading content, hands-on tasks, and a 10-question quiz. Bulk-seed courses per department in one click.',
       icon: <svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>,
       color: '#A78BFA',
-      href: '/admin?tab=suggest',
+      href: '/admin?tab=ai-learning&sub=course-generator',
       access: { kind: 'admin_only' },
       sidebar: { section: 'toolkit', order: 4 },
       toolkitHub: {

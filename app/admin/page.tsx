@@ -11,6 +11,7 @@ import { computeAIRS } from '@/app/lib/airs'
 import { getModuleRegistry } from '@/app/lib/registry/modules'
 import { VALID_ACCESS_ROLES } from '@/app/lib/access/access-roles'
 import PageHeader from '@/app/components/PageHeader'
+import AiLearningTab from './ai-learning/AiLearningTab'
 
 // Colors here are literal (not CSS vars) on purpose — several are reused
 // as `${meta.color}NN` alpha-suffixed strings elsewhere (badges, borders),
@@ -81,13 +82,6 @@ type TaskProfile = {
   responses: TaskResponse[]
   submitted_at: string | null
 }
-
-type LearningCompletion = { id: string; staff_id: string; course_id: string; test_score: number | null; passed: boolean; attempt_count: number; completed_at: string }
-type LearningCourse     = { id: string; title: string; tier_level: string; is_mandatory: boolean; estimated_minutes: number }
-type LearningStaff      = { id: string; name: string; department: string | null; office_id: string; role: string | null }
-type LearningAttempt    = { id: string; staff_id: string; course_id: string; score: number | null; passed: boolean | null; attempted_at: string }
-type NeverStarted       = { id: string; name: string; department: string | null; office_id: string; role: string | null }
-type DeptParticipation  = { dept: string; total: number; active: number }
 
 /* ── QuestionnaireView — read-only preview of the full questionnaire flow ── */
 function QuestionnaireView({ qDept, setQDept }: { qDept: string; setQDept: (d: string) => void }) {
@@ -232,11 +226,17 @@ function AdminPageInner() {
   const [codeError, setCodeError] = useState('')
   const [members, setMembers] = useState<Member[]>([])
   const [tasks, setTasks]     = useState<TaskProfile[]>([])
-  type AdminTab = 'overview' | 'people' | 'intelligence' | 'learning' | 'suggest' | 'events' | 'commercial' | 'review' | 'toolkit' | 'security' | 'finance' | 'hr' | 'branding'
+  type AdminTab = 'overview' | 'people' | 'intelligence' | 'ai-learning' | 'events' | 'commercial' | 'review' | 'toolkit' | 'security' | 'finance' | 'hr' | 'branding'
+  type AiLearningSub = 'analytics' | 'course-generator'
   const [tab, setTab]         = useState<AdminTab>(() => {
     if (typeof window === 'undefined') return 'overview'
     const t = new URLSearchParams(window.location.search).get('tab') as AdminTab | null
     return t ?? 'overview'
+  })
+  const [aiLearningSub, setAiLearningSub] = useState<AiLearningSub>(() => {
+    if (typeof window === 'undefined') return 'analytics'
+    const s = new URLSearchParams(window.location.search).get('sub')
+    return s === 'course-generator' ? 'course-generator' : 'analytics'
   })
   // The lazy initializer above only ever reads the URL once, on first
   // mount — a client-side navigation to /admin?tab=X while already on
@@ -260,6 +260,14 @@ function AdminPageInner() {
   if (searchParamsTab !== lastSyncedTab) {
     setLastSyncedTab(searchParamsTab)
     if (searchParamsTab) setTab(searchParamsTab)
+  }
+  // Same "state during render" pattern as tab/lastSyncedTab above, for the
+  // AI Learning tab's own sub-nav.
+  const searchParamsSub = searchParams.get('sub')
+  const [lastSyncedSub, setLastSyncedSub] = useState(searchParamsSub)
+  if (searchParamsSub !== lastSyncedSub) {
+    setLastSyncedSub(searchParamsSub)
+    if (searchParamsSub === 'course-generator' || searchParamsSub === 'analytics') setAiLearningSub(searchParamsSub)
   }
 
   // Activity tracking state
@@ -478,32 +486,6 @@ function AdminPageInner() {
     fetchStaffList()
     setTimeout(() => setAddState('idle'), 2000)
   }
-  const [suggestion, setSuggestion]   = useState('')
-  const [suggestDept, setSuggestDept] = useState('Events')
-  const [suggestTier, setSuggestTier] = useState<'foundation' | 'adoption' | 'advanced'>('foundation')
-  const [suggestState, setSuggestState] = useState<'idle' | 'thinking' | 'ready' | 'publishing'>('idle')
-  const [generatedCourse, setGeneratedCourse] = useState<Record<string, unknown> | null>(null)
-  const [publishMsg, setPublishMsg]   = useState('')
-  // Attribution — who suggested this course
-  const [creditName, setCreditName]   = useState('')
-  const [creditRole, setCreditRole]   = useState('')
-  const [creditId,   setCreditId]     = useState('')
-  // Dept course seeding
-  const [deptSeedDept,   setDeptSeedDept]   = useState('Events')
-  const [deptSeedTier,   setDeptSeedTier]   = useState<'foundation' | 'adoption' | 'advanced'>('foundation')
-  const [deptSeedCount,  setDeptSeedCount]  = useState(2)
-  const [deptSeedState,  setDeptSeedState]  = useState<'idle' | 'generating' | 'done' | 'error'>('idle')
-  const [deptSeedResult, setDeptSeedResult] = useState<{ courses: { id: string; title: string; tier_level: string }[]; errors?: string[] } | null>(null)
-  const [learningData, setLearningData] = useState<{ completions: LearningCompletion[]; courses: LearningCourse[]; staff: LearningStaff[]; attempts: LearningAttempt[]; never_started: NeverStarted[]; participation_by_dept: DeptParticipation[] } | null>(null)
-  const [learningLoading, setLearningLoading] = useState(false)
-  // Course assignment
-  const [assignCourseId,    setAssignCourseId]    = useState('')
-  const [assignTarget,      setAssignTarget]      = useState<'all' | 'dept' | 'individual'>('dept')
-  const [assignCourseDept,  setAssignCourseDept]  = useState('')
-  const [assignCourseStaff, setAssignCourseStaff] = useState('')
-  const [assignDueDate,     setAssignDueDate]     = useState('')
-  const [assigning,         setAssigning]         = useState(false)
-  const [assignMsg,         setAssignMsg]         = useState<{ text: string; ok: boolean } | null>(null)
   const [showDevTools, setShowDevTools] = useState(false)
   const [seedLoading, setSeedLoading]   = useState(false)
   const [seedMsg, setSeedMsg]           = useState('')
@@ -709,74 +691,12 @@ function AdminPageInner() {
     setLoading(false)
   }, [])
 
-  async function fetchLearning() {
-    if (learningData) return // already loaded
-    setLearningLoading(true)
-    const res = await fetch('/api/admin-learning')
-    if (res.ok) setLearningData(await res.json())
-    setLearningLoading(false)
-  }
-
-
-  async function submitSuggestion() {
-    if (!suggestion.trim()) return
-    setSuggestState('thinking')
-    setGeneratedCourse(null)
-    setPublishMsg('')
-    const res = await fetch('/api/generate-course', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        admin_code: process.env.NEXT_PUBLIC_ADMIN_CODE ?? 'eventpilot2026',
-        suggestion: suggestion.trim(),
-        department: suggestDept,
-        tier_level: suggestTier,
-      }),
-    })
-    const data = await res.json()
-    if (res.ok && data.course) {
-      setGeneratedCourse(data.course)
-      setSuggestState('ready')
-    } else {
-      setPublishMsg(data.error ?? 'Failed to generate. Try again.')
-      setSuggestState('idle')
-    }
-  }
-
-  async function submitForReview() {
-    if (!generatedCourse) return
-    setSuggestState('publishing')
-    const courseWithCredit = {
-      ...generatedCourse,
-      ...(creditName ? { suggested_by_name: creditName, suggested_by_role: creditRole || null } : {}),
-      ...(creditId   ? { suggested_by_id:   creditId   } : {}),
-    }
-    const pubRes = await fetch('/api/courses', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ admin_code: process.env.NEXT_PUBLIC_ADMIN_CODE ?? 'eventpilot2026', course: courseWithCredit }),
-    })
-    if (pubRes.ok) {
-      setPublishMsg(`Course submitted for review. You will be notified on your dashboard once it is approved and live.`)
-      setSuggestState('idle')
-      setSuggestion('')
-      setGeneratedCourse(null)
-      setCreditName('')
-      setCreditRole('')
-      setCreditId('')
-    } else {
-      const d = await pubRes.json()
-      setPublishMsg(d.error ?? 'Submission failed. Try again.')
-      setSuggestState('ready')
-    }
-  }
-
   const TOUR_STEPS = [
-    { id: 'tour-tabs',             title: 'Your main sections',         desc: 'Navigate between Overview, All Staff, Intelligence, Learning Lab, Events, Knowledge Base, and more using these tabs.' },
+    { id: 'tour-tabs',             title: 'Your main sections',         desc: 'Navigate between Overview, All Staff, Intelligence, AI Learning, Events, Knowledge Base, and more using these tabs.' },
     { id: 'tour-stats',            title: 'Org readiness at a glance',  desc: 'Total staff in the system, how many have completed their profile, and your organisation\'s live AI Readiness Score — all updating in real time.' },
     { id: 'tour-started',          title: 'Your first 3 actions',       desc: 'Complete these three steps to get Event Pilot fully running. Each one unlocks more of the platform for your team.' },
     { id: 'tour-intelligence-tab', title: 'Intelligence tab',           desc: 'AI-generated analysis of your org\'s readiness. Department breakdowns, tier distributions, and what to do about gaps — with no manual input.' },
-    { id: 'tour-studio-tab',       title: 'Learning Lab',             desc: 'Describe a skill gap, pick a department, and Gemini generates a full course with reading content, tasks, and a quiz. Ready to publish in under a minute.' },
+    { id: 'tour-ai-learning-tab',  title: 'AI Learning',                desc: 'Course analytics and the AI course generator, in one place. Describe a skill gap and Gemini designs a full course with reading content, tasks, and a quiz — ready to publish in under a minute.' },
     { id: 'tour-pilot-btn',       title: 'Pilot — your AI assistant', desc: 'Ask Pilot anything: team progress, how to use a feature, what a AI Readiness Score means, or what to do next. It knows your org data.' },
   ]
 
@@ -1304,8 +1224,7 @@ function AdminPageInner() {
             overview:     '#12C9BD',
             people:       '#1296BA',
             intelligence: '#A478FF',
-            learning:     '#12C9BD',
-            suggest:      '#A478FF',
+            'ai-learning': '#A478FF',
             events:       '#12C9BD',
             review:       '#F1667A',
             security:     '#6285EA',
@@ -1336,8 +1255,7 @@ function AdminPageInner() {
                 ['overview',     'Overview'],
                 ['people',       'People'],
                 ['intelligence', 'Intelligence'],
-                ['learning',     'Learning Analytics'],
-                ['suggest',      'AI Course Generator'],
+                ['ai-learning',  'AI Learning'],
                 ['events',       'Events'],
                 ['finance',      'Finance'],
                 ['hr',           'HR Portal'],
@@ -1349,8 +1267,8 @@ function AdminPageInner() {
                 const active  = tab === t
                 return (
                   <button key={t}
-                    id={t === 'intelligence' ? 'tour-intelligence-tab' : t === 'suggest' ? 'tour-studio-tab' : undefined}
-                    onClick={() => { if (NAV_LINK_HREF[t]) { window.location.href = NAV_LINK_HREF[t]; return; } setTab(t as typeof tab); syncAdminUrl(t); if (t === 'learning') fetchLearning(); if (t === 'people') { fetchStaffList(); markProgress('staff') } if (t === 'events') { fetchEvents(); fetchEventSummaries(); } if (t === 'review') fetchDrafts(); if (t === 'suggest') markProgress('course'); if (t === 'security') fetchSecurity() }}
+                    id={t === 'intelligence' ? 'tour-intelligence-tab' : t === 'ai-learning' ? 'tour-ai-learning-tab' : undefined}
+                    onClick={() => { if (NAV_LINK_HREF[t]) { window.location.href = NAV_LINK_HREF[t]; return; } setTab(t as typeof tab); syncAdminUrl(t, t === 'ai-learning' ? aiLearningSub : undefined); if (t === 'people') { fetchStaffList(); markProgress('staff') } if (t === 'events') { fetchEvents(); fetchEventSummaries(); } if (t === 'review') fetchDrafts(); if (t === 'security') fetchSecurity() }}
                     style={{
                       padding:         active ? '9px 22px' : '9px 20px',
                       borderRadius:    '10px',
@@ -1389,9 +1307,9 @@ function AdminPageInner() {
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
               {[
-                { key: 'staff', label: 'View your staff and their AI readiness scores', action: () => { setTab('people'); fetchStaffList(); markProgress('staff') }, tab: 'People' },
+                { key: 'staff', label: 'View and manage your staff roster', action: () => { setTab('people'); fetchStaffList(); markProgress('staff') }, tab: 'People' },
                 { key: 'brief', label: 'Explore the Intelligence tab to see org-wide insights', action: () => { setTab('intelligence'); markProgress('brief') }, tab: 'Intelligence' },
-                { key: 'course', label: 'Build your first course in Learning Lab', action: () => { setTab('suggest'); markProgress('course') }, tab: 'Learning Lab' },
+                { key: 'course', label: 'Build your first course in AI Learning', action: () => { setTab('ai-learning'); setAiLearningSub('course-generator'); syncAdminUrl('ai-learning', 'course-generator'); markProgress('course') }, tab: 'AI Learning' },
               ].map(step => {
                 const done = gettingStarted[step.key as keyof typeof gettingStarted]
                 return (
@@ -2722,629 +2640,17 @@ function AdminPageInner() {
           )
         })()}
 
-
-        {/* ── Learning tab ── */}
-        {tab === 'learning' && (() => {
-          if (learningLoading) return (
-            <div style={{ padding: '60px', textAlign: 'center' }}>
-              <div style={{ width: '32px', height: '32px', border: '3px solid var(--border)', borderTopColor: 'var(--teal-mid)', borderRadius: '50%', animation: 'spin 0.8s linear infinite', margin: '0 auto 14px' }} />
-              <div style={{ color: 'var(--ink3)', fontSize: '13px' }}>Loading learning data…</div>
-            </div>
-          )
-          if (!learningData) return (
-            <div style={{ padding: '60px', textAlign: 'center', color: 'var(--ink3)', fontSize: '13px' }}>
-              No learning data yet. Staff need to complete courses first.
-            </div>
-          )
-
-          const { completions, courses, staff: ldStaff, attempts, never_started, participation_by_dept } = learningData
-          const staffMap   = Object.fromEntries(ldStaff.map(s => [s.id, s]))
-          const courseMap  = Object.fromEntries(courses.map(c => [c.id, c]))
-          const passedComp = completions.filter(c => c.passed)
-
-          // Summary stats
-          const totalAttempts   = attempts.length
-          const totalPassed     = passedComp.length
-          const passRate        = totalAttempts > 0 ? Math.round(totalPassed / totalAttempts * 100) : 0
-          const avgScore        = passedComp.length > 0 ? Math.round(passedComp.reduce((s, c) => s + (c.test_score ?? 0), 0) / passedComp.length) : 0
-          const activeStaff     = new Set(attempts.map(a => a.staff_id)).size
-          const thisWeek        = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)
-          const completionsThisWeek = passedComp.filter(c => new Date(c.completed_at) > thisWeek).length
-
-          // Per-course stats
-          const courseStats = courses.map(c => {
-            const cComp    = completions.filter(x => x.course_id === c.id)
-            const cAttempt = attempts.filter(x => x.course_id === c.id)
-            const cPassed  = cComp.filter(x => x.passed)
-            const cAvg     = cPassed.length > 0 ? Math.round(cPassed.reduce((s, x) => s + (x.test_score ?? 0), 0) / cPassed.length) : null
-            return { ...c, completions: cPassed.length, attempts: cAttempt.length, avgScore: cAvg }
-          }).sort((a, b) => b.completions - a.completions)
-
-          // Per-dept stats
-          const deptStats: Record<string, { name: string; completed: number; staff: number; avgScore: number }> = {}
-          for (const comp of passedComp) {
-            const s = staffMap[comp.staff_id]
-            if (!s) continue
-            const dept = s.department ?? 'Other'
-            if (!deptStats[dept]) deptStats[dept] = { name: dept, completed: 0, staff: 0, avgScore: 0 }
-            deptStats[dept].completed++
-            deptStats[dept].avgScore = Math.round(((deptStats[dept].avgScore * (deptStats[dept].completed - 1)) + (comp.test_score ?? 0)) / deptStats[dept].completed)
-          }
-          const deptStatsList = Object.values(deptStats).sort((a, b) => b.completed - a.completed)
-
-          // Top learners
-          const learnerMap: Record<string, { name: string; dept: string; completed: number; avgScore: number }> = {}
-          for (const comp of passedComp) {
-            const s = staffMap[comp.staff_id]
-            if (!s) continue
-            if (!learnerMap[comp.staff_id]) learnerMap[comp.staff_id] = { name: s.name, dept: s.department ?? '—', completed: 0, avgScore: 0 }
-            learnerMap[comp.staff_id].completed++
-            learnerMap[comp.staff_id].avgScore = Math.round(((learnerMap[comp.staff_id].avgScore * (learnerMap[comp.staff_id].completed - 1)) + (comp.test_score ?? 0)) / learnerMap[comp.staff_id].completed)
-          }
-          const topLearners = Object.entries(learnerMap).map(([id, v]) => ({ id, ...v })).sort((a, b) => b.completed - a.completed || b.avgScore - a.avgScore).slice(0, 10)
-
-          const TIER_COLOR: Record<string, string> = { foundation: '#F1667A', adoption: '#0EA79D', advanced: '#C0F43C' }
-
-          return (
-            <div>
-              {/* Summary strip */}
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: '10px', marginBottom: '24px' }}>
-                {[
-                  { label: 'Courses Available',   value: courses.length,         sub: 'in library',          accent: 'var(--teal-mid)' },
-                  { label: 'Total Completions',    value: totalPassed,            sub: 'passes recorded',     accent: '#7DC520' },
-                  { label: 'This Week',            value: completionsThisWeek,    sub: 'completed',           accent: '#AF70E3' },
-                  { label: 'Avg Passing Score',    value: avgScore ? `${avgScore}%` : '—', sub: 'across all passes', accent: '#F5B94D' },
-                  { label: 'Active Learners',      value: activeStaff,            sub: 'attempted a course',  accent: 'var(--red)' },
-                ].map(({ label, value, sub, accent }) => (
-                  <div key={label} style={{ background: 'var(--card)', border: '1px solid var(--border)', borderTop: `4px solid ${accent}`, borderRadius: '14px', padding: '20px', boxShadow: '0 2px 8px rgba(15,25,35,0.05)' }}>
-                    <div style={{ fontSize: '11px', fontWeight: 800, letterSpacing: '1.5px', textTransform: 'uppercase', color: 'var(--ink3)', marginBottom: '10px' }}>{label}</div>
-                    <div style={{ fontSize: '36px', fontWeight: 900, color: accent, marginBottom: '4px', lineHeight: 1 }}>{value}</div>
-                    <div style={{ fontSize: '12px', color: 'var(--ink3)', fontWeight: 600 }}>{sub}</div>
-                  </div>
-                ))}
-              </div>
-
-              <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: '16px', marginBottom: '20px' }}>
-
-                {/* Course completion table */}
-                <div style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: '16px', overflow: 'hidden' }}>
-                  <div style={{ padding: '18px 20px', borderBottom: '1px solid var(--border)' }}>
-                    <div style={{ fontSize: '13px', fontWeight: 700, letterSpacing: '1.5px', textTransform: 'uppercase', color: 'var(--ink3)' }}>Course Performance</div>
-                    <div style={{ fontSize: '13px', color: 'var(--ink)', marginTop: '2px' }}>Completions and avg score per course</div>
-                  </div>
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 90px 48px 56px', padding: '8px 20px', borderBottom: '1px solid var(--border)', gap: '8px' }}>
-                    {['Course', 'Track', 'Done', 'Avg'].map(h => (
-                      <div key={h} style={{ fontSize: '9px', fontWeight: 700, letterSpacing: '1.5px', textTransform: 'uppercase', color: 'var(--ink3)' }}>{h}</div>
-                    ))}
-                  </div>
-                  {courseStats.map((c, i) => (
-                    <div key={c.id} style={{ display: 'grid', gridTemplateColumns: '1fr 90px 48px 56px', padding: '12px 20px', borderBottom: i < courseStats.length - 1 ? '1px solid var(--surface)' : 'none', gap: '8px', alignItems: 'center' }}>
-                      <div>
-                        <div style={{ fontSize: '13px', fontWeight: 600, color: 'var(--ink)', lineHeight: 1.3 }}>{c.title}</div>
-                        {c.is_mandatory && <div style={{ fontSize: '13px', color: 'var(--red)', marginTop: '2px' }}>Mandatory</div>}
-                      </div>
-                      <div><span style={{ fontSize: '13px', fontWeight: 700, color: TIER_COLOR[c.tier_level] ?? '#0EA79D', background: `${TIER_COLOR[c.tier_level] ?? '#0EA79D'}15`, padding: '2px 7px', borderRadius: '5px', textTransform: 'capitalize' }}>{c.tier_level}</span></div>
-                      <div style={{ fontSize: '13px', fontWeight: 800, color: c.completions > 0 ? 'var(--ink)' : 'var(--border)' }}>{c.completions}</div>
-                      <div style={{ fontSize: '13px', fontWeight: 700, color: c.avgScore ? (c.avgScore >= 80 ? 'var(--lime)' : c.avgScore >= 70 ? 'var(--teal)' : 'var(--red)') : 'var(--border)' }}>{c.avgScore ? `${c.avgScore}%` : '—'}</div>
-                    </div>
-                  ))}
-                  {courseStats.length === 0 && (
-                    <div style={{ padding: '40px', textAlign: 'center', color: 'var(--ink3)', fontSize: '13px' }}>No courses yet. Seed courses first.</div>
-                  )}
-                </div>
-
-                {/* Right column: Dept stats + Top learners */}
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
-
-                  {/* Dept completion */}
-                  <div style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: '16px', overflow: 'hidden' }}>
-                    <div style={{ padding: '14px 18px', borderBottom: '1px solid var(--border)' }}>
-                      <div style={{ fontSize: '13px', fontWeight: 700, letterSpacing: '1.5px', textTransform: 'uppercase', color: 'var(--ink3)' }}>By Department</div>
-                    </div>
-                    {deptStatsList.length === 0 ? (
-                      <div style={{ padding: '24px', textAlign: 'center', color: 'var(--ink)', fontSize: '13px' }}>No completions yet</div>
-                    ) : (
-                      deptStatsList.map((d, i) => (
-                        <div key={d.name} style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '10px 18px', borderBottom: i < deptStatsList.length - 1 ? '1px solid var(--surface)' : 'none' }}>
-                          <div style={{ flex: 1, fontSize: '13px', fontWeight: 600, color: 'var(--ink)' }}>{d.name}</div>
-                          <div style={{ fontSize: '13px', fontWeight: 800, color: 'var(--ink)', minWidth: '24px', textAlign: 'right' }}>{d.completed}</div>
-                          <div style={{ fontSize: '13px', color: d.avgScore >= 80 ? 'var(--lime)' : 'var(--teal)', fontWeight: 700, minWidth: '40px', textAlign: 'right' }}>{d.avgScore}%</div>
-                        </div>
-                      ))
-                    )}
-                  </div>
-
-                  {/* Top learners */}
-                  <div style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: '16px', overflow: 'hidden' }}>
-                    <div style={{ padding: '14px 18px', borderBottom: '1px solid var(--border)' }}>
-                      <div style={{ fontSize: '13px', fontWeight: 700, letterSpacing: '1.5px', textTransform: 'uppercase', color: 'var(--ink3)' }}>Top Learners</div>
-                    </div>
-                    {topLearners.length === 0 ? (
-                      <div style={{ padding: '24px', textAlign: 'center', color: 'var(--ink)', fontSize: '13px' }}>No completions yet</div>
-                    ) : (
-                      topLearners.map((l, i) => (
-                        <div key={l.id} style={{ display: 'grid', gridTemplateColumns: '20px 1fr 36px 44px', alignItems: 'center', gap: '10px', padding: '10px 18px', borderBottom: i < topLearners.length - 1 ? '1px solid var(--surface)' : 'none' }}>
-                          <div style={{ fontSize: '13px', fontWeight: 700, color: i < 3 ? 'var(--lime)' : 'var(--ink3)' }}>#{i + 1}</div>
-                          <div>
-                            <div style={{ fontSize: '13px', fontWeight: 600, color: 'var(--ink)' }}>{l.name}</div>
-                            <div style={{ fontSize: '13px', color: 'var(--ink)' }}>{l.dept}</div>
-                          </div>
-                          <div style={{ fontSize: '13px', fontWeight: 800, color: 'var(--ink)', textAlign: 'right' }}>{l.completed}</div>
-                          <div style={{ fontSize: '13px', fontWeight: 700, color: l.avgScore >= 80 ? 'var(--lime)' : 'var(--teal)', textAlign: 'right' }}>{l.avgScore}%</div>
-                        </div>
-                      ))
-                    )}
-                  </div>
-                </div>
-              </div>
-
-              {/* Pass rate strip */}
-              <div style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: '14px', padding: '16px 22px', display: 'flex', gap: '32px', alignItems: 'center', flexWrap: 'wrap', marginBottom: '20px' }}>
-                <div>
-                  <div style={{ fontSize: '13px', fontWeight: 700, letterSpacing: '1.5px', textTransform: 'uppercase', color: 'var(--ink3)', marginBottom: '4px' }}>Overall Pass Rate</div>
-                  <div style={{ fontSize: '36px', fontWeight: 900, color: passRate >= 70 ? 'var(--lime)' : passRate >= 50 ? 'var(--red)' : 'var(--red)' }}>{passRate}%</div>
-                </div>
-                <div style={{ flex: 1, maxWidth: '400px' }}>
-                  <div style={{ height: '8px', background: 'var(--surface)', borderRadius: '4px', overflow: 'hidden' }}>
-                    <div style={{ height: '100%', width: `${passRate}%`, background: passRate >= 70 ? '#7DC520' : passRate >= 50 ? 'var(--red)' : 'var(--red)', borderRadius: '4px', transition: 'width 0.6s' }} />
-                  </div>
-                  <div style={{ fontSize: '13px', color: 'var(--ink)', marginTop: '5px' }}>{totalPassed} passes out of {totalAttempts} total attempts</div>
-                </div>
-                <div style={{ fontSize: '13px', color: 'var(--ink3)', lineHeight: 1.6 }}>
-                  Target: 70%+ pass rate across all courses.<br/>Below 70% on any course = content or prompt difficulty issue.
-                </div>
-              </div>
-
-              {/* ── Participation section ── */}
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '20px' }}>
-
-                {/* Department participation rates */}
-                <div style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: '16px', overflow: 'hidden' }}>
-                  <div style={{ padding: '16px 20px', borderBottom: '1px solid var(--border)' }}>
-                    <div style={{ fontSize: '13px', fontWeight: 700, letterSpacing: '1.5px', textTransform: 'uppercase', color: 'var(--ink3)' }}>Participation by Department</div>
-                    <div style={{ fontSize: '13px', color: 'var(--ink)', marginTop: '2px' }}>% of staff who have attempted at least one course</div>
-                  </div>
-                  {(participation_by_dept ?? []).length === 0 ? (
-                    <div style={{ padding: '28px', textAlign: 'center', color: 'var(--ink3)', fontSize: '13px' }}>No data yet</div>
-                  ) : (
-                    (participation_by_dept ?? []).map((d, i) => {
-                      const rate = d.total > 0 ? Math.round((d.active / d.total) * 100) : 0
-                      return (
-                        <div key={d.dept} style={{ padding: '12px 20px', borderBottom: i < (participation_by_dept ?? []).length - 1 ? '1px solid var(--surface)' : 'none' }}>
-                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
-                            <div style={{ fontSize: '13px', fontWeight: 600, color: 'var(--ink)' }}>{d.dept}</div>
-                            <div style={{ fontSize: '13px', fontWeight: 700, color: rate >= 70 ? 'var(--lime)' : rate >= 40 ? '#F5B94D' : 'var(--red)' }}>{rate}% <span style={{ fontWeight: 400, color: 'var(--ink3)' }}>({d.active}/{d.total})</span></div>
-                          </div>
-                          <div style={{ height: '5px', background: 'var(--surface)', borderRadius: '3px', overflow: 'hidden' }}>
-                            <div style={{ height: '100%', width: `${rate}%`, background: rate >= 70 ? '#7DC520' : rate >= 40 ? 'var(--amber)' : 'var(--red)', borderRadius: '3px', transition: 'width 0.5s' }} />
-                          </div>
-                        </div>
-                      )
-                    })
-                  )}
-                </div>
-
-                {/* Never-started summary */}
-                <div style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: '16px', overflow: 'hidden' }}>
-                  <div style={{ padding: '16px 20px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <div>
-                      <div style={{ fontSize: '13px', fontWeight: 700, letterSpacing: '1.5px', textTransform: 'uppercase', color: 'var(--ink3)' }}>Never Started</div>
-                      <div style={{ fontSize: '13px', color: 'var(--ink)', marginTop: '2px' }}>Staff who have not attempted any course</div>
-                    </div>
-                    <div style={{ fontSize: '28px', fontWeight: 900, color: (never_started ?? []).length > 0 ? 'var(--red)' : 'var(--lime)' }}>{(never_started ?? []).length}</div>
-                  </div>
-                  {(never_started ?? []).length === 0 ? (
-                    <div style={{ padding: '28px', textAlign: 'center', color: 'var(--lime)', fontSize: '13px', fontWeight: 600 }}>All active staff have started at least one course.</div>
-                  ) : (
-                    <div style={{ maxHeight: '300px', overflowY: 'auto' }}>
-                      {(never_started ?? []).slice(0, 25).map((s, i) => (
-                        <div key={s.id} style={{ display: 'grid', gridTemplateColumns: '1fr auto', alignItems: 'center', gap: '12px', padding: '10px 20px', borderBottom: i < Math.min((never_started ?? []).length, 25) - 1 ? '1px solid var(--surface)' : 'none' }}>
-                          <div>
-                            <div style={{ fontSize: '13px', fontWeight: 600, color: 'var(--ink)' }}>{s.name}</div>
-                            <div style={{ fontSize: '12px', color: 'var(--ink3)' }}>{s.role ?? '—'} · {s.department ?? '—'}</div>
-                          </div>
-                          <div style={{ fontSize: '12px', fontWeight: 600, color: 'var(--amber)', background: 'var(--amber-light)', padding: '3px 8px', borderRadius: '5px', whiteSpace: 'nowrap' }}>{s.office_id}</div>
-                        </div>
-                      ))}
-                      {(never_started ?? []).length > 25 && (
-                        <div style={{ padding: '10px 20px', fontSize: '12px', color: 'var(--ink3)', textAlign: 'center' }}>+{(never_started ?? []).length - 25} more staff not shown</div>
-                      )}
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              {/* ── Assign a Course ── */}
-              <div style={{ marginTop: '16px', background: 'var(--card)', border: '1px solid var(--border)', borderRadius: '16px', overflow: 'hidden' }}>
-                <div style={{ padding: '20px 24px', borderBottom: '1px solid var(--surface)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                  <div>
-                    <div style={{ fontSize: '11px', fontWeight: 800, letterSpacing: '1.8px', textTransform: 'uppercase', color: 'var(--info)', marginBottom: '4px' }}>Course Assignment</div>
-                    <div style={{ fontSize: '15px', fontWeight: 800, color: 'var(--ink)' }}>Assign a course to staff</div>
-                  </div>
-                  <svg width="18" height="18" fill="none" stroke="var(--info)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 013 3L7 19l-4 1 1-4 12.5-12.5z"/></svg>
-                </div>
-                <div style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '18px' }}>
-                  <div>
-                    <label style={{ display: 'block', fontSize: '11px', fontWeight: 800, letterSpacing: '1.5px', textTransform: 'uppercase', color: 'var(--ink3)', marginBottom: '8px' }}>Course</label>
-                    <select value={assignCourseId} onChange={e => setAssignCourseId(e.target.value)}
-                      style={{ width: '100%', padding: '10px 13px', borderRadius: '10px', border: '1px solid var(--border)', background: 'var(--border-light)', fontSize: '13px', color: 'var(--ink)', fontFamily: 'inherit', outline: 'none' }}>
-                      <option value="">Select a course…</option>
-                      {courses.map(c => (
-                        <option key={c.id} value={c.id}>{c.title} ({c.tier_level})</option>
-                      ))}
-                    </select>
-                  </div>
-                  <div>
-                    <label style={{ display: 'block', fontSize: '11px', fontWeight: 800, letterSpacing: '1.5px', textTransform: 'uppercase', color: 'var(--ink3)', marginBottom: '8px' }}>Assign to</label>
-                    <div style={{ display: 'flex', gap: '8px' }}>
-                      {(['dept', 'individual', 'all'] as const).map(t => (
-                        <button key={t} onClick={() => setAssignTarget(t)}
-                          style={{ padding: '8px 16px', borderRadius: '8px', border: `1px solid ${assignTarget === t ? 'var(--info)' : 'var(--border)'}`, background: assignTarget === t ? 'rgba(21,101,192,0.08)' : 'var(--border-light)', color: assignTarget === t ? 'var(--info)' : 'var(--ink3)', fontSize: '13px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
-                          {t === 'dept' ? 'Department' : t === 'individual' ? 'Individual' : 'All Staff'}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                  {assignTarget === 'dept' && (
-                    <div>
-                      <label style={{ display: 'block', fontSize: '11px', fontWeight: 800, letterSpacing: '1.5px', textTransform: 'uppercase', color: 'var(--ink3)', marginBottom: '8px' }}>Department</label>
-                      <select value={assignCourseDept} onChange={e => setAssignCourseDept(e.target.value)}
-                        style={{ width: '100%', padding: '10px 13px', borderRadius: '10px', border: '1px solid var(--border)', background: 'var(--border-light)', fontSize: '13px', color: 'var(--ink)', fontFamily: 'inherit', outline: 'none' }}>
-                        <option value="">Select department…</option>
-                        {Array.from(new Set(ldStaff.map(s => s.department).filter(Boolean))).sort().map(d => (
-                          <option key={d} value={d!}>{d}</option>
-                        ))}
-                      </select>
-                    </div>
-                  )}
-                  {assignTarget === 'individual' && (
-                    <div>
-                      <label style={{ display: 'block', fontSize: '11px', fontWeight: 800, letterSpacing: '1.5px', textTransform: 'uppercase', color: 'var(--ink3)', marginBottom: '8px' }}>Staff Member</label>
-                      <select value={assignCourseStaff} onChange={e => setAssignCourseStaff(e.target.value)}
-                        style={{ width: '100%', padding: '10px 13px', borderRadius: '10px', border: '1px solid var(--border)', background: 'var(--border-light)', fontSize: '13px', color: 'var(--ink)', fontFamily: 'inherit', outline: 'none' }}>
-                        <option value="">Select staff member…</option>
-                        {ldStaff.slice().sort((a, b) => a.name.localeCompare(b.name)).map(s => (
-                          <option key={s.id} value={s.id}>{s.name} — {s.department ?? '—'} ({s.role})</option>
-                        ))}
-                      </select>
-                    </div>
-                  )}
-                  {assignTarget === 'all' && (
-                    <div style={{ padding: '12px 16px', background: 'rgba(21,101,192,0.05)', border: '1px solid rgba(21,101,192,0.15)', borderRadius: '10px', fontSize: '13px', color: 'var(--info)' }}>
-                      This will assign the course to all {ldStaff.length} active staff members.
-                    </div>
-                  )}
-                  <div>
-                    <label style={{ display: 'block', fontSize: '11px', fontWeight: 800, letterSpacing: '1.5px', textTransform: 'uppercase', color: 'var(--ink3)', marginBottom: '8px' }}>Due Date (optional)</label>
-                    <input type="date" value={assignDueDate} onChange={e => setAssignDueDate(e.target.value)}
-                      style={{ padding: '10px 13px', borderRadius: '10px', border: '1px solid var(--border)', background: 'var(--border-light)', fontSize: '13px', color: 'var(--ink)', fontFamily: 'inherit', outline: 'none' }} />
-                  </div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
-                    <button
-                      disabled={assigning || !assignCourseId || (assignTarget === 'dept' && !assignCourseDept) || (assignTarget === 'individual' && !assignCourseStaff)}
-                      onClick={async () => {
-                        if (!assignCourseId) return
-                        setAssigning(true); setAssignMsg(null)
-                        try {
-                          let targets: string[] = []
-                          if (assignTarget === 'all') {
-                            targets = ldStaff.map(s => s.id)
-                          } else if (assignTarget === 'dept') {
-                            targets = ldStaff.filter(s => s.department === assignCourseDept).map(s => s.id)
-                          } else {
-                            targets = assignCourseStaff ? [assignCourseStaff] : []
-                          }
-                          if (targets.length === 0) { setAssignMsg({ text: 'No staff found for selection.', ok: false }); setAssigning(false); return }
-                          const bulk = targets.map(sid => ({ staff_id: sid, course_id: assignCourseId, due_date: assignDueDate || undefined, assigned_by: 'admin' }))
-                          const res = await fetch('/api/hr/course-assignments', {
-                            method: 'POST', headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ bulk }),
-                          })
-                          const data = await res.json()
-                          if (res.ok) {
-                            setAssignMsg({ text: `Assigned to ${data.assigned} staff member${data.assigned !== 1 ? 's' : ''}. They will see it in their dashboard.`, ok: true })
-                            setAssignCourseId(''); setAssignCourseDept(''); setAssignCourseStaff(''); setAssignDueDate('')
-                          } else {
-                            setAssignMsg({ text: data.error ?? 'Assignment failed.', ok: false })
-                          }
-                        } finally { setAssigning(false) }
-                      }}
-                      style={{ padding: '11px 24px', borderRadius: '10px', border: 'none', background: assigning || !assignCourseId ? 'var(--border)' : 'var(--info)', color: assigning || !assignCourseId ? 'var(--ink3)' : 'var(--info-light)', fontSize: '13px', fontWeight: 800, cursor: assigning || !assignCourseId ? 'not-allowed' : 'pointer', fontFamily: 'inherit' }}>
-                      {assigning ? 'Assigning…' : 'Assign Course'}
-                    </button>
-                    {assignMsg && (
-                      <div style={{ fontSize: '13px', color: assignMsg.ok ? 'var(--lime)' : 'var(--red)', fontWeight: 600 }}>{assignMsg.text}</div>
-                    )}
-                  </div>
-                </div>
-              </div>
-            </div>
-          )
-        })()}
-
-        {/* ── Suggest a Course tab ── */}
-        {tab === 'suggest' && (
-          <div style={{ maxWidth: '720px' }}>
-            <div style={{ marginBottom: '28px' }}>
-              <div style={{ fontSize: '13px', fontWeight: 800, letterSpacing: '2px', textTransform: 'uppercase', color: '#A478FF', marginBottom: '6px' }}>Learning Lab</div>
-              <h2 style={{ fontSize: '36px', fontWeight: 900, color: 'var(--ink)', margin: '0 0 6px' }}>Build a Course</h2>
-              <p style={{ fontSize: '13px', color: 'var(--ink3)', margin: 0, lineHeight: 1.6 }}>Describe the gap you have spotted. Gemini will design a full course — overview, tasks, and 10 quiz questions — ready to review and publish. The person who suggested it gets credited on the course card and receives a notification on their dashboard when it goes live.</p>
-            </div>
-
-            {/* Input panel */}
-            {(suggestState === 'idle' || suggestState === 'thinking') && (
-              <div style={{ background: 'rgba(164,120,255,0.06)', border: '1px solid rgba(164,120,255,0.2)', borderRadius: '16px', padding: '28px' }}>
-                <div style={{ marginBottom: '18px' }}>
-                  <label style={{ display: 'block', fontSize: '13px', fontWeight: 800, letterSpacing: '1.5px', textTransform: 'uppercase', color: 'var(--ink3)', marginBottom: '8px' }}>Your Suggestion</label>
-                  <textarea
-                    value={suggestion}
-                    onChange={e => setSuggestion(e.target.value)}
-                    placeholder="e.g. Create a course for the Events team on using AI to build run-of-show documents and vendor briefing packs"
-                    rows={4}
-                    disabled={suggestState === 'thinking'}
-                    style={{ width: '100%', boxSizing: 'border-box', padding: '14px 16px', borderRadius: '12px', border: '1px solid rgba(164,120,255,0.25)', background: 'var(--card)', color: 'var(--ink)', fontSize: '13px', fontFamily: 'inherit', lineHeight: 1.6, outline: 'none', resize: 'vertical', opacity: suggestState === 'thinking' ? 0.6 : 1 }}
-                  />
-                </div>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px', marginBottom: '22px' }}>
-                  <div>
-                    <label style={{ display: 'block', fontSize: '13px', fontWeight: 800, letterSpacing: '1.5px', textTransform: 'uppercase', color: 'var(--ink3)', marginBottom: '8px' }}>Department</label>
-                    <select value={suggestDept} onChange={e => setSuggestDept(e.target.value)} disabled={suggestState === 'thinking'}
-                      style={{ width: '100%', padding: '12px 14px', borderRadius: '10px', border: '1px solid var(--border)', background: 'var(--card)', color: 'var(--ink)', fontSize: '13px', fontFamily: 'inherit', outline: 'none', cursor: 'pointer' }}>
-                      {['Events', 'Sales & Sponsorship', 'Marketing', 'Finance', 'Operations', 'IT', 'HR & Recruitment', 'Content & Design', 'Government Relations', 'DemandifyMedia', 'Leadership'].map(d => (
-                        <option key={d} value={d}>{d}</option>
-                      ))}
-                    </select>
-                  </div>
-                  <div>
-                    <label style={{ display: 'block', fontSize: '13px', fontWeight: 800, letterSpacing: '1.5px', textTransform: 'uppercase', color: 'var(--ink3)', marginBottom: '8px' }}>Tier Level</label>
-                    <select value={suggestTier} onChange={e => setSuggestTier(e.target.value as 'foundation' | 'adoption' | 'advanced')} disabled={suggestState === 'thinking'}
-                      style={{ width: '100%', padding: '12px 14px', borderRadius: '10px', border: '1px solid var(--border)', background: 'var(--card)', color: 'var(--ink)', fontSize: '13px', fontFamily: 'inherit', outline: 'none', cursor: 'pointer' }}>
-                      <option value="foundation">Foundation — AI basics for this role</option>
-                      <option value="adoption">Adoption — Intermediate workflows</option>
-                      <option value="advanced">Advanced — Strategy and leadership</option>
-                    </select>
-                  </div>
-                </div>
-                {/* Credit to field */}
-                <div style={{ marginBottom: '22px', background: 'rgba(164,120,255,0.05)', border: '1px solid rgba(164,120,255,0.15)', borderRadius: '12px', padding: '16px 18px' }}>
-                  <div style={{ fontSize: '13px', fontWeight: 800, letterSpacing: '2px', textTransform: 'uppercase', color: '#A478FF', marginBottom: '12px' }}>Course Credit</div>
-                  <p style={{ fontSize: '13px', color: 'var(--ink3)', margin: '0 0 12px', lineHeight: 1.55 }}>
-                    Who identified this gap and requested this course? They will be credited on the course card and notified on their dashboard when it goes live.
-                  </p>
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
-                    <div>
-                      <label style={{ display: 'block', fontSize: '13px', fontWeight: 700, color: 'var(--ink3)', marginBottom: '6px' }}>Full Name</label>
-                      <input
-                        value={creditName}
-                        onChange={e => setCreditName(e.target.value)}
-                        placeholder="e.g. Priya Menon"
-                        disabled={suggestState === 'thinking'}
-                        style={{ width: '100%', boxSizing: 'border-box', padding: '10px 12px', borderRadius: '8px', border: '1px solid var(--border)', background: 'var(--card)', color: 'var(--ink)', fontSize: '13px', fontFamily: 'inherit', outline: 'none' }}
-                      />
-                    </div>
-                    <div>
-                      <label style={{ display: 'block', fontSize: '13px', fontWeight: 700, color: 'var(--ink3)', marginBottom: '6px' }}>Role / Department</label>
-                      <input
-                        value={creditRole}
-                        onChange={e => setCreditRole(e.target.value)}
-                        placeholder="e.g. Head of Events"
-                        disabled={suggestState === 'thinking'}
-                        style={{ width: '100%', boxSizing: 'border-box', padding: '10px 12px', borderRadius: '8px', border: '1px solid var(--border)', background: 'var(--card)', color: 'var(--ink)', fontSize: '13px', fontFamily: 'inherit', outline: 'none' }}
-                      />
-                    </div>
-                  </div>
-                </div>
-
-                <button onClick={submitSuggestion} disabled={!suggestion.trim() || suggestState === 'thinking'}
-                  style={{ padding: '13px 28px', borderRadius: '12px', border: 'none', background: suggestion.trim() && suggestState !== 'thinking' ? 'var(--purple)' : 'var(--border)', color: suggestion.trim() && suggestState !== 'thinking' ? 'var(--purple-light)' : 'var(--ink)', fontSize: '13px', fontWeight: 800, cursor: suggestion.trim() && suggestState !== 'thinking' ? 'pointer' : 'not-allowed', fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
-                  {suggestState === 'thinking' ? 'Designing your course...' : 'Generate Course'}
-                </button>
-              </div>
-            )}
-
-            {/* Thinking state — conversational response */}
-            {suggestState === 'thinking' && (
-              <div style={{ marginTop: '20px', background: 'rgba(164,120,255,0.08)', border: '1px solid rgba(164,120,255,0.25)', borderRadius: '16px', padding: '24px', display: 'flex', gap: '16px', alignItems: 'flex-start' }}>
-                <div style={{ width: '36px', height: '36px', borderRadius: '50%', background: 'rgba(164,120,255,0.2)', border: '2px solid rgba(164,120,255,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                  <svg width="16" height="16" fill="none" stroke="#A478FF" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
-                </div>
-                <div>
-                  <div style={{ fontSize: '13px', fontWeight: 800, color: '#A478FF', marginBottom: '4px' }}>Course Designer</div>
-                  <div style={{ fontSize: '13px', color: 'var(--ink3)', lineHeight: 1.6 }}>
-                    I have received your suggestion for a <strong style={{ color: 'var(--ink)' }}>{suggestTier}</strong> course for the <strong style={{ color: 'var(--ink)' }}>{suggestDept}</strong> team. I am preparing a course just right — with full reading content, personalised tasks, and a 10-question bank. Sending it for your approval shortly...
-                  </div>
-                  <div style={{ marginTop: '12px', display: 'flex', gap: '5px' }}>
-                    {[0, 1, 2].map(i => (
-                      <div key={i} style={{ width: '7px', height: '7px', borderRadius: '50%', background: '#A478FF', animation: `pulse 1.2s ease-in-out ${i * 0.2}s infinite` }} />
-                    ))}
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {/* Generated course review */}
-            {(suggestState === 'ready' || suggestState === 'publishing') && generatedCourse && (
-              <div style={{ marginTop: '24px' }}>
-                <div style={{ background: 'rgba(164,120,255,0.08)', border: '1px solid rgba(164,120,255,0.25)', borderRadius: '16px', padding: '20px 24px', marginBottom: '20px', display: 'flex', gap: '14px', alignItems: 'flex-start' }}>
-                  <div style={{ width: '36px', height: '36px', borderRadius: '50%', background: 'rgba(164,120,255,0.2)', border: '2px solid rgba(164,120,255,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                    <svg width="16" height="16" fill="none" stroke="#A478FF" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>
-                  </div>
-                  <div>
-                    <div style={{ fontSize: '13px', fontWeight: 800, color: '#A478FF', marginBottom: '4px' }}>Course Designer</div>
-                    <div style={{ fontSize: '13px', color: 'var(--ink3)', lineHeight: 1.6 }}>
-                      Your course is ready for review. I have built a complete <strong style={{ color: 'var(--ink)' }}>{suggestTier}</strong> course for <strong style={{ color: 'var(--ink)' }}>{suggestDept}</strong> with full reading content, 4 personalised task steps, and a 10-question bank. Review it below — edit anything you like — then approve to publish.
-                    </div>
-                  </div>
-                </div>
-
-                {/* Course preview */}
-                <div style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: '16px', overflow: 'hidden', marginBottom: '20px' }}>
-                  <div style={{ padding: '20px 24px', borderBottom: '1px solid var(--border)' }}>
-                    <div style={{ fontSize: '13px', fontWeight: 800, color: '#A478FF', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '6px' }}>{(generatedCourse.tier_level as string)} · {suggestDept}</div>
-                    <div style={{ fontSize: '13px', fontWeight: 900, color: 'var(--ink)', marginBottom: '4px' }}>{generatedCourse.title as string}</div>
-                    <div style={{ fontSize: '13px', color: 'var(--ink3)' }}>{generatedCourse.subtitle as string}</div>
-                  </div>
-                  <div style={{ padding: '20px 24px', borderBottom: '1px solid var(--border)' }}>
-                    <div style={{ fontSize: '13px', fontWeight: 800, color: 'var(--ink)', letterSpacing: '1.5px', textTransform: 'uppercase', marginBottom: '10px' }}>Overview</div>
-                    <div style={{ fontSize: '13px', color: 'var(--ink3)', lineHeight: 1.7 }}>{generatedCourse.overview as string}</div>
-                  </div>
-                  <div style={{ padding: '20px 24px', borderBottom: '1px solid var(--border)' }}>
-                    <div style={{ fontSize: '13px', fontWeight: 800, color: 'var(--ink)', letterSpacing: '1.5px', textTransform: 'uppercase', marginBottom: '12px' }}>Task Steps ({(generatedCourse.task_steps as unknown[]).length})</div>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                      {(generatedCourse.task_steps as Array<{step: number; instruction: string; tip: string}>).map((ts) => (
-                        <div key={ts.step} style={{ padding: '12px 16px', background: 'var(--card)', borderRadius: '10px', border: '1px solid var(--border)' }}>
-                          <div style={{ fontSize: '13px', fontWeight: 700, color: '#A478FF', marginBottom: '4px' }}>Step {ts.step}</div>
-                          <div style={{ fontSize: '13px', color: 'var(--ink3)', lineHeight: 1.55 }}>{ts.instruction}</div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                  <div style={{ padding: '20px 24px' }}>
-                    <div style={{ fontSize: '13px', fontWeight: 800, color: 'var(--ink)', letterSpacing: '1.5px', textTransform: 'uppercase', marginBottom: '10px' }}>
-                      Question Bank ({(generatedCourse.question_bank as unknown[]).length} questions · 5 served randomly per attempt)
-                    </div>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                      {(generatedCourse.question_bank as Array<{question: string; correct_index: number; options: string[]}>).map((q, i) => (
-                        <div key={i} style={{ padding: '12px 16px', background: 'var(--card)', borderRadius: '10px', border: '1px solid var(--border)' }}>
-                          <div style={{ fontSize: '13px', color: 'var(--ink)', fontWeight: 600, marginBottom: '4px' }}>Q{i + 1}: {q.question}</div>
-                          <div style={{ fontSize: '13px', color: 'var(--teal)' }}>Correct: {q.options[q.correct_index]}</div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-
-                {/* Credit preview */}
-                {creditName && (
-                  <div style={{ padding: '12px 16px', background: 'rgba(164,120,255,0.07)', border: '1px solid rgba(164,120,255,0.2)', borderRadius: '10px', fontSize: '13px', color: 'var(--ink3)', marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '10px' }}>
-                    <div style={{ width: '28px', height: '28px', borderRadius: '8px', background: 'rgba(164,120,255,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                      <span style={{ fontSize: '13px', fontWeight: 800, color: '#A478FF' }}>{creditName.charAt(0)}</span>
-                    </div>
-                    <div>
-                      <span style={{ color: 'var(--ink3)' }}>Suggested by </span>
-                      <strong style={{ color: 'var(--ink)' }}>{creditName}</strong>
-                      {creditRole && <span style={{ color: 'var(--ink3)' }}> · {creditRole}</span>}
-                      <span style={{ color: 'var(--ink)', fontSize: '13px', display: 'block', marginTop: '1px' }}>Will be credited on the course card. Email notification sent on publish.</span>
-                    </div>
-                  </div>
-                )}
-
-                {publishMsg && (
-                  <div style={{ padding: '12px 16px', background: publishMsg.includes('live') ? 'rgba(192,244,60,0.1)' : 'rgba(255,107,107,0.1)', border: `1px solid ${publishMsg.includes('live') ? 'rgba(192,244,60,0.3)' : 'rgba(255,107,107,0.3)'}`, borderRadius: '10px', fontSize: '13px', color: publishMsg.includes('live') ? 'var(--lime)' : 'var(--red)', fontWeight: 700, marginBottom: '16px' }}>
-                    {publishMsg}
-                  </div>
-                )}
-
-                <div style={{ display: 'flex', gap: '12px' }}>
-                  <button onClick={submitForReview} disabled={suggestState === 'publishing'}
-                    style={{ padding: '13px 28px', borderRadius: '12px', border: 'none', background: 'var(--purple)', color: 'var(--purple-light)', fontSize: '13px', fontWeight: 800, cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: '8px', opacity: suggestState === 'publishing' ? 0.7 : 1 }}>
-                    <svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M22 2L11 13"/><path d="M22 2L15 22 11 13 2 9l20-7z"/></svg>
-                    {suggestState === 'publishing' ? 'Submitting...' : 'Submit for Review'}
-                  </button>
-                  <button onClick={() => { setSuggestState('idle'); setGeneratedCourse(null); setPublishMsg('') }}
-                    style={{ padding: '13px 20px', borderRadius: '12px', border: '1px solid var(--ink4)', background: 'var(--card)', color: 'var(--ink3)', fontSize: '13px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
-                    Start Over
-                  </button>
-                </div>
-              </div>
-            )}
-
-            {/* ── Dept Course Seeding ── */}
-            <div style={{ marginTop: '40px', paddingTop: '32px', borderTop: '1px solid var(--surface)' }}>
-              <div style={{ marginBottom: '20px' }}>
-                <div style={{ fontSize: '13px', fontWeight: 800, letterSpacing: '2px', textTransform: 'uppercase', color: 'var(--teal-mid)', marginBottom: '6px' }}>Dept Seeding</div>
-                <h3 style={{ fontSize: '22px', fontWeight: 900, color: 'var(--ink)', margin: '0 0 6px' }}>Seed Department Courses</h3>
-                <p style={{ fontSize: '15px', color: 'var(--ink3)', margin: 0, lineHeight: 1.6 }}>Generate multiple draft courses for a specific department in one go. Pilot AI builds them from Trescon context — saved as drafts for your review before publishing.</p>
-              </div>
-
-              <div style={{ background: 'rgba(0,165,163,0.05)', border: '1px solid rgba(0,165,163,0.18)', borderRadius: '16px', padding: '24px' }}>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 120px', gap: '14px', marginBottom: '20px' }}>
-                  <div>
-                    <label style={{ display: 'block', fontSize: '13px', fontWeight: 800, letterSpacing: '1.5px', textTransform: 'uppercase', color: 'var(--ink3)', marginBottom: '8px' }}>Department</label>
-                    <select value={deptSeedDept} onChange={e => setDeptSeedDept(e.target.value)} disabled={deptSeedState === 'generating'}
-                      style={{ width: '100%', padding: '12px 14px', borderRadius: '10px', border: '1px solid var(--border)', background: 'var(--card)', color: 'var(--ink)', fontSize: '13px', fontFamily: 'inherit', outline: 'none', cursor: 'pointer' }}>
-                      {['Events', 'Sales & Sponsorship', 'Marketing', 'Finance', 'Operations', 'HR', 'Content & Design', 'Data & Intelligence', 'Leadership'].map(d => (
-                        <option key={d} value={d}>{d}</option>
-                      ))}
-                    </select>
-                  </div>
-                  <div>
-                    <label style={{ display: 'block', fontSize: '13px', fontWeight: 800, letterSpacing: '1.5px', textTransform: 'uppercase', color: 'var(--ink3)', marginBottom: '8px' }}>Tier Level</label>
-                    <select value={deptSeedTier} onChange={e => setDeptSeedTier(e.target.value as 'foundation' | 'adoption' | 'advanced')} disabled={deptSeedState === 'generating'}
-                      style={{ width: '100%', padding: '12px 14px', borderRadius: '10px', border: '1px solid var(--border)', background: 'var(--card)', color: 'var(--ink)', fontSize: '13px', fontFamily: 'inherit', outline: 'none', cursor: 'pointer' }}>
-                      <option value="foundation">Foundation</option>
-                      <option value="adoption">Adoption</option>
-                      <option value="advanced">Advanced</option>
-                    </select>
-                  </div>
-                  <div>
-                    <label style={{ display: 'block', fontSize: '13px', fontWeight: 800, letterSpacing: '1.5px', textTransform: 'uppercase', color: 'var(--ink3)', marginBottom: '8px' }}>Count</label>
-                    <select value={deptSeedCount} onChange={e => setDeptSeedCount(Number(e.target.value))} disabled={deptSeedState === 'generating'}
-                      style={{ width: '100%', padding: '12px 14px', borderRadius: '10px', border: '1px solid var(--border)', background: 'var(--card)', color: 'var(--ink)', fontSize: '13px', fontFamily: 'inherit', outline: 'none', cursor: 'pointer' }}>
-                      <option value={1}>1</option>
-                      <option value={2}>2</option>
-                      <option value={3}>3</option>
-                    </select>
-                  </div>
-                </div>
-
-                <button
-                  disabled={deptSeedState === 'generating'}
-                  onClick={async () => {
-                    setDeptSeedState('generating')
-                    setDeptSeedResult(null)
-                    try {
-                      const res = await fetch('/api/generate-dept-courses', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ department: deptSeedDept, tier_level: deptSeedTier, count: deptSeedCount }),
-                      })
-                      const data = await res.json()
-                      if (!res.ok) throw new Error(data.error ?? 'Generation failed')
-                      setDeptSeedResult({ courses: data.courses, errors: data.errors })
-                      setDeptSeedState('done')
-                    } catch (err) {
-                      setDeptSeedResult({ courses: [], errors: [String(err)] })
-                      setDeptSeedState('error')
-                    }
-                  }}
-                  style={{ padding: '13px 28px', borderRadius: '12px', border: 'none', background: deptSeedState === 'generating' ? 'var(--border)' : 'var(--teal-mid)', color: deptSeedState === 'generating' ? 'var(--ink3)' : 'var(--teal-light)', fontSize: '13px', fontWeight: 800, cursor: deptSeedState === 'generating' ? 'not-allowed' : 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
-                  {deptSeedState === 'generating' ? `Generating ${deptSeedCount} course${deptSeedCount > 1 ? 's' : ''}...` : `Generate ${deptSeedCount} Draft Course${deptSeedCount > 1 ? 's' : ''}`}
-                </button>
-              </div>
-
-              {(deptSeedState === 'done' || deptSeedState === 'error') && deptSeedResult && (
-                <div style={{ marginTop: '16px' }}>
-                  {deptSeedResult.courses.length > 0 && (
-                    <div style={{ background: 'rgba(192,244,60,0.08)', border: '1px solid rgba(192,244,60,0.3)', borderRadius: '12px', padding: '16px 18px', marginBottom: '12px' }}>
-                      <div style={{ fontSize: '13px', fontWeight: 800, color: 'var(--lime)', marginBottom: '10px' }}>{deptSeedResult.courses.length} draft course{deptSeedResult.courses.length > 1 ? 's' : ''} saved — ready for review in the Review Queue</div>
-                      {deptSeedResult.courses.map(c => (
-                        <div key={c.id} style={{ fontSize: '13px', color: 'var(--ink3)', padding: '6px 0', borderTop: '1px solid rgba(192,244,60,0.2)', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                          <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: 'var(--teal-mid)', flexShrink: 0, display: 'inline-block' }} />
-                          <span style={{ color: 'var(--ink)', fontWeight: 700 }}>{c.title}</span>
-                          <span style={{ color: 'var(--ink4)' }}>·</span>
-                          <span style={{ textTransform: 'capitalize' }}>{c.tier_level}</span>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                  {deptSeedResult.errors && deptSeedResult.errors.length > 0 && (
-                    <div style={{ background: 'var(--red-light)', border: '1px solid var(--red-border)', borderRadius: '12px', padding: '14px 16px', fontSize: '13px', color: 'var(--red)' }}>
-                      {deptSeedResult.errors.map((e, i) => <div key={i}>{e}</div>)}
-                    </div>
-                  )}
-                  <button onClick={() => { setDeptSeedState('idle'); setDeptSeedResult(null) }}
-                    style={{ marginTop: '10px', padding: '8px 16px', borderRadius: '8px', border: '1px solid var(--border)', background: 'var(--card)', color: 'var(--ink3)', fontSize: '13px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
-                    Generate More
-                  </button>
-                </div>
-              )}
-            </div>
-          </div>
+        {/* ── AI Learning tab ── */}
+        {tab === 'ai-learning' && (
+          <AiLearningTab
+            sub={aiLearningSub}
+            onSubChange={(next) => {
+              setAiLearningSub(next)
+              syncAdminUrl('ai-learning', next)
+              if (next === 'course-generator') markProgress('course')
+            }}
+          />
         )}
-
 
         {/* ── Events tab ── */}
         {tab === 'events' && (() => {

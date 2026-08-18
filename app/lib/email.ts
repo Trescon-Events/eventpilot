@@ -458,7 +458,7 @@ export async function sendOrgPulseReport({
       </div>` : ''}
 
       <div style="text-align:center;margin:28px 0;">
-        <a href="${adminUrl}?tab=learning"
+        <a href="${adminUrl}?tab=ai-learning&sub=analytics"
           style="display:inline-block;background:${BRAND};color:#ffffff;font-size:14px;font-weight:800;padding:14px 32px;border-radius:10px;text-decoration:none;">
           Open Admin Dashboard
         </a>
