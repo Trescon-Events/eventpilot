@@ -1,9 +1,14 @@
 'use client'
 
+import type { Member, TaskProfile } from '../page'
+import ReadinessSection from './ReadinessSection'
 import AnalyticsSection from './AnalyticsSection'
 import CourseGeneratorSection from './CourseGeneratorSection'
 
-const SUB_TABS: { key: 'analytics' | 'course-generator'; label: string }[] = [
+type Sub = 'readiness' | 'analytics' | 'course-generator'
+
+const SUB_TABS: { key: Sub; label: string }[] = [
+  { key: 'readiness', label: 'Readiness' },
   { key: 'analytics', label: 'Analytics' },
   { key: 'course-generator', label: 'Course Generator' },
 ]
@@ -13,9 +18,33 @@ const ACCENT = '#A478FF'
 export default function AiLearningTab({
   sub,
   onSubChange,
+  members,
+  tasks,
+  filteredMembers,
+  getOffice,
+  officeFilter,
+  setOfficeFilter,
+  deptFilter,
+  setDeptFilter,
+  memberSearch,
+  setMemberSearch,
+  interviewFilter,
+  setInterviewFilter,
 }: {
-  sub: 'analytics' | 'course-generator'
-  onSubChange: (sub: 'analytics' | 'course-generator') => void
+  sub: Sub
+  onSubChange: (sub: Sub) => void
+  members: Member[]
+  tasks: TaskProfile[]
+  filteredMembers: Member[]
+  getOffice: (id: string) => { id: string; label: string; color: string } | undefined
+  officeFilter: string
+  setOfficeFilter: (v: string) => void
+  deptFilter: string
+  setDeptFilter: (v: string) => void
+  memberSearch: string
+  setMemberSearch: (v: string) => void
+  interviewFilter: 'all' | 'done' | 'pending'
+  setInterviewFilter: (v: 'all' | 'done' | 'pending') => void
 }) {
   return (
     <div>
@@ -56,6 +85,22 @@ export default function AiLearningTab({
         </button>
       </div>
 
+      {sub === 'readiness' && (
+        <ReadinessSection
+          members={members}
+          tasks={tasks}
+          filteredMembers={filteredMembers}
+          getOffice={getOffice}
+          officeFilter={officeFilter}
+          setOfficeFilter={setOfficeFilter}
+          deptFilter={deptFilter}
+          setDeptFilter={setDeptFilter}
+          memberSearch={memberSearch}
+          setMemberSearch={setMemberSearch}
+          interviewFilter={interviewFilter}
+          setInterviewFilter={setInterviewFilter}
+        />
+      )}
       {sub === 'analytics' && <AnalyticsSection />}
       {sub === 'course-generator' && <CourseGeneratorSection />}
     </div>
