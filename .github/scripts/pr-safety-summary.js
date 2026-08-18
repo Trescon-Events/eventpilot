@@ -6,11 +6,16 @@
 
 const { execSync } = require('child_process')
 
-const GITHUB_TOKEN    = process.env.GITHUB_TOKEN
-const REPO            = process.env.GITHUB_REPOSITORY // "Trescon-Events/eventpilot"
-const PR_NUMBER       = process.env.PR_NUMBER
-const BASE_REF        = process.env.BASE_REF
-const REVIEWER_HANDLE = process.env.REVIEWER_HANDLE || 'tresconevents'
+const GITHUB_TOKEN       = process.env.GITHUB_TOKEN
+const REPO               = process.env.GITHUB_REPOSITORY // "Trescon-Events/eventpilot"
+const PR_NUMBER          = process.env.PR_NUMBER
+const PR_URL             = process.env.PR_URL
+const PR_TITLE           = process.env.PR_TITLE
+const PR_AUTHOR          = process.env.PR_AUTHOR
+const BASE_REF           = process.env.BASE_REF
+const REVIEWER_HANDLE    = process.env.REVIEWER_HANDLE || 'tresconevents'
+const WEBHOOK_URL        = process.env.EVENTPILOT_WEBHOOK_URL
+const WEBHOOK_SECRET     = process.env.GITHUB_PR_WEBHOOK_SECRET
 
 if (!GITHUB_TOKEN || !REPO || !PR_NUMBER || !BASE_REF) {
   console.error('Missing required env vars (GITHUB_TOKEN, PR_NUMBER, BASE_REF).')
@@ -100,6 +105,42 @@ async function main() {
   }
 
   console.log(`Posted safety summary on PR #${PR_NUMBER} — verdict: ${verdict}`)
+
+  // ── Email Madhu directly via EventPilot's own Resend setup ─────────────────
+  // Guaranteed channel — doesn't depend on the tresconevents account's GitHub
+  // notification settings. Non-fatal if not configured yet: the PR comment
+  // above already provides visibility, so a missing secret shouldn't fail CI.
+  if (!WEBHOOK_URL || !WEBHOOK_SECRET) {
+    console.warn('EVENTPILOT_WEBHOOK_URL / GITHUB_PR_WEBHOOK_SECRET not set — skipping email alert.')
+    return
+  }
+
+  const webhookRes = await fetch(WEBHOOK_URL, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${WEBHOOK_SECRET}`,
+    },
+    body: JSON.stringify({
+      prNumber: Number(PR_NUMBER),
+      prUrl: PR_URL,
+      prTitle: PR_TITLE,
+      author: PR_AUTHOR,
+      summary,
+      areasTouched,
+      verdict,
+      verdictReason,
+      filesChanged: changedFiles,
+    }),
+  })
+
+  if (!webhookRes.ok) {
+    const err = await webhookRes.text()
+    console.error('EventPilot webhook error (non-fatal):', err)
+    return
+  }
+
+  console.log('Email alert sent via EventPilot.')
 }
 
 main().catch(err => {

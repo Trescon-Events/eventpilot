@@ -746,6 +746,96 @@ export async function sendBuildRequestUpdate({
   })
 }
 
+// ── Email: GitHub PR Alert (Khalifa's Task Manager module pushes) ────────────
+// Fired by the pr-safety-summary GitHub Action on every PR Khalifa opens
+// against main. GitHub's own review-request email depends on the
+// tresconevents account's notification settings, which isn't reliable — this
+// is the guaranteed channel straight to Madhu's inbox.
+
+export async function sendGithubPrAlert({
+  prNumber,
+  prUrl,
+  prTitle,
+  author,
+  summary,
+  areasTouched,
+  verdict,
+  verdictReason,
+  filesChanged,
+}: {
+  prNumber:      number
+  prUrl:         string
+  prTitle:       string
+  author:        string
+  summary:       string
+  areasTouched:  string[]
+  verdict:       'SAFE' | 'REVIEW_CLOSELY'
+  verdictReason: string
+  filesChanged:  string[]
+}) {
+  const isSafe = verdict === 'SAFE'
+  const verdictColor = isSafe ? '#166534' : '#B45309'
+  const verdictBg    = isSafe ? '#f0fdf4' : '#fffbeb'
+  const verdictBorder = isSafe ? '#bbf7d0' : '#fde68a'
+  const verdictLabel = isSafe ? '🟢 SAFE — isolated to Task Manager' : '🟡 REVIEW CLOSELY'
+
+  const fileList = filesChanged.slice(0, 15).map(f => `
+    <div style="font-size:12px;color:${MUTED};font-family:'ui-monospace',monospace;padding:3px 0;">${f}</div>
+  `).join('') + (filesChanged.length > 15 ? `<div style="font-size:12px;color:${MUTED};font-style:italic;padding:3px 0;">…and ${filesChanged.length - 15} more</div>` : '')
+
+  const html = emailWrap(`
+    ${emailHeader('GitHub Push Alert')}
+    <div style="padding:32px 40px;">
+      <h2 style="font-size:21px;font-weight:800;color:${DARK};margin:0 0 6px;">${author} opened a pull request</h2>
+      <p style="color:${MUTED};font-size:14px;line-height:1.7;margin:0 0 20px;">
+        <strong style="color:${DARK};">PR #${prNumber}: ${prTitle}</strong>
+      </p>
+
+      <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:18px 20px;margin-bottom:16px;">
+        <div style="font-size:11px;font-weight:800;letter-spacing:1.5px;text-transform:uppercase;color:#64748b;margin-bottom:8px;">What changed</div>
+        <p style="margin:0;font-size:14px;color:#374151;line-height:1.7;">${summary}</p>
+      </div>
+
+      <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:18px 20px;margin-bottom:16px;">
+        <div style="font-size:11px;font-weight:800;letter-spacing:1.5px;text-transform:uppercase;color:#64748b;margin-bottom:8px;">Areas touched</div>
+        <p style="margin:0;font-size:14px;color:${DARK};font-weight:600;">${areasTouched.join(', ')}</p>
+      </div>
+
+      <div style="background:${verdictBg};border:1px solid ${verdictBorder};border-radius:10px;padding:18px 20px;margin-bottom:20px;">
+        <div style="font-size:11px;font-weight:800;letter-spacing:1.5px;text-transform:uppercase;color:${verdictColor};margin-bottom:8px;">Verdict</div>
+        <div style="font-size:15px;font-weight:800;color:${verdictColor};margin-bottom:6px;">${verdictLabel}</div>
+        <p style="margin:0;font-size:13px;color:#374151;line-height:1.6;">${verdictReason}</p>
+      </div>
+
+      <div style="margin-bottom:24px;">
+        <div style="font-size:11px;font-weight:800;letter-spacing:1.5px;text-transform:uppercase;color:#64748b;margin-bottom:8px;">Files changed (${filesChanged.length})</div>
+        ${fileList}
+      </div>
+
+      <div style="text-align:center;margin:28px 0;">
+        <a href="${prUrl}/files" style="display:inline-block;background:${BRAND};color:#ffffff;font-weight:700;font-size:15px;padding:14px 32px;border-radius:10px;text-decoration:none;">
+          Review & Approve on GitHub
+        </a>
+      </div>
+
+      <p style="color:#94A3B8;font-size:12px;line-height:1.6;margin:0;text-align:center;">
+        Nothing merges to main until you approve this PR on GitHub — this email is advisory only.
+      </p>
+
+      ${emailFooter()}
+    </div>
+  `)
+
+  return getResend().emails.send({
+    from:    FROM,
+    to:      'md@tresconglobal.com',
+    subject: isSafe
+      ? `[FYI] Khalifa's PR — Task Manager only — #${prNumber}`
+      : `[Review needed] Khalifa's PR touches shared code — #${prNumber}`,
+    html,
+  })
+}
+
 // ── Email: Weekly Leaderboard Digest ─────────────────────────────────────────
 //
 // Fired every Monday 07:00 IST for the ISO week that just ended. Each eligible
