@@ -1,14 +1,10 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import Link from 'next/link'
 import type { SavedReport } from '@/app/lib/generateInsights'
 import PageHeader from '@/app/components/PageHeader'
 
 export default function InsightsPage() {
-  const [authed,      setAuthed]      = useState(false)
-  const [code,        setCode]        = useState('')
-  const [codeError,   setCodeError]   = useState('')
   const [taskCount,   setTaskCount]   = useState(0)
   const [savedReports, setSavedReports] = useState<SavedReport[]>([])
   const [activeReport, setActiveReport] = useState<SavedReport | null>(null)
@@ -17,7 +13,6 @@ export default function InsightsPage() {
   const [loading,     setLoading]     = useState(true)
 
   useEffect(() => {
-    if (!authed) return
     Promise.all([
       fetch('/api/intelligence-reports').then(r => r.json()),
       fetch('/api/staff-list').then(r => r.json()),
@@ -28,14 +23,7 @@ export default function InsightsPage() {
       setTaskCount(Array.isArray(staff) ? staff.length : 0)
       setLoading(false)
     }).catch(() => setLoading(false))
-  }, [authed])
-
-  function handleAuth(e: React.FormEvent) {
-    e.preventDefault()
-    if (code.trim() === (process.env.NEXT_PUBLIC_ADMIN_CODE ?? 'eventpilot2026')) {
-      setAuthed(true)
-    } else { setCodeError('Incorrect access code.') }
-  }
+  }, [])
 
   async function generateInsights() {
     setGenerating(true)
@@ -68,32 +56,6 @@ export default function InsightsPage() {
 
   const report = activeReport?.report ?? null
 
-  /* ── Auth gate ── */
-  if (!authed) {
-    return (
-      <div style={{ fontFamily: 'var(--font-manrope), Manrope, sans-serif', background: 'var(--surface)', minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '24px' }}>
-        <div style={{ background: 'var(--card)', border: '1.5px solid var(--border)', borderRadius: '16px', padding: '48px 40px', maxWidth: '400px', width: '100%', textAlign: 'center' }}>
-          <div style={{ width: '56px', height: '56px', background: 'color-mix(in srgb, var(--lime) 13%, transparent)', border: '2px solid var(--lime)', borderRadius: '16px', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 24px' }}>
-            <svg width="24" height="24" fill="none" stroke="var(--teal-dark)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
-          </div>
-          <h1 style={{ fontSize: '36px', fontWeight: 800, color: 'var(--ink)', marginBottom: '8px' }}>Event Pilot Intelligence</h1>
-          <p style={{ fontSize: '13px', color: 'var(--ink2)', marginBottom: '32px' }}>Management-ready insights from all staff submissions</p>
-          <form onSubmit={handleAuth}>
-            <input type="password" value={code} onChange={e => { setCode(e.target.value); setCodeError('') }}
-              placeholder="Access code" autoFocus
-              style={{ width: '100%', padding: '14px 16px', borderRadius: '12px', border: `1px solid ${codeError ? 'var(--red)' : 'var(--border)'}`, background: 'var(--card)', color: 'var(--ink)', fontSize: '13px', outline: 'none', fontFamily: 'inherit', textAlign: 'center', letterSpacing: '3px', marginBottom: '12px', boxSizing: 'border-box' }} />
-            {codeError && <p style={{ fontSize: '13px', color: 'var(--red)', marginBottom: '12px' }}>{codeError}</p>}
-            <button type="submit" style={{ width: '100%', padding: '14px', borderRadius: '12px', border: 'none', background: 'var(--lime)', color: 'var(--lime-dark)', fontSize: '13px', fontWeight: 800, cursor: 'pointer', fontFamily: 'inherit' }}>
-              Enter Intelligence Hub
-            </button>
-          </form>
-          <Link href="/admin" style={{ display: 'block', marginTop: '20px', fontSize: '13px', color: 'var(--ink2)', textDecoration: 'none' }}>Back to admin</Link>
-        </div>
-      </div>
-    )
-  }
-
-  /* ── Main ── */
   return (
     <div style={{ fontFamily: 'var(--font-manrope), Manrope, sans-serif', background: 'var(--surface)', minHeight: '100vh', color: 'var(--ink)' }}>
 
@@ -101,6 +63,8 @@ export default function InsightsPage() {
       <PageHeader
         eyebrow="Reports"
         title="Event Pilot Intelligence Report"
+        backHref="/admin?tab=ai-learning&sub=readiness"
+        backLabel="AI Learning"
         description={loading
           ? 'Loading reports...'
           : savedReports.length === 0

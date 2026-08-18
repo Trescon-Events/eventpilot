@@ -989,7 +989,12 @@ export function getModuleRegistry(): ModuleDef[] {
       icon: I.layers, color: '#F0AB3C',
       href: ctx => `/admin/events/${ctx.eventId}/creative-templates`,
       needsEvent: true,
-      breadcrumbPattern: '/admin/events/:eventId/creative-templates', breadcrumbParent: 'toolkit',
+      // 2026-08-18 (per Madhu): SAE graduated from a Toolkit trial tool to
+      // a real production module — its natural home is nested under this
+      // event's Stakeholder Hub (the actual click-path: Event > Stakeholder
+      // Hub > SAE), not the general Toolkit catalog. Same reasoning applies
+      // to the toolkitHub tile below (removed).
+      breadcrumbPattern: '/admin/events/:eventId/creative-templates', breadcrumbParent: 'admin-event-stakeholders',
       // Real gate (creative-templates/layout.tsx, 2026-08-17) is legacy
       // module_access OR hasAnyModulePermission(..., 'sae') — this field
       // describes only the RBAC half via event_permission's '.*' wildcard
@@ -1005,24 +1010,13 @@ export function getModuleRegistry(): ModuleDef[] {
       // accurately represented.
       access: { kind: 'event_permission', permissionKey: 'sae.*' },
       sidebar: { section: 'events', parent: 'events', order: 7 },
-      toolkitHub: {
-        category: 'Events', badge: 'Event Tool',
-        access: { kind: 'tool_grant', grantKey: null, moduleAccessKey: 'sae' },
-        features: [
-          { icon: '◈', label: 'Layer-based compositing', detail: 'Stack background art, photo/logo slots and text in any order — Sharp composites them server-side' },
-          { icon: '◉', label: 'Face-aligned photos', detail: 'Upload a reference layer once — real speaker photos auto-align to match its head position/size' },
-          { icon: '▣', label: 'Logo normalization', detail: 'Any format including PDF/AI, background removed automatically, legitimate logo badges preserved' },
-          { icon: '◻', label: 'Live preview', detail: 'Debounced server-rendered preview — always matches exactly what generation will produce' },
-        ],
-      },
     },
     {
-      // Not a Toolkit tile of its own — reached via the "Admin Console →"
+      // Not its own sidebar/Toolkit tile — reached via the "Admin Console →"
       // link in the main workspace page's header above. Separate registry
       // entry purely so it gets its own breadcrumb + a STRICTER server-side
       // gate (admin-tier module_access, not just any tier) than the
-      // generation workspace. No `sidebar` tag — deliberately not its own
-      // tree node, same reasoning as its non-navigable Toolkit status.
+      // generation workspace.
       key: 'admin-event-creative-templates-admin', label: 'Admin Console',
       description: 'Branding-team console for the Stakeholder Announcement Engine — build and edit creative variants (layer stacks), manage who has access to this tool.',
       icon: I.layers, color: '#F0AB3C',
