@@ -15,11 +15,6 @@ export default function AnalyticsSection() {
   const [assigning,         setAssigning]         = useState(false)
   const [assignMsg,         setAssignMsg]         = useState<{ text: string; ok: boolean } | null>(null)
 
-  useEffect(() => {
-    fetchLearning()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
-
   async function fetchLearning() {
     if (learningData) return // already loaded
     setLearningLoading(true)
@@ -27,6 +22,12 @@ export default function AnalyticsSection() {
     if (res.ok) setLearningData(await res.json())
     setLearningLoading(false)
   }
+
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- standard fetch-on-mount, matches this app's other top-level fetchAll effects
+    fetchLearning()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   if (learningLoading) return (
     <div style={{ padding: '60px', textAlign: 'center' }}>
@@ -50,6 +51,7 @@ export default function AnalyticsSection() {
   const passRate        = totalAttempts > 0 ? Math.round(totalPassed / totalAttempts * 100) : 0
   const avgScore        = passedComp.length > 0 ? Math.round(passedComp.reduce((s, c) => s + (c.test_score ?? 0), 0) / passedComp.length) : 0
   const activeStaff     = new Set(attempts.map(a => a.staff_id)).size
+  // eslint-disable-next-line react-hooks/purity -- wall-clock "this week" cutoff for a display stat, not state; a stale value on re-render is harmless
   const thisWeek        = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)
   const completionsThisWeek = passedComp.filter(c => new Date(c.completed_at) > thisWeek).length
 

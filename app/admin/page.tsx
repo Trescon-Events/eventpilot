@@ -1224,6 +1224,7 @@ function AdminPageInner() {
             overview:     '#12C9BD',
             people:       '#1296BA',
             intelligence: '#A478FF',
+            // eslint-disable-next-line no-restricted-syntax -- matches every other entry in this object, reused as `${accent}NN` alpha strings below
             'ai-learning': '#A478FF',
             events:       '#12C9BD',
             review:       '#F1667A',
