@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, Suspense } from 'react'
 import type { ReactNode } from 'react'
 import Link from 'next/link'
 import { useSearchParams } from 'next/navigation'
@@ -223,7 +223,7 @@ const PLAYBOOK_TIERS = [
   { tier: 'AI-Unaware',  range: '0–14',   color: '#F1667A', action: 'Digital literacy assessment first. Build a personalised catch-up plan before any AI training.', owner: 'HR', by: '120 days' },
 ]
 
-export default function AdminPage() {
+function AdminPageInner() {
   const [authed, setAuthed]   = useState(() => typeof window !== 'undefined' && sessionStorage.getItem('tai_admin_authed') === '1')
   const [adminStaffId, setAdminStaffId] = useState(() => typeof window !== 'undefined' ? sessionStorage.getItem('tai_admin_staff_id') ?? '' : '')
   const [isSuperAdmin, setIsSuperAdmin] = useState(() => typeof window !== 'undefined' && (sessionStorage.getItem('tai_admin_staff_id') === 'super-admin' || sessionStorage.getItem('tai_is_super_admin') === '1'))
@@ -4801,5 +4801,15 @@ export default function AdminPage() {
       })()}
 
     </div>
+  )
+}
+
+// useSearchParams() (added 2026-08-17 for sidebar tab deep-links) requires
+// a Suspense boundary around any caller for static prerendering to succeed.
+export default function AdminPage() {
+  return (
+    <Suspense fallback={null}>
+      <AdminPageInner />
+    </Suspense>
   )
 }
