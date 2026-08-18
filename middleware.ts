@@ -154,6 +154,7 @@ export async function middleware(req: NextRequest) {
     pathname.startsWith('/api/admin/set-job-level') ||
     pathname.startsWith('/api/admin/tool-permissions') ||
     pathname.startsWith('/api/cron/') ||
+    pathname.startsWith('/api/webhooks/') ||  // external callers, auth checked inside via bearer token (e.g. GitHub Actions)
     pathname === '/api/kb/intel/run' ||  // cron-job.org calls this with no session cookie; auth checked inside via bearer token or admin_staff_id. NOT startsWith — that would also match /api/kb/intel/runs (the run-history GET) and make it public.
     pathname.startsWith('/api/docuhub/resolve') ||  // public permanent-link resolver; visibility (public/internal) is checked inside the route itself, not here
     pathname.startsWith('/api/seed-platform-docs') ||
