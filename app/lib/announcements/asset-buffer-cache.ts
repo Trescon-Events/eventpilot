@@ -22,6 +22,15 @@ const cache = new Map<string, Promise<Buffer | null>>()
 async function fetchUncached(url: string): Promise<Buffer | null> {
   const res = await fetch(url)
   if (!res.ok) return null
+  // A 200 response isn't necessarily the image — an expired/broken signed
+  // URL (seen in the wild: a HubSpot-hosted photo whose signed-url-
+  // redirect had lapsed) can still return 200 with an HTML error page.
+  // Caching that as "the image" makes every consumer's own error handling
+  // useless: sharp fails to decode it downstream, however that failure is
+  // handled there, instead of this being a normal "photo unavailable, fall
+  // back" case at the one place that actually knows the fetch was bad.
+  const contentType = res.headers.get('content-type') ?? ''
+  if (!contentType.startsWith('image/')) return null
   return Buffer.from(await res.arrayBuffer())
 }
 
