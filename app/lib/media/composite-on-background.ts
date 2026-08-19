@@ -1,11 +1,10 @@
-// Composite a cropped speaker photo onto a background image (2026-08-19,
-// replaces deterministic-lighting.ts's rim-light/key-light glow — Madhu's
-// call: that was "just one design idea," not the real requirement. The
-// real requirement is a branding-team-driven prompt fed into a real AI
-// photo-editing tool (see photoroom-relight.ts), with only crop/position/
-// canvas-size/background-composite staying deterministic. This file is
-// that deterministic step, and nothing else — a plain, always-identical
-// placement, no lighting effect of its own.
+// Composite a cropped speaker photo onto a background image (2026-08-19) —
+// the entire Website Photo pipeline: crop + position (alignAndCropPhoto)
+// + this. An AI lighting/style step was tried (PhotoRoom, then Stability
+// AI) and abandoned after real testing showed neither could be trusted to
+// leave the subject's scale/position untouched, so this is deliberately
+// just a plain, always-identical placement — see composite.ts's
+// Variant.category doc comment for the full record.
 import sharp from 'sharp'
 
 export async function compositeOnBackground(

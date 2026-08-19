@@ -7,27 +7,24 @@ import { fetchAssetBuffer } from '@/app/lib/announcements/asset-buffer-cache'
 import { type CreativeTemplateConfig, type ImageLayer, type PhotoSlotLayer } from '@/app/lib/announcements/composite'
 import { alignAndCropPhoto, type HeadBox } from '@/app/lib/media/face-alignment'
 import { compositeOnBackground } from '@/app/lib/media/composite-on-background'
-import { applyPhotoRoomRelight, PhotoRoomRelightError } from '@/app/lib/media/photoroom-relight'
 
 /* POST /api/events/stakeholders/speakers/website-photo/generate
    Body: { event_id, speaker_id }
 
    Speaker-only (no partner/sponsor equivalent — see the plan discussion).
-   Common, always-exact step (2026-08-18/19, per Madhu): crop the stored
+   Deterministic, always exact (2026-08-18/19, per Madhu): crop the stored
    photo_processed_url cutout to the variant's canvas size using the
    SPEAKER'S OWN known head position (photo_head_box, same source
    Promo/Self Promo variants already trust via alignAndCropPhoto), then
-   composite onto the variant's real background (composite-on-background.ts)
-   — deterministic, zero AI, identical every time, regardless of what
-   lighting option (if any) runs next.
-
-   Lighting: if variant.lighting_prompt is set, that already-composited
-   photo is sent to PhotoRoom's editWithAI (photoroom-relight.ts) — the
-   "compose first, relight second" approach, confirmed empirically
-   (2026-08-19, 12+ real test runs) to keep framing reliably intact, unlike
-   sending PhotoRoom a bare cutout. This is what lets branding write
-   arbitrary per-event styles as a prompt, per variant, without touching
-   code. Unset: the plain composite is used as-is, no AI call.
+   composite onto the variant's real background (composite-on-background.ts).
+   No AI step — an AI lighting/style edit (PhotoRoom, then Stability AI)
+   was tried and abandoned after real testing showed neither could be
+   trusted to leave the subject's scale/position untouched, and automated
+   re-detection on their output wasn't accurate enough to correct for it —
+   see composite.ts's Variant.category doc comment for the full record.
+   A photo used publicly for every speaker can't have that kind of
+   per-photo variance, so this route is just the deterministic crop +
+   background composite, identical every time.
 
    Writes the result to event_speakers.website_card_url — a column that's
    existed unused since the original SAE migration ("generated speaker card
@@ -94,10 +91,9 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Could not fetch the background image' }, { status: 502 })
   }
 
-  // Crop using the speaker's own known head position — not a re-detection
-  // against generated output (unreliable — see photoroom-relight.ts's doc
-  // comment). Falls back to live detection inside alignAndCropPhoto itself
-  // if this speaker has never had "Fix Head Position" run for them.
+  // Crop using the speaker's own known head position. Falls back to live
+  // detection inside alignAndCropPhoto itself if this speaker has never
+  // had "Fix Head Position" run for them.
   let croppedBuffer: Buffer
   try {
     croppedBuffer = await alignAndCropPhoto(
@@ -110,30 +106,15 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Cropping this speaker\'s photo to the template failed' }, { status: 500 })
   }
 
-  let plainComposite: Buffer
+  let finalBuffer: Buffer
   try {
-    plainComposite = await compositeOnBackground(croppedBuffer, backgroundBuffer, {
+    finalBuffer = await compositeOnBackground(croppedBuffer, backgroundBuffer, {
       canvasWidth: variant.canvas_width,
       canvasHeight: variant.canvas_height,
     })
   } catch (e) {
     console.error('Website photo compositing failed:', e)
     return NextResponse.json({ error: 'Compositing the final photo failed' }, { status: 500 })
-  }
-
-  let finalBuffer = plainComposite
-  if (variant.lighting_prompt) {
-    try {
-      finalBuffer = await applyPhotoRoomRelight(plainComposite, {
-        prompt: variant.lighting_prompt,
-        outputWidth: variant.canvas_width,
-        outputHeight: variant.canvas_height,
-      })
-    } catch (e) {
-      const message = e instanceof PhotoRoomRelightError ? e.message : 'PhotoRoom relight failed'
-      const status = e instanceof PhotoRoomRelightError ? e.status : 502
-      return NextResponse.json({ error: message }, { status })
-    }
   }
 
   const websiteCardUrl = await uploadPublicAsset(

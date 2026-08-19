@@ -165,20 +165,19 @@ export type Variant = {
   // mechanism. An event typically has SEVERAL website_photo variants, one
   // per branding-defined "look" — same pattern promo/self_promo already
   // use for multiple named variants, not a special case.
+  //
+  // Deliberately AI-free (2026-08-19) — an AI lighting/style step
+  // (PhotoRoom editWithAI, then a Stability AI structure-control attempt)
+  // was tried and abandoned after real testing: across every input
+  // structure tried (bare cutout, full composite, cutout-only), the tool
+  // changed the subject's scale/position despite explicit instructions not
+  // to, and automated re-detection on its output wasn't accurate enough to
+  // correct for that (a documented, pre-existing limitation of the Gemini-
+  // based detector, reconfirmed here). A photo used publicly for every
+  // speaker can't have that kind of per-photo variance, so this category
+  // is just the deterministic crop + background composite (composite-on-
+  // background.ts) — always exact, always the same, no AI call at all.
   category?: 'promo' | 'self_promo' | 'website_photo'
-  // Only meaningful for category: 'website_photo' (2026-08-19) — a free-
-  // text PhotoRoom editWithAI prompt, written by the branding team per
-  // variant/style, applied to the photo AFTER it's already composited onto
-  // the real background (not a bare cutout) — see photoroom-relight.ts's
-  // doc comment: confirmed empirically this ordering is what makes
-  // PhotoRoom actually preserve framing reliably, which sending it a bare
-  // cutout couldn't. Unset: the plain composite (crop + background, no
-  // lighting change) is used as-is — see composite-on-background.ts. An
-  // earlier deterministic rim-light/key-light effect lived here too
-  // (2026-08-18) — removed the next day per Madhu: "just one design idea,"
-  // not the real requirement (branding-defined, per-event, prompt-driven
-  // styles via a real AI tool).
-  lighting_prompt?: string
 }
 
 // A reusable, named PhotoRoom editWithAI prompt (2026-08-18) — kept

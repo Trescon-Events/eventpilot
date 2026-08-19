@@ -313,12 +313,9 @@ export default function StakeholderReviewPage({ params }: { params: Promise<{ id
 
   async function generateWebsitePhoto() {
     setGeneratingWebsitePhoto(true)
-    // 2026-08-19: crop + composite is always fast/deterministic; lighting is
-    // either that same deterministic composite (near-instant) or, when the
-    // variant has a lighting_prompt configured, a real PhotoRoom call
-    // (photoroom-relight.ts, ~10-20s observed) — this estimate just paces
-    // the progress bar reasonably for either case, not a hard bottleneck.
-    setProcessing({ label: 'Generating website photo…', estimatedMs: 8000 })
+    // 2026-08-19: deterministic crop + background composite, no AI step —
+    // always fast; this estimate just paces the progress bar reasonably.
+    setProcessing({ label: 'Generating website photo…', estimatedMs: 3000 })
     setMsg(null)
     const res = await fetch('/api/events/stakeholders/speakers/website-photo/generate', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -522,15 +519,13 @@ export default function StakeholderReviewPage({ params }: { params: Promise<{ id
             </div>
           </Card>
 
-          {/* Website Photo (2026-08-18/19) — a separate, square, relit
-              speaker card photo for the public Speakers page/KonfHub,
-              generated from the same Cleaned Photo above but not the same
-              asset. Crop/background composite is always deterministic;
-              lighting is the branding team's PhotoRoom prompt
-              (photoroom-relight.ts) if the event's Website Photo variant
-              has one set, otherwise the plain composite is used as-is — see
-              composite.ts's Variant.lighting_prompt doc comment. Speaker-only
-              — partners have no equivalent. Not gated on approval status,
+          {/* Website Photo (2026-08-18/19) — a separate, square speaker
+              card photo for the public Speakers page/KonfHub, generated
+              from the same Cleaned Photo above but not the same asset.
+              Deterministic crop + background composite only, no AI step —
+              see composite.ts's Variant.category doc comment for why an AI
+              lighting/style step was tried and abandoned. Speaker-only —
+              partners have no equivalent. Not gated on approval status,
               same as SAE's own Create New: just the generate permission +
               having a cleaned photo to start from. */}
           {kind === 'speaker' && (

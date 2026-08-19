@@ -5,7 +5,6 @@ import { compositeAnnouncement, analyzeTextLayers, type Variant, type ImageLayer
 import { fetchAssetBuffer } from '@/app/lib/announcements/asset-buffer-cache'
 import { alignAndCropPhoto, type HeadBox } from '@/app/lib/media/face-alignment'
 import { compositeOnBackground } from '@/app/lib/media/composite-on-background'
-import { applyPhotoRoomRelight } from '@/app/lib/media/photoroom-relight'
 
 /* POST /api/events/templates/preview
    Body: { stakeholder_type, variant (draft, unsaved), speaker_id?, partner_id? }
@@ -46,24 +45,16 @@ import { applyPhotoRoomRelight } from '@/app/lib/media/photoroom-relight'
    other photo_slot layer with alignment set — the asset loop below already
    resolves the right head_box for either a real selected speaker or, with
    no speaker selected, the layer's own reference_head_box from "Upload
-   Reference Layer"), then composited onto the variant's real background —
-   deterministic, always. Lighting from there is EITHER
-   variant.lighting_prompt, sent to PhotoRoom's editWithAI on that already-
-   composited photo (photoroom-relight.ts — the "compose first, relight
-   second" approach, confirmed to actually preserve framing reliably,
-   unlike sending PhotoRoom a bare cutout), OR nothing at all (the plain
-   composite is used as-is) when no lighting_prompt is set — see Madhu's
-   2026-08-19 call: a deterministic code-only lighting effect isn't the
-   real requirement, branding wants arbitrary AI-prompt-driven styles per
-   event instead.
-   Either way this route's own output IS the final image — the usual
-   compositeAnnouncement() background step is SKIPPED for this category.
-   Only variant.lighting_prompt costs a PhotoRoom credit and real wall-clock
-   time per click; the deterministic path is free and instant. No alignment
+   Reference Layer"), then composited onto the variant's real background
+   (composite-on-background.ts) — deterministic, no AI, always exact. An AI
+   lighting/style step was tried and abandoned here (PhotoRoom, then
+   Stability AI) — see composite.ts's Variant.category doc comment for why.
+   This route's own output IS the final image for this category — the
+   usual compositeAnnouncement() background step is SKIPPED. No alignment
    set on the layer yet, or no background Image layer configured yet: falls
    back to compositeAnnouncement() placing the plain (still correctly
    cropped, when alignment exists) cutout onto the background locally, with
-   `lighting_applied: false` and a `lighting_error` explaining why. */
+   a `website_photo_error` explaining why. */
 
 const PLACEHOLDER_TEXT = { name: 'Jane Doe', title: 'Chief Officer', company: 'Acme Corp', tier: 'LEAD SPONSOR' }
 const PLACEHOLDER_COLOR = { r: 140, g: 140, b: 150, alpha: 1 }
@@ -135,9 +126,9 @@ export async function POST(req: NextRequest) {
   const config = event?.creative_template_config as CreativeTemplateConfig | null
   const placeholderProfile = config?.placeholder?.[body.stakeholder_type]
 
-  // Website photo lighting preview — see this file's top comment.
-  let lightingApplied = false
-  let lightingError: string | null = null
+  // Website photo — see this file's top comment. Deterministic crop +
+  // background composite only, no AI step.
+  let websitePhotoError: string | null = null
   let renderVariant = body.variant
   let websitePhotoFinalBuffer: Buffer | null = null
   const photoLayer = body.variant.category === 'website_photo'
@@ -145,7 +136,7 @@ export async function POST(req: NextRequest) {
     : undefined
   if (photoLayer && assets.speaker_photo) {
     if (!photoLayer.alignment) {
-      lightingError = 'No reference photo layer set up yet — click "Upload Reference Layer (auto-position)" on the Photo/Logo Slot layer first.'
+      websitePhotoError = 'No reference photo layer set up yet — click "Upload Reference Layer (auto-position)" on the Photo/Logo Slot layer first.'
     } else {
       try {
         const cropped = await alignAndCropPhoto(
@@ -163,23 +154,15 @@ export async function POST(req: NextRequest) {
         const backgroundLayer = body.variant.layers.find((l): l is ImageLayer => l.type === 'image')
         const backgroundBuffer = backgroundLayer?.asset_url ? await fetchAssetBuffer(backgroundLayer.asset_url) : null
         if (!backgroundBuffer) {
-          lightingError = 'No background image set on the Image layer yet — showing the plain crop.'
+          websitePhotoError = 'No background image set on the Image layer yet — showing the plain crop.'
         } else {
-          const plainComposite = await compositeOnBackground(cropped, backgroundBuffer, {
+          websitePhotoFinalBuffer = await compositeOnBackground(cropped, backgroundBuffer, {
             canvasWidth: body.variant.canvas_width,
             canvasHeight: body.variant.canvas_height,
           })
-          websitePhotoFinalBuffer = body.variant.lighting_prompt
-            ? await applyPhotoRoomRelight(plainComposite, {
-                prompt: body.variant.lighting_prompt,
-                outputWidth: body.variant.canvas_width,
-                outputHeight: body.variant.canvas_height,
-              })
-            : plainComposite
-          lightingApplied = true
         }
       } catch (e) {
-        lightingError = e instanceof Error ? e.message : 'Compositing the lighting effect failed — showing the plain crop.'
+        websitePhotoError = e instanceof Error ? e.message : 'Compositing the website photo failed — showing the plain crop.'
       }
     }
   }
@@ -204,7 +187,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({
       preview_data_url: `data:image/png;base64,${draftBuffer.toString('base64')}`,
       text_diagnostics,
-      ...(body.variant.category === 'website_photo' ? { lighting_applied: lightingApplied, lighting_error: lightingError } : {}),
+      ...(body.variant.category === 'website_photo' ? { website_photo_error: websitePhotoError } : {}),
     })
   } catch (e) {
     const message = e instanceof Error ? e.message : 'Preview render failed'

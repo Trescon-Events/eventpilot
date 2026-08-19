@@ -110,8 +110,8 @@ export default function CreativeTemplatesAdminPage({ params }: { params: Promise
   const [expandedLayerId, setExpandedLayerId] = useState<string | null>(null)
   const [textDiagnostics, setTextDiagnostics] = useState<Record<string, TextLayerDiagnostics>>({})
   // Only meaningful for category: 'website_photo' — see preview/route.ts's
-  // top comment. null = not a website_photo variant / not rendered yet.
-  const [lightingPreview, setLightingPreview] = useState<{ applied: boolean; error: string | null } | null>(null)
+  // top comment. null = not a website_photo variant / no issue to report.
+  const [websitePhotoError, setWebsitePhotoError] = useState<string | null>(null)
 
   const [speakers, setSpeakers] = useState<StakeholderOption[]>([])
   const [partners, setPartners] = useState<StakeholderOption[]>([])
@@ -238,7 +238,7 @@ export default function CreativeTemplatesAdminPage({ params }: { params: Promise
     setPreviewDataUrl(res.ok ? data.preview_data_url : null)
     setPreviewStale(false)
     setTextDiagnostics(res.ok ? (data.text_diagnostics ?? {}) : {})
-    setLightingPreview(res.ok && activeVariant.category === 'website_photo' ? { applied: !!data.lighting_applied, error: data.lighting_error ?? null } : null)
+    setWebsitePhotoError(res.ok && activeVariant.category === 'website_photo' ? (data.website_photo_error ?? null) : null)
     setPreviewLoading(false)
   }
 
@@ -622,19 +622,7 @@ export default function CreativeTemplatesAdminPage({ params }: { params: Promise
                       {activeVariant.category === 'website_photo' && (
                         <div style={{ marginBottom: '14px' }}>
                           <div style={{ fontSize: '11px', color: 'var(--ink3)', marginBottom: '10px' }}>
-                            This variant should have exactly two layers: an <strong>Image</strong> layer for the background, and a <strong>Photo/Logo Slot</strong> (source: speaker photo) sized to the full canvas — set the slot up exactly like a Promo variant&apos;s: click <strong>Upload Reference Layer (auto-position)</strong> and adjust the head position. That known position, the crop, and the background composite always happen exactly the same way, every time, regardless of which lighting option below is used.
-                          </div>
-                          <div style={{ marginBottom: '12px' }}>
-                            <label style={{ fontSize: '11px', color: 'var(--ink3)', display: 'block', marginBottom: '4px' }}>
-                              Lighting Prompt (PhotoRoom AI — optional)
-                            </label>
-                            <Textarea value={activeVariant.lighting_prompt ?? ''}
-                              onChange={e => updateActiveVariant({ lighting_prompt: e.target.value || undefined })}
-                              placeholder="e.g. Photography retouch: simulate a single small kicker light placed off-camera to the left..."
-                              style={{ width: '100%', minHeight: '70px' }} />
-                            <div style={{ fontSize: '10.5px', color: 'var(--ink4)', marginTop: '4px' }}>
-                              When set, this is applied to the already-cropped, already-composited photo (background baked in) — confirmed this ordering is what keeps PhotoRoom from re-framing the subject, unlike sending it a bare cutout. Wording matters: avoid words like &ldquo;edge&rdquo; or &ldquo;silhouette&rdquo;, which reliably push PhotoRoom toward outlining the whole person instead of a directional effect — describe it as a specific light source (e.g. &ldquo;kicker light&rdquo;) hitting specific areas instead. Left blank, the plain crop+background composite is used as-is, no AI call. Costs a PhotoRoom credit and a few seconds per generate/preview when filled in.
-                            </div>
+                            This variant should have exactly two layers: an <strong>Image</strong> layer for the background, and a <strong>Photo/Logo Slot</strong> (source: speaker photo) sized to the full canvas — set the slot up exactly like a Promo variant&apos;s: click <strong>Upload Reference Layer (auto-position)</strong> and adjust the head position. That known position, the crop, and the background composite always happen exactly the same way, every time.
                           </div>
                         </div>
                       )}
@@ -769,16 +757,9 @@ export default function CreativeTemplatesAdminPage({ params }: { params: Promise
                       />
                     )}
                   </div>
-                  {activeVariant?.category === 'website_photo' && lightingPreview && (
-                    <div style={{
-                      marginTop: '8px', fontSize: '11.5px', fontWeight: 700,
-                      color: lightingPreview.applied ? 'var(--teal-mid)' : 'var(--amber)',
-                    }}>
-                      {lightingPreview.applied
-                        ? (activeVariant?.lighting_prompt
-                            ? '✓ Lighting prompt applied — this is real PhotoRoom output (used a credit).'
-                            : '✓ Plain crop + background composite — no lighting prompt set.')
-                        : lightingPreview.error ?? 'Select a real speaker with a cleaned photo above to preview the lighting effect.'}
+                  {activeVariant?.category === 'website_photo' && websitePhotoError && (
+                    <div style={{ marginTop: '8px', fontSize: '11.5px', fontWeight: 700, color: 'var(--amber)' }}>
+                      {websitePhotoError}
                     </div>
                   )}
                 </div>
