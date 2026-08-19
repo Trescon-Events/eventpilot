@@ -30,8 +30,8 @@ export async function GET(req: NextRequest) {
     .select(`
       *,
       event:event_id ( id, name ),
-      assigned_by_staff:assigned_by ( id, name ),
-      assigned_to_staff:assigned_to ( id, name )
+      assigned_by_staff:assigned_by ( id, name, email ),
+      assigned_to_staff:assigned_to ( id, name, email )
     `)
     .order('created_at', { ascending: false })
 
