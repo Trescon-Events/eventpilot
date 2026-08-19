@@ -23,6 +23,7 @@ export type GrantStrategy = {
 
 export const GRANT_STRATEGY: Record<string, GrantStrategy> = {
   bespoke:             { label: 'Bespoke Tracker',     grantKey: 'bespoke' },
+  task_manager_admin:  { label: 'Task Manager — Admin Console', grantKey: 'task_manager_admin' },
   website_builder:     { label: 'Website Builder',     grantKey: 'website_builder' },
   brand_studio:        { label: 'Brand Studio',        grantKey: 'brand_studio' },
   intelligence:        { label: 'Market Intelligence', grantKey: 'intelligence' },

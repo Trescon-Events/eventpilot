@@ -17,6 +17,7 @@ import { useSearchParams } from 'next/navigation'
 
 const TOOL_LABEL: Record<string, string> = {
   bespoke:             'Bespoke Tracker',
+  task_manager_admin:  'Task Manager — Admin Console',
   website_builder:     'Website Builder',
   brand_studio:        'Brand Studio',
   intelligence:        'Market Intelligence',

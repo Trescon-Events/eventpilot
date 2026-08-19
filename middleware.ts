@@ -186,6 +186,7 @@ export async function middleware(req: NextRequest) {
     pathname.startsWith('/admin/toolkit') ||
     pathname.startsWith('/admin/bespoke') ||
     pathname.startsWith('/admin/commercial') ||
+    pathname.startsWith('/admin/task-manager') ||
     // 2026-08-16: delegatable via the platform-wide RBAC permission
     // platform.branding.manage — see app/admin/branding/fonts/layout.tsx.
     // Scoped to /fonts only, not the sibling /admin/branding/corporate page.

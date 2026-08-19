@@ -24,7 +24,7 @@ if (!GITHUB_TOKEN || !REPO || !PR_NUMBER || !BASE_REF) {
 
 // Changes confined to these prefixes are the SAFE case.
 const ISOLATED_PREFIXES = [
-  'app/task-manager/',
+  'app/admin/task-manager/',
   'app/api/task-manager/',
 ]
 

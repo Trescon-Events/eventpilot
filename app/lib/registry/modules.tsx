@@ -808,6 +808,47 @@ export function getModuleRegistry(): ModuleDef[] {
       },
     },
 
+    {
+      key: 'task-manager', label: 'Task Manager',
+      description: 'Shared task tracker for the branding/creative team — assign tasks, track deadlines and priority, run a per-task timer, and switch between table and Kanban views.',
+      icon: <svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><rect x="4" y="3" width="16" height="18" rx="2"/><path d="M8 8h8M8 12h8M8 16h5"/></svg>,
+      color: '#6366F1',
+      href: '/admin/task-manager',
+      breadcrumbParent: 'toolkit',
+      // 2026-08-19: opened to every authenticated staff member, not gated by
+      // an individual tool_grant — Madhu's call, this is a general team
+      // utility everyone should be able to use. The separate task-manager-admin
+      // entry below is the one still gated, for Khalifa's reporting console.
+      access: { kind: 'always' },
+      sidebar: { section: 'home', order: 9 },
+      toolkitHub: {
+        category: 'Operations', badge: 'Operations',
+        features: [
+          { icon: '≡', label: 'Table + Kanban views', detail: 'Switch between a spreadsheet-style table and a drag-and-drop board' },
+          { icon: '◷', label: 'Per-task timer', detail: 'Start/pause/stop time tracking, auto-flips a task to In Progress' },
+          { icon: '◉', label: 'Real staff assignment', detail: 'Assignees bind to actual EventPilot staff accounts, not free text' },
+          { icon: '⊞', label: 'CSV export', detail: 'Export the full task list for reporting or backup' },
+        ],
+      },
+    },
+    {
+      key: 'task-manager-admin', label: 'Task Manager — Admin Console',
+      description: 'Reports and oversight across every task in Task Manager — overdue/stale tasks, per-assignee workload, and reassignment tools. For team leads managing the module, not general task-tracking users.',
+      icon: <svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M3 3v18h18"/><path d="M18.7 8l-5.1 5.1-2.8-2.8L7 14"/></svg>,
+      color: '#4F46E5',
+      href: '/admin/task-manager/console',
+      breadcrumbParent: 'task-manager',
+      access: { kind: 'tool_grant', grantKey: 'task_manager_admin', moduleAccessKey: 'task-manager-admin' },
+      toolkitHub: {
+        category: 'Operations', badge: 'Operations',
+        features: [
+          { icon: '⚠', label: 'Stale + overdue reports', detail: 'Surface tasks pending too long or past their deadline' },
+          { icon: '◉', label: 'Per-assignee workload', detail: 'See how tasks are distributed across the team' },
+          { icon: '⇄', label: 'Reassign & take action', detail: 'Change status, priority, or assignee directly from the report' },
+        ],
+      },
+    },
+
     /* ── Toolkit-only: Finance ── */
     {
       key: 'commercial', label: 'Commercial P&L',

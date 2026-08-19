@@ -1,0 +1,394 @@
+'use client'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import Button from '@/app/components/ui/Button'
+import Card from '@/app/components/ui/Card'
+import { CategoryDonutChart } from './charts'
+import RunningTimerWidget from './RunningTimerWidget'
+import SummaryBar, { AssigneeCounts } from './SummaryBar'
+import TaskKanban from './TaskKanban'
+import TaskModal from './TaskModal'
+import TaskTable from './TaskTable'
+import TimeLogModal from './TimeLogModal'
+import Timesheets from './Timesheets'
+import { PILL_FILTER_STYLE } from './ui'
+import { ActiveTimer, EventLite, LogCategory, StaffLite, Task, TaskPriority, TaskSaveValues, TaskStatus, TimeLog } from './types'
+
+type ViewMode = 'table' | 'kanban' | 'timesheets'
+
+export default function TaskManagerPage() {
+  const [tasks, setTasks] = useState<Task[]>([])
+  const [counts, setCounts] = useState<AssigneeCounts>({})
+  const [staff, setStaff] = useState<StaffLite[]>([])
+  const [events, setEvents] = useState<EventLite[]>([])
+  const [currentStaffId, setCurrentStaffId] = useState<string | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+
+  const [view, setView] = useState<ViewMode>('table')
+  const [myTasksOnly, setMyTasksOnly] = useState(false)
+  const [statusFilter, setStatusFilter] = useState<'all' | TaskStatus>('all')
+  const [priorityFilter, setPriorityFilter] = useState<'all' | TaskPriority>('all')
+
+  const [editingTask, setEditingTask] = useState<Task | null | undefined>(undefined) // undefined = modal closed
+  const [modalDefaultStatus, setModalDefaultStatus] = useState<TaskStatus>('Not-Started')
+  const [activeTimer, setActiveTimer] = useState<ActiveTimer>(null)
+
+  const [quickAddText, setQuickAddText] = useState('')
+  const [quickAddBusy, setQuickAddBusy] = useState(false)
+  const quickAddRef = useRef<HTMLInputElement>(null)
+
+  // Timesheets — lazy-loaded the first time that tab is opened, so the
+  // common case (just looking at tasks) doesn't pay for fetching the log
+  // history on every page load. `timeLogsLoaded` tracks whether that first
+  // fetch has happened yet.
+  const [timeLogs, setTimeLogs] = useState<TimeLog[]>([])
+  const [timeLogsLoaded, setTimeLogsLoaded] = useState(false)
+  const [timeLogsLoading, setTimeLogsLoading] = useState(false)
+  const [showTimeLogModal, setShowTimeLogModal] = useState(false)
+
+  async function loadTasks() {
+    const res = await fetch('/api/task-manager')
+    if (!res.ok) { setError('Failed to load tasks.'); return }
+    const data = await res.json()
+    setTasks(data.tasks ?? [])
+    setCounts(data.counts_by_assignee ?? {})
+  }
+
+  async function refreshActiveTimer() {
+    const res = await fetch('/api/task-manager/timer/active')
+    const data = await res.json().catch(() => ({}))
+    setActiveTimer(data.active ?? null)
+  }
+
+  async function loadTimeLogs() {
+    setTimeLogsLoading(true)
+    const res = await fetch('/api/task-manager/timesheets')
+    const data = await res.json().catch(() => ({}))
+    setTimeLogs(data.logs ?? [])
+    setTimeLogsLoading(false)
+    setTimeLogsLoaded(true)
+  }
+
+  useEffect(() => {
+    async function loadAll() {
+      const [session, staffList, eventList, taskRes, timerRes] = await Promise.all([
+        fetch('/api/auth/session').then(r => r.json()),
+        fetch('/api/staff-list').then(r => r.json()),
+        fetch('/api/events').then(r => r.json()),
+        fetch('/api/task-manager').then(r => r.json()),
+        fetch('/api/task-manager/timer/active').then(r => r.json()),
+      ])
+      setCurrentStaffId(session?.sid ?? null)
+      setStaff(staffList)
+      setEvents((eventList ?? []).map((e: { id: string; name: string }) => ({ id: e.id, name: e.name })))
+      setTasks(taskRes.tasks ?? [])
+      setCounts(taskRes.counts_by_assignee ?? {})
+      setActiveTimer(timerRes.active ?? null)
+    }
+    loadAll()
+      .catch(() => setError('Failed to load Task Manager.'))
+      .finally(() => setLoading(false))
+  }, [])
+
+  // Fetch timesheets the first time that tab is opened. Fetch is inlined
+  // here (not calling the outer loadTimeLogs) so the setState calls are
+  // scoped to this effect's own async closure, not a shared named function
+  // — same pattern as the initial loadAll effect above.
+  useEffect(() => {
+    if (view !== 'timesheets' || timeLogsLoaded) return
+    async function loadFirstTime() {
+      setTimeLogsLoading(true)
+      const res = await fetch('/api/task-manager/timesheets')
+      const data = await res.json().catch(() => ({}))
+      setTimeLogs(data.logs ?? [])
+      setTimeLogsLoading(false)
+      setTimeLogsLoaded(true)
+    }
+    loadFirstTime()
+  }, [view, timeLogsLoaded])
+
+  // "N" jumps straight to the quick-add box from anywhere on the page —
+  // matches the create-in-a-jiffy pattern in Linear/Todoist. Ignored while
+  // already typing in any field so it doesn't hijack normal text entry.
+  useEffect(() => {
+    function onKeyDown(e: KeyboardEvent) {
+      const target = e.target as HTMLElement
+      const isTyping = ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName)
+      if (e.key === 'n' && !isTyping && !e.metaKey && !e.ctrlKey) {
+        e.preventDefault()
+        quickAddRef.current?.focus()
+      }
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [])
+
+  const filteredTasks = useMemo(() => {
+    return tasks.filter(t => {
+      if (myTasksOnly && t.assigned_to !== currentStaffId) return false
+      if (statusFilter !== 'all' && t.status !== statusFilter) return false
+      if (priorityFilter !== 'all' && t.priority !== priorityFilter) return false
+      return true
+    })
+  }, [tasks, myTasksOnly, currentStaffId, statusFilter, priorityFilter])
+
+  const categoryChartData = useMemo(() => {
+    const byCategory = new Map<string, number>()
+    for (const log of timeLogs) {
+      const key = log.category ?? 'Uncategorized'
+      byCategory.set(key, (byCategory.get(key) ?? 0) + (log.duration_seconds ?? 0))
+    }
+    return [...byCategory.entries()].map(([label, seconds]) => ({ label, seconds })).sort((a, b) => b.seconds - a.seconds)
+  }, [timeLogs])
+
+  async function handleQuickAdd() {
+    const description = quickAddText.trim()
+    if (!description || !currentStaffId || quickAddBusy) return
+    setQuickAddBusy(true)
+    setQuickAddText('')
+    const res = await fetch('/api/task-manager', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ description, assigned_to: currentStaffId, assigned_by: currentStaffId }),
+    })
+    setQuickAddBusy(false)
+    if (!res.ok) { setError('Failed to create task.'); setQuickAddText(description); return }
+    await loadTasks()
+    quickAddRef.current?.focus()
+  }
+
+  async function handleStatusChange(taskId: string, newStatus: TaskStatus) {
+    setTasks(prev => prev.map(t => t.id === taskId ? { ...t, status: newStatus } : t))
+    const res = await fetch(`/api/task-manager/${taskId}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status: newStatus }) })
+    if (!res.ok) { setError('Failed to update status.'); await loadTasks() }
+  }
+
+  async function handlePriorityChange(taskId: string, newPriority: TaskPriority) {
+    setTasks(prev => prev.map(t => t.id === taskId ? { ...t, priority: newPriority } : t))
+    const res = await fetch(`/api/task-manager/${taskId}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ priority: newPriority }) })
+    if (!res.ok) { setError('Failed to update priority.'); await loadTasks() }
+  }
+
+  async function handleTimerAction(taskId: string, action: 'start' | 'pause' | 'stop') {
+    setError(null)
+    const res = await fetch(`/api/task-manager/${taskId}/timer`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action }) })
+    const body = await res.json().catch(() => ({}))
+    if (!res.ok) { setError(body.error ?? 'Timer action failed.'); return }
+    await Promise.all([loadTasks(), refreshActiveTimer()])
+    if (timeLogsLoaded) await loadTimeLogs()
+  }
+
+  async function handleDelete(taskId: string) {
+    if (!confirm('Delete this task? This also removes its logged time.')) return
+    const res = await fetch(`/api/task-manager/${taskId}`, { method: 'DELETE' })
+    if (!res.ok) { setError('Failed to delete task.'); return }
+    setTasks(prev => prev.filter(t => t.id !== taskId))
+  }
+
+  function openNewTaskModal(defaultStatus: TaskStatus = 'Not-Started') {
+    setModalDefaultStatus(defaultStatus)
+    setEditingTask(null)
+  }
+
+  async function handleSave(values: TaskSaveValues) {
+    const isEdit = !!values.id
+    const res = await fetch(isEdit ? `/api/task-manager/${values.id}` : '/api/task-manager', {
+      method: isEdit ? 'PATCH' : 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(isEdit ? values : { ...values, status: modalDefaultStatus }),
+    })
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}))
+      setError(body.error ?? 'Failed to save task.')
+      return
+    }
+    setEditingTask(undefined)
+    await loadTasks()
+  }
+
+  async function handleSaveManualLog(values: { task_id: string; category: LogCategory | ''; description: string; log_date: string; start_time: string; end_time: string }) {
+    const res = await fetch('/api/task-manager/timesheets', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(values),
+    })
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}))
+      setError(body.error ?? 'Failed to log time.')
+      return
+    }
+    setShowTimeLogModal(false)
+    await Promise.all([loadTimeLogs(), loadTasks()])
+  }
+
+  async function handleEditLog(logId: string, updates: { category?: LogCategory | ''; description?: string }) {
+    setTimeLogs(prev => prev.map(l => l.id === logId ? { ...l, ...updates, category: (updates.category ?? l.category) || null } : l))
+    const res = await fetch(`/api/task-manager/timesheets/${logId}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(updates) })
+    if (!res.ok) { setError('Failed to update log entry.'); await loadTimeLogs() }
+  }
+
+  async function handleDeleteLog(logId: string) {
+    if (!confirm('Delete this time log entry? This cannot be undone.')) return
+    const res = await fetch(`/api/task-manager/timesheets/${logId}`, { method: 'DELETE' })
+    if (!res.ok) { setError('Failed to delete log entry.'); return }
+    setTimeLogs(prev => prev.filter(l => l.id !== logId))
+    await loadTasks()
+  }
+
+  if (loading) return <div style={{ padding: '80px', textAlign: 'center', color: 'var(--ink4)' }}>Loading Task Manager…</div>
+
+  return (
+    <div style={{ padding: '20px 32px 48px' }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '14px' }}>
+        <h1 style={{ fontSize: '22px', fontWeight: 800, color: 'var(--ink)', margin: 0, letterSpacing: '-0.3px' }}>Task Manager</h1>
+        <div style={{ display: 'flex', gap: '8px' }}>
+          <Button variant="ghost" href="/admin/task-manager/console">Admin Console</Button>
+          <Button variant="ghost" href="/api/task-manager/export" target="_blank">Export CSV</Button>
+          <Button variant="teal" onClick={() => openNewTaskModal('Not-Started')}>+ New Task</Button>
+        </div>
+      </div>
+
+      <RunningTimerWidget active={activeTimer} onStopped={() => { refreshActiveTimer(); loadTasks(); if (timeLogsLoaded) loadTimeLogs() }} />
+
+      {error && (
+        <div style={{ background: 'var(--red-light)', border: '1px solid var(--red-border)', color: 'var(--red)', borderRadius: '8px', padding: '10px 14px', fontSize: '13px', marginBottom: '16px' }}>
+          {error}
+        </div>
+      )}
+
+      <SummaryBar counts={counts} />
+
+      {/* Quick add — the "create a task in a jiffy" path. Defaults everything
+          (assignee = self, status = Not-Started, priority = Medium) so one
+          line + Enter is all it takes; press "N" from anywhere to jump here. */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: '10px', background: 'var(--card)', border: '1.5px solid var(--border-light)', borderRadius: '12px', padding: '4px 6px 4px 16px', marginBottom: '16px', boxShadow: 'var(--shadow-sm)' }}>
+        <span style={{ color: 'var(--teal-mid)', fontSize: '16px', fontWeight: 800, flexShrink: 0 }}>+</span>
+        <input
+          ref={quickAddRef}
+          value={quickAddText}
+          onChange={e => setQuickAddText(e.target.value)}
+          onKeyDown={e => { if (e.key === 'Enter') handleQuickAdd() }}
+          placeholder="Add a task and press Enter… (assigns to you — edit details after)"
+          disabled={quickAddBusy}
+          style={{ flex: 1, background: 'transparent', border: 'none', outline: 'none', color: 'var(--ink)', fontSize: '14px', padding: '10px 0' }}
+        />
+        <kbd style={{ fontSize: '11px', color: 'var(--ink4)', background: 'var(--border-light)', border: '1px solid var(--border)', borderRadius: '5px', padding: '2px 6px', flexShrink: 0 }}>N</kbd>
+      </div>
+
+      <Card padded>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap', marginBottom: '16px' }}>
+          <ToggleGroup value={view} onChange={setView} options={[['table', 'Table'], ['kanban', 'Kanban'], ['timesheets', 'Timesheets']]} />
+
+          {view !== 'timesheets' && (
+            <>
+              <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', color: 'var(--ink3)', cursor: 'pointer' }}>
+                <input type="checkbox" checked={myTasksOnly} onChange={e => setMyTasksOnly(e.target.checked)} />
+                My Tasks
+              </label>
+
+              <select value={statusFilter} onChange={e => setStatusFilter(e.target.value as 'all' | TaskStatus)} style={PILL_FILTER_STYLE}>
+                <option value="all">All statuses</option>
+                <option value="Not-Started">Not Started</option>
+                <option value="In-Progress">In Progress</option>
+                <option value="Completed">Completed</option>
+              </select>
+
+              <select value={priorityFilter} onChange={e => setPriorityFilter(e.target.value as 'all' | TaskPriority)} style={PILL_FILTER_STYLE}>
+                <option value="all">All priorities</option>
+                <option value="High">High</option>
+                <option value="Medium">Medium</option>
+                <option value="Low">Low</option>
+              </select>
+            </>
+          )}
+
+          {view === 'timesheets' && (
+            <div style={{ marginLeft: 'auto', display: 'flex', gap: '8px' }}>
+              <Button variant="ghost" href="/api/task-manager/export/timesheets" target="_blank">Export CSV</Button>
+              <Button variant="teal" onClick={() => setShowTimeLogModal(true)}>+ Log Time</Button>
+            </div>
+          )}
+        </div>
+
+        {view === 'table' && (
+          <TaskTable
+            tasks={filteredTasks}
+            currentStaffId={currentStaffId}
+            runningTaskId={activeTimer?.task_id ?? null}
+            onOpenTask={setEditingTask}
+            onStatusChange={handleStatusChange}
+            onPriorityChange={handlePriorityChange}
+            onTimerAction={handleTimerAction}
+            onDelete={handleDelete}
+          />
+        )}
+        {view === 'kanban' && (
+          <TaskKanban
+            tasks={filteredTasks}
+            currentStaffId={currentStaffId}
+            runningTaskId={activeTimer?.task_id ?? null}
+            onStatusChange={handleStatusChange}
+            onOpenTask={setEditingTask}
+            onTimerAction={handleTimerAction}
+            onQuickAddInColumn={openNewTaskModal}
+          />
+        )}
+        {view === 'timesheets' && (
+          timeLogsLoading ? (
+            <div style={{ padding: '48px', textAlign: 'center', color: 'var(--ink4)' }}>Loading timesheets…</div>
+          ) : (
+            <>
+              {timeLogs.length > 0 && (
+                <div style={{ marginBottom: '20px', paddingBottom: '20px', borderBottom: '1px solid var(--border-light)' }}>
+                  <div style={{ fontSize: '11px', fontWeight: 800, letterSpacing: '1px', textTransform: 'uppercase', color: 'var(--ink3)', marginBottom: '12px' }}>
+                    Hours by category
+                  </div>
+                  <CategoryDonutChart data={categoryChartData} />
+                </div>
+              )}
+              <Timesheets logs={timeLogs} onEdit={handleEditLog} onDelete={handleDeleteLog} />
+            </>
+          )
+        )}
+      </Card>
+
+      {editingTask !== undefined && (
+        <TaskModal
+          task={editingTask}
+          staff={staff}
+          events={events}
+          currentStaffId={currentStaffId}
+          onClose={() => setEditingTask(undefined)}
+          onSave={handleSave}
+        />
+      )}
+
+      {showTimeLogModal && (
+        <TimeLogModal
+          tasks={tasks}
+          onClose={() => setShowTimeLogModal(false)}
+          onSave={handleSaveManualLog}
+        />
+      )}
+    </div>
+  )
+}
+
+function ToggleGroup<T extends string>({ value, onChange, options }: { value: T; onChange: (v: T) => void; options: [T, string][] }) {
+  return (
+    <div style={{ display: 'flex', border: '1px solid var(--border)', borderRadius: '8px', overflow: 'hidden' }}>
+      {options.map(([v, label]) => (
+        <button
+          key={v}
+          type="button"
+          onClick={() => onChange(v)}
+          style={{
+            padding: '6px 14px', fontSize: '12px', fontWeight: 700, border: 'none', cursor: 'pointer',
+            background: value === v ? 'var(--teal-mid)' : 'var(--card)',
+            color: value === v ? 'var(--surface)' : 'var(--ink3)',
+          }}
+        >
+          {label}
+        </button>
+      ))}
+    </div>
+  )
+}
