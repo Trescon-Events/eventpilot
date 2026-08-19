@@ -15,12 +15,38 @@ Railway's auto-deploy silently stopped working from **2026-07-17 to 2026-07-21**
 
 | Field | Value |
 |---|---|
-| Who | Madhu + Claude Code (Sonnet 5) — 17–18 Aug 2026 |
-| Latest push | 2026-08-18 — shipped the persistent-sidebar navigation rebuild that had been parked mid-work on 17 Aug: registry-driven `AppSidebar` (collapsible sections), `CommandPalette` (cmd+k), and a new `event_permission` access-check kind (plus `.*` wildcard support via `hasAnyModulePermission`) so sidebar entries can gate on per-event RBAC permissions instead of only legacy `module_access`. Additive — existing access kinds/surfaces (`platformMenu`, `toolkitHub`) unchanged. Commit `e31c076`. |
-| DB migrations applied | None this push. (17 Aug's `sae_migration.sql` additions — `event_speakers` columns, `announcement_kind`, `stakeholder_announcement_sends` — already applied, see prior entry below.) |
+| Who | Madhu + Claude Code (Sonnet 5) — 19 Aug 2026 |
+| Latest push | 2026-08-19 — Website Photo generator (speaker card photos for KonfHub/public Speakers page): fixed a real delete-variant persistence bug, tried and abandoned an AI lighting/style step (PhotoRoom, then Stability AI — see write-up below for why), fixed a silent-data-corruption bug in the shared asset fetcher, and landed on a deliberately AI-free deterministic crop + background composite. Commit `e6dbe4f`. |
+| DB migrations applied | None this push — one direct config write to `events.creative_template_config` for the live "webpic 1" variant (category fix, then final lighting_prompt removal), done live against production Supabase with Madhu's explicit go-ahead each time, not a migration. |
 | Handed off to | Durga |
-| Deployed | Pushed to `main`, Railway auto-deploys on push. Verify `eventpilot.tresconglobal.com` reflects commit `e31c076` and the new sidebar/command palette render correctly. |
+| Deployed | Pushed to `main`, Railway auto-deploys on push. Verify `eventpilot.tresconglobal.com` reflects commit `e6dbe4f`; Website Photo generation (Stakeholder Hub → a speaker → Website Photo card) should produce a plain crop+background composite with no AI call. |
 | Left alone, not part of this push | Unrelated untracked content in the working tree (`.scratch/`, `Attendee Data Historical/`, `Historical docs for KB/`, `docs/EventPilot-KB-PRD-v*.md`, `knowledge-base/bd/proposals/**`) — Madhu's own separate WIP, deliberately not committed or pushed. |
+
+## 19 Aug 2026 — Website Photo: AI lighting step tried and abandoned, 3 real bugs fixed
+
+### The ask
+
+A square, branding-controlled speaker card photo (background-composited, consistent look) for the public Speakers page/KonfHub — separate from the existing Promo/Self Promo social creatives. Two requirements that turned out to be in real tension: crop/head-position/background must be **pixel-identical every time** (public-facing, used for every speaker), but the *lighting/style* should be branding-team-authorable per event via a prompt, not hardcoded.
+
+### AI lighting step: tried three PhotoRoom architectures + Stability AI, all failed the geometry requirement
+
+Investigated thoroughly, not just once and given up — each attempt was tested against real speaker photos with objective pixel measurements (alpha-channel head-boundary detection, target-circle overlays), not eyeballing:
+
+1. **Bare cutout → PhotoRoom relight + integrate background in one call** — known-bad from earlier work, framing drift.
+2. **Full composite (crop+bg baked in) → PhotoRoom relight only**, with an explicit "do not change framing/crop/zoom" instruction — measured, real drift anyway: PhotoRoom zoomed in on a live request despite the instruction, confirmed via before/after pixel comparison.
+3. **Bare cutout → PhotoRoom relight only (no bg task at all) → our own re-crop after**, Madhu's own proposed ordering — PhotoRoom *also* resized the canvas and shifted the subject to the frame edge, **and** ignored `keepExistingAlphaChannel` entirely (alpha came back 100% opaque, destroying the cutout). Re-running background removal + fresh head detection on PhotoRoom's output was then tried as a recovery path — the fresh Gemini-based head detection undershot the true head boundary (a previously-documented limitation, reconfirmed here), producing a badly over-zoomed final crop.
+4. **Stability AI structure-control** (a real key was supplied mid-session) — regenerated a completely different face. Immediate hard stop, no further Stability testing.
+
+Conclusion, agreed with Madhu: no tested AI tool can be trusted to leave geometry untouched for a "must never vary" public-photo requirement, and automated re-detection isn't accurate enough to correct for it after the fact. Reverted to **deterministic crop + background composite only, no AI call at all** — `app/lib/media/composite-on-background.ts` is now the entire pipeline alongside the existing `alignAndCropPhoto`. Removed: `Variant.lighting_prompt` (type + Admin Console UI), `photoroom-relight.ts`, the `STABILITY_API_KEY` env entry, and the stale `lighting_prompt` value on the one live variant that had it set. Full record of what was tried and why kept in `composite.ts`'s `Variant.category` doc comment so this doesn't get re-litigated blind later.
+
+### Two real bugs found and fixed along the way
+
+- **"Delete Variant" didn't actually delete** — it only staged a local React-state edit (`mutate()` + `setDirty(true)`); refreshing the page without separately clicking "Save Changes" silently brought the deleted variant back. `deleteVariant()` now persists immediately via the same save endpoint.
+- **A broken photo silently vanished from a generated creative with zero error shown** — a HubSpot-hosted speaker photo's "signed URL" had expired and was returning an HTML error page with HTTP 200 (not the image). `fetchAssetBuffer()` (`app/lib/announcements/asset-buffer-cache.ts`) didn't check content-type, so it cached the HTML as if it were image bytes; `sharp` failed to decode it downstream, and `compositeAnnouncement()`'s per-layer `.catch(() => null)` silently dropped the whole photo layer. Fixed by validating `content-type` starts with `image/` before caching — real fetch failures now correctly fall through to the existing reference-photo/placeholder fallback instead of corrupting the render.
+
+**Verified**: `tsc --noEmit`, `npm run build`, and `check:nav` clean; eslint run directly against every changed file (line-scoped `lint-changed.mjs` only diffs the last commit, not working-tree changes, so this session's changes were linted directly — 4 pre-existing, unrelated issues confirmed on untouched lines, nothing new). Final deterministic pipeline re-tested against a real speaker (Ahmad Khalid Khairi) directly through the actual production functions immediately before commit — correct framing, natural colors, real branded background, zero AI calls.
+
+---
 
 ## 17 Aug 2026 — RBAC access-fix trio, 3 live-bug fixes, Self Promo module
 
