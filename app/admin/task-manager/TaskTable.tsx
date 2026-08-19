@@ -31,7 +31,7 @@ function FollowupButton({ task }: { task: Task }) {
           cursor: 'pointer',
           padding: '2px 4px',
           fontSize: '13px',
-          color: 'var(--teal-mid, #0d9488)',
+          color: 'var(--teal-mid)',
           borderRadius: '4px',
           display: 'inline-flex',
           alignItems: 'center',
@@ -54,16 +54,16 @@ function FollowupButton({ task }: { task: Task }) {
               left: 0,
               zIndex: 51,
               marginTop: '4px',
-              background: 'var(--surface, #1e293b)',
-              border: '1px solid var(--border, #334155)',
+              background: 'var(--surface)',
+              border: '1px solid var(--border)',
               borderRadius: '8px',
-              boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.4)',
+              boxShadow: '0 8px 24px var(--border)',
               padding: '8px',
               minWidth: '180px',
               fontSize: '12px',
             }}
           >
-            <div style={{ padding: '4px 8px', color: 'var(--ink4)', fontSize: '11px', borderBottom: '1px solid var(--border-light, #334155)', marginBottom: '4px' }}>
+            <div style={{ padding: '4px 8px', color: 'var(--ink4)', fontSize: '11px', borderBottom: '1px solid var(--border-light)', marginBottom: '4px' }}>
               Follow up with <strong>{assigner.name}</strong>
             </div>
             <a
@@ -76,12 +76,12 @@ function FollowupButton({ task }: { task: Task }) {
                 alignItems: 'center',
                 gap: '8px',
                 padding: '6px 8px',
-                color: 'var(--ink, #fff)',
+                color: 'var(--ink)',
                 textDecoration: 'none',
                 borderRadius: '4px',
                 transition: 'background 0.1s',
               }}
-              onMouseEnter={e => (e.currentTarget.style.background = 'var(--border-light, #334155)')}
+              onMouseEnter={e => (e.currentTarget.style.background = 'var(--border-light)')}
               onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
             >
               <span>💬</span> Ping on MS Teams
@@ -94,12 +94,12 @@ function FollowupButton({ task }: { task: Task }) {
                 alignItems: 'center',
                 gap: '8px',
                 padding: '6px 8px',
-                color: 'var(--ink, #fff)',
+                color: 'var(--ink)',
                 textDecoration: 'none',
                 borderRadius: '4px',
                 transition: 'background 0.1s',
               }}
-              onMouseEnter={e => (e.currentTarget.style.background = 'var(--border-light, #334155)')}
+              onMouseEnter={e => (e.currentTarget.style.background = 'var(--border-light)')}
               onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
             >
               <span>✉️</span> Send Outlook Email
@@ -113,7 +113,7 @@ function FollowupButton({ task }: { task: Task }) {
 
 interface Props {
   tasks: Task[]
-  currentStaffId: string | null
+  currentStaffId?: string | null
   runningTaskId?: string | null
   onOpenTask: (task: Task) => void
   onStatusChange: (taskId: string, newStatus: TaskStatus) => void
@@ -122,7 +122,7 @@ interface Props {
   onDelete: (taskId: string) => void
 }
 
-export default function TaskTable({ tasks, currentStaffId, onOpenTask, onStatusChange, onPriorityChange, onDelete }: Props) {
+export default function TaskTable({ tasks, onOpenTask, onStatusChange, onPriorityChange, onDelete }: Props) {
   if (tasks.length === 0) {
     return (
       <div style={{ padding: '48px', textAlign: 'center', color: 'var(--ink4)', fontSize: '13px' }}>
