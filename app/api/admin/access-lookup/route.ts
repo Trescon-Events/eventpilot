@@ -48,7 +48,7 @@ export async function GET(req: NextRequest) {
 
   const { data: assignmentRows } = await supabaseAdmin
     .from('event_access_assignments')
-    .select('id, event_id, role_id, auto_granted, granted_at, access_roles_catalog!role_id(name), events!event_id(name)')
+    .select('id, event_id, role_id, auto_granted, granted_at, expires_at, access_roles_catalog!role_id(name), events!event_id(name)')
     .eq('staff_id', staffId)
     .order('granted_at', { ascending: false })
 
@@ -74,8 +74,14 @@ export async function GET(req: NextRequest) {
       scope: a.event_id ? (event?.name ?? 'Unknown event') : 'Global (every event)',
       autoGranted: a.auto_granted,
       grantedAt: a.granted_at,
+      expiresAt: a.expires_at,
+      isExpired: !!a.expires_at && new Date(a.expires_at).getTime() <= Date.now(),
     }
   })
+  // Expired-but-not-yet-swept assignments (the cron runs every 15 min)
+  // shouldn't count toward "what does this person actually have" below —
+  // matches the live enforcement in app/lib/access/event-access.ts.
+  const activeAssignments = assignments.filter(a => !a.isExpired)
 
   const modules = ACCESS_REGISTRY.map(mod => ({
     key: mod.key,
@@ -83,7 +89,7 @@ export async function GET(req: NextRequest) {
     items: mod.items.map(item => {
       const grantedVia = isPlatformAdmin
         ? [{ roleName: 'Platform Admin', scope: 'Everywhere' }]
-        : assignments
+        : activeAssignments
             .filter(a => (keysByRole.get(a.roleId) ?? []).some(held => matchesPermission(held, item.key)))
             .map(a => ({ roleName: a.roleName, scope: a.scope }))
       return { key: item.key, label: item.label, enforced: item.enforced, granted: grantedVia.length > 0, grantedVia }

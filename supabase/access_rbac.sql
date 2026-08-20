@@ -113,3 +113,16 @@ CREATE TABLE IF NOT EXISTS hrms_role_access_map (
 -- marketing_executive to marketing_manager) without ever touching a
 -- manually-assigned role, which always has auto_granted = FALSE.
 ALTER TABLE event_access_assignments ADD COLUMN IF NOT EXISTS auto_granted BOOLEAN NOT NULL DEFAULT FALSE;
+
+-- ============================================================
+-- TIME-BOXED ASSIGNMENTS (2026-08-20) — for freelancers/contractors on a
+-- fixed engagement (e.g. a 1-2 month branding hire): grant per-event RBAC
+-- access same as any staffer, but with an end date, so it doesn't sit
+-- there forever waiting on someone to remember to revoke it. NULL = never
+-- expires (every existing/default assignment). Swept by the same
+-- app/api/cron/revoke-expired-access cron that already handles expired
+-- access_requests, every 15 minutes — an expired row is deleted outright
+-- (matching the UI's own "Unassign" semantics), not soft-marked.
+-- ============================================================
+ALTER TABLE event_access_assignments ADD COLUMN IF NOT EXISTS expires_at TIMESTAMPTZ;
+CREATE INDEX IF NOT EXISTS idx_event_access_assignments_expires_at ON event_access_assignments(expires_at) WHERE expires_at IS NOT NULL;

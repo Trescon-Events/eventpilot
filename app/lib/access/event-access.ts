@@ -14,6 +14,15 @@ async function isPlatformAdmin(staffId: string | null | undefined): Promise<bool
   return staff?.job_level === 'super_admin'
 }
 
+// expires_at IS NULL means "never expires" — every default/manual assignment.
+// A time-boxed one (2026-08-20, for freelancers/contractors on a fixed
+// engagement) stops counting the moment it's past, without waiting on the
+// revoke-expired-access cron to physically delete the row — belt and
+// braces, since the cron only runs every 15 minutes.
+function notExpiredFilter() {
+  return `expires_at.is.null,expires_at.gt.${new Date().toISOString()}`
+}
+
 // Unions role_ids assigned for THIS event with role_ids assigned globally
 // (event_id IS NULL, 2026-08-16 — see supabase/access_rbac.sql's "ORG-WIDE
 // (GLOBAL) ASSIGNMENTS" section) — a board/leadership role assigned once,
@@ -24,6 +33,7 @@ async function roleIdsFor(staffId: string, eventId: string): Promise<string[]> {
     .select('role_id')
     .eq('staff_id', staffId)
     .or(`event_id.eq.${eventId},event_id.is.null`)
+    .or(notExpiredFilter())
   return (data ?? []).map(r => r.role_id)
 }
 
@@ -82,6 +92,7 @@ export async function getAccessibleEventIds(
     .from('event_access_assignments')
     .select('event_id, role_id')
     .eq('staff_id', staffId)
+    .or(notExpiredFilter())
   const rows = data ?? []
   if (rows.length === 0) return { allEvents: false, eventIds: [] }
 
@@ -161,6 +172,7 @@ export async function hasPlatformPermission(
     .from('event_access_assignments')
     .select('role_id')
     .eq('staff_id', staffId)
+    .or(notExpiredFilter())
   const roleIds = (assignments ?? []).map(a => a.role_id)
   if (roleIds.length === 0) return false
 

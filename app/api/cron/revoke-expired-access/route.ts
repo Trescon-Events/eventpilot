@@ -2,8 +2,17 @@
  * GET /api/cron/revoke-expired-access
  *
  * Runs every 15 minutes via Vercel/Railway Cron.
- * Finds every 'granted' access_requests row where granted_until <= NOW()
- * and reverses the grant on staff_members. Marks the row 'expired'.
+ *
+ * Two independent sweeps, same cron:
+ * 1. Every 'granted' access_requests row where granted_until <= NOW() —
+ *    reverses the grant on staff_members, marks the row 'expired'.
+ * 2. (2026-08-20) Every event_access_assignments row with expires_at <=
+ *    NOW() — for freelancers/contractors on a fixed engagement, granted a
+ *    time-boxed per-event RBAC role via AssignmentsTab. Deleted outright
+ *    (matching the UI's own "Unassign" semantics), not soft-marked — the
+ *    live permission checks in app/lib/access/event-access.ts already
+ *    exclude expired-but-not-yet-swept rows, so this is cleanup, not the
+ *    only thing standing between an expired grant and continued access.
  *
  * Auth: CRON_SECRET Bearer token (same pattern as every other cron endpoint).
  */
@@ -75,5 +84,14 @@ export async function GET(req: NextRequest) {
     }
   }
 
-  return NextResponse.json({ ok: true, revoked, failed: failures.length, failures })
+  const { data: expiredAssignments, error: assignErr } = await supabaseAdmin
+    .from('event_access_assignments')
+    .delete()
+    .not('expires_at', 'is', null)
+    .lte('expires_at', nowIso)
+    .select('id')
+  const assignmentsRevoked = assignErr ? 0 : (expiredAssignments ?? []).length
+  if (assignErr) failures.push({ id: 'event_access_assignments', err: assignErr.message })
+
+  return NextResponse.json({ ok: true, revoked, assignmentsRevoked, failed: failures.length, failures })
 }

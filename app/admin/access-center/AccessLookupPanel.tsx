@@ -10,7 +10,7 @@ import { Card, Badge } from '@/app/components/ui'
    GET /api/admin/access-lookup. */
 
 type StaffOption = { id: string; name: string; email: string }
-type Assignment = { id: string; roleId: string; roleName: string; scope: string; autoGranted: boolean; grantedAt: string }
+type Assignment = { id: string; roleId: string; roleName: string; scope: string; autoGranted: boolean; grantedAt: string; expiresAt: string | null; isExpired: boolean }
 type PermItem = { key: string; label: string; enforced: boolean; granted: boolean; grantedVia: { roleName: string; scope: string }[] }
 type ModuleResult = { key: string; label: string; items: PermItem[] }
 type LookupResult = { staff: { id: string; name: string; email: string }; isPlatformAdmin: boolean; assignments: Assignment[]; modules: ModuleResult[] }
@@ -98,6 +98,9 @@ export default function AccessLookupPanel() {
                     <div key={a.id} style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '9px 14px', background: 'var(--surface)', border: '1px solid var(--border-light)', borderRadius: '9px' }}>
                       <span style={{ fontSize: '13px', fontWeight: 700, color: 'var(--ink)', flex: 1, minWidth: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{a.roleName}</span>
                       <span style={{ fontSize: '12px', color: 'var(--ink3)' }}>{a.scope}</span>
+                      {a.expiresAt && (
+                        <Badge color={a.isExpired ? 'red' : 'amber'}>{a.isExpired ? 'expired' : `until ${new Date(a.expiresAt).toLocaleDateString()}`}</Badge>
+                      )}
                       <Badge color={a.autoGranted ? 'purple' : 'grey'}>{a.autoGranted ? 'auto (Staff Portal)' : 'manual'}</Badge>
                     </div>
                   ))}
