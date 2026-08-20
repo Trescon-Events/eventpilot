@@ -16,12 +16,38 @@ Railway's auto-deploy silently stopped working from **2026-07-17 to 2026-07-21**
 | Field | Value |
 |---|---|
 | Who | Madhu + Claude Code (Sonnet 5) — 20 Aug 2026 |
-| Latest push | 2026-08-20 — PR Approvals (`/admin/dev-approvals`): a new in-app page replacing the GitHub-notification review flow for Khalifa's Task Manager PRs — friendly AI-written summary, live SAFE/REVIEW_CLOSELY + CI status, one-click Approve & Ship (reviews + merges via GitHub API) or Send Back. Commit `8115110` (merge of `f2a1f68` with Khalifa's concurrently-merged PR #3, task-manager UI enhancements — disjoint files, clean merge). |
-| DB migrations applied | `supabase/github_pr_reviews.sql` — applied live against production Supabase directly via a one-off `pg`/drizzle-style connection script (same `SUPABASE_DB_PASSWORD` + pooler-host pattern as `app/api/admin/setup-pilots/route.ts`), confirmed via a real REST query afterward. |
-| New Railway env var | `GITHUB_APPROVER_TOKEN` — Madhu's own fine-grained GitHub PAT (Trescon-Events org, `eventpilot` repo only, Pull requests read/write + Contents read-only), set with `--skip-deploys`, validated against the GitHub API before being stored. |
+| Latest push | 2026-08-20 — Time-boxed per-event RBAC assignments (optional `expires_at` on `event_access_assignments`), built for onboarding short-term freelancers/contractors (branding team, 1-2 month engagements) without access sitting around after they leave. Commit `7b0e934`. Same day, earlier push: PR Approvals (`/admin/dev-approvals`), commit `8115110` — see its own write-up below. |
+| DB migrations applied | `supabase/access_rbac.sql` (new `expires_at` column + partial index on `event_access_assignments`) and, earlier the same day, `supabase/github_pr_reviews.sql` — both applied live against production Supabase directly via a one-off `pg` connection script (same `SUPABASE_DB_PASSWORD` + pooler-host pattern as `app/api/admin/setup-pilots/route.ts`), confirmed via real REST queries afterward. |
+| New Railway env var | `GITHUB_APPROVER_TOKEN` (for the PR Approvals push, see below) — no new env var for the time-boxed-access push. |
 | Handed off to | Durga |
-| Deployed | Pushed to `main`, Railway auto-deployed. Verified live: `/admin/dev-approvals` returns a real (auth-redirect) response on both the Railway URL and `eventpilot.tresconglobal.com`. Not yet exercised end-to-end against a real open PR — nothing from Khalifa was open at the time of this push. |
-| Left alone, not part of this push | A second, concurrent Claude Code session was active in this same working directory for parts of this session, independently working on SAE/stakeholder-speaker code (`app/admin/events/[id]/stakeholders/[stakeholderId]/page.tsx`, `website-photo/generate/route.ts`, `composite.ts`, `face-alignment.ts`, `supabase/sae_migration.sql`, among others) — those changes were deliberately left uncommitted and unstaged, not part of this push. Also unrelated untracked content in the working tree (`.scratch/`, `Attendee Data Historical/`, `Historical docs for KB/`, `docs/EventPilot-KB-PRD-v*.md`, `knowledge-base/bd/proposals/**`) — Madhu's own separate WIP. |
+| Deployed | Both pushes went to `main`, Railway auto-deployed each. Verified live: `event_access_assignments` returns the new `expires_at` field via a real REST query; `/admin/access` and `/admin/dev-approvals` both return real (auth-redirect) responses on `eventpilot.tresconglobal.com`. Time-boxed access not yet exercised against a real freelancer — no one's been assigned an expiring role yet, this just makes it possible. |
+| Left alone, not part of these pushes | A second, concurrent Claude Code session was active in this same working directory for parts of this session, independently working on SAE/stakeholder-speaker code (`app/admin/events/[id]/stakeholders/[stakeholderId]/page.tsx`, `website-photo/generate/route.ts`, `composite.ts`, `face-alignment.ts`, `supabase/sae_migration.sql`, among others) — those changes were deliberately left uncommitted and unstaged, not part of either push. Also unrelated untracked content in the working tree (`.scratch/`, `Attendee Data Historical/`, `Historical docs for KB/`, `docs/EventPilot-KB-PRD-v*.md`, `knowledge-base/bd/proposals/**`) — Madhu's own separate WIP. |
+
+## 20 Aug 2026 — Time-boxed per-event RBAC assignments, for freelancer/contractor onboarding
+
+### The ask
+
+Trescon occasionally hires freelancers for short (1-2 month) engagements — Microsoft 365 SSO login and a real Staff Portal record, but not full employees. Madhu's question: how should they be onboarded into EventPilot, and is treating them like any other staff member actually safe? Worked through it together rather than just building blind — see the conversation for the full reasoning, short version below.
+
+### What was already true, no code needed
+
+Task Manager (`{ access: { kind: 'always' } }`) already works for a freelancer the moment they have a `staff_members` row and log in — it's deliberately open to every authenticated staffer, which is exactly the "assign them branding tasks" use case. The only real risk found: exactly two modules auto-grant on department alone (`Finance` dept → Finance Portal, `Marketing` dept → Content Hub) — as long as a freelancer's Staff Portal department is set to something else (e.g. "Branding," not literally "Marketing"), they won't silently inherit either.
+
+### What was built
+
+For anything beyond Task Manager, the right tool was already the per-event RBAC system (`event_access_assignments` — scope a role to just one event, just the permission keys needed) — but it had no expiry, so a temporary hire's access would sit there until someone remembered to revoke it. Added:
+
+- **`event_access_assignments.expires_at`** (nullable `TIMESTAMPTZ`, `supabase/access_rbac.sql`) — NULL (the default, and every existing row) means "never expires," same convention as DocuHub's `link_expires_at`.
+- **Live enforcement, not just cleanup** — every read in `app/lib/access/event-access.ts` (`hasAnyEventAccess`, `hasEventPermission`, `getAccessibleEventIds`, `hasPlatformPermission`) now excludes an expired-but-not-yet-swept row directly, so an expired grant stops working the instant it's past, not up to 15 minutes later when the cron gets to it.
+- **`revoke-expired-access` cron** — already ran every 15 minutes for `access_requests`; now also deletes expired `event_access_assignments` rows in the same run (same file, second independent sweep).
+- **UI** — `AssignmentsTab` (used by both the per-event Access tab and `/admin/access`'s org-wide page) gained an optional "Expires (for a freelancer/contractor)" date field when assigning a role, and an "Until [date]" / "Expired" badge on each row. The "Look Up Access" panel (`/admin/access-center`) surfaces the same expiry info per assignment, so it's a one-click check whether someone's grant is still live.
+
+### What's next
+
+- No freelancer has actually been assigned a time-boxed role yet — this session made it possible, didn't onboard anyone. Next real freelancer hire is the first live use.
+- The org-wide `/admin/access` page and the per-event Access tab both use the same `AssignmentsTab` component, so both already have the expiry field — nothing further needed there.
+
+---
 
 ## 20 Aug 2026 — PR Approvals: in-app review/merge for Khalifa's PRs, replacing the GitHub-notification flow
 
