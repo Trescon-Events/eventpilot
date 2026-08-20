@@ -15,12 +15,46 @@ Railway's auto-deploy silently stopped working from **2026-07-17 to 2026-07-21**
 
 | Field | Value |
 |---|---|
-| Who | Madhu + Claude Code (Sonnet 5) — 19 Aug 2026 |
-| Latest push | 2026-08-19 — Website Photo generator (speaker card photos for KonfHub/public Speakers page): fixed a real delete-variant persistence bug, tried and abandoned an AI lighting/style step (PhotoRoom, then Stability AI — see write-up below for why), fixed a silent-data-corruption bug in the shared asset fetcher, and landed on a deliberately AI-free deterministic crop + background composite. Commit `e6dbe4f`. |
-| DB migrations applied | None this push — one direct config write to `events.creative_template_config` for the live "webpic 1" variant (category fix, then final lighting_prompt removal), done live against production Supabase with Madhu's explicit go-ahead each time, not a migration. |
+| Who | Madhu + Claude Code (Sonnet 5) — 20 Aug 2026 |
+| Latest push | 2026-08-20 — PR Approvals (`/admin/dev-approvals`): a new in-app page replacing the GitHub-notification review flow for Khalifa's Task Manager PRs — friendly AI-written summary, live SAFE/REVIEW_CLOSELY + CI status, one-click Approve & Ship (reviews + merges via GitHub API) or Send Back. Commit `8115110` (merge of `f2a1f68` with Khalifa's concurrently-merged PR #3, task-manager UI enhancements — disjoint files, clean merge). |
+| DB migrations applied | `supabase/github_pr_reviews.sql` — applied live against production Supabase directly via a one-off `pg`/drizzle-style connection script (same `SUPABASE_DB_PASSWORD` + pooler-host pattern as `app/api/admin/setup-pilots/route.ts`), confirmed via a real REST query afterward. |
+| New Railway env var | `GITHUB_APPROVER_TOKEN` — Madhu's own fine-grained GitHub PAT (Trescon-Events org, `eventpilot` repo only, Pull requests read/write + Contents read-only), set with `--skip-deploys`, validated against the GitHub API before being stored. |
 | Handed off to | Durga |
-| Deployed | Pushed to `main`, Railway auto-deploys on push. Verify `eventpilot.tresconglobal.com` reflects commit `e6dbe4f`; Website Photo generation (Stakeholder Hub → a speaker → Website Photo card) should produce a plain crop+background composite with no AI call. |
-| Left alone, not part of this push | Unrelated untracked content in the working tree (`.scratch/`, `Attendee Data Historical/`, `Historical docs for KB/`, `docs/EventPilot-KB-PRD-v*.md`, `knowledge-base/bd/proposals/**`) — Madhu's own separate WIP, deliberately not committed or pushed. |
+| Deployed | Pushed to `main`, Railway auto-deployed. Verified live: `/admin/dev-approvals` returns a real (auth-redirect) response on both the Railway URL and `eventpilot.tresconglobal.com`. Not yet exercised end-to-end against a real open PR — nothing from Khalifa was open at the time of this push. |
+| Left alone, not part of this push | A second, concurrent Claude Code session was active in this same working directory for parts of this session, independently working on SAE/stakeholder-speaker code (`app/admin/events/[id]/stakeholders/[stakeholderId]/page.tsx`, `website-photo/generate/route.ts`, `composite.ts`, `face-alignment.ts`, `supabase/sae_migration.sql`, among others) — those changes were deliberately left uncommitted and unstaged, not part of this push. Also unrelated untracked content in the working tree (`.scratch/`, `Attendee Data Historical/`, `Historical docs for KB/`, `docs/EventPilot-KB-PRD-v*.md`, `knowledge-base/bd/proposals/**`) — Madhu's own separate WIP. |
+
+## 20 Aug 2026 — PR Approvals: in-app review/merge for Khalifa's PRs, replacing the GitHub-notification flow
+
+### The ask
+
+Reviewing Khalifa's PRs on GitHub itself (approve review → check CI tab → click Update Branch when it drifted → merge) was too many steps and too much GitHub-native context for what should be a one-click decision. Madhu wanted a friendly EventPilot page: open a link from an email, see what changed in plain English and whether it's safe, click Approve or Reject, done — with EventPilot doing the GitHub mechanics (review + merge) and notifying Khalifa, rather than GitHub notifications being the primary channel.
+
+This session started from a live worked example — the previous session's PR #2 review surfaced two real things worth knowing about GitHub's PR mechanics that shaped the design: (1) a "some checks were not successful" red X can be pre-existing debt unrelated to the PR being reviewed (here: 3 Task Manager pages had never rendered the shared `PageHeader` component since their original direct-to-main launch bypassed CI entirely — fixed separately, see the PageHeader-standardization work below), and (2) once a PR is approved, the PR *author* (Khalifa) can click Merge himself — branch protection blocks direct pushes to `main`, not merges of an already-approved PR.
+
+### What was built
+
+- **`app/admin/dev-approvals`** — the review page. Pending PRs only by default (a "Recently decided" section below shows the last few for reference). Each card: a Gemini-generated 1-2 sentence plain-English summary of what the diff actually does (falls back to the existing mechanical "N files changed" summary if Gemini's unavailable or the diff wasn't included), the SAFE/🟡 REVIEW CLOSELY badge, a live CI status badge (fetched fresh from GitHub on page load, not cached — the exact staleness that caused confusion during PR #2's manual review), a collapsible file list, and two buttons.
+- **Approve & Ship** — disabled unless CI is actually green. Calls GitHub's API as Madhu (never as Khalifa — GitHub blocks self-approval anyway) to submit an approving review, then merge. If the branch is behind `main` (yesterday's exact "merge conflict" surprise), it performs GitHub's "Update branch" merge itself and retries once before surfacing an error — no separate button needed. Emails Khalifa "approved and live" on success.
+- **Send Back** — requires a note, submits a GitHub "Request changes" review with that note as the body, emails Khalifa the note. Leaves the PR open so his next push flows back through the same review automatically.
+- **Access** — hard-restricted to `md@tresconglobal.com` / `dc@tresconglobal.com` specifically (a dedicated allowlist, not the general platform-admin role check every other `admin_only` page uses) — this button can merge straight to production, so it's scoped tighter than usual on purpose.
+- **Plumbing reused, not rebuilt**: the existing `pr-safety-summary` GitHub Action + `/api/webhooks/github-pr` (built in an earlier session, already emailing Madhu) now also upserts a `github_pr_reviews` row and generates the friendly summary, resetting status back to `pending` on every new push (a stale approval on since-changed code is never trustworthy). The Action now also sends the PR's head SHA and a bounded diff patch (12k chars) for the summary generation.
+
+### Two real, unrelated things fixed along the way
+
+- **`app/lib/email.ts` didn't have a lint exemption for raw hex colors** — the file builds literal HTML for email clients, which don't support CSS custom properties (`var()` doesn't work in Gmail/Outlook), so every color in it has to be a literal by necessity. `eslint.config.mjs` already had a small, commented ignore-list for exactly this class of justified exception (`app/lib/registry/modules.tsx`, a few AI Learning files) — added `app/lib/email.ts` to it, following the same pattern, rather than fighting the rule with inline disables on every new email function.
+- **PageHeader standardization on the 3 Task Manager pages** — landed by a concurrent session mid-way through this one (see 19 Aug/20 Aug overlap note below), not redone here.
+
+### Concurrency note — two sessions, same folder, same day
+
+Twice this session, work appeared on `main` that this session didn't push itself: once was this session's own in-progress PageHeader fix (sitting uncommitted in the shared working tree) being picked up and committed by a second, separately-running Claude Code session on this machine; once was Khalifa's PR #3 (task-manager UI enhancements) landing between this session's commit and push. Both merged cleanly — genuinely disjoint files each time — but **`/Users/madhu/EventPilot` and `/Users/madhu/eventpilot` are the same physical folder** (case-insensitive filesystem) and Madhu appears to run more than one Claude Code session against it concurrently. Worth knowing if a future session sees unexplained commits or working-tree changes it didn't make — check `git log` before assuming something's wrong.
+
+### What's next
+
+- **Not yet tested end-to-end against a real PR** — no Khalifa PR was open when this shipped. First real use will be the actual test; watch for it.
+- **GitHub notifications** — deliberately left as GitHub's standard default behavior (participant/mention notifications), not suppressed. Madhu's call, 20 Aug: EventPilot email is the primary channel now, but standard GitHub notifications (Khalifa as PR author, the `@tresconevents` mention in the CI comment) are fine to keep as-is — no code changes made to suppress them.
+- Khalifa's contribution workflow doc (`TASK_MANAGER_HANDOFF.md`) hasn't been updated yet to mention this new review page — worth doing next time that file's touched, so he knows what Madhu's actually looking at when a decision comes back.
+
+---
 
 ## 19 Aug 2026 — Website Photo: AI lighting step tried and abandoned, 3 real bugs fixed
 
