@@ -28,6 +28,11 @@ const eslintConfig = defineConfig([
       // app/lib/registry/modules.tsx hardcodes per-module brand identity
       // colors as its own source-of-truth data — not a token-system gap.
       "app/lib/registry/modules.tsx",
+      // app/lib/email.ts builds raw HTML for transactional emails, rendered
+      // by mail clients (Gmail, Outlook, ...) that don't support CSS custom
+      // properties — var(--token) simply doesn't work there, so every color
+      // in this file has to be a literal by necessity, not oversight.
+      "app/lib/email.ts",
       // AI Learning tab (2026-08-18 consolidation): these three files carry
       // forward JSX moved verbatim out of app/admin/page.tsx's own
       // pre-existing (grandfathered, ~97-offender) literal-color debt for

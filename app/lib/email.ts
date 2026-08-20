@@ -19,6 +19,7 @@ const BRAND = '#00A5A3'
 const DARK  = '#080A0B'
 const LIME  = '#C0F43C'
 const MUTED = '#5B7080'
+const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? 'https://eventpilot.tresconglobal.com'
 
 // ── Shared header/footer HTML ─────────────────────────────────────────────────
 
@@ -813,13 +814,14 @@ export async function sendGithubPrAlert({
       </div>
 
       <div style="text-align:center;margin:28px 0;">
-        <a href="${prUrl}/files" style="display:inline-block;background:${BRAND};color:#ffffff;font-weight:700;font-size:15px;padding:14px 32px;border-radius:10px;text-decoration:none;">
-          Review & Approve on GitHub
+        <a href="${APP_URL}/admin/dev-approvals" style="display:inline-block;background:${BRAND};color:#ffffff;font-weight:700;font-size:15px;padding:14px 32px;border-radius:10px;text-decoration:none;">
+          Review in EventPilot
         </a>
       </div>
 
       <p style="color:#94A3B8;font-size:12px;line-height:1.6;margin:0;text-align:center;">
-        Nothing merges to main until you approve this PR on GitHub — this email is advisory only.
+        Nothing merges to main until you approve or send it back — this email is advisory only.
+        <a href="${prUrl}/files" style="color:#94A3B8;">View the raw diff on GitHub</a>
       </p>
 
       ${emailFooter()}
@@ -832,6 +834,68 @@ export async function sendGithubPrAlert({
     subject: isSafe
       ? `[FYI] Khalifa's PR — Task Manager only — #${prNumber}`
       : `[Review needed] Khalifa's PR touches shared code — #${prNumber}`,
+    html,
+  })
+}
+
+// ── Email: PR decision — approved & merged, or sent back to Khalifa ──────────
+
+export async function sendPrDecisionAlert({
+  to, prNumber, prTitle, decision, note, prUrl,
+}: {
+  to:       string
+  prNumber: number
+  prTitle:  string
+  decision: 'approved' | 'sent_back'
+  note?:    string | null
+  prUrl:    string
+}) {
+  const isApproved = decision === 'approved'
+  const color = isApproved ? '#166534' : '#B45309'
+  const bg    = isApproved ? '#f0fdf4' : '#fffbeb'
+  const border = isApproved ? '#bbf7d0' : '#fde68a'
+
+  const html = emailWrap(`
+    ${emailHeader('Pull Request Update')}
+    <div style="padding:32px 40px;">
+      <h2 style="font-size:21px;font-weight:800;color:${DARK};margin:0 0 6px;">
+        ${isApproved ? 'Your PR is approved and live' : 'Changes requested on your PR'}
+      </h2>
+      <p style="color:${MUTED};font-size:14px;line-height:1.7;margin:0 0 20px;">
+        <strong style="color:${DARK};">PR #${prNumber}: ${prTitle}</strong>
+      </p>
+
+      <div style="background:${bg};border:1px solid ${border};border-radius:10px;padding:18px 20px;margin-bottom:20px;">
+        <div style="font-size:11px;font-weight:800;letter-spacing:1.5px;text-transform:uppercase;color:${color};margin-bottom:8px;">
+          ${isApproved ? '✓ Approved & merged' : '↩ Sent back'}
+        </div>
+        <p style="margin:0;font-size:14px;color:${DARK};line-height:1.7;">
+          ${isApproved
+            ? 'Merged into main — Railway is deploying it now, live at eventpilot.tresconglobal.com in a few minutes.'
+            : 'This needs a change before it can merge. See the note below, push a fix, and it\'ll come back through the same review flow automatically.'}
+        </p>
+      </div>
+
+      ${note ? `
+      <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:18px 20px;margin-bottom:20px;">
+        <div style="font-size:11px;font-weight:800;letter-spacing:1.5px;text-transform:uppercase;color:#64748b;margin-bottom:8px;">Note</div>
+        <p style="margin:0;font-size:14px;color:#374151;line-height:1.7;white-space:pre-wrap;">${note}</p>
+      </div>` : ''}
+
+      <div style="text-align:center;margin:28px 0;">
+        <a href="${prUrl}" style="display:inline-block;background:${BRAND};color:#ffffff;font-weight:700;font-size:15px;padding:14px 32px;border-radius:10px;text-decoration:none;">
+          View on GitHub
+        </a>
+      </div>
+
+      ${emailFooter()}
+    </div>
+  `)
+
+  return getResend().emails.send({
+    from:    FROM,
+    to,
+    subject: isApproved ? `Your PR is live — #${prNumber}` : `Changes requested — #${prNumber}`,
     html,
   })
 }

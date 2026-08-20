@@ -475,6 +475,14 @@ export function getModuleRegistry(): ModuleDef[] {
       breadcrumbParent: 'admin-access-center',
     },
     {
+      key: 'dev-approvals', label: 'PR Approvals',
+      description: 'Review and approve Khalifa\'s Task Manager pull requests from inside EventPilot — friendly summary, live CI status, one-click approve & ship or send back.',
+      icon: I.check, color: '#166534',
+      href: '/admin/dev-approvals',
+      access: { kind: 'admin_only' },
+      sidebar: { section: 'admin', parent: 'admin', order: 6 },
+    },
+    {
       key: 'finance-admin', label: 'Finance Portal',
       description: 'Salary, expenses, vendor payments, payroll and Commercial P&L',
       icon: I.bank, color: '#3D8EEA',

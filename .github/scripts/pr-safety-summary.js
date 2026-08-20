@@ -13,6 +13,7 @@ const PR_URL             = process.env.PR_URL
 const PR_TITLE           = process.env.PR_TITLE
 const PR_AUTHOR          = process.env.PR_AUTHOR
 const BASE_REF           = process.env.BASE_REF
+const HEAD_SHA           = process.env.HEAD_SHA
 const REVIEWER_HANDLE    = process.env.REVIEWER_HANDLE || 'tresconevents'
 const WEBHOOK_URL        = process.env.EVENTPILOT_WEBHOOK_URL
 const WEBHOOK_SECRET     = process.env.GITHUB_PR_WEBHOOK_SECRET
@@ -58,6 +59,10 @@ async function main() {
   const diffStat = run(`git diff origin/${BASE_REF}...HEAD --stat`).trim()
   const shortstat = run(`git diff origin/${BASE_REF}...HEAD --shortstat`).trim()
   const changedFiles = run(`git diff origin/${BASE_REF}...HEAD --name-only`).trim().split('\n').filter(Boolean)
+  // Bounded — feeds the friendly AI summary on the in-app Approvals page,
+  // not a full patch archive. 12k chars is plenty for Khalifa's
+  // small/scoped PRs and keeps the webhook payload well under any size limit.
+  const diffPatch = run(`git diff origin/${BASE_REF}...HEAD -- . ':!package-lock.json'`).slice(0, 12000)
 
   const outsideIsolated = changedFiles.filter(f => !ISOLATED_PREFIXES.some(p => f.startsWith(p)))
 
@@ -126,11 +131,14 @@ async function main() {
       prUrl: PR_URL,
       prTitle: PR_TITLE,
       author: PR_AUTHOR,
+      baseRef: BASE_REF,
+      headSha: HEAD_SHA,
       summary,
       areasTouched,
       verdict,
       verdictReason,
       filesChanged: changedFiles,
+      diffPatch,
     }),
   })
 
