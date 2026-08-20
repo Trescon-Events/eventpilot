@@ -27,6 +27,10 @@ export default function TaskManagerPage() {
 
   const [view, setView] = useState<ViewMode>('table')
   const [myTasksOnly, setMyTasksOnly] = useState(false)
+  const [selectedStaffId, setSelectedStaffId] = useState<string | null>(null)
+  const [searchQuery, setSearchQuery] = useState('')
+  const [eventFilter, setEventFilter] = useState<'all' | string>('all')
+  const [assignerFilter, setAssignerFilter] = useState<'all' | string>('all')
   const [statusFilter, setStatusFilter] = useState<'all' | TaskStatus>('all')
   const [priorityFilter, setPriorityFilter] = useState<'all' | TaskPriority>('all')
 
@@ -105,7 +109,7 @@ export default function TaskManagerPage() {
       setTimeLogsLoading(false)
       setTimeLogsLoaded(true)
     }
-    loadFirstTime()
+    loadFirstTime().catch(() => setTimeLogsLoading(false))
   }, [view, timeLogsLoaded])
 
   // "N" jumps straight to the quick-add box from anywhere on the page —
@@ -125,13 +129,26 @@ export default function TaskManagerPage() {
   }, [])
 
   const filteredTasks = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase()
     return tasks.filter(t => {
       if (myTasksOnly && t.assigned_to !== currentStaffId) return false
+      if (selectedStaffId && t.assigned_to !== selectedStaffId) return false
       if (statusFilter !== 'all' && t.status !== statusFilter) return false
       if (priorityFilter !== 'all' && t.priority !== priorityFilter) return false
+      if (eventFilter !== 'all' && (t.event_id !== eventFilter)) return false
+      if (assignerFilter !== 'all' && t.assigned_by !== assignerFilter) return false
+
+      if (q) {
+        const matchDesc = t.description.toLowerCase().includes(q)
+        const matchRemarks = t.remarks?.toLowerCase().includes(q) ?? false
+        const matchEvent = t.event?.name.toLowerCase().includes(q) ?? false
+        const matchAssignee = t.assigned_to_staff?.name.toLowerCase().includes(q) ?? false
+        const matchAssigner = t.assigned_by_staff?.name.toLowerCase().includes(q) ?? false
+        if (!matchDesc && !matchRemarks && !matchEvent && !matchAssignee && !matchAssigner) return false
+      }
       return true
     })
-  }, [tasks, myTasksOnly, currentStaffId, statusFilter, priorityFilter])
+  }, [tasks, myTasksOnly, selectedStaffId, currentStaffId, statusFilter, priorityFilter, eventFilter, assignerFilter, searchQuery])
 
   const categoryChartData = useMemo(() => {
     const byCategory = new Map<string, number>()
@@ -192,16 +209,21 @@ export default function TaskManagerPage() {
   }
 
   async function handleSave(values: TaskSaveValues) {
-    const isEdit = !!values.id
-    const res = await fetch(isEdit ? `/api/task-manager/${values.id}` : '/api/task-manager', {
-      method: isEdit ? 'PATCH' : 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(isEdit ? values : { ...values, status: modalDefaultStatus }),
-    })
-    if (!res.ok) {
-      const body = await res.json().catch(() => ({}))
-      setError(body.error ?? 'Failed to save task.')
-      return
+    setError(null)
+    if (values.id) {
+      const res = await fetch(`/api/task-manager/${values.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(values),
+      })
+      if (!res.ok) { const b = await res.json().catch(() => ({})); throw new Error(b.error ?? 'Failed to save task') }
+    } else {
+      const res = await fetch('/api/task-manager', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...values, status: modalDefaultStatus }),
+      })
+      if (!res.ok) { const b = await res.json().catch(() => ({})); throw new Error(b.error ?? 'Failed to create task') }
     }
     setEditingTask(undefined)
     await loadTasks()
@@ -209,7 +231,9 @@ export default function TaskManagerPage() {
 
   async function handleSaveManualLog(values: { task_id: string; category: LogCategory | ''; description: string; log_date: string; start_time: string; end_time: string }) {
     const res = await fetch('/api/task-manager/timesheets', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(values),
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(values),
     })
     if (!res.ok) {
       const body = await res.json().catch(() => ({}))
@@ -257,7 +281,7 @@ export default function TaskManagerPage() {
         </div>
       )}
 
-      <SummaryBar counts={counts} />
+      <SummaryBar counts={counts} selectedStaffId={selectedStaffId} onSelectStaff={setSelectedStaffId} />
 
       {/* Quick add — the "create a task in a jiffy" path. Defaults everything
           (assignee = self, status = Not-Started, priority = Medium) so one
@@ -282,6 +306,37 @@ export default function TaskManagerPage() {
 
           {view !== 'timesheets' && (
             <>
+              {/* Real-time search */}
+              <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+                <input
+                  type="text"
+                  value={searchQuery}
+                  onChange={e => setSearchQuery(e.target.value)}
+                  placeholder="Search tasks, notes, people…"
+                  style={{
+                    padding: '6px 28px 6px 10px',
+                    fontSize: '12px',
+                    borderRadius: '8px',
+                    border: '1px solid var(--border)',
+                    background: 'var(--surface)',
+                    color: 'var(--ink)',
+                    minWidth: '180px',
+                    outline: 'none',
+                  }}
+                />
+                {searchQuery ? (
+                  <button
+                    type="button"
+                    onClick={() => setSearchQuery('')}
+                    style={{ position: 'absolute', right: '8px', background: 'none', border: 'none', color: 'var(--ink4)', cursor: 'pointer', fontSize: '11px' }}
+                  >
+                    ✕
+                  </button>
+                ) : (
+                  <span style={{ position: 'absolute', right: '8px', color: 'var(--ink4)', fontSize: '12px', pointerEvents: 'none' }}>🔍</span>
+                )}
+              </div>
+
               <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', color: 'var(--ink3)', cursor: 'pointer' }}>
                 <input type="checkbox" checked={myTasksOnly} onChange={e => setMyTasksOnly(e.target.checked)} />
                 My Tasks
@@ -300,6 +355,44 @@ export default function TaskManagerPage() {
                 <option value="Medium">Medium</option>
                 <option value="Low">Low</option>
               </select>
+
+              {/* Event Filter */}
+              <select value={eventFilter} onChange={e => setEventFilter(e.target.value)} style={PILL_FILTER_STYLE}>
+                <option value="all">All events</option>
+                {events.map(ev => <option key={ev.id} value={ev.id}>{ev.name}</option>)}
+              </select>
+
+              {/* Assigner Filter */}
+              <select value={assignerFilter} onChange={e => setAssignerFilter(e.target.value)} style={PILL_FILTER_STYLE}>
+                <option value="all">All assigners</option>
+                {staff.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+              </select>
+
+              {(selectedStaffId || searchQuery || eventFilter !== 'all' || assignerFilter !== 'all' || statusFilter !== 'all' || priorityFilter !== 'all' || myTasksOnly) && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSelectedStaffId(null)
+                    setSearchQuery('')
+                    setEventFilter('all')
+                    setAssignerFilter('all')
+                    setStatusFilter('all')
+                    setPriorityFilter('all')
+                    setMyTasksOnly(false)
+                  }}
+                  style={{
+                    background: 'none',
+                    border: 'none',
+                    color: 'var(--teal-mid)',
+                    fontSize: '12px',
+                    cursor: 'pointer',
+                    textDecoration: 'underline',
+                    padding: '4px 6px',
+                  }}
+                >
+                  Reset filters
+                </button>
+              )}
             </>
           )}
 

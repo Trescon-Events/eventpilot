@@ -3,6 +3,115 @@ import { useState } from 'react'
 import { Avatar, PillSelect } from './ui'
 import { PRIORITIES, PRIORITY_COLOR, STATUSES, STATUS_COLOR, Task, TaskPriority, TaskStatus, formatHours } from './types'
 
+function DeadlineBadge({ deadline, status }: { deadline: string | null; status: TaskStatus }) {
+  if (!deadline) return <span style={{ color: 'var(--ink4)' }}>—</span>
+
+  const target = new Date(deadline)
+  const today = new Date(new Date().toDateString())
+  const diffDays = Math.round((target.getTime() - today.getTime()) / (1000 * 60 * 60 * 24))
+
+  if (status === 'Completed') {
+    return (
+      <span style={{ color: 'var(--ink4)', fontSize: '12px' }}>
+        {target.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}
+      </span>
+    )
+  }
+
+  if (diffDays < 0) {
+    const daysLate = Math.abs(diffDays)
+    return (
+      <span
+        style={{
+          display: 'inline-flex',
+          alignItems: 'center',
+          gap: '4px',
+          padding: '2px 8px',
+          borderRadius: '6px',
+          fontSize: '11px',
+          fontWeight: 700,
+          background: 'var(--red-light)',
+          color: 'var(--red)',
+          border: '1px solid var(--red-border)',
+        }}
+        title={`Overdue by ${daysLate} day${daysLate === 1 ? '' : 's'} (${deadline})`}
+      >
+        <span>⚠️</span> {daysLate === 0 ? 'Overdue' : `${daysLate}d overdue`}
+      </span>
+    )
+  }
+
+  if (diffDays === 0) {
+    return (
+      <span
+        style={{
+          display: 'inline-flex',
+          alignItems: 'center',
+          gap: '4px',
+          padding: '2px 8px',
+          borderRadius: '6px',
+          fontSize: '11px',
+          fontWeight: 700,
+          background: 'var(--amber-light)',
+          color: 'var(--amber)',
+          border: '1px solid var(--amber-border)',
+        }}
+        title={`Due Today (${deadline})`}
+      >
+        <span>🟡</span> Today
+      </span>
+    )
+  }
+
+  if (diffDays === 1) {
+    return (
+      <span
+        style={{
+          display: 'inline-flex',
+          alignItems: 'center',
+          gap: '4px',
+          padding: '2px 8px',
+          borderRadius: '6px',
+          fontSize: '11px',
+          fontWeight: 600,
+          background: 'var(--border-light)',
+          color: 'var(--ink2)',
+        }}
+        title={`Due Tomorrow (${deadline})`}
+      >
+        Tomorrow
+      </span>
+    )
+  }
+
+  if (diffDays <= 3) {
+    return (
+      <span
+        style={{
+          display: 'inline-flex',
+          alignItems: 'center',
+          gap: '4px',
+          padding: '2px 8px',
+          borderRadius: '6px',
+          fontSize: '11px',
+          fontWeight: 600,
+          background: 'var(--border-light)',
+          color: 'var(--ink3)',
+        }}
+        title={`Due in ${diffDays} days (${deadline})`}
+      >
+        In {diffDays}d
+      </span>
+    )
+  }
+
+  return (
+    <span style={{ color: 'var(--ink3)', fontSize: '12px' }}>
+      {target.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}
+    </span>
+  )
+}
+
 function FollowupButton({ task }: { task: Task }) {
   const [open, setOpen] = useState(false)
   const assigner = task.assigned_by_staff
@@ -29,16 +138,29 @@ function FollowupButton({ task }: { task: Task }) {
           background: 'none',
           border: 'none',
           cursor: 'pointer',
-          padding: '2px 4px',
-          fontSize: '13px',
-          color: 'var(--teal-mid)',
+          padding: '2px',
           borderRadius: '4px',
           display: 'inline-flex',
           alignItems: 'center',
-          gap: '2px',
+          justifyContent: 'center',
         }}
       >
-        💬
+        <span
+          style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            width: '18px',
+            height: '18px',
+            borderRadius: '4px',
+            background: 'var(--border-light)',
+            color: 'var(--teal-mid)',
+          }}
+        >
+          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
+          </svg>
+        </span>
       </button>
 
       {open && (
@@ -143,8 +265,6 @@ export default function TaskTable({ tasks, onOpenTask, onStatusChange, onPriorit
         </thead>
         <tbody>
           {tasks.map(t => {
-            const isOverdue = t.deadline && t.status !== 'Completed' && new Date(t.deadline) < new Date(new Date().toDateString())
-
             return (
               <tr
                 key={t.id}
@@ -154,9 +274,31 @@ export default function TaskTable({ tasks, onOpenTask, onStatusChange, onPriorit
                 onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
               >
                 <td style={{ padding: '10px 12px', color: 'var(--ink3)', whiteSpace: 'nowrap' }}>{t.event?.name ?? '—'}</td>
-                <td style={{ padding: '10px 12px', maxWidth: '280px' }}>
-                  <div style={{ color: 'var(--ink)', fontWeight: 600 }}>{t.description}</div>
-                  {t.remarks && <div style={{ fontSize: '11px', color: 'var(--ink4)', marginTop: '2px' }}>{t.remarks}</div>}
+                <td style={{ padding: '10px 12px', maxWidth: '320px' }}>
+                  <div style={{ color: 'var(--ink)', fontWeight: 600, lineHeight: 1.35 }}>{t.description}</div>
+                  {t.remarks && (
+                    <div
+                      style={{
+                        fontSize: '11px',
+                        color: 'var(--ink3)',
+                        marginTop: '4px',
+                        padding: '2px 6px',
+                        borderRadius: '4px',
+                        background: 'var(--border-light)',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '4px',
+                        maxWidth: '100%',
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                        whiteSpace: 'nowrap',
+                      }}
+                      title={t.remarks}
+                    >
+                      <span style={{ fontSize: '10px', color: 'var(--teal-mid)' }}>📝</span>
+                      <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{t.remarks}</span>
+                    </div>
+                  )}
                 </td>
                 <td style={{ padding: '10px 12px', color: 'var(--ink4)', whiteSpace: 'nowrap' }} title={new Date(t.created_at).toLocaleString('en-GB')}>
                   {new Date(t.created_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}
@@ -178,8 +320,8 @@ export default function TaskTable({ tasks, onOpenTask, onStatusChange, onPriorit
                     </div>
                   )}
                 </td>
-                <td style={{ padding: '10px 12px', whiteSpace: 'nowrap', color: isOverdue ? 'var(--red)' : 'var(--ink3)', fontWeight: isOverdue ? 700 : 400 }}>
-                  {t.deadline ?? '—'}
+                <td style={{ padding: '10px 12px', whiteSpace: 'nowrap' }}>
+                  <DeadlineBadge deadline={t.deadline} status={t.status} />
                 </td>
                 <td style={{ padding: '10px 12px' }} onClick={e => e.stopPropagation()}>
                   <PillSelect pillColor={PRIORITY_COLOR[t.priority]} value={t.priority} onChange={e => onPriorityChange(t.id, e.target.value as TaskPriority)}>
