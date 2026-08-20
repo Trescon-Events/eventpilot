@@ -1,7 +1,7 @@
 export type TaskStatus = 'Not-Started' | 'In-Progress' | 'Completed'
 export type TaskPriority = 'High' | 'Medium' | 'Low'
 
-export type StaffLite = { id: string; name: string }
+export type StaffLite = { id: string; name: string; email?: string }
 export type EventLite = { id: string; name: string }
 
 export type Task = {
