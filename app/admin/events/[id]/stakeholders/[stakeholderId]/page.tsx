@@ -277,16 +277,20 @@ export default function StakeholderReviewPage({ params }: { params: Promise<{ id
       body.pronoun_style = pronounStyleRef.current || null
       body.key_talking_points = keyTalkingPointsRef.current.trim() || null
     }
-    const res = await fetch(`${base}/${stakeholderId}`, {
-      method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
-    })
-    if (!res.ok) { setSaveState('error'); return }
-    const data = await res.json()
-    setSaveState('saved')
-    setTimeout(() => setSaveState(s => (s === 'saved' ? 'idle' : s)), 2000)
-    if (data.announcement_status && data.announcement_status !== status) {
-      if (data.announcement_status === 'pending_review' && status === 'ready') setReapprovalBanner(true)
-      setStatus(data.announcement_status)
+    try {
+      const res = await fetch(`${base}/${stakeholderId}`, {
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
+      })
+      if (!res.ok) { setSaveState('error'); return }
+      const data = await res.json()
+      setSaveState('saved')
+      setTimeout(() => setSaveState(s => (s === 'saved' ? 'idle' : s)), 2000)
+      if (data.announcement_status && data.announcement_status !== status) {
+        if (data.announcement_status === 'pending_review' && status === 'ready') setReapprovalBanner(true)
+        setStatus(data.announcement_status)
+      }
+    } catch {
+      setSaveState('error')
     }
   }, [base, stakeholderId, kind, formType, status])
 
@@ -303,12 +307,17 @@ export default function StakeholderReviewPage({ params }: { params: Promise<{ id
   async function approve() {
     setApproving(true)
     setProcessing({ label: 'Approving…', estimatedMs: 900 })
-    const res = await fetch(`${base}/${stakeholderId}`, {
-      method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ announcement_status: 'ready' }),
-    })
-    setApproving(false)
-    setProcessing(null)
-    if (res.ok) { setStatus('ready'); setReapprovalBanner(false) } else { setMsg('Could not approve — please try again.') }
+    try {
+      const res = await fetch(`${base}/${stakeholderId}`, {
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ announcement_status: 'ready' }),
+      })
+      if (res.ok) { setStatus('ready'); setReapprovalBanner(false) } else { setMsg('Could not approve — please try again.') }
+    } catch {
+      setMsg('Could not approve — check your connection and try again.')
+    } finally {
+      setApproving(false)
+      setProcessing(null)
+    }
   }
 
   async function generateWebsitePhoto() {
@@ -317,17 +326,22 @@ export default function StakeholderReviewPage({ params }: { params: Promise<{ id
     // always fast; this estimate just paces the progress bar reasonably.
     setProcessing({ label: 'Generating website photo…', estimatedMs: 3000 })
     setMsg(null)
-    const res = await fetch('/api/events/stakeholders/speakers/website-photo/generate', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ event_id: eventId, speaker_id: stakeholderId }),
-    })
-    const data = await res.json().catch(() => ({}))
-    setGeneratingWebsitePhoto(false)
-    setProcessing(null)
-    if (res.ok) {
-      setRecord(prev => prev ? { ...prev, website_card_url: data.website_card_url } : prev)
-    } else {
-      setMsg(data.error || 'Could not generate the website photo — please try again.')
+    try {
+      const res = await fetch('/api/events/stakeholders/speakers/website-photo/generate', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ event_id: eventId, speaker_id: stakeholderId }),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (res.ok) {
+        setRecord(prev => prev ? { ...prev, website_card_url: data.website_card_url } : prev)
+      } else {
+        setMsg(data.error || 'Could not generate the website photo — please try again.')
+      }
+    } catch {
+      setMsg('Could not generate the website photo — check your connection and try again.')
+    } finally {
+      setGeneratingWebsitePhoto(false)
+      setProcessing(null)
     }
   }
 
@@ -360,13 +374,18 @@ export default function StakeholderReviewPage({ params }: { params: Promise<{ id
   async function removeCompanyLogo() {
     setUploading(true)
     setProcessing({ label: 'Removing logo…', estimatedMs: 800 })
-    const res = await fetch(`${base}/${stakeholderId}`, {
-      method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ remove_company_logo: true }),
-    })
-    setUploading(false)
-    setProcessing(null)
-    if (!res.ok) { setMsg('Could not remove the logo — please try again.'); return }
-    await load()
+    try {
+      const res = await fetch(`${base}/${stakeholderId}`, {
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ remove_company_logo: true }),
+      })
+      if (!res.ok) { setMsg('Could not remove the logo — please try again.'); return }
+      await load()
+    } catch {
+      setMsg('Could not remove the logo — check your connection and try again.')
+    } finally {
+      setUploading(false)
+      setProcessing(null)
+    }
   }
 
   function setTab(tab: 'overview' | 'announcements') {

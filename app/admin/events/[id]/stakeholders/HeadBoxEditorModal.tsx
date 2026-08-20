@@ -97,14 +97,19 @@ export default function HeadBoxEditorModal({ speakerId, photoUrl, currentHeadBox
   async function save() {
     setSaving(true)
     setErrorMsg(null)
-    const res = await fetch(`/api/events/stakeholders/speakers/${speakerId}/head-box`, {
-      method: 'PATCH', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ head_box: box }),
-    })
-    setSaving(false)
-    if (!res.ok) { setErrorMsg('Could not save — please try again.'); return }
-    onDone()
-    onClose()
+    try {
+      const res = await fetch(`/api/events/stakeholders/speakers/${speakerId}/head-box`, {
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ head_box: box }),
+      })
+      if (!res.ok) { setErrorMsg('Could not save — please try again.'); return }
+      onDone()
+      onClose()
+    } catch {
+      setErrorMsg('Could not save — check your connection and try again.')
+    } finally {
+      setSaving(false)
+    }
   }
 
   // "Re-detect Automatically" — runs a fresh detectHeadBox() call against the
@@ -117,11 +122,16 @@ export default function HeadBoxEditorModal({ speakerId, photoUrl, currentHeadBox
   async function redetect() {
     setRedetecting(true)
     setErrorMsg(null)
-    const res = await fetch(`/api/events/stakeholders/speakers/${speakerId}/head-box`, { method: 'POST' })
-    const data = await res.json().catch(() => ({}))
-    setRedetecting(false)
-    if (!res.ok) { setErrorMsg(data?.error ?? 'Could not detect a face — drag the marker manually.'); return }
-    setBox(data.photo_head_box as HeadBox)
+    try {
+      const res = await fetch(`/api/events/stakeholders/speakers/${speakerId}/head-box`, { method: 'POST' })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) { setErrorMsg(data?.error ?? 'Could not detect a face — drag the marker manually.'); return }
+      setBox(data.photo_head_box as HeadBox)
+    } catch {
+      setErrorMsg('Could not detect a face — check your connection and try again.')
+    } finally {
+      setRedetecting(false)
+    }
   }
 
   // Diameter is heightRatio (fraction of the image's own HEIGHT) applied to
