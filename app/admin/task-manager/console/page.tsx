@@ -2,6 +2,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import Button from '@/app/components/ui/Button'
 import Card from '@/app/components/ui/Card'
+import PageHeader from '@/app/components/PageHeader'
 import StatCard from '@/app/components/ui/StatCard'
 import { WorkloadBarChart } from '../charts'
 import { PILL_FILTER_STYLE, SearchableSelect } from '../ui'
@@ -119,18 +120,21 @@ export default function TaskManagerConsolePage() {
   if (loading) return <div style={{ padding: '80px', textAlign: 'center', color: 'var(--ink4)' }}>Loading admin console…</div>
 
   return (
+    <>
+      <PageHeader
+        eyebrow="Task Manager"
+        title="Admin Console"
+        description="Full visibility across every task, regardless of assignee. Reassign, reprioritize, or delete directly from this view."
+        backHref="/admin/task-manager"
+        backLabel="Task Manager"
+        actions={
+          <>
+            <Button variant="ghost" href="/admin/task-manager/console/access">Manage Access</Button>
+            <Button variant="ghost" href="/api/task-manager/export" target="_blank">Export CSV</Button>
+          </>
+        }
+      />
     <div style={{ padding: '20px 32px 48px' }}>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '6px' }}>
-        <h1 style={{ fontSize: '22px', fontWeight: 800, color: 'var(--ink)', margin: 0, letterSpacing: '-0.3px' }}>Task Manager — Admin Console</h1>
-        <div style={{ display: 'flex', gap: '8px' }}>
-          <Button variant="ghost" href="/admin/task-manager/console/access">Manage Access</Button>
-          <Button variant="ghost" href="/api/task-manager/export" target="_blank">Export CSV</Button>
-        </div>
-      </div>
-      <p style={{ fontSize: '13px', color: 'var(--ink3)', margin: '0 0 20px' }}>
-        Full visibility across every task, regardless of assignee. Reassign, reprioritize, or delete directly from this view.
-      </p>
-
       {error && (
         <div style={{ background: 'var(--red-light)', border: '1px solid var(--red-border)', color: 'var(--red)', borderRadius: '8px', padding: '10px 14px', fontSize: '13px', marginBottom: '16px' }}>
           {error}
@@ -191,6 +195,7 @@ export default function TaskManagerConsolePage() {
         />
       </Card>
     </div>
+    </>
   )
 }
 

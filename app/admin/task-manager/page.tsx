@@ -2,6 +2,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import Button from '@/app/components/ui/Button'
 import Card from '@/app/components/ui/Card'
+import PageHeader from '@/app/components/PageHeader'
 import { CategoryDonutChart } from './charts'
 import RunningTimerWidget from './RunningTimerWidget'
 import SummaryBar, { AssigneeCounts } from './SummaryBar'
@@ -236,16 +237,18 @@ export default function TaskManagerPage() {
   if (loading) return <div style={{ padding: '80px', textAlign: 'center', color: 'var(--ink4)' }}>Loading Task Manager…</div>
 
   return (
+    <>
+      <PageHeader
+        title="Task Manager"
+        actions={
+          <>
+            <Button variant="ghost" href="/admin/task-manager/console">Admin Console</Button>
+            <Button variant="ghost" href="/api/task-manager/export" target="_blank">Export CSV</Button>
+            <Button variant="teal" onClick={() => openNewTaskModal('Not-Started')}>+ New Task</Button>
+          </>
+        }
+      />
     <div style={{ padding: '20px 32px 48px' }}>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '14px' }}>
-        <h1 style={{ fontSize: '22px', fontWeight: 800, color: 'var(--ink)', margin: 0, letterSpacing: '-0.3px' }}>Task Manager</h1>
-        <div style={{ display: 'flex', gap: '8px' }}>
-          <Button variant="ghost" href="/admin/task-manager/console">Admin Console</Button>
-          <Button variant="ghost" href="/api/task-manager/export" target="_blank">Export CSV</Button>
-          <Button variant="teal" onClick={() => openNewTaskModal('Not-Started')}>+ New Task</Button>
-        </div>
-      </div>
-
       <RunningTimerWidget active={activeTimer} onStopped={() => { refreshActiveTimer(); loadTasks(); if (timeLogsLoaded) loadTimeLogs() }} />
 
       {error && (
@@ -369,6 +372,7 @@ export default function TaskManagerPage() {
         />
       )}
     </div>
+    </>
   )
 }
 
