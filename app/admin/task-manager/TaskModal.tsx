@@ -1,5 +1,5 @@
 'use client'
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import Button from '@/app/components/ui/Button'
 import { Input, Select, Textarea } from '@/app/components/ui/Field'
 import { EventLite, PRIORITIES, StaffLite, Task, TaskPriority, TaskSaveValues } from './types'
@@ -24,8 +24,37 @@ export default function TaskModal({ task, staff, events, currentStaffId, onClose
   const [deadline, setDeadline] = useState(task?.deadline ?? '')
   const [priority, setPriority] = useState<TaskPriority>(task?.priority ?? 'Medium')
   const [remarks, setRemarks] = useState(task?.remarks ?? '')
+  const [attachmentUrl, setAttachmentUrl] = useState<string | null>(task?.attachment_url ?? null)
+  const [attachmentName, setAttachmentName] = useState<string | null>(task?.attachment_name ?? null)
+  const [uploading, setUploading] = useState(false)
+  const [uploadError, setUploadError] = useState<string | null>(null)
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
-  const canSave = description.trim().length > 0 && assignedTo.length > 0
+  const canSave = description.trim().length > 0 && assignedTo.length > 0 && !uploading
+
+  async function handleFileUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setUploading(true)
+    setUploadError(null)
+    try {
+      const formData = new FormData()
+      formData.append('file', file)
+      const res = await fetch('/api/task-manager/upload', {
+        method: 'POST',
+        body: formData,
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error ?? 'Upload failed')
+      setAttachmentUrl(data.url)
+      setAttachmentName(data.name || file.name)
+    } catch (err: unknown) {
+      setUploadError(err instanceof Error ? err.message : 'File upload failed')
+    } finally {
+      setUploading(false)
+      if (fileInputRef.current) fileInputRef.current.value = ''
+    }
+  }
 
   function save() {
     if (!canSave) return
@@ -38,6 +67,8 @@ export default function TaskModal({ task, staff, events, currentStaffId, onClose
       deadline: deadline || null,
       priority,
       remarks: remarks.trim() || null,
+      attachment_url: attachmentUrl || null,
+      attachment_name: attachmentName || null,
     })
   }
 
@@ -113,6 +144,54 @@ export default function TaskModal({ task, staff, events, currentStaffId, onClose
 
           <Field label="Remarks">
             <Textarea value={remarks ?? ''} onChange={e => setRemarks(e.target.value)} rows={2} />
+          </Field>
+
+          {/* Attachment upload */}
+          <Field label="Attachment / Files">
+            <input ref={fileInputRef} type="file" onChange={handleFileUpload} style={{ display: 'none' }} />
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                disabled={uploading}
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  padding: '7px 12px',
+                  background: 'var(--surface)',
+                  border: '1px solid var(--border)',
+                  borderRadius: '8px',
+                  color: 'var(--ink)',
+                  fontSize: '12px',
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                }}
+              >
+                <span>📎</span>
+                {uploading ? 'Uploading…' : 'Upload File / Document'}
+              </button>
+
+              {attachmentUrl && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '5px 10px', background: 'var(--teal-light)', border: '1px solid var(--teal)', borderRadius: '6px' }}>
+                  <span style={{ fontSize: '12px', color: 'var(--teal)', fontWeight: 600 }}>
+                    📎 {attachmentName || 'Attached File'}
+                  </span>
+                  <a href={attachmentUrl} target="_blank" rel="noopener noreferrer" style={{ fontSize: '11px', color: 'var(--teal-mid)', textDecoration: 'underline' }}>
+                    View
+                  </a>
+                  <button
+                    type="button"
+                    onClick={() => { setAttachmentUrl(null); setAttachmentName(null) }}
+                    style={{ background: 'none', border: 'none', color: 'var(--ink3)', cursor: 'pointer', fontSize: '12px' }}
+                    title="Remove attachment"
+                  >
+                    ✕
+                  </button>
+                </div>
+              )}
+            </div>
+            {uploadError && <span style={{ color: 'var(--red)', fontSize: '11px' }}>{uploadError}</span>}
           </Field>
         </div>
 

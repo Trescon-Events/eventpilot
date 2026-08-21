@@ -1,5 +1,5 @@
 'use client'
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import Button from '@/app/components/ui/Button'
 import { EventLite, PRIORITIES, PRIORITY_COLOR, StaffLite, TaskPriority, TaskSaveValues } from './types'
 import { Avatar, PillSelect } from './ui'
@@ -18,10 +18,38 @@ export default function QuickAssignCard({ staff, events, currentStaffId, onAssig
   const [deadline, setDeadline] = useState('')
   const [priority, setPriority] = useState<TaskPriority>('Medium')
   const [remarks, setRemarks] = useState('')
+  const [attachmentUrl, setAttachmentUrl] = useState<string | null>(null)
+  const [attachmentName, setAttachmentName] = useState<string | null>(null)
+  const [uploading, setUploading] = useState(false)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
-  const canSubmit = description.trim().length > 0 && assignedTo.length > 0 && !busy
+  const canSubmit = description.trim().length > 0 && assignedTo.length > 0 && !busy && !uploading
+
+  async function handleFileUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setUploading(true)
+    setError(null)
+    try {
+      const formData = new FormData()
+      formData.append('file', file)
+      const res = await fetch('/api/task-manager/upload', {
+        method: 'POST',
+        body: formData,
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error ?? 'Upload failed')
+      setAttachmentUrl(data.url)
+      setAttachmentName(data.name || file.name)
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'File upload failed')
+    } finally {
+      setUploading(false)
+      if (fileInputRef.current) fileInputRef.current.value = ''
+    }
+  }
 
   async function handleSubmit() {
     if (!canSubmit) return
@@ -36,10 +64,14 @@ export default function QuickAssignCard({ staff, events, currentStaffId, onAssig
         deadline: deadline || null,
         priority,
         remarks: remarks.trim() || null,
+        attachment_url: attachmentUrl || null,
+        attachment_name: attachmentName || null,
       })
       setDescription('')
       setRemarks('')
       setDeadline('')
+      setAttachmentUrl(null)
+      setAttachmentName(null)
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Failed to assign task')
     } finally {
@@ -213,6 +245,39 @@ export default function QuickAssignCard({ staff, events, currentStaffId, onAssig
             }}
           />
 
+          {/* Hidden File Input */}
+          <input
+            ref={fileInputRef}
+            type="file"
+            onChange={handleFileUpload}
+            style={{ display: 'none' }}
+          />
+
+          {/* Attach File Button */}
+          <button
+            type="button"
+            onClick={() => fileInputRef.current?.click()}
+            disabled={busy || uploading}
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '5px',
+              padding: '6px 10px',
+              background: attachmentUrl ? 'var(--teal-light)' : 'var(--surface)',
+              border: `1px solid ${attachmentUrl ? 'var(--teal)' : 'var(--border)'}`,
+              borderRadius: '8px',
+              color: attachmentUrl ? 'var(--teal)' : 'var(--ink3)',
+              fontSize: '12px',
+              fontWeight: 600,
+              cursor: 'pointer',
+              whiteSpace: 'nowrap',
+              transition: 'all 0.15s ease',
+            }}
+          >
+            <span>📎</span>
+            {uploading ? 'Uploading…' : attachmentUrl ? 'File Attached' : 'Attach File'}
+          </button>
+
           {/* Assign Button */}
           <Button
             variant="teal"
@@ -222,6 +287,31 @@ export default function QuickAssignCard({ staff, events, currentStaffId, onAssig
             {busy ? 'Assigning…' : 'Assign Task ➔'}
           </Button>
         </div>
+
+        {/* Attachment preview / remove chip */}
+        {attachmentUrl && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '4px 10px', background: 'var(--surface)', border: '1px solid var(--teal)', borderRadius: '6px', width: 'fit-content' }}>
+            <span style={{ fontSize: '11px', color: 'var(--teal)', fontWeight: 600 }}>
+              📎 {attachmentName || 'Attached Document'}
+            </span>
+            <a
+              href={attachmentUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              style={{ fontSize: '10px', color: 'var(--teal-mid)', textDecoration: 'underline' }}
+            >
+              View
+            </a>
+            <button
+              type="button"
+              onClick={() => { setAttachmentUrl(null); setAttachmentName(null) }}
+              style={{ background: 'none', border: 'none', color: 'var(--ink4)', cursor: 'pointer', fontSize: '11px', padding: '0 2px' }}
+              title="Remove attachment"
+            >
+              ✕
+            </button>
+          </div>
+        )}
       </div>
     </div>
   )

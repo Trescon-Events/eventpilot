@@ -67,11 +67,13 @@ export async function POST(req: NextRequest) {
       description:   body.description.trim(),
       assigned_by:   body.assigned_by || session!.sid,
       assigned_to:   body.assigned_to,
-      assigned_date: body.assigned_date || new Date().toISOString().slice(0, 10),
-      deadline:      body.deadline || null,
-      status:        body.status || 'Not-Started',
-      priority:      body.priority || 'Medium',
-      remarks:       body.remarks || null,
+      assigned_date:   body.assigned_date || new Date().toISOString().slice(0, 10),
+      deadline:        body.deadline || null,
+      status:          body.status || 'Not-Started',
+      priority:        body.priority || 'Medium',
+      remarks:         body.remarks || null,
+      attachment_url:  body.attachment_url || null,
+      attachment_name: body.attachment_name || null,
     })
     .select(`
       *,

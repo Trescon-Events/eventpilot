@@ -18,6 +18,8 @@ export type Task = {
   status: TaskStatus
   priority: TaskPriority
   remarks: string | null
+  attachment_url?: string | null
+  attachment_name?: string | null
   tracked_seconds: number
   created_at: string
   updated_at: string
@@ -47,6 +49,8 @@ export type TaskSaveValues = {
   deadline: string | null
   priority: TaskPriority
   remarks: string | null
+  attachment_url?: string | null
+  attachment_name?: string | null
 }
 
 export const CATEGORIES = ['Design', 'Development', 'Meeting', 'Research', 'Review', 'Other'] as const
