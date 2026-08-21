@@ -25,6 +25,8 @@ export default function TaskManagerPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
+  const [dashboardMode, setDashboardMode] = useState<'focus' | 'admin'>('focus')
+  const [groupByEvent, setGroupByEvent] = useState(false)
   const [view, setView] = useState<ViewMode>('table')
   const [myTasksOnly, setMyTasksOnly] = useState(false)
   const [selectedStaffId, setSelectedStaffId] = useState<string | null>(null)
@@ -128,11 +130,72 @@ export default function TaskManagerPage() {
     return () => window.removeEventListener('keydown', onKeyDown)
   }, [])
 
+  const currentStaff = useMemo(() => {
+    return staff.find(s => s.id === currentStaffId) ?? null
+  }, [staff, currentStaffId])
+
+  // Aggregate global metrics for the Admin KPI ribbon
+  const { totalTasksCount, inProgressCount, completedCount, overdueCount, totalTrackedSeconds } = useMemo(() => {
+    const today = new Date(new Date().toDateString())
+    let inProg = 0
+    let done = 0
+    let overdue = 0
+    let tracked = 0
+
+    for (const t of tasks) {
+      if (t.status === 'In-Progress') inProg++
+      if (t.status === 'Completed') done++
+      if (t.deadline && t.status !== 'Completed' && new Date(t.deadline) < today) overdue++
+      tracked += t.tracked_seconds ?? 0
+    }
+
+    return {
+      totalTasksCount: tasks.length,
+      inProgressCount: inProg,
+      completedCount: done,
+      overdueCount: overdue,
+      totalTrackedSeconds: tracked,
+    }
+  }, [tasks])
+
+  // Personal metrics for Focus Mode
+  const personalMetrics = useMemo(() => {
+    const today = new Date(new Date().toDateString())
+    const myTasks = tasks.filter(t => t.assigned_to === currentStaffId)
+    let inProg = 0
+    let done = 0
+    let overdue = 0
+    let dueToday = 0
+    let tracked = 0
+
+    for (const t of myTasks) {
+      if (t.status === 'In-Progress') inProg++
+      if (t.status === 'Completed') done++
+      if (t.deadline && t.status !== 'Completed') {
+        const d = new Date(t.deadline)
+        if (d < today) overdue++
+        else if (d.toDateString() === today.toDateString()) dueToday++
+      }
+      tracked += t.tracked_seconds ?? 0
+    }
+
+    return {
+      total: myTasks.length,
+      inProgress: inProg,
+      done,
+      overdue,
+      dueToday,
+      tracked,
+    }
+  }, [tasks, currentStaffId])
+
   const filteredTasks = useMemo(() => {
     const q = searchQuery.trim().toLowerCase()
     return tasks.filter(t => {
-      if (myTasksOnly && t.assigned_to !== currentStaffId) return false
-      if (selectedStaffId && t.assigned_to !== selectedStaffId) return false
+      // In focus mode, automatically filter to current user's tasks
+      if (dashboardMode === 'focus' && t.assigned_to !== currentStaffId) return false
+      if (dashboardMode === 'admin' && myTasksOnly && t.assigned_to !== currentStaffId) return false
+      if (dashboardMode === 'admin' && selectedStaffId && t.assigned_to !== selectedStaffId) return false
       if (statusFilter !== 'all' && t.status !== statusFilter) return false
       if (priorityFilter !== 'all' && t.priority !== priorityFilter) return false
       if (eventFilter !== 'all' && (t.event_id !== eventFilter)) return false
@@ -148,7 +211,7 @@ export default function TaskManagerPage() {
       }
       return true
     })
-  }, [tasks, myTasksOnly, selectedStaffId, currentStaffId, statusFilter, priorityFilter, eventFilter, assignerFilter, searchQuery])
+  }, [tasks, dashboardMode, myTasksOnly, selectedStaffId, currentStaffId, statusFilter, priorityFilter, eventFilter, assignerFilter, searchQuery])
 
   const categoryChartData = useMemo(() => {
     const byCategory = new Map<string, number>()
@@ -265,11 +328,55 @@ export default function TaskManagerPage() {
       <PageHeader
         title="Task Manager"
         actions={
-          <>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            {/* ── Dual Mode Switcher ─────────────────────────── */}
+            <div style={{ display: 'inline-flex', background: 'var(--surface)', padding: '3px', borderRadius: '8px', border: '1px solid var(--border)' }}>
+              <button
+                type="button"
+                onClick={() => setDashboardMode('focus')}
+                style={{
+                  padding: '6px 12px',
+                  borderRadius: '6px',
+                  fontSize: '12px',
+                  fontWeight: dashboardMode === 'focus' ? 700 : 500,
+                  background: dashboardMode === 'focus' ? 'var(--teal-mid)' : 'transparent',
+                  color: dashboardMode === 'focus' ? 'var(--surface)' : 'var(--ink3)',
+                  border: 'none',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  transition: 'all 0.15s ease',
+                }}
+              >
+                <span>👤</span> My Focus
+              </button>
+              <button
+                type="button"
+                onClick={() => setDashboardMode('admin')}
+                style={{
+                  padding: '6px 12px',
+                  borderRadius: '6px',
+                  fontSize: '12px',
+                  fontWeight: dashboardMode === 'admin' ? 700 : 500,
+                  background: dashboardMode === 'admin' ? 'var(--teal-mid)' : 'transparent',
+                  color: dashboardMode === 'admin' ? 'var(--surface)' : 'var(--ink3)',
+                  border: 'none',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  transition: 'all 0.15s ease',
+                }}
+              >
+                <span>🌐</span> Team Oversight
+              </button>
+            </div>
+
             <Button variant="ghost" href="/admin/task-manager/console">Admin Console</Button>
             <Button variant="ghost" href="/api/task-manager/export" target="_blank">Export CSV</Button>
             <Button variant="teal" onClick={() => openNewTaskModal('Not-Started')}>+ New Task</Button>
-          </>
+          </div>
         }
       />
     <div style={{ padding: '20px 32px 48px' }}>
@@ -281,7 +388,60 @@ export default function TaskManagerPage() {
         </div>
       )}
 
-      <SummaryBar counts={counts} selectedStaffId={selectedStaffId} onSelectStaff={setSelectedStaffId} />
+      {/* ── Mode 1: Admin Oversight View ──────────────────────── */}
+      {dashboardMode === 'admin' && (
+        <SummaryBar
+          counts={counts}
+          selectedStaffId={selectedStaffId}
+          onSelectStaff={setSelectedStaffId}
+          totalTasksCount={totalTasksCount}
+          inProgressCount={inProgressCount}
+          completedCount={completedCount}
+          overdueCount={overdueCount}
+          totalTrackedSeconds={totalTrackedSeconds}
+        />
+      )}
+
+      {/* ── Mode 2: Individual Focus View ─────────────────────── */}
+      {dashboardMode === 'focus' && (
+        <div
+          style={{
+            background: 'var(--card)',
+            border: '1px solid var(--border)',
+            borderRadius: '12px',
+            padding: '20px 24px',
+            marginBottom: '20px',
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '16px' }}>
+            <div>
+              <div style={{ fontSize: '18px', fontWeight: 800, color: 'var(--ink)', marginBottom: '4px' }}>
+                Welcome back, {currentStaff?.name ?? 'there'} 👋
+              </div>
+              <div style={{ fontSize: '13px', color: 'var(--ink3)' }}>
+                You have <strong style={{ color: 'var(--ink)' }}>{personalMetrics.total} assigned tasks</strong>
+                {personalMetrics.overdue > 0 && <span style={{ color: 'var(--red)', fontWeight: 700 }}> ({personalMetrics.overdue} overdue)</span>}
+                {personalMetrics.dueToday > 0 && <span style={{ color: 'var(--amber)', fontWeight: 700 }}> • {personalMetrics.dueToday} due today</span>}
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
+              <div style={{ padding: '8px 16px', background: 'var(--surface)', borderRadius: '8px', border: '1px solid var(--border-light)' }}>
+                <div style={{ fontSize: '10px', fontWeight: 700, color: 'var(--ink4)', textTransform: 'uppercase' }}>In Progress</div>
+                <div style={{ fontSize: '18px', fontWeight: 800, color: 'var(--purple)' }}>{personalMetrics.inProgress}</div>
+              </div>
+              <div style={{ padding: '8px 16px', background: 'var(--surface)', borderRadius: '8px', border: '1px solid var(--border-light)' }}>
+                <div style={{ fontSize: '10px', fontWeight: 700, color: 'var(--ink4)', textTransform: 'uppercase' }}>Due Today</div>
+                <div style={{ fontSize: '18px', fontWeight: 800, color: 'var(--amber)' }}>{personalMetrics.dueToday}</div>
+              </div>
+              <div style={{ padding: '8px 16px', background: 'var(--surface)', borderRadius: '8px', border: '1px solid var(--border-light)' }}>
+                <div style={{ fontSize: '10px', fontWeight: 700, color: 'var(--ink4)', textTransform: 'uppercase' }}>Completed</div>
+                <div style={{ fontSize: '18px', fontWeight: 800, color: 'var(--teal)' }}>{personalMetrics.done}</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Quick add — the "create a task in a jiffy" path. Defaults everything
           (assignee = self, status = Not-Started, priority = Medium) so one
@@ -337,10 +497,12 @@ export default function TaskManagerPage() {
                 )}
               </div>
 
-              <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', color: 'var(--ink3)', cursor: 'pointer' }}>
-                <input type="checkbox" checked={myTasksOnly} onChange={e => setMyTasksOnly(e.target.checked)} />
-                My Tasks
-              </label>
+              {dashboardMode === 'admin' && (
+                <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', color: 'var(--ink3)', cursor: 'pointer' }}>
+                  <input type="checkbox" checked={myTasksOnly} onChange={e => setMyTasksOnly(e.target.checked)} />
+                  My Tasks
+                </label>
+              )}
 
               <select value={statusFilter} onChange={e => setStatusFilter(e.target.value as 'all' | TaskStatus)} style={PILL_FILTER_STYLE}>
                 <option value="all">All statuses</option>
@@ -362,11 +524,35 @@ export default function TaskManagerPage() {
                 {events.map(ev => <option key={ev.id} value={ev.id}>{ev.name}</option>)}
               </select>
 
-              {/* Assigner Filter */}
-              <select value={assignerFilter} onChange={e => setAssignerFilter(e.target.value)} style={PILL_FILTER_STYLE}>
-                <option value="all">All assigners</option>
-                {staff.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
-              </select>
+              {dashboardMode === 'admin' && (
+                <select value={assignerFilter} onChange={e => setAssignerFilter(e.target.value)} style={PILL_FILTER_STYLE}>
+                  <option value="all">All assigners</option>
+                  {staff.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                </select>
+              )}
+
+              {/* Group by Event Toggle (in table mode) */}
+              {view === 'table' && (
+                <button
+                  type="button"
+                  onClick={() => setGroupByEvent(!groupByEvent)}
+                  style={{
+                    padding: '6px 12px',
+                    borderRadius: '8px',
+                    fontSize: '12px',
+                    fontWeight: 600,
+                    background: groupByEvent ? 'var(--teal-light)' : 'var(--surface)',
+                    color: groupByEvent ? 'var(--teal-mid)' : 'var(--ink3)',
+                    border: `1px solid ${groupByEvent ? 'var(--teal-mid)' : 'var(--border)'}`,
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                  }}
+                >
+                  <span>📁</span> Group by Event
+                </button>
+              )}
 
               {(selectedStaffId || searchQuery || eventFilter !== 'all' || assignerFilter !== 'all' || statusFilter !== 'all' || priorityFilter !== 'all' || myTasksOnly) && (
                 <button
@@ -409,6 +595,7 @@ export default function TaskManagerPage() {
             tasks={filteredTasks}
             currentStaffId={currentStaffId}
             runningTaskId={activeTimer?.task_id ?? null}
+            groupByEvent={groupByEvent}
             onOpenTask={setEditingTask}
             onStatusChange={handleStatusChange}
             onPriorityChange={handlePriorityChange}
