@@ -1,9 +1,10 @@
 'use client'
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import Button from '@/app/components/ui/Button'
 import Card from '@/app/components/ui/Card'
 import PageHeader from '@/app/components/PageHeader'
 import { CategoryDonutChart } from './charts'
+import QuickAssignCard from './QuickAssignCard'
 import RunningTimerWidget from './RunningTimerWidget'
 import SummaryBar, { AssigneeCounts } from './SummaryBar'
 import TaskKanban from './TaskKanban'
@@ -39,10 +40,6 @@ export default function TaskManagerPage() {
   const [editingTask, setEditingTask] = useState<Task | null | undefined>(undefined) // undefined = modal closed
   const [modalDefaultStatus, setModalDefaultStatus] = useState<TaskStatus>('Not-Started')
   const [activeTimer, setActiveTimer] = useState<ActiveTimer>(null)
-
-  const [quickAddText, setQuickAddText] = useState('')
-  const [quickAddBusy, setQuickAddBusy] = useState(false)
-  const quickAddRef = useRef<HTMLInputElement>(null)
 
   // Timesheets — lazy-loaded the first time that tab is opened, so the
   // common case (just looking at tasks) doesn't pay for fetching the log
@@ -113,22 +110,6 @@ export default function TaskManagerPage() {
     }
     loadFirstTime().catch(() => setTimeLogsLoading(false))
   }, [view, timeLogsLoaded])
-
-  // "N" jumps straight to the quick-add box from anywhere on the page —
-  // matches the create-in-a-jiffy pattern in Linear/Todoist. Ignored while
-  // already typing in any field so it doesn't hijack normal text entry.
-  useEffect(() => {
-    function onKeyDown(e: KeyboardEvent) {
-      const target = e.target as HTMLElement
-      const isTyping = ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName)
-      if (e.key === 'n' && !isTyping && !e.metaKey && !e.ctrlKey) {
-        e.preventDefault()
-        quickAddRef.current?.focus()
-      }
-    }
-    window.addEventListener('keydown', onKeyDown)
-    return () => window.removeEventListener('keydown', onKeyDown)
-  }, [])
 
   const currentStaff = useMemo(() => {
     return staff.find(s => s.id === currentStaffId) ?? null
@@ -222,20 +203,18 @@ export default function TaskManagerPage() {
     return [...byCategory.entries()].map(([label, seconds]) => ({ label, seconds })).sort((a, b) => b.seconds - a.seconds)
   }, [timeLogs])
 
-  async function handleQuickAdd() {
-    const description = quickAddText.trim()
-    if (!description || !currentStaffId || quickAddBusy) return
-    setQuickAddBusy(true)
-    setQuickAddText('')
+  async function handleQuickAssign(values: TaskSaveValues) {
+    setError(null)
     const res = await fetch('/api/task-manager', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ description, assigned_to: currentStaffId, assigned_by: currentStaffId }),
+      body: JSON.stringify({ ...values, status: 'Not-Started' }),
     })
-    setQuickAddBusy(false)
-    if (!res.ok) { setError('Failed to create task.'); setQuickAddText(description); return }
+    if (!res.ok) {
+      const b = await res.json().catch(() => ({}))
+      throw new Error(b.error ?? 'Failed to assign task')
+    }
     await loadTasks()
-    quickAddRef.current?.focus()
   }
 
   async function handleStatusChange(taskId: string, newStatus: TaskStatus) {
@@ -443,22 +422,13 @@ export default function TaskManagerPage() {
         </div>
       )}
 
-      {/* Quick add — the "create a task in a jiffy" path. Defaults everything
-          (assignee = self, status = Not-Started, priority = Medium) so one
-          line + Enter is all it takes; press "N" from anywhere to jump here. */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: '10px', background: 'var(--card)', border: '1.5px solid var(--border-light)', borderRadius: '12px', padding: '4px 6px 4px 16px', marginBottom: '16px', boxShadow: 'var(--shadow-sm)' }}>
-        <span style={{ color: 'var(--teal-mid)', fontSize: '16px', fontWeight: 800, flexShrink: 0 }}>+</span>
-        <input
-          ref={quickAddRef}
-          value={quickAddText}
-          onChange={e => setQuickAddText(e.target.value)}
-          onKeyDown={e => { if (e.key === 'Enter') handleQuickAdd() }}
-          placeholder="Add a task and press Enter… (assigns to you — edit details after)"
-          disabled={quickAddBusy}
-          style={{ flex: 1, background: 'transparent', border: 'none', outline: 'none', color: 'var(--ink)', fontSize: '14px', padding: '10px 0' }}
-        />
-        <kbd style={{ fontSize: '11px', color: 'var(--ink4)', background: 'var(--border-light)', border: '1px solid var(--border)', borderRadius: '5px', padding: '2px 6px', flexShrink: 0 }}>N</kbd>
-      </div>
+      {/* ── Quick Assign Card ─────────────────────────────────── */}
+      <QuickAssignCard
+        staff={staff}
+        events={events}
+        currentStaffId={currentStaffId}
+        onAssign={handleQuickAssign}
+      />
 
       <Card padded>
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap', marginBottom: '16px' }}>
