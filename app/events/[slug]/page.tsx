@@ -1,6 +1,7 @@
 import { notFound } from 'next/navigation'
 import { cookies } from 'next/headers'
 import { supabaseAdmin } from '@/app/lib/supabase'
+import { withSpeakerPublicName } from '@/app/lib/events/speaker-public-name'
 import { getDefaultFaviconUrl, getDefaultSocialShareImageUrl } from '@/app/lib/branding/email-header'
 import type { PageStructure, Section, SectionDesign, SectionItem } from '@/app/lib/event-page-types'
 import { defaultFooter } from '@/app/lib/event-page-types'
@@ -249,7 +250,7 @@ export default async function EventPublicPage({
   const fetchAll = !ps
 
   const [spRes, agRes, spnRes] = await Promise.all([
-    (needsSpeakers || fetchAll) ? supabaseAdmin.from('event_speakers').select('id,name,role,company,bio,photo_url,linkedin_url,tier,session_title')
+    (needsSpeakers || fetchAll) ? supabaseAdmin.from('event_speakers').select('id,name,public_name,role,company,bio,photo_url,linkedin_url,tier,session_title')
       .eq('event_id', w.event_id).eq('active', true).eq('status', 'approved')
       .order('tier').order('order_index').order('name') : Promise.resolve({ data: [] }),
     (needsAgenda || fetchAll) ? supabaseAdmin.from('event_agenda').select('id,day,time_slot,title,description,speaker_name,type,track')
@@ -258,7 +259,7 @@ export default async function EventPublicPage({
       .eq('event_id', w.event_id).eq('active', true).order('order_index').order('name') : Promise.resolve({ data: [] }),
   ])
 
-  const speakers = (spRes.data ?? []) as Speaker[]
+  const speakers = withSpeakerPublicName(spRes.data as (Speaker & { public_name?: string | null })[]) as Speaker[]
   const agenda   = (agRes.data ?? []) as Agenda[]
   const sponsors = (spnRes.data ?? []) as Sponsor[]
   const agByDay  = groupBy(agenda, 'day')

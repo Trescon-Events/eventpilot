@@ -73,7 +73,7 @@ export type AnnouncementListItem = {
   platforms: string[] | null
   published_at: string | null
   postiz_channel_ids: string[] | null
-  publish_results: Record<string, { success: boolean; postId: string; state?: string }> | null
+  publish_results: Record<string, { success: boolean; postId: string; state?: string; url?: string }> | null
   announcement_kind: 'org_promo' | 'self_promo'
 }
 

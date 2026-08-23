@@ -95,12 +95,6 @@ const TIER_ORDER = ['keynote', 'speaker', 'panelist', 'moderator']
 const SPONSOR_TIER_ORDER = ['platinum', 'gold', 'silver', 'bronze', 'media', 'association', 'government', 'startup']
 const AGENDA_TYPES = ['keynote', 'panel', 'workshop', 'fireside', 'networking', 'break', 'other']
 
-function StatusDot({ booking }: { booking: string | null }) {
-  return (
-    <span style={{ display: 'inline-block', width: 8, height: 8, borderRadius: '50%', background: booking ? 'var(--success)' : C.border, marginRight: 6 }} />
-  )
-}
-
 function Tag({ children, color = C.muted }: { children: React.ReactNode; color?: string }) {
   return (
     <span style={{ fontSize: '11px', fontWeight: 700, padding: '2px 8px', borderRadius: '20px', background: `${color}18`, color, whiteSpace: 'nowrap' }}>
@@ -344,7 +338,6 @@ export default function EventWebsiteAdmin({ params }: { params: Promise<{ id: st
   const [spModal,      setSpModal]      = useState(false)
   const [editSpeaker,  setEditSpeaker]  = useState<Partial<Speaker> | null>(null)
   const [savingSp,     setSavingSp]     = useState(false)
-  const [syncing,      setSyncing]      = useState(false)
 
   // Content → auto-sync to deployed site
   const [contentSyncing,   setContentSyncing]   = useState(false)
@@ -604,20 +597,6 @@ export default function EventWebsiteAdmin({ params }: { params: Promise<{ id: st
     if (!confirm('Remove this speaker?')) return
     await fetch(`/api/events/speakers?id=${id}`, { method: 'DELETE' })
     loadSpeakers(); syncContentToSite()
-  }
-
-  async function bulkKonfhubSync() {
-    if (!settings.id) { showMsg('Save settings (with KonfHub credentials) first.', false); return }
-    setSyncing(true)
-    const res  = await fetch(`/api/events/konfhub?event_id=${eventId}`, { method: 'POST' })
-    const data = await res.json()
-    if (res.ok) {
-      showMsg(`KonfHub sync: ${data.synced} registered, ${data.failed} failed.`, data.failed === 0)
-      loadSpeakers()
-    } else {
-      showMsg(data.error ?? 'Sync failed.', false)
-    }
-    setSyncing(false)
   }
 
   // ── Agenda CRUD ──────────────────────────────────────────────────────────────
@@ -1966,13 +1945,9 @@ export default function EventWebsiteAdmin({ params }: { params: Promise<{ id: st
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '20px', flexWrap: 'wrap', gap: '10px' }}>
               <div>
                 <div style={{ fontSize: '15px', fontWeight: 800 }}>Speakers</div>
-                <div style={{ fontSize: '12px', color: C.muted, marginTop: '2px' }}>{speakers.filter(s => s.active).length} active · {speakers.filter(s => s.konfhub_booking_id).length} on KonfHub</div>
+                <div style={{ fontSize: '12px', color: C.muted, marginTop: '2px' }}>{speakers.filter(s => s.active).length} active</div>
               </div>
               <div style={{ display: 'flex', gap: '8px' }}>
-                <button onClick={bulkKonfhubSync} disabled={syncing}
-                  style={{ padding: '9px 18px', borderRadius: '8px', border: `1px solid rgba(167,139,250,0.35)`, background: 'rgba(167,139,250,0.08)', color: C.purple, fontSize: '12px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', opacity: syncing ? 0.6 : 1 }}>
-                  {syncing ? 'Syncing…' : '⟳ Sync to KonfHub'}
-                </button>
                 <button onClick={() => { setEditSpeaker({ tier: 'speaker', status: 'approved', active: true, dial_code: '+971', country: 'UAE' }); setSpModal(true) }}
                   style={{ padding: '9px 18px', borderRadius: '8px', border: 'none', background: C.green, color: 'var(--lime-dark)', fontSize: '12px', fontWeight: 800, cursor: 'pointer', fontFamily: 'inherit' }}>
                   + Add Speaker
@@ -1998,10 +1973,8 @@ export default function EventWebsiteAdmin({ params }: { params: Promise<{ id: st
                           <div style={{ fontSize: '12px', color: C.muted }}>{[sp.role, sp.company].filter(Boolean).join(' · ')}</div>
                         </div>
                         <div style={{ display: 'flex', gap: '6px', alignItems: 'center', flexShrink: 0 }}>
-                          <StatusDot booking={sp.konfhub_booking_id} />
                           <Tag color={sp.status === 'approved' ? C.teal : sp.status === 'rejected' ? C.red : C.amber}>{sp.status}</Tag>
                           {!sp.active && <Tag color={C.muted}>hidden</Tag>}
-                          {sp.konfhub_booking_id && <Tag color="#34D399">KonfHub ✓</Tag>}
                         </div>
                         <div style={{ display: 'flex', gap: '6px', flexShrink: 0 }}>
                           <button onClick={() => { setEditSpeaker(sp); setSpModal(true) }}

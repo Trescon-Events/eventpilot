@@ -1,0 +1,137 @@
+// Client for KonfHub's Speakers-management API — the "Speakers" section a
+// producer maintains directly in the KonfHub dashboard (feeds KonfHub's own
+// event page + worldaishow.com/malaysia/speakers/), NOT the Attendees list
+// (real registration record, used for badges/the event app — EventPilot must
+// not touch that) and NOT the old ticket/attendee-registration flow this repo
+// used to auto-push to (event/capture/v2, removed 2026-08-23 — see
+// app/api/events/speakers/route.ts's doc comment).
+//
+// Auth is Bearer-token via a client_id/client_secret exchange (event_websites.
+// konfhub_client_id/konfhub_client_secret — distinct from the old
+// konfhub_api_key), tokens expire in 5 minutes. Fetch fresh per call site
+// rather than caching — a whole sync run finishes well under that window, and
+// caching across serverless invocations buys nothing.
+//
+// KonfHub's Speakers API has no email field — an existing KonfHub speaker can
+// only be matched to an EventPilot record by name (a one-time bridge; see
+// matchKonfhubSpeakers below), after which event_speakers.konfhub_speaker_id
+// is what every future update targets. Never delete+recreate an existing
+// speaker: KonfHub's Agenda sessions reference speakers by this ID, so
+// recreating would silently drop them from their assigned sessions.
+
+const TOKEN_ENDPOINT = 'https://api.konfhub.com/api-clients/token'
+const API_BASE = 'https://api.konfhub.com/event'
+
+export type KonfhubSpeaker = {
+  // Despite the API docs saying "String", live responses return this as a
+  // number (confirmed 2026-08-23) — normalized to string in
+  // listKonfhubSpeakers so every caller gets one consistent type.
+  speaker_id: string
+  name: string
+  about?: string | null
+  image_url?: string | null
+  organisation_logo_url?: string | null
+  designation?: string | null
+  organisation?: string | null
+  location?: string | null
+  linkedin_url?: string | null
+  facebook_url?: string | null
+  twitter_url?: string | null
+  website_url?: string | null
+  speaker_category_id?: string | null
+  speaker_order?: number
+}
+
+export class KonfhubApiError extends Error {
+  status: number
+  constructor(message: string, status: number) {
+    super(message)
+    this.status = status
+  }
+}
+
+export async function getKonfhubToken(clientId: string, clientSecret: string): Promise<string> {
+  const res = await fetch(TOKEN_ENDPOINT, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ client_id: clientId, client_secret: clientSecret }),
+  })
+  const data = await res.json().catch(() => ({})) as { token?: string; error?: string }
+  if (!res.ok || !data.token) throw new KonfhubApiError(data.error || 'Failed to obtain KonfHub token', res.status)
+  return data.token
+}
+
+// GET /speakers actually returns {categorized: [...], uncategorized: [...]}
+// (confirmed live 2026-08-23), not the flat array the Postman doc's example
+// implies — flattened here so every caller just gets one list.
+export async function listKonfhubSpeakers(konfhubEventId: string, token: string): Promise<KonfhubSpeaker[]> {
+  const res = await fetch(`${API_BASE}/${konfhubEventId}/speakers`, {
+    headers: { Authorization: `Bearer ${token}` },
+  })
+  const data = await res.json().catch(() => ({})) as
+    { categorized?: KonfhubSpeaker[]; uncategorized?: KonfhubSpeaker[]; error?: string }
+  if (!res.ok) throw new KonfhubApiError(data.error || 'Failed to list KonfHub speakers', res.status)
+  return [...(data.categorized ?? []), ...(data.uncategorized ?? [])]
+    .map(s => ({ ...s, speaker_id: String(s.speaker_id) }))
+}
+
+export async function updateKonfhubSpeaker(
+  konfhubEventId: string,
+  speakerId: string,
+  token: string,
+  fields: Partial<Pick<KonfhubSpeaker,
+    'name' | 'about' | 'image_url' | 'organisation_logo_url' | 'designation' | 'organisation' |
+    'location' | 'linkedin_url' | 'facebook_url' | 'twitter_url' | 'website_url'
+  >>
+): Promise<void> {
+  const res = await fetch(`${API_BASE}/${konfhubEventId}/speakers/${speakerId}`, {
+    method: 'PUT',
+    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify(fields),
+  })
+  const data = await res.json().catch(() => ({})) as { error?: string }
+  if (!res.ok) throw new KonfhubApiError(data.error || 'Failed to update KonfHub speaker', res.status)
+}
+
+export async function createKonfhubSpeaker(
+  konfhubEventId: string,
+  token: string,
+  fields: { name: string; speaker_order: number } & Partial<Pick<KonfhubSpeaker,
+    'about' | 'image_url' | 'organisation_logo_url' | 'designation' | 'organisation' |
+    'location' | 'linkedin_url' | 'facebook_url' | 'twitter_url' | 'website_url'
+  >>
+): Promise<string> {
+  const res = await fetch(`${API_BASE}/${konfhubEventId}/speakers`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify(fields),
+  })
+  const data = await res.json().catch(() => ({})) as { speaker_id?: string | number; error?: string }
+  if (!res.ok || data.speaker_id === undefined) throw new KonfhubApiError(data.error || 'Failed to create KonfHub speaker', res.status)
+  return String(data.speaker_id)
+}
+
+export async function deleteKonfhubSpeaker(konfhubEventId: string, speakerId: string, token: string): Promise<void> {
+  const res = await fetch(`${API_BASE}/${konfhubEventId}/speakers/${speakerId}`, {
+    method: 'DELETE',
+    headers: { Authorization: `Bearer ${token}` },
+  })
+  if (!res.ok && res.status !== 204) {
+    const data = await res.json().catch(() => ({})) as { error?: string }
+    throw new KonfhubApiError(data.error || 'Failed to delete KonfHub speaker', res.status)
+  }
+}
+
+// Name-normalization for the one-time matching bridge (2026-08-23) — strips
+// salutation-style prefixes/punctuation/whitespace so e.g. "Dr. Ong Hong Hoe"
+// and "Ong Hong Hoe" line up. Deliberately conservative: this only decides
+// what counts as a "confident" auto-match; anything it can't resolve cleanly
+// should be surfaced for manual confirmation, never guessed.
+export function normalizeSpeakerName(name: string): string {
+  return name
+    .toLowerCase()
+    .replace(/[.,]/g, '')
+    .replace(/\b(dr|mr|mrs|ms|prof|sr|ts|ir|datuk|dato|tan sri|puan sri)\b/g, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+}

@@ -10,9 +10,9 @@ import { FormFieldInput } from '@/app/components/forms/FormFieldInput'
 import { FieldSchema, FormType, SubmittedValue } from '@/app/lib/forms/types'
 import { downloadFile } from '@/app/lib/download-file'
 import { useBreadcrumbLabel } from '@/app/lib/nav/breadcrumb-labels'
-import PhotoUploadModal from '../PhotoUploadModal'
+import { PRONOUN_STYLES } from '@/app/lib/events/pronoun-styles'
 import LogoApprovalModal from '../LogoApprovalModal'
-import HeadBoxEditorModal from '../HeadBoxEditorModal'
+import PhotoCleaningWizard from '../PhotoCleaningWizard'
 import AnnouncementsTab from './AnnouncementsTab'
 import type { Speaker as SaeSpeaker, Partner as SaePartner } from '../../creative-templates/page'
 
@@ -47,6 +47,9 @@ type StakeholderRecord = {
   website_card_url?: string | null
   company_logo_url?: string | null; company_logo_raw_url?: string | null
   photo_head_box?: { centerXRatio: number; centerYRatio: number; heightRatio: number } | null
+  photo_low_resolution?: boolean
+  photo_cleaning_cycle_done?: boolean
+  website_photo_crop_warning?: { left: number; top: number; right: number; bottom: number } | null
   company_website?: string | null; company_description?: string | null
   partner_type?: string
   public_name?: string | null; salutation?: string | null
@@ -68,18 +71,22 @@ type StakeholderRecord = {
 // the thumbnail itself — e.g. whether the head-position override has been
 // set for the Cleaned Photo tile — rather than relying solely on a
 // checkmark on a separate button below, which is easy to miss.
-function AssetTile({ label, url, filename, onOpen, badge }: {
+function AssetTile({ label, url, filename, onOpen, badge, badges, size }: {
   label: string; url: string | null | undefined; filename: string
   onOpen: (url: string, label: string) => void
   badge?: { text: string; tone: 'success' | 'amber' }
+  badges?: { text: string; tone: 'success' | 'amber' }[]
+  size?: number
 }) {
+  const allBadges = badges ?? (badge ? [badge] : [])
+  const tileSize = size ?? 132
   return (
     <div>
       <div style={{ fontSize: '12.5px', fontWeight: 700, color: 'var(--ink4)', marginBottom: '7px', textTransform: 'uppercase', letterSpacing: '0.4px' }}>{label}</div>
       <div
         onClick={url ? () => onOpen(url, label) : undefined}
         style={{
-          width: '132px', height: '132px', borderRadius: '10px', overflow: 'hidden', padding: url ? '8px' : 0,
+          width: `${tileSize}px`, height: `${tileSize}px`, borderRadius: '10px', overflow: 'hidden', padding: url ? '8px' : 0,
           background: 'repeating-conic-gradient(var(--border-light) 0% 25%, var(--surface) 0% 50%) 50% / 14px 14px',
           border: '1px solid var(--border-light)', display: 'flex', alignItems: 'center', justifyContent: 'center',
           cursor: url ? 'zoom-in' : 'default', position: 'relative',
@@ -89,15 +96,18 @@ function AssetTile({ label, url, filename, onOpen, badge }: {
           // eslint-disable-next-line @next/next/no-img-element -- checkerboard preview needs the real image, not a next/image optimization pass
           ? <img src={url} alt={label} style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain' }} />
           : <span style={{ fontSize: '11.5px', color: 'var(--ink4)' }}>None</span>}
-        {url && badge && (
-          <div style={{
-            position: 'absolute', top: '5px', left: '5px', right: '5px',
-            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '3px',
-            padding: '3px 6px', borderRadius: '6px', fontSize: '9.5px', fontWeight: 800, letterSpacing: '0.2px',
-            background: badge.tone === 'success' ? 'color-mix(in srgb, var(--success) 88%, transparent)' : 'color-mix(in srgb, var(--amber) 88%, transparent)',
-            color: badge.tone === 'success' ? 'var(--success-light)' : 'var(--amber-light)',
-          }}>
-            {badge.tone === 'success' ? '✓ ' : '⚠ '}{badge.text}
+        {url && allBadges.length > 0 && (
+          <div style={{ position: 'absolute', top: '5px', left: '5px', right: '5px', display: 'grid', gap: '3px' }}>
+            {allBadges.map((b, i) => (
+              <div key={i} style={{
+                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '3px',
+                padding: '3px 6px', borderRadius: '6px', fontSize: '9.5px', fontWeight: 800, letterSpacing: '0.2px',
+                background: b.tone === 'success' ? 'color-mix(in srgb, var(--success) 88%, transparent)' : 'color-mix(in srgb, var(--amber) 88%, transparent)',
+                color: b.tone === 'success' ? 'var(--success-light)' : 'var(--amber-light)',
+              }}>
+                {b.tone === 'success' ? '✓ ' : '⚠ '}{b.text}
+              </div>
+            ))}
           </div>
         )}
       </div>
@@ -123,16 +133,6 @@ const PARTNER_TYPES = [
   'knowledge_partner', 'official_partner', 'supporting_partner', 'sponsor', 'other',
 ]
 
-// Third-person reference style for org-promo copy (2026-08-18) — deliberately
-// small/closed; extending it needs a DB constraint change, not just this list.
-const PRONOUN_STYLES: { value: string; label: string }[] = [
-  { value: 'he_him', label: 'He / Him' },
-  { value: 'she_her', label: 'She / Her' },
-  { value: 'his_excellency', label: 'His Excellency' },
-  { value: 'her_excellency', label: 'Her Excellency' },
-  { value: 'his_highness', label: 'His Highness' },
-  { value: 'her_highness', label: 'Her Highness' },
-]
 
 const STATUS_BADGE: Record<AnnouncementStatus, { label: string; color: 'amber' | 'red' | 'teal' | 'grey' }> = {
   pending_review: { label: 'Pending Review', color: 'amber' },
@@ -168,26 +168,54 @@ export default function StakeholderReviewPage({ params }: { params: Promise<{ id
   // public-facing content is generated (creatives, both org-promo and
   // self-promo post copy, future website), same fallback pattern as
   // events.public_name. pronoun_style/key_talking_points ground the AI
-  // copy generators. salutation is different from public_name — it's real
-  // data the live onboarding form already captures but was never mapped
-  // to anything, used specifically for addressing the speaker correctly
-  // in email (not creatives/post copy).
+  // copy generators. Salutation used to be a separate hardcoded field here
+  // too, but it wrote the same `event_speakers.salutation` column as the
+  // schema-driven Salutation field in the Details grid and always won on
+  // save — removed 2026-08-23; Salutation is edited only via the schema
+  // field now.
   const [publicName, setPublicName] = useState('')
-  const [salutation, setSalutation] = useState('')
   const [pronounStyle, setPronounStyle] = useState('')
   const [keyTalkingPoints, setKeyTalkingPoints] = useState('')
   const [status, setStatus] = useState<AnnouncementStatus>('pending_review')
   const [loading, setLoading] = useState(true)
   const [permissions, setPermissions] = useState<Set<string>>(new Set())
   const [saveState, setSaveState] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle')
+  // True from the moment a field changes until flushSave actually succeeds
+  // (2026-08-22, per Madhu — real gap: saveState alone can't distinguish
+  // "nothing to save" from "an edit is sitting in the 700ms debounce
+  // window, not yet sent" — both read identically as 'idle'. Drives the
+  // Save button (enabled only when there's something to save) and the
+  // Approve gate (blocked while dirty, so approval can never commit
+  // against stale data or race a pending edit). Stays true on a failed
+  // save — the edit genuinely isn't persisted yet, so neither button
+  // should treat it as clean.
+  const [dirty, setDirty] = useState(false)
+  // The actual reason a save failed (2026-08-22, real bug: a manually-
+  // created speaker with an incomplete field set — never went through the
+  // full onboarding form, so several schema-required fields like Salutation/
+  // Email/Phone/Industry Sector were never filled — got a completely opaque
+  // "Save failed — try again." on every edit, no matter which unrelated
+  // field was actually changed. The PATCH route validates the WHOLE current
+  // fields map against every required field in the schema on any fields
+  // edit, not just the field being changed, and DOES return a specific,
+  // useful message (e.g. "Salutation is required") — the frontend was just
+  // discarding it. Retrying literally cannot help without also seeing this.
+  const [saveErrorMsg, setSaveErrorMsg] = useState<string | null>(null)
   const [reapprovalBanner, setReapprovalBanner] = useState(false)
   const [approving, setApproving] = useState(false)
   const [generatingWebsitePhoto, setGeneratingWebsitePhoto] = useState(false)
+  // The guided Photo Cleaning wizard (2026-08-22, replaces the old separate
+  // Replace Photo / Fix Head Position / Clean Photo buttons) owns its own
+  // working/confirm/error steps internally; this page only needs to know
+  // what to open it WITH (an already-known photo, or a just-picked file to
+  // upload first) and refetch the record whenever the wizard reports a save.
+  // See PhotoCleaningWizard's own top comment for why it's a full refetch
+  // rather than a hand-maintained patch.
+  const [wizardEntry, setWizardEntry] = useState<{ kind: 'existing'; url: string; headBox: NonNullable<StakeholderRecord['photo_head_box']> | null } | { kind: 'upload'; file: File } | null>(null)
+  const rawPhotoInputRef = useRef<HTMLInputElement | null>(null)
   const [msg, setMsg] = useState<string | null>(null)
 
-  const [photoUploadTarget, setPhotoUploadTarget] = useState<File | null>(null)
   const [logoApproval, setLogoApproval] = useState<{ url: string } | null>(null)
-  const [headBoxOpen, setHeadBoxOpen] = useState(false)
   const [uploading, setUploading] = useState(false)
   // estimatedMs per action, from real observed timings (dev log) — a plain
   // PATCH (approve/remove-logo) resolves in well under a second; logo
@@ -210,13 +238,11 @@ export default function StakeholderReviewPage({ params }: { params: Promise<{ id
   const valuesRef = useRef(values)
   const partnerTypeRef = useRef(partnerType)
   const publicNameRef = useRef(publicName)
-  const salutationRef = useRef(salutation)
   const pronounStyleRef = useRef(pronounStyle)
   const keyTalkingPointsRef = useRef(keyTalkingPoints)
   useEffect(() => { valuesRef.current = values }, [values])
   useEffect(() => { partnerTypeRef.current = partnerType }, [partnerType])
   useEffect(() => { publicNameRef.current = publicName }, [publicName])
-  useEffect(() => { salutationRef.current = salutation }, [salutation])
   useEffect(() => { pronounStyleRef.current = pronounStyle }, [pronounStyle])
   useEffect(() => { keyTalkingPointsRef.current = keyTalkingPoints }, [keyTalkingPoints])
 
@@ -235,7 +261,6 @@ export default function StakeholderReviewPage({ params }: { params: Promise<{ id
       if (kind === 'partner') setPartnerType(data.partner_type ?? 'sponsor')
       if (kind === 'speaker') {
         setPublicName(data.public_name ?? '')
-        setSalutation(data.salutation ?? '')
         setPronounStyle(data.pronoun_style ?? '')
         setKeyTalkingPoints(data.key_talking_points ?? '')
       }
@@ -268,12 +293,25 @@ export default function StakeholderReviewPage({ params }: { params: Promise<{ id
 
   const flushSave = useCallback(async () => {
     if (saveTimer.current) { clearTimeout(saveTimer.current); saveTimer.current = null }
+    // Public Name + Pronoun are mandatory for speakers (2026-08-23, per
+    // Madhu) — they drive every public-facing surface (emails, promo
+    // creatives, website, KonfHub), so a record can't sit around without
+    // them once a producer has landed on this page, whether it arrived via
+    // a processed onboarding submission (which never collects these) or was
+    // created manually here. Blocks the WHOLE save (this PATCH always sends
+    // every field together — see body below), not just these two, since
+    // there's no partial-save path to preserve.
+    if (kind === 'speaker' && (!publicNameRef.current.trim() || !pronounStyleRef.current)) {
+      setSaveState('error')
+      setSaveErrorMsg('Public Name and Pronoun / Honorific Style are required before this record can be saved — see the section below.')
+      return
+    }
     setSaveState('saving')
+    setSaveErrorMsg(null)
     const body: Record<string, unknown> = { fields: valuesRef.current }
     if (kind === 'partner') { body.form_type = formType; body.partner_type = partnerTypeRef.current }
     if (kind === 'speaker') {
       body.public_name = publicNameRef.current.trim() || null
-      body.salutation = salutationRef.current.trim() || null
       body.pronoun_style = pronounStyleRef.current || null
       body.key_talking_points = keyTalkingPointsRef.current.trim() || null
     }
@@ -281,9 +319,10 @@ export default function StakeholderReviewPage({ params }: { params: Promise<{ id
       const res = await fetch(`${base}/${stakeholderId}`, {
         method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
       })
-      if (!res.ok) { setSaveState('error'); return }
-      const data = await res.json()
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) { setSaveState('error'); setSaveErrorMsg(data.error || null); return }
       setSaveState('saved')
+      setDirty(false)
       setTimeout(() => setSaveState(s => (s === 'saved' ? 'idle' : s)), 2000)
       if (data.announcement_status && data.announcement_status !== status) {
         if (data.announcement_status === 'pending_review' && status === 'ready') setReapprovalBanner(true)
@@ -291,10 +330,12 @@ export default function StakeholderReviewPage({ params }: { params: Promise<{ id
       }
     } catch {
       setSaveState('error')
+      setSaveErrorMsg(null)
     }
   }, [base, stakeholderId, kind, formType, status])
 
   function scheduleSave() {
+    setDirty(true)
     if (saveTimer.current) clearTimeout(saveTimer.current)
     saveTimer.current = setTimeout(() => { flushSave() }, SAVE_DEBOUNCE_MS)
   }
@@ -322,8 +363,6 @@ export default function StakeholderReviewPage({ params }: { params: Promise<{ id
 
   async function generateWebsitePhoto() {
     setGeneratingWebsitePhoto(true)
-    // 2026-08-19: deterministic crop + background composite, no AI step —
-    // always fast; this estimate just paces the progress bar reasonably.
     setProcessing({ label: 'Generating website photo…', estimatedMs: 3000 })
     setMsg(null)
     try {
@@ -332,17 +371,38 @@ export default function StakeholderReviewPage({ params }: { params: Promise<{ id
         body: JSON.stringify({ event_id: eventId, speaker_id: stakeholderId }),
       })
       const data = await res.json().catch(() => ({}))
-      if (res.ok) {
-        setRecord(prev => prev ? { ...prev, website_card_url: data.website_card_url } : prev)
-      } else {
-        setMsg(data.error || 'Could not generate the website photo — please try again.')
-      }
+      if (!res.ok) { setMsg(data.error || 'Could not generate the website photo — please try again.'); return }
+      setRecord(prev => prev ? { ...prev, website_card_url: data.website_card_url, website_photo_crop_warning: data.crop_warning ?? null } : prev)
     } catch {
       setMsg('Could not generate the website photo — check your connection and try again.')
     } finally {
       setGeneratingWebsitePhoto(false)
       setProcessing(null)
     }
+  }
+
+  // "Clean Photo" (2026-08-22): if there's already a raw/processed photo to
+  // work with, open the wizard directly at its head-fix step. If not,
+  // there's nothing to clean yet — fall back to the exact same file-picker
+  // flow as "Upload Raw Photo" (per Madhu: Clean Photo should never just
+  // error out on a missing photo when the fix is one click away).
+  function startCleanPhoto() {
+    const cleanPhoto = record?.photo_processed_url ?? record?.photo_url ?? null
+    if (cleanPhoto) {
+      setWizardEntry({ kind: 'existing', url: cleanPhoto, headBox: record?.photo_head_box ?? null })
+    } else {
+      rawPhotoInputRef.current?.click()
+    }
+  }
+
+  // "Upload Raw Photo" always opens the native file picker — this is the
+  // explicit "give me a fresh source photo" action (a form submission's
+  // photo was missing or broken), unlike Clean Photo's conditional check
+  // above. Once picked, the wizard opens immediately and performs the
+  // upload as its own first working step (real progress bar, not a second
+  // separate upload popup first) — see PhotoCleaningWizard's top comment.
+  function onRawPhotoPicked(file: File) {
+    setWizardEntry({ kind: 'upload', file })
   }
 
   async function uploadLogo(file: File) {
@@ -404,6 +464,8 @@ export default function StakeholderReviewPage({ params }: { params: Promise<{ id
   const canEdit = can('sae.stakeholders.edit')
   const canApprove = can('sae.approvals.approve')
   const showApprove = canApprove && status !== 'archived' && (status !== 'ready' || reapprovalBanner)
+  // Whether Approve is actually clickable is decided further down, once
+  // cleanLogo (and photo readiness) are available — see readyForApproval.
 
   // No separate "raw photo" tile — the true pre-processing original is
   // never persisted to storage at all (see upload-asset/route.ts), and
@@ -417,6 +479,29 @@ export default function StakeholderReviewPage({ params }: { params: Promise<{ id
   const rawLogo = (kind === 'speaker' ? record.company_logo_raw_url : record.logo_raw_url) ?? null
   const cleanLogo = (kind === 'speaker' ? record.company_logo_url : record.logo_url) ?? null
   const namePrefix = (name || 'stakeholder').replace(/\s+/g, '-')
+
+  // Approve readiness (2026-08-22, per Madhu). Speakers: the Cleaning
+  // Cycle must have actually run (photo_cleaning_cycle_done) AND a
+  // Website Photo must exist — both are what the "review the photo, logo,
+  // and details" copy above already implies, just not enforced before
+  // now. Partners: mirrored with their own equivalent — logo cleaned
+  // (cleanLogo set). No website-tile requirement for partners — that
+  // field exists in the schema but has no generation UI anywhere in this
+  // app yet, so gating on it would make partner approval permanently
+  // impossible rather than catching a real gap.
+  const readyForApproval = kind === 'speaker'
+    ? record.photo_cleaning_cycle_done === true && !!record.website_card_url
+    : !!cleanLogo
+  const missingRequiredSpeakerFields = kind === 'speaker' && (!publicName.trim() || !pronounStyle)
+  const approveBlockedReason = missingRequiredSpeakerFields
+    ? 'Set Public Name and Pronoun / Honorific Style first.'
+    : dirty
+    ? 'Save your changes first.'
+    : !readyForApproval && kind === 'speaker'
+    ? (!record.photo_cleaning_cycle_done ? 'Clean the photo first.' : 'Generate the Website Photo first.')
+    : !readyForApproval
+    ? 'Clean the logo first.'
+    : null
 
   // Adapted to SAE's own Speaker/Partner shape (app/admin/events/[id]/
   // creative-templates/page.tsx) so AnnouncementsTab can hand this straight
@@ -443,8 +528,35 @@ export default function StakeholderReviewPage({ params }: { params: Promise<{ id
         announcement_status: status,
       }
 
+  // Details card layout (2026-08-23, per Madhu): Salutation/First Name/Last
+  // Name lead the card, Full Name is dropped from view entirely (still a
+  // locked schema field underneath — full_name/name feeds the page title,
+  // Approve gate, photo filenames, and announcement fallbacks elsewhere, so
+  // it's hidden here rather than removed from the schema; whatever value it
+  // already holds keeps flowing through flushSave's fields payload
+  // unchanged). Everything else in the schema renders after, unchanged in
+  // relative order.
+  const detailNamePriority = ['salutation', 'first_name', 'last_name']
+  const detailFields = schema.filter(f => f.type !== 'file' && f.key !== 'full_name')
+  const priorityDetailFields = detailNamePriority
+    .map(key => detailFields.find(f => f.key === key))
+    .filter((f): f is FieldSchema => !!f)
+  const remainingDetailFields = detailFields.filter(f => !detailNamePriority.includes(f.key))
+
   return (
-    <div style={{ minHeight: '100vh', background: 'var(--surface)' }}>
+    // overflowAnchor: 'none' (2026-08-22, per Madhu — reported the page
+    // sometimes lands scrolled down into the Details section instead of
+    // at the top). Couldn't reproduce it live to confirm the exact cause,
+    // but the likely explanation is the browser's own scroll-anchoring:
+    // if the Photo/Company Logo thumbnails above cause any layout shift
+    // as they load in (no reserved space before the image loads), the
+    // browser can compensate by adjusting scroll position to keep
+    // whatever it picked as an "anchor" node visually stable — which
+    // looks exactly like an unrequested jump. This disables that
+    // compensation for the whole page, which has no downside here since
+    // the page should always just stay pinned wherever it loaded
+    // (normally the top) regardless of what shifts below.
+    <div style={{ minHeight: '100vh', background: 'var(--surface)', overflowAnchor: 'none' }}>
       <PageHeader
         eyebrow="Stakeholder Hub"
         title={name || (kind === 'speaker' ? 'New Speaker' : 'New Partner')}
@@ -490,82 +602,131 @@ export default function StakeholderReviewPage({ params }: { params: Promise<{ id
             </div>
           )}
 
-          {/* Photo / Logo */}
+          {/* Photo / Logo (2026-08-22 rework, per Madhu — full "proper SaaS"
+              pass, replacing the 2026-08-21 two-column layout below) — Photo
+              and Company Logo are now full-width STACKED sections (a
+              horizontal divider, not a cramped vertical border-left split)
+              since Photo alone now needs real room: two larger preview
+              tiles plus the guided Clean Photo flow's two entry actions
+              sitting side by side underneath Cleaned Photo, per Madhu's
+              explicit ask. "Fix Head Position" as its own button is GONE —
+              it's now the wizard's own first interactive step, not
+              something a producer has to remember to click before Clean
+              Photo even becomes available (previously
+              disabled={!record.photo_head_box}). "Replace Photo" is renamed
+              "Upload Raw Photo" — clearer that this is specifically for
+              supplying the unprocessed source (a missing/broken form
+              submission photo), not a general "change the photo" action —
+              see PhotoCleaningWizard's own top comment for how the two
+              photo actions now hand off into one continuous guided flow.
+
+              Old Website Photo comment (2026-08-18/19, still accurate for
+              WHAT this does): deterministic crop + background composite
+              only, no AI step of its own — see composite.ts's
+              Variant.category doc comment. Any AI-assisted standardization
+              happens upstream, once per speaker, via Clean Photo (see
+              composite.ts's CleaningCycleTemplate doc comment) — this just
+              crops whatever's already in Cleaned Photo to this variant's
+              own target and composites it onto the branded background, so
+              results are only as good as whether Clean Photo has been run.
+              Speaker-only. Not gated on approval status, same as SAE's own
+              Create New: just the generate permission + having a cleaned
+              photo to start from. The standalone Regenerate button here is
+              unchanged — for re-running just this step later (e.g. after a
+              template redesign) without the whole guided cycle; the wizard
+              calls the same endpoint automatically as its own last step. */}
           <Card padded>
-            <div style={{ fontSize: '15px', fontWeight: 800, color: 'var(--ink)', marginBottom: '16px' }}>
+            <div style={{ fontSize: '15px', fontWeight: 800, color: 'var(--ink)', marginBottom: '20px' }}>
               {kind === 'speaker' ? 'Photo & Company Logo' : 'Logo'}
             </div>
 
-            <div style={{ display: 'flex', gap: '24px', flexWrap: 'wrap', marginBottom: '18px' }}>
-              {kind === 'speaker' && (
-                <AssetTile
-                  label="Cleaned Photo" url={cleanPhoto} filename={`${namePrefix}-photo-clean.png`}
-                  onOpen={(url, label) => setLightbox({ url, label })}
-                  badge={record.photo_head_box ? { text: 'Head Fixed', tone: 'success' } : { text: 'Head Not Set', tone: 'amber' }}
-                />
-              )}
-              <AssetTile label="Raw Logo" url={rawLogo} filename={`${namePrefix}-logo-raw.png`} onOpen={(url, label) => setLightbox({ url, label })} />
-              <AssetTile label="Cleaned Logo" url={cleanLogo} filename={`${namePrefix}-logo-clean.png`} onOpen={(url, label) => setLightbox({ url, label })} />
-            </div>
+            {kind === 'speaker' && (
+              <div style={{ marginBottom: '24px' }}>
+                <div style={{ fontSize: '11px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.4px', color: 'var(--ink3)', marginBottom: '14px' }}>Photo</div>
+                <div style={{ display: 'flex', gap: '40px', flexWrap: 'wrap' }}>
+                  <div>
+                    <AssetTile
+                      label="Cleaned Photo" url={cleanPhoto} filename={`${namePrefix}-photo-clean.png`} size={176}
+                      onOpen={(url, label) => setLightbox({ url, label })}
+                      badges={[
+                        ...(record.photo_low_resolution ? [{ text: 'Low Resolution', tone: 'amber' as const }] : []),
+                        record.photo_cleaning_cycle_done ? { text: 'Cleaned', tone: 'success' as const } : { text: 'Not Cleaned Yet', tone: 'amber' as const },
+                      ]}
+                    />
+                    <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginTop: '12px' }}>
+                      <Button variant="ghost" onClick={() => rawPhotoInputRef.current?.click()}>Upload Raw Photo</Button>
+                      <input ref={rawPhotoInputRef} type="file" accept="image/jpeg,image/png,image/webp" style={{ display: 'none' }}
+                        onChange={e => { const f = e.target.files?.[0]; if (f) onRawPhotoPicked(f); e.target.value = '' }} />
+                      {/* Drops to the same muted "ghost" treatment Regenerate
+                          Website Photo already uses once done (2026-08-22,
+                          per Madhu) — the action itself stays available (real
+                          reasons to re-run even after completion: the
+                          Cleaning Cycle template changes later, dissatisfaction
+                          with one AI attempt, self-healing a bug found after
+                          the fact — see this session's own Alex P'ng/Ramana
+                          incidents), it just shouldn't keep reading as "the
+                          next thing to click" once the checkmark shows it's
+                          already been done. */}
+                      <Button variant={record.photo_cleaning_cycle_done ? 'ghost' : 'lime'} onClick={startCleanPhoto}>
+                        {record.photo_cleaning_cycle_done ? '✓ Clean Photo' : 'Clean Photo'}
+                      </Button>
+                    </div>
+                    {record.photo_low_resolution && (
+                      <div style={{ fontSize: '11.5px', color: 'var(--amber)', marginTop: '10px', maxWidth: '260px' }}>
+                        ⚠ Lower resolution than ideal — creatives may look soft. Ask for a higher-res original if possible.
+                      </div>
+                    )}
+                  </div>
+                  <div>
+                    <AssetTile
+                      label="Website Photo" url={record.website_card_url ?? null} filename={`${namePrefix}-website-photo.png`} size={176}
+                      onOpen={(url, label) => setLightbox({ url, label })}
+                      badges={record.website_photo_crop_warning ? [{ text: 'Needs Review', tone: 'amber' as const }] : undefined}
+                    />
+                    {can('sae.announcements.generate') && (
+                      <div style={{ marginTop: '12px' }}>
+                        <Button variant="ghost" onClick={generateWebsitePhoto} disabled={!cleanPhoto || generatingWebsitePhoto}
+                          title={!cleanPhoto ? 'Upload and clean a photo first' : undefined}>
+                          {generatingWebsitePhoto ? 'Generating…' : record.website_card_url ? 'Regenerate Website Photo' : 'Generate Website Photo'}
+                        </Button>
+                      </div>
+                    )}
+                    {record.website_photo_crop_warning && (
+                      <div style={{ fontSize: '11.5px', color: 'var(--amber)', marginTop: '10px', maxWidth: '260px' }}>
+                        ⚠ Didn&apos;t have enough room around the head to fill the frame — check for a visible gap (
+                        {Object.entries(record.website_photo_crop_warning).filter(([, px]) => px > 3).map(([edge, px]) => `${edge} ${px}px`).join(', ')}
+                        ). Try re-running Clean Photo.
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
 
-            <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', paddingTop: '16px', borderTop: '1px solid var(--border-light)' }}>
-              {kind === 'speaker' && (
-                <>
-                  <label style={{ display: 'inline-flex' }}>
-                    <span style={{ padding: '7px 14px', borderRadius: '10px', border: '1.5px solid var(--border)', color: 'var(--ink2)', fontSize: '14.5px', fontWeight: 700, cursor: 'pointer' }}>
-                      {cleanPhoto ? 'Replace Photo' : 'Upload Photo'}
-                    </span>
-                    <input type="file" accept="image/jpeg,image/png,image/webp" style={{ display: 'none' }}
-                      onChange={e => { const f = e.target.files?.[0]; if (f) setPhotoUploadTarget(f); e.target.value = '' }} />
-                  </label>
-                  {cleanPhoto && (
-                    <Button variant="ghost" onClick={() => setHeadBoxOpen(true)}>
-                      {record.photo_head_box ? '✓ Fix Head Position' : 'Fix Head Position'}
-                    </Button>
-                  )}
-                </>
-              )}
-              <label style={{ display: 'inline-flex' }}>
-                <span style={{ padding: '7px 14px', borderRadius: '10px', border: '1.5px solid var(--border)', color: 'var(--ink2)', fontSize: '14.5px', fontWeight: 700, cursor: uploading ? 'default' : 'pointer' }}>
-                  {uploading ? 'Uploading…' : (cleanLogo ? 'Replace Logo' : 'Upload Logo')}
-                </span>
-                <input type="file" accept="image/*,.pdf,.ai,.svg,.eps,.psd,.psb,.bmp,.ico,.cur,.tif,.tiff,.heic,.heif" style={{ display: 'none' }} disabled={uploading}
-                  onChange={e => { const f = e.target.files?.[0]; if (f) uploadLogo(f); e.target.value = '' }} />
-              </label>
-              {kind === 'speaker' && cleanLogo && (
-                <Button variant="ghost" onClick={removeCompanyLogo} disabled={uploading}>Remove Logo</Button>
-              )}
+            {kind === 'speaker' && <div style={{ height: '1px', background: 'var(--border-light)', margin: '0 0 24px' }} />}
+
+            <div>
+              <div style={{ fontSize: '11px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.4px', color: 'var(--ink3)', marginBottom: '14px' }}>
+                {kind === 'speaker' ? 'Company Logo' : 'Logo'}
+              </div>
+              <div style={{ display: 'flex', gap: '20px', flexWrap: 'wrap', marginBottom: '14px' }}>
+                <AssetTile label="Raw Logo" url={rawLogo} filename={`${namePrefix}-logo-raw.png`} onOpen={(url, label) => setLightbox({ url, label })} />
+                <AssetTile label="Cleaned Logo" url={cleanLogo} filename={`${namePrefix}-logo-clean.png`} onOpen={(url, label) => setLightbox({ url, label })} />
+              </div>
+              <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                <label style={{ display: 'inline-flex' }}>
+                  <span style={{ padding: '7px 14px', borderRadius: '10px', border: '1.5px solid var(--border)', color: 'var(--ink2)', fontSize: '13.5px', fontWeight: 700, cursor: uploading ? 'default' : 'pointer' }}>
+                    {uploading ? 'Uploading…' : (cleanLogo ? 'Replace Logo' : 'Upload Logo')}
+                  </span>
+                  <input type="file" accept="image/*,.pdf,.ai,.svg,.eps,.psd,.psb,.bmp,.ico,.cur,.tif,.tiff,.heic,.heif" style={{ display: 'none' }} disabled={uploading}
+                    onChange={e => { const f = e.target.files?.[0]; if (f) uploadLogo(f); e.target.value = '' }} />
+                </label>
+                {kind === 'speaker' && cleanLogo && (
+                  <Button variant="ghost" onClick={removeCompanyLogo} disabled={uploading}>Remove Logo</Button>
+                )}
+              </div>
             </div>
           </Card>
-
-          {/* Website Photo (2026-08-18/19) — a separate, square speaker
-              card photo for the public Speakers page/KonfHub, generated
-              from the same Cleaned Photo above but not the same asset.
-              Deterministic crop + background composite only, no AI step —
-              see composite.ts's Variant.category doc comment for why an AI
-              lighting/style step was tried and abandoned. Speaker-only —
-              partners have no equivalent. Not gated on approval status,
-              same as SAE's own Create New: just the generate permission +
-              having a cleaned photo to start from. */}
-          {kind === 'speaker' && (
-            <Card padded>
-              <div style={{ fontSize: '15px', fontWeight: 800, color: 'var(--ink)', marginBottom: '16px' }}>Website Photo</div>
-              <div style={{ display: 'flex', gap: '24px', flexWrap: 'wrap', marginBottom: '18px' }}>
-                <AssetTile
-                  label="Website Photo" url={record.website_card_url ?? null} filename={`${namePrefix}-website-photo.png`}
-                  onOpen={(url, label) => setLightbox({ url, label })}
-                />
-              </div>
-              {can('sae.announcements.generate') && (
-                <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', paddingTop: '16px', borderTop: '1px solid var(--border-light)' }}>
-                  <Button variant="ghost" onClick={generateWebsitePhoto} disabled={!cleanPhoto || generatingWebsitePhoto}
-                    title={!cleanPhoto ? 'Upload and clean a photo first' : undefined}>
-                    {generatingWebsitePhoto ? 'Generating…' : record.website_card_url ? 'Regenerate Website Photo' : 'Generate Website Photo'}
-                  </Button>
-                </div>
-              )}
-            </Card>
-          )}
 
           {/* Fields */}
           <Card padded>
@@ -576,13 +737,76 @@ export default function StakeholderReviewPage({ params }: { params: Promise<{ id
                 {saveState === 'saved' && 'Saved ✓'}
                 {saveState === 'error' && (
                   <span style={{ color: 'var(--red)' }}>
-                    Save failed — <button onClick={flushSave} style={{ background: 'none', border: 'none', color: 'var(--red)', textDecoration: 'underline', cursor: 'pointer', fontWeight: 700 }}>retry</button>
+                    {saveErrorMsg ?? 'Save failed'} — <button onClick={flushSave} style={{ background: 'none', border: 'none', color: 'var(--red)', textDecoration: 'underline', cursor: 'pointer', fontWeight: 700 }}>retry</button>
                   </span>
                 )}
               </div>
             </div>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '18px' }}>
-              {schema.filter(f => f.type !== 'file').map(field => (
+            {priorityDetailFields.length > 0 && (
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '18px' }}>
+                {priorityDetailFields.map(field => (
+                  <div key={field.id}>
+                    <FormFieldInput
+                      field={field}
+                      value={values[field.key] ?? (field.type === 'multiselect' ? [] : '')}
+                      onChange={v => updateValue(field.key, v)}
+                      onBlur={flushSave}
+                      disabled={!canEdit}
+                      size="large"
+                    />
+                  </div>
+                ))}
+              </div>
+            )}
+            {kind === 'speaker' && (
+              <div style={{
+                marginTop: priorityDetailFields.length > 0 ? '18px' : 0,
+                padding: '16px 18px',
+                borderRadius: '12px',
+                background: 'color-mix(in srgb, var(--teal-mid) 7%, transparent)',
+                border: '1px solid color-mix(in srgb, var(--teal-mid) 22%, transparent)',
+              }}>
+                <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', flexWrap: 'wrap', gap: '8px', marginBottom: '14px' }}>
+                  <div style={{ fontSize: '12.5px', fontWeight: 700, color: 'var(--teal-mid)', textTransform: 'uppercase', letterSpacing: '0.4px' }}>
+                    For Emails, Promos, Website &amp; Creatives
+                  </div>
+                  {missingRequiredSpeakerFields && (
+                    <div style={{ fontSize: '12px', fontWeight: 700, color: 'var(--amber)' }}>Required — the record can&apos;t be saved until both are set</div>
+                  )}
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '18px' }}>
+                  <div>
+                    <label style={{ fontSize: '16px', fontWeight: 700, color: 'var(--ink3)', display: 'block', marginBottom: '7px' }}>Public Name <span style={{ color: 'var(--red)' }}>*</span></label>
+                    <Input
+                      className="tfield-lg" value={publicName} disabled={!canEdit} onBlur={flushSave}
+                      placeholder="Exact name to use everywhere public-facing"
+                      onChange={e => { setPublicName(e.target.value); scheduleSave() }}
+                    />
+                  </div>
+                  <div>
+                    <label style={{ fontSize: '16px', fontWeight: 700, color: 'var(--ink3)', display: 'block', marginBottom: '7px' }}>Pronoun / Honorific Style <span style={{ color: 'var(--red)' }}>*</span></label>
+                    <Select
+                      className="tfield-lg" value={pronounStyle} disabled={!canEdit} onBlur={flushSave}
+                      onChange={e => { setPronounStyle(e.target.value); scheduleSave() }}
+                    >
+                      <option value="">Not set</option>
+                      {PRONOUN_STYLES.map(p => <option key={p.value} value={p.value}>{p.label}</option>)}
+                    </Select>
+                  </div>
+                  <div style={{ gridColumn: '1 / -1' }}>
+                    <label style={{ fontSize: '16px', fontWeight: 700, color: 'var(--ink3)', display: 'block', marginBottom: '7px' }}>Key Talking Points</label>
+                    <Textarea
+                      className="tfield-lg" value={keyTalkingPoints} disabled={!canEdit} onBlur={flushSave}
+                      placeholder="What this speaker will specifically cover — used to ground the AI-generated post copy"
+                      rows={3}
+                      onChange={e => { setKeyTalkingPoints(e.target.value); scheduleSave() }}
+                    />
+                  </div>
+                </div>
+              </div>
+            )}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '18px', marginTop: (priorityDetailFields.length > 0 || kind === 'speaker') ? '18px' : 0 }}>
+              {remainingDetailFields.map(field => (
                 <div key={field.id} style={(field.type === 'textarea' || field.type === 'checkbox') ? { gridColumn: '1 / -1' } : undefined}>
                   <FormFieldInput
                     field={field}
@@ -605,45 +829,6 @@ export default function StakeholderReviewPage({ params }: { params: Promise<{ id
                   </Select>
                 </div>
               )}
-              {kind === 'speaker' && (
-                <>
-                  <div>
-                    <label style={{ fontSize: '16px', fontWeight: 700, color: 'var(--ink3)', display: 'block', marginBottom: '7px' }}>Public Name</label>
-                    <Input
-                      className="tfield-lg" value={publicName} disabled={!canEdit} onBlur={flushSave}
-                      placeholder="Exact name to use everywhere public-facing"
-                      onChange={e => { setPublicName(e.target.value); scheduleSave() }}
-                    />
-                  </div>
-                  <div>
-                    <label style={{ fontSize: '16px', fontWeight: 700, color: 'var(--ink3)', display: 'block', marginBottom: '7px' }}>Salutation</label>
-                    <Input
-                      className="tfield-lg" value={salutation} disabled={!canEdit} onBlur={flushSave}
-                      placeholder="e.g. Dr., Prof., Datuk"
-                      onChange={e => { setSalutation(e.target.value); scheduleSave() }}
-                    />
-                  </div>
-                  <div>
-                    <label style={{ fontSize: '16px', fontWeight: 700, color: 'var(--ink3)', display: 'block', marginBottom: '7px' }}>Pronoun / Honorific Style</label>
-                    <Select
-                      className="tfield-lg" value={pronounStyle} disabled={!canEdit} onBlur={flushSave}
-                      onChange={e => { setPronounStyle(e.target.value); scheduleSave() }}
-                    >
-                      <option value="">Not set</option>
-                      {PRONOUN_STYLES.map(p => <option key={p.value} value={p.value}>{p.label}</option>)}
-                    </Select>
-                  </div>
-                  <div style={{ gridColumn: '1 / -1' }}>
-                    <label style={{ fontSize: '16px', fontWeight: 700, color: 'var(--ink3)', display: 'block', marginBottom: '7px' }}>Key Talking Points</label>
-                    <Textarea
-                      className="tfield-lg" value={keyTalkingPoints} disabled={!canEdit} onBlur={flushSave}
-                      placeholder="What this speaker will specifically cover — used to ground the AI-generated post copy"
-                      rows={3}
-                      onChange={e => { setKeyTalkingPoints(e.target.value); scheduleSave() }}
-                    />
-                  </div>
-                </>
-              )}
             </div>
           </Card>
         </div>
@@ -662,10 +847,10 @@ export default function StakeholderReviewPage({ params }: { params: Promise<{ id
             <div style={{ fontSize: '13.5px', color: 'var(--ink3)', marginBottom: '10px' }}>
               {saveState === 'saving' && 'Saving…'}
               {saveState === 'saved' && 'All changes saved ✓'}
-              {saveState === 'error' && <span style={{ color: 'var(--red)' }}>Save failed — try again.</span>}
-              {saveState === 'idle' && 'Changes auto-save as you type.'}
+              {saveState === 'error' && <span style={{ color: 'var(--red)' }}>{saveErrorMsg ?? 'Save failed — try again.'}</span>}
+              {saveState === 'idle' && (dirty ? 'Unsaved changes — auto-saving shortly.' : 'All changes saved.')}
             </div>
-            <Button variant="indigo" onClick={flushSave} disabled={saveState === 'saving' || !canEdit} className="tbtn-full">
+            <Button variant="indigo" onClick={flushSave} disabled={saveState === 'saving' || !canEdit || !dirty} className="tbtn-full">
               {saveState === 'saving' ? 'Saving…' : 'Save'}
             </Button>
           </Card>
@@ -682,9 +867,12 @@ export default function StakeholderReviewPage({ params }: { params: Promise<{ id
             </div>
             {showApprove && (
               <div style={{ marginTop: '14px' }}>
-                <Button variant="teal" onClick={approve} disabled={approving} className="tbtn-full">
+                <Button variant="teal" onClick={approve} disabled={approving || !!approveBlockedReason} className="tbtn-full">
                   {approving ? 'Approving…' : 'Approve for Announcement'}
                 </Button>
+                {approveBlockedReason && !approving && (
+                  <div style={{ fontSize: '11.5px', color: 'var(--amber)', marginTop: '8px' }}>{approveBlockedReason}</div>
+                )}
               </div>
             )}
           </Card>
@@ -705,14 +893,6 @@ export default function StakeholderReviewPage({ params }: { params: Promise<{ id
         </div>
       )}
 
-      {photoUploadTarget && (
-        <PhotoUploadModal
-          speakerId={stakeholderId}
-          initialFile={photoUploadTarget}
-          onClose={() => setPhotoUploadTarget(null)}
-          onDone={load}
-        />
-      )}
       {logoApproval && (
         <LogoApprovalModal
           logoUrl={logoApproval.url}
@@ -720,13 +900,13 @@ export default function StakeholderReviewPage({ params }: { params: Promise<{ id
           onReupload={file => { setLogoApproval(null); uploadLogo(file) }}
         />
       )}
-      {headBoxOpen && (
-        <HeadBoxEditorModal
+      {wizardEntry && (
+        <PhotoCleaningWizard
+          eventId={eventId}
           speakerId={stakeholderId}
-          photoUrl={(record.photo_processed_url || record.photo_url)!}
-          currentHeadBox={record.photo_head_box ?? null}
-          onClose={() => setHeadBoxOpen(false)}
-          onDone={load}
+          entry={wizardEntry}
+          onSaved={load}
+          onClose={() => setWizardEntry(null)}
         />
       )}
     </div>

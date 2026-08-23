@@ -63,7 +63,7 @@ export async function GET(req: NextRequest) {
     const postById = new Map(posts.map(p => [p.id, p]))
 
     for (const row of rows) {
-      const results = (row.publish_results ?? {}) as Record<string, { success: boolean; postId: string; state?: string }>
+      const results = (row.publish_results ?? {}) as Record<string, { success: boolean; postId: string; state?: string; url?: string }>
       const channelIds = Object.keys(results)
       if (channelIds.length === 0) continue
 
@@ -74,7 +74,7 @@ export async function GET(req: NextRequest) {
         const postId = results[channelId].postId
         const post = postById.get(postId)
         if (!post) { anyQueue = true; continue } // not seen yet in this range — treat as still pending
-        updatedResults[channelId] = { ...results[channelId], state: post.state }
+        updatedResults[channelId] = { ...results[channelId], state: post.state, url: post.releaseURL }
         if (post.state === 'ERROR') anyError = true
         else if (post.state === 'QUEUE' || post.state === 'DRAFT') anyQueue = true
       }

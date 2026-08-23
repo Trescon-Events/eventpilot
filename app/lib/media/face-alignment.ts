@@ -207,6 +207,16 @@ export async function deriveAlignmentTarget(referenceImageBuffer: Buffer, opts?:
   }
 }
 
+// Pixels of transparent padding alignAndCropPhoto had to add on each edge
+// because the source photo didn't have enough real content around the head
+// to fill the target box at the scale this alignment demands — see that
+// function's own doc comment. All zero means the crop was a clean fill.
+export type CropPadding = { left: number; top: number; right: number; bottom: number }
+
+function noPadding(): CropPadding {
+  return { left: 0, top: 0, right: 0, bottom: 0 }
+}
+
 // At generation time: detect the real speaker's head, scale/position to
 // match the target, crop-to-fill (cover — real content gets cropped rather
 // than leaving gaps, per the confirmed decision). Falls back to a simple
@@ -214,7 +224,7 @@ export async function deriveAlignmentTarget(referenceImageBuffer: Buffer, opts?:
 // for any reason — never throws.
 //
 // `cachedHeadBox`: pass the speaker's stored `photo_head_box` (detected
-// once, at upload/crop time — see the upload-asset and crop-photo routes)
+// once, at upload time — see the upload-asset and from-submission routes)
 // to skip a fresh Gemini call here. Real bug found live (2026-07-30):
 // without this, every single generate/regenerate re-ran detection from
 // scratch, and LLM-based detection isn't perfectly deterministic call-to-
@@ -222,7 +232,54 @@ export async function deriveAlignmentTarget(referenceImageBuffer: Buffer, opts?:
 // each time, with no code or data actually changing. `undefined`/`null`
 // (legacy speakers uploaded before photo_head_box existed) falls back to
 // the original live-detection behavior.
-export async function alignAndCropPhoto(realPhotoBuffer: Buffer, target: AlignmentTarget, cachedHeadBox?: HeadBox | null): Promise<Buffer> {
+//
+// Returns `padding` alongside the buffer (2026-08-20) so callers can warn
+// when a photo didn't have enough real content to fill its target — before
+// this, a partial gap (as opposed to a FULLY transparent crop, already
+// caught below) silently shipped as a visible background sliver with no
+// signal anything was off. See event_speakers.photo_low_resolution's doc
+// comment in sae_migration.sql for the sibling upload-time check.
+// Pure math, no image I/O — the exact same scale/position/pad calculation
+// alignAndCropPhoto() uses internally, exposed standalone so a caller can
+// predict whether a crop will need padding (and how much) WITHOUT actually
+// running it. Used by the website-photo quality gate (2026-08-21) to decide
+// up front whether a photo needs the AI-fill step, from the same formula
+// that ultimately produces the real padding — no risk of the "predicted"
+// and "actual" numbers drifting apart from being calculated two different
+// ways.
+export function simulateCropPadding(
+  head: HeadBox,
+  target: AlignmentTarget,
+  realWidth: number,
+  realHeight: number
+): CropPadding {
+  const referenceWidth = target.reference_box_width ?? target.box.width
+  const referenceHeight = target.reference_box_height ?? target.box.height
+
+  const realHeadHeightPx = head.heightRatio * realHeight
+  const targetHeadHeightPx = target.target_head_height * referenceHeight
+  const scale = targetHeadHeightPx / realHeadHeightPx
+
+  const scaledWidth = realWidth * scale
+  const scaledHeight = realHeight * scale
+
+  const realHeadCenterXPx = head.centerXRatio * realWidth * scale
+  const realHeadCenterYPx = head.centerYRatio * realHeight * scale
+  const targetHeadCenterXPx = target.target_head_center_x * referenceWidth
+  const targetHeadCenterYPx = target.target_head_center_y * referenceHeight
+
+  const desiredLeft = Math.round(realHeadCenterXPx - targetHeadCenterXPx)
+  const desiredTop = Math.round(realHeadCenterYPx - targetHeadCenterYPx)
+
+  return {
+    left: Math.max(0, -desiredLeft),
+    top: Math.max(0, -desiredTop),
+    right: Math.max(0, (desiredLeft + target.box.width) - scaledWidth),
+    bottom: Math.max(0, (desiredTop + target.box.height) - scaledHeight),
+  }
+}
+
+export async function alignAndCropPhoto(realPhotoBuffer: Buffer, target: AlignmentTarget, cachedHeadBox?: HeadBox | null): Promise<{ buffer: Buffer; padding: CropPadding }> {
   try {
     const metadata = await sharp(realPhotoBuffer).metadata()
     const realWidth = metadata.width!
@@ -289,13 +346,19 @@ export async function alignAndCropPhoto(realPhotoBuffer: Buffer, target: Alignme
       return fallbackContainCenter(realPhotoBuffer, target.box)
     }
 
-    return cropped
+    return { buffer: cropped, padding: { left: padLeft, top: padTop, right: padRight, bottom: padBottom } }
   } catch (e) {
     console.error('Face alignment failed, falling back to contain-centered fit:', e)
     return fallbackContainCenter(realPhotoBuffer, target.box)
   }
 }
 
-async function fallbackContainCenter(buffer: Buffer, box: { width: number; height: number }): Promise<Buffer> {
-  return sharp(buffer).resize(box.width, box.height, { fit: 'cover' }).toBuffer()
+async function fallbackContainCenter(buffer: Buffer, box: { width: number; height: number }): Promise<{ buffer: Buffer; padding: CropPadding }> {
+  // fit: 'cover' always fills the box completely (cropping excess rather
+  // than padding), so this path never has real padding to report — but it
+  // IS a worse-than-normal result (no face-aware alignment at all), which
+  // callers can still see via the padding being zero here but content
+  // being effectively unverified; not tracked as a distinct signal yet.
+  const buf = await sharp(buffer).resize(box.width, box.height, { fit: 'cover' }).toBuffer()
+  return { buffer: buf, padding: noPadding() }
 }

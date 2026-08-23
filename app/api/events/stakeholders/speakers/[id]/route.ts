@@ -41,19 +41,18 @@ type SpeakerPatchBody = {
   remove_company_logo?: boolean
   // Producer-editable, NOT part of the onboarding form (2026-08-18) — see
   // supabase/sae_migration.sql's dated comment for why each exists.
+  // salutation is deliberately NOT here (2026-08-23) — it collided with the
+  // schema-driven Salutation field (both wrote the same `salutation` column;
+  // this top-level flag, sent unconditionally by the Hub page's old autosave,
+  // always overwrote whatever the schema field had just saved). Salutation
+  // is edited exclusively via `fields` now — see map-to-stakeholder-record.ts.
   public_name?: string | null
-  salutation?: string | null
   pronoun_style?: string | null
   key_talking_points?: string | null
 }
 
 function fromRow(row: Record<string, unknown>) {
   return { ...row, full_name: row.name, job_title: row.role, company_name: row.company }
-}
-
-function hasValue(v: SubmittedValue | undefined): boolean {
-  if (Array.isArray(v)) return v.length > 0
-  return !!v && v.trim().length > 0
 }
 
 export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -84,14 +83,20 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
 
   if (body.fields) {
     schema = await resolveFormSchema(existing.event_id, 'speaker')
-    for (const f of schema) {
-      // A required checkbox means "must be checked" — hasValue() alone would
-      // also accept the explicit 'false' string a real unchecked box stores.
-      const unsatisfied = f.type === 'checkbox' ? body.fields[f.key] !== 'true' : !hasValue(body.fields[f.key])
-      if (f.required && f.type !== 'file' && unsatisfied) {
-        return NextResponse.json({ error: `${f.label} is required` }, { status: 400 })
-      }
-    }
+    // No required-field validation here (2026-08-22, removed a real bug) —
+    // this route is the internal Stakeholder Hub's own edit/autosave path,
+    // never the public onboarding form's own submission (that's a separate
+    // route — .../stakeholders/submissions — which validates its own
+    // required fields at actual submission time, where it belongs). This
+    // endpoint always receives the record's WHOLE current fields map (not a
+    // diff — see the Hub page's own flushSave), so validating "every
+    // required field in the schema" here blocked EVERY edit, even a typo
+    // fix in an unrelated field, on any manually-created speaker that never
+    // went through the full public form (real incident: a speaker missing
+    // Salutation/Email/Phone/Industry Sector/etc. couldn't be saved at all,
+    // with a generic "Save failed" — retrying could never have helped).
+    // Staff editing an existing internal record should be able to save
+    // partial progress freely, same as any other admin tool.
     const { columns, customFields } = mapFieldsToRecord('speaker', schema, body.fields, {})
     Object.assign(row, columns, { custom_fields: customFields })
   }
@@ -101,7 +106,6 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   if (body.also_restore_to_website) row.active = true
   if (body.remove_company_logo) { row.company_logo_url = null; row.company_logo_raw_url = null }
   if (body.public_name !== undefined) row.public_name = body.public_name || null
-  if (body.salutation !== undefined) row.salutation = body.salutation || null
   if (body.pronoun_style !== undefined) row.pronoun_style = body.pronoun_style || null
   if (body.key_talking_points !== undefined) row.key_talking_points = body.key_talking_points || null
 

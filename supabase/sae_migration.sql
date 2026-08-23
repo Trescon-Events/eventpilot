@@ -430,3 +430,50 @@ CREATE TABLE IF NOT EXISTS stakeholder_announcement_sends (
   created_at        TIMESTAMPTZ DEFAULT NOW()
 );
 CREATE INDEX IF NOT EXISTS idx_announcement_sends_announcement ON stakeholder_announcement_sends(announcement_id);
+
+-- Photo quality signals (2026-08-20) — raw speaker photos producers upload
+-- sometimes don't have enough resolution or enough room around the head
+-- for our templates (producers previously caught this manually, fixing bad
+-- photos in ChatGPT before ever touching EventPilot). Two independent
+-- signals, checked at two different times:
+--
+-- photo_low_resolution: set at upload time (upload-asset/route.ts) from
+-- the RAW file's own pixel dimensions — a signal that's true regardless of
+-- which creative template ends up using this photo.
+--
+-- website_photo_crop_warning: set at website-photo generation time
+-- (website-photo/generate/route.ts) from alignAndCropPhoto()'s returned
+-- padding (app/lib/media/face-alignment.ts) — null when the crop filled
+-- the frame cleanly, otherwise the per-edge pixel amounts that had to be
+-- padded with transparency because this SPECIFIC template's target head
+-- size needed more real content around the head than the photo had. This
+-- is template-specific (a photo can be fine for one variant's alignment
+-- and short for another's), so it's re-computed every generation, not a
+-- one-time upload-time check like photo_low_resolution.
+--
+-- Both are detection only for now — the fix (AI outpainting to fill in
+-- missing headroom/footroom, same category of AI edit that PhotoRoom/
+-- Stability AI already failed at for the lighting/style step, see this
+-- file's website_card_url-adjacent history) is a separate, producer-
+-- triggered action to prototype and validate before it's trusted, not
+-- baked into this automatic pipeline.
+ALTER TABLE event_speakers ADD COLUMN IF NOT EXISTS photo_low_resolution BOOLEAN NOT NULL DEFAULT false;
+ALTER TABLE event_speakers ADD COLUMN IF NOT EXISTS website_photo_crop_warning JSONB;
+
+-- Cleaning Cycle (2026-08-21) — the AI outpainting mentioned as a future
+-- possibility in the comment right above this shipped, but landed as its
+-- own upstream step rather than inside website-photo generation: raw photo
+-- -> bg removal -> manual head-fix -> Clean Photo (this flag's action),
+-- which standardizes the photo to the branding team's own template
+-- (events.creative_template_config.cleaning_cycle_template — see
+-- CleaningCycleTemplate in composite.ts) via a deterministic crop, calling
+-- GPT Image 2 only when that crop would leave a real gap, always followed
+-- by a required second manual head-fix confirm on the AI output. The
+-- result OVERWRITES photo_processed_url/photo_head_box in place (same
+-- fields SAE and website-photo already read), so this flag is purely a
+-- producer-facing signal — "has this run at least once" — not something
+-- any generation path branches on. Reset to false whenever the photo it
+-- was computed against changes (photo upload/replace/crop, or a fresh
+-- manual head-fix invalidates the crop it was based on) so a stale "done"
+-- badge never survives a photo that's since changed underneath it.
+ALTER TABLE event_speakers ADD COLUMN IF NOT EXISTS photo_cleaning_cycle_done BOOLEAN NOT NULL DEFAULT false;

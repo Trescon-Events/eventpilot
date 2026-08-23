@@ -46,6 +46,7 @@ export default function AnnouncementsTab({
   const [postizChannels, setPostizChannels] = useState<PostizChannel[]>([])
   const [defaultChannelIds, setDefaultChannelIds] = useState<string[]>([])
   const [eventStaff, setEventStaff] = useState<EventStaffOption[]>([])
+  const [eventName, setEventName] = useState<string | null>(null)
 
   async function fetchAll() {
     setLoading(true)
@@ -72,6 +73,7 @@ export default function AnnouncementsTab({
     const evData = await evRes.json().catch(() => null)
     const ev = Array.isArray(evData) ? evData[0] : evData
     setDefaultChannelIds(ev?.postiz_default_channel_ids ?? [])
+    setEventName(ev?.name ?? null)
     const stData = await stRes.json().catch(() => [])
     setEventStaff(Array.isArray(stData) ? stData : [])
     setLoading(false)
@@ -175,6 +177,7 @@ export default function AnnouncementsTab({
           postizChannels={postizChannels}
           defaultChannelIds={defaultChannelIds}
           eventStaff={eventStaff}
+          eventName={eventName}
           onUpdate={onUpdate}
           onError={setMsg}
         />

@@ -131,6 +131,16 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   // renders (app/events/[slug]/**, SpeakerTabs.tsx) — only
   // photo_processed_url is the transparent, bg-removed version SAE
   // composites onto templates.
+  // Low-resolution check (2026-08-20) — producers previously only found out
+  // a photo was too small by eye, after generating a soft/blurry creative;
+  // catch it here instead, from the RAW file's own pixel dimensions before
+  // any resize/compression. Threshold is deliberately generous (our
+  // largest canvas is ~1024px) — this flags only photos that would need
+  // real upscaling, not just smaller-than-max ones.
+  const LOW_RES_THRESHOLD_PX = 500
+  const rawMetadata = await sharp(buffer).metadata()
+  const photoLowResolution = Math.min(rawMetadata.width ?? 0, rawMetadata.height ?? 0) < LOW_RES_THRESHOLD_PX
+
   const [resizedOriginal, processed, photoHeadBox] = await Promise.all([
     // .rotate() with no args = auto-orient from EXIF then strip the tag —
     // required here (real bug found live, 2026-08-04): sharp's resize()
@@ -170,14 +180,17 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       : Promise.resolve(null),
   ])
 
-  const update: Record<string, unknown> = { photo_url: photoUrl, updated_at: new Date().toISOString(), photo_head_box: photoHeadBox, ...reapprovalReset }
+  // A new/replaced photo invalidates any prior Cleaning Cycle result, same
+  // as a manual head-fix or re-crop (2026-08-21) — it was standardized
+  // against a different image entirely.
+  const update: Record<string, unknown> = { photo_url: photoUrl, updated_at: new Date().toISOString(), photo_head_box: photoHeadBox, photo_low_resolution: photoLowResolution, photo_cleaning_cycle_done: false, ...reapprovalReset }
   if (photoProcessedUrl) update.photo_processed_url = photoProcessedUrl
 
   const { data, error } = await supabaseAdmin
     .from('event_speakers')
     .update(update)
     .eq('id', speakerId)
-    .select('photo_url, photo_processed_url, photo_head_box')
+    .select('photo_url, photo_processed_url, photo_head_box, photo_low_resolution')
     .single()
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })

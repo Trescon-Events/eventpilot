@@ -11,27 +11,23 @@ import { compositeOnBackground } from '@/app/lib/media/composite-on-background'
 /* POST /api/events/stakeholders/speakers/website-photo/generate
    Body: { event_id, speaker_id }
 
-   Speaker-only (no partner/sponsor equivalent — see the plan discussion).
-   Deterministic, always exact (2026-08-18/19, per Madhu): crop the stored
-   photo_processed_url cutout to the variant's canvas size using the
-   SPEAKER'S OWN known head position (photo_head_box, same source
-   Promo/Self Promo variants already trust via alignAndCropPhoto), then
-   composite onto the variant's real background (composite-on-background.ts).
-   No AI step — an AI lighting/style edit (PhotoRoom, then Stability AI)
-   was tried and abandoned after real testing showed neither could be
-   trusted to leave the subject's scale/position untouched, and automated
-   re-detection on their output wasn't accurate enough to correct for it —
-   see composite.ts's Variant.category doc comment for the full record.
-   A photo used publicly for every speaker can't have that kind of
-   per-photo variance, so this route is just the deterministic crop +
-   background composite, identical every time.
-
-   Writes the result to event_speakers.website_card_url — a column that's
-   existed unused since the original SAE migration ("generated speaker card
-   — future use"), reused here rather than adding a new one. No
-   stakeholder_announcements row: this isn't a social creative with its own
-   publish/schedule lifecycle, just the speaker's current website photo,
-   one per speaker. */
+   Reverted to face-aligned cropping (2026-08-21, briefly replaced with a
+   plain crop-box — see git history) — per Madhu: this should be the exact
+   same mechanism SAE's own Promo/Self Promo generation already uses
+   (alignAndCropPhoto against photoLayer.alignment + photo_head_box), not a
+   second, different method invented for this one category. The crop-box
+   detour traded that proven mechanism for a plain rectangle with no
+   built-in head-size consistency guarantee (a circle/alignment target
+   scales by head HEIGHT only, so width always follows automatically; a
+   freeform rectangle has no such guarantee and needs its own aspect-ratio
+   handling to avoid distortion or an invisible extra crop) — worse on
+   every axis for no real gain. The original reason for moving away from
+   alignment here (this variant's own tight target needing more zoom than
+   the Cleaning Cycle reliably supplied) is now fixed at its actual root —
+   the Cleaning Cycle's own gate no longer accepts a photo with a real gap
+   (see photo-cleaning-pipeline.ts's hasRealContentGap) — so there's no
+   remaining reason for this category to work any differently than Promo/
+   Self Promo. */
 
 type GenerateBody = { event_id?: string; speaker_id?: string }
 
@@ -61,6 +57,10 @@ export async function POST(req: NextRequest) {
   if (!cleanPhotoUrl) {
     return NextResponse.json({ error: 'This speaker has no cleaned photo yet — upload one on the Overview tab first' }, { status: 422 })
   }
+  const headBox = speaker.photo_head_box as HeadBox | null
+  if (!headBox) {
+    return NextResponse.json({ error: 'This speaker has no confirmed head position yet — use "Fix Head Position" first, so the system knows where their head is (never guessed automatically for this step).' }, { status: 422 })
+  }
 
   const templateConfig = event.creative_template_config as CreativeTemplateConfig | null
   const variant = templateConfig?.speaker?.variants.find(v => v.category === 'website_photo')
@@ -84,50 +84,23 @@ export async function POST(req: NextRequest) {
     fetchAssetBuffer(cleanPhotoUrl),
     fetchAssetBuffer(backgroundLayer.asset_url),
   ])
-  if (!cutoutBuffer) {
-    return NextResponse.json({ error: "Could not fetch this speaker's cleaned photo" }, { status: 502 })
-  }
-  if (!backgroundBuffer) {
-    return NextResponse.json({ error: 'Could not fetch the background image' }, { status: 502 })
-  }
+  if (!cutoutBuffer) return NextResponse.json({ error: "Could not fetch this speaker's cleaned photo" }, { status: 502 })
+  if (!backgroundBuffer) return NextResponse.json({ error: 'Could not fetch the background image' }, { status: 502 })
 
-  // Crop using the speaker's own known head position. Falls back to live
-  // detection inside alignAndCropPhoto itself if this speaker has never
-  // had "Fix Head Position" run for them.
-  let croppedBuffer: Buffer
+  const target = { ...photoLayer.alignment, box: { x: 0, y: 0, width: variant.canvas_width, height: variant.canvas_height } }
+
   try {
-    croppedBuffer = await alignAndCropPhoto(
-      cutoutBuffer,
-      { ...photoLayer.alignment, box: { x: 0, y: 0, width: variant.canvas_width, height: variant.canvas_height } },
-      speaker.photo_head_box as HeadBox | null
-    )
+    const { buffer: cropped, padding } = await alignAndCropPhoto(cutoutBuffer, target, headBox)
+    const PADDING_WARNING_THRESHOLD_PX = 3
+    const cropWarning = Math.max(padding.left, padding.top, padding.right, padding.bottom) > PADDING_WARNING_THRESHOLD_PX ? padding : null
+    const finalBuffer = await compositeOnBackground(cropped, backgroundBuffer, { canvasWidth: variant.canvas_width, canvasHeight: variant.canvas_height })
+
+    const websiteCardUrl = await uploadPublicAsset(`events/${body.event_id}/speakers/${body.speaker_id}/website-photo/${Date.now()}.png`, finalBuffer, 'image/png')
+    const { error: updateErr } = await supabaseAdmin.from('event_speakers').update({ website_card_url: websiteCardUrl, website_photo_crop_warning: cropWarning }).eq('id', body.speaker_id)
+    if (updateErr) return NextResponse.json({ error: updateErr.message }, { status: 500 })
+    return NextResponse.json({ website_card_url: websiteCardUrl, crop_warning: cropWarning })
   } catch (e) {
-    console.error('Website photo crop failed:', e)
-    return NextResponse.json({ error: 'Cropping this speaker\'s photo to the template failed' }, { status: 500 })
+    console.error('Website photo generation failed:', e)
+    return NextResponse.json({ error: 'Generating the website photo failed' }, { status: 500 })
   }
-
-  let finalBuffer: Buffer
-  try {
-    finalBuffer = await compositeOnBackground(croppedBuffer, backgroundBuffer, {
-      canvasWidth: variant.canvas_width,
-      canvasHeight: variant.canvas_height,
-    })
-  } catch (e) {
-    console.error('Website photo compositing failed:', e)
-    return NextResponse.json({ error: 'Compositing the final photo failed' }, { status: 500 })
-  }
-
-  const websiteCardUrl = await uploadPublicAsset(
-    `events/${body.event_id}/speakers/${body.speaker_id}/website-photo/${Date.now()}.png`,
-    finalBuffer,
-    'image/png'
-  )
-
-  const { error: updateErr } = await supabaseAdmin
-    .from('event_speakers')
-    .update({ website_card_url: websiteCardUrl })
-    .eq('id', body.speaker_id)
-  if (updateErr) return NextResponse.json({ error: updateErr.message }, { status: 500 })
-
-  return NextResponse.json({ website_card_url: websiteCardUrl })
 }

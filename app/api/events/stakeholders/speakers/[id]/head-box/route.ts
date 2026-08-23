@@ -39,9 +39,11 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   const { data: existing } = await supabaseAdmin.from('event_speakers').select('announcement_status').eq('id', speakerId).single()
   const reapprovalReset: Record<string, unknown> = existing?.announcement_status === 'ready' ? { announcement_status: 'pending_review' } : {}
 
+  // A manual head-fix here invalidates any prior Cleaning Cycle result — its
+  // standardized output was cropped against the OLD head position (2026-08-21).
   const { data, error } = await supabaseAdmin
     .from('event_speakers')
-    .update({ photo_head_box: body!.head_box, updated_at: new Date().toISOString(), ...reapprovalReset })
+    .update({ photo_head_box: body!.head_box, photo_cleaning_cycle_done: false, updated_at: new Date().toISOString(), ...reapprovalReset })
     .eq('id', speakerId)
     .select('photo_head_box')
     .single()
@@ -52,11 +54,14 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
 
 /* POST /api/events/stakeholders/speakers/[id]/head-box
    Runs a fresh detectHeadBox() call against the speaker's current photo and
-   caches the result — the "Re-detect" button in HeadBoxEditorModal.tsx
-   (2026-08-03), for the rare case a photo has no cached photo_head_box at
-   all (upload-time detection can fail silently) and the manual editor would
-   otherwise start from a generic default box instead of a real starting
-   point. Detection is already known to be unreliable (see this file's PATCH
+   caches the result. Originally the manual head-editor's "Re-detect"
+   button (2026-08-03) — not currently wired to any UI after the 2026-08-22
+   guided Photo Cleaning wizard rework, since upload-time detection
+   (upload-asset/from-submission) already covers the case this served (a
+   photo with no cached photo_head_box at all). Left in place, unused, as a
+   small self-contained capability rather than removed outright — a future
+   "re-detect" affordance in the wizard could call this directly with no
+   other changes needed. Detection is already known to be unreliable (see this file's PATCH
    doc comment) — this is a starting point for a human to correct, not a
    substitute for the drag-to-fix workflow. */
 export async function POST(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -87,7 +92,7 @@ export async function POST(_req: NextRequest, { params }: { params: Promise<{ id
 
   const { data, error } = await supabaseAdmin
     .from('event_speakers')
-    .update({ photo_head_box: head_box, updated_at: new Date().toISOString(), ...reapprovalReset })
+    .update({ photo_head_box: head_box, photo_cleaning_cycle_done: false, updated_at: new Date().toISOString(), ...reapprovalReset })
     .eq('id', speakerId)
     .select('photo_head_box')
     .single()

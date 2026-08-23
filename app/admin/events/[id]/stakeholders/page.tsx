@@ -14,20 +14,27 @@ import DeleteConfirmModal from './DeleteConfirmModal'
 import InvitesTab from './InvitesTab'
 import { FieldSchema, SubmittedValue, asText } from '@/app/lib/forms/types'
 import { useBreadcrumbLabel } from '@/app/lib/nav/breadcrumb-labels'
+import { pronounLabel } from '@/app/lib/events/pronoun-styles'
+
+type TriState = 'pending' | 'created' | 'published'
+type SelfPromoState = 'pending' | 'created' | 'sent'
 
 type Speaker = {
   id: string; event_id: string
   full_name: string; job_title: string; company_name: string
+  pronoun_style: string | null
   country: string | null; bio: string | null; linkedin_url: string | null
   photo_url: string | null; photo_processed_url: string | null; company_logo_url: string | null
+  website_card_url: string | null
   photo_head_box: { centerXRatio: number; centerYRatio: number; heightRatio: number } | null
   announcement_status: 'pending_review' | 'approved' | 'assets_missing' | 'ready' | 'archived'
   source: 'onboarding_form' | 'manual'
   notes: string | null; created_at: string
   custom_fields: Record<string, SubmittedValue> | null
-  // Roster status columns (2026-08-18, SAE-into-Hub merge) — computed
-  // server-side in GET .../speakers, see that route's own doc comment.
-  has_announcement: boolean; self_promo_sent: boolean
+  // Roster status columns (2026-08-18, SAE-into-Hub merge; upgraded to a
+  // 3-state model 2026-08-23) — computed server-side in GET .../speakers,
+  // see that route's own doc comment.
+  website_status: TriState; social_post_status: TriState; self_promo_status: SelfPromoState
 }
 
 type Partner = {
@@ -39,9 +46,10 @@ type Partner = {
   source: 'onboarding_form' | 'manual'
   notes: string | null; created_at: string
   custom_fields: Record<string, SubmittedValue> | null
-  // Self Promo is speaker-only — always false here, kept for a uniform
-  // shape with Speaker (see partners GET route's own doc comment).
-  has_announcement: boolean; self_promo_sent: boolean
+  // Self Promo is speaker-only — this route never returns self_promo_status
+  // (see partners GET route's own doc comment); the Hub only renders that
+  // column for speakers.
+  website_status: TriState; social_post_status: TriState
 }
 
 type Submission = {
@@ -99,20 +107,24 @@ function submissionLabel(s: Submission): string {
   return asText(d.email) || 'Untitled submission'
 }
 
-// One roster status indicator — a small label + a done/not-done dot.
-// `comingSoon` (2026-08-18) renders as a low-emphasis stub for "Published"
-// — no backing field exists yet (there's no "published to the public
-// website" tracking distinct from the general `active` visibility flag),
-// so this is a placeholder for a later feature, not a real status.
-function StatusColumn({ label, done, comingSoon }: { label: string; done: boolean; comingSoon?: boolean }) {
+// One roster status indicator — a small label + a 3-state dot+word
+// (2026-08-23, per Madhu: Website/Social Post/Self Promo each need
+// pending/created/published-or-sent, not just a done/not-done checkmark).
+const STATE_COPY: Record<string, { text: string; color: string }> = {
+  pending:   { text: 'Pending',   color: 'var(--ink)' },
+  created:   { text: 'Created',   color: 'var(--amber)' },
+  published: { text: 'Published', color: 'var(--success)' },
+  sent:      { text: 'Sent',      color: 'var(--success)' },
+}
+function StatusColumn({ label, state }: { label: string; state: TriState | SelfPromoState }) {
+  const copy = STATE_COPY[state]
   return (
-    <div style={{ textAlign: 'center', minWidth: '64px' }}>
+    <div style={{ textAlign: 'center', minWidth: '76px' }}>
       <div style={{ fontSize: '9px', fontWeight: 800, letterSpacing: '0.4px', textTransform: 'uppercase', color: 'var(--ink4)', marginBottom: '3px' }}>{label}</div>
-      {comingSoon ? (
-        <span style={{ fontSize: '11px', color: 'var(--ink4)', fontStyle: 'italic' }}>Soon</span>
-      ) : (
-        <span style={{ fontSize: '13px', fontWeight: 800, color: done ? 'var(--success)' : 'var(--ink4)' }}>{done ? '✓' : '—'}</span>
-      )}
+      <span style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', fontSize: '12.5px', fontWeight: 800, color: copy.color }}>
+        <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: copy.color, flexShrink: 0 }} />
+        {copy.text}
+      </span>
     </div>
   )
 }
@@ -549,6 +561,7 @@ export default function StakeholderHubPage({ params }: { params: Promise<{ id: s
                 // above (works for a single selected item too), which
                 // already routes through DeleteConfirmModal's
                 // type-DELETE-to-confirm gate.
+                const thumbUrl = isSpeaker ? (s.website_card_url || s.photo_processed_url || s.photo_url) : null
                 return (
                   <Card key={item.id} padded>
                     <div
@@ -560,21 +573,39 @@ export default function StakeholderHubPage({ params }: { params: Promise<{ id: s
                         onClick={e => e.stopPropagation()}
                         onChange={() => toggleSelected(item.id)}
                       />
+                      {isSpeaker && (
+                        thumbUrl ? (
+                          // eslint-disable-next-line @next/next/no-img-element -- small roster thumbnail, not worth a next/image optimization pass
+                          <img src={thumbUrl} alt="" style={{ width: '48px', height: '48px', borderRadius: '10px', objectFit: 'cover', flexShrink: 0, border: '1px solid var(--border-light)' }} />
+                        ) : (
+                          <div style={{ width: '48px', height: '48px', borderRadius: '10px', flexShrink: 0, background: 'var(--surface)', border: '1px solid var(--border-light)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '17px', fontWeight: 800, color: 'var(--ink4)' }}>
+                            {name?.[0]?.toUpperCase() ?? '?'}
+                          </div>
+                        )
+                      )}
                       <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-                          <div style={{ fontSize: '18px', fontWeight: 800, color: 'var(--ink)' }}>{name}</div>
+                        <div style={{ display: 'flex', alignItems: 'baseline', gap: '8px', flexWrap: 'wrap' }}>
+                          <div style={{ fontSize: '18px', fontWeight: 800, color: 'var(--ink)' }}>
+                            {name}
+                            {isSpeaker && (
+                              <span style={{ fontSize: '11px', fontWeight: 700, verticalAlign: 'sub', marginLeft: '5px', color: s.pronoun_style ? 'var(--ink4)' : 'var(--amber)' }}>
+                                {s.pronoun_style ? pronounLabel(s.pronoun_style) : 'no pronoun'}
+                              </span>
+                            )}
+                          </div>
                           <Badge color={badge.color}>{badge.label}</Badge>
                         </div>
                         <div style={{ fontSize: '15px', color: 'var(--ink3)', marginTop: '3px' }}>{subtitle}</div>
                       </div>
                       {/* Roster status columns (2026-08-18, SAE-into-Hub
-                          merge) — at-a-glance answer to "who still needs an
-                          announcement", the thing the old separate SAE
-                          workspace had no single view for. */}
+                          merge; upgraded to a 3-state model 2026-08-23) —
+                          at-a-glance answer to "who still needs what", the
+                          thing the old separate SAE workspace had no single
+                          view for. */}
                       <div style={{ display: 'flex', gap: '16px', flexShrink: 0, alignItems: 'center' }}>
-                        <StatusColumn label="Announced" done={item.has_announcement} />
-                        {isSpeaker && <StatusColumn label="Self Promo Sent" done={item.self_promo_sent} />}
-                        <StatusColumn label="Published" done={false} comingSoon />
+                        <StatusColumn label="Website" state={item.website_status} />
+                        <StatusColumn label="Social Post" state={item.social_post_status} />
+                        {isSpeaker && <StatusColumn label="Self Promo" state={s.self_promo_status} />}
                       </div>
                     </div>
                   </Card>
