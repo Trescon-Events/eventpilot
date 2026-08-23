@@ -55,6 +55,16 @@ Found and removed a real existing bug: EventPilot's "⟳ Sync to KonfHub" button
 
 ---
 
+## 20 Aug 2026 (evening) — Thulasi: Marketing Observer role + 3 emails
+
+Durga + Claude Code (Opus 4.7 · 1M). DB-only work + two client emails, no code committed — no code changes, so no separate write-up section beyond this one.
+
+- **DB writes**, live against production Supabase (Studio SQL Editor, single `BEGIN/COMMIT` transaction): new `Marketing Observer` role (`access_roles_catalog.id = 589bf133-6c84-4e31-84a1-d5d34a95c850`) with 6 view-only permissions in `access_role_permissions`, and one `event_access_assignments` row for Thulasi Devi S (`4de60059-147a-4594-9c89-78c95baac184`), `event_id=NULL` (org-wide), no expiry. Verified via REST query.
+- **Emails sent**: three Resend emails to `thulasi@tresconglobal.com`, CC Madhu + Durga, reply-to `dc@` — `44b70990-5b49-4e14-ac71-c2809a52beb1` (initial reply), `486ae2f1-4cd7-435b-968f-96d78730d73c` (correction after re-reading HANDOFF properly), and `cfc78b85-afc2-42f2-9f8f-793a71395ef3` (consolidated standalone version — treat this as the current one; the previous two only make sense together, and email 2 opened with "small correction to point 2 in my last message" which orphans if email 1 hadn't been read yet). Same delivery shape as the proven 11 Aug send (`1d9dbea8-…`).
+- Prior-in-day work: Madhu + Claude Code (Sonnet 5) shipped Time-boxed RBAC (`7b0e934`) and PR Approvals (`8115110`) earlier the same day — see the two `20 Aug 2026 — …` sections below.
+
+---
+
 ## 20 Aug 2026 — Time-boxed per-event RBAC assignments, for freelancer/contractor onboarding
 
 ### The ask
@@ -111,6 +121,41 @@ Twice this session, work appeared on `main` that this session didn't push itself
 - **Not yet tested end-to-end against a real PR** — no Khalifa PR was open when this shipped. First real use will be the actual test; watch for it.
 - **GitHub notifications** — deliberately left as GitHub's standard default behavior (participant/mention notifications), not suppressed. Madhu's call, 20 Aug: EventPilot email is the primary channel now, but standard GitHub notifications (Khalifa as PR author, the `@tresconevents` mention in the CI comment) are fine to keep as-is — no code changes made to suppress them.
 - Khalifa's contribution workflow doc (`TASK_MANAGER_HANDOFF.md`) hasn't been updated yet to mention this new review page — worth doing next time that file's touched, so he knows what Madhu's actually looking at when a decision comes back.
+
+---
+
+## 20 Aug 2026 (evening) — Thulasi: Events Module access + Statistics Repository follow-up
+
+### The ask
+
+Thulasi's 17 Aug email (3 days sitting in the thread, to Durga + Charan + Madhu) reported progress on her prior action items and asked two things: (a) give her access to the Events Module, and (b) whether Event Series Statistics should be auto-fetched from the Events Module. Screenshots of Corporate Deck → Live Content → Company Content tab attached (no visible defect flagged in the images).
+
+### What was decided
+
+- **New "Marketing Observer" role** created — org-wide, read-only. 6 view-only permissions: `sae.stakeholders.view`, `sae.submissions.view`, `website-builder.view`, `brand-studio.view`, `market-intel.view`, `overview.view`. No edit/publish/approve/manage/platform. Verified against `app/lib/registry/access-permissions.ts` — every permission is `enforced: true` today except `overview.view` which is currently inert (safe to include, will start enforcing when the overview gate is wired). Same shape fits any C-suite/board member needing cross-event visibility. Reusable, not a Thulasi one-off.
+- **Thulasi assigned to it** — `event_access_assignments` row `402b542b-9b2d-4b16-b7d8-ef49dd309822`, `event_id=NULL` (org-wide), no expiry. She needs to log out and back in for her session to pick up the new grant.
+- **Series-level stats auto-derivation** — real deferred debt from the 11 Aug session (see that section's "Deferred debt from this arc" — *"Corporate Deck's Live Content → Statistics panel still uses free-text label/value pairs. Next step is to wire it to consume approved statistics from the new repository so the Deck stops being a separate source."*). Told Thulasi in the follow-up email that this is on the next Corporate Deck content pass. Not built this session.
+- **Slide 10 "40+" trace** — no code hardcode found anywhere in the repo (grepped exhaustively). That number lives in the Canva master file itself. Per `app/admin/toolkit/corporate-marketing/deck/page.tsx:103`: *"Canva stays the master design file — EventPilot becomes the master source for content."* Thulasi was asked to update the Canva slide manually to 48.
+
+### Three emails sent to Thulasi (same thread, reply-all — treat #3 as the current one)
+
+1. Initial reply (Resend `44b70990-5b49-4e14-ac71-c2809a52beb1`, 15:37 UTC) — access granted, stats auto-derivation as roadmap, Canva slide 10 manual edit, requested she spell out point 6 (which didn't come through in her original message).
+2. Correction (Resend `486ae2f1-4cd7-435b-968f-96d78730d73c`, ~15 min later) — sent after actually grepping HANDOFF properly. Corrected point 2 to reflect that **Event-scoped stats already pull live from `/api/events`** (Slice 4 of CM-002.1); only **Series-scoped** stats are free-text. Also flagged the Corporate Deck's own Live Content → Statistics panel as separately-free-text (the deferred-debt item), committed to scheduling that wiring as the next content pass.
+3. Consolidated standalone (Resend `cfc78b85-afc2-42f2-9f8f-793a71395ef3`, later same session) — sent because #2 opened with *"Small correction to point 2 in my last message"* which assumes #1 was read; Durga flagged that #1 hadn't confirmed-landed for her (found later in Outlook Other tab) so #2 was orphan-reading nonsense if Thulasi hadn't seen #1 either. #3 restates all four points as a self-contained message that reads clean regardless of whether the prior two were seen. **Lesson locked: do not send a "small correction to point 2" follow-up until delivery of the referenced email is human-confirmed by the recipient (or by yourself if you're CC'd) — Resend `delivered` = SMTP accept only, not "human has seen it in a visible folder."**
+
+### Session-quality issue worth flagging so it doesn't repeat
+
+- HANDOFF.md is now **280KB — over Claude Code's Read tool 256KB cap**. Reading only the first ~250 lines (what happens if Read is called without offset chunks or grep) cost this session ~30 minutes: I invented a wrong DMARC/quarantine theory when the first email initially appeared not to land, and proposed a needless Graph mail endpoint deploy — before actually grepping the older sections for the delivery precedent. That precedent was already documented at line 336 (`1d9dbea8-…` to Thulasi 11 Aug, exact same shape) and line 1297 (Bangalore 59-recipient rollout, all delivered, 0 bounces). **Future sessions on this repo: `grep -n` HANDOFF for the topic in play before theorising. Don't just read the top.**
+- The first email today (`44b70990-…`) initially appeared "missing" — turned out to be in Outlook's "Other" tab (Focused Inbox split), same as prior Resend sends to internal staff. Not a delivery problem.
+
+### What's next
+
+- **Corporate Deck → Live Content → Statistics panel wiring** — pull from `cm_statistics WHERE approval_status='approved'` instead of free-text label/value pairs. Explicitly promised to Thulasi in email 2. Same "next Corporate Deck content pass" timing already logged from 11 Aug.
+- **Series-level auto-derivation from the events table** (e.g. `editions_count = COUNT(DISTINCT id) WHERE series='World AI Show'`) — larger piece; can wait until the panel wiring above is done and we see how much residual pain remains.
+- **Thulasi's point 6** — the specific issue she noticed but didn't articulate in the message body. Waiting on her reply.
+- **Corporate Deck Phase 2 shape decision** — framing email with three architecture options was drafted for Thulasi back on 13 Jul (see that session's "What's next"). Still hers to decide — worth following up on the same thread now that we're in touch.
+- **Time-boxed access still not exercised on a real freelancer** — carried from Madhu's earlier same-day entry above.
+- **PR Approvals not tested end-to-end** — carried from Madhu's earlier same-day entry above.
 
 ---
 
