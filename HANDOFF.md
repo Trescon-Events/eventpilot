@@ -16,11 +16,12 @@ Railway's auto-deploy silently stopped working from **2026-07-17 to 2026-07-21**
 | Field | Value |
 |---|---|
 | Who | Madhu + Claude Code (Sonnet 5) — 24 Aug 2026 (evening), Task Manager-scoped session |
-| Latest push | 2026-08-24 evening — see full write-up below: found and fixed why Madhu's PR-review emails from EventPilot were never arriving (Cloudflare Bot Fight Mode silently swallowing the webhook), and added an AI-rewritten "copy this into Antigravity" instruction block to the Send Back email in `/admin/dev-approvals`. |
+| Latest push | 2026-08-24 evening — see full write-up below: found and fixed why Madhu's PR-review emails from EventPilot were never arriving (Cloudflare Bot Fight Mode silently swallowing the webhook), added an AI-rewritten "copy this into Antigravity" instruction block to the Send Back email in `/admin/dev-approvals` — confirmed working live same-day on PR #4. Also found and fixed a second bug the same PR surfaced: Approve & Ship's merge step failing on a missing Contents permission on `GITHUB_APPROVER_TOKEN`; PR #4 merged manually to unblock it. |
 | DB migrations applied | 1 additive column, applied via `supabase db query --linked -f <path>`: `supabase/github_pr_reviews_agent_instructions.sql` adds `github_pr_reviews.agent_instructions TEXT`. |
+| Railway env var updated | `GITHUB_APPROVER_TOKEN` — same GitHub PAT (`eventpilot-pr-approver`), given Contents: Read/write permission (was missing entirely) and regenerated to extend its expiry past Sep 2026. Set via `railway variables --set`, service redeployed and confirmed healthy. |
 | Handed off to | Madhu. |
-| Deployed | Live — commit `a8e6285` pushed to `main`, Railway auto-deployed, confirmed `RUNNING`. |
-| Left alone / known follow-up | End-to-end email delivery not yet confirmed on a real PR — Khalifa's open PR #4 still carries the pre-fix workflow file (same-repo `pull_request` runs use the workflow version on the PR's own branch, not `main`), so the fix will prove itself on his next fresh PR rather than this one. Also see the 24 Aug (daytime) entry below for that session's separate work. |
+| Deployed | Live — commits `a8e6285`/`e170f77` pushed to `main`, Railway auto-deployed. PR #4 (Khalifa's Task Manager dual-mode redesign) merged separately via `gh pr merge 4` (Madhu's explicit go-ahead) — its own Railway deploy triggered by that merge. |
+| Left alone / known follow-up | See "What's next" at the end of the 24 Aug (evening) write-up below — the "✓ Merged" label bug in Recently Decided, and confirming Approve & Ship's merge step against a live PR now that the token permission is fixed (not yet tested, PR #4 was merged manually before the fix landed). Also see the 24 Aug (daytime) entry below for that session's separate work. |
 
 ## 24 Aug 2026 — Cloudflare proxy-timeout fix (Clean Photo + 6 more routes), OPENAI_API_KEY restored
 
@@ -83,9 +84,18 @@ Madhu's original ask went further than a bug fix — he wants a full in-app revi
 
 The one missing piece — the note-to-instructions rewrite — was built this session: `app/lib/github/agent-instructions.ts` (`generateAgentInstructions()`, same Gemini-flash + graceful-fallback pattern as the existing `summarizePrForHuman()`) takes Madhu's freeform Send Back note and rewrites it as direct, imperative-voice instructions ("Do X instead of Y," preserves every constraint, no invented content). Wired into `POST /api/admin/dev-approvals/[prNumber]/reject`, stored in a new `github_pr_reviews.agent_instructions` column, and rendered in `sendPrDecisionAlert()`'s email as a visually distinct monospace "Copy this into Antigravity" block, separate from the human-readable note above it.
 
+### Confirmed live + a second bug found: Approve & Ship couldn't actually merge
+
+The email fix confirmed itself same-day: Khalifa merged `main` into his PR #4 branch (picking up the fix) and pushed — the Actions log showed the Railway URL and "Email alert sent via EventPilot.", and Madhu got the real branded email. The `SAFE` verdict was accurate (all 4 changed files inside `app/admin/task-manager/`).
+
+Clicking **Approve & Ship** on that PR surfaced a second, unrelated bug: the review approved fine, but the merge step failed with `"Resource not accessible by personal access token"`, and the dashboard's "Recently Decided" list mislabels any `status: 'approved'` row as "✓ Merged" regardless of whether the merge itself actually succeeded — worth fixing separately, not done this session. Root cause: `GITHUB_APPROVER_TOKEN` (fine-grained PAT `eventpilot-pr-approver`, expires Sep 19 2026) had **Pull requests: read/write** but no **Contents** permission at all (not even read) — merging a PR creates a commit on the base branch, which needs Contents write. PR #4 was manually merged via `gh pr merge 4` (Madhu's explicit go-ahead, confirmed `mergeable: MERGEABLE`/`mergeStateStatus: CLEAN` first) to unblock it; `github_pr_reviews.merge_error` cleared for that row afterward.
+
+Fixed properly, not just patched: Madhu added **Contents: Read and write** to the `eventpilot-pr-approver` token's permissions (confirmed live, no org-approval step needed for `Trescon-Events`), then separately **regenerated the token** to push its expiry out from Sep 2026 (project runs well beyond that). Regenerating issues a new token value, so `GITHUB_APPROVER_TOKEN` was updated in Railway (`railway variables --set`) and the service redeployed (`railway redeploy`) to pick it up — verified back Online and responding normally afterward. The next real Approve & Ship is the true end-to-end confirmation that the merge step now works; not yet tested against a live PR since PR #4 was merged manually before the token fix landed.
+
 ### What's next
 
-- Confirm the email fix once Khalifa's fresh PR lands (see above).
+- Watch the next PR Khalifa opens — first real test of Approve & Ship's merge step since the token permission fix.
+- The "Recently Decided" list's "✓ Merged" label for any approved PR (even one whose merge failed) is misleading — worth fixing to check `merge_error` before showing that label. Not done this session.
 - Consider doing the same for Khalifa (a `TASK_MANAGER_HANDOFF.md`-reads-first equivalent of this repo's `AGENTS.md` mandatory session-start protocol) — see memory `eventpilot_khalifa_antigravity_handoff` for what was set up in response to that question.
 
 ---
