@@ -15,13 +15,12 @@ Railway's auto-deploy silently stopped working from **2026-07-17 to 2026-07-21**
 
 | Field | Value |
 |---|---|
-| Who | Madhu + Claude Code (Sonnet 5) — 24 Aug 2026 |
-| Latest push | 2026-08-24 — see full write-up below: fixed a real production incident (AI Fill + Enhance failing with a generic error) traced to Cloudflare's ~100s proxy timeout in front of Railway, applied the same background-job/polling fix to 6 more at-risk routes found via a full-codebase audit, restored a missing `OPENAI_API_KEY` on Railway, and fixed several correctness bugs a post-hoc code review found in the 6-route batch. |
-| DB migrations applied | 4 new tables/columns, all applied live via `supabase db query --linked -f <path>` (Supabase CLI already linked to project `yuyxfxoevztugtfgduks` on this machine — a more reliable path than the Dashboard SQL editor noted in the entry above, see memory `eventpilot_run_sql_rpc_missing`): `speaker_photo_clean_jobs_migration.sql`, `dept_course_gen_jobs_migration.sql`, `kb_ingest_jobs_migration.sql`, `market_intel_scan_result_migration.sql` (adds `result`/`failure_reason` to the existing `market_intel_scans` table). All additive only (`CREATE TABLE IF NOT EXISTS` / new nullable columns) — nothing existing touched. |
-| New Railway env var | `OPENAI_API_KEY` restored (was missing entirely — see write-up below for why this was a second, separate bug from the Cloudflare timeout). Set from the same value already in local `.env.local`, service redeployed via `railway redeploy` to pick it up. |
-| Handed off to | Madhu (per his instruction this session, the standing "tell Durga before doing anything" rule was set aside for this session only — read this write-up and loop Durga in if that's still wanted). |
-| Deployed | Live — two commits pushed to `main`, Railway auto-deployed both (`abcb9ac` Clean Photo fix, `c931983` the 6-route batch + a follow-up correctness pass, see below). |
-| Left alone / known follow-up | See "What's next" at the end of the 24 Aug write-up below — a few narrow edge cases in the new job/polling code were found by review and deliberately deferred rather than fixed, and the new background-job pattern is now duplicated across 4 backend routes + 4 frontend pollers with no shared helper. |
+| Who | Madhu + Claude Code (Sonnet 5) — 24 Aug 2026 (evening), Task Manager-scoped session |
+| Latest push | 2026-08-24 evening — see full write-up below: found and fixed why Madhu's PR-review emails from EventPilot were never arriving (Cloudflare Bot Fight Mode silently swallowing the webhook), and added an AI-rewritten "copy this into Antigravity" instruction block to the Send Back email in `/admin/dev-approvals`. |
+| DB migrations applied | 1 additive column, applied via `supabase db query --linked -f <path>`: `supabase/github_pr_reviews_agent_instructions.sql` adds `github_pr_reviews.agent_instructions TEXT`. |
+| Handed off to | Madhu. |
+| Deployed | Live — commit `a8e6285` pushed to `main`, Railway auto-deployed, confirmed `RUNNING`. |
+| Left alone / known follow-up | End-to-end email delivery not yet confirmed on a real PR — Khalifa's open PR #4 still carries the pre-fix workflow file (same-repo `pull_request` runs use the workflow version on the PR's own branch, not `main`), so the fix will prove itself on his next fresh PR rather than this one. Also see the 24 Aug (daytime) entry below for that session's separate work. |
 
 ## 24 Aug 2026 — Cloudflare proxy-timeout fix (Clean Photo + 6 more routes), OPENAI_API_KEY restored
 
@@ -59,6 +58,35 @@ The 6-route batch was implemented as parallel background agents. One of them —
 - **Deliberately not fixed, left as known debt**: a narrow race in `market-intel` between a batch job's own retry-on-failure logic and `aggregateJobStats` marking the parent job complete; the fire-and-forget error-handler's own DB write (in `market-intel`, `kb/ingest`, `generate-dept-courses`) is itself unguarded, so a DB outage at the exact moment of an original failure could leave a job stuck at `'processing'` forever — same shape as the pre-existing, accepted `kb_intel_runs` pattern, not new to this session. Both are rare double-failure edge cases, not something hit in testing.
 - **Real duplication now in the codebase**: 4 backend routes and 4 frontend pollers all hand-roll the same ~15-20 line "insert job row → fire detached function → poll" pattern with drifted intervals/attempt-caps and inconsistent retry-on-network-blip behavior. A shared `runBackgroundJob()` + `usePollUntilDone()` primitive would let one fix apply everywhere instead of N separate edits — worth doing next time this pattern gets touched again, not urgent enough to block this session's fix.
 - Two cosmetic-only nits left alone: `kb/ingest` and `generate-dept-courses` still have a vestigial `export const maxDuration = 120` (harmless — Next.js route config, does nothing against Cloudflare's independent proxy timeout, both files' own doc comments already say so) that `deck/analyse` removed instead of leaving.
+
+---
+
+## 24 Aug 2026 (evening) — Task Manager PR-review email fixed (Cloudflare Bot Fight Mode), Antigravity instruction-set feature added
+
+Separate, Task Manager-scoped session (not the daytime session above).
+
+### The bug report and root cause
+
+Madhu reported he was still getting raw GitHub notification emails for Khalifa's PRs instead of the EventPilot-branded review email `/admin/dev-approvals` is supposed to send (built 20 Aug — see that entry below). Traced via the GitHub Actions run log for the `pr-safety-summary` workflow: the webhook POST from `pr-safety-summary.js` to `https://eventpilot.tresconglobal.com/api/webhooks/github-pr` was getting back Cloudflare's "Just a moment…" managed-challenge HTML instead of a 200 — logged as non-fatal by design, so CI never failed and nothing looked broken from GitHub's side. Everything downstream of the webhook (route, DB upsert, `RESEND_API_KEY`/`GITHUB_PR_WEBHOOK_SECRET` on Railway, matching the GitHub Actions secret) was already correctly wired and deployed; the request just never arrived.
+
+Root-caused to Cloudflare **Bot Fight Mode**, on (zone-wide, `tresconglobal.com`) under Security → Overview → Detection tools. It's a Free-plan feature with **no path-scoping mechanism** — tried and ruled out, in order: a Configuration Rule disabling Browser Integrity Check (wrong lever — BFM is separate from BIC); Page Rules (already over the Free-plan quota, 11 legacy rules against a 3-rule cap, "Create" disabled); a WAF custom rule with a "Skip" action (the skip list only covers "Super Bot Fight Mode," the paid feature — no checkbox exists for the free Bot Fight Mode toggle at all).
+
+### The fix
+
+Rather than turn Bot Fight Mode off zone-wide (would have weakened bot protection for every subdomain on `tresconglobal.com`, not just this one webhook), pointed the webhook at **Railway's own domain** instead of the Cloudflare-fronted custom domain — confirmed via a direct curl that it reaches the Next.js route cleanly (401 Unauthorized from our own auth check, not a Cloudflare challenge page). One-line change in `.github/workflows/pr-safety-summary.yml`: `EVENTPILOT_WEBHOOK_URL` → `https://eventpilot-production-90c6.up.railway.app/api/webhooks/github-pr`. No Cloudflare settings were changed in the end (the Configuration Rule made while diagnosing — "Allow EventPilot GitHub webhook," disables Browser Integrity Check for `/api/webhooks/*` — was left in place; harmless, doesn't do anything now that BFM was the real cause, not worth reverting).
+
+**Not yet confirmed end-to-end**: `pull_request`-triggered GitHub Actions run the workflow file version from the PR's own branch, not `main` — Khalifa's currently-open PR #4 branch still has the pre-fix URL, confirmed via `git show origin/<branch>:.github/workflows/pr-safety-summary.yml`. Madhu had already separately told Khalifa (verbally) to make changes and open a fresh PR, which will branch off current `main` and pick up the fix automatically. Watch for that PR to confirm the email actually lands.
+
+### New feature: AI-rewritten instructions for Khalifa on "Send Back"
+
+Madhu's original ask went further than a bug fix — he wants a full in-app review workflow (approve/reject with a comment, Khalifa notified by EventPilot's own email, and a copy-pasteable instruction set generated from Madhu's note for Khalifa to hand to Antigravity). Turned out the review module itself was **already built** on 20 Aug (`/admin/dev-approvals` — AI summary, SAFE/REVIEW_CLOSELY verdict, one-click Approve & Ship with CI-gating and auto-merge, Send Back with a required note) — Madhu just hadn't been seeing it because the email that points to it wasn't arriving (the bug above).
+
+The one missing piece — the note-to-instructions rewrite — was built this session: `app/lib/github/agent-instructions.ts` (`generateAgentInstructions()`, same Gemini-flash + graceful-fallback pattern as the existing `summarizePrForHuman()`) takes Madhu's freeform Send Back note and rewrites it as direct, imperative-voice instructions ("Do X instead of Y," preserves every constraint, no invented content). Wired into `POST /api/admin/dev-approvals/[prNumber]/reject`, stored in a new `github_pr_reviews.agent_instructions` column, and rendered in `sendPrDecisionAlert()`'s email as a visually distinct monospace "Copy this into Antigravity" block, separate from the human-readable note above it.
+
+### What's next
+
+- Confirm the email fix once Khalifa's fresh PR lands (see above).
+- Consider doing the same for Khalifa (a `TASK_MANAGER_HANDOFF.md`-reads-first equivalent of this repo's `AGENTS.md` mandatory session-start protocol) — see memory `eventpilot_khalifa_antigravity_handoff` for what was set up in response to that question.
 
 ---
 
