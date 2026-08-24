@@ -58,6 +58,12 @@ type WebsiteSettings = {
   cf_zone_id: string | null
   konfhub_event_id: string | null; konfhub_api_key: string | null
   konfhub_speaker_ticket: string | null; konfhub_partner_ticket: string | null
+  // Speakers-management API creds (2026-08-24, distinct from the legacy
+  // konfhub_api_key above, which is the old ticket/attendee-registration
+  // API) — what "Push to KonfHub" authenticates with. See
+  // app/lib/konfhub-speakers.ts's own top comment for why these are
+  // separate from konfhub_api_key.
+  konfhub_client_id: string | null; konfhub_client_secret: string | null
 }
 
 type Speaker = {
@@ -1739,6 +1745,14 @@ export default function EventWebsiteAdmin({ params }: { params: Promise<{ id: st
                 <Field label="KonfHub API Key" value={settings.konfhub_api_key ?? ''} onChange={SET('konfhub_api_key')} placeholder="kh_live_..." />
                 <Field label="Speaker Ticket ID" value={settings.konfhub_speaker_ticket ?? ''} onChange={SET('konfhub_speaker_ticket')} placeholder="100841" />
                 <Field label="Partner Ticket ID" value={settings.konfhub_partner_ticket ?? ''} onChange={SET('konfhub_partner_ticket')} placeholder="100842" />
+              </div>
+              {/* Speakers-management API creds (2026-08-24) — separate
+                  section since these are a different KonfHub API (Bearer
+                  token, not the api_key above) that "Push to KonfHub"
+                  authenticates with. See WebsiteSettings type's own comment. */}
+              <div style={{ marginTop: '16px', paddingTop: '16px', borderTop: `1px solid ${C.border}`, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px' }}>
+                <Field label="KonfHub Client ID" value={settings.konfhub_client_id ?? ''} onChange={SET('konfhub_client_id')} placeholder="for Push to KonfHub" />
+                <Field label="KonfHub Client Secret" type="password" value={settings.konfhub_client_secret ?? ''} onChange={SET('konfhub_client_secret')} placeholder="for Push to KonfHub" />
               </div>
               <div style={{ marginTop: '12px', padding: '10px 14px', borderRadius: '8px', background: 'rgba(167,139,250,0.06)', border: `1px solid rgba(167,139,250,0.18)`, fontSize: '12px', color: C.muted }}>
                 Public API: <code style={{ fontSize: '11px', background: 'rgba(0,0,0,0.06)', padding: '2px 6px', borderRadius: '4px' }}>/api/public/event/{settings.slug || '{slug}'}</code>

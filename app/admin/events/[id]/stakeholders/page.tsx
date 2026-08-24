@@ -11,6 +11,7 @@ import { downloadFilesAsZip } from '@/app/lib/download-file'
 import CalendarView from './CalendarView'
 import DeletedTab from './DeletedTab'
 import DeleteConfirmModal from './DeleteConfirmModal'
+import KonfhubPushConfirmModal from './KonfhubPushConfirmModal'
 import InvitesTab from './InvitesTab'
 import { FieldSchema, SubmittedValue, asText } from '@/app/lib/forms/types'
 import { useBreadcrumbLabel } from '@/app/lib/nav/breadcrumb-labels'
@@ -22,10 +23,11 @@ type SelfPromoState = 'pending' | 'created' | 'sent'
 type Speaker = {
   id: string; event_id: string
   full_name: string; job_title: string; company_name: string
-  pronoun_style: string | null
+  public_name: string | null; pronoun_style: string | null
   country: string | null; bio: string | null; linkedin_url: string | null
   photo_url: string | null; photo_processed_url: string | null; company_logo_url: string | null
   website_card_url: string | null
+  photo_cleaning_cycle_done: boolean
   photo_head_box: { centerXRatio: number; centerYRatio: number; heightRatio: number } | null
   announcement_status: 'pending_review' | 'approved' | 'assets_missing' | 'ready' | 'archived'
   source: 'onboarding_form' | 'manual'
@@ -35,6 +37,9 @@ type Speaker = {
   // 3-state model 2026-08-23) — computed server-side in GET .../speakers,
   // see that route's own doc comment.
   website_status: TriState; social_post_status: TriState; self_promo_status: SelfPromoState
+  // "Push to KonfHub" (2026-08-24) — presence decides first-push vs
+  // re-push, same as the Details page's own isKonfhubFirstPush.
+  konfhub_speaker_id: string | null
 }
 
 type Partner = {
@@ -163,6 +168,13 @@ export default function StakeholderHubPage({ params }: { params: Promise<{ id: s
   const [deleteConfirm, setDeleteConfirm] = useState<(Speaker | Partner)[] | null>(null)
   const [deleting, setDeleting] = useState(false)
   const [bulkDownloading, setBulkDownloading] = useState<'photo' | 'logo' | null>(null)
+  // Bulk "Push to KonfHub" (2026-08-24) — bulkKonfhubConfirm holds the
+  // gate-eligible subset of the current selection (see openBulkKonfhubConfirm),
+  // not the raw selection itself, so the confirm modal's new/update counts
+  // and the actual push both operate on exactly the same set.
+  const [bulkKonfhubConfirm, setBulkKonfhubConfirm] = useState<Speaker[] | null>(null)
+  const [bulkKonfhubSkipped, setBulkKonfhubSkipped] = useState(0)
+  const [bulkPushingKonfhub, setBulkPushingKonfhub] = useState(false)
   // processSubmission() had no loading feedback at all before this — it's
   // also the heaviest single action on this page (re-hosts the submitted
   // photo/logo, then runs PhotoRoom + Logo Engine + head detection), so it
@@ -329,6 +341,40 @@ export default function StakeholderHubPage({ params }: { params: Promise<{ id: s
     ))
     setDeleting(false)
     setDeleteConfirm(null)
+    setSelectedIds(new Set())
+    fetchAll()
+  }
+
+  // Same three gates the Details page's own Push button enforces (see that
+  // page's pushToKonfhubBlockedReason) — kept here rather than shared,
+  // since this file has no import path to that page's component-local
+  // logic; both independently mirror the server-side check the push route
+  // itself does, which is the one that actually matters.
+  function isKonfhubPushEligible(s: Speaker): boolean {
+    return !!s.public_name?.trim() && !!s.pronoun_style && s.photo_cleaning_cycle_done === true && !!s.website_card_url
+  }
+
+  function openBulkKonfhubConfirm() {
+    const selected = visibleItems.filter(i => selectedIds.has(i.id)) as Speaker[]
+    const eligible = selected.filter(isKonfhubPushEligible)
+    setBulkKonfhubSkipped(selected.length - eligible.length)
+    setBulkKonfhubConfirm(eligible)
+  }
+
+  async function performBulkKonfhubPush() {
+    if (!bulkKonfhubConfirm) return
+    setBulkPushingKonfhub(true)
+    const results = await Promise.all(bulkKonfhubConfirm.map(item =>
+      fetch(`/api/events/stakeholders/speakers/${item.id}/konfhub-push`, { method: 'POST' })
+    ))
+    const failed = results.filter(r => !r.ok).length
+    // A whole-batch failure (e.g. KonfHub not configured for this event —
+    // every push hits the same server-side check) is worth a real message
+    // rather than the silent refetch performDelete's own bulk pattern uses,
+    // since "nothing visibly happened" would otherwise be the only signal.
+    if (failed > 0) setMsg(`${failed} of ${bulkKonfhubConfirm.length} pushes failed — try again, or check KonfHub is configured in Website Settings.`)
+    setBulkPushingKonfhub(false)
+    setBulkKonfhubConfirm(null)
     setSelectedIds(new Set())
     fetchAll()
   }
@@ -526,6 +572,13 @@ export default function StakeholderHubPage({ params }: { params: Promise<{ id: s
                   </Button>
                 </>
               )}
+              {/* Push to KonfHub (2026-08-24) — deliberately separate from
+                  Delete/Download above: opens a summary confirm rather than
+                  pushing immediately, since this creates/updates real
+                  public records on a third party's system. */}
+              {category?.kind === 'speaker' && can('sae.approvals.approve') && (
+                <Button variant="teal" onClick={openBulkKonfhubConfirm}>Push to KonfHub</Button>
+              )}
               {can('sae.stakeholders.delete') && <Button variant="red" onClick={() => setDeleteConfirm(visibleItems.filter(i => selectedIds.has(i.id)))}>Delete Selected</Button>}
               <button onClick={() => setSelectedIds(new Set())} style={{ background: 'none', border: 'none', color: 'var(--ink3)', fontSize: '14px', fontWeight: 700, cursor: 'pointer' }}>Clear selection</button>
             </div>
@@ -630,6 +683,18 @@ export default function StakeholderHubPage({ params }: { params: Promise<{ id: s
           deleting={deleting}
           onConfirm={performDelete}
           onClose={() => setDeleteConfirm(null)}
+        />
+      )}
+
+      {bulkKonfhubConfirm && (
+        <KonfhubPushConfirmModal
+          isFirstPush={false}
+          newCount={bulkKonfhubConfirm.filter(s => !s.konfhub_speaker_id).length}
+          updateCount={bulkKonfhubConfirm.filter(s => !!s.konfhub_speaker_id).length}
+          skippedCount={bulkKonfhubSkipped}
+          pushing={bulkPushingKonfhub}
+          onConfirm={performBulkKonfhubPush}
+          onClose={() => setBulkKonfhubConfirm(null)}
         />
       )}
 

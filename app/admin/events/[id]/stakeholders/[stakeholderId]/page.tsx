@@ -13,6 +13,7 @@ import { useBreadcrumbLabel } from '@/app/lib/nav/breadcrumb-labels'
 import { PRONOUN_STYLES } from '@/app/lib/events/pronoun-styles'
 import LogoApprovalModal from '../LogoApprovalModal'
 import PhotoCleaningWizard from '../PhotoCleaningWizard'
+import KonfhubPushConfirmModal from '../KonfhubPushConfirmModal'
 import AnnouncementsTab from './AnnouncementsTab'
 import type { Speaker as SaeSpeaker, Partner as SaePartner } from '../../creative-templates/page'
 
@@ -61,6 +62,8 @@ type StakeholderRecord = {
   source: 'onboarding_form' | 'manual'
   notes: string | null
   fields: Record<string, SubmittedValue>
+  konfhub_speaker_id?: string | null
+  konfhub_synced_at?: string | null
 }
 
 // One preview tile — raw or cleaned photo/logo — with a download icon and a
@@ -203,6 +206,13 @@ export default function StakeholderReviewPage({ params }: { params: Promise<{ id
   const [saveErrorMsg, setSaveErrorMsg] = useState<string | null>(null)
   const [reapprovalBanner, setReapprovalBanner] = useState(false)
   const [approving, setApproving] = useState(false)
+  // "Push to KonfHub" (2026-08-24) — deliberately separate from Approve
+  // (see this page's Push button doc comment below for why). konfhubConfirm
+  // just gates whether the confirm modal is open; the record's own
+  // konfhub_speaker_id (in `record`) is what decides first-push vs re-push
+  // wording, so no extra "was this the first push" state is needed here.
+  const [konfhubConfirm, setKonfhubConfirm] = useState(false)
+  const [pushingKonfhub, setPushingKonfhub] = useState(false)
   const [generatingWebsitePhoto, setGeneratingWebsitePhoto] = useState(false)
   // The guided Photo Cleaning wizard (2026-08-22, replaces the old separate
   // Replace Photo / Fix Head Position / Clean Photo buttons) owns its own
@@ -361,6 +371,31 @@ export default function StakeholderReviewPage({ params }: { params: Promise<{ id
     }
   }
 
+  // Deliberately separate from approve() above (2026-08-24, per Madhu) —
+  // Approve is an internal creative-readiness gate; this publishes the
+  // speaker publicly on KonfHub + the event website, a different decision
+  // with different stakes, so it gets its own confirm dialog (see the
+  // Push button's onClick, which opens KonfhubPushConfirmModal first) and
+  // its own server-side re-check of the same three readiness conditions
+  // (see the route's own doc comment for why that check isn't trusted
+  // client-side-only here, unlike Approve's own PATCH).
+  async function pushToKonfhub() {
+    setPushingKonfhub(true)
+    setProcessing({ label: 'Pushing to KonfHub…', estimatedMs: 2500 })
+    try {
+      const res = await fetch(`/api/events/stakeholders/speakers/${stakeholderId}/konfhub-push`, { method: 'POST' })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) { setMsg(data.error || 'Could not push to KonfHub — please try again.'); return }
+      setRecord(prev => prev ? { ...prev, konfhub_speaker_id: data.konfhub_speaker_id, konfhub_synced_at: data.konfhub_synced_at } : prev)
+      setKonfhubConfirm(false)
+    } catch {
+      setMsg('Could not push to KonfHub — check your connection and try again.')
+    } finally {
+      setPushingKonfhub(false)
+      setProcessing(null)
+    }
+  }
+
   async function generateWebsitePhoto() {
     setGeneratingWebsitePhoto(true)
     setProcessing({ label: 'Generating website photo…', estimatedMs: 3000 })
@@ -502,6 +537,21 @@ export default function StakeholderReviewPage({ params }: { params: Promise<{ id
     : !readyForApproval
     ? 'Clean the logo first.'
     : null
+
+  // Same three gates as Approve above (Push to KonfHub reuses
+  // readyForApproval/missingRequiredSpeakerFields rather than a second,
+  // independently-drifting copy) — speaker-only, since partners have no
+  // KonfHub Speakers-API equivalent yet.
+  const pushToKonfhubBlockedReason = kind !== 'speaker'
+    ? null
+    : missingRequiredSpeakerFields
+    ? 'Set Public Name and Pronoun / Honorific Style first.'
+    : dirty
+    ? 'Save your changes first.'
+    : !readyForApproval
+    ? (!record.photo_cleaning_cycle_done ? 'Clean the photo first.' : 'Generate the Website Photo first.')
+    : null
+  const isKonfhubFirstPush = !record.konfhub_speaker_id
 
   // Adapted to SAE's own Speaker/Partner shape (app/admin/events/[id]/
   // creative-templates/page.tsx) so AnnouncementsTab can hand this straight
@@ -876,9 +926,44 @@ export default function StakeholderReviewPage({ params }: { params: Promise<{ id
               </div>
             )}
           </Card>
+          {/* Deliberately its own Card, not folded into Approve above
+              (2026-08-24, per Madhu) — publishing to KonfHub + the event
+              website is a different, public-facing decision from
+              approving for internal announcement creative, so it gets its
+              own confirmation and its own status line. */}
+          {kind === 'speaker' && canApprove && status !== 'archived' && (
+            <Card padded color={record.konfhub_speaker_id ? 'teal' : 'amber'}>
+              <div style={{ fontSize: '15.5px', fontWeight: 800, color: 'var(--ink)' }}>
+                {record.konfhub_speaker_id ? 'Published to KonfHub' : 'Push to KonfHub?'}
+              </div>
+              <div style={{ fontSize: '14px', color: 'var(--ink3)', marginTop: '6px', lineHeight: 1.5 }}>
+                {record.konfhub_speaker_id
+                  ? 'Live on KonfHub and the event website. Push again after any edits to update the listing.'
+                  : 'Publishes this speaker on KonfHub and the event website — a separate action from Approve for Announcement.'}
+              </div>
+              <div style={{ marginTop: '14px' }}>
+                <Button variant="teal" onClick={() => setKonfhubConfirm(true)} disabled={pushingKonfhub || !!pushToKonfhubBlockedReason} className="tbtn-full">
+                  {pushingKonfhub ? 'Pushing…' : record.konfhub_speaker_id ? 'Push Update to KonfHub' : 'Push to KonfHub'}
+                </Button>
+                {pushToKonfhubBlockedReason && !pushingKonfhub && (
+                  <div style={{ fontSize: '11.5px', color: 'var(--amber)', marginTop: '8px' }}>{pushToKonfhubBlockedReason}</div>
+                )}
+              </div>
+            </Card>
+          )}
         </div>
         </div>
       </div>
+      )}
+
+      {konfhubConfirm && record && (
+        <KonfhubPushConfirmModal
+          isFirstPush={isKonfhubFirstPush}
+          singleName={publicName || record.full_name}
+          pushing={pushingKonfhub}
+          onConfirm={pushToKonfhub}
+          onClose={() => setKonfhubConfirm(false)}
+        />
       )}
 
       <ProcessingOverlay active={!!processing} label={processing?.label} estimatedMs={processing?.estimatedMs} />
