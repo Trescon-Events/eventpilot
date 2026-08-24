@@ -19,7 +19,7 @@ function canAccess(session: { sid: string; adm?: boolean } | null) {
   return !!session
 }
 
-const EDITABLE_FIELDS = ['event_id', 'description', 'assigned_by', 'assigned_to', 'assigned_date', 'deadline', 'status', 'priority', 'remarks', 'attachment_url', 'attachment_name'] as const
+const EDITABLE_FIELDS = ['event_id', 'description', 'assigned_by', 'assigned_to', 'assigned_date', 'deadline', 'status', 'priority', 'remarks'] as const
 
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const session = getSession(req)

@@ -209,29 +209,6 @@ function TaskCard({
         {task.deadline && (
           <span style={{ fontSize: '11px', color: 'var(--ink3)' }}>Due {task.deadline}</span>
         )}
-        {task.attachment_url && (
-          <a
-            href={task.attachment_url}
-            target="_blank"
-            rel="noopener noreferrer"
-            onClick={e => e.stopPropagation()}
-            style={{
-              fontSize: '10px',
-              color: 'var(--teal)',
-              background: 'var(--teal-light)',
-              borderRadius: '4px',
-              padding: '1px 5px',
-              textDecoration: 'none',
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: '3px',
-            }}
-            title={task.attachment_name || 'View attached file'}
-          >
-            <span>📎</span>
-            <span>File</span>
-          </a>
-        )}
       </div>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>

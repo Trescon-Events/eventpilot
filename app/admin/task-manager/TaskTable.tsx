@@ -297,35 +297,6 @@ function TaskRow({
             <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{t.remarks}</span>
           </div>
         )}
-        {t.attachment_url && (
-          <a
-            href={t.attachment_url}
-            target="_blank"
-            rel="noopener noreferrer"
-            onClick={e => e.stopPropagation()}
-            style={{
-              fontSize: '11px',
-              color: 'var(--teal)',
-              marginTop: '4px',
-              marginLeft: t.remarks ? '6px' : '0',
-              padding: '2px 6px',
-              borderRadius: '4px',
-              background: 'var(--teal-light)',
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: '4px',
-              textDecoration: 'none',
-              maxWidth: '100%',
-              overflow: 'hidden',
-              textOverflow: 'ellipsis',
-              whiteSpace: 'nowrap',
-            }}
-            title={t.attachment_name || 'View attached file'}
-          >
-            <span>📎</span>
-            <span>{t.attachment_name || 'Attachment'}</span>
-          </a>
-        )}
       </td>
       <td style={{ padding: '10px 12px', color: 'var(--ink4)', whiteSpace: 'nowrap' }} title={new Date(t.created_at).toLocaleString('en-GB')}>
         {new Date(t.created_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}
