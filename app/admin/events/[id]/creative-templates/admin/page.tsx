@@ -4,9 +4,9 @@ import { useState, useEffect, useRef, use } from 'react'
 import PageHeader from '@/app/components/PageHeader'
 import { Button, Badge, Input, Select, Textarea, ProcessingOverlay } from '@/app/components/ui'
 import AccessTab from '@/app/components/AccessTab'
-import type { Layer, ImageLayer, PhotoSlotLayer, TextLayer, Variant, CreativeTemplateConfig, TextLayerDiagnostics, PlaceholderProfile, AiEditPreset } from '@/app/lib/announcements/composite'
+import type { Layer, ImageLayer, PhotoSlotLayer, TextLayer, Variant, CreativeTemplateConfig, TextLayerDiagnostics, PlaceholderProfile, CleaningCycleTemplate } from '@/app/lib/announcements/composite'
 import { withTextLayerDefaults } from '@/app/lib/announcements/text-layer-defaults'
-import { AI_EDIT_MODULES } from '@/app/lib/announcements/ai-edit-modules'
+import { CLEANING_CYCLE_CANVAS_SIZE } from '@/app/lib/media/cleaning-cycle-constants'
 import type { ResolvedFont, BrandRulesSnapshot } from '@/app/lib/branding/brand-rules'
 import LayerBoxOverlay from './LayerBoxOverlay'
 
@@ -51,13 +51,21 @@ const FIELD_TO_CONTENT_TYPE: Record<TextLayer['field'], string> = {
   name: 'heading', title: 'subheading', company: 'body', tier: 'body', custom: 'body',
 }
 
-function newLayer(type: Layer['type'], activeType: StakeholderKind, canvasWidth: number, canvasHeight: number, fontSuggestion?: ResolvedFont | null): Layer {
+function newLayer(type: Layer['type'], activeType: StakeholderKind, canvasWidth: number, canvasHeight: number, fontSuggestion?: ResolvedFont | null, category?: Variant['category']): Layer {
   const id = crypto.randomUUID()
   // Image layers are always full-bleed background/overlay art pre-sized by
   // the design team to the variant's exact canvas — default to that instead
   // of an arbitrary box, since there's no manual resize UI for this layer type.
   if (type === 'image') return { id, type: 'image', asset_url: '', x: 0, y: 0, width: canvasWidth, height: canvasHeight }
-  if (type === 'photo_slot') return { id, type: 'photo_slot', source: activeType === 'speaker' ? 'speaker_photo' : 'partner_logo', x: 0, y: 0, width: 400, height: 400 }
+  if (type === 'photo_slot') {
+    // A website_photo variant's Photo/Logo Slot is ALWAYS the full canvas
+    // (2026-08-21, per Madhu) — this category has no other layer sharing
+    // the frame with it, unlike a Promo variant's photo slot, which is
+    // typically a smaller inset within a larger poster (400x400 stays the
+    // sensible default there).
+    const full = category === 'website_photo'
+    return { id, type: 'photo_slot', source: activeType === 'speaker' ? 'speaker_photo' : 'partner_logo', x: 0, y: 0, width: full ? canvasWidth : 400, height: full ? canvasHeight : 400 }
+  }
   const field: TextLayer['field'] = activeType === 'speaker' ? 'name' : 'custom'
   const maxLines = DEFAULT_MAX_LINES_BY_FIELD[field]
   const fontSize = 32
@@ -101,6 +109,7 @@ export default function CreativeTemplatesAdminPage({ params }: { params: Promise
   const [partnerVariants, setPartnerVariants] = useState<Variant[]>([])
   const [activeType, setActiveType] = useState<StakeholderKind>('speaker')
   const [activeVariantId, setActiveVariantId] = useState<string | null>(null)
+  const [newVariantPickerOpen, setNewVariantPickerOpen] = useState(false)
   const [dirty, setDirty] = useState(false)
   const [saving, setSaving] = useState(false)
   const [msg, setMsg] = useState<string | null>(null)
@@ -113,11 +122,8 @@ export default function CreativeTemplatesAdminPage({ params }: { params: Promise
   // top comment. null = not a website_photo variant / no issue to report.
   const [websitePhotoError, setWebsitePhotoError] = useState<string | null>(null)
 
-  const [speakers, setSpeakers] = useState<StakeholderOption[]>([])
-  const [partners, setPartners] = useState<StakeholderOption[]>([])
   const [brandFonts, setBrandFonts] = useState<Array<BrandFontOption>>([])
   const [brandRules, setBrandRules] = useState<BrandRulesSnapshot>({ fonts: [] })
-  const [previewFor, setPreviewFor] = useState<string>('')
   // Reusable "Placeholder data" content (2026-07-31) — one profile per
   // stakeholder type, saved on the event alongside the variants themselves
   // (events.creative_template_config.placeholder), so every variant's
@@ -128,11 +134,12 @@ export default function CreativeTemplatesAdminPage({ params }: { params: Promise
   const [previewDataUrl, setPreviewDataUrl] = useState<string | null>(null)
   const [previewLoading, setPreviewLoading] = useState(false)
   // Stale-while-revalidate (2026-07-31 UX pass, replacing the old debounced
-  // auto-render): switching speaker/partner keeps showing the last render,
-  // dimmed + badged, since the box layout is still correct and only the
-  // injected photo/text is stale. Switching variant/type clears it outright
-  // (see the effect below) since the layout itself just changed underneath
-  // it — an old image there would be actively misleading, not just stale.
+  // auto-render): any layer/variant edit keeps showing the last render,
+  // dimmed + badged, rather than clearing it outright — an old image there
+  // is still useful context while a fresh one renders. Switching variant/
+  // type DOES clear it outright (see the effect below) since the layout
+  // itself just changed underneath it — an old image there would be
+  // actively misleading, not just stale.
   const [previewStale, setPreviewStale] = useState(false)
   const previewReqIdRef = useRef(0)
 
@@ -149,15 +156,11 @@ export default function CreativeTemplatesAdminPage({ params }: { params: Promise
   const variants = activeType === 'speaker' ? speakerVariants : partnerVariants
   const setVariants = activeType === 'speaker' ? setSpeakerVariants : setPartnerVariants
   const activeVariant = variants.find(v => v.id === activeVariantId) ?? null
-  const stakeholderOptions = activeType === 'speaker' ? speakers : partners
-  const previewForRecord = stakeholderOptions.find(o => o.id === previewFor) ?? null
 
   async function fetchAll() {
     setLoading(true)
-    const [configRes, spRes, ptRes, fontsRes, brandRulesRes] = await Promise.all([
+    const [configRes, fontsRes, brandRulesRes] = await Promise.all([
       fetch(`/api/events/templates?event_id=${eventId}`),
-      fetch(`/api/events/stakeholders/speakers?event_id=${eventId}`),
-      fetch(`/api/events/stakeholders/partners?event_id=${eventId}`),
       fetch('/api/branding/fonts'),
       fetch('/api/branding/brand-rules'),
     ])
@@ -173,10 +176,6 @@ export default function CreativeTemplatesAdminPage({ params }: { params: Promise
     // never gets selected until the MM manually switches tabs and back.
     const initialList = activeType === 'speaker' ? loadedSpeakerVariants : loadedPartnerVariants
     setActiveVariantId(prev => prev ?? initialList[0]?.id ?? null)
-    const sp: Array<{ id: string; full_name: string; job_title: string; company_name: string; photo_processed_url: string | null; photo_url: string | null; company_logo_url: string | null }> = await spRes.json().catch(() => [])
-    const pt: Array<{ id: string; company_name: string; logo_url: string | null }> = await ptRes.json().catch(() => [])
-    setSpeakers(sp.map(s => ({ id: s.id, label: s.full_name, job_title: s.job_title, company_name: s.company_name, photo_url: s.photo_processed_url ?? s.photo_url, company_logo_url: s.company_logo_url })))
-    setPartners(pt.map(p => ({ id: p.id, label: p.company_name, company_name: p.company_name, logo_url: p.logo_url })))
     setBrandFonts(await fontsRes.json().catch(() => []))
     setBrandRules(await brandRulesRes.json().catch(() => ({ fonts: [] })))
     setDirty(false)
@@ -188,9 +187,8 @@ export default function CreativeTemplatesAdminPage({ params }: { params: Promise
 
   useEffect(() => {
     const list = activeType === 'speaker' ? speakerVariants : partnerVariants
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- resets the selected variant/preview target on tab switch; a derived-state reset, not a fetch side effect, but the same standard pattern
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- resets the selected variant on tab switch; a derived-state reset, not a fetch side effect, but the same standard pattern
     setActiveVariantId(list[0]?.id ?? null)
-    setPreviewFor('')
     // eslint-disable-next-line react-hooks/exhaustive-deps -- only re-select on tab switch, not on every variants edit
   }, [activeType])
 
@@ -204,8 +202,9 @@ export default function CreativeTemplatesAdminPage({ params }: { params: Promise
   // (last_preview_url, 2026-08-01) is exactly what belongs here, so restore
   // that instead of clearing to null. Not stale — it was generated against
   // and saved alongside this exact layer state, by definition, since save()
-  // persists them together; only a NEW edit after loading marks it stale.
-  // (Switching previewFor alone does NOT touch this — see the effect below.)
+  // now always regenerates before persisting when previewStale (2026-08-21
+  // fix — it used to just persist whatever was on screen even if stale,
+  // which is what silently broke this guarantee).
   useEffect(() => {
     const list = activeType === 'speaker' ? speakerVariants : partnerVariants
     const v = list.find(x => x.id === activeVariantId)
@@ -215,21 +214,17 @@ export default function CreativeTemplatesAdminPage({ params }: { params: Promise
     // eslint-disable-next-line react-hooks/exhaustive-deps -- only re-run on variant/type switch, not on every speakerVariants/partnerVariants edit (would re-restore over in-progress local changes)
   }, [activeVariantId, activeType])
 
-  // Switching which speaker/partner is injected doesn't invalidate the
-  // layout — keep showing the last render, just mark it stale (dimmed +
-  // badged in the JSX below) rather than clearing it.
-  useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- marks the existing image stale rather than a fetch side effect; no-ops harmlessly if there's nothing rendered yet
-    if (previewDataUrl) setPreviewStale(true)
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- only react to previewFor changing, not previewDataUrl itself (would loop)
-  }, [previewFor])
-
   async function generatePreview() {
     if (!activeVariant) return
     const reqId = ++previewReqIdRef.current
     setPreviewLoading(true)
+    // Placeholder data only (2026-08-21, was also selectable against any
+    // real speaker/partner for testing) — per Madhu: this editor's own
+    // preview isn't the place to spot-check real stakeholder data, and the
+    // photo half of "placeholder" already comes from whatever's uploaded as
+    // the Photo/Logo Slot's own reference layer, so there was never a case
+    // this couldn't already cover.
     const body: Record<string, unknown> = { event_id: eventId, stakeholder_type: activeType, variant: activeVariant }
-    if (previewFor) body[activeType === 'speaker' ? 'speaker_id' : 'partner_id'] = previewFor
     const res = await fetch('/api/events/templates/preview', {
       method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
     })
@@ -325,19 +320,31 @@ export default function CreativeTemplatesAdminPage({ params }: { params: Promise
     mutate(vs => vs.map(v => v.id === activeVariantId ? { ...v, ...patch } : v))
     // Every layer/variant edit (field change, drag, add/delete/reorder — all
     // funnel through here) invalidates whatever's currently rendered. Marks
-    // stale rather than clearing outright — same "keep showing the last
-    // render, dimmed + badged" treatment as switching previewFor below,
-    // which also brings the ghost overlay back for the active layer so font/
-    // color/weight/position edits get instant client-side feedback again
-    // without paying for a new server render on every keystroke.
+    // stale rather than clearing outright — "keep showing the last render,
+    // dimmed + badged" also brings the ghost overlay back for the active
+    // layer so font/color/weight/position edits get instant client-side
+    // feedback again without paying for a new server render on every
+    // keystroke. save() now always regenerates first when this is true
+    // (2026-08-21 fix), so a stale preview never gets silently persisted.
     if (previewDataUrl) setPreviewStale(true)
   }
 
-  function addVariant() {
+  // Category picked FIRST, before a variant exists (2026-08-21, per Madhu)
+  // — asking "Use: Promo/Self Promo/Website Photo" only after the fact (the
+  // old flow) is exactly what let a Website Photo variant get built at the
+  // wrong canvas size (1080x1350) by mistake, only caught once a layer
+  // inside it was already wrong too. Gating on the choice up front means
+  // canvas dimensions are correct from the variant's very first layer.
+  function addVariant(category: 'promo' | 'self_promo' | 'website_photo') {
     pushUndo()
-    const variant: Variant = { id: crypto.randomUUID(), name: 'Untitled Variant', canvas_width: 1080, canvas_height: 1350, layers: [] }
+    const size = category === 'website_photo' ? CLEANING_CYCLE_CANVAS_SIZE : null
+    const variant: Variant = {
+      id: crypto.randomUUID(), name: 'Untitled Variant', category,
+      canvas_width: size ?? 1080, canvas_height: size ?? 1350, layers: [],
+    }
     mutate(vs => [...vs, variant])
     setActiveVariantId(variant.id)
+    setNewVariantPickerOpen(false)
   }
 
   // Persists immediately (2026-08-19) rather than just staging a local
@@ -373,7 +380,7 @@ export default function CreativeTemplatesAdminPage({ params }: { params: Promise
     // brand-rules lookup matches the field the new layer will actually get.
     const field: TextLayer['field'] = activeType === 'speaker' ? 'name' : 'custom'
     const fontSuggestion = type === 'text' ? brandRules.fonts.find(f => f.content_type === FIELD_TO_CONTENT_TYPE[field]) ?? null : null
-    const layer = newLayer(type, activeType, activeVariant.canvas_width, activeVariant.canvas_height, fontSuggestion)
+    const layer = newLayer(type, activeType, activeVariant.canvas_width, activeVariant.canvas_height, fontSuggestion, activeVariant.category)
     updateActiveVariant({ layers: [...activeVariant.layers, layer] })
     // Auto-expand the new layer and collapse whatever was open (2026-08-02,
     // real confusion caught live) — previously the new row landed collapsed
@@ -470,6 +477,36 @@ export default function CreativeTemplatesAdminPage({ params }: { params: Promise
   async function save() {
     setSaving(true)
 
+    // Real bug found live (2026-08-21) — a stale preview (dimmed, badged
+    // "Stale — click Generate Preview" on screen) could still get persisted
+    // as-is here, since this function only ever looked at whatever
+    // previewDataUrl currently held, never at previewStale. Reload later —
+    // this file's own restore-on-mount effect above trusts last_preview_url
+    // as "generated against and saved alongside this exact layer state, by
+    // definition" — and that promise was false: the persisted image
+    // silently didn't match the config it was saved next to (e.g. Upload
+    // Reference Layer, then Save Changes without re-clicking Generate
+    // Preview first). Regenerating here when stale, rather than requiring
+    // the producer to remember an extra manual step, is what actually keeps
+    // that invariant true instead of just documenting it.
+    // Local, not just the React state read below — setPreviewDataUrl here
+    // wouldn't be visible until next render, and the upload step right
+    // after this needs the FRESH value in the same synchronous call.
+    let freshPreviewDataUrl = previewDataUrl
+    if (activeVariant && previewStale) {
+      const body: Record<string, unknown> = { event_id: eventId, stakeholder_type: activeType, variant: activeVariant }
+      const res = await fetch('/api/events/templates/preview', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (res.ok) {
+        freshPreviewDataUrl = data.preview_data_url
+        setPreviewDataUrl(data.preview_data_url)
+        setPreviewStale(false)
+        setTextDiagnostics(data.text_diagnostics ?? {})
+      }
+    }
+
     // Persist whatever preview is currently on screen (2026-08-01) so
     // revisiting this variant later shows it immediately instead of "No
     // preview yet" — previewDataUrl otherwise only ever lived in client
@@ -478,9 +515,9 @@ export default function CreativeTemplatesAdminPage({ params }: { params: Promise
     // (loaded from last_preview_url on mount, or from an earlier save this
     // session) is already a real URL and just carries straight through.
     let previewUrlToSave = activeVariant?.last_preview_url
-    if (activeVariantId && previewDataUrl) {
-      if (previewDataUrl.startsWith('data:')) {
-        const blob = await (await fetch(previewDataUrl)).blob()
+    if (activeVariantId && freshPreviewDataUrl) {
+      if (freshPreviewDataUrl.startsWith('data:')) {
+        const blob = await (await fetch(freshPreviewDataUrl)).blob()
         const form = new FormData()
         form.append('file', blob, 'preview.png')
         form.append('event_id', eventId)
@@ -492,7 +529,7 @@ export default function CreativeTemplatesAdminPage({ params }: { params: Promise
           setPreviewDataUrl(uploadData.url) // swap local state to the persisted URL too, not left pointing at a throwaway data: URL
         }
       } else {
-        previewUrlToSave = previewDataUrl
+        previewUrlToSave = freshPreviewDataUrl
       }
     }
     const variantsToSave = activeVariantId
@@ -544,7 +581,7 @@ export default function CreativeTemplatesAdminPage({ params }: { params: Promise
         {consoleTab === 'access' ? (
           <AccessTab moduleKey="sae" moduleLabel="Stakeholder Announcement Engine" />
         ) : consoleTab === 'ai_edit_prompts' ? (
-          <AiEditPromptsPanel eventId={eventId} />
+          <CleaningCycleTemplatePanel eventId={eventId} />
         ) : (
           <>
             {msg && (
@@ -585,7 +622,7 @@ export default function CreativeTemplatesAdminPage({ params }: { params: Promise
                       <span style={{ fontSize: '11px', color: 'var(--ink4)', flexShrink: 0 }}>{v.layers.length}</span>
                     </button>
                   ))}
-                  <Button variant="ghost" onClick={addVariant}>+ New Variant</Button>
+                  <Button variant="ghost" onClick={() => setNewVariantPickerOpen(true)}>+ New Variant</Button>
                 </div>
 
                 {/* Layer editor — plain container, not a nested Card; LayerRow's own
@@ -604,7 +641,17 @@ export default function CreativeTemplatesAdminPage({ params }: { params: Promise
                           Use
                           <Select
                             value={activeVariant.category ?? 'promo'}
-                            onChange={e => updateActiveVariant({ category: e.target.value as 'promo' | 'self_promo' | 'website_photo' })}
+                            onChange={e => {
+                              const category = e.target.value as 'promo' | 'self_promo' | 'website_photo'
+                              // Website Photo variants must stay square at
+                              // the Cleaning Cycle's own standardized canvas
+                              // size (2026-08-21, per Madhu) — selecting the
+                              // category sets it immediately, so any layer
+                              // added afterward (addLayer() sizes new layers
+                              // from the variant's current canvas) inherits it
+                              // for free rather than needing a manual W/H fix.
+                              updateActiveVariant(category === 'website_photo' ? { category, canvas_width: CLEANING_CYCLE_CANVAS_SIZE, canvas_height: CLEANING_CYCLE_CANVAS_SIZE } : { category })
+                            }}
                             style={{ width: '150px' }}
                           >
                             <option value="promo">Promo</option>
@@ -613,10 +660,13 @@ export default function CreativeTemplatesAdminPage({ params }: { params: Promise
                           </Select>
                         </label>
                         <label style={{ fontSize: '11px', color: 'var(--ink3)', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                          W <Input type="number" value={activeVariant.canvas_width} onChange={e => updateActiveVariant({ canvas_width: Number(e.target.value) })} style={{ width: '70px' }} />
+                          {/* 90px, was 70px (2026-08-21) — a 4-digit value
+                              (e.g. 1024) plus the browser's built-in number
+                              spinner arrows clipped the last digit at 70px. */}
+                          W <Input type="number" value={activeVariant.canvas_width} onChange={e => updateActiveVariant({ canvas_width: Number(e.target.value) })} style={{ width: '90px' }} />
                         </label>
                         <label style={{ fontSize: '11px', color: 'var(--ink3)', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                          H <Input type="number" value={activeVariant.canvas_height} onChange={e => updateActiveVariant({ canvas_height: Number(e.target.value) })} style={{ width: '70px' }} />
+                          H <Input type="number" value={activeVariant.canvas_height} onChange={e => updateActiveVariant({ canvas_height: Number(e.target.value) })} style={{ width: '90px' }} />
                         </label>
                       </div>
                       {activeVariant.category === 'website_photo' && (
@@ -688,10 +738,6 @@ export default function CreativeTemplatesAdminPage({ params }: { params: Promise
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '10px', marginBottom: '10px', flexWrap: 'wrap' }}>
                     <span style={{ fontSize: '11px', fontWeight: 800, color: 'var(--teal-mid)', letterSpacing: '0.6px', textTransform: 'uppercase' }}>Preview</span>
                     <div style={{ display: 'flex', gap: '8px' }}>
-                      <Select value={previewFor} onChange={e => setPreviewFor(e.target.value)} style={{ width: '200px' }}>
-                        <option value="">Placeholder data</option>
-                        {stakeholderOptions.map(o => <option key={o.id} value={o.id}>{o.label}</option>)}
-                      </Select>
                       <Button variant="ghost" onClick={() => setShowPlaceholderPanel(s => !s)}>
                         {showPlaceholderPanel ? 'Close' : 'Edit Placeholder'}
                       </Button>
@@ -750,7 +796,14 @@ export default function CreativeTemplatesAdminPage({ params }: { params: Promise
                         onChangeLayer={updateLayer}
                         onCommitUndo={pushUndo}
                         activeType={activeType}
-                        previewForRecord={previewForRecord}
+                        // Always null (2026-08-21, was selectable against any
+                        // real speaker/partner) — with no real record, the
+                        // ghost overlay's own resolveGhostImageUrl() already
+                        // falls back to the Photo/Logo Slot's own reference_url
+                        // (see LayerBoxOverlay.tsx), which is exactly "always
+                        // use the photo uploaded as that layer's reference" —
+                        // no separate placeholder-photo upload needed.
+                        previewForRecord={null}
                         placeholderProfile={placeholderProfiles[activeType]}
                         showGhost={!previewDataUrl || previewStale}
                         hasUnderlyingPreview={!!previewDataUrl}
@@ -768,6 +821,35 @@ export default function CreativeTemplatesAdminPage({ params }: { params: Promise
           </>
         )}
       </div>
+      {newVariantPickerOpen && (
+        <div style={{ position: 'fixed', inset: 0, background: 'color-mix(in srgb, black 60%, transparent)', zIndex: 60, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }} onClick={() => setNewVariantPickerOpen(false)}>
+          <div onClick={e => e.stopPropagation()} style={{ width: '360px', maxWidth: '100%', background: 'var(--card)', border: '1px solid var(--border)', borderRadius: '14px', padding: '22px' }}>
+            <div style={{ fontSize: '14px', fontWeight: 800, color: 'var(--ink)', marginBottom: '4px' }}>New Variant — Use</div>
+            <div style={{ fontSize: '11.5px', color: 'var(--ink3)', marginBottom: '16px' }}>
+              Picked up front so the canvas size is correct from the start — a Website Photo variant always starts at {CLEANING_CYCLE_CANVAS_SIZE}x{CLEANING_CYCLE_CANVAS_SIZE}, Promo/Self Promo at 1080x1350.
+            </div>
+            <div style={{ display: 'grid', gap: '8px' }}>
+              {([
+                ['promo', 'Promo', 'Org’s own channel-publish flow'],
+                ['self_promo', 'Self Promo', 'Emailed to the speaker for them to post'],
+                ['website_photo', 'Website Photo', `Square speaker card photo, ${CLEANING_CYCLE_CANVAS_SIZE}x${CLEANING_CYCLE_CANVAS_SIZE}`],
+              ] as const).map(([value, label, hint]) => (
+                <button key={value} onClick={() => addVariant(value)} style={{
+                  display: 'block', width: '100%', padding: '11px 14px', borderRadius: '10px',
+                  border: '1.5px solid var(--border)', background: 'var(--surface)', cursor: 'pointer',
+                  fontFamily: 'inherit', textAlign: 'left',
+                }}>
+                  <div style={{ fontSize: '13.5px', fontWeight: 700, color: 'var(--ink)' }}>{label}</div>
+                  <div style={{ fontSize: '11px', color: 'var(--ink3)', marginTop: '2px' }}>{hint}</div>
+                </button>
+              ))}
+            </div>
+            <div style={{ marginTop: '14px' }}>
+              <Button variant="ghost" onClick={() => setNewVariantPickerOpen(false)}>Cancel</Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
@@ -861,6 +943,15 @@ function PlaceholderPanel({ activeType, profile, onSave }: {
       ) : (
         <label style={{ ...fieldStyle, gridColumn: '1 / -1' }}>Company Name<Input value={draft.company_name ?? ''} onChange={e => setDraft(d => ({ ...d, company_name: e.target.value }))} style={{ width: '100%', marginTop: '3px' }} /></label>
       )}
+      {/* No photo/logo field here (2026-08-21, per Madhu) — deliberately not
+          a second place to upload one. The placeholder photo/logo always
+          comes from whatever's already uploaded as the Photo/Logo Slot
+          layer's own "Upload Reference Layer (auto-position)" reference —
+          one upload, reused everywhere it's needed (see LayerBoxOverlay.tsx's
+          resolveGhostImageUrl and preview/route.ts's own fallback chain). */}
+      <div style={{ gridColumn: '1 / -1', fontSize: '10.5px', color: 'var(--ink4)' }}>
+        Placeholder photo/logo isn&apos;t set here — it&apos;s whatever image you uploaded via &quot;Upload Reference Layer (auto-position)&quot; on the Photo/Logo Slot layer below.
+      </div>
       <div style={{ gridColumn: '1 / -1' }}>
         <Button variant="teal" onClick={handleSave} disabled={saving}>{saving ? 'Saving…' : 'Save Placeholder'}</Button>
       </div>
@@ -868,22 +959,37 @@ function PlaceholderPanel({ activeType, profile, onSave }: {
   )
 }
 
-// "AI Edit Prompts" — Admin Console's third tab (2026-08-18). Self-
-// contained like AccessTab, deliberately not wired through the Variants
-// tab's fetchAll()/mutate()/undo machinery, which is all built around
-// editing layer stacks — this is a much simpler flat list with its own
-// save. A named, reusable PhotoRoom editWithAI prompt library: each preset
-// can be assigned to one "module" (a fixed, code-defined feature — see
-// AI_EDIT_MODULES), and that feature's own generate route looks up its
-// prompt by module_key. Only one real module exists today (Speaker Web
-// Pic), but per Madhu this is meant to hold future templatized editWithAI
-// features too, without each growing its own bespoke config UI.
-function AiEditPromptsPanel({ eventId }: { eventId: string }) {
+const DEFAULT_CLEANING_TEMPLATE: CleaningCycleTemplate = {
+  reference_url: null,
+  target_head_center_x: 0.5, target_head_center_y: 0.265, target_head_height: 0.29,
+  reference_box_width: CLEANING_CYCLE_CANVAS_SIZE, reference_box_height: CLEANING_CYCLE_CANVAS_SIZE,
+  shot_type: 'shoulders',
+  prompt: '',
+}
+
+// "AI Edit Prompts" — Admin Console's third tab (2026-08-18, rebuilt
+// 2026-08-21). Was a named PhotoRoom editWithAI prompt library
+// (AI_EDIT_MODULES) for a lighting/style feature that got abandoned before
+// any module ever used it — replaced with the one real config this
+// pipeline needs: the Cleaning Cycle's own template (composite.ts's
+// CleaningCycleTemplate). Branding team uploads a reference photo (any
+// speaker photo already correctly composed) and fine-tunes the head marker
+// — same "Upload Reference Layer (auto-position)" flow as a Variant's own
+// Photo/Logo Slot, deliberately reused rather than reinvented, but this
+// config is NOT tied to any one Variant: it defines the single standard
+// every speaker's cleaned photo is measured against (see clean-photo/
+// generate+finalize routes), independent of which creative later crops
+// from that clean result to its own canvas/head position.
+function CleaningCycleTemplatePanel({ eventId }: { eventId: string }) {
   const [loading, setLoading] = useState(true)
-  const [prompts, setPrompts] = useState<AiEditPreset[]>([])
+  const [template, setTemplate] = useState<CleaningCycleTemplate>(DEFAULT_CLEANING_TEMPLATE)
   const [dirty, setDirty] = useState(false)
   const [saving, setSaving] = useState(false)
+  const [analyzing, setAnalyzing] = useState(false)
   const [msg, setMsg] = useState<string | null>(null)
+  const [imgAspect, setImgAspect] = useState<number | null>(null)
+  const containerRef = useRef<HTMLDivElement | null>(null)
+  const dragRef = useRef<{ mode: 'move' | 'resize'; startClientX: number; startClientY: number; startTemplate: CleaningCycleTemplate; rectWidth: number; rectHeight: number } | null>(null)
 
   useEffect(() => {
     let cancelled = false
@@ -891,35 +997,78 @@ function AiEditPromptsPanel({ eventId }: { eventId: string }) {
       .then(r => r.json())
       .then((config: CreativeTemplateConfig | null) => {
         if (cancelled) return
-        setPrompts(config?.ai_edit_prompts ?? [])
+        if (config?.cleaning_cycle_template) setTemplate(config.cleaning_cycle_template)
         setLoading(false)
       })
       .catch(() => { if (!cancelled) setLoading(false) })
     return () => { cancelled = true }
   }, [eventId])
 
-  function addPreset() {
-    setPrompts(ps => [...ps, { id: crypto.randomUUID(), name: 'Untitled Preset', prompt: '', module_key: null }])
+  function update(patch: Partial<CleaningCycleTemplate>) {
+    setTemplate(t => ({ ...t, ...patch }))
     setDirty(true)
   }
 
-  function updatePreset(id: string, patch: Partial<AiEditPreset>) {
-    setPrompts(ps => ps.map(p => p.id === id ? { ...p, ...patch } : p))
-    setDirty(true)
+  async function uploadReference(file: File) {
+    setAnalyzing(true)
+    setMsg(null)
+    try {
+      const form = new FormData()
+      form.append('file', file)
+      form.append('event_id', eventId)
+      form.append('detect_face', 'true')
+      const res = await fetch('/api/events/templates/derive-alignment', { method: 'POST', body: form })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) { setMsg(data.error || 'Could not analyze the reference photo.'); return }
+      setImgAspect(null)
+      update({
+        reference_url: data.reference_url,
+        target_head_center_x: data.target_head_center_x, target_head_center_y: data.target_head_center_y, target_head_height: data.target_head_height,
+        reference_box_width: data.reference_box_width, reference_box_height: data.reference_box_height,
+        shot_type: data.shot_type,
+      })
+    } finally {
+      setAnalyzing(false)
+    }
   }
 
-  function deletePreset(id: string) {
-    const preset = prompts.find(p => p.id === id)
-    if (!confirm(`Delete preset "${preset?.name || 'Untitled Preset'}"?`)) return
-    setPrompts(ps => ps.filter(p => p.id !== id))
-    setDirty(true)
+  function onImgLoad(e: React.SyntheticEvent<HTMLImageElement>) {
+    setImgAspect(e.currentTarget.naturalWidth / e.currentTarget.naturalHeight)
+  }
+
+  function startDrag(e: React.PointerEvent, mode: 'move' | 'resize') {
+    e.preventDefault()
+    e.stopPropagation()
+    ;(e.currentTarget as Element).setPointerCapture(e.pointerId)
+    const rect = containerRef.current?.getBoundingClientRect()
+    dragRef.current = { mode, startClientX: e.clientX, startClientY: e.clientY, startTemplate: template, rectWidth: rect?.width || 1, rectHeight: rect?.height || 1 }
+  }
+
+  function onPointerMove(e: React.PointerEvent) {
+    const drag = dragRef.current
+    if (!drag) return
+    const dxRatio = (e.clientX - drag.startClientX) / drag.rectWidth
+    const dyRatio = (e.clientY - drag.startClientY) / drag.rectHeight
+    if (drag.mode === 'move') {
+      update({
+        target_head_center_x: Math.max(0, Math.min(1, drag.startTemplate.target_head_center_x + dxRatio)),
+        target_head_center_y: Math.max(0, Math.min(1, drag.startTemplate.target_head_center_y + dyRatio)),
+      })
+    } else {
+      update({ target_head_height: Math.max(0.03, drag.startTemplate.target_head_height + dyRatio * 2) })
+    }
+  }
+
+  function endDrag(e: React.PointerEvent) {
+    if (dragRef.current) { try { (e.currentTarget as Element).releasePointerCapture(e.pointerId) } catch { /* already released */ } }
+    dragRef.current = null
   }
 
   async function save() {
     setSaving(true)
-    const res = await fetch('/api/events/templates/ai-edit-prompts', {
+    const res = await fetch('/api/events/templates/cleaning-cycle-template', {
       method: 'PUT', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ event_id: eventId, prompts }),
+      body: JSON.stringify({ event_id: eventId, template }),
     })
     const data = await res.json().catch(() => ({}))
     if (res.ok) setDirty(false); else setMsg(data.error || 'Save failed.')
@@ -928,10 +1077,12 @@ function AiEditPromptsPanel({ eventId }: { eventId: string }) {
 
   if (loading) return <div style={{ color: 'var(--ink3)', fontSize: '13px' }}>Loading…</div>
 
+  const widthRatio = imgAspect ? template.target_head_height / imgAspect : template.target_head_height
+
   return (
-    <div style={{ maxWidth: '760px' }}>
+    <div style={{ maxWidth: '640px' }}>
       <div style={{ fontSize: '12.5px', color: 'var(--ink3)', marginBottom: '16px' }}>
-        Named PhotoRoom editWithAI prompts, each assignable to one feature below. A feature's generate step looks up its prompt by that assignment — rename or edit the text freely, it takes effect on the next generate.
+        This is the single standard every speaker&apos;s Cleaned Photo is measured against — set it up once per event. Upload a reference photo (any speaker photo already correctly composed works), then drag/resize the circle to mark exactly where the head should sit. The &quot;Clean Photo&quot; action on each speaker crops to this target, calling AI only when a photo doesn&apos;t have enough real content to fill it.
       </div>
 
       {msg && (
@@ -940,32 +1091,58 @@ function AiEditPromptsPanel({ eventId }: { eventId: string }) {
         </div>
       )}
 
-      {prompts.length === 0 && (
-        <div style={{ color: 'var(--ink3)', fontSize: '13px', textAlign: 'center', padding: '32px 0' }}>No presets yet.</div>
-      )}
-
-      <div style={{ display: 'grid', gap: '14px', marginBottom: '18px' }}>
-        {prompts.map(p => (
-          <div key={p.id} style={{ padding: '14px', borderRadius: '10px', border: '1px solid var(--border-light)', background: 'var(--surface)' }}>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 220px auto', gap: '10px', marginBottom: '10px' }}>
-              <Input value={p.name} onChange={e => updatePreset(p.id, { name: e.target.value })} placeholder="Preset name" />
-              <Select value={p.module_key ?? ''} onChange={e => updatePreset(p.id, { module_key: e.target.value || null })}>
-                <option value="">— Unassigned —</option>
-                {AI_EDIT_MODULES.map(m => <option key={m.key} value={m.key}>{m.label}</option>)}
-              </Select>
-              <Button variant="ghost" onClick={() => deletePreset(p.id)}>Delete</Button>
-            </div>
-            <Textarea value={p.prompt} onChange={e => updatePreset(p.id, { prompt: e.target.value })}
-              placeholder="e.g. Add dramatic professional studio lighting: a cool blue rim light along the left edge of the face and hair, soft warm key light on the front of the face, deep natural shadows, editorial portrait look. Do not change facial features, expression, or identity."
-              style={{ width: '100%', minHeight: '80px' }} />
+      <div style={{ background: 'var(--surface)', borderRadius: '10px', overflow: 'hidden', display: 'flex', justifyContent: 'center', padding: '16px', marginBottom: '14px' }}>
+        {template.reference_url ? (
+          <div ref={containerRef} onPointerMove={onPointerMove} onPointerUp={endDrag} style={{ position: 'relative', display: 'inline-block', touchAction: 'none' }}>
+            {/* eslint-disable-next-line @next/next/no-img-element -- needs real onLoad access to naturalWidth/naturalHeight, not next/image */}
+            <img src={template.reference_url} alt="Cleaning Cycle reference" onLoad={onImgLoad} style={{ maxWidth: '100%', maxHeight: '420px', display: 'block' }} />
+            {imgAspect && (
+              <div onPointerDown={e => startDrag(e, 'move')} style={{
+                position: 'absolute',
+                left: `${(template.target_head_center_x - widthRatio / 2) * 100}%`,
+                top: `${(template.target_head_center_y - template.target_head_height / 2) * 100}%`,
+                width: `${widthRatio * 100}%`, height: `${template.target_head_height * 100}%`,
+                borderRadius: '50%', border: '1.5px dashed var(--teal-mid)', background: 'color-mix(in srgb, var(--teal-mid) 10%, transparent)',
+                display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'move',
+              }}>
+                <span style={{ fontSize: '9px', fontWeight: 800, letterSpacing: '0.4px', textTransform: 'uppercase', color: 'var(--teal-mid)', opacity: 0.9, pointerEvents: 'none' }}>Head</span>
+                <div onPointerDown={e => startDrag(e, 'resize')} title="Drag to resize the head marker" style={{
+                  position: 'absolute', bottom: -5, left: '50%', marginLeft: -5, width: 10, height: 10, borderRadius: '50%',
+                  background: 'var(--teal-mid)', border: '1.5px solid var(--card)', cursor: 'ns-resize',
+                }} />
+              </div>
+            )}
           </div>
-        ))}
+        ) : (
+          <div style={{ color: 'var(--ink3)', fontSize: '13px', textAlign: 'center', padding: '32px 0' }}>No reference photo yet — upload one below.</div>
+        )}
       </div>
 
-      <div style={{ display: 'flex', gap: '10px' }}>
-        <Button variant="ghost" onClick={addPreset}>+ New Preset</Button>
-        <Button variant="teal" onClick={save} disabled={saving || !dirty}>{saving ? 'Saving…' : dirty ? 'Save Changes' : 'Saved'}</Button>
+      <label style={{ display: 'inline-flex', marginBottom: '18px' }}>
+        <span style={{ padding: '7px 14px', borderRadius: '10px', border: '1.5px solid var(--border)', color: 'var(--ink2)', fontSize: '13px', fontWeight: 700, cursor: analyzing ? 'default' : 'pointer' }}>
+          {analyzing ? 'Analyzing…' : template.reference_url ? 'Replace Reference Photo (auto-position)' : 'Upload Reference Photo (auto-position)'}
+        </span>
+        <input type="file" accept="image/png,image/jpeg,image/webp" style={{ display: 'none' }} disabled={analyzing}
+          onChange={e => { const f = e.target.files?.[0]; if (f) uploadReference(f); e.target.value = '' }} />
+      </label>
+
+      <label style={{ fontSize: '12px', fontWeight: 700, color: 'var(--ink2)', display: 'block', marginBottom: '6px' }}>
+        Additional AI fill notes (optional — only used when a photo needs it)
+      </label>
+      <div style={{ fontSize: '11px', color: 'var(--ink4)', marginBottom: '6px' }}>
+        The exact target head position/size above is always sent automatically as precise numbers — this field is extra style guidance only (e.g. lighting, mood), not a full prompt replacement.
       </div>
+      <Textarea value={template.prompt} onChange={e => update({ prompt: e.target.value })}
+        placeholder="Optional — e.g. 'prefer a slightly warmer, more corporate lighting look'. Leave blank if you have no extra notes."
+        style={{ width: '100%', minHeight: '100px', marginBottom: '18px' }} />
+
+      <Button variant="teal" onClick={save} disabled={saving || !dirty}>{saving ? 'Saving…' : dirty ? 'Save Changes' : 'Saved'}</Button>
+      {/* Blocking overlay while analyzing (2026-08-21, per Madhu) — the
+          inline "Analyzing…" button label alone didn't stop a branding-team
+          user from clicking elsewhere mid-upload; this is the same shared
+          overlay every other perceptibly-slow action in this app already
+          uses (see ProcessingOverlay's own doc comment). */}
+      <ProcessingOverlay active={analyzing} label="Analyzing reference photo…" estimatedMs={4000} />
     </div>
   )
 }

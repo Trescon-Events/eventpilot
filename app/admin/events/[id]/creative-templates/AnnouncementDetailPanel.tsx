@@ -10,7 +10,7 @@ import { downloadFile } from '@/app/lib/download-file'
 import type { Variant } from '@/app/lib/announcements/composite'
 import SendToSpeakerComposer from './SendToSpeakerComposer'
 import {
-  displayName, statusColor, plainToHtml, PLATFORM_CHAR_LIMITS,
+  displayName, displaySubtitle, statusColor, plainToHtml, PLATFORM_CHAR_LIMITS,
   type AnnouncementListItem, type Stakeholder, type StakeholderKind, type Speaker, type PostizChannel, type EventStaffOption,
 } from './page'
 
@@ -35,6 +35,7 @@ export default function AnnouncementDetailPanel({
   postizChannels,
   defaultChannelIds,
   eventStaff,
+  eventName,
   onUpdate,
   onError,
 }: {
@@ -47,6 +48,11 @@ export default function AnnouncementDetailPanel({
   postizChannels: PostizChannel[]
   defaultChannelIds: string[]
   eventStaff: EventStaffOption[]
+  // Used only to compose the "Share to Team" WhatsApp message (event name in
+  // the header line) — optional so this panel doesn't hard-fail anywhere it
+  // isn't threaded through yet; the message just omits the event name if
+  // this isn't passed, rather than the button disappearing outright.
+  eventName?: string | null
   onUpdate: (patch: Partial<AnnouncementListItem>) => void
   onError: (msg: string) => void
 }) {
@@ -61,6 +67,18 @@ export default function AnnouncementDetailPanel({
   const [scheduleAt, setScheduleAt] = useState('')
   const [approverPickerOpen, setApproverPickerOpen] = useState(false)
   const [pickedApprovers, setPickedApprovers] = useState<Record<string, string>>({})
+  // A prominent, short-lived confirmation banner right after Schedule/Post
+  // Now succeeds (2026-08-21, per Madhu) — the only feedback before this
+  // was the transient "Posting via Postiz…" overlay, which vanished the
+  // instant the request completed, leaving nothing on screen to confirm
+  // the action actually landed except a small status badge easy to miss
+  // below the fold. null = no banner; string = what it says.
+  const [justCompleted, setJustCompleted] = useState<string | null>(null)
+  useEffect(() => {
+    if (!justCompleted) return
+    const t = setTimeout(() => setJustCompleted(null), 8000)
+    return () => clearTimeout(t)
+  }, [justCompleted])
 
   const copyEditor = useEditor({
     extensions: [
@@ -80,13 +98,24 @@ export default function AnnouncementDetailPanel({
   // Re-seed everything scoped to "the currently reviewed announcement"
   // whenever it changes (switching stakeholders, switching announcements,
   // or a fresh Regenerate updated its own copy in place).
+  //
+  // copyEditor IS a dependency here (2026-08-21, real bug: Post Copy showed
+  // blank on the very first view of a brand-new announcement, despite
+  // post_copy being fully populated in the DB) — useEditor is configured
+  // with immediatelyRender: false, so copyEditor is null on first render
+  // and only becomes a real Editor instance after mount, via its own
+  // internal update. The old deps list ([announcement.id,
+  // announcement.post_copy]) assumed copyEditor was already stable by the
+  // time this effect first ran; in reality the effect ran once against
+  // null (the early return did nothing) and never ran again for that same
+  // announcement, since neither dep changes afterward. Including copyEditor
+  // makes the effect re-fire the moment it actually becomes available.
   useEffect(() => {
     if (!copyEditor) return
     copyEditor.commands.setContent(plainToHtml(announcement.post_copy ?? ''))
     // eslint-disable-next-line react-hooks/set-state-in-effect -- resets the dirty flag alongside re-seeding the editor's content from the newly-selected creative, not a state update in response to another render
     setCopyDirty(false)
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- copyEditor is stable once created; only re-seed when the actual selected creative or its copy changes
-  }, [announcement.id, announcement.post_copy])
+  }, [announcement.id, announcement.post_copy, copyEditor])
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- seeds per-post UI selection state from the newly-selected announcement, not a response to another render
@@ -175,7 +204,10 @@ export default function AnnouncementDetailPanel({
     })
     const data = await res.json().catch(() => ({}))
     setPublishing(null)
-    if (res.ok) onUpdate({ status: data.status, scheduled_for: data.scheduled_for, publish_results: data.publish_results, postiz_channel_ids: selectedChannelIds })
+    if (res.ok) {
+      onUpdate({ status: data.status, scheduled_for: data.scheduled_for, publish_results: data.publish_results, postiz_channel_ids: selectedChannelIds })
+      setJustCompleted(`✓ Scheduled for ${new Date(data.scheduled_for).toLocaleString()} on ${selectedChannelIds.length} channel${selectedChannelIds.length === 1 ? '' : 's'}.`)
+    }
     else onError(data.error || 'Could not schedule this announcement.')
   }
 
@@ -187,7 +219,10 @@ export default function AnnouncementDetailPanel({
     })
     const data = await res.json().catch(() => ({}))
     setPublishing(null)
-    if (res.ok) onUpdate({ status: data.status, scheduled_for: data.scheduled_for, publish_results: data.publish_results, postiz_channel_ids: selectedChannelIds })
+    if (res.ok) {
+      onUpdate({ status: data.status, scheduled_for: data.scheduled_for, publish_results: data.publish_results, postiz_channel_ids: selectedChannelIds })
+      setJustCompleted(`✓ Posted! Postiz is delivering it to ${selectedChannelIds.length} channel${selectedChannelIds.length === 1 ? '' : 's'} now — links below will appear as each one confirms.`)
+    }
     else onError(data.error || 'Could not publish this announcement.')
   }
 
@@ -198,8 +233,55 @@ export default function AnnouncementDetailPanel({
     })
     const data = await res.json().catch(() => ({}))
     setPublishing(null)
-    if (res.ok) onUpdate({ status: data.status, scheduled_for: data.scheduled_for, publish_results: data.publish_results })
+    if (res.ok) {
+      onUpdate({ status: data.status, scheduled_for: data.scheduled_for, publish_results: data.publish_results })
+      setJustCompleted('✓ Retried! Postiz is delivering it again — links below will appear as each channel confirms.')
+    }
     else onError(data.error || 'Retry failed.')
+  }
+
+  // "Share to Team" (2026-08-21, per Madhu) — the team's own WhatsApp
+  // announcements group is where staff go to like/reshare a fresh post, but
+  // nothing can post INTO that existing group programmatically: WhatsApp's
+  // official Groups API (added 2026) only messages groups created THROUGH
+  // that API via invite links, capped at 8 members — it cannot reach a
+  // pre-existing group like this one, and the only way around that is an
+  // unofficial WhatsApp-Web-automation library, which violates WhatsApp's
+  // ToS and risks the number getting banned. Not doing that. This instead
+  // composes the exact message a producer would otherwise have to
+  // hand-assemble (gathering each platform's live link, per Madhu's own
+  // WhatsApp screenshot example) and opens it via WhatsApp's own official
+  // wa.me click-to-chat deep link — the producer picks the group and hits
+  // send, one click instead of manually copying N links into a fresh
+  // message every time.
+  const PLATFORM_LABELS: Record<string, string> = {
+    linkedin: 'LinkedIn', 'linkedin-page': 'LinkedIn Page', x: 'X', instagram: 'Instagram', youtube: 'YouTube',
+  }
+  function shareablePlatformLinks(): { label: string; url: string }[] {
+    if (!announcement.publish_results) return []
+    return Object.entries(announcement.publish_results)
+      .filter((entry): entry is [string, { success: boolean; postId: string; state?: string; url: string }] => !!entry[1].url)
+      .map(([channelId, r]) => {
+        const ch = postizChannels.find(c => c.id === channelId)
+        return { label: (ch && PLATFORM_LABELS[ch.identifier]) || ch?.name || channelId, url: r.url }
+      })
+  }
+  function shareToTeam() {
+    const links = shareablePlatformLinks()
+    if (links.length === 0) return
+    const kindLabel = stakeholderKind === 'speaker' ? 'Speaker Announcement' : 'Partner Announcement'
+    const who = `${displayName(stakeholderKind, stakeholder)} (${displaySubtitle(stakeholderKind, stakeholder)})`
+    const header = eventName ? `📣 New ${kindLabel} — ${eventName}` : `📣 New ${kindLabel}`
+    const lines = [
+      header,
+      '',
+      who,
+      '',
+      'Team kindly like and reshare 🙌',
+      '',
+      ...links.map((l, i) => `${i + 1}. ${l.label}: ${l.url}`),
+    ]
+    window.open(`https://wa.me/?text=${encodeURIComponent(lines.join('\n'))}`, '_blank', 'noopener,noreferrer')
   }
 
   // deliberately excludes "deleting" — no delete affordance lives in this
@@ -287,11 +369,39 @@ export default function AnnouncementDetailPanel({
           status, all for the currently-selected announcement. Channels
           default to this event's remembered selection but are freely
           adjustable per post. */
-      <div style={{ padding: '16px 18px', borderRadius: '10px', border: '1px solid var(--border-light)', background: 'var(--surface)' }}>
+      <div style={{ padding: '16px 18px', borderRadius: '10px', border: `1px solid ${announcement.status === 'published' ? 'var(--teal-mid)' : 'var(--border-light)'}`, background: 'var(--surface)' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
           <div style={{ fontSize: '10.5px', fontWeight: 800, color: 'var(--ink3)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Publishing</div>
-          <Badge color={statusColor(announcement.status)}>{announcement.status.replace(/_/g, ' ')}</Badge>
+          {/* Bigger, harder-to-miss treatment for the terminal "it's live"
+              state (2026-08-21, per Madhu: a small pill in the corner was
+              easy to walk right past after posting) — every other status
+              keeps the compact badge, since only "published" needs to read
+              as a clear, confident confirmation rather than a passing note. */}
+          {announcement.status === 'published' ? (
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '5px 12px', borderRadius: '999px', background: 'var(--teal-mid)', color: 'white', fontSize: '12.5px', fontWeight: 800 }}>
+              <span style={{ fontSize: '14px' }}>✓</span> PUBLISHED
+            </div>
+          ) : (
+            <Badge color={statusColor(announcement.status)}>{announcement.status.replace(/_/g, ' ')}</Badge>
+          )}
         </div>
+
+        {/* Prominent, short-lived confirmation right after Schedule/Post
+            Now/Retry succeeds — see justCompleted's own doc comment above. */}
+        {justCompleted && (
+          <div style={{
+            display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '10px',
+            padding: '12px 14px', borderRadius: '8px', marginBottom: '14px',
+            background: 'var(--teal-light)', border: '1.5px solid var(--teal-mid)',
+            fontSize: '13px', fontWeight: 700, color: 'var(--teal-mid)',
+          }}>
+            <span>{justCompleted}</span>
+            <button onClick={() => setJustCompleted(null)} aria-label="Dismiss"
+              style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--teal-mid)', fontSize: '15px', fontWeight: 800, lineHeight: 1, padding: '2px' }}>
+              ✕
+            </button>
+          </div>
+        )}
 
         <div style={{ fontSize: '11px', fontWeight: 700, color: 'var(--ink3)', marginBottom: '6px' }}>Channels</div>
         {postizChannels.length === 0 ? (
@@ -342,11 +452,28 @@ export default function AnnouncementDetailPanel({
         {announcement.status === 'changes_requested' && (
           <div style={{ fontSize: '12px', color: 'var(--red)', marginBottom: '12px' }}>Changes were requested — update the copy/creative above, then send for approval again.</div>
         )}
-        {announcement.status === 'scheduled' && announcement.scheduled_for && (
-          <div style={{ fontSize: '12px', color: 'var(--ink3)', marginBottom: '12px' }}>
-            Scheduled for {new Date(announcement.scheduled_for).toLocaleString()} — Postiz confirms delivery within 15 minutes of that time.
-          </div>
-        )}
+        {announcement.status === 'scheduled' && announcement.scheduled_for && (() => {
+          // "Post Now" is implemented as a Postiz schedule for right now
+          // (see postiz-publish.ts's own doc comment on why status stays
+          // 'scheduled' until the sync cron confirms real delivery) — but
+          // by the time this re-renders, that "now" is already a moment in
+          // the past, and the old copy always said "Scheduled for
+          // <timestamp>" regardless, reading exactly like a deliberate
+          // future schedule even when the producer clicked Post Now for
+          // immediate delivery (real confusion, 2026-08-21, Madhu: "my
+          // action was to not schedule but post... it still says
+          // scheduled"). A future timestamp is a genuine schedule; a
+          // timestamp already in the past is really "posting now, still
+          // confirming" — different situations, different copy.
+          const isImmediate = new Date(announcement.scheduled_for) <= new Date()
+          return (
+            <div style={{ fontSize: '12px', color: 'var(--ink3)', marginBottom: '12px' }}>
+              {isImmediate
+                ? 'Posting now — Postiz is delivering it, this typically confirms within a few minutes.'
+                : `Scheduled for ${new Date(announcement.scheduled_for).toLocaleString()} — Postiz confirms delivery within 15 minutes of that time.`}
+            </div>
+          )
+        })()}
         {announcement.status === 'published' && (
           <div style={{ fontSize: '12px', color: 'var(--teal-mid)', fontWeight: 700, marginBottom: '12px' }}>
             ✓ Published {announcement.published_at ? new Date(announcement.published_at).toLocaleString() : ''}
@@ -355,14 +482,44 @@ export default function AnnouncementDetailPanel({
         {announcement.status === 'failed' && (
           <div style={{ fontSize: '12px', color: 'var(--red)', marginBottom: '12px' }}>
             Publishing failed on at least one channel.
-            {announcement.publish_results && (
-              <ul style={{ margin: '4px 0 0', paddingLeft: '18px' }}>
-                {Object.entries(announcement.publish_results).map(([channelId, r]) => {
-                  const ch = postizChannels.find(c => c.id === channelId)
-                  return <li key={channelId}>{ch?.name ?? channelId}: {r.state ?? (r.success ? 'ok' : 'error')}</li>
-                })}
-              </ul>
-            )}
+          </div>
+        )}
+
+        {/* Per-channel results — state, and the live link once Postiz
+            confirms it (2026-08-21, per Madhu: producers had no way to
+            actually verify/reference what went out without leaving
+            EventPilot and hunting for it on each platform). Shown for any
+            status once a publish/schedule attempt exists, not just
+            'published' — a channel can confirm with a link while the
+            announcement's overall status is still 'scheduled' (other
+            channels still in flight) or 'failed' (this one succeeded,
+            another didn't). */}
+        {announcement.publish_results && Object.keys(announcement.publish_results).length > 0 && (
+          <div style={{ marginBottom: '12px' }}>
+            <div style={{ fontSize: '11px', fontWeight: 700, color: 'var(--ink3)', marginBottom: '6px' }}>Delivered to</div>
+            <ul style={{ margin: 0, padding: 0, listStyle: 'none', display: 'grid', gap: '4px' }}>
+              {Object.entries(announcement.publish_results).map(([channelId, r]) => {
+                const ch = postizChannels.find(c => c.id === channelId)
+                const label = ch?.name ?? channelId
+                const state = r.state ?? (r.success ? 'QUEUE' : 'ERROR')
+                return (
+                  <li key={channelId} style={{ fontSize: '12px', color: state === 'ERROR' ? 'var(--red)' : 'var(--ink2)', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <span style={{ fontWeight: 700 }}>{label}:</span>
+                    {r.url ? (
+                      <a href={r.url} target="_blank" rel="noopener noreferrer" style={{ color: 'var(--teal-mid)', fontWeight: 700 }}>
+                        View post ↗
+                      </a>
+                    ) : state === 'ERROR' ? (
+                      <span>failed</span>
+                    ) : state === 'PUBLISHED' ? (
+                      <span style={{ color: 'var(--ink3)' }}>confirmed, link pending</span>
+                    ) : (
+                      <span style={{ color: 'var(--ink3)' }}>confirming…</span>
+                    )}
+                  </li>
+                )
+              })}
+            </ul>
           </div>
         )}
 
@@ -388,6 +545,11 @@ export default function AnnouncementDetailPanel({
           {announcement.status === 'failed' && (
             <Button variant="red" onClick={retryPublish} disabled={publishing !== null}>
               {publishing === 'retry' ? 'Retrying…' : 'Retry'}
+            </Button>
+          )}
+          {shareablePlatformLinks().length > 0 && (
+            <Button variant="ghost" onClick={shareToTeam} title="Opens WhatsApp with the message pre-filled — pick your team's announcements group and send">
+              Share to Team on WhatsApp
             </Button>
           )}
         </div>

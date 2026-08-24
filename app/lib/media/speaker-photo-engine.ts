@@ -14,7 +14,7 @@ import sharp from 'sharp'
 // this photo ever gets composited into exceeds ~1160px. 1920px leaves ample
 // headroom above that with no visible quality loss, while meaningfully
 // cutting decode time on every future use of this asset. Exported so
-// crop-photo/route.ts and from-submission/route.ts (the other two places
+// from-submission/route.ts and the Cleaning Cycle routes (the other places
 // that finalize a stored photo_processed_url) apply the identical cap.
 export const MAX_STORED_PHOTO_DIMENSION = 1920
 

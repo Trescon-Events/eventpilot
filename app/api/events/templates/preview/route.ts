@@ -40,21 +40,21 @@ import { compositeOnBackground } from '@/app/lib/media/composite-on-background'
    each source's URL/head_box the same way every time for the same input,
    which is what makes that cache actually hit.
 
-   2026-08-18/19 — for a category: 'website_photo' variant, the
-   speaker_photo source is cropped with alignAndCropPhoto (same as any
-   other photo_slot layer with alignment set — the asset loop below already
-   resolves the right head_box for either a real selected speaker or, with
-   no speaker selected, the layer's own reference_head_box from "Upload
-   Reference Layer"), then composited onto the variant's real background
-   (composite-on-background.ts) — deterministic, no AI, always exact. An AI
-   lighting/style step was tried and abandoned here (PhotoRoom, then
-   Stability AI) — see composite.ts's Variant.category doc comment for why.
-   This route's own output IS the final image for this category — the
-   usual compositeAnnouncement() background step is SKIPPED. No alignment
-   set on the layer yet, or no background Image layer configured yet: falls
-   back to compositeAnnouncement() placing the plain (still correctly
-   cropped, when alignment exists) cutout onto the background locally, with
-   a `website_photo_error` explaining why. */
+   2026-08-18/19 (reverted to this 2026-08-21 after a brief detour to a
+   plain crop-box — see git history/composite.ts's Variant.category doc
+   comment for why) — for a category: 'website_photo' variant, the
+   speaker_photo source is cropped with alignAndCropPhoto, same mechanism
+   any other photo_slot layer with alignment set uses (the asset loop below
+   already resolves the right head_box for either a real selected speaker
+   or, with no speaker selected, the layer's own reference_head_box from
+   "Upload Reference Layer") — deterministic, no AI, always exact, then
+   composited onto the variant's real background (composite-on-
+   background.ts). This route's own output IS the final image for this
+   category — the usual compositeAnnouncement() background step is
+   SKIPPED. No alignment set on the layer yet, or no background Image layer
+   configured yet: falls back to compositeAnnouncement() placing the plain
+   (still correctly cropped, when alignment exists) cutout onto the
+   background locally, with a `website_photo_error` explaining why. */
 
 const PLACEHOLDER_TEXT = { name: 'Jane Doe', title: 'Chief Officer', company: 'Acme Corp', tier: 'LEAD SPONSOR' }
 const PLACEHOLDER_COLOR = { r: 140, g: 140, b: 150, alpha: 1 }
@@ -139,7 +139,7 @@ export async function POST(req: NextRequest) {
       websitePhotoError = 'No reference photo layer set up yet — click "Upload Reference Layer (auto-position)" on the Photo/Logo Slot layer first.'
     } else {
       try {
-        const cropped = await alignAndCropPhoto(
+        const { buffer: cropped, padding } = await alignAndCropPhoto(
           assets.speaker_photo.buffer,
           { ...photoLayer.alignment, box: { x: 0, y: 0, width: body.variant.canvas_width, height: body.variant.canvas_height } },
           assets.speaker_photo.head_box
@@ -150,6 +150,9 @@ export async function POST(req: NextRequest) {
         // only for that fallback render.
         renderVariant = { ...body.variant, layers: body.variant.layers.map(l => l.id === photoLayer.id ? { ...l, alignment: undefined } : l) }
         assets.speaker_photo = { ...assets.speaker_photo, buffer: cropped }
+        if (Math.max(padding.left, padding.top, padding.right, padding.bottom) > 3) {
+          websitePhotoError = `This photo doesn't have enough room around the head to fill the frame (padding: ${JSON.stringify(padding)}) — a real speaker photo may show a visible gap here.`
+        }
 
         const backgroundLayer = body.variant.layers.find((l): l is ImageLayer => l.type === 'image')
         const backgroundBuffer = backgroundLayer?.asset_url ? await fetchAssetBuffer(backgroundLayer.asset_url) : null

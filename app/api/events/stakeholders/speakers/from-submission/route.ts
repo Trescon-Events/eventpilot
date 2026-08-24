@@ -130,7 +130,7 @@ export async function POST(req: NextRequest) {
       })
 
       if (prRes.ok) {
-        // Same stored-resolution cap as processSpeakerPhoto()/crop-photo
+        // Same stored-resolution cap as processSpeakerPhoto()
         // (2026-08-04 perf pass) — this route builds photo_processed_url
         // via its own inline PhotoRoom call rather than that shared
         // helper, so it needs the identical resize applied here too.

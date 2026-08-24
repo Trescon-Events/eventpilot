@@ -67,26 +67,49 @@ export async function GET(req: NextRequest) {
   const { data, error } = await q
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
-  const announced = await fetchAnnouncedPartnerIds((data ?? []).map(p => p.id))
+  const socialPostStatus = await fetchPartnerSocialPostStatus((data ?? []).map(p => p.id))
   return NextResponse.json((data ?? []).map(row => ({
     ...fromRow(row),
-    has_announcement: announced.has(row.id),
-    // Self Promo is a deliberate speaker-only feature (no partner data
-    // model/routes for it) — always false here, kept for a uniform shape
-    // with the speakers response so the Hub roster can render one column.
-    self_promo_sent: false,
+    website_status: websiteStatus(row),
+    social_post_status: socialPostStatus.get(row.id) ?? 'pending',
   })))
 }
 
-/* Roster "Announced" column (2026-08-18 SAE-into-Hub merge) — one batched
-   query for the whole roster rather than N+1 per partner. */
-async function fetchAnnouncedPartnerIds(partnerIds: string[]): Promise<Set<string>> {
-  if (partnerIds.length === 0) return new Set()
+type TriState = 'pending' | 'created' | 'published'
+
+// Same proxy/eligibility logic as the speakers route (KonfHub sync is
+// shared, event_sponsors has the same status/active/konfhub_booking_id
+// shape) — see that file's own doc comment for the full rationale.
+function websiteStatus(row: { konfhub_booking_id: string | null; status: string; active: boolean }): TriState {
+  if (row.konfhub_booking_id) return 'published'
+  if (row.status === 'approved' && row.active === true) return 'created'
+  return 'pending'
+}
+
+/* Roster "Social Post" column (2026-08-18 SAE-into-Hub merge, extended
+   2026-08-23 to a 3-state Website/Social Post model matching the speakers
+   roster — see that file's own doc comment). Self Promo is a deliberate
+   speaker-only feature (no partner data model/routes for it), so this
+   route never returns a self_promo_status field — the Hub roster only
+   renders that column for speakers. One batched query for the whole
+   roster rather than N+1 per partner. */
+async function fetchPartnerSocialPostStatus(partnerIds: string[]): Promise<Map<string, TriState>> {
+  const result = new Map<string, TriState>()
+  if (partnerIds.length === 0) return result
   const { data } = await supabaseAdmin
     .from('stakeholder_announcements')
-    .select('partner_id')
+    .select('partner_id, status')
     .in('partner_id', partnerIds)
-  return new Set((data ?? []).map(a => a.partner_id).filter((id): id is string => !!id))
+
+  const byPartner = new Map<string, string[]>()
+  for (const a of data ?? []) {
+    if (!a.partner_id) continue
+    byPartner.set(a.partner_id, [...(byPartner.get(a.partner_id) ?? []), a.status])
+  }
+  for (const [partnerId, statuses] of byPartner) {
+    result.set(partnerId, statuses.includes('published') ? 'published' : 'created')
+  }
+  return result
 }
 
 export async function POST(req: NextRequest) {

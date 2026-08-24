@@ -31,11 +31,6 @@ function fromRow(row: Record<string, unknown>) {
   return { ...row, company_name: row.name, company_website: row.website_url }
 }
 
-function hasValue(v: SubmittedValue | undefined): boolean {
-  if (Array.isArray(v)) return v.length > 0
-  return !!v && v.trim().length > 0
-}
-
 export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
   const { data, error } = await supabaseAdmin.from('event_sponsors').select('*').eq('id', id).single()
@@ -66,14 +61,12 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
 
   if (body.fields) {
     schema = await resolveFormSchema(existing.event_id, formType)
-    for (const f of schema) {
-      // A required checkbox means "must be checked" — hasValue() alone would
-      // also accept the explicit 'false' string a real unchecked box stores.
-      const unsatisfied = f.type === 'checkbox' ? body.fields[f.key] !== 'true' : !hasValue(body.fields[f.key])
-      if (f.required && f.type !== 'file' && unsatisfied) {
-        return NextResponse.json({ error: `${f.label} is required` }, { status: 400 })
-      }
-    }
+    // No required-field validation here — see the matching removal + full
+    // rationale in speakers/[id]/route.ts's PATCH (2026-08-22, real bug:
+    // this internal edit/autosave route validated the WHOLE current fields
+    // map against every required field in the public onboarding schema on
+    // ANY edit, blocking even unrelated changes on any manually-created
+    // partner that never went through that form).
     const { columns, customFields } = mapFieldsToRecord(formType, schema, body.fields, {})
     Object.assign(row, columns, { custom_fields: customFields })
   }

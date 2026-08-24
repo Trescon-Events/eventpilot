@@ -61,32 +61,54 @@ export async function GET(req: NextRequest) {
   const announcementStatus = await fetchAnnouncementStatus((data ?? []).map(s => s.id))
   return NextResponse.json((data ?? []).map(row => ({
     ...fromRow(row),
-    has_announcement: announcementStatus.get(row.id)?.hasAnnouncement ?? false,
-    self_promo_sent: announcementStatus.get(row.id)?.selfPromoSent ?? false,
+    website_status: websiteStatus(row),
+    social_post_status: announcementStatus.get(row.id)?.socialPostStatus ?? 'pending',
+    self_promo_status: announcementStatus.get(row.id)?.selfPromoStatus ?? 'pending',
   })))
 }
 
-/* Roster status columns (2026-08-18 SAE-into-Hub merge) — "Announced" and
-   "Self Promo Sent" aren't booleans on event_speakers itself: Announced =
-   at least one org_promo row in stakeholder_announcements; Self Promo Sent
-   = a stakeholder_announcement_sends row with status='sent' for one of
-   this speaker's self_promo announcements. Two batched queries for the
-   whole roster rather than N+1 per speaker. */
-async function fetchAnnouncementStatus(speakerIds: string[]): Promise<Map<string, { hasAnnouncement: boolean; selfPromoSent: boolean }>> {
-  const result = new Map<string, { hasAnnouncement: boolean; selfPromoSent: boolean }>()
+export type TriState = 'pending' | 'created' | 'published'
+export type SelfPromoState = 'pending' | 'created' | 'sent'
+
+// Website column (2026-08-23, per Madhu) — proxied off konfhub_booking_id
+// until real bidirectional KonfHub sync-status tracking exists (per Madhu,
+// "we will be setting up later"): 'published' once actually pushed
+// (booking id set), 'created' once internally ready to push (the exact
+// eligibility the KonfHub sync route itself gates on — status='approved' +
+// active=true), otherwise 'pending'.
+function websiteStatus(row: { konfhub_booking_id: string | null; status: string; active: boolean }): TriState {
+  if (row.konfhub_booking_id) return 'published'
+  if (row.status === 'approved' && row.active === true) return 'created'
+  return 'pending'
+}
+
+/* Roster status columns (2026-08-18 SAE-into-Hub merge, extended 2026-08-23
+   for the 3-state Website/Social Post/Self Promo columns) — none of these
+   are booleans on event_speakers itself. Social Post: 'published' once any
+   org_promo announcement's status is 'published' (the sync-status cron only
+   sets this once Postiz confirms a live post with a real URL — see
+   app/api/cron/announcements/sync-status/route.ts), 'created' once one
+   exists in any earlier state (draft/pending_review/approved/scheduled/
+   failed), else 'pending'. Self Promo: 'sent' once a
+   stakeholder_announcement_sends row with status='sent' exists for one of
+   this speaker's self_promo announcements, 'created' once a self_promo
+   announcement exists but hasn't been sent yet, else 'pending'. Two batched
+   queries for the whole roster rather than N+1 per speaker. */
+async function fetchAnnouncementStatus(speakerIds: string[]): Promise<Map<string, { socialPostStatus: TriState; selfPromoStatus: SelfPromoState }>> {
+  const result = new Map<string, { socialPostStatus: TriState; selfPromoStatus: SelfPromoState }>()
   if (speakerIds.length === 0) return result
 
   const { data: announcements } = await supabaseAdmin
     .from('stakeholder_announcements')
-    .select('id, speaker_id, announcement_kind')
+    .select('id, speaker_id, announcement_kind, status')
     .in('speaker_id', speakerIds)
 
-  const bySpeaker = new Map<string, { hasOrgPromo: boolean; selfPromoIds: string[] }>()
+  const bySpeaker = new Map<string, { orgPromoStatuses: string[]; selfPromoIds: string[] }>()
   for (const a of announcements ?? []) {
     if (!a.speaker_id) continue
-    const entry = bySpeaker.get(a.speaker_id) ?? { hasOrgPromo: false, selfPromoIds: [] }
+    const entry = bySpeaker.get(a.speaker_id) ?? { orgPromoStatuses: [], selfPromoIds: [] }
     if (a.announcement_kind === 'self_promo') entry.selfPromoIds.push(a.id)
-    else entry.hasOrgPromo = true
+    else entry.orgPromoStatuses.push(a.status)
     bySpeaker.set(a.speaker_id, entry)
   }
 
@@ -102,10 +124,15 @@ async function fetchAnnouncementStatus(speakerIds: string[]): Promise<Map<string
   }
 
   for (const [speakerId, entry] of bySpeaker) {
-    result.set(speakerId, {
-      hasAnnouncement: entry.hasOrgPromo,
-      selfPromoSent: entry.selfPromoIds.some(id => sentAnnouncementIds.has(id)),
-    })
+    const socialPostStatus: TriState =
+      entry.orgPromoStatuses.length === 0 ? 'pending'
+      : entry.orgPromoStatuses.includes('published') ? 'published'
+      : 'created'
+    const selfPromoStatus: SelfPromoState =
+      entry.selfPromoIds.length === 0 ? 'pending'
+      : entry.selfPromoIds.some(id => sentAnnouncementIds.has(id)) ? 'sent'
+      : 'created'
+    result.set(speakerId, { socialPostStatus, selfPromoStatus })
   }
   return result
 }

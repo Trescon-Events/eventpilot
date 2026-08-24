@@ -15,12 +15,55 @@ Railway's auto-deploy silently stopped working from **2026-07-17 to 2026-07-21**
 
 | Field | Value |
 |---|---|
-| Who | Durga + Claude Code (Opus 4.7 · 1M) — 20 Aug 2026, later same day |
-| Push to main | None — DB-only work + two client emails, no code committed. |
-| DB writes | Live against production Supabase (Studio SQL Editor, single `BEGIN/COMMIT` transaction): new `Marketing Observer` role (`access_roles_catalog.id = 589bf133-6c84-4e31-84a1-d5d34a95c850`) with 6 view-only permissions in `access_role_permissions`, and one `event_access_assignments` row for Thulasi Devi S (`4de60059-147a-4594-9c89-78c95baac184`), `event_id=NULL` (org-wide), no expiry. Verified via REST query. |
-| Emails sent | Three Resend emails to `thulasi@tresconglobal.com`, CC Madhu + Durga, reply-to `dc@` — `44b70990-5b49-4e14-ac71-c2809a52beb1` (initial reply), `486ae2f1-4cd7-435b-968f-96d78730d73c` (correction after re-reading HANDOFF properly), and `cfc78b85-afc2-42f2-9f8f-793a71395ef3` (consolidated standalone version — treat this as the current one; the previous two only make sense together, and email 2 opened with "small correction to point 2 in my last message" which orphans if email 1 hadn't been read yet). Same delivery shape as the proven 11 Aug send (`1d9dbea8-…`). |
+| Who | Madhu + Claude Code (Sonnet 5) — 23 Aug 2026 |
+| Latest push | 2026-08-23 — see full write-up below: Photo Cleaning Wizard compose-first rebuild, Stakeholder Details page redesign (Public Name/Pronoun now mandatory, Public Name authoritative everywhere public-facing), roster list redesign (thumbnails + 3-state status columns), a full WAIS Malaysia speaker data backfill from a producer-supplied Excel sheet, and a KonfHub Speakers-API integration (removed a wrong existing auto-sync, built + proved a new one against all 34 real WAIS Malaysia speakers). |
+| DB migrations applied | `supabase/konfhub_speakers_migration.sql` (`event_websites.konfhub_client_id`/`konfhub_client_secret`, `event_speakers.konfhub_speaker_id`) — applied live via the Supabase Dashboard SQL editor (Madhu logged in, Claude Code pasted + ran it; no working `run_sql` RPC or `DATABASE_URL` exists in this environment — see memory `eventpilot_run_sql_rpc_missing`, worth knowing before assuming any lazy-migration code path actually works). |
+| New Railway env var | None this session — KonfHub Private-API credentials (`client_id`/`client_secret`) are stored per-event in `event_websites`, not as env vars. |
 | Handed off to | Durga |
-| Prior-in-day work | Madhu + Claude Code (Sonnet 5) shipped Time-boxed RBAC (`7b0e934`) and PR Approvals (`8115110`) earlier the same day — see the two `20 Aug 2026 — …` sections below, they precede this one. |
+| Deployed | Pending this session's own `git push` (see below) — Railway auto-deploys on push to `main`, no manual deploy step. |
+| Left alone / known follow-up | The roster list's "Website" status column still proxies off the now-unused `konfhub_booking_id` field (leftover from the sync that was just removed) — needs re-pointing at `konfhub_speaker_id`/a real KonfHub-published signal once the real two-way sync button exists. See memory `eventpilot_public_name_authoritative` for the full note. Also: `event_websites` now has a row for WAIS Malaysia purely to hold KonfHub integration credentials (status `draft`, no template) — it'll show up in the Website Builder's "Choose a Site Template" step if anyone opens it; harmless, just not a real site. |
+
+## 23 Aug 2026 — Photo Cleaning Wizard rebuild, Details page redesign, WAIS Malaysia data backfill, KonfHub Speakers integration
+
+### Photo Cleaning Wizard: compose-first rebuild, replacing an unreliable auto-decision
+
+The wizard's "Cleaning" step used to auto-decide whether a speaker's photo needed GPT Image 2 AI-fill via a padding-ratio heuristic (`checkQualityGate`) — caused several real false positive/negative bugs. Replaced with direct human judgment: the same drag/zoom-against-a-fixed-ring interaction already used for "Confirm Cleaned Photo" (`PhotoFitEditor.tsx`, built on the new `react-easy-crop` dependency) now runs first, right after upload, and the producer picks one of three explicit actions after seeing the actual composed canvas — **AI Fill + Enhance**, **Enhance Only**, or **Looks Good, Continue**. `HeadBoxCircleEditor.tsx`/`HeadBoxEditorModal.tsx`/`PhotoUploadModal.tsx` and the old `checkQualityGate` auto-decision path were removed; `photo-cleaning-pipeline.ts` and `clean-photo/generate/route.ts` were rewritten around explicit `mode` branches instead.
+
+Also fixed, across several real live-reported incidents (each with before/after pixel verification): the AI hair-fill instruction used to fire unconditionally even when a photo needed no hair work at all (now gated per-edge on real measured padding), and separately over-generated extra hair volume when a real gap *did* need filling (the "generate more than needed" instruction, correct for torso fill, was actively harmful for hair — hair now gets the opposite "fill exactly enough, don't overshoot" bias). A permanent REGRESSION CHECKLIST doc comment now lives directly in `photo-cleaning-pipeline.ts` documenting the exact real cases (with measured padding numbers) so future prompt edits don't reintroduce either bug. Also added: a non-blocking "zoom in closer" advisory hint on the Compose step (closing an avoidable real gap via zoom, rather than relying on AI, measurably reduces what the AI has to invent — demonstrated live, a ~150px gap collapsed to 8px), and Save/Approve gating on the stakeholder Details page (Save only enabled when something's actually unsaved; Approve blocked until nothing's unsaved and — for speakers — the photo is cleaned and the Website Photo is generated).
+
+### Stakeholder Details page redesign — Public Name & Pronoun now mandatory, Public Name authoritative everywhere
+
+Restructured the Details card (`app/admin/events/[id]/stakeholders/[stakeholderId]/page.tsx`): Salutation/First Name/Last Name now lead the card, Full Name is hidden from view (still schema-locked underneath — still feeds page title/filenames/Approve logic, just not shown here anymore), and Public Name + Pronoun/Honorific Style sit in a visually distinct "For Emails, Promos, Website & Creatives" teal-tinted sub-section. **Public Name and Pronoun are now mandatory** — the whole record (auto-save and the Save button) is blocked from saving until both are filled, for any speaker regardless of how it was created. Found and fixed a real pre-existing bug along the way: a hardcoded Salutation field and the schema-driven Salutation field were silently writing to the same DB column, with the hardcoded one always winning — removed the hardcoded one and its clobbering write.
+
+**Public Name (not raw `full_name`) is now the authoritative display name everywhere public-facing** — already correct in SAE creative text layers and email compose, but the public website (`/api/public/event/[slug]`, both `app/events/[slug]/**/page.tsx` renderers) and KonfHub sync were still using the raw name; fixed via a new shared `app/lib/events/speaker-public-name.ts` helper.
+
+The Stakeholder Hub roster list (`app/admin/events/[id]/stakeholders/page.tsx`) was also redesigned: each row now shows a real thumbnail (Website Photo → processed photo → raw photo → initial-letter avatar) and a small pronoun indicator next to the name (amber "no pronoun" if unset). The old "Announced/Self Promo Sent/Published (Soon)" status columns were replaced with three real 3-state indicators — **Website**, **Social Post**, **Self Promo** (pending/created/published-or-sent, colored white/amber/green) — computed server-side from real announcement + KonfHub data, not placeholders.
+
+### WAIS Malaysia speaker data backfill (Excel → EventPilot)
+
+Backfilled Salutation/First Name/Last Name/Public Name/Email/Company/Designation/Country/Bio for 29 speakers directly matched by email against a producer-supplied Excel sheet, plus resolved by hand: a genuine duplicate speaker record for "Ahmad Khalid Khairi" (kept the live/approved one, archived the inactive onboarding-form duplicate), and created 2 new speaker records for people in the sheet but not yet in EventPilot (Goh Ser Yoong, Dr Chua Wen-Shyan).
+
+### KonfHub Speakers-API integration
+
+Found and removed a real existing bug: EventPilot's "⟳ Sync to KonfHub" button and an implicit sync on every speaker save were both POSTing to KonfHub's *ticket/attendee-registration* endpoint (`event/capture/v2`) — the wrong entity entirely. KonfHub has a separate **Speakers** management section (feeds KonfHub's own event page + worldaishow.com/malaysia/speakers/) that the producer maintains by hand; EventPilot was never touching it. Removed the old sync entirely (`app/api/events/konfhub/route.ts` deleted, `syncSpeakerToKonfHub()` removed from `app/api/events/speakers/route.ts`), then built the real integration: `app/lib/konfhub-speakers.ts` (Bearer-token client, list/create/update/delete), matched all 34 real WAIS Malaysia KonfHub speakers to EventPilot records by name (one KonfHub speaker, "Azlina Binti Ab Aziz," didn't exist in EventPilot yet — Madhu created her manually), and successfully bulk-updated all 34 (name/designation/organisation/photo) via the API — zero failures, confirmed live, Agenda session assignments untouched. Full detail in memory `konfhub_speakers_integration_status`.
+
+### What's next
+
+- The real "click a button in EventPilot → create-or-update on KonfHub" two-way sync UI, and reverse sync (KonfHub → EventPilot), are not built yet — this session was groundwork + a one-time proof/backfill for WAIS Malaysia specifically.
+- The roster's "Website" status column needs re-pointing (see table above).
+- No freelancer/contractor time-boxed role has been exercised yet (carried over from 20 Aug, still true).
+
+---
+
+## 20 Aug 2026 (evening) — Thulasi: Marketing Observer role + 3 emails
+
+Durga + Claude Code (Opus 4.7 · 1M). DB-only work + two client emails, no code committed — no code changes, so no separate write-up section beyond this one.
+
+- **DB writes**, live against production Supabase (Studio SQL Editor, single `BEGIN/COMMIT` transaction): new `Marketing Observer` role (`access_roles_catalog.id = 589bf133-6c84-4e31-84a1-d5d34a95c850`) with 6 view-only permissions in `access_role_permissions`, and one `event_access_assignments` row for Thulasi Devi S (`4de60059-147a-4594-9c89-78c95baac184`), `event_id=NULL` (org-wide), no expiry. Verified via REST query.
+- **Emails sent**: three Resend emails to `thulasi@tresconglobal.com`, CC Madhu + Durga, reply-to `dc@` — `44b70990-5b49-4e14-ac71-c2809a52beb1` (initial reply), `486ae2f1-4cd7-435b-968f-96d78730d73c` (correction after re-reading HANDOFF properly), and `cfc78b85-afc2-42f2-9f8f-793a71395ef3` (consolidated standalone version — treat this as the current one; the previous two only make sense together, and email 2 opened with "small correction to point 2 in my last message" which orphans if email 1 hadn't been read yet). Same delivery shape as the proven 11 Aug send (`1d9dbea8-…`).
+- Prior-in-day work: Madhu + Claude Code (Sonnet 5) shipped Time-boxed RBAC (`7b0e934`) and PR Approvals (`8115110`) earlier the same day — see the two `20 Aug 2026 — …` sections below.
+
+---
 
 ## 20 Aug 2026 — Time-boxed per-event RBAC assignments, for freelancer/contractor onboarding
 

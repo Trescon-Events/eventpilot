@@ -166,37 +166,55 @@ export type Variant = {
   // per branding-defined "look" — same pattern promo/self_promo already
   // use for multiple named variants, not a special case.
   //
-  // Deliberately AI-free (2026-08-19) — an AI lighting/style step
-  // (PhotoRoom editWithAI, then a Stability AI structure-control attempt)
-  // was tried and abandoned after real testing: across every input
-  // structure tried (bare cutout, full composite, cutout-only), the tool
-  // changed the subject's scale/position despite explicit instructions not
-  // to, and automated re-detection on its output wasn't accurate enough to
-  // correct for that (a documented, pre-existing limitation of the Gemini-
-  // based detector, reconfirmed here). A photo used publicly for every
-  // speaker can't have that kind of per-photo variance, so this category
-  // is just the deterministic crop + background composite (composite-on-
-  // background.ts) — always exact, always the same, no AI call at all.
+  // Deliberately AI-free at THIS stage (2026-08-19, reconfirmed 2026-08-21)
+  // — an AI lighting/style step (PhotoRoom editWithAI, then a Stability AI
+  // structure-control attempt) was tried and abandoned after real testing:
+  // across every input structure tried, the tool changed the subject's
+  // scale/position despite explicit instructions not to, and automated
+  // re-detection on its output wasn't accurate enough to correct for that.
+  // Generation for this category is just the deterministic crop +
+  // background composite (composite-on-background.ts) — always exact,
+  // always the same, no AI call at all. AI DOES now exist in the broader
+  // pipeline, but moved upstream (2026-08-21) into the Cleaning Cycle — see
+  // CleaningCycleTemplate below and app/lib/media/photo-cleaning-
+  // pipeline.ts — which runs once per speaker, standardizes
+  // photo_processed_url itself, and is what SAE and this category's own
+  // generate route both read as an already-clean input. That version uses
+  // two annotated reference images plus a mandatory second manual confirm,
+  // which is what the earlier abandoned attempt lacked.
   category?: 'promo' | 'self_promo' | 'website_photo'
 }
 
-// A reusable, named PhotoRoom editWithAI prompt (2026-08-18) — kept
-// deliberately generic ("AI Edit Presets"), not folded into Variant itself,
-// per Madhu: this event's speaker-website-photo lighting style is the first
-// of what he expects to be several similar templatized editWithAI use cases
-// over time, and they should all share one place to name/author/reassign a
-// prompt rather than each growing its own bespoke prompt field. `module_key`
-// is how a generate route finds "the" prompt for its feature — see
-// AI_EDIT_MODULES in ai-edit-modules.ts for the fixed, code-defined list of
-// keys a preset can be assigned to. At most one preset should be assigned to
-// a given module_key at a time; if more than one is, the generate route
-// takes the first match — enforcing uniqueness isn't worth an extra
-// validation pass for a single-branding-team, single-event-at-a-time editor.
-export type AiEditPreset = {
-  id: string
-  name: string
+// The Cleaning Cycle's own template (2026-08-21, replaces the abandoned
+// "AI Edit Presets" module system this tab held before — that was a named-
+// prompt library speculatively built for future templatized editWithAI
+// features that never arrived; AI_EDIT_MODULES stayed permanently empty).
+// Branding team sets this up ONCE per event in the "AI Edit Prompts" admin
+// tab: upload a reference photo (any speaker photo already correctly
+// composed — same "Upload Reference Layer (auto-position)" flow every
+// other reference upload in this file uses) and fine-tune the head marker
+// on it. This is DELIBERATELY separate from any Variant's own alignment
+// (including a 'website_photo' category variant's) — it defines the single
+// standard every speaker's CLEANED photo itself is measured against,
+// independent of which creative later crops from that clean result to its
+// own, possibly different, canvas/head position.
+//
+// Reuses PhotoAlignmentMeta (not a new parallel shape) — this IS an
+// AlignmentTarget in every sense the crop math cares about; only `box` is
+// fixed separately (square, CLEANING_CYCLE_CANVAS_SIZE — see cleaning-
+// cycle-constants.ts) rather than stored here, since it's a constant, not
+// something branding team edits.
+export type CleaningCycleTemplate = PhotoAlignmentMeta & {
+  reference_url: string | null
+  // Optional EXTRA style notes for the AI-fill step (2026-08-22, was: the
+  // full prompt override) — only used on photos the producer chooses
+  // "AI Fill + Enhance" for in the Cleaning wizard's Compose step, not
+  // every photo. The actual positioning/sizing is 100%
+  // deterministic (see generateAIFilledPhoto's own doc comment on why) —
+  // this field can no longer replace or affect that, it's appended
+  // verbatim as additional guidance (e.g. lighting/mood preferences) to the
+  // one, fixed fill prompt. Leave blank if there's nothing to add.
   prompt: string
-  module_key: string | null // null = drafted but not wired to any feature yet
 }
 
 // Reusable "Placeholder data" content (2026-07-31) — Madhu's ask: the ghost
@@ -221,8 +239,8 @@ export type CreativeTemplateConfig = {
   speaker?: { variants: Variant[] }
   partner?: { variants: Variant[] }
   placeholder?: { speaker?: PlaceholderProfile; partner?: PlaceholderProfile }
-  // 2026-08-18 — see AiEditPreset's own doc comment above.
-  ai_edit_prompts?: AiEditPreset[]
+  // 2026-08-21 — see CleaningCycleTemplate's own doc comment above.
+  cleaning_cycle_template?: CleaningCycleTemplate
 }
 
 export type ResolvedAssets = Partial<Record<PhotoSlotLayer['source'], { buffer: Buffer; url?: string; is_svg?: boolean; head_box?: HeadBox | null }>>
@@ -312,7 +330,7 @@ export async function compositeAnnouncement(
         if (asset.is_svg) assetBuffer = await sharp(assetBuffer).png().toBuffer()
 
         if (layer.alignment && layer.source === 'speaker_photo') {
-          const cropped = await alignAndCropPhoto(assetBuffer, {
+          const { buffer: cropped } = await alignAndCropPhoto(assetBuffer, {
             ...layer.alignment,
             box: { x: layer.x, y: layer.y, width: layer.width, height: layer.height },
           }, asset.head_box)

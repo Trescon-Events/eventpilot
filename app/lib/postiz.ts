@@ -133,6 +133,12 @@ export type PostizPostSummary = {
   id: string
   state: 'QUEUE' | 'PUBLISHED' | 'ERROR' | 'DRAFT' | string
   integration?: string
+  // The live URL of the published post on the actual platform (Postiz's own
+  // public API field name — https://docs.postiz.com/public-api/posts/list).
+  // Only meaningful once state is 'PUBLISHED'; the sync-status cron reads
+  // this to give producers a direct link to verify what actually went out,
+  // instead of just trusting a status label.
+  releaseURL?: string
 }
 
 // GET /posts?from=&to=&group= — a RANGE/LIST endpoint, not a per-post
