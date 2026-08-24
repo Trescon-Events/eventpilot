@@ -70,14 +70,24 @@ export async function GET(req: NextRequest) {
 export type TriState = 'pending' | 'created' | 'published'
 export type SelfPromoState = 'pending' | 'created' | 'sent'
 
-// Website column (2026-08-23, per Madhu) — proxied off konfhub_booking_id
-// until real bidirectional KonfHub sync-status tracking exists (per Madhu,
-// "we will be setting up later"): 'published' once actually pushed
-// (booking id set), 'created' once internally ready to push (the exact
-// eligibility the KonfHub sync route itself gates on — status='approved' +
-// active=true), otherwise 'pending'.
-function websiteStatus(row: { konfhub_booking_id: string | null; status: string; active: boolean }): TriState {
-  if (row.konfhub_booking_id) return 'published'
+// Website column — 'published' once actually pushed to KonfHub (which also
+// publishes to the event website, see .../konfhub-push/route.ts), 'created'
+// once internally ready to push (status='approved' + active=true — a looser
+// proxy than the push route's own real eligibility check, kept as-is since
+// this column predates that route), otherwise 'pending'.
+//
+// Re-pointed 2026-08-24 (per Madhu, real bug he caught: Sudeep showed
+// "Created" on the roster right after being pushed via the new "Push to
+// KonfHub" button) — was proxied off the legacy konfhub_booking_id column
+// from the OLD ticket/attendee-registration sync (removed 2026-08-23),
+// which nothing has written to since. konfhub_speaker_id is the real
+// signal now: every speaker already pushed (this session's individual
+// pushes, or last session's one-time backfill of all 34 real WAIS Malaysia
+// speakers) already has it set, so this fix alone corrects the whole
+// roster's display — no data backfill needed, this was purely reading the
+// wrong column.
+function websiteStatus(row: { konfhub_speaker_id: string | null; status: string; active: boolean }): TriState {
+  if (row.konfhub_speaker_id) return 'published'
   if (row.status === 'approved' && row.active === true) return 'created'
   return 'pending'
 }
