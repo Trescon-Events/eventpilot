@@ -425,6 +425,27 @@ function AnalysisPanel({ deck, onRefresh }: { deck: Deck | null; onRefresh: () =
   const [running, setRunning] = useState(false)
   const [err, setErr] = useState<string | null>(null)
 
+  // The route returns as soon as it flips ai_analysis_status to 'running'
+  // (2026-08-24 — Gemini's own 30-60s+ analysis now runs as a background
+  // job, see the route's own doc comment for why) rather than waiting on
+  // the full Gemini analysis, so this polls the deck row every few seconds
+  // until status leaves 'running' instead of awaiting one long request.
+  const POLL_INTERVAL_MS = 4000
+  const POLL_MAX_ATTEMPTS = 90 // ~6 min ceiling — well past the ~30-60s typical case, just a backstop
+  async function pollUntilDone(attempt: number) {
+    const res = await fetch('/api/corporate-marketing/deck', { cache: 'no-store' })
+    const d = await res.json().catch(() => ({}))
+    const latestStatus = d?.deck?.ai_analysis_status
+    await onRefresh()
+    if (latestStatus === 'running') {
+      if (attempt >= POLL_MAX_ATTEMPTS) { setErr('This is taking much longer than usual — check back shortly.'); setRunning(false); return }
+      setTimeout(() => pollUntilDone(attempt + 1), POLL_INTERVAL_MS)
+      return
+    }
+    if (latestStatus === 'failed') setErr(d?.deck?.ai_analysis_error ?? 'Analysis failed')
+    setRunning(false)
+  }
+
   async function runAnalysis() {
     setRunning(true)
     setErr(null)
@@ -435,9 +456,9 @@ function AnalysisPanel({ deck, onRefresh }: { deck: Deck | null; onRefresh: () =
         throw new Error(d?.error ?? `Analysis failed (${res.status})`)
       }
       await onRefresh()
+      pollUntilDone(0)
     } catch (e) {
       setErr((e as Error).message)
-    } finally {
       setRunning(false)
     }
   }

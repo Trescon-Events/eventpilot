@@ -62,10 +62,15 @@ export async function detectHeadBox(imageBuffer: Buffer): Promise<HeadBox | null
   // localization). withoutEnlargement means a photo already smaller than
   // this never gets upscaled first.
   const pngBuffer = await sharp(imageBuffer).resize(768, 768, { fit: 'inside', withoutEnlargement: true }).png().toBuffer()
+  // Bounded (2026-08-24) — this call had no timeout; several callers
+  // (from-submission, upload-asset) run behind the Cloudflare proxy in
+  // front of production that kills any single request around ~100s.
+  // Matches the GEMINI_TIMEOUT_MS convention already used in
+  // app/api/kb/intel/run/route.ts.
   const result = await model.generateContent([
     { inlineData: { mimeType: 'image/png', data: pngBuffer.toString('base64') } },
     { text: 'Detect the bounding box of the person\'s HEAD/FACE only (not their whole body or shoulders) in this image. Return box_2d as [y0, x0, y1, x1] normalized to a 0-1000 scale relative to image width/height.' },
-  ])
+  ], { timeout: 60_000 })
 
   const parsed = JSON.parse(result.response.text()) as { face_detected: boolean; box_2d: [number, number, number, number] }
   if (!parsed.face_detected || !Array.isArray(parsed.box_2d) || parsed.box_2d.length !== 4) return null

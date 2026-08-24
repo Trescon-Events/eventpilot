@@ -61,5 +61,10 @@ export async function listHubSpotForms(): Promise<{ id: string; name: string }[]
 // this header — the redirect target (HubSpot's CDN) carries its own signed
 // query-string params and doesn't need it, so nothing leaks cross-origin.
 export async function fetchHubSpotUploadedFile(url: string): Promise<Response> {
-  return fetch(url, { headers: authHeaders() })
+  // Bounded (2026-08-24) — this previously had no timeout at all. Its only
+  // caller today (from-submission/route.ts) runs behind the same Cloudflare
+  // proxy in front of production that kills any single request around
+  // ~100s; an unbounded hang here (dead redirect, slow HubSpot response)
+  // shouldn't be able to run past that.
+  return fetch(url, { headers: authHeaders(), signal: AbortSignal.timeout(30_000) })
 }

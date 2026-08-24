@@ -328,39 +328,84 @@ export default function KnowledgeBaseManagePage() {
     try {
       const res  = await fetch('/api/kb/ingest', { method: 'POST', body: form })
       const data = await res.json().catch(() => ({}))
-      if (!res.ok) {
+      if (!res.ok || !data.job_id) {
         setIngestMsg(data.error ?? 'Ingestion failed. Please try again.')
-      } else {
-        setIngestMsg('')
-        setIngestResult(data)
-        setIngestFile(null)
-        if (data.gap_session_id && Array.isArray(data.gaps) && data.gaps.length > 0) {
-          setGapSessions(prev => ({
-            ...prev,
-            [data.document.id]: {
-              id: data.gap_session_id,
-              document_id: data.document.id,
-              processor_type: data.detected_type,
-              gaps: data.gaps.map((g: Gap) => ({ ...g, status: 'unresolved' })),
-              resolved: false,
-            },
-          }))
-        }
-        if (data.detected_type === 'general') {
-          const wasSavingNewType = saveAsNewType
-          resetGeneralDocForm()
-          if (wasSavingNewType) fetchCustomDocTypes()
-        } else {
-          setIngestTypeChoice(null)
-          setIngestIntent(null)
-        }
-        setShowIngestForm(false)
-        fetchPendingDocs()
+        setIngesting(false)
+        return
       }
+      pollIngestJob(data.job_id, 0)
     } catch {
       setIngestMsg('Could not reach the server. Check your connection and try again.')
+      setIngesting(false)
     }
-    setIngesting(false)
+  }
+
+  // Ingest now runs as a background job (2026-08-24 — see /api/kb/ingest's
+  // own doc comment: the extract → Gemini summary → gap-detection chain can
+  // run past the ~100s the Cloudflare proxy in front of production allows
+  // for a single request/response — worked every time in local dev, where
+  // that proxy isn't in the path, but not live). This polls
+  // .../kb/ingest/job/[jobId] every few seconds until the job leaves
+  // 'processing', then applies the exact same result-handling this used to
+  // run synchronously.
+  const INGEST_POLL_INTERVAL_MS = 3000
+  const INGEST_POLL_MAX_ATTEMPTS = 200 // ~10 min ceiling — a backstop against a truly stuck job
+  async function pollIngestJob(jobId: string, attempt: number) {
+    try {
+      const res  = await fetch(`/api/kb/ingest/job/${jobId}`)
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok || data.status === 'error') {
+        setIngestMsg(data.error ?? 'Ingestion failed. Please try again.')
+        setIngesting(false)
+        return
+      }
+      if (data.status === 'processing') {
+        if (attempt >= INGEST_POLL_MAX_ATTEMPTS) {
+          setIngestMsg('This is taking much longer than usual — please try again.')
+          setIngesting(false)
+          return
+        }
+        setTimeout(() => pollIngestJob(jobId, attempt + 1), INGEST_POLL_INTERVAL_MS)
+        return
+      }
+
+      const result = data.result ?? {}
+      setIngestMsg('')
+      setIngestResult(result)
+      setIngestFile(null)
+      if (result.gap_session_id && Array.isArray(result.gaps) && result.gaps.length > 0) {
+        setGapSessions(prev => ({
+          ...prev,
+          [result.document.id]: {
+            id: result.gap_session_id,
+            document_id: result.document.id,
+            processor_type: result.detected_type,
+            gaps: result.gaps.map((g: Gap) => ({ ...g, status: 'unresolved' })),
+            resolved: false,
+          },
+        }))
+      }
+      if (result.detected_type === 'general') {
+        const wasSavingNewType = saveAsNewType
+        resetGeneralDocForm()
+        if (wasSavingNewType) fetchCustomDocTypes()
+      } else {
+        setIngestTypeChoice(null)
+        setIngestIntent(null)
+      }
+      setShowIngestForm(false)
+      fetchPendingDocs()
+      setIngesting(false)
+    } catch {
+      // A transient network blip on one poll tick shouldn't fail the whole
+      // run — retry like any other tick, same attempt cap as above.
+      if (attempt >= INGEST_POLL_MAX_ATTEMPTS) {
+        setIngestMsg('Could not reach the server. Check your connection and try again.')
+        setIngesting(false)
+        return
+      }
+      setTimeout(() => pollIngestJob(jobId, attempt + 1), INGEST_POLL_INTERVAL_MS)
+    }
   }
 
   async function publishPendingDoc(documentId: string) {

@@ -2,6 +2,31 @@ import { NextRequest, NextResponse } from 'next/server'
 import { GoogleGenerativeAI } from '@google/generative-ai'
 import { supabaseAdmin } from '@/app/lib/supabase'
 
+/* POST /api/generate-dept-courses
+   Body: { department, tier_level?, count? }
+
+   BACKGROUND-JOB-BACKED (2026-08-24). This runs up to 3 sequential full
+   Gemini course generations (each producing 500+ words of read_content plus
+   a 10-question bank) — previously awaited inline, which worked every time
+   in local dev but risks exceeding the ~100s timeout the Cloudflare Worker
+   proxy in front of production Railway enforces on any single request (see
+   app/api/events/stakeholders/speakers/[id]/clean-photo/generate/route.ts's
+   doc comment for the real incident that surfaced this failure class, and
+   app/api/kb/intel/run/route.ts for the original application of this fix).
+   `maxDuration = 120` below is a Next.js route-segment config that does
+   nothing against Cloudflare's own independent proxy timeout — it was never
+   sufficient on its own.
+
+   Creates a dept_course_gen_jobs row and fires the generation loop off as a
+   background async function without awaiting it (safe — EventPilot runs on
+   Railway as a persistent `next start` process, not a serverless function
+   torn down after the response), returning { job_id } immediately. The
+   admin UI (CourseGeneratorSection.tsx) polls
+   GET .../generate-dept-courses/job/[jobId] every few seconds until the job
+   leaves 'processing'. No incremental per-course progress is written mid-run
+   — the loop is capped at 3 items, small enough that a single done/error
+   result at the end (unlike kb_intel_runs' known per-source-progress gap
+   over a much longer run) is not worth the extra write complexity. */
 export const maxDuration = 120
 
 const TRESCON_DEPTS = [
@@ -17,6 +42,32 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: `department must be one of: ${TRESCON_DEPTS.join(', ')}` }, { status: 400 })
   }
 
+  const { data: job, error: jobErr } = await supabaseAdmin
+    .from('dept_course_gen_jobs')
+    .insert({ status: 'processing', department, tier_level, count: Math.min(count, 3) })
+    .select('id')
+    .single()
+  if (jobErr || !job) return NextResponse.json({ error: 'Could not start the course generation job' }, { status: 500 })
+
+  // Fire and forget — see this file's top doc comment for why this is safe
+  // here (persistent Railway process, not serverless).
+  runGenerateJob(job.id, department, tier_level, count).catch(async e => {
+    console.error(`[generate-dept-courses job ${job.id}] uncaught error:`, e)
+    await supabaseAdmin.from('dept_course_gen_jobs').update({
+      status: 'error',
+      completed_at: new Date().toISOString(),
+      error_message: (e instanceof Error ? e.message : String(e)).slice(0, 2000),
+    }).eq('id', job.id)
+  })
+
+  return NextResponse.json({ job_id: job.id })
+}
+
+// The actual generation loop, run detached from the request/response cycle
+// (see this file's top doc comment). Identical generation logic to the
+// route's previous synchronous version — only where the result lands has
+// changed (dept_course_gen_jobs instead of the HTTP response body).
+async function runGenerateJob(jobId: string, department: string, tier_level: string, count: number) {
   const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!)
   const model  = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' })
 
@@ -106,12 +157,10 @@ question_bank must have exactly 10 questions.`
     }
   }
 
-  return NextResponse.json({
-    ok:        true,
-    department,
-    tier_level,
-    generated: generated.length,
-    courses:   generated,
-    errors:    errors.length > 0 ? errors : undefined,
-  })
+  await supabaseAdmin.from('dept_course_gen_jobs').update({
+    status: 'done',
+    completed_at: new Date().toISOString(),
+    courses: generated,
+    errors: errors.length > 0 ? errors : null,
+  }).eq('id', jobId)
 }

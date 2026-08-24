@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 
 export default function CourseGeneratorSection() {
   const [suggestion, setSuggestion]   = useState('')
@@ -19,6 +19,17 @@ export default function CourseGeneratorSection() {
   const [deptSeedCount,  setDeptSeedCount]  = useState(2)
   const [deptSeedState,  setDeptSeedState]  = useState<'idle' | 'generating' | 'done' | 'error'>('idle')
   const [deptSeedResult, setDeptSeedResult] = useState<{ courses: { id: string; title: string; tier_level: string }[]; errors?: string[] } | null>(null)
+  // Cosmetic elapsed-seconds readout while a job's running — same "keeps
+  // climbing so it reads as still working, not hung" pattern used for the
+  // Photo Cleaning Wizard's own long AI waits (PhotoCleaningWizard.tsx).
+  const [deptSeedElapsedSec, setDeptSeedElapsedSec] = useState(0)
+
+  useEffect(() => {
+    if (deptSeedState !== 'generating') return
+    setDeptSeedElapsedSec(0)
+    const tick = setInterval(() => setDeptSeedElapsedSec(s => s + 1), 1000)
+    return () => clearInterval(tick)
+  }, [deptSeedState])
 
   async function submitSuggestion() {
     if (!suggestion.trim()) return
@@ -70,6 +81,46 @@ export default function CourseGeneratorSection() {
       const d = await pubRes.json()
       setPublishMsg(d.error ?? 'Submission failed. Try again.')
       setSuggestState('ready')
+    }
+  }
+
+  // Dept Course Seeding now runs as a background job (2026-08-24 — see
+  // /api/generate-dept-courses' own doc comment: up to 3 sequential full
+  // Gemini course generations can run long enough to risk the Cloudflare
+  // proxy timeout in front of production, which doesn't exist in local
+  // dev). Polls .../generate-dept-courses/job/[jobId] every few seconds
+  // until the job leaves 'processing'.
+  const DEPT_SEED_POLL_INTERVAL_MS = 3000
+  const DEPT_SEED_POLL_MAX_ATTEMPTS = 100 // ~5 min ceiling, generous past the worst case for 3 courses
+  async function pollDeptSeedJob(jobId: string, attempt: number) {
+    try {
+      const res = await fetch(`/api/generate-dept-courses/job/${jobId}`)
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok || data.status === 'error') {
+        setDeptSeedResult({ courses: [], errors: [data.error ?? 'Generation failed'] })
+        setDeptSeedState('error')
+        return
+      }
+      if (data.status === 'processing') {
+        if (attempt >= DEPT_SEED_POLL_MAX_ATTEMPTS) {
+          setDeptSeedResult({ courses: [], errors: ['This is taking much longer than usual — please check the Review Queue shortly, or try again.'] })
+          setDeptSeedState('error')
+          return
+        }
+        setTimeout(() => pollDeptSeedJob(jobId, attempt + 1), DEPT_SEED_POLL_INTERVAL_MS)
+        return
+      }
+      setDeptSeedResult({ courses: data.courses ?? [], errors: data.errors })
+      setDeptSeedState('done')
+    } catch {
+      // A transient network blip on one poll tick shouldn't fail the whole
+      // run — retry like any other tick, same attempt cap as above.
+      if (attempt >= DEPT_SEED_POLL_MAX_ATTEMPTS) {
+        setDeptSeedResult({ courses: [], errors: ['Could not reach the server — check your connection and try again.'] })
+        setDeptSeedState('error')
+        return
+      }
+      setTimeout(() => pollDeptSeedJob(jobId, attempt + 1), DEPT_SEED_POLL_INTERVAL_MS)
     }
   }
 
@@ -311,9 +362,8 @@ export default function CourseGeneratorSection() {
                   body: JSON.stringify({ department: deptSeedDept, tier_level: deptSeedTier, count: deptSeedCount }),
                 })
                 const data = await res.json()
-                if (!res.ok) throw new Error(data.error ?? 'Generation failed')
-                setDeptSeedResult({ courses: data.courses, errors: data.errors })
-                setDeptSeedState('done')
+                if (!res.ok || !data.job_id) throw new Error(data.error ?? 'Generation failed')
+                pollDeptSeedJob(data.job_id, 0)
               } catch (err) {
                 setDeptSeedResult({ courses: [], errors: [String(err)] })
                 setDeptSeedState('error')
@@ -321,7 +371,7 @@ export default function CourseGeneratorSection() {
             }}
             style={{ padding: '13px 28px', borderRadius: '12px', border: 'none', background: deptSeedState === 'generating' ? 'var(--border)' : 'var(--teal-mid)', color: deptSeedState === 'generating' ? 'var(--ink3)' : 'var(--teal-light)', fontSize: '13px', fontWeight: 800, cursor: deptSeedState === 'generating' ? 'not-allowed' : 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: '8px' }}>
             <svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
-            {deptSeedState === 'generating' ? `Generating ${deptSeedCount} course${deptSeedCount > 1 ? 's' : ''}...` : `Generate ${deptSeedCount} Draft Course${deptSeedCount > 1 ? 's' : ''}`}
+            {deptSeedState === 'generating' ? `Generating ${deptSeedCount} course${deptSeedCount > 1 ? 's' : ''}… (${deptSeedElapsedSec}s)` : `Generate ${deptSeedCount} Draft Course${deptSeedCount > 1 ? 's' : ''}`}
           </button>
         </div>
 
