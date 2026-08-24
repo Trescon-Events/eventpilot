@@ -86,6 +86,26 @@ const CATEGORIES: Category[] = [
 const DELETED_KEY = 'deleted'
 const INVITES_KEY = 'invites'
 
+// "Add Speaker" quick-add panel (2026-08-24, per Madhu) — deliberately
+// shows only the bare minimum needed to create a placeholder record:
+// salutation, first/last name (full_name is dropped entirely here —
+// mapFieldsToRecord's own fallback derives it from first_name/last_name
+// when full_name itself isn't submitted, so it's still populated), job
+// title, company, country, and a short bio. Everything else the full
+// speaker schema asks for (email, phone, industry sector, socials,
+// assistant contacts, the public-form consent checkboxes) is meant to be
+// filled in on the speaker's own Details page afterward — save() below
+// already redirects there on success. This is a RENDER-ONLY filter on top
+// of the fetched schema (formSchema itself, and therefore the public
+// onboarding form and the Details page's own full editor, are untouched —
+// see resolveFormSchema's own doc comment on why those three consumers
+// share one schema). Matches on `key`, not `label` — this event's own
+// Form Builder override is what defines these exact keys; a differently-
+// keyed schema (a different event, or a future re-key) would just show
+// fewer fields here rather than break, since anything not in this list
+// simply isn't rendered.
+const QUICK_ADD_SPEAKER_KEYS = ['salutation', 'first_name', 'last_name', 'job_title', 'company', 'country', 'short_bio_professional_profile']
+
 const STATUS_BADGE: Record<string, { label: string; color: 'amber' | 'red' | 'teal' | 'grey' }> = {
   pending_review: { label: 'Pending Review', color: 'amber' },
   assets_missing: { label: 'Assets Missing', color: 'red' },
@@ -707,8 +727,16 @@ export default function StakeholderHubPage({ params }: { params: Promise<{ id: s
               <button onClick={() => setPanelOpen(false)} style={{ background: 'none', border: 'none', color: 'var(--ink3)', fontSize: '20px', cursor: 'pointer' }}>✕</button>
             </div>
 
+            {category.kind === 'speaker' && (
+              <div style={{ fontSize: '13.5px', color: 'var(--ink4)', marginBottom: '14px' }}>
+                Just the basics — you&apos;ll add their photo and fill in everything else on their Details page after saving.
+              </div>
+            )}
             <div style={{ display: 'grid', gap: '12px' }}>
-              {formSchema.filter(f => f.type !== 'file').map(field => (
+              {formSchema
+                .filter(f => f.type !== 'file')
+                .filter(f => category.kind !== 'speaker' || QUICK_ADD_SPEAKER_KEYS.includes(f.key))
+                .map(field => (
                 <FormFieldInput
                   key={field.id}
                   field={field}

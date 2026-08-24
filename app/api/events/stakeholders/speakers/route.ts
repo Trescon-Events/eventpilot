@@ -159,15 +159,19 @@ export async function POST(req: NextRequest) {
   }
 
   const schema = await resolveFormSchema(body.event_id, 'speaker')
-  for (const f of schema) {
-    // A required checkbox means "must be checked" — hasValue() alone would
-    // also accept the explicit 'false' string a real unchecked box stores.
-    const unsatisfied = f.type === 'checkbox' ? body.fields[f.key] !== 'true' : !hasValue(body.fields[f.key])
-    if (f.required && f.type !== 'file' && unsatisfied) {
-      return NextResponse.json({ error: `${f.label} is required` }, { status: 400 })
-    }
-  }
-
+  // No required-field validation against the full resolved schema here
+  // (2026-08-24, removed — same reasoning as PATCH .../speakers/[id] never
+  // having it: this route's only caller is the Hub's own "Add Speaker"
+  // quick-add panel, per Madhu deliberately trimmed to just
+  // salutation/name/job title/company/country/bio — photo, contact
+  // details, and the full public-form consent checkboxes are meant to be
+  // filled in afterward on the speaker's own Details page, which this
+  // route's response is immediately followed by a redirect to. Requiring
+  // every field the full public onboarding form asks for would make that
+  // quick-add flow impossible to complete. The `name` column is still
+  // NOT NULL at the DB level — mapFieldsToRecord's own fallback (see that
+  // file) synthesizes it from first_name/last_name when full_name itself
+  // isn't submitted, so the insert below still can't produce a nameless row.
   const { columns, customFields } = mapFieldsToRecord('speaker', schema, body.fields, {})
 
   const { data, error } = await supabaseAdmin
@@ -178,9 +182,4 @@ export async function POST(req: NextRequest) {
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
   return NextResponse.json({ ...fromRow(data), fields: recordToFields('speaker', schema, data) }, { status: 201 })
-}
-
-function hasValue(v: SubmittedValue | undefined): boolean {
-  if (Array.isArray(v)) return v.length > 0
-  return !!v && v.trim().length > 0
 }
