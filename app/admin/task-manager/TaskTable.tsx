@@ -237,6 +237,7 @@ interface Props {
   tasks: Task[]
   currentStaffId?: string | null
   runningTaskId?: string | null
+  groupByEvent?: boolean
   onOpenTask: (task: Task) => void
   onStatusChange: (taskId: string, newStatus: TaskStatus) => void
   onPriorityChange: (taskId: string, newPriority: TaskPriority) => void
@@ -244,7 +245,105 @@ interface Props {
   onDelete: (taskId: string) => void
 }
 
-export default function TaskTable({ tasks, onOpenTask, onStatusChange, onPriorityChange, onDelete }: Props) {
+function TaskRow({
+  task: t,
+  showEventColumn,
+  onOpenTask,
+  onStatusChange,
+  onPriorityChange,
+  onDelete,
+}: {
+  task: Task
+  showEventColumn: boolean
+  onOpenTask: (task: Task) => void
+  onStatusChange: (taskId: string, newStatus: TaskStatus) => void
+  onPriorityChange: (taskId: string, newPriority: TaskPriority) => void
+  onDelete: (taskId: string) => void
+}) {
+  return (
+    <tr
+      onClick={() => onOpenTask(t)}
+      style={{ borderBottom: '1px solid var(--border-light)', cursor: 'pointer', transition: 'background 0.1s' }}
+      onMouseEnter={e => (e.currentTarget.style.background = 'var(--border-light)')}
+      onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+    >
+      {showEventColumn && (
+        <td style={{ padding: '10px 12px', color: 'var(--ink3)', whiteSpace: 'nowrap', maxWidth: '160px', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+          {t.event?.name ?? '—'}
+        </td>
+      )}
+      <td style={{ padding: '10px 12px', maxWidth: '320px' }}>
+        <div style={{ color: 'var(--ink)', fontWeight: 600, lineHeight: 1.35 }}>{t.description}</div>
+        {t.remarks && (
+          <div
+            style={{
+              fontSize: '11px',
+              color: 'var(--ink3)',
+              marginTop: '4px',
+              padding: '2px 6px',
+              borderRadius: '4px',
+              background: 'var(--border-light)',
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '4px',
+              maxWidth: '100%',
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+              whiteSpace: 'nowrap',
+            }}
+            title={t.remarks}
+          >
+            <span style={{ fontSize: '10px', color: 'var(--teal-mid)' }}>📝</span>
+            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{t.remarks}</span>
+          </div>
+        )}
+      </td>
+      <td style={{ padding: '10px 12px', color: 'var(--ink4)', whiteSpace: 'nowrap' }} title={new Date(t.created_at).toLocaleString('en-GB')}>
+        {new Date(t.created_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}
+      </td>
+      <td style={{ padding: '10px 12px', whiteSpace: 'nowrap' }}>
+        {t.assigned_by_staff && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <Avatar name={t.assigned_by_staff.name} size={20} />
+            <span style={{ color: 'var(--ink3)', fontSize: '12px' }}>{t.assigned_by_staff.name}</span>
+            <FollowupButton task={t} />
+          </div>
+        )}
+      </td>
+      <td style={{ padding: '10px 12px', whiteSpace: 'nowrap' }}>
+        {t.assigned_to_staff && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <Avatar name={t.assigned_to_staff.name} size={20} />
+            <span style={{ color: 'var(--ink)', fontWeight: 600, fontSize: '12px' }}>{t.assigned_to_staff.name}</span>
+          </div>
+        )}
+      </td>
+      <td style={{ padding: '10px 12px', whiteSpace: 'nowrap' }}>
+        <DeadlineBadge deadline={t.deadline} status={t.status} />
+      </td>
+      <td style={{ padding: '10px 12px' }} onClick={e => e.stopPropagation()}>
+        <PillSelect pillColor={PRIORITY_COLOR[t.priority]} value={t.priority} onChange={e => onPriorityChange(t.id, e.target.value as TaskPriority)}>
+          {PRIORITIES.map(p => <option key={p} value={p}>{p}</option>)}
+        </PillSelect>
+      </td>
+      <td style={{ padding: '10px 12px' }} onClick={e => e.stopPropagation()}>
+        <PillSelect pillColor={STATUS_COLOR[t.status]} value={t.status} onChange={e => onStatusChange(t.id, e.target.value as TaskStatus)}>
+          {STATUSES.map(s => <option key={s} value={s}>{s.replace('-', ' ')}</option>)}
+        </PillSelect>
+      </td>
+      <td style={{ padding: '10px 12px', color: 'var(--ink3)', whiteSpace: 'nowrap', fontSize: '12px' }}>{formatHours(t.tracked_seconds)}</td>
+      <td style={{ padding: '10px 12px', textAlign: 'center' }} onClick={e => e.stopPropagation()}>
+        <button type="button" onClick={() => onDelete(t.id)} title="Delete task" style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--ink4)', fontSize: '13px' }}>
+          ✕
+        </button>
+      </td>
+    </tr>
+  )
+}
+
+export default function TaskTable({ tasks, groupByEvent, onOpenTask, onStatusChange, onPriorityChange, onDelete }: Props) {
+  const [collapsedEvents, setCollapsedEvents] = useState<Record<string, boolean>>({})
+
   if (tasks.length === 0) {
     return (
       <div style={{ padding: '48px', textAlign: 'center', color: 'var(--ink4)', fontSize: '13px' }}>
@@ -253,95 +352,128 @@ export default function TaskTable({ tasks, onOpenTask, onStatusChange, onPriorit
     )
   }
 
+  // ── Event-Centric Grouping ──────────────────────────────────
+  if (groupByEvent) {
+    const groups: Record<string, Task[]> = {}
+    for (const t of tasks) {
+      const key = t.event?.name ?? 'General / Non-Event Tasks'
+      if (!groups[key]) groups[key] = []
+      groups[key].push(t)
+    }
+
+    const toggleGroup = (eventKey: string) => {
+      setCollapsedEvents(prev => ({ ...prev, [eventKey]: !prev[eventKey] }))
+    }
+
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+        {Object.entries(groups).map(([eventName, eventTasks]) => {
+          const isCollapsed = !!collapsedEvents[eventName]
+          const completedCount = eventTasks.filter(t => t.status === 'Completed').length
+          const percent = Math.round((completedCount / eventTasks.length) * 100)
+
+          return (
+            <div
+              key={eventName}
+              style={{
+                background: 'var(--surface)',
+                border: '1px solid var(--border)',
+                borderRadius: '10px',
+                overflow: 'hidden',
+              }}
+            >
+              {/* Event Section Accordion Header */}
+              <div
+                onClick={() => toggleGroup(eventName)}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  padding: '12px 16px',
+                  background: 'var(--card)',
+                  borderBottom: isCollapsed ? 'none' : '1px solid var(--border-light)',
+                  cursor: 'pointer',
+                  userSelect: 'none',
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                  <span style={{ fontSize: '12px', color: 'var(--teal-mid)', transform: isCollapsed ? 'rotate(-90deg)' : 'rotate(0deg)', transition: 'transform 0.15s' }}>
+                    ▼
+                  </span>
+                  <span style={{ fontSize: '14px', fontWeight: 700, color: 'var(--ink)' }}>
+                    {eventName}
+                  </span>
+                  <span style={{ fontSize: '11px', color: 'var(--ink4)', background: 'var(--border-light)', padding: '2px 8px', borderRadius: '12px' }}>
+                    {eventTasks.length} {eventTasks.length === 1 ? 'task' : 'tasks'}
+                  </span>
+                </div>
+
+                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <div style={{ width: '60px', height: '5px', background: 'var(--border-light)', borderRadius: '3px', overflow: 'hidden' }}>
+                      <div style={{ width: `${percent}%`, height: '100%', background: 'var(--teal)' }} />
+                    </div>
+                    <span style={{ fontSize: '11px', color: 'var(--ink3)' }}>{percent}%</span>
+                  </div>
+                </div>
+              </div>
+
+              {!isCollapsed && (
+                <div style={{ overflowX: 'auto' }}>
+                  <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
+                    <thead>
+                      <tr style={{ borderBottom: '1px solid var(--border)', textAlign: 'left', background: 'var(--surface)' }}>
+                        {['Task', 'Created', 'Assigned By', 'Assigned To', 'Deadline', 'Priority', 'Status', 'Tracked', ''].map(h => (
+                          <th key={h} style={{ padding: '10px 12px', fontSize: '11px', fontWeight: 700, color: 'var(--ink3)', textTransform: 'uppercase', letterSpacing: '0.3px', whiteSpace: 'nowrap' }}>{h}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {eventTasks.map(t => (
+                        <TaskRow
+                          key={t.id}
+                          task={t}
+                          showEventColumn={false}
+                          onOpenTask={onOpenTask}
+                          onStatusChange={onStatusChange}
+                          onPriorityChange={onPriorityChange}
+                          onDelete={onDelete}
+                        />
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          )
+        })}
+      </div>
+    )
+  }
+
+  // ── Standard Flat Table Mode (with sticky header) ───────────
   return (
     <div style={{ overflowX: 'auto' }}>
       <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
         <thead>
-          <tr style={{ borderBottom: '1px solid var(--border)', textAlign: 'left' }}>
+          <tr style={{ borderBottom: '1px solid var(--border)', textAlign: 'left', position: 'sticky', top: 0, background: 'var(--surface)', zIndex: 5 }}>
             {['Event', 'Task', 'Created', 'Assigned By', 'Assigned To', 'Deadline', 'Priority', 'Status', 'Tracked', ''].map(h => (
               <th key={h} style={{ padding: '10px 12px', fontSize: '11px', fontWeight: 700, color: 'var(--ink3)', textTransform: 'uppercase', letterSpacing: '0.3px', whiteSpace: 'nowrap' }}>{h}</th>
             ))}
           </tr>
         </thead>
         <tbody>
-          {tasks.map(t => {
-            return (
-              <tr
-                key={t.id}
-                onClick={() => onOpenTask(t)}
-                style={{ borderBottom: '1px solid var(--border-light)', cursor: 'pointer', transition: 'background 0.1s' }}
-                onMouseEnter={e => (e.currentTarget.style.background = 'var(--border-light)')}
-                onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
-              >
-                <td style={{ padding: '10px 12px', color: 'var(--ink3)', whiteSpace: 'nowrap' }}>{t.event?.name ?? '—'}</td>
-                <td style={{ padding: '10px 12px', maxWidth: '320px' }}>
-                  <div style={{ color: 'var(--ink)', fontWeight: 600, lineHeight: 1.35 }}>{t.description}</div>
-                  {t.remarks && (
-                    <div
-                      style={{
-                        fontSize: '11px',
-                        color: 'var(--ink3)',
-                        marginTop: '4px',
-                        padding: '2px 6px',
-                        borderRadius: '4px',
-                        background: 'var(--border-light)',
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        gap: '4px',
-                        maxWidth: '100%',
-                        overflow: 'hidden',
-                        textOverflow: 'ellipsis',
-                        whiteSpace: 'nowrap',
-                      }}
-                      title={t.remarks}
-                    >
-                      <span style={{ fontSize: '10px', color: 'var(--teal-mid)' }}>📝</span>
-                      <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{t.remarks}</span>
-                    </div>
-                  )}
-                </td>
-                <td style={{ padding: '10px 12px', color: 'var(--ink4)', whiteSpace: 'nowrap' }} title={new Date(t.created_at).toLocaleString('en-GB')}>
-                  {new Date(t.created_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}
-                </td>
-                <td style={{ padding: '10px 12px', whiteSpace: 'nowrap' }}>
-                  {t.assigned_by_staff && (
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                      <Avatar name={t.assigned_by_staff.name} size={22} />
-                      <span style={{ color: 'var(--ink3)' }}>{t.assigned_by_staff.name}</span>
-                      <FollowupButton task={t} />
-                    </div>
-                  )}
-                </td>
-                <td style={{ padding: '10px 12px', whiteSpace: 'nowrap' }}>
-                  {t.assigned_to_staff && (
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                      <Avatar name={t.assigned_to_staff.name} size={22} />
-                      <span style={{ color: 'var(--ink)', fontWeight: 600 }}>{t.assigned_to_staff.name}</span>
-                    </div>
-                  )}
-                </td>
-                <td style={{ padding: '10px 12px', whiteSpace: 'nowrap' }}>
-                  <DeadlineBadge deadline={t.deadline} status={t.status} />
-                </td>
-                <td style={{ padding: '10px 12px' }} onClick={e => e.stopPropagation()}>
-                  <PillSelect pillColor={PRIORITY_COLOR[t.priority]} value={t.priority} onChange={e => onPriorityChange(t.id, e.target.value as TaskPriority)}>
-                    {PRIORITIES.map(p => <option key={p} value={p}>{p}</option>)}
-                  </PillSelect>
-                </td>
-                <td style={{ padding: '10px 12px' }} onClick={e => e.stopPropagation()}>
-                  <PillSelect pillColor={STATUS_COLOR[t.status]} value={t.status} onChange={e => onStatusChange(t.id, e.target.value as TaskStatus)}>
-                    {STATUSES.map(s => <option key={s} value={s}>{s.replace('-', ' ')}</option>)}
-                  </PillSelect>
-                </td>
-                <td style={{ padding: '10px 12px', color: 'var(--ink3)', whiteSpace: 'nowrap' }}>{formatHours(t.tracked_seconds)}</td>
-                <td style={{ padding: '10px 12px' }} onClick={e => e.stopPropagation()}>
-                  <button type="button" onClick={() => onDelete(t.id)} title="Delete task" style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--ink4)', fontSize: '13px' }}>
-                    ✕
-                  </button>
-                </td>
-              </tr>
-            )
-          })}
+          {tasks.map(t => (
+            <TaskRow
+              key={t.id}
+              task={t}
+              showEventColumn={true}
+              onOpenTask={onOpenTask}
+              onStatusChange={onStatusChange}
+              onPriorityChange={onPriorityChange}
+              onDelete={onDelete}
+            />
+          ))}
         </tbody>
       </table>
     </div>
