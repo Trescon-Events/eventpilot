@@ -1,8 +1,9 @@
 'use client'
 
-import { useState, useEffect, use } from 'react'
+import { useState, useEffect, useRef, use } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
+import * as XLSX from 'xlsx'
 import PageHeader from '@/app/components/PageHeader'
 import { permissionSetSatisfies } from '@/app/lib/access/permission-match'
 import { Button, Card, Badge, Input, Select, ProcessingOverlay } from '@/app/components/ui'
@@ -12,6 +13,7 @@ import CalendarView from './CalendarView'
 import DeletedTab from './DeletedTab'
 import DeleteConfirmModal from './DeleteConfirmModal'
 import KonfhubPushConfirmModal from './KonfhubPushConfirmModal'
+import BulkApproveConfirmModal from './BulkApproveConfirmModal'
 import InvitesTab from './InvitesTab'
 import { FieldSchema, SubmittedValue, asText } from '@/app/lib/forms/types'
 import { useBreadcrumbLabel } from '@/app/lib/nav/breadcrumb-labels'
@@ -26,6 +28,7 @@ type Speaker = {
   public_name: string | null; pronoun_style: string | null
   country: string | null; bio: string | null; linkedin_url: string | null
   photo_url: string | null; photo_processed_url: string | null; company_logo_url: string | null
+  company_logo_raw_url: string | null
   website_card_url: string | null
   photo_cleaning_cycle_done: boolean
   photo_head_box: { centerXRatio: number; centerYRatio: number; heightRatio: number } | null
@@ -187,7 +190,7 @@ export default function StakeholderHubPage({ params }: { params: Promise<{ id: s
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [deleteConfirm, setDeleteConfirm] = useState<(Speaker | Partner)[] | null>(null)
   const [deleting, setDeleting] = useState(false)
-  const [bulkDownloading, setBulkDownloading] = useState<'photo' | 'logo' | null>(null)
+  const [bulkDownloading, setBulkDownloading] = useState<'clean_photo' | 'website_photo' | 'raw_logo' | 'clean_logo' | 'excel' | null>(null)
   // Bulk "Push to KonfHub" (2026-08-24) — bulkKonfhubConfirm holds the
   // gate-eligible subset of the current selection (see openBulkKonfhubConfirm),
   // not the raw selection itself, so the confirm modal's new/update counts
@@ -195,6 +198,11 @@ export default function StakeholderHubPage({ params }: { params: Promise<{ id: s
   const [bulkKonfhubConfirm, setBulkKonfhubConfirm] = useState<Speaker[] | null>(null)
   const [bulkKonfhubSkipped, setBulkKonfhubSkipped] = useState(0)
   const [bulkPushingKonfhub, setBulkPushingKonfhub] = useState(false)
+  // Bulk "Approve for Announcements" (2026-08-24) — same shape as the
+  // KonfHub trio above, see openBulkApproveConfirm.
+  const [bulkApproveConfirm, setBulkApproveConfirm] = useState<(Speaker | Partner)[] | null>(null)
+  const [bulkApproveSkipped, setBulkApproveSkipped] = useState(0)
+  const [bulkApproving, setBulkApproving] = useState(false)
   // processSubmission() had no loading feedback at all before this — it's
   // also the heaviest single action on this page (re-hosts the submitted
   // photo/logo, then runs PhotoRoom + Logo Engine + head detection), so it
@@ -291,38 +299,84 @@ export default function StakeholderHubPage({ params }: { params: Promise<{ id: s
     setSaving(false)
   }
 
-  // Bulk download (2026-08-04, per Madhu: "when multiple speakers are
-  // selected, a button each should show on top to download photos and one
-  // for logos... bulk (more than one) should download as a zip file") —
-  // speaker-only (photo_url/company_logo_url are Speaker-only fields), so
-  // these two buttons only render for the Speakers category, not Partners.
-  // Silently skips any selected speaker who doesn't have that asset rather
-  // than failing the whole batch over it.
-  async function bulkDownloadAssets(kind: 'photo' | 'logo') {
+  // Bulk download (2026-08-04, per Madhu, expanded into a proper Downloads
+  // menu 2026-08-24 to cover every distinct asset kind a producer actually
+  // needs — the raw/cleaned distinction for both photos and logos, plus the
+  // separately-generated Website Photo, rather than the original two-button
+  // version's photo_processed_url-with-a-raw-photo-fallback, which blurred
+  // "cleaned" and "raw" together under one button). Speaker-only (every
+  // field below is Speaker-only), so this whole menu only renders for the
+  // Speakers category, not Partners. Silently skips any selected speaker
+  // who doesn't have that specific asset rather than failing the whole
+  // batch over it.
+  const SPEAKER_DOWNLOAD_KINDS = [
+    { key: 'clean_photo' as const,   menuLabel: 'Clean Photos',           noun: 'cleaned photo',        suffix: 'clean-photo',   get: (s: Speaker) => s.photo_processed_url },
+    { key: 'website_photo' as const, menuLabel: 'Edited Website Photos',  noun: 'Website Photo',         suffix: 'website-photo', get: (s: Speaker) => s.website_card_url },
+    { key: 'raw_logo' as const,      menuLabel: 'Raw Logos',              noun: 'raw company logo',      suffix: 'logo-raw',      get: (s: Speaker) => s.company_logo_raw_url },
+    { key: 'clean_logo' as const,    menuLabel: 'Clean Logos',            noun: 'cleaned company logo',  suffix: 'logo-clean',    get: (s: Speaker) => s.company_logo_url },
+  ]
+
+  async function bulkDownloadAssets(key: (typeof SPEAKER_DOWNLOAD_KINDS)[number]['key']) {
+    const config = SPEAKER_DOWNLOAD_KINDS.find(k => k.key === key)!
     const selected = visibleItems.filter(i => selectedIds.has(i.id)) as Speaker[]
     const files = selected
       .map(s => {
-        if (kind === 'photo') {
-          const url = s.photo_processed_url || s.photo_url
-          if (!url) return null
-          return { url, filename: `${s.full_name.replace(/\s+/g, '-')}-photo.${s.photo_processed_url ? 'png' : 'jpg'}` }
-        }
-        if (!s.company_logo_url) return null
-        return { url: s.company_logo_url, filename: `${s.full_name.replace(/\s+/g, '-')}-logo.png` }
+        const url = config.get(s)
+        if (!url) return null
+        return { url, filename: `${s.full_name.replace(/\s+/g, '-')}-${config.suffix}.png` }
       })
       .filter((f): f is { url: string; filename: string } => f !== null)
 
     if (files.length === 0) {
-      setMsg(`None of the ${selected.length} selected speakers have a ${kind === 'photo' ? 'photo' : 'company logo'} uploaded.`)
+      setMsg(`None of the ${selected.length} selected speakers have a ${config.noun} uploaded.`)
       return
     }
 
-    setBulkDownloading(kind)
+    setBulkDownloading(key)
     setMsg(null)
     try {
-      await downloadFilesAsZip(files, `speaker-${kind}s-${Date.now()}.zip`)
+      await downloadFilesAsZip(files, `speaker-${key.replace(/_/g, '-')}s-${Date.now()}.zip`)
     } catch (e) {
       setMsg(`Could not prepare download: ${(e as Error).message}`)
+    }
+    setBulkDownloading(null)
+  }
+
+  // "Speaker Details" Excel export (2026-08-24) — unlike the asset
+  // downloads above, this needs no per-item asset check (every field here
+  // always has SOME value or a sensible blank), so no skip-count message.
+  // Only exports fields already loaded in `speakers` state — deliberately
+  // doesn't fetch anything extra (e.g. email/phone, not in this page's own
+  // Speaker type) to keep this a pure client-side export, same as the
+  // existing xlsx usage in market-intel/page.tsx.
+  async function bulkDownloadSpeakerDetailsExcel() {
+    const selected = visibleItems.filter(i => selectedIds.has(i.id)) as Speaker[]
+    if (selected.length === 0) return
+    setBulkDownloading('excel')
+    setMsg(null)
+    try {
+      const rows = selected.map(s => ({
+        'Full Name': s.full_name,
+        'Public Name': s.public_name ?? '',
+        'Pronoun': pronounLabel(s.pronoun_style) ?? '',
+        'Job Title': s.job_title,
+        'Company': s.company_name,
+        'Country': s.country ?? '',
+        'Bio': s.bio ?? '',
+        'LinkedIn': s.linkedin_url ?? '',
+        'Announcement Status': s.announcement_status,
+        'Website Status': s.website_status,
+        'Social Post Status': s.social_post_status,
+        'Self Promo Status': s.self_promo_status,
+        'Published to KonfHub': s.konfhub_speaker_id ? 'Yes' : 'No',
+        'Source': s.source,
+        'Created At': s.created_at,
+      }))
+      const wb = XLSX.utils.book_new()
+      XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(rows), 'Speakers')
+      XLSX.writeFile(wb, `speaker-details-${Date.now()}.xlsx`)
+    } catch (e) {
+      setMsg(`Could not prepare Excel export: ${(e as Error).message}`)
     }
     setBulkDownloading(null)
   }
@@ -365,18 +419,28 @@ export default function StakeholderHubPage({ params }: { params: Promise<{ id: s
     fetchAll()
   }
 
-  // Same three gates the Details page's own Push button enforces (see that
-  // page's pushToKonfhubBlockedReason) — kept here rather than shared,
-  // since this file has no import path to that page's component-local
-  // logic; both independently mirror the server-side check the push route
-  // itself does, which is the one that actually matters.
-  function isKonfhubPushEligible(s: Speaker): boolean {
+  // Same three gates the Details page's own Approve/Push buttons enforce
+  // (readyForApproval + missingRequiredSpeakerFields there) — kept here
+  // rather than shared, since this file has no import path to that page's
+  // component-local logic; both independently mirror the server-side
+  // checks the approve PATCH and push route themselves do, which are what
+  // actually matter. Shared by bulk Push to KonfHub AND bulk Approve for
+  // Announcements below — both gate on exactly the same "is this speaker's
+  // record actually complete" question, per how the Details page itself
+  // reuses one readiness computation for both of its own buttons.
+  function isSpeakerReadyForApprove(s: Speaker): boolean {
     return !!s.public_name?.trim() && !!s.pronoun_style && s.photo_cleaning_cycle_done === true && !!s.website_card_url
+  }
+
+  // Partners have no photo-cleaning-cycle equivalent — just a cleaned logo
+  // (see the Details page's own cleanLogo/readyForApproval for partners).
+  function isReadyForApprove(item: Speaker | Partner, kind: CategoryKind): boolean {
+    return kind === 'speaker' ? isSpeakerReadyForApprove(item as Speaker) : !!(item as Partner).logo_url
   }
 
   function openBulkKonfhubConfirm() {
     const selected = visibleItems.filter(i => selectedIds.has(i.id)) as Speaker[]
-    const eligible = selected.filter(isKonfhubPushEligible)
+    const eligible = selected.filter(isSpeakerReadyForApprove)
     setBulkKonfhubSkipped(selected.length - eligible.length)
     setBulkKonfhubConfirm(eligible)
   }
@@ -399,6 +463,33 @@ export default function StakeholderHubPage({ params }: { params: Promise<{ id: s
     fetchAll()
   }
 
+  // Bulk "Approve for Announcements" (2026-08-24) — same shape as bulk
+  // Push to KonfHub above (gate-eligible subset → summary confirm →
+  // Promise.all fan-out to the existing singular PATCH route), works for
+  // both speakers and partners since Approve itself does.
+  function openBulkApproveConfirm() {
+    if (!category) return
+    const selected = visibleItems.filter(i => selectedIds.has(i.id))
+    const eligible = selected.filter(i => isReadyForApprove(i, category.kind))
+    setBulkApproveSkipped(selected.length - eligible.length)
+    setBulkApproveConfirm(eligible)
+  }
+
+  async function performBulkApprove() {
+    if (!bulkApproveConfirm || !category) return
+    setBulkApproving(true)
+    const base = category.kind === 'speaker' ? '/api/events/stakeholders/speakers' : '/api/events/stakeholders/partners'
+    const results = await Promise.all(bulkApproveConfirm.map(item =>
+      fetch(`${base}/${item.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ announcement_status: 'ready' }) })
+    ))
+    const failed = results.filter(r => !r.ok).length
+    if (failed > 0) setMsg(`${failed} of ${bulkApproveConfirm.length} approvals failed — try again.`)
+    setBulkApproving(false)
+    setBulkApproveConfirm(null)
+    setSelectedIds(new Set())
+    fetchAll()
+  }
+
   function toggleSelected(id: string) {
     setSelectedIds(prev => {
       const next = new Set(prev)
@@ -414,17 +505,38 @@ export default function StakeholderHubPage({ params }: { params: Promise<{ id: s
 
   // One overlay descriptor covering the blocking actions on this page that
   // AREN'T already inside their own modal with its own busy state —
-  // deleting is deliberately excluded: DeleteConfirmModal already shows a
-  // "Deleting…" button state in-context, and stacking this full-screen
-  // overlay on top of that modal would just double up the dimming for a
-  // sub-1.5s operation.
+  // deleting/bulk-approving/bulk-pushing are deliberately excluded: each
+  // has its own confirm modal already showing a busy button state in
+  // context, and stacking this full-screen overlay on top would just
+  // double up the dimming for a sub-few-second operation.
+  const BULK_DOWNLOADING_LABEL: Record<NonNullable<typeof bulkDownloading>, string> = {
+    clean_photo: 'cleaned photos', website_photo: 'website photos',
+    raw_logo: 'raw logos', clean_logo: 'cleaned logos', excel: 'the Excel file',
+  }
   const overlay = saving
     ? { label: 'Saving…', estimatedMs: 800 }
     : processingSubmissionId
     ? { label: 'Processing submission…', estimatedMs: 6000 }
     : bulkDownloading
-    ? { label: `Preparing ${bulkDownloading === 'photo' ? 'photos' : 'logos'} download…`, estimatedMs: 1200 + selectedIds.size * 300 }
+    ? { label: `Preparing ${BULK_DOWNLOADING_LABEL[bulkDownloading]}…`, estimatedMs: 1200 + selectedIds.size * 300 }
     : null
+
+  // Two dropdowns replace the old flat row of bulk buttons (2026-08-24, per
+  // Madhu) — Downloads (read-only, speaker-only) and Actions (state-
+  // changing: publish/approve/delete). Built as plain arrays here, filtered
+  // to what's actually available/permitted, rather than baking the
+  // conditionals into BulkActionMenu itself — an empty array means "don't
+  // render this dropdown at all" (see the JSX below), same as the old
+  // buttons' own conditional rendering.
+  const bulkDownloadItems = category?.kind === 'speaker' ? [
+    ...SPEAKER_DOWNLOAD_KINDS.map(k => ({ label: k.menuLabel, onClick: () => bulkDownloadAssets(k.key) })),
+    { label: 'Speaker Details (Excel)', onClick: bulkDownloadSpeakerDetailsExcel },
+  ] : []
+  const bulkActionItems = [
+    ...(category?.kind === 'speaker' && can('sae.approvals.approve') ? [{ label: 'Push to KonfHub', onClick: openBulkKonfhubConfirm }] : []),
+    ...(can('sae.approvals.approve') ? [{ label: 'Approve for Announcements', onClick: openBulkApproveConfirm }] : []),
+    ...(can('sae.stakeholders.delete') ? [{ label: 'Delete', danger: true, onClick: () => setDeleteConfirm(visibleItems.filter(i => selectedIds.has(i.id))) }] : []),
+  ]
 
   return (
     <div style={{ minHeight: '100vh', background: 'var(--surface)' }}>
@@ -574,32 +686,20 @@ export default function StakeholderHubPage({ params }: { params: Promise<{ id: s
             </div>
           )}
 
-          {/* Bulk action bar */}
+          {/* Bulk action bar — two dropdowns (2026-08-24, per Madhu):
+              Downloads (read-only exports) and Actions (state-changing:
+              publish/approve/delete) — replaces the old flat row of
+              buttons, which was getting crowded as more bulk actions were
+              added. See bulkDownloadItems/bulkActionItems above. */}
           {selectedIds.size > 0 && (
             <div style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '10px 14px', background: 'var(--red-light)', border: '1px solid var(--red-border)', borderRadius: '8px', marginBottom: '14px', flexWrap: 'wrap' }}>
               <span style={{ fontSize: '14.5px', fontWeight: 700, color: 'var(--red)' }}>{selectedIds.size} selected</span>
-              {/* Bulk download (2026-08-04, per Madhu) — speaker-only, see
-                  bulkDownloadAssets()'s own doc comment. More than one
-                  matching asset zips automatically; exactly one downloads
-                  directly (no point zipping a single file). */}
-              {category?.kind === 'speaker' && (
-                <>
-                  <Button variant="ghost" onClick={() => bulkDownloadAssets('photo')} disabled={bulkDownloading !== null}>
-                    {bulkDownloading === 'photo' ? 'Preparing…' : 'Download Photos'}
-                  </Button>
-                  <Button variant="ghost" onClick={() => bulkDownloadAssets('logo')} disabled={bulkDownloading !== null}>
-                    {bulkDownloading === 'logo' ? 'Preparing…' : 'Download Logos'}
-                  </Button>
-                </>
+              {bulkDownloadItems.length > 0 && (
+                <BulkActionMenu label={bulkDownloading ? 'Preparing…' : 'Downloads'} disabled={bulkDownloading !== null} items={bulkDownloadItems} />
               )}
-              {/* Push to KonfHub (2026-08-24) — deliberately separate from
-                  Delete/Download above: opens a summary confirm rather than
-                  pushing immediately, since this creates/updates real
-                  public records on a third party's system. */}
-              {category?.kind === 'speaker' && can('sae.approvals.approve') && (
-                <Button variant="teal" onClick={openBulkKonfhubConfirm}>Push to KonfHub</Button>
+              {bulkActionItems.length > 0 && (
+                <BulkActionMenu label="Actions" items={bulkActionItems} />
               )}
-              {can('sae.stakeholders.delete') && <Button variant="red" onClick={() => setDeleteConfirm(visibleItems.filter(i => selectedIds.has(i.id)))}>Delete Selected</Button>}
               <button onClick={() => setSelectedIds(new Set())} style={{ background: 'none', border: 'none', color: 'var(--ink3)', fontSize: '14px', fontWeight: 700, cursor: 'pointer' }}>Clear selection</button>
             </div>
           )}
@@ -718,6 +818,17 @@ export default function StakeholderHubPage({ params }: { params: Promise<{ id: s
         />
       )}
 
+      {bulkApproveConfirm && category && (
+        <BulkApproveConfirmModal
+          count={bulkApproveConfirm.length}
+          skippedCount={bulkApproveSkipped}
+          itemLabel={category.kind === 'speaker' ? 'speaker' : 'partner'}
+          approving={bulkApproving}
+          onConfirm={performBulkApprove}
+          onClose={() => setBulkApproveConfirm(null)}
+        />
+      )}
+
       {/* Add/Edit slide-over */}
       {panelOpen && category && (
         <div style={{ position: 'fixed', inset: 0, background: 'color-mix(in srgb, black 50%, transparent)', zIndex: 50, display: 'flex', justifyContent: 'flex-end' }} onClick={() => setPanelOpen(false)}>
@@ -776,6 +887,57 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
     <div>
       <label style={{ fontSize: '13px', fontWeight: 700, color: 'var(--ink3)', display: 'block', marginBottom: '4px' }}>{label}</label>
       {children}
+    </div>
+  )
+}
+
+// Small local dropdown for the bulk action bar (2026-08-24) — no existing
+// reusable dropdown-menu component elsewhere in this app to reuse; kept
+// deliberately minimal (click to toggle, click outside or select an item
+// to close) rather than pulling in a menu library for two use sites.
+function BulkActionMenu({ label, items, disabled }: {
+  label: string
+  items: { label: string; onClick: () => void; danger?: boolean }[]
+  disabled?: boolean
+}) {
+  const [open, setOpen] = useState(false)
+  const ref = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (!open) return
+    function onClickOutside(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false)
+    }
+    document.addEventListener('mousedown', onClickOutside)
+    return () => document.removeEventListener('mousedown', onClickOutside)
+  }, [open])
+
+  return (
+    <div ref={ref} style={{ position: 'relative' }}>
+      <Button variant="ghost" onClick={() => setOpen(o => !o)} disabled={disabled}>
+        {label} {open ? '▴' : '▾'}
+      </Button>
+      {open && (
+        <div style={{
+          position: 'absolute', top: 'calc(100% + 4px)', left: 0, zIndex: 30, minWidth: '210px',
+          background: 'var(--card)', border: '1px solid var(--border)', borderRadius: '10px',
+          boxShadow: '0 8px 24px color-mix(in srgb, black 30%, transparent)', overflow: 'hidden',
+        }}>
+          {items.map((item, i) => (
+            <button
+              key={i}
+              onClick={() => { setOpen(false); item.onClick() }}
+              style={{
+                display: 'block', width: '100%', textAlign: 'left', padding: '10px 14px',
+                background: 'none', border: 'none', borderTop: i > 0 ? '1px solid var(--border-light)' : 'none',
+                color: item.danger ? 'var(--red)' : 'var(--ink)', fontSize: '13.5px', fontWeight: 700, cursor: 'pointer',
+              }}
+            >
+              {item.label}
+            </button>
+          ))}
+        </div>
+      )}
     </div>
   )
 }
