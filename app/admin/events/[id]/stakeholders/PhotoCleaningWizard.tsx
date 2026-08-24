@@ -173,6 +173,12 @@ export default function PhotoCleaningWizard({ eventId, speakerId, entry, onSaved
   const [websiteSkippedReason, setWebsiteSkippedReason] = useState<string | null>(null)
 
   const startedRef = useRef<Set<Phase>>(new Set())
+  // Guards a running poll against acting on stale state — set to the job id
+  // currently in flight; a poll tick checks this is still itself before
+  // touching any state, so a canceled/superseded run (Cancel back to
+  // Compose, or a fresh Retry/Regenerate creating a new job) can't jump the
+  // wizard forward out from under whatever the producer's now looking at.
+  const cleaningJobIdRef = useRef<string | null>(null)
 
   // Loaded independently of `phase` so it's ready by the time Compose
   // renders regardless of whether the wizard opened straight into it or
@@ -282,12 +288,50 @@ export default function PhotoCleaningWizard({ eventId, speakerId, entry, onSaved
       })
       const data = await res.json().catch(() => ({}))
       if (!res.ok) { setErrorMsg(data.error || 'Could not clean this photo — please try again.'); return }
-      const headBox = (data.suggested_head_box as HeadBox) ?? DEFAULT_BOX
-      setPendingClean({ url: data.pending_photo_url, headBox })
+      if (!data.job_id) { setErrorMsg('Could not clean this photo — please try again.'); return }
+      cleaningJobIdRef.current = data.job_id
+      pollCleanJob(data.job_id, 0)
+    } catch {
+      setErrorMsg('Could not clean this photo — check your connection and try again.')
+    }
+  }
+
+  // AI Fill now runs as a background job (2026-08-24 — see clean-photo/
+  // generate's own doc comment: the OpenAI + PhotoRoom round trip this does
+  // can run 30-120s, longer than the Cloudflare proxy in front of
+  // production allows for a single request/response — worked every time in
+  // local dev, where that proxy isn't in the path, but not live). This
+  // polls .../clean-photo/job/[jobId] every few seconds until the job
+  // leaves 'processing'. cleaningJobIdRef is checked before every state
+  // update so a stale poll from a canceled or superseded run can't act.
+  const CLEAN_POLL_INTERVAL_MS = 3000
+  const CLEAN_POLL_MAX_ATTEMPTS = 200 // ~10 min ceiling — generous past the ~120s worst case seen so far, just a backstop against a truly stuck job
+  async function pollCleanJob(jobId: string, attempt: number) {
+    if (cleaningJobIdRef.current !== jobId) return
+    try {
+      const res = await fetch(`/api/events/stakeholders/speakers/${speakerId}/clean-photo/job/${jobId}`)
+      const data = await res.json().catch(() => ({}))
+      if (cleaningJobIdRef.current !== jobId) return
+      if (!res.ok || data.status === 'error') {
+        setErrorMsg(data.error || 'Could not clean this photo — please try again.')
+        return
+      }
+      if (data.status === 'processing') {
+        if (attempt >= CLEAN_POLL_MAX_ATTEMPTS) { setErrorMsg('This is taking much longer than usual — please try again.'); return }
+        setTimeout(() => pollCleanJob(jobId, attempt + 1), CLEAN_POLL_INTERVAL_MS)
+        return
+      }
+      const result = data.result ?? {}
+      const headBox = (result.suggested_head_box as HeadBox) ?? DEFAULT_BOX
+      setPendingClean({ url: result.pending_photo_url, headBox })
       setCleanBox(headBox)
       setPhase('headfix-clean')
     } catch {
-      setErrorMsg('Could not clean this photo — check your connection and try again.')
+      if (cleaningJobIdRef.current !== jobId) return
+      // A transient network blip on one poll tick shouldn't fail the whole
+      // run — retry like any other tick, same attempt cap as above.
+      if (attempt >= CLEAN_POLL_MAX_ATTEMPTS) { setErrorMsg('Could not clean this photo — check your connection and try again.'); return }
+      setTimeout(() => pollCleanJob(jobId, attempt + 1), CLEAN_POLL_INTERVAL_MS)
     }
   }
 
@@ -406,6 +450,7 @@ export default function PhotoCleaningWizard({ eventId, speakerId, entry, onSaved
     if (CANCELABLE_TO_COMPOSE.includes(phase)) {
       startedRef.current.delete('cleaning')
       startedRef.current.delete('processing')
+      cleaningJobIdRef.current = null
       setChosenMode(null)
       setErrorMsg(null)
       setPendingClean(null)
