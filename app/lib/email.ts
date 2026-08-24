@@ -841,14 +841,15 @@ export async function sendGithubPrAlert({
 // ── Email: PR decision — approved & merged, or sent back to Khalifa ──────────
 
 export async function sendPrDecisionAlert({
-  to, prNumber, prTitle, decision, note, prUrl,
+  to, prNumber, prTitle, decision, note, agentInstructions, prUrl,
 }: {
-  to:       string
-  prNumber: number
-  prTitle:  string
-  decision: 'approved' | 'sent_back'
-  note?:    string | null
-  prUrl:    string
+  to:                 string
+  prNumber:           number
+  prTitle:            string
+  decision:           'approved' | 'sent_back'
+  note?:              string | null
+  agentInstructions?: string | null
+  prUrl:              string
 }) {
   const isApproved = decision === 'approved'
   const color = isApproved ? '#166534' : '#B45309'
@@ -878,8 +879,14 @@ export async function sendPrDecisionAlert({
 
       ${note ? `
       <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:18px 20px;margin-bottom:20px;">
-        <div style="font-size:11px;font-weight:800;letter-spacing:1.5px;text-transform:uppercase;color:#64748b;margin-bottom:8px;">Note</div>
+        <div style="font-size:11px;font-weight:800;letter-spacing:1.5px;text-transform:uppercase;color:#64748b;margin-bottom:8px;">Note from Madhu</div>
         <p style="margin:0;font-size:14px;color:#374151;line-height:1.7;white-space:pre-wrap;">${note}</p>
+      </div>` : ''}
+
+      ${agentInstructions ? `
+      <div style="background:#0f172a;border-radius:10px;padding:18px 20px;margin-bottom:20px;">
+        <div style="font-size:11px;font-weight:800;letter-spacing:1.5px;text-transform:uppercase;color:#94a3b8;margin-bottom:8px;">Copy this into Antigravity</div>
+        <pre style="margin:0;font-size:13px;color:#e2e8f0;line-height:1.7;white-space:pre-wrap;font-family:'ui-monospace',monospace;">${agentInstructions}</pre>
       </div>` : ''}
 
       <div style="text-align:center;margin:28px 0;">

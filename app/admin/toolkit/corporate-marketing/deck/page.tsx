@@ -425,6 +425,37 @@ function AnalysisPanel({ deck, onRefresh }: { deck: Deck | null; onRefresh: () =
   const [running, setRunning] = useState(false)
   const [err, setErr] = useState<string | null>(null)
 
+  // The route returns as soon as it flips ai_analysis_status to 'running'
+  // (2026-08-24 — Gemini's own 30-60s+ analysis now runs as a background
+  // job, see the route's own doc comment for why) rather than waiting on
+  // the full Gemini analysis, so this polls the deck row every few seconds
+  // until status leaves 'running' instead of awaiting one long request.
+  const POLL_INTERVAL_MS = 4000
+  const POLL_MAX_ATTEMPTS = 90 // ~6 min ceiling — well past the ~30-60s typical case, just a backstop
+  async function pollUntilDone(attempt: number) {
+    if (attempt >= POLL_MAX_ATTEMPTS) { setErr('This is taking much longer than usual — check back shortly.'); setRunning(false); return }
+    try {
+      const res = await fetch('/api/corporate-marketing/deck', { cache: 'no-store' })
+      // A non-2xx tick (session lapse, transient server error) isn't proof
+      // the analysis finished or failed — retry like any other tick instead
+      // of falling through and reporting done/undefined as if it were.
+      if (!res.ok) { setTimeout(() => pollUntilDone(attempt + 1), POLL_INTERVAL_MS); return }
+      const d = await res.json().catch(() => ({}))
+      const latestStatus = d?.deck?.ai_analysis_status
+      await onRefresh()
+      if (latestStatus === 'running') {
+        setTimeout(() => pollUntilDone(attempt + 1), POLL_INTERVAL_MS)
+        return
+      }
+      if (latestStatus === 'failed') setErr(d?.deck?.ai_analysis_error ?? 'Analysis failed')
+      setRunning(false)
+    } catch {
+      // A transient network blip on one poll tick shouldn't strand the
+      // button disabled forever — retry like any other tick.
+      setTimeout(() => pollUntilDone(attempt + 1), POLL_INTERVAL_MS)
+    }
+  }
+
   async function runAnalysis() {
     setRunning(true)
     setErr(null)
@@ -435,9 +466,9 @@ function AnalysisPanel({ deck, onRefresh }: { deck: Deck | null; onRefresh: () =
         throw new Error(d?.error ?? `Analysis failed (${res.status})`)
       }
       await onRefresh()
+      pollUntilDone(0)
     } catch (e) {
       setErr((e as Error).message)
-    } finally {
       setRunning(false)
     }
   }

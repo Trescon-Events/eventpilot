@@ -9,6 +9,7 @@ import { supabaseAdmin } from '@/app/lib/supabase'
 import { requireDevApprovalsAccess } from '@/app/lib/github/dev-approvals-access'
 import { requestChanges } from '@/app/lib/github/api'
 import { sendPrDecisionAlert } from '@/app/lib/email'
+import { generateAgentInstructions } from '@/app/lib/github/agent-instructions'
 
 export const runtime = 'nodejs'
 export const maxDuration = 30
@@ -29,6 +30,13 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ prN
   const { data: row } = await supabaseAdmin.from('github_pr_reviews').select('*').eq('pr_number', prNumber).maybeSingle()
   if (!row) return NextResponse.json({ error: 'Unknown PR — no webhook record for it yet' }, { status: 404 })
 
+  const agentInstructions = await generateAgentInstructions({
+    prTitle: row.pr_title,
+    note,
+    areasTouched: row.areas_touched ?? [],
+    filesChanged: row.files_changed ?? [],
+  })
+
   try {
     await requestChanges(prNumber, note)
   } catch (err) {
@@ -41,12 +49,13 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ prN
     decided_by: access.staffId,
     decided_at: new Date().toISOString(),
     decision_note: note,
+    agent_instructions: agentInstructions,
     merge_error: null,
     updated_at: new Date().toISOString(),
   }).eq('pr_number', prNumber)
 
   try {
-    await sendPrDecisionAlert({ to: KHALIFA_EMAIL, prNumber, prTitle: row.pr_title, decision: 'sent_back', note, prUrl: row.pr_url })
+    await sendPrDecisionAlert({ to: KHALIFA_EMAIL, prNumber, prTitle: row.pr_title, decision: 'sent_back', note, agentInstructions, prUrl: row.pr_url })
   } catch (err) {
     console.error('sendPrDecisionAlert (sent_back) failed, non-fatal:', err)
   }

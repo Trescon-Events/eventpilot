@@ -305,7 +305,34 @@ export async function GET(req: NextRequest) {
   return NextResponse.json({ companies: companies ?? [], speakers: speakers ?? [], scans: scans ?? [] })
 }
 
-// ── POST — run a scan ──────────────────────────────────────────────────────────
+/* POST /api/market-intel — Body: { url, event_id?, job_id?, is_fresh_rescan? }
+   BACKGROUND-JOB-BACKED (2026-08-24 — same fix shape as
+   app/api/events/stakeholders/speakers/[id]/clean-photo/generate/route.ts
+   and app/api/kb/intel/run/route.ts; read either's doc comment for the full
+   incident writeup). This used to await the ENTIRE scan pipeline inline —
+   up to 20 page fetches, an 8-page level-2 crawl (the level-2 discovery loop
+   in particular runs its fetchPage calls SEQUENTIALLY, not in parallel), and
+   a Gemini call retried across up to 4 model fallbacks on a ~100k-char
+   prompt. That worked fine in local dev, where eventpilot.tresconglobal.com's
+   Cloudflare Worker proxy isn't in the request path at all — but live, EVERY
+   request to this route (whether from the browser's scanManager.ts or any
+   other caller) passes through that same proxy, which kills any single
+   request/response around ~100s regardless of maxDuration above (that's a
+   Next.js/platform setting; it does nothing against Cloudflare's own,
+   independent limit). A single URL's scan chain can easily exceed that.
+
+   market_intel_scans already tracked status ('running'/'complete'/'failed')
+   per scan even before this change — this reuses that same row instead of
+   adding a new table. POST now just creates the row and fires the real
+   pipeline (runMarketIntelScan, below) as a detached background function
+   without awaiting it, returning { scan_id, status: 'running' } immediately
+   (safe here — Railway runs this as a persistent `next start` process, not
+   a serverless function torn down after the response). Callers poll
+   GET /api/market-intel?scan_id=... (already existed, unchanged) until the
+   scan's status leaves 'running', then read scan.result — the EXACT same
+   JSON shape this route used to return inline — and scan.error_message /
+   scan.failure_reason on failure. See app/lib/scanManager.ts, which is the
+   only caller today, for the poll loop. */
 export async function POST(req: NextRequest) {
   const body = await req.json().catch(() => null)
   if (!body?.url) return NextResponse.json({ error: 'url required', failure_reason: 'invalid_request' }, { status: 400 })
@@ -314,24 +341,45 @@ export async function POST(req: NextRequest) {
   if (!rawUrl.startsWith('http://') && !rawUrl.startsWith('https://')) {
     rawUrl = 'https://' + rawUrl
   }
-  const targetUrl    = rawUrl
-  const eventId      = body.event_id ?? null
-  const jobId        = body.job_id ?? null
+  const targetUrl     = rawUrl
+  const eventId       = body.event_id ?? null
+  const jobId         = body.job_id ?? null
   const isFreshRescan = body.is_fresh_rescan === true
 
+  const { data: scanRow, error: scanErr } = await supabaseAdmin
+    .from('market_intel_scans')
+    .insert({ source_url: targetUrl, event_id: eventId, job_id: jobId, status: 'running', is_fresh_rescan: isFreshRescan })
+    .select('id')
+    .single()
+  if (scanErr || !scanRow) {
+    return NextResponse.json({ error: scanErr?.message ?? 'Could not start scan', failure_reason: 'network' }, { status: 500 })
+  }
+
+  // Fire and forget — see this file's top doc comment for why this is safe
+  // here. runMarketIntelScan handles its own success/failure DB writes
+  // internally (mirroring exactly what this route used to do inline); this
+  // outer .catch is only a backstop for a genuinely uncaught bug in that
+  // handling itself.
+  runMarketIntelScan(scanRow.id, targetUrl, eventId, jobId).catch(async e => {
+    console.error(`[market-intel scan ${scanRow.id}] uncaught error:`, e)
+    await supabaseAdmin.from('market_intel_scans').update({
+      status: 'failed', error_message: String(e), failure_reason: 'ai', completed_at: new Date().toISOString(),
+    }).eq('id', scanRow.id)
+    if (jobId) await aggregateJobStats(jobId).catch(() => {})
+  })
+
+  return NextResponse.json({ scan_id: scanRow.id, status: 'running' })
+}
+
+// The actual scan pipeline, run detached from the request/response cycle
+// (see this file's top doc comment). Identical logic to what this route
+// used to run inline — only the entry/exit points changed: no NextResponse,
+// writes its outcome (success or failure) to the market_intel_scans row the
+// caller already created instead of returning it.
+async function runMarketIntelScan(scanId: string, targetUrl: string, eventId: string | null, jobId: string | null) {
   const credits: Credits = { gemini: 0, firecrawl: 0, jina: 0 }
-  let scanId: string | null = null
 
   try {
-    // ── Create scan record ─────────────────────────────────────────────────────
-    const { data: scanRow, error: scanErr } = await supabaseAdmin
-      .from('market_intel_scans')
-      .insert({ source_url: targetUrl, event_id: eventId, job_id: jobId, status: 'running', is_fresh_rescan: isFreshRescan })
-      .select()
-      .single()
-    if (scanErr) console.warn('market_intel_scans insert failed:', scanErr?.message)
-    scanId = scanRow?.id ?? null
-
     // ── Phase A: Reconnaissance ────────────────────────────────────────────────
     const homepageHtml = await fetchPage(targetUrl)
     const rawHomepageText = homepageHtml ? stripHtml(homepageHtml) : ''
@@ -353,15 +401,14 @@ export async function POST(req: NextRequest) {
     const homepageAltTexts = homepageHtml ? extractImageAltText(homepageHtml) : []
 
     if (!homepageText) {
-      if (scanId) {
-        await supabaseAdmin.from('market_intel_scans').update({
-          status: 'failed', error_message: 'Could not reach URL', completed_at: new Date().toISOString(),
-        }).eq('id', scanId)
-      }
-      return NextResponse.json({
-        error: 'Could not reach this URL. The site may block automated access or the URL is incorrect.',
+      await supabaseAdmin.from('market_intel_scans').update({
+        status: 'failed',
+        error_message: 'Could not reach URL',
         failure_reason: 'network',
-      }, { status: 422 })
+        completed_at: new Date().toISOString(),
+      }).eq('id', scanId)
+      if (jobId) await aggregateJobStats(jobId)
+      return
     }
 
     const siteClass = classifySite(homepageHtml, homepageText)
@@ -584,29 +631,46 @@ Return ONLY valid JSON:
       })
     }
 
-    // ── Save to Supabase ───────────────────────────────────────────────────────
-    if (scanId) {
-      await supabaseAdmin.from('market_intel_scans').update({
-        event_name:              parsed.event?.name ?? null,
-        industry:                parsed.event?.industry ?? null,
-        location:                parsed.event?.location ?? null,
-        organizer:               parsed.event?.organizer ?? null,
-        site_type:               parsed.site_analysis?.site_type ?? null,
-        rendering_model:         parsed.site_analysis?.rendering_model ?? null,
-        commercial_structure:    parsed.site_analysis?.commercial_structure ?? null,
-        terminology_used:        parsed.site_analysis?.terminology_used ?? [],
-        intelligence_summary:    parsed.intelligence_summary ?? null,
-        pages_scanned:           (parsed.crawl_summary?.sub_pages_fetched ?? 0) + 1,
-        participants_found:      participants.length,
-        speakers_found:          speakers.length,
-        partial_failures:        partialFailures,
-        credits_gemini_calls:    credits.gemini,
-        credits_firecrawl_pages: credits.firecrawl,
-        credits_jina_pages:      credits.jina,
-        status:                  'complete',
-        completed_at:            new Date().toISOString(),
-      }).eq('id', scanId)
+    // Exact same shape this route used to return inline — persisted verbatim
+    // so pollers (see this file's top doc comment) read an identical result.
+    const responsePayload = {
+      ...parsed,
+      hypotheses_generated: hypotheses,
+      scan_id: scanId,
+      credits: { gemini: credits.gemini, firecrawl: credits.firecrawl, jina: credits.jina },
+      partial_failures: partialFailures,
     }
+
+    // ── Save to Supabase ───────────────────────────────────────────────────────
+    // This write is now the ONLY way a poller ever learns the scan
+    // succeeded (2026-08-24 — previously this route returned responsePayload
+    // directly too, so a silent failure here still left the caller with its
+    // data; now scanManager.ts learns the outcome exclusively by polling
+    // this row). Checked and thrown so a failure here is treated as a scan
+    // failure by the outer catch below, instead of leaving the row stuck at
+    // 'running' until the poller's multi-minute ceiling times out.
+    const { error: saveError } = await supabaseAdmin.from('market_intel_scans').update({
+      event_name:              parsed.event?.name ?? null,
+      industry:                parsed.event?.industry ?? null,
+      location:                parsed.event?.location ?? null,
+      organizer:               parsed.event?.organizer ?? null,
+      site_type:                parsed.site_analysis?.site_type ?? null,
+      rendering_model:         parsed.site_analysis?.rendering_model ?? null,
+      commercial_structure:    parsed.site_analysis?.commercial_structure ?? null,
+      terminology_used:        parsed.site_analysis?.terminology_used ?? [],
+      intelligence_summary:    parsed.intelligence_summary ?? null,
+      pages_scanned:           (parsed.crawl_summary?.sub_pages_fetched ?? 0) + 1,
+      participants_found:      participants.length,
+      speakers_found:          speakers.length,
+      partial_failures:        partialFailures,
+      credits_gemini_calls:    credits.gemini,
+      credits_firecrawl_pages: credits.firecrawl,
+      credits_jina_pages:      credits.jina,
+      status:                  'complete',
+      completed_at:            new Date().toISOString(),
+      result:                  responsePayload,
+    }).eq('id', scanId)
+    if (saveError) throw new Error(`Could not save scan result: ${saveError.message}`)
 
     // ── Upsert companies ───────────────────────────────────────────────────────
     if (eventId && participants.length > 0) {
@@ -694,14 +758,6 @@ Return ONLY valid JSON:
     // ── Update job aggregate ───────────────────────────────────────────────────
     if (jobId) await aggregateJobStats(jobId)
 
-    return NextResponse.json({
-      ...parsed,
-      hypotheses_generated: hypotheses,
-      scan_id: scanId,
-      credits: { gemini: credits.gemini, firecrawl: credits.firecrawl, jina: credits.jina },
-      partial_failures: partialFailures,
-    })
-
   } catch (e) {
     console.error('market-intel error:', e)
     const msg = String(e)
@@ -710,12 +766,9 @@ Return ONLY valid JSON:
       : msg.includes('rate') || msg.includes('quota') ? 'rate_limit'
       : msg.includes('timeout') || msg.includes('abort') ? 'timeout'
       : 'ai'
-    if (scanId) {
-      await supabaseAdmin.from('market_intel_scans').update({
-        status: 'failed', error_message: msg, completed_at: new Date().toISOString(),
-      }).eq('id', scanId)
-    }
+    await supabaseAdmin.from('market_intel_scans').update({
+      status: 'failed', error_message: msg, failure_reason, completed_at: new Date().toISOString(),
+    }).eq('id', scanId)
     if (jobId) await aggregateJobStats(jobId).catch(() => {})
-    return NextResponse.json({ error: msg, failure_reason }, { status: 500 })
   }
 }

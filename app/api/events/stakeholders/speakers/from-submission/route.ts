@@ -93,9 +93,15 @@ export async function POST(req: NextRequest) {
       // comment. Native-form submissions store photo_url on our own
       // storage already, which neither needs nor wants a HubSpot bearer
       // token attached to the request.
+      // Bounded (2026-08-24) — this fetch had no timeout at all, and this
+      // route runs behind the same Cloudflare proxy in front of production
+      // that kills any single request around ~100s. Neither this nor the
+      // PhotoRoom call below is anywhere near the AI-image-generation class
+      // of latency (Clean Photo's GPT Image 2 fix, same day), so the fix
+      // here is bounding these calls, not the full background-job pattern.
       const imgRes = submission.source === 'hubspot'
         ? await fetchHubSpotUploadedFile(fileUrls.photo)
-        : await fetch(fileUrls.photo)
+        : await fetch(fileUrls.photo, { signal: AbortSignal.timeout(30_000) })
       if (imgRes.ok) {
         rawBuffer = Buffer.from(await imgRes.arrayBuffer())
         rawContentType = imgRes.headers.get('content-type') || 'image/jpeg'
@@ -127,6 +133,7 @@ export async function POST(req: NextRequest) {
         method: 'POST',
         headers: { 'x-api-key': photoRoomKey },
         body: photoRoomForm,
+        signal: AbortSignal.timeout(30_000),
       })
 
       if (prRes.ok) {

@@ -139,6 +139,48 @@ function _persist() {
 
 function _sleep(ms: number) { return new Promise<void>(r => setTimeout(r, ms)) }
 
+// POST /api/market-intel is now background-job-backed (2026-08-24) — see
+// app/api/market-intel/route.ts's own top doc comment for why: production
+// sits behind a Cloudflare Worker proxy that kills any single request
+// around ~100s, and a full scan (up to 20 page fetches + an 8-page level-2
+// crawl + a multi-model-fallback Gemini call) can run well past that. The
+// POST call below now returns almost instantly with a scan_id; this polls
+// GET /api/market-intel?scan_id=... until the scan record leaves 'running'.
+const SCAN_POLL_INTERVAL_MS = 4000
+const SCAN_POLL_MAX_ATTEMPTS = 90 // ~6 min ceiling — generous past any real scan seen so far, just a backstop
+type ScanRow = {
+  id: string
+  status: 'running' | 'complete' | 'failed'
+  result: (IntelResult & { credits: JobCredits; partial_failures: { type: string; reason: string }[] }) | null
+  error_message: string | null
+  failure_reason: UrlJob['failureReason'] | null
+}
+// Consecutive non-2xx poll responses before giving up early as a network
+// failure, rather than silently retrying every tick until the full ~6min
+// ceiling and getting misclassified as 'timeout' below (the caller maps a
+// DOMException/AbortError to 'timeout' and anything else to 'network' —
+// see the isAbort check where _pollScan is awaited).
+const SCAN_POLL_MAX_CONSECUTIVE_ERRORS = 5
+async function _pollScan(scanId: string, signal: AbortSignal): Promise<ScanRow> {
+  let consecutiveErrors = 0
+  for (let attempt = 0; attempt < SCAN_POLL_MAX_ATTEMPTS; attempt++) {
+    if (signal.aborted) throw new DOMException('Scan polling aborted', 'AbortError')
+    const res = await fetch(`/api/market-intel?scan_id=${scanId}`, { signal })
+    if (!res.ok) {
+      consecutiveErrors++
+      if (consecutiveErrors >= SCAN_POLL_MAX_CONSECUTIVE_ERRORS) throw new Error(`Scan polling failed (${res.status})`)
+      await _sleep(SCAN_POLL_INTERVAL_MS)
+      continue
+    }
+    consecutiveErrors = 0
+    const data = await res.json().catch(() => ({}))
+    const scan = (data.scans ?? [])[0] as ScanRow | undefined
+    if (scan && scan.status !== 'running') return scan
+    await _sleep(SCAN_POLL_INTERVAL_MS)
+  }
+  throw new DOMException('Scan timed out waiting for a result', 'AbortError')
+}
+
 // ── Job runner ────────────────────────────────────────────────────────────────
 
 async function _runJobLoop(jobId: string): Promise<void> {
@@ -180,8 +222,11 @@ async function _runJobLoop(jobId: string): Promise<void> {
       _notify()
 
       try {
+        // POST itself is now just a row-insert + background kickoff (see
+        // app/api/market-intel/route.ts's top doc comment) — fast, so this
+        // timeout only needs to cover that, not the whole scan.
         const controller = new AbortController()
-        const timer = setTimeout(() => controller.abort(), 4 * 60 * 1000)
+        const timer = setTimeout(() => controller.abort(), 20000)
 
         const res = await fetch('/api/market-intel', {
           method:  'POST',
@@ -191,42 +236,51 @@ async function _runJobLoop(jobId: string): Promise<void> {
         })
         clearTimeout(timer)
 
-        urlJob.phase = 'AI extraction — building intelligence…'
-        _notify()
-
-        let data: Record<string, unknown> = {}
-        const ct = res.headers.get('content-type') ?? ''
-        if (ct.includes('application/json')) {
-          data = await res.json().catch(() => ({ error: `Status ${res.status}` }))
-        } else {
-          const text = await res.text().catch(() => '')
-          data = { error: `Server error ${res.status}`, failure_reason: 'network', _raw: text.slice(0, 120) }
+        const started = await res.json().catch(() => ({}))
+        if (!res.ok || !started.scan_id) {
+          throw new Error(String(started.error ?? `Could not start scan (status ${res.status})`))
         }
 
-        if (res.ok && !data.error) {
+        urlJob.phase = 'Scanning — this can take a couple of minutes…'
+        _notify()
+
+        // Poll until the scan leaves 'running' — see _pollScan's own doc
+        // comment. Separate, longer-lived controller than the POST's own,
+        // since polling is expected to run for a while.
+        const pollController = new AbortController()
+        const pollTimer = setTimeout(() => pollController.abort(), 6 * 60 * 1000)
+        let scan: ScanRow
+        try {
+          scan = await _pollScan(started.scan_id, pollController.signal)
+        } finally {
+          clearTimeout(pollTimer)
+        }
+
+        if (scan.status === 'complete' && scan.result) {
+          const data = scan.result
           urlJob.status = 'done'
           urlJob.result = data as unknown as IntelResult
           urlJob.phase  = null
 
           // Accumulate credits
-          const c = (data.credits ?? {}) as { gemini?: number; firecrawl?: number; jina?: number }
-          job.credits.gemini   += c.gemini   ?? 0
+          const c = data.credits ?? { gemini: 0, firecrawl: 0, jina: 0 }
+          job.credits.gemini    += c.gemini    ?? 0
           job.credits.firecrawl += c.firecrawl ?? 0
-          job.credits.jina     += c.jina     ?? 0
-          _sessionCredits.gemini   += c.gemini   ?? 0
+          job.credits.jina      += c.jina      ?? 0
+          _sessionCredits.gemini    += c.gemini    ?? 0
           _sessionCredits.firecrawl += c.firecrawl ?? 0
-          _sessionCredits.jina     += c.jina     ?? 0
+          _sessionCredits.jina      += c.jina      ?? 0
 
           // Collect partial failures
-          const pf = (data.partial_failures ?? []) as { type: string; reason: string }[]
+          const pf = data.partial_failures ?? []
           for (const f of pf) {
             job.partialFailures.push({ url: urlJob.url, type: f.type, reason: f.reason })
           }
 
           succeeded = true
         } else {
-          const errMsg = String(data.error ?? 'Extraction failed')
-          const reason = (data.failure_reason as UrlJob['failureReason']) ?? 'ai'
+          const errMsg = scan.error_message ?? 'Extraction failed'
+          const reason = scan.failure_reason ?? 'ai'
           if (attempt < 3) {
             urlJob.phase = `Attempt ${attempt} failed (${reason}). Retrying in 3s…`
             _notify()
@@ -240,7 +294,7 @@ async function _runJobLoop(jobId: string): Promise<void> {
         }
       } catch (e) {
         const isAbort = e instanceof DOMException && e.name === 'AbortError'
-        const errMsg  = isAbort ? 'Scan timed out after 4 minutes' : String(e)
+        const errMsg  = isAbort ? 'Scan timed out' : String(e)
         const reason: UrlJob['failureReason'] = isAbort ? 'timeout' : 'network'
         if (attempt < 3 && !control.cancelled) {
           urlJob.phase = `Attempt ${attempt} failed (${reason}). Retrying in 3s…`

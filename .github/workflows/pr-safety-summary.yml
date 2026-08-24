@@ -33,6 +33,12 @@ jobs:
           BASE_REF:               ${{ github.event.pull_request.base.ref }}
           HEAD_SHA:               ${{ github.event.pull_request.head.sha }}
           REVIEWER_HANDLE:        tresconevents
-          EVENTPILOT_WEBHOOK_URL: https://eventpilot.tresconglobal.com/api/webhooks/github-pr
+          # Railway's own domain, not the Cloudflare-fronted custom domain —
+          # Cloudflare's zone-wide Bot Fight Mode (Free plan, cannot be
+          # scoped to one path) silently challenges this server-to-server
+          # POST and swallows it. Going straight to Railway skips Cloudflare
+          # entirely for this one call without touching bot protection on
+          # the public domain.
+          EVENTPILOT_WEBHOOK_URL: https://eventpilot-production-90c6.up.railway.app/api/webhooks/github-pr
           GITHUB_PR_WEBHOOK_SECRET: ${{ secrets.PR_WEBHOOK_SECRET }}
         run: node .github/scripts/pr-safety-summary.js

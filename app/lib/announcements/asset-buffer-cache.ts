@@ -19,8 +19,18 @@ const MAX_ENTRIES = 40
 
 const cache = new Map<string, Promise<Buffer | null>>()
 
+// Bounded (2026-08-24) — this fetch previously had no timeout at all. It's
+// one of two calls (alongside the Gemini post-copy call it runs alongside
+// via Promise.all in announcements/generate/route.ts) that decide the
+// route's total wall time, and the route is proxied through a Cloudflare
+// Worker in front of production that kills any single request around
+// ~100s. A stalled external photo/logo URL (slow host, dead redirect)
+// could otherwise hang the whole generate indefinitely instead of failing
+// fast into the route's existing "continue without a creative" fallback.
+const ASSET_FETCH_TIMEOUT_MS = 30_000
+
 async function fetchUncached(url: string): Promise<Buffer | null> {
-  const res = await fetch(url)
+  const res = await fetch(url, { signal: AbortSignal.timeout(ASSET_FETCH_TIMEOUT_MS) })
   if (!res.ok) return null
   // A 200 response isn't necessarily the image — an expired/broken signed
   // URL (seen in the wild: a HubSpot-hosted photo whose signed-url-
@@ -44,7 +54,20 @@ export function fetchAssetBuffer(url: string): Promise<Buffer | null> {
     return cached
   }
 
-  const promise = fetchUncached(url).catch(() => null)
+  const promise = fetchUncached(url).catch(() => {
+    // A thrown exception (network error, or the 30s AbortSignal timeout
+    // above) is a TRANSIENT failure, not evidence this exact URL never
+    // resolves — evict it so the next caller gets a fresh attempt instead
+    // of reusing this call's null forever (2026-08-24: a slow-but-working
+    // host, e.g. a HubSpot CDN photo, would otherwise silently and
+    // permanently drop out of every future creative generation for this
+    // process's lifetime once one fetch happened to be slow). fetchUncached's
+    // own !res.ok / wrong-content-type cases already resolve to null
+    // instead of throwing — those stay cached per this file's top comment,
+    // since they reflect this URL's own response, not a one-off timing issue.
+    cache.delete(url)
+    return null
+  })
   cache.set(url, promise)
 
   if (cache.size > MAX_ENTRIES) {

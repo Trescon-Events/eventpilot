@@ -120,7 +120,14 @@ Return JSON only, no markdown fences: { "copy": "...", "hashtags": ["#...", "...
   // all) as if it were the post copy. Confirmed live: roughly 1 in 3
   // generations hit this before adding the mode.
   const model  = getGemini().getGenerativeModel({ model: 'gemini-2.5-flash', generationConfig: { responseMimeType: 'application/json' } })
-  const result = await model.generateContent([{ text: prompt }])
+  // Bounded (2026-08-24) — this and the asset fetch it runs alongside via
+  // Promise.all in announcements/generate/route.ts are the only two things
+  // standing between a normal ~few-second generate and the ~100s Cloudflare
+  // proxy timeout in front of production; an unbounded hung Gemini call
+  // (rare, but a real API-outage mode) could otherwise run past it same as
+  // an unbounded fetch could. Matches the GEMINI_TIMEOUT_MS convention
+  // already used in app/api/kb/intel/run/route.ts.
+  const result = await model.generateContent([{ text: prompt }], { timeout: 60_000 })
   return parseGeminiCopyResponse(result.response.text().trim())
 }
 
@@ -243,7 +250,9 @@ broad generic block), returned separately in "hashtags", not inside "copy".
 Return JSON only, no markdown fences: { "copy": "...", "hashtags": ["#...", "..."] }`
 
   const model  = getGemini().getGenerativeModel({ model: 'gemini-2.5-flash', generationConfig: { responseMimeType: 'application/json' } })
-  const result = await model.generateContent([{ text: prompt }])
+  // Bounded (2026-08-24) — see generatePostCopy's identical timeout above
+  // for why.
+  const result = await model.generateContent([{ text: prompt }], { timeout: 60_000 })
   return parseGeminiCopyResponse(result.response.text().trim())
 }
 

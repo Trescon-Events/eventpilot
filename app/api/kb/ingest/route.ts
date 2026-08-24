@@ -32,46 +32,127 @@ export const maxDuration = 120
     /api/documents/review, just without gap detection (there's no schema to
     detect gaps against). This replaces the retired /api/documents/upload,
     which used to publish this branch immediately with no review step.
+
+  BACKGROUND-JOB-BACKED (2026-08-24, same fix as
+  app/api/kb/intel/run/route.ts's kb_intel_runs and
+  app/api/events/stakeholders/speakers/[id]/clean-photo/generate's
+  speaker_photo_clean_jobs). This used to run the whole extract → Gemini
+  summary → gap-detection chain (or extract → analyseGeneralDocument for the
+  general branch) inline and await it before responding — fine in local
+  dev, but production sits behind a Cloudflare Worker proxy in front of
+  Railway that kills any single proxied request around ~100s, and this
+  route's own `maxDuration = 120` above is a "we know this runs long" signal
+  that predates this fix (that Next.js config does nothing against
+  Cloudflare's independent timeout). Only the fast, no-external-call parts
+  (form parsing, size validation, file→buffer) stay inline; everything that
+  touches Gemini, R2, or the DB now runs inside runIngestJob, fired off
+  without awaiting it, writing its outcome to a kb_ingest_jobs row. The
+  upload UI polls GET .../kb/ingest/job/[jobId] (see that route) until the
+  job leaves 'processing', then applies the exact same result shape this
+  route used to return inline.
 */
 export async function POST(req: NextRequest) {
+  const form = await req.formData().catch(() => null)
+  if (!form) return NextResponse.json({ error: 'file is required' }, { status: 400 })
+  const file          = form.get('file') as File | null
+  const uploadedByRaw = form.get('uploaded_by') as string | null
+  // submitted_by is a uuid column (references staff_members) — the synthetic
+  // 'super-admin' session has no staff row, so map it to null like every
+  // other admin route does (e.g. app/api/kb/intel/items/[id]/approve/route.ts)
+  const uploaded_by = uploadedByRaw === 'super-admin' ? null : uploadedByRaw
+
+  if (!file) return NextResponse.json({ error: 'file is required' }, { status: 400 })
+
+  const MAX_BYTES = 100 * 1024 * 1024
+  if (file.size > MAX_BYTES) {
+    return NextResponse.json({ error: `File is too large (${(file.size / 1024 / 1024).toFixed(0)} MB). Maximum is 100 MB.` }, { status: 413 })
+  }
+
+  // Outside the old inline pipeline's try block this line used to sit
+  // inside — guarded on its own so a truncated/detached body still returns
+  // this route's normal { error } JSON shape instead of Next's raw HTML 500
+  // page, which the upload UI's fetch(...).json() can't parse.
+  let buffer: Buffer
   try {
-    const form        = await req.formData()
-    const file         = form.get('file') as File | null
-    const uploadedByRaw = form.get('uploaded_by') as string | null
-    // submitted_by is a uuid column (references staff_members) — the synthetic
-    // 'super-admin' session has no staff row, so map it to null like every
-    // other admin route does (e.g. app/api/kb/intel/items/[id]/approve/route.ts)
-    const uploaded_by = uploadedByRaw === 'super-admin' ? null : uploadedByRaw
+    buffer = Buffer.from(await file.arrayBuffer())
+  } catch {
+    return NextResponse.json({ error: 'Could not read the uploaded file — please try again.' }, { status: 400 })
+  }
 
-    if (!file) return NextResponse.json({ error: 'file is required' }, { status: 400 })
+  const overrideRaw = form.get('doc_type_override') as string | null
+  const resolvedType: KbDocType | 'general' =
+    overrideRaw && overrideRaw in KB_TYPE_META ? (overrideRaw as KbDocType)
+    : overrideRaw === 'general' ? 'general'
+    : suggestDocType(file.name)
 
-    const MAX_BYTES = 100 * 1024 * 1024
-    if (file.size > MAX_BYTES) {
-      return NextResponse.json({ error: `File is too large (${(file.size / 1024 / 1024).toFixed(0)} MB). Maximum is 100 MB.` }, { status: 413 })
-    }
+  const { data: job, error: jobErr } = await supabaseAdmin
+    .from('kb_ingest_jobs')
+    .insert({ status: 'processing' })
+    .select('id')
+    .single()
+  if (jobErr || !job) return NextResponse.json({ error: 'Could not start the ingest job' }, { status: 500 })
 
-    const buffer = Buffer.from(await file.arrayBuffer())
+  // Fire and forget — see this file's top doc comment for why this is safe
+  // here (persistent Railway process, not serverless).
+  runIngestJob(job.id, form, file, buffer, resolvedType, uploaded_by)
+    .catch(async e => {
+      console.error(`[kb ingest job ${job.id}] uncaught error:`, e)
+      await supabaseAdmin.from('kb_ingest_jobs').update({
+        status: 'error',
+        completed_at: new Date().toISOString(),
+        error_message: (e instanceof Error ? e.message : String(e)).slice(0, 2000),
+      }).eq('id', job.id)
+    })
 
-    const overrideRaw = form.get('doc_type_override') as string | null
-    const resolvedType: KbDocType | 'general' =
-      overrideRaw && overrideRaw in KB_TYPE_META ? (overrideRaw as KbDocType)
-      : overrideRaw === 'general' ? 'general'
-      : suggestDocType(file.name)
+  return NextResponse.json({ job_id: job.id })
+}
 
-    let extractedText: string
+// The actual ingest pipeline, run detached from the request/response cycle
+// (see this file's top doc comment). Writes its outcome to the
+// kb_ingest_jobs row the caller already created.
+async function runIngestJob(
+  jobId: string,
+  form: FormData,
+  file: File,
+  buffer: Buffer,
+  resolvedType: KbDocType | 'general',
+  uploaded_by: string | null,
+) {
+  const markDone = async (result: unknown) => {
+    await supabaseAdmin.from('kb_ingest_jobs').update({
+      status: 'done', completed_at: new Date().toISOString(), result,
+    }).eq('id', jobId)
+  }
+  const markError = async (message: string) => {
+    await supabaseAdmin.from('kb_ingest_jobs').update({
+      status: 'error', completed_at: new Date().toISOString(), error_message: message,
+    }).eq('id', jobId)
+  }
+
+  let extractedText: string
+  try {
+    extractedText = await extractKbText(buffer, file.name)
+  } catch (e) {
+    await markError(e instanceof Error ? e.message : 'Could not extract text from this file.')
+    return
+  }
+  if (!extractedText) {
+    await markError('Could not extract any content from this file.')
+    return
+  }
+
+  if (resolvedType === 'general') {
     try {
-      extractedText = await extractKbText(buffer, file.name)
+      const result = await runGeneralIngest(form, file, buffer, extractedText, uploaded_by)
+      await markDone(result)
     } catch (e) {
-      return NextResponse.json({ error: e instanceof Error ? e.message : 'Could not extract text from this file.' }, { status: 422 })
+      console.error('kb ingest (general) error:', e)
+      await markError('Something went wrong while processing this document. Please try again.')
     }
-    if (!extractedText) {
-      return NextResponse.json({ error: 'Could not extract any content from this file.' }, { status: 422 })
-    }
+    return
+  }
 
-    if (resolvedType === 'general') {
-      return await handleGeneralIngest(form, file, buffer, extractedText, uploaded_by)
-    }
-
+  try {
     const docType = resolvedType
     const meta    = KB_TYPE_META[docType]
 
@@ -161,7 +242,7 @@ Start directly with the YAML front matter (---).`
       console.warn('kb gap detection failed:', e)
     }
 
-    return NextResponse.json({
+    await markDone({
       success: true,
       detected_type: docType,
       document: doc,
@@ -170,9 +251,8 @@ Start directly with the YAML front matter (---).`
       gap_session_id: gapSessionId,
     })
   } catch (e) {
-    const msg = e instanceof Error ? e.message : String(e)
-    console.error('kb ingest error:', msg)
-    return NextResponse.json({ error: 'Something went wrong while processing this document. Please try again.' }, { status: 500 })
+    console.error('kb ingest error:', e instanceof Error ? e.message : e)
+    await markError('Something went wrong while processing this document. Please try again.')
   }
 }
 
@@ -186,13 +266,13 @@ Start directly with the YAML front matter (---).`
   (title, type incl. custom/"other", visibility, event link, category,
   external source link, BD workspace link, versioning).
 */
-async function handleGeneralIngest(
+async function runGeneralIngest(
   form: FormData,
   file: File,
   buffer: Buffer,
   extractedText: string,
   uploaded_by: string | null
-): Promise<NextResponse> {
+) {
   const title          = (form.get('title') as string | null)?.trim() || file.name
   const type            = (form.get('type') as string | null) || 'other'
   const visibility      = (form.get('visibility') as string | null) || 'all'
@@ -246,12 +326,12 @@ async function handleGeneralIngest(
     flagged,
   })
 
-  return NextResponse.json({
+  return {
     success: true,
     detected_type: 'general',
     document: doc,
     analysis: { ...analysis, flagged },
     gaps: [],
     gap_session_id: null,
-  })
+  }
 }
