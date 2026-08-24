@@ -70,9 +70,19 @@ type Props = {
 type Phase = 'uploading' | 'compose' | 'cleaning' | 'headfix-clean' | 'processing' | 'cleaned-photo' | 'website-photo' | 'review'
 type ComposeMode = 'ai_fill' | 'enhance' | 'good'
 
-// Phases where a mode has been chosen but nothing's committed yet — Cancel
-// backs out to Compose here instead of closing (see this file's top comment).
-const CANCELABLE_TO_COMPOSE: Phase[] = ['cleaning', 'headfix-clean', 'processing']
+// Phases where Cancel goes back to Compose instead of closing — either
+// because nothing's committed yet (cleaning/headfix-clean/processing), or
+// because whatever WAS committed is safe to redo over (cleaned-photo,
+// 2026-08-24 — reached after finalize already ran on the good/enhance
+// path; same reasoning as the Review step's own "Not right? Redo" button,
+// see resetToCompose's own doc comment for why redoing after finalize is
+// safe). Real gap this closed: on the good/enhance path there's only ONE
+// head-marker adjustment (Compose itself, since that crop is deterministic
+// after that point) — before this, clicking Continue too fast there and
+// only noticing the finalized result was wrong on Cleaned Photo left no
+// way back except closing the wizard outright and starting over from the
+// Overview page.
+const CANCELABLE_TO_COMPOSE: Phase[] = ['cleaning', 'headfix-clean', 'processing', 'cleaned-photo']
 
 const DEFAULT_BOX: HeadBox = { centerXRatio: 0.5, centerYRatio: 0.22, heightRatio: 0.28 }
 
@@ -442,22 +452,35 @@ export default function PhotoCleaningWizard({ eventId, speakerId, entry, onSaved
     }
   }
 
-  // See CANCELABLE_TO_COMPOSE / this file's top comment. Clears the
-  // startedRef entries for the branch phases so re-entering them (after
-  // picking again) actually re-runs their effect instead of being skipped
-  // as "already started."
+  // Resets every downstream phase's state and returns to Compose — shared
+  // by Cancel (phases in CANCELABLE_TO_COMPOSE, see that list's own
+  // comment) and the Review step's "Not right? Redo" button (2026-08-24,
+  // per Madhu). Safe to call even after finalize has already saved a
+  // photo_processed_url, since finalize always OVERWRITES it in place (see
+  // clean-photo/finalize's own doc comment) — nothing is lost until the
+  // redo run itself completes and re-finalizes. rawPhotoUrl/composeBox are
+  // deliberately left untouched — the producer's last framing is a better
+  // starting point to fine-tune than resetting to the ring's default
+  // position. Clearing startedRef entirely (not just cleaning/processing)
+  // is what lets EVERY downstream phase actually re-run rather than being
+  // skipped as "already started" this session.
+  function resetToCompose() {
+    startedRef.current.clear()
+    cleaningJobIdRef.current = null
+    setChosenMode(null)
+    setErrorMsg(null)
+    setPendingClean(null)
+    setCleanedPhotoUrl(null)
+    setWebsitePhotoUrl(null)
+    setWebsiteCropWarning(null)
+    setWebsiteSkippedReason(null)
+    setAiQuality('medium')
+    setPhase('compose')
+  }
+
   function cancelCurrentStep() {
-    if (CANCELABLE_TO_COMPOSE.includes(phase)) {
-      startedRef.current.delete('cleaning')
-      startedRef.current.delete('processing')
-      cleaningJobIdRef.current = null
-      setChosenMode(null)
-      setErrorMsg(null)
-      setPendingClean(null)
-      setPhase('compose')
-    } else {
-      onClose()
-    }
+    if (CANCELABLE_TO_COMPOSE.includes(phase)) resetToCompose()
+    else onClose()
   }
 
   const longWait = elapsedSec >= LONG_WAIT_THRESHOLD_SEC
@@ -557,6 +580,7 @@ export default function PhotoCleaningWizard({ eventId, speakerId, entry, onSaved
                   <input type="file" accept="image/jpeg,image/png,image/webp" style={{ display: 'none' }} disabled={busy}
                     onChange={e => { const f = e.target.files?.[0]; if (f) uploadWebsitePhotoOverride(f); e.target.value = '' }} />
                 </label>
+                <Button variant="ghost" onClick={resetToCompose} disabled={busy}>Not right? Redo</Button>
               </>
             )}
             {/* Review has its own "Done" button above, which does exactly
