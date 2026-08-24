@@ -642,7 +642,14 @@ Return ONLY valid JSON:
     }
 
     // ── Save to Supabase ───────────────────────────────────────────────────────
-    await supabaseAdmin.from('market_intel_scans').update({
+    // This write is now the ONLY way a poller ever learns the scan
+    // succeeded (2026-08-24 — previously this route returned responsePayload
+    // directly too, so a silent failure here still left the caller with its
+    // data; now scanManager.ts learns the outcome exclusively by polling
+    // this row). Checked and thrown so a failure here is treated as a scan
+    // failure by the outer catch below, instead of leaving the row stuck at
+    // 'running' until the poller's multi-minute ceiling times out.
+    const { error: saveError } = await supabaseAdmin.from('market_intel_scans').update({
       event_name:              parsed.event?.name ?? null,
       industry:                parsed.event?.industry ?? null,
       location:                parsed.event?.location ?? null,
@@ -663,6 +670,7 @@ Return ONLY valid JSON:
       completed_at:            new Date().toISOString(),
       result:                  responsePayload,
     }).eq('id', scanId)
+    if (saveError) throw new Error(`Could not save scan result: ${saveError.message}`)
 
     // ── Upsert companies ───────────────────────────────────────────────────────
     if (eventId && participants.length > 0) {

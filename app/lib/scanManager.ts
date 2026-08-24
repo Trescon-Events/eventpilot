@@ -155,10 +155,24 @@ type ScanRow = {
   error_message: string | null
   failure_reason: UrlJob['failureReason'] | null
 }
+// Consecutive non-2xx poll responses before giving up early as a network
+// failure, rather than silently retrying every tick until the full ~6min
+// ceiling and getting misclassified as 'timeout' below (the caller maps a
+// DOMException/AbortError to 'timeout' and anything else to 'network' —
+// see the isAbort check where _pollScan is awaited).
+const SCAN_POLL_MAX_CONSECUTIVE_ERRORS = 5
 async function _pollScan(scanId: string, signal: AbortSignal): Promise<ScanRow> {
+  let consecutiveErrors = 0
   for (let attempt = 0; attempt < SCAN_POLL_MAX_ATTEMPTS; attempt++) {
     if (signal.aborted) throw new DOMException('Scan polling aborted', 'AbortError')
     const res = await fetch(`/api/market-intel?scan_id=${scanId}`, { signal })
+    if (!res.ok) {
+      consecutiveErrors++
+      if (consecutiveErrors >= SCAN_POLL_MAX_CONSECUTIVE_ERRORS) throw new Error(`Scan polling failed (${res.status})`)
+      await _sleep(SCAN_POLL_INTERVAL_MS)
+      continue
+    }
+    consecutiveErrors = 0
     const data = await res.json().catch(() => ({}))
     const scan = (data.scans ?? [])[0] as ScanRow | undefined
     if (scan && scan.status !== 'running') return scan

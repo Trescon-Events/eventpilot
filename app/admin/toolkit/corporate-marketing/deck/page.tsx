@@ -433,17 +433,27 @@ function AnalysisPanel({ deck, onRefresh }: { deck: Deck | null; onRefresh: () =
   const POLL_INTERVAL_MS = 4000
   const POLL_MAX_ATTEMPTS = 90 // ~6 min ceiling — well past the ~30-60s typical case, just a backstop
   async function pollUntilDone(attempt: number) {
-    const res = await fetch('/api/corporate-marketing/deck', { cache: 'no-store' })
-    const d = await res.json().catch(() => ({}))
-    const latestStatus = d?.deck?.ai_analysis_status
-    await onRefresh()
-    if (latestStatus === 'running') {
-      if (attempt >= POLL_MAX_ATTEMPTS) { setErr('This is taking much longer than usual — check back shortly.'); setRunning(false); return }
+    if (attempt >= POLL_MAX_ATTEMPTS) { setErr('This is taking much longer than usual — check back shortly.'); setRunning(false); return }
+    try {
+      const res = await fetch('/api/corporate-marketing/deck', { cache: 'no-store' })
+      // A non-2xx tick (session lapse, transient server error) isn't proof
+      // the analysis finished or failed — retry like any other tick instead
+      // of falling through and reporting done/undefined as if it were.
+      if (!res.ok) { setTimeout(() => pollUntilDone(attempt + 1), POLL_INTERVAL_MS); return }
+      const d = await res.json().catch(() => ({}))
+      const latestStatus = d?.deck?.ai_analysis_status
+      await onRefresh()
+      if (latestStatus === 'running') {
+        setTimeout(() => pollUntilDone(attempt + 1), POLL_INTERVAL_MS)
+        return
+      }
+      if (latestStatus === 'failed') setErr(d?.deck?.ai_analysis_error ?? 'Analysis failed')
+      setRunning(false)
+    } catch {
+      // A transient network blip on one poll tick shouldn't strand the
+      // button disabled forever — retry like any other tick.
       setTimeout(() => pollUntilDone(attempt + 1), POLL_INTERVAL_MS)
-      return
     }
-    if (latestStatus === 'failed') setErr(d?.deck?.ai_analysis_error ?? 'Analysis failed')
-    setRunning(false)
   }
 
   async function runAnalysis() {

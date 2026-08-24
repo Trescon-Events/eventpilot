@@ -68,7 +68,16 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: `File is too large (${(file.size / 1024 / 1024).toFixed(0)} MB). Maximum is 100 MB.` }, { status: 413 })
   }
 
-  const buffer = Buffer.from(await file.arrayBuffer())
+  // Outside the old inline pipeline's try block this line used to sit
+  // inside — guarded on its own so a truncated/detached body still returns
+  // this route's normal { error } JSON shape instead of Next's raw HTML 500
+  // page, which the upload UI's fetch(...).json() can't parse.
+  let buffer: Buffer
+  try {
+    buffer = Buffer.from(await file.arrayBuffer())
+  } catch {
+    return NextResponse.json({ error: 'Could not read the uploaded file — please try again.' }, { status: 400 })
+  }
 
   const overrideRaw = form.get('doc_type_override') as string | null
   const resolvedType: KbDocType | 'general' =
