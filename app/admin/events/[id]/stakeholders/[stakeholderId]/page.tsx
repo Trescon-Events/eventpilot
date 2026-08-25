@@ -410,24 +410,73 @@ export default function StakeholderReviewPage({ params }: { params: Promise<{ id
     }
   }
 
+  // Background-job-backed (2026-08-25, added right after this route's
+  // first live test hit a Cloudflare 502 — see the route's own doc
+  // comment). POST now just kicks off a job and returns { job_id }
+  // immediately; this polls .../job/[jobId] until it leaves 'processing'.
   // See .../konfhub-registration-push's own doc comment — this is
   // CREATE-ONLY, so unlike pushToKonfhub above there's no "already
   // registered" success path to handle here; the button itself is hidden
   // once record.konfhub_booking_id is set (see the Registration tab JSX).
   async function pushRegistration() {
     setPushingRegistration(true)
-    setProcessing({ label: 'Registering on KonfHub…', estimatedMs: 2500 })
+    setProcessing({ label: 'Registering on KonfHub…', estimatedMs: 8000 })
     try {
       const res = await fetch(`/api/events/stakeholders/speakers/${stakeholderId}/konfhub-registration-push`, { method: 'POST' })
       const data = await res.json().catch(() => ({}))
-      if (!res.ok) { setMsg(data.error || 'Could not register on KonfHub — please try again.'); return }
-      setRecord(prev => prev ? { ...prev, konfhub_booking_id: data.konfhub_booking_id, konfhub_registration_synced_at: data.konfhub_registration_synced_at } : prev)
-      setRegistrationConfirm(false)
+      if (!res.ok || !data.job_id) {
+        setMsg(data.error || 'Could not register on KonfHub — please try again.')
+        setPushingRegistration(false)
+        setProcessing(null)
+        return
+      }
+      pollRegistrationJob(data.job_id, 0)
     } catch {
       setMsg('Could not register on KonfHub — check your connection and try again.')
-    } finally {
       setPushingRegistration(false)
       setProcessing(null)
+    }
+  }
+
+  const REGISTRATION_POLL_INTERVAL_MS = 3000
+  // ~2 min ceiling — generous past the ~60s KonfHub-fetch timeout the job
+  // itself already enforces, just a backstop.
+  const REGISTRATION_POLL_MAX_ATTEMPTS = 40
+  async function pollRegistrationJob(jobId: string, attempt: number) {
+    try {
+      const res = await fetch(`/api/events/stakeholders/speakers/${stakeholderId}/konfhub-registration-push/job/${jobId}`)
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok || data.status === 'error') {
+        setMsg(data.error || 'Could not register on KonfHub — please try again.')
+        setPushingRegistration(false)
+        setProcessing(null)
+        return
+      }
+      if (data.status === 'processing') {
+        if (attempt >= REGISTRATION_POLL_MAX_ATTEMPTS) {
+          setMsg('This is taking much longer than usual — check back shortly before trying again.')
+          setPushingRegistration(false)
+          setProcessing(null)
+          return
+        }
+        setTimeout(() => pollRegistrationJob(jobId, attempt + 1), REGISTRATION_POLL_INTERVAL_MS)
+        return
+      }
+      const result = data.result ?? {}
+      setRecord(prev => prev ? { ...prev, konfhub_booking_id: result.konfhub_booking_id, konfhub_registration_synced_at: result.konfhub_registration_synced_at } : prev)
+      setRegistrationConfirm(false)
+      setPushingRegistration(false)
+      setProcessing(null)
+    } catch {
+      // A transient network blip on one poll tick shouldn't fail the whole
+      // run — retry like any other tick, same attempt cap as above.
+      if (attempt >= REGISTRATION_POLL_MAX_ATTEMPTS) {
+        setMsg('Could not register on KonfHub — check your connection and try again.')
+        setPushingRegistration(false)
+        setProcessing(null)
+        return
+      }
+      setTimeout(() => pollRegistrationJob(jobId, attempt + 1), REGISTRATION_POLL_INTERVAL_MS)
     }
   }
 
