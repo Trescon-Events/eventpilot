@@ -142,14 +142,24 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   }
 
   // Fields supported by BOTH create (admin/register) and update
-  // (attendees/:id/edit) — country, country_code, dial_code, and
-  // linkedin_url are create-only per KonfHub's docs, added separately below.
+  // (attendees/:id/edit) — country and linkedin_url are create-only per
+  // KonfHub's docs, added separately below. phone_number is only included
+  // when there's an actual value: KonfHub's edit validation rejects a
+  // present-but-empty phone_number with "'dial_code' is a dependency of
+  // 'phone_number'" (confirmed live 2026-08-25) — dial_code isn't even
+  // listed as an editable field in their docs, so the only clean way to
+  // satisfy that dependency is to not trigger it when there's nothing to
+  // send. When there IS a value, dial_code rides along to satisfy it.
+  const phoneNumber = asText(customFields.phone_number).trim()
   const commonFields: Record<string, unknown> = {
     name,
     email_id: email,
     designation: speaker.role || '',
     organisation: speaker.company || '',
-    phone_number: asText(customFields.phone_number) || '',
+  }
+  if (phoneNumber) {
+    commonFields.phone_number = phoneNumber
+    commonFields.dial_code = speaker.dial_code || '+971'
   }
 
   const { data: job, error: jobErr } = await supabaseAdmin
