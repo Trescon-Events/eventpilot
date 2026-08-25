@@ -54,13 +54,33 @@ import { asText, SubmittedValue } from '@/app/lib/forms/types'
    custom_forms (consents, assistant contacts) are sent via
    event_websites.konfhub_registration_field_map — { ourFieldKey:
    konfhubFormId } — deliberately NOT hardcoded, since the real form_ids
-   for this event's Speaker Registration ticket aren't confirmed yet (a
-   live read-only test hit a 403, and the ticket itself returned
-   "ASC-20 Ticket is not accessible" on a live write test, likely because
-   it's a hidden ticket — question is with KonfHub). Defaults to '{}', so
-   this route ships as a safe no-op on that front until the map is
-   populated directly in the DB — no redeploy needed once the real ids are
-   known. */
+   weren't confirmed at first (a live read-only test with the old
+   x-api-key hit a 403, and a live write hit "ASC-20 Ticket is not
+   accessible"). RESOLVED 2026-08-25: KonfHub support rotated our
+   Speakers-module client_id/client_secret and said the new pair also
+   covers Attendees. The new pair's Bearer token can read
+   GET /event/{konfhubEventId}/attendees (undocumented publicly, found by
+   live probe) — its form_details response is what confirmed the real
+   form_ids now populated in the DB, keyed by this event's exact field
+   keys (see event_form_schemas). That same GET also revealed something
+   the old x-api-key flow couldn't have known: most of this event's
+   speakers already have a live registration on KonfHub under ticket 97613
+   from before the HubSpot pivot — 35 of 37 were matched back to their
+   event_speakers row by email/name and backfilled with the real
+   konfhub_booking_id, closing the double-registration risk this route's
+   create-only design was already guarding against. Two KonfHub
+   registrations (Prof Jugdutt Singh, Ts. Dr. Sheila Mahalingam) had no
+   matching speaker row and were left alone.
+
+   Still CREATE-ONLY here: an OPTIONS probe on that same /attendees path
+   returned `Allow: OPTIONS,GET` — it's read-only, so it is NOT the update
+   endpoint KonfHub meant. The real create/update path for this new
+   credential pair is still unconfirmed; this route still calls the old
+   x-api-key event/capture/v2 endpoint. Do not swap this route onto the
+   Bearer-token pair or attempt an update call without first getting the
+   exact endpoint from KonfHub — most speakers now show as already
+   registered, so any further live test here should target a genuinely
+   unregistered speaker. */
 
 // Revived verbatim from the old, removed app/api/events/konfhub/route.ts
 // (git history, commit fe08732^) — proven mapping, no reason to redo it.
@@ -90,7 +110,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
   const { data: speaker } = await supabaseAdmin
     .from('event_speakers')
-    .select('event_id, name, public_name, role, company, country, dial_code, linkedin_url, custom_fields, konfhub_booking_id')
+    .select('event_id, name, public_name, role, company, country, dial_code, linkedin_url, bio, custom_fields, konfhub_booking_id')
     .eq('id', speakerId)
     .single()
   if (!speaker) return NextResponse.json({ error: 'Speaker not found' }, { status: 404 })
@@ -131,10 +151,16 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     return NextResponse.json({ error: 'KonfHub Attendee Registration isn’t configured for this event yet — set the API Key and Speaker Ticket ID in Website Settings first.' }, { status: 422 })
   }
 
+  // Most field-map keys read from custom_fields, but 'bio' fields promoted
+  // to their own event_speakers column by SPEAKER_KEY_MAP (see that file)
+  // no longer live in custom_fields — fall back to the real column for
+  // those so the map can still target KonfHub's bio custom form (153123
+  // for this event's Speaker Registration ticket).
   const fieldMap = (website.konfhub_registration_field_map ?? {}) as Record<string, string>
   const customForms: Record<string, string> = {}
   for (const [ourKey, formId] of Object.entries(fieldMap)) {
-    const value = asText(customFields[ourKey]).trim()
+    const raw = ourKey === 'short_bio_professional_profile' ? speaker.bio : customFields[ourKey]
+    const value = asText(raw).trim()
     if (value) customForms[formId] = value
   }
 
