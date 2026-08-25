@@ -14,6 +14,8 @@ import { PRONOUN_STYLES } from '@/app/lib/events/pronoun-styles'
 import LogoApprovalModal from '../LogoApprovalModal'
 import PhotoCleaningWizard from '../PhotoCleaningWizard'
 import KonfhubPushConfirmModal from '../KonfhubPushConfirmModal'
+import KonfhubRegistrationPushConfirmModal from '../KonfhubRegistrationPushConfirmModal'
+import { SPEAKER_KEY_MAP } from '@/app/lib/forms/map-to-stakeholder-record'
 import AnnouncementsTab from './AnnouncementsTab'
 import type { Speaker as SaeSpeaker, Partner as SaePartner } from '../../creative-templates/page'
 
@@ -64,6 +66,8 @@ type StakeholderRecord = {
   fields: Record<string, SubmittedValue>
   konfhub_speaker_id?: string | null
   konfhub_synced_at?: string | null
+  konfhub_booking_id?: string | null
+  konfhub_registration_synced_at?: string | null
 }
 
 // One preview tile — raw or cleaned photo/logo — with a download icon and a
@@ -158,7 +162,10 @@ export default function StakeholderReviewPage({ params }: { params: Promise<{ id
   // Announcements tab (2026-08-18, SAE-into-Hub merge) — ?tab=announcements
   // (+ optional ?announcement=X) is how Queue's "Open" links land directly
   // on one creative's review panel, same deep-link idea SAE's own page used.
-  const activeTab: 'overview' | 'announcements' = searchParams.get('tab') === 'announcements' ? 'announcements' : 'overview'
+  const activeTab: 'overview' | 'registration' | 'announcements' =
+    searchParams.get('tab') === 'announcements' ? 'announcements'
+    : searchParams.get('tab') === 'registration' ? 'registration'
+    : 'overview'
   const initialAnnouncementId = searchParams.get('announcement')
 
   const [record, setRecord] = useState<StakeholderRecord | null>(null)
@@ -213,6 +220,13 @@ export default function StakeholderReviewPage({ params }: { params: Promise<{ id
   // wording, so no extra "was this the first push" state is needed here.
   const [konfhubConfirm, setKonfhubConfirm] = useState(false)
   const [pushingKonfhub, setPushingKonfhub] = useState(false)
+  // "Register on KonfHub" (Attendee Registration push, 2026-08-25) —
+  // separate system from the Speakers-module push above (see the route's
+  // own doc comment). No re-push confirm needed: once record.konfhub_booking_id
+  // is set the button is hidden entirely rather than offering a repeat
+  // action KonfHub's API doesn't support anyway.
+  const [registrationConfirm, setRegistrationConfirm] = useState(false)
+  const [pushingRegistration, setPushingRegistration] = useState(false)
   const [generatingWebsitePhoto, setGeneratingWebsitePhoto] = useState(false)
   // The guided Photo Cleaning wizard (2026-08-22, replaces the old separate
   // Replace Photo / Fix Head Position / Clean Photo buttons) owns its own
@@ -396,6 +410,27 @@ export default function StakeholderReviewPage({ params }: { params: Promise<{ id
     }
   }
 
+  // See .../konfhub-registration-push's own doc comment — this is
+  // CREATE-ONLY, so unlike pushToKonfhub above there's no "already
+  // registered" success path to handle here; the button itself is hidden
+  // once record.konfhub_booking_id is set (see the Registration tab JSX).
+  async function pushRegistration() {
+    setPushingRegistration(true)
+    setProcessing({ label: 'Registering on KonfHub…', estimatedMs: 2500 })
+    try {
+      const res = await fetch(`/api/events/stakeholders/speakers/${stakeholderId}/konfhub-registration-push`, { method: 'POST' })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) { setMsg(data.error || 'Could not register on KonfHub — please try again.'); return }
+      setRecord(prev => prev ? { ...prev, konfhub_booking_id: data.konfhub_booking_id, konfhub_registration_synced_at: data.konfhub_registration_synced_at } : prev)
+      setRegistrationConfirm(false)
+    } catch {
+      setMsg('Could not register on KonfHub — check your connection and try again.')
+    } finally {
+      setPushingRegistration(false)
+      setProcessing(null)
+    }
+  }
+
   async function generateWebsitePhoto() {
     setGeneratingWebsitePhoto(true)
     setProcessing({ label: 'Generating website photo…', estimatedMs: 3000 })
@@ -483,7 +518,7 @@ export default function StakeholderReviewPage({ params }: { params: Promise<{ id
     }
   }
 
-  function setTab(tab: 'overview' | 'announcements') {
+  function setTab(tab: 'overview' | 'registration' | 'announcements') {
     const params = new URLSearchParams(searchParams.toString())
     params.set('tab', tab)
     if (tab === 'overview') params.delete('announcement')
@@ -593,6 +628,18 @@ export default function StakeholderReviewPage({ params }: { params: Promise<{ id
     .filter((f): f is FieldSchema => !!f)
   const remainingDetailFields = detailFields.filter(f => !detailNamePriority.includes(f.key))
 
+  // Registration split (2026-08-25, speaker-only, per Madhu) — see
+  // SPEAKER_KEY_MAP's own doc comment for the reasoning: a field mapping
+  // to a real event_speakers column is "Public Speaker Page" data (stays
+  // here on Overview — it's also exactly what the Speakers-module KonfHub
+  // push already reads); everything else (email, phone, industry sector,
+  // PR quote, assistant contacts, consent checkboxes) only ever lands in
+  // custom_fields and moves to the new Registration tab instead. Partners
+  // are untouched — Attendee Registration has no partner equivalent here.
+  const publicSpeakerFieldKeys = new Set(Object.keys(SPEAKER_KEY_MAP))
+  const overviewFields = kind === 'speaker' ? remainingDetailFields.filter(f => publicSpeakerFieldKeys.has(f.key)) : remainingDetailFields
+  const registrationFields = kind === 'speaker' ? remainingDetailFields.filter(f => !publicSpeakerFieldKeys.has(f.key)) : []
+
   return (
     // overflowAnchor: 'none' (2026-08-22, per Madhu — reported the page
     // sometimes lands scrolled down into the Details section instead of
@@ -617,14 +664,17 @@ export default function StakeholderReviewPage({ params }: { params: Promise<{ id
 
       <div style={{ maxWidth: '1240px', margin: '0 auto', padding: '20px 32px 0' }}>
         <div style={{ display: 'flex', gap: '6px', borderBottom: '1px solid var(--border-light)' }}>
-          {(['overview', 'announcements'] as const).map(t => (
+          {/* Registration is speaker-only (2026-08-25) — Attendee
+              Registration on KonfHub is a speaker-ticket concept, partners
+              have no equivalent here. */}
+          {(kind === 'speaker' ? (['overview', 'registration', 'announcements'] as const) : (['overview', 'announcements'] as const)).map(t => (
             <button key={t} onClick={() => setTab(t)}
               style={{
                 padding: '10px 18px', border: 'none', borderBottom: activeTab === t ? '2px solid var(--teal-mid)' : '2px solid transparent',
                 background: 'transparent', cursor: 'pointer', fontFamily: 'inherit', fontSize: '13px', fontWeight: 700,
                 color: activeTab === t ? 'var(--ink)' : 'var(--ink3)', marginBottom: '-1px',
               }}>
-              {t === 'overview' ? 'Overview' : 'Announcements'}
+              {t === 'overview' ? 'Overview' : t === 'registration' ? 'Registration' : 'Announcements'}
             </button>
           ))}
         </div>
@@ -639,6 +689,63 @@ export default function StakeholderReviewPage({ params }: { params: Promise<{ id
             stakeholder={stakeholderForPanel}
             initialAnnouncementId={initialAnnouncementId}
           />
+        </div>
+      )}
+
+      {activeTab === 'registration' && kind === 'speaker' && (
+        <div style={{ maxWidth: '1240px', margin: '0 auto', padding: '24px 32px' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) 300px', gap: '24px', alignItems: 'start' }}>
+            <div style={{ display: 'grid', gap: '20px', minWidth: 0 }}>
+              {msg && (
+                <div style={{ padding: '10px 14px', borderRadius: '8px', background: 'var(--red-light)', border: '1px solid var(--red-border)', color: 'var(--red)', fontSize: '14.5px' }}>
+                  {msg} <button onClick={() => setMsg(null)} style={{ background: 'none', border: 'none', color: 'inherit', cursor: 'pointer', fontWeight: 700, marginLeft: '8px' }}>×</button>
+                </div>
+              )}
+              <Card padded>
+                <div style={{ fontSize: '15px', fontWeight: 800, color: 'var(--ink)', marginBottom: '6px' }}>Registration Details</div>
+                <div style={{ fontSize: '12.5px', color: 'var(--ink3)', marginBottom: '16px' }}>
+                  What the speaker actually submitted — contact details, consents, and everything used for badge printing, check-in, and networking on KonfHub. Review and clean up before registering.
+                </div>
+                {registrationFields.length === 0 ? (
+                  <div style={{ fontSize: '13px', color: 'var(--ink4)' }}>No registration-specific fields on this event&apos;s form.</div>
+                ) : (
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '18px' }}>
+                    {registrationFields.map(field => (
+                      <div key={field.id} style={(field.type === 'textarea' || field.type === 'checkbox') ? { gridColumn: '1 / -1' } : undefined}>
+                        <FormFieldInput
+                          field={field}
+                          value={values[field.key] ?? (field.type === 'multiselect' ? [] : '')}
+                          onChange={v => updateValue(field.key, v)}
+                          onBlur={flushSave}
+                          disabled={!canEdit}
+                          size="large"
+                        />
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </Card>
+            </div>
+            <div style={{ display: 'grid', gap: '16px' }}>
+              <Card padded color={record.konfhub_booking_id ? 'teal' : 'amber'}>
+                <div style={{ fontSize: '15.5px', fontWeight: 800, color: 'var(--ink)' }}>
+                  {record.konfhub_booking_id ? 'Registered on KonfHub' : 'Register on KonfHub?'}
+                </div>
+                <div style={{ fontSize: '14px', color: 'var(--ink3)', marginTop: '6px', lineHeight: 1.5 }}>
+                  {record.konfhub_booking_id
+                    ? "Has a real Attendee Registration on KonfHub for badge printing, check-in, and networking. KonfHub has no update API — edits here won't reflect there automatically."
+                    : 'Creates a real Attendee Registration on KonfHub under the Speaker Registration ticket — separate from "Push to KonfHub" (the public Speakers module, on Overview).'}
+                </div>
+                {!record.konfhub_booking_id && (
+                  <div style={{ marginTop: '14px' }}>
+                    <Button variant="teal" onClick={() => setRegistrationConfirm(true)} disabled={pushingRegistration} className="tbtn-full">
+                      {pushingRegistration ? 'Registering…' : 'Register on KonfHub'}
+                    </Button>
+                  </div>
+                )}
+              </Card>
+            </div>
+          </div>
         </div>
       )}
 
@@ -856,7 +963,7 @@ export default function StakeholderReviewPage({ params }: { params: Promise<{ id
               </div>
             )}
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '18px', marginTop: (priorityDetailFields.length > 0 || kind === 'speaker') ? '18px' : 0 }}>
-              {remainingDetailFields.map(field => (
+              {overviewFields.map(field => (
                 <div key={field.id} style={(field.type === 'textarea' || field.type === 'checkbox') ? { gridColumn: '1 / -1' } : undefined}>
                   <FormFieldInput
                     field={field}
@@ -963,6 +1070,15 @@ export default function StakeholderReviewPage({ params }: { params: Promise<{ id
           pushing={pushingKonfhub}
           onConfirm={pushToKonfhub}
           onClose={() => setKonfhubConfirm(false)}
+        />
+      )}
+
+      {registrationConfirm && record && (
+        <KonfhubRegistrationPushConfirmModal
+          singleName={publicName || record.full_name}
+          pushing={pushingRegistration}
+          onConfirm={pushRegistration}
+          onClose={() => setRegistrationConfirm(false)}
         />
       )}
 

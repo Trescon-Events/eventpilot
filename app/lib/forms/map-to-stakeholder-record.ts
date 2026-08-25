@@ -12,7 +12,14 @@ import { FieldSchema, FormType, SubmittedValue } from './types'
 // routes — neither calls processLogo(), which only runs from the Hub's
 // dedicated per-item "Upload Logo" buttons after a record already exists).
 
-const SPEAKER_KEY_MAP: Record<string, string> = {
+// Exported (2026-08-25) so the Details page can categorize which schema
+// fields are "Public Speaker Page" data (anything with a real column here —
+// exactly what the Speakers-module KonfHub push already reads) versus
+// "Registration" data (everything else, which only ever lands in
+// custom_fields) — see that page's registrationFields/priorityDetailFields
+// split. A field NOT in this map defaults to the Registration bucket, the
+// safer default for a future Form Builder field nobody's categorized yet.
+export const SPEAKER_KEY_MAP: Record<string, string> = {
   full_name: 'name',
   job_title: 'role',
   company_name: 'company',
