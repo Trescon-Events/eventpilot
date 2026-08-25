@@ -3,84 +3,66 @@ import { supabaseAdmin } from '@/app/lib/supabase'
 import { getSession } from '@/app/lib/access/session'
 import { hasEventPermission } from '@/app/lib/access/event-access'
 import { asText, SubmittedValue } from '@/app/lib/forms/types'
+import { getKonfhubToken } from '@/app/lib/konfhub-speakers'
 
 /* POST /api/events/stakeholders/speakers/[id]/konfhub-registration-push
-   Registers this speaker on KonfHub's Attendee Registration system, under
-   the "Speaker Registration" ticket type — deliberately separate from
-   .../konfhub-push (the Speakers-management module push). See that route's
-   own doc comment for why these are two different KonfHub systems with two
-   different auth mechanisms; this one is the one badge printing, check-in,
-   and networking at the actual event depend on (per Madhu, 2026-08-25).
+   Registers (or, since 2026-08-25, updates) this speaker on KonfHub's
+   Attendee Registration system, under the "Speaker Registration" ticket
+   type — deliberately separate from .../konfhub-push (the Speakers-
+   management module push). See that route's own doc comment for why
+   these are two different KonfHub systems; this one is the one badge
+   printing, check-in, and networking at the actual event depend on (per
+   Madhu, 2026-08-25).
 
-   BACKGROUND-JOB-BACKED (2026-08-25, added right after this route's first
-   live test) — production sits behind a Cloudflare Worker proxy in front
-   of Railway that kills any single request around ~100s; the KonfHub
-   Capture API call took long enough from Railway's own network path to
-   trip it (confirmed live: a non-JSON "502: Bad gateway" response, the
-   exact same signature the Clean Photo pipeline hit earlier this session —
-   see that route's own doc comment for the full diagnosis). Same fix:
-   this route does its fast, local, synchronous checks (permission,
-   already-registered, email/name present, KonfHub config present) inline,
-   then creates a speaker_konfhub_registration_jobs row and fires the
-   actual KonfHub call off detached, returning { job_id } immediately. The
+   BACKGROUND-JOB-BACKED — production sits behind a Cloudflare Worker
+   proxy in front of Railway that kills any single request around ~100s;
+   the KonfHub call took long enough from Railway's own network path to
+   trip it on a live test (confirmed via a non-JSON "502: Bad gateway"
+   response, the same signature the Clean Photo pipeline hit earlier that
+   session). Fix: this route does its fast, local, synchronous checks
+   (permission, email/name present, KonfHub config present) inline, then
+   creates a speaker_konfhub_registration_jobs row and fires the actual
+   KonfHub call off detached, returning { job_id } immediately. The
    Details page polls GET .../konfhub-registration-push/job/[jobId] (see
    that route) until the job leaves 'processing'.
 
-   Extra guard versus the other background jobs built this session: this
-   push is CREATE-ONLY against real, capacity-limited KonfHub registrations
-   (see below), so a double-click while a job is still 'processing' must
-   not be able to start a second one — event_speakers.konfhub_booking_id
-   alone can't catch that window, since it's only set once the job
-   actually finishes. The in-flight check below closes that gap.
+   The in-flight check below closes a double-click window a plain
+   konfhub_booking_id check can't — event_speakers.konfhub_booking_id is
+   only set/refreshed once the job actually finishes, so two rapid clicks
+   could otherwise both pass the "not already running" check and race.
 
-   Endpoint/payload confirmed against KonfHub's own docs (docs.konfhub.com)
-   and one live test against production: POST event/capture/v2, x-api-key
-   auth, registration_details keyed BY TICKET ID — sending only
-   event_websites.konfhub_speaker_ticket's id here is what guarantees this
-   never touches delegates/sponsors/any other ticket type on the same
-   event's attendee list. This is the same endpoint the old, wrongly-scoped
-   auto-push (removed 2026-08-23) used — the mechanism was never the
-   problem, only pushing every approved speaker automatically with no
-   review step and no ticket-type scoping was.
+   HISTORY: originally built against the old x-api-key event/capture/v2
+   endpoint (create-only, no known update path). A live probe on
+   2026-08-25 found most of this event's speakers already had a live
+   KonfHub registration from before the HubSpot pivot — 35 of 37 matched
+   back to their event_speakers row and were backfilled with their real
+   konfhub_booking_id (see git history on this file for the full trail).
+   That same day KonfHub sent updated Postman docs
+   (documenter.getpostman.com/view/45357564/2sBY4HSiDn) revealing two
+   Bearer-token endpoints under the SAME client_id/client_secret pair
+   already used for the Speakers-module push:
+     - POST /event/{konfhubEventId}/admin/register — create, same
+       registration_details-keyed-by-ticket-id shape as the old Capture
+       API, but Bearer-token auth and returns booking_id the same way.
+     - PUT  /event/{konfhubEventId}/attendees/{booking_id}/edit — genuine
+       update, a flat body (not ticket-keyed) with a narrower editable
+       field set (no country/linkedin_url — those are create-only).
+   This route now branches on speaker.konfhub_booking_id: set → PUT edit
+   (updates the existing registration in place); unset → POST
+   admin/register (creates one, stores the returned booking_id). The old
+   x-api-key/konfhub_api_key path and event/capture/v2 are no longer used
+   here — konfhub_api_key stays configured for other integrations but
+   this route now reads konfhub_client_id/konfhub_client_secret instead,
+   matching the Speakers-module push.
 
-   CREATE-ONLY, deliberately: KonfHub's public API has no documented update
-   endpoint for an existing registration (Capture is shaped around a
-   purchase/registration event — order_id, payment_id — not a generic
-   upsert), and the old code never attempted one either. Once a speaker has
-   a konfhub_booking_id, this route refuses to run again — the Details
-   page's own button is hidden in that state too, this is the server-side
-   backstop.
-
-   custom_forms (consents, assistant contacts) are sent via
-   event_websites.konfhub_registration_field_map — { ourFieldKey:
-   konfhubFormId } — deliberately NOT hardcoded, since the real form_ids
-   weren't confirmed at first (a live read-only test with the old
-   x-api-key hit a 403, and a live write hit "ASC-20 Ticket is not
-   accessible"). RESOLVED 2026-08-25: KonfHub support rotated our
-   Speakers-module client_id/client_secret and said the new pair also
-   covers Attendees. The new pair's Bearer token can read
-   GET /event/{konfhubEventId}/attendees (undocumented publicly, found by
-   live probe) — its form_details response is what confirmed the real
-   form_ids now populated in the DB, keyed by this event's exact field
-   keys (see event_form_schemas). That same GET also revealed something
-   the old x-api-key flow couldn't have known: most of this event's
-   speakers already have a live registration on KonfHub under ticket 97613
-   from before the HubSpot pivot — 35 of 37 were matched back to their
-   event_speakers row by email/name and backfilled with the real
-   konfhub_booking_id, closing the double-registration risk this route's
-   create-only design was already guarding against. Two KonfHub
-   registrations (Prof Jugdutt Singh, Ts. Dr. Sheila Mahalingam) had no
-   matching speaker row and were left alone.
-
-   Still CREATE-ONLY here: an OPTIONS probe on that same /attendees path
-   returned `Allow: OPTIONS,GET` — it's read-only, so it is NOT the update
-   endpoint KonfHub meant. The real create/update path for this new
-   credential pair is still unconfirmed; this route still calls the old
-   x-api-key event/capture/v2 endpoint. Do not swap this route onto the
-   Bearer-token pair or attempt an update call without first getting the
-   exact endpoint from KonfHub — most speakers now show as already
-   registered, so any further live test here should target a genuinely
-   unregistered speaker. */
+   custom_forms (consents, assistant contacts, industry sector, PR quote,
+   bio) are sent via event_websites.konfhub_registration_field_map —
+   { ourFieldKey: konfhubFormId } — populated 2026-08-25 from real form_ids
+   confirmed via a live GET on the Bearer-token /attendees endpoint (see
+   git history). Two of our fields (twitter, assistant_direct_line) and
+   one consent (general Terms & Conditions) have no counterpart on this
+   event's Speaker Registration ticket and are simply never mapped —
+   nothing is sent for them. */
 
 // Revived verbatim from the old, removed app/api/events/konfhub/route.ts
 // (git history, commit fe08732^) — proven mapping, no reason to redo it.
@@ -97,7 +79,7 @@ function toISO(country: string) {
   return COUNTRY_ISO[(country ?? '').trim().toLowerCase()] ?? 'ae'
 }
 
-const KONFHUB_CAPTURE_ENDPOINT = 'https://api.konfhub.com/event/capture/v2'
+const KONFHUB_API_BASE = 'https://api.konfhub.com/event'
 // Generous but bounded — the Cloudflare proxy in front of this app kills
 // the CLIENT-facing request around ~100s regardless, but bounding the
 // outbound fetch too means a genuinely hung KonfHub connection fails fast
@@ -120,10 +102,6 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     return NextResponse.json({ error: 'Not authorized.' }, { status: 403 })
   }
 
-  if (speaker.konfhub_booking_id) {
-    return NextResponse.json({ error: 'Already registered — KonfHub has no update API; changes need to be made directly in KonfHub.' }, { status: 409 })
-  }
-
   // Closes the double-click window a plain konfhub_booking_id check can't
   // — see this file's top doc comment.
   const { data: inFlight } = await supabaseAdmin
@@ -144,18 +122,17 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
   const { data: website } = await supabaseAdmin
     .from('event_websites')
-    .select('konfhub_event_id, konfhub_api_key, konfhub_speaker_ticket, konfhub_registration_field_map')
+    .select('konfhub_event_id, konfhub_client_id, konfhub_client_secret, konfhub_speaker_ticket, konfhub_registration_field_map')
     .eq('event_id', speaker.event_id)
     .single()
-  if (!website?.konfhub_event_id || !website?.konfhub_api_key || !website?.konfhub_speaker_ticket) {
-    return NextResponse.json({ error: 'KonfHub Attendee Registration isn’t configured for this event yet — set the API Key and Speaker Ticket ID in Website Settings first.' }, { status: 422 })
+  if (!website?.konfhub_event_id || !website?.konfhub_client_id || !website?.konfhub_client_secret || !website?.konfhub_speaker_ticket) {
+    return NextResponse.json({ error: 'KonfHub Attendee Registration isn’t configured for this event yet — set the Client ID/Secret and Speaker Ticket ID in Website Settings first.' }, { status: 422 })
   }
 
   // Most field-map keys read from custom_fields, but 'bio' fields promoted
   // to their own event_speakers column by SPEAKER_KEY_MAP (see that file)
   // no longer live in custom_fields — fall back to the real column for
-  // those so the map can still target KonfHub's bio custom form (153123
-  // for this event's Speaker Registration ticket).
+  // those so the map can still target KonfHub's bio custom form.
   const fieldMap = (website.konfhub_registration_field_map ?? {}) as Record<string, string>
   const customForms: Record<string, string> = {}
   for (const [ourKey, formId] of Object.entries(fieldMap)) {
@@ -164,17 +141,16 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     if (value) customForms[formId] = value
   }
 
-  const attendee: Record<string, unknown> = {
+  // Fields supported by BOTH create (admin/register) and update
+  // (attendees/:id/edit) — country, country_code, dial_code, and
+  // linkedin_url are create-only per KonfHub's docs, added separately below.
+  const commonFields: Record<string, unknown> = {
     name,
     email_id: email,
-    phone_number: asText(customFields.phone_number) || '',
-    dial_code: speaker.dial_code || '+971',
-    country_code: toISO(speaker.country || 'UAE'),
     designation: speaker.role || '',
-    company: speaker.company || '',
-    linkedin: speaker.linkedin_url || '',
+    organisation: speaker.company || '',
+    phone_number: asText(customFields.phone_number) || '',
   }
-  if (Object.keys(customForms).length > 0) attendee.custom_forms = customForms
 
   const { data: job, error: jobErr } = await supabaseAdmin
     .from('speaker_konfhub_registration_jobs')
@@ -185,30 +161,41 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
   // Fire and forget — see this file's top doc comment for why this is safe
   // here (persistent Railway process, not serverless).
-  runRegistrationJob(job.id, speakerId, website.konfhub_event_id, website.konfhub_api_key, website.konfhub_speaker_ticket, attendee)
-    .catch(async e => {
-      console.error(`[konfhub-registration-push job ${job.id}] uncaught error:`, e)
-      await supabaseAdmin.from('speaker_konfhub_registration_jobs').update({
-        status: 'error',
-        completed_at: new Date().toISOString(),
-        error_message: (e instanceof Error ? e.message : String(e)).slice(0, 2000),
-      }).eq('id', job.id)
-    })
+  runRegistrationJob(
+    job.id, speakerId, website.konfhub_event_id, website.konfhub_client_id, website.konfhub_client_secret,
+    website.konfhub_speaker_ticket, speaker.konfhub_booking_id, commonFields, customForms,
+    speaker.country, speaker.dial_code, speaker.linkedin_url,
+  ).catch(async e => {
+    console.error(`[konfhub-registration-push job ${job.id}] uncaught error:`, e)
+    await supabaseAdmin.from('speaker_konfhub_registration_jobs').update({
+      status: 'error',
+      completed_at: new Date().toISOString(),
+      error_message: (e instanceof Error ? e.message : String(e)).slice(0, 2000),
+    }).eq('id', job.id)
+  })
 
   return NextResponse.json({ job_id: job.id })
 }
 
-// The actual KonfHub Capture call, run detached from the request/response
-// cycle (see this file's top doc comment). Writes its outcome to the
-// speaker_konfhub_registration_jobs row the caller already created, and —
-// only on real success — to event_speakers.konfhub_booking_id itself.
+// The actual KonfHub call, run detached from the request/response cycle
+// (see this file's top doc comment). Branches on existingBookingId: set →
+// PUT .../attendees/:id/edit (update); unset → POST .../admin/register
+// (create). Writes its outcome to the speaker_konfhub_registration_jobs
+// row the caller already created, and — only on real success — to
+// event_speakers.konfhub_booking_id/konfhub_registration_synced_at.
 async function runRegistrationJob(
   jobId: string,
   speakerId: string,
   konfhubEventId: string,
-  konfhubApiKey: string,
+  clientId: string,
+  clientSecret: string,
   konfhubSpeakerTicket: string,
-  attendee: Record<string, unknown>,
+  existingBookingId: string | null,
+  commonFields: Record<string, unknown>,
+  customForms: Record<string, string>,
+  country: string | null,
+  dialCode: string | null,
+  linkedinUrl: string | null,
 ) {
   const markError = async (message: string) => {
     await supabaseAdmin.from('speaker_konfhub_registration_jobs').update({
@@ -216,23 +203,60 @@ async function runRegistrationJob(
     }).eq('id', jobId)
   }
 
+  let token: string
+  try {
+    token = await getKonfhubToken(clientId, clientSecret)
+  } catch (e) {
+    await markError(e instanceof Error ? e.message : 'Could not authenticate with KonfHub')
+    return
+  }
+
+  if (existingBookingId) {
+    const body = Object.keys(customForms).length > 0 ? { ...commonFields, custom_forms: customForms } : commonFields
+    const res = await fetch(`${KONFHUB_API_BASE}/${konfhubEventId}/attendees/${existingBookingId}/edit`, {
+      method: 'PUT',
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+      signal: AbortSignal.timeout(KONFHUB_FETCH_TIMEOUT_MS),
+    })
+    const data = await res.json().catch(() => ({})) as { statusCode?: number; body?: string; error?: string }
+    if (!res.ok) {
+      await markError(data.body || data.error || `KonfHub error (${res.status})`)
+      return
+    }
+    const syncedAt = new Date().toISOString()
+    await supabaseAdmin.from('event_speakers').update({ konfhub_registration_synced_at: syncedAt }).eq('id', speakerId)
+    await supabaseAdmin.from('speaker_konfhub_registration_jobs').update({
+      status: 'done',
+      completed_at: syncedAt,
+      result: { konfhub_booking_id: existingBookingId, konfhub_registration_synced_at: syncedAt, action: 'updated' },
+    }).eq('id', jobId)
+    return
+  }
+
+  const attendee: Record<string, unknown> = {
+    ...commonFields,
+    country: country || 'UAE',
+    country_code: toISO(country || 'UAE'),
+    dial_code: dialCode || '+971',
+    linkedin_url: linkedinUrl || '',
+    custom_forms: customForms,
+  }
   const payload = {
-    event_id: konfhubEventId,
     registration_tz: 'Asia/Kuala_Lumpur',
     utm: { utm_source: 'eventpilot', utm_medium: 'registration-push', utm_campaign: 'speaker-registration' },
     registration_details: { [konfhubSpeakerTicket]: [attendee] },
   }
 
-  const res = await fetch(KONFHUB_CAPTURE_ENDPOINT, {
+  const res = await fetch(`${KONFHUB_API_BASE}/${konfhubEventId}/admin/register`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'x-api-key': konfhubApiKey },
+    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
     body: JSON.stringify(payload),
     signal: AbortSignal.timeout(KONFHUB_FETCH_TIMEOUT_MS),
   })
-  const data = await res.json().catch(() => ({})) as { booking_id?: string[]; message?: string; error?: { error_code?: string; error_message?: string } }
+  const data = await res.json().catch(() => ({})) as { booking_id?: string[]; message?: string; error?: string }
   if (!res.ok) {
-    const message = data.error?.error_message || data.message || `KonfHub error (${res.status})`
-    await markError(message)
+    await markError(data.error || `KonfHub error (${res.status})`)
     return
   }
   const bookingId = data.booking_id?.[0]
@@ -250,6 +274,6 @@ async function runRegistrationJob(
   await supabaseAdmin.from('speaker_konfhub_registration_jobs').update({
     status: 'done',
     completed_at: syncedAt,
-    result: { konfhub_booking_id: bookingId, konfhub_registration_synced_at: syncedAt },
+    result: { konfhub_booking_id: bookingId, konfhub_registration_synced_at: syncedAt, action: 'created' },
   }).eq('id', jobId)
 }

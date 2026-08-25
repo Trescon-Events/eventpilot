@@ -1748,11 +1748,14 @@ export default function EventWebsiteAdmin({ params }: { params: Promise<{ id: st
               </div>
               {/* Speakers-management API creds (2026-08-24) — separate
                   section since these are a different KonfHub API (Bearer
-                  token, not the api_key above) that "Push to KonfHub"
-                  authenticates with. See WebsiteSettings type's own comment. */}
+                  token, not the api_key above). Used by "Push to KonfHub"
+                  (Speakers module) AND, since 2026-08-25, the Registration
+                  tab's "Register/Update on KonfHub" (Attendee Registration —
+                  KonfHub confirmed the same client_id/secret pair covers
+                  both). See WebsiteSettings type's own comment. */}
               <div style={{ marginTop: '16px', paddingTop: '16px', borderTop: `1px solid ${C.border}`, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px' }}>
-                <Field label="KonfHub Client ID" value={settings.konfhub_client_id ?? ''} onChange={SET('konfhub_client_id')} placeholder="for Push to KonfHub" />
-                <Field label="KonfHub Client Secret" type="password" value={settings.konfhub_client_secret ?? ''} onChange={SET('konfhub_client_secret')} placeholder="for Push to KonfHub" />
+                <Field label="KonfHub Client ID" value={settings.konfhub_client_id ?? ''} onChange={SET('konfhub_client_id')} placeholder="for Push/Update to KonfHub" />
+                <Field label="KonfHub Client Secret" type="password" value={settings.konfhub_client_secret ?? ''} onChange={SET('konfhub_client_secret')} placeholder="for Push/Update to KonfHub" />
               </div>
               <div style={{ marginTop: '12px', padding: '10px 14px', borderRadius: '8px', background: 'rgba(167,139,250,0.06)', border: `1px solid rgba(167,139,250,0.18)`, fontSize: '12px', color: C.muted }}>
                 Public API: <code style={{ fontSize: '11px', background: 'rgba(0,0,0,0.06)', padding: '2px 6px', borderRadius: '4px' }}>/api/public/event/{settings.slug || '{slug}'}</code>

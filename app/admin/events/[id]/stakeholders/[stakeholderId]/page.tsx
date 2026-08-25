@@ -222,9 +222,9 @@ export default function StakeholderReviewPage({ params }: { params: Promise<{ id
   const [pushingKonfhub, setPushingKonfhub] = useState(false)
   // "Register on KonfHub" (Attendee Registration push, 2026-08-25) —
   // separate system from the Speakers-module push above (see the route's
-  // own doc comment). No re-push confirm needed: once record.konfhub_booking_id
-  // is set the button is hidden entirely rather than offering a repeat
-  // action KonfHub's API doesn't support anyway.
+  // own doc comment). KonfHub confirmed a real Edit Attendee endpoint the
+  // same day, so record.konfhub_booking_id being set now means "update",
+  // not "hidden" — same confirm modal handles both, worded per state.
   const [registrationConfirm, setRegistrationConfirm] = useState(false)
   const [pushingRegistration, setPushingRegistration] = useState(false)
   const [generatingWebsitePhoto, setGeneratingWebsitePhoto] = useState(false)
@@ -414,25 +414,24 @@ export default function StakeholderReviewPage({ params }: { params: Promise<{ id
   // first live test hit a Cloudflare 502 — see the route's own doc
   // comment). POST now just kicks off a job and returns { job_id }
   // immediately; this polls .../job/[jobId] until it leaves 'processing'.
-  // See .../konfhub-registration-push's own doc comment — this is
-  // CREATE-ONLY, so unlike pushToKonfhub above there's no "already
-  // registered" success path to handle here; the button itself is hidden
-  // once record.konfhub_booking_id is set (see the Registration tab JSX).
+  // The route itself branches create vs update on konfhub_booking_id, so
+  // this same handler covers both — nothing here needs to know which.
   async function pushRegistration() {
+    const isUpdate = !!record?.konfhub_booking_id
     setPushingRegistration(true)
-    setProcessing({ label: 'Registering on KonfHub…', estimatedMs: 8000 })
+    setProcessing({ label: isUpdate ? 'Updating on KonfHub…' : 'Registering on KonfHub…', estimatedMs: 8000 })
     try {
       const res = await fetch(`/api/events/stakeholders/speakers/${stakeholderId}/konfhub-registration-push`, { method: 'POST' })
       const data = await res.json().catch(() => ({}))
       if (!res.ok || !data.job_id) {
-        setMsg(data.error || 'Could not register on KonfHub — please try again.')
+        setMsg(data.error || `Could not ${isUpdate ? 'update' : 'register'} on KonfHub — please try again.`)
         setPushingRegistration(false)
         setProcessing(null)
         return
       }
       pollRegistrationJob(data.job_id, 0)
     } catch {
-      setMsg('Could not register on KonfHub — check your connection and try again.')
+      setMsg(`Could not ${isUpdate ? 'update' : 'register'} on KonfHub — check your connection and try again.`)
       setPushingRegistration(false)
       setProcessing(null)
     }
@@ -782,16 +781,19 @@ export default function StakeholderReviewPage({ params }: { params: Promise<{ id
                 </div>
                 <div style={{ fontSize: '14px', color: 'var(--ink3)', marginTop: '6px', lineHeight: 1.5 }}>
                   {record.konfhub_booking_id
-                    ? "Has a real Attendee Registration on KonfHub for badge printing, check-in, and networking. KonfHub has no update API — edits here won't reflect there automatically."
+                    ? 'Has a real Attendee Registration on KonfHub for badge printing, check-in, and networking. Push again to sync any changes made here.'
                     : 'Creates a real Attendee Registration on KonfHub under the Speaker Registration ticket — separate from "Push to KonfHub" (the public Speakers module, on Overview).'}
+                  {record.konfhub_booking_id && record.konfhub_registration_synced_at && (
+                    <> Last synced {new Date(record.konfhub_registration_synced_at).toLocaleString()}.</>
+                  )}
                 </div>
-                {!record.konfhub_booking_id && (
-                  <div style={{ marginTop: '14px' }}>
-                    <Button variant="teal" onClick={() => setRegistrationConfirm(true)} disabled={pushingRegistration} className="tbtn-full">
-                      {pushingRegistration ? 'Registering…' : 'Register on KonfHub'}
-                    </Button>
-                  </div>
-                )}
+                <div style={{ marginTop: '14px' }}>
+                  <Button variant="teal" onClick={() => setRegistrationConfirm(true)} disabled={pushingRegistration} className="tbtn-full">
+                    {pushingRegistration
+                      ? (record.konfhub_booking_id ? 'Updating…' : 'Registering…')
+                      : (record.konfhub_booking_id ? 'Update on KonfHub' : 'Register on KonfHub')}
+                  </Button>
+                </div>
               </Card>
             </div>
           </div>
@@ -1125,6 +1127,7 @@ export default function StakeholderReviewPage({ params }: { params: Promise<{ id
       {registrationConfirm && record && (
         <KonfhubRegistrationPushConfirmModal
           singleName={publicName || record.full_name}
+          isUpdate={!!record.konfhub_booking_id}
           pushing={pushingRegistration}
           onConfirm={pushRegistration}
           onClose={() => setRegistrationConfirm(false)}
