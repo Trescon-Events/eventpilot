@@ -40,6 +40,13 @@ export type KonfhubSpeaker = {
   website_url?: string | null
   speaker_category_id?: string | null
   speaker_order?: number
+  // Panel-discussion workaround (2026-08-25) — a speaker can be listed as
+  // Speaker, Moderator, or both, WITHOUT a duplicate KonfHub record: a
+  // single speaker's tags array can hold multiple {id, name} entries at
+  // once, confirmed live to render correctly on both KonfHub's own page
+  // and the event website. Tag ids are per-event (event_websites.
+  // konfhub_speaker_tag_id/konfhub_moderator_tag_id), not hardcoded here.
+  tags?: { id: string; name: string }[]
 }
 
 export class KonfhubApiError extends Error {
@@ -81,7 +88,7 @@ export async function updateKonfhubSpeaker(
   token: string,
   fields: Partial<Pick<KonfhubSpeaker,
     'name' | 'about' | 'image_url' | 'organisation_logo_url' | 'designation' | 'organisation' |
-    'location' | 'linkedin_url' | 'facebook_url' | 'twitter_url' | 'website_url'
+    'location' | 'linkedin_url' | 'facebook_url' | 'twitter_url' | 'website_url' | 'tags'
   >>
 ): Promise<void> {
   const res = await fetch(`${API_BASE}/${konfhubEventId}/speakers/${speakerId}`, {
@@ -98,7 +105,7 @@ export async function createKonfhubSpeaker(
   token: string,
   fields: { name: string; speaker_order: number } & Partial<Pick<KonfhubSpeaker,
     'about' | 'image_url' | 'organisation_logo_url' | 'designation' | 'organisation' |
-    'location' | 'linkedin_url' | 'facebook_url' | 'twitter_url' | 'website_url'
+    'location' | 'linkedin_url' | 'facebook_url' | 'twitter_url' | 'website_url' | 'tags'
   >>
 ): Promise<string> {
   const res = await fetch(`${API_BASE}/${konfhubEventId}/speakers`, {

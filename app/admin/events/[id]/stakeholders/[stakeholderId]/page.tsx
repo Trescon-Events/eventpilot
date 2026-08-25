@@ -67,6 +67,8 @@ type StakeholderRecord = {
   konfhub_speaker_id?: string | null
   konfhub_synced_at?: string | null
   konfhub_booking_id?: string | null
+  konfhub_tag_speaker?: boolean
+  konfhub_tag_moderator?: boolean
   konfhub_registration_synced_at?: string | null
 }
 
@@ -185,6 +187,12 @@ export default function StakeholderReviewPage({ params }: { params: Promise<{ id
   // field now.
   const [publicName, setPublicName] = useState('')
   const [pronounStyle, setPronounStyle] = useState('')
+  // KonfHub Speakers-module listing tags (2026-08-25) — see
+  // .../konfhub-push/route.ts's own doc comment. Defaults true/false to
+  // match the DB column defaults for a brand-new record, overwritten by
+  // load() below for an existing one.
+  const [konfhubTagSpeaker, setKonfhubTagSpeaker] = useState(true)
+  const [konfhubTagModerator, setKonfhubTagModerator] = useState(false)
   const [keyTalkingPoints, setKeyTalkingPoints] = useState('')
   const [status, setStatus] = useState<AnnouncementStatus>('pending_review')
   const [loading, setLoading] = useState(true)
@@ -263,11 +271,15 @@ export default function StakeholderReviewPage({ params }: { params: Promise<{ id
   const partnerTypeRef = useRef(partnerType)
   const publicNameRef = useRef(publicName)
   const pronounStyleRef = useRef(pronounStyle)
+  const konfhubTagSpeakerRef = useRef(konfhubTagSpeaker)
+  const konfhubTagModeratorRef = useRef(konfhubTagModerator)
   const keyTalkingPointsRef = useRef(keyTalkingPoints)
   useEffect(() => { valuesRef.current = values }, [values])
   useEffect(() => { partnerTypeRef.current = partnerType }, [partnerType])
   useEffect(() => { publicNameRef.current = publicName }, [publicName])
   useEffect(() => { pronounStyleRef.current = pronounStyle }, [pronounStyle])
+  useEffect(() => { konfhubTagSpeakerRef.current = konfhubTagSpeaker }, [konfhubTagSpeaker])
+  useEffect(() => { konfhubTagModeratorRef.current = konfhubTagModerator }, [konfhubTagModerator])
   useEffect(() => { keyTalkingPointsRef.current = keyTalkingPoints }, [keyTalkingPoints])
 
   const load = useCallback(async () => {
@@ -287,6 +299,8 @@ export default function StakeholderReviewPage({ params }: { params: Promise<{ id
         setPublicName(data.public_name ?? '')
         setPronounStyle(data.pronoun_style ?? '')
         setKeyTalkingPoints(data.key_talking_points ?? '')
+        setKonfhubTagSpeaker(data.konfhub_tag_speaker ?? true)
+        setKonfhubTagModerator(data.konfhub_tag_moderator ?? false)
       }
     } else {
       setMsg('Could not load this record.')
@@ -338,6 +352,8 @@ export default function StakeholderReviewPage({ params }: { params: Promise<{ id
       body.public_name = publicNameRef.current.trim() || null
       body.pronoun_style = pronounStyleRef.current || null
       body.key_talking_points = keyTalkingPointsRef.current.trim() || null
+      body.konfhub_tag_speaker = konfhubTagSpeakerRef.current
+      body.konfhub_tag_moderator = konfhubTagModeratorRef.current
     }
     try {
       const res = await fetch(`${base}/${stakeholderId}`, {
@@ -383,6 +399,21 @@ export default function StakeholderReviewPage({ params }: { params: Promise<{ id
       setApproving(false)
       setProcessing(null)
     }
+  }
+
+  // At least one of Speaker/Moderator must stay checked — there's no
+  // meaningful "neither" state for a published speaker record, so
+  // unchecking the last one is simply a no-op rather than an error message
+  // (nothing to explain — the checkbox just won't move).
+  function toggleKonfhubTagSpeaker(checked: boolean) {
+    if (!checked && !konfhubTagModeratorRef.current) return
+    setKonfhubTagSpeaker(checked)
+    scheduleSave()
+  }
+  function toggleKonfhubTagModerator(checked: boolean) {
+    if (!checked && !konfhubTagSpeakerRef.current) return
+    setKonfhubTagModerator(checked)
+    scheduleSave()
   }
 
   // Deliberately separate from approve() above (2026-08-24, per Madhu) —
@@ -1098,6 +1129,23 @@ export default function StakeholderReviewPage({ params }: { params: Promise<{ id
                 {record.konfhub_speaker_id
                   ? 'Live on KonfHub and the event website. Push again after any edits to update the listing.'
                   : 'Publishes this speaker on KonfHub and the event website — a separate action from Approve for Announcement.'}
+              </div>
+              {/* Listed as (2026-08-25) — panel-discussion workaround: this
+                  person can be a Speaker in one session and a Moderator in
+                  another without a duplicate record, since a single
+                  KonfHub speaker can carry both tags at once (confirmed
+                  live, renders correctly on both KonfHub's page and the
+                  event website). Purely a display classification — has no
+                  effect on approval/announcement status. */}
+              <div style={{ marginTop: '12px', display: 'flex', gap: '16px' }}>
+                <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px', color: 'var(--ink3)', cursor: canEdit ? 'pointer' : 'default' }}>
+                  <input type="checkbox" checked={konfhubTagSpeaker} disabled={!canEdit} onChange={e => toggleKonfhubTagSpeaker(e.target.checked)} />
+                  Listed as Speaker
+                </label>
+                <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px', color: 'var(--ink3)', cursor: canEdit ? 'pointer' : 'default' }}>
+                  <input type="checkbox" checked={konfhubTagModerator} disabled={!canEdit} onChange={e => toggleKonfhubTagModerator(e.target.checked)} />
+                  Listed as Moderator
+                </label>
               </div>
               <div style={{ marginTop: '14px' }}>
                 <Button variant="teal" onClick={() => setKonfhubConfirm(true)} disabled={pushingKonfhub || !!pushToKonfhubBlockedReason} className="tbtn-full">

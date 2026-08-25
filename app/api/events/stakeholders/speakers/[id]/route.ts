@@ -49,6 +49,13 @@ type SpeakerPatchBody = {
   public_name?: string | null
   pronoun_style?: string | null
   key_talking_points?: string | null
+  // KonfHub Speakers-module listing tags (2026-08-25) — see
+  // .../konfhub-push/route.ts's own doc comment for the panel-discussion
+  // workaround this supports. Producer-controlled checkboxes on this
+  // Details page; at least one must stay true (enforced client-side —
+  // there's no meaningful "neither" state for a published speaker record).
+  konfhub_tag_speaker?: boolean
+  konfhub_tag_moderator?: boolean
 }
 
 function fromRow(row: Record<string, unknown>) {
@@ -108,6 +115,8 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   if (body.public_name !== undefined) row.public_name = body.public_name || null
   if (body.pronoun_style !== undefined) row.pronoun_style = body.pronoun_style || null
   if (body.key_talking_points !== undefined) row.key_talking_points = body.key_talking_points || null
+  if (body.konfhub_tag_speaker !== undefined) row.konfhub_tag_speaker = body.konfhub_tag_speaker
+  if (body.konfhub_tag_moderator !== undefined) row.konfhub_tag_moderator = body.konfhub_tag_moderator
 
   if (Object.keys(row).length === 0) return NextResponse.json({ error: 'no valid fields' }, { status: 400 })
 
