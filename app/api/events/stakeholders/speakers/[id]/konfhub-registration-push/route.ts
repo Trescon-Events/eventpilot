@@ -62,7 +62,20 @@ import { getKonfhubToken } from '@/app/lib/konfhub-speakers'
    git history). Two of our fields (twitter, assistant_direct_line) and
    one consent (general Terms & Conditions) have no counterpart on this
    event's Speaker Registration ticket and are simply never mapped —
-   nothing is sent for them. */
+   nothing is sent for them.
+
+   LIVE DUPLICATE CHECK (2026-08-25, added alongside the roster's bulk
+   "Register on KonfHub" action) — event_speakers.konfhub_booking_id only
+   reflects what EventPilot itself has done; someone can register a
+   speaker directly on KonfHub without this app ever finding out (this is
+   literally how 35 of 37 WAIS Malaysia speakers ended up registered
+   before this feature existed). Bulk-running this route over a whole
+   roster made that gap a real duplicate-registration risk, not just a
+   display nit. When a speaker has no known booking id, runRegistrationJob
+   now does one live GET /event/:id/attendees lookup by email on this
+   ticket before creating — a match links the found booking_id and falls
+   through to the update path instead; the lookup call itself failing
+   fails CLOSED (errors the job rather than risking a blind create). */
 
 // Revived verbatim from the old, removed app/api/events/konfhub/route.ts
 // (git history, commit fe08732^) — proven mapping, no reason to redo it.
@@ -86,6 +99,34 @@ const KONFHUB_API_BASE = 'https://api.konfhub.com/event'
 // and cleanly into the job's own error state instead of tying up the
 // background function indefinitely.
 const KONFHUB_FETCH_TIMEOUT_MS = 60_000
+
+// Live duplicate check (2026-08-25) — see its call site's doc comment.
+// GET /event/:id/attendees is the same undocumented-but-real Bearer-token
+// endpoint used on 2026-08-25 to discover the 35 pre-existing registrations
+// and the real custom-form field_ids (see git history) — read-only, safe.
+// Returns a booking_id if a match is found, null if genuinely not found,
+// or the literal 'lookup-failed' if the call itself couldn't be trusted
+// (network error, non-OK response) — the caller fails closed on that case.
+async function findExistingKonfhubBooking(
+  token: string, konfhubEventId: string, konfhubSpeakerTicket: string, email: string,
+): Promise<string | null | 'lookup-failed'> {
+  if (!email) return null
+  try {
+    const url = `${KONFHUB_API_BASE}/${konfhubEventId}/attendees?search_value=${encodeURIComponent(email)}&ticket_ids=${encodeURIComponent(konfhubSpeakerTicket)}&limit=5`
+    const res = await fetch(url, {
+      headers: { Authorization: `Bearer ${token}` },
+      signal: AbortSignal.timeout(KONFHUB_FETCH_TIMEOUT_MS),
+    })
+    if (!res.ok) return 'lookup-failed'
+    const data = await res.json().catch(() => null) as { participant_details?: Array<{ email_id?: string; booking_id?: string }> } | null
+    if (!data) return 'lookup-failed'
+    const normalized = email.trim().toLowerCase()
+    const match = (data.participant_details ?? []).find(p => (p.email_id ?? '').trim().toLowerCase() === normalized)
+    return match?.booking_id ?? null
+  } catch {
+    return 'lookup-failed'
+  }
+}
 
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id: speakerId } = await params
@@ -221,9 +262,38 @@ async function runRegistrationJob(
     return
   }
 
-  if (existingBookingId) {
+  // Safety check (2026-08-25, added for the bulk "Register on KonfHub"
+  // action): EventPilot's own konfhub_booking_id only reflects what THIS
+  // app has done. Someone can register a speaker directly on KonfHub
+  // (exactly how 35 of 37 WAIS Malaysia speakers ended up registered
+  // before this feature existed — see git history) without EventPilot
+  // ever finding out, until a bulk run would otherwise blind-create a
+  // duplicate. When we don't already know a booking id, do one live
+  // lookup by email on this ticket before creating; if KonfHub already
+  // has one, link it and fall through to the update path instead.
+  let bookingId = existingBookingId
+  let linkedFromLiveLookup = false
+  if (!bookingId) {
+    const emailId = String(commonFields.email_id ?? '')
+    const found = await findExistingKonfhubBooking(token, konfhubEventId, konfhubSpeakerTicket, emailId)
+    if (found === 'lookup-failed') {
+      // Fail closed — see doc comment above: don't risk a duplicate on an
+      // unverifiable lookup. The whole point of this check is safety, so a
+      // transient KonfHub read failure should surface as "try again," not
+      // silently fall through to create.
+      await markError('Could not verify this speaker isn’t already registered on KonfHub — try again.')
+      return
+    }
+    if (found) {
+      bookingId = found
+      linkedFromLiveLookup = true
+      await supabaseAdmin.from('event_speakers').update({ konfhub_booking_id: bookingId }).eq('id', speakerId)
+    }
+  }
+
+  if (bookingId) {
     const body = Object.keys(customForms).length > 0 ? { ...commonFields, custom_forms: customForms } : commonFields
-    const res = await fetch(`${KONFHUB_API_BASE}/${konfhubEventId}/attendees/${existingBookingId}/edit`, {
+    const res = await fetch(`${KONFHUB_API_BASE}/${konfhubEventId}/attendees/${bookingId}/edit`, {
       method: 'PUT',
       headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
@@ -235,11 +305,11 @@ async function runRegistrationJob(
       return
     }
     const syncedAt = new Date().toISOString()
-    await supabaseAdmin.from('event_speakers').update({ konfhub_registration_synced_at: syncedAt }).eq('id', speakerId)
+    await supabaseAdmin.from('event_speakers').update({ konfhub_booking_id: bookingId, konfhub_registration_synced_at: syncedAt }).eq('id', speakerId)
     await supabaseAdmin.from('speaker_konfhub_registration_jobs').update({
       status: 'done',
       completed_at: syncedAt,
-      result: { konfhub_booking_id: existingBookingId, konfhub_registration_synced_at: syncedAt, action: 'updated' },
+      result: { konfhub_booking_id: bookingId, konfhub_registration_synced_at: syncedAt, action: linkedFromLiveLookup ? 'linked_existing' : 'updated' },
     }).eq('id', jobId)
     return
   }
@@ -269,8 +339,8 @@ async function runRegistrationJob(
     await markError(data.error || `KonfHub error (${res.status})`)
     return
   }
-  const bookingId = data.booking_id?.[0]
-  if (!bookingId) {
+  const newBookingId = data.booking_id?.[0]
+  if (!newBookingId) {
     await markError('KonfHub accepted the request but returned no booking id.')
     return
   }
@@ -278,12 +348,12 @@ async function runRegistrationJob(
   const syncedAt = new Date().toISOString()
   await supabaseAdmin
     .from('event_speakers')
-    .update({ konfhub_booking_id: bookingId, konfhub_registration_synced_at: syncedAt })
+    .update({ konfhub_booking_id: newBookingId, konfhub_registration_synced_at: syncedAt })
     .eq('id', speakerId)
 
   await supabaseAdmin.from('speaker_konfhub_registration_jobs').update({
     status: 'done',
     completed_at: syncedAt,
-    result: { konfhub_booking_id: bookingId, konfhub_registration_synced_at: syncedAt, action: 'created' },
+    result: { konfhub_booking_id: newBookingId, konfhub_registration_synced_at: syncedAt, action: 'created' },
   }).eq('id', jobId)
 }

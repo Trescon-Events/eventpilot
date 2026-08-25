@@ -13,6 +13,7 @@ import CalendarView from './CalendarView'
 import DeletedTab from './DeletedTab'
 import DeleteConfirmModal from './DeleteConfirmModal'
 import KonfhubPushConfirmModal from './KonfhubPushConfirmModal'
+import KonfhubRegistrationPushConfirmModal from './KonfhubRegistrationPushConfirmModal'
 import BulkApproveConfirmModal from './BulkApproveConfirmModal'
 import InvitesTab from './InvitesTab'
 import { FieldSchema, SubmittedValue, asText } from '@/app/lib/forms/types'
@@ -43,6 +44,10 @@ type Speaker = {
   // "Push to KonfHub" (2026-08-24) — presence decides first-push vs
   // re-push, same as the Details page's own isKonfhubFirstPush.
   konfhub_speaker_id: string | null
+  // "Register on KonfHub" bulk action (2026-08-25) — presence decides
+  // create-vs-update counts in the bulk confirm summary, same signal the
+  // Details page's own Registration tab uses.
+  konfhub_booking_id: string | null
 }
 
 type Partner = {
@@ -203,6 +208,17 @@ export default function StakeholderHubPage({ params }: { params: Promise<{ id: s
   const [bulkApproveConfirm, setBulkApproveConfirm] = useState<(Speaker | Partner)[] | null>(null)
   const [bulkApproveSkipped, setBulkApproveSkipped] = useState(0)
   const [bulkApproving, setBulkApproving] = useState(false)
+  // Bulk "Register on KonfHub" (2026-08-25) — Attendee Registration push,
+  // separate system from the Speakers-module bulk push above (see
+  // .../konfhub-registration-push's own doc comment). Job-based/polled per
+  // speaker rather than fire-and-forget like the others, since the
+  // underlying route is background-job-backed (Cloudflare proxy timeout —
+  // same reason as everywhere else this pattern shows up in this repo).
+  const [bulkRegistrationConfirm, setBulkRegistrationConfirm] = useState<Speaker[] | null>(null)
+  const [bulkRegistrationNewCount, setBulkRegistrationNewCount] = useState(0)
+  const [bulkRegistrationUpdateCount, setBulkRegistrationUpdateCount] = useState(0)
+  const [bulkRegistrationSkipped, setBulkRegistrationSkipped] = useState(0)
+  const [bulkRegistering, setBulkRegistering] = useState(false)
   // processSubmission() had no loading feedback at all before this — it's
   // also the heaviest single action on this page (re-hosts the submitted
   // photo/logo, then runs PhotoRoom + Logo Engine + head detection), so it
@@ -490,6 +506,64 @@ export default function StakeholderHubPage({ params }: { params: Promise<{ id: s
     fetchAll()
   }
 
+  // Eligibility for "Register on KonfHub" is deliberately its own check —
+  // NOT isSpeakerReadyForApprove above, which gates on creative-readiness
+  // (photo, public name, pronoun) that Attendee Registration doesn't need.
+  // Mirrors the route's own required-field checks (email, name) exactly.
+  function isSpeakerReadyForRegistration(s: Speaker): boolean {
+    return !!asText(s.custom_fields?.email).trim() && !!(s.public_name || s.full_name)?.trim()
+  }
+
+  function openBulkRegistrationConfirm() {
+    const selected = visibleItems.filter(i => selectedIds.has(i.id)) as Speaker[]
+    const eligible = selected.filter(isSpeakerReadyForRegistration)
+    setBulkRegistrationSkipped(selected.length - eligible.length)
+    setBulkRegistrationNewCount(eligible.filter(s => !s.konfhub_booking_id).length)
+    setBulkRegistrationUpdateCount(eligible.filter(s => !!s.konfhub_booking_id).length)
+    setBulkRegistrationConfirm(eligible)
+  }
+
+  // Job-based, not fire-and-forget like the other bulk actions on this
+  // page — .../konfhub-registration-push is background-job-backed (same
+  // Cloudflare-proxy-timeout reason as everywhere else this pattern shows
+  // up), so each speaker needs its own POST-then-poll round trip. Runs all
+  // speakers concurrently (Promise.all) rather than one at a time — the
+  // route's own in-flight check and the new live duplicate-check inside it
+  // (see that route's doc comment) are what actually keep this safe, not
+  // sequencing here.
+  async function pollRegistrationJobUrl(url: string): Promise<{ status: string; result?: { action?: string }; error?: string }> {
+    for (let attempt = 0; attempt < 40; attempt++) {
+      try {
+        const res = await fetch(url)
+        const data = await res.json().catch(() => ({}))
+        if (!res.ok || data.status !== 'processing') return data
+      } catch {
+        // transient network blip on one poll tick — retry like any other tick
+      }
+      await new Promise(r => setTimeout(r, 3000))
+    }
+    return { status: 'error', error: 'Timed out waiting for KonfHub.' }
+  }
+
+  async function performBulkRegistration() {
+    if (!bulkRegistrationConfirm) return
+    setBulkRegistering(true)
+    const results = await Promise.all(bulkRegistrationConfirm.map(async item => {
+      const res = await fetch(`/api/events/stakeholders/speakers/${item.id}/konfhub-registration-push`, { method: 'POST' })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok || !data.job_id) return { status: 'error', error: data.error } as Awaited<ReturnType<typeof pollRegistrationJobUrl>>
+      return pollRegistrationJobUrl(`/api/events/stakeholders/speakers/${item.id}/konfhub-registration-push/job/${data.job_id}`)
+    }))
+    const created = results.filter(r => r.result?.action === 'created').length
+    const updated = results.filter(r => r.result?.action === 'updated' || r.result?.action === 'linked_existing').length
+    const failed = results.filter(r => r.status === 'error').length
+    if (failed > 0) setMsg(`${created + updated} of ${results.length} registrations succeeded, ${failed} failed — check individual speakers' Registration tabs for details.`)
+    setBulkRegistering(false)
+    setBulkRegistrationConfirm(null)
+    setSelectedIds(new Set())
+    fetchAll()
+  }
+
   function toggleSelected(id: string) {
     setSelectedIds(prev => {
       const next = new Set(prev)
@@ -534,6 +608,7 @@ export default function StakeholderHubPage({ params }: { params: Promise<{ id: s
   ] : []
   const bulkActionItems = [
     ...(category?.kind === 'speaker' && can('sae.approvals.approve') ? [{ label: 'Push to KonfHub', onClick: openBulkKonfhubConfirm }] : []),
+    ...(category?.kind === 'speaker' && can('sae.approvals.approve') ? [{ label: 'Register on KonfHub', onClick: openBulkRegistrationConfirm }] : []),
     ...(can('sae.approvals.approve') ? [{ label: 'Approve for Announcements', onClick: openBulkApproveConfirm }] : []),
     ...(can('sae.stakeholders.delete') ? [{ label: 'Delete', danger: true, onClick: () => setDeleteConfirm(visibleItems.filter(i => selectedIds.has(i.id))) }] : []),
   ]
@@ -815,6 +890,17 @@ export default function StakeholderHubPage({ params }: { params: Promise<{ id: s
           pushing={bulkPushingKonfhub}
           onConfirm={performBulkKonfhubPush}
           onClose={() => setBulkKonfhubConfirm(null)}
+        />
+      )}
+
+      {bulkRegistrationConfirm && (
+        <KonfhubRegistrationPushConfirmModal
+          newCount={bulkRegistrationNewCount}
+          updateCount={bulkRegistrationUpdateCount}
+          skippedCount={bulkRegistrationSkipped}
+          pushing={bulkRegistering}
+          onConfirm={performBulkRegistration}
+          onClose={() => setBulkRegistrationConfirm(null)}
         />
       )}
 
