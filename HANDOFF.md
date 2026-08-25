@@ -15,13 +15,58 @@ Railway's auto-deploy silently stopped working from **2026-07-17 to 2026-07-21**
 
 | Field | Value |
 |---|---|
-| Who | Madhu + Claude Code (Sonnet 5) — 24 Aug 2026 (evening), Task Manager-scoped session |
-| Latest push | 2026-08-24 evening — see full write-up below: found and fixed why Madhu's PR-review emails from EventPilot were never arriving (Cloudflare Bot Fight Mode silently swallowing the webhook), added an AI-rewritten "copy this into Antigravity" instruction block to the Send Back email in `/admin/dev-approvals` — confirmed working live same-day on PR #4. Also found and fixed a second bug the same PR surfaced: Approve & Ship's merge step failing on a missing Contents permission on `GITHUB_APPROVER_TOKEN`; PR #4 merged manually to unblock it. |
-| DB migrations applied | 1 additive column, applied via `supabase db query --linked -f <path>`: `supabase/github_pr_reviews_agent_instructions.sql` adds `github_pr_reviews.agent_instructions TEXT`. |
-| Railway env var updated | `GITHUB_APPROVER_TOKEN` — same GitHub PAT (`eventpilot-pr-approver`), given Contents: Read/write permission (was missing entirely) and regenerated to extend its expiry past Sep 2026. Set via `railway variables --set`, service redeployed and confirmed healthy. |
+| Who | Madhu + Claude Code (Sonnet 5) — 25 Aug 2026, Speaker Registration / KonfHub-sync-scoped session |
+| Latest push | 2026-08-25 — see full write-up below: built a new "Registration" tab on the speaker Details page (the real submitted data — email, phone, consents, assistant contacts — separated from the public-facing Overview tab), then a full push/sync to KonfHub's Attendee Registration system under the "Speaker Registration" ticket. Along the way found that 35 of 37 WAIS Malaysia speakers already had live KonfHub registrations EventPilot didn't know about (backfilled), and that KonfHub's own docs only showed a create-only path until they sent updated Postman docs revealing a real Edit Attendee endpoint — rebuilt the route same-day to use it, live-verified an actual update against a real registration. |
+| DB migrations applied | 2 additive migrations, applied via `supabase db query --linked -f <path>`: `supabase/konfhub_registration_migration.sql` (`event_websites.konfhub_registration_field_map`, `event_speakers.konfhub_registration_synced_at`), `supabase/konfhub_registration_jobs_migration.sql` (new `speaker_konfhub_registration_jobs` table). Plus direct data changes (not schema): rotated `event_websites.konfhub_client_id`/`konfhub_client_secret` to KonfHub's new pair; populated `konfhub_registration_field_map` with real form_ids; backfilled `event_speakers.konfhub_booking_id`/`konfhub_registration_synced_at` for 35 speakers (see write-up). |
 | Handed off to | Madhu. |
-| Deployed | Live — commits `a8e6285`/`e170f77` pushed to `main`, Railway auto-deployed. PR #4 (Khalifa's Task Manager dual-mode redesign) merged separately via `gh pr merge 4` (Madhu's explicit go-ahead) — its own Railway deploy triggered by that merge. |
-| Left alone / known follow-up | See "What's next" at the end of the 24 Aug (evening) write-up below — the "✓ Merged" label bug in Recently Decided, and confirming Approve & Ship's merge step against a live PR now that the token permission is fixed (not yet tested, PR #4 was merged manually before the fix landed). Also see the 24 Aug (daytime) entry below for that session's separate work. |
+| Deployed | Live — commits `190dbaf`, `c396f11`, `f8fc158`, `2db7a00`, `f89a59b`, `65dabeb` pushed to `main`, Railway auto-deployed each time. Update path live-verified against Sudeep Srivastava's real registration (booking `58bd2dce`) — synced cleanly, no duplicate created. |
+| Left alone / known follow-up | Two KonfHub registrations (Prof. Jugdutt (Jack) Singh, Ts. Dr. Sheila Mahalingam) have no matching EventPilot speaker record — worth checking whether they're past speakers no longer in the roster. Two fields (Twitter, Assistant Direct line) and one consent (general Terms & Conditions) have no counterpart on this event's Speaker Registration ticket in KonfHub, so nothing is sent for them — not a bug, just nothing to map to. See full write-up below for everything else. |
+
+## 25 Aug 2026 — Speaker Registration tab, KonfHub Attendee Registration push + real update capability
+
+### What this solves
+
+Historically, speakers registered directly on KonfHub, which populated both KonfHub's public "Speakers" module (bio, photo, designation — already synced by the separate `konfhub-push` feature, 24 Aug) AND its "Attendee Registration" system under a "Speaker Registration" ticket (email, phone, consents — the record badge printing, check-in, and networking at the actual event depend on). Now that speakers onboard via HubSpot instead, nothing was populating the Attendee Registration side anymore — a real operational gap, not cosmetic.
+
+### Registration tab (speaker Details page)
+
+Split the speaker Details page's fields into two tabs using `SPEAKER_KEY_MAP` (`app/lib/forms/map-to-stakeholder-record.ts`, exported for this purpose) as the dividing line: any field with a real `event_speakers` column (name, bio, company, etc. — also what the Speakers-module push reads) stays on **Overview**; everything else (email, phone, industry sector, PR quote, LinkedIn, Twitter, assistant contacts, 5 consent checkboxes — all living in `custom_fields`) moved to a new **Registration** tab, speaker-only. Same editable `FormFieldInput`/autosave pattern as Overview — producers clean the submitted data up here before pushing, same "raw → cleaned → pushed" shape as photos elsewhere in the app.
+
+### The push itself, and its Cloudflare detour
+
+First version (`c396f11`) called KonfHub's `event/capture/v2` (x-api-key auth, same endpoint the old pre-HubSpot integration used) synchronously. Live-tested immediately and hit the exact same Cloudflare ~100s proxy timeout the Clean Photo pipeline hit on 24 Aug — fixed the same day (`f8fc158`) with the same background-job pattern: new `speaker_konfhub_registration_jobs` table, route does its fast checks inline then fires the KonfHub call detached, Details page polls a new `.../job/[jobId]` route.
+
+### The bigger discovery: most speakers were already registered
+
+A live read-only probe (`GET /event/{id}/attendees`, found undocumented via the Bearer-token credentials already used for the Speakers-module push) revealed **35 of 37 WAIS Malaysia speakers already had a live KonfHub registration** from before the HubSpot pivot — EventPilot's `konfhub_booking_id` was null for all of them, so the create-only route was at real risk of duplicate registrations. Matched all 35 back to their `event_speakers` row (33 by email, 2 by name — Dr Chua Wen-Shyan and Goh Ser Yoong had no email on file at all in EventPilot, backfilled from KonfHub's data) and set their real `konfhub_booking_id` directly via SQL. Two KonfHub registrations had no matching speaker (see table above). The same probe's `form_details` response gave the real KonfHub `form_id`s for this event's Speaker Registration ticket, populated into `event_websites.konfhub_registration_field_map` (`2db7a00`) — 8 of our fields now map correctly (PR quote, bio, industry sector, assistant contacts, 3 of 5 consents); Twitter, Assistant Direct line, and the general T&Cs consent have no KonfHub counterpart on this ticket and are simply not sent.
+
+### KonfHub sent updated docs same day — real update capability
+
+Initially this was designed create-only, since KonfHub's public API docs showed no update path (`event/capture/v2` is shaped around a purchase event, not a generic upsert) — the button was hidden entirely once a speaker had a `konfhub_booking_id`. Same day, KonfHub support rotated the Speakers-module `client_id`/`client_secret` (used, it turns out, for more than just Speakers) and sent updated Postman docs (`documenter.getpostman.com/view/45357564/2sBY4HSiDn`) revealing two Bearer-token endpoints under that same credential pair: `POST /event/:id/admin/register` (create) and, critically, `PUT /event/:id/attendees/:booking-id/edit` (a genuine update). Rebuilt the route (`f89a59b`) to branch on `speaker.konfhub_booking_id` — set → PUT edit; unset → POST create — and updated the Details page/confirm modal to offer "Update on KonfHub" (with a last-synced timestamp) instead of hiding the action once registered. Since 35 of 37 speakers now have a real booking id, most pushes from here on are updates, not creates.
+
+One bug found live-testing the update path (`65dabeb`): KonfHub's edit validation rejects a present-but-empty `phone_number` with `"'dial_code' is a dependency of 'phone_number'"` — `dial_code` isn't even listed as an editable field in KonfHub's own docs. Fixed by only including `phone_number` (paired with `dial_code`) in the payload when there's an actual value. Live-verified end-to-end afterward against Sudeep Srivastava's real registration — update succeeded, `konfhub_booking_id` unchanged, `konfhub_registration_synced_at` refreshed.
+
+### What's next
+
+- The two unmatched KonfHub registrations (Prof. Jugdutt (Jack) Singh, Ts. Dr. Sheila Mahalingam) — worth a look on Durga's end.
+- If KonfHub adds custom-form support for Twitter, Assistant Direct line, or the general T&Cs consent on the Speaker Registration ticket, `konfhub_registration_field_map` just needs the new `form_id`s added via SQL — no code change.
+- Same duplication note as the 24 Aug Cloudflare-timeout batch below: this is now the 5th backend route + poller hand-rolling the same job/poll pattern. Still not urgent enough to block on, but the case for a shared `runBackgroundJob()`/`usePollUntilDone()` primitive keeps growing.
+
+---
+
+## 24 Aug 2026 (night) — Push to KonfHub (Speakers module), Redo on Photo Wizard, Website status fix, Add Speaker trim, Bulk action dropdowns
+
+Same session as the "24 Aug 2026 (evening) — Task Manager" entry below, continuing after it. Five separate pieces of feedback, each shipped and confirmed live:
+
+- **Push to KonfHub** (`2ed8b6d`) — split the single "Approve for Announcement" button into two: **Approve for Announcement** (internal creative-readiness gate, unchanged) and **Push to KonfHub** (publishes to KonfHub's Speakers module + event website), each with its own confirm dialog. Push is enabled only once photo is cleaned, Website Photo is generated, and Public Name/Pronoun are set. First push shows a full warning; re-push (once `konfhub_speaker_id` is set) shows lighter re-sync copy. Bulk push from the roster shows one summary confirmation with new/update/skipped counts. New `app/lib/konfhub-speakers.ts` (Bearer-token client, `getKonfhubToken`/`createKonfhubSpeaker`/`updateKonfhubSpeaker`/`listKonfhubSpeakers`/`deleteKonfhubSpeaker`) — this is the credential pair later reused for the 25 Aug Attendee Registration work above.
+- **Redo on Photo Cleaning Wizard** (`f482b04`) — a "Not right? Redo" escape hatch back to Compose, added to both the Review step and the Cleaned Photo step (good/enhance path) — producers can re-adjust the head marker without starting over if the generated photo isn't right.
+- **Website status column fix** (`9c5bc90`) — the roster's Website status was reading `konfhub_booking_id` (the legacy, unused Attendee Registration signal), so a speaker pushed live via the new Speakers-module button still showed "Created" instead of "Published." Re-pointed to `konfhub_speaker_id` (the real signal) and backfilled status for every already-pushed speaker.
+- **Add Speaker panel trim** (`927d1f2`) — the quick-add panel now shows only Salutation, First Name, Last Name (Full Name removed entirely), Job title, Company, Country, Short Bio; Save redirects straight to the new speaker's Details page instead of staying on the roster.
+- **Bulk action dropdowns** (`ddebf1f`) — roster bulk actions reorganized into two dropdowns: **Downloads** (Clean Photos, Edited Website Photos, Raw Logos, Clean Logos, Speaker Details as an Excel file via `xlsx`) and **Actions** (Push to KonfHub, Approve for Announcements, Delete).
+
+Also this window: **bio field mapping fix** (`190dbaf`, technically 25 Aug morning but part of the same thread of work) — `short_bio_professional_profile` had no `SPEAKER_KEY_MAP` alias, so onboarding-pipeline speakers' bios were silently landing in `custom_fields` instead of the `bio` column the Speakers-module push actually reads. Fixed, plus a live SQL backfill of 6 real WAIS Malaysia speakers whose bio was stranded (Ahmad Khalid Khairi, Eric Liew, Dr Chua Wen-Shyan, Goh Ser Yoong, Azlina Binti Ab Aziz, Huy Nguyen-Tuong).
+
+---
 
 ## 24 Aug 2026 — Cloudflare proxy-timeout fix (Clean Photo + 6 more routes), OPENAI_API_KEY restored
 
