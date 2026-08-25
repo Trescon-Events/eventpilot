@@ -52,7 +52,7 @@ export async function POST(req: NextRequest) {
   const fileUrls  = (submission.file_urls ?? {}) as { photo?: string; company_logo?: string }
 
   const schema = await resolveFormSchema(body.event_id, 'speaker')
-  const { columns, customFields } = mapFieldsToRecord('speaker', schema, submitted, fileUrls)
+  const { columns, customFields } = mapFieldsToRecord('speaker', schema, submitted, fileUrls, { defaultSpeakerPublicName: true })
 
   const { data: speaker, error: insertErr } = await supabaseAdmin
     .from('event_speakers')

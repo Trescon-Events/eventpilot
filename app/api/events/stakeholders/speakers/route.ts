@@ -172,7 +172,7 @@ export async function POST(req: NextRequest) {
   // NOT NULL at the DB level — mapFieldsToRecord's own fallback (see that
   // file) synthesizes it from first_name/last_name when full_name itself
   // isn't submitted, so the insert below still can't produce a nameless row.
-  const { columns, customFields } = mapFieldsToRecord('speaker', schema, body.fields, {})
+  const { columns, customFields } = mapFieldsToRecord('speaker', schema, body.fields, {}, { defaultSpeakerPublicName: true })
 
   const { data, error } = await supabaseAdmin
     .from('event_speakers')

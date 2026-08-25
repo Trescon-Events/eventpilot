@@ -75,7 +75,12 @@ export function mapFieldsToRecord(
   // (structured, non-lossy) customFields entries instead, which also avoids
   // silently clobbering an existing `notes` value when a producer edits an
   // unrelated field and the contact inputs are left blank.
-  opts: { collapsePartnerContactIntoNotes?: boolean } = {}
+  // Only the two speaker CREATION routes (from-submission, the Hub's
+  // manual "Add Speaker" quick-add) pass this — see this function's own
+  // public_name default below for why it must never be set on an edit
+  // path (PATCH .../speakers/[id] calls this same function on every
+  // autosave with the record's whole current fields map).
+  opts: { collapsePartnerContactIntoNotes?: boolean; defaultSpeakerPublicName?: boolean } = {}
 ): { columns: Record<string, unknown>; customFields: Record<string, SubmittedValue> } {
   const isSpeaker = formType === 'speaker'
   const collapseNotes = !isSpeaker && !!opts.collapsePartnerContactIntoNotes
@@ -90,10 +95,27 @@ export function mapFieldsToRecord(
   // lastname properties, HubSpot's own convention) when full_name itself
   // is absent. first_name/last_name still land in customFields as usual via
   // the loop below — nothing here removes them.
+  const asStr = (v: SubmittedValue | undefined) => (Array.isArray(v) ? v.join(' ') : v)
   if (isSpeaker && !data.full_name && (data.first_name || data.last_name)) {
-    const asStr = (v: SubmittedValue | undefined) => (Array.isArray(v) ? v.join(' ') : v)
     const fullName = [asStr(data.first_name), asStr(data.last_name)].filter(Boolean).join(' ').trim()
     if (fullName) data = { ...data, full_name: fullName }
+  }
+
+  // Public Name defaults to "First Last" — no salutation — on creation
+  // only (per Madhu, 2026-08-25: save the obvious copy-paste; a producer
+  // adds a salutation afterward for the special cases, Prof./Dr./etc.,
+  // where they actually want one). Deliberately gated behind an explicit
+  // opt-in flag rather than running whenever first_name/last_name are
+  // present: this function is also called on every PATCH .../[id]
+  // autosave, and public_name isn't in SPEAKER_KEY_MAP (so nothing here
+  // would otherwise touch it) — an ungated default would silently strip
+  // a producer's already-added salutation on their very next unrelated
+  // edit. Only sets it when still empty, so it never clobbers a value a
+  // caller explicitly provided some other way (e.g. a future schema field
+  // literally keyed 'public_name').
+  let publicNameDefault: string | undefined
+  if (isSpeaker && opts.defaultSpeakerPublicName) {
+    publicNameDefault = [asStr(data.first_name), asStr(data.last_name)].filter(Boolean).join(' ').trim() || undefined
   }
 
   if (collapseNotes) {
@@ -134,6 +156,7 @@ export function mapFieldsToRecord(
   if (isSpeaker) {
     if (fileUrls.photo) columns.photo_url = fileUrls.photo
     if (fileUrls.company_logo) columns.company_logo_url = fileUrls.company_logo
+    if (publicNameDefault && !columns.public_name) columns.public_name = publicNameDefault
   } else {
     if (fileUrls.logo) { columns.logo_url = fileUrls.logo; columns.logo_raw_url = fileUrls.logo }
   }
