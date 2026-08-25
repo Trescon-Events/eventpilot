@@ -27,6 +27,14 @@ const SPEAKER_KEY_MAP: Record<string, string> = {
   company: 'company',
   country: 'country',
   bio: 'bio',
+  // Alias — same fix shape as company/company_name above (2026-08-25, real
+  // bug found live: WAIS Malaysia's own Form Builder override keys its bio
+  // field 'short_bio_professional_profile', not 'bio', so every speaker
+  // processed through the onboarding pipeline had their bio silently land
+  // in custom_fields instead of the `bio` column — invisible to the Push to
+  // KonfHub route, which reads the column directly and was publishing an
+  // empty bio for every one of them).
+  short_bio_professional_profile: 'bio',
   linkedin_url: 'linkedin_url',
   // 2026-08-18: a real "Salutation" field already exists on the live
   // onboarding form (confirmed against the actual worldaishow.com/malaysia
