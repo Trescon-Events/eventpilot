@@ -9,10 +9,21 @@ import { Button, Badge, Select, ProcessingOverlay } from '@/app/components/ui'
 import { downloadFile } from '@/app/lib/download-file'
 import type { Variant } from '@/app/lib/announcements/composite'
 import SendToSpeakerComposer from './SendToSpeakerComposer'
+import SendForExternalApprovalComposer from './SendForExternalApprovalComposer'
 import {
   displayName, displaySubtitle, statusColor, plainToHtml, PLATFORM_CHAR_LIMITS,
   type AnnouncementListItem, type Stakeholder, type StakeholderKind, type Speaker, type PostizChannel, type EventStaffOption,
 } from './page'
+
+// custom_fields.email is the canonical, actively-maintained speaker email
+// (see Speaker type's own comment) — a plain string field, but read
+// defensively since custom_fields values can also be string[] (multi-value
+// form fields elsewhere in the app).
+function speakerEmail(s: Speaker): string {
+  const v = s.custom_fields?.email
+  const fromCustom = Array.isArray(v) ? v[0] : v
+  return (fromCustom || s.email || '').trim()
+}
 
 /*
   The single-announcement review UI — creative preview, post-copy editor,
@@ -62,11 +73,14 @@ export default function AnnouncementDetailPanel({
   const [savingCopy, setSavingCopy] = useState(false)
   const [variantChoice, setVariantChoice] = useState('')
   const [sendToSpeakerOpen, setSendToSpeakerOpen] = useState(false)
+  const [sendForExternalApprovalOpen, setSendForExternalApprovalOpen] = useState(false)
+  const [bypassing, setBypassing] = useState<'internal' | 'external' | null>(null)
   const [selectedChannelIds, setSelectedChannelIds] = useState<string[]>([])
   const [publishing, setPublishing] = useState<'schedule' | 'now' | 'approval' | 'retry' | null>(null)
   const [scheduleAt, setScheduleAt] = useState('')
   const [approverPickerOpen, setApproverPickerOpen] = useState(false)
   const [pickedApprovers, setPickedApprovers] = useState<Record<string, string>>({})
+  const [approverSearch, setApproverSearch] = useState('')
   // A prominent, short-lived confirmation banner right after Schedule/Post
   // Now succeeds (2026-08-21, per Madhu) — the only feedback before this
   // was the transient "Posting via Postiz…" overlay, which vanished the
@@ -194,6 +208,20 @@ export default function AnnouncementDetailPanel({
     } else onError(data.error || 'Could not send for approval.')
   }
 
+  async function bypassApproval(layer: 'internal' | 'external') {
+    setBypassing(layer)
+    const res = await fetch(`/api/events/stakeholders/announcements/${announcement.id}/bypass-approval`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ layer }),
+    })
+    const data = await res.json().catch(() => ({}))
+    setBypassing(null)
+    if (res.ok) {
+      onUpdate(layer === 'internal'
+        ? { internal_approval_bypassed_at: data.internal_approval_bypassed_at }
+        : { external_approval_bypassed_at: data.external_approval_bypassed_at })
+    } else onError(data.error || 'Could not bypass approval.')
+  }
+
   async function scheduleAnnouncement() {
     if (!scheduleAt) { onError('Pick a date and time to schedule for.'); return }
     if (selectedChannelIds.length === 0) { onError('Pick at least one channel.'); return }
@@ -301,6 +329,21 @@ export default function AnnouncementDetailPanel({
     ? { label: 'Posting via Postiz…', estimatedMs: 3000 }
     : null
 
+  // Two-layer approval readiness (2026-08-26). internalDone mirrors the
+  // exact condition Schedule/Post Now/Send-to-Speaker already used before
+  // this feature existed (status flipped by internal approvers resolving,
+  // via approve/route.ts) — OR'd with the internal bypass flag. externalOk
+  // defaults to true for the vast majority of announcements that never
+  // touch the external flow at all ('none'), so nothing changes for them;
+  // it only holds things up once someone has actually clicked "Send for
+  // External Approval" and it's still pending or came back with changes
+  // requested, unless that round was itself bypassed.
+  const internalDone = announcement.status === 'approved' || announcement.status === 'approved_with_comments' || !!announcement.internal_approval_bypassed_at
+  const externalOk = announcement.external_approval_status === 'none' || announcement.external_approval_status === 'approved' || announcement.external_approval_status === 'approved_with_comments' || !!announcement.external_approval_bypassed_at
+  const readyToPublish = internalDone && externalOk
+  const externalApprovalPending = announcement.external_approval_status === 'pending' && !announcement.external_approval_bypassed_at
+  const externalChangesRequested = announcement.external_approval_status === 'changes_requested' && !announcement.external_approval_bypassed_at
+
   return (
     <div style={{ display: 'grid', gap: '24px' }}>
       {/* Creative preview + Post Copy side by side — the preview column is
@@ -361,6 +404,70 @@ export default function AnnouncementDetailPanel({
               {regeneratingCopy ? 'Regenerating…' : 'Regenerate Post Copy'}
             </Button>
           </div>
+        </div>
+      </div>
+
+      {/* Approval — internal (event_staff, existing) and external (speaker/
+          office, 2026-08-26) rounds, kept together in one visually
+          separate section per Madhu ("keep all these approval related
+          items in a visually separate section... just for proper page
+          structure"), rather than duplicated inline in both the org_promo
+          Publishing and self_promo Send-to-Speaker sections below (their
+          previous location — identical logic either way, per the
+          Send-to-Speaker section's own long-standing comment). */}
+      <div style={{ padding: '16px 18px', borderRadius: '10px', border: '1px solid var(--border-light)', background: 'var(--surface)' }}>
+        <div style={{ fontSize: '10.5px', fontWeight: 800, color: 'var(--ink3)', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '12px' }}>Approval</div>
+
+        <div style={{ display: 'grid', gap: '10px' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+            <div style={{ fontSize: '12.5px', color: 'var(--ink2)' }}>
+              <strong>Internal:</strong>{' '}
+              {announcement.internal_approval_bypassed_at ? 'Bypassed' : internalDone ? 'Approved' : announcement.status === 'changes_requested' ? 'Changes requested' : announcement.status === 'pending_approval' ? 'Pending' : 'Not sent'}
+            </div>
+            <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+              {!internalDone && (announcement.status === 'draft' || announcement.status === 'changes_requested' || announcement.status === 'pending_approval') && (
+                <>
+                  <Button variant="ghost" onClick={() => setApproverPickerOpen(true)} disabled={publishing !== null}>
+                    {publishing === 'approval' ? 'Sending…' : 'Send for Approval'}
+                  </Button>
+                  <Button variant="ghost" onClick={() => bypassApproval('internal')} disabled={bypassing !== null}
+                    title="Skip internal review and go straight to external approval (or publishing, if no external round is used either)">
+                    {bypassing === 'internal' ? 'Bypassing…' : 'Internal approval not required'}
+                  </Button>
+                </>
+              )}
+            </div>
+          </div>
+
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+            <div style={{ fontSize: '12.5px', color: 'var(--ink2)' }}>
+              <strong>External:</strong>{' '}
+              {announcement.external_approval_bypassed_at ? 'Bypassed'
+                : announcement.external_approval_status === 'approved' ? 'Approved'
+                : announcement.external_approval_status === 'approved_with_comments' ? 'Approved (with comments)'
+                : announcement.external_approval_status === 'changes_requested' ? 'Changes requested'
+                : announcement.external_approval_status === 'pending' ? 'Pending'
+                : 'Not sent'}
+            </div>
+            {internalDone && !announcement.external_approval_bypassed_at && (announcement.external_approval_status === 'none' || announcement.external_approval_status === 'changes_requested') && (
+              <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                <Button variant="ghost" onClick={() => setSendForExternalApprovalOpen(true)}>
+                  Send for External Approval
+                </Button>
+                <Button variant="ghost" onClick={() => bypassApproval('external')} disabled={bypassing !== null}
+                  title="Skip external sign-off and unlock publishing">
+                  {bypassing === 'external' ? 'Bypassing…' : 'External approval not required'}
+                </Button>
+              </div>
+            )}
+          </div>
+
+          {externalApprovalPending && (
+            <div style={{ fontSize: '12px', color: 'var(--ink3)' }}>Waiting on the external reviewer — publishing is on hold until they respond, or you mark it not required above.</div>
+          )}
+          {externalChangesRequested && (
+            <div style={{ fontSize: '12px', color: 'var(--red)' }}>The external reviewer requested changes — update the copy/creative above, then send for external approval again.</div>
+          )}
         </div>
       </div>
 
@@ -524,12 +631,7 @@ export default function AnnouncementDetailPanel({
         )}
 
         <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center' }}>
-          {(announcement.status === 'draft' || announcement.status === 'changes_requested') && (
-            <Button variant="ghost" onClick={() => setApproverPickerOpen(true)} disabled={publishing !== null}>
-              {publishing === 'approval' ? 'Sending…' : 'Send for Approval'}
-            </Button>
-          )}
-          {(announcement.status === 'approved' || announcement.status === 'approved_with_comments'
+          {(readyToPublish
             || ((announcement.status === 'draft' || announcement.status === 'changes_requested') && can('sae.announcements.publish'))) && (
             <>
               <input type="datetime-local" value={scheduleAt} onChange={e => setScheduleAt(e.target.value)}
@@ -585,12 +687,7 @@ export default function AnnouncementDetailPanel({
         )}
 
         <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center' }}>
-          {(announcement.status === 'draft' || announcement.status === 'changes_requested') && (
-            <Button variant="ghost" onClick={() => setApproverPickerOpen(true)} disabled={publishing !== null}>
-              {publishing === 'approval' ? 'Sending…' : 'Send for Approval'}
-            </Button>
-          )}
-          {(announcement.status === 'approved' || announcement.status === 'approved_with_comments'
+          {(readyToPublish
             || ((announcement.status === 'draft' || announcement.status === 'changes_requested') && can('sae.announcements.publish'))) && (
             <Button variant="lime" onClick={() => setSendToSpeakerOpen(true)}>
               Send to Speaker
@@ -605,24 +702,47 @@ export default function AnnouncementDetailPanel({
           announcementId={announcement.id}
           speakerName={displayName(stakeholderKind, stakeholder)}
           initialRecipientName={(stakeholder as Speaker).public_name || displayName(stakeholderKind, stakeholder)}
-          initialRecipientEmail={(stakeholder as Speaker).email ?? ''}
+          initialRecipientEmail={speakerEmail(stakeholder as Speaker)}
           onClose={() => setSendToSpeakerOpen(false)}
           onSent={() => onUpdate({ status: 'published', published_at: new Date().toISOString() })}
         />
       )}
 
+      {sendForExternalApprovalOpen && (
+        <SendForExternalApprovalComposer
+          announcementId={announcement.id}
+          stakeholderName={displayName(stakeholderKind, stakeholder)}
+          initialRecipientName={stakeholderKind === 'speaker' ? ((stakeholder as Speaker).public_name || displayName(stakeholderKind, stakeholder)) : displayName(stakeholderKind, stakeholder)}
+          initialRecipientEmail={stakeholderKind === 'speaker' ? speakerEmail(stakeholder as Speaker) : ''}
+          onClose={() => setSendForExternalApprovalOpen(false)}
+          onSent={() => onUpdate({ external_approval_status: 'pending' })}
+        />
+      )}
+
       {approverPickerOpen && (
         <div style={{ position: 'fixed', inset: 0, background: 'color-mix(in srgb, black 60%, transparent)', zIndex: 60, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }} onClick={() => setApproverPickerOpen(false)}>
-          <div onClick={e => e.stopPropagation()} style={{ width: '480px', maxWidth: '100%', maxHeight: '85vh', overflowY: 'auto', background: 'var(--card)', border: '1px solid var(--border)', borderRadius: '14px', padding: '22px' }}>
-            <div style={{ fontSize: '15px', fontWeight: 800, color: 'var(--ink)', marginBottom: '4px' }}>Send for Approval</div>
+          <div onClick={e => e.stopPropagation()} style={{ width: '480px', maxWidth: '100%', maxHeight: '85vh', overflowY: 'auto', background: 'var(--card)', border: '1px solid var(--border)', borderRadius: '14px', padding: '22px', position: 'relative' }}>
+            <button type="button" onClick={() => setApproverPickerOpen(false)} aria-label="Close"
+              style={{ position: 'absolute', top: '16px', right: '16px', width: '26px', height: '26px', display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: '7px', border: '1px solid var(--border-light)', background: 'var(--surface)', color: 'var(--ink3)', fontSize: '14px', lineHeight: 1, cursor: 'pointer' }}>
+              ×
+            </button>
+            <div style={{ fontSize: '15px', fontWeight: 800, color: 'var(--ink)', marginBottom: '4px', paddingRight: '30px' }}>Send for Approval</div>
             <div style={{ fontSize: '12px', color: 'var(--ink3)', marginBottom: '16px', lineHeight: 1.5 }}>
               Pick who should review this announcement — each gets an email with a direct link, no EventPilot login required.
             </div>
             {eventStaff.length === 0 ? (
               <div style={{ fontSize: '12.5px', color: 'var(--ink4)' }}>No staff assigned to this event yet — assign someone under the event&apos;s Team tab first.</div>
             ) : (
-              <div style={{ display: 'grid', gap: '8px', marginBottom: '18px' }}>
-                {eventStaff.map(es => {
+              <>
+                <input type="text" value={approverSearch} onChange={e => setApproverSearch(e.target.value)} placeholder="Search by name or email…"
+                  style={{ width: '100%', padding: '8px 10px', borderRadius: '8px', border: '1px solid var(--border)', fontSize: '12.5px', fontFamily: 'inherit', marginBottom: '10px', boxSizing: 'border-box' }} />
+                <div style={{ display: 'grid', gap: '8px', marginBottom: '18px' }}>
+                {eventStaff.filter(es => {
+                  const sm = Array.isArray(es.staff_members) ? es.staff_members[0] : es.staff_members
+                  if (!sm) return false
+                  const q = approverSearch.trim().toLowerCase()
+                  return !q || sm.name?.toLowerCase().includes(q) || sm.email?.toLowerCase().includes(q)
+                }).map(es => {
                   const sm = Array.isArray(es.staff_members) ? es.staff_members[0] : es.staff_members
                   if (!sm) return null
                   const picked = sm.id in pickedApprovers
@@ -647,7 +767,8 @@ export default function AnnouncementDetailPanel({
                     </label>
                   )
                 })}
-              </div>
+                </div>
+              </>
             )}
             <div style={{ display: 'flex', gap: '8px' }}>
               <Button variant="lime" onClick={sendForApproval} disabled={Object.keys(pickedApprovers).length === 0 || publishing !== null}>

@@ -13,7 +13,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
 
   const { data: approval } = await supabaseAdmin
     .from('announcement_approvals')
-    .select('approver_role, token_expires_at, status, notified_at, approver:approver_id(name)')
+    .select('approver_role, token_expires_at, status, notified_at, layer, external_name, approver:approver_id(name)')
     .eq('announcement_id', id)
     .eq('approval_token', token)
     .single()
@@ -38,8 +38,8 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     event_name: event?.name ?? null,
     sent_by: creator?.name ?? null,
     sent_at: approval.notified_at,
-    approver_name: approver?.name ?? null,
-    approver_role: approval.approver_role,
+    approver_name: approver?.name ?? approval.external_name ?? null,
+    approver_role: approval.layer === 'external' ? 'External Reviewer' : approval.approver_role,
     approval_status: approval.status,
     post_copy: announcement.post_copy,
     creative_url: announcement.creative_url,

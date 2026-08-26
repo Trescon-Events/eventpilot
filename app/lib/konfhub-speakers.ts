@@ -57,6 +57,33 @@ export type KonfhubSpeaker = {
   tags?: { id: string; name: string }[]
 }
 
+// Sessions/Agenda — undocumented (found live 2026-08-26, same way the
+// Speakers-management API's own quirks were): GET .../sessions requires a
+// sessions_to_return query param, one of 'all'/'assigned'/'unassigned'
+// (anything else 400s). Used only for the delete-confirmation's real
+// "is this speaker actually in a KonfHub session" check — never to modify
+// anything. Each session's session_speakers array holds full speaker
+// objects (not just ids), with speaker_id as a number despite the rest of
+// this file normalizing to string elsewhere — normalized here too.
+export type KonfhubSession = {
+  session_id: string
+  session_title: string
+  session_speakers: { speaker_id: string; name: string }[]
+}
+
+export async function listKonfhubSessions(konfhubEventId: string, token: string): Promise<KonfhubSession[]> {
+  const res = await fetch(`${API_BASE}/${konfhubEventId}/sessions?sessions_to_return=all`, {
+    headers: { Authorization: `Bearer ${token}` },
+  })
+  const data = await res.json().catch(() => []) as Array<{ session_id: number | string; session_title: string; session_speakers?: Array<{ speaker_id: number | string; name: string }> }> | { error?: string }
+  if (!res.ok || !Array.isArray(data)) throw new KonfhubApiError((data as { error?: string })?.error || 'Failed to list KonfHub sessions', res.status)
+  return data.map(s => ({
+    session_id: String(s.session_id),
+    session_title: s.session_title,
+    session_speakers: (s.session_speakers ?? []).map(sp => ({ speaker_id: String(sp.speaker_id), name: sp.name })),
+  }))
+}
+
 export class KonfhubApiError extends Error {
   status: number
   constructor(message: string, status: number) {

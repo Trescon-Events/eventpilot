@@ -5,6 +5,7 @@ import { hasEventPermission } from '@/app/lib/access/event-access'
 import { resolveFormSchema } from '@/app/lib/forms/resolve-schema'
 import { mapFieldsToRecord, recordToFields } from '@/app/lib/forms/map-to-stakeholder-record'
 import { FieldSchema, SubmittedValue } from '@/app/lib/forms/types'
+import { getKonfhubToken, deleteKonfhubSpeaker, KonfhubApiError } from '@/app/lib/konfhub-speakers'
 
 /* PATCH  /api/events/stakeholders/speakers/[id] — update any SAE-owned field
    DELETE /api/events/stakeholders/speakers/[id] — soft delete (Hub "Delete")
@@ -56,6 +57,12 @@ type SpeakerPatchBody = {
   // there's no meaningful "neither" state for a published speaker record).
   konfhub_tag_speaker?: boolean
   konfhub_tag_moderator?: boolean
+  // Deleted tab's standalone "Mark as done" action (2026-08-26) — clears
+  // konfhub_registration_cancel_requested_at once a producer has actually
+  // gone and cancelled the booking by hand in KonfHub's own dashboard (no
+  // API for this — see the DELETE handler below). Independent of Restore,
+  // which also clears this same column (see also_restore_to_website below).
+  also_mark_konfhub_registration_cancelled?: boolean
 }
 
 function fromRow(row: Record<string, unknown>) {
@@ -110,7 +117,14 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   if (body.announcement_status !== undefined) row.announcement_status = body.announcement_status
   if (body.notes !== undefined) row.notes = body.notes || null
   if (body.reviewed_by !== undefined) { row.reviewed_by = body.reviewed_by || null; row.reviewed_at = new Date().toISOString() }
-  if (body.also_restore_to_website) row.active = true
+  // Restore (Deleted tab) always sets active back true AND clears any
+  // pending manual-cancellation flag — restoring means "this person is
+  // active again," reversing that cancel intent. Known limitation: if the
+  // manual KonfHub-dashboard cancellation already happened before someone
+  // restores, EventPilot has no way to know and won't auto-re-register —
+  // producer decides whether to re-push via the Registration tab.
+  if (body.also_restore_to_website) { row.active = true; row.konfhub_registration_cancel_requested_at = null }
+  if (body.also_mark_konfhub_registration_cancelled) row.konfhub_registration_cancel_requested_at = null
   if (body.remove_company_logo) { row.company_logo_url = null; row.company_logo_raw_url = null }
   if (body.public_name !== undefined) row.public_name = body.public_name || null
   if (body.pronoun_style !== undefined) row.pronoun_style = body.pronoun_style || null
@@ -146,9 +160,24 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
 
 export async function DELETE(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
-  const body = await req.json().catch(() => ({})) as { also_remove_from_website?: boolean }
+  const body = await req.json().catch(() => ({})) as {
+    also_remove_from_website?: boolean
+    // Two more independent, opt-in KonfHub actions (2026-08-26), both off
+    // by default like also_remove_from_website above. See
+    // supabase/konfhub_speaker_delete_tracking_migration.sql for the full
+    // rationale — the short version: KonfHub Speakers-listing removal is a
+    // real API call (deleteKonfhubSpeaker); KonfHub Attendee Registration
+    // has no delete/cancel endpoint at all, so that one can only ever be a
+    // manual-cancellation flag, never automation.
+    also_remove_from_konfhub_listing?: boolean
+    also_flag_konfhub_registration_cancel?: boolean
+  }
 
-  const { data: existing } = await supabaseAdmin.from('event_speakers').select('event_id').eq('id', id).single()
+  const { data: existing } = await supabaseAdmin
+    .from('event_speakers')
+    .select('event_id, konfhub_speaker_id, konfhub_booking_id')
+    .eq('id', id)
+    .single()
   if (!existing) return NextResponse.json({ error: 'Speaker not found' }, { status: 404 })
 
   const session = getSession(req)
@@ -162,11 +191,47 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
   const row: Record<string, unknown> = { announcement_status: 'archived', updated_at: new Date().toISOString() }
   if (body.also_remove_from_website) row.active = false
 
+  // KonfHub Speakers-listing removal — a real external delete. Attempted
+  // even if it fails: EventPilot's own soft-delete must not be blocked by a
+  // third-party API hiccup, but the failure is surfaced to the caller
+  // rather than swallowed (same 422 vs 502 convention as
+  // .../konfhub-push/route.ts) so it isn't silently left inconsistent.
+  let konfhubListingError: string | null = null
+  if (body.also_remove_from_konfhub_listing && existing.konfhub_speaker_id) {
+    const { data: website } = await supabaseAdmin
+      .from('event_websites')
+      .select('konfhub_client_id, konfhub_client_secret, konfhub_event_id')
+      .eq('event_id', existing.event_id)
+      .single()
+    if (website?.konfhub_client_id && website?.konfhub_client_secret && website?.konfhub_event_id) {
+      try {
+        const token = await getKonfhubToken(website.konfhub_client_id, website.konfhub_client_secret)
+        await deleteKonfhubSpeaker(website.konfhub_event_id, existing.konfhub_speaker_id, token)
+        // Cleared so a future "Push to KonfHub" creates a fresh record
+        // instead of erroring against a now-deleted id.
+        row.konfhub_speaker_id = null
+        row.konfhub_speaker_removed_at = new Date().toISOString()
+      } catch (e) {
+        konfhubListingError = e instanceof KonfhubApiError ? e.message : e instanceof Error ? e.message : 'Could not remove from KonfHub'
+        console.error(`[speakers delete] KonfHub listing removal failed for ${id}:`, konfhubListingError)
+      }
+    } else {
+      konfhubListingError = 'KonfHub isn’t configured for this event.'
+    }
+  }
+
+  // No KonfHub API exists to cancel an Attendee Registration booking (only
+  // create/update — see konfhub-registration-push/route.ts's own doc
+  // comment). This can only ever be a to-do flag, never an automated call.
+  if (body.also_flag_konfhub_registration_cancel && existing.konfhub_booking_id) {
+    row.konfhub_registration_cancel_requested_at = new Date().toISOString()
+  }
+
   const { error } = await supabaseAdmin
     .from('event_speakers')
     .update(row)
     .eq('id', id)
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-  return NextResponse.json({ ok: true })
+  return NextResponse.json({ ok: true, konfhub_listing_error: konfhubListingError })
 }

@@ -60,6 +60,11 @@ type StakeholderRecord = {
   key_talking_points?: string | null
   logo_url?: string | null; logo_raw_url?: string | null
   email?: string | null
+  // Present at runtime (GET .../speakers/[id] spreads the raw row), not
+  // previously typed here. custom_fields.email is the canonical,
+  // actively-maintained speaker email (email above is a legacy, no-longer-
+  // written column) — see SAE Speaker type's own comment for why.
+  custom_fields?: Record<string, SubmittedValue> | null
   announcement_status: AnnouncementStatus
   source: 'onboarding_form' | 'manual'
   notes: string | null
@@ -684,6 +689,7 @@ export default function StakeholderReviewPage({ params }: { params: Promise<{ id
         announcement_status: status,
         email: record.email ?? null,
         public_name: record.public_name ?? null,
+        custom_fields: record.custom_fields ?? null,
       }
     : {
         id: record.id,

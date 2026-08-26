@@ -42,8 +42,13 @@ export type Speaker = {
   announcement_status: 'pending_review' | 'approved' | 'assets_missing' | 'ready' | 'archived'
   // Already present on GET .../speakers's `select('*')` response — added to
   // the type here (2026-08-18) to default Send to Speaker's recipient
-  // fields without a second fetch.
+  // fields without a second fetch. `email` is a legacy, no-longer-written
+  // column (see app/api/events/stakeholders/speakers/route.ts's own
+  // websiteStatus() comment) — custom_fields.email is the one the rest of
+  // the app (KonfHub registration, Registration tab readiness) actually
+  // trusts; prefer it wherever a speaker's email is quick-picked.
   email: string | null; public_name: string | null
+  custom_fields: Record<string, string | string[]> | null
 }
 export type Partner = {
   id: string; company_name: string; partner_type: string
@@ -75,6 +80,14 @@ export type AnnouncementListItem = {
   postiz_channel_ids: string[] | null
   publish_results: Record<string, { success: boolean; postId: string; state?: string; url?: string }> | null
   announcement_kind: 'org_promo' | 'self_promo'
+  // Two-layer approval (2026-08-26) — external_approval_status is derived
+  // server-side from the latest layer='external' announcement_approvals
+  // row ('none' if never sent); the two bypassed_at fields are set by the
+  // "not required" checkboxes. See AnnouncementDetailPanel.tsx's Approval
+  // section for how these combine into the publish-readiness check.
+  external_approval_status: 'none' | 'pending' | 'approved' | 'approved_with_comments' | 'changes_requested'
+  internal_approval_bypassed_at: string | null
+  external_approval_bypassed_at: string | null
 }
 
 export type PostizChannel = { id: string; name: string; identifier: string; picture: string | null; disabled: boolean }

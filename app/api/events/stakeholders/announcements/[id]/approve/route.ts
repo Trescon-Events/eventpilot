@@ -8,7 +8,17 @@ import { getStakeholderEmailHeaderHtml } from '@/app/lib/branding/email-header'
            'changes_requested', comments? }
    Public (see middleware.ts) — reachable via a signed approval_token (no
    EventPilot login) or by an authenticated staff approver_id. Exactly one
-   of token/approver_id is expected. */
+   of token/approver_id is expected.
+
+   Two-layer approval (2026-08-26) — the found row's `layer` decides what
+   happens next. 'internal' keeps the original behavior exactly: aggregate
+   ALL internal rows' statuses (.every()) and write the result onto
+   stakeholder_announcements.status, same as before this column existed.
+   'external' never touches stakeholder_announcements.status at all — that
+   column is internal's own domain. The external round's current state is
+   instead read directly off its own approval row wherever it's needed
+   (e.g. the Publishing panel's readiness check), so there's nothing here
+   to keep in sync. */
 
 type ApproveBody = {
   token?: string; approver_id?: string
@@ -41,10 +51,16 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     .eq('id', approval.id)
   if (updateErr) return NextResponse.json({ error: updateErr.message }, { status: 500 })
 
+  if (approval.layer === 'external') {
+    await notifyMM(id, body.status, 'external').catch(e => console.error('MM notification failed (approval still recorded):', e))
+    return NextResponse.json({ ok: true, announcement_status: null, external_approval_status: body.status })
+  }
+
   const { data: allApprovals } = await supabaseAdmin
     .from('announcement_approvals')
     .select('status')
     .eq('announcement_id', id)
+    .eq('layer', 'internal')
 
   const statuses = (allApprovals ?? []).map(a => a.status)
   let newAnnouncementStatus: string | null = null
@@ -60,13 +76,13 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       .update({ status: newAnnouncementStatus, updated_at: new Date().toISOString() })
       .eq('id', id)
 
-    await notifyMM(id, newAnnouncementStatus).catch(e => console.error('MM notification failed (approval still recorded):', e))
+    await notifyMM(id, newAnnouncementStatus, 'internal').catch(e => console.error('MM notification failed (approval still recorded):', e))
   }
 
   return NextResponse.json({ ok: true, announcement_status: newAnnouncementStatus ?? 'pending_approval' })
 }
 
-async function notifyMM(announcementId: string, newStatus: string) {
+async function notifyMM(announcementId: string, newStatus: string, layer: 'internal' | 'external') {
   if (!process.env.RESEND_API_KEY) return
 
   const { data: announcement } = await supabaseAdmin
@@ -86,8 +102,9 @@ async function notifyMM(announcementId: string, newStatus: string) {
   const headerHtml = await getStakeholderEmailHeaderHtml()
 
   const isApproved = newStatus === 'approved' || newStatus === 'approved_with_comments'
+  const layerLabel = layer === 'external' ? 'The speaker/office' : 'All internal approvers'
   const subject = isApproved
-    ? `Approved: announcement for ${event?.name ?? 'your event'}`
+    ? `${layer === 'external' ? 'Externally approved' : 'Approved'}: announcement for ${event?.name ?? 'your event'}`
     : `Changes requested: announcement for ${event?.name ?? 'your event'}`
 
   await resend.emails.send({
@@ -97,7 +114,7 @@ async function notifyMM(announcementId: string, newStatus: string) {
     /* eslint-disable no-restricted-syntax -- email HTML; clients can't render CSS custom properties, literal colors required (matches app/api/content/posts/[id]/approve/route.ts's existing convention) */
     html: `<div style="font-family:sans-serif;max-width:520px;margin:0 auto">${headerHtml}
            <p style="font-size:14px;color:#2D3E50">
-             ${isApproved ? 'All approvers have signed off on this announcement.' : 'An approver has requested changes to this announcement.'}
+             ${isApproved ? `${layerLabel} have signed off on this announcement.` : `${layer === 'external' ? 'The external reviewer' : 'An approver'} has requested changes to this announcement.`}
            </p>
            <p><a href="${siteUrl}/admin/events/${event?.id}/stakeholders" style="color:#00695C">Review in EventPilot →</a></p></div>`,
     /* eslint-enable no-restricted-syntax */

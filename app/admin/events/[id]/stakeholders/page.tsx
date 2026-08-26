@@ -422,12 +422,19 @@ export default function StakeholderHubPage({ params }: { params: Promise<{ id: s
     fetchSubmissions(category.formType)
   }
 
-  async function performDelete(alsoRemoveFromWebsite: boolean) {
+  async function performDelete(flags: { alsoRemoveFromWebsite: boolean; alsoRemoveFromKonfhubListing: boolean; alsoFlagKonfhubRegistrationCancel: boolean }) {
     if (!deleteConfirm || !category) return
     setDeleting(true)
     const base = category.kind === 'speaker' ? '/api/events/stakeholders/speakers' : '/api/events/stakeholders/partners'
     await Promise.all(deleteConfirm.map(item =>
-      fetch(`${base}/${item.id}`, { method: 'DELETE', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ also_remove_from_website: alsoRemoveFromWebsite }) })
+      fetch(`${base}/${item.id}`, {
+        method: 'DELETE', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          also_remove_from_website: flags.alsoRemoveFromWebsite,
+          also_remove_from_konfhub_listing: flags.alsoRemoveFromKonfhubListing,
+          also_flag_konfhub_registration_cancel: flags.alsoFlagKonfhubRegistrationCancel,
+        }),
+      })
     ))
     setDeleting(false)
     setDeleteConfirm(null)
@@ -875,6 +882,13 @@ export default function StakeholderHubPage({ params }: { params: Promise<{ id: s
           count={deleteConfirm.length}
           itemLabel={category.kind === 'speaker' ? 'speaker' : 'partner'}
           singleName={deleteConfirm.length === 1 ? (category.kind === 'speaker' ? (deleteConfirm[0] as Speaker).full_name : (deleteConfirm[0] as Partner).company_name) : undefined}
+          kind={category.kind}
+          eventId={eventId}
+          items={deleteConfirm.map(item => ({
+            id: item.id,
+            konfhubSpeakerId: category.kind === 'speaker' ? (item as Speaker).konfhub_speaker_id : undefined,
+            konfhubBookingId: category.kind === 'speaker' ? (item as Speaker).konfhub_booking_id : undefined,
+          }))}
           deleting={deleting}
           onConfirm={performDelete}
           onClose={() => setDeleteConfirm(null)}

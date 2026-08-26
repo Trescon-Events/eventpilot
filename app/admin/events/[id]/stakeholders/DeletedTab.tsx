@@ -18,9 +18,14 @@ type DeletedItem = {
   name: string
   subtitle: string
   thumb: string | null
+  konfhubSpeakerRemovedAt: string | null
+  konfhubRegistrationCancelRequestedAt: string | null
 }
 
-type RawSpeaker = { id: string; full_name: string; job_title: string; company_name: string; photo_processed_url: string | null; photo_url: string | null }
+type RawSpeaker = {
+  id: string; full_name: string; job_title: string; company_name: string; photo_processed_url: string | null; photo_url: string | null
+  konfhub_speaker_removed_at: string | null; konfhub_registration_cancel_requested_at: string | null
+}
 type RawPartner = { id: string; company_name: string; partner_type: string; logo_url: string | null }
 
 export default function DeletedTab({ eventId }: { eventId: string }) {
@@ -38,8 +43,11 @@ export default function DeletedTab({ eventId }: { eventId: string }) {
     const speakers: RawSpeaker[] = await spRes.json().catch(() => [])
     const partners: RawPartner[] = await ptRes.json().catch(() => [])
     setItems([
-      ...speakers.map((s): DeletedItem => ({ kind: 'speaker', id: s.id, name: s.full_name, subtitle: s.job_title && s.company_name ? `${s.job_title} · ${s.company_name}` : (s.company_name || ''), thumb: s.photo_processed_url || s.photo_url })),
-      ...partners.map((p): DeletedItem => ({ kind: 'partner', id: p.id, name: p.company_name, subtitle: p.partner_type.replace(/_/g, ' '), thumb: p.logo_url })),
+      ...speakers.map((s): DeletedItem => ({
+        kind: 'speaker', id: s.id, name: s.full_name, subtitle: s.job_title && s.company_name ? `${s.job_title} · ${s.company_name}` : (s.company_name || ''), thumb: s.photo_processed_url || s.photo_url,
+        konfhubSpeakerRemovedAt: s.konfhub_speaker_removed_at, konfhubRegistrationCancelRequestedAt: s.konfhub_registration_cancel_requested_at,
+      })),
+      ...partners.map((p): DeletedItem => ({ kind: 'partner', id: p.id, name: p.company_name, subtitle: p.partner_type.replace(/_/g, ' '), thumb: p.logo_url, konfhubSpeakerRemovedAt: null, konfhubRegistrationCancelRequestedAt: null })),
     ])
     setLoading(false)
   }
@@ -53,6 +61,20 @@ export default function DeletedTab({ eventId }: { eventId: string }) {
     await fetch(`${base}/${item.id}`, {
       method: 'PATCH', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ announcement_status: 'pending_review', also_restore_to_website: true }),
+    })
+    await fetchDeleted()
+    setRestoringId(null)
+  }
+
+  // Separate from Restore — for when a producer has actually gone and
+  // cancelled the booking by hand in KonfHub's dashboard (no API for that,
+  // see DeleteConfirmModal.tsx) and just wants to clear the to-do flag
+  // without bringing the speaker back.
+  async function markRegistrationCancelled(item: DeletedItem) {
+    setRestoringId(item.id)
+    await fetch(`/api/events/stakeholders/speakers/${item.id}`, {
+      method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ also_mark_konfhub_registration_cancelled: true }),
     })
     await fetchDeleted()
     setRestoringId(null)
@@ -84,10 +106,31 @@ export default function DeletedTab({ eventId }: { eventId: string }) {
                     {item.name} <span style={{ fontSize: '10.5px', fontWeight: 700, color: 'var(--ink4)', textTransform: 'uppercase', letterSpacing: '0.4px' }}>{item.kind}</span>
                   </div>
                   <div style={{ fontSize: '12px', color: 'var(--ink3)', marginTop: '2px' }}>{item.subtitle}</div>
+                  {(item.konfhubSpeakerRemovedAt || item.konfhubRegistrationCancelRequestedAt) && (
+                    <div style={{ display: 'flex', gap: '6px', marginTop: '6px', flexWrap: 'wrap' }}>
+                      {item.konfhubSpeakerRemovedAt && (
+                        <span style={{ fontSize: '10.5px', fontWeight: 700, color: 'var(--ink3)', background: 'var(--surface)', border: '1px solid var(--border-light)', borderRadius: '6px', padding: '2px 7px' }}>
+                          Removed from KonfHub listing
+                        </span>
+                      )}
+                      {item.konfhubRegistrationCancelRequestedAt && (
+                        <span style={{ fontSize: '10.5px', fontWeight: 700, color: '#E07B2C', background: 'color-mix(in srgb, #E07B2C 10%, transparent)', border: '1px solid color-mix(in srgb, #E07B2C 35%, transparent)', borderRadius: '6px', padding: '2px 7px' }}>
+                          ⚠ Needs manual KonfHub registration cancellation
+                        </span>
+                      )}
+                    </div>
+                  )}
                 </div>
-                <Button variant="teal" onClick={() => restore(item)} disabled={restoringId === item.id}>
-                  {restoringId === item.id ? 'Restoring…' : 'Restore'}
-                </Button>
+                <div style={{ display: 'flex', gap: '8px' }}>
+                  {item.konfhubRegistrationCancelRequestedAt && (
+                    <Button variant="ghost" onClick={() => markRegistrationCancelled(item)} disabled={restoringId === item.id}>
+                      Mark cancelled
+                    </Button>
+                  )}
+                  <Button variant="teal" onClick={() => restore(item)} disabled={restoringId === item.id}>
+                    {restoringId === item.id ? 'Restoring…' : 'Restore'}
+                  </Button>
+                </div>
               </div>
             </Card>
           ))}

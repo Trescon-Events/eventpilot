@@ -31,6 +31,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
   const approvalRows = body.approvers.map(a => ({
     announcement_id: id,
+    layer: 'internal' as const,
     approver_id: a.staff_id,
     approver_role: a.role_label,
     approval_token: randomBytes(32).toString('hex'),

@@ -17,7 +17,7 @@ export async function GET(req: NextRequest) {
 
   let q = supabaseAdmin
     .from('stakeholder_announcements')
-    .select('id, stakeholder_type, speaker_id, partner_id, post_copy, creative_url, creative_variant_id, status, created_at, scheduled_for, platforms, published_at, postiz_channel_ids, publish_results, announcement_kind')
+    .select('id, stakeholder_type, speaker_id, partner_id, post_copy, creative_url, creative_variant_id, status, created_at, scheduled_for, platforms, published_at, postiz_channel_ids, publish_results, announcement_kind, internal_approval_bypassed_at, external_approval_bypassed_at')
     .eq('event_id', eventId)
     .order('scheduled_for', { ascending: true, nullsFirst: false })
 
@@ -45,9 +45,31 @@ export async function GET(req: NextRequest) {
   const speakerNames = new Map((speakers ?? []).map(s => [s.id, s.name]))
   const partnerNames = new Map((partners ?? []).map(p => [p.id, p.name]))
 
+  // Two-layer approval (2026-08-26) — external_approval_status is derived
+  // from the MOST RECENT layer='external' announcement_approvals row per
+  // announcement (a resend after e.g. a wrong email creates a new row; the
+  // Publishing panel's readiness check should only ever look at the latest
+  // one), not stored as its own column, so there's nothing to keep in sync
+  // if the approvals table changes. 'none' — never sent, doesn't block
+  // anything (existing internal-only announcements are unaffected).
+  const announcementIds = (data ?? []).map(a => a.id)
+  const externalStatusById = new Map<string, string>()
+  if (announcementIds.length > 0) {
+    const { data: externalApprovals } = await supabaseAdmin
+      .from('announcement_approvals')
+      .select('announcement_id, status, created_at')
+      .in('announcement_id', announcementIds)
+      .eq('layer', 'external')
+      .order('created_at', { ascending: false })
+    for (const row of externalApprovals ?? []) {
+      if (!externalStatusById.has(row.announcement_id)) externalStatusById.set(row.announcement_id, row.status)
+    }
+  }
+
   const enriched = (data ?? []).map(a => ({
     ...a,
     stakeholder_name: a.speaker_id ? speakerNames.get(a.speaker_id) : a.partner_id ? partnerNames.get(a.partner_id) : null,
+    external_approval_status: externalStatusById.get(a.id) ?? 'none',
   }))
 
   return NextResponse.json(enriched)
