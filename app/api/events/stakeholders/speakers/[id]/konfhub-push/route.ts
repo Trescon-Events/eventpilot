@@ -124,6 +124,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     return NextResponse.json({ konfhub_speaker_id: konfhubSpeakerId, konfhub_synced_at: syncedAt, was_first_push: wasFirstPush })
   } catch (e) {
     const message = e instanceof KonfhubApiError ? e.message : e instanceof Error ? e.message : 'Could not push to KonfHub'
+    console.error(`[konfhub-push] speaker ${speakerId} failed:`, e instanceof KonfhubApiError ? `status ${e.status} — ${message}` : message)
     return NextResponse.json({ error: message }, { status: 502 })
   }
 }

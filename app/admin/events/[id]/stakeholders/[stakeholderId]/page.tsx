@@ -430,11 +430,12 @@ export default function StakeholderReviewPage({ params }: { params: Promise<{ id
     try {
       const res = await fetch(`/api/events/stakeholders/speakers/${stakeholderId}/konfhub-push`, { method: 'POST' })
       const data = await res.json().catch(() => ({}))
-      if (!res.ok) { setMsg(data.error || 'Could not push to KonfHub — please try again.'); return }
+      if (!res.ok) { setMsg(data.error || 'Could not push to KonfHub — please try again.'); setKonfhubConfirm(false); return }
       setRecord(prev => prev ? { ...prev, konfhub_speaker_id: data.konfhub_speaker_id, konfhub_synced_at: data.konfhub_synced_at } : prev)
       setKonfhubConfirm(false)
     } catch {
       setMsg('Could not push to KonfHub — check your connection and try again.')
+      setKonfhubConfirm(false)
     } finally {
       setPushingKonfhub(false)
       setProcessing(null)
