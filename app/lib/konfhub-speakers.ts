@@ -38,6 +38,14 @@ export type KonfhubSpeaker = {
   facebook_url?: string | null
   twitter_url?: string | null
   website_url?: string | null
+  // KonfHub's own single-value grouping field (distinct from the `tags`
+  // array below) — one category per speaker. Used for umbrella KonfHub
+  // events that host several separately-branded sub-events under one
+  // event_id (e.g. Dubai Future Finance Week), where each sub-event maps
+  // to its own EventPilot event/website but shares this one KonfHub
+  // event — event_websites.konfhub_speaker_category_id says which
+  // category id this EventPilot event's pushes should use. Unset (null)
+  // for a normal 1:1 EventPilot-event-to-KonfHub-event, same as tags.
   speaker_category_id?: string | null
   speaker_order?: number
   // Panel-discussion workaround (2026-08-25) — a speaker can be listed as
@@ -88,7 +96,7 @@ export async function updateKonfhubSpeaker(
   token: string,
   fields: Partial<Pick<KonfhubSpeaker,
     'name' | 'about' | 'image_url' | 'organisation_logo_url' | 'designation' | 'organisation' |
-    'location' | 'linkedin_url' | 'facebook_url' | 'twitter_url' | 'website_url' | 'tags'
+    'location' | 'linkedin_url' | 'facebook_url' | 'twitter_url' | 'website_url' | 'tags' | 'speaker_category_id'
   >>
 ): Promise<void> {
   const res = await fetch(`${API_BASE}/${konfhubEventId}/speakers/${speakerId}`, {
@@ -105,7 +113,7 @@ export async function createKonfhubSpeaker(
   token: string,
   fields: { name: string; speaker_order: number } & Partial<Pick<KonfhubSpeaker,
     'about' | 'image_url' | 'organisation_logo_url' | 'designation' | 'organisation' |
-    'location' | 'linkedin_url' | 'facebook_url' | 'twitter_url' | 'website_url' | 'tags'
+    'location' | 'linkedin_url' | 'facebook_url' | 'twitter_url' | 'website_url' | 'tags' | 'speaker_category_id'
   >>
 ): Promise<string> {
   const res = await fetch(`${API_BASE}/${konfhubEventId}/speakers`, {

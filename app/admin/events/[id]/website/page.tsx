@@ -64,6 +64,11 @@ type WebsiteSettings = {
   // app/lib/konfhub-speakers.ts's own top comment for why these are
   // separate from konfhub_api_key.
   konfhub_client_id: string | null; konfhub_client_secret: string | null
+  // KonfHub's native per-event speaker-category grouping id (2026-08-26)
+  // — only needed when several EventPilot events share one KonfHub event
+  // (e.g. Dubai Future Finance Week's sub-events). Distinct from the
+  // Speaker/Moderator tags concept; see konfhub-speakers.ts.
+  konfhub_speaker_category_id: string | null
 }
 
 type Speaker = {
@@ -1756,6 +1761,14 @@ export default function EventWebsiteAdmin({ params }: { params: Promise<{ id: st
               <div style={{ marginTop: '16px', paddingTop: '16px', borderTop: `1px solid ${C.border}`, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px' }}>
                 <Field label="KonfHub Client ID" value={settings.konfhub_client_id ?? ''} onChange={SET('konfhub_client_id')} placeholder="for Push/Update to KonfHub" />
                 <Field label="KonfHub Client Secret" type="password" value={settings.konfhub_client_secret ?? ''} onChange={SET('konfhub_client_secret')} placeholder="for Push/Update to KonfHub" />
+              </div>
+              {/* Only needed when this event shares a KonfHub event_id with
+                  other EventPilot events (e.g. Dubai Future Finance Week's
+                  sub-events) — leave blank for a normal 1:1 event. Find the
+                  id via GET /event/:id/speakers on KonfHub's API (each
+                  category's speakers carry its speaker_category_id). */}
+              <div style={{ marginTop: '16px', paddingTop: '16px', borderTop: `1px solid ${C.border}` }}>
+                <Field label="KonfHub Speaker Category ID" value={settings.konfhub_speaker_category_id ?? ''} onChange={SET('konfhub_speaker_category_id')} placeholder="e.g. 19271 — only for shared/umbrella KonfHub events" />
               </div>
               <div style={{ marginTop: '12px', padding: '10px 14px', borderRadius: '8px', background: 'rgba(167,139,250,0.06)', border: `1px solid rgba(167,139,250,0.18)`, fontSize: '12px', color: C.muted }}>
                 Public API: <code style={{ fontSize: '11px', background: 'rgba(0,0,0,0.06)', padding: '2px 6px', borderRadius: '4px' }}>/api/public/event/{settings.slug || '{slug}'}</code>

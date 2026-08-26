@@ -46,7 +46,16 @@ import { getKonfhubToken, createKonfhubSpeaker, updateKonfhubSpeaker, KonfhubApi
    undocumented — see git history) get sent. This is purely a KonfHub
    display classification — it never touches announcement_status,
    website_status, or any other "is this a published speaker" signal in
-   EventPilot itself. */
+   EventPilot itself.
+
+   Speaker category (2026-08-26) — for an umbrella KonfHub event hosting
+   several separately-branded sub-events under one event_id (e.g. Dubai
+   Future Finance Week), event_websites.konfhub_speaker_category_id says
+   which of KonfHub's native speaker_category_id groupings this event's
+   pushes belong to. Distinct from the Speaker/Moderator tags above —
+   category is single-valued and per-EVENT (which sub-event), tags are a
+   list and per-SPEAKER (what role). Omitted when unset, same convention
+   as every other optional field here. */
 
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id: speakerId } = await params
@@ -78,7 +87,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
   const { data: website } = await supabaseAdmin
     .from('event_websites')
-    .select('konfhub_client_id, konfhub_client_secret, konfhub_event_id, konfhub_speaker_tag_id, konfhub_moderator_tag_id')
+    .select('konfhub_client_id, konfhub_client_secret, konfhub_event_id, konfhub_speaker_tag_id, konfhub_moderator_tag_id, konfhub_speaker_category_id')
     .eq('event_id', speaker.event_id)
     .single()
   if (!website?.konfhub_client_id || !website?.konfhub_client_secret || !website?.konfhub_event_id) {
@@ -103,6 +112,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       designation: speaker.role || undefined,
       organisation: speaker.company || undefined,
       linkedin_url: speaker.linkedin_url || undefined,
+      speaker_category_id: website.konfhub_speaker_category_id || undefined,
       ...(tags.length > 0 ? { tags } : {}),
     }
 
