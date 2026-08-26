@@ -208,10 +208,10 @@ export default function AnnouncementDetailPanel({
     } else onError(data.error || 'Could not send for approval.')
   }
 
-  async function bypassApproval(layer: 'internal' | 'external') {
+  async function setBypassApproval(layer: 'internal' | 'external', bypassed: boolean) {
     setBypassing(layer)
     const res = await fetch(`/api/events/stakeholders/announcements/${announcement.id}/bypass-approval`, {
-      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ layer }),
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ layer, bypassed }),
     })
     const data = await res.json().catch(() => ({}))
     setBypassing(null)
@@ -219,7 +219,7 @@ export default function AnnouncementDetailPanel({
       onUpdate(layer === 'internal'
         ? { internal_approval_bypassed_at: data.internal_approval_bypassed_at }
         : { external_approval_bypassed_at: data.external_approval_bypassed_at })
-    } else onError(data.error || 'Could not bypass approval.')
+    } else onError(data.error || 'Could not update approval.')
   }
 
   async function scheduleAnnouncement() {
@@ -338,8 +338,10 @@ export default function AnnouncementDetailPanel({
   // it only holds things up once someone has actually clicked "Send for
   // External Approval" and it's still pending or came back with changes
   // requested, unless that round was itself bypassed.
-  const internalDone = announcement.status === 'approved' || announcement.status === 'approved_with_comments' || !!announcement.internal_approval_bypassed_at
-  const externalOk = announcement.external_approval_status === 'none' || announcement.external_approval_status === 'approved' || announcement.external_approval_status === 'approved_with_comments' || !!announcement.external_approval_bypassed_at
+  const internalApproved = announcement.status === 'approved' || announcement.status === 'approved_with_comments'
+  const externalApproved = announcement.external_approval_status === 'approved' || announcement.external_approval_status === 'approved_with_comments'
+  const internalDone = internalApproved || !!announcement.internal_approval_bypassed_at
+  const externalOk = announcement.external_approval_status === 'none' || externalApproved || !!announcement.external_approval_bypassed_at
   const readyToPublish = internalDone && externalOk
   const externalApprovalPending = announcement.external_approval_status === 'pending' && !announcement.external_approval_bypassed_at
   const externalChangesRequested = announcement.external_approval_status === 'changes_requested' && !announcement.external_approval_bypassed_at
@@ -408,67 +410,75 @@ export default function AnnouncementDetailPanel({
       </div>
 
       {/* Approval — internal (event_staff, existing) and external (speaker/
-          office, 2026-08-26) rounds, kept together in one visually
-          separate section per Madhu ("keep all these approval related
-          items in a visually separate section... just for proper page
+          office, 2026-08-26) rounds, side by side in one visually separate
+          section per Madhu ("show two columns... just for proper page
           structure"), rather than duplicated inline in both the org_promo
           Publishing and self_promo Send-to-Speaker sections below (their
           previous location — identical logic either way, per the
-          Send-to-Speaker section's own long-standing comment). */}
+          Send-to-Speaker section's own long-standing comment).
+
+          The "Not required / Reviewed" checkbox is a real toggle, not a
+          one-shot button (2026-08-26, per Madhu's brainstorm) — available
+          any time that column isn't genuinely approved, INCLUDING while
+          pending or after changes were requested (feedback often gets
+          resolved outside the formal loop), and uncheckable as an honest
+          undo. Once a column is genuinely approved its controls disappear
+          entirely — no reason to second-guess a real yes. */}
       <div style={{ padding: '16px 18px', borderRadius: '10px', border: '1px solid var(--border-light)', background: 'var(--surface)' }}>
         <div style={{ fontSize: '10.5px', fontWeight: 800, color: 'var(--ink3)', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '12px' }}>Approval</div>
 
-        <div style={{ display: 'grid', gap: '10px' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
-            <div style={{ fontSize: '12.5px', color: 'var(--ink2)' }}>
-              <strong>Internal:</strong>{' '}
-              {announcement.internal_approval_bypassed_at ? 'Bypassed' : internalDone ? 'Approved' : announcement.status === 'changes_requested' ? 'Changes requested' : announcement.status === 'pending_approval' ? 'Pending' : 'Not sent'}
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+          {/* Internal */}
+          <div style={{ border: '1px solid var(--border-light)', borderRadius: '8px', padding: '12px 14px' }}>
+            <div style={{ fontSize: '11px', fontWeight: 800, color: 'var(--ink3)', textTransform: 'uppercase', letterSpacing: '0.4px', marginBottom: '6px' }}>Internal Approval</div>
+            <div style={{ fontSize: '12.5px', color: 'var(--ink2)', marginBottom: '10px' }}>
+              {internalApproved ? '✓ Approved' : announcement.internal_approval_bypassed_at ? 'Not required / Reviewed' : announcement.status === 'changes_requested' ? 'Changes requested' : announcement.status === 'pending_approval' ? 'Pending' : 'Not sent'}
             </div>
-            <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-              {!internalDone && (announcement.status === 'draft' || announcement.status === 'changes_requested' || announcement.status === 'pending_approval') && (
-                <>
-                  <Button variant="ghost" onClick={() => setApproverPickerOpen(true)} disabled={publishing !== null}>
-                    {publishing === 'approval' ? 'Sending…' : 'Send for Approval'}
-                  </Button>
-                  <Button variant="ghost" onClick={() => bypassApproval('internal')} disabled={bypassing !== null}
-                    title="Skip internal review and go straight to external approval (or publishing, if no external round is used either)">
-                    {bypassing === 'internal' ? 'Bypassing…' : 'Internal approval not required'}
-                  </Button>
-                </>
-              )}
-            </div>
-          </div>
-
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
-            <div style={{ fontSize: '12.5px', color: 'var(--ink2)' }}>
-              <strong>External:</strong>{' '}
-              {announcement.external_approval_bypassed_at ? 'Bypassed'
-                : announcement.external_approval_status === 'approved' ? 'Approved'
-                : announcement.external_approval_status === 'approved_with_comments' ? 'Approved (with comments)'
-                : announcement.external_approval_status === 'changes_requested' ? 'Changes requested'
-                : announcement.external_approval_status === 'pending' ? 'Pending'
-                : 'Not sent'}
-            </div>
-            {internalDone && !announcement.external_approval_bypassed_at && (announcement.external_approval_status === 'none' || announcement.external_approval_status === 'changes_requested') && (
-              <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-                <Button variant="ghost" onClick={() => setSendForExternalApprovalOpen(true)}>
-                  Send for External Approval
+            {!internalApproved && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', alignItems: 'flex-start' }}>
+                <Button variant="ghost" onClick={() => setApproverPickerOpen(true)} disabled={publishing !== null}>
+                  {publishing === 'approval' ? 'Sending…' : 'Send for Approval'}
                 </Button>
-                <Button variant="ghost" onClick={() => bypassApproval('external')} disabled={bypassing !== null}
-                  title="Skip external sign-off and unlock publishing">
-                  {bypassing === 'external' ? 'Bypassing…' : 'External approval not required'}
-                </Button>
+                <label style={{ display: 'flex', alignItems: 'center', gap: '7px', fontSize: '12px', color: 'var(--ink3)', cursor: bypassing ? 'default' : 'pointer' }}>
+                  <input type="checkbox" checked={!!announcement.internal_approval_bypassed_at} disabled={bypassing !== null}
+                    onChange={e => setBypassApproval('internal', e.target.checked)} style={{ width: '14px', height: '14px' }} />
+                  Not required / Reviewed
+                </label>
               </div>
             )}
           </div>
 
-          {externalApprovalPending && (
-            <div style={{ fontSize: '12px', color: 'var(--ink3)' }}>Waiting on the external reviewer — publishing is on hold until they respond, or you mark it not required above.</div>
-          )}
-          {externalChangesRequested && (
-            <div style={{ fontSize: '12px', color: 'var(--red)' }}>The external reviewer requested changes — update the copy/creative above, then send for external approval again.</div>
-          )}
+          {/* External */}
+          <div style={{ border: '1px solid var(--border-light)', borderRadius: '8px', padding: '12px 14px' }}>
+            <div style={{ fontSize: '11px', fontWeight: 800, color: 'var(--ink3)', textTransform: 'uppercase', letterSpacing: '0.4px', marginBottom: '6px' }}>External Approval</div>
+            <div style={{ fontSize: '12.5px', color: 'var(--ink2)', marginBottom: '10px' }}>
+              {externalApproved ? (announcement.external_approval_status === 'approved_with_comments' ? '✓ Approved (with comments)' : '✓ Approved')
+                : announcement.external_approval_bypassed_at ? 'Not required / Reviewed'
+                : announcement.external_approval_status === 'changes_requested' ? 'Changes requested'
+                : announcement.external_approval_status === 'pending' ? 'Pending'
+                : 'Not sent'}
+            </div>
+            {!externalApproved && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', alignItems: 'flex-start' }}>
+                <Button variant="ghost" onClick={() => setSendForExternalApprovalOpen(true)}>
+                  Send for External Approval
+                </Button>
+                <label style={{ display: 'flex', alignItems: 'center', gap: '7px', fontSize: '12px', color: 'var(--ink3)', cursor: bypassing ? 'default' : 'pointer' }}>
+                  <input type="checkbox" checked={!!announcement.external_approval_bypassed_at} disabled={bypassing !== null}
+                    onChange={e => setBypassApproval('external', e.target.checked)} style={{ width: '14px', height: '14px' }} />
+                  Not required / Reviewed
+                </label>
+              </div>
+            )}
+          </div>
         </div>
+
+        {externalApprovalPending && (
+          <div style={{ fontSize: '12px', color: 'var(--ink3)', marginTop: '10px' }}>Waiting on the external reviewer — publishing is on hold until they respond, or you check "Not required / Reviewed" above.</div>
+        )}
+        {externalChangesRequested && (
+          <div style={{ fontSize: '12px', color: 'var(--red)', marginTop: '10px' }}>The external reviewer requested changes — update the copy/creative above and send again, or check "Not required / Reviewed" if it's already been resolved another way.</div>
+        )}
       </div>
 
       {effectiveKind === 'org_promo' ? (
