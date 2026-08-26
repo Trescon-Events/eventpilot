@@ -15,13 +15,40 @@ Railway's auto-deploy silently stopped working from **2026-07-17 to 2026-07-21**
 
 | Field | Value |
 |---|---|
-| Who | Madhu + Claude Code (Sonnet 5) — 25 Aug 2026, Speaker Registration / KonfHub-sync-scoped session |
-| Date | 2026-08-25 |
-| Latest push | 2026-08-25 — see both write-ups below. Session ran in two waves: (1) built the Registration tab + Attendee Registration push, including same-day discovery of a real KonfHub update endpoint; (2) after Madhu asked about it, added bulk "Register on KonfHub" to the roster with a live duplicate-safety check built into the route itself, made Public Name auto-default to "First Last" on speaker creation, and — after debating a panel-discussion workaround (same person speaks in one session, moderates another) — discovered KonfHub speakers can hold multiple tags at once and shipped Speaker/Moderator checkboxes instead of duplicating records. |
-| DB migrations applied | 3 additive migrations total this session, all via `supabase db query --linked -f <path>`: `supabase/konfhub_registration_migration.sql`, `supabase/konfhub_registration_jobs_migration.sql` (wave 1), `supabase/konfhub_speaker_tags_migration.sql` (wave 2 — `event_speakers.konfhub_tag_speaker`/`konfhub_tag_moderator`, `event_websites.konfhub_speaker_tag_id`/`konfhub_moderator_tag_id`). Plus direct data changes: rotated `konfhub_client_id`/`konfhub_client_secret`; populated `konfhub_registration_field_map` with real form_ids; backfilled `konfhub_booking_id`/`konfhub_registration_synced_at` for 35 speakers; populated the two new tag-id columns with this event's real Speaker/Moderator tag ids. |
+| Who | Madhu + Claude Code (Sonnet 5) — 26 Aug 2026, KonfHub speaker-push bug report |
+| Date | 2026-08-26 |
+| Latest push | 2026-08-26 — commits `3e3730a`, `f8b79c6`. A producer reported "Push to KonfHub" stuck re-showing its confirm dialog for speaker Ts. Azrul Zafri Azmi. Reproduced live, root-caused, fixed in two rounds — see write-up below. |
+| DB migrations applied | None. |
 | Handed off to | Durga. |
-| Deployed | Live — commits `190dbaf` through `27b582b` (12 commits total, see both write-ups) pushed to `main`, Railway auto-deployed each time. Update path, bulk register, and Speaker/Moderator tags all live-verified against real records (Sudeep Srivastava, and a live tag test on his record that was reverted after Madhu confirmed the rendering looked right on KonfHub + the event website). |
-| Left alone / known follow-up | Two KonfHub registrations (Prof. Jugdutt (Jack) Singh, Ts. Dr. Sheila Mahalingam) have no matching EventPilot speaker — Madhu confirmed they've backed off and will be removed from KonfHub directly, no EventPilot-side action needed. Toggling either Speaker/Moderator checkbox counts as an edit, which resets an already-approved speaker to `pending_review` under the existing global "any edit forces re-review" rule — flagged to Madhu, not yet special-cased. See both write-ups below for everything else. |
+| Deployed | Live — both commits pushed to `main`, Railway auto-deployed each time. |
+| Left alone / known follow-up | None new — see write-up below. |
+
+## 26 Aug 2026 — KonfHub push error handling fixed (producer-reported bug)
+
+### The bug report and root cause
+
+Durga's producer reported the "Push to KonfHub" confirm dialog on a speaker's Details page kept reappearing after clicking Push, as if nothing happened. Reproduced live on the actual record (Ts. Azrul Zafri Azmi, World AI Show Malaysia 2026) — confirmed via Railway's HTTP logs a real HTTP 502 on every attempt (~1-1.3s each, so an actual round trip to KonfHub, not an instant local check). Traced two compounding bugs:
+
+1. **UI bug**: `pushToKonfhub()` in the speaker Details page only closed the confirm modal (`setKonfhubConfirm(false)`) on the success path. Any failure left the modal open forever, hiding the real error banner rendered underneath it — looked exactly like clicking Push did nothing.
+2. **Silent server-side errors**: the `konfhub-push` route swallowed the real KonfHub error into its JSON response without ever logging it, so nothing showed up in Railway's app logs to diagnose from.
+
+Fixed both (`3e3730a`): modal now closes on every path (success, `!res.ok`, and network-exception catch), and the route logs the real KonfHub error server-side before responding.
+
+### Root cause of the actual failure
+
+With logging in place, the real error surfaced immediately: KonfHub's Organisation field caps at 100 characters; this speaker's `company` field (two affiliations joined with " | ") was 107. Not a code bug — a data issue. The producer shortened the field and the push succeeded.
+
+### A second round: the specific error still wasn't reaching the browser
+
+Even with logging + the modal fix live, the producer's next failed attempt (before she shortened the field) showed only the generic "Could not push to KonfHub — please try again." fallback — not KonfHub's own message, despite Railway's app log proving the server computed and attempted to send that exact string. The message-construction logic itself was unchanged and correct on both client and server; nothing in this repo's own middleware or the Cloudflare Worker proxy (`infra/eventpilot-proxy/proxy-worker.js`, a pure passthrough) touches response bodies. Leading theory: an infra layer (proxy/CDN) treating HTTP 502 as a signal to intervene, since 502 is the class of status most likely to get special-cased.
+
+Fixed (`f8b79c6`) by routing KonfHub's own 4xx validation rejections through **422** instead of a blanket 502 — same status this route already uses for its own readiness gates (missing Public Name, uncleaned photo, etc.), and not a status an infra layer has reason to treat as "the origin is broken." Also hardened the client fallback to always include the HTTP status code even if `data.error` is ever still missing, so a failure is never just a bare "try again" with zero diagnostic info.
+
+### What's next
+
+- Not yet re-verified live against an actual KonfHub 4xx rejection post-422-fix (the triggering record's data is now fixed, so there's nothing currently broken to test against). If this recurs, check whether the specific KonfHub message now reaches the browser — if not, capture the raw Network-tab response body directly to pin down what's altering it (a proxy layer vs. a browser extension on the producer's machine were the two live theories, neither confirmed).
+
+---
 
 ## 25 Aug 2026 (wave 2) — Bulk Register on KonfHub + live dup-check, Public Name auto-default, Speaker/Moderator tags
 
