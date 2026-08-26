@@ -125,6 +125,12 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   } catch (e) {
     const message = e instanceof KonfhubApiError ? e.message : e instanceof Error ? e.message : 'Could not push to KonfHub'
     console.error(`[konfhub-push] speaker ${speakerId} failed:`, e instanceof KonfhubApiError ? `status ${e.status} — ${message}` : message)
-    return NextResponse.json({ error: message }, { status: 502 })
+    // KonfHub rejecting the data itself (400/422 — e.g. a field over its
+    // length limit) is a fixable, producer-actionable problem, same class
+    // as the gates above — surface it as 422 with KonfHub's own message so
+    // it isn't lumped in with (and doesn't risk being swallowed by a proxy
+    // that special-cases) a real 502 Bad Gateway/infra failure.
+    const status = e instanceof KonfhubApiError && e.status >= 400 && e.status < 500 ? 422 : 502
+    return NextResponse.json({ error: message }, { status })
   }
 }
