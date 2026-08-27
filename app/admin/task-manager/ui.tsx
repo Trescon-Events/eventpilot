@@ -94,27 +94,37 @@ interface SearchableSelectProps {
 }
 
 /**
- * A text-searchable dropdown — trigger looks like a normal field, clicking it
- * opens a search box + filtered list. Built by hand (no combobox library is
- * installed in this app) to match the existing lightweight component style.
- * Keyboard: type to filter, ↑/↓ to move, Enter to pick, Esc to close.
+ * A direct typeable dropdown — input allows immediate typing to search/select,
+ * and automatically sorts all options in ascending alphabetical order.
+ * Keyboard: type to filter, ↑/↓ to navigate, Enter to select, Esc to close.
  */
 export function SearchableSelect({ options, value, onChange, placeholder = 'Search…', emptyOptionLabel, compact }: SearchableSelectProps) {
   const [open, setOpen] = useState(false)
   const [query, setQuery] = useState('')
   const [highlight, setHighlight] = useState(0)
   const containerRef = useRef<HTMLDivElement>(null)
-  const searchRef = useRef<HTMLInputElement>(null)
+  const inputRef = useRef<HTMLInputElement>(null)
 
-  const selected = options.find(o => o.id === value) ?? null
+  // Sort options ascending (A-Z) by label
+  const sortedOptions = useMemo(() => {
+    return [...options].sort((a, b) => a.label.localeCompare(b.label, undefined, { sensitivity: 'base' }))
+  }, [options])
+
+  const selected = sortedOptions.find(o => o.id === value) ?? null
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase()
-    if (!q) return options
-    return options.filter(o => o.label.toLowerCase().includes(q) || (o.sublabel ?? '').toLowerCase().includes(q))
-  }, [options, query])
+    if (!q) return sortedOptions
+    return sortedOptions.filter(o => o.label.toLowerCase().includes(q) || (o.sublabel ?? '').toLowerCase().includes(q))
+  }, [sortedOptions, query])
 
-  const listItems: ComboOption[] = emptyOptionLabel ? [{ id: '', label: emptyOptionLabel }, ...filtered] : filtered
+  const listItems: ComboOption[] = useMemo(() => {
+    if (!emptyOptionLabel) return filtered
+    if (query && !emptyOptionLabel.toLowerCase().includes(query.toLowerCase())) {
+      return filtered
+    }
+    return [{ id: '', label: emptyOptionLabel }, ...filtered]
+  }, [emptyOptionLabel, filtered, query])
 
   useEffect(() => {
     if (!open) return
@@ -128,13 +138,6 @@ export function SearchableSelect({ options, value, onChange, placeholder = 'Sear
     return () => document.removeEventListener('mousedown', onMouseDown)
   }, [open])
 
-  function openDropdown() {
-    setOpen(true)
-    setQuery('')
-    setHighlight(0)
-    setTimeout(() => searchRef.current?.focus(), 0)
-  }
-
   function pick(option: ComboOption) {
     onChange(option.id)
     setOpen(false)
@@ -142,66 +145,108 @@ export function SearchableSelect({ options, value, onChange, placeholder = 'Sear
   }
 
   function onKeyDown(e: React.KeyboardEvent) {
-    // Stop propagation on every handled key — this box can be used inside
-    // TaskModal, which has its own window-level Escape/Enter listener for
-    // closing/saving the whole modal. Without this, Escape here would also
-    // close the modal, and Enter here could double-fire the modal's handler.
     if (e.key === 'Escape') { e.stopPropagation(); setOpen(false); setQuery(''); return }
-    if (e.key === 'ArrowDown') { e.preventDefault(); e.stopPropagation(); setHighlight(h => Math.min(h + 1, listItems.length - 1)); return }
-    if (e.key === 'ArrowUp') { e.preventDefault(); e.stopPropagation(); setHighlight(h => Math.max(h - 1, 0)); return }
-    if (e.key === 'Enter') { e.preventDefault(); e.stopPropagation(); if (listItems[highlight]) pick(listItems[highlight]); return }
+    if (e.key === 'ArrowDown') {
+      e.preventDefault(); e.stopPropagation()
+      if (!open) setOpen(true)
+      setHighlight(h => Math.min(h + 1, Math.max(0, listItems.length - 1)))
+      return
+    }
+    if (e.key === 'ArrowUp') {
+      e.preventDefault(); e.stopPropagation()
+      if (!open) setOpen(true)
+      setHighlight(h => Math.max(h - 1, 0))
+      return
+    }
+    if (e.key === 'Enter') {
+      if (open && listItems[highlight]) {
+        e.preventDefault(); e.stopPropagation()
+        pick(listItems[highlight])
+      }
+    }
   }
 
-  const triggerLabel = selected ? selected.label : (emptyOptionLabel ?? placeholder)
+  const displayValue = open ? query : (selected ? selected.label : '')
 
   return (
-    <div ref={containerRef} style={{ position: 'relative', width: compact ? 'auto' : '100%' }}>
-      <button
-        type="button"
-        onClick={() => {
-          if (open) { setOpen(false); setQuery('') }
-          else openDropdown()
-        }}
-        className={compact ? undefined : 'tfield'}
-        style={{
-          display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '6px',
-          width: '100%', textAlign: 'left', cursor: 'pointer',
-          background: compact ? 'transparent' : undefined,
-          border: compact ? 'none' : undefined,
-          padding: compact ? '2px 4px' : undefined,
-          color: selected ? 'var(--ink)' : 'var(--ink3)',
-          fontSize: compact ? '13px' : undefined,
-          fontWeight: compact ? 600 : undefined,
-        }}
-      >
-        <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{triggerLabel}</span>
-        <span style={{ color: 'var(--ink4)', fontSize: '10px', flexShrink: 0 }}>▾</span>
-      </button>
+    <div ref={containerRef} style={{ position: 'relative', width: compact ? 'auto' : '100%', minWidth: compact ? '160px' : 'auto' }}>
+      <div style={{ display: 'flex', alignItems: 'center', position: 'relative', width: '100%' }}>
+        <input
+          ref={inputRef}
+          type="text"
+          value={displayValue}
+          onChange={e => {
+            setQuery(e.target.value)
+            if (!open) setOpen(true)
+            setHighlight(0)
+          }}
+          onFocus={() => {
+            setOpen(true)
+            setQuery('')
+            setHighlight(0)
+          }}
+          onKeyDown={onKeyDown}
+          placeholder={selected ? selected.label : (emptyOptionLabel ?? placeholder)}
+          style={{
+            width: '100%',
+            padding: compact ? '6px 24px 6px 8px' : '9px 28px 9px 12px',
+            fontSize: compact ? '12px' : '13px',
+            fontWeight: 500,
+            background: compact ? 'transparent' : 'var(--surface)',
+            border: compact ? 'none' : '1px solid var(--border)',
+            borderRadius: compact ? '6px' : '8px',
+            color: 'var(--ink)',
+            outline: 'none',
+            cursor: 'text',
+          }}
+        />
+        <button
+          type="button"
+          tabIndex={-1}
+          onClick={() => {
+            if (open) {
+              setOpen(false)
+              setQuery('')
+            } else {
+              setOpen(true)
+              setQuery('')
+              inputRef.current?.focus()
+            }
+          }}
+          style={{
+            position: 'absolute',
+            right: '8px',
+            background: 'none',
+            border: 'none',
+            color: 'var(--ink4)',
+            fontSize: '10px',
+            cursor: 'pointer',
+            padding: '2px',
+          }}
+        >
+          ▾
+        </button>
+      </div>
 
       {open && (
         <div
           style={{
-            position: 'absolute', top: 'calc(100% + 4px)', left: 0, zIndex: 200,
-            width: compact ? '220px' : '100%', minWidth: '200px',
-            background: 'var(--card)', border: '1px solid var(--border)', borderRadius: '10px',
-            boxShadow: 'var(--shadow-md)', overflow: 'hidden',
+            position: 'absolute',
+            top: 'calc(100% + 4px)',
+            left: 0,
+            zIndex: 300,
+            width: compact ? '240px' : '100%',
+            minWidth: '220px',
+            background: 'var(--card)',
+            border: '1px solid var(--border)',
+            borderRadius: '10px',
+            boxShadow: 'var(--shadow-md)',
+            overflow: 'hidden',
           }}
         >
-          <input
-            ref={searchRef}
-            value={query}
-            onChange={e => { setQuery(e.target.value); setHighlight(0) }}
-            onKeyDown={onKeyDown}
-            placeholder={placeholder}
-            style={{
-              width: '100%', boxSizing: 'border-box', background: 'var(--border-light)', border: 'none',
-              borderBottom: '1px solid var(--border)', outline: 'none', color: 'var(--ink)', fontSize: '13px',
-              padding: '10px 12px',
-            }}
-          />
           <div style={{ maxHeight: '240px', overflowY: 'auto' }}>
             {listItems.length === 0 && (
-              <div style={{ padding: '14px 12px', fontSize: '12px', color: 'var(--ink4)', textAlign: 'center' }}>No matches</div>
+              <div style={{ padding: '12px', fontSize: '12px', color: 'var(--ink4)', textAlign: 'center' }}>No matches</div>
             )}
             {listItems.map((item, i) => (
               <div
@@ -209,14 +254,19 @@ export function SearchableSelect({ options, value, onChange, placeholder = 'Sear
                 onMouseDown={e => { e.preventDefault(); pick(item) }}
                 onMouseEnter={() => setHighlight(i)}
                 style={{
-                  padding: '8px 12px', cursor: 'pointer', fontSize: '13px',
+                  padding: '8px 12px',
+                  cursor: 'pointer',
+                  fontSize: '12px',
                   background: i === highlight ? 'var(--card-hi)' : 'transparent',
-                  color: item.id === value ? 'var(--teal)' : 'var(--ink2)',
+                  color: item.id === value ? 'var(--teal)' : 'var(--ink)',
                   fontWeight: item.id === value ? 700 : 500,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
                 }}
               >
-                {item.label}
-                {item.sublabel && <span style={{ color: 'var(--ink4)', fontWeight: 400 }}> · {item.sublabel}</span>}
+                <span>{item.label}</span>
+                {item.sublabel && <span style={{ color: 'var(--ink4)', fontSize: '11px' }}>{item.sublabel}</span>}
               </div>
             ))}
           </div>

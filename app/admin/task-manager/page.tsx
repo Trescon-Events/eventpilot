@@ -83,8 +83,12 @@ export default function TaskManagerPage() {
         fetch('/api/task-manager/timer/active').then(r => r.json()),
       ])
       setCurrentStaffId(session?.sid ?? null)
-      setStaff(staffList)
-      setEvents((eventList ?? []).map((e: { id: string; name: string }) => ({ id: e.id, name: e.name })))
+      setStaff((staffList ?? []).sort((a: StaffLite, b: StaffLite) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base' })))
+      setEvents(
+        (eventList ?? [])
+          .map((e: { id: string; name: string }) => ({ id: e.id, name: e.name }))
+          .sort((a: EventLite, b: EventLite) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }))
+      )
       setTasks(taskRes.tasks ?? [])
       setCounts(taskRes.counts_by_assignee ?? {})
       setActiveTimer(timerRes.active ?? null)
