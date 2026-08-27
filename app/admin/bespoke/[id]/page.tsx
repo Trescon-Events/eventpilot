@@ -154,7 +154,7 @@ const FORMAT_COLORS: Record<string, { bg: string; fg: string }> = {
   hybrid: { bg: 'var(--purple-light)', fg: 'var(--purple)' },
 }
 
-const TABS = ['Overview', 'Brief', 'Tasks', 'Pipeline', 'Assets'] as const
+const TABS = ['Overview', 'Brief', 'Tasks', 'Pipeline', 'Assets', 'Admin Module'] as const
 type TabKey = typeof TABS[number]
 
 /* ═══════════════════════════════════════════════════════════════════
@@ -1120,35 +1120,44 @@ export default function BespokeWorkspacePage({ params }: { params: Promise<{ id:
           )
         })()}
 
-        {/* ── BRIEF TAB (PRD #4 rewrite) ────────────────────────────
-             Sections top-to-bottom:
-               1. Orange "Briefing Incomplete" banner (hidden when locked)
-               2. Drag-and-drop uploader → auto-parse via Gemini
-               3. Event Objectives (top-level columns, not brief_data)
-               4. ICP (three string[] columns)
-               5. Target Accounts
-               6. Client Approver
-               7. Logistics & Brand Notes
-               8. Speakers (editable list)
-               9. Agenda (editable list)
-              10. Registration Questions (editable list)
-              Bottom row: Save Brief · Verify and Lock / Unlock */}
+        {/* ── BRIEF TAB — Nic ticket a057edf2 (2026-08-11) ───────────
+             100% read-only reference document for the wider team.
+             All data entry lives on the Admin Module tab below. */}
         {tab === 'Brief' && (
           <div style={{ maxWidth: '800px' }}>
-            {/* Briefing incomplete banner — only shown when brief is not yet submitted */}
-            {!project.brief_is_submitted && (
+            {!project.brief_is_submitted ? (
               <div style={{
-                background: 'var(--orange-light)', borderLeft: '4px solid var(--orange)', color: 'var(--orange)',
-                padding: '16px', borderRadius: '8px', marginBottom: '20px',
+                background: 'var(--info-light)', borderLeft: '4px solid var(--info)', color: 'var(--info)',
+                padding: '20px', borderRadius: '8px', textAlign: 'center',
                 fontSize: '14px', fontWeight: 600, fontFamily: 'var(--font-manrope)',
                 lineHeight: 1.5,
               }}>
-                <strong style={{ fontWeight: 800 }}>⚠️ Briefing Incomplete:</strong>{' '}
-                The event brief forms the basis of all campaign tasks. Please complete the Brief tab
-                details or upload a brief document as soon as possible.
+                ℹ️ Briefing in progress. The coordinator is currently finalizing the event details in the Admin Module.
               </div>
+            ) : (
+              <BriefSummary
+                project={project}
+                briefFields={briefFields}
+                briefData={briefData}
+                speakers={speakers}
+                agenda={agenda}
+                regQuestions={regQuestions}
+                onEdit={editBrief}
+                editBusy={lockBusy}
+                showEdit={false}
+              />
             )}
+          </div>
+        )}
 
+        {/* ── ADMIN MODULE TAB — Nic ticket a057edf2 (2026-08-11) ────
+             Uploader, all Brief form fields, and Save Draft / Submit
+             Brief actions were relocated here from the Brief tab
+             (which is now read-only). When the brief has been
+             submitted, this tab shows an Unlock affordance instead
+             of the editor. ─────────────────────────────────────── */}
+        {tab === 'Admin Module' && (
+          <div style={{ maxWidth: '800px' }}>
             {lockSuccess && (
               <div style={{
                 background: 'var(--success-light)', borderLeft: '4px solid var(--success)', color: 'var(--success)',
@@ -1159,21 +1168,26 @@ export default function BespokeWorkspacePage({ params }: { params: Promise<{ id:
               </div>
             )}
 
-            {/* ═══ Nic d17e10d8: after submit, render read-only Summary. ═══
-                The editable form (uploader + inputs) is completely hidden.
-                An "Edit Brief" button at the bottom flips back to editable
-                and re-locks Phase 2/3/4 tasks. ═══════════════════════ */}
             {project.brief_is_submitted && (
-              <BriefSummary
-                project={project}
-                briefFields={briefFields}
-                briefData={briefData}
-                speakers={speakers}
-                agenda={agenda}
-                regQuestions={regQuestions}
-                onEdit={editBrief}
-                editBusy={lockBusy}
-              />
+              <div style={{
+                background: 'var(--success-light)', borderLeft: '4px solid var(--success)',
+                padding: '16px', borderRadius: '8px', marginBottom: '20px',
+                fontFamily: 'var(--font-manrope)',
+                display: 'flex', flexDirection: 'column', gap: '12px',
+              }}>
+                <div style={{ fontSize: '14px', fontWeight: 700, color: 'var(--success)', lineHeight: 1.5 }}>
+                  ✓ Brief is submitted. Phase 2, 3 and 4 tasks are unlocked. Click <strong>Unlock Editing</strong> to make changes — this re-locks downstream tasks until the brief is submitted again.
+                </div>
+                <div>
+                  <button onClick={editBrief} disabled={lockBusy} style={{
+                    padding: '10px 28px', borderRadius: '8px', border: '1px solid var(--ink3)', background: 'var(--card)',
+                    color: 'var(--ink)', fontSize: '14px', fontWeight: 700, cursor: lockBusy ? 'wait' : 'pointer',
+                    fontFamily: 'var(--font-manrope)',
+                  }}>
+                    {lockBusy ? 'Unlocking…' : 'Unlock Editing'}
+                  </button>
+                </div>
+              </div>
             )}
 
             {!project.brief_is_submitted && (
@@ -2152,9 +2166,10 @@ type BriefSummaryProps = {
   regQuestions: RegQuestion[]
   onEdit: () => void
   editBusy: boolean
+  showEdit?: boolean
 }
 
-function BriefSummary({ project, briefFields, briefData, speakers, agenda, regQuestions, onEdit, editBusy }: BriefSummaryProps) {
+function BriefSummary({ project, briefFields, briefData, speakers, agenda, regQuestions, onEdit, editBusy, showEdit = true }: BriefSummaryProps) {
   const CARD: React.CSSProperties = {
     background: 'var(--card)', borderRadius: '12px', border: '1px solid var(--border)',
     padding: '24px',
@@ -2358,23 +2373,26 @@ function BriefSummary({ project, briefFields, briefData, speakers, agenda, regQu
         )}
       </div>
 
-      {/* Edit Brief action */}
-      <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
-        <button
-          onClick={onEdit}
-          disabled={editBusy}
-          style={{
-            padding: '10px 28px', borderRadius: '8px', border: '1px solid var(--ink3)', background: 'var(--card)',
-            color: 'var(--ink)', fontSize: '14px', fontWeight: 700, cursor: editBusy ? 'wait' : 'pointer',
-            fontFamily: 'var(--font-manrope)',
-          }}
-        >
-          {editBusy ? 'Reopening…' : 'Edit Brief'}
-        </button>
-        <span style={{ fontSize: '12px', color: 'var(--ink3)' }}>
-          Reopens editing and re-locks Phase 2, 3 and 4 tasks until the brief is submitted again.
-        </span>
-      </div>
+      {/* Edit Brief action — Nic ticket a057edf2: hidden on the read-only
+          Brief tab. Editing is now the Admin Module's responsibility. */}
+      {showEdit && (
+        <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
+          <button
+            onClick={onEdit}
+            disabled={editBusy}
+            style={{
+              padding: '10px 28px', borderRadius: '8px', border: '1px solid var(--ink3)', background: 'var(--card)',
+              color: 'var(--ink)', fontSize: '14px', fontWeight: 700, cursor: editBusy ? 'wait' : 'pointer',
+              fontFamily: 'var(--font-manrope)',
+            }}
+          >
+            {editBusy ? 'Reopening…' : 'Edit Brief'}
+          </button>
+          <span style={{ fontSize: '12px', color: 'var(--ink3)' }}>
+            Reopens editing and re-locks Phase 2, 3 and 4 tasks until the brief is submitted again.
+          </span>
+        </div>
+      )}
     </div>
   )
 }

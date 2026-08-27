@@ -15,13 +15,47 @@ Railway's auto-deploy silently stopped working from **2026-07-17 to 2026-07-21**
 
 | Field | Value |
 |---|---|
-| Who | Madhu + Claude Code (Sonnet 5) — 26 Aug 2026, KonfHub speaker-push bug report |
-| Date | 2026-08-26 |
-| Latest push | 2026-08-26 — commits `3e3730a`, `f8b79c6`. A producer reported "Push to KonfHub" stuck re-showing its confirm dialog for speaker Ts. Azrul Zafri Azmi. Reproduced live, root-caused, fixed in two rounds — see write-up below. |
+| Who | Durga + Claude Code (Opus 4.7 · 1M) — 27 Aug 2026, Nic's Admin Module ticket (build_request `a057edf2`) |
+| Date | 2026-08-27 |
+| Latest push | 2026-08-27 — split the Bespoke Event Dashboard's Brief tab into (a) a 100% read-only Brief tab and (b) a new "Admin Module" tab that houses all data entry. Ticket sat 16 days in `build_requests` since 2026-08-11 (surfaced via the mandatory DB check at session start, per the LOCKED build_requests query rule). |
 | DB migrations applied | None. |
 | Handed off to | Durga. |
-| Deployed | Live — both commits pushed to `main`, Railway auto-deployed each time. |
-| Left alone / known follow-up | None new — see write-up below. |
+| Deployed | Live — pushed to `main`, Railway auto-deploy. |
+| Left alone / known follow-up | Nic's `build_requests` row still `submitted` — close-out + one consolidated email pending Durga's OK. |
+
+## 27 Aug 2026 — Bespoke Event Dashboard: Brief / Admin Module split (Nic ticket a057edf2)
+
+### The ask (Nic, 2026-08-11 · 16 days old)
+
+Nic's build_request asked to decouple data ingestion from team viewing on the Bespoke Event Dashboard. The Brief tab currently combined uploaders, editable form fields, and Save Draft / Submit Brief actions with the team-facing view of the same content. Requested: a new dedicated "Admin Module" tab on the extreme right holding all data entry, and convert the Brief tab into a pure read-only reference document.
+
+Ticket named `app/admin/events/[id]/page.tsx` as the target file. That was wrong — the tab set `Overview | Brief | Tasks | Pipeline | Assets` lives in `app/admin/bespoke/[id]/page.tsx` (the Bespoke Event Module pilot). Executed against the real file.
+
+### What shipped
+
+`app/admin/bespoke/[id]/page.tsx` only. Single file, no schema changes, no new components.
+
+1. **TABS array** — added `'Admin Module'` as the 6th tab. Nav order is now `Overview | Brief | Tasks | Pipeline | Assets | Admin Module`. Because `TabKey` is derived (`typeof TABS[number]`) and the tab-render iterates the array, no other type or wiring changes were needed.
+
+2. **Brief tab — now 100% read-only.**
+   - Unsubmitted: centered info banner `ℹ️ Briefing in progress. The coordinator is currently finalizing the event details in the Admin Module.` (verbatim per Nic's spec).
+   - Submitted: existing `BriefSummary` component renders the Brief Book (Objectives, ICP as vertical bulleted lists, Target Accounts, Client Approver, Logistics & Brand Notes, Speakers cards, Agenda timeline, Registration Questions).
+   - Removed: old orange "Briefing Incomplete" banner, `lockSuccess` banner, and the entire editor form.
+
+3. **New Admin Module tab.** Houses everything the Brief tab used to have in its editor mode: brief-doc uploader (drag/drop + Upload button + parse via Gemini), Event Objectives (Description + Themes), ICP (Job Titles / Industries / Geographies), Target Accounts, Client Approver, Logistics & Brand Notes, Speakers manager, Agenda editor, Registration Questions, lock error/warning banners, Save Draft + Submit Brief buttons, and the `lockSuccess` confirmation banner. When `brief_is_submitted === true`, the editor is replaced by a locked-state card with an `Unlock Editing` button (this is the edit affordance that used to sit at the bottom of `BriefSummary` on the Brief tab).
+
+4. **BriefSummary component** — added optional `showEdit?: boolean` prop (default `true` so nothing else that uses this component breaks). Passed `showEdit={false}` from the Brief tab so the Edit Brief button + explanatory text is hidden there. Admin Module owns the Unlock affordance now.
+
+5. **"Delegacy" terminology check** — grepped the whole codebase (all `.tsx`/`.ts`/`.jsx`/`.js`). The only match was a doc-comment at `app/lib/bespoke/task-templates.ts:13` that already said "Delegate Team" is canonical, not "Delegacy". Zero user-visible strings to rename. No code change needed for the terminology item on Nic's ticket.
+
+### Verification before push
+
+- `npx tsc --noEmit` clean on `app/admin/bespoke/[id]/page.tsx`. Pre-existing errors elsewhere (missing `react-easy-crop`, `bmp-ts`, `icojs` deps in unrelated files; stale `.next/` type cache) untouched.
+- Not preview-tested on `localhost:3003` before push per Durga's explicit go-ahead.
+
+### Not-yet-done
+
+- Nic's `build_requests` row `a057edf2-faad-4601-8b67-89d0675c55e1` still `status='submitted'`. Waiting on Durga's OK to (a) flip it to `done` and (b) send Nic one consolidated close-out email — batched-notification rule, so no per-step spam.
 
 ## 26 Aug 2026 — KonfHub push error handling fixed (producer-reported bug)
 
