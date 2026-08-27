@@ -2,7 +2,7 @@
 import { useState } from 'react'
 import Button from '@/app/components/ui/Button'
 import { EventLite, PRIORITIES, PRIORITY_COLOR, StaffLite, TaskPriority, TaskSaveValues } from './types'
-import { Avatar, PillSelect } from './ui'
+import { Avatar, PillSelect, SearchableSelect } from './ui'
 
 interface Props {
   staff: StaffLite[]
@@ -48,6 +48,8 @@ export default function QuickAssignCard({ staff, events, currentStaffId, onAssig
   }
 
   const selectedStaffMember = staff.find(s => s.id === assignedTo)
+  const staffOptions = staff.map(s => ({ id: s.id, label: s.name }))
+  const eventOptions = events.map(ev => ({ id: ev.id, label: ev.name }))
 
   return (
     <div
@@ -108,62 +110,33 @@ export default function QuickAssignCard({ staff, events, currentStaffId, onAssig
 
         {/* Row 2: Assignee, Event, Deadline, Priority & Action */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
-          {/* Assignee Dropdown */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '8px', padding: '4px 8px' }}>
+          {/* Assignee Searchable Dropdown */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '8px', padding: '2px 6px', minWidth: '170px' }}>
             {selectedStaffMember ? (
               <Avatar name={selectedStaffMember.name} size={20} />
             ) : (
-              <span style={{ fontSize: '12px', color: 'var(--ink4)' }}>👤</span>
+              <span style={{ fontSize: '12px', color: 'var(--ink4)', marginLeft: '4px' }}>👤</span>
             )}
-            <select
+            <SearchableSelect
+              options={staffOptions}
               value={assignedTo}
-              onChange={e => setAssignedTo(e.target.value)}
-              disabled={busy}
-              style={{
-                background: 'transparent',
-                border: 'none',
-                color: assignedTo ? 'var(--ink)' : 'var(--ink4)',
-                fontSize: '12px',
-                fontWeight: 600,
-                outline: 'none',
-                cursor: 'pointer',
-                minWidth: '130px',
-              }}
-            >
-              <option value="" disabled style={{ color: 'var(--ink4)', background: 'var(--surface)' }}>Select Assignee…</option>
-              {staff.map(s => (
-                <option key={s.id} value={s.id} style={{ color: 'var(--ink)', background: 'var(--surface)' }}>
-                  {s.name}
-                </option>
-              ))}
-            </select>
+              onChange={setAssignedTo}
+              placeholder="Select Assignee…"
+              compact
+            />
           </div>
 
-          {/* Event Dropdown */}
-          <select
-            value={eventId}
-            onChange={e => setEventId(e.target.value)}
-            disabled={busy}
-            style={{
-              background: 'var(--surface)',
-              border: '1px solid var(--border)',
-              borderRadius: '8px',
-              padding: '7px 10px',
-              color: eventId ? 'var(--ink)' : 'var(--ink4)',
-              fontSize: '12px',
-              fontWeight: 600,
-              outline: 'none',
-              cursor: 'pointer',
-              minWidth: '140px',
-            }}
-          >
-            <option value="" style={{ color: 'var(--ink4)', background: 'var(--surface)' }}>General (No Event)</option>
-            {events.map(ev => (
-              <option key={ev.id} value={ev.id} style={{ color: 'var(--ink)', background: 'var(--surface)' }}>
-                {ev.name}
-              </option>
-            ))}
-          </select>
+          {/* Event Searchable Dropdown */}
+          <div style={{ minWidth: '190px' }}>
+            <SearchableSelect
+              options={eventOptions}
+              value={eventId}
+              onChange={setEventId}
+              placeholder="Select Event…"
+              emptyOptionLabel="General (No Event)"
+              compact
+            />
+          </div>
 
           {/* Deadline Picker */}
           <div style={{ display: 'flex', alignItems: 'center', gap: '4px', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '8px', padding: '4px 8px' }}>
