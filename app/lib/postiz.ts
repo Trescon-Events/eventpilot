@@ -75,8 +75,38 @@ export async function uploadMediaFromUrl(url: string): Promise<{ id: string; pat
 // deliberately doesn't populate platform-specific extras (LinkedIn
 // carousels, X reply-audience restriction, etc.) since no UI exposes
 // those yet; add them here if/when a specific post needs one.
-function settingsForIdentifier(identifier: string): Record<string, unknown> {
-  return { __type: identifier }
+// Fixed 2026-08-27 (found live — the very first real "Post Now" attempt
+// against X failed with no visible error beyond "could not publish").
+// Root cause, confirmed against Postiz's own public docs
+// (docs.postiz.com/public-api/posts/create): `settings` is REQUIRED per
+// post, and most platforms need real fields beyond the `__type`
+// discriminator this always sent — X specifically requires
+// `who_can_reply_post`, which was silently missing, so every X post was
+// guaranteed to be rejected by Postiz's own validation before this fix.
+// Only covers the platforms this account actually has connected
+// (x/linkedin/linkedin-page/instagram/instagram-standalone/youtube/
+// facebook, per the real integrations list) — an unhandled identifier
+// still falls back to the bare `{ __type }` shape, same as before.
+function settingsForIdentifier(identifier: string, content: string): Record<string, unknown> {
+  switch (identifier) {
+    case 'x':
+      // 'everyone' matches X's own default reply-permission setting —
+      // the least restrictive option, appropriate for a public event
+      // announcement that should be freely repliable.
+      return { __type: 'x', who_can_reply_post: 'everyone' }
+    case 'instagram':
+    case 'instagram-standalone':
+      return { __type: identifier, post_type: 'post' }
+    case 'youtube':
+      // title is required even for an image post pushed through this
+      // pipeline (none of this app's announcements are actual video
+      // uploads) — derived from the first line of the post copy, since
+      // there's no dedicated "title" field anywhere upstream to reuse.
+      // YouTube's own title cap is 100 chars.
+      return { __type: 'youtube', title: (content.split('\n')[0] || 'Announcement').slice(0, 100), type: 'public' }
+    default:
+      return { __type: identifier }
+  }
 }
 
 export type PostizChannel = { id: string; identifier: string } // enough of PostizIntegration to build a post
@@ -115,15 +145,18 @@ export async function schedulePostizPost(params: SchedulePostParams): Promise<Sc
       date: params.scheduledFor ?? new Date().toISOString(),
       shortLink: false,
       tags: [],
-      posts: params.channels.map(channel => ({
-        integration: { id: channel.id },
-        value: [{
-          content: params.contentByIdentifier?.[channel.identifier] ?? params.content,
-          ...(media ? { image: [{ id: media.id, path: media.path }] } : {}),
-        }],
-        settings: settingsForIdentifier(channel.identifier),
-        ...(params.groupId ? { group: params.groupId } : {}),
-      })),
+      posts: params.channels.map(channel => {
+        const channelContent = params.contentByIdentifier?.[channel.identifier] ?? params.content
+        return {
+          integration: { id: channel.id },
+          value: [{
+            content: channelContent,
+            ...(media ? { image: [{ id: media.id, path: media.path }] } : {}),
+          }],
+          settings: settingsForIdentifier(channel.identifier, channelContent),
+          ...(params.groupId ? { group: params.groupId } : {}),
+        }
+      }),
     }),
   })
 
