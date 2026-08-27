@@ -42,7 +42,7 @@ export async function generatePostCopy(
   speaker: Record<string, unknown> | null,
   partner: Record<string, unknown> | null,
   messagingJson: Record<string, unknown> | null
-): Promise<string> {
+): Promise<GeneratedCopy> {
   const dates = event.public_dates_display ?? ''
   const venueLine = event.public_venue_display || (event.venue ? `${event.venue}${event.city ? `, ${event.city}` : ''}` : null)
   const eventContext = [
@@ -109,7 +109,17 @@ up literally instead of formatting anything.
 Hashtags: the event hashtag (if given) plus 4-6 relevant topic hashtags,
 returned separately in "hashtags" — not inside "copy".
 
-Return JSON only, no markdown fences: { "copy": "...", "hashtags": ["#...", "..."] }`
+Also write a SEPARATE, SHORT version for X (Twitter) in "x_copy" — the
+same announcement, own voice, but a completely different shape: ONE
+tight paragraph (no \n\n blank-line breaks), hard max 280 characters
+INCLUDING 1-2 hashtags inlined at the end (do not return x_copy over 280
+characters under any circumstances — trim content, not just hashtags, if
+it doesn't fit). Keep the ${speaker ? 'speaker' : 'partner'} name and the
+single most important fact (who + what + event name); drop the venue/date
+line and registration link if there's no room. Punchy and complete on its
+own — never a truncated fragment of the LinkedIn copy.
+
+Return JSON only, no markdown fences: { "copy": "...", "hashtags": ["#...", "..."], "x_copy": "..." }`
 
   // 2026-08-17: responseMimeType 'application/json' makes Gemini itself
   // guarantee syntactically valid JSON (properly escaped newlines inside
@@ -158,20 +168,29 @@ function sanitizeJsonControlChars(s: string): string {
   return out
 }
 
+export type GeneratedCopy = { copy: string; xCopy: string }
+
 // Shared by generatePostCopy and generateSelfPromoPostCopy — both call
-// Gemini in JSON mode and want the same { copy, hashtags } → joined-string
-// extraction, with the same raw-text fallback if parsing ever fails.
-function parseGeminiCopyResponse(text: string): string {
+// Gemini in JSON mode and want the same { copy, hashtags, x_copy } →
+// { copy, xCopy } extraction, with the same raw-text fallback if parsing
+// ever fails. xCopy falls back to a hard-truncated slice of the main copy
+// (2026-08-27) rather than an empty string — better than a blank X post if
+// Gemini ever omits the field, though the prompt asks for it every time.
+function parseGeminiCopyResponse(text: string): GeneratedCopy {
   try {
     const match = text.match(/\{[\s\S]*\}/)
     if (match) {
-      const parsed = JSON.parse(sanitizeJsonControlChars(match[0])) as { copy?: string; hashtags?: string[] }
-      if (parsed.copy) return [parsed.copy, ...(parsed.hashtags ?? [])].join('\n\n')
+      const parsed = JSON.parse(sanitizeJsonControlChars(match[0])) as { copy?: string; hashtags?: string[]; x_copy?: string }
+      if (parsed.copy) {
+        const copy = [parsed.copy, ...(parsed.hashtags ?? [])].join('\n\n')
+        const xCopy = parsed.x_copy?.trim() || copy.slice(0, 277) + (copy.length > 277 ? '…' : '')
+        return { copy, xCopy }
+      }
     }
   } catch {
     // fall through to raw text
   }
-  return text
+  return { copy: text, xCopy: text.slice(0, 277) + (text.length > 277 ? '…' : '') }
 }
 
 // Self Promo module (2026-08-18): a creative + post copy emailed TO the
@@ -186,7 +205,7 @@ export async function generateSelfPromoPostCopy(
   event: EventContext,
   speaker: Record<string, unknown>,
   messagingJson: Record<string, unknown> | null
-): Promise<string> {
+): Promise<GeneratedCopy> {
   const dates = event.public_dates_display ?? ''
   const venueLine = event.public_venue_display || (event.venue ? `${event.venue}${event.city ? `, ${event.city}` : ''}` : null)
   const eventContext = [
@@ -247,7 +266,14 @@ Plain text only — no markdown syntax of any kind.
 Hashtags: exactly 5-6 curated, relevant hashtags (topic/industry — NOT a
 broad generic block), returned separately in "hashtags", not inside "copy".
 
-Return JSON only, no markdown fences: { "copy": "...", "hashtags": ["#...", "..."] }`
+Also write a SEPARATE, SHORT first-person version for X (Twitter) in
+"x_copy" — same voice, but ONE tight paragraph (no \n\n breaks), hard max
+280 characters INCLUDING 1-2 hashtags inlined at the end (never return
+x_copy over 280 characters — trim content, not just hashtags, if it
+doesn't fit). Keep the single most important thought/fact; this must read
+as complete on its own, never a truncated fragment of the LinkedIn copy.
+
+Return JSON only, no markdown fences: { "copy": "...", "hashtags": ["#...", "..."], "x_copy": "..." }`
 
   const model  = getGemini().getGenerativeModel({ model: 'gemini-2.5-flash', generationConfig: { responseMimeType: 'application/json' } })
   // Bounded (2026-08-24) — see generatePostCopy's identical timeout above

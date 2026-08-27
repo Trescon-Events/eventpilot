@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/app/lib/supabase'
 
 /* PATCH /api/events/stakeholders/announcements/[id]
-   Body: { post_copy: string }
+   Body: { post_copy?: string, post_copy_x?: string } — at least one required
    Saves a hand-edited post copy (2026-08-15, per Madhu — the Post Copy
    panel became a real WYSIWYG editor with a Save action, not just a
    read-only preview + Regenerate). post_copy stays plain text with '\n\n'
@@ -10,19 +10,29 @@ import { supabaseAdmin } from '@/app/lib/supabase'
    already writes and the same format send-for-approval/publish-now/
    schedule already read as pre-wrapped plain text; the editor itself
    handles HTML<->plain-text conversion on load/save so none of those three
-   downstream consumers need to change. */
+   downstream consumers need to change.
+
+   post_copy_x (2026-08-27) saves independently — the X copy is a single
+   plain paragraph, no HTML<->plain-text conversion involved, and a
+   producer editing one shouldn't require also touching the other. */
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
-  const body = await req.json().catch(() => null) as { post_copy?: string } | null
-  if (!body || typeof body.post_copy !== 'string' || !body.post_copy.trim()) {
-    return NextResponse.json({ error: 'post_copy (non-empty string) required' }, { status: 400 })
+  const body = await req.json().catch(() => null) as { post_copy?: string; post_copy_x?: string } | null
+  const hasPostCopy = typeof body?.post_copy === 'string' && body.post_copy.trim()
+  const hasPostCopyX = typeof body?.post_copy_x === 'string' && body.post_copy_x.trim()
+  if (!hasPostCopy && !hasPostCopyX) {
+    return NextResponse.json({ error: 'post_copy or post_copy_x (non-empty string) required' }, { status: 400 })
   }
+
+  const row: Record<string, unknown> = { updated_at: new Date().toISOString() }
+  if (hasPostCopy) row.post_copy = body!.post_copy
+  if (hasPostCopyX) row.post_copy_x = body!.post_copy_x
 
   const { data, error } = await supabaseAdmin
     .from('stakeholder_announcements')
-    .update({ post_copy: body.post_copy, updated_at: new Date().toISOString() })
+    .update(row)
     .eq('id', id)
-    .select('id, post_copy')
+    .select('id, post_copy, post_copy_x')
     .single()
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })

@@ -10,6 +10,7 @@ import { downloadFile } from '@/app/lib/download-file'
 import type { Variant } from '@/app/lib/announcements/composite'
 import SendToSpeakerComposer from './SendToSpeakerComposer'
 import SendForExternalApprovalComposer from './SendForExternalApprovalComposer'
+import PostizWeekCalendar from './PostizWeekCalendar'
 import {
   displayName, displaySubtitle, statusColor, plainToHtml, PLATFORM_CHAR_LIMITS,
   type AnnouncementListItem, type Stakeholder, type StakeholderKind, type Speaker, type PostizChannel, type EventStaffOption,
@@ -46,6 +47,7 @@ export default function AnnouncementDetailPanel({
   postizChannels,
   defaultChannelIds,
   eventStaff,
+  eventId,
   eventName,
   onUpdate,
   onError,
@@ -59,6 +61,10 @@ export default function AnnouncementDetailPanel({
   postizChannels: PostizChannel[]
   defaultChannelIds: string[]
   eventStaff: EventStaffOption[]
+  // Used for the "other posts already scheduled on these channels"
+  // clash-visibility panel (2026-08-27) — GET /api/events/postiz-scheduled
+  // needs it to resolve the event's Postiz profile key.
+  eventId: string
   // Used only to compose the "Share to Team" WhatsApp message (event name in
   // the header line) — optional so this panel doesn't hard-fail anywhere it
   // isn't threaded through yet; the message just omits the event name if
@@ -71,6 +77,9 @@ export default function AnnouncementDetailPanel({
   const [regeneratingCopy, setRegeneratingCopy] = useState(false)
   const [copyDirty, setCopyDirty] = useState(false)
   const [savingCopy, setSavingCopy] = useState(false)
+  const [xCopyDraft, setXCopyDraft] = useState('')
+  const [xCopyDirty, setXCopyDirty] = useState(false)
+  const [savingXCopy, setSavingXCopy] = useState(false)
   const [variantChoice, setVariantChoice] = useState('')
   const [sendToSpeakerOpen, setSendToSpeakerOpen] = useState(false)
   const [sendForExternalApprovalOpen, setSendForExternalApprovalOpen] = useState(false)
@@ -78,6 +87,8 @@ export default function AnnouncementDetailPanel({
   const [selectedChannelIds, setSelectedChannelIds] = useState<string[]>([])
   const [publishing, setPublishing] = useState<'schedule' | 'now' | 'approval' | 'retry' | null>(null)
   const [scheduleAt, setScheduleAt] = useState('')
+  const [otherScheduled, setOtherScheduled] = useState<{ id: string; channel_id: string; channel_name: string; state: string; publish_date: string | null; content_preview: string }[]>([])
+  const [otherScheduledLoading, setOtherScheduledLoading] = useState(false)
   const [approverPickerOpen, setApproverPickerOpen] = useState(false)
   const [pickedApprovers, setPickedApprovers] = useState<Record<string, string>>({})
   const [approverSearch, setApproverSearch] = useState('')
@@ -136,6 +147,29 @@ export default function AnnouncementDetailPanel({
     setSelectedChannelIds(announcement.postiz_channel_ids?.length ? announcement.postiz_channel_ids : defaultChannelIds)
   }, [announcement.id, announcement.postiz_channel_ids, defaultChannelIds])
 
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- re-seeds from the newly-selected announcement, same pattern as the main copy editor's own reseed effect above
+    setXCopyDraft(announcement.post_copy_x ?? '')
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- resets the dirty flag alongside re-seeding
+    setXCopyDirty(false)
+  }, [announcement.id, announcement.post_copy_x])
+
+  // "Other posts already scheduled on these channels" (2026-08-27, per
+  // Madhu — a real producer-flagged gap: no visibility into what else is
+  // already queued when picking a time). Refetches whenever the selected
+  // channel set changes; not tied to scheduleAt, since the point is to
+  // show the landscape BEFORE a time is picked, not just validate one
+  // already chosen.
+  useEffect(() => {
+    if (selectedChannelIds.length === 0) { setOtherScheduled([]); return }
+    setOtherScheduledLoading(true)
+    fetch(`/api/events/postiz-scheduled?event_id=${eventId}&channel_ids=${selectedChannelIds.join(',')}`)
+      .then(r => r.json())
+      .then(data => setOtherScheduled(data.posts ?? []))
+      .catch(() => setOtherScheduled([]))
+      .finally(() => setOtherScheduledLoading(false))
+  }, [eventId, selectedChannelIds])
+
   function handleCopyEditorAreaClick(e: React.MouseEvent) {
     if (!copyEditor || !copyEditor.isActive('link')) return
     const href = copyEditor.getAttributes('link').href as string
@@ -164,6 +198,21 @@ export default function AnnouncementDetailPanel({
       setCopyDirty(false)
     } else {
       onError(data.error || 'Could not save the post copy.')
+    }
+  }
+
+  async function saveXCopy() {
+    setSavingXCopy(true)
+    const res = await fetch(`/api/events/stakeholders/announcements/${announcement.id}`, {
+      method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ post_copy_x: xCopyDraft }),
+    })
+    const data = await res.json().catch(() => ({}))
+    setSavingXCopy(false)
+    if (res.ok) {
+      onUpdate({ post_copy_x: data.post_copy_x })
+      setXCopyDirty(false)
+    } else {
+      onError(data.error || 'Could not save the X copy.')
     }
   }
 
@@ -346,6 +395,38 @@ export default function AnnouncementDetailPanel({
   const externalApprovalPending = announcement.external_approval_status === 'pending' && !announcement.external_approval_bypassed_at
   const externalChangesRequested = announcement.external_approval_status === 'changes_requested' && !announcement.external_approval_bypassed_at
 
+  // Status pills for the Approval card (2026-08-27, per Madhu: "should look
+  // like a status, not just random text"). 'exempted' color (purple) is
+  // deliberately distinct from a real 'approved' (teal) — bypassing and
+  // genuinely approving are different facts, and the pill shouldn't blur
+  // that distinction away.
+  type ApprovalPillTone = 'grey' | 'amber' | 'red' | 'purple' | 'teal'
+  const APPROVAL_PILL_COLORS: Record<ApprovalPillTone, { bg: string; text: string }> = {
+    grey:   { bg: 'rgba(255,255,255,0.06)', text: 'var(--ink3)' },
+    amber:  { bg: 'var(--amber-light)', text: 'var(--amber)' },
+    red:    { bg: 'var(--red-light)', text: 'var(--red)' },
+    purple: { bg: 'var(--purple-light)', text: 'var(--purple)' },
+    teal:   { bg: 'var(--teal-light)', text: 'var(--teal)' },
+  }
+  function approvalPill(label: string, tone: ApprovalPillTone) {
+    const c = APPROVAL_PILL_COLORS[tone]
+    return (
+      <span style={{ display: 'inline-flex', alignItems: 'center', padding: '5px 12px', borderRadius: '999px', background: c.bg, color: c.text, fontSize: '13px', fontWeight: 800, letterSpacing: '0.3px' }}>
+        {label}
+      </span>
+    )
+  }
+  const internalPill = internalApproved ? approvalPill('Approved', 'teal')
+    : announcement.internal_approval_bypassed_at ? approvalPill('Exempted', 'purple')
+    : announcement.status === 'changes_requested' ? approvalPill('Changes requested', 'red')
+    : announcement.status === 'pending_approval' ? approvalPill('Pending', 'amber')
+    : approvalPill('Not sent', 'grey')
+  const externalPill = externalApproved ? approvalPill(announcement.external_approval_status === 'approved_with_comments' ? 'Approved (comments)' : 'Approved', 'teal')
+    : announcement.external_approval_bypassed_at ? approvalPill('Exempted', 'purple')
+    : announcement.external_approval_status === 'changes_requested' ? approvalPill('Changes requested', 'red')
+    : announcement.external_approval_status === 'pending' ? approvalPill('Pending', 'amber')
+    : approvalPill('Not sent', 'grey')
+
   return (
     <div style={{ display: 'grid', gap: '24px' }}>
       {/* Creative preview + Post Copy side by side — the preview column is
@@ -406,6 +487,28 @@ export default function AnnouncementDetailPanel({
               {regeneratingCopy ? 'Regenerating…' : 'Regenerate Post Copy'}
             </Button>
           </div>
+
+          {/* X Copy (2026-08-27) — always generated alongside the main
+              copy, never a truncation of it (see announcements.ts's
+              prompt). Separate plain textarea, not the rich Tiptap editor
+              above — a single short paragraph needs no rich formatting,
+              and keeping it visually distinct reinforces that it's a
+              genuinely different piece of text, not a variant view of the
+              same one. */}
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '6px' }}>
+            <div style={{ fontSize: '10.5px', fontWeight: 800, color: 'var(--ink3)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>X Copy</div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+              {xCopyDirty && <div style={{ fontSize: '11px', color: 'var(--amber)' }}>Unsaved changes</div>}
+              <div style={{ fontSize: '11px', fontWeight: 700, color: xCopyDraft.length > 280 ? 'var(--red)' : 'var(--ink4)' }}>{xCopyDraft.length} / 280</div>
+            </div>
+          </div>
+          <textarea value={xCopyDraft} onChange={e => { setXCopyDraft(e.target.value); setXCopyDirty(true) }}
+            rows={4} className="tfield" style={{ resize: 'vertical', fontSize: '14px', width: '100%', boxSizing: 'border-box' }} />
+          <div style={{ display: 'flex', gap: '8px' }}>
+            <Button variant="lime" onClick={saveXCopy} disabled={!xCopyDirty || savingXCopy}>
+              {savingXCopy ? 'Saving…' : 'Save'}
+            </Button>
+          </div>
         </div>
       </div>
 
@@ -424,24 +527,24 @@ export default function AnnouncementDetailPanel({
           resolved outside the formal loop), and uncheckable as an honest
           undo. Once a column is genuinely approved its controls disappear
           entirely — no reason to second-guess a real yes. */}
-      <div style={{ padding: '16px 18px', borderRadius: '10px', border: '1px solid var(--border-light)', background: 'var(--surface)' }}>
-        <div style={{ fontSize: '10.5px', fontWeight: 800, color: 'var(--ink3)', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '12px' }}>Approval</div>
+      <div style={{ padding: '18px 20px', borderRadius: '12px', border: '1px solid var(--border-light)', background: 'var(--surface)' }}>
+        <div style={{ fontSize: '12px', fontWeight: 800, color: 'var(--ink3)', textTransform: 'uppercase', letterSpacing: '0.6px', marginBottom: '14px' }}>Approval</div>
 
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '18px' }}>
           {/* Internal */}
-          <div style={{ border: '1px solid var(--border-light)', borderRadius: '8px', padding: '12px 14px' }}>
-            <div style={{ fontSize: '11px', fontWeight: 800, color: 'var(--ink3)', textTransform: 'uppercase', letterSpacing: '0.4px', marginBottom: '6px' }}>Internal Approval</div>
-            <div style={{ fontSize: '12.5px', color: 'var(--ink2)', marginBottom: '10px' }}>
-              {internalApproved ? '✓ Approved' : announcement.internal_approval_bypassed_at ? 'Not required / Reviewed' : announcement.status === 'changes_requested' ? 'Changes requested' : announcement.status === 'pending_approval' ? 'Pending' : 'Not sent'}
+          <div style={{ border: '1px solid var(--border-light)', borderRadius: '10px', padding: '16px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '10px', marginBottom: '14px' }}>
+              <div style={{ fontSize: '13.5px', fontWeight: 800, color: 'var(--ink)' }}>Internal Approval</div>
+              {internalPill}
             </div>
             {!internalApproved && (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', alignItems: 'flex-start' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '14px', flexWrap: 'wrap' }}>
                 <Button variant="ghost" onClick={() => setApproverPickerOpen(true)} disabled={publishing !== null}>
                   {publishing === 'approval' ? 'Sending…' : 'Send for Approval'}
                 </Button>
-                <label style={{ display: 'flex', alignItems: 'center', gap: '7px', fontSize: '12px', color: 'var(--ink3)', cursor: bypassing ? 'default' : 'pointer' }}>
+                <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13.5px', color: 'var(--ink2)', cursor: bypassing ? 'default' : 'pointer' }}>
                   <input type="checkbox" checked={!!announcement.internal_approval_bypassed_at} disabled={bypassing !== null}
-                    onChange={e => setBypassApproval('internal', e.target.checked)} style={{ width: '14px', height: '14px' }} />
+                    onChange={e => setBypassApproval('internal', e.target.checked)} style={{ width: '16px', height: '16px' }} />
                   Not required / Reviewed
                 </label>
               </div>
@@ -449,23 +552,19 @@ export default function AnnouncementDetailPanel({
           </div>
 
           {/* External */}
-          <div style={{ border: '1px solid var(--border-light)', borderRadius: '8px', padding: '12px 14px' }}>
-            <div style={{ fontSize: '11px', fontWeight: 800, color: 'var(--ink3)', textTransform: 'uppercase', letterSpacing: '0.4px', marginBottom: '6px' }}>External Approval</div>
-            <div style={{ fontSize: '12.5px', color: 'var(--ink2)', marginBottom: '10px' }}>
-              {externalApproved ? (announcement.external_approval_status === 'approved_with_comments' ? '✓ Approved (with comments)' : '✓ Approved')
-                : announcement.external_approval_bypassed_at ? 'Not required / Reviewed'
-                : announcement.external_approval_status === 'changes_requested' ? 'Changes requested'
-                : announcement.external_approval_status === 'pending' ? 'Pending'
-                : 'Not sent'}
+          <div style={{ border: '1px solid var(--border-light)', borderRadius: '10px', padding: '16px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '10px', marginBottom: '14px' }}>
+              <div style={{ fontSize: '13.5px', fontWeight: 800, color: 'var(--ink)' }}>External Approval</div>
+              {externalPill}
             </div>
             {!externalApproved && (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', alignItems: 'flex-start' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '14px', flexWrap: 'wrap' }}>
                 <Button variant="ghost" onClick={() => setSendForExternalApprovalOpen(true)}>
                   Send for External Approval
                 </Button>
-                <label style={{ display: 'flex', alignItems: 'center', gap: '7px', fontSize: '12px', color: 'var(--ink3)', cursor: bypassing ? 'default' : 'pointer' }}>
+                <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13.5px', color: 'var(--ink2)', cursor: bypassing ? 'default' : 'pointer' }}>
                   <input type="checkbox" checked={!!announcement.external_approval_bypassed_at} disabled={bypassing !== null}
-                    onChange={e => setBypassApproval('external', e.target.checked)} style={{ width: '14px', height: '14px' }} />
+                    onChange={e => setBypassApproval('external', e.target.checked)} style={{ width: '16px', height: '16px' }} />
                   Not required / Reviewed
                 </label>
               </div>
@@ -474,10 +573,10 @@ export default function AnnouncementDetailPanel({
         </div>
 
         {externalApprovalPending && (
-          <div style={{ fontSize: '12px', color: 'var(--ink3)', marginTop: '10px' }}>Waiting on the external reviewer — publishing is on hold until they respond, or you check "Not required / Reviewed" above.</div>
+          <div style={{ fontSize: '13px', color: 'var(--ink2)', marginTop: '12px' }}>Waiting on the external reviewer — publishing is on hold until they respond, or you check &quot;Not required / Reviewed&quot; above.</div>
         )}
         {externalChangesRequested && (
-          <div style={{ fontSize: '12px', color: 'var(--red)', marginTop: '10px' }}>The external reviewer requested changes — update the copy/creative above and send again, or check "Not required / Reviewed" if it's already been resolved another way.</div>
+          <div style={{ fontSize: '13px', color: 'var(--red)', marginTop: '12px' }}>The external reviewer requested changes — update the copy/creative above and send again, or check &quot;Not required / Reviewed&quot; if it&apos;s already been resolved another way.</div>
         )}
       </div>
 
@@ -547,18 +646,30 @@ export default function AnnouncementDetailPanel({
 
         {/* Character-limit warnings — checked against the live copy text
             (not the last-saved value), so an unsaved edit is reflected
-            immediately. */}
+            immediately. X (2026-08-27) checks its own dedicated copy
+            (xCopyDraft) against its own limit, since it's no longer a
+            shared/truncated value — everything else still checks the
+            main copy against its (much larger) limit. */}
         {(() => {
           if (!copyEditor) return null
           const len = copyEditor.getText().length
           const overLimit = selectedChannelIds
             .map(id => postizChannels.find(c => c.id === id))
             .filter((c): c is PostizChannel => !!c)
-            .filter(c => PLATFORM_CHAR_LIMITS[c.identifier] && len > PLATFORM_CHAR_LIMITS[c.identifier])
-          if (overLimit.length === 0) return null
+            .filter(c => c.identifier !== 'x' && PLATFORM_CHAR_LIMITS[c.identifier] && len > PLATFORM_CHAR_LIMITS[c.identifier])
+          const xSelected = selectedChannelIds
+            .map(id => postizChannels.find(c => c.id === id))
+            .some(c => c?.identifier === 'x')
+          const xOverLimit = xSelected && xCopyDraft.length > 280
+          if (overLimit.length === 0 && !xOverLimit) return null
           return (
-            <div style={{ fontSize: '11.5px', color: 'var(--red)', marginBottom: '12px' }}>
-              ⚠ {len} characters — over the limit for {overLimit.map(c => `${c.name} (${PLATFORM_CHAR_LIMITS[c.identifier]})`).join(', ')}. It will be rejected or truncated there.
+            <div style={{ fontSize: '12.5px', color: 'var(--red)', marginBottom: '12px', display: 'grid', gap: '4px' }}>
+              {overLimit.length > 0 && (
+                <div>⚠ {len} characters — over the limit for {overLimit.map(c => `${c.name} (${PLATFORM_CHAR_LIMITS[c.identifier]})`).join(', ')}. It will be rejected or truncated there.</div>
+              )}
+              {xOverLimit && (
+                <div>⚠ X Copy is {xCopyDraft.length} characters — over X&apos;s 280 limit. Edit it above before posting.</div>
+              )}
             </div>
           )
         })()}
@@ -638,6 +749,10 @@ export default function AnnouncementDetailPanel({
               })}
             </ul>
           </div>
+        )}
+
+        {selectedChannelIds.length > 0 && (
+          <PostizWeekCalendar posts={otherScheduled} loading={otherScheduledLoading} anchorDate={scheduleAt || undefined} />
         )}
 
         <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center' }}>

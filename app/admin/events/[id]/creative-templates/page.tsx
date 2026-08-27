@@ -70,6 +70,10 @@ export type AnnouncementListItem = {
   speaker_id: string | null
   partner_id: string | null
   post_copy: string | null
+  // X (Twitter)-specific short copy (2026-08-27) — always generated
+  // alongside post_copy, never a truncation of it. See
+  // app/lib/events/announcements.ts's parseGeminiCopyResponse.
+  post_copy_x: string | null
   creative_url: string | null
   creative_variant_id: string | null
   status: AnnouncementStatus

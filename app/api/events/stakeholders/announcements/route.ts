@@ -17,7 +17,7 @@ export async function GET(req: NextRequest) {
 
   let q = supabaseAdmin
     .from('stakeholder_announcements')
-    .select('id, stakeholder_type, speaker_id, partner_id, post_copy, creative_url, creative_variant_id, status, created_at, scheduled_for, platforms, published_at, postiz_channel_ids, publish_results, announcement_kind, internal_approval_bypassed_at, external_approval_bypassed_at')
+    .select('id, stakeholder_type, speaker_id, partner_id, post_copy, post_copy_x, creative_url, creative_variant_id, status, created_at, scheduled_for, platforms, published_at, postiz_channel_ids, publish_results, announcement_kind, internal_approval_bypassed_at, external_approval_bypassed_at')
     .eq('event_id', eventId)
     .order('scheduled_for', { ascending: true, nullsFirst: false })
 

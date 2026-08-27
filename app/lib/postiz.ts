@@ -84,6 +84,11 @@ export type PostizChannel = { id: string; identifier: string } // enough of Post
 export type SchedulePostParams = {
   groupId?: string
   content: string
+  // Per-channel content override, keyed by Postiz `identifier` (e.g. 'x')
+  // (2026-08-27) — X's 280-char limit needs a genuinely different, shorter
+  // copy from the shared LinkedIn-length one, not a truncation of it. Any
+  // identifier not present here just uses `content` as before.
+  contentByIdentifier?: Record<string, string>
   channels: PostizChannel[]     // targeted integrations — one posts[] entry per channel
   mediaUrl: string | null
   scheduledFor?: string | null  // ISO datetime; omit/null for immediate ('now') publish
@@ -113,7 +118,7 @@ export async function schedulePostizPost(params: SchedulePostParams): Promise<Sc
       posts: params.channels.map(channel => ({
         integration: { id: channel.id },
         value: [{
-          content: params.content,
+          content: params.contentByIdentifier?.[channel.identifier] ?? params.content,
           ...(media ? { image: [{ id: media.id, path: media.path }] } : {}),
         }],
         settings: settingsForIdentifier(channel.identifier),
@@ -132,7 +137,12 @@ export async function schedulePostizPost(params: SchedulePostParams): Promise<Sc
 export type PostizPostSummary = {
   id: string
   state: 'QUEUE' | 'PUBLISHED' | 'ERROR' | 'DRAFT' | string
-  integration?: string
+  // Real shape per Postiz's own docs (confirmed live 2026-08-27, see below)
+  // — an object, not a plain id string. Optional because it's genuinely
+  // absent on some post shapes per the docs.
+  integration?: { id: string; providerIdentifier: string; name: string; picture?: string }
+  content?: string
+  publishDate?: string
   // The live URL of the published post on the actual platform (Postiz's own
   // public API field name — https://docs.postiz.com/public-api/posts/list).
   // Only meaningful once state is 'PUBLISHED'; the sync-status cron reads
@@ -141,19 +151,32 @@ export type PostizPostSummary = {
   releaseURL?: string
 }
 
-// GET /posts?from=&to=&group= — a RANGE/LIST endpoint, not a per-post
-// lookup (Postiz has no documented "get one post by id" endpoint) — the
-// 30-requests/hour rate limit makes this the only viable way to check
-// status for however many posts are due at once; the sync-status cron
-// calls this once per event per run rather than once per due
+// GET /posts?startDate=&endDate=&customer= — a RANGE/LIST endpoint, not a
+// per-post lookup (Postiz has no documented "get one post by id" endpoint)
+// — the 30-requests/hour rate limit makes this the only viable way to
+// check status for however many posts are due at once; the sync-status
+// cron calls this once per event per run rather than once per due
 // announcement (see that route's own comment for the batching logic).
-export async function listPostizPostsInRange(from: string, to: string, groupId?: string): Promise<PostizPostSummary[]> {
+//
+// Fixed 2026-08-27 (found live, verifying against the real API before
+// building the "other scheduled posts" clash-check feature): the query
+// params were `from`/`to` (real API wants `startDate`/`endDate` — confirmed
+// via a live 400 "startDate must be a valid ISO 8601 date string" response
+// with the old names), `group` (docs only document `customer` for this
+// endpoint — `group` is this file's OWN `/posts` POST-endpoint param name,
+// not this GET one), and the response was read as a bare array (real shape
+// is `{ posts: [...] }`, confirmed live — every previous call would have
+// silently returned `undefined` for every post's fields). Never actually
+// hit in production before this: the sync-status cron only calls this for
+// events with a postiz_profile_key set, and no real event has one yet.
+export async function listPostizPostsInRange(startDate: string, endDate: string, customerId?: string): Promise<PostizPostSummary[]> {
   const { apiUrl, apiKey } = requireEnv()
   const url = new URL(`${apiUrl}/posts`)
-  url.searchParams.set('from', from)
-  url.searchParams.set('to', to)
-  if (groupId) url.searchParams.set('group', groupId)
+  url.searchParams.set('startDate', startDate)
+  url.searchParams.set('endDate', endDate)
+  if (customerId) url.searchParams.set('customer', customerId)
   const res = await fetch(url.toString(), { headers: authHeaders(apiKey) })
   if (!res.ok) throw new PostizError(`Postiz posts list failed: ${res.status} ${await res.text().catch(() => '')}`)
-  return await res.json() as PostizPostSummary[]
+  const data = await res.json() as { posts?: PostizPostSummary[] }
+  return data.posts ?? []
 }

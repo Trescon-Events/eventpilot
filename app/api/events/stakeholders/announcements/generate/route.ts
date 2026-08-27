@@ -109,7 +109,7 @@ export async function POST(req: NextRequest) {
   // Previously awaited strictly back-to-back (2026-08-04 perf pass: real
   // generates were taking ~20s); this collapses wall-clock time to
   // whichever of the two is slower instead of their sum.
-  const [postCopy, creativeUrl] = await Promise.all([
+  const [{ copy: postCopy, xCopy: postCopyX }, creativeUrl] = await Promise.all([
     kind === 'self_promo'
       ? generateSelfPromoPostCopy(event, speaker!, messagingDoc?.structured_json ?? null)
       : generatePostCopy(event, speaker, partner, messagingDoc?.structured_json ?? null),
@@ -152,6 +152,7 @@ export async function POST(req: NextRequest) {
       speaker_id: body.speaker_id ?? null,
       partner_id: body.partner_id ?? null,
       post_copy: postCopy,
+      post_copy_x: postCopyX,
       creative_url: creativeUrl,
       creative_variant_id: creativeUrl ? inputs.variant.id : null,
       status: 'draft',
@@ -165,6 +166,7 @@ export async function POST(req: NextRequest) {
   return NextResponse.json({
     announcement_id: announcement.id,
     post_copy: postCopy,
+    post_copy_x: postCopyX,
     creative_url: creativeUrl,
   }, { status: 201 })
 }

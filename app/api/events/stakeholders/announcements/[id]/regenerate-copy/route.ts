@@ -42,15 +42,15 @@ export async function POST(_req: NextRequest, { params }: { params: Promise<{ id
   // silently overwrite its first-person speaker-voice copy with third-
   // person org-voice copy from generatePostCopy — a real gap caught during
   // Self Promo planning, not a hypothetical.
-  const postCopy = announcement.announcement_kind === 'self_promo'
+  const { copy, xCopy } = announcement.announcement_kind === 'self_promo'
     ? await generateSelfPromoPostCopy(event, speaker!, messagingDoc?.structured_json ?? null)
     : await generatePostCopy(event, speaker, partner, messagingDoc?.structured_json ?? null)
 
   const { data, error } = await supabaseAdmin
     .from('stakeholder_announcements')
-    .update({ post_copy: postCopy, updated_at: new Date().toISOString() })
+    .update({ post_copy: copy, post_copy_x: xCopy, updated_at: new Date().toISOString() })
     .eq('id', id)
-    .select('id, post_copy')
+    .select('id, post_copy, post_copy_x')
     .single()
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })

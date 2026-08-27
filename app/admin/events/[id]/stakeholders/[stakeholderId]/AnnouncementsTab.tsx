@@ -177,6 +177,7 @@ export default function AnnouncementsTab({
           postizChannels={postizChannels}
           defaultChannelIds={defaultChannelIds}
           eventStaff={eventStaff}
+          eventId={eventId}
           eventName={eventName}
           onUpdate={onUpdate}
           onError={setMsg}

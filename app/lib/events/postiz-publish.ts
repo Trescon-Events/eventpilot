@@ -66,6 +66,10 @@ export async function publishAnnouncementToPostiz(announcementId: string, channe
   const results = await schedulePostizPost({
     groupId: profileKey,
     content: announcement.post_copy ?? '',
+    // Falls back to the shared copy if post_copy_x somehow wasn't
+    // generated (older rows predating this column, or a Gemini-side
+    // omission) — never send X an empty post.
+    contentByIdentifier: { x: announcement.post_copy_x || announcement.post_copy || '' },
     channels,
     mediaUrl: announcement.creative_url,
     scheduledFor,
