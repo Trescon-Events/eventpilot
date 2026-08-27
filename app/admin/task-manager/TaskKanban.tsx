@@ -22,7 +22,7 @@ import {
   useSensors,
 } from '@dnd-kit/core'
 import Badge from '@/app/components/ui/Badge'
-import { PRIORITY_COLOR, STATUSES, Task, TaskStatus, formatHours } from './types'
+import { PRIORITY_COLOR, STATUSES, Task, TaskStatus, formatHours, formatTimeTaken } from './types'
 import { Avatar } from './ui'
 
 const STATUS_LABEL: Record<TaskStatus, string> = {
@@ -73,7 +73,7 @@ export default function TaskKanban({ tasks, currentStaffId, runningTaskId, onSta
 
   return (
     <DndContext sensors={sensors} onDragStart={onDragStart} onDragEnd={onDragEnd}>
-      <div style={{ display: 'grid', gridTemplateColumns: `repeat(${STATUSES.length}, minmax(240px, 1fr))`, gap: '12px', overflowX: 'auto' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '16px', alignItems: 'start' }}>
         {STATUSES.map(status => (
           <KanbanColumn
             key={status}
@@ -143,9 +143,19 @@ function KanbanColumn({
         type="button"
         onClick={onQuickAdd}
         style={{
-          width: '100%', padding: '8px', fontSize: '12px', fontWeight: 700, color: 'var(--ink3)',
-          background: 'transparent', border: `1px dashed var(--border)`, borderRadius: '8px', cursor: 'pointer',
+          width: '100%',
+          padding: '7px',
+          borderRadius: '8px',
+          border: '1px dashed var(--border)',
+          background: 'transparent',
+          color: 'var(--ink3)',
+          fontSize: '12px',
+          fontWeight: 600,
+          cursor: 'pointer',
+          transition: 'background 0.1s',
         }}
+        onMouseEnter={e => (e.currentTarget.style.background = 'var(--card)')}
+        onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
       >
         + Add task
       </button>
@@ -160,13 +170,13 @@ function DraggableCard(props: {
   onOpenTask: (task: Task) => void
   onTimerAction: (taskId: string, action: 'start' | 'pause' | 'stop') => void
 }) {
-  const { setNodeRef, listeners, attributes, isDragging, transform } = useDraggable({ id: props.task.id })
-  const style = {
-    opacity: isDragging ? 0.3 : 1,
+  const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({ id: props.task.id })
+  const style: React.CSSProperties = {
     transform: transform ? `translate3d(${transform.x}px, ${transform.y}px, 0)` : undefined,
+    opacity: isDragging ? 0.4 : 1,
   }
   return (
-    <div ref={setNodeRef} {...listeners} {...attributes} style={style}>
+    <div ref={setNodeRef} style={style} {...attributes} {...listeners}>
       <TaskCard {...props} />
     </div>
   )
@@ -184,17 +194,21 @@ function TaskCard({
 }) {
   const isMine = currentStaffId && task.assigned_to === currentStaffId
   const isRunning = runningTaskId === task.id
+  const isCompleted = task.status === 'Completed'
 
   return (
     <div
       style={{
-        background: 'var(--card)',
+        background: isCompleted ? 'var(--surface)' : 'var(--card)',
         border: '1px solid var(--border)',
+        borderLeft: isCompleted ? '4px solid var(--teal)' : '1px solid var(--border)',
+        opacity: isCompleted ? 0.9 : 1,
         borderRadius: '8px',
         padding: '10px 12px',
         cursor: 'grab',
         boxShadow: floating ? 'var(--shadow-md)' : 'none',
         userSelect: 'none',
+        transition: 'all 0.15s ease',
       }}
       onClick={() => onOpenTask(task)}
     >
@@ -203,19 +217,44 @@ function TaskCard({
           {task.event.name}
         </div>
       )}
-      <div style={{ fontSize: '13px', fontWeight: 700, color: 'var(--ink)', marginBottom: '6px' }}>{task.description}</div>
+      <div style={{ fontSize: '13px', fontWeight: 700, color: isCompleted ? 'var(--ink2)' : 'var(--ink)', marginBottom: '6px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+        {isCompleted && <span style={{ color: 'var(--teal)', fontSize: '12px' }}>✓</span>}
+        <span>{task.description}</span>
+      </div>
+
       <div style={{ display: 'flex', gap: '6px', alignItems: 'center', flexWrap: 'wrap', marginBottom: '8px' }}>
         <Badge color={PRIORITY_COLOR[task.priority]}>{task.priority}</Badge>
         {task.deadline && (
           <span style={{ fontSize: '11px', color: 'var(--ink3)' }}>Due {task.deadline}</span>
         )}
+        {/* Time-taken metric on completed cards */}
+        {isCompleted && (
+          <span
+            style={{
+              fontSize: '11px',
+              fontWeight: 700,
+              color: 'var(--teal)',
+              background: 'var(--teal-light)',
+              padding: '2px 7px',
+              borderRadius: '5px',
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '4px',
+            }}
+            title="Total time logged on this task"
+          >
+            <span>⏱️</span>
+            <span>{formatTimeTaken(task.tracked_seconds)} taken</span>
+          </span>
+        )}
       </div>
+
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
           {task.assigned_to_staff && <Avatar name={task.assigned_to_staff.name} size={20} />}
           <span style={{ fontSize: '11px', color: 'var(--ink3)' }}>{task.assigned_to_staff?.name ?? '—'}</span>
         </div>
-        {isMine && task.status !== 'Completed' && (
+        {isMine && !isCompleted && (
           <button
             type="button"
             onClick={e => { e.stopPropagation(); onTimerAction(task.id, isRunning ? 'stop' : 'start') }}
@@ -227,7 +266,7 @@ function TaskCard({
             {isRunning ? '■ Stop' : '▶ Start'}
           </button>
         )}
-        {!isMine && task.tracked_seconds > 0 && (
+        {!isMine && !isCompleted && task.tracked_seconds > 0 && (
           <span style={{ fontSize: '11px', color: 'var(--ink4)' }}>{formatHours(task.tracked_seconds)}</span>
         )}
       </div>
