@@ -85,6 +85,13 @@ export default function AnnouncementDetailPanel({
   const [sendForExternalApprovalOpen, setSendForExternalApprovalOpen] = useState(false)
   const [bypassing, setBypassing] = useState<'internal' | 'external' | null>(null)
   const [selectedChannelIds, setSelectedChannelIds] = useState<string[]>([])
+  // These announcement creatives are always a static image — YouTube's API
+  // rejects image-only content ("Item must be a video"), and since Postiz
+  // batches every selected channel into one publish request, leaving
+  // YouTube selectable failed the whole batch (X/Instagram/LinkedIn
+  // included) the moment it was checked (2026-08-27).
+  const youtubeChannels = postizChannels.filter(c => c.identifier === 'youtube')
+  const selectablePostizChannels = postizChannels.filter(c => c.identifier !== 'youtube')
   const [publishing, setPublishing] = useState<'schedule' | 'now' | 'approval' | 'retry' | null>(null)
   const [scheduleAt, setScheduleAt] = useState('')
   const [otherScheduled, setOtherScheduled] = useState<{ id: string; channel_id: string; channel_name: string; state: string; publish_date: string | null; content_preview: string }[]>([])
@@ -143,9 +150,11 @@ export default function AnnouncementDetailPanel({
   }, [announcement.id, announcement.post_copy, copyEditor])
 
   useEffect(() => {
+    const youtubeIds = new Set(postizChannels.filter(c => c.identifier === 'youtube').map(c => c.id))
+    const seeded = announcement.postiz_channel_ids?.length ? announcement.postiz_channel_ids : defaultChannelIds
     // eslint-disable-next-line react-hooks/set-state-in-effect -- seeds per-post UI selection state from the newly-selected announcement, not a response to another render
-    setSelectedChannelIds(announcement.postiz_channel_ids?.length ? announcement.postiz_channel_ids : defaultChannelIds)
-  }, [announcement.id, announcement.postiz_channel_ids, defaultChannelIds])
+    setSelectedChannelIds(seeded.filter(id => !youtubeIds.has(id)))
+  }, [announcement.id, announcement.postiz_channel_ids, defaultChannelIds, postizChannels])
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- re-seeds from the newly-selected announcement, same pattern as the main copy editor's own reseed effect above
@@ -620,13 +629,19 @@ export default function AnnouncementDetailPanel({
         )}
 
         <div style={{ fontSize: '11px', fontWeight: 700, color: 'var(--ink3)', marginBottom: '6px' }}>Channels</div>
-        {postizChannels.length === 0 ? (
+        {/* YouTube is excluded here (2026-08-27) — these announcement creatives
+            are always a static image, and YouTube's API rejects image-only
+            content outright ("Item must be a video"). Postiz batches all
+            selected channels into one request, so leaving YouTube selectable
+            failed the entire publish — X/Instagram/LinkedIn included — the
+            moment it was checked. */}
+        {selectablePostizChannels.length === 0 ? (
           <div style={{ fontSize: '12px', color: 'var(--ink4)', marginBottom: '12px' }}>
             No channels connected — add a Postiz Profile Key and connect channels in this event&apos;s settings first.
           </div>
         ) : (
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginBottom: '12px' }}>
-            {postizChannels.map(ch => {
+            {selectablePostizChannels.map(ch => {
               const checked = selectedChannelIds.includes(ch.id)
               return (
                 <label key={ch.id} title={ch.disabled ? 'Disconnected in Postiz' : undefined}
@@ -641,6 +656,11 @@ export default function AnnouncementDetailPanel({
                 </label>
               )
             })}
+          </div>
+        )}
+        {youtubeChannels.length > 0 && (
+          <div style={{ fontSize: '11px', color: 'var(--ink4)', marginTop: '-6px', marginBottom: '12px' }}>
+            {youtubeChannels.map(c => c.name).join(', ')} not shown — YouTube requires an actual video and rejects image-only posts like this one.
           </div>
         )}
 
