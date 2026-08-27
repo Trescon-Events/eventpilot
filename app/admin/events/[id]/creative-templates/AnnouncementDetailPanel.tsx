@@ -150,7 +150,6 @@ export default function AnnouncementDetailPanel({
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- re-seeds from the newly-selected announcement, same pattern as the main copy editor's own reseed effect above
     setXCopyDraft(announcement.post_copy_x ?? '')
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- resets the dirty flag alongside re-seeding
     setXCopyDirty(false)
   }, [announcement.id, announcement.post_copy_x])
 
@@ -161,6 +160,7 @@ export default function AnnouncementDetailPanel({
   // show the landscape BEFORE a time is picked, not just validate one
   // already chosen.
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- resets to empty when no channels are selected, mirrors the reseed pattern used throughout this file
     if (selectedChannelIds.length === 0) { setOtherScheduled([]); return }
     setOtherScheduledLoading(true)
     fetch(`/api/events/postiz-scheduled?event_id=${eventId}&channel_ids=${selectedChannelIds.join(',')}`)
@@ -402,7 +402,7 @@ export default function AnnouncementDetailPanel({
   // that distinction away.
   type ApprovalPillTone = 'grey' | 'amber' | 'red' | 'purple' | 'teal'
   const APPROVAL_PILL_COLORS: Record<ApprovalPillTone, { bg: string; text: string }> = {
-    grey:   { bg: 'rgba(255,255,255,0.06)', text: 'var(--ink3)' },
+    grey:   { bg: 'color-mix(in srgb, white 6%, transparent)', text: 'var(--ink3)' },
     amber:  { bg: 'var(--amber-light)', text: 'var(--amber)' },
     red:    { bg: 'var(--red-light)', text: 'var(--red)' },
     purple: { bg: 'var(--purple-light)', text: 'var(--purple)' },

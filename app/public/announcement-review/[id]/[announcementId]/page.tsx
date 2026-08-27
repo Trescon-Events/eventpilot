@@ -149,6 +149,7 @@ export default function AnnouncementReviewPage({ params }: { params: Promise<{ i
           <div className={`rv-media-grid${data.creative_url ? '' : ' rv-no-image'}`}>
             {data.creative_url && (
               <button onClick={() => setLightboxOpen(true)} title="Click to enlarge" className="rv-image-btn">
+                {/* eslint-disable-next-line @next/next/no-img-element -- external reviewer viewing a remote-hosted creative, not worth next/image's optimization pass on a page with no build-time knowledge of image dimensions */}
                 <img src={data.creative_url} alt="Announcement creative" />
               </button>
             )}
@@ -202,10 +203,11 @@ export default function AnnouncementReviewPage({ params }: { params: Promise<{ i
 
       {lightboxOpen && data.creative_url && (
         <div onClick={() => setLightboxOpen(false)}
-          style={{ position: 'fixed', inset: 0, background: 'rgba(10,14,20,0.88)', zIndex: 100, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px', cursor: 'zoom-out' }}>
-          <img src={data.creative_url} alt="Announcement creative — enlarged" style={{ maxWidth: '94vw', maxHeight: '90vh', borderRadius: '10px', boxShadow: '0 20px 60px rgba(0,0,0,0.5)' }} />
+          style={{ position: 'fixed', inset: 0, background: 'color-mix(in srgb, black 88%, transparent)', zIndex: 100, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px', cursor: 'zoom-out' }}>
+          {/* eslint-disable-next-line @next/next/no-img-element -- lightbox preview of the same remote creative, same reasoning as the thumbnail above */}
+          <img src={data.creative_url} alt="Announcement creative — enlarged" style={{ maxWidth: '94vw', maxHeight: '90vh', borderRadius: '10px', boxShadow: '0 20px 60px color-mix(in srgb, black 50%, transparent)' }} />
           <button onClick={() => setLightboxOpen(false)} aria-label="Close"
-            style={{ position: 'fixed', top: 'max(16px, env(safe-area-inset-top))', right: 'max(16px, env(safe-area-inset-right))', width: '40px', height: '40px', borderRadius: '50%', border: 'none', background: 'rgba(255,255,255,0.15)', color: '#fff', fontSize: '20px', cursor: 'pointer' }}>
+            style={{ position: 'fixed', top: 'max(16px, env(safe-area-inset-top))', right: 'max(16px, env(safe-area-inset-right))', width: '40px', height: '40px', borderRadius: '50%', border: 'none', background: 'color-mix(in srgb, white 15%, transparent)', color: 'white', fontSize: '20px', cursor: 'pointer' }}>
             ×
           </button>
         </div>
