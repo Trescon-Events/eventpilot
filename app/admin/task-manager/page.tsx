@@ -172,7 +172,15 @@ export default function TaskManagerPage() {
 
   const filteredTasks = useMemo(() => {
     const q = searchQuery.trim().toLowerCase()
-    return tasks.filter(t => {
+    const today = new Date(new Date().toDateString())
+
+    const priorityRank: Record<TaskPriority, number> = {
+      High: 0,
+      Medium: 1,
+      Low: 2,
+    }
+
+    const list = tasks.filter(t => {
       // In focus mode, automatically filter to current user's tasks
       if (dashboardMode === 'focus' && t.assigned_to !== currentStaffId) return false
       if (dashboardMode === 'admin' && myTasksOnly && t.assigned_to !== currentStaffId) return false
@@ -191,6 +199,40 @@ export default function TaskManagerPage() {
         if (!matchDesc && !matchRemarks && !matchEvent && !matchAssignee && !matchAssigner) return false
       }
       return true
+    })
+
+    // Sort: Incomplete tasks first (In-Progress -> Not-Started), Overdue -> High Priority -> Deadline, Completed tasks last
+    return list.sort((a, b) => {
+      // 1. Status Rank: In-Progress (0) -> Not-Started (1) -> Completed (2)
+      const statusRank = (s: TaskStatus) => (s === 'In-Progress' ? 0 : s === 'Not-Started' ? 1 : 2)
+      const rankA = statusRank(a.status)
+      const rankB = statusRank(b.status)
+      if (rankA !== rankB) return rankA - rankB
+
+      // 2. If both are incomplete, check overdue
+      if (a.status !== 'Completed' && b.status !== 'Completed') {
+        const aOverdue = a.deadline && new Date(a.deadline) < today ? 1 : 0
+        const bOverdue = b.deadline && new Date(b.deadline) < today ? 1 : 0
+        if (aOverdue !== bOverdue) return bOverdue - aOverdue
+
+        // 3. Priority Rank: High -> Medium -> Low
+        const pA = priorityRank[a.priority] ?? 1
+        const pB = priorityRank[b.priority] ?? 1
+        if (pA !== pB) return pA - pB
+
+        // 4. Deadline nearest first
+        if (a.deadline && b.deadline) {
+          const diff = new Date(a.deadline).getTime() - new Date(b.deadline).getTime()
+          if (diff !== 0) return diff
+        } else if (a.deadline) {
+          return -1
+        } else if (b.deadline) {
+          return 1
+        }
+      }
+
+      // 5. Default by newest created
+      return new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
     })
   }, [tasks, dashboardMode, myTasksOnly, selectedStaffId, currentStaffId, statusFilter, priorityFilter, eventFilter, assignerFilter, searchQuery])
 

@@ -1,7 +1,7 @@
 'use client'
 import { useState } from 'react'
 import { Avatar, PillSelect } from './ui'
-import { PRIORITIES, PRIORITY_COLOR, STATUSES, STATUS_COLOR, Task, TaskPriority, TaskStatus, formatHours } from './types'
+import { PRIORITIES, PRIORITY_COLOR, STATUSES, STATUS_COLOR, Task, TaskPriority, TaskStatus, formatHours, formatTimeTaken } from './types'
 
 function DeadlineBadge({ deadline, status }: { deadline: string | null; status: TaskStatus }) {
   if (!deadline) return <span style={{ color: 'var(--ink4)' }}>—</span>
@@ -260,12 +260,20 @@ function TaskRow({
   onPriorityChange: (taskId: string, newPriority: TaskPriority) => void
   onDelete: (taskId: string) => void
 }) {
+  const isCompleted = t.status === 'Completed'
+
   return (
     <tr
       onClick={() => onOpenTask(t)}
-      style={{ borderBottom: '1px solid var(--border-light)', cursor: 'pointer', transition: 'background 0.1s' }}
+      style={{
+        borderBottom: '1px solid var(--border-light)',
+        cursor: 'pointer',
+        transition: 'background 0.1s',
+        opacity: isCompleted ? 0.8 : 1,
+        background: isCompleted ? 'var(--surface)' : 'transparent',
+      }}
       onMouseEnter={e => (e.currentTarget.style.background = 'var(--border-light)')}
-      onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+      onMouseLeave={e => (e.currentTarget.style.background = isCompleted ? 'var(--surface)' : 'transparent')}
     >
       {showEventColumn && (
         <td style={{ padding: '10px 12px', color: 'var(--ink3)', whiteSpace: 'nowrap', maxWidth: '160px', overflow: 'hidden', textOverflow: 'ellipsis' }}>
@@ -273,7 +281,10 @@ function TaskRow({
         </td>
       )}
       <td style={{ padding: '10px 12px', maxWidth: '320px' }}>
-        <div style={{ color: 'var(--ink)', fontWeight: 600, lineHeight: 1.35 }}>{t.description}</div>
+        <div style={{ color: isCompleted ? 'var(--ink2)' : 'var(--ink)', fontWeight: 600, lineHeight: 1.35, display: 'flex', alignItems: 'center', gap: '6px' }}>
+          {isCompleted && <span style={{ color: 'var(--teal)', fontSize: '12px' }}>✓</span>}
+          <span>{t.description}</span>
+        </div>
         {t.remarks && (
           <div
             style={{
@@ -331,7 +342,30 @@ function TaskRow({
           {STATUSES.map(s => <option key={s} value={s}>{s.replace('-', ' ')}</option>)}
         </PillSelect>
       </td>
-      <td style={{ padding: '10px 12px', color: 'var(--ink3)', whiteSpace: 'nowrap', fontSize: '12px' }}>{formatHours(t.tracked_seconds)}</td>
+      <td style={{ padding: '10px 12px', whiteSpace: 'nowrap', fontSize: '12px' }}>
+        {isCompleted ? (
+          <span
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '4px',
+              padding: '2px 8px',
+              background: 'var(--teal-light)',
+              color: 'var(--teal)',
+              borderRadius: '6px',
+              fontSize: '11px',
+              fontWeight: 700,
+            }}
+            title="Total time taken"
+          >
+            <span>⏱️</span> {formatTimeTaken(t.tracked_seconds)}
+          </span>
+        ) : t.tracked_seconds > 0 ? (
+          <span style={{ color: 'var(--ink3)' }}>{formatHours(t.tracked_seconds)}</span>
+        ) : (
+          <span style={{ color: 'var(--ink4)' }}>—</span>
+        )}
+      </td>
       <td style={{ padding: '10px 12px', textAlign: 'center' }} onClick={e => e.stopPropagation()}>
         <button type="button" onClick={() => onDelete(t.id)} title="Delete task" style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--ink4)', fontSize: '13px' }}>
           ✕
