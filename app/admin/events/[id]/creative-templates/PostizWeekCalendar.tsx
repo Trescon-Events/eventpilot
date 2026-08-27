@@ -71,7 +71,11 @@ export default function PostizWeekCalendar({ posts, loading, anchorDate }: { pos
     <div style={{ marginBottom: '14px', border: '1px solid var(--border-light)', borderRadius: '10px', background: 'var(--card)', overflow: 'hidden' }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 14px', borderBottom: '1px solid var(--border-light)', flexWrap: 'wrap', gap: '8px' }}>
         <div style={{ fontSize: '12px', fontWeight: 700, color: 'var(--ink3)' }}>
-          Already scheduled on these channels{loading ? ' — loading…' : ''}
+          {loading
+            ? 'Checking what else is scheduled on these channels…'
+            : posts.length === 0
+              ? 'Nothing else scheduled on these channels right now'
+              : `Already scheduled on these channels (${posts.length})`}
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
           <button onClick={() => setWeekStart(d => { const n = new Date(d); n.setDate(n.getDate() - 7); return n })}
