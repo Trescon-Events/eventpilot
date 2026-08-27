@@ -43,6 +43,15 @@ export async function checkCanPublish(req: NextRequest, eventId: string, current
 // the account's full unscoped channel list; still honors a profile key if
 // an event has one set, for if/when real customer scoping gets added.
 export async function publishAnnouncementToPostiz(announcementId: string, channelIds: string[], scheduledFor: string | null) {
+  // Temporary verbose logging (2026-08-27) — three real "Post Now" attempts
+  // all produced a fast (~1.5-2s) 502 with EMPTY response body and ZERO
+  // application log output at any level, even with no filter over the
+  // exact failure window. That's consistent with the request never
+  // reaching this function at all (an infra/proxy-level issue) rather than
+  // a crash inside it — these markers exist to settle that definitively:
+  // if a real retry still produces no "[publish]" lines at all, the
+  // problem is upstream of this code, not in it. Remove once resolved.
+  console.log(`[publish] start announcement=${announcementId} channels=${channelIds.join(',')} scheduledFor=${scheduledFor ?? 'now'}`)
   if (channelIds.length === 0) throw new PublishValidationError('At least one channel must be selected')
 
   const { data: announcement, error: annErr } = await supabaseAdmin
@@ -51,11 +60,13 @@ export async function publishAnnouncementToPostiz(announcementId: string, channe
     .eq('id', announcementId)
     .single()
   if (annErr || !announcement) throw new PublishValidationError('Announcement not found', 404)
+  console.log(`[publish] announcement loaded, creative_url=${announcement.creative_url ? 'set' : 'null'} post_copy_x=${announcement.post_copy_x ? 'set' : 'null'}`)
 
   const event = Array.isArray(announcement.event) ? announcement.event[0] : announcement.event
   const profileKey = event?.postiz_profile_key || undefined
 
   const integrations = await listPostizIntegrations(profileKey)
+  console.log(`[publish] integrations resolved, count=${integrations.length}`)
   const byId = new Map(integrations.map(i => [i.id, i]))
   const channels = channelIds.map(id => {
     const found = byId.get(id)
@@ -63,17 +74,24 @@ export async function publishAnnouncementToPostiz(announcementId: string, channe
     return { id: found.id, identifier: found.identifier }
   })
 
-  const results = await schedulePostizPost({
-    groupId: profileKey,
-    content: announcement.post_copy ?? '',
-    // Falls back to the shared copy if post_copy_x somehow wasn't
-    // generated (older rows predating this column, or a Gemini-side
-    // omission) — never send X an empty post.
-    contentByIdentifier: { x: announcement.post_copy_x || announcement.post_copy || '' },
-    channels,
-    mediaUrl: announcement.creative_url,
-    scheduledFor,
-  })
+  let results
+  try {
+    results = await schedulePostizPost({
+      groupId: profileKey,
+      content: announcement.post_copy ?? '',
+      // Falls back to the shared copy if post_copy_x somehow wasn't
+      // generated (older rows predating this column, or a Gemini-side
+      // omission) — never send X an empty post.
+      contentByIdentifier: { x: announcement.post_copy_x || announcement.post_copy || '' },
+      channels,
+      mediaUrl: announcement.creative_url,
+      scheduledFor,
+    })
+  } catch (e) {
+    console.error('[publish] schedulePostizPost threw:', e instanceof Error ? `${e.name}: ${e.message}\n${e.stack}` : String(e))
+    throw e
+  }
+  console.log(`[publish] schedulePostizPost succeeded, results=${JSON.stringify(results)}`)
 
   // Postiz accepting the request confirms it was queued, not that it's
   // actually live on every platform yet — status stays 'scheduled' (with
@@ -95,5 +113,6 @@ export async function publishAnnouncementToPostiz(announcementId: string, channe
     .select('id, status, scheduled_for, publish_results')
     .single()
   if (error) throw new PublishValidationError(error.message, 500)
+  console.log(`[publish] done, announcement now status=${data.status}`)
   return data
 }
