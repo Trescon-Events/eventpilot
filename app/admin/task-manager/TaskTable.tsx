@@ -1,7 +1,7 @@
 'use client'
 import { useState } from 'react'
 import { Avatar, PillSelect } from './ui'
-import { PRIORITIES, PRIORITY_COLOR, STATUSES, STATUS_COLOR, Task, TaskPriority, TaskStatus, formatHours } from './types'
+import { PRIORITIES, PRIORITY_COLOR, STATUSES, STATUS_COLOR, Task, TaskPriority, TaskStatus, formatHours, formatTimeTaken } from './types'
 
 function DeadlineBadge({ deadline, status }: { deadline: string | null; status: TaskStatus }) {
   if (!deadline) return <span style={{ color: 'var(--ink4)' }}>—</span>
@@ -260,20 +260,37 @@ function TaskRow({
   onPriorityChange: (taskId: string, newPriority: TaskPriority) => void
   onDelete: (taskId: string) => void
 }) {
+  const isCompleted = t.status === 'Completed'
+
   return (
     <tr
       onClick={() => onOpenTask(t)}
-      style={{ borderBottom: '1px solid var(--border-light)', cursor: 'pointer', transition: 'background 0.1s' }}
+      style={{
+        borderBottom: '1px solid var(--border-light)',
+        cursor: 'pointer',
+        transition: 'background 0.1s',
+        opacity: isCompleted ? 0.8 : 1,
+        background: isCompleted ? 'var(--surface)' : 'transparent',
+      }}
       onMouseEnter={e => (e.currentTarget.style.background = 'var(--border-light)')}
-      onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+      onMouseLeave={e => (e.currentTarget.style.background = isCompleted ? 'var(--surface)' : 'transparent')}
     >
       {showEventColumn && (
-        <td style={{ padding: '10px 12px', color: 'var(--ink3)', whiteSpace: 'nowrap', maxWidth: '160px', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-          {t.event?.name ?? '—'}
+        <td style={{ padding: '11px 12px', whiteSpace: 'nowrap', maxWidth: '170px', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+          {t.event?.name ? (
+            <span style={{ fontSize: '11px', fontWeight: 600, color: 'var(--ink3)', background: 'var(--surface)', border: '1px solid var(--border)', padding: '3px 8px', borderRadius: '6px' }}>
+              {t.event.name}
+            </span>
+          ) : (
+            <span style={{ color: 'var(--ink4)', fontSize: '12px' }}>—</span>
+          )}
         </td>
       )}
-      <td style={{ padding: '10px 12px', maxWidth: '320px' }}>
-        <div style={{ color: 'var(--ink)', fontWeight: 600, lineHeight: 1.35 }}>{t.description}</div>
+      <td style={{ padding: '11px 12px', maxWidth: '340px' }}>
+        <div style={{ color: isCompleted ? 'var(--ink2)' : 'var(--ink)', fontWeight: 600, fontSize: '13px', lineHeight: 1.35, display: 'flex', alignItems: 'center', gap: '6px' }}>
+          {isCompleted && <span style={{ color: 'var(--teal)', fontSize: '12px' }}>✓</span>}
+          <span>{t.description}</span>
+        </div>
         {t.remarks && (
           <div
             style={{
@@ -298,10 +315,10 @@ function TaskRow({
           </div>
         )}
       </td>
-      <td style={{ padding: '10px 12px', color: 'var(--ink4)', whiteSpace: 'nowrap' }} title={new Date(t.created_at).toLocaleString('en-GB')}>
+      <td style={{ padding: '11px 12px', color: 'var(--ink4)', whiteSpace: 'nowrap', fontSize: '12px' }} title={new Date(t.created_at).toLocaleString('en-GB')}>
         {new Date(t.created_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}
       </td>
-      <td style={{ padding: '10px 12px', whiteSpace: 'nowrap' }}>
+      <td style={{ padding: '11px 12px', whiteSpace: 'nowrap' }}>
         {t.assigned_by_staff && (
           <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
             <Avatar name={t.assigned_by_staff.name} size={20} />
@@ -310,7 +327,7 @@ function TaskRow({
           </div>
         )}
       </td>
-      <td style={{ padding: '10px 12px', whiteSpace: 'nowrap' }}>
+      <td style={{ padding: '11px 12px', whiteSpace: 'nowrap' }}>
         {t.assigned_to_staff && (
           <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
             <Avatar name={t.assigned_to_staff.name} size={20} />
@@ -318,20 +335,43 @@ function TaskRow({
           </div>
         )}
       </td>
-      <td style={{ padding: '10px 12px', whiteSpace: 'nowrap' }}>
+      <td style={{ padding: '11px 12px', whiteSpace: 'nowrap' }}>
         <DeadlineBadge deadline={t.deadline} status={t.status} />
       </td>
-      <td style={{ padding: '10px 12px' }} onClick={e => e.stopPropagation()}>
+      <td style={{ padding: '11px 12px' }} onClick={e => e.stopPropagation()}>
         <PillSelect pillColor={PRIORITY_COLOR[t.priority]} value={t.priority} onChange={e => onPriorityChange(t.id, e.target.value as TaskPriority)}>
           {PRIORITIES.map(p => <option key={p} value={p}>{p}</option>)}
         </PillSelect>
       </td>
-      <td style={{ padding: '10px 12px' }} onClick={e => e.stopPropagation()}>
+      <td style={{ padding: '11px 12px' }} onClick={e => e.stopPropagation()}>
         <PillSelect pillColor={STATUS_COLOR[t.status]} value={t.status} onChange={e => onStatusChange(t.id, e.target.value as TaskStatus)}>
           {STATUSES.map(s => <option key={s} value={s}>{s.replace('-', ' ')}</option>)}
         </PillSelect>
       </td>
-      <td style={{ padding: '10px 12px', color: 'var(--ink3)', whiteSpace: 'nowrap', fontSize: '12px' }}>{formatHours(t.tracked_seconds)}</td>
+      <td style={{ padding: '11px 12px', whiteSpace: 'nowrap', fontSize: '12px' }}>
+        {isCompleted ? (
+          <span
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '4px',
+              padding: '2px 8px',
+              background: 'var(--teal-light)',
+              color: 'var(--teal)',
+              borderRadius: '6px',
+              fontSize: '11px',
+              fontWeight: 700,
+            }}
+            title="Total time taken"
+          >
+            <span>⏱️</span> {formatTimeTaken(t.tracked_seconds)}
+          </span>
+        ) : t.tracked_seconds > 0 ? (
+          <span style={{ color: 'var(--ink3)' }}>{formatHours(t.tracked_seconds)}</span>
+        ) : (
+          <span style={{ color: 'var(--ink4)' }}>—</span>
+        )}
+      </td>
       <td style={{ padding: '10px 12px', textAlign: 'center' }} onClick={e => e.stopPropagation()}>
         <button type="button" onClick={() => onDelete(t.id)} title="Delete task" style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--ink4)', fontSize: '13px' }}>
           ✕

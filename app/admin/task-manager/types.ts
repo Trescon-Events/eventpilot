@@ -102,3 +102,12 @@ export function formatClock(seconds: number): string {
   const pad = (n: number) => String(n).padStart(2, '0')
   return h > 0 ? `${pad(h)}:${pad(m)}:${pad(s)}` : `${pad(m)}:${pad(s)}`
 }
+
+export function formatTimeTaken(seconds: number): string {
+  if (!seconds || seconds <= 0) return '< 15m'
+  const h = Math.floor(seconds / 3600)
+  const m = Math.floor((seconds % 3600) / 60)
+  if (h === 0) return `${m}m`
+  if (m === 0) return `${h}h`
+  return `${h}h ${m}m`
+}

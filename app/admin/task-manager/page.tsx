@@ -12,7 +12,7 @@ import TaskModal from './TaskModal'
 import TaskTable from './TaskTable'
 import TimeLogModal from './TimeLogModal'
 import Timesheets from './Timesheets'
-import { PILL_FILTER_STYLE } from './ui'
+import { ACTIVE_PILL_FILTER_STYLE, PILL_FILTER_STYLE } from './ui'
 import { ActiveTimer, EventLite, LogCategory, StaffLite, Task, TaskPriority, TaskSaveValues, TaskStatus, TimeLog } from './types'
 
 type ViewMode = 'table' | 'kanban' | 'timesheets'
@@ -83,8 +83,12 @@ export default function TaskManagerPage() {
         fetch('/api/task-manager/timer/active').then(r => r.json()),
       ])
       setCurrentStaffId(session?.sid ?? null)
-      setStaff(staffList)
-      setEvents((eventList ?? []).map((e: { id: string; name: string }) => ({ id: e.id, name: e.name })))
+      setStaff((staffList ?? []).sort((a: StaffLite, b: StaffLite) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base' })))
+      setEvents(
+        (eventList ?? [])
+          .map((e: { id: string; name: string }) => ({ id: e.id, name: e.name }))
+          .sort((a: EventLite, b: EventLite) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }))
+      )
       setTasks(taskRes.tasks ?? [])
       setCounts(taskRes.counts_by_assignee ?? {})
       setActiveTimer(timerRes.active ?? null)
@@ -172,7 +176,15 @@ export default function TaskManagerPage() {
 
   const filteredTasks = useMemo(() => {
     const q = searchQuery.trim().toLowerCase()
-    return tasks.filter(t => {
+    const today = new Date(new Date().toDateString())
+
+    const priorityRank: Record<TaskPriority, number> = {
+      High: 0,
+      Medium: 1,
+      Low: 2,
+    }
+
+    const list = tasks.filter(t => {
       // In focus mode, automatically filter to current user's tasks
       if (dashboardMode === 'focus' && t.assigned_to !== currentStaffId) return false
       if (dashboardMode === 'admin' && myTasksOnly && t.assigned_to !== currentStaffId) return false
@@ -191,6 +203,40 @@ export default function TaskManagerPage() {
         if (!matchDesc && !matchRemarks && !matchEvent && !matchAssignee && !matchAssigner) return false
       }
       return true
+    })
+
+    // Sort: Incomplete tasks first (In-Progress -> Not-Started), Overdue -> High Priority -> Deadline, Completed tasks last
+    return list.sort((a, b) => {
+      // 1. Status Rank: In-Progress (0) -> Not-Started (1) -> Completed (2)
+      const statusRank = (s: TaskStatus) => (s === 'In-Progress' ? 0 : s === 'Not-Started' ? 1 : 2)
+      const rankA = statusRank(a.status)
+      const rankB = statusRank(b.status)
+      if (rankA !== rankB) return rankA - rankB
+
+      // 2. If both are incomplete, check overdue
+      if (a.status !== 'Completed' && b.status !== 'Completed') {
+        const aOverdue = a.deadline && new Date(a.deadline) < today ? 1 : 0
+        const bOverdue = b.deadline && new Date(b.deadline) < today ? 1 : 0
+        if (aOverdue !== bOverdue) return bOverdue - aOverdue
+
+        // 3. Priority Rank: High -> Medium -> Low
+        const pA = priorityRank[a.priority] ?? 1
+        const pB = priorityRank[b.priority] ?? 1
+        if (pA !== pB) return pA - pB
+
+        // 4. Deadline nearest first
+        if (a.deadline && b.deadline) {
+          const diff = new Date(a.deadline).getTime() - new Date(b.deadline).getTime()
+          if (diff !== 0) return diff
+        } else if (a.deadline) {
+          return -1
+        } else if (b.deadline) {
+          return 1
+        }
+      }
+
+      // 5. Default by newest created
+      return new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
     })
   }, [tasks, dashboardMode, myTasksOnly, selectedStaffId, currentStaffId, statusFilter, priorityFilter, eventFilter, assignerFilter, searchQuery])
 
@@ -389,7 +435,7 @@ export default function TaskManagerPage() {
             border: '1px solid var(--border)',
             borderRadius: '12px',
             padding: '20px 24px',
-            marginBottom: '20px',
+            marginBottom: '16px',
           }}
         >
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '16px' }}>
@@ -397,25 +443,32 @@ export default function TaskManagerPage() {
               <div style={{ fontSize: '18px', fontWeight: 800, color: 'var(--ink)', marginBottom: '4px' }}>
                 Welcome back, {currentStaff?.name ?? 'there'} 👋
               </div>
-              <div style={{ fontSize: '13px', color: 'var(--ink3)' }}>
-                You have <strong style={{ color: 'var(--ink)' }}>{personalMetrics.total} assigned tasks</strong>
-                {personalMetrics.overdue > 0 && <span style={{ color: 'var(--red)', fontWeight: 700 }}> ({personalMetrics.overdue} overdue)</span>}
-                {personalMetrics.dueToday > 0 && <span style={{ color: 'var(--amber)', fontWeight: 700 }}> • {personalMetrics.dueToday} due today</span>}
+              <div style={{ fontSize: '13px', color: 'var(--ink3)', display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '6px' }}>
+                <span>
+                  You have <strong style={{ color: 'var(--ink)' }}>{personalMetrics.total} assigned task{personalMetrics.total === 1 ? '' : 's'}</strong>
+                </span>
+                {personalMetrics.overdue > 0 && <span style={{ color: 'var(--red)', fontWeight: 700 }}>({personalMetrics.overdue} overdue)</span>}
+                {personalMetrics.dueToday > 0 && <span style={{ color: 'var(--amber)', fontWeight: 700 }}>• {personalMetrics.dueToday} due today</span>}
+                {personalMetrics.total > 0 && (
+                  <span style={{ fontSize: '11px', fontWeight: 700, color: 'var(--teal)', background: 'var(--teal-light)', padding: '2px 8px', borderRadius: '6px', marginLeft: '4px' }}>
+                    {Math.round((personalMetrics.done / personalMetrics.total) * 100)}% completed
+                  </span>
+                )}
               </div>
             </div>
 
             <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
-              <div style={{ padding: '8px 16px', background: 'var(--surface)', borderRadius: '8px', border: '1px solid var(--border-light)' }}>
-                <div style={{ fontSize: '10px', fontWeight: 700, color: 'var(--ink4)', textTransform: 'uppercase' }}>In Progress</div>
-                <div style={{ fontSize: '18px', fontWeight: 800, color: 'var(--purple)' }}>{personalMetrics.inProgress}</div>
+              <div style={{ padding: '10px 18px', background: 'var(--surface)', borderRadius: '8px', border: '1px solid var(--border-light)', borderTop: '3px solid var(--purple)', minWidth: '100px' }}>
+                <div style={{ fontSize: '10px', fontWeight: 700, color: 'var(--ink4)', textTransform: 'uppercase', letterSpacing: '0.4px', marginBottom: '2px' }}>In Progress</div>
+                <div style={{ fontSize: '20px', fontWeight: 800, color: 'var(--purple)' }}>{personalMetrics.inProgress}</div>
               </div>
-              <div style={{ padding: '8px 16px', background: 'var(--surface)', borderRadius: '8px', border: '1px solid var(--border-light)' }}>
-                <div style={{ fontSize: '10px', fontWeight: 700, color: 'var(--ink4)', textTransform: 'uppercase' }}>Due Today</div>
-                <div style={{ fontSize: '18px', fontWeight: 800, color: 'var(--amber)' }}>{personalMetrics.dueToday}</div>
+              <div style={{ padding: '10px 18px', background: 'var(--surface)', borderRadius: '8px', border: '1px solid var(--border-light)', borderTop: '3px solid var(--amber)', minWidth: '100px' }}>
+                <div style={{ fontSize: '10px', fontWeight: 700, color: 'var(--ink4)', textTransform: 'uppercase', letterSpacing: '0.4px', marginBottom: '2px' }}>Due Today</div>
+                <div style={{ fontSize: '20px', fontWeight: 800, color: 'var(--amber)' }}>{personalMetrics.dueToday}</div>
               </div>
-              <div style={{ padding: '8px 16px', background: 'var(--surface)', borderRadius: '8px', border: '1px solid var(--border-light)' }}>
-                <div style={{ fontSize: '10px', fontWeight: 700, color: 'var(--ink4)', textTransform: 'uppercase' }}>Completed</div>
-                <div style={{ fontSize: '18px', fontWeight: 800, color: 'var(--teal)' }}>{personalMetrics.done}</div>
+              <div style={{ padding: '10px 18px', background: 'var(--surface)', borderRadius: '8px', border: '1px solid var(--border-light)', borderTop: '3px solid var(--teal)', minWidth: '100px' }}>
+                <div style={{ fontSize: '10px', fontWeight: 700, color: 'var(--ink4)', textTransform: 'uppercase', letterSpacing: '0.4px', marginBottom: '2px' }}>Completed</div>
+                <div style={{ fontSize: '20px', fontWeight: 800, color: 'var(--teal)' }}>{personalMetrics.done}</div>
               </div>
             </div>
           </div>
@@ -431,26 +484,27 @@ export default function TaskManagerPage() {
       />
 
       <Card padded>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap', marginBottom: '16px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap', marginBottom: '16px' }}>
           <ToggleGroup value={view} onChange={setView} options={[['table', 'Table'], ['kanban', 'Kanban'], ['timesheets', 'Timesheets']]} />
 
           {view !== 'timesheets' && (
             <>
               {/* Real-time search */}
-              <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+              <div style={{ position: 'relative', display: 'flex', alignItems: 'center', minWidth: '220px', maxWidth: '320px', flex: '1 1 220px' }}>
                 <input
                   type="text"
                   value={searchQuery}
                   onChange={e => setSearchQuery(e.target.value)}
                   placeholder="Search tasks, notes, people…"
                   style={{
-                    padding: '6px 28px 6px 10px',
+                    width: '100%',
+                    height: '36px',
+                    padding: '0 28px 0 12px',
                     fontSize: '12px',
                     borderRadius: '8px',
                     border: '1px solid var(--border)',
                     background: 'var(--surface)',
                     color: 'var(--ink)',
-                    minWidth: '180px',
                     outline: 'none',
                   }}
                 />
@@ -468,20 +522,28 @@ export default function TaskManagerPage() {
               </div>
 
               {dashboardMode === 'admin' && (
-                <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', color: 'var(--ink3)', cursor: 'pointer' }}>
+                <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', color: 'var(--ink3)', cursor: 'pointer', height: '36px', padding: '0 8px' }}>
                   <input type="checkbox" checked={myTasksOnly} onChange={e => setMyTasksOnly(e.target.checked)} />
                   My Tasks
                 </label>
               )}
 
-              <select value={statusFilter} onChange={e => setStatusFilter(e.target.value as 'all' | TaskStatus)} style={PILL_FILTER_STYLE}>
+              <select
+                value={statusFilter}
+                onChange={e => setStatusFilter(e.target.value as 'all' | TaskStatus)}
+                style={statusFilter !== 'all' ? ACTIVE_PILL_FILTER_STYLE : PILL_FILTER_STYLE}
+              >
                 <option value="all">All statuses</option>
                 <option value="Not-Started">Not Started</option>
                 <option value="In-Progress">In Progress</option>
                 <option value="Completed">Completed</option>
               </select>
 
-              <select value={priorityFilter} onChange={e => setPriorityFilter(e.target.value as 'all' | TaskPriority)} style={PILL_FILTER_STYLE}>
+              <select
+                value={priorityFilter}
+                onChange={e => setPriorityFilter(e.target.value as 'all' | TaskPriority)}
+                style={priorityFilter !== 'all' ? ACTIVE_PILL_FILTER_STYLE : PILL_FILTER_STYLE}
+              >
                 <option value="all">All priorities</option>
                 <option value="High">High</option>
                 <option value="Medium">Medium</option>
@@ -489,41 +551,27 @@ export default function TaskManagerPage() {
               </select>
 
               {/* Event Filter */}
-              <select value={eventFilter} onChange={e => setEventFilter(e.target.value)} style={PILL_FILTER_STYLE}>
+              <select
+                value={eventFilter}
+                onChange={e => setEventFilter(e.target.value)}
+                style={eventFilter !== 'all' ? ACTIVE_PILL_FILTER_STYLE : PILL_FILTER_STYLE}
+              >
                 <option value="all">All events</option>
                 {events.map(ev => <option key={ev.id} value={ev.id}>{ev.name}</option>)}
               </select>
 
               {dashboardMode === 'admin' && (
-                <select value={assignerFilter} onChange={e => setAssignerFilter(e.target.value)} style={PILL_FILTER_STYLE}>
+                <select
+                  value={assignerFilter}
+                  onChange={e => setAssignerFilter(e.target.value)}
+                  style={assignerFilter !== 'all' ? ACTIVE_PILL_FILTER_STYLE : PILL_FILTER_STYLE}
+                >
                   <option value="all">All assigners</option>
                   {staff.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
                 </select>
               )}
 
-              {/* Group by Event Toggle (in table mode) */}
-              {view === 'table' && (
-                <button
-                  type="button"
-                  onClick={() => setGroupByEvent(!groupByEvent)}
-                  style={{
-                    padding: '6px 12px',
-                    borderRadius: '8px',
-                    fontSize: '12px',
-                    fontWeight: 600,
-                    background: groupByEvent ? 'var(--teal-light)' : 'var(--surface)',
-                    color: groupByEvent ? 'var(--teal-mid)' : 'var(--ink3)',
-                    border: `1px solid ${groupByEvent ? 'var(--teal-mid)' : 'var(--border)'}`,
-                    cursor: 'pointer',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '6px',
-                  }}
-                >
-                  <span>📁</span> Group by Event
-                </button>
-              )}
-
+              {/* Reset Filters Shortcut */}
               {(selectedStaffId || searchQuery || eventFilter !== 'all' || assignerFilter !== 'all' || statusFilter !== 'all' || priorityFilter !== 'all' || myTasksOnly) && (
                 <button
                   type="button"
@@ -537,16 +585,43 @@ export default function TaskManagerPage() {
                     setMyTasksOnly(false)
                   }}
                   style={{
-                    background: 'none',
+                    background: 'transparent',
                     border: 'none',
                     color: 'var(--teal-mid)',
                     fontSize: '12px',
+                    fontWeight: 600,
                     cursor: 'pointer',
-                    textDecoration: 'underline',
-                    padding: '4px 6px',
+                    padding: '4px 8px',
+                    whiteSpace: 'nowrap',
                   }}
                 >
-                  Reset filters
+                  Reset filters ✕
+                </button>
+              )}
+
+              {/* Group by Event Toggle (in table mode) */}
+              {view === 'table' && (
+                <button
+                  type="button"
+                  onClick={() => setGroupByEvent(!groupByEvent)}
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    padding: '0 12px',
+                    height: '36px',
+                    borderRadius: '8px',
+                    fontSize: '12px',
+                    fontWeight: 600,
+                    border: `1px solid ${groupByEvent ? 'var(--teal)' : 'var(--border)'}`,
+                    background: groupByEvent ? 'var(--teal-light)' : 'var(--surface)',
+                    color: groupByEvent ? 'var(--teal)' : 'var(--ink3)',
+                    cursor: 'pointer',
+                    marginLeft: 'auto',
+                    transition: 'all 0.15s ease',
+                  }}
+                >
+                  <span>📁</span> Group by Event
                 </button>
               )}
             </>
