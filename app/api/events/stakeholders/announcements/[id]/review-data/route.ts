@@ -13,7 +13,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
 
   const { data: approval } = await supabaseAdmin
     .from('announcement_approvals')
-    .select('approver_role, token_expires_at, status, notified_at, layer, external_name, approver:approver_id(name)')
+    .select('approver_role, token_expires_at, status, notified_at, layer, external_name, sent_by_name, approver:approver_id(name)')
     .eq('announcement_id', id)
     .eq('approval_token', token)
     .single()
@@ -36,7 +36,12 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
 
   return NextResponse.json({
     event_name: event?.name ?? null,
-    sent_by: creator?.name ?? null,
+    // sent_by_name (2026-08-27) — the real name of whoever actually
+    // triggered THIS request (resolved at send time, per-row), not a
+    // hardcoded placeholder. Falls back to the announcement's creator only
+    // for pre-fix rows that predate this column, never to a generic role
+    // label — an empty value reads better in the UI than a wrong name.
+    sent_by: approval.sent_by_name ?? creator?.name ?? null,
     sent_at: approval.notified_at,
     approver_name: approver?.name ?? approval.external_name ?? null,
     approver_role: approval.layer === 'external' ? 'External Reviewer' : approval.approver_role,

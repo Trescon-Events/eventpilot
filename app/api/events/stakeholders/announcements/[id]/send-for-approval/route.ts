@@ -3,6 +3,7 @@ import { randomBytes } from 'node:crypto'
 import { Resend } from 'resend'
 import { supabaseAdmin } from '@/app/lib/supabase'
 import { getStakeholderEmailHeaderHtml } from '@/app/lib/branding/email-header'
+import { getSession } from '@/app/lib/access/session'
 
 /* POST /api/events/stakeholders/announcements/[id]/send-for-approval
    Body: { approvers: [{ staff_id, role_label }] }
@@ -29,6 +30,16 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   const notifiedAt = new Date().toISOString()
   const tokenExpiresAt = new Date(Date.now() + TOKEN_TTL_MS).toISOString()
 
+  // Read-only session lookup, purely to show the review page's real "Sent
+  // by" name instead of a hardcoded placeholder (2026-08-27) — does not
+  // change this route's existing auth posture (unchanged from before).
+  const session = getSession(req)
+  let sentByName: string | null = null
+  if (session?.sid && session.sid !== 'super-admin') {
+    const { data: staff } = await supabaseAdmin.from('staff_members').select('name').eq('id', session.sid).single()
+    sentByName = staff?.name ?? null
+  }
+
   const approvalRows = body.approvers.map(a => ({
     announcement_id: id,
     layer: 'internal' as const,
@@ -37,6 +48,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     approval_token: randomBytes(32).toString('hex'),
     token_expires_at: tokenExpiresAt,
     notified_at: notifiedAt,
+    sent_by_name: sentByName,
   }))
 
   const { data: approvals, error: insertErr } = await supabaseAdmin
@@ -79,7 +91,7 @@ async function sendApprovalEmails(announcement: AnnouncementRow, approvals: Appr
     const approver = Array.isArray(approval.approver) ? approval.approver[0] : approval.approver
     if (!approver?.email) continue
 
-    const reviewUrl = `${siteUrl}/admin/events/${event?.id}/announcements/${announcement.id}/review?token=${approval.approval_token}`
+    const reviewUrl = `${siteUrl}/public/announcement-review/${event?.id}/${announcement.id}?token=${approval.approval_token}`
 
     await resend.emails.send({
       from,

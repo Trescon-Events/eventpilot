@@ -162,11 +162,17 @@ export async function middleware(req: NextRequest) {
     pathname.startsWith('/api/seed-demo') ||
     // SAE approval review: reachable via a signed approval_token with no
     // EventPilot session (external approvers). Auth is checked inside the
-    // route/page via the token, not here. Scoped tightly with a regex so
-    // this doesn't accidentally open up the rest of the announcements tree.
+    // route via the token, not here. Scoped tightly with a regex so this
+    // doesn't accidentally open up the rest of the announcements tree. The
+    // review PAGE itself lives under /public/announcement-review (already
+    // covered by the PUBLIC_PREFIXES '/public' rule above) — it used to
+    // live under /admin/events/[id]/announcements/.../review with its own
+    // regex exemption here, but that admin-nested layout does its own
+    // unconditional session redirect with no awareness of this exemption,
+    // so a real external reviewer always got bounced to /login regardless
+    // (found live 2026-08-27). Moved rather than patched.
     /^\/api\/events\/stakeholders\/announcements\/[^/]+\/approve$/.test(pathname) ||
-    /^\/api\/events\/stakeholders\/announcements\/[^/]+\/review-data$/.test(pathname) ||
-    /^\/admin\/events\/[^/]+\/announcements\/[^/]+\/review$/.test(pathname)
+    /^\/api\/events\/stakeholders\/announcements\/[^/]+\/review-data$/.test(pathname)
   ) {
     return NextResponse.next()
   }

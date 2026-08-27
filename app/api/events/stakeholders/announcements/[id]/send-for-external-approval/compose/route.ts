@@ -57,7 +57,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   const sender = await resolveSenderIdentity(session, template)
   const reviewToken = randomBytes(32).toString('hex')
   const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://eventpilot.tresconglobal.com'
-  const reviewUrl = `${siteUrl}/admin/events/${announcement.event_id}/announcements/${id}/review?token=${reviewToken}`
+  const reviewUrl = `${siteUrl}/public/announcement-review/${announcement.event_id}/${id}?token=${reviewToken}`
 
   const { subject, html } = renderEmailTemplate(template, {
     recipient_name: body.recipient_name,
