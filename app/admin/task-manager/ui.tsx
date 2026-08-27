@@ -4,14 +4,31 @@ import type { CSSProperties, SelectHTMLAttributes } from 'react'
 
 /** Neutral filter dropdown styling — a plain, compact select, distinct from the colored value pills used for status/priority cells. */
 export const PILL_FILTER_STYLE: CSSProperties = {
-  background: 'var(--border-light)',
+  background: 'var(--surface)',
   color: 'var(--ink2)',
   border: '1px solid var(--border)',
   borderRadius: '8px',
-  padding: '6px 10px',
+  padding: '0 10px',
   fontSize: '12px',
   fontWeight: 600,
   cursor: 'pointer',
+  height: '36px',
+  outline: 'none',
+  transition: 'all 0.15s ease',
+}
+
+export const ACTIVE_PILL_FILTER_STYLE: CSSProperties = {
+  background: 'var(--teal-light)',
+  color: 'var(--teal)',
+  border: '1px solid var(--teal)',
+  borderRadius: '8px',
+  padding: '0 10px',
+  fontSize: '12px',
+  fontWeight: 700,
+  cursor: 'pointer',
+  height: '36px',
+  outline: 'none',
+  transition: 'all 0.15s ease',
 }
 
 const AVATAR_COLORS = ['var(--teal-mid)', 'var(--indigo)', 'var(--purple)', 'var(--amber)', 'var(--red)', 'var(--lime)']
