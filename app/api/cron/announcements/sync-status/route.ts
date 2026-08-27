@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { Resend } from 'resend'
 import { supabaseAdmin } from '@/app/lib/supabase'
 import { listPostizPostsInRange, type PostizPostSummary } from '@/app/lib/postiz'
+import { resolveChannelResults } from '@/app/lib/events/postiz-publish'
 
 /* GET /api/cron/announcements/sync-status
    cron-job.org, every 15 minutes, Authorization: Bearer CRON_SECRET.
@@ -60,24 +61,12 @@ export async function GET(req: NextRequest) {
       console.error(`Postiz posts list failed for event "${name}":`, e)
       continue
     }
-    const postById = new Map(posts.map(p => [p.id, p]))
-
     for (const row of rows) {
       const results = (row.publish_results ?? {}) as Record<string, { success: boolean; postId: string; state?: string; url?: string }>
       const channelIds = Object.keys(results)
       if (channelIds.length === 0) continue
 
-      let anyError = false
-      let anyQueue = false
-      const updatedResults: typeof results = { ...results }
-      for (const channelId of channelIds) {
-        const postId = results[channelId].postId
-        const post = postById.get(postId)
-        if (!post) { anyQueue = true; continue } // not seen yet in this range — treat as still pending
-        updatedResults[channelId] = { ...results[channelId], state: post.state, url: post.releaseURL }
-        if (post.state === 'ERROR') anyError = true
-        else if (post.state === 'QUEUE' || post.state === 'DRAFT') anyQueue = true
-      }
+      const { updatedResults, anyQueue, anyError } = resolveChannelResults(results, posts)
 
       if (anyQueue) {
         // Still in flight on at least one channel — leave as 'scheduled',

@@ -12,9 +12,11 @@ import SendToSpeakerComposer from './SendToSpeakerComposer'
 import SendForExternalApprovalComposer from './SendForExternalApprovalComposer'
 import PostizWeekCalendar from './PostizWeekCalendar'
 import {
-  displayName, displaySubtitle, statusColor, plainToHtml, PLATFORM_CHAR_LIMITS,
+  displayName, displaySubtitle, statusColor, plainToHtml, PLATFORM_CHAR_LIMITS, PLATFORM_LABELS,
   type AnnouncementListItem, type Stakeholder, type StakeholderKind, type Speaker, type PostizChannel, type EventStaffOption,
 } from './page'
+import PublishProgressModal from './PublishProgressModal'
+import NotifyExternalComposer from './NotifyExternalComposer'
 
 // custom_fields.email is the canonical, actively-maintained speaker email
 // (see Speaker type's own comment) — a plain string field, but read
@@ -84,6 +86,12 @@ export default function AnnouncementDetailPanel({
   const [sendToSpeakerOpen, setSendToSpeakerOpen] = useState(false)
   const [sendForExternalApprovalOpen, setSendForExternalApprovalOpen] = useState(false)
   const [bypassing, setBypassing] = useState<'internal' | 'external' | null>(null)
+  const [publishModalMode, setPublishModalMode] = useState<'now' | 'retry' | null>(null)
+  const [confirmingTagging, setConfirmingTagging] = useState(false)
+  const [notifyingInternal, setNotifyingInternal] = useState(false)
+  const [notifyExternalOpen, setNotifyExternalOpen] = useState(false)
+  const [remindingExternal, setRemindingExternal] = useState(false)
+  const [notifyError, setNotifyError] = useState<string | null>(null)
   const [selectedChannelIds, setSelectedChannelIds] = useState<string[]>([])
   // These announcement creatives are always a static image — YouTube's API
   // rejects image-only content ("Item must be a video"), and since Postiz
@@ -297,33 +305,51 @@ export default function AnnouncementDetailPanel({
     else onError(data.error || 'Could not schedule this announcement.')
   }
 
-  async function publishNow() {
+  function publishNow() {
     if (selectedChannelIds.length === 0) { onError('Pick at least one channel.'); return }
-    setPublishing('now')
-    const res = await fetch(`/api/events/stakeholders/announcements/${announcement.id}/publish-now`, {
-      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ postiz_channel_ids: selectedChannelIds }),
-    })
-    const data = await res.json().catch(() => ({}))
-    setPublishing(null)
-    if (res.ok) {
-      onUpdate({ status: data.status, scheduled_for: data.scheduled_for, publish_results: data.publish_results, postiz_channel_ids: selectedChannelIds })
-      setJustCompleted(`✓ Posted! Postiz is delivering it to ${selectedChannelIds.length} channel${selectedChannelIds.length === 1 ? '' : 's'} now — links below will appear as each one confirms.`)
-    }
-    else onError(data.error || 'Could not publish this announcement.')
+    setPublishModalMode('now')
   }
 
-  async function retryPublish() {
-    setPublishing('retry')
-    const res = await fetch(`/api/events/stakeholders/announcements/${announcement.id}/publish-now`, {
-      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ postiz_channel_ids: selectedChannelIds }),
+  function retryPublish() {
+    setPublishModalMode('retry')
+  }
+
+  async function toggleTaggingConfirmed(confirmed: boolean) {
+    setConfirmingTagging(true); setNotifyError(null)
+    const res = await fetch(`/api/events/stakeholders/announcements/${announcement.id}/confirm-tagging`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ confirmed }),
     })
     const data = await res.json().catch(() => ({}))
-    setPublishing(null)
+    setConfirmingTagging(false)
+    if (res.ok) onUpdate({ tagging_confirmed_at: data.tagging_confirmed_at })
+    else setNotifyError(data.error || 'Could not update tagging confirmation.')
+  }
+
+  async function notifyInternal() {
+    setNotifyingInternal(true); setNotifyError(null)
+    const res = await fetch(`/api/events/stakeholders/announcements/${announcement.id}/notify-internal`, { method: 'POST' })
+    const data = await res.json().catch(() => ({}))
+    setNotifyingInternal(false)
     if (res.ok) {
-      onUpdate({ status: data.status, scheduled_for: data.scheduled_for, publish_results: data.publish_results })
-      setJustCompleted('✓ Retried! Postiz is delivering it again — links below will appear as each channel confirms.')
-    }
-    else onError(data.error || 'Retry failed.')
+      onUpdate({
+        internal_notified_at: data.internal_notified_at ?? announcement.internal_notified_at,
+        internal_notification_reminder_count: data.internal_notification_reminder_count ?? announcement.internal_notification_reminder_count,
+        internal_notification_last_sent_at: data.internal_notification_last_sent_at,
+      })
+    } else setNotifyError(data.error || 'Could not notify the internal team.')
+  }
+
+  async function remindExternal() {
+    setRemindingExternal(true); setNotifyError(null)
+    const res = await fetch(`/api/events/stakeholders/announcements/${announcement.id}/notify-external/remind`, { method: 'POST' })
+    const data = await res.json().catch(() => ({}))
+    setRemindingExternal(false)
+    if (res.ok) {
+      onUpdate({
+        external_notification_reminder_count: data.external_notification_reminder_count,
+        external_notification_last_sent_at: data.external_notification_last_sent_at,
+      })
+    } else setNotifyError(data.error || 'Could not send the reminder.')
   }
 
   // "Share to Team" (2026-08-21, per Madhu) — the team's own WhatsApp
@@ -340,9 +366,6 @@ export default function AnnouncementDetailPanel({
   // wa.me click-to-chat deep link — the producer picks the group and hits
   // send, one click instead of manually copying N links into a fresh
   // message every time.
-  const PLATFORM_LABELS: Record<string, string> = {
-    linkedin: 'LinkedIn', 'linkedin-page': 'LinkedIn Page', x: 'X', instagram: 'Instagram', youtube: 'YouTube',
-  }
   function shareablePlatformLinks(): { label: string; url: string }[] {
     if (!announcement.publish_results) return []
     return Object.entries(announcement.publish_results)
@@ -383,8 +406,6 @@ export default function AnnouncementDetailPanel({
     ? { label: 'Sending for approval…', estimatedMs: 1500 }
     : publishing === 'schedule'
     ? { label: 'Scheduling via Postiz…', estimatedMs: 2500 }
-    : publishing === 'now' || publishing === 'retry'
-    ? { label: 'Posting via Postiz…', estimatedMs: 3000 }
     : null
 
   // Two-layer approval readiness (2026-08-26). internalDone mirrors the
@@ -785,13 +806,13 @@ export default function AnnouncementDetailPanel({
                 {publishing === 'schedule' ? 'Scheduling…' : 'Schedule'}
               </Button>
               <Button variant="lime" onClick={publishNow} disabled={publishing !== null}>
-                {publishing === 'now' ? 'Posting…' : 'Post Now'}
+                Post Now
               </Button>
             </>
           )}
           {announcement.status === 'failed' && (
             <Button variant="red" onClick={retryPublish} disabled={publishing !== null}>
-              {publishing === 'retry' ? 'Retrying…' : 'Retry'}
+              Retry
             </Button>
           )}
           {shareablePlatformLinks().length > 0 && (
@@ -800,6 +821,51 @@ export default function AnnouncementDetailPanel({
             </Button>
           )}
         </div>
+
+        {announcement.status === 'published' && (
+          <div style={{ marginTop: '16px', paddingTop: '16px', borderTop: '1px solid var(--border-light)' }}>
+            <div style={{ fontSize: '11px', fontWeight: 700, color: 'var(--ink3)', marginBottom: '8px' }}>After Publishing</div>
+
+            <label style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '9px 12px', borderRadius: '8px', border: `1.5px solid ${announcement.tagging_confirmed_at ? 'var(--teal-mid)' : 'var(--border)'}`, background: announcement.tagging_confirmed_at ? 'var(--teal-light)' : 'transparent', cursor: 'pointer', marginBottom: '10px', fontSize: '12.5px', fontWeight: 700, color: 'var(--ink2)' }}>
+              <input type="checkbox" checked={!!announcement.tagging_confirmed_at} disabled={confirmingTagging}
+                onChange={e => toggleTaggingConfirmed(e.target.checked)} style={{ margin: 0 }} />
+              I&apos;ve tagged the speaker/companies on each platform (or there was nothing to tag)
+              {announcement.tagging_confirmed_at && <span style={{ color: 'var(--ink4)', fontWeight: 400 }}> — confirmed {new Date(announcement.tagging_confirmed_at).toLocaleString()}</span>}
+            </label>
+
+            {notifyError && <div style={{ fontSize: '12.5px', color: 'var(--red)', marginBottom: '10px' }}>{notifyError}</div>}
+
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', alignItems: 'center', opacity: announcement.tagging_confirmed_at ? 1 : 0.5 }}>
+              <Button variant="ghost" onClick={notifyInternal} disabled={!announcement.tagging_confirmed_at || notifyingInternal}>
+                {notifyingInternal ? 'Sending…' : announcement.internal_notified_at ? 'Remind Internal Team' : 'Notify Internal Team'}
+              </Button>
+              {announcement.internal_notified_at && (
+                <span style={{ fontSize: '11.5px', color: 'var(--ink4)' }}>
+                  Sent {new Date(announcement.internal_notified_at).toLocaleString()}
+                  {announcement.internal_notification_reminder_count > 0 && ` · reminded ${announcement.internal_notification_reminder_count}× (last ${new Date(announcement.internal_notification_last_sent_at!).toLocaleString()})`}
+                </span>
+              )}
+            </div>
+
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', alignItems: 'center', marginTop: '8px', opacity: announcement.tagging_confirmed_at ? 1 : 0.5 }}>
+              {!announcement.external_notified_at ? (
+                <Button variant="ghost" onClick={() => setNotifyExternalOpen(true)} disabled={!announcement.tagging_confirmed_at}>
+                  Notify {displayName(stakeholderKind, stakeholder)}
+                </Button>
+              ) : (
+                <Button variant="ghost" onClick={remindExternal} disabled={!announcement.tagging_confirmed_at || remindingExternal}>
+                  {remindingExternal ? 'Sending…' : 'Send Reminder'}
+                </Button>
+              )}
+              {announcement.external_notified_at && (
+                <span style={{ fontSize: '11.5px', color: 'var(--ink4)' }}>
+                  Sent {new Date(announcement.external_notified_at).toLocaleString()} to {announcement.external_notification_recipient_email}
+                  {announcement.external_notification_reminder_count > 0 && ` · reminded ${announcement.external_notification_reminder_count}× (last ${new Date(announcement.external_notification_last_sent_at!).toLocaleString()})`}
+                </span>
+              )}
+            </div>
+          </div>
+        )}
       </div>
       ) : (
       /* Send to Speaker — Self Promo's terminal action. No Postiz/channel/
@@ -861,6 +927,33 @@ export default function AnnouncementDetailPanel({
           initialRecipientEmail={stakeholderKind === 'speaker' ? speakerEmail(stakeholder as Speaker) : ''}
           onClose={() => setSendForExternalApprovalOpen(false)}
           onSent={() => onUpdate({ external_approval_status: 'pending' })}
+        />
+      )}
+
+      {publishModalMode && (
+        <PublishProgressModal
+          announcementId={announcement.id}
+          channelIds={selectedChannelIds}
+          postizChannels={postizChannels}
+          mode={publishModalMode}
+          onClose={() => setPublishModalMode(null)}
+          onDone={onUpdate}
+        />
+      )}
+
+      {notifyExternalOpen && (
+        <NotifyExternalComposer
+          announcementId={announcement.id}
+          stakeholderName={displayName(stakeholderKind, stakeholder)}
+          initialRecipientName={stakeholderKind === 'speaker' ? ((stakeholder as Speaker).public_name || displayName(stakeholderKind, stakeholder)) : displayName(stakeholderKind, stakeholder)}
+          initialRecipientEmail={stakeholderKind === 'speaker' ? speakerEmail(stakeholder as Speaker) : ''}
+          onClose={() => setNotifyExternalOpen(false)}
+          onSent={data => onUpdate({
+            external_notified_at: data.external_notified_at,
+            external_notification_recipient_name: data.external_notification_recipient_name,
+            external_notification_recipient_email: data.external_notification_recipient_email,
+            external_notification_last_sent_at: data.external_notification_last_sent_at,
+          } as Partial<AnnouncementListItem>)}
         />
       )}
 

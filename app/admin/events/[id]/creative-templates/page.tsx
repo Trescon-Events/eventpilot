@@ -92,6 +92,19 @@ export type AnnouncementListItem = {
   external_approval_status: 'none' | 'pending' | 'approved' | 'approved_with_comments' | 'changes_requested'
   internal_approval_bypassed_at: string | null
   external_approval_bypassed_at: string | null
+  // Post-publish notify flow (2026-08-27) — tagging_confirmed_at is the
+  // single hard-gate checkbox (both "confirmed" and "bypass" in one, see
+  // confirm-tagging/route.ts); the notified_at pair is each channel's
+  // permanent first-sent record, reminder_count/last_sent_at track resends.
+  tagging_confirmed_at: string | null
+  internal_notified_at: string | null
+  internal_notification_reminder_count: number
+  internal_notification_last_sent_at: string | null
+  external_notified_at: string | null
+  external_notification_reminder_count: number
+  external_notification_last_sent_at: string | null
+  external_notification_recipient_name: string | null
+  external_notification_recipient_email: string | null
 }
 
 export type PostizChannel = { id: string; name: string; identifier: string; picture: string | null; disabled: boolean }
@@ -114,6 +127,10 @@ export function thumbUrl(kind: StakeholderKind, s: Stakeholder): string | null {
 // Schedule/Post Now is the whole value — same "look like it'll actually
 // post" principle as the caption editor rebuild.
 export const PLATFORM_CHAR_LIMITS: Record<string, number> = { x: 280, linkedin: 3000, 'linkedin-page': 3000 }
+
+export const PLATFORM_LABELS: Record<string, string> = {
+  linkedin: 'LinkedIn', 'linkedin-page': 'LinkedIn Page', x: 'X', instagram: 'Instagram', youtube: 'YouTube',
+}
 
 export function statusColor(s: AnnouncementStatus): BadgeColor {
   if (s === 'published' || s === 'approved' || s === 'approved_with_comments') return 'teal'
