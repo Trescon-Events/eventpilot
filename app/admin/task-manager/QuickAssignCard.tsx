@@ -58,7 +58,7 @@ export default function QuickAssignCard({ staff, events, currentStaffId, onAssig
         border: '1px solid var(--border)',
         borderRadius: '12px',
         padding: '16px 20px',
-        marginBottom: '18px',
+        marginBottom: '16px',
         boxShadow: 'var(--shadow-sm)',
       }}
       onKeyDown={e => {
@@ -96,7 +96,8 @@ export default function QuickAssignCard({ staff, events, currentStaffId, onAssig
             disabled={busy}
             style={{
               flex: 1,
-              padding: '10px 14px',
+              height: '38px',
+              padding: '0 14px',
               fontSize: '13px',
               fontWeight: 500,
               background: 'var(--surface)',
@@ -104,42 +105,48 @@ export default function QuickAssignCard({ staff, events, currentStaffId, onAssig
               borderRadius: '8px',
               color: 'var(--ink)',
               outline: 'none',
+              transition: 'border-color 0.15s, box-shadow 0.15s',
             }}
           />
         </div>
 
         {/* Row 2: Assignee, Event, Deadline, Priority & Action */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
           {/* Assignee Searchable Dropdown */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '8px', padding: '2px 6px', minWidth: '170px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '8px', padding: '0 8px', height: '36px', minWidth: '180px' }}>
             {selectedStaffMember ? (
               <Avatar name={selectedStaffMember.name} size={20} />
             ) : (
-              <span style={{ fontSize: '12px', color: 'var(--ink4)', marginLeft: '4px' }}>👤</span>
+              <span style={{ fontSize: '12px', color: 'var(--ink4)' }}>👤</span>
             )}
-            <SearchableSelect
-              options={staffOptions}
-              value={assignedTo}
-              onChange={setAssignedTo}
-              placeholder="Select Assignee…"
-              compact
-            />
+            <div style={{ flex: 1 }}>
+              <SearchableSelect
+                options={staffOptions}
+                value={assignedTo}
+                onChange={setAssignedTo}
+                placeholder="Select Assignee…"
+                compact
+              />
+            </div>
           </div>
 
           {/* Event Searchable Dropdown */}
-          <div style={{ minWidth: '190px' }}>
-            <SearchableSelect
-              options={eventOptions}
-              value={eventId}
-              onChange={setEventId}
-              placeholder="Select Event…"
-              emptyOptionLabel="General (No Event)"
-              compact
-            />
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '8px', padding: '0 8px', height: '36px', minWidth: '200px' }}>
+            <span style={{ fontSize: '12px', color: 'var(--ink4)' }}>📁</span>
+            <div style={{ flex: 1 }}>
+              <SearchableSelect
+                options={eventOptions}
+                value={eventId}
+                onChange={setEventId}
+                placeholder="Select Event…"
+                emptyOptionLabel="General (No Event)"
+                compact
+              />
+            </div>
           </div>
 
           {/* Deadline Picker */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '4px', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '8px', padding: '4px 8px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '8px', padding: '0 10px', height: '36px' }}>
             <span style={{ fontSize: '12px', color: 'var(--ink4)' }}>📅</span>
             <input
               type="date"
@@ -151,6 +158,7 @@ export default function QuickAssignCard({ staff, events, currentStaffId, onAssig
                 border: 'none',
                 color: deadline ? 'var(--ink)' : 'var(--ink4)',
                 fontSize: '12px',
+                fontWeight: 500,
                 outline: 'none',
                 cursor: 'pointer',
               }}
@@ -158,13 +166,16 @@ export default function QuickAssignCard({ staff, events, currentStaffId, onAssig
           </div>
 
           {/* Priority Pill */}
-          <PillSelect
-            pillColor={PRIORITY_COLOR[priority]}
-            value={priority}
-            onChange={e => setPriority(!busy ? e.target.value as TaskPriority : priority)}
-          >
-            {PRIORITIES.map(p => <option key={p} value={p}>{p}</option>)}
-          </PillSelect>
+          <div style={{ height: '36px', display: 'flex', alignItems: 'center' }}>
+            <PillSelect
+              pillColor={PRIORITY_COLOR[priority]}
+              value={priority}
+              onChange={e => setPriority(!busy ? e.target.value as TaskPriority : priority)}
+              style={{ height: '36px', padding: '0 24px 0 12px' }}
+            >
+              {PRIORITIES.map(p => <option key={p} value={p}>{p}</option>)}
+            </PillSelect>
+          </div>
 
           {/* Optional Remarks input */}
           <input
@@ -176,7 +187,8 @@ export default function QuickAssignCard({ staff, events, currentStaffId, onAssig
             style={{
               flex: 1,
               minWidth: '150px',
-              padding: '7px 10px',
+              height: '36px',
+              padding: '0 12px',
               fontSize: '12px',
               background: 'var(--surface)',
               border: '1px solid var(--border)',
