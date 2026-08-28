@@ -33,6 +33,7 @@ export default function SummaryBar({
   totalTrackedSeconds,
 }: Props) {
   const entries = Object.entries(counts).sort(([, a], [, b]) => b.total - a.total)
+  const activeTasksCount = Math.max(0, totalTasksCount - completedCount)
   const completionRate = totalTasksCount > 0 ? Math.round((completedCount / totalTasksCount) * 100) : 0
 
   return (
@@ -49,11 +50,13 @@ export default function SummaryBar({
         <StatCard color="indigo">
           <div style={{ padding: '14px 16px' }}>
             <div style={{ fontSize: '11px', fontWeight: 700, color: 'var(--ink3)', textTransform: 'uppercase', letterSpacing: '0.4px', marginBottom: '6px' }}>
-              Active Workload
+              Active Tasks
             </div>
             <div style={{ display: 'flex', alignItems: 'baseline', gap: '8px' }}>
-              <span style={{ fontSize: '26px', fontWeight: 800, color: 'var(--ink)', lineHeight: 1 }}>{totalTasksCount}</span>
-              <span style={{ fontSize: '12px', color: 'var(--ink4)' }}>total tasks</span>
+              <span style={{ fontSize: '26px', fontWeight: 800, color: 'var(--ink)', lineHeight: 1 }}>{activeTasksCount}</span>
+              <span style={{ fontSize: '12px', color: 'var(--ink4)' }}>
+                {completedCount} done ({completionRate}%)
+              </span>
             </div>
           </div>
         </StatCard>
