@@ -254,6 +254,11 @@ export type GlobalPlaceholderDefault = {
   company_name: string | null
   country: string | null
   photo_url: string | null
+  // Detected once, at photo upload time (2026-08-29 — real bug: without
+  // this, alignAndCropPhoto had no idea where the head sits in this
+  // specific photo, producing a visibly off-place/oversized crop). Speaker
+  // only — the partner default's photo fills a logo slot, no face concept.
+  photo_head_box: HeadBox | null
 }
 
 export type CreativeTemplateConfig = {

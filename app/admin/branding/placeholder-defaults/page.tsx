@@ -26,6 +26,18 @@ import type { PlaceholderProfile, GlobalPlaceholderDefault } from '@/app/lib/ann
 
 type StakeholderKind = 'speaker' | 'partner'
 
+// Tiny duplicate of face-alignment.ts's classifyShotType (2026-08-29) —
+// deliberately not imported here: that module also pulls in the Gemini
+// SDK for its server-only detectHeadBox() call, not worth dragging into
+// this client bundle for one 4-line pure function. Keep in sync by hand;
+// see that file if this ever needs to change.
+function classifyShotTypeLocal(heightRatio: number): string {
+  if (heightRatio > 0.45) return 'headshot'
+  if (heightRatio > 0.25) return 'shoulders'
+  if (heightRatio > 0.12) return 'waist'
+  return 'full_body'
+}
+
 export default function PlaceholderDefaultsPage() {
   const [activeType, setActiveType] = useState<StakeholderKind>('speaker')
   const [defaults, setDefaults] = useState<{ speaker: GlobalPlaceholderDefault | null; partner: GlobalPlaceholderDefault | null }>({ speaker: null, partner: null })
@@ -168,6 +180,23 @@ function DefaultForm({ activeType, value, onSaveText, onUploadPhoto }: {
             {uploading ? 'Uploading…' : value?.photo_url ? 'Replace Placeholder Photo' : 'Upload Placeholder Photo'}
           </Button>
           <div style={{ fontSize: '10.5px', color: 'var(--ink4)', marginTop: '4px' }}>Clean, transparent-background PNG — same shape as the photo-cleaning module&apos;s output.</div>
+          {/* Head detection (2026-08-29, real bug fix) — runs automatically
+              on upload for the speaker default (see the photo route's own
+              comment), same "detect once, reuse forever" shape as a real
+              speaker's photo_head_box or a per-layer reference upload's
+              reference_head_box. Without this, Generate Preview's crop had
+              no idea where the head sits in this specific photo. */}
+          {activeType === 'speaker' && value?.photo_url && (
+            value.photo_head_box ? (
+              <div style={{ fontSize: '11px', color: 'var(--teal-mid)', fontWeight: 700, marginTop: '6px' }}>
+                Face-aligned ✓ (detected shot type: {classifyShotTypeLocal(value.photo_head_box.heightRatio).replace('_', ' ')})
+              </div>
+            ) : (
+              <div style={{ fontSize: '11px', color: 'var(--amber)', fontWeight: 700, marginTop: '6px' }}>
+                ⚠ No head detected in this photo — Generate Preview&apos;s crop may be off. Try re-uploading a clearer photo.
+              </div>
+            )
+          )}
         </div>
       </div>
 

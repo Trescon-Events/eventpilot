@@ -130,7 +130,13 @@ export async function POST(req: NextRequest) {
       || (body.stakeholder_type === 'partner' && source === 'partner_logo')
     if (isPrimarySource && globalDefault?.photo_url) {
       const buffer = await fetchAssetBuffer(globalDefault.photo_url)
-      if (buffer) return [source, { buffer, url: globalDefault.photo_url, is_svg: false }]
+      // photo_head_box (2026-08-29, real bug fix) — detected once at
+      // upload time on the branding team's Placeholder Defaults page
+      // (same mechanism a real speaker's own photo_head_box uses), reused
+      // here exactly like the realUrl branch above reuses speaker's own.
+      // Without this the crop had no idea where the head sits in THIS
+      // specific photo, producing a visibly off-place/oversized circle.
+      if (buffer) return [source, { buffer, url: globalDefault.photo_url, is_svg: false, head_box: globalDefault.photo_head_box }]
     }
 
     if (layer.reference_url) {
