@@ -5,6 +5,7 @@ import Link from 'next/link'
 import PageHeader from '@/app/components/PageHeader'
 import { Button, Card, Input, Toast, type ToastType } from '@/app/components/ui'
 import type { PlaceholderProfile, GlobalPlaceholderDefault } from '@/app/lib/announcements/composite'
+import type { HeadBox } from '@/app/lib/media/face-alignment'
 
 /* Platform-level (not event-scoped) placeholder default (2026-08-29) — one
    row per stakeholder type (speaker/partner), reused by every event's
@@ -91,6 +92,20 @@ export default function PlaceholderDefaultsPage() {
     }
   }
 
+  async function saveHeadBox(headBox: HeadBox) {
+    const res = await fetch('/api/branding/placeholder-defaults', {
+      method: 'PUT', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ stakeholder_type: activeType, photo_head_box: headBox }),
+    })
+    const data = await res.json().catch(() => ({}))
+    if (res.ok) {
+      setDefaults(d => ({ ...d, [activeType]: data }))
+      setMsgType('success'); setMsg('Head position saved.')
+    } else {
+      setMsgType('error'); setMsg(data.error || 'Could not save head position.')
+    }
+  }
+
   const value = defaults[activeType]
 
   return (
@@ -132,7 +147,7 @@ export default function PlaceholderDefaultsPage() {
 
             <div style={{ position: 'sticky', top: '20px' }}>
               <div style={{ fontSize: '11px', fontWeight: 800, color: 'var(--teal-mid)', letterSpacing: '0.6px', textTransform: 'uppercase', marginBottom: '10px' }}>Preview</div>
-              <PhotoPanel activeType={activeType} value={value} onUpload={uploadPhoto} />
+              <PhotoPanel activeType={activeType} value={value} onUpload={uploadPhoto} onSaveHeadBox={saveHeadBox} />
             </div>
           </div>
         )}
@@ -181,13 +196,32 @@ function FieldsForm({ activeType, value, onSave }: {
   )
 }
 
-function PhotoPanel({ activeType, value, onUpload }: {
+function PhotoPanel({ activeType, value, onUpload, onSaveHeadBox }: {
   activeType: StakeholderKind
   value: GlobalPlaceholderDefault | null
   onUpload: (file: File) => Promise<void>
+  onSaveHeadBox: (headBox: HeadBox) => Promise<void>
 }) {
   const [uploading, setUploading] = useState(false)
+  const [savingHeadBox, setSavingHeadBox] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
+
+  // Local draft while dragging (2026-08-29 — full rebuild after the
+  // read-only circle turned out useless: "the head marker circle is
+  // fixed, I can't do anything with it... you have already built this,
+  // just replicate that tool here"). Reseeded from the saved value
+  // whenever the photo or its detected box changes underneath it (a
+  // fresh upload, or switching Speaker/Partner tabs), but otherwise
+  // tracks the live drag independent of the parent's state until Save is
+  // clicked — same "drag locally, commit explicitly" shape as the
+  // per-event Placeholder/Global Default text forms already use.
+  const [draftHeadBox, setDraftHeadBox] = useState<HeadBox | null>(value?.photo_head_box ?? null)
+  const savedHeadBoxKey = value?.photo_url ?? null
+  const lastSeededKeyRef = useRef<string | null>(savedHeadBoxKey)
+  if (savedHeadBoxKey !== lastSeededKeyRef.current) {
+    lastSeededKeyRef.current = savedHeadBoxKey
+    setDraftHeadBox(value?.photo_head_box ?? null)
+  }
 
   async function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
@@ -198,41 +232,45 @@ function PhotoPanel({ activeType, value, onUpload }: {
     if (fileInputRef.current) fileInputRef.current.value = ''
   }
 
+  async function handleSaveHeadBox() {
+    if (!draftHeadBox) return
+    setSavingHeadBox(true)
+    await onSaveHeadBox(draftHeadBox)
+    setSavingHeadBox(false)
+  }
+
+  const dirty = JSON.stringify(draftHeadBox) !== JSON.stringify(value?.photo_head_box ?? null)
+
   return (
     <div style={{ background: 'var(--card)', border: '1px solid var(--border-light)', borderRadius: '10px', padding: '18px' }}>
-      {/* Visible head-position check (2026-08-29, per Madhu — "where do I
-          check head position?", then "too small... make the photo
-          slightly more bigger... marker circle should be of the same
-          type which we have elsewhere") — a text confirmation alone isn't
-          proof, especially since auto-detection can be wrong. Circle style
-          matches LayerBoxOverlay.tsx's headMarkerRect exactly; read-only
-          here since there's no drag-to-adjust box/layer concept on this
-          page. Square container + objectFit: cover matches the expected
-          1024x1024 input exactly, so the ratio math needs no letterboxing
+      {/* Real draggable/resizable head marker (2026-08-29) — replicates
+          the per-layer reference upload's own tool exactly (same
+          interaction model as LayerBoxOverlay.tsx's startMarkerDrag/
+          onPointerMove: drag the circle to move it, drag the bottom
+          handle to resize), not a read-only approximation of it. Square
+          container + objectFit: cover matches the expected 1024x1024
+          input exactly, so the ratio math needs no letterboxing
           correction. */}
       {value?.photo_url ? (
-        <div style={{ position: 'relative', width: '100%', maxWidth: '480px', aspectRatio: '1 / 1', borderRadius: '10px', overflow: 'hidden', background: 'var(--surface)', margin: '0 auto' }}>
-          {/* eslint-disable-next-line @next/next/no-img-element -- remote asset from Supabase storage, not worth next/image config for */}
-          <img src={value.photo_url} alt="Placeholder" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
-          {activeType === 'speaker' && value.photo_head_box && (
-            <div style={{
-              position: 'absolute', pointerEvents: 'none',
-              left: `${(value.photo_head_box.centerXRatio - value.photo_head_box.heightRatio / 2) * 100}%`,
-              top: `${(value.photo_head_box.centerYRatio - value.photo_head_box.heightRatio / 2) * 100}%`,
-              width: `${value.photo_head_box.heightRatio * 100}%`,
-              height: `${value.photo_head_box.heightRatio * 100}%`,
-              borderRadius: '50%',
-              border: '1.5px dashed var(--teal-mid)',
-              background: 'color-mix(in srgb, var(--teal-mid) 8%, transparent)',
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-            }}>
-              <span style={{ fontSize: '9px', fontWeight: 800, letterSpacing: '0.4px', textTransform: 'uppercase', color: 'var(--teal-mid)', opacity: 0.85 }}>Head</span>
-            </div>
-          )}
-        </div>
+        activeType === 'speaker' && draftHeadBox ? (
+          <HeadMarkerEditor photoUrl={value.photo_url} headBox={draftHeadBox} onChange={setDraftHeadBox} />
+        ) : (
+          <div style={{ position: 'relative', width: '100%', maxWidth: '480px', aspectRatio: '1 / 1', borderRadius: '10px', overflow: 'hidden', background: 'var(--surface)', margin: '0 auto' }}>
+            {/* eslint-disable-next-line @next/next/no-img-element -- remote asset from Supabase storage, not worth next/image config for */}
+            <img src={value.photo_url} alt="Placeholder" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
+          </div>
+        )
       ) : (
         <div style={{ width: '100%', maxWidth: '480px', aspectRatio: '1 / 1', borderRadius: '10px', background: 'var(--surface)', margin: '0 auto', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--ink4)', fontSize: '12.5px' }}>
           No placeholder photo yet
+        </div>
+      )}
+
+      {activeType === 'speaker' && value?.photo_url && draftHeadBox && (
+        <div style={{ display: 'flex', justifyContent: 'center', marginTop: '10px' }}>
+          <Button variant="teal" onClick={handleSaveHeadBox} disabled={!dirty || savingHeadBox}>
+            {savingHeadBox ? 'Saving…' : dirty ? 'Save Head Position' : 'Head Position Saved'}
+          </Button>
         </div>
       )}
 
@@ -247,11 +285,12 @@ function PhotoPanel({ activeType, value, onUpload }: {
             comment), same "detect once, reuse forever" shape as a real
             speaker's photo_head_box or a per-layer reference upload's
             reference_head_box. Without this, Generate Preview's crop had
-            no idea where the head sits in this specific photo. */}
+            no idea where the head sits in this specific photo. Drag the
+            circle above to correct it if it looks wrong, then Save. */}
         {activeType === 'speaker' && value?.photo_url && (
-          value.photo_head_box ? (
+          draftHeadBox ? (
             <div style={{ fontSize: '11px', color: 'var(--teal-mid)', fontWeight: 700, marginTop: '8px' }}>
-              Face-aligned ✓ (detected shot type: {classifyShotTypeLocal(value.photo_head_box.heightRatio).replace('_', ' ')})
+              Face-aligned ✓ (detected shot type: {classifyShotTypeLocal(draftHeadBox.heightRatio).replace('_', ' ')}) — drag the circle to correct it
             </div>
           ) : (
             <div style={{ fontSize: '11px', color: 'var(--amber)', fontWeight: 700, marginTop: '8px' }}>
@@ -259,6 +298,98 @@ function PhotoPanel({ activeType, value, onUpload }: {
             </div>
           )
         )}
+      </div>
+    </div>
+  )
+}
+
+// Draggable/resizable head marker (2026-08-29) — same interaction model as
+// LayerBoxOverlay.tsx's headMarkerRect (startMarkerDrag/onPointerMove:
+// drag the circle body to move it, drag the bottom-edge handle to resize
+// it), reimplemented standalone here since this page has no `layer`/
+// `alignment`/undo-stack concept to hook into — just a plain HeadBox in,
+// an updated HeadBox out on every pointer move. Pointer Events (not mouse
+// events), same as the original, for touch/pen parity.
+function HeadMarkerEditor({ photoUrl, headBox, onChange }: {
+  photoUrl: string
+  headBox: HeadBox
+  onChange: (headBox: HeadBox) => void
+}) {
+  const containerRef = useRef<HTMLDivElement>(null)
+  const dragRef = useRef<{
+    mode: 'move' | 'resize'
+    startClientX: number; startClientY: number
+    startCenterX: number; startCenterY: number; startHeight: number
+    containerWidth: number; containerHeight: number
+  } | null>(null)
+
+  function startDrag(e: React.PointerEvent, mode: 'move' | 'resize') {
+    e.preventDefault()
+    e.stopPropagation()
+    ;(e.currentTarget as Element).setPointerCapture(e.pointerId)
+    const rect = containerRef.current?.getBoundingClientRect()
+    dragRef.current = {
+      mode, startClientX: e.clientX, startClientY: e.clientY,
+      startCenterX: headBox.centerXRatio, startCenterY: headBox.centerYRatio, startHeight: headBox.heightRatio,
+      containerWidth: rect?.width || 1, containerHeight: rect?.height || 1,
+    }
+  }
+
+  function onPointerMove(e: React.PointerEvent) {
+    const drag = dragRef.current
+    if (!drag) return
+    const dxRatio = (e.clientX - drag.startClientX) / drag.containerWidth
+    const dyRatio = (e.clientY - drag.startClientY) / drag.containerHeight
+    if (drag.mode === 'move') {
+      onChange({
+        centerXRatio: Math.max(0, Math.min(1, drag.startCenterX + dxRatio)),
+        centerYRatio: Math.max(0, Math.min(1, drag.startCenterY + dyRatio)),
+        heightRatio: drag.startHeight,
+      })
+    } else {
+      // Resize handle sits at the circle's bottom edge — dragging it
+      // down/up by dy moves that edge, so the diameter changes by 2×dy.
+      // Same math as LayerBoxOverlay's own resize handling.
+      onChange({
+        centerXRatio: drag.startCenterX, centerYRatio: drag.startCenterY,
+        heightRatio: Math.max(0.03, Math.min(1, drag.startHeight + dyRatio * 2)),
+      })
+    }
+  }
+
+  function endDrag() { dragRef.current = null }
+
+  return (
+    <div ref={containerRef} onPointerMove={onPointerMove} onPointerUp={endDrag} onPointerLeave={endDrag}
+      style={{ position: 'relative', width: '100%', maxWidth: '480px', aspectRatio: '1 / 1', borderRadius: '10px', overflow: 'hidden', background: 'var(--surface)', margin: '0 auto', touchAction: 'none' }}>
+      {/* eslint-disable-next-line @next/next/no-img-element -- remote asset from Supabase storage, not worth next/image config for */}
+      <img src={photoUrl} alt="Placeholder" draggable={false} style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block', pointerEvents: 'none' }} />
+      <div
+        onPointerDown={e => startDrag(e, 'move')}
+        title="Drag to reposition the head marker"
+        style={{
+          position: 'absolute',
+          left: `${(headBox.centerXRatio - headBox.heightRatio / 2) * 100}%`,
+          top: `${(headBox.centerYRatio - headBox.heightRatio / 2) * 100}%`,
+          width: `${headBox.heightRatio * 100}%`,
+          height: `${headBox.heightRatio * 100}%`,
+          borderRadius: '50%',
+          border: '1.5px dashed var(--teal-mid)',
+          background: 'color-mix(in srgb, var(--teal-mid) 8%, transparent)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          cursor: 'move',
+        }}>
+        <span style={{ fontSize: '9px', fontWeight: 800, letterSpacing: '0.4px', textTransform: 'uppercase', color: 'var(--teal-mid)', opacity: 0.85, pointerEvents: 'none' }}>Head</span>
+        <div
+          onPointerDown={e => startDrag(e, 'resize')}
+          title="Drag to resize the head marker"
+          style={{
+            position: 'absolute', bottom: -5, left: '50%', marginLeft: -5,
+            width: 10, height: 10, borderRadius: '50%',
+            background: 'var(--teal-mid)', border: '1.5px solid var(--card)',
+            cursor: 'ns-resize',
+          }}
+        />
       </div>
     </div>
   )
