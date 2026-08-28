@@ -220,6 +220,16 @@ function parseGeminiCopyResponse(text: string): GeneratedCopy {
 // Speaker-only signature, deliberately no partner branch — self-promo is
 // speaker-only per product decision, so a narrower type here is more
 // honest than mirroring generatePostCopy's dual-stakeholder shape.
+//
+// 2026-08-28 fix, per Madhu, live: the generated copy read well but gave a
+// reader no way to actually act on it — registration_url was already on
+// EventContext and already passed in by every caller (same as
+// generatePostCopy gets it), just never included in THIS function's own
+// eventContext, so the model had no way to reference it even softly. Fixed
+// by adding it below and letting the closing line work it in naturally as
+// a practical detail (never a command) — still no "Register now!" energy,
+// just giving the reader an actual next step, which is the whole point of
+// routing this copy through a speaker's own network in the first place.
 export async function generateSelfPromoPostCopy(
   event: EventContext,
   speaker: Record<string, unknown>,
@@ -232,6 +242,7 @@ export async function generateSelfPromoPostCopy(
     dates && `Dates: ${dates}`,
     venueLine && `Venue: ${venueLine}`,
     event.event_hashtag && `Hashtag: ${event.event_hashtag}`,
+    event.registration_url && `Registration: ${event.registration_url}`,
   ].filter(Boolean).join('\n')
 
   const messagingContext = messagingJson
@@ -274,7 +285,11 @@ Structure:
    conversation at ${event.public_name || event.name}${venueLine ? `, ${venueLine}` : ''}${dates ? ` (${dates})` : ''} —
    mention the session/topic naturally, not as a formal announcement line.
 3. A soft, personal closing line — an invitation to connect or an honest
-   note of anticipation, not a hard call to action.
+   note of anticipation, not a hard call to action. If a Registration link
+   is given above, work it in here as a practical, low-key detail for
+   anyone who wants to join (e.g. "if you'd like to be there, you can
+   register here: <link>") — a courtesy for the reader, never a command,
+   and never invented if no link is given.
 
 Tone: warm, reflective, first-person, understated confidence — reads like
 something a real speaker would actually post themselves, not something
