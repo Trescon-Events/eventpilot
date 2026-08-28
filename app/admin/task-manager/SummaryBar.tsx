@@ -1,6 +1,6 @@
 'use client'
 import StatCard from '@/app/components/ui/StatCard'
-import { Avatar } from './ui'
+import { Avatar, CUSTOM_SCROLLBAR_STYLE } from './ui'
 import { formatHours } from './types'
 
 export type AssigneeCounts = Record<string, { name: string; total: number; not_started: number; in_progress: number; completed: number }>
@@ -114,12 +114,14 @@ export default function SummaryBar({
           </div>
 
           <div
+            className="tm-scroll"
             style={{
               display: 'flex',
               gap: '12px',
               overflowX: 'auto',
               paddingBottom: '8px',
               scrollSnapType: 'x mandatory',
+              ...CUSTOM_SCROLLBAR_STYLE,
             }}
           >
             {entries.map(([staffId, r]) => {

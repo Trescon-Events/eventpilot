@@ -3,7 +3,7 @@ import { useEffect, useState } from 'react'
 import Button from '@/app/components/ui/Button'
 import { Input, Select, Textarea } from '@/app/components/ui/Field'
 import { EventLite, PRIORITIES, StaffLite, Task, TaskPriority, TaskSaveValues } from './types'
-import { SearchableSelect } from './ui'
+import { CUSTOM_SCROLLBAR_STYLE, SearchableSelect } from './ui'
 
 interface Props {
   task: Task | null   // null = creating a new task
@@ -57,7 +57,8 @@ export default function TaskModal({ task, staff, events, currentStaffId, onClose
       onClick={onClose}
     >
       <div
-        style={{ background: 'var(--card)', borderRadius: '14px', padding: '28px', width: '520px', maxWidth: '90vw', maxHeight: '85vh', overflowY: 'auto', boxShadow: 'var(--shadow-md)' }}
+        className="tm-scroll"
+        style={{ background: 'var(--card)', borderRadius: '14px', padding: '28px', width: '520px', maxWidth: '90vw', maxHeight: '85vh', overflowY: 'auto', boxShadow: 'var(--shadow-md)', ...CUSTOM_SCROLLBAR_STYLE }}
         onClick={e => e.stopPropagation()}
       >
         <h2 style={{ fontSize: '18px', fontWeight: 800, color: 'var(--ink)', margin: '0 0 18px' }}>

@@ -31,6 +31,36 @@ export const ACTIVE_PILL_FILTER_STYLE: CSSProperties = {
   transition: 'all 0.15s ease',
 }
 
+export const CUSTOM_SCROLLBAR_STYLE: CSSProperties = {
+  scrollbarWidth: 'thin',
+  scrollbarColor: 'var(--border) transparent',
+}
+
+export function TaskManagerStyles() {
+  return (
+    <style jsx global>{`
+      .tm-scroll {
+        scrollbar-width: thin;
+        scrollbar-color: var(--border) transparent;
+      }
+      .tm-scroll::-webkit-scrollbar {
+        width: 6px;
+        height: 6px;
+      }
+      .tm-scroll::-webkit-scrollbar-track {
+        background: transparent;
+      }
+      .tm-scroll::-webkit-scrollbar-thumb {
+        background: var(--border);
+        border-radius: 4px;
+      }
+      .tm-scroll::-webkit-scrollbar-thumb:hover {
+        background: var(--teal-mid);
+      }
+    `}</style>
+  )
+}
+
 const AVATAR_COLORS = ['var(--teal-mid)', 'var(--indigo)', 'var(--purple)', 'var(--amber)', 'var(--red)', 'var(--lime)']
 
 function hashName(name: string): number {
@@ -261,7 +291,7 @@ export function SearchableSelect({ options, value, onChange, placeholder = 'Sear
             overflow: 'hidden',
           }}
         >
-          <div style={{ maxHeight: '240px', overflowY: 'auto' }}>
+          <div className="tm-scroll" style={{ maxHeight: '240px', overflowY: 'auto', ...CUSTOM_SCROLLBAR_STYLE }}>
             {listItems.length === 0 && (
               <div style={{ padding: '12px', fontSize: '12px', color: 'var(--ink4)', textAlign: 'center' }}>No matches</div>
             )}
