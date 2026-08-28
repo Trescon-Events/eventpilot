@@ -10,7 +10,7 @@ import { downloadFile } from '@/app/lib/download-file'
 import type { Variant } from '@/app/lib/announcements/composite'
 import SendToSpeakerComposer from './SendToSpeakerComposer'
 import SendForExternalApprovalComposer from './SendForExternalApprovalComposer'
-import PostizWeekCalendar from './PostizWeekCalendar'
+import PostizCalendar, { type ScheduledPost } from './PostizCalendar'
 import {
   displayName, displaySubtitle, statusColor, plainToHtml, PLATFORM_CHAR_LIMITS, PLATFORM_LABELS,
   type AnnouncementListItem, type Stakeholder, type StakeholderKind, type Speaker, type PostizChannel, type EventStaffOption,
@@ -102,7 +102,7 @@ export default function AnnouncementDetailPanel({
   const selectablePostizChannels = postizChannels.filter(c => c.identifier !== 'youtube')
   const [publishing, setPublishing] = useState<'schedule' | 'now' | 'approval' | 'retry' | null>(null)
   const [scheduleAt, setScheduleAt] = useState('')
-  const [otherScheduled, setOtherScheduled] = useState<{ id: string; channel_id: string; channel_name: string; state: string; publish_date: string | null; content_preview: string }[]>([])
+  const [otherScheduled, setOtherScheduled] = useState<ScheduledPost[]>([])
   const [otherScheduledLoading, setOtherScheduledLoading] = useState(false)
   const [approverPickerOpen, setApproverPickerOpen] = useState(false)
   const [pickedApprovers, setPickedApprovers] = useState<Record<string, string>>({})
@@ -793,7 +793,7 @@ export default function AnnouncementDetailPanel({
         )}
 
         {selectedChannelIds.length > 0 && (
-          <PostizWeekCalendar posts={otherScheduled} loading={otherScheduledLoading} anchorDate={scheduleAt || undefined} onSlotClick={setScheduleAt} />
+          <PostizCalendar posts={otherScheduled} loading={otherScheduledLoading} anchorDate={scheduleAt || undefined} onSlotClick={setScheduleAt} />
         )}
 
         <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center' }}>

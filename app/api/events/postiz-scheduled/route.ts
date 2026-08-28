@@ -54,6 +54,12 @@ export async function GET(req: NextRequest) {
       id: p.id,
       channel_id: p.integration!.id,
       channel_name: p.integration!.name,
+      // 2026-08-28 — the calendar renders a stable per-platform icon/color
+      // instead of an arbitrary index-based color (see PostizCalendar.tsx's
+      // own comment for the bug that caused), which needs the actual
+      // platform type, not just the channel's display name.
+      channel_identifier: p.integration!.providerIdentifier,
+      channel_picture: p.integration!.picture ?? null,
       state: p.state,
       publish_date: p.publishDate ?? null,
       content_preview: (p.content ?? '').replace(/\s+/g, ' ').trim().slice(0, 140),
