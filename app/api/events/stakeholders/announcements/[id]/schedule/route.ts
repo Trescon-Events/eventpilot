@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/app/lib/supabase'
+import { getSession } from '@/app/lib/access/session'
 import { PostizError } from '@/app/lib/postiz'
 import { checkCanPublish, publishAnnouncementToPostiz, PublishValidationError } from '@/app/lib/events/postiz-publish'
 
@@ -7,7 +8,16 @@ import { checkCanPublish, publishAnnouncementToPostiz, PublishValidationError } 
    Body: { scheduled_for: ISO datetime, postiz_channel_ids: string[] }
    Requires the announcement be approved (approved/approved_with_comments)
    unless the requesting staff member has sae.announcements.publish —
-   see checkCanPublish's own comment. */
+   see checkCanPublish's own comment.
+
+   Stamps scheduled_by (2026-08-28, per Madhu — "let the user get a
+   notification when they go live fully") — the sync-status cron's
+   success branch emails whoever is here once every channel confirms.
+   Deliberately NOT stamped by publish-now (that flow has its own live
+   progress modal instead, and the shared publishAnnouncementToPostiz
+   helper is used by both routes) — only a real future schedule needs an
+   async "it's live" email, so this route sets it directly rather than
+   threading a new param through the shared helper. */
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
   const body = await req.json().catch(() => null) as { scheduled_for?: string; postiz_channel_ids?: string[] } | null
@@ -23,6 +33,10 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
   try {
     const data = await publishAnnouncementToPostiz(id, body.postiz_channel_ids, body.scheduled_for)
+    const session = getSession(req)
+    if (session?.sid && session.sid !== 'super-admin') {
+      await supabaseAdmin.from('stakeholder_announcements').update({ scheduled_by: session.sid }).eq('id', id)
+    }
     return NextResponse.json(data)
   } catch (e) {
     if (e instanceof PublishValidationError) return NextResponse.json({ error: e.message }, { status: e.status })

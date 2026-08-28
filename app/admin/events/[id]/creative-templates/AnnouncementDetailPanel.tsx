@@ -793,7 +793,7 @@ export default function AnnouncementDetailPanel({
         )}
 
         {selectedChannelIds.length > 0 && (
-          <PostizWeekCalendar posts={otherScheduled} loading={otherScheduledLoading} anchorDate={scheduleAt || undefined} />
+          <PostizWeekCalendar posts={otherScheduled} loading={otherScheduledLoading} anchorDate={scheduleAt || undefined} onSlotClick={setScheduleAt} />
         )}
 
         <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center' }}>

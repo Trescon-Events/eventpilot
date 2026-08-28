@@ -30,7 +30,7 @@ export async function GET(req: NextRequest) {
 
   const { data: due, error } = await supabaseAdmin
     .from('stakeholder_announcements')
-    .select('id, scheduled_for, publish_results, event:event_id(id, name, postiz_profile_key), creator:created_by(email)')
+    .select('id, scheduled_for, publish_results, speaker_id, partner_id, event:event_id(id, name, postiz_profile_key), creator:created_by(email), scheduler:scheduled_by(email)')
     .eq('status', 'scheduled')
     .lte('scheduled_for', new Date().toISOString())
     .not('publish_results', 'is', null)
@@ -88,6 +88,7 @@ export async function GET(req: NextRequest) {
           .update({ status: 'published', published_at: new Date().toISOString(), publish_results: updatedResults, updated_at: new Date().toISOString() })
           .eq('id', row.id)
         publishedCount++
+        await notifySchedulerOfPublish(row, { id: eventId, name }).catch(e => console.error('Publish notification failed:', e))
       }
     }
   }
@@ -95,8 +96,48 @@ export async function GET(req: NextRequest) {
   return NextResponse.json({ checked: due.length, published: publishedCount, failed: failedCount })
 }
 
-type DueRow = { id: string; creator: { email: string } | { email: string }[] | null }
+type DueRow = {
+  id: string; speaker_id: string | null; partner_id: string | null
+  creator: { email: string } | { email: string }[] | null
+  scheduler: { email: string } | { email: string }[] | null
+}
 type EventInfo = { id: string; name: string }
+
+// "Let the user get a notification when they go live fully and published
+// on all the selected channels, so they can go straight to that published
+// page" (2026-08-28, per Madhu) — only for a real future schedule (see
+// schedule/route.ts's own comment for why scheduled_by is what gates
+// this, not created_by); Post Now already has its own live progress
+// popup, no email needed there. Deep link matches Queue's own "Open"
+// link convention exactly (tab=announcements&announcement=id), plus
+// `kind` for a partner announcement (Queue's own link omits it, which is
+// actually a pre-existing gap for partner rows there — not touching that
+// here, just not repeating it in this new link).
+async function notifySchedulerOfPublish(row: DueRow, event: EventInfo) {
+  if (!process.env.RESEND_API_KEY) return
+  const scheduler = Array.isArray(row.scheduler) ? row.scheduler[0] : row.scheduler
+  if (!scheduler?.email) return
+
+  const resend = new Resend(process.env.RESEND_API_KEY)
+  const from = process.env.RESEND_FROM || 'Event Pilot <noreply@eventpilot.tresconglobal.com>'
+  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://eventpilot.tresconglobal.com'
+  const stakeholderId = row.speaker_id ?? row.partner_id
+  if (!stakeholderId) return
+  const kindParam = row.partner_id && !row.speaker_id ? '&kind=partner' : ''
+  const publishedUrl = `${siteUrl}/admin/events/${event.id}/stakeholders/${stakeholderId}?tab=announcements&announcement=${row.id}${kindParam}`
+
+  await resend.emails.send({
+    from,
+    to: scheduler.email,
+    subject: `Now live: your scheduled announcement for ${event.name}`,
+    /* eslint-disable no-restricted-syntax -- email HTML; clients can't render CSS custom properties, literal colors required (matches this file's existing failure-notification convention) */
+    html: `<p style="font-family:sans-serif;font-size:14px;color:#2D3E50">
+             The announcement you scheduled for ${event.name} is now live on every selected channel.
+           </p>
+           <p><a href="${publishedUrl}" style="color:#00695C">Open it in EventPilot →</a> to confirm tagging and notify internal/external stakeholders.</p>`,
+    /* eslint-enable no-restricted-syntax */
+  })
+}
 
 async function notifyMMOfFailure(row: DueRow, event: EventInfo) {
   if (!process.env.RESEND_API_KEY) return

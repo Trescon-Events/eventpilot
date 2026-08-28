@@ -14,7 +14,17 @@ import { useState, useMemo } from 'react'
    announcement detail view has nowhere near a full calendar page's height
    to work with, so the visible window is a fixed, scrollable 6am-11pm
    range (covers the overwhelming majority of real post times; anything
-   outside it is still reachable by scrolling the grid, never hidden). */
+   outside it is still reachable by scrolling the grid, never hidden).
+
+   Click-to-pick-a-slot (2026-08-28, per Madhu — liked Postiz's own
+   hover-plus/click-to-create interaction, wanted the same picking motion
+   here). Deliberately NOT a full compose modal like Postiz's — copy,
+   creative, and channels are already chosen elsewhere in this same panel,
+   so a slot click only needs to fill in scheduleAt; the existing Schedule
+   button stays the one real confirm step, same box sizing/visual style as
+   before (only the empty-slot interaction is new). onSlotClick is
+   optional — omitting it (e.g. any future read-only usage) falls back to
+   the old plain, non-interactive grid. */
 
 export type ScheduledPost = {
   id: string; channel_id: string; channel_name: string; state: string
@@ -37,7 +47,12 @@ function startOfWeek(d: Date): Date {
 
 const CHANNEL_COLORS = ['var(--teal-mid)', 'var(--purple)', 'var(--amber)', 'var(--red)', 'var(--lime-dark)']
 
-export default function PostizWeekCalendar({ posts, loading, anchorDate }: { posts: ScheduledPost[]; loading: boolean; anchorDate?: string }) {
+function toLocalDateTimeValue(d: Date): string {
+  const pad = (n: number) => String(n).padStart(2, '0')
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`
+}
+
+export default function PostizWeekCalendar({ posts, loading, anchorDate, onSlotClick }: { posts: ScheduledPost[]; loading: boolean; anchorDate?: string; onSlotClick?: (localDateTimeValue: string) => void }) {
   const [weekStart, setWeekStart] = useState(() => startOfWeek(anchorDate ? new Date(anchorDate) : new Date()))
 
   const days = useMemo(() => Array.from({ length: 7 }, (_, i) => {
@@ -116,9 +131,21 @@ export default function PostizWeekCalendar({ posts, loading, anchorDate }: { pos
           const dayPosts = postsByDay.get(key) ?? []
           return (
             <div key={key} style={{ position: 'relative', borderLeft: '1px solid var(--border-light)' }}>
-              {Array.from({ length: VISIBLE_HOURS }, (_, i) => (
-                <div key={i} style={{ height: `${ROW_HEIGHT}px`, borderTop: '1px solid var(--border-light)' }} />
-              ))}
+              {Array.from({ length: VISIBLE_HOURS }, (_, i) => {
+                const hour = START_HOUR + i
+                const slotDate = new Date(d)
+                slotDate.setHours(hour, 0, 0, 0)
+                return onSlotClick ? (
+                  <button key={i} type="button" className="postiz-cal-slot"
+                    onClick={() => onSlotClick(toLocalDateTimeValue(slotDate))}
+                    title={`Pick ${slotDate.toLocaleString(undefined, { weekday: 'short', hour: 'numeric', minute: '2-digit' })}`}
+                    style={{ display: 'block', width: '100%', height: `${ROW_HEIGHT}px`, borderTop: '1px solid var(--border-light)', border: 'none', borderTopWidth: '1px', borderTopStyle: 'solid', borderTopColor: 'var(--border-light)', background: 'transparent', cursor: 'pointer', padding: 0, position: 'relative' }}>
+                    <span className="postiz-cal-plus" style={{ opacity: 0, position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '13px', fontWeight: 800, color: 'var(--teal-mid)', background: 'var(--teal-light)', pointerEvents: 'none' }}>+</span>
+                  </button>
+                ) : (
+                  <div key={i} style={{ height: `${ROW_HEIGHT}px`, borderTop: '1px solid var(--border-light)' }} />
+                )
+              })}
               {dayPosts.map(p => {
                 const dt = new Date(p.publish_date!)
                 const hourFloat = dt.getHours() + dt.getMinutes() / 60
@@ -139,6 +166,7 @@ export default function PostizWeekCalendar({ posts, loading, anchorDate }: { pos
           )
         })}
       </div>
+      {onSlotClick && <style>{'.postiz-cal-slot:hover .postiz-cal-plus { opacity: 1 !important; }'}</style>}
     </div>
   )
 }
