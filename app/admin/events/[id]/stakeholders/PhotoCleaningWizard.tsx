@@ -197,20 +197,21 @@ export default function PhotoCleaningWizard({ eventId, speakerId, entry, onSaved
   // server never disagree about whether a template exists.
   useEffect(() => {
     let cancelled = false
-    fetch(`/api/events/templates?event_id=${eventId}`)
+    // Global, not event-scoped, since 2026-08-28 — see
+    // cleaning_cycle_template_global_migration.sql's own comment.
+    fetch('/api/branding/cleaning-cycle-template')
       .then(r => r.json())
-      .then(config => {
+      .then(t => {
         if (cancelled) return
-        const t = config?.cleaning_cycle_template
         if (!t || !t.reference_url) {
-          setTemplateError('No Cleaning Cycle template set up yet — set one up in Admin Console → AI Edit Prompts first')
+          setTemplateError('No Cleaning Cycle template set up yet — set one up in Branding → Cleaning Cycle Template first')
           return
         }
         setCleaningTarget({ centerXRatio: t.target_head_center_x, centerYRatio: t.target_head_center_y, heightRatio: t.target_head_height })
       })
       .catch(() => { if (!cancelled) setTemplateError('Could not load the Cleaning Cycle template — check your connection and try again.') })
     return () => { cancelled = true }
-  }, [eventId])
+  }, [])
 
   const workingPhase = phase === 'uploading' || phase === 'cleaning' || phase === 'website-photo' || phase === 'processing'
   useEffect(() => {

@@ -189,15 +189,22 @@ export type Variant = {
 // "AI Edit Presets" module system this tab held before — that was a named-
 // prompt library speculatively built for future templatized editWithAI
 // features that never arrived; AI_EDIT_MODULES stayed permanently empty).
-// Branding team sets this up ONCE per event in the "AI Edit Prompts" admin
-// tab: upload a reference photo (any speaker photo already correctly
-// composed — same "Upload Reference Layer (auto-position)" flow every
-// other reference upload in this file uses) and fine-tune the head marker
-// on it. This is DELIBERATELY separate from any Variant's own alignment
-// (including a 'website_photo' category variant's) — it defines the single
-// standard every speaker's CLEANED photo itself is measured against,
-// independent of which creative later crops from that clean result to its
-// own, possibly different, canvas/head position.
+// Branding team sets this up ONCE, globally, in Branding → Cleaning Cycle
+// Template (/admin/branding/cleaning-cycle-template, moved there 2026-08-28
+// — was event-scoped in events.creative_template_config, but this doc
+// comment already called it "the single standard," and in practice only
+// one event had ever bothered configuring it; see
+// cleaning_cycle_template_global_migration.sql). Upload a reference photo
+// (any speaker photo already correctly composed — same "Upload Reference
+// Layer (auto-position)" flow every other reference upload in this file
+// uses) and fine-tune the head marker on it. This is DELIBERATELY separate
+// from any Variant's own alignment (including a 'website_photo' category
+// variant's) — it defines the single standard every speaker's CLEANED
+// photo itself is measured against, independent of which creative later
+// crops from that clean result to its own, possibly different, canvas/head
+// position. Backed by its own table (cleaning_cycle_template_global, a
+// fixed id=1 singleton), NOT a field on CreativeTemplateConfig — nothing
+// event-scoped applies to it anymore.
 //
 // Reuses PhotoAlignmentMeta (not a new parallel shape) — this IS an
 // AlignmentTarget in every sense the crop math cares about; only `box` is
@@ -280,8 +287,6 @@ export type CreativeTemplateConfig = {
   speaker?: { variants: Variant[] }
   partner?: { variants: Variant[] }
   placeholder?: { speaker?: PlaceholderProfile; partner?: PlaceholderProfile }
-  // 2026-08-21 — see CleaningCycleTemplate's own doc comment above.
-  cleaning_cycle_template?: CleaningCycleTemplate
 }
 
 export type ResolvedAssets = Partial<Record<PhotoSlotLayer['source'], { buffer: Buffer; url?: string; is_svg?: boolean; head_box?: HeadBox | null }>>

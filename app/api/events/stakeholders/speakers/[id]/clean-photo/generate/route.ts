@@ -5,7 +5,6 @@ import { uploadPublicAsset } from '@/app/lib/events/storage'
 import { type AlignmentTarget, type HeadBox } from '@/app/lib/media/face-alignment'
 import { generateAIFilledPhoto, removeGreenScreenBackground, finalizeCleaningCycle, CLEANING_CYCLE_CANVAS_SIZE } from '@/app/lib/media/photo-cleaning-pipeline'
 import { MAX_STORED_PHOTO_DIMENSION } from '@/app/lib/media/speaker-photo-engine'
-import type { CreativeTemplateConfig } from '@/app/lib/announcements/composite'
 
 /* POST /api/events/stakeholders/speakers/[id]/clean-photo/generate
    Body: { mode: 'ai_fill' | 'enhance' | 'good', quality?: 'medium' | 'high' }
@@ -98,14 +97,13 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   const headBox = speaker.photo_head_box as HeadBox | null
   if (!headBox) return NextResponse.json({ error: 'Position the head before running the Cleaning Cycle' }, { status: 422 })
 
-  const { data: event } = await supabaseAdmin
-    .from('events')
-    .select('creative_template_config')
-    .eq('id', speaker.event_id)
-    .single()
-  const template = (event?.creative_template_config as CreativeTemplateConfig | null)?.cleaning_cycle_template
+  const { data: template } = await supabaseAdmin
+    .from('cleaning_cycle_template_global')
+    .select('*')
+    .eq('id', 1)
+    .maybeSingle()
   if (!template || !template.reference_url) {
-    return NextResponse.json({ error: 'No Cleaning Cycle template set up yet — set one up in Admin Console → AI Edit Prompts first' }, { status: 422 })
+    return NextResponse.json({ error: 'No Cleaning Cycle template set up yet — set one up in Branding → Cleaning Cycle Template first' }, { status: 422 })
   }
 
   const target: AlignmentTarget = { ...template, box: { x: 0, y: 0, width: CLEANING_CYCLE_CANVAS_SIZE, height: CLEANING_CYCLE_CANVAS_SIZE } }
