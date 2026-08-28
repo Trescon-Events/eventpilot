@@ -244,20 +244,28 @@ function resolveGhostTextRaw(layer: TextLayer, activeType: StakeholderKind, reco
   return ''
 }
 
-// Falls back to the global placeholder default photo (2026-08-29 — see
-// composite.ts's GlobalPlaceholderDefault comment), then the layer's own
-// reference_url (2026-07-31) — the image uploaded via "Upload Reference
-// Layer (auto-position)", which used to be analyzed for box/alignment and
-// then discarded; now persisted (see PhotoSlotLayer.reference_url in
-// composite.ts) so it can stand in here too, matching the real preview
-// route's fallback order. Global default only applies to the "primary"
-// source for the active stakeholder type — speaker_photo / partner_logo —
-// same restriction as the preview route.
+// Falls back to the layer's OWN reference_url first (2026-07-31 — the
+// image uploaded via "Upload Reference Layer (auto-position)"), THEN the
+// global placeholder default photo (2026-08-29 — see composite.ts's
+// GlobalPlaceholderDefault comment) as a last resort when no reference
+// layer has been uploaded yet for this layer at all.
+//
+// Deliberately the OPPOSITE priority from the real preview route (which
+// puts the global default first) — real bug, caught live 2026-08-29: this
+// live canvas is what a branding producer is actively looking at WHILE
+// dragging/resizing the alignment circle onto a reference image they just
+// uploaded, specifically so they can trace the real head position in
+// THAT image. Showing the global default photo here instead (a different
+// person entirely) makes it impossible to calibrate the box against
+// anything real. "Generate Preview" — the actual server composite — is
+// the one place the global default photo belongs, cropped/positioned
+// using whatever alignment was set here; see preview/route.ts's own
+// comment for that (correct, unchanged) priority.
 function resolveGhostImageUrl(layer: PhotoSlotLayer, record: StakeholderOption | null, activeType: StakeholderKind, globalDefault: GlobalPlaceholderDefault | null | undefined): string | null {
   const globalPhotoUrl = globalDefault?.photo_url ?? null
-  if (layer.source === 'speaker_photo') return record?.photo_url ?? (activeType === 'speaker' ? globalPhotoUrl : null) ?? layer.reference_url ?? null
+  if (layer.source === 'speaker_photo') return record?.photo_url ?? layer.reference_url ?? (activeType === 'speaker' ? globalPhotoUrl : null)
   if (layer.source === 'speaker_logo') return record?.company_logo_url ?? layer.reference_url ?? null
-  return record?.logo_url ?? (activeType === 'partner' ? globalPhotoUrl : null) ?? layer.reference_url ?? null // partner_logo
+  return record?.logo_url ?? layer.reference_url ?? (activeType === 'partner' ? globalPhotoUrl : null) // partner_logo
 }
 
 // One @font-face rule per distinct WEIGHT of each custom brand font in use
