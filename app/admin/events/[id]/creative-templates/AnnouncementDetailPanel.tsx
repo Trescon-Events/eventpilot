@@ -564,6 +564,11 @@ export default function AnnouncementDetailPanel({
           resolved outside the formal loop), and uncheckable as an honest
           undo. Once a column is genuinely approved its controls disappear
           entirely — no reason to second-guess a real yes. */}
+      {/* Approval — org_promo only (2026-08-29, per Madhu: "self promo need
+          not have approval section. we will not use it.") Self Promo's own
+          terminal action is Send to Speaker, below — there's no publish
+          step for it to gate. */}
+      {effectiveKind === 'org_promo' && (
       <div style={{ padding: '18px 20px', borderRadius: '12px', border: '1px solid var(--border-light)', background: 'var(--surface)' }}>
         <div style={{ fontSize: '12px', fontWeight: 800, color: 'var(--ink3)', textTransform: 'uppercase', letterSpacing: '0.6px', marginBottom: '14px' }}>Approval</div>
 
@@ -616,6 +621,7 @@ export default function AnnouncementDetailPanel({
           <div style={{ fontSize: '13px', color: 'var(--red)', marginTop: '12px' }}>The external reviewer requested changes — update the copy/creative above and send again, or check &quot;Not required / Reviewed&quot; if it&apos;s already been resolved another way.</div>
         )}
       </div>
+      )}
 
       {effectiveKind === 'org_promo' ? (
       /* Publishing — channel selection, approval, schedule/post, and

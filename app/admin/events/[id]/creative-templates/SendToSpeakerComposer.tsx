@@ -17,7 +17,13 @@ import RichTextToolbar from '@/app/components/RichTextToolbar'
    fixed "Speaker Self Promo Request Email" template, resolved server-side),
    and CC support (producer may want a copy or to loop in a colleague —
    plain comma-separated input, parsed on submit; no chip-input complexity
-   needed for what's typically 0-2 extra addresses). */
+   needed for what's typically 0-2 extra addresses).
+
+   2026-08-29, per Madhu — brought to feature parity with
+   SendForExternalApprovalComposer.tsx's quick-pick toggle for the
+   speaker's own email vs typing a different recipient (an assistant,
+   their office): same useOwnEmail/chooseOwnEmail/chooseManual shape,
+   copied verbatim from that composer rather than re-derived. */
 
 type Props = {
   announcementId: string
@@ -32,6 +38,7 @@ export default function SendToSpeakerComposer({
   announcementId, speakerName, onClose, onSent,
   initialRecipientName = '', initialRecipientEmail = '',
 }: Props) {
+  const [useOwnEmail, setUseOwnEmail] = useState(!!initialRecipientEmail)
   const [step, setStep] = useState<'pick' | 'edit' | 'sending' | 'error'>('pick')
   const [recipientName, setRecipientName] = useState(initialRecipientName)
   const [recipientEmail, setRecipientEmail] = useState(initialRecipientEmail)
@@ -54,6 +61,17 @@ export default function SendToSpeakerComposer({
 
   function parseCc(): string[] {
     return ccInput.split(',').map(s => s.trim()).filter(Boolean)
+  }
+
+  function chooseOwnEmail() {
+    setUseOwnEmail(true)
+    setRecipientName(initialRecipientName)
+    setRecipientEmail(initialRecipientEmail)
+  }
+  function chooseManual() {
+    setUseOwnEmail(false)
+    setRecipientName('')
+    setRecipientEmail('')
   }
 
   async function startCompose() {
@@ -130,14 +148,28 @@ export default function SendToSpeakerComposer({
 
         {step === 'pick' && (
           <div style={{ display: 'grid', gap: '14px' }}>
-            <div>
-              <span style={{ fontSize: '13px', fontWeight: 800, color: 'var(--ink3)', textTransform: 'uppercase', letterSpacing: '1px', display: 'block', marginBottom: '6px' }}>Recipient Name</span>
-              <Input value={recipientName} onChange={e => setRecipientName(e.target.value)} placeholder="e.g. Ahmad Khalid Khairi" />
-            </div>
-            <div>
-              <span style={{ fontSize: '13px', fontWeight: 800, color: 'var(--ink3)', textTransform: 'uppercase', letterSpacing: '1px', display: 'block', marginBottom: '6px' }}>Recipient Email</span>
-              <Input type="email" value={recipientEmail} onChange={e => setRecipientEmail(e.target.value)} placeholder="speaker@example.com" />
-            </div>
+            {initialRecipientEmail && (
+              <div style={{ display: 'flex', gap: '8px' }}>
+                <Button variant={useOwnEmail ? 'teal' : 'ghost'} onClick={chooseOwnEmail}>
+                  Use {speakerName}&apos;s email ({initialRecipientEmail})
+                </Button>
+                <Button variant={!useOwnEmail ? 'teal' : 'ghost'} onClick={chooseManual}>
+                  Send to someone else
+                </Button>
+              </div>
+            )}
+            {!useOwnEmail && (
+              <>
+                <div>
+                  <span style={{ fontSize: '13px', fontWeight: 800, color: 'var(--ink3)', textTransform: 'uppercase', letterSpacing: '1px', display: 'block', marginBottom: '6px' }}>Recipient Name</span>
+                  <Input value={recipientName} onChange={e => setRecipientName(e.target.value)} placeholder="e.g. Ahmad Khalid Khairi" />
+                </div>
+                <div>
+                  <span style={{ fontSize: '13px', fontWeight: 800, color: 'var(--ink3)', textTransform: 'uppercase', letterSpacing: '1px', display: 'block', marginBottom: '6px' }}>Recipient Email</span>
+                  <Input type="email" value={recipientEmail} onChange={e => setRecipientEmail(e.target.value)} placeholder="speaker@example.com" />
+                </div>
+              </>
+            )}
             <div>
               <span style={{ fontSize: '13px', fontWeight: 800, color: 'var(--ink3)', textTransform: 'uppercase', letterSpacing: '1px', display: 'block', marginBottom: '6px' }}>CC (optional)</span>
               <Input value={ccInput} onChange={e => setCcInput(e.target.value)} placeholder="comma-separated, e.g. colleague@trescon.com, apeksha@trescon.com" />
