@@ -7,14 +7,25 @@ import { listPostizPostsInRange } from '@/app/lib/postiz'
    Madhu — a real producer-flagged need: avoid clashing with other posts
    when picking a time to schedule a new one). Read-only, no write path.
 
-   Window is fixed at "now through +90 days" rather than centered on
-   whatever date the producer has typed so far — a datetime-local input has
-   no default value, so there's nothing to center on until they've already
-   picked something, and showing the fuller landscape up front is more
-   useful for actually choosing a good time than only reacting after a
-   pick. Channel filtering happens client-side against `integration.id`,
-   since Postiz's own GET /posts has no per-channel filter param (only
-   date range + `customer`, confirmed against their public docs). */
+   Window is fixed at "now minus 14 days through +90 days" rather than
+   centered on whatever date the producer has typed so far — a
+   datetime-local input has no default value, so there's nothing to center
+   on until they've already picked something, and showing the fuller
+   landscape up front is more useful for actually choosing a good time
+   than only reacting after a pick.
+
+   Fixed 2026-08-28 (real bug, caught live): the start bound used to be
+   exactly "now" — a post published earlier THIS SAME morning already has
+   a publishDate before "now" by the time this loads, so Postiz's own
+   date-range filter silently excluded it even though the week-calendar's
+   own Today column should show it (confirmed live: Postiz's own calendar
+   showed the post, EventPilot's didn't). The 14-day lookback comfortably
+   covers "this week, including earlier today" and one page-back on the
+   calendar's prev-week button, without turning this into an unbounded
+   historical query. Channel filtering happens client-side against
+   `integration.id`, since Postiz's own GET /posts has no per-channel
+   filter param (only date range + `customer`, confirmed against their
+   public docs). */
 export async function GET(req: NextRequest) {
   const eventId = req.nextUrl.searchParams.get('event_id')
   const channelIdsParam = req.nextUrl.searchParams.get('channel_ids')
@@ -24,7 +35,7 @@ export async function GET(req: NextRequest) {
 
   const { data: event } = await supabaseAdmin.from('events').select('postiz_profile_key').eq('id', eventId).single()
 
-  const startDate = new Date().toISOString()
+  const startDate = new Date(Date.now() - 14 * 24 * 60 * 60 * 1000).toISOString()
   const endDate = new Date(Date.now() + 90 * 24 * 60 * 60 * 1000).toISOString()
 
   let posts
