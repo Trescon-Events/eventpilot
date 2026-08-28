@@ -103,7 +103,7 @@ function normalizeVariantTextLayers(variant: Variant): Variant {
 
 export default function CreativeTemplatesAdminPage({ params }: { params: Promise<{ id: string }> }) {
   const { id: eventId } = use(params)
-  const [consoleTab, setConsoleTab] = useState<'variants' | 'ai_edit_prompts' | 'access'>('variants')
+  const [consoleTab, setConsoleTab] = useState<'variants' | 'access'>('variants')
 
   const [loading, setLoading] = useState(true)
   const [speakerVariants, setSpeakerVariants] = useState<Variant[]>([])
@@ -574,7 +574,7 @@ export default function CreativeTemplatesAdminPage({ params }: { params: Promise
 
       <div style={{ padding: '24px 32px' }}>
         <div style={{ display: 'flex', borderRadius: '8px', border: '1px solid var(--border)', overflow: 'hidden', width: 'fit-content', marginBottom: '20px' }}>
-          {([['variants', 'Variants'], ['ai_edit_prompts', 'AI Edit Prompts'], ['access', 'Access Control']] as const).map(([key, label]) => (
+          {([['variants', 'Variants'], ['access', 'Access Control']] as const).map(([key, label]) => (
             <button key={key} onClick={() => setConsoleTab(key)}
               style={{
                 padding: '7px 18px', border: 'none', cursor: 'pointer', fontFamily: 'inherit', fontSize: '12.5px', fontWeight: 700,
@@ -588,8 +588,6 @@ export default function CreativeTemplatesAdminPage({ params }: { params: Promise
 
         {consoleTab === 'access' ? (
           <AccessTab moduleKey="sae" moduleLabel="Stakeholder Announcement Engine" />
-        ) : consoleTab === 'ai_edit_prompts' ? (
-          <CleaningCycleTemplateMovedNotice />
         ) : (
           <>
             <Toast message={msg} type={msgType} onClose={() => setMsg(null)} />
@@ -1015,25 +1013,6 @@ function PlaceholderOverrideFields({ activeType, profile, onSave }: {
       <div style={{ gridColumn: '1 / -1' }}>
         <Button variant="teal" onClick={handleSave} disabled={saving}>{saving ? 'Saving…' : 'Save Override'}</Button>
       </div>
-    </div>
-  )
-}
-
-// "AI Edit Prompts" — Admin Console's third tab. Was a named PhotoRoom
-// editWithAI prompt library (AI_EDIT_MODULES, abandoned) then, 2026-08-21,
-// the Cleaning Cycle's own per-event template — moved out entirely
-// 2026-08-28 to Branding → Cleaning Cycle Template
-// (/admin/branding/cleaning-cycle-template): only one event had ever
-// actually configured it, confirming what the panel's own copy already
-// said — this is one standard, not a per-event setting. See
-// composite.ts's CleaningCycleTemplate doc comment for the full history.
-function CleaningCycleTemplateMovedNotice() {
-  return (
-    <div style={{ maxWidth: '640px', padding: '14px', borderRadius: '10px', border: '1.5px solid var(--teal-mid)', background: 'var(--teal-light)' }}>
-      <div style={{ fontSize: '12.5px', color: 'var(--ink2)', marginBottom: '8px' }}>
-        The Cleaning Cycle standard (reference photo + head marker) is now managed globally, outside any single event&apos;s workspace — the same standard applies to every speaker&apos;s Cleaned Photo across every event.
-      </div>
-      <Link href="/admin/branding/cleaning-cycle-template" style={{ fontSize: '12.5px', fontWeight: 700, color: 'var(--teal-mid)' }}>Manage in Branding →</Link>
     </div>
   )
 }
