@@ -44,10 +44,10 @@ VALUES (
   'Sent to the entire event staff roster the moment a producer confirms an announcement has gone live and tagging is done — asks the team to like and share.',
   '🎉 Just published: {{stakeholder_name}} — {{event_name}}',
   '<p>Hi team,</p>
-<p>The announcement for <strong>{{stakeholder_name}}</strong> ({{event_name}}) just went live. Please like and share on your own channels:</p>
+<p>The {{kind_label}} for <strong>{{stakeholder_name}}</strong> ({{event_name}}) just went live. Please like and share on your own channels:</p>
 {{platform_links}}
 <p>Thanks!<br/>{{sender_name}}</p>',
-  '[{"key":"stakeholder_name","label":"Speaker/Partner Name"},{"key":"event_name","label":"Event Name"},{"key":"platform_links","label":"Published Links (auto)"},{"key":"sender_name","label":"Sender Name"}]'::jsonb,
+  '[{"key":"stakeholder_name","label":"Speaker/Partner Name"},{"key":"kind_label","label":"speaker announcement / partner announcement (auto)"},{"key":"event_name","label":"Event Name"},{"key":"platform_links","label":"Published Links (auto)"},{"key":"sender_name","label":"Sender Name"}]'::jsonb,
   'Madhukar Dudda',
   'md@tresconglobal.com',
   true
@@ -62,11 +62,11 @@ VALUES (
   'Sent to the speaker/partner (or their office) once an announcement is live, politely asking them to like and share.',
   'Now live: {{stakeholder_name}}''s announcement for {{event_name}}',
   '<p>Dear {{recipient_name}},</p>
-<p>Just a quick note to let you know the announcement for {{event_name}} is now live! We would be so grateful if you could like and share it from your end:</p>
+<p>Just a quick note to let you know the {{kind_label}} for {{event_name}} is now live! We would be so grateful if you could like and share it from your end:</p>
 {{platform_links}}
 <p>Thank you so much.</p>
 <p>Best regards,<br/>{{sender_name}}</p>',
-  '[{"key":"recipient_name","label":"Recipient Name"},{"key":"stakeholder_name","label":"Speaker/Partner Name"},{"key":"event_name","label":"Event Name"},{"key":"platform_links","label":"Published Links (auto)"},{"key":"sender_name","label":"Sender Name"}]'::jsonb,
+  '[{"key":"recipient_name","label":"Recipient Name"},{"key":"stakeholder_name","label":"Speaker/Partner Name"},{"key":"kind_label","label":"speaker announcement / partner announcement (auto)"},{"key":"event_name","label":"Event Name"},{"key":"platform_links","label":"Published Links (auto)"},{"key":"sender_name","label":"Sender Name"}]'::jsonb,
   'Madhukar Dudda',
   'md@tresconglobal.com',
   true

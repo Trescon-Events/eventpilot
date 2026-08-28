@@ -46,6 +46,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   const { subject, html } = renderEmailTemplate(template, {
     recipient_name: announcement.external_notification_recipient_name || '',
     stakeholder_name: stakeholderName,
+    kind_label: announcement.speaker_id ? 'speaker announcement' : 'partner announcement',
     event_name: event?.public_name || event?.name || '',
     platform_links: platformLinks,
     sender_name: sender.name,
