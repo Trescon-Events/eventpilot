@@ -8,11 +8,12 @@ import { Download } from 'lucide-react'
 import { Button, Badge, Select, ProcessingOverlay } from '@/app/components/ui'
 import { downloadFile } from '@/app/lib/download-file'
 import type { Variant } from '@/app/lib/announcements/composite'
+import { PLATFORM_CHAR_LIMITS } from '@/app/lib/announcements/platform-limits'
 import SendToSpeakerComposer from './SendToSpeakerComposer'
 import SendForExternalApprovalComposer from './SendForExternalApprovalComposer'
 import PostizCalendar, { type ScheduledPost } from './PostizCalendar'
 import {
-  displayName, displaySubtitle, statusColor, plainToHtml, PLATFORM_CHAR_LIMITS, PLATFORM_LABELS,
+  displayName, displaySubtitle, statusColor, plainToHtml, PLATFORM_LABELS,
   type AnnouncementListItem, type Stakeholder, type StakeholderKind, type Speaker, type PostizChannel, type EventStaffOption,
 } from './page'
 import PublishProgressModal from './PublishProgressModal'

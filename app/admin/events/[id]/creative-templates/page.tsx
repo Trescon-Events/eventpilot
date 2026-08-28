@@ -26,7 +26,7 @@ export function plainToHtml(text: string): string {
    still land somewhere sensible instead of 404ing.
 
    Every OTHER export in this file (types, displayName/displaySubtitle/
-   thumbUrl/statusColor/escapeHtml/plainToHtml/PLATFORM_CHAR_LIMITS) is
+   thumbUrl/statusColor/escapeHtml/plainToHtml) is
    still very much alive — AnnouncementDetailPanel, CreateAnnouncementModal,
    DeleteCreativeModal, the Stakeholder Hub's AnnouncementsTab/
    CreateAnnouncementForStakeholder, and the Admin Console all import from
@@ -119,14 +119,6 @@ export function displaySubtitle(kind: StakeholderKind, s: Stakeholder): string {
 export function thumbUrl(kind: StakeholderKind, s: Stakeholder): string | null {
   return kind === 'speaker' ? ((s as Speaker).photo_processed_url || (s as Speaker).photo_url) : (s as Partner).logo_url
 }
-
-// Real per-platform caption limits (2026-08-16) — not exhaustive, just the
-// two platforms actually in scope for now (per Madhu). A post that's too
-// long for a selected platform still gets truncated/rejected by the real
-// platform regardless of what EventPilot does, so surfacing this before
-// Schedule/Post Now is the whole value — same "look like it'll actually
-// post" principle as the caption editor rebuild.
-export const PLATFORM_CHAR_LIMITS: Record<string, number> = { x: 280, linkedin: 3000, 'linkedin-page': 3000 }
 
 export const PLATFORM_LABELS: Record<string, string> = {
   linkedin: 'LinkedIn', 'linkedin-page': 'LinkedIn Page', x: 'X', instagram: 'Instagram', youtube: 'YouTube',

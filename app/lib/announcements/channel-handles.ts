@@ -7,8 +7,8 @@
 import type { PostizIntegration } from '@/app/lib/postiz'
 
 // Postiz's own platform identifiers aren't human-facing — same convention
-// as creative-templates/page.tsx's PLATFORM_CHAR_LIMITS map (which needs
-// this exact same identifier set for a different reason). Falls back to
+// as platform-limits.ts's PLATFORM_CHAR_LIMITS map (which needs this exact
+// same identifier set for a different reason). Falls back to
 // the raw identifier for anything not yet seen live, rather than hiding
 // the channel — an unrecognized-but-real channel should still show up.
 const PLATFORM_LABEL: Record<string, string> = {
