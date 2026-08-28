@@ -5,7 +5,7 @@ import { uploadPublicAsset } from '@/app/lib/events/storage'
 
 const MAX_SIZE_MB = 10
 
-/* POST /api/events/templates/global-placeholder-defaults/photo
+/* POST /api/branding/placeholder-defaults/photo
    multipart/form-data: file, stakeholder_type ('speaker'|'partner')
    Uploads the dedicated global placeholder photo — expected to already be
    a clean, transparent-background image (same shape as the photo-cleaning

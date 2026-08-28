@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from 'react'
 import Link from 'next/link'
 import PageHeader from '@/app/components/PageHeader'
-import { Button, Card, Input } from '@/app/components/ui'
+import { Button, Card, Input, Toast, type ToastType } from '@/app/components/ui'
 import type { PlaceholderProfile, GlobalPlaceholderDefault } from '@/app/lib/announcements/composite'
 
 /* Platform-level (not event-scoped) placeholder default (2026-08-29) — one
@@ -31,6 +31,7 @@ export default function PlaceholderDefaultsPage() {
   const [defaults, setDefaults] = useState<{ speaker: GlobalPlaceholderDefault | null; partner: GlobalPlaceholderDefault | null }>({ speaker: null, partner: null })
   const [loading, setLoading] = useState(true)
   const [msg, setMsg] = useState<string | null>(null)
+  const [msgType, setMsgType] = useState<ToastType>('success')
 
   async function fetchAll() {
     setLoading(true)
@@ -50,9 +51,9 @@ export default function PlaceholderDefaultsPage() {
     const data = await res.json().catch(() => ({}))
     if (res.ok) {
       setDefaults(d => ({ ...d, [activeType]: data }))
-      setMsg('Saved.')
+      setMsgType('success'); setMsg('Saved.')
     } else {
-      setMsg(data.error || 'Save failed.')
+      setMsgType('error'); setMsg(data.error || 'Save failed.')
     }
   }
 
@@ -64,9 +65,9 @@ export default function PlaceholderDefaultsPage() {
     const data = await res.json().catch(() => ({}))
     if (res.ok) {
       setDefaults(d => ({ ...d, [activeType]: data }))
-      setMsg('Placeholder photo saved.')
+      setMsgType('success'); setMsg('Placeholder photo saved.')
     } else {
-      setMsg(data.error || 'Photo upload failed.')
+      setMsgType('error'); setMsg(data.error || 'Photo upload failed.')
     }
   }
 
@@ -85,11 +86,7 @@ export default function PlaceholderDefaultsPage() {
           <div style={{ padding: '8px 16px', borderRadius: '8px', background: 'var(--surface)', color: 'var(--lime)', fontSize: '13px', fontWeight: 800 }}>Placeholder Defaults</div>
         </div>
 
-        {msg && (
-          <div style={{ padding: '10px 14px', borderRadius: '8px', background: 'var(--red-light)', border: '1px solid var(--red-border)', color: 'var(--red)', fontSize: '12.5px', marginBottom: '16px' }}>
-            {msg} <button onClick={() => setMsg(null)} style={{ background: 'none', border: 'none', color: 'inherit', cursor: 'pointer', fontWeight: 700, marginLeft: '8px' }}>×</button>
-          </div>
-        )}
+        <Toast message={msg} type={msgType} onClose={() => setMsg(null)} />
 
         <div style={{ display: 'flex', gap: '4px', marginBottom: '16px' }}>
           {(['speaker', 'partner'] as StakeholderKind[]).map(t => (

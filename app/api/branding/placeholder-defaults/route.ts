@@ -2,11 +2,11 @@ import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/app/lib/supabase'
 import { getSession } from '@/app/lib/access/session'
 
-/* GET /api/events/templates/global-placeholder-defaults
+/* GET /api/branding/placeholder-defaults
    Returns { speaker, partner } — one row each (or null if never set) from
-   template_placeholder_defaults. Both rows in one call since the template
-   editor needs both (whichever tab is active can change at any time) and
-   there are only ever two rows total.
+   template_placeholder_defaults. Both rows in one call since both the
+   standalone management page and the per-event template editor's
+   read-only summary need both.
 
    PUT — body: { stakeholder_type: 'speaker'|'partner', name?, job_title?,
    company_name?, country? }
@@ -15,7 +15,13 @@ import { getSession } from '@/app/lib/access/session'
 
    2026-08-29, per Madhu: a genuinely global (not per-event) placeholder
    default — see composite.ts's GlobalPlaceholderDefault comment for the
-   full rationale. */
+   full rationale. Lives under /api/branding (not /api/events/templates)
+   because it isn't event-scoped at all — matches the sibling
+   /api/branding/fonts and /api/branding/corporate routes, which back the
+   org-wide Branding admin section this is managed from
+   (/admin/branding/placeholder-defaults), not any single event's
+   workspace (moved there 2026-08-29 after initially — wrongly — living
+   inside the per-event Creative Templates admin console). */
 export async function GET() {
   const { data, error } = await supabaseAdmin.from('template_placeholder_defaults').select('*')
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
