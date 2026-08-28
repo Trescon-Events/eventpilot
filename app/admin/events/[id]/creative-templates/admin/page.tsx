@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef, use } from 'react'
 import Link from 'next/link'
 import PageHeader from '@/app/components/PageHeader'
-import { Button, Badge, Input, Select, Textarea, ProcessingOverlay } from '@/app/components/ui'
+import { Button, Badge, Input, Select, Textarea, ProcessingOverlay, Toast, type ToastType } from '@/app/components/ui'
 import AccessTab from '@/app/components/AccessTab'
 import type { Layer, ImageLayer, PhotoSlotLayer, TextLayer, Variant, CreativeTemplateConfig, TextLayerDiagnostics, PlaceholderProfile, GlobalPlaceholderDefault, CleaningCycleTemplate } from '@/app/lib/announcements/composite'
 import { withTextLayerDefaults } from '@/app/lib/announcements/text-layer-defaults'
@@ -114,6 +114,7 @@ export default function CreativeTemplatesAdminPage({ params }: { params: Promise
   const [dirty, setDirty] = useState(false)
   const [saving, setSaving] = useState(false)
   const [msg, setMsg] = useState<string | null>(null)
+  const [msgType, setMsgType] = useState<ToastType>('error')
   // Lifted out of LayerRow (was private per-row state) so LayerBoxOverlay
   // can highlight the same layer that's expanded in the accordion, and
   // clicking a box on the live preview can open its corresponding row.
@@ -376,7 +377,7 @@ export default function CreativeTemplatesAdminPage({ params }: { params: Promise
     })
     const data = await res.json().catch(() => ({}))
     if (res.ok) setDirty(false)
-    else setMsg(data.error || 'Delete failed to save — click "Save Changes" to retry.')
+    else { setMsgType('error'); setMsg(data.error || 'Delete failed to save — click "Save Changes" to retry.') }
     setSaving(false)
   }
 
@@ -475,9 +476,9 @@ export default function CreativeTemplatesAdminPage({ params }: { params: Promise
     const data = await res.json().catch(() => ({}))
     if (res.ok) {
       setPlaceholderProfiles(p => ({ ...p, [activeType]: profile }))
-      setMsg('Placeholder saved.')
+      setMsgType('success'); setMsg('Placeholder saved.')
     } else {
-      setMsg(data.error || 'Placeholder save failed.')
+      setMsgType('error'); setMsg(data.error || 'Placeholder save failed.')
     }
   }
 
@@ -553,7 +554,7 @@ export default function CreativeTemplatesAdminPage({ params }: { params: Promise
     // which is the whole signal a save succeeded; a separate banner just
     // duplicated that and ate vertical space. Failures still need surfacing
     // here since nothing else shows them.
-    if (res.ok) { setVariants(variantsToSave); setDirty(false) } else { setMsg(data.error || 'Save failed.') }
+    if (res.ok) { setVariants(variantsToSave); setDirty(false) } else { setMsgType('error'); setMsg(data.error || 'Save failed.') }
     setSaving(false)
   }
 
@@ -591,11 +592,7 @@ export default function CreativeTemplatesAdminPage({ params }: { params: Promise
           <CleaningCycleTemplatePanel eventId={eventId} />
         ) : (
           <>
-            {msg && (
-              <div style={{ padding: '10px 14px', borderRadius: '8px', background: 'var(--red-light)', border: '1px solid var(--red-border)', color: 'var(--red)', fontSize: '12.5px', marginBottom: '16px' }}>
-                {msg} <button onClick={() => setMsg(null)} style={{ background: 'none', border: 'none', color: 'inherit', cursor: 'pointer', fontWeight: 700, marginLeft: '8px' }}>×</button>
-              </div>
-            )}
+            <Toast message={msg} type={msgType} onClose={() => setMsg(null)} />
 
             <div style={{ display: 'flex', borderRadius: '8px', border: '1px solid var(--border)', overflow: 'hidden', width: 'fit-content', marginBottom: '20px' }}>
               {(['speaker', 'partner'] as const).map(t => (
@@ -1133,11 +1130,7 @@ function CleaningCycleTemplatePanel({ eventId }: { eventId: string }) {
         This is the single standard every speaker&apos;s Cleaned Photo is measured against — set it up once per event. Upload a reference photo (any speaker photo already correctly composed works), then drag/resize the circle to mark exactly where the head should sit. The &quot;Clean Photo&quot; action on each speaker crops to this target, calling AI only when a photo doesn&apos;t have enough real content to fill it.
       </div>
 
-      {msg && (
-        <div style={{ padding: '10px 14px', borderRadius: '8px', background: 'var(--red-light)', border: '1px solid var(--red-border)', color: 'var(--red)', fontSize: '12.5px', marginBottom: '16px' }}>
-          {msg} <button onClick={() => setMsg(null)} style={{ background: 'none', border: 'none', color: 'inherit', cursor: 'pointer', fontWeight: 700, marginLeft: '8px' }}>×</button>
-        </div>
-      )}
+      <Toast message={msg} type="error" onClose={() => setMsg(null)} />
 
       <div style={{ background: 'var(--surface)', borderRadius: '10px', overflow: 'hidden', display: 'flex', justifyContent: 'center', padding: '16px', marginBottom: '14px' }}>
         {template.reference_url ? (
