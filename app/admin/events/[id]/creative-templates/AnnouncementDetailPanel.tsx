@@ -868,12 +868,6 @@ export default function AnnouncementDetailPanel({
           <Badge color={statusColor(announcement.status)}>{announcement.status.replace(/_/g, ' ')}</Badge>
         </div>
 
-        {announcement.status === 'pending_approval' && (
-          <div style={{ fontSize: '12px', color: 'var(--ink3)', marginBottom: '12px' }}>Waiting on approval — check back or follow up with your approvers directly.</div>
-        )}
-        {announcement.status === 'changes_requested' && (
-          <div style={{ fontSize: '12px', color: 'var(--red)', marginBottom: '12px' }}>Changes were requested — update the copy/creative above, then send for approval again.</div>
-        )}
         {announcement.status === 'published' ? (
           <div style={{ fontSize: '12px', color: 'var(--teal-mid)', fontWeight: 700, marginBottom: '12px' }}>
             ✓ Sent to the speaker {announcement.published_at ? new Date(announcement.published_at).toLocaleString() : ''}
@@ -884,11 +878,23 @@ export default function AnnouncementDetailPanel({
           </div>
         )}
 
+        {/* 2026-08-29 fix, per Madhu, live: no longer gated on
+            readyToPublish/internalDone — that Approval-readiness concept
+            (approve → do the thing) was removed for self_promo above and
+            can now never become true, which had silently made this button
+            vanish entirely once a self_promo hit 'published', leaving no
+            way to resend at all. Self_promo has no approval gate to check
+            anymore — just the plain publish permission — and the button
+            always stays available so a producer can add CC recipients or
+            tweak wording and resend, the same way External Approval's own
+            button already works (see that block's `!externalApproved`
+            check, which similarly never blocks a resend, just a genuinely
+            already-approved round). Label swaps to "Resend" once already
+            sent once, so it reads honestly either way. */}
         <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center' }}>
-          {(readyToPublish
-            || ((announcement.status === 'draft' || announcement.status === 'changes_requested') && can('sae.announcements.publish'))) && (
+          {can('sae.announcements.publish') && (
             <Button variant="lime" onClick={() => setSendToSpeakerOpen(true)}>
-              Send to Speaker
+              {announcement.status === 'published' ? 'Resend to Speaker' : 'Send to Speaker'}
             </Button>
           )}
         </div>
