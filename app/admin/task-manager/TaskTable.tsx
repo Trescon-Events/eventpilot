@@ -1,7 +1,7 @@
 'use client'
 import { useState } from 'react'
-import { Avatar, PillSelect } from './ui'
-import { PRIORITIES, PRIORITY_COLOR, STATUSES, STATUS_COLOR, Task, TaskPriority, TaskStatus, formatHours, formatTimeTaken } from './types'
+import { Avatar, CUSTOM_SCROLLBAR_STYLE, PillSelect } from './ui'
+import { PRIORITIES, PRIORITY_COLOR, STATUSES, STATUS_COLOR, Task, TaskPriority, TaskStatus } from './types'
 
 function DeadlineBadge({ deadline, status }: { deadline: string | null; status: TaskStatus }) {
   if (!deadline) return <span style={{ color: 'var(--ink4)' }}>—</span>
@@ -348,30 +348,6 @@ function TaskRow({
           {STATUSES.map(s => <option key={s} value={s}>{s.replace('-', ' ')}</option>)}
         </PillSelect>
       </td>
-      <td style={{ padding: '11px 12px', whiteSpace: 'nowrap', fontSize: '12px' }}>
-        {isCompleted ? (
-          <span
-            style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: '4px',
-              padding: '2px 8px',
-              background: 'var(--teal-light)',
-              color: 'var(--teal)',
-              borderRadius: '6px',
-              fontSize: '11px',
-              fontWeight: 700,
-            }}
-            title="Total time taken"
-          >
-            <span>⏱️</span> {formatTimeTaken(t.tracked_seconds)}
-          </span>
-        ) : t.tracked_seconds > 0 ? (
-          <span style={{ color: 'var(--ink3)' }}>{formatHours(t.tracked_seconds)}</span>
-        ) : (
-          <span style={{ color: 'var(--ink4)' }}>—</span>
-        )}
-      </td>
       <td style={{ padding: '10px 12px', textAlign: 'center' }} onClick={e => e.stopPropagation()}>
         <button type="button" onClick={() => onDelete(t.id)} title="Delete task" style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--ink4)', fontSize: '13px' }}>
           ✕
@@ -459,12 +435,12 @@ export default function TaskTable({ tasks, groupByEvent, onOpenTask, onStatusCha
               </div>
 
               {!isCollapsed && (
-                <div style={{ overflowX: 'auto' }}>
-                  <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
+                <div className="tm-scroll" style={{ overflowX: 'auto', width: '100%', WebkitOverflowScrolling: 'touch', ...CUSTOM_SCROLLBAR_STYLE }}>
+                  <table style={{ width: '100%', minWidth: '800px', borderCollapse: 'collapse', fontSize: '13px' }}>
                     <thead>
-                      <tr style={{ borderBottom: '1px solid var(--border)', textAlign: 'left', background: 'var(--surface)' }}>
-                        {['Task', 'Created', 'Assigned By', 'Assigned To', 'Deadline', 'Priority', 'Status', 'Tracked', ''].map(h => (
-                          <th key={h} style={{ padding: '10px 12px', fontSize: '11px', fontWeight: 700, color: 'var(--ink3)', textTransform: 'uppercase', letterSpacing: '0.3px', whiteSpace: 'nowrap' }}>{h}</th>
+                      <tr style={{ borderBottom: '1px solid var(--border)', textAlign: 'left', background: 'var(--card)' }}>
+                        {['Task', 'Created', 'Assigned By', 'Assigned To', 'Deadline', 'Priority', 'Status', ''].map(h => (
+                          <th key={h} style={{ padding: '10px 12px', fontSize: '11px', fontWeight: 700, color: 'var(--ink4)', textTransform: 'uppercase', letterSpacing: '0.4px', whiteSpace: 'nowrap' }}>{h}</th>
                         ))}
                       </tr>
                     </thead>
@@ -493,12 +469,12 @@ export default function TaskTable({ tasks, groupByEvent, onOpenTask, onStatusCha
 
   // ── Standard Flat Table Mode (with sticky header) ───────────
   return (
-    <div style={{ overflowX: 'auto' }}>
-      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
+    <div className="tm-scroll" style={{ overflowX: 'auto', width: '100%', WebkitOverflowScrolling: 'touch', ...CUSTOM_SCROLLBAR_STYLE }}>
+      <table style={{ width: '100%', minWidth: '880px', borderCollapse: 'collapse', fontSize: '13px' }}>
         <thead>
-          <tr style={{ borderBottom: '1px solid var(--border)', textAlign: 'left', position: 'sticky', top: 0, background: 'var(--surface)', zIndex: 5 }}>
-            {['Event', 'Task', 'Created', 'Assigned By', 'Assigned To', 'Deadline', 'Priority', 'Status', 'Tracked', ''].map(h => (
-              <th key={h} style={{ padding: '10px 12px', fontSize: '11px', fontWeight: 700, color: 'var(--ink3)', textTransform: 'uppercase', letterSpacing: '0.3px', whiteSpace: 'nowrap' }}>{h}</th>
+          <tr style={{ borderBottom: '1px solid var(--border)', textAlign: 'left', position: 'sticky', top: 0, background: 'var(--card)', zIndex: 5 }}>
+            {['Event', 'Task', 'Created', 'Assigned By', 'Assigned To', 'Deadline', 'Priority', 'Status', ''].map(h => (
+              <th key={h} style={{ padding: '10px 12px', fontSize: '11px', fontWeight: 700, color: 'var(--ink4)', textTransform: 'uppercase', letterSpacing: '0.4px', whiteSpace: 'nowrap' }}>{h}</th>
             ))}
           </tr>
         </thead>

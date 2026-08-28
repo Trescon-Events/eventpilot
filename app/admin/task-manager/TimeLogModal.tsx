@@ -3,7 +3,7 @@ import { useEffect, useState } from 'react'
 import Button from '@/app/components/ui/Button'
 import { Input, Select, Textarea } from '@/app/components/ui/Field'
 import { CATEGORIES, LogCategory, Task } from './types'
-import { SearchableSelect } from './ui'
+import { CUSTOM_SCROLLBAR_STYLE, SearchableSelect } from './ui'
 
 interface Props {
   tasks: Task[]
@@ -62,7 +62,8 @@ export default function TimeLogModal({ tasks, defaultTaskId, onClose, onSave }: 
   return (
     <div style={{ position: 'fixed', inset: 0, background: 'var(--overlay-scrim)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100 }} onClick={onClose}>
       <div
-        style={{ background: 'var(--card)', borderRadius: '14px', padding: '28px', width: '480px', maxWidth: '90vw', maxHeight: '85vh', overflowY: 'auto', boxShadow: 'var(--shadow-md)' }}
+        className="tm-scroll"
+        style={{ background: 'var(--card)', borderRadius: '14px', padding: '28px', width: '480px', maxWidth: '90vw', maxHeight: '85vh', overflowY: 'auto', boxShadow: 'var(--shadow-md)', ...CUSTOM_SCROLLBAR_STYLE }}
         onClick={e => e.stopPropagation()}
       >
         <h2 style={{ fontSize: '18px', fontWeight: 800, color: 'var(--ink)', margin: '0 0 6px' }}>Log time</h2>

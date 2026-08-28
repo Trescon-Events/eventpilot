@@ -12,7 +12,7 @@ import TaskModal from './TaskModal'
 import TaskTable from './TaskTable'
 import TimeLogModal from './TimeLogModal'
 import Timesheets from './Timesheets'
-import { ACTIVE_PILL_FILTER_STYLE, PILL_FILTER_STYLE } from './ui'
+import { ACTIVE_PILL_FILTER_STYLE, PILL_FILTER_STYLE, TaskManagerStyles } from './ui'
 import { ActiveTimer, EventLite, LogCategory, StaffLite, Task, TaskPriority, TaskSaveValues, TaskStatus, TimeLog } from './types'
 
 type ViewMode = 'table' | 'kanban' | 'timesheets'
@@ -350,6 +350,7 @@ export default function TaskManagerPage() {
 
   return (
     <>
+      <TaskManagerStyles />
       <PageHeader
         title="Task Manager"
         actions={
