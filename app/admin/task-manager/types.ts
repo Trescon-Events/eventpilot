@@ -19,8 +19,22 @@ export type Task = {
   priority: TaskPriority
   remarks: string | null
   tracked_seconds: number
+  last_overdue_notified_at?: string | null
+  overdue_reminder_count?: number
   created_at: string
   updated_at: string
+}
+
+export type StaffWithTimezone = StaffLite & {
+  aad_object_id?: string | null
+  office_timezone?: string
+  working_days?: number[]
+}
+
+export type OverdueTaskDigestItem = {
+  task: Task
+  daysOverdue: number
+  isAssignee: boolean
 }
 
 export const STATUSES: TaskStatus[] = ['Not-Started', 'In-Progress', 'Completed']

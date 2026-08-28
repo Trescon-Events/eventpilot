@@ -159,6 +159,49 @@ export default function TaskManagerConsolePage() {
 
       <div style={{ height: '16px' }} />
 
+      {/* ── Microsoft Teams Overdue Task Notifications Panel ─────── */}
+      <Card padded>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '12px', marginBottom: '14px' }}>
+          <div>
+            <div style={{ fontSize: '14px', fontWeight: 800, color: 'var(--ink)', display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <span>💬</span> Microsoft Teams Automated Overdue Reminders
+            </div>
+            <div style={{ fontSize: '12px', color: 'var(--ink3)', marginTop: '2px' }}>
+              Delivers automated 09:00 AM local morning digests to Assignors and Assignees until resolved or rescheduled.
+            </div>
+          </div>
+          <Button
+            variant="teal"
+            onClick={async () => {
+              try {
+                const res = await fetch('/api/task-manager/cron/overdue?force=true', { method: 'POST' })
+                const data = await res.json()
+                alert(`Teams Sweeper Triggered:\n• Evaluated: ${data.recipients_evaluated ?? 0} staff\n• Digests Dispatched: ${data.digests_dispatched ?? 0}\n• Tasks Notified: ${data.tasks_notified ?? 0}`)
+                await loadTasks()
+              } catch (err: unknown) {
+                alert(`Sweep trigger error: ${err instanceof Error ? err.message : 'Unknown'}`)
+              }
+            }}
+          >
+            ⚡ Run Overdue Sweep Test Now
+          </Button>
+        </div>
+
+        <div style={{ padding: '12px 14px', background: 'var(--surface)', borderRadius: '8px', border: '1px solid var(--border-light)', fontSize: '12px', color: 'var(--ink2)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '10px' }}>
+          <div>
+            <span style={{ fontWeight: 700, color: stats.overdue > 0 ? 'var(--red)' : 'var(--teal)' }}>
+              {stats.overdue} overdue task{stats.overdue === 1 ? '' : 's'}
+            </span>{' '}
+            currently eligible for morning digest dispatch.
+          </div>
+          <span style={{ fontSize: '11px', color: 'var(--ink4)' }}>
+            Schedule: Mon–Fri @ 09:00 AM recipient local time
+          </span>
+        </div>
+      </Card>
+
+      <div style={{ height: '16px' }} />
+
       <Card padded>
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap', marginBottom: '16px' }}>
           <select value={filter} onChange={e => setFilter(e.target.value as FilterMode)} style={PILL_FILTER_STYLE}>

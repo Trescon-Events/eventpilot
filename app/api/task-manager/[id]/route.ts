@@ -39,6 +39,10 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     if (field in body) updates[field] = body[field]
   }
 
+  if (updates.status === 'Completed' || 'deadline' in updates) {
+    updates.last_overdue_notified_at = null
+  }
+
   const { data, error } = await supabaseAdmin
     .from('task_manager_tasks')
     .update(updates)
