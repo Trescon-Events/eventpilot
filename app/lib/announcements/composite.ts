@@ -76,7 +76,7 @@ export type TextLayerFont = {
 export type TextLayer = {
   id: string
   type: 'text'
-  field: 'name' | 'title' | 'company' | 'tier' | 'custom'
+  field: 'name' | 'title' | 'company' | 'tier' | 'country' | 'custom'
   value?: string             // static text for 'custom', or a fallback for 'tier'
   x: number                  // box top-left (SAE Phase C v5, 2026-07-29) — was a single SVG baseline
   y: number                  // point before this; see withTextLayerDefaults() for the migration from that shape
@@ -222,17 +222,38 @@ export type CleaningCycleTemplate = PhotoAlignmentMeta & {
 // ("Jane Doe" / "Chief Officer" / "Acme Corp"), duplicated in two places
 // with no way to edit either. One profile per stakeholder type, stored
 // alongside the variants on the same event so it's naturally reused across
-// every variant. Text only, deliberately — a real photo_slot layer's box
-// and face-alignment target are already fully supplied by whoever creates
-// the variant (a designer uploads a reference layer showing a placeholder
-// photo/logo already correctly positioned; see derive-alignment/route.ts),
-// so a separately-stored placeholder photo/logo would just be redundant
-// content nobody asked for, not a real gap — confirmed with Madhu
-// 2026-07-31 after an initial version of this feature briefly included one.
+// every variant. Text only — a real photo_slot layer's box and
+// face-alignment target are already fully supplied by whoever creates the
+// variant (a designer uploads a reference layer showing a placeholder
+// photo/logo already correctly positioned; see derive-alignment/route.ts).
+//
+// 2026-08-29 update, per Madhu, reversing part of the 2026-07-31 decision
+// above: a genuinely GLOBAL (cross-event) placeholder default was added —
+// template_placeholder_defaults, one row per stakeholder_type — including
+// a real dedicated photo this time. That global photo is intentionally
+// separate from any per-event/per-layer reference_url (which stays
+// whatever the branding team uploads for positioning purposes, can be
+// anybody's photo) — see the preview route's own resolution-order comment.
+// This PER-EVENT profile still has no photo field; only the new global
+// default does.
 export type PlaceholderProfile = {
   name?: string
   job_title?: string
   company_name?: string
+  country?: string
+}
+
+// The global, cross-event default — template_placeholder_defaults table,
+// one row per stakeholder_type. photo_url is the one genuinely new piece
+// (see PlaceholderProfile's own comment above for why it's only here, not
+// on the per-event profile).
+export type GlobalPlaceholderDefault = {
+  stakeholder_type: 'speaker' | 'partner'
+  name: string | null
+  job_title: string | null
+  company_name: string | null
+  country: string | null
+  photo_url: string | null
 }
 
 export type CreativeTemplateConfig = {
@@ -282,7 +303,7 @@ async function getOrRenderLayer(key: string, render: () => Promise<OverlayOption
 export async function compositeAnnouncement(
   variant: Variant,
   assets: ResolvedAssets,
-  texts: { name?: string; title?: string; company?: string; tier?: string }
+  texts: { name?: string; title?: string; company?: string; tier?: string; country?: string }
 ): Promise<Buffer> {
   // "Snap below" resolution — see TextLayer.snap_below_layer_id's doc
   // comment. Cheap (just wrapAndFit measurement, no Sharp/canvas render) and
@@ -389,11 +410,12 @@ export async function compositeAnnouncement(
     .toBuffer()
 }
 
-function resolveTextValue(layer: TextLayer, texts: { name?: string; title?: string; company?: string; tier?: string }): string | undefined {
+function resolveTextValue(layer: TextLayer, texts: { name?: string; title?: string; company?: string; tier?: string; country?: string }): string | undefined {
   const raw = layer.field === 'custom' ? layer.value
     : layer.field === 'name' ? texts.name
     : layer.field === 'title' ? texts.title
     : layer.field === 'company' ? texts.company
+    : layer.field === 'country' ? texts.country
     : (texts.tier ?? layer.value) // 'tier' — runtime value wins, falls back to the layer's own hardcoded label
   return layer.uppercase && raw ? raw.toUpperCase() : raw
 }
@@ -639,7 +661,7 @@ async function renderTextLayerPng(
 // (which stays a plain Buffer-returning function for the real generation
 // path) rather than threading a richer return type through it.
 export async function analyzeTextLayers(
-  variant: Variant, texts: { name?: string; title?: string; company?: string; tier?: string }
+  variant: Variant, texts: { name?: string; title?: string; company?: string; tier?: string; country?: string }
 ): Promise<Record<string, TextLayerDiagnostics>> {
   const result: Record<string, TextLayerDiagnostics> = {}
   for (const layer of variant.layers) {

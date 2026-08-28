@@ -71,7 +71,7 @@ export async function generatePostCopy(
 
   const stakeholderContext = speaker
     ? `Speaker: ${speakerName}, ${speaker.role} at ${speaker.company}${speaker.country ? `, ${speaker.country}` : ''}.\nBio: ${speaker.bio ?? '(not provided)'}${talkingPoints}${pronounGuidance}`
-    : `Partner: ${partner!.name}, category: ${String(partner!.partner_type).replace(/_/g, ' ')}.\nDescription: ${partner!.company_description ?? '(not provided)'}`
+    : `Partner: ${partner!.name}${partner!.country ? `, ${partner!.country}` : ''}, category: ${String(partner!.partner_type).replace(/_/g, ' ')}.\nDescription: ${partner!.company_description ?? '(not provided)'}`
 
   const prompt = `You are writing social media announcement posts for Trescon events.
 You write in the established Trescon voice: confident, data-driven, forward-looking.
@@ -308,7 +308,7 @@ export type NeededAsset = { source: PhotoSlotLayer['source']; url: string; isSvg
 export type CompositeInputs = {
   variant: Variant
   assetsNeeded: NeededAsset[]
-  texts: { name?: string; title?: string; company?: string; tier?: string }
+  texts: { name?: string; title?: string; company?: string; tier?: string; country?: string }
 }
 
 // Resolves a real asset URL for a photo_slot layer's `source` from the
@@ -368,7 +368,7 @@ export function buildCompositeInputs(
   }
 
   const texts = stakeholderType === 'speaker'
-    ? { name: String(speaker?.public_name || speaker?.name || ''), title: String(speaker?.role ?? ''), company: String(speaker?.company ?? '') }
+    ? { name: String(speaker?.public_name || speaker?.name || ''), title: String(speaker?.role ?? ''), company: String(speaker?.company ?? ''), country: String(speaker?.country ?? '') }
     : {}
 
   return { variant, assetsNeeded, texts }

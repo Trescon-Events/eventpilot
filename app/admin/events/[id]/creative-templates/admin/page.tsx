@@ -4,7 +4,7 @@ import { useState, useEffect, useRef, use } from 'react'
 import PageHeader from '@/app/components/PageHeader'
 import { Button, Badge, Input, Select, Textarea, ProcessingOverlay } from '@/app/components/ui'
 import AccessTab from '@/app/components/AccessTab'
-import type { Layer, ImageLayer, PhotoSlotLayer, TextLayer, Variant, CreativeTemplateConfig, TextLayerDiagnostics, PlaceholderProfile, CleaningCycleTemplate } from '@/app/lib/announcements/composite'
+import type { Layer, ImageLayer, PhotoSlotLayer, TextLayer, Variant, CreativeTemplateConfig, TextLayerDiagnostics, PlaceholderProfile, GlobalPlaceholderDefault, CleaningCycleTemplate } from '@/app/lib/announcements/composite'
 import { withTextLayerDefaults } from '@/app/lib/announcements/text-layer-defaults'
 import { CLEANING_CYCLE_CANVAS_SIZE } from '@/app/lib/media/cleaning-cycle-constants'
 import type { ResolvedFont, BrandRulesSnapshot } from '@/app/lib/branding/brand-rules'
@@ -40,7 +40,7 @@ const LAYER_TYPE_LABEL: Record<Layer['type'], string> = { image: 'Image', photo_
 // Mirrors composite.ts's DEFAULT_MAX_LINES — kept here too (not imported)
 // since it's just the starting value for a freshly-added layer, not a
 // runtime fallback; the two are allowed to diverge without breaking anything.
-const DEFAULT_MAX_LINES_BY_FIELD: Record<TextLayer['field'], number> = { name: 3, title: 2, company: 2, tier: 2, custom: 2 }
+const DEFAULT_MAX_LINES_BY_FIELD: Record<TextLayer['field'], number> = { name: 3, title: 2, company: 2, country: 1, tier: 2, custom: 2 }
 
 // Editor-local — maps a text layer's `field` to the content-type slug the
 // brand-rules resolver understands (app/lib/branding/brand-rules.ts). This
@@ -48,7 +48,7 @@ const DEFAULT_MAX_LINES_BY_FIELD: Record<TextLayer['field'], number> = { name: 3
 // like on a card), not general brand-rules logic, so it stays here rather
 // than in the shared library.
 const FIELD_TO_CONTENT_TYPE: Record<TextLayer['field'], string> = {
-  name: 'heading', title: 'subheading', company: 'body', tier: 'body', custom: 'body',
+  name: 'heading', title: 'subheading', company: 'body', country: 'body', tier: 'body', custom: 'body',
 }
 
 function newLayer(type: Layer['type'], activeType: StakeholderKind, canvasWidth: number, canvasHeight: number, fontSuggestion?: ResolvedFont | null, category?: Variant['category']): Layer {
@@ -130,6 +130,9 @@ export default function CreativeTemplatesAdminPage({ params }: { params: Promise
   // preview/ghost shares the same stand-in photo/name/title/company
   // instead of each hardcoding its own "Jane Doe" sample text.
   const [placeholderProfiles, setPlaceholderProfiles] = useState<{ speaker: PlaceholderProfile; partner: PlaceholderProfile }>({ speaker: {}, partner: {} })
+  // Global (cross-event) placeholder default (2026-08-29) — independent of
+  // eventId, fetched once alongside everything else in fetchAll() below.
+  const [globalDefaults, setGlobalDefaults] = useState<{ speaker: GlobalPlaceholderDefault | null; partner: GlobalPlaceholderDefault | null }>({ speaker: null, partner: null })
   const [showPlaceholderPanel, setShowPlaceholderPanel] = useState(false)
   const [previewDataUrl, setPreviewDataUrl] = useState<string | null>(null)
   const [previewLoading, setPreviewLoading] = useState(false)
@@ -159,10 +162,11 @@ export default function CreativeTemplatesAdminPage({ params }: { params: Promise
 
   async function fetchAll() {
     setLoading(true)
-    const [configRes, fontsRes, brandRulesRes] = await Promise.all([
+    const [configRes, fontsRes, brandRulesRes, globalDefaultsRes] = await Promise.all([
       fetch(`/api/events/templates?event_id=${eventId}`),
       fetch('/api/branding/fonts'),
       fetch('/api/branding/brand-rules'),
+      fetch('/api/events/templates/global-placeholder-defaults'),
     ])
     const config: CreativeTemplateConfig | null = await configRes.json().catch(() => null)
     const loadedSpeakerVariants = (config?.speaker?.variants ?? []).map(normalizeVariantTextLayers)
@@ -170,6 +174,8 @@ export default function CreativeTemplatesAdminPage({ params }: { params: Promise
     setSpeakerVariants(loadedSpeakerVariants)
     setPartnerVariants(loadedPartnerVariants)
     setPlaceholderProfiles({ speaker: config?.placeholder?.speaker ?? {}, partner: config?.placeholder?.partner ?? {} })
+    const loadedGlobalDefaults = await globalDefaultsRes.json().catch(() => ({ speaker: null, partner: null }))
+    setGlobalDefaults({ speaker: loadedGlobalDefaults.speaker ?? null, partner: loadedGlobalDefaults.partner ?? null })
     // Auto-select the first variant for the active tab on initial load — the
     // tab-switch effect below only fires when activeType *changes*, so
     // without this, a variant that already existed before this page load
@@ -474,6 +480,34 @@ export default function CreativeTemplatesAdminPage({ params }: { params: Promise
     }
   }
 
+  async function saveGlobalDefaultText(profile: PlaceholderProfile) {
+    const res = await fetch('/api/events/templates/global-placeholder-defaults', {
+      method: 'PUT', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ stakeholder_type: activeType, ...profile }),
+    })
+    const data = await res.json().catch(() => ({}))
+    if (res.ok) {
+      setGlobalDefaults(g => ({ ...g, [activeType]: data }))
+      setMsg('Global default saved.')
+    } else {
+      setMsg(data.error || 'Global default save failed.')
+    }
+  }
+
+  async function uploadGlobalDefaultPhoto(file: File) {
+    const form = new FormData()
+    form.append('file', file)
+    form.append('stakeholder_type', activeType)
+    const res = await fetch('/api/events/templates/global-placeholder-defaults/photo', { method: 'POST', body: form })
+    const data = await res.json().catch(() => ({}))
+    if (res.ok) {
+      setGlobalDefaults(g => ({ ...g, [activeType]: data }))
+      setMsg('Global placeholder photo saved.')
+    } else {
+      setMsg(data.error || 'Photo upload failed.')
+    }
+  }
+
   async function save() {
     setSaving(true)
 
@@ -753,12 +787,21 @@ export default function CreativeTemplatesAdminPage({ params }: { params: Promise
                     </div>
                   </div>
                   {showPlaceholderPanel && (
-                    <PlaceholderPanel
-                      key={activeType}
-                      activeType={activeType}
-                      profile={placeholderProfiles[activeType]}
-                      onSave={savePlaceholder}
-                    />
+                    <>
+                      <PlaceholderPanel
+                        key={activeType}
+                        activeType={activeType}
+                        profile={placeholderProfiles[activeType]}
+                        onSave={savePlaceholder}
+                      />
+                      <GlobalPlaceholderDefaultsPanel
+                        key={`global-${activeType}`}
+                        activeType={activeType}
+                        value={globalDefaults[activeType]}
+                        onSaveText={saveGlobalDefaultText}
+                        onUploadPhoto={uploadGlobalDefaultPhoto}
+                      />
+                    </>
                   )}
                   {/* maxWidth: 80% (2026-08-02, per Madhu) — on smaller
                       screens the full-width preview (tall, ~4:5 for a real
@@ -798,13 +841,12 @@ export default function CreativeTemplatesAdminPage({ params }: { params: Promise
                         activeType={activeType}
                         // Always null (2026-08-21, was selectable against any
                         // real speaker/partner) — with no real record, the
-                        // ghost overlay's own resolveGhostImageUrl() already
-                        // falls back to the Photo/Logo Slot's own reference_url
-                        // (see LayerBoxOverlay.tsx), which is exactly "always
-                        // use the photo uploaded as that layer's reference" —
-                        // no separate placeholder-photo upload needed.
+                        // ghost overlay's own resolveGhostImageUrl() falls
+                        // back to the global default photo, then the Photo/
+                        // Logo Slot's own reference_url (see LayerBoxOverlay.tsx).
                         previewForRecord={null}
                         placeholderProfile={placeholderProfiles[activeType]}
+                        globalDefault={globalDefaults[activeType]}
                         showGhost={!previewDataUrl || previewStale}
                         hasUnderlyingPreview={!!previewDataUrl}
                       />
@@ -905,18 +947,19 @@ function layerSummary(layer: Layer): string {
   return `Text: ${layer.field}${layer.field === 'custom' || layer.field === 'tier' ? ` "${layer.value ?? ''}"` : ''}`
 }
 
-// Reusable "Placeholder data" editor (2026-07-31) — one profile per
-// stakeholder type, shared by every variant's preview/ghost instead of each
-// hardcoding "Jane Doe" independently. Keyed by activeType at the call site
-// so switching tabs remounts this with a fresh draft rather than leaking
-// the other type's in-progress edits. Text only, deliberately — no photo/
-// logo upload here: a real photo_slot layer's box and face-alignment
-// target are already fully supplied by whoever creates the variant (a
-// designer uploads a reference layer with a placeholder photo/logo already
-// correctly positioned), so a separately-stored placeholder photo/logo
-// would just be redundant content nobody asked for, not a real gap —
-// confirmed with Madhu 2026-07-31 after an initial version briefly
-// included one.
+// Reusable "Placeholder data" editor (2026-07-31) — one profile PER EVENT,
+// per stakeholder type, shared by every variant's preview/ghost in THIS
+// event instead of each hardcoding "Jane Doe" independently. Keyed by
+// activeType at the call site so switching tabs remounts this with a fresh
+// draft rather than leaking the other type's in-progress edits. Overrides
+// the new cross-event global default below when set; leave any field blank
+// to fall back to the global default instead.
+//
+// Still no photo/logo field here (2026-08-29, reaffirming the 2026-07-31
+// decision at the PER-EVENT level specifically) — the per-event override
+// is deliberately text-only; the placeholder photo is now a single global
+// asset (see GlobalPlaceholderDefaultsPanel below), not something each
+// event manages separately.
 function PlaceholderPanel({ activeType, profile, onSave }: {
   activeType: StakeholderKind; profile: PlaceholderProfile
   onSave: (profile: PlaceholderProfile) => Promise<void>
@@ -938,22 +981,94 @@ function PlaceholderPanel({ activeType, profile, onSave }: {
         <>
           <label style={fieldStyle}>Name<Input value={draft.name ?? ''} onChange={e => setDraft(d => ({ ...d, name: e.target.value }))} style={{ width: '100%', marginTop: '3px' }} /></label>
           <label style={fieldStyle}>Job Title<Input value={draft.job_title ?? ''} onChange={e => setDraft(d => ({ ...d, job_title: e.target.value }))} style={{ width: '100%', marginTop: '3px' }} /></label>
-          <label style={{ ...fieldStyle, gridColumn: '1 / -1' }}>Company<Input value={draft.company_name ?? ''} onChange={e => setDraft(d => ({ ...d, company_name: e.target.value }))} style={{ width: '100%', marginTop: '3px' }} /></label>
+          <label style={fieldStyle}>Company<Input value={draft.company_name ?? ''} onChange={e => setDraft(d => ({ ...d, company_name: e.target.value }))} style={{ width: '100%', marginTop: '3px' }} /></label>
+          <label style={fieldStyle}>Country<Input value={draft.country ?? ''} onChange={e => setDraft(d => ({ ...d, country: e.target.value }))} style={{ width: '100%', marginTop: '3px' }} /></label>
         </>
       ) : (
-        <label style={{ ...fieldStyle, gridColumn: '1 / -1' }}>Company Name<Input value={draft.company_name ?? ''} onChange={e => setDraft(d => ({ ...d, company_name: e.target.value }))} style={{ width: '100%', marginTop: '3px' }} /></label>
+        <>
+          <label style={{ ...fieldStyle, gridColumn: '1 / -1' }}>Company Name<Input value={draft.company_name ?? ''} onChange={e => setDraft(d => ({ ...d, company_name: e.target.value }))} style={{ width: '100%', marginTop: '3px' }} /></label>
+          <label style={{ ...fieldStyle, gridColumn: '1 / -1' }}>Country<Input value={draft.country ?? ''} onChange={e => setDraft(d => ({ ...d, country: e.target.value }))} style={{ width: '100%', marginTop: '3px' }} /></label>
+        </>
       )}
-      {/* No photo/logo field here (2026-08-21, per Madhu) — deliberately not
-          a second place to upload one. The placeholder photo/logo always
-          comes from whatever's already uploaded as the Photo/Logo Slot
-          layer's own "Upload Reference Layer (auto-position)" reference —
-          one upload, reused everywhere it's needed (see LayerBoxOverlay.tsx's
-          resolveGhostImageUrl and preview/route.ts's own fallback chain). */}
       <div style={{ gridColumn: '1 / -1', fontSize: '10.5px', color: 'var(--ink4)' }}>
-        Placeholder photo/logo isn&apos;t set here — it&apos;s whatever image you uploaded via &quot;Upload Reference Layer (auto-position)&quot; on the Photo/Logo Slot layer below.
+        Blank fields fall back to the global default below, then to sample text. Placeholder photo/logo is managed there too, not here.
       </div>
       <div style={{ gridColumn: '1 / -1' }}>
         <Button variant="teal" onClick={handleSave} disabled={saving}>{saving ? 'Saving…' : 'Save Placeholder'}</Button>
+      </div>
+    </div>
+  )
+}
+
+// Global (cross-event) placeholder default (2026-08-29, per Madhu) — one
+// row per stakeholder type, reused by EVERY event unless that event's own
+// PlaceholderPanel above overrides a field. Includes the one genuinely new
+// piece: a dedicated placeholder photo, decoupled from any per-template
+// "reference layer" (which stays whatever the branding team uploads purely
+// for positioning — can be anybody's photo). Expected to be a clean,
+// already-transparent image — same shape as the photo-cleaning module's
+// own 1024x1024 output.
+function GlobalPlaceholderDefaultsPanel({ activeType, value, onSaveText, onUploadPhoto }: {
+  activeType: StakeholderKind
+  value: GlobalPlaceholderDefault | null
+  onSaveText: (profile: PlaceholderProfile) => Promise<void>
+  onUploadPhoto: (file: File) => Promise<void>
+}) {
+  const [draft, setDraft] = useState<PlaceholderProfile>({
+    name: value?.name ?? undefined, job_title: value?.job_title ?? undefined, company_name: value?.company_name ?? undefined, country: value?.country ?? undefined,
+  })
+  const [saving, setSaving] = useState(false)
+  const [uploading, setUploading] = useState(false)
+  const fileInputRef = useRef<HTMLInputElement>(null)
+
+  async function handleSave() {
+    setSaving(true)
+    await onSaveText(draft)
+    setSaving(false)
+  }
+  async function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setUploading(true)
+    await onUploadPhoto(file)
+    setUploading(false)
+    if (fileInputRef.current) fileInputRef.current.value = ''
+  }
+
+  const fieldStyle: React.CSSProperties = { fontSize: '11px', color: 'var(--ink3)', display: 'block' }
+
+  return (
+    <div style={{ marginBottom: '10px', padding: '12px', borderRadius: '10px', border: '1.5px solid var(--teal-mid)', background: 'var(--teal-light)', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+      <div style={{ gridColumn: '1 / -1', fontSize: '11px', fontWeight: 800, color: 'var(--ink2)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+        Global Default — used across every event
+      </div>
+      {activeType === 'speaker' ? (
+        <>
+          <label style={fieldStyle}>Name<Input value={draft.name ?? ''} onChange={e => setDraft(d => ({ ...d, name: e.target.value }))} style={{ width: '100%', marginTop: '3px' }} /></label>
+          <label style={fieldStyle}>Job Title<Input value={draft.job_title ?? ''} onChange={e => setDraft(d => ({ ...d, job_title: e.target.value }))} style={{ width: '100%', marginTop: '3px' }} /></label>
+          <label style={fieldStyle}>Company<Input value={draft.company_name ?? ''} onChange={e => setDraft(d => ({ ...d, company_name: e.target.value }))} style={{ width: '100%', marginTop: '3px' }} /></label>
+          <label style={fieldStyle}>Country<Input value={draft.country ?? ''} onChange={e => setDraft(d => ({ ...d, country: e.target.value }))} style={{ width: '100%', marginTop: '3px' }} /></label>
+        </>
+      ) : (
+        <>
+          <label style={{ ...fieldStyle, gridColumn: '1 / -1' }}>Company Name<Input value={draft.company_name ?? ''} onChange={e => setDraft(d => ({ ...d, company_name: e.target.value }))} style={{ width: '100%', marginTop: '3px' }} /></label>
+          <label style={{ ...fieldStyle, gridColumn: '1 / -1' }}>Country<Input value={draft.country ?? ''} onChange={e => setDraft(d => ({ ...d, country: e.target.value }))} style={{ width: '100%', marginTop: '3px' }} /></label>
+        </>
+      )}
+      <div style={{ gridColumn: '1 / -1', display: 'flex', alignItems: 'center', gap: '12px' }}>
+        {value?.photo_url && (
+          <img src={value.photo_url} alt="Global placeholder" style={{ width: '52px', height: '52px', borderRadius: '8px', objectFit: 'cover', border: '1px solid var(--border)' }} />
+        )}
+        <div>
+          <input ref={fileInputRef} type="file" accept="image/png,image/jpeg" style={{ display: 'none' }} onChange={handleFileChange} />
+          <Button variant="ghost" onClick={() => fileInputRef.current?.click()} disabled={uploading}>
+            {uploading ? 'Uploading…' : value?.photo_url ? 'Replace Placeholder Photo' : 'Upload Placeholder Photo'}
+          </Button>
+          <div style={{ fontSize: '10px', color: 'var(--ink4)', marginTop: '3px' }}>Clean, transparent-background PNG — same shape as the photo-cleaning module&apos;s output.</div>
+        </div>
+      </div>
+      <div style={{ gridColumn: '1 / -1' }}>
+        <Button variant="teal" onClick={handleSave} disabled={saving}>{saving ? 'Saving…' : 'Save Global Default'}</Button>
       </div>
     </div>
   )
@@ -1388,8 +1503,10 @@ function PhotoSlotLayerFields({ layer, activeType, onChange, pushUndo, discardLa
         />
         <div style={{ fontSize: '10.5px', color: 'var(--ink3)', lineHeight: 1.4 }}>
           {isPhoto
-            ? <>Upload a transparent PNG showing a dummy photo already correctly positioned — the box and face-alignment target below are derived automatically, and this image also stands in for the real photo when previewing with Placeholder data selected. Manual fields below still work if you&apos;d rather set them by hand.</>
-            : <>Upload a transparent PNG showing the logo already correctly positioned (e.g. a placeholder logo in its final spot) — the box below is derived automatically from where it sits, and this image also stands in for the real logo when previewing with Placeholder data selected. Manual fields below still work if you&apos;d rather set them by hand.</>}
+            ? <>Upload a transparent PNG showing a dummy photo already correctly positioned — the box and face-alignment target below are derived automatically. This image can be anybody&apos;s photo, purely for positioning; it only stands in for the real photo in a placeholder preview when no Global Default photo is set above. Manual fields below still work if you&apos;d rather set them by hand.</>
+            : layer.source === 'partner_logo'
+              ? <>Upload a transparent PNG showing the logo already correctly positioned (e.g. a placeholder logo in its final spot) — the box below is derived automatically from where it sits. This image can be anybody&apos;s logo, purely for positioning; it only stands in for the real logo in a placeholder preview when no Global Default photo is set above. Manual fields below still work if you&apos;d rather set them by hand.</>
+              : <>Upload a transparent PNG showing the logo already correctly positioned (e.g. a placeholder logo in its final spot) — the box below is derived automatically from where it sits, and this image also stands in for the real logo when previewing with Placeholder data selected. Manual fields below still work if you&apos;d rather set them by hand.</>}
         </div>
         {analyzeError && <div style={{ fontSize: '11px', color: 'var(--red)' }}>{analyzeError}</div>}
         {isPhoto && layer.alignment && (
@@ -1410,7 +1527,7 @@ function PhotoSlotLayerFields({ layer, activeType, onChange, pushUndo, discardLa
         })()}
         {layer.reference_url && (
           <div style={{ fontSize: '11px', color: 'var(--teal-mid)', fontWeight: 700 }}>
-            Reference image saved ✓ (used as Placeholder-data preview content)
+            Reference image saved ✓ (also a placeholder-preview fallback when no Global Default photo is set)
           </div>
         )}
       </div>
@@ -1470,7 +1587,7 @@ function TextLayerFields({ layer, activeType, brandFonts, onChange, pushUndo, di
   allLayers: Layer[]
 }) {
   const snapCandidates = allLayers.filter((l): l is TextLayer => l.type === 'text' && l.id !== layer.id)
-  const fieldOptions: TextLayer['field'][] = activeType === 'speaker' ? ['name', 'title', 'company', 'tier', 'custom'] : ['tier', 'custom']
+  const fieldOptions: TextLayer['field'][] = activeType === 'speaker' ? ['name', 'title', 'company', 'country', 'tier', 'custom'] : ['tier', 'custom']
   const [analyzing, setAnalyzing] = useState(false)
   const [analyzeError, setAnalyzeError] = useState<string | null>(null)
   const [styleDetected, setStyleDetected] = useState(false)

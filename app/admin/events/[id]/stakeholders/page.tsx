@@ -53,6 +53,7 @@ type Speaker = {
 type Partner = {
   id: string; event_id: string
   company_name: string; company_website: string | null; company_description: string | null
+  country: string | null
   partner_type: string
   logo_url: string | null; logo_raw_url: string | null
   announcement_status: 'pending_review' | 'approved' | 'assets_missing' | 'ready' | 'archived'

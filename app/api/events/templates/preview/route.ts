@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/app/lib/supabase'
 import sharp from 'sharp'
-import { compositeAnnouncement, analyzeTextLayers, type Variant, type ImageLayer, type PhotoSlotLayer, type ResolvedAssets, type CreativeTemplateConfig } from '@/app/lib/announcements/composite'
+import { compositeAnnouncement, analyzeTextLayers, type Variant, type ImageLayer, type PhotoSlotLayer, type ResolvedAssets, type CreativeTemplateConfig, type GlobalPlaceholderDefault } from '@/app/lib/announcements/composite'
 import { fetchAssetBuffer } from '@/app/lib/announcements/asset-buffer-cache'
 import { alignAndCropPhoto, type HeadBox } from '@/app/lib/media/face-alignment'
 import { compositeOnBackground } from '@/app/lib/media/composite-on-background'
@@ -56,7 +56,7 @@ import { compositeOnBackground } from '@/app/lib/media/composite-on-background'
    (still correctly cropped, when alignment exists) cutout onto the
    background locally, with a `website_photo_error` explaining why. */
 
-const PLACEHOLDER_TEXT = { name: 'Jane Doe', title: 'Chief Officer', company: 'Acme Corp', tier: 'LEAD SPONSOR' }
+const PLACEHOLDER_TEXT = { name: 'Jane Doe', title: 'Chief Officer', company: 'Acme Corp', country: 'United Arab Emirates', tier: 'LEAD SPONSOR' }
 const PLACEHOLDER_COLOR = { r: 140, g: 140, b: 150, alpha: 1 }
 const DRAFT_SCALE = 0.5
 
@@ -85,9 +85,21 @@ export async function POST(req: NextRequest) {
   // despite having nothing to do with it).
   const eventPromise = body.event_id ? supabaseAdmin.from('events').select('creative_template_config').eq('id', body.event_id).single().then(r => r.data) : Promise.resolve(null)
 
+  // Global placeholder default (2026-08-29) — see composite.ts's
+  // GlobalPlaceholderDefault comment. Fetched alongside the event query,
+  // same "don't gate asset resolution on this" reasoning as that promise.
+  const globalDefaultPromise = supabaseAdmin
+    .from('template_placeholder_defaults')
+    .select('*')
+    .eq('stakeholder_type', body.stakeholder_type)
+    .maybeSingle()
+    .then(r => r.data as GlobalPlaceholderDefault | null)
+
   const sourcesNeeded = new Set(
     body.variant.layers.filter((l): l is PhotoSlotLayer => l.type === 'photo_slot').map(l => l.source)
   )
+
+  const globalDefault = await globalDefaultPromise
 
   const assetEntries = await Promise.all(Array.from(sourcesNeeded).map(async (source): Promise<[PhotoSlotLayer['source'], ResolvedAssets[PhotoSlotLayer['source']]]> => {
     const layer = body.variant!.layers.find((l): l is PhotoSlotLayer => l.type === 'photo_slot' && l.source === source)!
@@ -104,6 +116,21 @@ export async function POST(req: NextRequest) {
         const head_box: HeadBox | null | undefined = source === 'speaker_photo' ? (speaker?.photo_head_box as HeadBox | null) : undefined
         return [source, { buffer, url: realUrl, is_svg: realUrl.toLowerCase().endsWith('.svg'), head_box }]
       }
+    }
+
+    // Global placeholder photo (2026-08-29) — takes priority over the
+    // layer's own reference_url (see composite.ts's GlobalPlaceholderDefault
+    // comment: the global photo is a dedicated, clean, always-transparent
+    // placeholder speaker, decoupled from whatever positioning reference the
+    // branding team happened to upload). Only applies to the "primary"
+    // photo source for this stakeholder type — speaker_photo for speakers,
+    // partner_logo for partners — not speaker_logo (a distinct, less common
+    // "use company logo instead of photo" slot with no equivalent concept).
+    const isPrimarySource = (body.stakeholder_type === 'speaker' && source === 'speaker_photo')
+      || (body.stakeholder_type === 'partner' && source === 'partner_logo')
+    if (isPrimarySource && globalDefault?.photo_url) {
+      const buffer = await fetchAssetBuffer(globalDefault.photo_url)
+      if (buffer) return [source, { buffer, url: globalDefault.photo_url, is_svg: false }]
     }
 
     if (layer.reference_url) {
@@ -171,9 +198,10 @@ export async function POST(req: NextRequest) {
   }
 
   const texts = {
-    name: (speaker?.name as string | undefined) ?? placeholderProfile?.name ?? PLACEHOLDER_TEXT.name,
-    title: (speaker?.role as string | undefined) ?? placeholderProfile?.job_title ?? PLACEHOLDER_TEXT.title,
-    company: (speaker?.company as string | undefined) ?? placeholderProfile?.company_name ?? PLACEHOLDER_TEXT.company,
+    name: (speaker?.name as string | undefined) ?? placeholderProfile?.name ?? globalDefault?.name ?? PLACEHOLDER_TEXT.name,
+    title: (speaker?.role as string | undefined) ?? placeholderProfile?.job_title ?? globalDefault?.job_title ?? PLACEHOLDER_TEXT.title,
+    company: (speaker?.company as string | undefined) ?? placeholderProfile?.company_name ?? globalDefault?.company_name ?? PLACEHOLDER_TEXT.company,
+    country: (speaker?.country as string | undefined) ?? placeholderProfile?.country ?? globalDefault?.country ?? PLACEHOLDER_TEXT.country,
     tier: PLACEHOLDER_TEXT.tier,
   }
 

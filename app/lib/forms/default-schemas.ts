@@ -35,6 +35,7 @@ export const DEFAULT_SPEAKER_FIELDS: FieldSchema[] = [
 
 export const DEFAULT_PARTNER_FIELDS: FieldSchema[] = [
   { id: 'partner-company_name', key: 'company_name', label: 'Company Name', type: 'text', required: true, locked: true },
+  { id: 'partner-country', key: 'country', label: 'Country', type: 'text', required: false, locked: false },
   { id: 'partner-company_website', key: 'company_website', label: 'Company Website URL', type: 'url', required: true, locked: false },
   { id: 'partner-company_description', key: 'company_description', label: 'Company Description', type: 'textarea', required: true, locked: false, help: '100–200 words' },
   { id: 'partner-contact_person_name', key: 'contact_person_name', label: 'Contact Person Name', type: 'text', required: true, locked: false },

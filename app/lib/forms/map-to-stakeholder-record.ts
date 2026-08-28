@@ -53,6 +53,7 @@ export const SPEAKER_KEY_MAP: Record<string, string> = {
 
 const PARTNER_KEY_MAP: Record<string, string> = {
   company_name: 'name',
+  country: 'country',
   company_website: 'website_url',
   company_description: 'company_description',
 }

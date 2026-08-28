@@ -1,7 +1,7 @@
 'use client'
 
 import { useRef, useState } from 'react'
-import type { Layer, TextLayer, PhotoSlotLayer, PlaceholderProfile } from '@/app/lib/announcements/composite'
+import type { Layer, TextLayer, PhotoSlotLayer, PlaceholderProfile, GlobalPlaceholderDefault } from '@/app/lib/announcements/composite'
 import type { HeadBox } from '@/app/lib/media/face-alignment'
 import type { StakeholderKind, StakeholderOption } from './page'
 
@@ -65,6 +65,9 @@ type Props = {
   // selected (previewForRecord is null), same as the server preview route
   // falls back to it. Replaces the old hardcoded "Jane Doe" stand-in.
   placeholderProfile: PlaceholderProfile
+  // Global (cross-event) default for the active stakeholder type
+  // (2026-08-29) — see resolveGhostImageUrl's own comment.
+  globalDefault?: GlobalPlaceholderDefault | null
   // Whether to actually draw the ghost content. False once a real,
   // up-to-date preview render is showing underneath — otherwise the ghost
   // text/image stacks directly on top of the real Sharp-rendered text at a
@@ -222,36 +225,39 @@ function resolveGhostFontWeight(w: TextLayer['font_weight']): number {
   return 400
 }
 
-function resolveGhostText(layer: TextLayer, activeType: StakeholderKind, record: StakeholderOption | null, placeholder: PlaceholderProfile): string {
-  const raw = resolveGhostTextRaw(layer, activeType, record, placeholder)
+function resolveGhostText(layer: TextLayer, activeType: StakeholderKind, record: StakeholderOption | null, placeholder: PlaceholderProfile, globalDefault: GlobalPlaceholderDefault | null | undefined): string {
+  const raw = resolveGhostTextRaw(layer, activeType, record, placeholder, globalDefault)
   // Mirrors resolveTextValue()'s uppercase transform (composite.ts) so the
   // editor's ghost preview matches what a real render will actually produce
   // (2026-08-04).
   return layer.uppercase && raw ? raw.toUpperCase() : raw
 }
 
-function resolveGhostTextRaw(layer: TextLayer, activeType: StakeholderKind, record: StakeholderOption | null, placeholder: PlaceholderProfile): string {
+function resolveGhostTextRaw(layer: TextLayer, activeType: StakeholderKind, record: StakeholderOption | null, placeholder: PlaceholderProfile, globalDefault: GlobalPlaceholderDefault | null | undefined): string {
   if (layer.field === 'custom') return layer.value || ''
   if (layer.field === 'tier') return layer.value || 'LEAD SPONSOR'
   if (activeType !== 'speaker') return ''
-  if (layer.field === 'name') return record?.label || placeholder.name || 'Jane Doe'
-  if (layer.field === 'title') return record?.job_title || placeholder.job_title || 'Chief Officer'
-  if (layer.field === 'company') return record?.company_name || placeholder.company_name || 'Acme Corp'
+  if (layer.field === 'name') return record?.label || placeholder.name || globalDefault?.name || 'Jane Doe'
+  if (layer.field === 'title') return record?.job_title || placeholder.job_title || globalDefault?.job_title || 'Chief Officer'
+  if (layer.field === 'company') return record?.company_name || placeholder.company_name || globalDefault?.company_name || 'Acme Corp'
+  if (layer.field === 'country') return placeholder.country || globalDefault?.country || 'United Arab Emirates'
   return ''
 }
 
-// Falls back to the layer's own reference_url (2026-07-31) — the image
-// uploaded via "Upload Reference Layer (auto-position)", which used to be
-// analyzed for box/alignment and then discarded; now persisted (see
-// PhotoSlotLayer.reference_url in composite.ts) so it can stand in here
-// too, matching what the real preview route does. No stakeholder-type-
-// level placeholder-profile fallback for photo/logo, deliberately — each
-// photo_slot layer already carries its own reference image, so there's
-// nothing else to substitute.
-function resolveGhostImageUrl(layer: PhotoSlotLayer, record: StakeholderOption | null): string | null {
-  if (layer.source === 'speaker_photo') return record?.photo_url ?? layer.reference_url ?? null
+// Falls back to the global placeholder default photo (2026-08-29 — see
+// composite.ts's GlobalPlaceholderDefault comment), then the layer's own
+// reference_url (2026-07-31) — the image uploaded via "Upload Reference
+// Layer (auto-position)", which used to be analyzed for box/alignment and
+// then discarded; now persisted (see PhotoSlotLayer.reference_url in
+// composite.ts) so it can stand in here too, matching the real preview
+// route's fallback order. Global default only applies to the "primary"
+// source for the active stakeholder type — speaker_photo / partner_logo —
+// same restriction as the preview route.
+function resolveGhostImageUrl(layer: PhotoSlotLayer, record: StakeholderOption | null, activeType: StakeholderKind, globalDefault: GlobalPlaceholderDefault | null | undefined): string | null {
+  const globalPhotoUrl = globalDefault?.photo_url ?? null
+  if (layer.source === 'speaker_photo') return record?.photo_url ?? (activeType === 'speaker' ? globalPhotoUrl : null) ?? layer.reference_url ?? null
   if (layer.source === 'speaker_logo') return record?.company_logo_url ?? layer.reference_url ?? null
-  return record?.logo_url ?? layer.reference_url ?? null // partner_logo
+  return record?.logo_url ?? (activeType === 'partner' ? globalPhotoUrl : null) ?? layer.reference_url ?? null // partner_logo
 }
 
 // One @font-face rule per distinct WEIGHT of each custom brand font in use
@@ -280,7 +286,7 @@ function FontFaceStyles({ layers }: { layers: Layer[] }) {
   return <style>{rules.join('\n')}</style>
 }
 
-export default function LayerBoxOverlay({ layers, canvasWidth, canvasHeight, activeLayerId, onSelectLayer, onChangeLayer, onCommitUndo, activeType, previewForRecord, placeholderProfile, showGhost, hasUnderlyingPreview }: Props) {
+export default function LayerBoxOverlay({ layers, canvasWidth, canvasHeight, activeLayerId, onSelectLayer, onChangeLayer, onCommitUndo, activeType, previewForRecord, placeholderProfile, globalDefault, showGhost, hasUnderlyingPreview }: Props) {
   const containerRef = useRef<HTMLDivElement | null>(null)
   const dragRef = useRef<{ layerId: string; mode: DragMode; startClientX: number; startClientY: number; startBox: Box; committed: boolean; aspectLocked: boolean } | null>(null)
   // Head-marker drag (2026-08-03, Madhu's ask — "shouldn't the circle be
@@ -499,8 +505,8 @@ export default function LayerBoxOverlay({ layers, canvasWidth, canvasHeight, act
       <FontFaceStyles layers={layers} />
       {layers.map(layer => {
         const isActive = layer.id === activeLayerId
-        const ghostText = isActive && showGhost && layer.type === 'text' ? resolveGhostText(layer, activeType, previewForRecord, placeholderProfile) : ''
-        const ghostImageUrl = isActive && showGhost && layer.type === 'photo_slot' ? resolveGhostImageUrl(layer, previewForRecord) : null
+        const ghostText = isActive && showGhost && layer.type === 'text' ? resolveGhostText(layer, activeType, previewForRecord, placeholderProfile, globalDefault) : ''
+        const ghostImageUrl = isActive && showGhost && layer.type === 'photo_slot' ? resolveGhostImageUrl(layer, previewForRecord, activeType, globalDefault) : null
         const showGhostMask = hasUnderlyingPreview && (!!ghostText || !!ghostImageUrl)
         const headMarkerRect = layer.type === 'photo_slot' && layer.source === 'speaker_photo' ? computeHeadMarkerRect(layer) : null
         const ghostPhotoRect = layer.type === 'photo_slot' && layer.source === 'speaker_photo' ? computeGhostPhotoRect(layer) : null

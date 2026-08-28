@@ -15,7 +15,7 @@ import type { TextLayer } from '@/app/lib/announcements/composite'
 // top-left corner.
 export type LegacyTextLayer = Omit<TextLayer, 'width' | 'height' | 'max_lines'> & Partial<Pick<TextLayer, 'width' | 'height' | 'max_lines'>>
 
-export const DEFAULT_MAX_LINES: Record<TextLayer['field'], number> = { name: 3, title: 2, company: 2, tier: 2, custom: 2 }
+export const DEFAULT_MAX_LINES: Record<TextLayer['field'], number> = { name: 3, title: 2, company: 2, country: 1, tier: 2, custom: 2 }
 const DEFAULT_LINE_HEIGHT_RATIO = 1.2
 const DEFAULT_BOX_WIDTH_RATIO = 0.4 // of canvas width — a reasonable starting guess for a migrated layer, not a design decision
 
