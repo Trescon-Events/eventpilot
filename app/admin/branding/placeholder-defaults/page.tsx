@@ -22,7 +22,15 @@ import type { PlaceholderProfile, GlobalPlaceholderDefault } from '@/app/lib/ann
    app/lib/media/photo-cleaning-pipeline.ts) — deliberately decoupled from
    whatever per-template "reference layer" the branding team uploads
    purely for auto-positioning (which can be anybody's photo; see
-   derive-alignment/route.ts). */
+   derive-alignment/route.ts).
+
+   Layout (2026-08-29, per Madhu — "use the full page space, show photo on
+   one side... just like all other such tools we have") mirrors the
+   Creative Templates admin console's own fields-left/PREVIEW-right split
+   (app/admin/events/[id]/creative-templates/admin/page.tsx) rather than a
+   narrow single column — same "Preview" label style, same head-marker
+   circle style (LayerBoxOverlay.tsx's headMarkerRect), just read-only
+   here since there's no drag-to-adjust box/layer concept on this page. */
 
 type StakeholderKind = 'speaker' | 'partner'
 
@@ -83,6 +91,8 @@ export default function PlaceholderDefaultsPage() {
     }
   }
 
+  const value = defaults[activeType]
+
   return (
     <div style={{ minHeight: '100vh', background: 'var(--surface)' }}>
       <PageHeader
@@ -91,7 +101,7 @@ export default function PlaceholderDefaultsPage() {
         description="Sample speaker/partner content shown by default across every event's Creative Templates preview, until that event sets its own override."
       />
 
-      <div style={{ padding: '24px 32px', maxWidth: '640px' }}>
+      <div style={{ padding: '24px 32px', maxWidth: '1200px' }}>
         <div style={{ display: 'flex', gap: '4px', marginBottom: '20px', background: 'var(--card)', border: '1px solid var(--border)', borderRadius: '12px', padding: '5px', width: 'fit-content' }}>
           <Link href="/admin/branding/fonts" style={{ padding: '8px 16px', borderRadius: '8px', color: 'var(--ink3)', fontSize: '13px', fontWeight: 800, textDecoration: 'none' }}>Fonts</Link>
           <Link href="/admin/branding/corporate" style={{ padding: '8px 16px', borderRadius: '8px', color: 'var(--ink3)', fontSize: '13px', fontWeight: 800, textDecoration: 'none' }}>Corporate Brand</Link>
@@ -115,40 +125,36 @@ export default function PlaceholderDefaultsPage() {
         {loading ? (
           <div style={{ color: 'var(--ink3)', fontSize: '13px' }}>Loading…</div>
         ) : (
-          <Card padded>
-            <DefaultForm key={activeType} activeType={activeType} value={defaults[activeType]} onSaveText={saveText} onUploadPhoto={uploadPhoto} />
-          </Card>
+          <div style={{ display: 'grid', gridTemplateColumns: '420px 1fr', gap: '28px', alignItems: 'flex-start' }}>
+            <Card padded>
+              <FieldsForm key={activeType} activeType={activeType} value={value} onSave={saveText} />
+            </Card>
+
+            <div style={{ position: 'sticky', top: '20px' }}>
+              <div style={{ fontSize: '11px', fontWeight: 800, color: 'var(--teal-mid)', letterSpacing: '0.6px', textTransform: 'uppercase', marginBottom: '10px' }}>Preview</div>
+              <PhotoPanel activeType={activeType} value={value} onUpload={uploadPhoto} />
+            </div>
+          </div>
         )}
       </div>
     </div>
   )
 }
 
-function DefaultForm({ activeType, value, onSaveText, onUploadPhoto }: {
+function FieldsForm({ activeType, value, onSave }: {
   activeType: StakeholderKind
   value: GlobalPlaceholderDefault | null
-  onSaveText: (profile: PlaceholderProfile) => Promise<void>
-  onUploadPhoto: (file: File) => Promise<void>
+  onSave: (profile: PlaceholderProfile) => Promise<void>
 }) {
   const [draft, setDraft] = useState<PlaceholderProfile>({
     name: value?.name ?? undefined, job_title: value?.job_title ?? undefined, company_name: value?.company_name ?? undefined, country: value?.country ?? undefined,
   })
   const [saving, setSaving] = useState(false)
-  const [uploading, setUploading] = useState(false)
-  const fileInputRef = useRef<HTMLInputElement>(null)
 
   async function handleSave() {
     setSaving(true)
-    await onSaveText(draft)
+    await onSave(draft)
     setSaving(false)
-  }
-  async function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0]
-    if (!file) return
-    setUploading(true)
-    await onUploadPhoto(file)
-    setUploading(false)
-    if (fileInputRef.current) fileInputRef.current.value = ''
   }
 
   const fieldStyle: React.CSSProperties = { fontSize: '11px', color: 'var(--ink3)', display: 'block' }
@@ -168,40 +174,91 @@ function DefaultForm({ activeType, value, onSaveText, onUploadPhoto }: {
           <label style={{ ...fieldStyle, gridColumn: '1 / -1' }}>Country<Input value={draft.country ?? ''} onChange={e => setDraft(d => ({ ...d, country: e.target.value }))} style={{ width: '100%', marginTop: '4px' }} /></label>
         </>
       )}
-
-      <div style={{ gridColumn: '1 / -1', display: 'flex', alignItems: 'center', gap: '14px', paddingTop: '4px', borderTop: '1px solid var(--border-light)' }}>
-        {value?.photo_url && (
-          // eslint-disable-next-line @next/next/no-img-element -- small remote thumbnail from Supabase storage, not worth next/image config for
-          <img src={value.photo_url} alt="Placeholder" style={{ width: '64px', height: '64px', borderRadius: '10px', objectFit: 'cover', border: '1px solid var(--border)' }} />
-        )}
-        <div>
-          <input ref={fileInputRef} type="file" accept="image/png,image/jpeg" style={{ display: 'none' }} onChange={handleFileChange} />
-          <Button variant="ghost" onClick={() => fileInputRef.current?.click()} disabled={uploading}>
-            {uploading ? 'Uploading…' : value?.photo_url ? 'Replace Placeholder Photo' : 'Upload Placeholder Photo'}
-          </Button>
-          <div style={{ fontSize: '10.5px', color: 'var(--ink4)', marginTop: '4px' }}>Clean, transparent-background PNG — same shape as the photo-cleaning module&apos;s output.</div>
-          {/* Head detection (2026-08-29, real bug fix) — runs automatically
-              on upload for the speaker default (see the photo route's own
-              comment), same "detect once, reuse forever" shape as a real
-              speaker's photo_head_box or a per-layer reference upload's
-              reference_head_box. Without this, Generate Preview's crop had
-              no idea where the head sits in this specific photo. */}
-          {activeType === 'speaker' && value?.photo_url && (
-            value.photo_head_box ? (
-              <div style={{ fontSize: '11px', color: 'var(--teal-mid)', fontWeight: 700, marginTop: '6px' }}>
-                Face-aligned ✓ (detected shot type: {classifyShotTypeLocal(value.photo_head_box.heightRatio).replace('_', ' ')})
-              </div>
-            ) : (
-              <div style={{ fontSize: '11px', color: 'var(--amber)', fontWeight: 700, marginTop: '6px' }}>
-                ⚠ No head detected in this photo — Generate Preview&apos;s crop may be off. Try re-uploading a clearer photo.
-              </div>
-            )
-          )}
-        </div>
-      </div>
-
       <div style={{ gridColumn: '1 / -1' }}>
         <Button variant="teal" onClick={handleSave} disabled={saving}>{saving ? 'Saving…' : 'Save'}</Button>
+      </div>
+    </div>
+  )
+}
+
+function PhotoPanel({ activeType, value, onUpload }: {
+  activeType: StakeholderKind
+  value: GlobalPlaceholderDefault | null
+  onUpload: (file: File) => Promise<void>
+}) {
+  const [uploading, setUploading] = useState(false)
+  const fileInputRef = useRef<HTMLInputElement>(null)
+
+  async function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setUploading(true)
+    await onUpload(file)
+    setUploading(false)
+    if (fileInputRef.current) fileInputRef.current.value = ''
+  }
+
+  return (
+    <div style={{ background: 'var(--card)', border: '1px solid var(--border-light)', borderRadius: '10px', padding: '18px' }}>
+      {/* Visible head-position check (2026-08-29, per Madhu — "where do I
+          check head position?", then "too small... make the photo
+          slightly more bigger... marker circle should be of the same
+          type which we have elsewhere") — a text confirmation alone isn't
+          proof, especially since auto-detection can be wrong. Circle style
+          matches LayerBoxOverlay.tsx's headMarkerRect exactly; read-only
+          here since there's no drag-to-adjust box/layer concept on this
+          page. Square container + objectFit: cover matches the expected
+          1024x1024 input exactly, so the ratio math needs no letterboxing
+          correction. */}
+      {value?.photo_url ? (
+        <div style={{ position: 'relative', width: '100%', maxWidth: '480px', aspectRatio: '1 / 1', borderRadius: '10px', overflow: 'hidden', background: 'var(--surface)', margin: '0 auto' }}>
+          {/* eslint-disable-next-line @next/next/no-img-element -- remote asset from Supabase storage, not worth next/image config for */}
+          <img src={value.photo_url} alt="Placeholder" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
+          {activeType === 'speaker' && value.photo_head_box && (
+            <div style={{
+              position: 'absolute', pointerEvents: 'none',
+              left: `${(value.photo_head_box.centerXRatio - value.photo_head_box.heightRatio / 2) * 100}%`,
+              top: `${(value.photo_head_box.centerYRatio - value.photo_head_box.heightRatio / 2) * 100}%`,
+              width: `${value.photo_head_box.heightRatio * 100}%`,
+              height: `${value.photo_head_box.heightRatio * 100}%`,
+              borderRadius: '50%',
+              border: '1.5px dashed var(--teal-mid)',
+              background: 'color-mix(in srgb, var(--teal-mid) 8%, transparent)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+            }}>
+              <span style={{ fontSize: '9px', fontWeight: 800, letterSpacing: '0.4px', textTransform: 'uppercase', color: 'var(--teal-mid)', opacity: 0.85 }}>Head</span>
+            </div>
+          )}
+        </div>
+      ) : (
+        <div style={{ width: '100%', maxWidth: '480px', aspectRatio: '1 / 1', borderRadius: '10px', background: 'var(--surface)', margin: '0 auto', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--ink4)', fontSize: '12.5px' }}>
+          No placeholder photo yet
+        </div>
+      )}
+
+      <div style={{ marginTop: '14px', textAlign: 'center' }}>
+        <input ref={fileInputRef} type="file" accept="image/png,image/jpeg" style={{ display: 'none' }} onChange={handleFileChange} />
+        <Button variant="ghost" onClick={() => fileInputRef.current?.click()} disabled={uploading}>
+          {uploading ? 'Uploading…' : value?.photo_url ? 'Replace Placeholder Photo' : 'Upload Placeholder Photo'}
+        </Button>
+        <div style={{ fontSize: '10.5px', color: 'var(--ink4)', marginTop: '6px' }}>Clean, transparent-background PNG — same shape as the photo-cleaning module&apos;s output.</div>
+        {/* Head detection (2026-08-29, real bug fix) — runs automatically
+            on upload for the speaker default (see the photo route's own
+            comment), same "detect once, reuse forever" shape as a real
+            speaker's photo_head_box or a per-layer reference upload's
+            reference_head_box. Without this, Generate Preview's crop had
+            no idea where the head sits in this specific photo. */}
+        {activeType === 'speaker' && value?.photo_url && (
+          value.photo_head_box ? (
+            <div style={{ fontSize: '11px', color: 'var(--teal-mid)', fontWeight: 700, marginTop: '8px' }}>
+              Face-aligned ✓ (detected shot type: {classifyShotTypeLocal(value.photo_head_box.heightRatio).replace('_', ' ')})
+            </div>
+          ) : (
+            <div style={{ fontSize: '11px', color: 'var(--amber)', fontWeight: 700, marginTop: '8px' }}>
+              ⚠ No head detected in this photo — Generate Preview&apos;s crop may be off. Try re-uploading a clearer photo.
+            </div>
+          )
+        )}
       </div>
     </div>
   )
