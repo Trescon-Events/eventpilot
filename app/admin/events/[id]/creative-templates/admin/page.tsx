@@ -757,15 +757,13 @@ export default function CreativeTemplatesAdminPage({ params }: { params: Promise
                     </div>
                   </div>
                   {showPlaceholderPanel && (
-                    <>
-                      <PlaceholderPanel
-                        key={activeType}
-                        activeType={activeType}
-                        profile={placeholderProfiles[activeType]}
-                        onSave={savePlaceholder}
-                      />
-                      <GlobalDefaultSummary key={`global-${activeType}`} activeType={activeType} value={globalDefaults[activeType]} />
-                    </>
+                    <PlaceholderSourceControl
+                      key={activeType}
+                      activeType={activeType}
+                      profile={placeholderProfiles[activeType]}
+                      globalValue={globalDefaults[activeType]}
+                      onSave={savePlaceholder}
+                    />
                   )}
                   {/* maxWidth: 80% (2026-08-02, per Madhu) — on smaller
                       screens the full-width preview (tall, ~4:5 for a real
@@ -911,20 +909,77 @@ function layerSummary(layer: Layer): string {
   return `Text: ${layer.field}${layer.field === 'custom' || layer.field === 'tier' ? ` "${layer.value ?? ''}"` : ''}`
 }
 
-// Reusable "Placeholder data" editor (2026-07-31) — one profile PER EVENT,
-// per stakeholder type, shared by every variant's preview/ghost in THIS
-// event instead of each hardcoding "Jane Doe" independently. Keyed by
-// activeType at the call site so switching tabs remounts this with a fresh
-// draft rather than leaking the other type's in-progress edits. Overrides
-// the new cross-event global default below when set; leave any field blank
-// to fall back to the global default instead.
-//
-// Still no photo/logo field here (2026-08-29, reaffirming the 2026-07-31
-// decision at the PER-EVENT level specifically) — the per-event override
-// is deliberately text-only; the placeholder photo is now a single global
-// asset (see GlobalDefaultSummary below), not something each event
-// manages separately.
-function PlaceholderPanel({ activeType, profile, onSave }: {
+// Explicit source switch (2026-08-29) — replaces the old implicit
+// "blank field falls back to global default" rule after a real bug:
+// clearing an override field saved an empty string, and `??` treats ''
+// as "set," so it never fell through at all (showed genuinely blank
+// text, not the global default) — Madhu caught this live. Two mutually
+// exclusive checkboxes make the choice explicit instead of inferring it
+// from field blankness: "Use Global Default" (checked by default) shows
+// the cross-event default read-only, "Override for this event" reveals
+// the 4 editable fields below it. Checking one unchecks the other — see
+// PlaceholderProfile.use_override's own comment in composite.ts for the
+// full resolution-order rationale (preview/route.ts and
+// LayerBoxOverlay.tsx's resolveGhostTextRaw both key off this same flag).
+// Toggling saves immediately (same convention as the approval-bypass
+// checkboxes elsewhere in this app) — editing the override FIELDS still
+// needs its own explicit Save, same as before.
+function PlaceholderSourceControl({ activeType, profile, globalValue, onSave }: {
+  activeType: StakeholderKind; profile: PlaceholderProfile; globalValue: GlobalPlaceholderDefault | null
+  onSave: (profile: PlaceholderProfile) => Promise<void>
+}) {
+  const [togglingOverride, setTogglingOverride] = useState(false)
+  const useOverride = !!profile.use_override
+
+  async function setUseOverride(next: boolean) {
+    setTogglingOverride(true)
+    await onSave({ ...profile, use_override: next })
+    setTogglingOverride(false)
+  }
+
+  const globalFields = activeType === 'speaker'
+    ? [['Name', globalValue?.name], ['Job Title', globalValue?.job_title], ['Company', globalValue?.company_name], ['Country', globalValue?.country]]
+    : [['Company Name', globalValue?.company_name], ['Country', globalValue?.country]]
+
+  return (
+    <div style={{ marginBottom: '10px', display: 'grid', gap: '8px' }}>
+      <div style={{ padding: '12px', borderRadius: '10px', border: `1.5px solid ${!useOverride ? 'var(--teal-mid)' : 'var(--border-light)'}`, background: !useOverride ? 'var(--teal-light)' : 'var(--surface)' }}>
+        <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: togglingOverride ? 'default' : 'pointer', marginBottom: '8px' }}>
+          <input type="checkbox" checked={!useOverride} disabled={togglingOverride} onChange={() => setUseOverride(false)} style={{ margin: 0 }} />
+          <span style={{ fontSize: '11px', fontWeight: 800, color: 'var(--ink2)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Use Global Default</span>
+          <Link href="/admin/branding/placeholder-defaults" onClick={e => e.stopPropagation()} style={{ marginLeft: 'auto', fontSize: '11.5px', fontWeight: 700, color: 'var(--teal-mid)' }}>Manage →</Link>
+        </label>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
+          {globalValue?.photo_url && (
+            // eslint-disable-next-line @next/next/no-img-element -- small remote thumbnail from Supabase storage, not worth next/image config for
+            <img src={globalValue.photo_url} alt="Global placeholder" style={{ width: '40px', height: '40px', borderRadius: '8px', objectFit: 'cover', border: '1px solid var(--border)', flexShrink: 0 }} />
+          )}
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px 14px' }}>
+            {globalFields.map(([label, val]) => (
+              <span key={label} style={{ fontSize: '11px', color: 'var(--ink3)' }}>
+                <span style={{ color: 'var(--ink4)' }}>{label}: </span>{val || <span style={{ color: 'var(--ink4)' }}>not set</span>}
+              </span>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      <div style={{ padding: '12px', borderRadius: '10px', border: `1.5px solid ${useOverride ? 'var(--teal-mid)' : 'var(--border-light)'}`, background: 'var(--surface)' }}>
+        <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: togglingOverride ? 'default' : 'pointer' }}>
+          <input type="checkbox" checked={useOverride} disabled={togglingOverride} onChange={() => setUseOverride(true)} style={{ margin: 0 }} />
+          <span style={{ fontSize: '11px', fontWeight: 800, color: 'var(--ink2)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Override for this event</span>
+        </label>
+        {useOverride && (
+          <div style={{ marginTop: '10px' }}>
+            <PlaceholderOverrideFields activeType={activeType} profile={profile} onSave={onSave} />
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
+function PlaceholderOverrideFields({ activeType, profile, onSave }: {
   activeType: StakeholderKind; profile: PlaceholderProfile
   onSave: (profile: PlaceholderProfile) => Promise<void>
 }) {
@@ -940,7 +995,7 @@ function PlaceholderPanel({ activeType, profile, onSave }: {
   const fieldStyle: React.CSSProperties = { fontSize: '11px', color: 'var(--ink3)', display: 'block' }
 
   return (
-    <div style={{ marginBottom: '10px', padding: '12px', borderRadius: '10px', border: '1px solid var(--border-light)', background: 'var(--surface)', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
       {activeType === 'speaker' ? (
         <>
           <label style={fieldStyle}>Name<Input value={draft.name ?? ''} onChange={e => setDraft(d => ({ ...d, name: e.target.value }))} style={{ width: '100%', marginTop: '3px' }} /></label>
@@ -955,50 +1010,10 @@ function PlaceholderPanel({ activeType, profile, onSave }: {
         </>
       )}
       <div style={{ gridColumn: '1 / -1', fontSize: '10.5px', color: 'var(--ink4)' }}>
-        Blank fields fall back to the global default below, then to sample text. Placeholder photo/logo is managed there too, not here.
+        These fields are authoritative while &quot;Override for this event&quot; is checked — a field left blank shows sample text, NOT the global default. Placeholder photo/logo always uses the global default photo, managed on its own page.
       </div>
       <div style={{ gridColumn: '1 / -1' }}>
-        <Button variant="teal" onClick={handleSave} disabled={saving}>{saving ? 'Saving…' : 'Save Placeholder'}</Button>
-      </div>
-    </div>
-  )
-}
-
-// Global (cross-event) placeholder default (2026-08-29, per Madhu) — one
-// row per stakeholder type, reused by EVERY event unless that event's own
-// PlaceholderPanel above overrides a field. Read-only HERE deliberately
-// (2026-08-29, fixed same day it first shipped — Madhu caught it live:
-// editing a value that's shared across every event from inside one
-// specific event's workspace reads as if it were scoped to that event,
-// which it isn't) — actually managing it, including the dedicated
-// placeholder photo, happens on its own page outside any event at
-// /admin/branding/placeholder-defaults, alongside the org's other
-// cross-event settings (Font Library, Corporate Brand).
-function GlobalDefaultSummary({ activeType, value }: { activeType: StakeholderKind; value: GlobalPlaceholderDefault | null }) {
-  const fields = activeType === 'speaker'
-    ? [['Name', value?.name], ['Job Title', value?.job_title], ['Company', value?.company_name], ['Country', value?.country]]
-    : [['Company Name', value?.company_name], ['Country', value?.country]]
-
-  return (
-    <div style={{ marginBottom: '10px', padding: '12px', borderRadius: '10px', border: '1.5px solid var(--teal-mid)', background: 'var(--teal-light)' }}>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
-        <div style={{ fontSize: '11px', fontWeight: 800, color: 'var(--ink2)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-          Global Default — used across every event
-        </div>
-        <Link href="/admin/branding/placeholder-defaults" style={{ fontSize: '11.5px', fontWeight: 700, color: 'var(--teal-mid)' }}>Manage →</Link>
-      </div>
-      <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
-        {value?.photo_url && (
-          // eslint-disable-next-line @next/next/no-img-element -- small remote thumbnail from Supabase storage, not worth next/image config for
-          <img src={value.photo_url} alt="Global placeholder" style={{ width: '40px', height: '40px', borderRadius: '8px', objectFit: 'cover', border: '1px solid var(--border)', flexShrink: 0 }} />
-        )}
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px 14px' }}>
-          {fields.map(([label, val]) => (
-            <span key={label} style={{ fontSize: '11px', color: 'var(--ink3)' }}>
-              <span style={{ color: 'var(--ink4)' }}>{label}: </span>{val || <span style={{ color: 'var(--ink4)' }}>not set</span>}
-            </span>
-          ))}
-        </div>
+        <Button variant="teal" onClick={handleSave} disabled={saving}>{saving ? 'Saving…' : 'Save Override'}</Button>
       </div>
     </div>
   )

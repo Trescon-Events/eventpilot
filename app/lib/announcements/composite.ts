@@ -241,6 +241,21 @@ export type PlaceholderProfile = {
   job_title?: string
   company_name?: string
   country?: string
+  // Explicit source switch (2026-08-29) — real bug, caught live: the old
+  // implicit rule ("blank field falls back to the global default") used
+  // `??`, which only skips null/undefined, not an EMPTY STRING — clearing
+  // an override field to '' and saving stored '' itself, which `??`
+  // treats as "set," so it never fell through to the global default at
+  // all (showed genuinely blank text instead). Replaced with an explicit,
+  // unambiguous choice per Madhu's own design: true = these 4 fields are
+  // authoritative for this event (any left blank fall straight to
+  // hardcoded sample text, NOT to the global default — the whole point is
+  // one unambiguous source, not a second implicit fallback chain);
+  // false/undefined (default) = always use the global default, ignoring
+  // whatever's saved here even if non-empty. Deliberately does not cover
+  // the photo — that's always the global default's photo regardless of
+  // this flag, per Madhu: "photo will be same for both."
+  use_override?: boolean
 }
 
 // The global, cross-event default — template_placeholder_defaults table,

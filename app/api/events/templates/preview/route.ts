@@ -203,11 +203,23 @@ export async function POST(req: NextRequest) {
     }
   }
 
+  // Explicit source switch (2026-08-29) — see PlaceholderProfile.use_override's
+  // own comment in composite.ts for the real bug this replaces (`??` never
+  // fell through on an empty-string override). true = the 4 per-event
+  // fields are authoritative, each individually falling straight to
+  // hardcoded sample text if blank (never to the global default — one
+  // unambiguous source, not a second implicit chain); false/undefined =
+  // always the global default, ignoring whatever's saved in the per-event
+  // fields even if non-empty. `||` (not `??`) at each step so a genuinely
+  // empty string is treated the same as unset, matching how a producer
+  // actually experiences "I cleared this field."
+  const useOverride = !!placeholderProfile?.use_override
+  const textSource = useOverride ? placeholderProfile : globalDefault
   const texts = {
-    name: (speaker?.name as string | undefined) ?? placeholderProfile?.name ?? globalDefault?.name ?? PLACEHOLDER_TEXT.name,
-    title: (speaker?.role as string | undefined) ?? placeholderProfile?.job_title ?? globalDefault?.job_title ?? PLACEHOLDER_TEXT.title,
-    company: (speaker?.company as string | undefined) ?? placeholderProfile?.company_name ?? globalDefault?.company_name ?? PLACEHOLDER_TEXT.company,
-    country: (speaker?.country as string | undefined) ?? placeholderProfile?.country ?? globalDefault?.country ?? PLACEHOLDER_TEXT.country,
+    name: (speaker?.name as string | undefined) || textSource?.name || PLACEHOLDER_TEXT.name,
+    title: (speaker?.role as string | undefined) || textSource?.job_title || PLACEHOLDER_TEXT.title,
+    company: (speaker?.company as string | undefined) || textSource?.company_name || PLACEHOLDER_TEXT.company,
+    country: (speaker?.country as string | undefined) || textSource?.country || PLACEHOLDER_TEXT.country,
     tier: PLACEHOLDER_TEXT.tier,
   }
 

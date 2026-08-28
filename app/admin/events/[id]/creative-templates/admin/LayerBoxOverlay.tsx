@@ -237,10 +237,15 @@ function resolveGhostTextRaw(layer: TextLayer, activeType: StakeholderKind, reco
   if (layer.field === 'custom') return layer.value || ''
   if (layer.field === 'tier') return layer.value || 'LEAD SPONSOR'
   if (activeType !== 'speaker') return ''
-  if (layer.field === 'name') return record?.label || placeholder.name || globalDefault?.name || 'Jane Doe'
-  if (layer.field === 'title') return record?.job_title || placeholder.job_title || globalDefault?.job_title || 'Chief Officer'
-  if (layer.field === 'company') return record?.company_name || placeholder.company_name || globalDefault?.company_name || 'Acme Corp'
-  if (layer.field === 'country') return placeholder.country || globalDefault?.country || 'United Arab Emirates'
+  // Explicit source switch (2026-08-29) — mirrors preview/route.ts's own
+  // use_override handling exactly, so this live canvas never shows
+  // different text than what "Generate Preview" will actually render.
+  const useOverride = !!placeholder.use_override
+  const textSource = useOverride ? placeholder : globalDefault
+  if (layer.field === 'name') return record?.label || textSource?.name || 'Jane Doe'
+  if (layer.field === 'title') return record?.job_title || textSource?.job_title || 'Chief Officer'
+  if (layer.field === 'company') return record?.company_name || textSource?.company_name || 'Acme Corp'
+  if (layer.field === 'country') return textSource?.country || 'United Arab Emirates'
   return ''
 }
 
