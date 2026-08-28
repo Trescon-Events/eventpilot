@@ -16,6 +16,7 @@ import {
   type AnnouncementListItem, type Stakeholder, type StakeholderKind, type Speaker, type PostizChannel, type EventStaffOption,
 } from './page'
 import PublishProgressModal from './PublishProgressModal'
+import ScheduleConfirmModal from './ScheduleConfirmModal'
 import NotifyExternalComposer from './NotifyExternalComposer'
 
 // custom_fields.email is the canonical, actively-maintained speaker email
@@ -87,6 +88,7 @@ export default function AnnouncementDetailPanel({
   const [sendForExternalApprovalOpen, setSendForExternalApprovalOpen] = useState(false)
   const [bypassing, setBypassing] = useState<'internal' | 'external' | null>(null)
   const [publishModalMode, setPublishModalMode] = useState<'now' | 'retry' | null>(null)
+  const [scheduleModalOpen, setScheduleModalOpen] = useState(false)
   const [confirmingTagging, setConfirmingTagging] = useState(false)
   const [notifyingInternal, setNotifyingInternal] = useState(false)
   const [notifyExternalOpen, setNotifyExternalOpen] = useState(false)
@@ -100,25 +102,13 @@ export default function AnnouncementDetailPanel({
   // included) the moment it was checked (2026-08-27).
   const youtubeChannels = postizChannels.filter(c => c.identifier === 'youtube')
   const selectablePostizChannels = postizChannels.filter(c => c.identifier !== 'youtube')
-  const [publishing, setPublishing] = useState<'schedule' | 'now' | 'approval' | 'retry' | null>(null)
+  const [publishing, setPublishing] = useState<'approval' | null>(null)
   const [scheduleAt, setScheduleAt] = useState('')
   const [otherScheduled, setOtherScheduled] = useState<ScheduledPost[]>([])
   const [otherScheduledLoading, setOtherScheduledLoading] = useState(false)
   const [approverPickerOpen, setApproverPickerOpen] = useState(false)
   const [pickedApprovers, setPickedApprovers] = useState<Record<string, string>>({})
   const [approverSearch, setApproverSearch] = useState('')
-  // A prominent, short-lived confirmation banner right after Schedule/Post
-  // Now succeeds (2026-08-21, per Madhu) — the only feedback before this
-  // was the transient "Posting via Postiz…" overlay, which vanished the
-  // instant the request completed, leaving nothing on screen to confirm
-  // the action actually landed except a small status badge easy to miss
-  // below the fold. null = no banner; string = what it says.
-  const [justCompleted, setJustCompleted] = useState<string | null>(null)
-  useEffect(() => {
-    if (!justCompleted) return
-    const t = setTimeout(() => setJustCompleted(null), 8000)
-    return () => clearTimeout(t)
-  }, [justCompleted])
 
   const copyEditor = useEditor({
     extensions: [
@@ -288,29 +278,47 @@ export default function AnnouncementDetailPanel({
     } else onError(data.error || 'Could not update approval.')
   }
 
-  async function scheduleAnnouncement() {
+  // Shared by the inline warning display AND the Schedule/Post Now/Retry
+  // click guards below (2026-08-29, per Madhu — a real over-limit X copy
+  // silently failed at Postiz; the only feedback was a small error banner
+  // at the top of the whole tab, easy to miss while scrolled down at
+  // these buttons). Same logic that used to live only in the JSX warning
+  // block, now also blocks the click itself before anything is sent.
+  function charLimitViolationMessage(): string | null {
+    if (!copyEditor) return null
+    const len = copyEditor.getText().length
+    const overLimit = selectedChannelIds
+      .map(id => postizChannels.find(c => c.id === id))
+      .filter((c): c is PostizChannel => !!c)
+      .filter(c => c.identifier !== 'x' && PLATFORM_CHAR_LIMITS[c.identifier] && len > PLATFORM_CHAR_LIMITS[c.identifier])
+    const xSelected = selectedChannelIds
+      .map(id => postizChannels.find(c => c.id === id))
+      .some(c => c?.identifier === 'x')
+    const xOverLimit = xSelected && xCopyDraft.length > 280
+    const parts: string[] = []
+    if (overLimit.length > 0) parts.push(`${len} characters — over the limit for ${overLimit.map(c => `${c.name} (${PLATFORM_CHAR_LIMITS[c.identifier]})`).join(', ')}. It will be rejected or truncated there.`)
+    if (xOverLimit) parts.push(`X Copy is ${xCopyDraft.length} characters — over X's 280 limit. Edit it above before posting.`)
+    return parts.length > 0 ? parts.join(' ') : null
+  }
+
+  function scheduleClick() {
     if (!scheduleAt) { onError('Pick a date and time to schedule for.'); return }
     if (selectedChannelIds.length === 0) { onError('Pick at least one channel.'); return }
-    setPublishing('schedule')
-    const res = await fetch(`/api/events/stakeholders/announcements/${announcement.id}/schedule`, {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ scheduled_for: new Date(scheduleAt).toISOString(), postiz_channel_ids: selectedChannelIds }),
-    })
-    const data = await res.json().catch(() => ({}))
-    setPublishing(null)
-    if (res.ok) {
-      onUpdate({ status: data.status, scheduled_for: data.scheduled_for, publish_results: data.publish_results, postiz_channel_ids: selectedChannelIds })
-      setJustCompleted(`✓ Scheduled for ${new Date(data.scheduled_for).toLocaleString()} on ${selectedChannelIds.length} channel${selectedChannelIds.length === 1 ? '' : 's'}.`)
-    }
-    else onError(data.error || 'Could not schedule this announcement.')
+    const violation = charLimitViolationMessage()
+    if (violation) { onError(violation); return }
+    setScheduleModalOpen(true)
   }
 
   function publishNow() {
     if (selectedChannelIds.length === 0) { onError('Pick at least one channel.'); return }
+    const violation = charLimitViolationMessage()
+    if (violation) { onError(violation); return }
     setPublishModalMode('now')
   }
 
   function retryPublish() {
+    const violation = charLimitViolationMessage()
+    if (violation) { onError(violation); return }
     setPublishModalMode('retry')
   }
 
@@ -404,8 +412,6 @@ export default function AnnouncementDetailPanel({
     ? { label: 'Saving post copy…', estimatedMs: 600 }
     : publishing === 'approval'
     ? { label: 'Sending for approval…', estimatedMs: 1500 }
-    : publishing === 'schedule'
-    ? { label: 'Scheduling via Postiz…', estimatedMs: 2500 }
     : null
 
   // Two-layer approval readiness (2026-08-26). internalDone mirrors the
@@ -632,23 +638,6 @@ export default function AnnouncementDetailPanel({
           )}
         </div>
 
-        {/* Prominent, short-lived confirmation right after Schedule/Post
-            Now/Retry succeeds — see justCompleted's own doc comment above. */}
-        {justCompleted && (
-          <div style={{
-            display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '10px',
-            padding: '12px 14px', borderRadius: '8px', marginBottom: '14px',
-            background: 'var(--teal-light)', border: '1.5px solid var(--teal-mid)',
-            fontSize: '13px', fontWeight: 700, color: 'var(--teal-mid)',
-          }}>
-            <span>{justCompleted}</span>
-            <button onClick={() => setJustCompleted(null)} aria-label="Dismiss"
-              style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--teal-mid)', fontSize: '15px', fontWeight: 800, lineHeight: 1, padding: '2px' }}>
-              ✕
-            </button>
-          </div>
-        )}
-
         <div style={{ fontSize: '11px', fontWeight: 700, color: 'var(--ink3)', marginBottom: '6px' }}>Channels</div>
         {/* YouTube is excluded here (2026-08-27) — these announcement creatives
             are always a static image, and YouTube's API rejects image-only
@@ -690,30 +679,21 @@ export default function AnnouncementDetailPanel({
             immediately. X (2026-08-27) checks its own dedicated copy
             (xCopyDraft) against its own limit, since it's no longer a
             shared/truncated value — everything else still checks the
-            main copy against its (much larger) limit. */}
-        {(() => {
-          if (!copyEditor) return null
-          const len = copyEditor.getText().length
-          const overLimit = selectedChannelIds
-            .map(id => postizChannels.find(c => c.id === id))
-            .filter((c): c is PostizChannel => !!c)
-            .filter(c => c.identifier !== 'x' && PLATFORM_CHAR_LIMITS[c.identifier] && len > PLATFORM_CHAR_LIMITS[c.identifier])
-          const xSelected = selectedChannelIds
-            .map(id => postizChannels.find(c => c.id === id))
-            .some(c => c?.identifier === 'x')
-          const xOverLimit = xSelected && xCopyDraft.length > 280
-          if (overLimit.length === 0 && !xOverLimit) return null
-          return (
-            <div style={{ fontSize: '12.5px', color: 'var(--red)', marginBottom: '12px', display: 'grid', gap: '4px' }}>
-              {overLimit.length > 0 && (
-                <div>⚠ {len} characters — over the limit for {overLimit.map(c => `${c.name} (${PLATFORM_CHAR_LIMITS[c.identifier]})`).join(', ')}. It will be rejected or truncated there.</div>
-              )}
-              {xOverLimit && (
-                <div>⚠ X Copy is {xCopyDraft.length} characters — over X&apos;s 280 limit. Edit it above before posting.</div>
-              )}
-            </div>
-          )
-        })()}
+            main copy against its (much larger) limit.
+
+            2026-08-29: this same check now ALSO gates Schedule/Post
+            Now/Retry directly (see charLimitViolationMessage below) — a
+            real over-limit post used to fail silently server-side (Postiz
+            rejects it, the only feedback was a small error banner at the
+            top of the whole tab, easy to miss while scrolled down at
+            these buttons). Keeping this block too so the reason is
+            visible right where the copy actually is, not just at the
+            moment of clicking. */}
+        {charLimitViolationMessage() && (
+          <div style={{ fontSize: '12.5px', color: 'var(--red)', marginBottom: '12px', display: 'grid', gap: '4px' }}>
+            <div>⚠ {charLimitViolationMessage()}</div>
+          </div>
+        )}
 
         {announcement.status === 'pending_approval' && (
           <div style={{ fontSize: '12px', color: 'var(--ink3)', marginBottom: '12px' }}>Waiting on approval — check back or follow up with your approvers directly.</div>
@@ -802,8 +782,8 @@ export default function AnnouncementDetailPanel({
             <>
               <input type="datetime-local" value={scheduleAt} onChange={e => setScheduleAt(e.target.value)}
                 style={{ padding: '7px 10px', borderRadius: '8px', border: '1px solid var(--border)', fontSize: '12.5px', fontFamily: 'inherit', color: 'var(--ink)' }} />
-              <Button variant="ghost" onClick={scheduleAnnouncement} disabled={publishing !== null}>
-                {publishing === 'schedule' ? 'Scheduling…' : 'Schedule'}
+              <Button variant="ghost" onClick={scheduleClick} disabled={publishing !== null}>
+                Schedule
               </Button>
               <Button variant="lime" onClick={publishNow} disabled={publishing !== null}>
                 Post Now
@@ -937,6 +917,18 @@ export default function AnnouncementDetailPanel({
           postizChannels={postizChannels}
           mode={publishModalMode}
           onClose={() => setPublishModalMode(null)}
+          onDone={onUpdate}
+        />
+      )}
+
+      {scheduleModalOpen && (
+        <ScheduleConfirmModal
+          announcementId={announcement.id}
+          channelIds={selectedChannelIds}
+          postizChannels={postizChannels}
+          scheduledForIso={new Date(scheduleAt).toISOString()}
+          scheduledForLabel={new Date(scheduleAt).toLocaleString()}
+          onClose={() => setScheduleModalOpen(false)}
           onDone={onUpdate}
         />
       )}

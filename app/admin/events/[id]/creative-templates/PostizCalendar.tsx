@@ -147,6 +147,17 @@ export default function PostizCalendar({ posts, loading, anchorDate, onSlotClick
   const today = new Date()
   const todayKey = dateKey(today)
 
+  // Selected-slot highlight (2026-08-29, per Madhu — after picking a slot
+  // the datetime shows at the bottom, but the calendar itself gave no
+  // visual sign anything was picked, so it looked unselected until you
+  // noticed the field below). Derived fresh from the live anchorDate PROP
+  // every render, not from the internal `anchor` navigation state — so it
+  // stays correct even if scheduleAt changes some other way (typed
+  // directly into the datetime field) without needing this component to
+  // know about it.
+  const selectedDt = anchorDate ? new Date(anchorDate) : null
+  const selectedKey = selectedDt && !isNaN(selectedDt.getTime()) ? `${dateKey(selectedDt)}T${selectedDt.getHours()}` : null
+
   function shift(dir: 1 | -1) {
     setAnchor(d => {
       const n = new Date(d)
@@ -198,8 +209,8 @@ export default function PostizCalendar({ posts, loading, anchorDate, onSlotClick
             const key = dateKey(d)
             return (
               <div key={key} style={{ textAlign: 'center', padding: '6px 2px', borderLeft: '1px solid var(--border-light)', background: key === todayKey ? 'var(--teal-light)' : 'transparent' }}>
-                <div style={{ fontSize: '10px', fontWeight: 700, color: 'var(--ink4)', textTransform: 'uppercase' }}>{d.toLocaleDateString(undefined, { weekday: 'short' })}</div>
-                <div style={{ fontSize: '13px', fontWeight: 800, color: key === todayKey ? 'var(--teal)' : 'var(--ink)' }}>{d.getDate()}</div>
+                <div style={{ fontSize: '10.5px', fontWeight: 800, color: 'var(--ink2)', textTransform: 'uppercase' }}>{d.toLocaleDateString(undefined, { weekday: 'short' })}</div>
+                <div style={{ fontSize: '14px', fontWeight: 800, color: key === todayKey ? 'var(--teal)' : 'var(--ink)' }}>{d.getDate()}</div>
               </div>
             )
           })}
@@ -220,14 +231,22 @@ export default function PostizCalendar({ posts, loading, anchorDate, onSlotClick
             const slotDate = new Date(d)
             slotDate.setHours(hour, 0, 0, 0)
             const empty = bucket.length === 0
+            const selected = selectedKey === `${dateKey(d)}T${hour}`
             return (
-              <div key={`${dayIdx}-${hourIdx}`} style={{ gridColumn: dayIdx + 2, gridRow: hourIdx + 1, borderTop: '1px solid var(--border-light)', borderLeft: '1px solid var(--border-light)', position: 'relative', boxSizing: 'border-box' }}>
+              <div key={`${dayIdx}-${hourIdx}`} style={{
+                gridColumn: dayIdx + 2, gridRow: hourIdx + 1, position: 'relative', boxSizing: 'border-box',
+                borderTop: selected ? '2px solid var(--teal-mid)' : '1px solid var(--border-light)',
+                borderLeft: selected ? '2px solid var(--teal-mid)' : '1px solid var(--border-light)',
+                borderRight: selected ? '2px solid var(--teal-mid)' : 'none',
+                borderBottom: selected ? '2px solid var(--teal-mid)' : 'none',
+                background: selected ? 'var(--teal-light)' : 'transparent',
+              }}>
                 {empty && onSlotClick ? (
                   <button type="button" className="postiz-cal-slot"
                     onClick={() => onSlotClick(toLocalDateTimeValue(slotDate))}
-                    title={`Pick ${slotDate.toLocaleString(undefined, { weekday: 'short', hour: 'numeric', minute: '2-digit' })}`}
+                    title={selected ? 'Selected' : `Pick ${slotDate.toLocaleString(undefined, { weekday: 'short', hour: 'numeric', minute: '2-digit' })}`}
                     style={{ display: 'block', width: '100%', height: '100%', border: 'none', background: 'transparent', cursor: 'pointer', padding: 0, position: 'relative' }}>
-                    <span className="postiz-cal-plus" style={{ opacity: 0, position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '13px', fontWeight: 800, color: 'var(--teal-mid)', background: 'var(--teal-light)', pointerEvents: 'none' }}>+</span>
+                    <span className="postiz-cal-plus" style={{ opacity: selected ? 1 : 0, position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '14px', fontWeight: 800, color: 'var(--teal-mid)', pointerEvents: 'none' }}>+</span>
                   </button>
                 ) : (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: `${CHIP_GAP}px`, padding: `${CHIP_GAP}px 2px` }}>
@@ -260,7 +279,7 @@ export default function PostizCalendar({ posts, loading, anchorDate, onSlotClick
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)' }}>
         {weeks[0].map(d => (
-          <div key={d.getDay()} style={{ textAlign: 'center', padding: '5px 2px', fontSize: '10px', fontWeight: 700, color: 'var(--ink4)', textTransform: 'uppercase', borderBottom: '1px solid var(--border-light)' }}>
+          <div key={d.getDay()} style={{ textAlign: 'center', padding: '5px 2px', fontSize: '10.5px', fontWeight: 800, color: 'var(--ink2)', textTransform: 'uppercase', borderBottom: '1px solid var(--border-light)' }}>
             {d.toLocaleDateString(undefined, { weekday: 'short' })}
           </div>
         ))}

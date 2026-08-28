@@ -176,21 +176,40 @@ export type GeneratedCopy = { copy: string; xCopy: string }
 // ever fails. xCopy falls back to a hard-truncated slice of the main copy
 // (2026-08-27) rather than an empty string — better than a blank X post if
 // Gemini ever omits the field, though the prompt asks for it every time.
+//
+// Fixed 2026-08-29 (real bug, caught live) — two things:
+// 1. hashtags used to be spread into the copy array and joined with the
+//    SAME '\n\n' separator as every other paragraph, so each hashtag
+//    landed on its own line with a blank line before it. Per Madhu, they
+//    should read as one normal hashtag line — joined with spaces into a
+//    single string, then that single string appended as the copy's last
+//    paragraph.
+// 2. x_copy is now hard-clamped to 280 chars UNCONDITIONALLY, not just
+//    when Gemini omits the field — the prompt already asks for "hard max
+//    280," but a live case proved the model doesn't always comply, and
+//    Postiz silently rejects the whole publish with no visible error when
+//    that happens (see AnnouncementDetailPanel.tsx's client-side
+//    pre-flight check, which is the other half of this fix — this
+//    server-side clamp is the guarantee of last resort).
+function clampToX(s: string): string {
+  return s.length <= 280 ? s : s.slice(0, 279) + '…'
+}
 function parseGeminiCopyResponse(text: string): GeneratedCopy {
   try {
     const match = text.match(/\{[\s\S]*\}/)
     if (match) {
       const parsed = JSON.parse(sanitizeJsonControlChars(match[0])) as { copy?: string; hashtags?: string[]; x_copy?: string }
       if (parsed.copy) {
-        const copy = [parsed.copy, ...(parsed.hashtags ?? [])].join('\n\n')
-        const xCopy = parsed.x_copy?.trim() || copy.slice(0, 277) + (copy.length > 277 ? '…' : '')
+        const hashtagLine = (parsed.hashtags ?? []).join(' ')
+        const copy = [parsed.copy, hashtagLine].filter(Boolean).join('\n\n')
+        const xCopy = clampToX(parsed.x_copy?.trim() || copy)
         return { copy, xCopy }
       }
     }
   } catch {
     // fall through to raw text
   }
-  return { copy: text, xCopy: text.slice(0, 277) + (text.length > 277 ? '…' : '') }
+  return { copy: text, xCopy: clampToX(text) }
 }
 
 // Self Promo module (2026-08-18): a creative + post copy emailed TO the
