@@ -94,6 +94,18 @@ export type AnnouncementListItem = {
   // combine into the publish-readiness check.
   external_approval_status: 'none' | 'pending' | 'approved' | 'approved_with_comments' | 'changes_requested'
   client_approval_status: 'none' | 'pending' | 'approved' | 'approved_with_comments' | 'changes_requested'
+  // Per-layer status detail (2026-08-29) — the latest external/client
+  // announcement_approvals row's own comments/actioned_at/reviewer name,
+  // so the Approval section's per-layer status area can show what the
+  // reviewer actually said, not just a bare status word.
+  external_approval_comments: string | null
+  external_approval_actioned_at: string | null
+  external_approval_recipient: string | null
+  external_approval_notified_at: string | null
+  client_approval_comments: string | null
+  client_approval_actioned_at: string | null
+  client_approval_recipient: string | null
+  client_approval_notified_at: string | null
   internal_approval_bypassed_at: string | null
   external_approval_bypassed_at: string | null
   client_approval_bypassed_at: string | null

@@ -190,6 +190,42 @@ export default function AnnouncementDetailPanel({
       .finally(() => setOtherScheduledLoading(false))
   }, [eventId, selectedChannelIds])
 
+  // Live-updating approval status (2026-08-29, per Madhu, live: "regular
+  // and persistent updates on any activity in that section") — an
+  // external/client reviewer responds from a completely separate,
+  // unauthenticated browser session (the public review portal), so there
+  // is no way for THIS tab to know it happened other than asking again.
+  // Polls only while at least one round is genuinely pending (not
+  // bypassed) — nothing to watch for once every layer is resolved or
+  // exempted. Reuses the existing announcements list route rather than a
+  // new endpoint, matching what AnnouncementsTab.tsx already fetches.
+  const externalPendingNow = announcement.external_approval_status === 'pending' && !announcement.external_approval_bypassed_at
+  const clientPendingNow = announcement.client_approval_status === 'pending' && !announcement.client_approval_bypassed_at
+  useEffect(() => {
+    if (!externalPendingNow && !clientPendingNow) return
+    const stakeholderParam = stakeholderKind === 'speaker' ? `speaker_id=${announcement.speaker_id}` : `partner_id=${announcement.partner_id}`
+    const poll = setInterval(() => {
+      fetch(`/api/events/stakeholders/announcements?event_id=${eventId}&${stakeholderParam}`)
+        .then(r => r.json())
+        .then((rows: AnnouncementListItem[]) => {
+          const fresh = rows.find(r => r.id === announcement.id)
+          if (!fresh) return
+          onUpdate({
+            external_approval_status: fresh.external_approval_status,
+            external_approval_comments: fresh.external_approval_comments,
+            external_approval_actioned_at: fresh.external_approval_actioned_at,
+            external_approval_recipient: fresh.external_approval_recipient,
+            client_approval_status: fresh.client_approval_status,
+            client_approval_comments: fresh.client_approval_comments,
+            client_approval_actioned_at: fresh.client_approval_actioned_at,
+            client_approval_recipient: fresh.client_approval_recipient,
+          })
+        })
+        .catch(() => { /* silent — next tick tries again */ })
+    }, 20_000)
+    return () => clearInterval(poll)
+  }, [externalPendingNow, clientPendingNow, eventId, stakeholderKind, announcement.id, announcement.speaker_id, announcement.partner_id, onUpdate])
+
   function handleCopyEditorAreaClick(e: React.MouseEvent) {
     if (!copyEditor || !copyEditor.isActive('link')) return
     const href = copyEditor.getAttributes('link').href as string
@@ -454,10 +490,6 @@ export default function AnnouncementDetailPanel({
   const clientOk = announcement.client_approval_status === 'none' || clientApproved || !!announcement.client_approval_bypassed_at
   const externalOk = announcement.external_approval_status === 'none' || externalApproved || !!announcement.external_approval_bypassed_at
   const readyToPublish = internalDone && clientOk && externalOk
-  const clientApprovalPending = announcement.client_approval_status === 'pending' && !announcement.client_approval_bypassed_at
-  const clientChangesRequested = announcement.client_approval_status === 'changes_requested' && !announcement.client_approval_bypassed_at
-  const externalApprovalPending = announcement.external_approval_status === 'pending' && !announcement.external_approval_bypassed_at
-  const externalChangesRequested = announcement.external_approval_status === 'changes_requested' && !announcement.external_approval_bypassed_at
 
   // Status pills for the Approval card (2026-08-27, per Madhu: "should look
   // like a status, not just random text"). 'exempted' color (purple) is
@@ -480,21 +512,65 @@ export default function AnnouncementDetailPanel({
       </span>
     )
   }
-  const internalPill = internalApproved ? approvalPill('Approved', 'teal')
+  const internalPill = internalApproved ? approvalPill('✓ Approved', 'teal')
     : announcement.internal_approval_bypassed_at ? approvalPill('Exempted', 'purple')
     : announcement.status === 'changes_requested' ? approvalPill('Changes requested', 'red')
     : announcement.status === 'pending_approval' ? approvalPill('Pending', 'amber')
     : approvalPill('Not sent', 'grey')
-  const clientPill = clientApproved ? approvalPill(announcement.client_approval_status === 'approved_with_comments' ? 'Approved (comments)' : 'Approved', 'teal')
+  const clientPill = clientApproved ? approvalPill(announcement.client_approval_status === 'approved_with_comments' ? '✓ Approved (comments)' : '✓ Approved', 'teal')
     : announcement.client_approval_bypassed_at ? approvalPill('Exempted', 'purple')
     : announcement.client_approval_status === 'changes_requested' ? approvalPill('Changes requested', 'red')
     : announcement.client_approval_status === 'pending' ? approvalPill('Pending', 'amber')
     : approvalPill('Not sent', 'grey')
-  const externalPill = externalApproved ? approvalPill(announcement.external_approval_status === 'approved_with_comments' ? 'Approved (comments)' : 'Approved', 'teal')
+  const externalPill = externalApproved ? approvalPill(announcement.external_approval_status === 'approved_with_comments' ? '✓ Approved (comments)' : '✓ Approved', 'teal')
     : announcement.external_approval_bypassed_at ? approvalPill('Exempted', 'purple')
     : announcement.external_approval_status === 'changes_requested' ? approvalPill('Changes requested', 'red')
     : announcement.external_approval_status === 'pending' ? approvalPill('Pending', 'amber')
     : approvalPill('Not sent', 'grey')
+
+  // Per-layer persistent status area (2026-08-29, per Madhu, live: "Each
+  // sub-section under the approval section should have its own status
+  // area below the buttons, where it shows regular and persistent updates
+  // on any activity in that section"). Shows the actual reviewer comment
+  // inline — found live that comments were being saved correctly
+  // (confirmed via direct DB read) but never surfaced anywhere in the
+  // admin UI at all, which is what actually made "no status update in
+  // EventPilot" true. Reuses the same tone palette as the pills above so
+  // the box and its pill always agree visually.
+  function approvalStatusArea(opts: {
+    status: 'none' | 'pending' | 'approved' | 'approved_with_comments' | 'changes_requested'
+    bypassedAt: string | null
+    comments: string | null
+    actionedAt: string | null
+    recipientName: string | null
+    notifiedAt: string | null
+    reviewerNoun: string
+  }) {
+    const { status, bypassedAt, comments, actionedAt, recipientName, notifiedAt, reviewerNoun } = opts
+    const approved = status === 'approved' || status === 'approved_with_comments'
+    let tone: ApprovalPillTone
+    let headline: string
+    if (bypassedAt) { tone = 'purple'; headline = 'Exempted — this round won’t block publishing.' }
+    else if (approved) { tone = 'teal'; headline = `✓ Approved${status === 'approved_with_comments' ? ' — with comments' : ''}. Cleared for the next step.` }
+    else if (status === 'changes_requested') { tone = 'red'; headline = '✗ Changes requested.' }
+    else if (status === 'pending') { tone = 'amber'; headline = `Waiting on ${recipientName || `the ${reviewerNoun}`}${notifiedAt ? `, sent ${new Date(notifiedAt).toLocaleDateString()}` : ''} — publishing is on hold until they respond.` }
+    else { tone = 'grey'; headline = 'Not sent yet.' }
+    const c = APPROVAL_PILL_COLORS[tone]
+    const showComment = !!comments && (approved || status === 'changes_requested')
+    return (
+      <div style={{ marginTop: '12px', padding: '10px 12px', borderRadius: '8px', background: c.bg, border: `1px solid color-mix(in srgb, ${c.text} 30%, transparent)` }}>
+        <div style={{ fontSize: '12.5px', fontWeight: 800, color: c.text }}>{headline}</div>
+        {showComment && (
+          <div style={{ fontSize: '12.5px', color: 'var(--ink2)', marginTop: '6px', fontStyle: 'italic' }}>&quot;{comments}&quot;</div>
+        )}
+        {actionedAt && (approved || status === 'changes_requested') && (
+          <div style={{ fontSize: '11px', color: 'var(--ink4)', marginTop: '6px' }}>
+            {recipientName ? `${recipientName} · ` : ''}{new Date(actionedAt).toLocaleString()}
+          </div>
+        )}
+      </div>
+    )
+  }
 
   return (
     <div style={{ display: 'grid', gap: '24px' }}>
@@ -623,6 +699,14 @@ export default function AnnouncementDetailPanel({
                 </label>
               </div>
             )}
+            {approvalStatusArea({
+              status: internalApproved ? announcement.status as 'approved' | 'approved_with_comments'
+                : announcement.status === 'changes_requested' ? 'changes_requested'
+                : announcement.status === 'pending_approval' ? 'pending' : 'none',
+              bypassedAt: announcement.internal_approval_bypassed_at,
+              comments: null, actionedAt: null, recipientName: null, notifiedAt: null,
+              reviewerNoun: 'approvers',
+            })}
           </div>
 
           {/* Client — only for events with a client contact configured
@@ -647,6 +731,15 @@ export default function AnnouncementDetailPanel({
                 </label>
               </div>
             )}
+            {approvalStatusArea({
+              status: announcement.client_approval_status,
+              bypassedAt: announcement.client_approval_bypassed_at,
+              comments: announcement.client_approval_comments,
+              actionedAt: announcement.client_approval_actioned_at,
+              recipientName: announcement.client_approval_recipient,
+              notifiedAt: announcement.client_approval_notified_at,
+              reviewerNoun: 'client',
+            })}
           </div>
           )}
 
@@ -668,21 +761,17 @@ export default function AnnouncementDetailPanel({
                 </label>
               </div>
             )}
+            {approvalStatusArea({
+              status: announcement.external_approval_status,
+              bypassedAt: announcement.external_approval_bypassed_at,
+              comments: announcement.external_approval_comments,
+              actionedAt: announcement.external_approval_actioned_at,
+              recipientName: announcement.external_approval_recipient,
+              notifiedAt: announcement.external_approval_notified_at,
+              reviewerNoun: 'external reviewer',
+            })}
           </div>
         </div>
-
-        {clientApprovalPending && (
-          <div style={{ fontSize: '13px', color: 'var(--ink2)', marginTop: '12px' }}>Waiting on the client reviewer — publishing is on hold until they respond, or you check &quot;Not required / Reviewed&quot; above.</div>
-        )}
-        {clientChangesRequested && (
-          <div style={{ fontSize: '13px', color: 'var(--red)', marginTop: '12px' }}>The client requested changes — update the copy/creative above and send again, or check &quot;Not required / Reviewed&quot; if it&apos;s already been resolved another way.</div>
-        )}
-        {externalApprovalPending && (
-          <div style={{ fontSize: '13px', color: 'var(--ink2)', marginTop: '12px' }}>Waiting on the external reviewer — publishing is on hold until they respond, or you check &quot;Not required / Reviewed&quot; above.</div>
-        )}
-        {externalChangesRequested && (
-          <div style={{ fontSize: '13px', color: 'var(--red)', marginTop: '12px' }}>The external reviewer requested changes — update the copy/creative above and send again, or check &quot;Not required / Reviewed&quot; if it&apos;s already been resolved another way.</div>
-        )}
       </div>
       )}
 

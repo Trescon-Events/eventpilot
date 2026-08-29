@@ -55,6 +55,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       external_email: body.recipient_email,
       cc_emails: ccEmails.length ? ccEmails : null,
       sent_by_name: sender.name,
+      sent_by_email: sender.email,
       approval_token: body.review_token,
       token_expires_at: new Date(Date.now() + TOKEN_TTL_MS).toISOString(),
       notified_at: notifiedAt,

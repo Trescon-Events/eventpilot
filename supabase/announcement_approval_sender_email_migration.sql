@@ -1,0 +1,15 @@
+-- Real bug fix (2026-08-29), found live by Madhu: after a reviewer
+-- responded to an External Approval request (approved/rejected with a
+-- comment), the sender never got notified — no email, no status update
+-- visible without a manual page reload.
+--
+-- Root cause (approve/route.ts's notifyMM): the "who do we tell" lookup
+-- used stakeholder_announcements.created_by, which has nothing to do with
+-- who actually sent THIS approval round (a different producer can send an
+-- approval round for an announcement someone else generated), and is
+-- frequently null outright (as it was on the exact row Madhu tested against
+-- confirmed live) — the function silently no-ops when it's null, with
+-- zero error surfaced anywhere. sent_by_name (text, display-only) already
+-- existed per-row; this adds the email address needed to actually notify
+-- the real sender of that specific round.
+ALTER TABLE announcement_approvals ADD COLUMN IF NOT EXISTS sent_by_email TEXT;

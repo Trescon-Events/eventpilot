@@ -35,9 +35,11 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   // change this route's existing auth posture (unchanged from before).
   const session = getSession(req)
   let sentByName: string | null = null
+  let sentByEmail: string | null = null
   if (session?.sid && session.sid !== 'super-admin') {
-    const { data: staff } = await supabaseAdmin.from('staff_members').select('name').eq('id', session.sid).single()
+    const { data: staff } = await supabaseAdmin.from('staff_members').select('name, email').eq('id', session.sid).single()
     sentByName = staff?.name ?? null
+    sentByEmail = staff?.email ?? null
   }
 
   const approvalRows = body.approvers.map(a => ({
@@ -49,6 +51,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     token_expires_at: tokenExpiresAt,
     notified_at: notifiedAt,
     sent_by_name: sentByName,
+    sent_by_email: sentByEmail,
   }))
 
   const { data: approvals, error: insertErr } = await supabaseAdmin

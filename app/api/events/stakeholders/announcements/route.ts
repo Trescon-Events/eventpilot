@@ -54,28 +54,54 @@ export async function GET(req: NextRequest) {
   // keep in sync if the approvals table changes. 'none' — never sent,
   // doesn't block anything (existing internal-only announcements, or
   // events with no Client Approval contact configured, are unaffected).
+  //
+  // 2026-08-29 addition, per Madhu, live: the Approval section's per-layer
+  // status area needs to show the actual reviewer's comment inline (not
+  // just a bare status word) — the exact thing that was invisible before
+  // ("I added a comment and said rejected... no status update in
+  // EventPilot"). Returns the full latest row per layer now, not just its
+  // status string.
   const announcementIds = (data ?? []).map(a => a.id)
-  const externalStatusById = new Map<string, string>()
-  const clientStatusById = new Map<string, string>()
+  type LayerDetail = { status: string; comments: string | null; actioned_at: string | null; recipient_name: string | null; notified_at: string | null }
+  const externalById = new Map<string, LayerDetail>()
+  const clientById = new Map<string, LayerDetail>()
   if (announcementIds.length > 0) {
     const { data: layeredApprovals } = await supabaseAdmin
       .from('announcement_approvals')
-      .select('announcement_id, layer, status, created_at')
+      .select('announcement_id, layer, status, comments, actioned_at, notified_at, external_name')
       .in('announcement_id', announcementIds)
       .in('layer', ['external', 'client'])
       .order('created_at', { ascending: false })
     for (const row of layeredApprovals ?? []) {
-      const byId = row.layer === 'external' ? externalStatusById : clientStatusById
-      if (!byId.has(row.announcement_id)) byId.set(row.announcement_id, row.status)
+      const byId = row.layer === 'external' ? externalById : clientById
+      if (!byId.has(row.announcement_id)) {
+        byId.set(row.announcement_id, {
+          status: row.status, comments: row.comments, actioned_at: row.actioned_at,
+          recipient_name: row.external_name, notified_at: row.notified_at,
+        })
+      }
     }
   }
+  const NONE_DETAIL: LayerDetail = { status: 'none', comments: null, actioned_at: null, recipient_name: null, notified_at: null }
 
-  const enriched = (data ?? []).map(a => ({
-    ...a,
-    stakeholder_name: a.speaker_id ? speakerNames.get(a.speaker_id) : a.partner_id ? partnerNames.get(a.partner_id) : null,
-    external_approval_status: externalStatusById.get(a.id) ?? 'none',
-    client_approval_status: clientStatusById.get(a.id) ?? 'none',
-  }))
+  const enriched = (data ?? []).map(a => {
+    const external = externalById.get(a.id) ?? NONE_DETAIL
+    const client = clientById.get(a.id) ?? NONE_DETAIL
+    return {
+      ...a,
+      stakeholder_name: a.speaker_id ? speakerNames.get(a.speaker_id) : a.partner_id ? partnerNames.get(a.partner_id) : null,
+      external_approval_status: external.status,
+      external_approval_comments: external.comments,
+      external_approval_actioned_at: external.actioned_at,
+      external_approval_recipient: external.recipient_name,
+      external_approval_notified_at: external.notified_at,
+      client_approval_status: client.status,
+      client_approval_comments: client.comments,
+      client_approval_actioned_at: client.actioned_at,
+      client_approval_recipient: client.recipient_name,
+      client_approval_notified_at: client.notified_at,
+    }
+  })
 
   return NextResponse.json(enriched)
 }
