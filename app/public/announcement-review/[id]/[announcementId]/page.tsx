@@ -36,9 +36,16 @@ import { useState, useEffect, use } from 'react'
 
 type ReviewData = {
   event_name: string | null; sent_by: string | null; sent_at: string | null
-  approver_name: string | null; approver_role: string; approval_status: string
+  approver_name: string | null; approver_email: string | null; approver_role: string; approval_status: string
+  decision_comments: string | null; decision_actioned_at: string | null
   post_copy: string | null; creative_url: string | null
   platforms: string[] | null; scheduled_for: string | null; announcement_status: string
+}
+
+const DECISION_VERBS: Record<string, { verb: string; suffix: string }> = {
+  approved: { verb: 'approved', suffix: '' },
+  approved_with_comments: { verb: 'approved', suffix: ', with comments' },
+  changes_requested: { verb: 'requested changes to', suffix: '' },
 }
 
 const DECISIONS = [
@@ -123,12 +130,36 @@ export default function AnnouncementReviewPage({ params }: { params: Promise<{ i
 
   if (loadError) return <Centered><p style={{ color: 'var(--red)' }}>{loadError}</p></Centered>
   if (!data) return <Centered><p style={{ color: 'var(--ink3)' }}>Loading…</p></Centered>
-  if (done || data.approval_status !== 'pending') {
+  if (done) {
     return (
       <Centered>
         <div style={{ fontSize: 'clamp(30px, 8vw, 36px)', marginBottom: '10px' }}>✓</div>
         <h1 style={{ fontSize: 'clamp(18px, 4.5vw, 22px)', fontWeight: 900, color: 'var(--ink)', margin: '0 0 10px' }}>Decision recorded</h1>
         <p style={{ color: 'var(--ink3)', fontSize: 'clamp(13.5px, 3.4vw, 15px)' }}>Thank you — your decision has been recorded and the team has been notified.</p>
+      </Centered>
+    )
+  }
+  // Already responded by the time this page loaded (2026-08-29, per
+  // Madhu, live — a real gap he hit: a To/CC'd recipient opening the same
+  // shared link after someone else on the thread already responded saw a
+  // generic "Decision recorded" with no indication of who, which read as
+  // if they themselves still needed to act). Names whoever the request
+  // was addressed to and what they decided — the system has no way to
+  // know exactly which person on a shared To/CC link physically clicked,
+  // only who it was sent to, which is the best available answer to "who."
+  if (data.approval_status !== 'pending') {
+    return (
+      <Centered>
+        <div style={{ fontSize: 'clamp(30px, 8vw, 36px)', marginBottom: '10px' }}>✓</div>
+        <h1 style={{ fontSize: 'clamp(18px, 4.5vw, 22px)', fontWeight: 900, color: 'var(--ink)', margin: '0 0 10px' }}>Already responded</h1>
+        <p style={{ color: 'var(--ink2)', fontSize: 'clamp(14px, 3.6vw, 16px)', lineHeight: 1.5 }}>
+          <strong>{data.approver_name ?? 'Someone'}</strong>{data.approver_email ? ` (${data.approver_email})` : ''} has already {(DECISION_VERBS[data.approval_status] ?? { verb: 'responded to', suffix: '' }).verb} this announcement{(DECISION_VERBS[data.approval_status] ?? { verb: '', suffix: '' }).suffix}
+          {data.decision_actioned_at ? ` on ${new Date(data.decision_actioned_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}` : ''}.
+        </p>
+        {data.decision_comments && (
+          <p style={{ color: 'var(--ink3)', fontSize: 'clamp(13px, 3.2vw, 14px)', fontStyle: 'italic', marginTop: '10px' }}>&quot;{data.decision_comments}&quot;</p>
+        )}
+        <p style={{ color: 'var(--ink4)', fontSize: 'clamp(12.5px, 3vw, 13.5px)', marginTop: '16px' }}>No action needed from you.</p>
       </Centered>
     )
   }

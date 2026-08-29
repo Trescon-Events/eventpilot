@@ -13,7 +13,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
 
   const { data: approval } = await supabaseAdmin
     .from('announcement_approvals')
-    .select('approver_role, token_expires_at, status, notified_at, layer, external_name, sent_by_name, approver:approver_id(name)')
+    .select('approver_role, token_expires_at, status, notified_at, actioned_at, comments, layer, external_name, external_email, sent_by_name, approver:approver_id(name, email)')
     .eq('announcement_id', id)
     .eq('approval_token', token)
     .single()
@@ -44,8 +44,20 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     sent_by: approval.sent_by_name ?? creator?.name ?? null,
     sent_at: approval.notified_at,
     approver_name: approver?.name ?? approval.external_name ?? null,
+    // approver_email (2026-08-29, per Madhu, live — a CC'd recipient who
+    // opened the link after someone else already responded had no way to
+    // tell WHO, and the page's generic "Decision recorded" read as if
+    // they themselves needed to act too): whoever this request was
+    // actually addressed to, so the already-responded state can name them
+    // — the system has no way to know which specific person on a shared
+    // To/CC email actually clicked, only who the request was sent to.
+    approver_email: approver?.email ?? approval.external_email ?? null,
     approver_role: approval.layer === 'external' ? 'External Reviewer' : approval.layer === 'client' ? 'Client Reviewer' : approval.approver_role,
     approval_status: approval.status,
+    // Only meaningful once already actioned — the decision screen uses
+    // these to say what happened, not just that "a" decision happened.
+    decision_comments: approval.comments,
+    decision_actioned_at: approval.actioned_at,
     post_copy: announcement.post_copy,
     creative_url: announcement.creative_url,
     platforms: announcement.platforms,

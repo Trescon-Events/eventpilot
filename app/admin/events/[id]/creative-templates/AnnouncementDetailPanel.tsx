@@ -558,13 +558,15 @@ export default function AnnouncementDetailPanel({
     const c = APPROVAL_PILL_COLORS[tone]
     const showComment = !!comments && (approved || status === 'changes_requested')
     return (
-      <div style={{ marginTop: '12px', padding: '10px 12px', borderRadius: '8px', background: c.bg, border: `1px solid color-mix(in srgb, ${c.text} 30%, transparent)` }}>
-        <div style={{ fontSize: '12.5px', fontWeight: 800, color: c.text }}>{headline}</div>
+      // Font sizes bumped (2026-08-29, per Madhu, live: "make all these
+      // fonts a bit bigger.. too small to read") — was 12.5/12.5/11px.
+      <div style={{ marginTop: '12px', padding: '12px 14px', borderRadius: '8px', background: c.bg, border: `1px solid color-mix(in srgb, ${c.text} 30%, transparent)` }}>
+        <div style={{ fontSize: '14.5px', fontWeight: 800, color: c.text }}>{headline}</div>
         {showComment && (
-          <div style={{ fontSize: '12.5px', color: 'var(--ink2)', marginTop: '6px', fontStyle: 'italic' }}>&quot;{comments}&quot;</div>
+          <div style={{ fontSize: '14px', color: 'var(--ink2)', marginTop: '7px', fontStyle: 'italic' }}>&quot;{comments}&quot;</div>
         )}
         {actionedAt && (approved || status === 'changes_requested') && (
-          <div style={{ fontSize: '11px', color: 'var(--ink4)', marginTop: '6px' }}>
+          <div style={{ fontSize: '12.5px', color: 'var(--ink4)', marginTop: '7px' }}>
             {recipientName ? `${recipientName} · ` : ''}{new Date(actionedAt).toLocaleString()}
           </div>
         )}
