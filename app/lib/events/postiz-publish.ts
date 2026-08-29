@@ -19,28 +19,27 @@ export class PublishValidationError extends Error {
   }
 }
 
-// An announcement can be scheduled/published once approved — OR
-// immediately from 'draft' if the requesting staff member has
-// sae.announcements.publish (2026-08-16, per Madhu: staff should be able
-// to skip the approval chain for routine posts, not just the mandatory
-// external-approver path). Admins always pass.
+// An announcement can be scheduled/published only once ALL THREE approval
+// layers are resolved (approved/exempted) — no exceptions, not even for
+// admins or staff with sae.announcements.publish.
 //
-// 2026-08-29 fix, per Madhu's own explicit requirement building the
-// three-layer approval feature ("Publish section should not even be
-// activated to do anything unless this condition is met") — this
-// previously only checked internal `currentStatus`, never external/client
-// approval at all. That was a real, silent gap: the client-side
-// readyToPublish check in AnnouncementDetailPanel.tsx already hid the
-// Schedule/Post Now buttons based on all three layers, but a direct API
-// call bypassed that entirely, since nothing server-side ever looked at
-// external/client_approval_status or their bypass flags. Now mirrors the
-// client-side readiness check exactly, so hiding the button and rejecting
-// the request agree in every case. canSkip remains the one intentional
-// override for all three layers at once, same as before this fix.
+// 2026-08-16 originally let sae.announcements.publish (or admin) skip the
+// approval chain entirely for 'draft'/'changes_requested' posts ("staff
+// should be able to skip the approval chain for routine posts"). Removed
+// 2026-08-29, per Madhu, live — hit directly by his own account: he holds
+// that permission, so Schedule/Post Now were fully clickable for him
+// regardless of approval state, meaning the "should not even be
+// activated" requirement he'd set for the three-layer approval feature
+// silently didn't apply to himself, the person testing it. Asked
+// explicitly whether to keep the skip (made visually obvious) or remove
+// it outright; chose removal — approval is now genuinely mandatory for
+// everyone. sae.announcements.publish still gates whether you're
+// authorized to touch publishing AT ALL (a separate question from
+// whether THIS announcement is ready) — that check stays.
 export async function checkCanPublish(req: NextRequest, eventId: string, announcementId: string, currentStatus: string): Promise<{ ok: true } | { ok: false; message: string }> {
   const session = getSession(req)
-  const canSkip = session?.adm || await hasEventPermission(session?.sid, eventId, 'sae.announcements.publish')
-  if (canSkip) return { ok: true }
+  const authorized = session?.adm || await hasEventPermission(session?.sid, eventId, 'sae.announcements.publish')
+  if (!authorized) return { ok: false, message: 'Not authorized.' }
 
   const [{ data: bypasses }, { data: layered }] = await Promise.all([
     supabaseAdmin.from('stakeholder_announcements')
@@ -54,7 +53,7 @@ export async function checkCanPublish(req: NextRequest, eventId: string, announc
 
   const internalOk = currentStatus === 'approved' || currentStatus === 'approved_with_comments' || !!bypasses?.internal_approval_bypassed_at
   if (!internalOk) {
-    return { ok: false, message: `Cannot publish — internal approval is still '${currentStatus}', or you need permission to skip approval` }
+    return { ok: false, message: `Cannot publish — internal approval is still '${currentStatus}'` }
   }
 
   const latestStatus = (layer: 'external' | 'client') => (layered ?? []).find(r => r.layer === layer)?.status ?? 'none'
@@ -63,12 +62,12 @@ export async function checkCanPublish(req: NextRequest, eventId: string, announc
 
   const externalStatus = latestStatus('external')
   if (!layerOk(externalStatus, bypasses?.external_approval_bypassed_at)) {
-    return { ok: false, message: `Cannot publish — external approval is ${externalStatus === 'changes_requested' ? 'requesting changes' : 'pending'}, or you need permission to skip approval` }
+    return { ok: false, message: `Cannot publish — external approval is ${externalStatus === 'changes_requested' ? 'requesting changes' : 'pending'}` }
   }
 
   const clientStatus = latestStatus('client')
   if (!layerOk(clientStatus, bypasses?.client_approval_bypassed_at)) {
-    return { ok: false, message: `Cannot publish — client approval is ${clientStatus === 'changes_requested' ? 'requesting changes' : 'pending'}, or you need permission to skip approval` }
+    return { ok: false, message: `Cannot publish — client approval is ${clientStatus === 'changes_requested' ? 'requesting changes' : 'pending'}` }
   }
 
   return { ok: true }

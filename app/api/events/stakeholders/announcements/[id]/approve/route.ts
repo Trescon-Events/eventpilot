@@ -55,7 +55,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   if (updateErr) return NextResponse.json({ error: updateErr.message }, { status: 500 })
 
   if (approval.layer === 'external' || approval.layer === 'client') {
-    await notifyMM(id, body.status, approval.layer, approval.sent_by_email).catch(e => console.error('MM notification failed (approval still recorded):', e))
+    await notifyMM(id, body.status, approval.layer, approval.sent_by_email, body.comments ?? null).catch(e => console.error('MM notification failed (approval still recorded):', e))
     return NextResponse.json({
       ok: true, announcement_status: null,
       ...(approval.layer === 'external' ? { external_approval_status: body.status } : { client_approval_status: body.status }),
@@ -85,24 +85,40 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       .update({ status: newAnnouncementStatus, updated_at: new Date().toISOString() })
       .eq('id', id)
 
-    await notifyMM(id, newAnnouncementStatus, 'internal', internalSentByEmail).catch(e => console.error('MM notification failed (approval still recorded):', e))
+    await notifyMM(id, newAnnouncementStatus, 'internal', internalSentByEmail, body.comments ?? null).catch(e => console.error('MM notification failed (approval still recorded):', e))
   }
 
   return NextResponse.json({ ok: true, announcement_status: newAnnouncementStatus ?? 'pending_approval' })
 }
 
-async function notifyMM(announcementId: string, newStatus: string, layer: 'internal' | 'external' | 'client', sentByEmail: string | null) {
+async function notifyMM(announcementId: string, newStatus: string, layer: 'internal' | 'external' | 'client', sentByEmail: string | null, comments: string | null) {
   if (!process.env.RESEND_API_KEY) return
 
   const { data: announcement } = await supabaseAdmin
     .from('stakeholder_announcements')
-    .select('created_by, speaker_id, partner_id, event:event_id(id, name), creator:created_by(email, name)')
+    .select('created_by, speaker_id, partner_id, announcement_kind, post_copy, event:event_id(id, name), creator:created_by(email, name)')
     .eq('id', announcementId)
     .single()
   if (!announcement) return
 
   const creator = Array.isArray(announcement.creator) ? announcement.creator[0] : announcement.creator
   const event   = Array.isArray(announcement.event) ? announcement.event[0] : announcement.event
+
+  // Real bug fix (2026-08-29, per Madhu, live: "this notification itself
+  // should include more details as to which speaker what was the
+  // approval for.. it hardly has any info"). Was a one-line "the client
+  // have signed off" with zero context on WHICH announcement — the
+  // reader had to click through blind to find out. Now names the actual
+  // stakeholder and quotes the reviewer's own comment when there is one.
+  let stakeholderName: string | null = null
+  if (announcement.speaker_id) {
+    const { data: s } = await supabaseAdmin.from('event_speakers').select('name').eq('id', announcement.speaker_id).single()
+    stakeholderName = s?.name ?? null
+  } else if (announcement.partner_id) {
+    const { data: p } = await supabaseAdmin.from('event_sponsors').select('name').eq('id', announcement.partner_id).single()
+    stakeholderName = p?.name ?? null
+  }
+  const kindLabel = announcement.announcement_kind === 'self_promo' ? 'Self Promo' : 'Promo'
   // Real bug fix (2026-08-29, found live by Madhu): this used to notify
   // ONLY the announcement's original creator, a global field with nothing
   // to do with who actually sent THIS approval round — frequently null
@@ -120,11 +136,12 @@ async function notifyMM(announcementId: string, newStatus: string, layer: 'inter
   const headerHtml = await getStakeholderEmailHeaderHtml()
 
   const isApproved = newStatus === 'approved' || newStatus === 'approved_with_comments'
-  const layerLabel = layer === 'external' ? 'The speaker/office' : layer === 'client' ? 'The client' : 'All internal approvers'
+  const layerLabel = layer === 'external' ? 'The speaker/office has' : layer === 'client' ? 'The client has' : 'All internal approvers have'
   const layerSubjectPrefix = layer === 'external' ? 'Externally approved' : layer === 'client' ? 'Client-approved' : 'Approved'
+  const subjectContext = stakeholderName ? `${stakeholderName} (${kindLabel})` : `${kindLabel} announcement`
   const subject = isApproved
-    ? `${layerSubjectPrefix}: announcement for ${event?.name ?? 'your event'}`
-    : `Changes requested: announcement for ${event?.name ?? 'your event'}`
+    ? `${layerSubjectPrefix}: ${subjectContext} — ${event?.name ?? 'your event'}`
+    : `Changes requested: ${subjectContext} — ${event?.name ?? 'your event'}`
   // Deep-links straight to this announcement (same convention as
   // sync-status/route.ts's publishedUrl) rather than the generic
   // stakeholders list — the whole point of this email is "come look at
@@ -134,6 +151,12 @@ async function notifyMM(announcementId: string, newStatus: string, layer: 'inter
     ? `${siteUrl}/admin/events/${event?.id}/stakeholders/${stakeholderId}?tab=announcements&announcement=${announcementId}`
     : `${siteUrl}/admin/events/${event?.id}/stakeholders`
 
+  // Escaped before going into raw HTML — comments are free-text supplied
+  // by whoever holds the review link (an external/client reviewer, no
+  // EventPilot login needed), not trusted input.
+  const escapeHtml = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+  const stakeholderLine = stakeholderName ? `<strong>${escapeHtml(stakeholderName)}</strong> (${kindLabel}, ${event?.name ?? 'your event'})` : `a ${kindLabel} announcement for ${event?.name ?? 'your event'}`
+
   await resend.emails.send({
     from,
     to: recipientEmail,
@@ -141,8 +164,9 @@ async function notifyMM(announcementId: string, newStatus: string, layer: 'inter
     /* eslint-disable no-restricted-syntax -- email HTML; clients can't render CSS custom properties, literal colors required (matches app/api/content/posts/[id]/approve/route.ts's existing convention) */
     html: `<div style="font-family:sans-serif;max-width:520px;margin:0 auto">${headerHtml}
            <p style="font-size:14px;color:#2D3E50">
-             ${isApproved ? `${layerLabel} have signed off on this announcement.` : `${layer === 'external' ? 'The external reviewer' : layer === 'client' ? 'The client' : 'An approver'} has requested changes to this announcement.`}
+             ${isApproved ? `${layerLabel} signed off on ${stakeholderLine}.` : `${layer === 'external' ? 'The external reviewer' : layer === 'client' ? 'The client' : 'An approver'} requested changes to ${stakeholderLine}.`}
            </p>
+           ${comments?.trim() ? `<p style="font-size:13px;color:#0F1923;white-space:pre-wrap;background:#F5F7FA;padding:12px;border-radius:8px;font-style:italic">&quot;${escapeHtml(comments.trim())}&quot;</p>` : ''}
            <p><a href="${reviewUrl}" style="color:#00695C">Review in EventPilot →</a></p></div>`,
     /* eslint-enable no-restricted-syntax */
   })

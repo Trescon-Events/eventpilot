@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { Button, Badge } from '@/app/components/ui'
+import { Button, Badge, Toast } from '@/app/components/ui'
 import { permissionSetSatisfies } from '@/app/lib/access/permission-match'
 import type { Variant, CreativeTemplateConfig } from '@/app/lib/announcements/composite'
 import AnnouncementDetailPanel from '../../creative-templates/AnnouncementDetailPanel'
@@ -116,11 +116,13 @@ export default function AnnouncementsTab({
 
   return (
     <div>
-      {msg && (
-        <div style={{ padding: '10px 14px', borderRadius: '8px', background: 'var(--red-light)', border: '1px solid var(--red-border)', color: 'var(--red)', fontSize: '12.5px', marginBottom: '16px' }}>
-          {msg} <button onClick={() => setMsg(null)} style={{ background: 'none', border: 'none', color: 'inherit', cursor: 'pointer', fontWeight: 700, marginLeft: '8px' }}>×</button>
-        </div>
-      )}
+      {/* 2026-08-29 fix, per Madhu, live: this used to be a plain inline
+          banner at the TOP of the tab — invisible when the triggering
+          action (e.g. Post Now, far down the page past Copy/Approval/
+          Publishing) doesn't scroll the user back up to see it, which
+          read as "nothing happened" on click. Same shared top-right Toast
+          every other success/error message in this app already uses. */}
+      <Toast message={msg} type="error" onClose={() => setMsg(null)} />
 
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
         <div style={{ fontSize: '10.5px', fontWeight: 800, color: 'var(--ink3)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>

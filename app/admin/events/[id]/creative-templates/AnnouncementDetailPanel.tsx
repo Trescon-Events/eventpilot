@@ -799,6 +799,27 @@ export default function AnnouncementDetailPanel({
           )}
         </div>
 
+        {/* Publish lock (2026-08-29, per Madhu, live: "until all approvals
+            are either exempted or approved, the publish section should
+            not even be clickable... greyed out"). Was previously bypassed
+            entirely for anyone with sae.announcements.publish (2026-08-16
+            skip-approval feature) — Madhu hit this directly with his own
+            account: the buttons were fully live for him regardless of
+            approval state, so clicking Post Now just hit an unrelated
+            "pick a channel" validation instead of ever reaching an
+            approval block. Asked explicitly whether to keep the skip
+            (made visually obvious) or remove it outright; chose removal —
+            see checkCanPublish's own doc comment for the matching
+            server-side change. Channels/date/Schedule/Post Now are now
+            always rendered (not hidden) but visually dimmed and
+            non-interactive while locked, with this banner explaining why —
+            "not even clickable," not "mysteriously absent." */}
+        {!readyToPublish && announcement.status !== 'published' && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '10px 12px', borderRadius: '8px', background: 'var(--amber-light)', border: '1px solid var(--amber-border)', color: 'var(--amber)', fontSize: '12.5px', fontWeight: 700, marginBottom: '12px' }}>
+            🔒 Publishing is locked until Internal, Client, and External approval are all approved or exempted — see the Approval section above.
+          </div>
+        )}
+        <div style={{ opacity: readyToPublish ? 1 : 0.5, pointerEvents: readyToPublish ? 'auto' : 'none' }}>
         <div style={{ fontSize: '11px', fontWeight: 700, color: 'var(--ink3)', marginBottom: '6px' }}>Channels</div>
         {/* YouTube is excluded here (2026-08-27) — these announcement creatives
             are always a static image, and YouTube's API rejects image-only
@@ -938,30 +959,35 @@ export default function AnnouncementDetailPanel({
         )}
 
         <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center' }}>
-          {(readyToPublish
-            || ((announcement.status === 'draft' || announcement.status === 'changes_requested') && can('sae.announcements.publish'))) && (
+          {can('sae.announcements.publish') && (
             <>
-              <input type="datetime-local" value={scheduleAt} onChange={e => setScheduleAt(e.target.value)}
+              <input type="datetime-local" value={scheduleAt} onChange={e => setScheduleAt(e.target.value)} disabled={!readyToPublish}
                 style={{ padding: '7px 10px', borderRadius: '8px', border: '1px solid var(--border)', fontSize: '12.5px', fontFamily: 'inherit', color: 'var(--ink)' }} />
-              <Button variant="ghost" onClick={scheduleClick} disabled={publishing !== null}>
+              <Button variant="ghost" onClick={scheduleClick} disabled={publishing !== null || !readyToPublish}>
                 Schedule
               </Button>
-              <Button variant="lime" onClick={publishNow} disabled={publishing !== null}>
+              <Button variant="lime" onClick={publishNow} disabled={publishing !== null || !readyToPublish}>
                 Post Now
               </Button>
             </>
           )}
           {announcement.status === 'failed' && (
-            <Button variant="red" onClick={retryPublish} disabled={publishing !== null}>
+            <Button variant="red" onClick={retryPublish} disabled={publishing !== null || !readyToPublish}>
               Retry
             </Button>
           )}
-          {shareablePlatformLinks().length > 0 && (
+        </div>
+        </div>
+        {/* Deliberately OUTSIDE the locked wrapper above — sharing a
+            preview internally via WhatsApp isn't publishing anything
+            publicly, so it stays available regardless of approval state. */}
+        {shareablePlatformLinks().length > 0 && (
+          <div style={{ marginTop: '8px' }}>
             <Button variant="ghost" onClick={shareToTeam} title="Opens WhatsApp with the message pre-filled — pick your team's announcements group and send">
               Share to Team on WhatsApp
             </Button>
-          )}
-        </div>
+          </div>
+        )}
 
         {announcement.status === 'published' && (
           <div style={{ marginTop: '16px', paddingTop: '16px', borderTop: '1px solid var(--border-light)' }}>
