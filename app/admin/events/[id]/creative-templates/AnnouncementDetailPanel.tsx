@@ -11,6 +11,7 @@ import type { Variant } from '@/app/lib/announcements/composite'
 import { PLATFORM_CHAR_LIMITS } from '@/app/lib/announcements/platform-limits'
 import SendToSpeakerComposer from './SendToSpeakerComposer'
 import SendForExternalApprovalComposer from './SendForExternalApprovalComposer'
+import SendForClientApprovalComposer from './SendForClientApprovalComposer'
 import PostizCalendar, { type ScheduledPost } from './PostizCalendar'
 import {
   displayName, displaySubtitle, statusColor, plainToHtml, PLATFORM_LABELS,
@@ -53,6 +54,9 @@ export default function AnnouncementDetailPanel({
   eventStaff,
   eventId,
   eventName,
+  clientContactName,
+  clientContactJobTitle,
+  clientContactEmail,
   onUpdate,
   onError,
 }: {
@@ -74,6 +78,13 @@ export default function AnnouncementDetailPanel({
   // isn't threaded through yet; the message just omits the event name if
   // this isn't passed, rather than the button disappearing outright.
   eventName?: string | null
+  // The event's single Client Approval contact (2026-08-29) — set on the
+  // event workspace's own edit page. Whether client_contact_email is set
+  // at all is what decides if the Client Approval card even shows for
+  // this event (most events don't have one) — see hasClientApproval below.
+  clientContactName?: string | null
+  clientContactJobTitle?: string | null
+  clientContactEmail?: string | null
   onUpdate: (patch: Partial<AnnouncementListItem>) => void
   onError: (msg: string) => void
 }) {
@@ -87,7 +98,8 @@ export default function AnnouncementDetailPanel({
   const [variantChoice, setVariantChoice] = useState('')
   const [sendToSpeakerOpen, setSendToSpeakerOpen] = useState(false)
   const [sendForExternalApprovalOpen, setSendForExternalApprovalOpen] = useState(false)
-  const [bypassing, setBypassing] = useState<'internal' | 'external' | null>(null)
+  const [sendForClientApprovalOpen, setSendForClientApprovalOpen] = useState(false)
+  const [bypassing, setBypassing] = useState<'internal' | 'external' | 'client' | null>(null)
   const [publishModalMode, setPublishModalMode] = useState<'now' | 'retry' | null>(null)
   const [scheduleModalOpen, setScheduleModalOpen] = useState(false)
   const [confirmingTagging, setConfirmingTagging] = useState(false)
@@ -265,7 +277,7 @@ export default function AnnouncementDetailPanel({
     } else onError(data.error || 'Could not send for approval.')
   }
 
-  async function setBypassApproval(layer: 'internal' | 'external', bypassed: boolean) {
+  async function setBypassApproval(layer: 'internal' | 'external' | 'client', bypassed: boolean) {
     setBypassing(layer)
     const res = await fetch(`/api/events/stakeholders/announcements/${announcement.id}/bypass-approval`, {
       method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ layer, bypassed }),
@@ -275,7 +287,9 @@ export default function AnnouncementDetailPanel({
     if (res.ok) {
       onUpdate(layer === 'internal'
         ? { internal_approval_bypassed_at: data.internal_approval_bypassed_at }
-        : { external_approval_bypassed_at: data.external_approval_bypassed_at })
+        : layer === 'external'
+        ? { external_approval_bypassed_at: data.external_approval_bypassed_at }
+        : { client_approval_bypassed_at: data.client_approval_bypassed_at })
     } else onError(data.error || 'Could not update approval.')
   }
 
@@ -415,20 +429,33 @@ export default function AnnouncementDetailPanel({
     ? { label: 'Sending for approval…', estimatedMs: 1500 }
     : null
 
-  // Two-layer approval readiness (2026-08-26). internalDone mirrors the
+  // Two-layer approval readiness (2026-08-26), extended to three
+  // (2026-08-29, per Madhu — "all three should be either approved or
+  // exempted for the next step to be activated"). internalDone mirrors the
   // exact condition Schedule/Post Now/Send-to-Speaker already used before
   // this feature existed (status flipped by internal approvers resolving,
-  // via approve/route.ts) — OR'd with the internal bypass flag. externalOk
-  // defaults to true for the vast majority of announcements that never
-  // touch the external flow at all ('none'), so nothing changes for them;
-  // it only holds things up once someone has actually clicked "Send for
-  // External Approval" and it's still pending or came back with changes
-  // requested, unless that round was itself bypassed.
+  // via approve/route.ts) — OR'd with the internal bypass flag. clientOk/
+  // externalOk both default to true for the vast majority of announcements
+  // that never touch that round at all ('none' — most events have no
+  // Client Approval contact configured, so that layer never even shows —
+  // see hasClientApproval below), so nothing changes for them; each only
+  // holds things up once someone has actually sent that round and it's
+  // still pending or came back with changes requested, unless bypassed.
+  // Same three conditions are enforced server-side too — see
+  // checkCanPublish in app/lib/events/postiz-publish.ts.
+  // Most events have no client contact configured at all — the Client
+  // Approval card, and its contribution to readiness, only exist for the
+  // ones that do (set on the event workspace's own edit page).
+  const hasClientApproval = !!clientContactEmail
   const internalApproved = announcement.status === 'approved' || announcement.status === 'approved_with_comments'
+  const clientApproved = announcement.client_approval_status === 'approved' || announcement.client_approval_status === 'approved_with_comments'
   const externalApproved = announcement.external_approval_status === 'approved' || announcement.external_approval_status === 'approved_with_comments'
   const internalDone = internalApproved || !!announcement.internal_approval_bypassed_at
+  const clientOk = announcement.client_approval_status === 'none' || clientApproved || !!announcement.client_approval_bypassed_at
   const externalOk = announcement.external_approval_status === 'none' || externalApproved || !!announcement.external_approval_bypassed_at
-  const readyToPublish = internalDone && externalOk
+  const readyToPublish = internalDone && clientOk && externalOk
+  const clientApprovalPending = announcement.client_approval_status === 'pending' && !announcement.client_approval_bypassed_at
+  const clientChangesRequested = announcement.client_approval_status === 'changes_requested' && !announcement.client_approval_bypassed_at
   const externalApprovalPending = announcement.external_approval_status === 'pending' && !announcement.external_approval_bypassed_at
   const externalChangesRequested = announcement.external_approval_status === 'changes_requested' && !announcement.external_approval_bypassed_at
 
@@ -457,6 +484,11 @@ export default function AnnouncementDetailPanel({
     : announcement.internal_approval_bypassed_at ? approvalPill('Exempted', 'purple')
     : announcement.status === 'changes_requested' ? approvalPill('Changes requested', 'red')
     : announcement.status === 'pending_approval' ? approvalPill('Pending', 'amber')
+    : approvalPill('Not sent', 'grey')
+  const clientPill = clientApproved ? approvalPill(announcement.client_approval_status === 'approved_with_comments' ? 'Approved (comments)' : 'Approved', 'teal')
+    : announcement.client_approval_bypassed_at ? approvalPill('Exempted', 'purple')
+    : announcement.client_approval_status === 'changes_requested' ? approvalPill('Changes requested', 'red')
+    : announcement.client_approval_status === 'pending' ? approvalPill('Pending', 'amber')
     : approvalPill('Not sent', 'grey')
   const externalPill = externalApproved ? approvalPill(announcement.external_approval_status === 'approved_with_comments' ? 'Approved (comments)' : 'Approved', 'teal')
     : announcement.external_approval_bypassed_at ? approvalPill('Exempted', 'purple')
@@ -572,7 +604,7 @@ export default function AnnouncementDetailPanel({
       <div style={{ padding: '18px 20px', borderRadius: '12px', border: '1px solid var(--border-light)', background: 'var(--surface)' }}>
         <div style={{ fontSize: '12px', fontWeight: 800, color: 'var(--ink3)', textTransform: 'uppercase', letterSpacing: '0.6px', marginBottom: '14px' }}>Approval</div>
 
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '18px' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: hasClientApproval ? '1fr 1fr 1fr' : '1fr 1fr', gap: '18px' }}>
           {/* Internal */}
           <div style={{ border: '1px solid var(--border-light)', borderRadius: '10px', padding: '16px' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '10px', marginBottom: '14px' }}>
@@ -592,6 +624,31 @@ export default function AnnouncementDetailPanel({
               </div>
             )}
           </div>
+
+          {/* Client — only for events with a client contact configured
+              (2026-08-29, per Madhu: "for some events... there will be an
+              additional layer of approval"). Sits between Internal and
+              External, same order he specified. */}
+          {hasClientApproval && (
+          <div style={{ border: '1px solid var(--border-light)', borderRadius: '10px', padding: '16px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '10px', marginBottom: '14px' }}>
+              <div style={{ fontSize: '13.5px', fontWeight: 800, color: 'var(--ink)' }}>Client Approval</div>
+              {clientPill}
+            </div>
+            {!clientApproved && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: '14px', flexWrap: 'wrap' }}>
+                <Button variant="ghost" onClick={() => setSendForClientApprovalOpen(true)}>
+                  Send for Client Approval
+                </Button>
+                <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13.5px', color: 'var(--ink2)', cursor: bypassing ? 'default' : 'pointer' }}>
+                  <input type="checkbox" checked={!!announcement.client_approval_bypassed_at} disabled={bypassing !== null}
+                    onChange={e => setBypassApproval('client', e.target.checked)} style={{ width: '16px', height: '16px' }} />
+                  Not required / Reviewed
+                </label>
+              </div>
+            )}
+          </div>
+          )}
 
           {/* External */}
           <div style={{ border: '1px solid var(--border-light)', borderRadius: '10px', padding: '16px' }}>
@@ -614,6 +671,12 @@ export default function AnnouncementDetailPanel({
           </div>
         </div>
 
+        {clientApprovalPending && (
+          <div style={{ fontSize: '13px', color: 'var(--ink2)', marginTop: '12px' }}>Waiting on the client reviewer — publishing is on hold until they respond, or you check &quot;Not required / Reviewed&quot; above.</div>
+        )}
+        {clientChangesRequested && (
+          <div style={{ fontSize: '13px', color: 'var(--red)', marginTop: '12px' }}>The client requested changes — update the copy/creative above and send again, or check &quot;Not required / Reviewed&quot; if it&apos;s already been resolved another way.</div>
+        )}
         {externalApprovalPending && (
           <div style={{ fontSize: '13px', color: 'var(--ink2)', marginTop: '12px' }}>Waiting on the external reviewer — publishing is on hold until they respond, or you check &quot;Not required / Reviewed&quot; above.</div>
         )}
@@ -920,6 +983,18 @@ export default function AnnouncementDetailPanel({
           initialRecipientEmail={stakeholderKind === 'speaker' ? speakerEmail(stakeholder as Speaker) : ''}
           onClose={() => setSendForExternalApprovalOpen(false)}
           onSent={() => onUpdate({ external_approval_status: 'pending' })}
+        />
+      )}
+
+      {sendForClientApprovalOpen && (
+        <SendForClientApprovalComposer
+          announcementId={announcement.id}
+          eventName={eventName}
+          clientContactName={clientContactName}
+          clientContactJobTitle={clientContactJobTitle}
+          clientContactEmail={clientContactEmail}
+          onClose={() => setSendForClientApprovalOpen(false)}
+          onSent={() => onUpdate({ client_approval_status: 'pending' })}
         />
       )}
 

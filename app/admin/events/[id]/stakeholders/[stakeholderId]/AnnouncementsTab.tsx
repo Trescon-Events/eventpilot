@@ -47,6 +47,7 @@ export default function AnnouncementsTab({
   const [defaultChannelIds, setDefaultChannelIds] = useState<string[]>([])
   const [eventStaff, setEventStaff] = useState<EventStaffOption[]>([])
   const [eventName, setEventName] = useState<string | null>(null)
+  const [clientContact, setClientContact] = useState<{ name: string | null; jobTitle: string | null; email: string | null }>({ name: null, jobTitle: null, email: null })
 
   async function fetchAll() {
     setLoading(true)
@@ -74,6 +75,7 @@ export default function AnnouncementsTab({
     const ev = Array.isArray(evData) ? evData[0] : evData
     setDefaultChannelIds(ev?.postiz_default_channel_ids ?? [])
     setEventName(ev?.name ?? null)
+    setClientContact({ name: ev?.client_contact_name ?? null, jobTitle: ev?.client_contact_job_title ?? null, email: ev?.client_contact_email ?? null })
     const stData = await stRes.json().catch(() => [])
     setEventStaff(Array.isArray(stData) ? stData : [])
     setLoading(false)
@@ -179,6 +181,9 @@ export default function AnnouncementsTab({
           eventStaff={eventStaff}
           eventId={eventId}
           eventName={eventName}
+          clientContactName={clientContact.name}
+          clientContactJobTitle={clientContact.jobTitle}
+          clientContactEmail={clientContact.email}
           onUpdate={onUpdate}
           onError={setMsg}
         />

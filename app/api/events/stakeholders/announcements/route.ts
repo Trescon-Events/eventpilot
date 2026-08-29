@@ -17,7 +17,7 @@ export async function GET(req: NextRequest) {
 
   let q = supabaseAdmin
     .from('stakeholder_announcements')
-    .select('id, stakeholder_type, speaker_id, partner_id, post_copy, post_copy_x, creative_url, creative_variant_id, status, created_at, scheduled_for, platforms, published_at, postiz_channel_ids, publish_results, announcement_kind, internal_approval_bypassed_at, external_approval_bypassed_at, tagging_confirmed_at, internal_notified_at, internal_notification_reminder_count, internal_notification_last_sent_at, external_notified_at, external_notification_reminder_count, external_notification_last_sent_at, external_notification_recipient_name, external_notification_recipient_email')
+    .select('id, stakeholder_type, speaker_id, partner_id, post_copy, post_copy_x, creative_url, creative_variant_id, status, created_at, scheduled_for, platforms, published_at, postiz_channel_ids, publish_results, announcement_kind, internal_approval_bypassed_at, external_approval_bypassed_at, client_approval_bypassed_at, tagging_confirmed_at, internal_notified_at, internal_notification_reminder_count, internal_notification_last_sent_at, external_notified_at, external_notification_reminder_count, external_notification_last_sent_at, external_notification_recipient_name, external_notification_recipient_email')
     .eq('event_id', eventId)
     .order('scheduled_for', { ascending: true, nullsFirst: false })
 
@@ -45,24 +45,28 @@ export async function GET(req: NextRequest) {
   const speakerNames = new Map((speakers ?? []).map(s => [s.id, s.name]))
   const partnerNames = new Map((partners ?? []).map(p => [p.id, p.name]))
 
-  // Two-layer approval (2026-08-26) — external_approval_status is derived
-  // from the MOST RECENT layer='external' announcement_approvals row per
-  // announcement (a resend after e.g. a wrong email creates a new row; the
-  // Publishing panel's readiness check should only ever look at the latest
-  // one), not stored as its own column, so there's nothing to keep in sync
-  // if the approvals table changes. 'none' — never sent, doesn't block
-  // anything (existing internal-only announcements are unaffected).
+  // Two-layer approval (2026-08-26), extended to three (2026-08-29) —
+  // external_approval_status and client_approval_status are both derived
+  // from the MOST RECENT layer='external'/'client' announcement_approvals
+  // row per announcement (a resend after e.g. a wrong email creates a new
+  // row; the Publishing panel's readiness check should only ever look at
+  // the latest one), not stored as their own columns, so there's nothing to
+  // keep in sync if the approvals table changes. 'none' — never sent,
+  // doesn't block anything (existing internal-only announcements, or
+  // events with no Client Approval contact configured, are unaffected).
   const announcementIds = (data ?? []).map(a => a.id)
   const externalStatusById = new Map<string, string>()
+  const clientStatusById = new Map<string, string>()
   if (announcementIds.length > 0) {
-    const { data: externalApprovals } = await supabaseAdmin
+    const { data: layeredApprovals } = await supabaseAdmin
       .from('announcement_approvals')
-      .select('announcement_id, status, created_at')
+      .select('announcement_id, layer, status, created_at')
       .in('announcement_id', announcementIds)
-      .eq('layer', 'external')
+      .in('layer', ['external', 'client'])
       .order('created_at', { ascending: false })
-    for (const row of externalApprovals ?? []) {
-      if (!externalStatusById.has(row.announcement_id)) externalStatusById.set(row.announcement_id, row.status)
+    for (const row of layeredApprovals ?? []) {
+      const byId = row.layer === 'external' ? externalStatusById : clientStatusById
+      if (!byId.has(row.announcement_id)) byId.set(row.announcement_id, row.status)
     }
   }
 
@@ -70,6 +74,7 @@ export async function GET(req: NextRequest) {
     ...a,
     stakeholder_name: a.speaker_id ? speakerNames.get(a.speaker_id) : a.partner_id ? partnerNames.get(a.partner_id) : null,
     external_approval_status: externalStatusById.get(a.id) ?? 'none',
+    client_approval_status: clientStatusById.get(a.id) ?? 'none',
   }))
 
   return NextResponse.json(enriched)

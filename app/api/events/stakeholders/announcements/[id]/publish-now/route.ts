@@ -17,7 +17,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   const { data: existing } = await supabaseAdmin.from('stakeholder_announcements').select('event_id, status').eq('id', id).single()
   if (!existing) return NextResponse.json({ error: 'Announcement not found' }, { status: 404 })
 
-  const permCheck = await checkCanPublish(req, existing.event_id, existing.status)
+  const permCheck = await checkCanPublish(req, existing.event_id, id, existing.status)
   if (!permCheck.ok) return NextResponse.json({ error: permCheck.message }, { status: 422 })
 
   try {

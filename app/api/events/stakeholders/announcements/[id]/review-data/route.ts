@@ -44,7 +44,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     sent_by: approval.sent_by_name ?? creator?.name ?? null,
     sent_at: approval.notified_at,
     approver_name: approver?.name ?? approval.external_name ?? null,
-    approver_role: approval.layer === 'external' ? 'External Reviewer' : approval.approver_role,
+    approver_role: approval.layer === 'external' ? 'External Reviewer' : approval.layer === 'client' ? 'Client Reviewer' : approval.approver_role,
     approval_status: approval.status,
     post_copy: announcement.post_copy,
     creative_url: announcement.creative_url,

@@ -47,6 +47,13 @@ type Event = {
   venue_map_url: string | null
   postiz_profile_key: string | null
   postiz_default_channel_ids: string[] | null
+  // Client Approval's single contact (2026-08-29) — for events Trescon
+  // manages on behalf of another client (e.g. DFS/DFFW events managed for
+  // DIFC). Whether client_contact_email is set is what decides whether the
+  // Client Approval layer even shows in the Announcement panel.
+  client_contact_name: string | null
+  client_contact_job_title: string | null
+  client_contact_email: string | null
 }
 
 type PostizChannel = { id: string; name: string; identifier: string; picture: string | null; disabled: boolean }
@@ -168,6 +175,7 @@ export default function EventWorkspacePage({ params }: { params: Promise<{ id: s
   const [editForm,       setEditForm]       = useState({
     name: '', type: '', status: '', event_date: '', end_date: '', venue: '', city: '', client_name: '', description: '', expected_attendance: '',
     event_format: '', country: '', postiz_profile_key: '',
+    client_contact_name: '', client_contact_job_title: '', client_contact_email: '',
   })
   const [savingEdit,     setSavingEdit]     = useState(false)
   // Postiz "Connected Channels" — kept separate from editForm (a plain
@@ -299,6 +307,9 @@ export default function EventWorkspacePage({ params }: { params: Promise<{ id: s
       country:           editForm.country || null,
       postiz_profile_key: editForm.postiz_profile_key || null,
       postiz_default_channel_ids: defaultChannelIds,
+      client_contact_name:      editForm.client_contact_name || null,
+      client_contact_job_title: editForm.client_contact_job_title || null,
+      client_contact_email:     editForm.client_contact_email || null,
     }
     const res  = await fetch(`/api/events?id=${eventId}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
     if (res.ok) { setEditing(false); fetchAll() }
@@ -350,6 +361,9 @@ export default function EventWorkspacePage({ params }: { params: Promise<{ id: s
         event_format:        ev.event_format ?? '',
         country:             ev.country ?? '',
         postiz_profile_key:  ev.postiz_profile_key ?? '',
+        client_contact_name:      ev.client_contact_name ?? '',
+        client_contact_job_title: ev.client_contact_job_title ?? '',
+        client_contact_email:     ev.client_contact_email ?? '',
       })
       setDefaultChannelIds(ev.postiz_default_channel_ids ?? [])
       fetchPostizChannels()
@@ -806,6 +820,37 @@ export default function EventWorkspacePage({ params }: { params: Promise<{ id: s
                         })}
                       </div>
                     )}
+                  </div>
+
+                  {/* Client Approval Contact (2026-08-29, per Madhu) — for
+                      events Trescon manages on behalf of another client
+                      (e.g. DFS/DFFW events managed for DIFC). Leaving email
+                      blank keeps this event on the standard two-layer
+                      (Internal + External) approval flow — the Client
+                      Approval card in the Announcement panel only appears
+                      once an email is set here. Same "one event-scoped
+                      value, no dedicated table" shape as Postiz Customer ID
+                      above. */}
+                  <div style={{ fontSize: '11px', fontWeight: 800, letterSpacing: '0.8px', color: 'var(--teal-mid)', margin: '20px 0 10px', textTransform: 'uppercase' }}>Client Approval Contact (Optional)</div>
+                  <div style={{ fontSize: '10.5px', color: 'var(--ink3)', marginBottom: '10px', lineHeight: 1.4 }}>
+                    Set this only for events managed on behalf of another client — it adds a third &quot;Client Approval&quot; round between Internal and External approval, sent to this contact by default.
+                  </div>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '12px' }}>
+                    <div>
+                      <label style={{ fontSize: '11px', fontWeight: 700, color: 'var(--ink3)', display: 'block', marginBottom: '4px' }}>NAME</label>
+                      <input type="text" value={editForm.client_contact_name} onChange={e => setEditForm(f => ({ ...f, client_contact_name: e.target.value }))}
+                        style={{ width: '100%', padding: '9px 12px', borderRadius: '8px', border: '1px solid var(--border)', fontSize: '13px', fontFamily: 'inherit', color: 'var(--ink)', boxSizing: 'border-box' }} />
+                    </div>
+                    <div>
+                      <label style={{ fontSize: '11px', fontWeight: 700, color: 'var(--ink3)', display: 'block', marginBottom: '4px' }}>JOB TITLE</label>
+                      <input type="text" value={editForm.client_contact_job_title} onChange={e => setEditForm(f => ({ ...f, client_contact_job_title: e.target.value }))}
+                        style={{ width: '100%', padding: '9px 12px', borderRadius: '8px', border: '1px solid var(--border)', fontSize: '13px', fontFamily: 'inherit', color: 'var(--ink)', boxSizing: 'border-box' }} />
+                    </div>
+                    <div>
+                      <label style={{ fontSize: '11px', fontWeight: 700, color: 'var(--ink3)', display: 'block', marginBottom: '4px' }}>EMAIL</label>
+                      <input type="email" value={editForm.client_contact_email} onChange={e => setEditForm(f => ({ ...f, client_contact_email: e.target.value }))}
+                        style={{ width: '100%', padding: '9px 12px', borderRadius: '8px', border: '1px solid var(--border)', fontSize: '13px', fontFamily: 'inherit', color: 'var(--ink)', boxSizing: 'border-box' }} />
+                    </div>
                   </div>
 
                   {/* ── Creative Templates (Sharp compositing, PRD v1.4 Phase C v3) ──

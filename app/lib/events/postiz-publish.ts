@@ -24,12 +24,54 @@ export class PublishValidationError extends Error {
 // sae.announcements.publish (2026-08-16, per Madhu: staff should be able
 // to skip the approval chain for routine posts, not just the mandatory
 // external-approver path). Admins always pass.
-export async function checkCanPublish(req: NextRequest, eventId: string, currentStatus: string): Promise<{ ok: true } | { ok: false; message: string }> {
-  if (currentStatus === 'approved' || currentStatus === 'approved_with_comments') return { ok: true }
+//
+// 2026-08-29 fix, per Madhu's own explicit requirement building the
+// three-layer approval feature ("Publish section should not even be
+// activated to do anything unless this condition is met") — this
+// previously only checked internal `currentStatus`, never external/client
+// approval at all. That was a real, silent gap: the client-side
+// readyToPublish check in AnnouncementDetailPanel.tsx already hid the
+// Schedule/Post Now buttons based on all three layers, but a direct API
+// call bypassed that entirely, since nothing server-side ever looked at
+// external/client_approval_status or their bypass flags. Now mirrors the
+// client-side readiness check exactly, so hiding the button and rejecting
+// the request agree in every case. canSkip remains the one intentional
+// override for all three layers at once, same as before this fix.
+export async function checkCanPublish(req: NextRequest, eventId: string, announcementId: string, currentStatus: string): Promise<{ ok: true } | { ok: false; message: string }> {
   const session = getSession(req)
   const canSkip = session?.adm || await hasEventPermission(session?.sid, eventId, 'sae.announcements.publish')
   if (canSkip) return { ok: true }
-  return { ok: false, message: `Cannot publish an announcement with status '${currentStatus}' — must be approved first, or you need permission to skip approval` }
+
+  const [{ data: bypasses }, { data: layered }] = await Promise.all([
+    supabaseAdmin.from('stakeholder_announcements')
+      .select('internal_approval_bypassed_at, external_approval_bypassed_at, client_approval_bypassed_at')
+      .eq('id', announcementId).single(),
+    supabaseAdmin.from('announcement_approvals')
+      .select('layer, status, created_at')
+      .eq('announcement_id', announcementId).in('layer', ['external', 'client'])
+      .order('created_at', { ascending: false }),
+  ])
+
+  const internalOk = currentStatus === 'approved' || currentStatus === 'approved_with_comments' || !!bypasses?.internal_approval_bypassed_at
+  if (!internalOk) {
+    return { ok: false, message: `Cannot publish — internal approval is still '${currentStatus}', or you need permission to skip approval` }
+  }
+
+  const latestStatus = (layer: 'external' | 'client') => (layered ?? []).find(r => r.layer === layer)?.status ?? 'none'
+  const layerOk = (status: string, bypassedAt: string | null | undefined) =>
+    status === 'none' || status === 'approved' || status === 'approved_with_comments' || !!bypassedAt
+
+  const externalStatus = latestStatus('external')
+  if (!layerOk(externalStatus, bypasses?.external_approval_bypassed_at)) {
+    return { ok: false, message: `Cannot publish — external approval is ${externalStatus === 'changes_requested' ? 'requesting changes' : 'pending'}, or you need permission to skip approval` }
+  }
+
+  const clientStatus = latestStatus('client')
+  if (!layerOk(clientStatus, bypasses?.client_approval_bypassed_at)) {
+    return { ok: false, message: `Cannot publish — client approval is ${clientStatus === 'changes_requested' ? 'requesting changes' : 'pending'}, or you need permission to skip approval` }
+  }
+
+  return { ok: true }
 }
 
 // Resolves the announcement's event + (optional) Postiz profile key,

@@ -84,14 +84,19 @@ export type AnnouncementListItem = {
   postiz_channel_ids: string[] | null
   publish_results: Record<string, { success: boolean; postId: string; state?: string; url?: string }> | null
   announcement_kind: 'org_promo' | 'self_promo'
-  // Two-layer approval (2026-08-26) — external_approval_status is derived
-  // server-side from the latest layer='external' announcement_approvals
-  // row ('none' if never sent); the two bypassed_at fields are set by the
-  // "not required" checkboxes. See AnnouncementDetailPanel.tsx's Approval
-  // section for how these combine into the publish-readiness check.
+  // Two-layer approval (2026-08-26), extended to three (2026-08-29, per
+  // Madhu — a middle "Client Approval" round for events Trescon manages on
+  // behalf of another client, e.g. DFS/DIFC) — external/client_approval_status
+  // are both derived server-side the same way, from the latest
+  // layer='external'/'client' announcement_approvals row ('none' if never
+  // sent); the bypassed_at fields are set by the "not required" checkboxes.
+  // See AnnouncementDetailPanel.tsx's Approval section for how these
+  // combine into the publish-readiness check.
   external_approval_status: 'none' | 'pending' | 'approved' | 'approved_with_comments' | 'changes_requested'
+  client_approval_status: 'none' | 'pending' | 'approved' | 'approved_with_comments' | 'changes_requested'
   internal_approval_bypassed_at: string | null
   external_approval_bypassed_at: string | null
+  client_approval_bypassed_at: string | null
   // Post-publish notify flow (2026-08-27) — tagging_confirmed_at is the
   // single hard-gate checkbox (both "confirmed" and "bypass" in one, see
   // confirm-tagging/route.ts); the notified_at pair is each channel's
