@@ -49,7 +49,7 @@ Deploy = `git push origin main`. No CLI commands, no manual steps.
 | Styling | **Inline styles only** | No Tailwind, no CSS framework. All styles are written as JS objects |
 | Font | **Manrope** | Platform-wide, loaded via Google Fonts |
 | Auth | Microsoft 365 SSO | `tcs_session` httpOnly cookie (30 days) |
-| Email | **Resend** | From `noreply@eventpilot.tresconglobal.com` |
+| Email | **Resend** for system/notification email (`noreply@eventpilot.tresconglobal.com`); **Microsoft Graph** (`sendMail`, app-only client-credentials grant reusing the same SSO app registration) for anything that should look like it's genuinely from the logged-in staffer — approval requests, Send to Speaker, invites. Confirmed 2026-08-29: sends as the real staffer's own mailbox, lands in their own Sent Items, no per-user OAuth needed. |
 | Dev port | **3000** | Always |
 
 ### Critical: Styling Convention
@@ -462,7 +462,8 @@ When describing AI features in your prompt, specify:
 | Microsoft Entra ID | Staff SSO login | Railway env vars |
 | Supabase | Database + file storage | Railway env vars |
 | Google Gemini | AI features | `GEMINI_API_KEY` in Railway |
-| Resend | Transactional email | `RESEND_API_KEY` in Railway |
+| Resend | Transactional/system email | `RESEND_API_KEY` in Railway |
+| Microsoft Graph | Staffer-identity email sends (approvals, Send to Speaker, invites) | Reuses the Microsoft Entra ID SSO app's own client credentials — no separate key |
 | Apollo | Lead enrichment (email guesser, lead finder) | `APOLLO_API_KEY` in Railway |
 | Lusha | LinkedIn enrichment | `LUSHA_API_KEY` in Railway |
 | Million Verifier | Email verification | `MILLION_VERIFIER_API_KEY` in Railway |

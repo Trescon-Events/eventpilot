@@ -15,13 +15,54 @@ Railway's auto-deploy silently stopped working from **2026-07-17 to 2026-07-21**
 
 | Field | Value |
 |---|---|
-| Who | Durga + Claude Code (Opus 4.7 · 1M) — 27 Aug 2026, Nic's Admin Module ticket (build_request `a057edf2`) |
-| Date | 2026-08-27 |
-| Latest push | 2026-08-27 — split the Bespoke Event Dashboard's Brief tab into (a) a 100% read-only Brief tab and (b) a new "Admin Module" tab that houses all data entry. Ticket sat 16 days in `build_requests` since 2026-08-11 (surfaced via the mandatory DB check at session start, per the LOCKED build_requests query rule). |
-| DB migrations applied | None. |
+| Who | Madhu + Claude Code — 26–29 Aug 2026, marathon SAE (Stakeholder Announcement Engine) session |
+| Date | 2026-08-29 |
+| Latest push | 2026-08-29 — 16 commits, `9eb5397`. Global Placeholder Defaults + Cleaning Cycle Template moved out of per-event workspaces into org-wide Branding; Self Promo redesigned (Approval section dropped, Send to Speaker brought to feature parity with External Approval, a real resend bug fixed); a new third **Client Approval** layer added (Internal → Client → External) for client-managed events like DFS/DIFC, with real server-side publish gating for all three layers. See dated section below for full detail. |
+| DB migrations applied | Yes — `global_placeholder_defaults_migration.sql`, `global_placeholder_photo_head_box_migration.sql`, `cleaning_cycle_template_global_migration.sql`, `announcement_client_approval_migration.sql`. All additive (new tables/columns, one CHECK constraint widened, one new `email_templates` row). All applied directly via `supabase db query --linked -f` and verified. |
 | Handed off to | Durga. |
-| Deployed | Live — pushed to `main`, Railway auto-deploy. |
-| Left alone / known follow-up | Nic's `build_requests` row still `submitted` — close-out + one consolidated email pending Durga's OK. |
+| Deployed | Live — pushed to `main` (rebased cleanly onto Durga's independent task-manager pushes, no file overlap), Railway auto-deploy confirmed RUNNING on commit `9eb5397`, live site (eventpilot.tresconglobal.com) returns HTTP 200. |
+| Left alone / known follow-up | See "What's next" in the dated section below — mainly: nobody has yet walked the new Client Approval flow live with a real send (deliberately not tested with real email to avoid sending to a real person mid-build); a duplicate test speaker ("Grace Zhang (TEST — DELETE ME)") is sitting at the bottom of WAIS Malaysia's speaker roster for Madhu's own manual testing, with a ready-to-run cleanup script at `scripts/delete-test-speaker-grace-zhang-copy.sql`. |
+
+## 29 Aug 2026 — Global Branding cleanup, Self Promo redesign, Client Approval (3rd approval layer)
+
+### Global Placeholder Defaults + Country field + standalone Branding page
+
+SAE's Template Maker placeholder ("Jane Doe" sample text/photo) moved from a per-event, re-typed-every-event thing to a single cross-event default (`template_placeholder_defaults` table, one row per stakeholder type), managed at `/admin/branding/placeholder-defaults` — outside any event's workspace, alongside Fonts/Corporate Brand. Added a real `Country` field to speaker/partner records (not just placeholder text). Global default photo is decoupled from any per-template "reference layer" (which stays whatever the branding team uploads purely for auto-positioning). Built a real draggable/resizable head-marker tool for the global default photo (replicating `LayerBoxOverlay.tsx`'s exact interaction, not a read-only approximation — took 3 rounds of visual-only iteration before Madhu's direct correction to build the real thing).
+
+Real bug found and fixed mid-build: clearing an override field to `''` and saving silently showed blank text instead of falling back to the global default, because the old fallback used `??` (only skips null/undefined, not empty string). Fixed with Madhu's own proposed design — explicit mutually-exclusive "Use Global Default" / "Override for this event" checkboxes, not implicit blank-field inference. Verified live end-to-end (global path, override path, the exact empty-string bug scenario, revert-to-global path).
+
+### Shared Toast component + app-wide sweep
+
+Built a standard `Toast` component (`app/components/ui/Toast.tsx`) after success messages were found rendering in the same red/error styling as real errors. Swept the whole app for the same pattern (not just the one reported instance). Positioned top-right with hover-to-pause, matching professional admin-tool convention (moved from bottom-center per Madhu's direct feedback).
+
+### Cleaning Cycle Template globalized too
+
+Same pattern as Placeholder Defaults — the "AI Edit Prompts" tab's Cleaning Cycle standard (reference photo + head marker every speaker's Cleaned Photo is measured against) was stored per-event despite its own doc comment already calling it "the single standard." Confirmed via production query that only one event had ever actually configured it. Moved to `/admin/branding/cleaning-cycle-template` (new `cleaning_cycle_template_global` singleton table), the old per-event tab replaced with a redirect notice, then removed entirely once Madhu pointed out the redirect notice itself served no purpose.
+
+### Self Promo redesign
+
+- **Approval section dropped for self_promo** — Madhu: "self promo need not have approval section. we will not use it." Now renders only for org_promo.
+- **Send to Speaker brought to parity with External Approval** — added the same "Use {name}'s email" / "Send to someone else" quick-pick toggle External Approval already had. (Everything else Madhu asked for — sending via the real logged-in staffer's own Outlook via Microsoft Graph, a popup dialog, a predefined global email template — turned out to already be built this way.)
+- **Real bug found and fixed**: removing the Approval section above broke Send to Speaker's own resend capability as a side effect — its visibility was still gated on an approval-readiness condition that could never be satisfied once Approval was hidden, so the button vanished entirely after the first send with no way to resend. Fixed by dropping that gate for self_promo (just the publish permission check remains); button now reads "Resend to Speaker" once already sent.
+- **Self-promo copy CTA fix** — generated copy had no way to mention registration since `registration_url` was never passed into that prompt's context (it *was* already flowing to the function, just not used). Now the closing line naturally works in the registration link when one exists, without adding the "Register now!" hard-sell energy that was deliberately avoided for self-promo's authentic-reflection tone.
+
+### Client Approval — new third approval layer (Internal → Client → External)
+
+Per Madhu: for events Trescon manages on behalf of another client (e.g. DFS/DFFW managed for DIFC), a middle approval round is needed before the external (speaker/sponsor) round. Built as a precise structural copy of External Approval:
+
+- `announcement_approvals.layer` now accepts `'client'` (was internal/external only), with a matching `client_approval_bypassed_by/at` pair and its own email template (`client_announcement_approval_request`, worded for a client contact rather than the speaker).
+- New `events.client_contact_name/job_title/email` columns — one contact per event, editable on the event's own edit page under "Client Approval Contact (Optional)." **Whether `client_contact_email` is set is what turns the Client Approval layer on for that event at all** — leave it blank and the event stays on the standard 2-layer flow. No separate toggle.
+- `SendForClientApprovalComposer.tsx` + `send-for-client-approval/{compose,send}` routes — same pick→edit→send dialog as External Approval, quick-picking the event's configured contact by default. Reuses the exact same public no-login review portal (`app/public/announcement-review`) completely unchanged — it was already layer-agnostic.
+- `readyToPublish` now requires all three layers approved-or-exempted, exactly as specified ("Publish section should not even be activated to do anything unless this condition is met").
+- **Found and fixed a real pre-existing gap while building this**: `checkCanPublish` (server-side, `app/lib/events/postiz-publish.ts`) previously only ever checked *internal* approval — External was only ever enforced by hiding the Schedule/Post Now buttons client-side, so a direct API call could bypass it entirely. Now genuinely enforces all three layers server-side, matching the client-side check exactly.
+
+Verified live (contact quick-pick, template rendering, sender identity, bypass/exempt toggle per layer, 3-column grid appearing only when a contact is configured) without sending a real test email; test data cleaned from production afterward and independently re-verified null.
+
+### What's next
+
+- Nobody has walked the Client Approval flow with a real email send yet — a duplicate test speaker ("Grace Zhang (TEST — DELETE ME)", not pushed to KonfHub) is sitting at the bottom of WAIS Malaysia's roster for Madhu's own manual testing now that everything above is live. Cleanup script ready at `scripts/delete-test-speaker-grace-zhang-copy.sql` once testing is done.
+- Nobody has configured a real `client_contact_*` on a real client-managed event yet (e.g. an actual DFS/DIFC event) — the feature is live but unused in production until Durga or Madhu sets one up.
+- Internal Approval's own dialog (the staff checkbox picker) is structurally different from External/Client's composer — no CC field, no text editing, even on a first send. Not touched this session; flagged as a possible future parity request if Madhu wants it, not assumed.
 
 ## 27 Aug 2026 — Bespoke Event Dashboard: Brief / Admin Module split (Nic ticket a057edf2)
 
