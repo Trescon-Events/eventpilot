@@ -17,11 +17,11 @@ Railway's auto-deploy silently stopped working from **2026-07-17 to 2026-07-21**
 |---|---|
 | Who | Madhu + Claude Code — 26–29 Aug 2026, marathon SAE (Stakeholder Announcement Engine) session |
 | Date | 2026-08-29 |
-| Latest push | 2026-08-29 — 16 commits, `9eb5397`. Global Placeholder Defaults + Cleaning Cycle Template moved out of per-event workspaces into org-wide Branding; Self Promo redesigned (Approval section dropped, Send to Speaker brought to feature parity with External Approval, a real resend bug fixed); a new third **Client Approval** layer added (Internal → Client → External) for client-managed events like DFS/DIFC, with real server-side publish gating for all three layers. See dated section below for full detail. |
-| DB migrations applied | Yes — `global_placeholder_defaults_migration.sql`, `global_placeholder_photo_head_box_migration.sql`, `cleaning_cycle_template_global_migration.sql`, `announcement_client_approval_migration.sql`. All additive (new tables/columns, one CHECK constraint widened, one new `email_templates` row). All applied directly via `supabase db query --linked -f` and verified. |
-| Handed off to | Durga. |
-| Deployed | Live — pushed to `main` (rebased cleanly onto Durga's independent task-manager pushes, no file overlap), Railway auto-deploy confirmed RUNNING on commit `9eb5397`, live site (eventpilot.tresconglobal.com) returns HTTP 200. |
-| Left alone / known follow-up | See "What's next" in the dated section below — mainly: nobody has yet walked the new Client Approval flow live with a real send (deliberately not tested with real email to avoid sending to a real person mid-build); a duplicate test speaker ("Grace Zhang (TEST — DELETE ME)") is sitting at the bottom of WAIS Malaysia's speaker roster for Madhu's own manual testing, with a ready-to-run cleanup script at `scripts/delete-test-speaker-grace-zhang-copy.sql`. |
+| Latest push | 2026-08-29 — 19 commits total, `61b3403`. Global Placeholder Defaults + Cleaning Cycle Template moved to org-wide Branding; Self Promo redesigned; a new third **Client Approval** layer (Internal → Client → External); THEN three rounds of live-testing fixes on top — see "29 Aug 2026" dated section below, read top to bottom (it's now several sub-sessions merged into one). |
+| DB migrations applied | Yes — `global_placeholder_defaults_migration.sql`, `global_placeholder_photo_head_box_migration.sql`, `cleaning_cycle_template_global_migration.sql`, `announcement_client_approval_migration.sql`, `announcement_approval_sender_email_migration.sql`. All additive (new tables/columns, one CHECK constraint widened, new `email_templates` rows/edits). All applied directly via `supabase db query --linked -f` and verified. |
+| Handed off to | Durga — **and explicitly, Madhu picking this back up himself next session on the DFS/DFFW Client Approval work specifically (see "DFS/DFFW — pick up here" below).** |
+| Deployed | Live — pushed to `main` in 3 separate rounds as fixes landed (final commit `61b3403`), Railway auto-deploy confirmed RUNNING each time, live site (eventpilot.tresconglobal.com) returns HTTP 200. |
+| Left alone / known follow-up | See "DFS/DFFW — pick up here" and "What's next" in the dated section below. Short version: the 3-layer approval feature is fully live and Madhu live-tested it hard this session (4 real bugs found and fixed) — but no REAL DIFC event has a client contact configured yet, only a test one on WAIS Malaysia (should be cleared before real use — see below). A duplicate test speaker ("Grace Zhang (TEST — DELETE ME)") also still sits at the bottom of WAIS Malaysia's roster; cleanup script at `scripts/delete-test-speaker-grace-zhang-copy.sql`. |
 
 ## 29 Aug 2026 — Global Branding cleanup, Self Promo redesign, Client Approval (3rd approval layer)
 
@@ -58,11 +58,35 @@ Per Madhu: for events Trescon manages on behalf of another client (e.g. DFS/DFFW
 
 Verified live (contact quick-pick, template rendering, sender identity, bypass/exempt toggle per layer, 3-column grid appearing only when a contact is configured) without sending a real test email; test data cleaned from production afterward and independently re-verified null.
 
-### What's next
+### Rounds 2 & 3 — live-testing fixes on Client Approval, same day
 
-- Nobody has walked the Client Approval flow with a real email send yet — a duplicate test speaker ("Grace Zhang (TEST — DELETE ME)", not pushed to KonfHub) is sitting at the bottom of WAIS Malaysia's roster for Madhu's own manual testing now that everything above is live. Cleanup script ready at `scripts/delete-test-speaker-grace-zhang-copy.sql` once testing is done.
-- Nobody has configured a real `client_contact_*` on a real client-managed event yet (e.g. an actual DFS/DIFC event) — the feature is live but unused in production until Durga or Madhu sets one up.
-- Internal Approval's own dialog (the staff checkbox picker) is structurally different from External/Client's composer — no CC field, no text editing, even on a first send. Not touched this session; flagged as a possible future parity request if Madhu wants it, not assumed.
+Madhu tested the whole three-layer flow hard immediately after the first push (own email as the test recipient throughout, `md@tresconglobal.com`) and found real bugs each round. All pushed live same-day, in order:
+
+**Round 2** (commit `f4ae47d` → `56994ea`):
+- Each Approval sub-section (Internal/Client/External) now has its own persistent status area below its buttons — not one shared message under the whole grid. Shows a clear ✓/✗ headline, the actual reviewer comment inline, and who/when. The reviewer comment was already being saved correctly to `announcement_approvals.comments` the whole time — it was just never surfaced anywhere in the admin UI until this round.
+- Real bug: the sender of an approval request never got notified when a reviewer responded. `notifyMM()` (in `approve/route.ts`) was emailing `stakeholder_announcements.created_by` — a field unrelated to who actually sent THAT approval round, and frequently `null` outright (confirmed on the exact row Madhu tested). Added `announcement_approvals.sent_by_email`, populated at all three send points (internal/external/client); `notifyMM` now notifies the real sender of that specific round.
+- The public review page's "Decision recorded" screen looked identical whether the CURRENT viewer just submitted, or someone else (e.g. a CC'd recipient) had already responded earlier — read as "you still need to act" either way. Split into two states; the latter now says who responded, with their email, what they decided, their comment, and "No action needed from you."
+- Status-area fonts bumped up (12.5/12.5/11px → 14.5/14/12.5px) — "too small to read."
+
+**Round 3** (commit `61b3403`, current HEAD):
+- Notification email enriched further — now names the actual stakeholder (speaker/partner) and quotes the reviewer's comment, not just "The client have signed off on this announcement" with a bare link.
+- **Real gap closed: Publishing is now genuinely mandatory-gated on all three approval layers, no exceptions.** Previously, staff with `sae.announcements.publish` (a 2026-08-16 feature, Madhu's own earlier request, "let staff skip approval for routine posts") could fully bypass approval — and Madhu's own account holds that permission, so it silently never blocked HIM while testing the very feature whose whole point was "should not even be activated" until approved. Asked directly whether to keep the skip (made visually obvious) or remove it; **chose removal**. Channels/date/Schedule/Post Now/Retry now always render but are dimmed and inert while any layer is unresolved, with a clear amber lock banner explaining why — enforced client-side AND server-side (`checkCanPublish`'s old skip early-return is gone entirely; `sae.announcements.publish` still gates baseline authorization to touch publishing at all, kept separate from per-announcement readiness).
+- Error banners in the Stakeholder Hub's Announcements tab (e.g. "pick at least one channel") used to render as a plain banner at the TOP of the tab, invisible when the triggering button is far down the page — read as "nothing happened" on click. Now uses the same shared top-right Toast every other message in the app already uses.
+- The External Approval email template (`speaker_announcement_approval_request` in `email_templates`) always addressed whoever physically received the email ("Dear {{recipient_name}}") — wrong when sent to someone other than the speaker (their office/assistant). It already resolved a separate `speaker_name` variable at compose time, just never used it in the salutation. Edited directly in the DB (content, not code — live immediately): now always "Dear {{speaker_name}}," and the opening no longer says "we are really looking forward to having X join us."
+
+### DFS/DFFW — pick up here next session
+
+The whole Client Approval feature was built FOR this. Confirmed live in production (read-only query) — **4 real events already exist with `client_name = 'DIFC'`, none has a client contact configured yet**:
+- `DFFW` (id `fb899c1d-81e2-48d4-998b-ea85193ca5b7`)
+- `Dubai Future Finance Week` (id `c57574ee-b83b-42c2-a6d5-60eac9603938`)
+- `Dubai Family Wealth Summit` (id `186a86e4-6842-492d-8070-5507cc6d1023`)
+- `Future Sustainability Forum` (id `b470ee7f-77d9-4985-a5e3-f3c1ebb349c8`)
+
+**Next step**: on whichever of these is the actual event to test/use first, go to its Event Settings page → "Client Approval Contact (Optional)" → fill in the real DIFC contact's name/job title/email. That single field (`client_contact_email` non-null) is what turns the third Approval column on for that event — nothing else to configure. Once set, the exact same "Send for Client Approval" flow Madhu already tested on WAIS Malaysia (as a stand-in) applies for real.
+
+**Also clean up before real use**: WAIS Malaysia currently has a TEST client contact set (`client_contact_name = 'DIFC Test Contact (DELETE ME)'`, email `md@tresconglobal.com`) — that was deliberately temporary, for testing the UI on an event that isn't actually DIFC-managed. Clear it (blank out all three `client_contact_*` fields on that event) once done referencing it, so WAIS Malaysia correctly falls back to the standard 2-layer flow. Same for the duplicate test speaker mentioned above.
+
+**Known, deliberately out of scope this session**: Internal Approval's own dialog (the staff checkbox picker) is structurally different from External/Client's composer — no CC field, no text editing, even on a first send. Not touched; flagged as a possible future parity request, not assumed.
 
 ## 27 Aug 2026 — Bespoke Event Dashboard: Brief / Admin Module split (Nic ticket a057edf2)
 
