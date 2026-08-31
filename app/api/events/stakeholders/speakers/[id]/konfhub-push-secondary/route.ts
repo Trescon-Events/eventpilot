@@ -53,11 +53,21 @@ import { getKonfhubToken, createKonfhubSpeaker, updateKonfhubSpeaker, KonfhubApi
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id: speakerId } = await params
 
-  const { data: speaker } = await supabaseAdmin
+  const { data: speaker, error: speakerError } = await supabaseAdmin
     .from('event_speakers')
     .select('event_id, public_name, pronoun_style, photo_cleaning_cycle_done, website_card_url, company_logo_url, bio, role, company, linkedin_url, konfhub_secondary_speaker_id, konfhub_tag_speaker, konfhub_tag_moderator')
     .eq('id', speakerId)
     .single()
+  // Surfaced separately from a genuine 404 (2026-08-31, real bug hit
+  // live): a query failure — most likely the konfhub_secondary_speaker_id
+  // column not existing yet because konfhub_secondary_listing_migration.sql
+  // hasn't been run — was silently falling through the old `if (!speaker)`
+  // check and reporting a misleading "Speaker not found" for an existing,
+  // perfectly findable speaker.
+  if (speakerError) {
+    console.error(`[konfhub-push-secondary] speaker ${speakerId} lookup failed:`, speakerError.message)
+    return NextResponse.json({ error: `Could not look up this speaker — ${speakerError.message}` }, { status: 500 })
+  }
   if (!speaker) return NextResponse.json({ error: 'Speaker not found' }, { status: 404 })
 
   const session = getSession(req)

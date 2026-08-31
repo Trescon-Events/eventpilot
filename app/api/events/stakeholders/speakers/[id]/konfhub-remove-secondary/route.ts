@@ -21,11 +21,18 @@ import { getKonfhubToken, deleteKonfhubSpeaker, KonfhubApiError } from '@/app/li
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id: speakerId } = await params
 
-  const { data: speaker } = await supabaseAdmin
+  const { data: speaker, error: speakerError } = await supabaseAdmin
     .from('event_speakers')
     .select('event_id, konfhub_secondary_speaker_id')
     .eq('id', speakerId)
     .single()
+  // See konfhub-push-secondary/route.ts's own comment on this same check —
+  // a query failure (e.g. the column not existing yet) must not be
+  // reported as a misleading "Speaker not found".
+  if (speakerError) {
+    console.error(`[konfhub-remove-secondary] speaker ${speakerId} lookup failed:`, speakerError.message)
+    return NextResponse.json({ error: `Could not look up this speaker — ${speakerError.message}` }, { status: 500 })
+  }
   if (!speaker) return NextResponse.json({ error: 'Speaker not found' }, { status: 404 })
   if (!speaker.konfhub_secondary_speaker_id) return NextResponse.json({ ok: true })
 
