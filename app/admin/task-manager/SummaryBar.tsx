@@ -5,11 +5,6 @@ import { formatHours } from './types'
 
 export type AssigneeCounts = Record<string, { name: string; total: number; not_started: number; in_progress: number; completed: number }>
 
-const BREAKDOWN: Array<{ key: 'not_started' | 'in_progress' | 'completed'; label: string; dot: string }> = [
-  { key: 'not_started', label: 'Not started', dot: 'var(--ink3)' },
-  { key: 'in_progress', label: 'In progress', dot: 'var(--purple)' },
-  { key: 'completed', label: 'Done', dot: 'var(--teal)' },
-]
 
 interface Props {
   counts: AssigneeCounts
@@ -32,7 +27,10 @@ export default function SummaryBar({
   overdueCount,
   totalTrackedSeconds,
 }: Props) {
-  const entries = Object.entries(counts).sort(([, a], [, b]) => b.total - a.total)
+  // Only show staff members who currently have active (in-progress or not-started) tasks
+  const entries = Object.entries(counts)
+    .filter(([, r]) => (r.in_progress + r.not_started) > 0)
+    .sort(([, a], [, b]) => (b.in_progress + b.not_started) - (a.in_progress + a.not_started))
   const activeTasksCount = Math.max(0, totalTasksCount - completedCount)
   const completionRate = totalTasksCount > 0 ? Math.round((completedCount / totalTasksCount) * 100) : 0
 
@@ -129,9 +127,9 @@ export default function SummaryBar({
           >
             {entries.map(([staffId, r]) => {
               const isSelected = selectedStaffId === staffId
-              const donePercent = r.total > 0 ? (r.completed / r.total) * 100 : 0
-              const inProgressPercent = r.total > 0 ? (r.in_progress / r.total) * 100 : 0
-              const notStartedPercent = r.total > 0 ? (r.not_started / r.total) * 100 : 0
+              const activeCount = r.in_progress + r.not_started
+              const inProgressPercent = activeCount > 0 ? (r.in_progress / activeCount) * 100 : 0
+              const notStartedPercent = activeCount > 0 ? (r.not_started / activeCount) * 100 : 0
 
               return (
                 <div
@@ -186,11 +184,16 @@ export default function SummaryBar({
                       </div>
 
                       <div style={{ display: 'flex', alignItems: 'baseline', gap: '6px', marginBottom: '8px' }}>
-                        <span style={{ fontSize: '24px', fontWeight: 800, color: 'var(--ink)', lineHeight: 1 }}>{r.total}</span>
-                        <span style={{ fontSize: '11px', color: 'var(--ink4)' }}>{r.total === 1 ? 'task' : 'tasks'}</span>
+                        <span style={{ fontSize: '24px', fontWeight: 800, color: 'var(--ink)', lineHeight: 1 }}>{activeCount}</span>
+                        <span style={{ fontSize: '11px', color: 'var(--ink4)' }}>{activeCount === 1 ? 'active task' : 'active tasks'}</span>
+                        {r.completed > 0 && (
+                          <span style={{ fontSize: '11px', color: 'var(--teal)', marginLeft: 'auto', fontWeight: 600 }}>
+                            {r.completed} done
+                          </span>
+                        )}
                       </div>
 
-                      {/* Segmented Mini Progress bar */}
+                      {/* Segmented Active Progress bar (In Progress vs Not Started) */}
                       <div
                         style={{
                           height: '4px',
@@ -202,18 +205,25 @@ export default function SummaryBar({
                           marginBottom: '10px',
                         }}
                       >
-                        <div style={{ width: `${donePercent}%`, background: 'var(--teal)', height: '100%' }} title={`Done: ${r.completed}`} />
                         <div style={{ width: `${inProgressPercent}%`, background: 'var(--purple)', height: '100%' }} title={`In Progress: ${r.in_progress}`} />
                         <div style={{ width: `${notStartedPercent}%`, background: 'var(--ink4)', height: '100%' }} title={`Not Started: ${r.not_started}`} />
                       </div>
 
                       <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
-                        {BREAKDOWN.map(b => (
-                          <div key={b.key} style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                            <span style={{ width: '5px', height: '5px', borderRadius: '50%', background: b.dot, flexShrink: 0 }} />
-                            <span style={{ fontSize: '10px', color: 'var(--ink4)' }}>{r[b.key]} {b.label}</span>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                          <span style={{ width: '5px', height: '5px', borderRadius: '50%', background: 'var(--purple)', flexShrink: 0 }} />
+                          <span style={{ fontSize: '10px', color: 'var(--ink3)' }}>{r.in_progress} In progress</span>
+                        </div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                          <span style={{ width: '5px', height: '5px', borderRadius: '50%', background: 'var(--ink4)', flexShrink: 0 }} />
+                          <span style={{ fontSize: '10px', color: 'var(--ink4)' }}>{r.not_started} Not started</span>
+                        </div>
+                        {r.completed > 0 && (
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                            <span style={{ width: '5px', height: '5px', borderRadius: '50%', background: 'var(--teal)', flexShrink: 0 }} />
+                            <span style={{ fontSize: '10px', color: 'var(--teal)' }}>{r.completed} Done</span>
                           </div>
-                        ))}
+                        )}
                       </div>
                     </div>
                   </StatCard>
