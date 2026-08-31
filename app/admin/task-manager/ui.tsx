@@ -57,6 +57,21 @@ export function TaskManagerStyles() {
       .tm-scroll::-webkit-scrollbar-thumb:hover {
         background: var(--teal-mid);
       }
+      input[type="date"] {
+        cursor: pointer;
+      }
+      input[type="date"]::-webkit-calendar-picker-indicator {
+        cursor: pointer;
+        filter: invert(0.85) brightness(1.2);
+        opacity: 0.85;
+        font-size: 16px;
+        margin-right: 4px;
+        transition: opacity 0.15s ease, filter 0.15s ease;
+      }
+      input[type="date"]::-webkit-calendar-picker-indicator:hover {
+        filter: invert(1) brightness(1.5);
+        opacity: 1;
+      }
     `}</style>
   )
 }
@@ -236,7 +251,8 @@ export function SearchableSelect({ options, value, onChange, placeholder = 'Sear
           placeholder={selected ? selected.label : (emptyOptionLabel ?? placeholder)}
           style={{
             width: '100%',
-            padding: compact ? '6px 24px 6px 8px' : '9px 28px 9px 12px',
+            height: compact ? '36px' : '40px',
+            padding: compact ? '6px 24px 6px 8px' : '8px 30px 8px 12px',
             fontSize: compact ? '12px' : '13px',
             fontWeight: 500,
             background: compact ? 'transparent' : 'var(--surface)',
@@ -266,9 +282,9 @@ export function SearchableSelect({ options, value, onChange, placeholder = 'Sear
             background: 'none',
             border: 'none',
             color: 'var(--ink4)',
-            fontSize: '10px',
+            fontSize: '11px',
             cursor: 'pointer',
-            padding: '2px',
+            padding: '4px',
           }}
         >
           ▾
@@ -282,8 +298,8 @@ export function SearchableSelect({ options, value, onChange, placeholder = 'Sear
             top: 'calc(100% + 4px)',
             left: 0,
             zIndex: 300,
-            width: compact ? '240px' : '100%',
-            minWidth: '220px',
+            width: compact ? '320px' : '100%',
+            minWidth: compact ? '260px' : '100%',
             background: 'var(--card)',
             border: '1px solid var(--border)',
             borderRadius: '10px',
@@ -291,9 +307,9 @@ export function SearchableSelect({ options, value, onChange, placeholder = 'Sear
             overflow: 'hidden',
           }}
         >
-          <div className="tm-scroll" style={{ maxHeight: '240px', overflowY: 'auto', ...CUSTOM_SCROLLBAR_STYLE }}>
+          <div className="tm-scroll" style={{ maxHeight: '280px', overflowY: 'auto', ...CUSTOM_SCROLLBAR_STYLE }}>
             {listItems.length === 0 && (
-              <div style={{ padding: '12px', fontSize: '12px', color: 'var(--ink4)', textAlign: 'center' }}>No matches</div>
+              <div style={{ padding: '14px', fontSize: '13px', color: 'var(--ink4)', textAlign: 'center' }}>No matches</div>
             )}
             {listItems.map((item, i) => (
               <div
@@ -301,15 +317,16 @@ export function SearchableSelect({ options, value, onChange, placeholder = 'Sear
                 onMouseDown={e => { e.preventDefault(); pick(item) }}
                 onMouseEnter={() => setHighlight(i)}
                 style={{
-                  padding: '8px 12px',
+                  padding: '10px 14px',
                   cursor: 'pointer',
-                  fontSize: '12px',
+                  fontSize: '13px',
                   background: i === highlight ? 'var(--card-hi)' : 'transparent',
                   color: item.id === value ? 'var(--teal)' : 'var(--ink)',
                   fontWeight: item.id === value ? 700 : 500,
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'space-between',
+                  gap: '8px',
                 }}
               >
                 <span>{item.label}</span>

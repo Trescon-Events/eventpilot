@@ -1,7 +1,7 @@
 'use client'
 import { useState } from 'react'
 import Button from '@/app/components/ui/Button'
-import { EventLite, PRIORITIES, PRIORITY_COLOR, StaffLite, TaskPriority, TaskSaveValues } from './types'
+import { EventLite, PRIORITIES, PRIORITY_COLOR, StaffLite, TaskPriority, TaskSaveValues, isBrandingStaff } from './types'
 import { Avatar, PillSelect, SearchableSelect } from './ui'
 
 interface Props {
@@ -48,8 +48,10 @@ export default function QuickAssignCard({ staff, events, counts, currentStaffId,
     }
   }
 
+  const brandingStaff = staff.filter(isBrandingStaff)
+  const targetStaff = brandingStaff.length > 0 ? brandingStaff : staff
   const selectedStaffMember = staff.find(s => s.id === assignedTo)
-  const staffOptions = staff.map(s => {
+  const staffOptions = targetStaff.map(s => {
     const staffCount = counts?.[s.id]
     const active = staffCount ? staffCount.in_progress + staffCount.not_started : 0
     let label = s.name
@@ -161,7 +163,13 @@ export default function QuickAssignCard({ staff, events, counts, currentStaffId,
           </div>
 
           {/* Deadline Picker */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '8px', padding: '0 10px', height: '36px' }}>
+          <div
+            onClick={e => {
+              const input = e.currentTarget.querySelector('input')
+              try { input?.showPicker?.() } catch {}
+            }}
+            style={{ display: 'flex', alignItems: 'center', gap: '6px', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '8px', padding: '0 10px', height: '36px', cursor: 'pointer' }}
+          >
             <span style={{ fontSize: '12px', color: 'var(--ink4)' }}>📅</span>
             <input
               type="date"
