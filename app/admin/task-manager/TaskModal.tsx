@@ -12,7 +12,7 @@ interface Props {
   counts?: Record<string, { total: number; not_started: number; in_progress: number; completed: number }>
   currentStaffId: string | null
   onClose: () => void
-  onSave: (values: TaskSaveValues) => void
+  onSave: (values: TaskSaveValues) => Promise<void> | void
 }
 
 export default function TaskModal({ task, staff, events, counts, currentStaffId, onClose, onSave }: Props) {
@@ -25,21 +25,30 @@ export default function TaskModal({ task, staff, events, counts, currentStaffId,
   const [deadline, setDeadline] = useState(task?.deadline ?? '')
   const [priority, setPriority] = useState<TaskPriority>(task?.priority ?? 'Medium')
   const [remarks, setRemarks] = useState(task?.remarks ?? '')
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
   const canSave = description.trim().length > 0 && assignedTo.length > 0
 
-  function save() {
-    if (!canSave) return
-    onSave({
-      id: task?.id,
-      event_id: eventId || null,
-      description: description.trim(),
-      assigned_by: assignedBy,
-      assigned_to: assignedTo,
-      deadline: deadline || null,
-      priority,
-      remarks: remarks.trim() || null,
-    })
+  async function save() {
+    if (!canSave || busy) return
+    setBusy(true)
+    setError(null)
+    try {
+      await onSave({
+        id: task?.id,
+        event_id: eventId || null,
+        description: description.trim(),
+        assigned_by: assignedBy,
+        assigned_to: assignedTo,
+        deadline: deadline || null,
+        priority,
+        remarks: remarks.trim() || null,
+      })
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Failed to save task')
+      setBusy(false)
+    }
   }
 
   useEffect(() => {
@@ -66,6 +75,12 @@ export default function TaskModal({ task, staff, events, counts, currentStaffId,
           {task ? 'Edit Task' : 'New Task'}
         </h2>
 
+        {error && (
+          <div style={{ background: 'var(--red-light)', color: 'var(--red)', border: '1px solid var(--red-border)', borderRadius: '8px', padding: '10px 14px', fontSize: '12px', marginBottom: '14px' }}>
+            {error}
+          </div>
+        )}
+
         <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
           <Field label="Task description *">
             <Textarea autoFocus value={description} onChange={e => setDescription(e.target.value)} rows={2} style={{ fontSize: '14px' }} />
@@ -81,7 +96,7 @@ export default function TaskModal({ task, staff, events, counts, currentStaffId,
             />
           </Field>
 
-          <div style={{ display: 'flex', gap: '12px' }}>
+          <div style={{ display: 'flex', alignItems: 'flex-end', gap: '8px' }}>
             <Field label="Assigned by">
               <SearchableSelect
                 options={staff.map(s => ({ id: s.id, label: s.name }))}
@@ -91,6 +106,35 @@ export default function TaskModal({ task, staff, events, counts, currentStaffId,
                 emptyOptionLabel="—"
               />
             </Field>
+
+            <button
+              type="button"
+              onClick={() => {
+                const prevBy = assignedBy
+                setAssignedBy(assignedTo)
+                setAssignedTo(prevBy)
+              }}
+              style={{
+                height: '36px',
+                width: '36px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                borderRadius: '8px',
+                border: '1px solid var(--border)',
+                background: 'var(--surface)',
+                color: 'var(--teal-mid)',
+                fontSize: '16px',
+                fontWeight: 700,
+                cursor: 'pointer',
+                flexShrink: 0,
+                marginBottom: '1px',
+                transition: 'all 0.15s ease',
+              }}
+              title="Swap Assigned By and Assigned To"
+            >
+              ⇄
+            </button>
 
             <Field label="Assigned to *">
               <SearchableSelect
@@ -135,9 +179,9 @@ export default function TaskModal({ task, staff, events, counts, currentStaffId,
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: '22px' }}>
           <span style={{ fontSize: '11px', color: 'var(--ink4)' }}>⌘/Ctrl + Enter to save · Esc to cancel</span>
           <div style={{ display: 'flex', gap: '8px' }}>
-            <Button variant="ghost" onClick={onClose}>Cancel</Button>
-            <Button variant="teal" disabled={!canSave} onClick={save}>
-              {task ? 'Save Changes' : 'Create Task'}
+            <Button variant="ghost" disabled={busy} onClick={onClose}>Cancel</Button>
+            <Button variant="teal" disabled={!canSave || busy} onClick={save}>
+              {busy ? 'Saving…' : task ? 'Save Changes' : 'Create Task'}
             </Button>
           </div>
         </div>
