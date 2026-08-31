@@ -7,11 +7,12 @@ import { Avatar, PillSelect, SearchableSelect } from './ui'
 interface Props {
   staff: StaffLite[]
   events: EventLite[]
+  counts?: Record<string, { total: number; not_started: number; in_progress: number; completed: number }>
   currentStaffId: string | null
   onAssign: (values: TaskSaveValues) => Promise<void>
 }
 
-export default function QuickAssignCard({ staff, events, currentStaffId, onAssign }: Props) {
+export default function QuickAssignCard({ staff, events, counts, currentStaffId, onAssign }: Props) {
   const [description, setDescription] = useState('')
   const [assignedTo, setAssignedTo] = useState('')
   const [eventId, setEventId] = useState('')
@@ -48,7 +49,21 @@ export default function QuickAssignCard({ staff, events, currentStaffId, onAssig
   }
 
   const selectedStaffMember = staff.find(s => s.id === assignedTo)
-  const staffOptions = staff.map(s => ({ id: s.id, label: s.name }))
+  const staffOptions = staff.map(s => {
+    const staffCount = counts?.[s.id]
+    const active = staffCount ? staffCount.in_progress + staffCount.not_started : 0
+    let label = s.name
+    if (counts) {
+      if (active === 0) {
+        label = `${s.name} — 🟢 Available (0 tasks)`
+      } else if (active <= 3) {
+        label = `${s.name} — 🟡 ${active} active`
+      } else {
+        label = `${s.name} — 🔴 ${active} active`
+      }
+    }
+    return { id: s.id, label, active }
+  }).sort((a, b) => a.active - b.active || a.label.localeCompare(b.label))
   const eventOptions = events.map(ev => ({ id: ev.id, label: ev.name }))
 
   return (

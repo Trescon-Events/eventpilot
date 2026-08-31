@@ -418,6 +418,27 @@ export default function TaskManagerPage() {
       {dashboardMode === 'admin' && (
         <SummaryBar
           counts={counts}
+          staff={staff}
+          onQuickAssignForStaff={(staffId) => {
+            setEditingTask({
+              id: '',
+              event_id: null,
+              event: null,
+              description: '',
+              assigned_by: currentStaffId ?? staffId,
+              assigned_to: staffId,
+              assigned_by_staff: null,
+              assigned_to_staff: null,
+              assigned_date: new Date().toISOString().slice(0, 10),
+              deadline: null,
+              status: 'Not-Started',
+              priority: 'Medium',
+              remarks: null,
+              tracked_seconds: 0,
+              created_at: new Date().toISOString(),
+              updated_at: new Date().toISOString(),
+            })
+          }}
           selectedStaffId={selectedStaffId}
           onSelectStaff={setSelectedStaffId}
           totalTasksCount={totalTasksCount}
@@ -480,6 +501,7 @@ export default function TaskManagerPage() {
       <QuickAssignCard
         staff={staff}
         events={events}
+        counts={counts}
         currentStaffId={currentStaffId}
         onAssign={handleQuickAssign}
       />
@@ -684,6 +706,7 @@ export default function TaskManagerPage() {
           task={editingTask}
           staff={staff}
           events={events}
+          counts={counts}
           currentStaffId={currentStaffId}
           onClose={() => setEditingTask(undefined)}
           onSave={handleSave}

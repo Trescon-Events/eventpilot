@@ -1,20 +1,19 @@
-# Task Manager Module — Handoff (Madhu ↔ Khalifa)
+# EventPilot Task Manager (`eventpilot-task-manager`) — Handoff (Madhu ↔ Khalifa)
 
 Read this before starting a new session on the Task Manager module — whether
 you're Madhu picking it back up, or Khalifa working on it from his own
 machine. This is scoped to this module only; the platform-wide `HANDOFF.md`
 covers EventPilot in general and is not duplicated here.
 
-**Last updated:** 2026-08-19, by Madhu (with Claude)
+**Project Name:** `eventpilot-task-manager`  
+**Last updated:** 2026-08-31, by Khalifa
 
 ---
 
 ## What this is
 
-A native rebuild of Khalifa's original "TaskSphere" prototype (Express +
-flat `db.json`, LAN-only) as a proper EventPilot module — a shared task
-tracker with a per-task timer, table/Kanban views, a timesheets feed, and an
-admin oversight console. Live now at:
+A native rebuild of Khalifa's original task system as a proper EventPilot module (`eventpilot-task-manager`) — a shared task
+tracker with a per-task timer, table/Kanban views, timesheets, admin oversight console, and automated Microsoft Teams morning overdue task digests with in-Teams direct actionability. Live now at:
 
 **https://eventpilot.tresconglobal.com/admin/task-manager**
 

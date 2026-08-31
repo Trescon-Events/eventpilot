@@ -9,12 +9,13 @@ interface Props {
   task: Task | null   // null = creating a new task
   staff: StaffLite[]
   events: EventLite[]
+  counts?: Record<string, { total: number; not_started: number; in_progress: number; completed: number }>
   currentStaffId: string | null
   onClose: () => void
   onSave: (values: TaskSaveValues) => void
 }
 
-export default function TaskModal({ task, staff, events, currentStaffId, onClose, onSave }: Props) {
+export default function TaskModal({ task, staff, events, counts, currentStaffId, onClose, onSave }: Props) {
   const [eventId, setEventId] = useState(task?.event_id ?? '')
   const [description, setDescription] = useState(task?.description ?? '')
   const [assignedBy, setAssignedBy] = useState(task?.assigned_by ?? currentStaffId ?? '')
@@ -93,7 +94,21 @@ export default function TaskModal({ task, staff, events, currentStaffId, onClose
 
             <Field label="Assigned to *">
               <SearchableSelect
-                options={staff.map(s => ({ id: s.id, label: s.name }))}
+                options={staff.map(s => {
+                  const staffCount = counts?.[s.id]
+                  const active = staffCount ? staffCount.in_progress + staffCount.not_started : 0
+                  let label = s.name
+                  if (counts) {
+                    if (active === 0) {
+                      label = `${s.name} — 🟢 Available (0 tasks)`
+                    } else if (active <= 3) {
+                      label = `${s.name} — 🟡 ${active} active`
+                    } else {
+                      label = `${s.name} — 🔴 ${active} active`
+                    }
+                  }
+                  return { id: s.id, label, active }
+                }).sort((a, b) => a.active - b.active || a.label.localeCompare(b.label))}
                 value={assignedTo}
                 onChange={setAssignedTo}
                 placeholder="Search staff…"
