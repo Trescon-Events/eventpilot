@@ -96,7 +96,7 @@ export default function TaskModal({ task, staff, events, counts, currentStaffId,
             />
           </Field>
 
-          <div style={{ display: 'flex', gap: '12px' }}>
+          <div style={{ display: 'flex', alignItems: 'flex-end', gap: '8px' }}>
             <Field label="Assigned by">
               <SearchableSelect
                 options={staff.map(s => ({ id: s.id, label: s.name }))}
@@ -106,6 +106,35 @@ export default function TaskModal({ task, staff, events, counts, currentStaffId,
                 emptyOptionLabel="—"
               />
             </Field>
+
+            <button
+              type="button"
+              onClick={() => {
+                const prevBy = assignedBy
+                setAssignedBy(assignedTo)
+                setAssignedTo(prevBy)
+              }}
+              style={{
+                height: '36px',
+                width: '36px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                borderRadius: '8px',
+                border: '1px solid var(--border)',
+                background: 'var(--surface)',
+                color: 'var(--teal-mid)',
+                fontSize: '16px',
+                fontWeight: 700,
+                cursor: 'pointer',
+                flexShrink: 0,
+                marginBottom: '1px',
+                transition: 'all 0.15s ease',
+              }}
+              title="Swap Assigned By and Assigned To"
+            >
+              ⇄
+            </button>
 
             <Field label="Assigned to *">
               <SearchableSelect
