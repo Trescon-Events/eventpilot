@@ -61,9 +61,18 @@ async function handleSweep(req: NextRequest) {
     }
 
     // 2. Query all staff members with their timezone and working day preferences
-    const { data: rawStaff, error: staffErr } = await supabaseAdmin
+    let { data: rawStaff, error: staffErr } = await supabaseAdmin
       .from('staff_members')
       .select('id, name, email, aad_object_id, office_timezone, working_days')
+
+    // Safe fallback if extra columns not migrated yet
+    if (staffErr) {
+      const fallback = await supabaseAdmin
+        .from('staff_members')
+        .select('id, name, email')
+      rawStaff = fallback.data
+      staffErr = fallback.error
+    }
 
     if (staffErr) {
       return NextResponse.json({ error: staffErr.message }, { status: 500 })

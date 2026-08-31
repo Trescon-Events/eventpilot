@@ -35,51 +35,44 @@ export async function POST(req: NextRequest) {
     const actorName = rawBody.from?.name || (staffObj as { name?: string } | null)?.name || 'Team Member'
     let resolvedDeadline = task.deadline
 
+    // Helper function to update task with fallback retry
+    async function updateTaskSafely(updates: Record<string, unknown>) {
+      let res = await supabaseAdmin.from('task_manager_tasks').update(updates).eq('id', taskId)
+      if (res.error && 'last_overdue_notified_at' in updates) {
+        const fallback = { ...updates }
+        delete fallback.last_overdue_notified_at
+        res = await supabaseAdmin.from('task_manager_tasks').update(fallback).eq('id', taskId)
+      }
+      return res.error
+    }
+
     // 2. Perform requested mutation
     if (action === 'complete') {
-      const { error: updateErr } = await supabaseAdmin
-        .from('task_manager_tasks')
-        .update({
-          status: 'Completed',
-          last_overdue_notified_at: null,
-          updated_at: new Date().toISOString(),
-        })
-        .eq('id', taskId)
-
-      if (updateErr) {
-        return NextResponse.json({ error: updateErr.message }, { status: 500 })
-      }
+      const updateErr = await updateTaskSafely({
+        status: 'Completed',
+        last_overdue_notified_at: null,
+        updated_at: new Date().toISOString(),
+      })
+      if (updateErr) return NextResponse.json({ error: updateErr.message }, { status: 500 })
     } else if (action === 'quickReschedule') {
       const targetDate = new Date()
       targetDate.setDate(targetDate.getDate() + (daysToAdd || 2))
       resolvedDeadline = targetDate.toISOString().slice(0, 10)
 
-      const { error: updateErr } = await supabaseAdmin
-        .from('task_manager_tasks')
-        .update({
-          deadline: resolvedDeadline,
-          last_overdue_notified_at: null,
-          updated_at: new Date().toISOString(),
-        })
-        .eq('id', taskId)
-
-      if (updateErr) {
-        return NextResponse.json({ error: updateErr.message }, { status: 500 })
-      }
+      const updateErr = await updateTaskSafely({
+        deadline: resolvedDeadline,
+        last_overdue_notified_at: null,
+        updated_at: new Date().toISOString(),
+      })
+      if (updateErr) return NextResponse.json({ error: updateErr.message }, { status: 500 })
     } else if (action === 'rescheduleDate' && newDeadline) {
       resolvedDeadline = newDeadline
-      const { error: updateErr } = await supabaseAdmin
-        .from('task_manager_tasks')
-        .update({
-          deadline: resolvedDeadline,
-          last_overdue_notified_at: null,
-          updated_at: new Date().toISOString(),
-        })
-        .eq('id', taskId)
-
-      if (updateErr) {
-        return NextResponse.json({ error: updateErr.message }, { status: 500 })
-      }
+      const updateErr = await updateTaskSafely({
+        deadline: resolvedDeadline,
+        last_overdue_notified_at: null,
+        updated_at: new Date().toISOString(),
+      })
+      if (updateErr) return NextResponse.json({ error: updateErr.message }, { status: 500 })
     }
 
     // 3. Generate updated Adaptive Card response
