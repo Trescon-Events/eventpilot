@@ -43,7 +43,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     updates.last_overdue_notified_at = null
   }
 
-  const { data, error } = await supabaseAdmin
+  let { data, error } = await supabaseAdmin
     .from('task_manager_tasks')
     .update(updates)
     .eq('id', id)
@@ -54,6 +54,25 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       assigned_to_staff:assigned_to ( id, name, email )
     `)
     .single()
+
+  // Fallback resilience: If column last_overdue_notified_at does not exist in DB yet, retry without it
+  if (error && 'last_overdue_notified_at' in updates) {
+    const fallbackUpdates = { ...updates }
+    delete fallbackUpdates.last_overdue_notified_at
+    const retry = await supabaseAdmin
+      .from('task_manager_tasks')
+      .update(fallbackUpdates)
+      .eq('id', id)
+      .select(`
+        *,
+        event:event_id ( id, name ),
+        assigned_by_staff:assigned_by ( id, name, email ),
+        assigned_to_staff:assigned_to ( id, name, email )
+      `)
+      .single()
+    data = retry.data
+    error = retry.error
+  }
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
