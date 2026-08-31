@@ -226,6 +226,32 @@ export default function AnnouncementDetailPanel({
     return () => clearInterval(poll)
   }, [externalPendingNow, clientPendingNow, eventId, stakeholderKind, announcement.id, announcement.speaker_id, announcement.partner_id, onUpdate])
 
+  // Backstop for the live "Post Now"/Schedule progress modal's own polling
+  // (PublishProgressModal, gives up after ~88s) and the 15-min sync-status
+  // cron: if the modal is closed before Postiz confirms, this panel — which,
+  // unlike the modal, stays open indefinitely — had no way to pick up the
+  // eventual result short of a manual reload, so "Delivered to" could sit on
+  // "confirming…" long after Postiz (and the cron) had already resolved it
+  // (2026-08-31 bug report). Mirrors the approval poll just above; only runs
+  // while some channel is still non-terminal and the viewer can actually hit
+  // publish-check (same permission that route itself requires).
+  const publishInFlight = announcement.status === 'scheduled' && !!announcement.publish_results &&
+    Object.values(announcement.publish_results).some(r => !r.url && r.state !== 'ERROR')
+  const canCheckPublish = can('sae.announcements.publish')
+  useEffect(() => {
+    if (!publishInFlight || !canCheckPublish) return
+    const poll = setInterval(() => {
+      fetch(`/api/events/stakeholders/announcements/${announcement.id}/publish-check`, { method: 'POST' })
+        .then(r => r.json())
+        .then((data: { status?: AnnouncementListItem['status']; published_at?: string | null; publish_results?: AnnouncementListItem['publish_results'] }) => {
+          if (!data.status) return
+          onUpdate({ status: data.status, published_at: data.published_at, publish_results: data.publish_results })
+        })
+        .catch(() => { /* silent — next tick tries again */ })
+    }, 20_000)
+    return () => clearInterval(poll)
+  }, [publishInFlight, canCheckPublish, announcement.id, onUpdate])
+
   function handleCopyEditorAreaClick(e: React.MouseEvent) {
     if (!copyEditor || !copyEditor.isActive('link')) return
     const href = copyEditor.getAttributes('link').href as string
@@ -931,7 +957,7 @@ export default function AnnouncementDetailPanel({
             <ul style={{ margin: 0, padding: 0, listStyle: 'none', display: 'grid', gap: '4px' }}>
               {Object.entries(announcement.publish_results).map(([channelId, r]) => {
                 const ch = postizChannels.find(c => c.id === channelId)
-                const label = ch?.name ?? channelId
+                const label = (ch && PLATFORM_LABELS[ch.identifier]) || ch?.name || channelId
                 const state = r.state ?? (r.success ? 'QUEUE' : 'ERROR')
                 return (
                   <li key={channelId} style={{ fontSize: '12px', color: state === 'ERROR' ? 'var(--red)' : 'var(--ink2)', display: 'flex', alignItems: 'center', gap: '6px' }}>

@@ -105,10 +105,12 @@ type EventInfo = { id: string; name: string }
 
 // "Let the user get a notification when they go live fully and published
 // on all the selected channels, so they can go straight to that published
-// page" (2026-08-28, per Madhu) — only for a real future schedule (see
-// schedule/route.ts's own comment for why scheduled_by is what gates
-// this, not created_by); Post Now already has its own live progress
-// popup, no email needed there. Deep link matches Queue's own "Open"
+// page" (2026-08-28, per Madhu). Gated on scheduled_by rather than
+// created_by (see schedule/route.ts's own comment) — as of 2026-08-31,
+// publish-now/route.ts stamps this too, since its live progress popup
+// gives up after ~88s and can be closed before Postiz confirms, leaving
+// this cron as the only thing that ever resolves the post; without the
+// stamp that fallback path notified no one. Deep link matches Queue's own "Open"
 // link convention exactly (tab=announcements&announcement=id), plus
 // `kind` for a partner announcement (Queue's own link omits it, which is
 // actually a pre-existing gap for partner rows there — not touching that

@@ -13,11 +13,12 @@ import { checkCanPublish, publishAnnouncementToPostiz, PublishValidationError } 
    Stamps scheduled_by (2026-08-28, per Madhu — "let the user get a
    notification when they go live fully") — the sync-status cron's
    success branch emails whoever is here once every channel confirms.
-   Deliberately NOT stamped by publish-now (that flow has its own live
-   progress modal instead, and the shared publishAnnouncementToPostiz
-   helper is used by both routes) — only a real future schedule needs an
-   async "it's live" email, so this route sets it directly rather than
-   threading a new param through the shared helper. */
+   publish-now/route.ts stamps the same field for the same reason
+   (2026-08-31): its live progress modal only polls for ~88s and can be
+   closed before Postiz confirms, so it needs the same cron-driven email
+   fallback once that window is missed. Set directly on each route rather
+   than threading a new param through the shared publishAnnouncementToPostiz
+   helper both call. */
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
   const body = await req.json().catch(() => null) as { scheduled_for?: string; postiz_channel_ids?: string[] } | null
