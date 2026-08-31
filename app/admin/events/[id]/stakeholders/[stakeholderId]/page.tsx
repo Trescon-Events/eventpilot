@@ -75,6 +75,15 @@ type StakeholderRecord = {
   konfhub_tag_speaker?: boolean
   konfhub_tag_moderator?: boolean
   konfhub_registration_synced_at?: string | null
+  // Second Role (2026-08-31) — a second, independent KonfHub speaker
+  // record for this same EventPilot speaker, entirely separate from
+  // konfhub_speaker_id above. Role-agnostic by design (Speaker or
+  // Moderator, whichever the primary record above ISN'T tagged as — see
+  // konfhub_tag_speaker/konfhub_tag_moderator's own comment, now mutually
+  // exclusive) — see the "Second Role" tab and konfhub-push-secondary/
+  // route.ts's own doc comment.
+  konfhub_secondary_speaker_id?: string | null
+  konfhub_secondary_synced_at?: string | null
 }
 
 // One preview tile — raw or cleaned photo/logo — with a download icon and a
@@ -169,9 +178,10 @@ export default function StakeholderReviewPage({ params }: { params: Promise<{ id
   // Announcements tab (2026-08-18, SAE-into-Hub merge) — ?tab=announcements
   // (+ optional ?announcement=X) is how Queue's "Open" links land directly
   // on one creative's review panel, same deep-link idea SAE's own page used.
-  const activeTab: 'overview' | 'registration' | 'announcements' =
+  const activeTab: 'overview' | 'registration' | 'secondary' | 'announcements' =
     searchParams.get('tab') === 'announcements' ? 'announcements'
     : searchParams.get('tab') === 'registration' ? 'registration'
+    : searchParams.get('tab') === 'secondary' ? 'secondary'
     : 'overview'
   const initialAnnouncementId = searchParams.get('announcement')
 
@@ -233,6 +243,16 @@ export default function StakeholderReviewPage({ params }: { params: Promise<{ id
   // wording, so no extra "was this the first push" state is needed here.
   const [konfhubConfirm, setKonfhubConfirm] = useState(false)
   const [pushingKonfhub, setPushingKonfhub] = useState(false)
+  // "Second Role" (2026-08-31) — a second, independent KonfHub speaker
+  // record for this same speaker, role-agnostic (see konfhub-push-
+  // secondary/route.ts's own doc comment for why). Mirrors konfhubConfirm/
+  // pushingKonfhub exactly; secondaryRemoveConfirm is a lighter inline
+  // confirm (not a modal) since removing it is low-stakes and reversible
+  // — pushing again just recreates it.
+  const [secondaryConfirm, setSecondaryConfirm] = useState(false)
+  const [pushingSecondary, setPushingSecondary] = useState(false)
+  const [secondaryRemoveConfirm, setSecondaryRemoveConfirm] = useState(false)
+  const [removingSecondary, setRemovingSecondary] = useState(false)
   // "Register on KonfHub" (Attendee Registration push, 2026-08-25) —
   // separate system from the Speakers-module push above (see the route's
   // own doc comment). KonfHub confirmed a real Edit Attendee endpoint the
@@ -406,18 +426,31 @@ export default function StakeholderReviewPage({ params }: { params: Promise<{ id
     }
   }
 
-  // At least one of Speaker/Moderator must stay checked — there's no
-  // meaningful "neither" state for a published speaker record, so
-  // unchecking the last one is simply a no-op rather than an error message
-  // (nothing to explain — the checkbox just won't move).
+  // Mutually exclusive — rendered as a radio pair, not two independent
+  // checkboxes (2026-08-31, per Madhu: a speaker's primary KonfHub record
+  // should carry exactly one of Speaker/Moderator, never both and never
+  // neither; the OTHER role, if this speaker needs it too, always goes on
+  // the separate "Second Role" record instead — see that tab and
+  // konfhub-push-secondary/route.ts). Selecting one deselects the other;
+  // clicking the already-selected option is a no-op, same "nothing to
+  // explain, the control just won't move" reasoning as the old single-
+  // checkbox no-op guard this replaces. (Previously these WERE
+  // independent checkboxes, both togglable at once, for a "plays both
+  // roles in the same single session" case — dropped because it only ever
+  // fixed the master Speakers listing, not KonfHub's own Agenda tool,
+  // which has no per-session role and shows everyone under "speakers"
+  // regardless of tags per Madhu's original report — so it wasn't
+  // actually solving the same-session case either.)
   function toggleKonfhubTagSpeaker(checked: boolean) {
-    if (!checked && !konfhubTagModeratorRef.current) return
-    setKonfhubTagSpeaker(checked)
+    if (!checked) return
+    setKonfhubTagSpeaker(true)
+    setKonfhubTagModerator(false)
     scheduleSave()
   }
   function toggleKonfhubTagModerator(checked: boolean) {
-    if (!checked && !konfhubTagSpeakerRef.current) return
-    setKonfhubTagModerator(checked)
+    if (!checked) return
+    setKonfhubTagModerator(true)
+    setKonfhubTagSpeaker(false)
     scheduleSave()
   }
 
@@ -443,6 +476,49 @@ export default function StakeholderReviewPage({ params }: { params: Promise<{ id
       setKonfhubConfirm(false)
     } finally {
       setPushingKonfhub(false)
+      setProcessing(null)
+    }
+  }
+
+  // Second Role push/remove (2026-08-31) — same shape as pushToKonfhub
+  // above, targeting the separate konfhub-push-secondary/konfhub-remove-
+  // secondary routes and the second record's own id/synced_at pair on
+  // `record`, never the primary konfhub_speaker_id fields. Which role
+  // (Speaker or Moderator) actually gets pushed is decided server-side,
+  // as the complement of the primary record's own tag — this handler
+  // doesn't need to know which.
+  async function pushToKonfhubSecondary() {
+    setPushingSecondary(true)
+    setProcessing({ label: 'Pushing second-role listing to KonfHub…', estimatedMs: 2500 })
+    try {
+      const res = await fetch(`/api/events/stakeholders/speakers/${stakeholderId}/konfhub-push-secondary`, { method: 'POST' })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) { setMsg(data.error || `Could not push to KonfHub (error ${res.status}) — please try again.`); setSecondaryConfirm(false); return }
+      setRecord(prev => prev ? { ...prev, konfhub_secondary_speaker_id: data.konfhub_secondary_speaker_id, konfhub_secondary_synced_at: data.konfhub_secondary_synced_at } : prev)
+      setSecondaryConfirm(false)
+    } catch {
+      setMsg('Could not push to KonfHub — check your connection and try again.')
+      setSecondaryConfirm(false)
+    } finally {
+      setPushingSecondary(false)
+      setProcessing(null)
+    }
+  }
+
+  async function removeKonfhubSecondary() {
+    setRemovingSecondary(true)
+    setProcessing({ label: 'Removing second-role listing from KonfHub…', estimatedMs: 2000 })
+    try {
+      const res = await fetch(`/api/events/stakeholders/speakers/${stakeholderId}/konfhub-remove-secondary`, { method: 'POST' })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) { setMsg(data.error || `Could not remove from KonfHub (error ${res.status}) — please try again.`); setSecondaryRemoveConfirm(false); return }
+      setRecord(prev => prev ? { ...prev, konfhub_secondary_speaker_id: null, konfhub_secondary_synced_at: null } : prev)
+      setSecondaryRemoveConfirm(false)
+    } catch {
+      setMsg('Could not remove from KonfHub — check your connection and try again.')
+      setSecondaryRemoveConfirm(false)
+    } finally {
+      setRemovingSecondary(false)
       setProcessing(null)
     }
   }
@@ -603,7 +679,7 @@ export default function StakeholderReviewPage({ params }: { params: Promise<{ id
     }
   }
 
-  function setTab(tab: 'overview' | 'registration' | 'announcements') {
+  function setTab(tab: 'overview' | 'registration' | 'secondary' | 'announcements') {
     const params = new URLSearchParams(searchParams.toString())
     params.set('tab', tab)
     if (tab === 'overview') params.delete('announcement')
@@ -672,6 +748,15 @@ export default function StakeholderReviewPage({ params }: { params: Promise<{ id
     ? (!record.photo_cleaning_cycle_done ? 'Clean the photo first.' : 'Generate the Website Photo first.')
     : null
   const isKonfhubFirstPush = !record.konfhub_speaker_id
+  // Same three gates again — the second record is cosmetically identical
+  // to the primary (same name/photo/bio), so it can't be pushed before
+  // the primary readiness conditions are met either. The role it'll
+  // actually be tagged with is the complement of the primary's own tag —
+  // computed here too, purely for display copy (the route decides for
+  // real, independently).
+  const pushToKonfhubSecondaryBlockedReason = pushToKonfhubBlockedReason
+  const isKonfhubSecondaryFirstPush = !record.konfhub_secondary_speaker_id
+  const secondaryRoleLabel = record.konfhub_tag_speaker ? 'Moderator' : 'Speaker'
 
   // Adapted to SAE's own Speaker/Partner shape (app/admin/events/[id]/
   // creative-templates/page.tsx) so AnnouncementsTab can hand this straight
@@ -750,17 +835,18 @@ export default function StakeholderReviewPage({ params }: { params: Promise<{ id
 
       <div style={{ maxWidth: '1240px', margin: '0 auto', padding: '20px 32px 0' }}>
         <div style={{ display: 'flex', gap: '6px', borderBottom: '1px solid var(--border-light)' }}>
-          {/* Registration is speaker-only (2026-08-25) — Attendee
-              Registration on KonfHub is a speaker-ticket concept, partners
-              have no equivalent here. */}
-          {(kind === 'speaker' ? (['overview', 'registration', 'announcements'] as const) : (['overview', 'announcements'] as const)).map(t => (
+          {/* Registration and Second Role are both speaker-only — Attendee
+              Registration on KonfHub is a speaker-ticket concept, and the
+              second-role record is a second KonfHub Speakers-API record,
+              neither of which partners have an equivalent for. */}
+          {(kind === 'speaker' ? (['overview', 'registration', 'secondary', 'announcements'] as const) : (['overview', 'announcements'] as const)).map(t => (
             <button key={t} onClick={() => setTab(t)}
               style={{
                 padding: '10px 18px', border: 'none', borderBottom: activeTab === t ? '2px solid var(--teal-mid)' : '2px solid transparent',
                 background: 'transparent', cursor: 'pointer', fontFamily: 'inherit', fontSize: '13px', fontWeight: 700,
                 color: activeTab === t ? 'var(--ink)' : 'var(--ink3)', marginBottom: '-1px',
               }}>
-              {t === 'overview' ? 'Overview' : t === 'registration' ? 'Registration' : 'Announcements'}
+              {t === 'overview' ? 'Overview' : t === 'registration' ? 'Registration' : t === 'secondary' ? 'Second Role' : 'Announcements'}
             </button>
           ))}
         </div>
@@ -832,6 +918,75 @@ export default function StakeholderReviewPage({ params }: { params: Promise<{ id
                       : (record.konfhub_booking_id ? 'Update on KonfHub' : 'Register on KonfHub')}
                   </Button>
                 </div>
+              </Card>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {activeTab === 'secondary' && kind === 'speaker' && (
+        <div style={{ maxWidth: '1240px', margin: '0 auto', padding: '24px 32px' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) 300px', gap: '24px', alignItems: 'start' }}>
+            <div style={{ display: 'grid', gap: '20px', minWidth: 0 }}>
+              {msg && (
+                <div style={{ padding: '10px 14px', borderRadius: '8px', background: 'var(--red-light)', border: '1px solid var(--red-border)', color: 'var(--red)', fontSize: '14.5px' }}>
+                  {msg} <button onClick={() => setMsg(null)} style={{ background: 'none', border: 'none', color: 'inherit', cursor: 'pointer', fontWeight: 700, marginLeft: '8px' }}>×</button>
+                </div>
+              )}
+              <Card padded>
+                <div style={{ fontSize: '15px', fontWeight: 800, color: 'var(--ink)', marginBottom: '6px' }}>Also a {secondaryRoleLabel.toLowerCase()} in a different session?</div>
+                <div style={{ fontSize: '13px', color: 'var(--ink3)', lineHeight: 1.6 }}>
+                  Use this only if this speaker plays a role in one session <em>different</em> from the one Overview lists them as (currently <strong>{record.konfhub_tag_speaker ? 'Speaker' : 'Moderator'}</strong>). KonfHub&apos;s own Agenda tool has no per-session speaker/moderator role — whichever tag a KonfHub speaker record carries is what shows next to their name in every session they&apos;re assigned to, so playing one role in one session and the other in a different session needs a second record.
+                </div>
+                <div style={{ fontSize: '13px', color: 'var(--ink3)', lineHeight: 1.6, marginTop: '10px' }}>
+                  Pushing below creates (or updates) that second record on KonfHub — same name, photo, and bio as the main listing, tagged <strong>{secondaryRoleLabel} only</strong> (automatically the opposite of whatever Overview is set to). Assign it to that other session in KonfHub&apos;s Agenda tool same as any other speaker.
+                </div>
+                <div style={{ marginTop: '14px', padding: '10px 12px', borderRadius: '8px', background: 'var(--amber-light)', border: '1px solid var(--amber-border)', fontSize: '12.5px', color: 'var(--amber)', lineHeight: 1.5 }}>
+                  ⚠ KonfHub has no way to hide a speaker from its public listing — this will appear as a second, separate entry on KonfHub&apos;s speaker page and the event website (pushed to the bottom of the order by default). Same visibility as the manual duplicate this replaces, not an improvement on it.
+                </div>
+              </Card>
+            </div>
+            <div style={{ display: 'grid', gap: '16px' }}>
+              <Card padded color={record.konfhub_secondary_speaker_id ? 'teal' : 'amber'}>
+                <div style={{ fontSize: '15.5px', fontWeight: 800, color: 'var(--ink)' }}>
+                  {record.konfhub_secondary_speaker_id ? `${secondaryRoleLabel} listing live` : `Push ${secondaryRoleLabel} listing?`}
+                </div>
+                <div style={{ fontSize: '14px', color: 'var(--ink3)', marginTop: '6px', lineHeight: 1.5 }}>
+                  {record.konfhub_secondary_speaker_id
+                    ? `A second, ${secondaryRoleLabel}-only record for this speaker is live on KonfHub. Push again after any edits to update it.`
+                    : `Creates a second KonfHub speaker record, tagged ${secondaryRoleLabel} only — separate from the main "Push to KonfHub" listing on Overview.`}
+                  {record.konfhub_secondary_speaker_id && record.konfhub_secondary_synced_at && (
+                    <> Last synced {new Date(record.konfhub_secondary_synced_at).toLocaleString()}.</>
+                  )}
+                </div>
+                <div style={{ marginTop: '14px' }}>
+                  <Button variant="teal" onClick={() => setSecondaryConfirm(true)} disabled={pushingSecondary || !!pushToKonfhubSecondaryBlockedReason} className="tbtn-full">
+                    {pushingSecondary ? 'Pushing…' : record.konfhub_secondary_speaker_id ? 'Push Update to KonfHub' : `Push ${secondaryRoleLabel} Listing`}
+                  </Button>
+                  {pushToKonfhubSecondaryBlockedReason && !pushingSecondary && (
+                    <div style={{ fontSize: '11.5px', color: 'var(--amber)', marginTop: '8px' }}>{pushToKonfhubSecondaryBlockedReason}</div>
+                  )}
+                </div>
+                {record.konfhub_secondary_speaker_id && (
+                  <div style={{ marginTop: '10px', paddingTop: '10px', borderTop: '1px solid var(--border-light)' }}>
+                    {!secondaryRemoveConfirm ? (
+                      <button onClick={() => setSecondaryRemoveConfirm(true)}
+                        style={{ background: 'none', border: 'none', color: 'var(--red)', fontSize: '12.5px', fontWeight: 700, cursor: 'pointer', padding: 0 }}>
+                        Remove {secondaryRoleLabel} listing
+                      </button>
+                    ) : (
+                      <div style={{ display: 'grid', gap: '8px' }}>
+                        <div style={{ fontSize: '12.5px', color: 'var(--ink3)', lineHeight: 1.5 }}>Delete this speaker&apos;s {secondaryRoleLabel}-only record from KonfHub? This won&apos;t touch their main listing.</div>
+                        <div style={{ display: 'flex', gap: '8px' }}>
+                          <Button variant="red" onClick={removeKonfhubSecondary} disabled={removingSecondary}>
+                            {removingSecondary ? 'Removing…' : 'Remove'}
+                          </Button>
+                          <Button variant="ghost" onClick={() => setSecondaryRemoveConfirm(false)} disabled={removingSecondary}>Cancel</Button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
               </Card>
             </div>
           </div>
@@ -1137,20 +1292,22 @@ export default function StakeholderReviewPage({ params }: { params: Promise<{ id
                   ? 'Live on KonfHub and the event website. Push again after any edits to update the listing.'
                   : 'Publishes this speaker on KonfHub and the event website — a separate action from Approve for Announcement.'}
               </div>
-              {/* Listed as (2026-08-25) — panel-discussion workaround: this
-                  person can be a Speaker in one session and a Moderator in
-                  another without a duplicate record, since a single
-                  KonfHub speaker can carry both tags at once (confirmed
-                  live, renders correctly on both KonfHub's page and the
-                  event website). Purely a display classification — has no
-                  effect on approval/announcement status. */}
+              {/* Listed as (2026-08-25, made mutually exclusive 2026-08-31)
+                  — this record's own single KonfHub tag, whichever role was
+                  confirmed first. If this speaker ALSO plays the other role
+                  in a different session, push that one from the separate
+                  "Second Role" tab instead — KonfHub's Agenda tool has no
+                  per-session role, so one record can only ever mean one
+                  thing consistently across every session it's assigned to.
+                  Purely a display classification — has no effect on
+                  approval/announcement status. */}
               <div style={{ marginTop: '12px', display: 'flex', gap: '16px' }}>
                 <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px', color: 'var(--ink3)', cursor: canEdit ? 'pointer' : 'default' }}>
-                  <input type="checkbox" checked={konfhubTagSpeaker} disabled={!canEdit} onChange={e => toggleKonfhubTagSpeaker(e.target.checked)} />
+                  <input type="radio" name="konfhub-listed-as" checked={konfhubTagSpeaker} disabled={!canEdit} onChange={e => toggleKonfhubTagSpeaker(e.target.checked)} />
                   Listed as Speaker
                 </label>
                 <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px', color: 'var(--ink3)', cursor: canEdit ? 'pointer' : 'default' }}>
-                  <input type="checkbox" checked={konfhubTagModerator} disabled={!canEdit} onChange={e => toggleKonfhubTagModerator(e.target.checked)} />
+                  <input type="radio" name="konfhub-listed-as" checked={konfhubTagModerator} disabled={!canEdit} onChange={e => toggleKonfhubTagModerator(e.target.checked)} />
                   Listed as Moderator
                 </label>
               </div>
@@ -1176,6 +1333,19 @@ export default function StakeholderReviewPage({ params }: { params: Promise<{ id
           pushing={pushingKonfhub}
           onConfirm={pushToKonfhub}
           onClose={() => setKonfhubConfirm(false)}
+        />
+      )}
+
+      {/* Reuses the same generic confirm modal as the primary push above —
+          it's already fully generic (isFirstPush/singleName/pushing/
+          onConfirm/onClose only), no role-specific copy needed. */}
+      {secondaryConfirm && record && (
+        <KonfhubPushConfirmModal
+          isFirstPush={isKonfhubSecondaryFirstPush}
+          singleName={publicName || record.full_name}
+          pushing={pushingSecondary}
+          onConfirm={pushToKonfhubSecondary}
+          onClose={() => setSecondaryConfirm(false)}
         />
       )}
 

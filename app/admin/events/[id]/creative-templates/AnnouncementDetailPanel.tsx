@@ -21,6 +21,10 @@ import PublishProgressModal from './PublishProgressModal'
 import ScheduleConfirmModal from './ScheduleConfirmModal'
 import NotifyExternalComposer from './NotifyExternalComposer'
 
+// The four (org_promo) / two (self_promo) steps of the left-hand workflow
+// stepper — see its own comment further down for how "current" is derived.
+type Stage = 'content' | 'approval' | 'publish' | 'notify' | 'send'
+
 // custom_fields.email is the canonical, actively-maintained speaker email
 // (see Speaker type's own comment) — a plain string field, but read
 // defensively since custom_fields values can also be string[] (multi-value
@@ -122,6 +126,12 @@ export default function AnnouncementDetailPanel({
   const [approverPickerOpen, setApproverPickerOpen] = useState(false)
   const [pickedApprovers, setPickedApprovers] = useState<Record<string, string>>({})
   const [approverSearch, setApproverSearch] = useState('')
+  // Which stepper stage is on screen — freely clickable regardless of
+  // progress (someone reviewing an already-published post still wants to
+  // click back into Content), but jumps to wherever the workflow actually
+  // is whenever a DIFFERENT announcement is opened (not on every field
+  // update of the same one — see the effect below).
+  const [activeStage, setActiveStage] = useState<Stage>('content')
 
   const copyEditor = useEditor({
     extensions: [
@@ -600,8 +610,81 @@ export default function AnnouncementDetailPanel({
     )
   }
 
+  // Sequential workflow stepper (2026-08-31, per Madhu — the announcement
+  // detail view now has a genuine linear flow, so the layout should read
+  // as one) — left-hand nav across the four things a producer does to an
+  // org_promo announcement in order, with a pulsing ring on whichever one
+  // is currently "live." self_promo has no approval round and no post-
+  // publish notify step (see those sections' own effectiveKind checks
+  // elsewhere in this file) — it only ever runs Content → Send.
+  const STAGE_LABELS: Record<Stage, string> = {
+    content: 'Content', approval: 'Approval', publish: 'Publish', notify: 'Notify', send: 'Send to Speaker',
+  }
+  const STAGE_SUBTITLES: Record<Stage, string> = {
+    content: 'Creative, post copy & X copy',
+    approval: 'Internal, client & external sign-off',
+    publish: 'Channels, scheduling & delivery',
+    notify: 'Tagging & post-publish notifications',
+    send: 'Email the speaker to post it themselves',
+  }
+  const stageKeys: Stage[] = effectiveKind === 'org_promo' ? ['content', 'approval', 'publish', 'notify'] : ['content', 'send']
+  // "Approval attempted/started" = anything beyond just having a creative —
+  // sending a round OR bypassing one, even before any round has resolved.
+  const approvalStarted = announcement.status !== 'draft'
+    || !!announcement.internal_approval_bypassed_at || !!announcement.client_approval_bypassed_at || !!announcement.external_approval_bypassed_at
+  const publishDone = announcement.status === 'published'
+  const notifyDone = !!announcement.tagging_confirmed_at && !!announcement.internal_notified_at && !!announcement.external_notified_at
+  const currentStage: Stage = effectiveKind === 'org_promo'
+    ? (!approvalStarted ? 'content' : !readyToPublish ? 'approval' : !publishDone ? 'publish' : 'notify')
+    : 'send'
+  const fullyDone = effectiveKind === 'org_promo' ? (approvalStarted && readyToPublish && publishDone && notifyDone) : announcement.status === 'published'
+  const currentStageIdx = stageKeys.indexOf(currentStage)
+
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- jumps the stepper to wherever THIS newly-selected announcement's workflow actually is; deliberately not re-run on same-announcement field changes (e.g. clicking a bypass checkbox shouldn't yank the viewer away from the stage they're looking at)
+    setActiveStage(currentStage)
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- intentionally scoped to announcement.id only, see comment above
+  }, [announcement.id])
+
   return (
-    <div style={{ display: 'grid', gap: '24px' }}>
+    <div style={{ display: 'grid', gridTemplateColumns: '230px 1fr', gap: '32px', alignItems: 'start' }}>
+      <style>{`@keyframes adp-stage-pulse { 0%, 100% { opacity: 1; transform: scale(1); } 50% { opacity: 0.35; transform: scale(0.75); } }`}</style>
+      <nav style={{ position: 'sticky', top: '20px', display: 'grid', gap: '6px' }}>
+        {stageKeys.map((key, i) => {
+          const status: 'done' | 'current' | 'upcoming' = i < currentStageIdx || (i === currentStageIdx && fullyDone) ? 'done' : i === currentStageIdx ? 'current' : 'upcoming'
+          const selected = activeStage === key
+          return (
+            <button key={key} type="button" onClick={() => setActiveStage(key)}
+              style={{
+                display: 'flex', alignItems: 'flex-start', gap: '12px', padding: '14px 16px', borderRadius: '10px',
+                border: 'none', borderLeft: `3px solid ${selected ? 'var(--teal-mid)' : 'transparent'}`,
+                textAlign: 'left', cursor: 'pointer', fontFamily: 'inherit',
+                background: selected ? 'var(--surface)' : 'transparent',
+              }}>
+              <span style={{
+                width: '18px', height: '18px', borderRadius: '50%', flexShrink: 0, marginTop: '2px',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                background: status === 'done' ? 'var(--teal-mid)' : 'transparent',
+                border: status === 'upcoming' ? '1.5px solid var(--border)' : status === 'current' ? '1.5px solid var(--teal-mid)' : 'none',
+              }}>
+                {status === 'done' ? (
+                  <span style={{ fontSize: '11px', color: 'var(--card)', fontWeight: 900 }}>✓</span>
+                ) : status === 'current' ? (
+                  <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: 'var(--teal-mid)', animation: 'adp-stage-pulse 1.6s ease-in-out infinite' }} />
+                ) : null}
+              </span>
+              <span style={{ display: 'grid', gap: '2px' }}>
+                <span style={{ fontSize: '13.5px', fontWeight: 800, color: status === 'upcoming' ? 'var(--ink4)' : 'var(--ink)' }}>{STAGE_LABELS[key]}</span>
+                <span style={{ fontSize: '11px', color: 'var(--ink4)', lineHeight: 1.3 }}>{STAGE_SUBTITLES[key]}</span>
+              </span>
+            </button>
+          )
+        })}
+      </nav>
+
+      <div style={{ display: 'grid', gap: '24px', minWidth: 0 }}>
+      {activeStage === 'content' && (
+      <div style={{ padding: '22px 26px', borderRadius: '12px', border: '1px solid var(--border-light)', background: 'var(--surface)' }}>
       {/* Creative preview + Post Copy side by side — the preview column is
           capped so a full-bleed 1080x1350 creative at native-ish width
           doesn't force an absurdly tall page. */}
@@ -684,6 +767,8 @@ export default function AnnouncementDetailPanel({
           </div>
         </div>
       </div>
+      </div>
+      )}
 
       {/* Approval — internal (event_staff, existing) and external (speaker/
           office, 2026-08-26) rounds, side by side in one visually separate
@@ -704,8 +789,8 @@ export default function AnnouncementDetailPanel({
           not have approval section. we will not use it.") Self Promo's own
           terminal action is Send to Speaker, below — there's no publish
           step for it to gate. */}
-      {effectiveKind === 'org_promo' && (
-      <div style={{ padding: '18px 20px', borderRadius: '12px', border: '1px solid var(--border-light)', background: 'var(--surface)' }}>
+      {effectiveKind === 'org_promo' && activeStage === 'approval' && (
+      <div style={{ padding: '22px 26px', borderRadius: '12px', border: '1px solid var(--border-light)', background: 'var(--surface)' }}>
         <div style={{ fontSize: '12px', fontWeight: 800, color: 'var(--ink3)', textTransform: 'uppercase', letterSpacing: '0.6px', marginBottom: '14px' }}>Approval</div>
 
         <div style={{ display: 'grid', gridTemplateColumns: hasClientApproval ? '1fr 1fr 1fr' : '1fr 1fr', gap: '18px' }}>
@@ -803,12 +888,12 @@ export default function AnnouncementDetailPanel({
       </div>
       )}
 
-      {effectiveKind === 'org_promo' ? (
+      {(activeStage === 'publish' || activeStage === 'send') && (effectiveKind === 'org_promo' ? (
       /* Publishing — channel selection, approval, schedule/post, and
           status, all for the currently-selected announcement. Channels
           default to this event's remembered selection but are freely
           adjustable per post. */
-      <div style={{ padding: '16px 18px', borderRadius: '10px', border: `1px solid ${announcement.status === 'published' ? 'var(--teal-mid)' : 'var(--border-light)'}`, background: 'var(--surface)' }}>
+      <div style={{ padding: '20px 24px', borderRadius: '12px', border: `1px solid ${announcement.status === 'published' ? 'var(--teal-mid)' : 'var(--border-light)'}`, background: 'var(--surface)' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
           <div style={{ fontSize: '10.5px', fontWeight: 800, color: 'var(--ink3)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Publishing</div>
           {/* Bigger, harder-to-miss treatment for the terminal "it's live"
@@ -1004,61 +1089,6 @@ export default function AnnouncementDetailPanel({
           )}
         </div>
         </div>
-        {/* Deliberately OUTSIDE the locked wrapper above — sharing a
-            preview internally via WhatsApp isn't publishing anything
-            publicly, so it stays available regardless of approval state. */}
-        {shareablePlatformLinks().length > 0 && (
-          <div style={{ marginTop: '8px' }}>
-            <Button variant="ghost" onClick={shareToTeam} title="Opens WhatsApp with the message pre-filled — pick your team's announcements group and send">
-              Share to Team on WhatsApp
-            </Button>
-          </div>
-        )}
-
-        {announcement.status === 'published' && (
-          <div style={{ marginTop: '16px', paddingTop: '16px', borderTop: '1px solid var(--border-light)' }}>
-            <div style={{ fontSize: '11px', fontWeight: 700, color: 'var(--ink3)', marginBottom: '8px' }}>After Publishing</div>
-
-            <label style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '9px 12px', borderRadius: '8px', border: `1.5px solid ${announcement.tagging_confirmed_at ? 'var(--teal-mid)' : 'var(--border)'}`, background: announcement.tagging_confirmed_at ? 'var(--teal-light)' : 'transparent', cursor: 'pointer', marginBottom: '10px', fontSize: '12.5px', fontWeight: 700, color: 'var(--ink2)' }}>
-              <input type="checkbox" checked={!!announcement.tagging_confirmed_at} disabled={confirmingTagging}
-                onChange={e => toggleTaggingConfirmed(e.target.checked)} style={{ margin: 0 }} />
-              I&apos;ve tagged the speaker/companies on each platform (or there was nothing to tag)
-              {announcement.tagging_confirmed_at && <span style={{ color: 'var(--ink4)', fontWeight: 400 }}> — confirmed {new Date(announcement.tagging_confirmed_at).toLocaleString()}</span>}
-            </label>
-
-            {notifyError && <div style={{ fontSize: '12.5px', color: 'var(--red)', marginBottom: '10px' }}>{notifyError}</div>}
-
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', alignItems: 'center', opacity: announcement.tagging_confirmed_at ? 1 : 0.5 }}>
-              <Button variant="ghost" onClick={notifyInternal} disabled={!announcement.tagging_confirmed_at || notifyingInternal}>
-                {notifyingInternal ? 'Sending…' : announcement.internal_notified_at ? 'Remind Internal Team' : 'Notify Internal Team'}
-              </Button>
-              {announcement.internal_notified_at && (
-                <span style={{ fontSize: '11.5px', color: 'var(--ink4)' }}>
-                  Sent {new Date(announcement.internal_notified_at).toLocaleString()}
-                  {announcement.internal_notification_reminder_count > 0 && ` · reminded ${announcement.internal_notification_reminder_count}× (last ${new Date(announcement.internal_notification_last_sent_at!).toLocaleString()})`}
-                </span>
-              )}
-            </div>
-
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', alignItems: 'center', marginTop: '8px', opacity: announcement.tagging_confirmed_at ? 1 : 0.5 }}>
-              {!announcement.external_notified_at ? (
-                <Button variant="ghost" onClick={() => setNotifyExternalOpen(true)} disabled={!announcement.tagging_confirmed_at}>
-                  Notify {displayName(stakeholderKind, stakeholder)}
-                </Button>
-              ) : (
-                <Button variant="ghost" onClick={remindExternal} disabled={!announcement.tagging_confirmed_at || remindingExternal}>
-                  {remindingExternal ? 'Sending…' : 'Send Reminder'}
-                </Button>
-              )}
-              {announcement.external_notified_at && (
-                <span style={{ fontSize: '11.5px', color: 'var(--ink4)' }}>
-                  Sent {new Date(announcement.external_notified_at).toLocaleString()} to {announcement.external_notification_recipient_email}
-                  {announcement.external_notification_reminder_count > 0 && ` · reminded ${announcement.external_notification_reminder_count}× (last ${new Date(announcement.external_notification_last_sent_at!).toLocaleString()})`}
-                </span>
-              )}
-            </div>
-          </div>
-        )}
       </div>
       ) : (
       /* Send to Speaker — Self Promo's terminal action. No Postiz/channel/
@@ -1104,6 +1134,83 @@ export default function AnnouncementDetailPanel({
             </Button>
           )}
         </div>
+      </div>
+      ))}
+
+      {/* Notify — post-publish tagging confirmation + internal/external
+          notifications, and the ad-hoc WhatsApp team share. Pulled out of
+          the Publishing card into its own stage (2026-08-31) — previously
+          nested inside it, only visible once already scrolled past
+          Publishing, which was part of why producers weren't reliably
+          working through it. org_promo only, same reasoning as Approval
+          above: self_promo's terminal action is the email itself, nothing
+          further to notify anyone about. */}
+      {effectiveKind === 'org_promo' && activeStage === 'notify' && (
+      <div style={{ padding: '22px 26px', borderRadius: '12px', border: '1px solid var(--border-light)', background: 'var(--surface)' }}>
+        <div style={{ fontSize: '12px', fontWeight: 800, color: 'var(--ink3)', textTransform: 'uppercase', letterSpacing: '0.6px', marginBottom: '14px' }}>Notify</div>
+
+        {announcement.status !== 'published' ? (
+          <div style={{ fontSize: '12.5px', color: 'var(--ink4)', lineHeight: 1.5 }}>
+            Notification options unlock once this announcement is published — see the Publish stage.
+          </div>
+        ) : (
+          <>
+            <label style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '9px 12px', borderRadius: '8px', border: `1.5px solid ${announcement.tagging_confirmed_at ? 'var(--teal-mid)' : 'var(--border)'}`, background: announcement.tagging_confirmed_at ? 'var(--teal-light)' : 'transparent', cursor: 'pointer', marginBottom: '10px', fontSize: '12.5px', fontWeight: 700, color: 'var(--ink2)' }}>
+              <input type="checkbox" checked={!!announcement.tagging_confirmed_at} disabled={confirmingTagging}
+                onChange={e => toggleTaggingConfirmed(e.target.checked)} style={{ margin: 0 }} />
+              I&apos;ve tagged the speaker/companies on each platform (or there was nothing to tag)
+              {announcement.tagging_confirmed_at && <span style={{ color: 'var(--ink4)', fontWeight: 400 }}> — confirmed {new Date(announcement.tagging_confirmed_at).toLocaleString()}</span>}
+            </label>
+
+            {notifyError && <div style={{ fontSize: '12.5px', color: 'var(--red)', marginBottom: '10px' }}>{notifyError}</div>}
+
+            {/* All three notify actions — WhatsApp share included — are
+                gated on the tagging confirmation above (2026-08-31, per
+                Madhu: "none of the notify buttons should be available"
+                until then). WhatsApp used to sit above the checkbox and
+                stay clickable regardless, on the reasoning that an internal
+                preview share isn't "publishing" anything — but grouping it
+                with the other two, same gate, reads as one honest rule
+                rather than an exception a producer has to remember. */}
+            {shareablePlatformLinks().length > 0 && (
+              <div style={{ marginBottom: '10px', opacity: announcement.tagging_confirmed_at ? 1 : 0.5 }}>
+                <Button variant="ghost" onClick={shareToTeam} disabled={!announcement.tagging_confirmed_at} title="Opens WhatsApp with the message pre-filled — pick your team's announcements group and send">
+                  Share to Team on WhatsApp
+                </Button>
+              </div>
+            )}
+
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', alignItems: 'center', opacity: announcement.tagging_confirmed_at ? 1 : 0.5 }}>
+              <Button variant="ghost" onClick={notifyInternal} disabled={!announcement.tagging_confirmed_at || notifyingInternal}>
+                {notifyingInternal ? 'Sending…' : announcement.internal_notified_at ? 'Remind Internal Team' : 'Notify Internal Team'}
+              </Button>
+              {announcement.internal_notified_at && (
+                <span style={{ fontSize: '11.5px', color: 'var(--ink4)' }}>
+                  Sent {new Date(announcement.internal_notified_at).toLocaleString()}
+                  {announcement.internal_notification_reminder_count > 0 && ` · reminded ${announcement.internal_notification_reminder_count}× (last ${new Date(announcement.internal_notification_last_sent_at!).toLocaleString()})`}
+                </span>
+              )}
+            </div>
+
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', alignItems: 'center', marginTop: '8px', opacity: announcement.tagging_confirmed_at ? 1 : 0.5 }}>
+              {!announcement.external_notified_at ? (
+                <Button variant="ghost" onClick={() => setNotifyExternalOpen(true)} disabled={!announcement.tagging_confirmed_at}>
+                  Notify {displayName(stakeholderKind, stakeholder)}
+                </Button>
+              ) : (
+                <Button variant="ghost" onClick={remindExternal} disabled={!announcement.tagging_confirmed_at || remindingExternal}>
+                  {remindingExternal ? 'Sending…' : 'Send Reminder'}
+                </Button>
+              )}
+              {announcement.external_notified_at && (
+                <span style={{ fontSize: '11.5px', color: 'var(--ink4)' }}>
+                  Sent {new Date(announcement.external_notified_at).toLocaleString()} to {announcement.external_notification_recipient_email}
+                  {announcement.external_notification_reminder_count > 0 && ` · reminded ${announcement.external_notification_reminder_count}× (last ${new Date(announcement.external_notification_last_sent_at!).toLocaleString()})`}
+                </span>
+              )}
+            </div>
+          </>
+        )}
       </div>
       )}
 
@@ -1242,6 +1349,7 @@ export default function AnnouncementDetailPanel({
       )}
 
       <ProcessingOverlay active={!!overlay} label={overlay?.label} estimatedMs={overlay?.estimatedMs} />
+      </div>
     </div>
   )
 }
