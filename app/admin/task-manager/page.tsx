@@ -19,7 +19,6 @@ type ViewMode = 'table' | 'kanban' | 'timesheets'
 
 export default function TaskManagerPage() {
   const [tasks, setTasks] = useState<Task[]>([])
-  const [counts, setCounts] = useState<AssigneeCounts>({})
   const [staff, setStaff] = useState<StaffLite[]>([])
   const [events, setEvents] = useState<EventLite[]>([])
   const [currentStaffId, setCurrentStaffId] = useState<string | null>(null)
@@ -68,7 +67,6 @@ export default function TaskManagerPage() {
     if (!res.ok) { setError('Failed to load tasks.'); return }
     const data = await res.json()
     setTasks(data.tasks ?? [])
-    setCounts(data.counts_by_assignee ?? {})
   }
 
   async function refreshActiveTimer() {
@@ -103,7 +101,6 @@ export default function TaskManagerPage() {
           .sort((a: EventLite, b: EventLite) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }))
       )
       setTasks(taskRes.tasks ?? [])
-      setCounts(taskRes.counts_by_assignee ?? {})
       setActiveTimer(timerRes.active ?? null)
     }
     loadAll()

@@ -61,7 +61,8 @@ async function handleSweep(req: NextRequest) {
     }
 
     // 2. Query all staff members with their timezone and working day preferences
-    let { data: rawStaff, error: staffErr } = await supabaseAdmin
+    let rawStaff: StaffWithTimezone[] = []
+    const { data: staffData, error: staffErr } = await supabaseAdmin
       .from('staff_members')
       .select('id, name, email, aad_object_id, office_timezone, working_days')
 
@@ -70,15 +71,15 @@ async function handleSweep(req: NextRequest) {
       const fallback = await supabaseAdmin
         .from('staff_members')
         .select('id, name, email')
-      rawStaff = fallback.data
-      staffErr = fallback.error
+      if (fallback.error) {
+        return NextResponse.json({ error: fallback.error.message }, { status: 500 })
+      }
+      rawStaff = (fallback.data ?? []) as unknown as StaffWithTimezone[]
+    } else {
+      rawStaff = (staffData ?? []) as unknown as StaffWithTimezone[]
     }
 
-    if (staffErr) {
-      return NextResponse.json({ error: staffErr.message }, { status: 500 })
-    }
-
-    const staffList: StaffWithTimezone[] = (rawStaff ?? []) as StaffWithTimezone[]
+    const staffList: StaffWithTimezone[] = rawStaff
 
     // 3. Evaluate each staff member recipient-centrically
     const dispatchResults: Array<{

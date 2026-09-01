@@ -1,8 +1,8 @@
 'use client'
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import Button from '@/app/components/ui/Button'
 import { Select, Textarea } from '@/app/components/ui/Field'
-import { EventLite, PRIORITIES, StaffLite, Task, TaskPriority, TaskSaveValues } from './types'
+import { EventLite, PRIORITIES, StaffLite, Task, TaskPriority, TaskSaveValues, isBrandingStaff } from './types'
 import { CUSTOM_SCROLLBAR_STYLE, SearchableSelect } from './ui'
 
 interface Props {
@@ -38,9 +38,9 @@ export default function TaskModal({ task, staff, events, counts, currentStaffId,
   // If current assignedTo is not in brandingStaff, keep it in the list so historical edits don't break
   const assigneeCandidates = useMemo(() => {
     if (showAllStaff) return staff
-    const set = new Set(brandingStaff.map(s => s.id))
+    const set = new Set(brandingStaff.map((s: StaffLite) => s.id))
     if (assignedTo && !set.has(assignedTo)) {
-      const extra = staff.find(s => s.id === assignedTo)
+      const extra = staff.find((s: StaffLite) => s.id === assignedTo)
       if (extra) return [extra, ...brandingStaff]
     }
     return brandingStaff
@@ -195,7 +195,7 @@ export default function TaskModal({ task, staff, events, counts, currentStaffId,
                 </button>
               </div>
               <SearchableSelect
-                options={assigneeCandidates.map(s => {
+                options={assigneeCandidates.map((s: StaffLite) => {
                   const staffCount = counts?.[s.id]
                   const active = staffCount ? staffCount.in_progress + staffCount.not_started : 0
                   let label = s.name
@@ -209,7 +209,7 @@ export default function TaskModal({ task, staff, events, counts, currentStaffId,
                     }
                   }
                   return { id: s.id, label, active }
-                }).sort((a, b) => a.active - b.active || a.label.localeCompare(b.label))}
+                }).sort((a: { active: number; label: string }, b: { active: number; label: string }) => a.active - b.active || a.label.localeCompare(b.label))}
                 value={assignedTo}
                 onChange={setAssignedTo}
                 placeholder="Search branding staff…"
