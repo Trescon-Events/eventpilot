@@ -294,7 +294,7 @@ Fixed properly, not just patched: Madhu added **Contents: Read and write** to th
 ### What's next
 
 - Watch the next PR Khalifa opens — first real test of Approve & Ship's merge step since the token permission fix.
-- The "Recently Decided" list's "✓ Merged" label for any approved PR (even one whose merge failed) is misleading — worth fixing to check `merge_error` before showing that label. Not done this session.
+- ~~The "Recently Decided" list's "✓ Merged" label for any approved PR (even one whose merge failed) is misleading~~ — fixed 2026-09-01, now shows "⚠ Approved, not merged" when `merge_error` is set (`app/admin/dev-approvals/page.tsx`).
 - Consider doing the same for Khalifa (a `TASK_MANAGER_HANDOFF.md`-reads-first equivalent of this repo's `AGENTS.md` mandatory session-start protocol) — see memory `eventpilot_khalifa_antigravity_handoff` for what was set up in response to that question.
 
 ---

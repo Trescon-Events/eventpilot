@@ -9,14 +9,14 @@
  */
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/app/lib/supabase'
-import { requireDevApprovalsAccess } from '@/app/lib/github/dev-approvals-access'
+import { requireDevApprovalsViewAccess } from '@/app/lib/github/dev-approvals-access'
 import { fetchCheckRunsSummary } from '@/app/lib/github/api'
 
 export const runtime = 'nodejs'
 export const maxDuration = 30
 
 export async function GET(req: NextRequest) {
-  const access = await requireDevApprovalsAccess(req)
+  const access = await requireDevApprovalsViewAccess(req)
   if (!access.ok) return NextResponse.json({ error: access.error }, { status: access.status })
 
   const { data, error } = await supabaseAdmin
@@ -38,5 +38,5 @@ export async function GET(req: NextRequest) {
     }
   }))
 
-  return NextResponse.json({ reviews: withChecks })
+  return NextResponse.json({ reviews: withChecks, canDecide: access.canDecide })
 }

@@ -193,6 +193,11 @@ export async function middleware(req: NextRequest) {
     pathname.startsWith('/admin/bespoke') ||
     pathname.startsWith('/admin/commercial') ||
     pathname.startsWith('/admin/task-manager') ||
+    // 2026-09-01: Khalifa gets view-only status on his own PRs here — the
+    // real allowlist (Madhu/Durga decide, Khalifa view-only, everyone else
+    // forbidden) lives in app/lib/github/dev-approvals-access.ts and is
+    // enforced by the API routes, not this middleware.
+    pathname.startsWith('/admin/dev-approvals') ||
     // 2026-08-16: delegatable via the platform-wide RBAC permission
     // platform.branding.manage — see app/admin/branding/fonts/layout.tsx.
     // Scoped to /fonts only, not the sibling /admin/branding/corporate page.

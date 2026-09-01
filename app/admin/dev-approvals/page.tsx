@@ -43,6 +43,7 @@ const CHECK_LABEL: Record<CheckState, { label: string; badgeClass: string }> = {
 
 export default function DevApprovalsPage() {
   const [reviews, setReviews] = useState<PrReview[]>([])
+  const [canDecide, setCanDecide] = useState(true)
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState<string | null>(null)
   const [openId, setOpenId] = useState<string | null>(null)
@@ -54,7 +55,7 @@ export default function DevApprovalsPage() {
     setLoading(true)
     const res = await fetch('/api/admin/dev-approvals')
     const data = await res.json().catch(() => ({}))
-    if (res.ok) { setReviews(data.reviews ?? []); setLoadError(null) }
+    if (res.ok) { setReviews(data.reviews ?? []); setCanDecide(data.canDecide ?? true); setLoadError(null) }
     else setLoadError(data.error || 'Could not load PR reviews.')
     setLoading(false)
   }
@@ -95,9 +96,19 @@ export default function DevApprovalsPage() {
       <PageHeader
         eyebrow="Developer Workflow"
         title="PR Approvals"
-        description="Khalifa's Task Manager pull requests, waiting on your decision. Approve merges it live and tells him; Send Back requests a fix with your note."
+        description={canDecide
+          ? "Khalifa's Task Manager pull requests, waiting on your decision. Approve merges it live and tells him; Send Back requests a fix with your note."
+          : "Status of your Task Manager pull requests — view only. Madhu or Durga approves or sends these back; you'll get an email either way."}
       />
       <div style={{ maxWidth: '780px', margin: '0 auto', padding: '28px 32px' }}>
+        {!canDecide && (
+          <div style={{
+            padding: '10px 14px', borderRadius: '8px', marginBottom: '16px', fontSize: '13.5px',
+            background: 'var(--surface2, #f5f5f5)', border: '1px solid var(--border)', color: 'var(--ink3)',
+          }}>
+            👁 View-only — you can see status here, but only Madhu or Durga can approve or send back.
+          </div>
+        )}
         {msg && (
           <div style={{
             padding: '10px 14px', borderRadius: '8px', marginBottom: '16px', fontSize: '13.5px',
@@ -161,7 +172,11 @@ export default function DevApprovalsPage() {
                     </div>
                   </details>
 
-                  {!isOpen ? (
+                  {!canDecide ? (
+                    <div style={{ display: 'flex', gap: '8px' }}>
+                      <Button variant="ghost" href={`${r.pr_url}/files`} target="_blank">View diff on GitHub</Button>
+                    </div>
+                  ) : !isOpen ? (
                     <div style={{ display: 'flex', gap: '8px' }}>
                       <Button
                         variant="lime"
@@ -200,11 +215,16 @@ export default function DevApprovalsPage() {
             </div>
             <div style={{ display: 'grid', gap: '8px' }}>
               {decided.slice(0, 8).map(r => (
-                <div key={r.id} style={{ fontSize: '12.5px', color: 'var(--ink3)', padding: '8px 12px', border: '1px solid var(--border-light)', borderRadius: '8px', display: 'flex', justifyContent: 'space-between' }}>
-                  <span>PR #{r.pr_number}: {r.pr_title}</span>
-                  <span style={{ fontWeight: 700, color: r.status === 'approved' ? 'var(--teal)' : 'var(--amber)' }}>
-                    {r.status === 'approved' ? '✓ Merged' : '↩ Sent back'}
-                  </span>
+                <div key={r.id} style={{ fontSize: '12.5px', color: 'var(--ink3)', padding: '8px 12px', border: '1px solid var(--border-light)', borderRadius: '8px' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                    <span>PR #{r.pr_number}: {r.pr_title}</span>
+                    <span style={{ fontWeight: 700, color: r.status === 'approved' ? 'var(--teal)' : 'var(--amber)' }}>
+                      {r.status === 'approved' ? (r.merge_error ? '⚠ Approved, not merged' : '✓ Merged') : '↩ Sent back'}
+                    </span>
+                  </div>
+                  {r.status === 'sent_back' && r.decision_note && (
+                    <div style={{ marginTop: '4px', color: 'var(--ink2)' }}>{r.decision_note}</div>
+                  )}
                 </div>
               ))}
             </div>

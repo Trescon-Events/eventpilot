@@ -6,7 +6,7 @@ machine. This is scoped to this module only; the platform-wide `HANDOFF.md`
 covers EventPilot in general and is not duplicated here.
 
 **Project Name:** `eventpilot-task-manager`  
-**Last updated:** 2026-08-31, by Khalifa
+**Last updated:** 2026-09-01, by Madhu (with Claude)
 
 ---
 
@@ -28,6 +28,14 @@ tracker with a per-task timer, table/Kanban views, timesheets, admin oversight c
   Manage Access** (`/admin/task-manager/console/access`). This reuses
   EventPilot's existing delegated-admin mechanism (`module_access` table +
   `AccessTab` component) — the same pattern Knowledge Base/DocuHub use.
+- **PR Approvals** (`/admin/dev-approvals`) — decision-making (Approve &
+  Ship / Send Back) stays restricted to Madhu and Durga, same as always.
+  As of 2026-09-01, Khalifa (`khalifa@tresconglobal.com`) has **view-only**
+  access to the same page — he can see whether his PR is pending, approved,
+  or sent back, and read any "Send Back" note directly there, without
+  waiting on an email. The Approve/Send Back buttons and the underlying API
+  routes are still hard-blocked for him server-side
+  (`app/lib/github/dev-approvals-access.ts`).
 
 ## Where the code lives (and why it's isolated this way)
 
@@ -43,16 +51,43 @@ templates, etc.) will always classify `REVIEW_CLOSELY`, which is correct —
 those files affect the rest of EventPilot and deserve a closer look
 regardless of who's changing them.
 
-## Khalifa's contribution workflow
+## Khalifa's contribution workflow — "Go Live"
 
-1. Push a branch, open a PR against `main` on `Trescon-Events/eventpilot`
-2. A GitHub Action classifies the diff (SAFE if confined to the isolated
-   paths above) and posts it as a PR comment
-3. Madhu gets a direct email (via EventPilot's own Resend setup, not
-   dependent on GitHub notification settings) with the same summary
-4. `main` is branch-protected — nothing merges without Madhu's approval on
-   GitHub. Khalifa has Write access but cannot push directly to `main`.
-5. Once approved + merged, Railway auto-deploys — no separate deploy step
+**One-time setup (skip if already done):** the agent needs the GitHub CLI
+installed and authenticated as Khalifa's own GitHub account
+(`khalifa-branding`), with push access to `Trescon-Events/eventpilot`:
+
+```
+brew install gh
+gh auth login    # GitHub.com, HTTPS, log in as khalifa-branding
+gh auth status   # confirm it shows Trescon-Events/eventpilot access
+```
+
+**The actual workflow — when Khalifa says "Go live" (or similar) to the
+agent, the agent does all of this itself. It must not tell him to open
+github.com and do it by hand — that manual hand-off is exactly what this
+protocol replaces:**
+
+1. Commit any outstanding changes, if not already committed.
+2. `git push -u origin <branch-name>` (create the branch first if it's new).
+3. Open the PR from the terminal, not the browser:
+   `gh pr create --base main --head <branch-name> --title "<concise summary>" --body "<what changed and why>"`
+4. Stop there and tell Khalifa the PR is up. Everything after this is
+   already automatic — don't try to do any of it yourself:
+   - A GitHub Action classifies the diff (SAFE if confined to the isolated
+     paths above) and posts it as a PR comment.
+   - Madhu gets a direct email (via EventPilot's own Resend setup, not
+     dependent on GitHub notification settings) with an AI summary and a
+     link straight to `/admin/dev-approvals`.
+   - `main` is branch-protected — nothing merges without Madhu's (or
+     Durga's) approval there. Khalifa has Write access but cannot push
+     directly to `main`.
+   - Once approved, EventPilot merges it via the GitHub API and Railway
+     auto-deploys — no separate deploy step.
+5. Khalifa can check status himself anytime at
+   **https://eventpilot.tresconglobal.com/admin/dev-approvals** (view-only
+   — see Access model above) instead of waiting for the approval/rejection
+   email.
 
 ## Known gotchas (read before debugging something that isn't actually broken)
 
@@ -88,8 +123,38 @@ regardless of who's changing them.
 _(Either of you can add to this list — it's meant to stay current, not a
 historical record.)_
 
-- Nothing currently pending as of this handoff. Both of you should click
-  through the live module once and report back anything that feels off.
+- **Khalifa, one-time action needed on your side:** set up the `gh` CLI and
+  switch your Antigravity workflow to the new "Go Live" protocol described
+  above. Madhu will send you a copy-paste block for Antigravity to walk
+  through it — see the "Khalifa's contribution workflow — 'Go Live'"
+  section above for the full detail behind it.
+- Once you've done a "Go live" for real once, report back whether the PR
+  actually appeared in `/admin/dev-approvals` for you (view-only) and
+  whether the email flow felt right — this whole path (Go Live wording,
+  `gh pr create` from the agent, your view-only access) is new as of
+  2026-09-01 and hasn't been exercised end-to-end yet.
+
+### 2026-09-01 session summary (Madhu, with Claude)
+
+Purpose: Khalifa was ending up at "go open a PR on github.com yourself" as
+a manual step from Antigravity — this closes that gap so a plain "Go live"
+in Antigravity chat is enough, while keeping Madhu (or Durga) as the only
+one who can actually merge to `main`. Changed:
+
+- `middleware.ts` — `/admin/dev-approvals` added to the auth-only
+  tool-route list (previously blanket-blocked for any non-admin, which
+  would have made the view-only grant below unreachable).
+- `app/lib/github/dev-approvals-access.ts` — added
+  `requireDevApprovalsViewAccess()`; Khalifa (`khalifa@tresconglobal.com`)
+  can now `GET` the PR list read-only. `approve`/`reject` still require the
+  original, stricter `requireDevApprovalsAccess()` — unchanged, Madhu/Durga
+  only.
+- `app/admin/dev-approvals/page.tsx` — hides Approve & Ship / Send Back for
+  view-only visitors, shows a "view-only" banner, and surfaces the
+  Send-Back note in the decided list. Also fixed a pre-existing bug where
+  an approved-but-unmerged PR was mislabeled "✓ Merged" (see `HANDOFF.md`).
+- This file — rewrote the contribution workflow into the explicit "Go
+  Live" protocol above.
 
 ## Who to ask
 
