@@ -53,3 +53,10 @@ supabase/.temp/
 
 # handoff drafts
 HANDOFF_TO_*.md
+
+# Legacy Task Sheet Archive
+archive-task-sheet/
+
+# Local Dev Helpers
+app/api/public/dev-login/
+
