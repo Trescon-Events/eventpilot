@@ -244,17 +244,20 @@ export default function SummaryBar({
                   key={staffId}
                   onClick={() => onSelectStaff && onSelectStaff(isSelected ? null : staffId)}
                   style={{
-                    flex: '0 0 230px',
+                    flex: '0 0 240px',
+                    width: '240px',
+                    height: '136px',
                     cursor: onSelectStaff ? 'pointer' : 'default',
                     borderRadius: '12px',
                     transition: 'all 0.15s ease',
                     outline: isSelected ? '2px solid var(--teal-mid)' : 'none',
                     transform: isSelected ? 'translateY(-2px)' : 'none',
                     scrollSnapAlign: 'start',
+                    boxSizing: 'border-box',
                   }}
                 >
                   <StatCard color="indigo">
-                    <div style={{ padding: '14px 16px', position: 'relative' }}>
+                    <div style={{ padding: '14px 16px', height: '100%', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', boxSizing: 'border-box', position: 'relative' }}>
                       {isSelected && (
                         <div
                           style={{
@@ -274,14 +277,14 @@ export default function SummaryBar({
                           Filtered
                         </div>
                       )}
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '10px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                         <Avatar name={r.name} size={20} />
                         <span
                           style={{
                             fontSize: '12px',
                             fontWeight: 700,
                             color: 'var(--ink2)',
-                            maxWidth: '140px',
+                            maxWidth: isSelected ? '120px' : '170px',
                             overflow: 'hidden',
                             textOverflow: 'ellipsis',
                             whiteSpace: 'nowrap',
@@ -291,47 +294,45 @@ export default function SummaryBar({
                         </span>
                       </div>
 
-                      <div style={{ display: 'flex', alignItems: 'baseline', gap: '6px', marginBottom: '8px' }}>
-                        <span style={{ fontSize: '24px', fontWeight: 800, color: 'var(--ink)', lineHeight: 1 }}>{activeCount}</span>
-                        <span style={{ fontSize: '11px', color: 'var(--ink4)' }}>{activeCount === 1 ? 'active task' : 'active tasks'}</span>
-                        {r.completed > 0 && (
-                          <span style={{ fontSize: '11px', color: 'var(--teal)', marginLeft: 'auto', fontWeight: 600 }}>
-                            {r.completed} done
-                          </span>
-                        )}
-                      </div>
-
-                      {/* Segmented Active Progress bar (In Progress vs Not Started) */}
-                      <div
-                        style={{
-                          height: '4px',
-                          width: '100%',
-                          borderRadius: '2px',
-                          background: 'var(--border-light)',
-                          display: 'flex',
-                          overflow: 'hidden',
-                          marginBottom: '10px',
-                        }}
-                      >
-                        <div style={{ width: `${inProgressPercent}%`, background: 'var(--purple)', height: '100%' }} title={`In Progress: ${r.in_progress}`} />
-                        <div style={{ width: `${notStartedPercent}%`, background: 'var(--ink4)', height: '100%' }} title={`Not Started: ${r.not_started}`} />
-                      </div>
-
-                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                          <span style={{ width: '5px', height: '5px', borderRadius: '50%', background: 'var(--purple)', flexShrink: 0 }} />
-                          <span style={{ fontSize: '10px', color: 'var(--ink3)' }}>{r.in_progress} In progress</span>
-                        </div>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                          <span style={{ width: '5px', height: '5px', borderRadius: '50%', background: 'var(--ink4)', flexShrink: 0 }} />
-                          <span style={{ fontSize: '10px', color: 'var(--ink4)' }}>{r.not_started} Not started</span>
-                        </div>
-                        {r.completed > 0 && (
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                            <span style={{ width: '5px', height: '5px', borderRadius: '50%', background: 'var(--teal)', flexShrink: 0 }} />
-                            <span style={{ fontSize: '10px', color: 'var(--teal)' }}>{r.completed} Done</span>
+                      <div>
+                        <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: '6px' }}>
+                          <div style={{ display: 'flex', alignItems: 'baseline', gap: '6px' }}>
+                            <span style={{ fontSize: '22px', fontWeight: 800, color: 'var(--ink)', lineHeight: 1 }}>{activeCount}</span>
+                            <span style={{ fontSize: '11px', color: 'var(--ink4)' }}>{activeCount === 1 ? 'active task' : 'active tasks'}</span>
                           </div>
-                        )}
+                          {r.completed > 0 && (
+                            <span style={{ fontSize: '11px', color: 'var(--teal)', fontWeight: 700 }}>
+                              {r.completed} done
+                            </span>
+                          )}
+                        </div>
+
+                        {/* Segmented Active Progress bar (In Progress vs Not Started) */}
+                        <div
+                          style={{
+                            height: '4px',
+                            width: '100%',
+                            borderRadius: '2px',
+                            background: 'var(--border-light)',
+                            display: 'flex',
+                            overflow: 'hidden',
+                            marginBottom: '8px',
+                          }}
+                        >
+                          <div style={{ width: `${inProgressPercent}%`, background: 'var(--purple)', height: '100%' }} title={`In Progress: ${r.in_progress}`} />
+                          <div style={{ width: `${notStartedPercent}%`, background: 'var(--ink4)', height: '100%' }} title={`Not Started: ${r.not_started}`} />
+                        </div>
+
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '10px' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                            <span style={{ width: '5px', height: '5px', borderRadius: '50%', background: 'var(--purple)', flexShrink: 0 }} />
+                            <span style={{ color: 'var(--ink3)' }}>{r.in_progress} In progress</span>
+                          </div>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                            <span style={{ width: '5px', height: '5px', borderRadius: '50%', background: 'var(--ink4)', flexShrink: 0 }} />
+                            <span style={{ color: 'var(--ink4)' }}>{r.not_started} Not started</span>
+                          </div>
+                        </div>
                       </div>
                     </div>
                   </StatCard>

@@ -19,7 +19,6 @@ type ViewMode = 'table' | 'kanban' | 'timesheets'
 
 export default function TaskManagerPage() {
   const [tasks, setTasks] = useState<Task[]>([])
-  const [counts, setCounts] = useState<AssigneeCounts>({})
   const [staff, setStaff] = useState<StaffLite[]>([])
   const [events, setEvents] = useState<EventLite[]>([])
   const [currentStaffId, setCurrentStaffId] = useState<string | null>(null)
@@ -27,6 +26,8 @@ export default function TaskManagerPage() {
   const [error, setError] = useState<string | null>(null)
 
   const [dashboardMode, setDashboardMode] = useState<'focus' | 'admin'>('focus')
+  const [focusSubTab, setFocusSubTab] = useState<'assigned_to_me' | 'assigned_by_me' | 'all'>('assigned_to_me')
+  const [toast, setToast] = useState<{ message: string; submessage?: string } | null>(null)
   const [groupByEvent, setGroupByEvent] = useState(false)
   const [view, setView] = useState<ViewMode>('table')
   const [myTasksOnly, setMyTasksOnly] = useState(false)
@@ -36,6 +37,17 @@ export default function TaskManagerPage() {
   const [assignerFilter, setAssignerFilter] = useState<'all' | string>('all')
   const [statusFilter, setStatusFilter] = useState<'all' | TaskStatus>('all')
   const [priorityFilter, setPriorityFilter] = useState<'all' | TaskPriority>('all')
+
+  const currentStaff = useMemo(() => {
+    return staff.find(s => s.id === currentStaffId) ?? null
+  }, [staff, currentStaffId])
+
+  // Auto-dismiss toast after 4.5 seconds
+  useEffect(() => {
+    if (!toast) return
+    const t = setTimeout(() => setToast(null), 4500)
+    return () => clearTimeout(t)
+  }, [toast])
 
   const [editingTask, setEditingTask] = useState<Task | null | undefined>(undefined) // undefined = modal closed
   const [modalDefaultStatus, setModalDefaultStatus] = useState<TaskStatus>('Not-Started')
@@ -55,7 +67,6 @@ export default function TaskManagerPage() {
     if (!res.ok) { setError('Failed to load tasks.'); return }
     const data = await res.json()
     setTasks(data.tasks ?? [])
-    setCounts(data.counts_by_assignee ?? {})
   }
 
   async function refreshActiveTimer() {
@@ -90,7 +101,6 @@ export default function TaskManagerPage() {
           .sort((a: EventLite, b: EventLite) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }))
       )
       setTasks(taskRes.tasks ?? [])
-      setCounts(taskRes.counts_by_assignee ?? {})
       setActiveTimer(timerRes.active ?? null)
     }
     loadAll()
@@ -115,11 +125,32 @@ export default function TaskManagerPage() {
     loadFirstTime().catch(() => setTimeLogsLoading(false))
   }, [view, timeLogsLoaded])
 
-  const currentStaff = useMemo(() => {
-    return staff.find(s => s.id === currentStaffId) ?? null
-  }, [staff, currentStaffId])
+  // Compute assignees count & team capacities
+  const counts = useMemo<AssigneeCounts>(() => {
+    const map: AssigneeCounts = {}
+    for (const s of staff) {
+      map[s.id] = { name: s.name, total: 0, not_started: 0, in_progress: 0, completed: 0 }
+    }
+    for (const t of tasks) {
+      if (!map[t.assigned_to]) {
+        map[t.assigned_to] = {
+          name: t.assigned_to_staff?.name ?? 'Unknown',
+          total: 0,
+          not_started: 0,
+          in_progress: 0,
+          completed: 0,
+        }
+      }
+      const entry = map[t.assigned_to]
+      entry.total++
+      if (t.status === 'Not-Started') entry.not_started++
+      if (t.status === 'In-Progress') entry.in_progress++
+      if (t.status === 'Completed') entry.completed++
+    }
+    return map
+  }, [staff, tasks])
 
-  // Aggregate global metrics for the Admin KPI ribbon
+  // Macro KPI pulse summary metrics for Admin Oversight
   const { totalTasksCount, inProgressCount, completedCount, overdueCount, totalTrackedSeconds } = useMemo(() => {
     const today = new Date(new Date().toDateString())
     let inProg = 0
@@ -147,6 +178,7 @@ export default function TaskManagerPage() {
   const personalMetrics = useMemo(() => {
     const today = new Date(new Date().toDateString())
     const myTasks = tasks.filter(t => t.assigned_to === currentStaffId)
+    const delegatedTasks = tasks.filter(t => t.assigned_by === currentStaffId && t.assigned_to !== currentStaffId)
     let inProg = 0
     let done = 0
     let overdue = 0
@@ -166,6 +198,7 @@ export default function TaskManagerPage() {
 
     return {
       total: myTasks.length,
+      delegatedTotal: delegatedTasks.length,
       inProgress: inProg,
       done,
       overdue,
@@ -185,8 +218,12 @@ export default function TaskManagerPage() {
     }
 
     const list = tasks.filter(t => {
-      // In focus mode, automatically filter to current user's tasks
-      if (dashboardMode === 'focus' && t.assigned_to !== currentStaffId) return false
+      // In focus mode, filter based on focusSubTab
+      if (dashboardMode === 'focus') {
+        if (focusSubTab === 'assigned_to_me' && t.assigned_to !== currentStaffId) return false
+        if (focusSubTab === 'assigned_by_me' && (t.assigned_by !== currentStaffId || t.assigned_to === currentStaffId)) return false
+        if (focusSubTab === 'all' && t.assigned_to !== currentStaffId && t.assigned_by !== currentStaffId) return false
+      }
       if (dashboardMode === 'admin' && myTasksOnly && t.assigned_to !== currentStaffId) return false
       if (dashboardMode === 'admin' && selectedStaffId && t.assigned_to !== selectedStaffId) return false
       if (statusFilter !== 'all' && t.status !== statusFilter) return false
@@ -238,7 +275,7 @@ export default function TaskManagerPage() {
       // 5. Default by newest created
       return new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
     })
-  }, [tasks, dashboardMode, myTasksOnly, selectedStaffId, currentStaffId, statusFilter, priorityFilter, eventFilter, assignerFilter, searchQuery])
+  }, [tasks, dashboardMode, focusSubTab, myTasksOnly, selectedStaffId, currentStaffId, statusFilter, priorityFilter, eventFilter, assignerFilter, searchQuery])
 
   const categoryChartData = useMemo(() => {
     const byCategory = new Map<string, number>()
@@ -259,6 +296,10 @@ export default function TaskManagerPage() {
     if (!res.ok) {
       const b = await res.json().catch(() => ({}))
       throw new Error(b.error ?? 'Failed to assign task')
+    }
+    setToast({ message: 'Task created successfully!', submessage: values.description })
+    if (dashboardMode === 'focus' && values.assigned_to !== currentStaffId) {
+      setFocusSubTab('assigned_by_me')
     }
     await loadTasks()
   }
@@ -305,6 +346,7 @@ export default function TaskManagerPage() {
         body: JSON.stringify(values),
       })
       if (!res.ok) { const b = await res.json().catch(() => ({})); throw new Error(b.error ?? 'Failed to save task') }
+      setToast({ message: 'Task updated successfully!', submessage: values.description })
     } else {
       const res = await fetch('/api/task-manager', {
         method: 'POST',
@@ -312,6 +354,10 @@ export default function TaskManagerPage() {
         body: JSON.stringify({ ...values, status: modalDefaultStatus }),
       })
       if (!res.ok) { const b = await res.json().catch(() => ({})); throw new Error(b.error ?? 'Failed to create task') }
+      setToast({ message: 'Task created successfully!', submessage: values.description })
+      if (dashboardMode === 'focus' && values.assigned_to !== currentStaffId) {
+        setFocusSubTab('assigned_by_me')
+      }
     }
     setEditingTask(undefined)
     await loadTasks()
@@ -493,6 +539,64 @@ export default function TaskManagerPage() {
                 <div style={{ fontSize: '20px', fontWeight: 800, color: 'var(--teal)' }}>{personalMetrics.done}</div>
               </div>
             </div>
+          </div>
+
+          {/* Focus Sub-Tabs (Assigned to Me vs Delegated by Me) */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '16px', paddingTop: '14px', borderTop: '1px solid var(--border-light)', flexWrap: 'wrap' }}>
+            <span style={{ fontSize: '11px', fontWeight: 700, color: 'var(--ink3)', textTransform: 'uppercase', letterSpacing: '0.4px', marginRight: '4px' }}>
+              View Tasks:
+            </span>
+            <button
+              type="button"
+              onClick={() => setFocusSubTab('assigned_to_me')}
+              style={{
+                padding: '5px 14px',
+                fontSize: '12px',
+                fontWeight: 700,
+                borderRadius: '20px',
+                border: '1px solid var(--border)',
+                cursor: 'pointer',
+                background: focusSubTab === 'assigned_to_me' ? 'var(--teal-mid)' : 'var(--surface)',
+                color: focusSubTab === 'assigned_to_me' ? 'var(--surface)' : 'var(--ink3)',
+                transition: 'all 0.15s ease',
+              }}
+            >
+              📌 Assigned to Me ({personalMetrics.total})
+            </button>
+            <button
+              type="button"
+              onClick={() => setFocusSubTab('assigned_by_me')}
+              style={{
+                padding: '5px 14px',
+                fontSize: '12px',
+                fontWeight: 700,
+                borderRadius: '20px',
+                border: '1px solid var(--border)',
+                cursor: 'pointer',
+                background: focusSubTab === 'assigned_by_me' ? 'var(--teal-mid)' : 'var(--surface)',
+                color: focusSubTab === 'assigned_by_me' ? 'var(--surface)' : 'var(--ink3)',
+                transition: 'all 0.15s ease',
+              }}
+            >
+              🚀 Delegated / Assigned by Me ({personalMetrics.delegatedTotal})
+            </button>
+            <button
+              type="button"
+              onClick={() => setFocusSubTab('all')}
+              style={{
+                padding: '5px 14px',
+                fontSize: '12px',
+                fontWeight: 700,
+                borderRadius: '20px',
+                border: '1px solid var(--border)',
+                cursor: 'pointer',
+                background: focusSubTab === 'all' ? 'var(--teal-mid)' : 'var(--surface)',
+                color: focusSubTab === 'all' ? 'var(--surface)' : 'var(--ink3)',
+                transition: 'all 0.15s ease',
+              }}
+            >
+              🌐 All My Involvements ({personalMetrics.total + personalMetrics.delegatedTotal})
+            </button>
           </div>
         </div>
       )}
@@ -719,6 +823,43 @@ export default function TaskManagerPage() {
           onClose={() => setShowTimeLogModal(false)}
           onSave={handleSaveManualLog}
         />
+      )}
+
+      {/* Floating Confirmation Toast */}
+      {toast && (
+        <div
+          style={{
+            position: 'fixed',
+            bottom: '28px',
+            right: '28px',
+            zIndex: 9999,
+            display: 'flex',
+            alignItems: 'center',
+            gap: '12px',
+            padding: '14px 20px',
+            background: 'var(--card)',
+            border: '1px solid var(--teal)',
+            borderRadius: '12px',
+            boxShadow: 'var(--shadow-md)',
+          }}
+        >
+          <span style={{ fontSize: '20px' }}>✅</span>
+          <div>
+            <div style={{ fontSize: '13px', fontWeight: 800, color: 'var(--ink)' }}>{toast.message}</div>
+            {toast.submessage && (
+              <div style={{ fontSize: '12px', color: 'var(--ink3)', marginTop: '2px', maxWidth: '320px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                {toast.submessage}
+              </div>
+            )}
+          </div>
+          <button
+            type="button"
+            onClick={() => setToast(null)}
+            style={{ background: 'none', border: 'none', color: 'var(--ink4)', fontSize: '14px', cursor: 'pointer', marginLeft: '6px', padding: '2px' }}
+          >
+            ✕
+          </button>
+        </div>
       )}
     </div>
     </>

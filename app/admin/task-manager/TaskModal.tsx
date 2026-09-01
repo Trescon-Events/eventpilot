@@ -1,8 +1,8 @@
 'use client'
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import Button from '@/app/components/ui/Button'
-import { Input, Select, Textarea } from '@/app/components/ui/Field'
-import { EventLite, PRIORITIES, StaffLite, Task, TaskPriority, TaskSaveValues } from './types'
+import { Select, Textarea } from '@/app/components/ui/Field'
+import { EventLite, PRIORITIES, StaffLite, Task, TaskPriority, TaskSaveValues, isBrandingStaff } from './types'
 import { CUSTOM_SCROLLBAR_STYLE, SearchableSelect } from './ui'
 
 interface Props {
@@ -27,6 +27,24 @@ export default function TaskModal({ task, staff, events, counts, currentStaffId,
   const [remarks, setRemarks] = useState(task?.remarks ?? '')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [showAllStaff, setShowAllStaff] = useState(false)
+
+  // Filter staff to Branding Department members only
+  const brandingStaff = useMemo(() => {
+    const b = staff.filter(isBrandingStaff)
+    return b.length > 0 ? b : staff
+  }, [staff])
+
+  // If current assignedTo is not in brandingStaff, keep it in the list so historical edits don't break
+  const assigneeCandidates = useMemo(() => {
+    if (showAllStaff) return staff
+    const set = new Set(brandingStaff.map((s: StaffLite) => s.id))
+    if (assignedTo && !set.has(assignedTo)) {
+      const extra = staff.find((s: StaffLite) => s.id === assignedTo)
+      if (extra) return [extra, ...brandingStaff]
+    }
+    return brandingStaff
+  }, [showAllStaff, staff, brandingStaff, assignedTo])
 
   const canSave = description.trim().length > 0 && assignedTo.length > 0
 
@@ -68,22 +86,49 @@ export default function TaskModal({ task, staff, events, counts, currentStaffId,
     >
       <div
         className="tm-scroll"
-        style={{ background: 'var(--card)', borderRadius: '14px', padding: '28px', width: '520px', maxWidth: '90vw', maxHeight: '85vh', overflowY: 'auto', boxShadow: 'var(--shadow-md)', ...CUSTOM_SCROLLBAR_STYLE }}
+        style={{
+          background: 'var(--card)',
+          borderRadius: '16px',
+          padding: '32px',
+          width: '660px',
+          maxWidth: '94vw',
+          maxHeight: '88vh',
+          overflowY: 'auto',
+          boxShadow: 'var(--shadow-lg, var(--shadow-md))',
+          border: '1px solid var(--border)',
+          ...CUSTOM_SCROLLBAR_STYLE,
+        }}
         onClick={e => e.stopPropagation()}
       >
-        <h2 style={{ fontSize: '18px', fontWeight: 800, color: 'var(--ink)', margin: '0 0 18px' }}>
-          {task ? 'Edit Task' : 'New Task'}
-        </h2>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '22px' }}>
+          <h2 style={{ fontSize: '20px', fontWeight: 800, color: 'var(--ink)', margin: 0 }}>
+            {task ? 'Edit Task' : 'New Task'}
+          </h2>
+          <button
+            type="button"
+            onClick={onClose}
+            style={{ background: 'none', border: 'none', color: 'var(--ink4)', fontSize: '18px', cursor: 'pointer', padding: '4px' }}
+          >
+            ✕
+          </button>
+        </div>
 
         {error && (
-          <div style={{ background: 'var(--red-light)', color: 'var(--red)', border: '1px solid var(--red-border)', borderRadius: '8px', padding: '10px 14px', fontSize: '12px', marginBottom: '14px' }}>
+          <div style={{ background: 'var(--red-light)', color: 'var(--red)', border: '1px solid var(--red-border)', borderRadius: '8px', padding: '10px 14px', fontSize: '12px', marginBottom: '16px' }}>
             {error}
           </div>
         )}
 
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
           <Field label="Task description *">
-            <Textarea autoFocus value={description} onChange={e => setDescription(e.target.value)} rows={2} style={{ fontSize: '14px' }} />
+            <Textarea
+              autoFocus
+              value={description}
+              onChange={e => setDescription(e.target.value)}
+              rows={3}
+              style={{ fontSize: '14px', lineHeight: '1.5', padding: '10px 14px' }}
+              placeholder="What needs to be done? (e.g. DFS Speaker Announcement Templates, 4 promo designs...)"
+            />
           </Field>
 
           <Field label="Event">
@@ -115,8 +160,8 @@ export default function TaskModal({ task, staff, events, counts, currentStaffId,
                 setAssignedTo(prevBy)
               }}
               style={{
-                height: '36px',
-                width: '36px',
+                height: '40px',
+                width: '40px',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
@@ -136,9 +181,21 @@ export default function TaskModal({ task, staff, events, counts, currentStaffId,
               ⇄
             </button>
 
-            <Field label="Assigned to *">
+            <div style={{ flex: 1 }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '4px' }}>
+                <span style={{ fontSize: '11px', fontWeight: 700, color: 'var(--ink3)', textTransform: 'uppercase', letterSpacing: '0.3px' }}>
+                  Assigned to (Branding Team) *
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setShowAllStaff(!showAllStaff)}
+                  style={{ background: 'none', border: 'none', color: 'var(--teal)', fontSize: '10px', fontWeight: 600, cursor: 'pointer', padding: 0 }}
+                >
+                  {showAllStaff ? 'Show Branding only' : 'Show all staff'}
+                </button>
+              </div>
               <SearchableSelect
-                options={staff.map(s => {
+                options={assigneeCandidates.map((s: StaffLite) => {
                   const staffCount = counts?.[s.id]
                   const active = staffCount ? staffCount.in_progress + staffCount.not_started : 0
                   let label = s.name
@@ -152,33 +209,65 @@ export default function TaskModal({ task, staff, events, counts, currentStaffId,
                     }
                   }
                   return { id: s.id, label, active }
-                }).sort((a, b) => a.active - b.active || a.label.localeCompare(b.label))}
+                }).sort((a: { active: number; label: string }, b: { active: number; label: string }) => a.active - b.active || a.label.localeCompare(b.label))}
                 value={assignedTo}
                 onChange={setAssignedTo}
-                placeholder="Search staff…"
+                placeholder="Search branding staff…"
               />
-            </Field>
+            </div>
           </div>
 
-          <div style={{ display: 'flex', gap: '12px' }}>
+          <div style={{ display: 'flex', gap: '14px' }}>
             <Field label="Deadline">
-              <Input type="date" value={deadline ?? ''} onChange={e => setDeadline(e.target.value)} />
+              <input
+                type="date"
+                value={deadline ?? ''}
+                onChange={e => setDeadline(e.target.value)}
+                onClick={e => {
+                  try {
+                    e.currentTarget.showPicker?.()
+                  } catch {}
+                }}
+                style={{
+                  width: '100%',
+                  height: '40px',
+                  padding: '0 12px',
+                  fontSize: '13px',
+                  fontWeight: 500,
+                  background: 'var(--surface)',
+                  border: '1px solid var(--border)',
+                  borderRadius: '8px',
+                  color: 'var(--ink)',
+                  outline: 'none',
+                  cursor: 'pointer',
+                }}
+              />
             </Field>
             <Field label="Priority">
-              <Select value={priority} onChange={e => setPriority(e.target.value as TaskPriority)}>
+              <Select
+                value={priority}
+                onChange={e => setPriority(e.target.value as TaskPriority)}
+                style={{ height: '40px' }}
+              >
                 {PRIORITIES.map(p => <option key={p} value={p}>{p}</option>)}
               </Select>
             </Field>
           </div>
 
-          <Field label="Remarks">
-            <Textarea value={remarks ?? ''} onChange={e => setRemarks(e.target.value)} rows={2} />
+          <Field label="Remarks / Note">
+            <Textarea
+              value={remarks ?? ''}
+              onChange={e => setRemarks(e.target.value)}
+              rows={2}
+              style={{ fontSize: '13px', padding: '10px 14px' }}
+              placeholder="Add any extra notes, assets links, or instructions..."
+            />
           </Field>
         </div>
 
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: '22px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: '26px', paddingTop: '16px', borderTop: '1px solid var(--border-light)' }}>
           <span style={{ fontSize: '11px', color: 'var(--ink4)' }}>⌘/Ctrl + Enter to save · Esc to cancel</span>
-          <div style={{ display: 'flex', gap: '8px' }}>
+          <div style={{ display: 'flex', gap: '10px' }}>
             <Button variant="ghost" disabled={busy} onClick={onClose}>Cancel</Button>
             <Button variant="teal" disabled={!canSave || busy} onClick={save}>
               {busy ? 'Saving…' : task ? 'Save Changes' : 'Create Task'}

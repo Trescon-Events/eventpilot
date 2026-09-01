@@ -1,8 +1,34 @@
 export type TaskStatus = 'Not-Started' | 'In-Progress' | 'Completed'
 export type TaskPriority = 'High' | 'Medium' | 'Low'
 
-export type StaffLite = { id: string; name: string; email?: string }
+export type StaffLite = {
+  id: string
+  name: string
+  email?: string
+  department?: string
+  role?: string
+}
 export type EventLite = { id: string; name: string }
+
+export function isBrandingStaff(s: StaffLite): boolean {
+  const dept = (s.department || '').toLowerCase().trim()
+  const role = (s.role || '').toLowerCase().trim()
+  if (!dept && !role) return false
+  return (
+    dept.includes('brand') ||
+    dept.includes('design') ||
+    dept.includes('creative') ||
+    dept.includes('marketing') ||
+    role.includes('brand') ||
+    role.includes('design') ||
+    role.includes('graphic') ||
+    role.includes('video') ||
+    role.includes('ui') ||
+    role.includes('ux') ||
+    role.includes('creative') ||
+    role.includes('visual')
+  )
+}
 
 export type Task = {
   id: string
