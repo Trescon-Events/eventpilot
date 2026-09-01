@@ -15,13 +15,45 @@ Railway's auto-deploy silently stopped working from **2026-07-17 to 2026-07-21**
 
 | Field | Value |
 |---|---|
-| Who | Madhu + Claude Code — 26–29 Aug 2026, marathon SAE (Stakeholder Announcement Engine) session |
-| Date | 2026-08-29 |
-| Latest push | 2026-08-29 — 20 commits total, `9d4ca1c`. Global Placeholder Defaults + Cleaning Cycle Template moved to org-wide Branding; Self Promo redesigned; a new third **Client Approval** layer (Internal → Client → External); THEN three rounds of live-testing fixes on top — see "29 Aug 2026" dated section below, read top to bottom (it's now several sub-sessions merged into one). |
-| DB migrations applied | Yes — `global_placeholder_defaults_migration.sql`, `global_placeholder_photo_head_box_migration.sql`, `cleaning_cycle_template_global_migration.sql`, `announcement_client_approval_migration.sql`, `announcement_approval_sender_email_migration.sql`. All additive (new tables/columns, one CHECK constraint widened, new `email_templates` rows/edits). All applied directly via `supabase db query --linked -f` and verified. |
-| Handed off to | Durga — **and explicitly, Madhu picking this back up himself next session on the DFS/DFFW Client Approval work specifically (see "DFS/DFFW — pick up here" below).** |
-| Deployed | Live — pushed to `main` in 3 separate rounds as fixes landed (final commit `61b3403`), Railway auto-deploy confirmed RUNNING each time, live site (eventpilot.tresconglobal.com) returns HTTP 200. |
-| Left alone / known follow-up | See "DFS/DFFW — pick up here" and "What's next" in the dated section below. Short version: the 3-layer approval feature is fully live and Madhu live-tested it hard this session (4 real bugs found and fixed) — but no REAL DIFC event has a client contact configured yet, only a test one on WAIS Malaysia (should be cleared before real use — see below). A duplicate test speaker ("Grace Zhang (TEST — DELETE ME)") also still sits at the bottom of WAIS Malaysia's roster; cleanup script at `scripts/delete-test-speaker-grace-zhang-copy.sql`. |
+| Who | Madhu + Claude Code — 01 Sep 2026, Khalifa PR workflow session |
+| Date | 2026-09-01 |
+| Latest push | 2026-09-01 — commit `b7a11e4`. Khalifa's Antigravity was sending him to github.com to open PRs by hand; replaced with an explicit **"Go Live" protocol** (agent commits, pushes, and runs `gh pr create` itself) plus **view-only access** for Khalifa on `/admin/dev-approvals` so he can check his own PR status without waiting on email. Decision-making (Approve/Send Back) unchanged — still Madhu/Durga only, server-enforced. See "01 Sep 2026" dated section below. |
+| DB migrations applied | No schema changes. One out-of-band data cleanup: deleted the stale `github_pr_reviews` row for PR #11 (superseded, checks were failing) via a one-off script — Khalifa is opening a fresh consolidated PR instead. |
+| Handed off to | Durga — and Khalifa, who has a copy-paste Antigravity setup prompt from Madhu to adopt the new "Go Live" behavior (see dated section below for the exact prompt). |
+| Deployed | Live — pushed to `main` (`b7a11e4`), Railway auto-deploy confirmed, live site returns HTTP 200. |
+| Left alone / known follow-up | The whole "Go Live" path (agent-run `gh pr create`, Khalifa's view-only dashboard access) is new and hasn't been exercised end-to-end yet — watch for Khalifa's next real PR to confirm it works as designed. DFS/DFFW Client Approval pickup (below, from 29 Aug) is still untouched this session — still pending whoever picks that up. |
+
+## 01 Sep 2026 — Khalifa "Go Live" PR protocol + view-only PR Approvals access
+
+### The ask
+
+Madhu learned Khalifa's Antigravity was telling him to go open a pull request on github.com by hand once a build was ready — a manual step that broke the "just say a command" workflow Madhu wanted. Ask: let Khalifa trigger the whole PR-open step with a simple command like "Go live," have Madhu's existing email-notification → `/admin/dev-approvals` approval flow keep working exactly as before, and give Khalifa a way to check status of his own PRs without waiting on email.
+
+### What was already true (no code needed)
+
+The email/webhook/approval pipeline Madhu wanted already existed in full: `pr-safety-summary.yml` GitHub Action → `POST /api/webhooks/github-pr` → AI summary + `github_pr_reviews` row → email to Madhu with a link to `/admin/dev-approvals` → Approve & Ship (reviews+merges via `GITHUB_APPROVER_TOKEN`) or Send Back. The only real gap was the PR-opening step being a manual browser action instead of something the agent could just run.
+
+### What was built
+
+- **`app/lib/github/dev-approvals-access.ts`** — added `requireDevApprovalsViewAccess()`, a second, looser check used only by the `GET` route: lets `khalifa@tresconglobal.com` through read-only (`canDecide: false`), alongside the existing Madhu/Durga allowlist (`canDecide: true`). The original `requireDevApprovalsAccess()` — used by `approve`/`reject` — is untouched, so decision-making stays exactly as restricted as before.
+- **`app/api/admin/dev-approvals/route.ts`** — GET now uses the view-access check and returns `canDecide` in the JSON payload.
+- **`app/admin/dev-approvals/page.tsx`** — hides Approve & Ship / Send Back and shows a "👁 View-only" banner + adjusted description when `canDecide` is false; surfaces the Send-Back note text in the "Recently decided" list (previously only visible via email) so Khalifa can read *why* a PR was sent back without waiting. Small bonus fix while touching this file: a PR approved-but-failed-to-merge (`merge_error` set) was mislabeled "✓ Merged" — now shows "⚠ Approved, not merged" (a bug already logged in the 24 Aug entry below, now fixed).
+- **`middleware.ts`** — `/admin/dev-approvals` added to the auth-only tool-route allowlist. Without this, the view-access change above would have been unreachable: the blanket `/admin/*` rule redirects any non-admin (including Khalifa) to `/no-access` before the page or its API is ever hit.
+- **`TASK_MANAGER_HANDOFF.md`** — rewrote the contribution workflow into an explicit **"Go Live" protocol**: one-time `gh` CLI setup, then on "Go live" the agent itself commits → pushes → runs `gh pr create` (never sends Khalifa to the browser). Documented the new view-only access under "Access model." This file is what Khalifa's Antigravity is already pointed at via the nested `app/admin/task-manager/AGENTS.md` / `app/api/task-manager/AGENTS.md` files, so it's the source of truth for his side, not this file.
+- Gave Madhu a copy-paste prompt to hand Khalifa for pasting directly into Antigravity — walks it through checking/installing `gh`, authenticating (one human-in-the-loop browser step), and adopting the new "Go live" behavior going forward. (The prompt itself lives in this conversation's transcript, not committed anywhere — resend it to Khalifa if it's needed again.)
+
+### PR #11 cleanup
+
+While reviewing the live page, Madhu spotted a stale PR (#11, "enlarge pop-up, filter assignees to branding team…") stuck on **CHECKS FAILING**, superseded by Khalifa's plan to open one fresh consolidated PR instead. Closed PR #11 on GitHub (`gh pr close 11`, with an explanatory comment) and deleted its row from `github_pr_reviews` via a one-off script (the DB write was blocked twice by the Claude Code permission classifier as a direct production write — handed to Madhu to run himself via `!`, which he did; script deleted afterward, nothing left behind).
+
+### Verified
+
+`tsc --noEmit` clean before and after the rebase onto Khalifa's own concurrent PR #9/#10 merges (task-manager UI work, unrelated). Not yet verified: an actual end-to-end "Go live" run from Khalifa's Antigravity — first real test is still pending.
+
+### What's next
+
+- Watch for Khalifa's first real "Go live" — confirm the PR opens correctly, the email/summary flow fires as before, and his view-only `/admin/dev-approvals` shows accurate status.
+- DFS/DFFW Client Approval pickup (see 29 Aug entry immediately below) is unrelated and still untouched — not in scope this session.
 
 ## 29 Aug 2026 — Global Branding cleanup, Self Promo redesign, Client Approval (3rd approval layer)
 
