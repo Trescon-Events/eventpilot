@@ -27,7 +27,8 @@ export async function GET(req: NextRequest) {
       event:event_id ( id, name ),
       assigned_by_staff:assigned_by ( id, name, email ),
       assigned_to_staff:assigned_to ( id, name, email ),
-      assigned_contact:assigned_contact_id ( id, name )
+      assigned_contact:assigned_contact_id ( id, name ),
+      task_type:task_type_id ( id, label )
     `)
     .order('created_at', { ascending: false })
 
@@ -55,6 +56,7 @@ export async function POST(req: NextRequest) {
   const body = await req.json().catch(() => null)
   if (!body?.description?.trim()) return NextResponse.json({ error: 'description is required' }, { status: 400 })
   if (!body?.assigned_to) return NextResponse.json({ error: 'assigned_to is required' }, { status: 400 })
+  if (!body?.task_type_id) return NextResponse.json({ error: 'task_type_id is required' }, { status: 400 })
 
   const { data, error } = await supabaseAdmin
     .from('task_manager_tasks')
@@ -64,6 +66,7 @@ export async function POST(req: NextRequest) {
       assigned_by:         body.assigned_by || session!.sid,
       assigned_to:         body.assigned_to,
       assigned_contact_id: body.assigned_contact_id || null,
+      task_type_id:        body.task_type_id,
       assigned_date:       body.assigned_date || new Date().toISOString().slice(0, 10),
       deadline:            body.deadline || null,
       status:              body.status || 'Not-Started',
@@ -72,7 +75,8 @@ export async function POST(req: NextRequest) {
     })
     .select(`
       *,
-      event:event_id ( id, name )
+      event:event_id ( id, name ),
+      task_type:task_type_id ( id, label )
     `)
     .single()
 

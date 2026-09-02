@@ -12,6 +12,7 @@ export type StaffLite = {
 }
 export type EventLite = { id: string; name: string }
 export type VendorContact = { id: string; vendor_staff_id: string; name: string; active: boolean }
+export type TaskType = { id: string; label: string; sort_order: number; active: boolean }
 
 export function isBrandingStaff(s: StaffLite): boolean {
   const dept = (s.department || '').toLowerCase().trim()
@@ -44,6 +45,8 @@ export type Task = {
   assigned_to_staff: StaffLite | null
   assigned_contact_id?: string | null
   assigned_contact?: { id: string; name: string } | null
+  task_type_id?: string | null
+  task_type?: { id: string; label: string } | null
   assigned_date: string
   deadline: string | null
   status: TaskStatus
@@ -90,6 +93,7 @@ export type TaskSaveValues = {
   assigned_by: string
   assigned_to: string
   assigned_contact_id: string | null
+  task_type_id: string
   deadline: string | null
   priority: TaskPriority
   remarks: string | null

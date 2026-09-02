@@ -224,6 +224,7 @@ function TaskCard({
 
       <div style={{ display: 'flex', gap: '6px', alignItems: 'center', flexWrap: 'wrap', marginBottom: '8px' }}>
         <Badge color={PRIORITY_COLOR[task.priority]}>{task.priority}</Badge>
+        {task.task_type && <Badge color="grey">{task.task_type.label}</Badge>}
         {task.deadline && (
           <span style={{ fontSize: '11px', color: 'var(--ink3)' }}>Due {task.deadline}</span>
         )}

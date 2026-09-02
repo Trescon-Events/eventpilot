@@ -1,28 +1,30 @@
 'use client'
 import { useState } from 'react'
 import Button from '@/app/components/ui/Button'
-import { EventLite, PRIORITIES, PRIORITY_COLOR, StaffLite, TaskPriority, TaskSaveValues, isBrandingStaff } from './types'
+import { EventLite, PRIORITIES, PRIORITY_COLOR, StaffLite, TaskPriority, TaskSaveValues, TaskType, isBrandingStaff } from './types'
 import { Avatar, PillSelect, SearchableSelect } from './ui'
 
 interface Props {
   staff: StaffLite[]
   events: EventLite[]
+  taskTypes: TaskType[]
   counts?: Record<string, { total: number; not_started: number; in_progress: number; completed: number }>
   currentStaffId: string | null
   onAssign: (values: TaskSaveValues) => Promise<void>
 }
 
-export default function QuickAssignCard({ staff, events, counts, currentStaffId, onAssign }: Props) {
+export default function QuickAssignCard({ staff, events, taskTypes, counts, currentStaffId, onAssign }: Props) {
   const [description, setDescription] = useState('')
   const [assignedTo, setAssignedTo] = useState('')
   const [eventId, setEventId] = useState('')
+  const [taskTypeId, setTaskTypeId] = useState('')
   const [deadline, setDeadline] = useState('')
   const [priority, setPriority] = useState<TaskPriority>('Medium')
   const [remarks, setRemarks] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  const canSubmit = description.trim().length > 0 && assignedTo.length > 0 && !busy
+  const canSubmit = description.trim().length > 0 && assignedTo.length > 0 && taskTypeId.length > 0 && !busy
 
   async function handleSubmit() {
     if (!canSubmit) return
@@ -34,6 +36,7 @@ export default function QuickAssignCard({ staff, events, counts, currentStaffId,
         assigned_by: currentStaffId ?? assignedTo,
         assigned_to: assignedTo,
         assigned_contact_id: null,
+        task_type_id: taskTypeId,
         event_id: eventId || null,
         deadline: deadline || null,
         priority,
@@ -198,6 +201,19 @@ export default function QuickAssignCard({ staff, events, counts, currentStaffId,
               style={{ height: '36px', padding: '0 24px 0 12px' }}
             >
               {PRIORITIES.map(p => <option key={p} value={p}>{p}</option>)}
+            </PillSelect>
+          </div>
+
+          {/* Task Type — required */}
+          <div style={{ height: '36px', display: 'flex', alignItems: 'center' }}>
+            <PillSelect
+              pillColor={taskTypeId ? 'grey' : 'red'}
+              value={taskTypeId}
+              onChange={e => setTaskTypeId(!busy ? e.target.value : taskTypeId)}
+              style={{ height: '36px', padding: '0 24px 0 12px' }}
+            >
+              <option value="" disabled>Task type…</option>
+              {taskTypes.filter(t => t.active).map(t => <option key={t.id} value={t.id}>{t.label}</option>)}
             </PillSelect>
           </div>
 

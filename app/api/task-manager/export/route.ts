@@ -25,16 +25,18 @@ export async function GET(req: NextRequest) {
       *,
       event:event_id ( name ),
       assigned_by_staff:assigned_by ( name ),
-      assigned_to_staff:assigned_to ( name )
+      assigned_to_staff:assigned_to ( name ),
+      task_type:task_type_id ( label )
     `)
     .order('created_at', { ascending: false })
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
-  const headers = ['Event', 'Description', 'Assigned By', 'Assigned To', 'Assigned Date', 'Deadline', 'Status', 'Priority', 'Remarks', 'Tracked Hours']
+  const headers = ['Event', 'Description', 'Task Type', 'Assigned By', 'Assigned To', 'Assigned Date', 'Deadline', 'Status', 'Priority', 'Remarks', 'Tracked Hours']
   const rows = (data ?? []).map(t => [
     (t.event as { name: string } | null)?.name ?? '',
     t.description,
+    (t.task_type as { label: string } | null)?.label ?? '',
     (t.assigned_by_staff as { name: string } | null)?.name ?? '',
     (t.assigned_to_staff as { name: string } | null)?.name ?? '',
     t.assigned_date ?? '',

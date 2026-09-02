@@ -13,7 +13,7 @@ import TaskTable from './TaskTable'
 import TimeLogModal from './TimeLogModal'
 import Timesheets from './Timesheets'
 import { ACTIVE_PILL_FILTER_STYLE, PILL_FILTER_STYLE, TaskManagerStyles } from './ui'
-import { ActiveTimer, EventLite, LogCategory, StaffLite, Task, TaskPriority, TaskSaveValues, TaskStatus, TimeLog } from './types'
+import { ActiveTimer, EventLite, LogCategory, StaffLite, Task, TaskPriority, TaskSaveValues, TaskStatus, TaskType, TimeLog } from './types'
 
 type ViewMode = 'table' | 'kanban' | 'timesheets'
 
@@ -21,6 +21,7 @@ export default function TaskManagerPage() {
   const [tasks, setTasks] = useState<Task[]>([])
   const [staff, setStaff] = useState<StaffLite[]>([])
   const [events, setEvents] = useState<EventLite[]>([])
+  const [taskTypes, setTaskTypes] = useState<TaskType[]>([])
   const [currentStaffId, setCurrentStaffId] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -86,12 +87,13 @@ export default function TaskManagerPage() {
 
   useEffect(() => {
     async function loadAll() {
-      const [session, staffList, eventList, taskRes, timerRes] = await Promise.all([
+      const [session, staffList, eventList, taskRes, timerRes, taskTypeList] = await Promise.all([
         fetch('/api/auth/session').then(r => r.json()),
         fetch('/api/staff-list').then(r => r.json()),
         fetch('/api/events').then(r => r.json()),
         fetch('/api/task-manager').then(r => r.json()),
         fetch('/api/task-manager/timer/active').then(r => r.json()),
+        fetch('/api/task-manager/task-types').then(r => r.json()),
       ])
       setCurrentStaffId(session?.sid ?? null)
       setStaff((staffList ?? []).sort((a: StaffLite, b: StaffLite) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base' })))
@@ -102,6 +104,7 @@ export default function TaskManagerPage() {
       )
       setTasks(taskRes.tasks ?? [])
       setActiveTimer(timerRes.active ?? null)
+      setTaskTypes(Array.isArray(taskTypeList) ? taskTypeList : [])
     }
     loadAll()
       .catch(() => setError('Failed to load Task Manager.'))
@@ -605,6 +608,7 @@ export default function TaskManagerPage() {
       <QuickAssignCard
         staff={staff}
         events={events}
+        taskTypes={taskTypes}
         counts={counts}
         currentStaffId={currentStaffId}
         onAssign={handleQuickAssign}
@@ -810,6 +814,7 @@ export default function TaskManagerPage() {
           task={editingTask}
           staff={staff}
           events={events}
+          taskTypes={taskTypes}
           counts={counts}
           currentStaffId={currentStaffId}
           onClose={() => setEditingTask(undefined)}

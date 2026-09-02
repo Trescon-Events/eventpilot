@@ -14,7 +14,7 @@ function getSession(req: NextRequest) {
   catch { return null }
 }
 
-const EDITABLE_FIELDS = ['event_id', 'description', 'assigned_by', 'assigned_to', 'assigned_contact_id', 'assigned_date', 'deadline', 'status', 'priority', 'remarks'] as const
+const EDITABLE_FIELDS = ['event_id', 'description', 'assigned_by', 'assigned_to', 'assigned_contact_id', 'task_type_id', 'assigned_date', 'deadline', 'status', 'priority', 'remarks'] as const
 
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const session = getSession(req)
@@ -47,7 +47,8 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       event:event_id ( id, name ),
       assigned_by_staff:assigned_by ( id, name, email ),
       assigned_to_staff:assigned_to ( id, name, email ),
-      assigned_contact:assigned_contact_id ( id, name )
+      assigned_contact:assigned_contact_id ( id, name ),
+      task_type:task_type_id ( id, label )
     `)
     .single()
 
@@ -64,7 +65,8 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
         event:event_id ( id, name ),
         assigned_by_staff:assigned_by ( id, name, email ),
         assigned_to_staff:assigned_to ( id, name, email ),
-        assigned_contact:assigned_contact_id ( id, name )
+        assigned_contact:assigned_contact_id ( id, name ),
+        task_type:task_type_id ( id, label )
       `)
       .single()
     data = retry.data

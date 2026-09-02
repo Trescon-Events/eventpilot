@@ -291,6 +291,11 @@ function TaskRow({
           {isCompleted && <span style={{ color: 'var(--teal)', fontSize: '12px' }}>✓</span>}
           <span>{t.description}</span>
         </div>
+        {t.task_type && (
+          <span style={{ display: 'inline-block', marginTop: '4px', fontSize: '10px', fontWeight: 700, color: 'var(--indigo)', background: 'var(--indigo-light)', padding: '2px 7px', borderRadius: '10px' }}>
+            {t.task_type.label}
+          </span>
+        )}
         {t.remarks && (
           <div
             style={{

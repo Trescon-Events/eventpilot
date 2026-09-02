@@ -2,20 +2,21 @@
 import { useEffect, useMemo, useState } from 'react'
 import Button from '@/app/components/ui/Button'
 import { Select, Textarea } from '@/app/components/ui/Field'
-import { EventLite, PRIORITIES, StaffLite, Task, TaskPriority, TaskSaveValues, VendorContact, isBrandingStaff } from './types'
+import { EventLite, PRIORITIES, StaffLite, Task, TaskPriority, TaskSaveValues, TaskType, VendorContact, isBrandingStaff } from './types'
 import { CUSTOM_SCROLLBAR_STYLE, SearchableSelect } from './ui'
 
 interface Props {
   task: Task | null   // null = creating a new task
   staff: StaffLite[]
   events: EventLite[]
+  taskTypes: TaskType[]
   counts?: Record<string, { total: number; not_started: number; in_progress: number; completed: number }>
   currentStaffId: string | null
   onClose: () => void
   onSave: (values: TaskSaveValues) => Promise<void> | void
 }
 
-export default function TaskModal({ task, staff, events, counts, currentStaffId, onClose, onSave }: Props) {
+export default function TaskModal({ task, staff, events, taskTypes, counts, currentStaffId, onClose, onSave }: Props) {
   const [eventId, setEventId] = useState(task?.event_id ?? '')
   const [description, setDescription] = useState(task?.description ?? '')
   const [assignedBy, setAssignedBy] = useState(task?.assigned_by ?? currentStaffId ?? '')
@@ -24,6 +25,10 @@ export default function TaskModal({ task, staff, events, counts, currentStaffId,
   const [assignedTo, setAssignedTo] = useState(task?.assigned_to ?? currentStaffId ?? '')
   const [assignedContactId, setAssignedContactId] = useState(task?.assigned_contact_id ?? '')
   const [vendorContacts, setVendorContacts] = useState<VendorContact[]>([])
+  // No fallback for an existing task with no type yet (pre-dates this
+  // field) — starts empty so canSave still requires picking one on save,
+  // per the "don't silently allow saving with it still empty" rule below.
+  const [taskTypeId, setTaskTypeId] = useState(task?.task_type_id ?? '')
   const [deadline, setDeadline] = useState(task?.deadline ?? '')
   const [priority, setPriority] = useState<TaskPriority>(task?.priority ?? 'Medium')
   const [remarks, setRemarks] = useState(task?.remarks ?? '')
@@ -50,6 +55,18 @@ export default function TaskModal({ task, staff, events, counts, currentStaffId,
     return defaultAssignees
   }, [showAllStaff, staff, defaultAssignees, assignedTo])
 
+  // Active types, plus the task's current type if it's since been
+  // deactivated — same "keep it in the list so historical edits don't
+  // break" reasoning as assigneeCandidates above.
+  const taskTypeOptions = useMemo(() => {
+    const active = taskTypes.filter(t => t.active)
+    if (taskTypeId && !active.some(t => t.id === taskTypeId)) {
+      const extra = taskTypes.find(t => t.id === taskTypeId)
+      if (extra) return [extra, ...active].sort((a, b) => a.sort_order - b.sort_order)
+    }
+    return active.sort((a, b) => a.sort_order - b.sort_order)
+  }, [taskTypes, taskTypeId])
+
   const assigneeStaff = useMemo(() => staff.find(s => s.id === assignedTo) ?? null, [staff, assignedTo])
   const isVendorAssignee = assigneeStaff?.account_type === 'vendor'
 
@@ -73,7 +90,7 @@ export default function TaskModal({ task, staff, events, counts, currentStaffId,
     return () => { cancelled = true }
   }, [assignedTo, isVendorAssignee])
 
-  const canSave = description.trim().length > 0 && assignedTo.length > 0
+  const canSave = description.trim().length > 0 && assignedTo.length > 0 && taskTypeId.length > 0
 
   async function save() {
     if (!canSave || busy) return
@@ -87,6 +104,7 @@ export default function TaskModal({ task, staff, events, counts, currentStaffId,
         assigned_by: assignedBy,
         assigned_to: assignedTo,
         assigned_contact_id: isVendorAssignee ? (assignedContactId || null) : null,
+        task_type_id: taskTypeId,
         deadline: deadline || null,
         priority,
         remarks: remarks.trim() || null,
@@ -116,11 +134,11 @@ export default function TaskModal({ task, staff, events, counts, currentStaffId,
         className="tm-scroll"
         style={{
           background: 'var(--card)',
-          borderRadius: '16px',
-          padding: '32px',
-          width: '660px',
-          maxWidth: '94vw',
-          maxHeight: '88vh',
+          borderRadius: '18px',
+          padding: '38px',
+          width: '780px',
+          maxWidth: '92vw',
+          maxHeight: '90vh',
           overflowY: 'auto',
           boxShadow: 'var(--shadow-lg, var(--shadow-md))',
           border: '1px solid var(--border)',
@@ -128,33 +146,33 @@ export default function TaskModal({ task, staff, events, counts, currentStaffId,
         }}
         onClick={e => e.stopPropagation()}
       >
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '22px' }}>
-          <h2 style={{ fontSize: '20px', fontWeight: 800, color: 'var(--ink)', margin: 0 }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '26px' }}>
+          <h2 style={{ fontSize: '22px', fontWeight: 800, color: 'var(--ink)', margin: 0 }}>
             {task ? 'Edit Task' : 'New Task'}
           </h2>
           <button
             type="button"
             onClick={onClose}
-            style={{ background: 'none', border: 'none', color: 'var(--ink4)', fontSize: '18px', cursor: 'pointer', padding: '4px' }}
+            style={{ background: 'none', border: 'none', color: 'var(--ink4)', fontSize: '20px', cursor: 'pointer', padding: '4px' }}
           >
             ✕
           </button>
         </div>
 
         {error && (
-          <div style={{ background: 'var(--red-light)', color: 'var(--red)', border: '1px solid var(--red-border)', borderRadius: '8px', padding: '10px 14px', fontSize: '12px', marginBottom: '16px' }}>
+          <div style={{ background: 'var(--red-light)', color: 'var(--red)', border: '1px solid var(--red-border)', borderRadius: '8px', padding: '11px 16px', fontSize: '13px', marginBottom: '18px' }}>
             {error}
           </div>
         )}
 
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
           <Field label="Task description *">
             <Textarea
               autoFocus
               value={description}
               onChange={e => setDescription(e.target.value)}
-              rows={3}
-              style={{ fontSize: '14px', lineHeight: '1.5', padding: '10px 14px' }}
+              rows={4}
+              style={{ fontSize: '15px', lineHeight: '1.55', padding: '13px 16px' }}
               placeholder="What needs to be done? (e.g. DFS Speaker Announcement Templates, 4 promo designs...)"
             />
           </Field>
@@ -257,7 +275,7 @@ export default function TaskModal({ task, staff, events, counts, currentStaffId,
             </Field>
           )}
 
-          <div style={{ display: 'flex', gap: '14px' }}>
+          <div style={{ display: 'flex', gap: '16px', flexWrap: 'wrap' }}>
             <Field label="Deadline">
               <input
                 type="date"
@@ -270,9 +288,9 @@ export default function TaskModal({ task, staff, events, counts, currentStaffId,
                 }}
                 style={{
                   width: '100%',
-                  height: '40px',
-                  padding: '0 12px',
-                  fontSize: '13px',
+                  height: '42px',
+                  padding: '0 14px',
+                  fontSize: '13.5px',
                   fontWeight: 500,
                   background: 'var(--surface)',
                   border: '1px solid var(--border)',
@@ -287,9 +305,21 @@ export default function TaskModal({ task, staff, events, counts, currentStaffId,
               <Select
                 value={priority}
                 onChange={e => setPriority(e.target.value as TaskPriority)}
-                style={{ height: '40px' }}
+                style={{ height: '42px', fontSize: '13.5px' }}
               >
                 {PRIORITIES.map(p => <option key={p} value={p}>{p}</option>)}
+              </Select>
+            </Field>
+            <Field label="Task type *">
+              <Select
+                value={taskTypeId}
+                onChange={e => setTaskTypeId(e.target.value)}
+                style={{ height: '42px', fontSize: '13.5px' }}
+              >
+                <option value="" disabled>Select a task type…</option>
+                {taskTypeOptions.map(t => (
+                  <option key={t.id} value={t.id}>{t.label}</option>
+                ))}
               </Select>
             </Field>
           </div>
@@ -299,7 +329,7 @@ export default function TaskModal({ task, staff, events, counts, currentStaffId,
               value={remarks ?? ''}
               onChange={e => setRemarks(e.target.value)}
               rows={2}
-              style={{ fontSize: '13px', padding: '10px 14px' }}
+              style={{ fontSize: '14px', padding: '11px 16px' }}
               placeholder="Add any extra notes, assets links, or instructions..."
             />
           </Field>
