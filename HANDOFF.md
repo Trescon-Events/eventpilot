@@ -15,13 +15,39 @@ Railway's auto-deploy silently stopped working from **2026-07-17 to 2026-07-21**
 
 | Field | Value |
 |---|---|
-| Who | Madhu + Claude Code — 01 Sep 2026, Khalifa PR workflow session |
-| Date | 2026-09-01 |
-| Latest push | 2026-09-01 — commit `b7a11e4`. Khalifa's Antigravity was sending him to github.com to open PRs by hand; replaced with an explicit **"Go Live" protocol** (agent commits, pushes, and runs `gh pr create` itself) plus **view-only access** for Khalifa on `/admin/dev-approvals` so he can check his own PR status without waiting on email. Decision-making (Approve/Send Back) unchanged — still Madhu/Durga only, server-enforced. See "01 Sep 2026" dated section below. |
-| DB migrations applied | No schema changes. One out-of-band data cleanup: deleted the stale `github_pr_reviews` row for PR #11 (superseded, checks were failing) via a one-off script — Khalifa is opening a fresh consolidated PR instead. |
-| Handed off to | Durga — and Khalifa, who has a copy-paste Antigravity setup prompt from Madhu to adopt the new "Go Live" behavior (see dated section below for the exact prompt). |
-| Deployed | Live — pushed to `main` (`b7a11e4`), Railway auto-deploy confirmed, live site returns HTTP 200. |
-| Left alone / known follow-up | The whole "Go Live" path (agent-run `gh pr create`, Khalifa's view-only dashboard access) is new and hasn't been exercised end-to-end yet — watch for Khalifa's next real PR to confirm it works as designed. DFS/DFFW Client Approval pickup (below, from 29 Aug) is still untouched this session — still pending whoever picks that up. |
+| Who | Madhu + Claude Code — 02 Sep 2026, Vendor Accounts + Task Manager enhancements session |
+| Date | 2026-09-02 |
+| Latest push | 2026-09-02 — commit `7a72cdb`. External agencies (Cactus, Pixelate) can now get restricted, deny-by-default EventPilot logins for Task Manager only, instead of the normal broad staff access — see "02 Sep 2026" dated section below for the full build (vendor accounts, an app-wide auth-gap hardening pass that rode along, mandatory Task Types, desktop assignment notifications). |
+| DB migrations applied | Yes, 3 new files, all applied live via `supabase db query --linked -f ...` (not the dashboard, for a change — CLI was already linked to project `yuyxfxoevztugtfgduks`): `supabase/vendor_accounts.sql`, `supabase/task_manager_task_types.sql`, `supabase/task_manager_notifications.sql`. All additive (new columns/tables only), all verified post-apply. |
+| Handed off to | Durga — and Khalifa via `TASK_MANAGER_HANDOFF.md`, updated this session with the vendor-accounts isolation boundary and everything else that landed inside his territory. |
+| Deployed | Live — pushed to `main` (`7a72cdb`), Railway auto-deploy confirmed, live site returns HTTP 200. |
+| Left alone / known follow-up | `app/components/RealtimeNotifications.tsx` (unrelated, pre-existing, app-wide) was found silently non-functional — RLS on `notifications`/`messages` has zero policies, confirmed by live probe to block all Realtime delivery. Not a data leak, just dead. Nobody's fixed it yet. Pixelate's contact roster (`/admin/task-manager/console/vendor-contacts`) has one entry (Nishant, under Cactus) — needs populating with Pixelate's actual people as they're identified. Khalifa's "Go Live" protocol (01 Sep, below) still hasn't been exercised end-to-end — unchanged this session. DFS/DFFW Client Approval pickup (29 Aug, below) also still untouched. |
+
+## 02 Sep 2026 — Vendor Accounts (external agency access) + Task Manager: Task Types, desktop notifications
+
+### The ask
+
+Madhu needed two external agencies working as retainer resources — Cactus (one dedicated person, full-time for a fixed 2-month term) and Pixelate (multiple people sharing one Microsoft 365 login, `pixelate@tresconglobal.com`, for SharePoint/Teams access without extra license cost) — to be assignable inside Task Manager exactly like internal branding staff, but restricted to *only* Task Manager, not EventPilot's normal broad staff access. Grew over the session into: an admin panel to manage such accounts generically (not hardcoded, so future agencies need zero code changes), a way to tag *which specific person* at a shared-login agency should pick up a task, a mandatory task classification field, and desktop popup+sound alerts on assignment.
+
+### What was built
+
+- **Vendor accounts** — new `staff_members.account_type` (`'internal' | 'vendor'`), bypasses HRMS sync entirely (inserted directly via `/admin/vendor-accounts`, `data_source: 'manual'`). **Deny-by-default access**: `checkAccess()` (`app/lib/registry/access.ts`) now short-circuits for vendor sessions — instead of the normal additive model (every module grants extra visibility on top of a broad base), a vendor session only sees modules with an explicit `module_access` row. Internal-staff behavior is completely unchanged. Platform admin surface: `/admin/vendor-accounts` (Madhu/Durga only) — create/disable vendor logins, check which modules they can see, reusing the existing `module_access` table and `AccessTab` grant pattern (Knowledge Base/DocuHub already used this).
+- **Vendor contact roster** — separate from account login: named people at a shared-login agency (e.g. Pixelate's designers) as pure labels (`vendor_contacts` table, no login of their own), so a task can be tagged "for Ravi @ Pixelate" without needing Pixelate to buy more Microsoft seats. Lives inside Task Manager's own admin console (`/admin/task-manager/console/vendor-contacts`) — deliberately Khalifa's territory, not Madhu/Durga's, since it's pure task-manager data.
+- **Auth-gap hardening (not originally in scope, surfaced by building the above)** — while wiring the vendor deny-by-default gate, found ~50 API routes across other modules (bespoke, commercial/P&L, knowledge base, brand-studio, market-intel, site-builder) that only checked "is there a valid session," relying entirely on the page-level layout as the real gate — meaning a vendor session (or anyone) hitting the API directly would have bypassed the UI restriction. Retrofitted via a shared `app/lib/registry/api-access.ts` helper that re-runs each route's own registered module check server-side. Live-verified (not just typecheck): an unprivileged session gets clean 403s on the hardened routes, admin sessions unaffected.
+- **Task Types** — required, admin-manageable classification on every task (`task_manager_task_types` table, sort-ordered, `/admin/task-manager/console/task-types` for add/rename/deactivate/reorder), seeded with Web Design, Web Dev, Brochure/Package, Proposal, Floorplan, General Graphic Design, Social Video, Regular Video Editing, 3D. Searchable dropdown in `TaskModal` and `QuickAssignCard`, required server-side on task creation.
+- **Desktop assignment notifications** — native browser `Notification` popup + a short generated chime + click-through straight to the task, when someone is newly assigned a task. Polling-based (`app/admin/task-manager/NotificationManager.tsx`, ~20-25s), deliberately not Supabase Realtime — this app has no Supabase-Auth-backed RLS to scope a Realtime subscription safely per staff member, and a naive implementation would risk leaking other people's task payloads to anyone holding the anon key. A new `assigned_to_changed_at` column + trigger tracks *actual reassignment* only, so editing remarks/priority on an existing task never false-triggers a notification. Confirmed scope with Madhu: only needs to fire while some EventPilot Task Manager tab is open (can be backgrounded) — not full push notifications reaching a fully-closed browser, which would need a service worker + VAPID + subscription storage.
+- Bigger, more legible "New Task" modal (780px, was 660px) — the original ask that kicked off this whole session.
+- Vendor accounts now appear in Task Manager's *default* assignee list — they have no `department`/`role` set, so the old branding-only filter was silently hiding them, forcing "Show all staff" every time.
+
+### Verified
+
+`typecheck`, `build`, and this repo's diff-scoped `lint:changed` all clean throughout. Beyond static checks: live-tested the new admin pages and the notification permission/chime/click-through flow in local dev against the real (shared, there's no separate dev DB) Supabase project before any push; live-probed `app/components/RealtimeNotifications.tsx`'s actual Realtime delivery behavior with a real insert+subscribe rather than just reading RLS policy tables; verified the `assigned_to_changed_at` trigger doesn't fire on a no-op field edit against a real row. All three SQL migrations applied and their resulting schema verified with follow-up `SELECT`s before code depending on them shipped.
+
+### What's next
+
+- Populate Pixelate's contact roster as real people are identified for the account.
+- `app/components/RealtimeNotifications.tsx` needs an actual owner decision: fix the missing RLS policies (needs a custom-JWT bridge into Supabase Realtime auth, since this app has no `auth.uid()`) or accept it's dead and remove it later. Not urgent, not a leak, just not working.
+- Same open Khalifa "Go Live" end-to-end verification and DFS/DFFW Client Approval items as 01 Sep below — untouched this session.
 
 ## 01 Sep 2026 — Khalifa "Go Live" PR protocol + view-only PR Approvals access
 
